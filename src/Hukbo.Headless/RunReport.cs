@@ -30,4 +30,7 @@ public sealed record RunReport(
     string StateHash,
     bool Deterministic,
     long? FirstMismatchTick,
-    CollisionMetrics CollisionMetrics);
+    CollisionMetrics CollisionMetrics,
+    // Defaulted so the existing construction compiles untouched while the
+    // accumulation is still a stub. Populated once the clash resolves.
+    CombatMetrics CombatMetrics = default);

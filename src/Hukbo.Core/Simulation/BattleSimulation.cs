@@ -78,6 +78,17 @@ public sealed class BattleSimulation
     internal CollisionTickMetrics LastTickCollision => _lastTickCollision;
 
     /// <summary>
+    /// Derived attack-resolution counters for the tick just completed.
+    /// Observability only: never hashed, never snapshotted, never persisted.
+    /// </summary>
+    /// <remarks>
+    /// A stub reporting an empty tick until the clash resolves inside the
+    /// gather loop. It exists now so that the tests written against it compile
+    /// before the accumulation is wired in.
+    /// </remarks>
+    internal CombatMetrics LastTickCombat => default;
+
+    /// <summary>
     /// Longest run of consecutive blocked ticks any single agent has reached.
     /// </summary>
     internal int LongestBlockedStreakTicks => _collision.LongestBlockedStreakTicks;
