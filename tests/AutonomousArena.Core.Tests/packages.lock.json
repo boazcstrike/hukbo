@@ -89,6 +89,12 @@
       },
       "autonomousarena.core": {
         "type": "Project"
+      },
+      "autonomousarena.headless": {
+        "type": "Project",
+        "dependencies": {
+          "AutonomousArena.Core": "[1.0.0, )"
+        }
       }
     }
   }

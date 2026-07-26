@@ -13,6 +13,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/AutonomousArena.Core/AutonomousArena.Core.csproj" />
+    <ProjectReference Include="../../src/AutonomousArena.Headless/AutonomousArena.Headless.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
