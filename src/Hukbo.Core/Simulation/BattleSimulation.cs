@@ -573,7 +573,7 @@ public sealed class BattleSimulation
 
         if (direction.DistanceRaw > 0 &&
             TryComputeGiveWayAimPoint(agent, rallyAgent, direction) is
-                { XRaw: var giveWayXRaw, YRaw: var giveWayYRaw })
+            { XRaw: var giveWayXRaw, YRaw: var giveWayYRaw })
         {
             return BuildMovementProposal(
                 agent,
