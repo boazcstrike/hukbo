@@ -87,8 +87,7 @@ public sealed class ArenaGame : Game
             HandleMenuAction(
                 _menu.Update(
                     _input,
-                    GraphicsDevice.Viewport.Bounds,
-                    _isPlaying));
+                    GraphicsDevice.Viewport.Bounds));
         }
         else
         {
@@ -127,8 +126,7 @@ public sealed class ArenaGame : Game
             _spriteBatch,
             _pixel,
             _font,
-            viewport.Bounds,
-            _isPlaying);
+            viewport.Bounds);
 
         _spriteBatch.End();
 

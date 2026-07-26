@@ -45,7 +45,7 @@ internal sealed class MenuOverlay
         ResetVisualState();
     }
 
-    public MenuAction Update(InputEdges input, Rectangle screenBounds, bool isPlaying)
+    public MenuAction Update(InputEdges input, Rectangle screenBounds)
     {
         if (!IsVisible)
         {
@@ -53,7 +53,6 @@ internal sealed class MenuOverlay
         }
 
         Layout(screenBounds);
-        UpdateAvailability(isPlaying);
 
         if (input.WasPressed(Keys.Down) ||
             input.WasPressed(Keys.S) ||
@@ -85,6 +84,12 @@ internal sealed class MenuOverlay
         if (hoveredButtonIndex >= 0)
         {
             _focusedButtonIndex = hoveredButtonIndex;
+            for (var index = 0; index < _buttons.Length; index++)
+            {
+                _buttons[index].IsFocused =
+                    _buttons[index].IsEnabled &&
+                    index == _focusedButtonIndex;
+            }
         }
 
         if (input.WasLeftMousePressed() && hoveredButtonIndex >= 0)
@@ -107,8 +112,7 @@ internal sealed class MenuOverlay
         SpriteBatch spriteBatch,
         Texture2D pixel,
         SpriteFont font,
-        Rectangle screenBounds,
-        bool isPlaying)
+        Rectangle screenBounds)
     {
         if (!IsVisible)
         {
@@ -116,7 +120,6 @@ internal sealed class MenuOverlay
         }
 
         Layout(screenBounds);
-        UpdateAvailability(isPlaying);
 
         spriteBatch.Draw(pixel, screenBounds, BackdropColor);
 
@@ -178,17 +181,6 @@ internal sealed class MenuOverlay
                 buttonTop + (index * (ButtonHeight + ButtonGap)),
                 ButtonWidth,
                 ButtonHeight);
-        }
-    }
-
-    private void UpdateAvailability(bool isPlaying)
-    {
-        _buttons[0].IsEnabled = !isPlaying;
-        _buttons[1].IsEnabled = isPlaying;
-
-        if (!_buttons[_focusedButtonIndex].IsEnabled)
-        {
-            MoveFocus(1);
         }
     }
 
