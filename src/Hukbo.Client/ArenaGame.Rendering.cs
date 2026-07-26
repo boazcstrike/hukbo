@@ -19,7 +19,8 @@ public sealed partial class ArenaGame
         "Click: select/inspect  |  Event arrows: navigate  |  " +
         "Wheel: zoom/log scroll  |  " +
         "Space: play/pause  |  1/2/4: speed  |  " +
-        "R: next round  |  Shift+R: full reset  |  Esc: menu";
+        "R: next round  |  Shift+R: full reset  |  " +
+        "F9: sound log  |  Esc: menu";
 
     protected override void Draw(GameTime gameTime)
     {
@@ -101,6 +102,7 @@ public sealed partial class ArenaGame
             font,
             screenBounds,
             _presentation.Playback.IsPlaying,
+            _isSoundLogVisible,
             theme);
         _inspectorPanel.Draw(
             spriteBatch,
@@ -116,6 +118,17 @@ public sealed partial class ArenaGame
             _presentation.EventFeed,
             layout.EventBounds,
             theme);
+        if (_isSoundLogVisible)
+        {
+            _soundLogPanel.Draw(
+                spriteBatch,
+                pixel,
+                font,
+                _soundDirector,
+                layout.SoundLogBounds,
+                theme);
+        }
+
         _summaryPanel.Draw(
             spriteBatch,
             pixel,
@@ -123,7 +136,23 @@ public sealed partial class ArenaGame
             _presentation.Summary,
             layout.ArenaBounds,
             theme);
-        _menu.Draw(spriteBatch, pixel, font, screenBounds, theme);
+        _menu.Draw(
+            spriteBatch,
+            pixel,
+            font,
+            screenBounds,
+            theme,
+            _goreManager.Value);
+        if (_isArmyCompositionPanelVisible)
+        {
+            _armyCompositionPanel.Draw(
+                spriteBatch,
+                pixel,
+                font,
+                screenBounds,
+                theme);
+        }
+
         spriteBatch.End();
     }
 
@@ -134,7 +163,22 @@ public sealed partial class ArenaGame
         UiTheme theme)
     {
         DrawMapSurface(spriteBatch, pixel, arenaBounds, theme);
+        BloodRenderer.DrawGroundMarks(
+            _presentation.Blood.ActiveGroundMarks,
+            _camera,
+            arenaBounds,
+            _camera.Zoom,
+            spriteBatch,
+            pixel);
         DrawPawns(spriteBatch, pixel, arenaBounds);
+        BloodRenderer.DrawBursts(
+            _presentation.Blood.ActiveBursts,
+            _presentation.Blood.ActiveSpurts,
+            _camera,
+            arenaBounds,
+            _camera.Zoom,
+            spriteBatch,
+            pixel);
 
         HitEffectRenderer.Draw(
             _presentation.HitEffects.ActiveEffects,
@@ -163,7 +207,19 @@ public sealed partial class ArenaGame
             return;
         }
 
-        spriteBatch.Draw(pixel, visibleMapBounds, theme.Colors.ArenaSurface);
+        var backdropFrame = new PlainsBackdropFrame(
+            mapBounds,
+            arenaBounds,
+            _scenario.MapWidth,
+            _scenario.MapHeight,
+            _scenario.Seed);
+        PlainsBackdropRenderer.Draw(
+            spriteBatch,
+            pixel,
+            backdropFrame,
+            _plainsDecals,
+            _camera,
+            theme);
         DrawBorder(
             spriteBatch,
             pixel,
@@ -292,11 +348,15 @@ public sealed partial class ArenaGame
         }
 
         var state = _presentation.Playback.IsPlaying ? "PLAYING" : "PAUSED";
+        var stagedSuffix = _isCompositionStaged
+            ? $"  |  {CompositionStagedNotice}"
+            : string.Empty;
         return
             $"{state}  |  Tick {_simulation.Tick:N0}  |  {_speedMultiplier}x  |  " +
             $"Team A (Blue) {_matchSeries.TeamAWins}W/{factionZeroAlive} alive  |  " +
             $"Team B (Red) {_matchSeries.TeamBWins}W/{factionOneAlive} alive  |  " +
-            $"{_simulation.Outcome}";
+            $"{_simulation.Outcome}" +
+            stagedSuffix;
     }
 
     private static Rectangle RectangleFromPoints(

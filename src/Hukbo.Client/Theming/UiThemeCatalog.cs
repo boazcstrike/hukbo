@@ -365,10 +365,12 @@ internal sealed partial class UiThemeCatalog
 
         if (shared.Menu is null ||
             shared.Selector is null ||
+            shared.ArmyComposition is null ||
             shared.TextScales is null)
         {
             errors.Add(
-                "Shared standards require menu, selector, and text scales.");
+                "Shared standards require menu, selector, army composition " +
+                "layout, and text scales.");
             return;
         }
 
@@ -396,6 +398,20 @@ internal sealed partial class UiThemeCatalog
             shared.Selector.SwatchGap < 0)
         {
             errors.Add("Shared selector layout is outside metric standards.");
+        }
+
+        var armyComposition = shared.ArmyComposition;
+        if (armyComposition.PanelWidth <= 0 ||
+            armyComposition.PanelHeight <= 0 ||
+            armyComposition.RowHeight <= 0 ||
+            armyComposition.RowGap < 0 ||
+            armyComposition.StepperWidth <= 0 ||
+            !IsWithin(armyComposition.ArrowWidth, ranges.TargetSize) ||
+            armyComposition.ArrowWidth > armyComposition.StepperWidth)
+        {
+            errors.Add(
+                "Shared army composition layout is outside metric " +
+                "standards.");
         }
 
         foreach (var scale in new[]
@@ -542,6 +558,13 @@ internal sealed partial class UiThemeCatalog
                     standards.Shared.Selector.SwatchWidth,
                     standards.Shared.Selector.SwatchHeight,
                     standards.Shared.Selector.SwatchGap),
+                new UiArmyCompositionLayout(
+                    standards.Shared.ArmyComposition!.PanelWidth,
+                    standards.Shared.ArmyComposition.PanelHeight,
+                    standards.Shared.ArmyComposition.RowHeight,
+                    standards.Shared.ArmyComposition.RowGap,
+                    standards.Shared.ArmyComposition.StepperWidth,
+                    standards.Shared.ArmyComposition.ArrowWidth),
                 new UiTextScales(
                     standards.Shared.TextScales!.MenuTitle,
                     standards.Shared.TextScales.MenuSubtitle,

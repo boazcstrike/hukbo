@@ -9,4 +9,6 @@ internal enum ClientCommand
     NextRound,
     FullReset,
     Exit,
+    ToggleSoundLog,
+    OpenArmyComposition,
 }

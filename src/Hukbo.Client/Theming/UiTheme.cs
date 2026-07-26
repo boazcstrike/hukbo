@@ -66,6 +66,7 @@ internal sealed record UiSharedStandards(
     string FontAssetId,
     UiMenuLayout Menu,
     UiThemeSelectorLayout Selector,
+    UiArmyCompositionLayout ArmyComposition,
     UiTextScales TextScales);
 
 internal sealed record UiMenuLayout(
@@ -91,6 +92,14 @@ internal sealed record UiThemeSelectorLayout(
     int SwatchWidth,
     int SwatchHeight,
     int SwatchGap);
+
+internal sealed record UiArmyCompositionLayout(
+    int PanelWidth,
+    int PanelHeight,
+    int RowHeight,
+    int RowGap,
+    int StepperWidth,
+    int ArrowWidth);
 
 internal sealed record UiTextScales(
     float MenuTitle,

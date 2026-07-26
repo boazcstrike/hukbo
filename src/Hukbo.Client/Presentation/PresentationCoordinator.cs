@@ -6,10 +6,12 @@ internal sealed class PresentationCoordinator
 {
     public PresentationCoordinator(
         int eventCapacity,
-        int hitEffectCapacity = 256)
+        int hitEffectCapacity = 256,
+        int bloodBurstCapacity = 256)
     {
         EventFeed = new BattleEventFeed(eventCapacity);
         HitEffects = new HitEffectSystem(hitEffectCapacity);
+        Blood = new BloodEffectSystem(bloodBurstCapacity);
     }
 
     public PlaybackController Playback { get; } = new();
@@ -20,6 +22,12 @@ internal sealed class PresentationCoordinator
 
     public HitEffectSystem HitEffects { get; }
 
+    /// <summary>
+    /// Keyed on <c>Attack</c> rather than <c>Damage</c>, so it sits alongside
+    /// <see cref="HitEffects"/> instead of replacing it.
+    /// </summary>
+    public BloodEffectSystem Blood { get; }
+
     public MatchSummary? Summary { get; private set; }
 
     public void IngestTick(
@@ -28,10 +36,14 @@ internal sealed class PresentationCoordinator
     {
         EventFeed.Ingest(events);
         HitEffects.Ingest(events, agents);
+        Blood.Ingest(events, agents);
     }
 
-    public void AdvanceEffects(float elapsedSeconds) =>
+    public void AdvanceEffects(float elapsedSeconds)
+    {
         HitEffects.Advance(elapsedSeconds);
+        Blood.Advance(elapsedSeconds);
+    }
 
     public MatchSummary ProcessTerminal(
         BattleOutcome outcome,
@@ -72,6 +84,7 @@ internal sealed class PresentationCoordinator
         Selection.Clear();
         EventFeed.Clear();
         HitEffects.Clear();
+        Blood.Clear();
         Summary = null;
     }
 }

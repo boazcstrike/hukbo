@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Simulation;
@@ -324,6 +325,90 @@ public sealed class ScenarioTests
                 Assert.InRange(agent.XRaw, 0, maximumRawCoordinate);
                 Assert.InRange(agent.YRaw, 0, maximumRawCoordinate);
             });
+    }
+
+    [Fact]
+    public void DefaultRosterCountsAreEmptyAndSkipValidation()
+    {
+        var scenario = Scenario.CreateDefault();
+
+        Assert.True(scenario.RosterCounts.IsDefaultOrEmpty);
+        scenario.Validate();
+    }
+
+    [Fact]
+    public void ValidateRejectsRosterCountsLengthMismatch()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 200) with
+        {
+            RosterCounts = ImmutableArray.Create(25, 25, 50),
+        };
+
+        Assert.Throws<ArgumentException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateRejectsRosterCountsElementOutOfRange()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 200) with
+        {
+            RosterCounts = ImmutableArray.Create(-1, 26, 25, 50),
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateRejectsRosterCountsSumThatIsNotAgentsPerFaction()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 200) with
+        {
+            RosterCounts = ImmutableArray.Create(25, 25, 25, 24),
+        };
+
+        Assert.Throws<ArgumentException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateAcceptsAnExplicitlyEmptyRosterCountArray()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 200) with
+        {
+            RosterCounts = ImmutableArray<int>.Empty,
+        };
+
+        scenario.Validate();
+    }
+
+    [Fact]
+    public void EqualityComparesRosterCountsElementwiseRatherThanByReference()
+    {
+        var first = Scenario.CreateDefault(totalAgents: 200) with
+        {
+            RosterCounts = ImmutableArray.Create(25, 25, 25, 25),
+        };
+        var second = Scenario.CreateDefault(totalAgents: 200) with
+        {
+            RosterCounts = ImmutableArray.Create(25, 25, 25, 25),
+        };
+
+        Assert.Equal(first, second);
+        Assert.True(first.Equals(second));
+    }
+
+    [Fact]
+    public void EqualScenariosProduceEqualHashCodes()
+    {
+        var first = Scenario.CreateDefault(totalAgents: 200) with
+        {
+            RosterCounts = ImmutableArray.Create(10, 20, 30, 40),
+        };
+        var second = Scenario.CreateDefault(totalAgents: 200) with
+        {
+            RosterCounts = ImmutableArray.Create(10, 20, 30, 40),
+        };
+
+        Assert.Equal(first.GetHashCode(), second.GetHashCode());
     }
 
     private static Scenario CreateSingleBodyMapScenario(

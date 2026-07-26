@@ -37,7 +37,7 @@ public sealed class PresentationCoordinatorTests
             pointerYRaw: 0,
             maximumDistanceSquared: 0);
         coordinator.EventFeed.Ingest([CreateEvent(1)]);
-        coordinator.IngestTick([DamageEvent(2, 1)], agents);
+        coordinator.IngestTick([DamageEvent(2, 1), AttackEvent(3, 1, 1)], agents);
         coordinator.ProcessTerminal(
             BattleOutcome.Faction0Victory,
             agents,
@@ -52,6 +52,9 @@ public sealed class PresentationCoordinatorTests
         Assert.Empty(coordinator.EventFeed.Entries);
         Assert.True(coordinator.EventFeed.IsPinnedToBottom);
         Assert.Empty(coordinator.HitEffects.ActiveEffects.ToArray());
+        Assert.Empty(coordinator.Blood.ActiveBursts.ToArray());
+        Assert.Empty(coordinator.Blood.ActiveGroundMarks.ToArray());
+        Assert.Empty(coordinator.Blood.ActiveSpurts.ToArray());
         Assert.Null(coordinator.Summary);
     }
 
@@ -68,6 +71,38 @@ public sealed class PresentationCoordinatorTests
 
         Assert.Equal(2, coordinator.EventFeed.Entries.Count);
         Assert.Equal(2, coordinator.HitEffects.ActiveEffects.Length);
+    }
+
+    [Fact]
+    public void IngestTick_ForwardsEveryBatchToBlood()
+    {
+        var coordinator = new PresentationCoordinator(
+            eventCapacity: 5,
+            hitEffectCapacity: 5,
+            bloodBurstCapacity: 5);
+        AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
+
+        coordinator.IngestTick([AttackEvent(1, 2, 1)], agents);
+        coordinator.IngestTick([AttackEvent(2, 2, 1)], agents);
+
+        Assert.Equal(2, coordinator.Blood.ActiveBursts.Length);
+        Assert.Equal(2, coordinator.Blood.ActiveGroundMarks.Length);
+    }
+
+    [Fact]
+    public void AdvanceEffects_AdvancesBloodAlongsideHitEffects()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
+        coordinator.IngestTick(
+            [DamageEvent(1, 1), AttackEvent(2, 2, 1)],
+            agents);
+
+        coordinator.AdvanceEffects(0.5f);
+
+        Assert.Empty(coordinator.HitEffects.ActiveEffects.ToArray());
+        Assert.Empty(coordinator.Blood.ActiveBursts.ToArray());
+        Assert.Single(coordinator.Blood.ActiveGroundMarks.ToArray());
     }
 
     [Fact]
@@ -133,6 +168,20 @@ public sealed class PresentationCoordinatorTests
             targetEntityId: null,
             value: 0,
             factionId: 0);
+
+    private static BattleEvent AttackEvent(
+        long sequence,
+        ulong sourceEntityId,
+        ulong targetEntityId) =>
+        BattleEvent.Attack(
+            sequence,
+            tick: sequence,
+            sourceEntityId,
+            targetEntityId,
+            damage: 10,
+            factionId: 0,
+            WeaponId.GreatBlade,
+            BodyPart.Chest);
 
     private static BattleEvent DamageEvent(
         long sequence,

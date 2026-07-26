@@ -61,7 +61,7 @@
       "fontAssetId": "Default",
       "menu": {
         "panelWidth": 360,
-        "panelHeight": 590,
+        "panelHeight": 660,
         "buttonWidth": 280,
         "buttonHeight": 44,
         "buttonGap": 8,
@@ -82,6 +82,14 @@
         "swatchWidth": 22,
         "swatchHeight": 7,
         "swatchGap": 5
+      },
+      "armyComposition": {
+        "panelWidth": 420,
+        "panelHeight": 560,
+        "rowHeight": 44,
+        "rowGap": 8,
+        "stepperWidth": 260,
+        "arrowWidth": 44
       },
       "textScales": {
         "menuTitle": 1.0,

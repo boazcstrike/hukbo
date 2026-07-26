@@ -64,7 +64,15 @@ retreat, or victory.
 ./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1
 ./scripts/package.ps1 -Runtime win-x64
 ./scripts/doctor.ps1
+./scripts/sfx.ps1 -List                        # sound slots and which ones have a file
+./scripts/sfx.ps1 -Slot death                  # generate that slot with ElevenLabs
 ```
+
+`sfx.ps1` is an authoring tool, not part of any pipeline. It is the only script
+that talks to a network service, and it runs only when a person asks for a
+sound. It reads `ELEVENLABS_API_KEY` from the environment or from the untracked
+`.env` file; that key never belongs in a tracked file, in output, or in a commit
+message. The game, the build, the tests, and the gate remain fully offline.
 
 The canonical gate runs: prerequisites and locked restore, format verification,
 Release build, Core + GPU-independent Client tests, then a 200-agent /
@@ -180,6 +188,7 @@ Project-local skills in `.claude/skills/` — prefer these over generic advice:
 | `hukbo-verify-and-record` | The five gate stages, headless exit codes, which `RunReport` fields are evidence, and the smoke-checklist honesty protocol |
 | `hukbo-client-ui` | The pure-helper testability pattern, the 27 semantic theme roles, pointer priority |
 | `hukbo-determinism-change` | The two independent hashes, the pinned SplitMix64 vectors, the recorded seed-1 baseline |
+| `hukbo-sound-effects` | Generating a sound slot with ElevenLabs through `scripts/sfx.ps1`, the API-key rule, the PCM WAV requirement, prompt guidance |
 
 Plugins that earn their keep here (see `.claude/settings.json`):
 

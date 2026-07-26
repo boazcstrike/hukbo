@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Simulation;
@@ -520,6 +521,101 @@ public sealed class BattleSimulationTests
         Assert.Equal(
             first.Agents.Select(agent => agent.Loadout),
             second.Agents.Select(agent => agent.Loadout));
+    }
+
+    [Fact]
+    public void CreateUsesRoundRobinLoadoutsWhenRosterCountsAreEmpty()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 8) with
+        {
+            RosterCounts = ImmutableArray<int>.Empty,
+        };
+        var simulation = BattleSimulation.Create(scenario);
+        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
+
+        Assert.All(
+            simulation.Agents,
+            agent => Assert.Equal(
+                rules.ResolveLoadout(agent.EntityId),
+                agent.Loadout));
+    }
+
+    [Fact]
+    public void CreateAssignsLoadoutsByFactionLocalIndexWhenRosterCountsAreProvided()
+    {
+        // AgentsPerFaction (6) is not a multiple of the four-entry roster,
+        // so the unmodified round-robin path would misalign against this
+        // faction-local expansion; a passing test here proves the new
+        // branch, not a coincidence of the numbers chosen.
+        var scenario = Scenario.CreateDefault(totalAgents: 12) with
+        {
+            RosterCounts = ImmutableArray.Create(2, 2, 1, 1),
+        };
+        var simulation = BattleSimulation.Create(scenario);
+        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
+        var expectedRosterIndices = new[] { 0, 0, 1, 1, 2, 3 };
+
+        var faction0 = simulation.Agents
+            .Where(agent => agent.FactionId == 0)
+            .OrderBy(agent => agent.EntityId)
+            .ToArray();
+
+        for (var localIndex = 0; localIndex < faction0.Length; localIndex++)
+        {
+            Assert.Equal(
+                rules.Roster[expectedRosterIndices[localIndex]],
+                faction0[localIndex].Loadout);
+        }
+    }
+
+    [Fact]
+    public void BothFactionsReceiveTheSameCategoryAtTheSameFactionLocalIndex()
+    {
+        // Same non-multiple AgentsPerFaction as above: the unmodified
+        // round-robin path continues faction 1's entity IDs from faction
+        // 0's, so it would give the two factions different armies here.
+        var scenario = Scenario.CreateDefault(totalAgents: 12) with
+        {
+            RosterCounts = ImmutableArray.Create(2, 2, 1, 1),
+        };
+        var simulation = BattleSimulation.Create(scenario);
+
+        var faction0 = simulation.Agents
+            .Where(agent => agent.FactionId == 0)
+            .OrderBy(agent => agent.EntityId)
+            .Select(agent => agent.Loadout)
+            .ToArray();
+        var faction1 = simulation.Agents
+            .Where(agent => agent.FactionId == 1)
+            .OrderBy(agent => agent.EntityId)
+            .Select(agent => agent.Loadout)
+            .ToArray();
+
+        Assert.Equal(faction0, faction1);
+    }
+
+    [Fact]
+    public void RosterCountsDoNotChangeTheRandomDrawSequenceForSpawnPositions()
+    {
+        var baseline = Scenario.CreateDefault(seed: 3, totalAgents: 8);
+        var withComposition = baseline with
+        {
+            RosterCounts = ImmutableArray.Create(1, 1, 1, 1),
+        };
+
+        var baselineSimulation = BattleSimulation.Create(baseline);
+        var compositionSimulation = BattleSimulation.Create(withComposition);
+
+        var baselinePositions = baselineSimulation.Agents
+            .OrderBy(agent => agent.EntityId)
+            .Select(agent => (agent.XRaw, agent.YRaw))
+            .ToArray();
+        var compositionPositions = compositionSimulation.Agents
+            .OrderBy(agent => agent.EntityId)
+            .Select(agent => (agent.XRaw, agent.YRaw))
+            .ToArray();
+
+        Assert.Equal(baselinePositions, compositionPositions);
     }
 
     [Fact]

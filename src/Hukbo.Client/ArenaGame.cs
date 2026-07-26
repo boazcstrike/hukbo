@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using Hukbo.Client.Audio;
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Rendering;
 using Hukbo.Client.Settings;
@@ -32,11 +34,14 @@ public sealed partial class ArenaGame : Game
         AgentInspectorContent.ComputeRequiredHeight(
             AgentInspectorContent.EvidenceReservedLineCount);
     private const int EventHistoryCapacity = 200;
+    private const int SoundLogMinimumHeight = 168;
+    private const int SoundLogHeightPercent = 45;
     private const int MaximumSafeRawCoordinate =
         Scenario.MaximumMapDimension * FixedPoint.Scale;
     private const ulong DefaultSeed = 1;
-    private const int DefaultAgentCount = 200;
     private const double MaximumAccumulatedSeconds = 0.5;
+    private const string CompositionStagedNotice =
+        "Army composition staged — takes effect on next Full Reset";
 
     private readonly GraphicsDeviceManager _graphics;
     private readonly InputEdges _input = new();
@@ -45,19 +50,32 @@ public sealed partial class ArenaGame : Game
     private readonly ControlBar _controlBar = new();
     private readonly AgentInspectorPanel _inspectorPanel = new();
     private readonly BattleEventLogPanel _eventLogPanel = new();
+    private readonly SoundLogPanel _soundLogPanel = new();
+    private readonly SoundDirector _soundDirector = new(
+        EventHistoryCapacity,
+        new SilentSoundPlayer(SoundLibrary.GetDefaultDirectoryPath()));
     private readonly MatchSummaryPanel _summaryPanel = new();
     private readonly PresentationCoordinator _presentation =
         new(EventHistoryCapacity);
     private readonly AgentSelection _hoverSelection = new();
     private readonly MatchSeries _matchSeries = new(DefaultSeed);
+    private readonly ClientSettingsStore _settingsStore;
+    private readonly GoreIntensityManager _goreManager;
+    private readonly ArmyCompositionPanel _armyCompositionPanel;
 
     private Scenario _scenario;
     private BattleSimulation _simulation;
     private SpectatorCamera _camera;
+    private ImmutableArray<PlainsDecal> _plainsDecals;
     private SpriteBatch? _spriteBatch;
     private RasterizerState? _arenaRasterizerState;
     private Texture2D? _pixel;
     private SpriteFont? _font;
+    private MonoGameSoundPlayer? _soundPlayer;
+    private Settings.ArmyComposition _activeComposition;
+    private bool _isSoundLogVisible;
+    private bool _isArmyCompositionPanelVisible;
+    private bool _isCompositionStaged;
     private bool _exitRequested;
     private int _speedMultiplier = 1;
     private double _simulationAccumulator;
@@ -70,10 +88,21 @@ public sealed partial class ArenaGame : Game
             "Themes",
             "ui-theme-standards.json");
         var catalog = UiThemeCatalog.LoadOrFallback(catalogPath);
-        _themeManager = new UiThemeManager(
-            catalog,
-            ClientSettingsStore.CreateDefault());
+        _settingsStore = ClientSettingsStore.CreateDefault();
+        _themeManager = new UiThemeManager(catalog, _settingsStore);
+        _goreManager = new GoreIntensityManager(
+            _settingsStore.Load(catalog.DefaultThemeId).GoreIntensity,
+            value => TryPersistGoreIntensity(catalog.DefaultThemeId, value));
+
+        // A restored preference takes effect from tick zero, so the spectator
+        // never has to reopen the menu after a relaunch.
+        _presentation.Blood.Intensity = _goreManager.Value;
         _menu = new MenuOverlay(catalog.Themes, catalog.Standards);
+        _activeComposition =
+            _settingsStore.Load(catalog.DefaultThemeId).Composition;
+        _armyCompositionPanel = new ArmyCompositionPanel(
+            ToPanelComposition(_activeComposition),
+            catalog.Standards.Shared.ArmyComposition);
 
         _graphics = new GraphicsDeviceManager(this)
         {
@@ -88,11 +117,30 @@ public sealed partial class ArenaGame : Game
         IsMouseVisible = true;
         IsFixedTimeStep = false;
 
-        _scenario = Scenario.CreateDefault(
-            _matchSeries.CurrentSeed,
-            DefaultAgentCount);
+        _scenario = BuildScenario(_matchSeries.CurrentSeed, _activeComposition);
         _simulation = BattleSimulation.Create(_scenario);
         _camera = new SpectatorCamera(_scenario.MapWidth, _scenario.MapHeight);
+        _plainsDecals = PlainsBackdropGeometry.GenerateDecals(
+            _scenario.Seed,
+            _scenario.MapWidth,
+            _scenario.MapHeight);
+    }
+
+    /// <summary>
+    /// Re-reads the whole settings file at save time, mirroring
+    /// <c>UiThemeManager</c>'s persist path, so writing a gore level carries
+    /// forward the army composition a panel may have staged since startup. The
+    /// theme comes from the in-memory manager, which is authoritative.
+    /// </summary>
+    private bool TryPersistGoreIntensity(
+        string defaultThemeId,
+        GoreIntensity value)
+    {
+        var current = _settingsStore.Load(defaultThemeId);
+        return _settingsStore.TrySave(
+            _themeManager.ActiveTheme.Id,
+            current.Composition,
+            value);
     }
 
     protected override void LoadContent()
@@ -107,12 +155,16 @@ public sealed partial class ArenaGame : Game
         _pixel.SetData([Color.White]);
         _font = Content.Load<SpriteFont>(
             _themeManager.Standards.Shared.FontAssetId);
+        _soundPlayer = MonoGameSoundPlayer.Load(
+            SoundLibrary.GetDefaultDirectoryPath());
+        _soundDirector.AttachPlayer(_soundPlayer);
 
         _camera.Fit(GetLayout(GraphicsDevice.Viewport.Bounds).ArenaBounds);
     }
 
     protected override void UnloadContent()
     {
+        _soundPlayer?.Dispose();
         _pixel?.Dispose();
         _arenaRasterizerState?.Dispose();
         _spriteBatch?.Dispose();
@@ -122,6 +174,7 @@ public sealed partial class ArenaGame : Game
     protected override void Update(GameTime gameTime)
     {
         _input.Update();
+        _soundDirector.BeginFrame();
         _presentation.AdvanceEffects(
             (float)gameTime.ElapsedGameTime.TotalSeconds);
         var screenBounds = GraphicsDevice.Viewport.Bounds;
@@ -137,20 +190,44 @@ public sealed partial class ArenaGame : Game
 
         if (_input.WasPressed(Keys.Escape) && !eventEscapeConsumed)
         {
-            ToggleMenu();
+            if (_isArmyCompositionPanelVisible)
+            {
+                _armyCompositionPanel.PerformAction(
+                    ArmyCompositionPanelAction.Cancel);
+                _isArmyCompositionPanelVisible = false;
+            }
+            else
+            {
+                ToggleMenu();
+            }
         }
 
         var pointerConsumed = false;
-        if (_menu.IsVisible)
+        if (_menu.IsVisible && _isArmyCompositionPanelVisible)
+        {
+            var panelInteraction = _armyCompositionPanel.Update(
+                _input,
+                screenBounds);
+            pointerConsumed = panelInteraction.PointerConsumed;
+            ApplyArmyCompositionResult(panelInteraction.Result);
+        }
+        else if (_menu.IsVisible)
         {
             var menuInteraction = _menu.Update(
                 _input,
                 screenBounds,
-                _themeManager.ActiveTheme.Id);
+                _themeManager.ActiveTheme.Id,
+                _goreManager.Value);
             pointerConsumed = menuInteraction.PointerConsumed;
             if (menuInteraction.SelectedThemeId is { } selectedThemeId)
             {
                 _themeManager.TrySelect(selectedThemeId);
+            }
+
+            if (menuInteraction.SelectedGoreIntensity is { } selectedGore)
+            {
+                _goreManager.TrySelect(selectedGore);
+                _presentation.Blood.Intensity = _goreManager.Value;
             }
 
             ApplyClientCommand(menuInteraction.Command);
@@ -168,7 +245,8 @@ public sealed partial class ArenaGame : Game
                 interaction = _controlBar.Update(
                     _input,
                     screenBounds,
-                    _presentation.Playback.IsPlaying);
+                    _presentation.Playback.IsPlaying,
+                    _isSoundLogVisible);
                 pointerConsumed = interaction.PointerConsumed;
             }
 
@@ -178,6 +256,15 @@ public sealed partial class ArenaGame : Game
                     _input,
                     _presentation.EventFeed,
                     layout.EventBounds);
+                pointerConsumed = interaction.PointerConsumed;
+            }
+
+            if (!pointerConsumed && _isSoundLogVisible)
+            {
+                interaction = _soundLogPanel.Update(
+                    _input,
+                    _soundDirector,
+                    layout.SoundLogBounds);
                 pointerConsumed = interaction.PointerConsumed;
             }
 
@@ -249,6 +336,11 @@ public sealed partial class ArenaGame : Game
                 : ClientCommand.Play;
         }
 
+        if (_input.WasPressed(Keys.F9))
+        {
+            return ClientCommand.ToggleSoundLog;
+        }
+
         return ClientCommand.None;
     }
 
@@ -295,9 +387,19 @@ public sealed partial class ArenaGame : Game
 
     private void ApplyClientCommand(ClientCommand command)
     {
+        if (command != ClientCommand.None)
+        {
+            // Every accepted command is a click the spectator made, whether it
+            // came from a button or a shortcut key.
+            _soundDirector.RequestCue(GameSoundId.UiClick, _simulation.Tick);
+        }
+
         switch (command)
         {
             case ClientCommand.None:
+                return;
+            case ClientCommand.ToggleSoundLog:
+                _isSoundLogVisible = !_isSoundLogVisible;
                 return;
             case ClientCommand.Play:
                 if (_simulation.Outcome == BattleOutcome.Ongoing)
@@ -317,6 +419,9 @@ public sealed partial class ArenaGame : Game
                 _simulationAccumulator = 0;
                 _menu.Open();
                 return;
+            case ClientCommand.OpenArmyComposition:
+                OpenArmyCompositionPanel();
+                return;
             case ClientCommand.NextRound:
             case ClientCommand.FullReset:
                 ResetSimulation(command);
@@ -331,6 +436,64 @@ public sealed partial class ArenaGame : Game
                     null);
         }
     }
+
+    private void OpenArmyCompositionPanel()
+    {
+        var saved = _settingsStore.Load(_themeManager.ActiveTheme.Id).Composition;
+        _armyCompositionPanel.Open(ToPanelComposition(saved));
+        _isArmyCompositionPanelVisible = true;
+    }
+
+    private void ApplyArmyCompositionResult(ArmyCompositionPanelResult result)
+    {
+        switch (result)
+        {
+            case ArmyCompositionPanelResult.Cancelled:
+                _isArmyCompositionPanelVisible = false;
+                return;
+            case ArmyCompositionPanelResult.Applied:
+                _settingsStore.TrySave(
+                    _themeManager.ActiveTheme.Id,
+                    ToSettingsComposition(_armyCompositionPanel.Saved),
+                    _settingsStore
+                        .Load(_themeManager.ActiveTheme.Id)
+                        .GoreIntensity);
+                _isCompositionStaged = true;
+                _isArmyCompositionPanelVisible = false;
+                return;
+            default:
+                return;
+        }
+    }
+
+    private static ImmutableArray<int> ToRosterCounts(
+        Settings.ArmyComposition composition) =>
+        ImmutableArray.Create(
+            composition.GreatBladeCount,
+            composition.HeavyChopperCount,
+            composition.ThrustingBladeCount,
+            composition.WorkBladeCount);
+
+    private static UI.ArmyComposition ToPanelComposition(
+        Settings.ArmyComposition composition) =>
+        new(ToRosterCounts(composition), composition.UnitsPerTeam);
+
+    private static Settings.ArmyComposition ToSettingsComposition(
+        UI.ArmyComposition composition) =>
+        new(
+            composition.UnitsPerTeam,
+            composition.CategoryCounts[0],
+            composition.CategoryCounts[1],
+            composition.CategoryCounts[2],
+            composition.CategoryCounts[3]);
+
+    private static Scenario BuildScenario(
+        ulong seed,
+        Settings.ArmyComposition composition) =>
+        Scenario.CreateDefault(seed, composition.UnitsPerTeam * 2) with
+        {
+            RosterCounts = ToRosterCounts(composition),
+        };
 
     private void RequestExit()
     {
@@ -368,6 +531,7 @@ public sealed partial class ArenaGame : Game
             _presentation.IngestTick(
                 _simulation.LastEvents,
                 _simulation.Agents);
+            _soundDirector.Ingest(_simulation.LastEvents);
             _simulationAccumulator -= secondsPerTick;
         }
 
@@ -393,6 +557,9 @@ public sealed partial class ArenaGame : Game
         if (resetCommand == ClientCommand.FullReset)
         {
             _matchSeries.FullReset();
+            _activeComposition =
+                _settingsStore.Load(_themeManager.ActiveTheme.Id).Composition;
+            _isCompositionStaged = false;
         }
         else if (resetCommand == ClientCommand.NextRound)
         {
@@ -406,11 +573,14 @@ public sealed partial class ArenaGame : Game
                 "Only round reset commands can reset the simulation.");
         }
 
-        _scenario = Scenario.CreateDefault(
-            _matchSeries.CurrentSeed,
-            DefaultAgentCount);
+        _scenario = BuildScenario(_matchSeries.CurrentSeed, _activeComposition);
         _simulation = BattleSimulation.Create(_scenario);
+        _plainsDecals = PlainsBackdropGeometry.GenerateDecals(
+            _scenario.Seed,
+            _scenario.MapWidth,
+            _scenario.MapHeight);
         _presentation.ResetFor(resetCommand);
+        _soundDirector.Clear();
         _hoverSelection.Clear();
         _simulationAccumulator = 0;
         _menu.Close();
@@ -467,7 +637,17 @@ public sealed partial class ArenaGame : Game
             _simulation.Outcome;
     }
 
-    private static ClientLayout GetLayout(Rectangle screenBounds)
+    private ClientLayout GetLayout(Rectangle screenBounds) =>
+        ComputeLayout(screenBounds, _isSoundLogVisible);
+
+    /// <summary>
+    /// Screen partitioning. The right column's split between the battle event
+    /// log and the sound log is delegated to <see cref="RightColumnSplit"/>,
+    /// which the client tests exercise directly.
+    /// </summary>
+    private static ClientLayout ComputeLayout(
+        Rectangle screenBounds,
+        bool isSoundLogVisible)
     {
         var contentTop = Math.Min(
             screenBounds.Bottom,
@@ -478,13 +658,20 @@ public sealed partial class ArenaGame : Game
         var eventWidth = Math.Min(
             EventPanelWidth,
             Math.Max(0, screenBounds.Width / 3));
-        var eventBounds = new Rectangle(
-            Math.Max(
-                screenBounds.Left,
-                screenBounds.Right - eventWidth - LayoutMargin),
-            contentTop,
-            eventWidth,
-            contentHeight);
+        var column = RightColumnSplit.Split(
+            new Rectangle(
+                Math.Max(
+                    screenBounds.Left,
+                    screenBounds.Right - eventWidth - LayoutMargin),
+                contentTop,
+                eventWidth,
+                contentHeight),
+            isSoundLogVisible,
+            SoundLogMinimumHeight,
+            SoundLogHeightPercent,
+            LayoutGap);
+        var eventBounds = column.EventBounds;
+        var soundLogBounds = column.SoundLogBounds;
         var arenaRight = Math.Max(
             screenBounds.Left + LayoutMargin,
             eventBounds.Left - LayoutGap);
@@ -512,6 +699,7 @@ public sealed partial class ArenaGame : Game
         return new ClientLayout(
             arenaBounds,
             eventBounds,
+            soundLogBounds,
             inspectorBounds);
     }
 
@@ -529,5 +717,6 @@ public sealed partial class ArenaGame : Game
     private readonly record struct ClientLayout(
         Rectangle ArenaBounds,
         Rectangle EventBounds,
+        Rectangle SoundLogBounds,
         Rectangle InspectorBounds);
 }
