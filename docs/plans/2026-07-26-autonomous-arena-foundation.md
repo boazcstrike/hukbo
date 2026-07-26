@@ -83,7 +83,7 @@ Studio runner, and Microsoft.NET.Test.Sdk.
 **Step 5: Verify the dependency graph**
 
 Run: `dotnet sln AutonomousArena.slnx list`, followed by
-`dotnet reference list --project <project.csproj>` for each project.  
+`dotnet reference list --project <project.csproj>` for each project.
 Expected: all four projects are solution members; Core has no project
 references; all other projects point only to Core.
 
