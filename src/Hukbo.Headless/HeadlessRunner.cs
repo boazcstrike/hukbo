@@ -193,6 +193,15 @@ public static class HeadlessRunner
             Math.Min(options.TickCount, 100_000));
         var eventHash = Fnv1a.OffsetBasis;
         long? firstMismatchTick = null;
+
+        // The collision stage does not exist yet, so nothing calls AddTick or
+        // ObserveBlockedStreak. The accumulator is wired here so that stage only
+        // has to feed it; until then the run reports an all-zero aggregate,
+        // which is also the correct reading for a build without collisions.
+        var collisionMetrics = new CollisionMetricsAccumulator();
+        collisionMetrics.Reset();
+
+
         var allocationStart = GC.GetAllocatedBytesForCurrentThread();
 
         for (var requestedTick = 0;
@@ -254,7 +263,8 @@ public static class HeadlessRunner
             eventHash.ToString("X16", CultureInfo.InvariantCulture),
             left.ComputeStateHash().ToString("X16", CultureInfo.InvariantCulture),
             firstMismatchTick is null,
-            firstMismatchTick);
+            firstMismatchTick,
+            collisionMetrics.ToMetrics());
     }
 
     private static bool IsSupportedArgument(string argument) =>

@@ -187,4 +187,148 @@ public sealed class HeadlessRunnerTests
         Assert.True(
             firstReport.RootElement.GetProperty("deterministic").GetBoolean());
     }
+
+    [Fact]
+    public void Run_ReportsEveryCollisionMetricAggregatedOverTheRun()
+    {
+        var output = new StringWriter();
+        var errorOutput = new StringWriter();
+
+        var exitCode = HeadlessRunner.Run(
+            ["--agents", "20", "--ticks", "200", "--seed", "1234"],
+            output,
+            errorOutput);
+
+        Assert.Equal(0, exitCode);
+        using var report = JsonDocument.Parse(output.ToString());
+        var metrics = report.RootElement.GetProperty("collisionMetrics");
+
+        Assert.True(metrics.TryGetProperty("candidatePairs", out _));
+        Assert.True(metrics.TryGetProperty("contactPairs", out _));
+        Assert.True(metrics.TryGetProperty("acceptedMoves", out _));
+        Assert.True(metrics.TryGetProperty("blockedAgentTicks", out _));
+        Assert.True(metrics.TryGetProperty("attackCapableAgentTicks", out _));
+        Assert.True(metrics.TryGetProperty("longestBlockedStreakTicks", out _));
+        Assert.True(metrics.TryGetProperty("maximumFrontWidthRaw", out _));
+        Assert.True(metrics.TryGetProperty("maximumFrontDepthRaw", out _));
+        Assert.True(metrics.TryGetProperty("maximumPenetrationRaw", out _));
+    }
+
+    [Fact]
+    public void Run_ReportsCollisionMetricsAsWholeCountsAndRawFixedPointUnits()
+    {
+        var output = new StringWriter();
+        var errorOutput = new StringWriter();
+
+        var exitCode = HeadlessRunner.Run(
+            ["--agents", "20", "--ticks", "200", "--seed", "1234"],
+            output,
+            errorOutput);
+
+        Assert.Equal(0, exitCode);
+        using var report = JsonDocument.Parse(output.ToString());
+        var metrics = report.RootElement.GetProperty("collisionMetrics");
+
+        Assert.True(metrics.GetProperty("candidatePairs").TryGetInt64(out var candidatePairs));
+        Assert.True(candidatePairs >= 0);
+        Assert.True(metrics.GetProperty("contactPairs").TryGetInt64(out var contactPairs));
+        Assert.True(contactPairs >= 0);
+        Assert.True(metrics.GetProperty("acceptedMoves").TryGetInt64(out var acceptedMoves));
+        Assert.True(acceptedMoves >= 0);
+        Assert.True(
+            metrics.GetProperty("blockedAgentTicks").TryGetInt64(out var blockedAgentTicks));
+        Assert.True(blockedAgentTicks >= 0);
+        Assert.True(
+            metrics.GetProperty("attackCapableAgentTicks")
+                .TryGetInt64(out var attackCapableAgentTicks));
+        Assert.True(attackCapableAgentTicks >= 0);
+        Assert.True(
+            metrics.GetProperty("longestBlockedStreakTicks").TryGetInt32(out var longestStreak));
+        Assert.True(longestStreak >= 0);
+        Assert.True(metrics.GetProperty("maximumFrontWidthRaw").TryGetInt32(out var frontWidthRaw));
+        Assert.True(frontWidthRaw >= 0);
+        Assert.True(metrics.GetProperty("maximumFrontDepthRaw").TryGetInt32(out var frontDepthRaw));
+        Assert.True(frontDepthRaw >= 0);
+
+        // The approved policy is Solid, so any nonzero penetration is a
+        // contract violation rather than a tuning signal.
+        Assert.Equal(0, metrics.GetProperty("maximumPenetrationRaw").GetInt32());
+    }
+
+    [Fact]
+    public void Run_CollisionMetricsSurviveAJsonRoundTrip()
+    {
+        var output = new StringWriter();
+        var errorOutput = new StringWriter();
+
+        var exitCode = HeadlessRunner.Run(
+            ["--agents", "20", "--ticks", "200", "--seed", "1234"],
+            output,
+            errorOutput);
+
+        Assert.Equal(0, exitCode);
+        var deserialized = JsonSerializer.Deserialize<RunReport>(
+            output.ToString(),
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            });
+
+        Assert.NotNull(deserialized);
+        using var report = JsonDocument.Parse(output.ToString());
+        var metrics = report.RootElement.GetProperty("collisionMetrics");
+
+        Assert.Equal(
+            metrics.GetProperty("candidatePairs").GetInt64(),
+            deserialized.CollisionMetrics.CandidatePairs);
+        Assert.Equal(
+            metrics.GetProperty("contactPairs").GetInt64(),
+            deserialized.CollisionMetrics.ContactPairs);
+        Assert.Equal(
+            metrics.GetProperty("acceptedMoves").GetInt64(),
+            deserialized.CollisionMetrics.AcceptedMoves);
+        Assert.Equal(
+            metrics.GetProperty("blockedAgentTicks").GetInt64(),
+            deserialized.CollisionMetrics.BlockedAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("attackCapableAgentTicks").GetInt64(),
+            deserialized.CollisionMetrics.AttackCapableAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("longestBlockedStreakTicks").GetInt32(),
+            deserialized.CollisionMetrics.LongestBlockedStreakTicks);
+        Assert.Equal(
+            metrics.GetProperty("maximumFrontWidthRaw").GetInt32(),
+            deserialized.CollisionMetrics.MaximumFrontWidthRaw);
+        Assert.Equal(
+            metrics.GetProperty("maximumFrontDepthRaw").GetInt32(),
+            deserialized.CollisionMetrics.MaximumFrontDepthRaw);
+        Assert.Equal(
+            metrics.GetProperty("maximumPenetrationRaw").GetInt32(),
+            deserialized.CollisionMetrics.MaximumPenetrationRaw);
+    }
+
+    [Fact]
+    public void Run_SerializesByteIdenticalCollisionMetricsForTwoSameSeedRuns()
+    {
+        var firstOutput = new StringWriter();
+        var secondOutput = new StringWriter();
+        var errorOutput = new StringWriter();
+        string[] arguments =
+        [
+            "--agents", "20", "--ticks", "200", "--seed", "1234",
+        ];
+
+        var firstExitCode = HeadlessRunner.Run(arguments, firstOutput, errorOutput);
+        var secondExitCode = HeadlessRunner.Run(arguments, secondOutput, errorOutput);
+
+        Assert.Equal(0, firstExitCode);
+        Assert.Equal(0, secondExitCode);
+        using var firstReport = JsonDocument.Parse(firstOutput.ToString());
+        using var secondReport = JsonDocument.Parse(secondOutput.ToString());
+
+        Assert.Equal(
+            firstReport.RootElement.GetProperty("collisionMetrics").GetRawText(),
+            secondReport.RootElement.GetProperty("collisionMetrics").GetRawText(),
+            StringComparer.Ordinal);
+    }
 }
