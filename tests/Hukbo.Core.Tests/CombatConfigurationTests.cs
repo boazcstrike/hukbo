@@ -17,6 +17,30 @@ public sealed class CombatConfigurationTests
     }
 
     [Fact]
+    public void AttackResolution_PinsItsNumericValues()
+    {
+        // The resolution rides on every attack event and is folded into the
+        // headless event hash, so a renumbering or a reordering silently moves
+        // that hash for every seed. Pinning all five values and the declared
+        // order makes such a change fail here rather than in a golden.
+        Assert.Equal(0, (int)AttackResolution.Landed);
+        Assert.Equal(1, (int)AttackResolution.ShieldBlocked);
+        Assert.Equal(2, (int)AttackResolution.Parried);
+        Assert.Equal(3, (int)AttackResolution.Deflected);
+        Assert.Equal(4, (int)AttackResolution.Evaded);
+
+        Assert.Equal(
+            [
+                AttackResolution.Landed,
+                AttackResolution.ShieldBlocked,
+                AttackResolution.Parried,
+                AttackResolution.Deflected,
+                AttackResolution.Evaded,
+            ],
+            Enum.GetValues<AttackResolution>());
+    }
+
+    [Fact]
     public void PhilippinePreset_UsesApprovedGeneralWeights()
     {
         var rules = PhilippineCombatPreset.Rules;
