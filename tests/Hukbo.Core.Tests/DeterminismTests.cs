@@ -1,5 +1,6 @@
 using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
+using Hukbo.Core.Mathematics;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Core.Tests;
@@ -78,6 +79,57 @@ public sealed class DeterminismTests
         Assert.NotEqual(weaponChanged, armorChanged);
         Assert.NotEqual(weaponChanged, shieldChanged);
         Assert.NotEqual(armorChanged, shieldChanged);
+    }
+
+    [Fact]
+    public void StateHash_ChangesWhenTheScenarioBodyRadiusChanges()
+    {
+        var loadout = new CombatLoadout(
+            WeaponId.GreatBlade,
+            ArmorId.LightOrganic,
+            ShieldId.None);
+        // The step is lowered once up front so that halving the radius still
+        // satisfies the tunneling guard, leaving the radius as the only
+        // difference between the two hashed scenarios.
+        var scenario = Scenario.CreateDefault(seed: 5, totalAgents: 2) with
+        {
+            MovementSpeedRaw = FixedPoint.Scale,
+        };
+        var narrowerBodies = scenario with
+        {
+            BodyRadiusRaw = scenario.BodyRadiusRaw / 2,
+        };
+
+        var baseline = ComputeSingleAgentStateHash(scenario, loadout);
+        var changed = ComputeSingleAgentStateHash(narrowerBodies, loadout);
+
+        scenario.Validate();
+        narrowerBodies.Validate();
+        Assert.NotEqual(scenario.BodyRadiusRaw, narrowerBodies.BodyRadiusRaw);
+        Assert.NotEqual(baseline, changed);
+    }
+
+    [Fact]
+    public void StateHash_ChangesWhenTheScenarioCollisionPolicyChanges()
+    {
+        // The cast value is deliberately outside the approved contract: Solid is
+        // the only policy Validate accepts. StateHasher does not validate, so an
+        // unapproved value is the only way to prove the field reaches the hash.
+        var loadout = new CombatLoadout(
+            WeaponId.GreatBlade,
+            ArmorId.LightOrganic,
+            ShieldId.None);
+        var scenario = Scenario.CreateDefault(seed: 5, totalAgents: 2);
+        var unapprovedPolicy = scenario with
+        {
+            CollisionPolicy = (CollisionPolicy)1,
+        };
+
+        var baseline = ComputeSingleAgentStateHash(scenario, loadout);
+        var changed = ComputeSingleAgentStateHash(unapprovedPolicy, loadout);
+
+        Assert.Equal(CollisionPolicy.Solid, scenario.CollisionPolicy);
+        Assert.NotEqual(baseline, changed);
     }
 
     private static ulong ComputeSingleAgentStateHash(

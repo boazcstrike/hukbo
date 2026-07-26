@@ -35,6 +35,10 @@ public sealed record Scenario(
 
     public int AttackCooldownTicks { get; init; } = 5;
 
+    public int BodyRadiusRaw { get; init; } = CollisionRules.DefaultBodyRadiusRaw;
+
+    public CollisionPolicy CollisionPolicy { get; init; } = CollisionPolicy.Solid;
+
     public CombatPresetId CombatPreset { get; init; } =
         CombatPresetId.PrecolonialPhilippinesV1;
 
@@ -94,6 +98,7 @@ public sealed record Scenario(
         ValidateRawWorldValue(AttackRangeRaw, nameof(AttackRangeRaw));
         ValidateRawWorldValue(PerceptionRangeRaw, nameof(PerceptionRangeRaw));
         ValidateRawWorldValue(MovementSpeedRaw, nameof(MovementSpeedRaw));
+        ValidateRawWorldValue(BodyRadiusRaw, nameof(BodyRadiusRaw));
         ValidateInRange(
             AttackCooldownTicks,
             1,
@@ -122,11 +127,93 @@ public sealed record Scenario(
                 "Maximum accumulated same-tick damage must fit in a signed integer.");
         }
 
+        ValidateCollisionConfiguration();
+
         _ = checked(AgentsPerFaction * 2);
         var maximumRawDimension = checked(MaximumMapDimension * FixedPoint.Scale);
         _ = checked(
             ((long)maximumRawDimension * maximumRawDimension) +
             ((long)maximumRawDimension * maximumRawDimension));
+    }
+
+    private void ValidateCollisionConfiguration()
+    {
+        if (CollisionPolicy != CollisionPolicy.Solid)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(CollisionPolicy),
+                CollisionPolicy,
+                "Solid is the only approved collision policy.");
+        }
+
+        var bodyDiameterRaw = checked(2L * BodyRadiusRaw);
+
+        if (bodyDiameterRaw > AttackRangeRaw)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(BodyRadiusRaw),
+                BodyRadiusRaw,
+                "The body diameter must not exceed the attack range, because " +
+                "two bodies pressed into contact could then never reach each " +
+                "other.");
+        }
+
+        if (MovementSpeedRaw > BodyRadiusRaw)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(MovementSpeedRaw),
+                MovementSpeedRaw,
+                "The movement speed must not exceed the body radius, because a " +
+                "longer step could tunnel one body straight through another.");
+        }
+
+        var mapWidthRaw = checked((long)MapWidth * FixedPoint.Scale);
+        var mapHeightRaw = checked((long)MapHeight * FixedPoint.Scale);
+
+        if (bodyDiameterRaw > mapWidthRaw)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(MapWidth),
+                MapWidth,
+                "The map must be at least one body wide.");
+        }
+
+        if (bodyDiameterRaw > mapHeightRaw)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(MapHeight),
+                MapHeight,
+                "The map must be at least one body tall.");
+        }
+
+        ValidateBodyDensity(bodyDiameterRaw, mapWidthRaw, mapHeightRaw);
+    }
+
+    /// <summary>
+    /// Rejects a population that cannot be placed even under the conservative
+    /// square-packing bound
+    /// <c>TotalAgents * bodyArea &gt; mapWidthRaw * mapHeightRaw</c>. That
+    /// product overflows a signed 64-bit integer at the largest supported map,
+    /// so the comparison is rearranged into a division. For a positive
+    /// <c>bodyArea</c> the two forms accept exactly the same configurations,
+    /// including equality at the bound.
+    /// </summary>
+    private void ValidateBodyDensity(
+        long bodyDiameterRaw,
+        long mapWidthRaw,
+        long mapHeightRaw)
+    {
+        var bodyAreaRaw = checked(bodyDiameterRaw * bodyDiameterRaw);
+        var mapAreaRaw = checked(mapWidthRaw * mapHeightRaw);
+
+        if (TotalAgents > mapAreaRaw / bodyAreaRaw)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(AgentsPerFaction),
+                AgentsPerFaction,
+                "The population cannot be placed without overlapping bodies. " +
+                "Reduce the agent count or the body radius, or enlarge the map.");
+        }
     }
 
     private static void ValidateRawWorldValue(int value, string parameterName)

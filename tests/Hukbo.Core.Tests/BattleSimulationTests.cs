@@ -30,7 +30,6 @@ public sealed class BattleSimulationTests
         var scenario = CreateTestScenario() with
         {
             AttackRangeRaw = FixedPoint.Scale,
-            MovementSpeedRaw = 3 * FixedPoint.Scale,
         };
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
@@ -42,7 +41,7 @@ public sealed class BattleSimulationTests
         var mover = Assert.Single(
             simulation.Agents,
             agent => agent.EntityId == 1);
-        Assert.Equal(13 * FixedPoint.Scale, mover.XRaw);
+        Assert.Equal((10 * FixedPoint.Scale) + (FixedPoint.Scale / 2), mover.XRaw);
         Assert.Equal(10 * FixedPoint.Scale, mover.YRaw);
         Assert.Equal(AgentIntent.Moving, mover.Intent);
     }
@@ -256,7 +255,11 @@ public sealed class BattleSimulationTests
             DamagePerAttack = 10,
             AttackRangeRaw = 5 * FixedPoint.Scale,
             PerceptionRangeRaw = 200 * FixedPoint.Scale,
-            MovementSpeedRaw = FixedPoint.Scale,
+            // Bodies are half a world unit across so that the hand-placed agents
+            // below stay clear of one another, and the step is capped at the
+            // radius by the tunneling guard in Scenario.Validate.
+            BodyRadiusRaw = FixedPoint.Scale / 2,
+            MovementSpeedRaw = FixedPoint.Scale / 2,
             AttackCooldownTicks = 1,
         };
 
