@@ -170,6 +170,59 @@ public sealed class CombatConfigurationTests
     }
 
     [Fact]
+    public void Ruleset_CarriesTheNeutralClashProfileWhenGivenNone()
+    {
+        // The constructor parameter is optional so the named-argument
+        // constructions elsewhere in this file keep compiling untouched.
+        Assert.Same(ClashProfile.Neutral, PhilippineCombatPreset.Rules.ClashProfile);
+    }
+
+    [Fact]
+    public void WithClashProfile_PreservesEveryFieldExceptTheProfile()
+    {
+        var source = PhilippineCombatPreset.Rules;
+        var replacement = BuildDistinctClashProfile();
+
+        var copy = source.WithClashProfile(replacement);
+
+        Assert.Same(replacement, copy.ClashProfile);
+        Assert.Equal(source.Id, copy.Id);
+        Assert.Equal(source.Version, copy.Version);
+        Assert.Equal(source.Roster, copy.Roster);
+
+        foreach (var part in Enum.GetValues<BodyPart>())
+        {
+            Assert.Equal(
+                source.GeneralTargets.Get(part),
+                copy.GeneralTargets.Get(part));
+
+            foreach (var weapon in Enum.GetValues<WeaponId>())
+            {
+                Assert.Equal(
+                    source.ResolveWeaponWeight(weapon, part),
+                    copy.ResolveWeaponWeight(weapon, part));
+            }
+
+            foreach (var shield in Enum.GetValues<ShieldId>())
+            {
+                Assert.Equal(
+                    source.ResolveDefenseMultiplier(shield, part),
+                    copy.ResolveDefenseMultiplier(shield, part));
+            }
+        }
+
+        // The only clause that reaches the armor set, which has no accessor
+        // yet is folded into the content hash. A copy that dropped it would
+        // move the hash. It also covers the targeting tables, which reach
+        // simulation state through ResolveLoadout and HitLocationResolver, so
+        // a copy that disturbed them would change hit locations and therefore
+        // the ordered event stream, not merely a hash. Do not weaken it.
+        Assert.Equal(
+            source.ContentHash,
+            source.WithClashProfile(source.ClashProfile).ContentHash);
+    }
+
+    [Fact]
     public void CombatPresetRegistry_ResolvesThePhilippinePreset()
     {
         var rules = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
@@ -362,5 +415,35 @@ public sealed class CombatConfigurationTests
             [
                 new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.None),
             ]);
+    }
+
+    /// <summary>
+    /// A profile whose every value differs from
+    /// <see cref="ClashProfile.Neutral"/>, so a copy that quietly kept the
+    /// original profile is visible rather than indistinguishable.
+    /// </summary>
+    private static ClashProfile BuildDistinctClashProfile()
+    {
+        var weapons = Enum.GetValues<WeaponId>();
+        var matrix = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>();
+        foreach (var defender in weapons)
+        {
+            foreach (var attacker in weapons)
+            {
+                matrix[(defender, attacker)] = 100 + (int)attacker;
+            }
+        }
+
+        var rows = weapons.ToDictionary(weapon => weapon, weapon => 100 + (int)weapon);
+
+        return new ClashProfile(
+            weaponIntercept: matrix,
+            shieldIntercept: 1_111,
+            voidChannel: rows,
+            hardShareBases: rows,
+            hardShareMultipliers: rows,
+            minimumHardShareBasisPoints: 500,
+            maximumHardShareBasisPoints: 6_000,
+            maximumInterceptionBasisPoints: 5_500);
     }
 }

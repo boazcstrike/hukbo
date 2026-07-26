@@ -6,7 +6,8 @@ namespace Hukbo.Core.Combat;
 /// <summary>
 /// Immutable, versioned combat targeting configuration: general and
 /// per-weapon body-part target weights, per-shield defense multipliers,
-/// and the deterministic warrior loadout roster. Gameplay tuning values
+/// the deterministic warrior loadout roster, and the defensive-interception
+/// clash profile an accepted attack is resolved against. Gameplay tuning values
 /// here (for example shield multipliers) are provisional balance
 /// starting points, not historical measurements; see
 /// docs/research/HISTORICAL_1500s_WEAPONS.md for evidence context.
@@ -27,7 +28,8 @@ public sealed class CombatRuleset
         IReadOnlyDictionary<WeaponId, TargetWeightProfile> weaponTargets,
         IReadOnlyList<ArmorId> armors,
         IReadOnlyDictionary<ShieldId, TargetWeightProfile> shieldMultipliers,
-        IReadOnlyList<CombatLoadout> roster)
+        IReadOnlyList<CombatLoadout> roster,
+        ClashProfile? clashProfile = null)
     {
         ArgumentNullException.ThrowIfNull(generalTargets);
         ArgumentNullException.ThrowIfNull(weaponTargets);
@@ -66,6 +68,12 @@ public sealed class CombatRuleset
 
         Id = id;
         Version = version;
+
+        // Not a compile-time constant, so the parameter is nullable rather
+        // than carrying ClashProfile.Neutral as a C# default. Optional at all
+        // because existing named-argument constructions must keep compiling
+        // untouched.
+        ClashProfile = clashProfile ?? ClashProfile.Neutral;
         _generalTargets = generalTargets;
 
         // Defensive copies: a caller retaining the collection it passed in
@@ -99,7 +107,47 @@ public sealed class CombatRuleset
 
     public TargetWeightProfile GeneralTargets => _generalTargets;
 
+    /// <summary>
+    /// The defensive-interception tuning data this ruleset resolves an
+    /// accepted attack against. Every clash value is reached through this
+    /// profile's own accessors, so there is one place a value lives.
+    /// <see cref="ClashProfile.Neutral"/> when the constructor was given none.
+    /// </summary>
+    public ClashProfile ClashProfile { get; }
+
     public IReadOnlyList<CombatLoadout> Roster => _roster;
+
+    /// <summary>
+    /// Returns a copy of this ruleset carrying <paramref name="profile"/> and
+    /// every other field unchanged.
+    /// </summary>
+    /// <remarks>
+    /// This exists so that an injected ruleset is provably the preset except
+    /// for its clash profile. Reassembling the six constructor arguments by
+    /// hand would mean sixteen weapon-weight reads per weapon, twenty-six
+    /// defense-multiplier reads, and a guessed armor list, because the armor
+    /// set has no accessor yet is folded into the content hash. That guess
+    /// happens to be faithful today only because <see cref="ArmorId"/> has one
+    /// member.
+    /// </remarks>
+    /// <param name="profile">The clash profile the copy carries.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="profile"/> is null.
+    /// </exception>
+    public CombatRuleset WithClashProfile(ClashProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+
+        return new CombatRuleset(
+            Id,
+            Version,
+            _generalTargets,
+            _weaponTargets,
+            _armors,
+            _shieldMultipliers,
+            _roster,
+            profile);
+    }
 
     public int ResolveWeaponWeight(WeaponId weapon, BodyPart bodyPart)
     {
