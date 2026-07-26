@@ -1,6 +1,6 @@
 # Hukbo Foundation Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Archived: reference only.** This plan is complete and deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
 
 **Goal:** Build and verify a deterministic 200-agent headless combat simulation with a MonoGame DesktopGL spectator client on Windows x64.
 

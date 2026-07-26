@@ -8,6 +8,31 @@ scoring and reset controls, and clean exit controls.
 
 Repository: [boazcstrike/hukbo](https://github.com/boazcstrike/hukbo)
 
+## Direction
+
+Hukbo is being built toward a 4X strategy game about warfare in the
+pre-colonial and early-contact Philippines. The milestone described below is the
+tactical layer of that game: a deterministic battle that a future campaign layer
+will configure and score.
+
+| Layer | Status |
+| --- | --- |
+| Tactical battle: autonomous factions, spectator controls, deterministic replay | shipped as v0.1 |
+| Campaign: explore islands, expand polities, exploit trade, exterminate rivals | not started |
+
+The campaign layer is gated behind Gate 3 in
+[Simulation game standards](SIMULATION-GAME-STANDARDS.md): scenario, snapshot,
+replay verification, save and resume equivalence, and a reported 500-agent
+stress result. Until that gate passes, no campaign, economy, or diplomacy state
+enters `Hukbo.Core`. The campaign layer will be a separate project that produces
+`Scenario` values and consumes `BattleOutcome`.
+
+Historical material follows the confidence labels in
+[Historical weapons research](docs/research/HISTORICAL_1500s_WEAPONS.md).
+Player-facing labels stay plain descriptors, and specific cultural
+identifications are carried as provisional evidence notes rather than
+unqualified claims.
+
 ## Run the game
 
 Requirements: Windows x64, PowerShell 7, Git, and .NET SDK 10.0.302.
@@ -81,6 +106,17 @@ Verification is intentionally local-only. The repository does not use GitHub
 Actions or another hosted CI service. Run the canonical gate before integrating
 changes and record interactive game behavior with the manual checklist in
 `docs/development/testing.md`.
+
+## Standards and research
+
+- [Simulation game standards](SIMULATION-GAME-STANDARDS.md) — determinism
+  contract, tick order, benchmark workloads, reviewer checklist
+- [Research brief](RESEARCHED.md) — product direction evidence and the
+  language and runtime decision
+- [Historical weapons research](docs/research/HISTORICAL_1500s_WEAPONS.md) —
+  sixteenth-century sources with confidence labels
+- [Platform support matrix](docs/platform-support-matrix.md)
+- [Agent instructions](CLAUDE.md) — the contract coding agents work under
 
 ## Documentation
 

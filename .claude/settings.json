@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "extraKnownMarketplaces": {
+    "dotnet-agent-skills": {
+      "source": { "source": "github", "repo": "dotnet/skills" }
+    },
+    "caveman": {
+      "source": { "source": "github", "repo": "JuliusBrussee/caveman" }
+    },
+    "openai-codex": {
+      "source": { "source": "github", "repo": "openai/codex-plugin-cc" }
+    },
+    "ui-ux-pro-max-skill": {
+      "source": { "source": "github", "repo": "nextlevelbuilder/ui-ux-pro-max-skill" },
+      "autoUpdate": true
+    },
+    "last30days-skill": {
+      "source": { "source": "github", "repo": "mvanhorn/last30days-skill" }
+    }
+  },
+  "enabledPlugins": {
+    "dotnet@dotnet-agent-skills": true,
+    "dotnet-diag@dotnet-agent-skills": true,
+    "dotnet-msbuild@dotnet-agent-skills": true,
+    "dotnet-test@dotnet-agent-skills": true,
+    "context7@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "codex@openai-codex": true,
+    "caveman@caveman": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "last30days@last30days-skill": true,
+    "vercel@claude-plugins-official": false,
+    "sentry@claude-plugins-official": false,
+    "atlassian@claude-plugins-official": false,
+    "php-lsp@claude-plugins-official": false,
+    "frontend-design@claude-plugins-official": false
+  }
+}

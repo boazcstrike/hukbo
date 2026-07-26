@@ -1,6 +1,6 @@
 # Pawn Character Visuals Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **For Claude:** Work this plan task by task. Use the `hukbo-verify-and-record` skill to run the canonical gate and record evidence; use `hukbo-determinism-change` for any `Hukbo.Core` edit and `hukbo-client-ui` for any `Hukbo.Client` edit.
 
 **Goal:** Replace arena dots with original zoom-aware procedural pawns and matching inspector portraits for five deterministic cosmetic weapon roles.
 

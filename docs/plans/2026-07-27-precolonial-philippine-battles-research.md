@@ -168,7 +168,7 @@ grades, and history from game proposals; no Critical or High finding remains.
   `docs/plans/2026-07-27-precolonial-philippine-battles-research-design.md`
 - Read: `docs/research/HISTORICAL_1500s_WEAPONS.md`
 - Read:
-  `docs/plans/2026-07-26-philippine-combat-configuration-design.md`
+  `docs/archives/2026-07-26-philippine-combat-configuration-design.md`
 - Read: `src/Hukbo.Core/Combat/**`
 - Read: `src/Hukbo.Core/Simulation/BattleSimulation.cs`
 - Read: `src/Hukbo.Core/Simulation/Scenario.cs`

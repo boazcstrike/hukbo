@@ -1,6 +1,6 @@
 # Round Scoring, Reset, and Memory Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Archived: reference only.** This plan is complete and deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
 
 **Goal:** Add session-local Team A/Blue and Team B/Red win scoring, deterministic next-round and full-reset behavior, and lower per-tick allocation pressure without changing battle determinism.
 

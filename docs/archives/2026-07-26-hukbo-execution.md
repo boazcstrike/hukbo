@@ -1,6 +1,6 @@
 # Orchestrated Hukbo Execution Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Archived: reference only.** This plan is complete and deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
 
 **Goal:** Complete the deterministic arena scaffold, runnable MonoGame client, Play/Pause/Exit menu, delivery workflows, and role-specific documentation through three non-overlapping agent workstreams.
 

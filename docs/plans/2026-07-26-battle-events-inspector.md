@@ -1,12 +1,12 @@
 # Battle Events Inspector Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **For Claude:** Work this plan task by task. Use the `hukbo-verify-and-record` skill to run the canonical gate and record evidence; use `hukbo-determinism-change` for any `Hukbo.Core` edit and `hukbo-client-ui` for any `Hukbo.Client` edit.
 
 **Goal:** Replace Hukbo's wheel-only Battle Events feed with a filterable split inspector that supports stable selection, event details, keyboard and mouse navigation, and explicit live-follow recovery.
 
 **Architecture:** Keep simulation events immutable and presentation-only. Extend the bounded `BattleEventFeed` with deterministic filtered-view, selection, and live-follow state; keep drawing and hit testing in `BattleEventLogPanel`; route only the required input and bounds through `ArenaGame`. Reuse existing immediate-mode UI primitives and preserve the current pointer-consumption contract.
 
-**Tech Stack:** .NET 9, C#, MonoGame, xUnit, repository PowerShell build/test scripts
+**Tech Stack:** .NET 10, C# 14, MonoGame DesktopGL 3.8.5, xUnit 2.9.3, repository PowerShell build/test scripts
 
 ---
 

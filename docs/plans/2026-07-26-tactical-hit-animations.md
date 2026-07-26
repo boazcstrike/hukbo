@@ -1,6 +1,6 @@
 # Tactical Hit Animations Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **For Claude:** Work this plan task by task. Use the `hukbo-verify-and-record` skill to run the canonical gate and record evidence; use `hukbo-determinism-change` for any `Hukbo.Core` edit and `hukbo-client-ui` for any `Hukbo.Client` edit.
 
 **Goal:** Add short tactical hit pulses and deterministic procedural impact bursts to Hukbo without changing simulation behavior.
 

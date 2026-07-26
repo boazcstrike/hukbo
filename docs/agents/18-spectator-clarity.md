@@ -32,6 +32,41 @@ and Team B (Red) wins plus deterministic seed progression. Next Round and Full
 Reset each create a fresh simulation without altering Core event ordering,
 hashes, or battle outcomes.
 
+## Battle Events interactive inspector
+
+The right-side Battle Events panel is a split inspector: the upper region is a
+filterable, selectable event list and the lower region shows the selected
+event's complete retained data. It remains presentation-only and does not
+change simulation events or their ordering.
+
+- **Filters:** click the type control to cycle All Types, Move, Attack, Damage,
+  Death, and Outcome; click the team control to cycle All Teams, Blue, and Red;
+  select an event and click the actor control to filter to that event's source.
+  Clicking the active actor control clears that filter. Without a selection the
+  control shows `SELECT ROW` and is inert. Click Search, type letters, numbers,
+  or spaces, and use Backspace to edit. Reset clears all active filters.
+- **Selection and navigation:** click a row to select it. With list or search
+  focus, Up/Down moves through matching events and Home/End selects the
+  first/last match. The mouse wheel scrolls the list; clicking above or below
+  the scrollbar thumb pages by one visible list.
+- **Live and inspecting modes:** while pinned to the bottom, matching events
+  stay live-followed. Selecting an event or moving away from the bottom enters
+  inspecting mode, preserving selection and scroll position as new events
+  arrive. The Latest badge counts unseen matching events; clicking Latest
+  selects the newest match, clears the count, and resumes live-follow.
+- **Details:** the lower region displays kind, sequence, tick, value, source,
+  target, faction, and the formatted action for the selected event. A selection
+  is cleared safely if filtering or bounded-history eviction removes it.
+- **Focus and empty states:** Escape clears active filters, releases inspector
+  keyboard focus, and is consumed before the menu sees it. Clicking outside the
+  panel releases focus without clearing filters. The list distinguishes
+  "Waiting for battle events" from "No events match these filters" and provides
+  the corresponding next-action hint.
+
+Focused inspector tests passed **33/33**. The latest Client build passed with
+**0 warnings and 0 errors**. Direct manual visual and interaction smoke testing
+has not been completed.
+
 ## Work completed by component
 
 | Component | Intended result | Evidence status |

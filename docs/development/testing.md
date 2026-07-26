@@ -39,16 +39,16 @@ types. Performance output is evidence, not a universal frame-time guarantee.
 
 ## Latest non-interactive result
 
-The post-integration local run on 2026-07-26 recorded:
+The post-integration local run on 2026-07-27 recorded:
 
-- 41/41 Client presentation and round-lifecycle tests passed;
-- 45/45 Core tests passed;
+- 189/189 Client presentation and round-lifecycle tests passed;
+- 141/141 Core tests passed;
 - `./scripts/verify.ps1 -SkipBootstrap` passed formatting and the Release build
   with 0 warnings and 0 errors;
 - the seed-1 200-agent workload ended in `Faction1Victory` at tick 235 with
-  state hash `210C5EF8E7BE4D48` and event hash `CE35EDA4B2A4E5A4`;
-- the same workload allocated 12,108,304 bytes, below the captured
-  19,856,712-byte baseline, with both hashes unchanged;
+  state hash `6EBB1EA63114F6CE` and event hash `941377BD43C556FF`;
+- the same workload allocated 15,128,696 bytes, below the captured
+  19,856,712-byte baseline;
 - the seed-distribution guard for seeds 1 through 20 produced victories for
   both factions rather than a single always-winning faction;
 - the 500-agent stress workload remained deterministic and ended at tick 309;
@@ -59,6 +59,23 @@ The post-integration local run on 2026-07-26 recorded:
   after a normal window-close request;
 - the earlier spectator-clarity independent review reported no Critical, High,
   Medium, or Low findings.
+
+Both hashes moved from the previously recorded `210C5EF8E7BE4D48` and
+`CE35EDA4B2A4E5A4`. That movement is expected rather than a regression: the
+Philippine combat configuration put each agent's loadout into the state hash and
+each attack's weapon and hit location into the event hash. The values above are
+the new oracle. The outcome (`Faction1Victory` at tick 235) and the 500-agent
+stress result (tick 309) are unchanged across that transition, which is what
+tells us the change was additive rather than behavioural.
+
+Allocation for the same workload rose from 12,108,304 bytes, a 24.9% increase
+caused by the two nullable enum fields added to `BattleEvent`. That is past the
+ten-percent reporting threshold in `SIMULATION-GAME-STANDARDS.md` §8, so it is
+reported rather than absorbed: see
+[docs/plans/2026-07-27-battle-event-allocation-packing.md](../plans/2026-07-27-battle-event-allocation-packing.md)
+for the measurement and the conditions for paying it down. Run-to-run variation
+in this figure is roughly a few thousand bytes; treat a change of that size as
+noise and anything larger as worth investigating.
 
 These results prove the non-interactive gate only. They do not change any
 hands-on control, selection, event-log, scoring, or reset row below.
