@@ -24,6 +24,15 @@ public sealed class BattleSimulation
     private readonly AgentView[] _agentViews;
     private readonly ReadOnlyCollection<AgentView> _agents;
     private readonly CollisionScratch _collision;
+
+    // Per-faction last-stand state, recomputed by one forward scan at the top
+    // of every SelectTargetsAndIntents call. Allocated once here so the scan
+    // never allocates per tick. Index 0 is faction 0, index 1 is faction 1.
+    // A rally entity ID of 0 means the faction has no living agent this tick;
+    // 0 is never a valid EntityId (AgentState rejects it), so it is a safe
+    // sentinel.
+    private readonly int[] _factionLivingCounts;
+    private readonly ulong[] _factionRallyEntityIds;
     private ReadOnlyCollection<BattleEvent> _lastEvents;
     private long _eventSequence;
     private CollisionTickMetrics _lastTickCollision;
@@ -46,6 +55,8 @@ public sealed class BattleSimulation
         _agentViews = new AgentView[agents.Length];
         _agents = Array.AsReadOnly(_agentViews);
         _collision = new CollisionScratch(scenario, agents.Length);
+        _factionLivingCounts = new int[2];
+        _factionRallyEntityIds = new ulong[2];
 
         for (var index = 0; index < agents.Length; index++)
         {
@@ -374,6 +385,8 @@ public sealed class BattleSimulation
 
     private void SelectTargetsAndIntents()
     {
+        ComputeRallyAgents();
+
         foreach (var agent in _agentStates)
         {
             if (!agent.IsAlive)
@@ -427,6 +440,52 @@ public sealed class BattleSimulation
                 .ContactSquaredDistance(Scenario.BodyRadiusRaw)
                 ? AgentIntent.Attacking
                 : AgentIntent.Moving;
+
+            // Regrouping only overrides an intent that would otherwise be
+            // Moving: Attacking beats Regrouping (the same-tick conflict
+            // rule), and the rally agent itself is exempt and keeps its
+            // ordinary nearest-enemy intent.
+            if (Scenario.LastStandThresholdAgents > 0 &&
+                agent.Intent == AgentIntent.Moving &&
+                _factionLivingCounts[agent.FactionId] <=
+                    Scenario.LastStandThresholdAgents &&
+                agent.EntityId != _factionRallyEntityIds[agent.FactionId])
+            {
+                agent.Intent = AgentIntent.Regrouping;
+            }
+        }
+    }
+
+    /// <summary>
+    /// One forward scan over the agent array, computing the living count and
+    /// the lowest living <see cref="AgentState.EntityId"/> per faction. The
+    /// comparison is against <see cref="AgentState.EntityId"/> explicitly, so
+    /// the result does not depend on the incidental order of
+    /// <see cref="_agentStates"/>. Runs before any intent is assigned, so no
+    /// warrior's intent can depend on scan order either.
+    /// </summary>
+    private void ComputeRallyAgents()
+    {
+        _factionLivingCounts[0] = 0;
+        _factionLivingCounts[1] = 0;
+        _factionRallyEntityIds[0] = 0;
+        _factionRallyEntityIds[1] = 0;
+
+        foreach (var candidate in _agentStates)
+        {
+            if (!candidate.IsAlive)
+            {
+                continue;
+            }
+
+            var faction = candidate.FactionId;
+            _factionLivingCounts[faction]++;
+
+            if (_factionRallyEntityIds[faction] == 0 ||
+                candidate.EntityId < _factionRallyEntityIds[faction])
+            {
+                _factionRallyEntityIds[faction] = candidate.EntityId;
+            }
         }
     }
 
