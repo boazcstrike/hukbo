@@ -82,8 +82,10 @@ Studio runner, and Microsoft.NET.Test.Sdk.
 
 **Step 5: Verify the dependency graph**
 
-Run: `dotnet list AutonomousArena.slnx reference`  
-Expected: Core has no project references; all other projects point only to Core.
+Run: `dotnet sln AutonomousArena.slnx list`, followed by
+`dotnet reference list` for each project.  
+Expected: all four projects are solution members; Core has no project
+references; all other projects point only to Core.
 
 ### Task 3: Write deterministic primitive tests
 
