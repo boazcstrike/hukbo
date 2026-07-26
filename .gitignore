@@ -6,3 +6,15 @@ coverage/
 .env
 .env.local
 *.log
+
+# .NET
+[Bb]in/
+[Oo]bj/
+[Aa]rtifacts/
+[Tt]est[Rr]esults/
+*.user
+*.suo
+.vs/
+
+# MonoGame content output
+*.xnb
