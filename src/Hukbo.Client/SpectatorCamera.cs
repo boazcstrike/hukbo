@@ -39,26 +39,33 @@ internal sealed class SpectatorCamera
     public void Update(
         InputEdges input,
         float elapsedSeconds,
-        bool allowZoom = true)
+        bool allowZoom = true,
+        SpectatorPanInput panInput = SpectatorPanInput.All)
     {
+        var letters = panInput.HasFlag(SpectatorPanInput.Letters);
+        var arrows = panInput.HasFlag(SpectatorPanInput.Arrows);
         var direction = Vector2.Zero;
 
-        if (input.IsDown(Keys.A) || input.IsDown(Keys.Left))
+        if ((letters && input.IsDown(Keys.A)) ||
+            (arrows && input.IsDown(Keys.Left)))
         {
             direction.X -= 1f;
         }
 
-        if (input.IsDown(Keys.D) || input.IsDown(Keys.Right))
+        if ((letters && input.IsDown(Keys.D)) ||
+            (arrows && input.IsDown(Keys.Right)))
         {
             direction.X += 1f;
         }
 
-        if (input.IsDown(Keys.W) || input.IsDown(Keys.Up))
+        if ((letters && input.IsDown(Keys.W)) ||
+            (arrows && input.IsDown(Keys.Up)))
         {
             direction.Y -= 1f;
         }
 
-        if (input.IsDown(Keys.S) || input.IsDown(Keys.Down))
+        if ((letters && input.IsDown(Keys.S)) ||
+            (arrows && input.IsDown(Keys.Down)))
         {
             direction.Y += 1f;
         }

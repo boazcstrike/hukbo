@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Theming;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -13,10 +14,6 @@ internal sealed class MatchSummaryPanel
     private const int ButtonWidth = 198;
     private const int ButtonHeight = 44;
     private const int ButtonGap = 14;
-
-    private static readonly Color PanelColor = new(22, 31, 46, 250);
-    private static readonly Color BorderColor = new(103, 132, 166);
-    private static readonly Color MutedTextColor = new(162, 178, 196);
 
     private readonly UiButton[] _buttons =
     [
@@ -57,7 +54,8 @@ internal sealed class MatchSummaryPanel
         Texture2D pixel,
         SpriteFont font,
         MatchSummary? summary,
-        Rectangle arenaContentBounds)
+        Rectangle arenaContentBounds,
+        UiTheme theme)
     {
         if (summary is null)
         {
@@ -66,8 +64,13 @@ internal sealed class MatchSummaryPanel
         }
 
         Layout(arenaContentBounds);
-        spriteBatch.Draw(pixel, Bounds, PanelColor);
-        UiPrimitives.DrawBorder(spriteBatch, pixel, Bounds, BorderColor, 3);
+        spriteBatch.Draw(pixel, Bounds, theme.Colors.PanelSurface);
+        UiPrimitives.DrawBorder(
+            spriteBatch,
+            pixel,
+            Bounds,
+            theme.Colors.PanelBorder,
+            Math.Max(3, theme.Metrics.BorderThickness));
 
         UiPrimitives.DrawCenteredText(
             spriteBatch,
@@ -76,14 +79,14 @@ internal sealed class MatchSummaryPanel
                 ? "Draw"
                 : $"{summary.WinnerLabel} wins",
             new Vector2(Bounds.Center.X, Bounds.Top + 42),
-            Color.White,
+            theme.Colors.TextPrimary,
             1.05f);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             font,
             "MATCH COMPLETE",
             new Vector2(Bounds.Center.X, Bounds.Top + 72),
-            MutedTextColor,
+            theme.Colors.TextSecondary,
             0.72f);
 
         var detailsLeft = Bounds.Left + 45;
@@ -99,7 +102,7 @@ internal sealed class MatchSummaryPanel
 
         foreach (var button in _buttons)
         {
-            button.Draw(spriteBatch, pixel, font, 0.72f);
+            button.Draw(spriteBatch, pixel, font, theme, 0.72f);
         }
 
         void DrawDetail(string text, int row)
@@ -108,7 +111,7 @@ internal sealed class MatchSummaryPanel
                 font,
                 text,
                 new Vector2(detailsLeft, detailsTop + (row * 25)),
-                Color.White,
+                theme.Colors.TextPrimary,
                 0f,
                 Vector2.Zero,
                 0.76f,

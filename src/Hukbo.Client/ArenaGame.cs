@@ -1,5 +1,7 @@
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Rendering;
+using Hukbo.Client.Settings;
+using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Simulation;
@@ -9,16 +11,26 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Hukbo.Client;
 
-public sealed class ArenaGame : Game
+public sealed partial class ArenaGame : Game
 {
     private const int InitialWindowWidth = 1280;
     private const int InitialWindowHeight = 720;
     private const int StatusBarHeight = 68;
-    private const int EventPanelWidth = 350;
+    private const int EventPanelWidth = 420;
     private const int LayoutMargin = 12;
     private const int LayoutGap = 10;
     private const int InspectorWidth = 310;
-    private const int InspectorHeight = 230;
+
+    // Derived, not guessed: tall enough for the base detail rows plus
+    // AgentInspectorContent.EvidenceReservedLineCount wrapped evidence
+    // lines, per AgentInspectorContent.ComputeRequiredHeight — the exact
+    // row math AgentInspectorPanel.Draw uses. AgentInspectorPanel also
+    // refuses to draw any row that would still fall past its own bounds,
+    // so this cannot overflow even if a future evidence string needs
+    // more lines than reserved.
+    private static readonly int InspectorHeight =
+        AgentInspectorContent.ComputeRequiredHeight(
+            AgentInspectorContent.EvidenceReservedLineCount);
     private const int EventHistoryCapacity = 200;
     private const int MaximumSafeRawCoordinate =
         Scenario.MaximumMapDimension * FixedPoint.Scale;
@@ -26,17 +38,10 @@ public sealed class ArenaGame : Game
     private const int DefaultAgentCount = 200;
     private const double MaximumAccumulatedSeconds = 0.5;
 
-    private static readonly Color BackgroundColor = new(8, 13, 22);
-    private static readonly Color MapColor = new(19, 29, 43);
-    private static readonly Color MapBorderColor = new(58, 76, 98);
-    private static readonly Color FactionOneColor = new(64, 164, 255);
-    private static readonly Color FactionTwoColor = new(255, 91, 105);
-    private static readonly Color OtherFactionColor = new(231, 199, 84);
-    private static readonly Color StatusBarColor = new(12, 19, 30);
-
     private readonly GraphicsDeviceManager _graphics;
     private readonly InputEdges _input = new();
-    private readonly MenuOverlay _menu = new();
+    private readonly MenuOverlay _menu;
+    private readonly UiThemeManager _themeManager;
     private readonly ControlBar _controlBar = new();
     private readonly AgentInspectorPanel _inspectorPanel = new();
     private readonly BattleEventLogPanel _eventLogPanel = new();
@@ -59,6 +64,17 @@ public sealed class ArenaGame : Game
 
     public ArenaGame()
     {
+        var catalogPath = Path.Combine(
+            AppContext.BaseDirectory,
+            "Content",
+            "Themes",
+            "ui-theme-standards.json");
+        var catalog = UiThemeCatalog.LoadOrFallback(catalogPath);
+        _themeManager = new UiThemeManager(
+            catalog,
+            ClientSettingsStore.CreateDefault());
+        _menu = new MenuOverlay(catalog.Themes, catalog.Standards);
+
         _graphics = new GraphicsDeviceManager(this)
         {
             PreferredBackBufferWidth = InitialWindowWidth,
@@ -89,7 +105,8 @@ public sealed class ArenaGame : Game
         };
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData([Color.White]);
-        _font = Content.Load<SpriteFont>("Default");
+        _font = Content.Load<SpriteFont>(
+            _themeManager.Standards.Shared.FontAssetId);
 
         _camera.Fit(GetLayout(GraphicsDevice.Viewport.Bounds).ArenaBounds);
     }
@@ -109,8 +126,16 @@ public sealed class ArenaGame : Game
             (float)gameTime.ElapsedGameTime.TotalSeconds);
         var screenBounds = GraphicsDevice.Viewport.Bounds;
         var layout = GetLayout(screenBounds);
+        _eventLogPanel.ReleaseKeyboardFocusIfPointerLeaves(
+            _input,
+            layout.EventBounds);
+        var eventEscapeConsumed =
+            !_menu.IsVisible &&
+            _eventLogPanel.HandleEscape(
+                _input,
+                _presentation.EventFeed);
 
-        if (_input.WasPressed(Keys.Escape))
+        if (_input.WasPressed(Keys.Escape) && !eventEscapeConsumed)
         {
             ToggleMenu();
         }
@@ -118,8 +143,16 @@ public sealed class ArenaGame : Game
         var pointerConsumed = false;
         if (_menu.IsVisible)
         {
-            var menuInteraction = _menu.Update(_input, screenBounds);
+            var menuInteraction = _menu.Update(
+                _input,
+                screenBounds,
+                _themeManager.ActiveTheme.Id);
             pointerConsumed = menuInteraction.PointerConsumed;
+            if (menuInteraction.SelectedThemeId is { } selectedThemeId)
+            {
+                _themeManager.TrySelect(selectedThemeId);
+            }
+
             ApplyClientCommand(menuInteraction.Command);
         }
         else
@@ -157,16 +190,11 @@ public sealed class ArenaGame : Game
                 pointerConsumed = interaction.PointerConsumed;
             }
 
-            var command = interaction.Command == ClientCommand.None
-                ? GetSpectatorKeyboardCommand()
-                : interaction.Command;
-            ApplyClientCommand(command);
-            HandleSpeedInput();
-            HandleArenaSelection(layout.ArenaBounds, pointerConsumed);
-            _camera.Update(
-                _input,
-                (float)gameTime.ElapsedGameTime.TotalSeconds,
-                allowZoom: !pointerConsumed);
+            UpdateSpectatorInput(
+                interaction.Command,
+                layout,
+                pointerConsumed,
+                (float)gameTime.ElapsedGameTime.TotalSeconds);
         }
 
         AdvanceSimulation(gameTime.ElapsedGameTime.TotalSeconds);
@@ -175,85 +203,33 @@ public sealed class ArenaGame : Game
         base.Update(gameTime);
     }
 
-    protected override void Draw(GameTime gameTime)
+    private void UpdateSpectatorInput(
+        ClientCommand panelCommand,
+        ClientLayout layout,
+        bool pointerConsumed,
+        float elapsedSeconds)
     {
-        GraphicsDevice.Clear(BackgroundColor);
+        var gate = SpectatorInputGate.Resolve(
+            _eventLogPanel.KeyboardFocusTarget);
 
-        if (_spriteBatch is null ||
-            _arenaRasterizerState is null ||
-            _pixel is null ||
-            _font is null)
+        var command =
+            panelCommand == ClientCommand.None && gate.AllowSpectatorCommands
+                ? GetSpectatorKeyboardCommand()
+                : panelCommand;
+        ApplyClientCommand(command);
+
+        if (gate.AllowSpeedShortcuts)
         {
-            return;
+            HandleSpeedInput();
         }
 
-        var screenBounds = GraphicsDevice.Viewport.Bounds;
-        var layout = GetLayout(screenBounds);
-        _camera.Fit(layout.ArenaBounds);
-        UpdateHoverSelection(layout.ArenaBounds);
+        HandleArenaSelection(layout.ArenaBounds, pointerConsumed);
 
-        var selectedAgent =
-            _presentation.Selection.Resolve(_simulation.Agents);
-
-        if (layout.ArenaBounds.Width > 0 &&
-            layout.ArenaBounds.Height > 0)
-        {
-            GraphicsDevice.ScissorRectangle = layout.ArenaBounds;
-            _spriteBatch.Begin(
-                SpriteSortMode.Deferred,
-                BlendState.AlphaBlend,
-                SamplerState.PointClamp,
-                DepthStencilState.None,
-                _arenaRasterizerState);
-            DrawArena(
-                _spriteBatch,
-                _pixel,
-                layout.ArenaBounds);
-            _spriteBatch.End();
-        }
-
-        _spriteBatch.Begin(
-            SpriteSortMode.Deferred,
-            BlendState.AlphaBlend,
-            SamplerState.PointClamp);
-        DrawStatus(
-            _spriteBatch,
-            _pixel,
-            _font,
-            screenBounds);
-        _controlBar.Draw(
-            _spriteBatch,
-            _pixel,
-            _font,
-            screenBounds,
-            _presentation.Playback.IsPlaying);
-        _inspectorPanel.Draw(
-            _spriteBatch,
-            _pixel,
-            _font,
-            selectedAgent,
-            layout.InspectorBounds);
-        _eventLogPanel.Draw(
-            _spriteBatch,
-            _pixel,
-            _font,
-            _presentation.EventFeed,
-            layout.EventBounds);
-        _summaryPanel.Draw(
-            _spriteBatch,
-            _pixel,
-            _font,
-            _presentation.Summary,
-            layout.ArenaBounds);
-        _menu.Draw(
-            _spriteBatch,
-            _pixel,
-            _font,
-            screenBounds);
-
-        _spriteBatch.End();
-
-        base.Draw(gameTime);
+        _camera.Update(
+            _input,
+            elapsedSeconds,
+            allowZoom: !pointerConsumed,
+            gate.PanInput);
     }
 
     private ClientCommand GetSpectatorKeyboardCommand()
@@ -449,145 +425,6 @@ public sealed class ArenaGame : Game
         }
     }
 
-    private void DrawArena(
-        SpriteBatch spriteBatch,
-        Texture2D pixel,
-        Rectangle arenaBounds)
-    {
-        var topLeft = _camera.WorldToScreen(Vector2.Zero, arenaBounds);
-        var bottomRight = _camera.WorldToScreen(
-            new Vector2(_scenario.MapWidth, _scenario.MapHeight),
-            arenaBounds);
-        var mapBounds = RectangleFromPoints(topLeft, bottomRight);
-        var visibleMapBounds = Rectangle.Intersect(mapBounds, arenaBounds);
-
-        if (visibleMapBounds.Width > 0 && visibleMapBounds.Height > 0)
-        {
-            spriteBatch.Draw(pixel, visibleMapBounds, MapColor);
-            DrawBorder(
-                spriteBatch,
-                pixel,
-                visibleMapBounds,
-                MapBorderColor);
-        }
-
-        var selectedEntityId = _presentation.Selection.SelectedEntityId;
-        var hoveredEntityId = _hoverSelection.SelectedEntityId;
-
-        foreach (var agent in _simulation.Agents)
-        {
-            if (!agent.IsAlive)
-            {
-                continue;
-            }
-
-            var worldPosition = new Vector2(
-                agent.XRaw / (float)FixedPoint.Scale,
-                agent.YRaw / (float)FixedPoint.Scale);
-            var footAnchor = _camera.WorldToScreen(
-                worldPosition,
-                arenaBounds);
-            var appearance = PawnAppearanceFactory.Create(agent.EntityId);
-            var visualBounds = PawnRenderer.GetBounds(
-                footAnchor,
-                _camera.Zoom,
-                appearance);
-
-            if (!arenaBounds.Intersects(visualBounds))
-            {
-                continue;
-            }
-
-            var visualState = agent.EntityId == selectedEntityId
-                ? PawnVisualState.Selected
-                : agent.EntityId == hoveredEntityId
-                    ? PawnVisualState.Hovered
-                    : PawnVisualState.Normal;
-            PawnRenderer.Draw(
-                spriteBatch,
-                pixel,
-                footAnchor,
-                _camera.Zoom,
-                appearance,
-                GetFactionColor(agent.FactionId),
-                visualState,
-                hitPulseStrength:
-                    _presentation.HitEffects.GetPulseStrength(
-                        agent.EntityId));
-        }
-
-        HitEffectRenderer.Draw(
-            _presentation.HitEffects.ActiveEffects,
-            _camera,
-            arenaBounds,
-            _camera.Zoom,
-            spriteBatch,
-            pixel);
-    }
-
-    private void DrawStatus(
-        SpriteBatch spriteBatch,
-        Texture2D pixel,
-        SpriteFont font,
-        Rectangle screenBounds)
-    {
-        var factionZeroAlive = 0;
-        var factionOneAlive = 0;
-
-        foreach (var agent in _simulation.Agents)
-        {
-            if (!agent.IsAlive)
-            {
-                continue;
-            }
-
-            if (agent.FactionId == 0)
-            {
-                factionZeroAlive++;
-            }
-            else if (agent.FactionId == 1)
-            {
-                factionOneAlive++;
-            }
-        }
-
-        var statusBounds = new Rectangle(
-            screenBounds.Left,
-            screenBounds.Top,
-            screenBounds.Width,
-            Math.Min(StatusBarHeight, screenBounds.Height));
-        spriteBatch.Draw(pixel, statusBounds, StatusBarColor);
-
-        var state = _presentation.Playback.IsPlaying ? "PLAYING" : "PAUSED";
-        var status =
-            $"{state}  |  Tick {_simulation.Tick:N0}  |  {_speedMultiplier}x  |  " +
-            $"Team A (Blue) {_matchSeries.TeamAWins}W/{factionZeroAlive} alive  |  " +
-            $"Team B (Red) {_matchSeries.TeamBWins}W/{factionOneAlive} alive  |  " +
-            $"{_simulation.Outcome}";
-        spriteBatch.DrawString(
-            font,
-            status,
-            new Vector2(18, 12),
-            Color.White,
-            0f,
-            Vector2.Zero,
-            0.78f,
-            SpriteEffects.None,
-            0f);
-        spriteBatch.DrawString(
-            font,
-            "Click: select  |  Wheel: zoom/log scroll  |  " +
-            "Space: play/pause  |  1/2/4: speed  |  " +
-            "R: next round  |  Shift+R: full reset  |  Esc: menu",
-            new Vector2(18, 39),
-            new Color(162, 178, 196),
-            0f,
-            Vector2.Zero,
-            0.62f,
-            SpriteEffects.None,
-            0f);
-    }
-
     private void UpdateHoverSelection(Rectangle arenaBounds)
     {
         if (!arenaBounds.Contains(_input.MousePosition))
@@ -688,58 +525,6 @@ public sealed class ArenaGame : Game
             -MaximumSafeRawCoordinate,
             MaximumSafeRawCoordinate);
     }
-
-    private static Rectangle RectangleFromPoints(
-        Vector2 first,
-        Vector2 second)
-    {
-        var left = (int)MathF.Floor(MathF.Min(first.X, second.X));
-        var top = (int)MathF.Floor(MathF.Min(first.Y, second.Y));
-        var right = (int)MathF.Ceiling(MathF.Max(first.X, second.X));
-        var bottom = (int)MathF.Ceiling(MathF.Max(first.Y, second.Y));
-        return new Rectangle(left, top, right - left, bottom - top);
-    }
-
-    private static void DrawBorder(
-        SpriteBatch spriteBatch,
-        Texture2D pixel,
-        Rectangle bounds,
-        Color color)
-    {
-        const int thickness = 2;
-        spriteBatch.Draw(
-            pixel,
-            new Rectangle(bounds.Left, bounds.Top, bounds.Width, thickness),
-            color);
-        spriteBatch.Draw(
-            pixel,
-            new Rectangle(
-                bounds.Left,
-                bounds.Bottom - thickness,
-                bounds.Width,
-                thickness),
-            color);
-        spriteBatch.Draw(
-            pixel,
-            new Rectangle(bounds.Left, bounds.Top, thickness, bounds.Height),
-            color);
-        spriteBatch.Draw(
-            pixel,
-            new Rectangle(
-                bounds.Right - thickness,
-                bounds.Top,
-                thickness,
-                bounds.Height),
-            color);
-    }
-
-    private static Color GetFactionColor(int factionId) =>
-        factionId switch
-        {
-            0 => FactionOneColor,
-            1 => FactionTwoColor,
-            _ => OtherFactionColor,
-        };
 
     private readonly record struct ClientLayout(
         Rectangle ArenaBounds,

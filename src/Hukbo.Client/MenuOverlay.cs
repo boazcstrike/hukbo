@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -6,17 +7,17 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Hukbo.Client;
 
+internal readonly record struct MenuInteraction(
+    ClientCommand Command,
+    string? SelectedThemeId,
+    bool PointerConsumed)
+{
+    public static MenuInteraction None =>
+        new(ClientCommand.None, null, false);
+}
+
 internal sealed class MenuOverlay
 {
-    private const int PanelWidth = 360;
-    private const int PanelHeight = 500;
-    private const int ButtonWidth = 280;
-    private const int ButtonHeight = 54;
-    private const int ButtonGap = 14;
-
-    private static readonly Color BackdropColor = new(4, 8, 16, 190);
-    private static readonly Color PanelColor = new(22, 31, 46, 248);
-    private static readonly Color BorderColor = new(85, 111, 145);
     private readonly UiButton[] _buttons =
     [
         new("Play", ClientCommand.Play),
@@ -26,14 +27,28 @@ internal sealed class MenuOverlay
         new("Exit Game", ClientCommand.Exit),
     ];
 
-    private int _focusedButtonIndex;
+    private readonly UiThemeSelector _themeSelector;
+    private readonly UiMenuLayout _layout;
+    private readonly UiThemeSelectorLayout _selectorLayout;
+    private readonly UiTextScales _textScales;
+    private int _focusedControlIndex;
+
+    public MenuOverlay(
+        IReadOnlyList<UiTheme> themes,
+        UiThemeStandards standards)
+    {
+        _themeSelector = new UiThemeSelector(themes, standards);
+        _layout = standards.Shared.Menu;
+        _selectorLayout = standards.Shared.Selector;
+        _textScales = standards.Shared.TextScales;
+    }
 
     public bool IsVisible { get; private set; }
 
     public void Open()
     {
         IsVisible = true;
-        _focusedButtonIndex = 0;
+        _focusedControlIndex = 0;
     }
 
     public void Close()
@@ -42,74 +57,104 @@ internal sealed class MenuOverlay
         ResetVisualState();
     }
 
-    public UiInteraction Update(InputEdges input, Rectangle screenBounds)
+    public MenuInteraction Update(
+        InputEdges input,
+        Rectangle screenBounds,
+        string activeThemeId)
     {
         if (!IsVisible)
         {
-            return UiInteraction.None;
+            return MenuInteraction.None;
         }
 
         Layout(screenBounds);
 
+        var focusDirection = 0;
         if (input.WasPressed(Keys.Down) ||
             input.WasPressed(Keys.S) ||
             input.WasPressed(Keys.Tab))
         {
-            MoveFocus(1);
+            focusDirection = 1;
         }
         else if (input.WasPressed(Keys.Up) || input.WasPressed(Keys.W))
         {
-            MoveFocus(-1);
+            focusDirection = -1;
         }
 
-        var hoveredButtonIndex = -1;
+        var hoveredControlIndex = _themeSelector.Bounds.Contains(
+            input.MousePosition)
+            ? 0
+            : -1;
         for (var index = 0; index < _buttons.Length; index++)
         {
             var button = _buttons[index];
-            button.Update(input, index == _focusedButtonIndex);
+            button.Update(input, index + 1 == _focusedControlIndex);
 
             if (button.IsHovered)
             {
-                hoveredButtonIndex = index;
+                hoveredControlIndex = index + 1;
             }
         }
 
-        if (hoveredButtonIndex >= 0)
+        var resolvedFocus = ResolveFocusedControlIndex(
+            _focusedControlIndex,
+            focusDirection,
+            hoveredControlIndex,
+            _buttons.Length + 1);
+        if (resolvedFocus != _focusedControlIndex)
         {
-            _focusedButtonIndex = hoveredButtonIndex;
-            for (var index = 0; index < _buttons.Length; index++)
-            {
-                _buttons[index].Update(
-                    input,
-                    index == _focusedButtonIndex);
-            }
+            _focusedControlIndex = resolvedFocus;
         }
 
-        if (input.WasLeftMousePressed() && hoveredButtonIndex >= 0)
+        for (var index = 0; index < _buttons.Length; index++)
         {
-            return new UiInteraction(
-                _buttons[hoveredButtonIndex].Command,
+            _buttons[index].Update(
+                input,
+                index + 1 == _focusedControlIndex);
+        }
+
+        var themeInteraction = _themeSelector.Update(
+            input,
+            _focusedControlIndex == 0,
+            activeThemeId);
+        if (themeInteraction.SelectedThemeId is not null)
+        {
+            return new MenuInteraction(
+                ClientCommand.None,
+                themeInteraction.SelectedThemeId,
                 true);
         }
 
-        if (input.WasPressed(Keys.Enter) || input.WasPressed(Keys.Space))
+        if (input.WasLeftMousePressed() && hoveredControlIndex > 0)
         {
-            var focusedButton = _buttons[_focusedButtonIndex];
-            return new UiInteraction(
+            return new MenuInteraction(
+                _buttons[hoveredControlIndex - 1].Command,
+                null,
+                true);
+        }
+
+        if (_focusedControlIndex > 0 &&
+            (input.WasPressed(Keys.Enter) ||
+             input.WasPressed(Keys.Space)))
+        {
+            var focusedButton = _buttons[_focusedControlIndex - 1];
+            return new MenuInteraction(
                 focusedButton.IsEnabled
                     ? focusedButton.Command
                     : ClientCommand.None,
+                null,
                 true);
         }
 
-        return new UiInteraction(ClientCommand.None, true);
+        return new MenuInteraction(ClientCommand.None, null, true);
     }
 
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
         SpriteFont font,
-        Rectangle screenBounds)
+        Rectangle screenBounds,
+        UiTheme theme)
     {
         if (!IsVisible)
         {
@@ -118,81 +163,122 @@ internal sealed class MenuOverlay
 
         Layout(screenBounds);
 
-        spriteBatch.Draw(pixel, screenBounds, BackdropColor);
+        spriteBatch.Draw(pixel, screenBounds, theme.Colors.OverlayScrim);
 
         var panelBounds = GetPanelBounds(screenBounds);
-        spriteBatch.Draw(pixel, panelBounds, PanelColor);
+        if (theme.Metrics.ShadowOffset > 0)
+        {
+            spriteBatch.Draw(
+                pixel,
+                new Rectangle(
+                    panelBounds.X + theme.Metrics.ShadowOffset,
+                    panelBounds.Y + theme.Metrics.ShadowOffset,
+                    panelBounds.Width,
+                    panelBounds.Height),
+                theme.Colors.CanvasBackground);
+        }
+
+        spriteBatch.Draw(pixel, panelBounds, theme.Colors.PanelSurface);
         UiPrimitives.DrawBorder(
             spriteBatch,
             pixel,
             panelBounds,
-            BorderColor,
-            2);
+            theme.Colors.PanelBorder,
+            theme.Metrics.BorderThickness);
 
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             font,
             "HUKBO",
-            new Vector2(panelBounds.Center.X, panelBounds.Top + 42),
-            Color.White);
+            new Vector2(
+                panelBounds.Center.X,
+                panelBounds.Top + _layout.TitleTopOffset),
+            theme.Colors.TextPrimary,
+            _textScales.MenuTitle);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             font,
             "Simulation controls",
-            new Vector2(panelBounds.Center.X, panelBounds.Top + 72),
-            new Color(160, 181, 204));
+            new Vector2(
+                panelBounds.Center.X,
+                panelBounds.Top + _layout.SubtitleTopOffset),
+            theme.Colors.TextSecondary,
+            _textScales.MenuSubtitle);
+
+        _themeSelector.Draw(
+            spriteBatch,
+            pixel,
+            font,
+            theme,
+            _focusedControlIndex == 0);
 
         foreach (var button in _buttons)
         {
-            button.Draw(spriteBatch, pixel, font);
+            button.Draw(
+                spriteBatch,
+                pixel,
+                font,
+                theme,
+                _textScales.MenuButton);
         }
 
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             font,
-            "Esc closes  |  Up/Down selects  |  Enter activates",
-            new Vector2(panelBounds.Center.X, panelBounds.Bottom - 23),
-            new Color(134, 151, 170),
-            0.72f);
+            "Esc closes  |  Up/Down focus  |  Left/Right theme",
+            new Vector2(
+                panelBounds.Center.X,
+                panelBounds.Bottom - _layout.HelperBottomOffset),
+            theme.Colors.TextSecondary,
+            _textScales.MenuHelper);
     }
 
     private void Layout(Rectangle screenBounds)
     {
         var panel = GetPanelBounds(screenBounds);
-        var buttonLeft = panel.Center.X - (ButtonWidth / 2);
-        var buttonTop = panel.Top + 102;
+        var buttonLeft = panel.Center.X - (_layout.ButtonWidth / 2);
+        _themeSelector.Bounds = new Rectangle(
+            buttonLeft,
+            panel.Top + _layout.SelectorTopOffset,
+            _layout.ButtonWidth,
+            _selectorLayout.Height);
+        var buttonTop =
+            _themeSelector.Bounds.Bottom + _layout.SelectorGap;
 
         for (var index = 0; index < _buttons.Length; index++)
         {
             _buttons[index].Bounds = new Rectangle(
                 buttonLeft,
-                buttonTop + (index * (ButtonHeight + ButtonGap)),
-                ButtonWidth,
-                ButtonHeight);
+                buttonTop + (index *
+                    (_layout.ButtonHeight + _layout.ButtonGap)),
+                _layout.ButtonWidth,
+                _layout.ButtonHeight);
         }
     }
 
-    private void MoveFocus(int direction)
+    internal static int ResolveFocusedControlIndex(
+        int currentIndex,
+        int keyboardDirection,
+        int hoveredIndex,
+        int controlCount)
     {
-        for (var count = 0; count < _buttons.Length; count++)
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(controlCount);
+        if (keyboardDirection != 0)
         {
-            _focusedButtonIndex =
-                (_focusedButtonIndex + direction + _buttons.Length) %
-                _buttons.Length;
-
-            if (_buttons[_focusedButtonIndex].IsEnabled)
-            {
-                return;
-            }
+            return (currentIndex +
+                Math.Sign(keyboardDirection) +
+                controlCount) % controlCount;
         }
+
+        return hoveredIndex >= 0 ? hoveredIndex : currentIndex;
     }
 
-    private static Rectangle GetPanelBounds(Rectangle screenBounds) =>
+    private Rectangle GetPanelBounds(Rectangle screenBounds) =>
         new(
-            screenBounds.Center.X - (PanelWidth / 2),
-            screenBounds.Center.Y - (PanelHeight / 2),
-            PanelWidth,
-            PanelHeight);
+            screenBounds.Center.X - (_layout.PanelWidth / 2),
+            screenBounds.Center.Y - (_layout.PanelHeight / 2),
+            _layout.PanelWidth,
+            _layout.PanelHeight);
 
     private void ResetVisualState()
     {

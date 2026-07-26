@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.Tests;
@@ -64,6 +65,194 @@ public sealed class BattleEventFeedTests
     }
 
     [Fact]
+    public void Filters_CombineKindFactionActorAndTextWithAndSemantics()
+    {
+        var feed = new BattleEventFeed(10);
+        feed.Ingest(
+        [
+            CreateEvent(
+                1,
+                1,
+                BattleEventKind.Move,
+                sourceEntityId: 7,
+                factionId: 0),
+            CreateEvent(
+                2,
+                2,
+                BattleEventKind.Attack,
+                sourceEntityId: 7,
+                targetEntityId: 9,
+                value: 3,
+                factionId: 0),
+            CreateEvent(
+                3,
+                3,
+                BattleEventKind.Attack,
+                sourceEntityId: 8,
+                targetEntityId: 9,
+                value: 3,
+                factionId: 1),
+        ]);
+
+        feed.SetFilters(
+            BattleEventKind.Attack,
+            factionId: 0,
+            actorId: 7,
+            textQuery: "HIT #9");
+
+        Assert.Equal(
+            [2L],
+            feed.FilteredEntries.Select(entry => entry.Sequence));
+        Assert.True(feed.HasActiveFilters);
+        Assert.Equal(3, feed.Entries.Count);
+    }
+
+    [Fact]
+    public void TextFilter_PreservesTrailingSpaceForMultiWordInput()
+    {
+        var feed = new BattleEventFeed(10);
+        feed.Ingest(
+        [
+            CreateEvent(
+                1,
+                1,
+                BattleEventKind.Attack,
+                sourceEntityId: 7,
+                targetEntityId: 9,
+                value: 3,
+                factionId: 0),
+        ]);
+
+        feed.SetTextFilter("blue ");
+
+        Assert.Equal("blue ", feed.TextFilter);
+        Assert.Equal([1L], feed.FilteredEntries.Select(entry => entry.Sequence));
+
+        feed.SetTextFilter(feed.TextFilter + "#7");
+
+        Assert.Equal("blue #7", feed.TextFilter);
+        Assert.Equal([1L], feed.FilteredEntries.Select(entry => entry.Sequence));
+
+        feed.SetTextFilter(" ");
+
+        Assert.Equal(string.Empty, feed.TextFilter);
+        Assert.False(feed.HasActiveFilters);
+    }
+
+    [Fact]
+    public void ClearFilters_RestoresAllEntriesInSequenceOrder()
+    {
+        var feed = CreatePopulatedFeed(capacity: 10, eventCount: 4);
+        feed.SetFilters(
+            BattleEventKind.Death,
+            factionId: null,
+            actorId: null,
+            textQuery: "missing");
+
+        Assert.Empty(feed.FilteredEntries);
+
+        feed.ClearFilters();
+
+        Assert.False(feed.HasActiveFilters);
+        Assert.Equal(
+            [1L, 2L, 3L, 4L],
+            feed.FilteredEntries.Select(entry => entry.Sequence));
+        Assert.Equal(4, feed.Entries.Count);
+    }
+
+    [Fact]
+    public void Selection_NavigatesWithinFilteredOrderAndClamps()
+    {
+        var feed = new BattleEventFeed(10);
+        feed.Ingest(
+        [
+            CreateEvent(1, 1, BattleEventKind.Move),
+            CreateEvent(2, 2, BattleEventKind.Attack),
+            CreateEvent(3, 3, BattleEventKind.Move),
+            CreateEvent(4, 4, BattleEventKind.Move),
+        ]);
+        feed.SetKindFilter(BattleEventKind.Move);
+
+        Assert.True(feed.Select(3, visibleRowCount: 2));
+        Assert.Equal(3, feed.SelectedSequence);
+
+        feed.MoveSelection(-1, visibleRowCount: 2);
+        Assert.Equal(1, feed.SelectedSequence);
+        feed.MoveSelection(-1, visibleRowCount: 2);
+        Assert.Equal(1, feed.SelectedSequence);
+
+        feed.SelectLast(visibleRowCount: 2);
+        Assert.Equal(4, feed.SelectedSequence);
+        feed.MoveSelection(1, visibleRowCount: 2);
+        Assert.Equal(4, feed.SelectedSequence);
+
+        feed.SelectFirst(visibleRowCount: 2);
+        Assert.Equal(1, feed.SelectedSequence);
+    }
+
+    [Fact]
+    public void Ingest_WhileInspectingPreservesSelectionAndScrollPosition()
+    {
+        var feed = CreatePopulatedFeed(capacity: 10, eventCount: 5);
+        feed.Scroll(rowDelta: -2, visibleRowCount: 2);
+        feed.Select(2, visibleRowCount: 2);
+        var scrollStart = feed.GetScrollStart(visibleRowCount: 2);
+
+        feed.Ingest([CreateEvent(6, 4), CreateEvent(7, 4)]);
+
+        Assert.False(feed.IsPinnedToBottom);
+        Assert.Equal(2, feed.SelectedSequence);
+        Assert.Equal(scrollStart, feed.GetScrollStart(visibleRowCount: 2));
+        Assert.Equal(2, feed.NewEventCount);
+    }
+
+    [Fact]
+    public void ReturnToLatest_SelectsNewestMatchingEntryAndPinsList()
+    {
+        var feed = CreatePopulatedFeed(capacity: 10, eventCount: 5);
+        feed.SetActorFilter(3);
+        feed.Scroll(rowDelta: -1, visibleRowCount: 1);
+
+        feed.ReturnToLatest(visibleRowCount: 1);
+
+        Assert.True(feed.IsPinnedToBottom);
+        Assert.Equal(3, feed.SelectedSequence);
+        Assert.Equal(0, feed.NewEventCount);
+        Assert.Equal(0, feed.GetScrollStart(visibleRowCount: 1));
+    }
+
+    [Fact]
+    public void FilteringOutOrEvictingSelection_ClearsItSafely()
+    {
+        var feed = CreatePopulatedFeed(capacity: 3, eventCount: 3);
+        feed.Select(2, visibleRowCount: 2);
+
+        feed.SetActorFilter(3);
+        Assert.Null(feed.SelectedSequence);
+
+        feed.ClearFilters();
+        feed.Select(1, visibleRowCount: 2);
+        feed.Ingest([CreateEvent(4, 3)]);
+
+        Assert.Null(feed.SelectedSequence);
+    }
+
+    [Fact]
+    public void Navigation_WithNoMatches_IsANoOp()
+    {
+        var feed = CreatePopulatedFeed(capacity: 10, eventCount: 3);
+        feed.SetTextFilter("no such event");
+
+        feed.MoveSelection(1, visibleRowCount: 2);
+        feed.SelectFirst(visibleRowCount: 2);
+        feed.SelectLast(visibleRowCount: 2);
+        feed.ReturnToLatest(visibleRowCount: 2);
+
+        Assert.Null(feed.SelectedSequence);
+        Assert.Empty(feed.GetVisibleEntries(visibleRowCount: 2).ToArray());
+    }
+
+    [Fact]
     public void Scroll_ClampsAtOldestAndNewest()
     {
         var feed = CreatePopulatedFeed(capacity: 10, eventCount: 6);
@@ -118,6 +307,46 @@ public sealed class BattleEventFeedTests
     }
 
     [Fact]
+    public void Ingest_EvictedAnchorSubtractsMatchingEvictedEntries()
+    {
+        var feed = new BattleEventFeed(capacity: 8);
+        feed.Ingest(
+            Enumerable.Range(1, 8)
+                .Select(index => CreateEvent(
+                    index,
+                    index,
+                    index % 2 == 1
+                        ? BattleEventKind.Move
+                        : BattleEventKind.Attack))
+                .ToArray());
+        feed.SetKindFilter(BattleEventKind.Move);
+        feed.Scroll(rowDelta: -1, visibleRowCount: 1);
+        Assert.Equal(
+            [5L],
+            feed.GetVisibleEntries(visibleRowCount: 1)
+                .ToArray()
+                .Select(entry => entry.Sequence));
+
+        feed.Ingest(
+            Enumerable.Range(9, 6)
+                .Select(index => CreateEvent(
+                    index,
+                    index,
+                    index % 2 == 1
+                        ? BattleEventKind.Move
+                        : BattleEventKind.Attack))
+                .ToArray());
+
+        Assert.False(feed.IsPinnedToBottom);
+        Assert.Equal(0, feed.GetScrollStart(visibleRowCount: 1));
+        Assert.Equal(
+            [7L],
+            feed.GetVisibleEntries(visibleRowCount: 1)
+                .ToArray()
+                .Select(entry => entry.Sequence));
+    }
+
+    [Fact]
     public void Clear_ResetsHistoryAndSequence()
     {
         var feed = CreatePopulatedFeed(capacity: 3, eventCount: 3);
@@ -141,13 +370,36 @@ public sealed class BattleEventFeedTests
         return feed;
     }
 
-    private static BattleEvent CreateEvent(long sequence, long tick) =>
-        new(
+    private static BattleEvent CreateEvent(
+        long sequence,
+        long tick,
+        BattleEventKind kind = BattleEventKind.Move,
+        ulong? sourceEntityId = null,
+        ulong? targetEntityId = null,
+        int value = 1,
+        int? factionId = null)
+    {
+        var source = sourceEntityId ?? (ulong)sequence;
+        if (kind == BattleEventKind.Attack)
+        {
+            return BattleEvent.Attack(
+                sequence,
+                tick,
+                source,
+                targetEntityId ?? checked(source + 1),
+                value,
+                factionId ?? 0,
+                WeaponId.GreatBlade,
+                BodyPart.Chest);
+        }
+
+        return BattleEvent.NonAttack(
             sequence,
             tick,
-            BattleEventKind.Move,
-            SourceEntityId: (ulong)sequence,
-            TargetEntityId: null,
-            Value: 1,
-            FactionId: null);
+            kind,
+            source,
+            targetEntityId,
+            value,
+            factionId);
+    }
 }

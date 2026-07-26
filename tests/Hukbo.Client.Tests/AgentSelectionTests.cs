@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.Tests;
@@ -122,5 +123,9 @@ public sealed class AgentSelectionTests
             MaximumHitPoints: 100,
             TargetEntityId: null,
             Intent: isAlive ? AgentIntent.Idle : AgentIntent.Dead,
-            isAlive);
+            isAlive,
+            Loadout: new CombatLoadout(
+                WeaponId.GreatBlade,
+                ArmorId.LightOrganic,
+                ShieldId.TallHardwood));
 }

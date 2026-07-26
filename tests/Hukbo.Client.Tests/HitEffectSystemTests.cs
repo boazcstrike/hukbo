@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.Tests;
@@ -274,20 +275,39 @@ public sealed class HitEffectSystemTests
             MaximumHitPoints: 100,
             TargetEntityId: null,
             Intent: AgentIntent.Idle,
-            isAlive);
+            isAlive,
+            Loadout: new CombatLoadout(
+                WeaponId.GreatBlade,
+                ArmorId.LightOrganic,
+                ShieldId.TallHardwood));
 
     private static BattleEvent Event(
         long sequence,
         BattleEventKind kind,
         ulong source,
         ulong? target,
-        int value = 0) =>
-        new(
+        int value = 0)
+    {
+        if (kind == BattleEventKind.Attack)
+        {
+            return BattleEvent.Attack(
+                sequence,
+                tick: 1,
+                source,
+                target ?? checked(source + 1),
+                value,
+                factionId: 0,
+                WeaponId.GreatBlade,
+                BodyPart.Chest);
+        }
+
+        return BattleEvent.NonAttack(
             sequence,
-            Tick: 1,
+            tick: 1,
             kind,
             source,
             target,
             value,
-            FactionId: null);
+            factionId: null);
+    }
 }

@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.Tests;
@@ -117,27 +118,31 @@ public sealed class PresentationCoordinatorTests
             MaximumHitPoints: 100,
             TargetEntityId: null,
             Intent: AgentIntent.Idle,
-            IsAlive: true);
+            IsAlive: true,
+            Loadout: new CombatLoadout(
+                WeaponId.GreatBlade,
+                ArmorId.LightOrganic,
+                ShieldId.TallHardwood));
 
     private static BattleEvent CreateEvent(long sequence) =>
-        new(
+        BattleEvent.NonAttack(
             sequence,
-            Tick: 1,
+            tick: 1,
             BattleEventKind.Outcome,
-            SourceEntityId: 0,
-            TargetEntityId: null,
-            Value: 0,
-            FactionId: 0);
+            sourceEntityId: 0,
+            targetEntityId: null,
+            value: 0,
+            factionId: 0);
 
     private static BattleEvent DamageEvent(
         long sequence,
         ulong targetEntityId) =>
-        new(
+        BattleEvent.NonAttack(
             sequence,
-            Tick: sequence,
+            tick: sequence,
             BattleEventKind.Damage,
-            SourceEntityId: targetEntityId,
-            TargetEntityId: targetEntityId,
-            Value: 10,
-            FactionId: null);
+            sourceEntityId: targetEntityId,
+            targetEntityId: targetEntityId,
+            value: 10,
+            factionId: null);
 }

@@ -1,3 +1,4 @@
+using Hukbo.Core.Combat;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Presentation;
@@ -15,14 +16,17 @@ internal static class PawnAppearanceFactory
     private static readonly Color MediumSkin = new(156, 103, 66);
     private static readonly Color DarkSkin = new(119, 76, 50);
 
-    public static PawnAppearance Create(ulong entityId)
+    // Weapon role comes only from the authoritative Core loadout. Entity ID
+    // drives stature, build, clothing, skin, and head treatment only — it
+    // must never influence weapon identity.
+    public static PawnAppearance Create(ulong entityId, WeaponId weapon)
     {
         var bodyMix = Mix(entityId ^ 0xA0761D6478BD642FUL);
         var clothingMix = Mix(entityId ^ 0xE7037ED1A0B428DBUL);
         var detailMix = Mix(entityId ^ 0x8EBC6AF09C88C6E3UL);
 
         return new PawnAppearance(
-            (PawnWeaponRole)(entityId % 5),
+            ToWeaponRole(weapon),
             SelectStature(bodyMix),
             SelectBuild(bodyMix >> 8),
             (PawnHeadTreatment)((bodyMix >> 16) % 3),
@@ -31,6 +35,19 @@ internal static class PawnAppearanceFactory
             SelectSkinColor(detailMix),
             SelectHeadTreatmentColor(detailMix >> 8));
     }
+
+    private static PawnWeaponRole ToWeaponRole(WeaponId weapon) =>
+        weapon switch
+        {
+            WeaponId.GreatBlade => PawnWeaponRole.GreatBlade,
+            WeaponId.HeavyChopper => PawnWeaponRole.HeavyChopper,
+            WeaponId.ThrustingBlade => PawnWeaponRole.ThrustingBlade,
+            WeaponId.Bolo => PawnWeaponRole.Bolo,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(weapon),
+                weapon,
+                null),
+        };
 
     private static float SelectStature(ulong value) =>
         (value % 3) switch

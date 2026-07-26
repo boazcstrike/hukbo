@@ -141,46 +141,50 @@ internal static class PawnGeometry
         PawnWeaponRole role,
         PawnDetailTier detailTier)
     {
+        // Chopper is broad and forward-weighted (heavy tip, short grip);
+        // thrusting blade is narrow with a long reach; bolo reuses the
+        // short broad-dagger silhouette; great blade is unchanged.
         var start = role switch
         {
-            PawnWeaponRole.LongSpear => Offset(footAnchor, -5f, -2f, scale),
-            PawnWeaponRole.HardenedJavelin =>
-                Offset(footAnchor, -4f, -3f, scale),
-            PawnWeaponRole.WarBow => Offset(footAnchor, -7f, -2f, scale),
-            PawnWeaponRole.BroadDagger => Offset(footAnchor, 1f, -7f, scale),
+            PawnWeaponRole.Bolo => Offset(footAnchor, 1f, -7f, scale),
             PawnWeaponRole.GreatBlade => Offset(footAnchor, 1f, -6f, scale),
+            PawnWeaponRole.HeavyChopper => Offset(footAnchor, 1f, -6f, scale),
+            PawnWeaponRole.ThrustingBlade =>
+                Offset(footAnchor, 1f, -7f, scale),
             _ => throw new ArgumentOutOfRangeException(nameof(role), role, null),
         };
         var end = role switch
         {
-            PawnWeaponRole.LongSpear => Offset(footAnchor, 13f, -26f, scale),
-            PawnWeaponRole.HardenedJavelin =>
-                Offset(footAnchor, 11f, -20f, scale),
-            PawnWeaponRole.WarBow => Offset(footAnchor, -7f, -22f, scale),
-            PawnWeaponRole.BroadDagger => Offset(footAnchor, 9f, -15f, scale),
+            PawnWeaponRole.Bolo => Offset(footAnchor, 9f, -15f, scale),
             PawnWeaponRole.GreatBlade => Offset(footAnchor, 15f, -19f, scale),
+            PawnWeaponRole.HeavyChopper =>
+                Offset(footAnchor, 13f, -16f, scale),
+            PawnWeaponRole.ThrustingBlade =>
+                Offset(footAnchor, 14f, -21f, scale),
             _ => throw new ArgumentOutOfRangeException(nameof(role), role, null),
         };
         var thickness = MathF.Max(
             1f,
             role switch
             {
-                PawnWeaponRole.BroadDagger => 2.2f * scale,
+                PawnWeaponRole.Bolo => 2.2f * scale,
                 PawnWeaponRole.GreatBlade => 2.8f * scale,
-                _ => 1.2f * scale,
+                PawnWeaponRole.HeavyChopper => 3.1f * scale,
+                PawnWeaponRole.ThrustingBlade => 1.6f * scale,
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(role),
+                    role,
+                    null),
             });
         var weaponPadding = role switch
         {
-            PawnWeaponRole.LongSpear => 2.8f * scale,
-            PawnWeaponRole.HardenedJavelin => 1.8f * scale,
-            PawnWeaponRole.WarBow => 5.2f * scale,
-            PawnWeaponRole.BroadDagger => 2.8f * scale,
+            PawnWeaponRole.Bolo => 2.8f * scale,
             PawnWeaponRole.GreatBlade => 4.2f * scale,
-            _ => 0f,
+            PawnWeaponRole.HeavyChopper => 4.4f * scale,
+            PawnWeaponRole.ThrustingBlade => 3.2f * scale,
+            _ => throw new ArgumentOutOfRangeException(nameof(role), role, null),
         };
-        var bounds = role == PawnWeaponRole.WarBow
-            ? CreateBowBounds(start, end, scale)
-            : BoundsFromLine(start, end, weaponPadding);
+        var bounds = BoundsFromLine(start, end, weaponPadding);
         var secondaryBounds = detailTier == PawnDetailTier.Low
             ? Rectangle.Empty
             : CreateSecondaryBounds(footAnchor, scale, role);
@@ -199,15 +203,7 @@ internal static class PawnGeometry
         PawnWeaponRole role) =>
         role switch
         {
-            PawnWeaponRole.HardenedJavelin => BoundsFromLine(
-                Offset(footAnchor, -6f, -4f, scale),
-                Offset(footAnchor, 5f, -18f, scale),
-                2.5f * scale),
-            PawnWeaponRole.WarBow => BoundsFromLine(
-                Offset(footAnchor, 4f, -4f, scale),
-                Offset(footAnchor, 7f, -17f, scale),
-                2.5f * scale),
-            PawnWeaponRole.BroadDagger => BoundsFromLine(
+            PawnWeaponRole.Bolo => BoundsFromLine(
                 Offset(footAnchor, -2f, -4f, scale),
                 Offset(footAnchor, -6f, -11f, scale),
                 2f * scale),
@@ -241,23 +237,6 @@ internal static class PawnGeometry
         var top = (int)MathF.Floor(MathF.Min(start.Y, end.Y) - padding);
         var right = (int)MathF.Ceiling(MathF.Max(start.X, end.X) + padding);
         var bottom = (int)MathF.Ceiling(MathF.Max(start.Y, end.Y) + padding);
-        return new Rectangle(left, top, right - left, bottom - top);
-    }
-
-    private static Rectangle CreateBowBounds(
-        Vector2 start,
-        Vector2 end,
-        float scale)
-    {
-        var verticalPadding = MathF.Max(1f, 1.8f * scale);
-        var left = (int)MathF.Floor(
-            MathF.Min(start.X, end.X) - (5.2f * scale));
-        var top = (int)MathF.Floor(
-            MathF.Min(start.Y, end.Y) - verticalPadding);
-        var right = (int)MathF.Ceiling(
-            MathF.Max(start.X, end.X) + verticalPadding);
-        var bottom = (int)MathF.Ceiling(
-            MathF.Max(start.Y, end.Y) + verticalPadding);
         return new Rectangle(left, top, right - left, bottom - top);
     }
 

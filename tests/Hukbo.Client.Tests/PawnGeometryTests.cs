@@ -1,5 +1,6 @@
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Rendering;
+using Hukbo.Core.Combat;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Tests;
@@ -9,7 +10,7 @@ public sealed class PawnGeometryTests
     [Fact]
     public void Create_AppliesMonotonicClampedZoomScaling()
     {
-        var appearance = PawnAppearanceFactory.Create(0);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.GreatBlade);
 
         var minimum = PawnGeometry.Create(Vector2.Zero, 0.05f, appearance);
         var low = PawnGeometry.Create(Vector2.Zero, 0.5f, appearance);
@@ -28,7 +29,7 @@ public sealed class PawnGeometryTests
     [Fact]
     public void Create_UsesAllDetailTiersInOrder()
     {
-        var appearance = PawnAppearanceFactory.Create(0);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.GreatBlade);
 
         var low = PawnGeometry.Create(Vector2.Zero, 0.05f, appearance);
         var medium = PawnGeometry.Create(Vector2.Zero, 1f, appearance);
@@ -43,7 +44,7 @@ public sealed class PawnGeometryTests
     public void Create_PreservesFootAnchorAcrossBodyVariation()
     {
         var footAnchor = new Vector2(137.25f, 241.75f);
-        var baseAppearance = PawnAppearanceFactory.Create(0);
+        var baseAppearance = PawnAppearanceFactory.Create(0, WeaponId.GreatBlade);
         var slightShort = baseAppearance with
         {
             StatureMultiplier = 0.90f,
@@ -65,7 +66,7 @@ public sealed class PawnGeometryTests
     [Fact]
     public void Create_KeepsHeadSizeStableWhileTorsoVaries()
     {
-        var baseAppearance = PawnAppearanceFactory.Create(0);
+        var baseAppearance = PawnAppearanceFactory.Create(0, WeaponId.GreatBlade);
         var slightShort = baseAppearance with
         {
             StatureMultiplier = 0.90f,
@@ -88,7 +89,7 @@ public sealed class PawnGeometryTests
     [Fact]
     public void Create_EveryWeaponExtendsBeyondTorso()
     {
-        var baseAppearance = PawnAppearanceFactory.Create(0);
+        var baseAppearance = PawnAppearanceFactory.Create(0, WeaponId.GreatBlade);
 
         foreach (var role in Enum.GetValues<PawnWeaponRole>())
         {
@@ -106,7 +107,7 @@ public sealed class PawnGeometryTests
     [Fact]
     public void Create_VisualBoundsContainEveryRenderedPartAndSelectionPadding()
     {
-        var baseAppearance = PawnAppearanceFactory.Create(0);
+        var baseAppearance = PawnAppearanceFactory.Create(0, WeaponId.GreatBlade);
 
         foreach (var role in Enum.GetValues<PawnWeaponRole>())
         {
@@ -137,7 +138,7 @@ public sealed class PawnGeometryTests
         var footAnchor = new Vector2(
             portraitBounds.Center.X,
             portraitBounds.Bottom - 7);
-        var baseAppearance = PawnAppearanceFactory.Create(0);
+        var baseAppearance = PawnAppearanceFactory.Create(0, WeaponId.GreatBlade);
 
         foreach (var role in Enum.GetValues<PawnWeaponRole>())
         {

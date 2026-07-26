@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Theming;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -13,13 +14,6 @@ internal readonly record struct UiInteraction(
 
 internal sealed class UiButton
 {
-    private static readonly Color ButtonColor = new(46, 62, 82);
-    private static readonly Color HoverColor = new(62, 98, 132);
-    private static readonly Color FocusColor = new(54, 78, 104);
-    private static readonly Color ActiveColor = new(35, 152, 123);
-    private static readonly Color DisabledColor = new(34, 42, 52);
-    private static readonly Color DisabledTextColor = new(112, 121, 132);
-
     public UiButton(string label, ClientCommand command)
     {
         Label = label;
@@ -71,15 +65,33 @@ internal sealed class UiButton
         SpriteBatch spriteBatch,
         Texture2D pixel,
         SpriteFont font,
+        UiTheme theme,
         float textScale = 1f)
     {
-        var fillColor = GetFillColor();
-        var textColor = IsEnabled ? Color.White : DisabledTextColor;
+        var fillColor = GetFillColor(theme);
+        var textColor = IsEnabled
+            ? theme.Colors.TextInverse
+            : theme.Colors.TextDisabled;
 
         spriteBatch.Draw(pixel, Bounds, fillColor);
         if ((IsFocused || IsActive) && IsEnabled)
         {
-            UiPrimitives.DrawBorder(spriteBatch, pixel, Bounds, Color.White, 2);
+            UiPrimitives.DrawBorder(
+                spriteBatch,
+                pixel,
+                Bounds,
+                IsFocused
+                    ? theme.Colors.ActionFocus
+                    : theme.Colors.Selection,
+                theme.Metrics.FocusThickness);
+        }
+
+        if (IsActive && IsEnabled)
+        {
+            spriteBatch.Draw(
+                pixel,
+                new Rectangle(Bounds.Left, Bounds.Top, 6, Bounds.Height),
+                theme.Colors.Selection);
         }
 
         UiPrimitives.DrawCenteredText(
@@ -91,24 +103,29 @@ internal sealed class UiButton
             textScale);
     }
 
-    private Color GetFillColor()
+    private Color GetFillColor(UiTheme theme)
     {
         if (!IsEnabled)
         {
-            return DisabledColor;
+            return theme.Colors.ActionDisabled;
         }
 
-        if (IsPressed || IsActive)
+        if (IsPressed)
         {
-            return ActiveColor;
+            return theme.Colors.ActionPressed;
+        }
+
+        if (IsActive)
+        {
+            return theme.Colors.ActionActive;
         }
 
         if (IsHovered)
         {
-            return HoverColor;
+            return theme.Colors.ActionHover;
         }
 
-        return IsFocused ? FocusColor : ButtonColor;
+        return theme.Colors.ActionDefault;
     }
 }
 

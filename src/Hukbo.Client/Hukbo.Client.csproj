@@ -13,4 +13,8 @@
   <ItemGroup>
     <MonoGameContentReference Include="Content/Content.mgcb" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="Content/Themes/ui-theme-standards.json"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

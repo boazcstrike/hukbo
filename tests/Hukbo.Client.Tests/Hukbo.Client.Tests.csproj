@@ -18,4 +18,9 @@
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="../../src/Hukbo.Client/Content/Themes/ui-theme-standards.json"
+          Link="Content/Themes/ui-theme-standards.json"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

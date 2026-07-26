@@ -16,11 +16,9 @@ internal static class PawnRenderer
 {
     private static readonly Color ShadowColor = new(30, 40, 48);
     private static readonly Color OutlineColor = new(10, 15, 21);
-    private static readonly Color PalmOchre = new(168, 116, 60);
     private static readonly Color CharredWood = new(48, 40, 33);
     private static readonly Color Iron = new(56, 66, 73);
     private static readonly Color IronHighlight = new(130, 142, 145);
-    private static readonly Color Reed = new(231, 216, 183);
     private static readonly Color HoverColor = new(231, 199, 84);
     private static readonly Color DeadColor = new(91, 98, 105);
     private static readonly Color HitPulseColor = new(255, 244, 214);
@@ -262,84 +260,20 @@ internal static class PawnRenderer
         bool isDead)
     {
         if (layout.DetailTier == PawnDetailTier.Low ||
-            layout.SecondaryEquipmentBounds.IsEmpty)
+            layout.SecondaryEquipmentBounds.IsEmpty ||
+            role != PawnWeaponRole.Bolo)
         {
             return;
         }
 
         var scale = layout.ApparentScale;
-        var wood = ApplyState(PalmOchre, isDead);
-        var point = ApplyState(
-            role == PawnWeaponRole.HardenedJavelin ? CharredWood : Iron,
-            isDead);
-
-        switch (role)
-        {
-            case PawnWeaponRole.HardenedJavelin:
-                for (var offset = -1; offset <= 1; offset++)
-                {
-                    var shift = new Vector2(
-                        offset * MathF.Max(1f, scale),
-                        0f);
-                    var start = layout.FootAnchor +
-                        new Vector2(-6f * scale, -4f * scale) +
-                        shift;
-                    var end = layout.FootAnchor +
-                        new Vector2(5f * scale, -18f * scale) +
-                        shift;
-                    DrawLine(spriteBatch, pixel, start, end, wood, 1f);
-                    DrawLine(
-                        spriteBatch,
-                        pixel,
-                        Vector2.Lerp(start, end, 0.86f),
-                        end,
-                        point,
-                        MathF.Max(1f, scale));
-                }
-
-                break;
-            case PawnWeaponRole.WarBow:
-                var quiverStart = layout.FootAnchor +
-                    new Vector2(4f * scale, -4f * scale);
-                var quiverEnd = layout.FootAnchor +
-                    new Vector2(7f * scale, -17f * scale);
-                DrawLine(
-                    spriteBatch,
-                    pixel,
-                    quiverStart,
-                    quiverEnd,
-                    wood,
-                    MathF.Max(2f, 2f * scale));
-                var arrowOffset = PerpendicularUnit(
-                    quiverStart,
-                    quiverEnd) * MathF.Max(1f, scale);
-                DrawLine(
-                    spriteBatch,
-                    pixel,
-                    quiverStart + arrowOffset,
-                    quiverEnd + arrowOffset,
-                    ApplyState(Reed, isDead),
-                    1f);
-                DrawLine(
-                    spriteBatch,
-                    pixel,
-                    quiverStart - arrowOffset,
-                    quiverEnd - arrowOffset,
-                    ApplyState(Reed, isDead),
-                    1f);
-                break;
-            case PawnWeaponRole.BroadDagger:
-                DrawLine(
-                    spriteBatch,
-                    pixel,
-                    layout.FootAnchor +
-                        new Vector2(-2f * scale, -4f * scale),
-                    layout.FootAnchor +
-                        new Vector2(-6f * scale, -11f * scale),
-                    ApplyState(CharredWood, isDead),
-                    MathF.Max(2f, 2f * scale));
-                break;
-        }
+        DrawLine(
+            spriteBatch,
+            pixel,
+            layout.FootAnchor + new Vector2(-2f * scale, -4f * scale),
+            layout.FootAnchor + new Vector2(-6f * scale, -11f * scale),
+            ApplyState(CharredWood, isDead),
+            MathF.Max(2f, 2f * scale));
     }
 
     private static void DrawWeapon(
@@ -349,45 +283,13 @@ internal static class PawnRenderer
         PawnWeaponRole role,
         bool isDead)
     {
-        var wood = ApplyState(PalmOchre, isDead);
         var darkWood = ApplyState(CharredWood, isDead);
         var iron = ApplyState(Iron, isDead);
         var ironHighlight = ApplyState(IronHighlight, isDead);
-        var reed = ApplyState(Reed, isDead);
 
         switch (role)
         {
-            case PawnWeaponRole.LongSpear:
-                DrawSpear(
-                    spriteBatch,
-                    pixel,
-                    layout,
-                    wood,
-                    iron,
-                    ironHighlight,
-                    ApplyState(Reed, isDead),
-                    pointStart: 0.84f);
-                break;
-            case PawnWeaponRole.HardenedJavelin:
-                DrawSpear(
-                    spriteBatch,
-                    pixel,
-                    layout,
-                    wood,
-                    darkWood,
-                    darkWood,
-                    ApplyState(Reed, isDead),
-                    pointStart: 0.88f);
-                break;
-            case PawnWeaponRole.WarBow:
-                DrawBow(
-                    spriteBatch,
-                    pixel,
-                    layout,
-                    wood,
-                    reed);
-                break;
-            case PawnWeaponRole.BroadDagger:
+            case PawnWeaponRole.Bolo:
                 DrawBlade(
                     spriteBatch,
                     pixel,
@@ -409,99 +311,31 @@ internal static class PawnRenderer
                     gripEnd: 0.22f,
                     widthMultiplier: 2.45f);
                 break;
+            case PawnWeaponRole.HeavyChopper:
+                DrawBlade(
+                    spriteBatch,
+                    pixel,
+                    layout,
+                    darkWood,
+                    iron,
+                    ironHighlight,
+                    gripEnd: 0.28f,
+                    widthMultiplier: 2.9f);
+                break;
+            case PawnWeaponRole.ThrustingBlade:
+                DrawBlade(
+                    spriteBatch,
+                    pixel,
+                    layout,
+                    darkWood,
+                    iron,
+                    ironHighlight,
+                    gripEnd: 0.16f,
+                    widthMultiplier: 1.5f);
+                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(role), role, null);
         }
-    }
-
-    private static void DrawSpear(
-        SpriteBatch spriteBatch,
-        Texture2D pixel,
-        PawnLayout layout,
-        Color shaftColor,
-        Color pointColor,
-        Color pointHighlight,
-        Color gripColor,
-        float pointStart)
-    {
-        var pointBase = Vector2.Lerp(
-            layout.WeaponStart,
-            layout.WeaponEnd,
-            pointStart);
-        DrawLine(
-            spriteBatch,
-            pixel,
-            layout.WeaponStart,
-            pointBase,
-            shaftColor,
-            layout.WeaponThickness);
-        DrawLine(
-            spriteBatch,
-            pixel,
-            pointBase,
-            layout.WeaponEnd,
-            pointColor,
-            MathF.Max(2f, layout.WeaponThickness * 2.3f));
-        DrawLine(
-            spriteBatch,
-            pixel,
-            Vector2.Lerp(pointBase, layout.WeaponEnd, 0.2f),
-            layout.WeaponEnd,
-            pointHighlight,
-            MathF.Max(1f, layout.WeaponThickness * 0.7f));
-
-        if (layout.DetailTier == PawnDetailTier.High)
-        {
-            var grip = Vector2.Lerp(
-                layout.WeaponStart,
-                pointBase,
-                0.35f);
-            var perpendicular = PerpendicularUnit(
-                layout.WeaponStart,
-                pointBase) * (2f * layout.ApparentScale);
-            DrawLine(
-                spriteBatch,
-                pixel,
-                grip - perpendicular,
-                grip + perpendicular,
-                gripColor,
-                MathF.Max(1f, layout.WeaponThickness));
-        }
-    }
-
-    private static void DrawBow(
-        SpriteBatch spriteBatch,
-        Texture2D pixel,
-        PawnLayout layout,
-        Color bowColor,
-        Color stringColor)
-    {
-        var middle = Vector2.Lerp(
-            layout.WeaponStart,
-            layout.WeaponEnd,
-            0.5f) -
-            new Vector2(5f * layout.ApparentScale, 0f);
-        DrawLine(
-            spriteBatch,
-            pixel,
-            layout.WeaponStart,
-            middle,
-            bowColor,
-            MathF.Max(1f, layout.WeaponThickness * 1.5f));
-        DrawLine(
-            spriteBatch,
-            pixel,
-            middle,
-            layout.WeaponEnd,
-            bowColor,
-            MathF.Max(1f, layout.WeaponThickness * 1.5f));
-        DrawLine(
-            spriteBatch,
-            pixel,
-            layout.WeaponStart,
-            layout.WeaponEnd,
-            stringColor,
-            1f);
     }
 
     private static void DrawBlade(
@@ -702,15 +536,6 @@ internal static class PawnRenderer
             new Vector2(length, MathF.Max(1f, thickness)),
             SpriteEffects.None,
             layerDepth: 0f);
-    }
-
-    private static Vector2 PerpendicularUnit(Vector2 start, Vector2 end)
-    {
-        var delta = end - start;
-        var length = delta.Length();
-        return length <= float.Epsilon
-            ? Vector2.UnitY
-            : new Vector2(-delta.Y / length, delta.X / length);
     }
 
     private static Rectangle Inset(Rectangle bounds, int amount)

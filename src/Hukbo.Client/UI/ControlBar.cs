@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Theming;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -12,9 +13,6 @@ internal sealed class ControlBar
     private const int ButtonGap = 8;
     private const int ButtonWidth = 84;
     private const int ButtonHeight = 34;
-
-    private static readonly Color PanelColor = new(22, 31, 46, 242);
-    private static readonly Color BorderColor = new(85, 111, 145);
 
     private readonly UiButton[] _buttons =
     [
@@ -53,17 +51,23 @@ internal sealed class ControlBar
         Texture2D pixel,
         SpriteFont font,
         Rectangle availableBounds,
-        bool isPlaying)
+        bool isPlaying,
+        UiTheme theme)
     {
         Layout(availableBounds);
         SynchronizeVisualState(isPlaying);
 
-        spriteBatch.Draw(pixel, Bounds, PanelColor);
-        UiPrimitives.DrawBorder(spriteBatch, pixel, Bounds, BorderColor);
+        spriteBatch.Draw(pixel, Bounds, theme.Colors.PanelSurface);
+        UiPrimitives.DrawBorder(
+            spriteBatch,
+            pixel,
+            Bounds,
+            theme.Colors.PanelBorder,
+            theme.Metrics.BorderThickness);
 
         foreach (var button in _buttons)
         {
-            button.Draw(spriteBatch, pixel, font, 0.78f);
+            button.Draw(spriteBatch, pixel, font, theme, 0.78f);
         }
     }
 
