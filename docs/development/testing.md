@@ -58,7 +58,11 @@ warnings, the Release repository tests, and the seed-1 / 200-agent /
 | Suite | Passed | Failed | Skipped |
 | --- | --- | --- | --- |
 | `Hukbo.Core.Tests` | 351 | 0 | 0 |
-| `Hukbo.Client.Tests` | 513 | 0 | 0 |
+| `Hukbo.Client.Tests` | 532 | 0 | 0 |
+
+These are post-merge figures, taken from a clean checkout of the merge commit.
+The Client count is the 532 the camera auto-pan change brought with it; no
+Client test was added or changed here.
 
 The Core count is 25 higher than the 326 recorded on `main`; all 25 are the new
 `FormationPlannerTests`, which cover mirror symmetry, spawn clearance, map
@@ -686,7 +690,10 @@ below remain `PENDING` a human at an interactive Windows desktop.
 
 ## The camera auto-pan run — 2026-07-27
 
-Current, and later than everything above. This change adds `ArenaAutoPan` and
+Superseded by the mirrored starting-formation change at the top of this file.
+The gate result and the Client test count below still stand; the two hashes it
+quotes do not, because deployment positions moved after this run. Its point —
+that a Client-only change must not move a hash — was correct when written. This change adds `ArenaAutoPan` and
 `ArenaAutoPanController` to `Hukbo.Client`, plus a `Center` property, a
 `MoveCenterTo` method, a `GetVisibleHalfExtents` helper, and an `Update` return
 value on `SpectatorCamera`. It touches no `Hukbo.Core` file.
