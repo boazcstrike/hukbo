@@ -28,8 +28,10 @@ Tasks 1, 2, and 3 are independent of one another and may run in parallel. Tasks
   `FormationRules.DefaultLastStandThresholdAgents == 6`.
 - `MaximumLastStandThresholdMatchesTheSquarePackingBoundOfTheJitterSquare` —
   asserts `MaximumLastStandThresholdAgents == 16` and independently recomputes
-  it as `(2 * RallyJitterRadiusMultiplier) * (2 * RallyJitterRadiusMultiplier)`,
-  so the constant and its derivation cannot drift apart.
+  it from the derivation, so the constant and its derivation cannot drift apart.
+  The bias square has side `8R` and a body square has side `2R`, so the ratio is
+  `RallyJitterRadiusMultiplier` and the bound is that ratio squared, which is
+  `RallyJitterRadiusMultiplier * RallyJitterRadiusMultiplier`.
 - `RallyJitterRadiusForTheDefaultBodyIsSixteenWorldUnits` — asserts
   `FormationRules.ComputeRallyJitterRaw(CollisionRules.DefaultBodyRadiusRaw)`
   equals `16 * FixedPoint.Scale`.
