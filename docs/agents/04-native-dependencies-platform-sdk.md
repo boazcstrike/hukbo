@@ -24,19 +24,19 @@ the DesktopGL runtime.
 
 ## Verification
 
-Package/config inspection is complete. An interactive window and graphics
-driver smoke was not run in this delivery worktree.
+Package/config inspection is complete. The self-contained client opened a
+1280x720 DesktopGL window on the reference Windows/NVIDIA machine, advanced the
+simulation, and closed normally with exit code 0.
 
 ## Status
 
-**CONDITIONALLY COMPLETE**
+**COMPLETE**
 
 ## Limitations
 
-Graphics initialization is machine-specific and cannot be proven by package
-restore or compilation.
+Graphics initialization remains machine-specific; the recorded result applies
+to the named reference machine.
 
 ## Next action
 
-Perform the documented interactive smoke on the target Windows hardware after
-Client integration.
+Repeat the window smoke on each newly supported hardware baseline.

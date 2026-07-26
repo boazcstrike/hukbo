@@ -28,10 +28,10 @@ controls.
 
 ## Verification
 
-All PowerShell files parsed successfully. Doctor, bootstrap, test, and format
-verification ran; doctor/restore passed, 7/7 available Core tests passed, and
-formatting changed 0 files. Source-dependent build/run/benchmark/package
-results remain integration gates.
+All PowerShell files parsed successfully. After correcting named-parameter
+forwarding in the shared helper, the canonical verify workflow passed doctor,
+tool/locked restore, formatting, zero-warning Release build, 42 tests, and the
+200-agent workload. Self-contained packaging also passed.
 
 ## Status
 
@@ -39,9 +39,10 @@ results remain integration gates.
 
 ## Limitations
 
-The workflows can only validate behavior implemented in the integrated source.
+Direct menu interaction still requires a real desktop because synthetic input
+did not reach SDL in this environment.
 
 ## Next action
 
-Run every workflow after integration and update readiness evidence with actual
-results.
+Run `./scripts/run.ps1`, complete the short manual menu checklist, and record
+the result.

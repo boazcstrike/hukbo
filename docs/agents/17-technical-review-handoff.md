@@ -14,9 +14,9 @@ onboarding, and final handoff readiness.
 ## Decisions and work
 
 Kept workflows Windows-scoped, repository-relative, locked, and
-non-destructive. Marked source/runtime/CI/package outcomes conditional or
-deferred. Documented missing public-distribution license and interactive smoke
-as explicit follow-ups.
+non-destructive. Integrated Core, Headless, Client/Menu, and delivery work.
+Documented the missing public-distribution license, hosted CI run, and direct
+menu interaction as explicit follow-ups.
 
 ## Files
 
@@ -27,9 +27,12 @@ as explicit follow-ups.
 
 ## Verification
 
-Delivery-owned PowerShell scripts parse. Doctor/bootstrap/test/format evidence
-is recorded. The final integrated diff, full gate, package, hosted CI, and
-interactive smoke have not yet been independently reviewed.
+PowerShell scripts parse. The canonical gate passes formatting, zero-warning
+Release build, 42 tests, and deterministic 200-agent execution. Self-contained
+packaging and real window startup/normal close pass. Independent review is in
+complete with no remaining Critical or High findings. Its two Medium findings
+(maximum-map placement overflow and stale local package output) were corrected
+and reverified. Hosted CI and direct menu interaction remain conditional.
 
 ## Status
 
@@ -37,11 +40,9 @@ interactive smoke have not yet been independently reviewed.
 
 ## Limitations
 
-This is a pre-integration handoff; it cannot certify code owned by the other
-workstreams.
+Automated input injection could not reach SDL, so manual Play/Pause/Exit
+interaction remains required.
 
 ## Next action
 
-The orchestrator must integrate Core before Client, review the whole diff,
-resolve all Critical/High findings, run final gates, and replace conditional
-evidence with observed results.
+Record the manual menu and hosted CI results.

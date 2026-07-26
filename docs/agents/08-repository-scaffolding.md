@@ -26,9 +26,8 @@ layer was added.
 
 ## Verification
 
-The existing Core test project built and 7/7 primitive tests passed in Release.
-Complete solution build remains an integration gate because Client and
-Headless entry points were not present in this snapshot.
+The complete solution built in Release with 0 warnings/errors, including Core,
+Headless, Client, Core.Tests, and SpriteFont content. All 42 tests passed.
 
 ## Status
 
@@ -36,8 +35,9 @@ Headless entry points were not present in this snapshot.
 
 ## Limitations
 
-Scaffolding completion does not imply the game runtime is implemented.
+The scaffold remains intentionally Windows x64 and four-project only.
 
 ## Next action
 
-Integrate the source workstreams and run the complete solution build.
+Add a new project only when a verified behavior requires a new ownership
+boundary.

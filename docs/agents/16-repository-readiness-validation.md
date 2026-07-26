@@ -25,21 +25,20 @@ non-destructive locked restore and explicit diff inspection. Defined
 
 ## Verification
 
-Doctor, locked restore, 7/7 available Core primitive tests, script parsing, and
-formatting passed. Complete build, 200-agent headless run, Windows package,
-hosted CI, and interactive client smoke were not completed in this pre-
-integration snapshot.
+Doctor, tool restore, locked package restore, formatting, zero-warning Release
+build, 42/42 tests, deterministic 200-agent headless execution, and
+self-contained Windows packaging passed. The client window opened, advanced,
+and closed normally. Hosted CI and direct menu interaction remain unrun.
 
 ## Status
 
-**DEFERRED**
+**CONDITIONALLY COMPLETE**
 
 ## Limitations
 
-The source workstreams must be integrated before a readiness decision can be
-upgraded.
+Synthetic keyboard injection did not reach the SDL input layer, so it cannot
+substitute for the short manual menu checklist.
 
 ## Next action
 
-Run `./scripts/verify.ps1`, package `win-x64`, execute the interactive smoke,
-and update this report from those exact outputs.
+Execute the Play/Pause/Exit manual smoke and run the workflow on GitHub.

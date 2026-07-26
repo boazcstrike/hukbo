@@ -15,9 +15,9 @@ diagnostics while avoiding unnecessary binary assets.
 
 ## Decisions and work
 
-The dot texture remains runtime-generated. The only planned compiled content is
-a redistributable SpriteFont for menu and diagnostics. Bootstrap restores the
-repository-local tool manifest when present.
+The dot texture remains runtime-generated. The only compiled content is the
+SpriteFont used for menu and diagnostics. Bootstrap restores the
+repository-local dotnet-mgcb 3.8.5 tool.
 
 ## Files
 
@@ -28,13 +28,13 @@ repository-local tool manifest when present.
 
 ## Verification
 
-The delivery worktree did not contain the integrated SpriteFont/tool manifest,
-so content compilation was not claimed. The orchestrator separately reported a
-pinned `dotnet-mgcb` 3.8.5 tool restore; final Client build remains required.
+Tool restore passed. The Content Builder compiled `Default.spritefont` from the
+Windows Arial font during the zero-warning Release build and self-contained
+package publish.
 
 ## Status
 
-**DEFERRED**
+**COMPLETE**
 
 ## Limitations
 
@@ -43,5 +43,5 @@ distribution.
 
 ## Next action
 
-Integrate the manifest and Client content, run bootstrap, then verify the Client
-Release build from a restored state.
+Resolve the font redistribution/provenance requirement before public
+distribution or replace it with a project-owned font.

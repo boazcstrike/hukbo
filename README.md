@@ -45,7 +45,7 @@ plain UI for the first milestone.
 
 That command performs a locked restore, formatting check, Release build, Core
 tests, and deterministic 200-agent headless workload. Package the
-framework-dependent Windows client with:
+self-contained Windows client with:
 
 ```powershell
 ./scripts/package.ps1 -Runtime win-x64

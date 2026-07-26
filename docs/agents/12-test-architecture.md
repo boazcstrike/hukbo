@@ -26,13 +26,13 @@ same-seed ordered events/state; interactive UI remains a separate checklist.
 
 ## Verification
 
-The existing 7 deterministic primitive tests passed in Release. Scenario,
-battle, determinism, and headless workload tests were not present in this
-delivery snapshot and are not claimed.
+All 42 Release tests passed, covering primitives, scenario validation, battle
+rules, determinism, snapshots, and headless argument handling. The 200-agent
+same-seed workload also produced matching hashes and exit code 0.
 
 ## Status
 
-**CONDITIONALLY COMPLETE**
+**COMPLETE**
 
 ## Limitations
 
@@ -40,4 +40,5 @@ No automated rendering/input test layer is included in v0.1.
 
 ## Next action
 
-Run the complete integrated Core suite and 200-agent headless comparison.
+Add direct UI-state tests only if the menu grows beyond the current three
+actions.

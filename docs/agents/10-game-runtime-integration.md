@@ -14,34 +14,34 @@ of Core.
 
 ## Decisions and work
 
-The runtime is assigned exclusively to the Client/Menu workstream. Required
-behavior is documented: guarded startup, fixed Core ticks, one sprite batch,
-camera/zoom, speed/reset, Space toggle, and Escape menu with Play, Pause, and
-Exit Game.
+The integrated runtime has guarded startup, fixed Core ticks, one sprite batch,
+camera/zoom, speed/reset, Space toggle, and an Escape menu with Play, Pause, and
+Exit Game. Menu actions affect only client scheduling and lifecycle.
 
 ## Files
 
-- `src/AutonomousArena.Client/**` (owned by another workstream)
+- `src/AutonomousArena.Client/**`
 - `README.md`
 - `docs/development/getting-started.md`
 - `docs/development/testing.md`
 
 ## Verification
 
-No Client runtime verification was run in the delivery worktree because the
-entry point and menu are integrated separately. Compilation or runtime success
-is not claimed.
+Release build and SpriteFont compilation passed with 0 warnings/errors. A
+self-contained published executable opened a real 1280x720 window, advanced the
+simulation, and closed normally with exit code 0. Synthetic key injection did
+not reach MonoGame's SDL input layer, so direct Play/Pause/Exit interaction
+remains manual QA.
 
 ## Status
 
-**DEFERRED**
+**CONDITIONALLY COMPLETE**
 
 ## Limitations
 
-An interactive Windows desktop is required to prove window creation, input,
-rendering, pause behavior, and clean exit.
+Window creation, rendering, simulation advancement, and normal close are
+proven. Direct menu activation remains unrecorded.
 
 ## Next action
 
-After Core-first integration, build Client and execute the full interactive
-smoke checklist.
+Execute the three-button manual checklist and record the result.

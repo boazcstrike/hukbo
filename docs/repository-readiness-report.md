@@ -1,42 +1,45 @@
 # Repository Readiness Report
 
-**Status: NOT READY**
+**Status: CONDITIONALLY READY**
 
-**Evidence snapshot:** delivery worktree on 2026-07-26, before simulation and
-client integration
+**Evidence snapshot:** integrated branch on 2026-07-26
 
-The toolchain, locked restore, primitive Core tests, formatting, workflow
-scripts, and onboarding documentation are present. This snapshot is not ready
-to claim a runnable game because the authoritative simulation, headless entry
-point, client entry point, menu, and final content tool manifest are being
-implemented in separate workstreams.
+The toolchain, deterministic simulation, MonoGame client, content pipeline,
+workflow scripts, package, and onboarding documentation are integrated.
+Non-graphical gates pass and the published client opened and advanced on the
+reference Windows machine. Readiness remains conditional because synthetic
+keyboard injection could not reach the SDL input layer, so Play/Pause/Exit
+still need one direct manual interaction pass.
 
-## Validated in this snapshot
+## Validated
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
 | Windows developer prerequisites | Passed | Doctor: Windows x64, PowerShell 7.6.4, Git, SDK 10.0.302 |
-| Locked NuGet restore | Passed | Four projects restored with `--locked-mode` |
-| Existing Core primitive tests | Passed | 7/7 Release tests |
+| Locked NuGet and tool restore | Passed | Four projects and dotnet-mgcb 3.8.5 restored |
+| Complete Release build | Passed | 0 warnings, 0 errors; SpriteFont compiled |
+| Core and headless tests | Passed | 42/42 Release tests |
 | Formatting | Passed | `dotnet format --verify-no-changes`, 0 files changed |
 | NuGet vulnerability audit | Passed | No vulnerable direct/transitive packages reported by nuget.org on 2026-07-26 |
 | Script parsing | Passed | Every `scripts/*.ps1` parsed with the PowerShell AST parser |
-| Complete solution build | Not passed in this snapshot | Client and Headless entry points await integration |
-| 200-agent headless determinism | Not run | Headless implementation awaits integration |
-| Client runtime/menu smoke | Not run | Requires integrated client and interactive desktop |
-| Windows package | Not run successfully | Requires integrated client/content tool |
+| 200-agent headless determinism | Passed | Same-seed hashes match; Faction 1 victory at tick 235 |
+| 500-agent stress | Passed | Deterministic result at tick 309 |
+| Windows package | Passed | Self-contained `win-x64` output created |
+| Client window smoke | Passed | 1280x720 window opened, simulation advanced, normal close returned exit code 0 |
+| Independent technical review | Passed | No remaining Critical or High findings |
+| Menu interaction | Conditional | Code and rendering build; automation could not inject keyboard input into SDL |
 | GitHub Actions run | Not run | Workflow exists but hosted execution has not occurred |
 
-## Required final integration gate
+## Commands executed
 
 ```powershell
 ./scripts/verify.ps1
 ./scripts/package.ps1 -Runtime win-x64
 ```
 
-Then perform the interactive checklist in
-`docs/development/testing.md`. Update this report only from actual command and
-runtime evidence.
+The canonical verification completed formatting, Release build, 42 tests, and
+the deterministic 200-agent workload. Packaging completed after reviewed
+`win-x64` lock targets were generated for Client and Core.
 
 ## Known limitations
 
@@ -46,9 +49,12 @@ runtime evidence.
 - No multiplayer, persistence, pathfinding, store distribution, or
   non-Windows packaging is included.
 - A project license must be selected before public distribution.
+- Hosted CI and direct manual clicking of Play, Pause, and Exit Game have not
+  yet been recorded.
 
-## First follow-up after integration
+## Required follow-up
 
-Resolve any Core contract mismatch in the orchestrator-owned integration, run
-the complete non-graphical gate, package, and record the Play/Pause/Exit
-interactive smoke without inferring success from compilation.
+Run the short interactive checklist in `docs/development/testing.md`: open the
+menu with Escape, activate Play, Pause, and Exit Game, and record the result.
+Then run the committed workflow on GitHub. If both pass, upgrade this report to
+`READY`.

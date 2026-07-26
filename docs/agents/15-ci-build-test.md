@@ -15,7 +15,7 @@ Windows package for manual/tagged runs.
 
 Created a `windows-2025` workflow with `contents: read`, concurrency
 cancellation, timeouts, NuGet caching, and full commit-SHA pins for checkout,
-setup-dotnet, and artifact upload. Pull requests/main run verification;
+setup-dotnet, and artifact upload. Pull requests plus `master` and `main` pushes run verification;
 manual/tagged runs additionally package and upload the client.
 
 ## Files

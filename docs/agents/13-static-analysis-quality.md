@@ -25,14 +25,13 @@ did not add speculative quality packages.
 
 ## Verification
 
-Formatting verification passed and changed 0 of 17 files in this snapshot.
-Warnings-as-errors applied to the passing Core test build. A live nuget.org
-transitive audit reported no vulnerable packages. A final full build remains
-pending.
+Formatting verification passed and changed 0 of 40 files. The full Release
+solution build passed with 0 warnings/errors. A live nuget.org transitive audit
+reported no vulnerable packages.
 
 ## Status
 
-**CONDITIONALLY COMPLETE**
+**COMPLETE**
 
 ## Limitations
 
@@ -41,4 +40,4 @@ added because repository/CI support for those gates was not established.
 
 ## Next action
 
-Run the full integrated build and a current transitive vulnerability audit.
+Keep the audit and formatting checks in every hosted CI run.
