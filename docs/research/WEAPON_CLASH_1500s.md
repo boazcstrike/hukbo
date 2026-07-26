@@ -328,8 +328,37 @@ none may ever be cited back into this document or
 The evidence does not support "does a clash happen, yes or no". It supports a defender
 choosing *which surface* takes the attack. Two stages:
 
+**Composition rule. Read this before any table below.**
+
+```
+P(landed)         = 1 − P(active defence)
+P(active defence) = P(shield intercept) + P(weapon intercept) + P(void)
+```
+
+The three channels are **mutually exclusive and jointly exhaustive of the defence**. They are
+never summed on top of a separate base clash probability, and `P(active defence)` is derived
+from the channels rather than multiplied against them. Any attacker-side accuracy or whiff
+roll, if the simulation models one, is a separate and prior stage and must not be folded in
+here or it double-counts.
+
+This rule was missing from the first draft of this document, and its absence caused a real
+error: the per-pair table below was read as a free-standing lookup added on top of a 0.20
+base, which produced a shielded-defender interception near 0.48 and left the void channel
+unaccounted for entirely.
+
 **Stage 1 — does the defender mount any active defence?** For an aware defender, in measure,
-unfatigued, in the frontal arc: about 0.50, defensible range 0.35 to 0.65.
+unfatigued, in the frontal arc, **facing one attacker**: about 0.50, defensible range 0.35 to
+0.65.
+
+That is a duel figure and it is not the battle figure. Hukbo runs a 200-agent mixed melee, and
+the modifiers in section 5.4 — ×0.65 per extra attacker in reach with a ×0.25 floor, ×0.10
+outside the frontal arc, ×0.70 wounded or fatigued — pull it down substantially at realistic
+occupancy. The corrected roster-realistic values are:
+
+| Condition | Shielded defender, total non-landed | Shieldless defender, total non-landed |
+| --- | ---: | ---: |
+| Duel: aware, one attacker, fresh | 0.50 (0.40–0.60) | 0.38 (0.28–0.48) |
+| **Mass melee, roster-realistic** | **0.40 (0.32–0.47)** | **0.25 (0.18–0.32)** |
 
 **Stage 2 — which channel?**
 
@@ -342,36 +371,123 @@ unfatigued, in the frontal arc: about 0.50, defensible range 0.35 to 0.65.
 | Spear, two hands | — | 0.45–0.60 | 0.40–0.55 |
 | Dagger or short blade against a longer weapon | — | 0.20–0.35 | 0.65–0.80 |
 
-### 5.2 Base weapon-on-weapon clash probability per exchange
+### 5.2 Aggregate target for the Hukbo roster
 
-**Central recommendation 0.20, defensible range 0.10 to 0.30**, before any modifier, for a
-generic aware defender across a mixed roster.
+The shipped roster is four melee loadouts in equal counts: `GreatBlade` and `HeavyChopper`
+shieldless, `ThrustingBlade` and `Bolo` carrying `TallHardwood`. Half the army is shielded,
+none of it carries a spear, and there are no missile troops. It therefore cannot inherit a
+generic average from any of the source material.
 
-Below 0.10 contradicts the European forte-wear archaeology, which shows contact was frequent
-enough to consume blades. Above 0.30 as a *base* contradicts the total silence of the
-Philippine primary record and the explicit FMA doctrine against meeting the weapon.
+Working the section 5.3 matrix through at equal loadout weights, each loadout supplying a
+quarter of attacks and a quarter of defences:
 
-### 5.3 Per-pair matrix
-
-Probability that the **defender's weapon** contacts the attacker's weapon, per exchange.
-Deliberately asymmetric.
-
-| Defender \ Attacker | Heavy chopper (2H) | Blade + large shield | Spear (2H) | Dagger / short blade |
+| Defender loadout | Mean shield intercept | Mean weapon intercept | Void | **Total non-landed** |
 | --- | ---: | ---: | ---: | ---: |
-| Heavy chopper (2H) | **0.30** (0.20–0.45) | 0.22 (0.15–0.32) | 0.34 (0.25–0.46) | 0.18 (0.10–0.28) |
-| Blade + large shield | 0.10 (0.05–0.16) | **0.08** (0.04–0.12) | 0.08 (0.04–0.14) | 0.06 (0.03–0.10) |
-| Spear (2H) | 0.14 (0.08–0.22) | 0.10 (0.05–0.16) | **0.28** (0.18–0.40) | 0.10 (0.05–0.18) |
-| Dagger / short blade | 0.32 (0.22–0.44) | 0.20 (0.12–0.30) | **0.38** (0.28–0.50) | 0.22 (0.14–0.32) |
+| GreatBlade | 0.00 | 0.19 | 0.10 | **0.29** |
+| HeavyChopper | 0.00 | 0.13 | 0.09 | **0.22** |
+| ThrustingBlade + TallHardwood | 0.24 | 0.05 | 0.10 | **0.39** |
+| Bolo + TallHardwood | 0.25 | 0.04 | 0.11 | **0.40** |
+| **Roster weighted mean** | 0.12 | 0.10 | 0.10 | **0.33** |
 
-Companion shield-intercept probabilities for shield-bearing defenders, same exchange:
+**Acceptance criterion one — interception share.** Defence-attributable non-landed share
+measured over a whole 200-agent battle: target **0.30 to 0.40, centre 0.33; fail outside 0.25
+to 0.45.** Measure shield intercepts plus weapon intercepts plus voids, divided by accepted
+attack attempts against a defender in reach. Do not measure total non-landed including
+attacker accuracy failure — that band depends on a system the clash model does not own, and
+mixing them produces a criterion that moves when unrelated code changes.
 
-| Defender | vs heavy chopper | vs blade | vs spear | vs missiles |
+**Acceptance criterion two — termination.** An interception band alone cannot catch a stall,
+because time to decision is proportional to `1 / (attack rate × (1 − intercept) × damage per
+landed blow)`. Moving interception from 0.48 to 0.33 shortens time to decision by a factor of
+roughly 1.29 — a 29 per cent improvement, not a fix. If a battle stalls at 0.48 it may still
+stall at 0.33. So: **across a sweep of at least 20 seeds at 200 agents, at least 95 per cent
+of battles must reach a winner before the tick cap, and the *median* decisive tick must be at
+or below 50 per cent of the cap.** The median clause is the one that catches the stall; a
+95-per-cent-termination clause alone passes happily while every battle finishes at 98 per
+cent of the cap. Both clauses are required.
+
+### 5.3 Per-pair interception matrix, Hukbo roster
+
+**All sixteen cells are Provisional reconstruction and gameplay tuning choices with no
+evidentiary confidence.** No source, Philippine or otherwise, describes these four loadouts —
+or any four loadouts — fighting one another. Only the relative ordering is argued from
+evidence, and only weakly. Section 5.3.1 names the cells with no anchor at all.
+
+Spear and dagger rows have been removed. They described weapons this roster does not have and
+should never have been carried into planning.
+
+**Conditions: mass melee, roster-realistic.** The crowding, awareness, and fatigue discounts
+are already applied to these values. Do not re-apply the section 5.4 modifiers on top of them.
+
+**Shield intercept, `TallHardwood` only**
+
+| Defender \ Attacker | GreatBlade | HeavyChopper | ThrustingBlade | Bolo |
 | --- | ---: | ---: | ---: | ---: |
-| Large shield (*kalasag* class) | 0.32 (0.22–0.45) | 0.38 (0.28–0.50) | 0.40 (0.30–0.55) | 0.45 (0.35–0.60) |
-| Small buckler (*palisay* class) | 0.22 (0.14–0.32) | 0.28 (0.20–0.40) | 0.26 (0.18–0.38) | 0.25 (0.15–0.35) |
+| GreatBlade (no shield) | — | — | — | — |
+| HeavyChopper (no shield) | — | — | — | — |
+| ThrustingBlade + TallHardwood | 0.24 (0.17–0.32) | 0.22 (0.15–0.30) | 0.24 (0.17–0.33) | 0.26 (0.18–0.35) |
+| Bolo + TallHardwood | 0.25 (0.18–0.34) | 0.23 (0.16–0.31) | 0.25 (0.18–0.34) | 0.27 (0.19–0.36) |
 
-The shield-versus-missiles row is the only cell in either table whose *existence* has direct
-sixteenth-century documentary support. Its value is still invented.
+*Permitted simplification: collapse all eight shield cells to a flat 0.24 (0.17–0.32). Nothing
+defensible is lost, because the spread across this table is not supported by any source.*
+
+**Weapon intercept**
+
+| Defender \ Attacker | GreatBlade | HeavyChopper | ThrustingBlade | Bolo |
+| --- | ---: | ---: | ---: | ---: |
+| GreatBlade (no shield) | 0.22 (0.15–0.30) | 0.19 (0.12–0.26) | 0.16 (0.10–0.23) | 0.20 (0.13–0.28) |
+| HeavyChopper (no shield) | 0.15 (0.09–0.22) | 0.13 (0.08–0.20) | 0.11 (0.06–0.17) | 0.14 (0.08–0.21) |
+| ThrustingBlade + TallHardwood | 0.05 (0.02–0.09) | 0.04 (0.02–0.07) | 0.06 (0.03–0.10) | 0.06 (0.03–0.10) |
+| Bolo + TallHardwood | 0.04 (0.02–0.07) | 0.03 (0.01–0.06) | 0.05 (0.02–0.08) | 0.05 (0.02–0.09) |
+
+**Void channel, per defender loadout**
+
+| Loadout | Void | Total non-landed against a roster-mean attacker |
+| --- | ---: | ---: |
+| GreatBlade | 0.10 (0.06–0.15) | 0.29 |
+| HeavyChopper | 0.09 (0.05–0.14) | 0.22 |
+| ThrustingBlade + TallHardwood | 0.10 (0.06–0.15) | 0.39 |
+| Bolo + TallHardwood | 0.11 (0.07–0.16) | 0.40 |
+| **Roster weighted mean** | 0.10 | **0.33** |
+
+#### 5.3.1 What drives the ordering, and where it is unsupported
+
+Four structural claims produce every cell, and only the first two have any anchor.
+
+**A shield roughly doubles total defence and reroutes it — weak analogical anchor.** Pigafetta
+1521 records shields actively interposed (*Documented*, but against missiles rather than
+blades); Cole 1922 describes an angled, tilted, deflecting use with a grip built for it
+(*Documented, form uncertain*, three centuries late); Warming's Trelleborg trials show active
+shield use sharply reduces damage relative to passive (*Documented as experiment*, Viking, not
+Philippine). None of that yields a rate. The direction is anchored; the magnitude is invented.
+
+**A long two-handed blade parries better than a forward-weighted chopper — weak anchor.** The
+European archaeology puts defensive wear on the forte, the leverage-rich zone near the hilt. A
+weapon with its mass thrown forward has less usable forte and slower recovery. This is
+mechanics, and European mechanics at that. It is why the GreatBlade defender sits at 0.22 and
+the HeavyChopper defender at 0.15.
+
+**Thrusts are harder to intercept with a weapon than cuts — pure extrapolation.** Carried over
+from the ×0.70 thrust modifier in section 5.4, itself inferred from line geometry and
+commitment timing. Note the asymmetry deliberately encoded: a thrust is harder for a *blade*
+to catch but not meaningfully harder for a *tall shield* to cover, because a shield defends an
+area while a blade defends a line. The `ThrustingBlade` attacker column therefore depresses
+the weapon table without depressing the shield table. No source supports this.
+
+**A short blade cannot arrest a heavy one — pure extrapolation.** `Bolo` and `ThrustingBlade`
+defenders sit at 0.03 to 0.06 weapon intercept against the heavies. Mass-mismatch reasoning
+plus the FMA doctrinal position that solidly blocking a committed attack is impractical
+(*Documented as modern doctrine, Provisional for the 1500s*). It also produces the intended
+design consequence: for the shielded loadouts the blade is almost purely offensive, which is a
+clean and spectator-legible role separation.
+
+**Cells with no anchor whatsoever:** the entire `ThrustingBlade` and `Bolo` weapon-intercept
+rows (eight cells — no source describes a narrow thruster or a short work blade parrying
+anything); every `ThrustingBlade` attacker column (four cells); and all within-table variation
+of the shield rows (eight cells, spread only 0.22 to 0.27, which is honest signalling that
+there is no basis for claiming a `TallHardwood` shield performs differently against a
+`GreatBlade` than against a `Bolo`). That is sixteen of sixteen cells with no evidentiary
+confidence. The ordering is arguable; the numbers are not.
 
 ### 5.4 Modifiers
 
@@ -402,11 +518,49 @@ which the existing hit-location system can already express.
 
 **Split clash into hard and soft.** The doctrine evidence is unanimous that hard
 weapon-arresting contact is avoided while soft redirecting contact is normal, and a single
-"clash" event flattens the most interesting thing in the sources. Suggested split of clash
-outcomes: about 25 per cent hard bind or arrest (0.15–0.35), about 75 per cent soft
-deflection or brush (0.65–0.85). Only hard clashes should ever carry an edge-degradation
-consequence, and only on edged weapons — shaft-on-shaft carries none, which is a large part
-of why spear-versus-spear can afford to clash so much more freely.
+"clash" event flattens the most interesting thing in the sources.
+
+A flat split is too coarse for this roster: the hard share varies by roughly sixfold across
+the matrix, and flattening it discards the most legible contrast the system can express.
+**This axis applies to the weapon channel only** — a shield intercept is not a parry and gets
+its own split below.
+
+Base hard share, driven by the **incoming** weapon:
+
+| Incoming attack | Hard share | Band |
+| --- | ---: | --- |
+| HeavyChopper | 0.40 | 0.28–0.52 |
+| GreatBlade | 0.33 | 0.22–0.45 |
+| Bolo | 0.18 | 0.10–0.28 |
+| ThrustingBlade | 0.12 | 0.06–0.20 |
+
+Multiplier by the **defending** instrument: `GreatBlade` ×1.15 (two hands and a long forte can
+afford to arrest), `HeavyChopper` ×1.05 (mass but poor leverage), `ThrustingBlade` ×0.75
+(cannot arrest, redirects or fails), `Bolo` ×0.70 (shortest, least leverage). Clamp the
+product to 0.05–0.60.
+
+The two extremes: a `GreatBlade` defending against a `HeavyChopper` — both heavy, both
+shieldless — gives **0.46 (0.32–0.60)**, the highest in the roster, the heaviest incoming
+weapon meeting the only instrument capable of arresting it. This is the edge-destroying
+pairing, and it also carries the highest weapon-intercept rate, so clashes there are both
+frequent and costly. A `Bolo` defending against a `ThrustingBlade` — both light, both shielded
+— gives **0.08 (0.04–0.15)**, roughly six times lower, and is rare regardless: weapon
+intercept in that cell is only 0.05, so hard clashes occur in about 0.4 per cent of those
+exchanges.
+
+Because most weapon intercepts come from the shieldless heavies, the **roster-weighted hard
+share is about 0.35 (0.25–0.45)** — roughly 35/65, replacing the earlier flat 25/75.
+
+**Shield intercept mode, a separate split.** Angled deflection, active: 0.65 (0.55–0.75), no
+shield degradation. Flat take, passive or forced: 0.35 (0.25–0.45), degrades. The direction is
+anchored to Warming's finding that passive use produced deep cuts and severe damage while
+active angled use produced considerably less, and to Cole's tilting grip; the split value
+itself is invented.
+
+Only hard clashes should ever carry an edge-degradation consequence, and only on edged
+weapons. Note that **all four shipped loadouts are edged, so this roster has no free-contact
+weapon class anywhere** — unlike a spear-inclusive roster, where shaft-on-shaft carries no
+edge cost and can afford to clash far more freely.
 
 If edge degradation is ever implemented, 5 to 15 per cent chance of a notch per hard edged
 clash is a defensible starting band. There is no metallurgical study of a dated
@@ -420,6 +574,64 @@ discover it without reading source. Channel-splitting is the feature that makes 
 possible: "his shield took it", "he turned it aside with the blade", "he stepped off the
 line", and "it caught his forearm" are four visually and audibly distinguishable outcomes. A
 single scalar clash probability is not discoverable and should not ship.
+
+### 5.7 Sanity bounds, and one structural problem the bounds cannot fix
+
+**Upper bound, from the bones.** Sidon 1260 records 40.0 per cent crude prevalence of
+sharp-force injury to hand elements across 25 males, with one individual carrying a minimum of
+twelve injuries across sixteen skeletal elements. Towton 1461 has 27 of 28 analysed skulls
+showing battle injury and one individual with nine wounds. Visby 1361 records 456
+cutting-weapon injuries across the assemblage. All *Documented*. The inference: once a man was
+engaged and losing, blows landed on him in rapid succession. Nine wounds on one skeleton and
+twelve on another are not the output of a system where every second blow is turned aside.
+
+The caveat cuts both ways. Mass graves are the losing side at the end of a rout, so they
+over-represent the final seconds and describe the tail of the distribution rather than its
+centre. They bound the model from above without pinning it. **Aggregate active defence above
+about 0.55 is indefensible** — past that, more blows are stopped than land, and a mass melee
+becomes a mutual-blocking stalemate that no account and no assemblage describes.
+
+**Lower bound, from the equipment record.** Every source in the corpus shows shields
+universally present and evidently worth the weight, the wood, the rattan, and the resin;
+Junker's chiefdom-economy framing makes them a real production cost. If a shield does not
+visibly change outcomes, the entire equipment record is inexplicable. **Aggregate active
+defence below about 0.15 is indefensible**, and separately the shielded-versus-shieldless gap
+must stay clearly visible. The 0.40 against 0.25 in section 5.1 is the part to defend hardest,
+above any absolute value.
+
+**Mactan as a duration anchor, and why not to lean on it.** *Documented:* Pigafetta gives
+internal time markers — musketry and crossbow fire for about half an hour, then a prolonged
+closing fight — supporting an engagement on the order of an hour, decisively resolved. But
+Mactan was roughly 49 Spaniards against a very large local force, mostly resolved by missile
+exchange and an opposed withdrawal across water. It is a wildly asymmetric amphibious action,
+not a symmetric mass melee. Using "Mactan lasted an hour" to tune a 200-agent balanced-roster
+attrition model generalises one engagement to a battle shape it does not describe — the exact
+failure this document's scope caution warns against. Use it for texture, not for a tick target.
+
+**The structural problem.** Pre-modern battles were decided by morale collapse and rout, not
+by attrition to exhaustion. Winners typically took light casualties; losers took most of
+theirs during the rout, after cohesion broke. The killing followed the decision rather than
+producing it.
+
+Hukbo has no morale model, and `CLAUDE.md` §9 correctly defers one. **Hukbo must therefore
+reach a decision purely by attrition — by a mechanism that historically did not decide
+battles.** The consequence is unavoidable and belongs where a future reader will find it:
+Hukbo's interception rate has to be tuned below whatever the historical record would suggest,
+or Hukbo will produce a battle shape that never occurred. Not because the history is wrong,
+but because the simulation is missing the mechanism that actually ended battles, and attrition
+has to do that work in its place.
+
+**That is a design compensation and explicitly not a historical claim. It must never be
+laundered back into this document, or into `HISTORICAL_1500s_WEAPONS.md`, as evidence about
+how often people parried.**
+
+| Aggregate active-defence share | Verdict |
+| --- | --- |
+| Below 0.15 | **Indefensible.** Shields become pointless; contradicts the universal equipment record. |
+| 0.15 to 0.25 | Low but arguable, as explicit compensation for the absent morale model. Label it as such. |
+| **0.30 to 0.40** | **Recommended operating band. Centre 0.33.** |
+| 0.45 to 0.55 | Upper margin. Only defensible if the model gains morale or rout. |
+| Above 0.55 | **Indefensible.** Cannot produce the Sidon and Towton wound counts in the time available. |
 
 ---
 
@@ -443,8 +655,10 @@ single scalar clash probability is not discoverable and should not ship.
 | 14 | Large *kalasag* dimensions | about 50 × 150 cm | secondary and tertiary chain | **Low** | Medium |
 | 15 | Arnis/WEKAF parry rate | does not exist — blocks are unscored | WEKAF rules | n/a | n/a |
 | 16 | Philippine parry rate, any period | does not exist | — | n/a | — |
-| 17 | Recommended base clash per exchange | 0.20 (0.10–0.30) | this document | **None, design choice** | — |
-| 18 | Recommended hard/soft clash split | 25% / 75% | this document | **None, design choice** | — |
+| 17 | Recommended aggregate non-landed share, Hukbo roster, 200 agents | 0.33 (target 0.30–0.40, fail outside 0.25–0.45) | this document, §5.2 | **None, design choice** | — |
+| 17b | Termination criterion | ≥95% of ≥20 seeds decide before the cap; median decisive tick ≤50% of cap | this document, §5.2 | **None, design choice** | — |
+| 18 | Recommended hard/soft weapon-clash split, roster-weighted | 35% / 65% | this document, §5.5 | **None, design choice** | — |
+| 18b | Shield intercept mode split, angled vs flat take | 65% / 35% | this document, §5.5 | **None, design choice** | — |
 | 19 | Recommended limb-intercept rate | 0.06–0.12 per exchange | this document, from rows 7 and 8 | **None, design choice** | — |
 | 20 | Recommended notch chance per hard edged clash | 5–15% | this document | **None, design choice** | — |
 
