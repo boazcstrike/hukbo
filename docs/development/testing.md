@@ -51,11 +51,12 @@ the sound-variant run, and the blood-and-gore run were all taken before agents
 closed to body contact and before the contact metric used a proximity band. They
 are kept as history and must not be read as current.
 
-Note on test counts: the sound-variant run below reports 505 Client tests, more
-than this section's 437, because collision was verified on a branch taken before
-the sound-variant work was committed. The merge carries both, so the next full
-run on `main` will report a higher Client count than either figure. That is a
-sequencing artefact, not a lost test.
+Note on test counts: collision was verified on a branch taken before the
+sound-variant work was committed, so this section's 437 Client tests and the
+sound-variant run's 505 are each partial views. After the merge, `main` reports
+**326 Core and 513 Client tests passing, 0 failed**, with the canonical gate
+green at all five stages. The differing branch figures are a sequencing artefact,
+not a lost test.
 
 Environment: Windows 11 Pro 10.0.26200, .NET SDK 10.0.302 as pinned in
 `global.json`. The CPU model and installed memory were not captured, so they are
