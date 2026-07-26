@@ -41,7 +41,7 @@ if ($LASTEXITCODE -ne 0) {
 Push-Location $root
 try {
     Restore-RepositoryTools
-    Invoke-DotNet -Arguments @('restore', 'AutonomousArena.slnx', '--locked-mode')
+    Invoke-DotNet -Arguments @('restore', 'Hukbo.slnx', '--locked-mode')
 }
 finally {
     Pop-Location

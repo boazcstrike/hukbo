@@ -1,9 +1,9 @@
 # Agent-Role Evidence
 
 These files preserve the decisions, work, and verification associated with the
-17 roles in the repository owner's original prompt. They do not claim that 17
-independent agents ran. Several roles were grouped into three bounded
-workstreams with exclusive ownership.
+17 roles in the repository owner's original prompt plus the spectator-clarity
+and round-lifecycle report. They do not claim that 17 independent agents ran.
+Several roles were grouped into bounded workstreams with exclusive ownership.
 
 | Role | Report | Snapshot status |
 | --- | --- | --- |
@@ -24,18 +24,24 @@ workstreams with exclusive ownership.
 | 15 | [Build and test automation](15-ci-build-test.md) | Complete |
 | 16 | [Readiness validation](16-repository-readiness-validation.md) | Conditionally complete |
 | 17 | [Technical review/handoff](17-technical-review-handoff.md) | Conditionally complete |
+| 18 | [Spectator clarity and round lifecycle](18-spectator-clarity.md) | Conditionally complete |
 
-The integration and all non-graphical local gates are complete. Roles 16 and 17
-remain conditional only because direct Play/Pause/Exit interaction still needs
-one recorded manual pass.
+The foundation integration and its non-graphical local gates are complete.
+Roles 16 and 17 remain conditional because direct interaction was not recorded
+for that snapshot. Report 18 separately tracks the spectator-clarity automated,
+package, review, round-scoring/reset extension, and expanded direct-interaction
+evidence. The current automated gate passes; the extension's fresh review and
+all direct interactions remain pending.
 
-## Next orchestration phase
+## Current orchestration phase
 
 The approved spectator-clarity phase has two controlling documents:
 
 - [Spectator-clarity design](../plans/2026-07-26-spectator-clarity-design.md)
 - [Detailed orchestration and execution plan](../plans/2026-07-26-spectator-clarity.md)
+- [Round scoring, reset, and memory plan](../archives/2026-07-26-round-scoring-reset-memory.md)
 
-That plan gives the next orchestration agent explicit owners for presentation
-state/tests, MonoGame UI components, QA/evidence, and final integration. It also
-requires a new `18-spectator-clarity.md` evidence report during execution.
+These plans define the presentation, UI, integration, session scoring, reset,
+allocation, and evidence boundaries. Report 18 is the combined evidence ledger.
+It is conditionally complete: automated and independent-review gates pass,
+while the direct Windows smoke remains pending.

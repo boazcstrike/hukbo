@@ -6,7 +6,7 @@
 agent inspector, a bounded event log, always-visible Play/Pause/Menu controls,
 and a deterministic end-of-match summary with same-seed replay.
 
-**Architecture:** Keep `AutonomousArena.Core` completely authoritative and
+**Architecture:** Keep `Hukbo.Core` completely authoritative and
 unchanged unless source evidence proves a missing read-only value. Add
 GPU-independent presentation state under the Client, cover it with a dedicated
 Client test project, add small MonoGame UI components, and let `ArenaGame`
@@ -114,21 +114,21 @@ The implementation is done only if all statements are true:
 
 Verify these facts against the current source before editing:
 
-- solution: `AutonomousArena.slnx`;
-- Client integration: `src/AutonomousArena.Client/ArenaGame.cs`;
+- solution: `Hukbo.slnx`;
+- Client integration: `src/Hukbo.Client/ArenaGame.cs`;
 - input edges: locate the class named `InputEdges` under
-  `src/AutonomousArena.Client/`;
-- current modal: `src/AutonomousArena.Client/MenuOverlay.cs` and
-  `src/AutonomousArena.Client/MenuButton.cs`;
+  `src/Hukbo.Client/`;
+- current modal: `src/Hukbo.Client/MenuOverlay.cs` and
+  `src/Hukbo.Client/MenuButton.cs`;
 - camera transforms: locate the class named `SpectatorCamera` under Client;
-- authoritative views: `src/AutonomousArena.Core/Simulation/AgentView.cs`;
+- authoritative views: `src/Hukbo.Core/Simulation/AgentView.cs`;
 - authoritative events:
-  `src/AutonomousArena.Core/Simulation/BattleEvent.cs`;
+  `src/Hukbo.Core/Simulation/BattleEvent.cs`;
 - fixed scheduler and `LastEvents`:
-  `src/AutonomousArena.Core/Simulation/BattleSimulation.cs`;
+  `src/Hukbo.Core/Simulation/BattleSimulation.cs`;
 - scenario seed/tick rate:
-  `src/AutonomousArena.Core/Simulation/Scenario.cs`;
-- existing tests: `tests/AutonomousArena.Core.Tests/`;
+  `src/Hukbo.Core/Simulation/Scenario.cs`;
+- existing tests: `tests/Hukbo.Core.Tests/`;
 - local gates: `scripts/test.ps1`, `scripts/verify.ps1`,
   `scripts/package.ps1`;
 - manual checklist: `docs/development/testing.md`.
@@ -160,8 +160,8 @@ Objective: Implement GPU-independent selection, event-feed, summary, and
 playback state with focused tests.
 Inputs: Approved design, AgentView, BattleEvent, BattleOutcome, Scenario.
 Owned files or subsystem:
-  src/AutonomousArena.Client/Presentation/**
-  tests/AutonomousArena.Client.Tests/**
+  src/Hukbo.Client/Presentation/**
+  tests/Hukbo.Client.Tests/**
 Expected output: Tested pure presentation contracts with no window creation.
 Success condition: Focused Client tests pass; no Core behavior changes.
 Dependencies: Orchestrator first creates the test project and grants ownership.
@@ -178,9 +178,9 @@ panel, and summary panel.
 Inputs: Approved design, existing MenuOverlay/MenuButton, presentation contracts
 from Worker A.
 Owned files or subsystem:
-  src/AutonomousArena.Client/UI/**
-  src/AutonomousArena.Client/MenuOverlay.cs
-  src/AutonomousArena.Client/MenuButton.cs
+  src/Hukbo.Client/UI/**
+  src/Hukbo.Client/MenuOverlay.cs
+  src/Hukbo.Client/MenuButton.cs
 Expected output: Rendering/input components that return commands and do not
 advance or mutate Core.
 Success condition: Client compiles; pointer consumption and panel bounds are
@@ -216,11 +216,11 @@ Prohibited scope: Source, tests, scripts, root files, CI, plan/design files.
 
 The orchestrator exclusively owns:
 
-- `AutonomousArena.slnx`;
+- `Hukbo.slnx`;
 - `Directory.Build.props`;
 - `Directory.Packages.props`;
 - `scripts/**`;
-- `src/AutonomousArena.Client/ArenaGame.cs`;
+- `src/Hukbo.Client/ArenaGame.cs`;
 - any Client assembly-visibility file;
 - worker integration/cherry-picks;
 - final verification;
@@ -344,10 +344,10 @@ No implementation commit yet.
 **Files:**
 
 - Create:
-  `tests/AutonomousArena.Client.Tests/AutonomousArena.Client.Tests.csproj`
+  `tests/Hukbo.Client.Tests/Hukbo.Client.Tests.csproj`
 - Create:
-  `src/AutonomousArena.Client/Properties/AssemblyInfo.cs`
-- Modify: `AutonomousArena.slnx`
+  `src/Hukbo.Client/Properties/AssemblyInfo.cs`
+- Modify: `Hukbo.slnx`
 - Modify: `scripts/test.ps1`
 
 The test project should:
@@ -362,12 +362,12 @@ The test project should:
 - include a global xUnit using;
 - never instantiate `ArenaGame`, `GraphicsDevice`, `SpriteBatch`, or a window.
 
-Expose Client internals only to `AutonomousArena.Client.Tests`:
+Expose Client internals only to `Hukbo.Client.Tests`:
 
 ```csharp
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("AutonomousArena.Client.Tests")]
+[assembly: InternalsVisibleTo("Hukbo.Client.Tests")]
 ```
 
 Update `scripts/test.ps1` to discover/run both committed test projects. Prefer
@@ -375,8 +375,8 @@ an explicit array so the local contract remains reviewable:
 
 ```powershell
 $testProjects = @(
-    'tests/AutonomousArena.Core.Tests/AutonomousArena.Core.Tests.csproj'
-    'tests/AutonomousArena.Client.Tests/AutonomousArena.Client.Tests.csproj'
+    'tests/Hukbo.Core.Tests/Hukbo.Core.Tests.csproj'
+    'tests/Hukbo.Client.Tests/Hukbo.Client.Tests.csproj'
 )
 ```
 
@@ -389,8 +389,8 @@ only Core tests.
 Run:
 
 ```powershell
-dotnet restore tests/AutonomousArena.Client.Tests/AutonomousArena.Client.Tests.csproj --locked-mode
-dotnet test tests/AutonomousArena.Client.Tests/AutonomousArena.Client.Tests.csproj -c Release
+dotnet restore tests/Hukbo.Client.Tests/Hukbo.Client.Tests.csproj --locked-mode
+dotnet test tests/Hukbo.Client.Tests/Hukbo.Client.Tests.csproj -c Release
 ./scripts/test.ps1 -Configuration Release
 ```
 
@@ -410,17 +410,17 @@ Inspect:
 
 ```powershell
 git diff --check
-git diff -- AutonomousArena.slnx scripts/test.ps1 `
-  src/AutonomousArena.Client/Properties/AssemblyInfo.cs `
-  tests/AutonomousArena.Client.Tests
+git diff -- Hukbo.slnx scripts/test.ps1 `
+  src/Hukbo.Client/Properties/AssemblyInfo.cs `
+  tests/Hukbo.Client.Tests
 ```
 
 Commit:
 
 ```powershell
-git add AutonomousArena.slnx scripts/test.ps1 `
-  src/AutonomousArena.Client/Properties/AssemblyInfo.cs `
-  tests/AutonomousArena.Client.Tests
+git add Hukbo.slnx scripts/test.ps1 `
+  src/Hukbo.Client/Properties/AssemblyInfo.cs `
+  tests/Hukbo.Client.Tests
 git commit -m "test(client): add presentation test surface"
 ```
 
@@ -432,9 +432,9 @@ Worker A owns every file in this phase.
 
 **Create:**
 
-- `src/AutonomousArena.Client/Presentation/ClientCommand.cs`
-- `src/AutonomousArena.Client/Presentation/PlaybackController.cs`
-- `tests/AutonomousArena.Client.Tests/PlaybackControllerTests.cs`
+- `src/Hukbo.Client/Presentation/ClientCommand.cs`
+- `src/Hukbo.Client/Presentation/PlaybackController.cs`
+- `tests/Hukbo.Client.Tests/PlaybackControllerTests.cs`
 
 Use one command enum across compact controls, summary, and modal translation:
 
@@ -466,7 +466,7 @@ Write failing tests first:
 Run before implementation:
 
 ```powershell
-dotnet test tests/AutonomousArena.Client.Tests -c Release `
+dotnet test tests/Hukbo.Client.Tests -c Release `
   --filter FullyQualifiedName~PlaybackControllerTests
 ```
 
@@ -478,8 +478,8 @@ Implement minimally, rerun, expect all focused tests passed.
 
 **Create:**
 
-- `src/AutonomousArena.Client/Presentation/AgentSelection.cs`
-- `tests/AutonomousArena.Client.Tests/AgentSelectionTests.cs`
+- `src/Hukbo.Client/Presentation/AgentSelection.cs`
+- `tests/Hukbo.Client.Tests/AgentSelectionTests.cs`
 
 Recommended contract:
 
@@ -530,8 +530,8 @@ Run focused tests, implement, rerun.
 
 **Create:**
 
-- `src/AutonomousArena.Client/Presentation/BattleEventFeed.cs`
-- `tests/AutonomousArena.Client.Tests/BattleEventFeedTests.cs`
+- `src/Hukbo.Client/Presentation/BattleEventFeed.cs`
+- `tests/Hukbo.Client.Tests/BattleEventFeedTests.cs`
 
 Required API behavior:
 
@@ -567,9 +567,9 @@ monotonic sequences and ticks.
 
 **Create:**
 
-- `src/AutonomousArena.Client/Presentation/MatchSummary.cs`
-- `src/AutonomousArena.Client/Presentation/MatchSummaryFactory.cs`
-- `tests/AutonomousArena.Client.Tests/MatchSummaryFactoryTests.cs`
+- `src/Hukbo.Client/Presentation/MatchSummary.cs`
+- `src/Hukbo.Client/Presentation/MatchSummaryFactory.cs`
+- `tests/Hukbo.Client.Tests/MatchSummaryFactoryTests.cs`
 
 Recommended immutable display model:
 
@@ -610,8 +610,8 @@ Write failing tests:
 Run:
 
 ```powershell
-dotnet format AutonomousArena.slnx --verify-no-changes
-dotnet test tests/AutonomousArena.Client.Tests -c Release
+dotnet format Hukbo.slnx --verify-no-changes
+dotnet test tests/Hukbo.Client.Tests -c Release
 ./scripts/test.ps1 -Configuration Release
 git diff --check
 ```
@@ -619,8 +619,8 @@ git diff --check
 Commit only Worker A files:
 
 ```powershell
-git add src/AutonomousArena.Client/Presentation `
-  tests/AutonomousArena.Client.Tests
+git add src/Hukbo.Client/Presentation `
+  tests/Hukbo.Client.Tests
 git commit -m "feat(client): add spectator presentation state"
 ```
 
@@ -642,12 +642,12 @@ before completion.
 
 **Create or move:**
 
-- `src/AutonomousArena.Client/UI/UiButton.cs`
+- `src/Hukbo.Client/UI/UiButton.cs`
 
 **Modify as needed:**
 
-- `src/AutonomousArena.Client/MenuOverlay.cs`
-- `src/AutonomousArena.Client/MenuButton.cs`
+- `src/Hukbo.Client/MenuOverlay.cs`
+- `src/Hukbo.Client/MenuButton.cs`
 
 Prefer replacing `MenuButton` with a reusable `UiButton` if that produces a
 smaller total implementation. A button must hold:
@@ -669,7 +669,7 @@ action enums after integration.
 
 **Create:**
 
-- `src/AutonomousArena.Client/UI/ControlBar.cs`
+- `src/Hukbo.Client/UI/ControlBar.cs`
 
 Required behavior:
 
@@ -688,7 +688,7 @@ Required behavior:
 
 **Create:**
 
-- `src/AutonomousArena.Client/UI/AgentInspectorPanel.cs`
+- `src/Hukbo.Client/UI/AgentInspectorPanel.cs`
 
 Required behavior:
 
@@ -705,9 +705,9 @@ Required behavior:
 
 **Create:**
 
-- `src/AutonomousArena.Client/UI/BattleEventLogPanel.cs`
+- `src/Hukbo.Client/UI/BattleEventLogPanel.cs`
 - optionally
-  `src/AutonomousArena.Client/Presentation/BattleEventFormatter.cs`
+  `src/Hukbo.Client/Presentation/BattleEventFormatter.cs`
   if Worker A and the orchestrator explicitly transfer ownership of that new
   file.
 
@@ -742,7 +742,7 @@ event continuity is preserved.
 
 **Create:**
 
-- `src/AutonomousArena.Client/UI/MatchSummaryPanel.cs`
+- `src/Hukbo.Client/UI/MatchSummaryPanel.cs`
 
 Required behavior:
 
@@ -759,18 +759,18 @@ Required behavior:
 Run:
 
 ```powershell
-dotnet build src/AutonomousArena.Client/AutonomousArena.Client.csproj `
+dotnet build src/Hukbo.Client/Hukbo.Client.csproj `
   -c Release --no-restore
-dotnet format AutonomousArena.slnx --verify-no-changes
+dotnet format Hukbo.slnx --verify-no-changes
 git diff --check
 ```
 
 Commit only owned UI/menu files:
 
 ```powershell
-git add src/AutonomousArena.Client/UI `
-  src/AutonomousArena.Client/MenuOverlay.cs `
-  src/AutonomousArena.Client/MenuButton.cs
+git add src/Hukbo.Client/UI `
+  src/Hukbo.Client/MenuOverlay.cs `
+  src/Hukbo.Client/MenuButton.cs
 git commit -m "feat(ui): add spectator panels and controls"
 ```
 
@@ -851,8 +851,8 @@ than duplicating adapters.
 Run after each integration:
 
 ```powershell
-dotnet test tests/AutonomousArena.Client.Tests -c Release
-dotnet build src/AutonomousArena.Client/AutonomousArena.Client.csproj `
+dotnet test tests/Hukbo.Client.Tests -c Release
+dotnet build src/Hukbo.Client/Hukbo.Client.csproj `
   -c Release --no-restore
 git diff --check
 ```
@@ -870,7 +870,7 @@ Reject worker changes that:
 
 **Modify:**
 
-- `src/AutonomousArena.Client/ArenaGame.cs`
+- `src/Hukbo.Client/ArenaGame.cs`
 
 Add one instance each of:
 
@@ -1031,7 +1031,7 @@ implementation.
 
 **Modify/Create under:**
 
-- `tests/AutonomousArena.Client.Tests/`
+- `tests/Hukbo.Client.Tests/`
 
 Add tests for the atomic presentation reset through a small GPU-independent
 coordinator if one naturally exists. At minimum prove:
@@ -1050,9 +1050,9 @@ coordinator; do not build a second application architecture.
 Run:
 
 ```powershell
-dotnet test tests/AutonomousArena.Client.Tests -c Release
-dotnet build AutonomousArena.slnx -c Release --no-restore
-dotnet format AutonomousArena.slnx --verify-no-changes
+dotnet test tests/Hukbo.Client.Tests -c Release
+dotnet build Hukbo.slnx -c Release --no-restore
+dotnet format Hukbo.slnx --verify-no-changes
 git diff --check
 ```
 
@@ -1062,7 +1062,7 @@ missed event-ingestion locations, and UI click-through.
 Commit:
 
 ```powershell
-git add src/AutonomousArena.Client tests/AutonomousArena.Client.Tests
+git add src/Hukbo.Client tests/Hukbo.Client.Tests
 git commit -m "feat(client): integrate spectator clarity"
 ```
 
@@ -1073,7 +1073,7 @@ git commit -m "feat(client): integrate spectator clarity"
 **Owner:** Orchestrator
 
 ```powershell
-dotnet test tests/AutonomousArena.Client.Tests -c Release `
+dotnet test tests/Hukbo.Client.Tests -c Release `
   --logger "console;verbosity=normal"
 ./scripts/test.ps1 -Configuration Release
 ```
@@ -1120,7 +1120,7 @@ Expected:
 - self-contained package is rebuilt from a clean staging directory controlled
   by the script;
 - executable exists at
-  `artifacts/packages/client-win-x64/AutonomousArena.Client.exe`.
+  `artifacts/packages/client-win-x64/Hukbo.Client.exe`.
 
 Do not commit artifacts.
 

@@ -19,7 +19,7 @@ same-seed ordered events/state; interactive UI remains a separate checklist.
 
 ## Files
 
-- `tests/AutonomousArena.Core.Tests/**` (owned by Simulation workstream)
+- `tests/Hukbo.Core.Tests/**` (owned by Simulation workstream)
 - `scripts/test.ps1`
 - `scripts/benchmark.ps1`
 - `docs/development/testing.md`

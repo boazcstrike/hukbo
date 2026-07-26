@@ -22,7 +22,7 @@ Godot, Unity/Stride, and custom graphics stacks for the first proof.
 
 - `docs/architecture/platform-decision.md`
 - `docs/platform-support-matrix.md`
-- `docs/plans/2026-07-26-autonomous-arena-foundation-design.md` (input)
+- `docs/archives/2026-07-26-hukbo-foundation-design.md` (input)
 
 ## Verification
 

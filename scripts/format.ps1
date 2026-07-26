@@ -10,8 +10,8 @@ $ErrorActionPreference = 'Stop'
 $root = Get-RepositoryRoot
 Push-Location $root
 try {
-    Invoke-DotNet -Arguments @('restore', 'AutonomousArena.slnx', '--locked-mode')
-    $arguments = @('format', 'AutonomousArena.slnx', '--no-restore')
+    Invoke-DotNet -Arguments @('restore', 'Hukbo.slnx', '--locked-mode')
+    $arguments = @('format', 'Hukbo.slnx', '--no-restore')
     if ($Verify) {
         $arguments += @('--verify-no-changes', '--verbosity', 'diagnostic')
     }

@@ -10,10 +10,10 @@ The repository began as documentation and now contains a four-project
 `.slnx` solution:
 
 ```text
-src/AutonomousArena.Core
-src/AutonomousArena.Headless
-src/AutonomousArena.Client
-tests/AutonomousArena.Core.Tests
+src/Hukbo.Core
+src/Hukbo.Headless
+src/Hukbo.Client
+tests/Hukbo.Core.Tests
 ```
 
 Core has no project or package dependency. Headless, Client, and Core.Tests

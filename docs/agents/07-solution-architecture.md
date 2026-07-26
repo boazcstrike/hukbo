@@ -8,7 +8,7 @@ and independently testable.
 ## Inputs inspected
 
 - Approved foundation design.
-- `AutonomousArena.slnx` and all project references.
+- `Hukbo.slnx` and all project references.
 - Planned Core contract consumed by Client and Headless.
 
 ## Decisions and work
@@ -20,8 +20,8 @@ exists.
 
 ## Files
 
-- `docs/plans/2026-07-26-autonomous-arena-foundation-design.md` (input)
-- `AutonomousArena.slnx` and project files (inspected, not modified here)
+- `docs/archives/2026-07-26-hukbo-foundation-design.md` (input)
+- `Hukbo.slnx` and project files (inspected, not modified here)
 - `docs/repository-audit.md`
 
 ## Verification

@@ -217,9 +217,9 @@ Add small, GPU-independent client classes:
 | `PlaybackController` | Provide one Play/Pause/Menu command boundary for keyboard, compact bar, and modal |
 
 These classes belong under
-`src/AutonomousArena.Client/Presentation/`. They must not reference
+`src/Hukbo.Client/Presentation/`. They must not reference
 `GraphicsDevice`, `SpriteBatch`, or platform input types. A small
-`tests/AutonomousArena.Client.Tests` xUnit project will verify them without
+`tests/Hukbo.Client.Tests` xUnit project will verify them without
 opening a game window.
 
 ### MonoGame UI components

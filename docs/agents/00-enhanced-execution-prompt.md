@@ -1,11 +1,11 @@
-# Enhanced Autonomous Arena Execution Prompt
+# Enhanced Hukbo Execution Prompt
 
 > **Historical foundation prompt:** The hosted-CI requirements below were
 > superseded by the repository owner's local-only verification decision on
 > 2026-07-26. Use
 > `docs/plans/2026-07-26-spectator-clarity.md` for the next execution phase.
 
-Use this prompt to coordinate the initial Autonomous Arena milestone. It
+Use this prompt to coordinate the initial Hukbo milestone. It
 replaces a strictly serial 17-role checklist with stage gates, explicit file
 ownership, and evidence-based completion.
 
@@ -21,7 +21,7 @@ Play, Pause, and Exit Game controls.
 - Windows x64 only for v0.1.
 - .NET SDK 10.0.302 and C# 14.
 - MonoGame DesktopGL and Content Builder 3.8.5.
-- `AutonomousArena.Core` is the only authoritative gameplay layer.
+- `Hukbo.Core` is the only authoritative gameplay layer.
 - Offline, single-player, disposable seeded matches.
 - Two factions and 200 total combatants for acceptance.
 - Fixed-point/integer state, project-owned seeded PRNG, stable entity ordering.
@@ -51,16 +51,16 @@ is available:
 
 ### Simulation and Headless owner
 
-- Owns `src/AutonomousArena.Core/**`,
-  `src/AutonomousArena.Headless/**`, and
-  `tests/AutonomousArena.Core.Tests/**`.
+- Owns `src/Hukbo.Core/**`,
+  `src/Hukbo.Headless/**`, and
+  `tests/Hukbo.Core.Tests/**`.
 - Implements scenario validation, battle stages, ordered events, state hashing,
   deterministic replay comparison, JSON reporting, and regression tests.
 - Must not edit Client, scripts, CI, or documentation.
 
 ### Client and Menu owner
 
-- Owns `src/AutonomousArena.Client/**`.
+- Owns `src/Hukbo.Client/**`.
 - Consumes Core read-only views; never duplicates or mutates simulation models.
 - Implements fixed scheduling, batched dots, camera/input, diagnostics, content,
   and the Escape overlay.

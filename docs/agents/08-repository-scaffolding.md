@@ -19,7 +19,7 @@ layer was added.
 
 ## Files
 
-- `AutonomousArena.slnx`
+- `Hukbo.slnx`
 - `src/**/**.csproj`
 - `tests/**/**.csproj`
 - Initial Core deterministic primitives (observed, not modified by this role)

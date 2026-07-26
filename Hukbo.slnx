@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Hukbo.Client/Hukbo.Client.csproj" />
+    <Project Path="src/Hukbo.Core/Hukbo.Core.csproj" />
+    <Project Path="src/Hukbo.Headless/Hukbo.Headless.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Hukbo.Client.Tests/Hukbo.Client.Tests.csproj" />
+    <Project Path="tests/Hukbo.Core.Tests/Hukbo.Core.Tests.csproj" />
+  </Folder>
+</Solution>

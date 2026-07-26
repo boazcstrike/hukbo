@@ -20,7 +20,7 @@ Exit Game. Menu actions affect only client scheduling and lifecycle.
 
 ## Files
 
-- `src/AutonomousArena.Client/**`
+- `src/Hukbo.Client/**`
 - `README.md`
 - `docs/development/getting-started.md`
 - `docs/development/testing.md`

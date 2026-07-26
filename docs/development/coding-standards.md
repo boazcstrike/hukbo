@@ -18,7 +18,7 @@ Dependency advisories are temporally unstable. Run a current post-restore
 audit before releases:
 
 ```powershell
-dotnet list AutonomousArena.slnx package --vulnerable --include-transitive
+dotnet list Hukbo.slnx package --vulnerable --include-transitive
 ```
 
 Treat audit network failures separately from a clean advisory result.

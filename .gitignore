@@ -15,6 +15,7 @@ coverage/
 *.user
 *.suo
 .vs/
+.codebase-memory/
 
 # MonoGame content output
 *.xnb

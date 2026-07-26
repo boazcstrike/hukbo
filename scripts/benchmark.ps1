@@ -18,7 +18,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_common.ps1')
 
 $root = Get-RepositoryRoot
-$headlessProject = 'src/AutonomousArena.Headless/AutonomousArena.Headless.csproj'
+$headlessProject = 'src/Hukbo.Headless/Hukbo.Headless.csproj'
 Push-Location $root
 try {
     if (-not $NoBuild) {

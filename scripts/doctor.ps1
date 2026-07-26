@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 $root = Get-RepositoryRoot
 $failures = [System.Collections.Generic.List[string]]::new()
 
-Write-Host 'Autonomous Arena prerequisite doctor'
+Write-Host 'Hukbo prerequisite doctor'
 Write-Host "Repository: $root"
 
 $isSupportedWindows = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
@@ -76,13 +76,13 @@ else {
 }
 
 $requiredFiles = @(
-    'AutonomousArena.slnx',
+    'Hukbo.slnx',
     'Directory.Packages.props',
     'NuGet.config',
-    'src/AutonomousArena.Client/packages.lock.json',
-    'src/AutonomousArena.Core/packages.lock.json',
-    'src/AutonomousArena.Headless/packages.lock.json',
-    'tests/AutonomousArena.Core.Tests/packages.lock.json'
+    'src/Hukbo.Client/packages.lock.json',
+    'src/Hukbo.Core/packages.lock.json',
+    'src/Hukbo.Headless/packages.lock.json',
+    'tests/Hukbo.Core.Tests/packages.lock.json'
 )
 foreach ($relativePath in $requiredFiles) {
     if (-not (Test-Path -LiteralPath (Join-Path $root $relativePath) -PathType Leaf)) {

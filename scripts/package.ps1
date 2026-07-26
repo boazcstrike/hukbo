@@ -9,7 +9,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_common.ps1')
 
 $root = Get-RepositoryRoot
-$clientProject = 'src/AutonomousArena.Client/AutonomousArena.Client.csproj'
+$clientProject = 'src/Hukbo.Client/Hukbo.Client.csproj'
 $packageRoot = Join-Path $root 'artifacts/packages'
 $outputLeaf = "client-$Runtime"
 $output = Join-Path $packageRoot $outputLeaf

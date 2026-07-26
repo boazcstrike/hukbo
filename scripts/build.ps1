@@ -15,10 +15,10 @@ Push-Location $root
 try {
     Restore-RepositoryTools
     if (-not $NoRestore) {
-        Invoke-DotNet -Arguments @('restore', 'AutonomousArena.slnx', '--locked-mode')
+        Invoke-DotNet -Arguments @('restore', 'Hukbo.slnx', '--locked-mode')
     }
 
-    Invoke-DotNet -Arguments @('build', 'AutonomousArena.slnx', '--configuration', $Configuration, '--no-restore')
+    Invoke-DotNet -Arguments @('build', 'Hukbo.slnx', '--configuration', $Configuration, '--no-restore')
 }
 finally {
     Pop-Location

@@ -21,7 +21,7 @@ repository-local dotnet-mgcb 3.8.5 tool.
 
 ## Files
 
-- `src/AutonomousArena.Client/Content/**` (owned by Client/Menu workstream)
+- `src/Hukbo.Client/Content/**` (owned by Client/Menu workstream)
 - `.config/dotnet-tools.json` (owned by orchestrator)
 - `scripts/bootstrap.ps1`
 - `docs/dependency-risk-register.md`

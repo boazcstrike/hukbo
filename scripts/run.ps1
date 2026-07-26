@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_common.ps1')
 
 $root = Get-RepositoryRoot
-$clientProject = 'src/AutonomousArena.Client/AutonomousArena.Client.csproj'
+$clientProject = 'src/Hukbo.Client/Hukbo.Client.csproj'
 Push-Location $root
 try {
     Restore-RepositoryTools
@@ -20,7 +20,7 @@ try {
         Invoke-DotNet -Arguments @('build', $clientProject, '--configuration', $Configuration, '--no-restore')
     }
 
-    Write-Host 'Starting Autonomous Arena. Press Escape for Play, Pause, and Exit Game.'
+    Write-Host 'Starting Hukbo. Press Escape for Play, Pause, and Exit Game.'
     Invoke-DotNet -Arguments @(
         'run',
         '--project', $clientProject,

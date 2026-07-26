@@ -42,7 +42,7 @@ Run every non-graphical gate with:
 Fallback:
 
 ```powershell
-dotnet run --project src/AutonomousArena.Client -c Release
+dotnet run --project src/Hukbo.Client -c Release
 ```
 
 The client opens a 1280×720 resizable spectator window. Press Escape to open
@@ -50,11 +50,16 @@ the menu:
 
 - **Play** resumes logical simulation and closes the menu.
 - **Pause** keeps logical simulation stopped and leaves the menu visible.
+- **Next Round** records a terminal victory, advances the deterministic seed,
+  clears disposable presentation state, and starts paused.
+- **Full Reset** clears the Team A/Blue and Team B/Red score, restores seed 1,
+  1x speed, and the fitted camera, and starts paused.
 - **Exit Game** closes the client cleanly.
 
 Space toggles play/pause when the menu is closed. Use `1`, `2`, or `4` for
-speed, `R` to replay the same seed, WASD/arrows to pan, and the mouse wheel to
-zoom. Opening the Escape menu always pauses simulation scheduling.
+speed, `R` for Next Round, `Shift+R` for Full Reset, WASD/arrows to pan, and
+the mouse wheel to zoom. Opening the Escape menu always pauses simulation
+scheduling.
 
 ## Other workflows
 
