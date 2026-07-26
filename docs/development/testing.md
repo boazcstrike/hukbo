@@ -174,6 +174,78 @@ simultaneously held an unfinished army-composition change to `Hukbo.Core`. That
 failure was in Core, not in the sound system, and it cleared once the Core change
 compiled again. Neither hash moved across either attempt.
 
+### 2026-07-27 blood-and-gore gate run
+
+`./scripts/verify.ps1 -SkipBootstrap` was run at the repository root on
+2026-07-27 after the blood-and-gore feature was completed. It ended with
+`[PASS] Canonical repository verification completed.` and printed:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+
+Test Run Successful.
+Total tests: 429
+     Passed: 429
+ Total time: 0.5805 Seconds
+```
+
+The headless determinism workload emitted this `RunReport`:
+
+```json
+{
+  "environment": {
+    "operatingSystem": "Microsoft Windows 10.0.26200",
+    "framework": ".NET 10.0.10",
+    "processArchitecture": "X64",
+    "processorCount": 20
+  },
+  "seed": 1,
+  "agentCount": 200,
+  "requestedTicks": 10000,
+  "measuredTicks": 235,
+  "durationMilliseconds": 28.14780000000001,
+  "tickPercentiles": {
+    "p50Milliseconds": 0.0856,
+    "p95Milliseconds": 0.1655,
+    "p99Milliseconds": 0.2715,
+    "maximumMilliseconds": 2.9543
+  },
+  "allocatedBytes": 15122504,
+  "outcome": "Faction1Victory",
+  "faction0Survivors": 0,
+  "faction1Survivors": 30,
+  "eventHash": "941377BD43C556FF",
+  "stateHash": "6EBB1EA63114F6CE",
+  "deterministic": true,
+  "firstMismatchTick": null
+}
+```
+
+Both the state hash (`6EBB1EA63114F6CE`) and the event hash
+(`941377BD43C556FF`) are unchanged from the values recorded above, the run
+reported `deterministic: true` with no first mismatch tick, and the outcome is
+still `Faction1Victory` at tick 235 with 0 and 30 survivors. That is the
+expected result for a presentation-only change: the blood layer lives entirely
+in `Hukbo.Client`, reads the existing `BattleEvent` stream, and adds no
+`Hukbo.Core` type, file, or simulation state. Neither hash moving is what
+confirms `Hukbo.Core` was not modified.
+
+Allocation for the same workload was 15,122,504 bytes, matching the figure
+recorded for the plains-backdrop run above.
+
+The reported test-run summary was `Total tests: 429` with all 429 passing. That
+figure covers the whole repository test run at the time of this gate, and the
+working tree also carried tests belonging to concurrent workstreams, so it is
+not attributable to the blood-and-gore feature alone and should not be cited as
+its baseline.
+
+These results prove the non-interactive gate only. The blood-and-gore smoke rows
+below remain `PENDING` a human at an interactive Windows desktop.
+
 ## Interactive smoke checklist
 
 Run `./scripts/run.ps1` on an interactive Windows desktop. This repository uses
@@ -232,6 +304,18 @@ the interaction. Use `PASS`, `FAIL`, or `BLOCKED`; leave untouched rows
 | 33. Verify Apply gate behavior | Apply is disabled (ActionDisabled style, dimmed glyph) while Unassigned != 0 and while the draft equals the saved composition; Apply is enabled exactly when balanced and changed. | Not run | PENDING |
 | 34. Check the staged banner | After pressing Apply, the panel closes, the menu shows a one-line notice stating the composition takes effect on the next Full Reset, and Apply remains disabled until a different composition is drafted and applied. | Not run | PENDING |
 | 35. Verify Full Reset fields the chosen army | After applying a composition and pressing Full Reset (or `Shift+R`), the arena resets and both factions field the number and distribution of warriors specified by the staged composition, visible in the agent inspector and event log. | Not run | PENDING |
+| 36. Observe blood at the default fit view | On first launch, with the default gore setting (Stylized) and the default camera fit, a landed blow shows a directional spray and a ground mark that are both plainly visible without zooming the camera in at all. | Not run | PENDING |
+| 37. Check spray direction | Select an agent, watch it get struck, and confirm the spray leaves the victim along the line running from the attacker to the victim — pointing away from the attacker, never back toward it. Confirm this holds for blows arriving from several different directions. | Not run | PENDING |
+| 38. Distinguish a lethal blow from a wound | A blow that kills its victim renders visibly differently from a blow that only wounds: the lethal tier is denser or longer-lived, and only the lethal blow leaves the ground mark described in row 39. A spectator can tell the two apart without reading the event log. | Not run | PENDING |
+| 39. Check ground-mark persistence and fade | A ground mark stays on the battlefield after the fighters involved have moved away, then fades out gradually over time rather than vanishing in a single frame. Marks accumulate where the fighting was heaviest instead of spreading evenly. | Not run | PENDING |
+| 40. Confirm gore Off draws nothing | With the gore setting on Off, no spray, spurt, or ground mark appears anywhere for any blow, including kills, at any camera zoom. The existing warm-white hit-effect ring still draws, so impacts remain readable. | Not run | PENDING |
+| 41. Change gore intensity via the menu | Open Menu; the Gore Intensity control cycles Off, Stylized, Full and wraps at both ends using Left and Right and the pointer arrows. Each choice visibly changes blow rendering: Off shows nothing, Stylized shows spray and a fading mark, and Full additionally shows a sustained spurt on a kill together with denser, longer-lived marks. The change takes effect immediately, without a restart. | Not run | PENDING |
+| 42. Reach the gore selector by keyboard | Inside the menu, `Tab`, `Down`, and `S` move focus from the theme selector through every button and land on the Gore Intensity selector as the final control in the order; continuing past it wraps back to the theme selector. `Up` and `W` reach it from the theme selector by wrapping backwards. While it is focused, Left and Right change the value and no button is activated. | Not run | PENDING |
+| 43. Reach the gore selector by pointer | Hovering the Gore Intensity selector highlights it without changing the value; clicking its previous and next arrows changes the value; and a click on the selector does not click through to the arena or activate any menu button. | Not run | PENDING |
+| 44. Check gore intensity persists across a restart | Set gore to Full, fully close the game, and relaunch it: Full is active from the first blow, without reopening the menu. Repeat with Off and confirm the same. | Not run | PENDING |
+| 45. Check blood clears on Next Round and Full Reset | With sprays and ground marks visible on screen, trigger Next Round (`R`, modal, or summary); all blood clears immediately alongside the event log, inspector, and summary. Repeat separately with Full Reset (`Shift+R` and the modal command) and confirm the same. | Not run | PENDING |
+| 46. Check blood readability across every theme | Cycle all five visual themes while blood is on screen. In every theme, including `high-contrast`, blood stays clearly distinguishable from the Blue faction pawns, from the Red faction pawns, and from the arena ground surface; no theme makes a spray or a ground mark disappear into a pawn or the backdrop. | Not run | PENDING |
+| 47. Check speed and gore independence | At 1x, 2x, and 4x speed, switch gore between Off and Full and confirm the tick counter in the window title advances at the same visible rate for both settings at each speed. The gore setting never slows, pauses, or reorders simulation advancement. | Not run | PENDING |
 
 For round scoring, record Team A (Blue) and Team B (Red) totals before and after
 each command together with the outgoing outcome and old/new seeds. Next Round

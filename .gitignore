@@ -22,3 +22,6 @@ coverage/
 
 # Claude Code local overrides
 .claude/settings.local.json
+
+# Transient agent worktrees
+.claude/worktrees/

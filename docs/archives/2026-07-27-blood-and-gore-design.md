@@ -1,8 +1,12 @@
 # Blood and Gore — Design
 
+> **Archived: reference only.** This document is deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
+
 Date: 2026-07-27
-Status: Design. This document does not authorize implementation. The ordered
-task list lives in `docs/plans/2026-07-27-blood-and-gore.md`.
+Status: Design. This document did not authorize implementation. The ordered
+task list lives in the companion plan,
+[2026-07-27-blood-and-gore.md](2026-07-27-blood-and-gore.md), which records the
+outcome of the work.
 
 ## 1. Purpose
 

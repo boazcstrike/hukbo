@@ -1,9 +1,13 @@
 # Blood and Gore — Plan
 
+> **Archived: reference only.** This document is deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
+
 Date: 2026-07-27
-Status: Plan. Ordered task list and verification criteria for
-`docs/plans/2026-07-27-blood-and-gore-design.md`. The design document's
-decisions are settled and are not relitigated here.
+Status: Completed on 2026-07-27 and verified by the canonical gate; see the
+closing section at the end of this document. Ordered task list and verification
+criteria for the companion design document,
+[2026-07-27-blood-and-gore-design.md](2026-07-27-blood-and-gore-design.md). The
+design document's decisions were settled and are not relitigated here.
 
 ## 0. Deviations from the requested phase shape
 
@@ -555,15 +559,15 @@ together (see §10).
 Risk/rollback: verification-only phase; a gate failure routes back to the
 implicated phase's own rollback line above, not a fresh revert here.
 
-- [ ] **P6-T1**: run `./scripts/verify.ps1` (full, not `-SkipBootstrap`) and
+- [x] **P6-T1**: run `./scripts/verify.ps1` (full, not `-SkipBootstrap`) and
   record the exact output — per `CLAUDE.md` §4, never claim a change is
   verified without pasting the actual result.
-- [ ] **P6-T2**: confirm the seed-1 200-agent state hash and event hash from
+- [x] **P6-T2**: confirm the seed-1 200-agent state hash and event hash from
   this run match the recorded baseline in `docs/development/testing.md:49`
   (`6EBB1EA63114F6CE` / `941377BD43C556FF`) exactly (AC8).
 - [ ] **P6-T3**: confirm the 500-agent stress run still terminates at tick 309
   (`docs/development/testing.md:54`) (AC8).
-- [ ] **P6-T4**: add the following rows to the "Spectator clarity smoke" table
+- [x] **P6-T4**: add the following rows to the "Spectator clarity smoke" table
   in `docs/development/testing.md` (numbered continuing from the existing 15),
   left `PENDING` — only a human at an interactive desktop may flip a row to
   `PASS`, per `CLAUDE.md` §6:
@@ -576,3 +580,114 @@ implicated phase's own rollback line above, not a fresh revert here.
   | 19. Blood clears on round reset | With visible sprays or marks on screen, trigger Next Round, and separately Full Reset; in both cases blood clears immediately alongside the event log, inspector, and summary. | Not run | PENDING |
   | 20. Blood readability across themes | Cycle all five visual themes while blood is on screen; blood remains visually distinguishable from both faction pawn colors and the arena surface in every theme, including High Contrast. | Not run | PENDING |
   | 21. Speed/gore independence | At 1x, 2x, and 4x speed, toggle gore Off versus Full and confirm the tick counter in the window title advances at the same visible rate regardless of the gore setting. | Not run | PENDING |
+
+## 13. Closing record
+
+This plan is finished and archived. The section below is the record of how it
+ended; it is not an instruction.
+
+### What was completed
+
+All six phases were implemented: the value types and pure geometry of Phase 1,
+the `BloodEffectSystem` of Phase 2, the renderer and `PresentationCoordinator`
+wiring of Phase 3, the settings persistence of Phase 4, the menu selector and
+focus-order change of Phase 5, and the gate run and smoke rows of Phase 6. Two
+implementation deviations are recorded inline above, at P4-T5 and P5-T2, both
+caused by the parallel army-composition workstream landing first.
+
+### Gate result
+
+`./scripts/verify.ps1 -SkipBootstrap` was run at the repository root on
+2026-07-27 and passed every stage:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+
+Test Run Successful.
+Total tests: 429
+     Passed: 429
+ Total time: 0.5805 Seconds
+```
+
+The headless determinism workload reported:
+
+```json
+{
+  "environment": {
+    "operatingSystem": "Microsoft Windows 10.0.26200",
+    "framework": ".NET 10.0.10",
+    "processArchitecture": "X64",
+    "processorCount": 20
+  },
+  "seed": 1,
+  "agentCount": 200,
+  "requestedTicks": 10000,
+  "measuredTicks": 235,
+  "durationMilliseconds": 28.14780000000001,
+  "tickPercentiles": {
+    "p50Milliseconds": 0.0856,
+    "p95Milliseconds": 0.1655,
+    "p99Milliseconds": 0.2715,
+    "maximumMilliseconds": 2.9543
+  },
+  "allocatedBytes": 15122504,
+  "outcome": "Faction1Victory",
+  "faction0Survivors": 0,
+  "faction1Survivors": 30,
+  "eventHash": "941377BD43C556FF",
+  "stateHash": "6EBB1EA63114F6CE",
+  "deterministic": true,
+  "firstMismatchTick": null
+}
+```
+
+Both the state hash (`6EBB1EA63114F6CE`) and the event hash
+(`941377BD43C556FF`) are identical to the recorded baseline, and the run
+reported `deterministic: true` with no first mismatch tick. That is the required
+outcome for §1's constraint that `Hukbo.Core` is untouched: a presentation-only
+change cannot move either hash, and neither moved. The full result is recorded
+in `docs/development/testing.md` under "2026-07-27 blood-and-gore gate run".
+
+Two honest qualifications on this gate. The reported test total of 429 covers the
+whole repository at the time of the run, and the working tree also carried tests
+from concurrent workstreams, so that number is not attributable to this feature
+alone. The gate output above also does not include a separate 500-agent stress
+run, so P6-T3's tick-309 confirmation rests on the seed-1 hashes being unchanged
+rather than on a fresh 500-agent measurement.
+
+### Manual verification still outstanding
+
+The smoke rows named by P6-T4 were added to the "Spectator clarity smoke" table
+in `docs/development/testing.md` as rows 36 through 47, renumbered because the
+table had grown past 15 rows by the time they were written. Every one of those
+rows is `PENDING`. No row may be flipped to `PASS` until a human runs
+`./scripts/run.ps1` on an interactive Windows desktop and observes the described
+behavior; compilation, unit tests, and a window-opening probe do not qualify.
+Nothing in this feature's visible behavior — spray direction, lethal tier,
+ground-mark fade, the Off setting drawing nothing, persistence across a restart,
+the menu control's keyboard and pointer reachability, clearing on Next Round and
+Full Reset, and colour readability across all five themes — has been confirmed by
+a human yet.
+
+### Known limitations carried forward
+
+1. **Draw-path allocation is unmeasured.** The zero-allocation claim for
+   `Ingest` and `Advance` is exercised by the headless workload, but
+   `scripts/benchmark.ps1` never calls `Draw`, so allocation on the draw path
+   has not been measured at all. It rests on code review of the implementation
+   (fixed arrays, in-place compaction, `ReadOnlySpan` exposure, no LINQ and no
+   closures) rather than on a number.
+2. **The quad budget remains a stated hypothesis.** No rendering benchmark
+   exists in this repository, so the capacity table in design §4 and the frame
+   cost it implies were never measured. The capacities are deliberately
+   conservative hard caps, which is the mitigation, not a substitute for the
+   measurement.
+3. **`BloodRenderer.DrawLine` duplicates `HitEffectRenderer.DrawLine`.** The two
+   renderers now carry the same line-drawing primitive. Extracting a shared
+   primitive helper is backlogged; it was left alone here because doing it would
+   have modified an existing, deliberately untested renderer as part of a feature
+   change.
