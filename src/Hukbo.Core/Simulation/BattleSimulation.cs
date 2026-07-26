@@ -579,11 +579,12 @@ public sealed class BattleSimulation
             contactPairs++;
         }
 
-        // The front is measured over agents in reach of an enemy, not agents in
-        // body contact. Bodies are eight world units across but reach is twelve,
-        // so a line that halts at reach never touches: a contact-based span
-        // would read zero through an entire battle and tell a spectator
-        // nothing.
+        // The front spans agents holding an enemy in reach, not strictly
+        // touching bodies. The resolver leaves every living pair at or beyond
+        // the contact distance, so strict touching means a squared distance of
+        // exactly (2R)^2 — a Pythagorean coincidence on an integer lattice — and
+        // a span built on it would read zero through an entire battle. Contact
+        // pairs are counted separately, over a proximity band.
         var attackCapableAgents = 0;
         foreach (var agent in _agentStates)
         {

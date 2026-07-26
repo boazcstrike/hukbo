@@ -30,10 +30,12 @@ namespace Hukbo.Core.Simulation;
 /// <param name="FrontDepthRaw">
 /// Horizontal span of the same set. Width and depth are named for the default
 /// left-versus-right deployment; they are a readability signal, not geometry
-/// any rule depends on. The span is measured over agents in reach rather than
-/// agents in body contact, because a body is eight world units across while
-/// reach is twelve: a line that halts at reach never touches, so a
-/// contact-based span would read zero for an entire battle.
+/// any rule depends on. The span is measured over agents holding an enemy in
+/// reach rather than over strictly touching bodies: a solid resolver leaves
+/// every living pair at or beyond the contact distance, so strict touching
+/// requires a squared distance of exactly <c>(2R)^2</c> and a span built on it
+/// would read zero for an entire battle. Agents in reach is the useful superset
+/// — it covers the pressed front rank and the rank reaching past it.
 /// </param>
 /// <param name="PenetrationRaw">
 /// Deepest living-body overlap measured after the commit. Must be zero under
