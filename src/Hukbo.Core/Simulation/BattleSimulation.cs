@@ -552,12 +552,13 @@ public sealed class BattleSimulation
             }
 
             contactPairs++;
-            minimumX = Math.Min(minimumX, Math.Min(left.XRaw, right.XRaw));
-            maximumX = Math.Max(maximumX, Math.Max(left.XRaw, right.XRaw));
-            minimumY = Math.Min(minimumY, Math.Min(left.YRaw, right.YRaw));
-            maximumY = Math.Max(maximumY, Math.Max(left.YRaw, right.YRaw));
         }
 
+        // The front is measured over agents in reach of an enemy, not agents in
+        // body contact. Bodies are eight world units across but reach is twelve,
+        // so a line that halts at reach never touches: a contact-based span
+        // would read zero through an entire battle and tell a spectator
+        // nothing.
         var attackCapableAgents = 0;
         foreach (var agent in _agentStates)
         {
@@ -567,10 +568,16 @@ public sealed class BattleSimulation
             }
 
             var target = _agentStates[_agentIndexes[targetId]];
-            if (target.IsAlive && IsWithinAttackRange(agent, target))
+            if (!target.IsAlive || !IsWithinAttackRange(agent, target))
             {
-                attackCapableAgents++;
+                continue;
             }
+
+            attackCapableAgents++;
+            minimumX = Math.Min(minimumX, agent.XRaw);
+            maximumX = Math.Max(maximumX, agent.XRaw);
+            minimumY = Math.Min(minimumY, agent.YRaw);
+            maximumY = Math.Max(maximumY, agent.YRaw);
         }
 
         _lastTickCollision = new CollisionTickMetrics(
@@ -579,8 +586,8 @@ public sealed class BattleSimulation
             _collision.Resolver.AcceptedMoveCount,
             _collision.Resolver.BlockedCount,
             attackCapableAgents,
-            contactPairs == 0 ? 0 : checked(maximumY - minimumY),
-            contactPairs == 0 ? 0 : checked(maximumX - minimumX),
+            attackCapableAgents == 0 ? 0 : checked(maximumY - minimumY),
+            attackCapableAgents == 0 ? 0 : checked(maximumX - minimumX),
             penetrationRaw);
     }
 
