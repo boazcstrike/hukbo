@@ -273,11 +273,31 @@ first legal candidate is taken. The random stream is not consulted during
 relocation, so relocation cannot shift the seed sequence.
 
 Impossible density fails loudly. `Scenario.Validate` rejects a configuration
-where the conservative square-packing bound is exceeded:
+where the conservative square-packing bound is exceeded. The bound is stated
+here in its algebraic form:
 
 ```text
-(long)TotalAgents * (2 * BodyRadiusRaw)^2  >  mapWidthRaw * mapHeightRaw
+TotalAgents * (2 * BodyRadiusRaw)^2  >  mapWidthRaw * mapHeightRaw
 ```
+
+**That expression must not be evaluated literally.** At `MaximumMapDimension`
+the left side reaches roughly `2.1e22`, far past `long.MaxValue`. The
+implementation uses the equivalent division form, which stays in range:
+
+```text
+TotalAgents  >  (mapWidthRaw * mapHeightRaw) / (2 * BodyRadiusRaw)^2
+```
+
+This is exact rather than approximate for positive `bodyArea`. With
+`q = mapArea / bodyArea` and `r = mapArea % bodyArea`, the identity
+`T * bodyArea > mapArea  <=>  (T - q) * bodyArea > r` holds because
+`0 <= r < bodyArea`.
+
+The map-fit checks of section 5 must run **before** this one. They are what
+bounds `bodyArea` enough for the remaining products to be safe; the ordering is
+load-bearing, not stylistic.
+
+Boundary equality is accepted: only a strictly greater agent count is rejected.
 
 If the ring scan still exhausts its bound at run time, `Create` throws an
 `InvalidOperationException` naming the entity that could not be placed. It never
