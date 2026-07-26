@@ -39,6 +39,167 @@ types. Performance output is evidence, not a universal frame-time guarantee.
 
 ## Latest non-interactive result
 
+Every figure in this section comes from the mirrored starting-formation change
+on 2026-07-27, taken on the `feature/starting-formations` branch. Starting
+positions are now planned once per battle as a set of contingents and mirrored
+across the vertical centre line, so both hashes moved. See
+[docs/archives/2026-07-27-starting-formations-design.md](../archives/2026-07-27-starting-formations-design.md),
+kept for traceability only.
+
+**Everything below the next heading predates this change and is superseded.**
+
+### Canonical gate
+
+`./scripts/verify.ps1` passed at all five stages: prerequisite validation and
+locked restore, format verification, the Release solution build with zero
+warnings, the Release repository tests, and the seed-1 / 200-agent /
+10,000-tick headless determinism workload.
+
+| Suite | Passed | Failed | Skipped |
+| --- | --- | --- | --- |
+| `Hukbo.Core.Tests` | 351 | 0 | 0 |
+| `Hukbo.Client.Tests` | 513 | 0 | 0 |
+
+The Core count is 25 higher than the 326 recorded on `main`; all 25 are the new
+`FormationPlannerTests`, which cover mirror symmetry, spawn clearance, map
+bounds, half-of-map containment on narrow maps, seed reproducibility, the
+five-contingent structure of a default army, the eight-contingent cap, the
+crowded-map fallback lattice, and the minimum-map, maximum-map, narrow-half and
+single-warrior edge cases. No Client code changed and the Client count is
+unchanged.
+
+### 200-agent acceptance workload
+
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`. This is the current
+recorded oracle.
+
+| Field | Value |
+| --- | --- |
+| Measured ticks | 1081 |
+| Outcome | `Faction1Victory` |
+| Faction 0 survivors | 0 |
+| Faction 1 survivors | 3 |
+| State hash | `DC7F2E7A107C885A` |
+| Event hash | `6C641E90DDF0B943` |
+| Deterministic | `true` |
+| First mismatch tick | `null` |
+| Tick p50 | 0.0827 ms |
+| Tick p95 | 1.2937 ms |
+| Tick p99 | 2.4169 ms |
+| Tick maximum | 7.3589 ms |
+| Allocated | 69,693,688 bytes |
+
+Collision metrics for the same run:
+
+| Metric | Value |
+| --- | --- |
+| `candidatePairs` | 107,634 |
+| `contactPairs` | 5,007 |
+| `acceptedMoves` | 66,416 |
+| `blockedAgentTicks` | 29,040 |
+| `attackCapableAgentTicks` | 9,283 |
+| `longestBlockedStreakTicks` | 48 |
+| `maximumFrontWidthRaw` | 630,752 |
+| `maximumFrontDepthRaw` | 29,114 |
+| `maximumPenetrationRaw` | 0 |
+
+### 500-agent stress workload
+
+The same command with `-Agents 500`. Report only; not gated.
+
+| Field | Value |
+| --- | --- |
+| Measured ticks | 2231 |
+| Outcome | `Faction1Victory` |
+| Faction 0 survivors | 0 |
+| Faction 1 survivors | 3 |
+| State hash | `0C53793DEB700A53` |
+| Event hash | `4F373537096F2551` |
+| Deterministic | `true` |
+| First mismatch tick | `null` |
+| Tick p50 | 0.3425 ms |
+| Tick p95 | 2.6284 ms |
+| Tick p99 | 4.9597 ms |
+| Tick maximum | 11.6425 ms |
+| Allocated | 358,456,096 bytes |
+
+| Metric | Value |
+| --- | --- |
+| `candidatePairs` | 636,262 |
+| `contactPairs` | 12,746 |
+| `acceptedMoves` | 346,688 |
+| `blockedAgentTicks` | 92,070 |
+| `attackCapableAgentTicks` | 23,207 |
+| `longestBlockedStreakTicks` | 48 |
+| `maximumFrontWidthRaw` | 639,480 |
+| `maximumFrontDepthRaw` | 62,961 |
+| `maximumPenetrationRaw` | 0 |
+
+### What the deployment change moved, on the same workload
+
+| Metric | Amended collision run | Mirrored deployment |
+| --- | --- | --- |
+| Terminal tick, 200 agents | 657 | 1081 |
+| Faction 1 survivors, 200 agents | 10 | 3 |
+| `contactPairs`, 200 agents | 5,649 | 5,007 |
+| `blockedAgentTicks`, 200 agents | 14,544 | 29,040 |
+| `maximumFrontDepthRaw`, 200 agents | 51,072 | 29,114 |
+| `maximumPenetrationRaw`, 200 agents | 0 | 0 |
+
+The battles now run considerably longer and end with fewer survivors on the
+winning side. Front depth roughly halved and blocked agent ticks roughly
+doubled, both consistent with armies that arrive as several columns and queue up
+behind their own contingents instead of converging as one cloud. Penetration
+stayed at exactly zero, which is the guard: the deployment change did not weaken
+the solid-disc invariant.
+
+The win distribution went the other way and that must be recorded, not glossed.
+Measured directly, `./scripts/benchmark.ps1 -Agents 200 -Ticks 10000` over seeds
+1 to 20:
+
+| Build | Faction 0 wins | Faction 1 wins |
+| --- | --- | --- |
+| `main` | 4 | 16 |
+| This change | 1 | 19 |
+
+Individual battles are closer; which faction wins is more predictable. The cause
+is not an unfair deployment — both armies now hold identical ground. It is that
+a symmetric deployment leaves the entity-ID ordering rule as the only asymmetry
+in the simulation, and that rule always favours the same faction. Random spawns
+used to hide it behind noise. Planning each faction from its own jitter draws
+was implemented and measured as a mitigation and produced the same 1/19 split,
+so it was reverted. Correcting the underlying bias is a tick-rule change that
+needs its own decision record and was not attempted here.
+`SeedsOneThroughTwentyProduceVictoriesForBothFactions` still passes, on one
+seed.
+
+Allocation rose from 42,568,888 to 69,693,688 bytes on the 200-agent workload.
+That is **not** an efficiency regression claim in either direction: the battle
+also ran 424 ticks longer, and per-tick timing is unchanged or slightly better
+(p50 0.0878 ms to 0.0827 ms). The next meaningful allocation comparison is
+against the 69,693,688-byte figure above, at the same agent count and seed.
+
+### Superseded oracles
+
+Dead values, kept so the transition can be traced. None may be used as a
+regression target.
+
+| Superseded oracle | State hash | Event hash | Note |
+| --- | --- | --- | --- |
+| 200 agents, seed 1, amended collision | `D78F0B527B7F938F` | `AC3BAAEC684854D5` | Terminal tick 657. Superseded by the mirrored deployment. |
+| 500 agents, seed 1, amended collision | `C81B4F48DE54B983` | `D03F1213563DFD49` | Report-only workload. Superseded by the mirrored deployment. |
+
+The combat preset is untouched: `CombatRuleset.ContentHash` is still
+`0x59FB4CA563D87A49`, asserted by two tests in the passing suite.
+
+### Interactive verification
+
+**Not performed.** The opening frame is the whole visible point of this change
+and no person has watched it in a live window. The rows in the deployment smoke
+checklist below stay `PENDING`.
+
+## Superseded: the amended collision run
+
 Every figure in this section comes from one final verified run of the **amended**
 collision change on 2026-07-27, taken on the `feature/collision-mechanics`
 branch after the contact-closing amendment recorded in
@@ -631,6 +792,28 @@ has been observed.
 | 19. Inspect a blocked agent | Selecting an agent in the second rank shows a movement label explaining why it is not advancing, and that label changes as the situation changes. | Not run | PENDING |
 | 20. Inspect the front rank | Selecting a front-rank agent shows it moving or attacking rather than blocked, and an agent that has arrived at an enemy reads as attacking rather than still marching. | Not run | PENDING |
 | 21. Confirm the ranks actually touch | Opposing front ranks close until their pawn bodies meet, rather than settling with a visible gap of open ground between the two lines. This is the amendment's whole visible effect and the pre-amendment behaviour was a persistent gap. | Not run | PENDING |
+
+### Starting deployment smoke
+
+Added by the mirrored starting-formation change. **Not performed.** The
+automated evidence proves the arrangement is symmetric, separated and
+overlap-free in numbers; none of it proves the opening frame reads that way to a
+person watching it, which is the only thing these rows are for.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 53. Read the opening frame | Before the armies move, each side reads as several separate groups of warriors rather than one undifferentiated cloud, at the default camera fit and without zooming in. | Not run | PENDING |
+| 54. Check the mirror | Pausing at tick 0 and comparing the two halves shows each side as the other's reflection across the centre line: same group positions, same group sizes, same ragged front. | Not run | PENDING |
+| 55. Confirm the groups look irregular | Within a group the spacing looks uneven rather than a snapped parade grid, and a new seed visibly reshuffles that spacing without moving the groups. | Not run | PENDING |
+| 56. Confirm the armies still meet promptly | The two sides close and fight without a long empty march, and the battle reaches a terminal outcome inside its tick limit. | Not run | PENDING |
 
 ## Failure classification
 
