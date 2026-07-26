@@ -428,6 +428,120 @@ public sealed class BattleSimulationTests
             new[] { BattleOutcome.Faction0Victory, BattleOutcome.Faction1Victory });
     }
 
+    [Fact]
+    public void Create_WithAnInjectedRulesetRejectsARosterThatDisagreesWithTheScenarioPreset()
+    {
+        // Scenario.Validate checks roster counts against the registry and is
+        // deliberately left alone, so a differently rostered ruleset would have
+        // the scenario validated against one roster while the simulation ran on
+        // another. Both injecting factories refuse it.
+        var scenario = CreateTestScenario();
+        var mismatched = BuildRulesetWithASingleEntryRoster();
+
+        Assert.NotEqual(
+            CombatPresetRegistry.Get(scenario.CombatPreset).Roster,
+            mismatched.Roster);
+        Assert.Throws<ArgumentException>(
+            () => BattleSimulation.Create(scenario, mismatched));
+        Assert.Throws<ArgumentException>(
+            () => BattleSimulation.CreateForTesting(
+                scenario,
+                mismatched,
+                CreateAgent(1, factionId: 0, x: 10, y: 10, scenario)));
+    }
+
+    [Fact]
+    public void Create_WithTheInjectedPresetRulesetMatchesTheRegistryPathExactly()
+    {
+        // The seam must move no value. A ruleset that is the preset except for
+        // its clash profile produces the same agents, the same events, and the
+        // same state hash as the registry path.
+        var scenario = Scenario.CreateDefault(seed: 7, totalAgents: 20);
+        var injected = CombatPresetRegistry
+            .Get(scenario.CombatPreset)
+            .WithClashProfile(ClashProfile.Neutral);
+
+        var registryPath = BattleSimulation.Create(scenario);
+        var injectedPath = BattleSimulation.Create(scenario, injected);
+
+        for (var tick = 0; tick < 50; tick++)
+        {
+            registryPath.AdvanceOneTick();
+            injectedPath.AdvanceOneTick();
+
+            Assert.Equal(registryPath.LastEvents, injectedPath.LastEvents);
+            Assert.Equal(
+                registryPath.ComputeStateHash(),
+                injectedPath.ComputeStateHash());
+            Assert.Equal(
+                registryPath.ComputeStateHash(),
+                injectedPath.ComputeStateHash(injected.ContentHash));
+        }
+    }
+
+    [Fact]
+    public void CreateForTesting_WithTheInjectedPresetRulesetMatchesTheRegistryPathExactly()
+    {
+        var scenario = CreateTestScenario() with
+        {
+            AttackRangeRaw = 12 * FixedPoint.Scale,
+        };
+        var injected = CombatPresetRegistry
+            .Get(scenario.CombatPreset)
+            .WithClashProfile(ClashProfile.Neutral);
+
+        var registryPath = BattleSimulation.CreateForTesting(
+            scenario,
+            CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
+            CreateAgent(2, factionId: 1, x: 22, y: 10, scenario));
+        var injectedPath = BattleSimulation.CreateForTesting(
+            scenario,
+            injected,
+            CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
+            CreateAgent(2, factionId: 1, x: 22, y: 10, scenario));
+
+        registryPath.AdvanceOneTick();
+        injectedPath.AdvanceOneTick();
+
+        Assert.Equal(registryPath.LastEvents, injectedPath.LastEvents);
+        Assert.Equal(
+            registryPath.ComputeStateHash(),
+            injectedPath.ComputeStateHash());
+    }
+
+    /// <summary>
+    /// A structurally valid ruleset whose roster is one loadout, so it cannot
+    /// agree with the registered preset roster.
+    /// </summary>
+    private static CombatRuleset BuildRulesetWithASingleEntryRoster()
+    {
+        var weights = Enum.GetValues<BodyPart>()
+            .Select(part => (part, 1))
+            .ToArray();
+        var multipliers = Enum.GetValues<BodyPart>()
+            .Select(part => (part, 1_000))
+            .ToArray();
+        var weightProfile = new TargetWeightProfile(weights);
+
+        return new CombatRuleset(
+            CombatPresetId.PrecolonialPhilippinesV1,
+            version: 1,
+            generalTargets: weightProfile,
+            weaponTargets: new Dictionary<WeaponId, TargetWeightProfile>
+            {
+                [WeaponId.GreatBlade] = weightProfile,
+            },
+            armors: [ArmorId.LightOrganic],
+            shieldMultipliers: new Dictionary<ShieldId, TargetWeightProfile>
+            {
+                [ShieldId.None] = new TargetWeightProfile(multipliers),
+            },
+            roster:
+            [
+                new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.None),
+            ]);
+    }
+
     private static Scenario CreateTestScenario() =>
         new(
             Seed: 1,

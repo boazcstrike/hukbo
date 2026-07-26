@@ -154,7 +154,8 @@ public sealed class DeterminismTests
             tick: 1,
             BattleOutcome.Ongoing,
             eventSequence: 0,
-            agents: [agent]);
+            agents: [agent],
+            contentHash: CombatPresetRegistry.Get(scenario.CombatPreset).ContentHash);
     }
 
     /// <summary>

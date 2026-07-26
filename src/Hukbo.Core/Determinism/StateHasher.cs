@@ -1,18 +1,32 @@
-using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Core.Determinism;
 
 internal static class StateHasher
 {
+    /// <summary>
+    /// Folds one authoritative state into the deterministic state hash.
+    /// </summary>
+    /// <param name="scenario">The scenario under simulation.</param>
+    /// <param name="tick">The authoritative tick.</param>
+    /// <param name="outcome">The battle outcome so far.</param>
+    /// <param name="eventSequence">The running event sequence number.</param>
+    /// <param name="agents">The agent states, in their storage order.</param>
+    /// <param name="contentHash">
+    /// The content hash of the ruleset the simulation is actually running on.
+    /// Passed by value rather than fetched from the registry so that a
+    /// simulation given a ruleset directly folds that ruleset's hash instead of
+    /// the registered one, and so that a recorded hash can be reproduced
+    /// exactly after the registered value has moved on.
+    /// </param>
     internal static ulong Compute(
         Scenario scenario,
         long tick,
         BattleOutcome outcome,
         long eventSequence,
-        IReadOnlyList<AgentState> agents)
+        IReadOnlyList<AgentState> agents,
+        ulong contentHash)
     {
-        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
         var hash = Fnv1a.OffsetBasis;
         Add(ref hash, scenario.Seed);
         Add(ref hash, scenario.MapWidth);
@@ -29,7 +43,7 @@ internal static class StateHasher
         Add(ref hash, scenario.BodyRadiusRaw);
         Add(ref hash, (int)scenario.CollisionPolicy);
         Add(ref hash, (int)scenario.CombatPreset);
-        Add(ref hash, rules.ContentHash);
+        Add(ref hash, contentHash);
         Add(ref hash, tick);
         Add(ref hash, (int)outcome);
         Add(ref hash, eventSequence);
