@@ -261,7 +261,8 @@ public sealed record Scenario(
             FormationRules.MaximumLastStandThresholdAgents,
             nameof(LastStandThresholdAgents));
 
-        if (LastStandThresholdAgents > 0 && 8L * BodyRadiusRaw + 1 > int.MaxValue)
+        if (LastStandThresholdAgents > 0 &&
+            !FormationRules.IsBodyRadiusWithinJitterSpanRange(BodyRadiusRaw))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(BodyRadiusRaw),

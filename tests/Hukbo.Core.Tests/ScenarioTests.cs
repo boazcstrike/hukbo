@@ -427,7 +427,8 @@ public sealed class ScenarioTests
     {
         var scenario = Scenario.CreateDefault() with
         {
-            LastStandThresholdAgents = 17,
+            LastStandThresholdAgents =
+                FormationRules.MaximumLastStandThresholdAgents + 1,
         };
 
         Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
