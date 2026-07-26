@@ -706,6 +706,20 @@ passing the `ulong` removes the dependency entirely rather than rerouting it.
 `CombatPresetRegistry.Get(scenario.CombatPreset).ContentHash`, and the control run in
 section 9 injects `0x59FB4CA563D87A49UL` directly.
 
+That last step needs one more member, and its absence is easy to miss. `ComputeStateHash()`
+at `BattleSimulation.cs:197` is parameterless and unconditionally folds `_rules.ContentHash`,
+so there is nowhere for the control run to pass the recorded value — and reaching
+`StateHasher.Compute` directly is blocked by the same egress problem that forced the `Create`
+overload, since it needs `IReadOnlyList<AgentState>` and `_agentStates` is private. The seam
+therefore also adds **`internal ulong ComputeStateHash(ulong contentHash)`** beside the public
+parameterless overload, which delegates with `_rules.ContentHash`. Without it the `ulong`
+parameter stops one call site short of the only place that needed it.
+
+The fixture capture does **not** need that overload, and deliberately does not depend on it:
+on unmodified `main` the `_rules.ContentHash` that the parameterless method folds *is*
+`0x59FB4CA563D87A49UL`, so the two agree by construction and the capture keeps its place as
+the first executed task rather than acquiring a dependency on the seam.
+
 The durability matters more than the simplicity. `Fnv1a.Add` at
 `src/Hukbo.Core/Determinism/Fnv1a.cs:22-29` runs eight XOR-then-multiply rounds
 regardless of the value it is given, so **folding a zero word is not a no-op** — it
@@ -1031,10 +1045,14 @@ changed. Revision 4 therefore dropped the hash entirely, which went one level to
 
 The seam supplies a decidable form, provided the hasher takes a `ulong contentHash` rather
 than a ruleset. Build the neutral ruleset with `WithClashProfile(ClashProfile.Neutral)`,
-inject it through the new `Create` overload, run seed 1 at 200 agents, pass
-`0x59FB4CA563D87A49UL` as the content hash, and assert `ComputeStateHash()` equals
-**`D78F0B527B7F938F`** exactly at the terminal tick. That is a plain equality against a
-recorded value rather than an inference about a fold.
+inject it through the new `Create` overload, run seed 1 at 200 agents, and call
+`ComputeStateHash(0x59FB4CA563D87A49UL)` — the overload described in section 5.1, not the
+parameterless method — asserting it equals **`D78F0B527B7F938F`** exactly at the terminal
+tick. That is a plain equality against a recorded value rather than an inference about a
+fold. The per-tick state-hash column uses the same overload, for the same reason: the
+parameterless method folds the injected ruleset's own `ContentHash`, which after the
+content-hash fold lands differs from the recorded value on both the version word and the
+thirty-two clash words, so every one of the roughly 657 rows would mismatch.
 
 **This only works because the parameter is the `ulong`.** Had it been the ruleset, the
 assertion would hold at the first barrier and then start failing the moment the clash
@@ -1060,7 +1078,7 @@ means nothing. Roughly 657 rows, and a failure reports a first-divergence tick i
 shape `benchmark.ps1` already reports as `firstMismatchTick`. The fixture also carries the
 terminal tick, the outcome, both survivor counts, and the final per-agent state tuples.
 
-**Each row also carries that tick and its `ComputeStateHash()` value**, one more `ulong` per row, and
+**Each row also carries that tick and its `ComputeStateHash()` value**, captured with the parameterless method for the reason given in section 5.1, one more `ulong` per row, and
 this is not padding. The event half of the digest is complete — the nine folded fields are
 every `BattleEvent` field except `Resolution`, FNV-1a is order-sensitive so an intra-tick
 reordering is caught, and the per-tick count catches insertion and deletion. The gap is
