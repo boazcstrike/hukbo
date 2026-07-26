@@ -132,4 +132,26 @@ public sealed class ScenarioTests
                 Assert.InRange(agent.YRaw, 0, FixedPoint.Scale);
             });
     }
+
+    [Fact]
+    public void MaximumMapCreatesAgentsInsideValidatedBounds()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 2) with
+        {
+            MapWidth = Scenario.MaximumMapDimension,
+            MapHeight = Scenario.MaximumMapDimension,
+        };
+        var maximumRawCoordinate = checked(
+            Scenario.MaximumMapDimension * FixedPoint.Scale);
+
+        var simulation = BattleSimulation.Create(scenario);
+
+        Assert.All(
+            simulation.Agents,
+            agent =>
+            {
+                Assert.InRange(agent.XRaw, 0, maximumRawCoordinate);
+                Assert.InRange(agent.YRaw, 0, maximumRawCoordinate);
+            });
+    }
 }

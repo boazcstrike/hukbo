@@ -76,8 +76,9 @@ public sealed class BattleSimulation
 
         for (var index = 0; index < scenario.AgentsPerFaction; index++)
         {
-            var rightX = ((mapWidthRaw * 3) / 4) -
-                random.NextInt(horizontalBandRaw);
+            var rightX = checked(
+                (int)(((long)mapWidthRaw * 3) / 4) -
+                random.NextInt(horizontalBandRaw));
             var rightY = verticalMarginRaw + random.NextInt(usableHeightRaw);
             var stateIndex = scenario.AgentsPerFaction + index;
             agents[stateIndex] = CreateAgent(
