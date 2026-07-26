@@ -9,6 +9,33 @@ verification criteria. Read the design document first; the numeric contract, the
 historical boundary, and the nine standard answers are recorded there and are
 not repeated here.
 
+## Outcome
+
+All eight tasks are complete, plus three corrective tasks that the plan did not
+foresee. The canonical gate passes.
+
+Testing invalidated two of the plan's numbers and one of its arguments, so the
+task descriptions below no longer match the constants that shipped. The
+authoritative values are in `FormationRules` and in the corrections section at
+the top of the design document. In summary:
+
+- `RallyJitterRadiusMultiplier` is 6, not the 4 written below.
+- `MaximumLastStandThresholdAgents` is 9, not the 16 written below. Sixteen was
+  the bias square's full packing capacity, which is not a safe headcount; the
+  ceiling now carries a fourfold area margin.
+- Two constants the plan never anticipated were added:
+  `RallyTrailRadiusMultiplier` (12) and `RallyCorridorHalfWidthMultiplier` (2).
+- Followers trail behind the rally agent and give way when they stand in its
+  path. Neither rule was in the original plan, and without them the feature
+  deadlocked: a leader blocked by its own followers, both factions frozen, and a
+  no-casualty draw at the tick limit.
+
+The corrective work is recorded in commits `a1415a6`
+(`fix(simulation): give the rally jitter square a fourfold packing margin`),
+`ca80518` (`fix(simulation): trail regrouping survivors behind their rally
+agent`), and `244bf22` (`fix(simulation): make regrouping survivors give way to
+their rally agent`).
+
 ## Task order
 
 Tasks 1, 2, and 3 are independent of one another and may run in parallel. Tasks

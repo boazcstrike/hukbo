@@ -1,8 +1,34 @@
 # Last-Stand Formation — Design
 
 Date: 2026-07-27
-Status: Proposed
+Status: Implemented, with two corrections recorded below
 Layer: `Hukbo.Core` (authoritative simulation)
+
+## Corrections made during implementation
+
+Two claims in the first draft of this document were wrong, and both were caught
+by tests rather than by review. They are recorded here rather than quietly
+edited away, because each one is a trap that a future change could walk back
+into.
+
+**The packing bound was the wrong number.** The first draft set the maximum
+threshold to the bias square's full capacity, sixteen. Capacity is the count
+that fits under *perfect* packing, and these offsets are drawn at random, so
+demanding capacity guarantees overlap. A sixteen-versus-sixteen battle
+gridlocked completely: a forced draw at tick 10,000, both factions still at full
+strength, not one casualty, and a longest blocked streak of 9,975 ticks. The
+maximum threshold is now capacity divided by a fourfold area margin, and the
+jitter multiplier was raised from four to six so that ceiling lands at nine and
+still admits the default of six.
+
+**The liveness argument was invalid.** The first draft claimed a last stand can
+never stall because the rally agent is exempt and always closes on an enemy
+under the unmodified rules. That reasoning ignored collision entirely. A rally
+agent is exempt from the *formation*, not from *bodies*. Two separate deadlocks
+followed, and both are now fixed by the trail and give-way rules described
+below. The general lesson is that in a simulation with solid bodies, exempting
+an agent from a behaviour does not exempt it from being physically blocked by
+the agents that are still following that behaviour.
 
 ## Historical boundary
 
@@ -97,12 +123,70 @@ already forbids penetration, and no division is involved.
 ### The rally agent leads
 
 The rally agent is exempt from the formation. It selects its nearest enemy and
-advances on it under the existing, unmodified rules.
+advances on it under the existing, unmodified rules. This is what makes the
+cluster go somewhere.
 
-This is what makes the cluster go somewhere, and it is the liveness guarantee.
-While any warrior of a faction is alive, at least one warrior of that faction is
-closing on an enemy under the pre-existing movement rule, so a last stand can
-never become a standoff and two clusters can never stall facing each other.
+Exemption from the formation is **not** on its own a liveness guarantee, and the
+first draft of this document wrongly claimed it was. The rally agent is still a
+solid body among solid bodies, so its own followers can physically block it. Two
+distinct deadlocks were observed before the rules below were added, and in both
+of them the battle ran to the tick limit with no casualties at all.
+
+In the first, a follower whose jitter offset happened to point along the leader's
+direction of travel parked directly in front of the leader and held station
+there. Because the offset is a personal constant, it held that station forever.
+The leader was permanently `Blocked`; both factions did it at once; nobody ever
+closed.
+
+In the second, which appeared only after the trail rule below was added, a
+follower that happened to start *in front* of its leader had to travel backwards
+through the leader to reach its trail point. The leader blocked the follower
+going backwards and the follower blocked the leader going forwards — a head-on
+exchange neither could win.
+
+Liveness comes from the trail rule and the give-way rule together, and it is
+asserted directly rather than argued: `NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwenty`
+runs twenty seeds at the maximum threshold and requires every one of them to
+reach a terminal outcome before the tick limit.
+
+### Followers trail behind the leader
+
+A follower's aim point is not centred on the leader. It is centred on a point
+`RallyTrailRadiusMultiplier` body radii **behind** the leader, opposite the
+direction from the leader to its current target, and the jitter offset is then
+added to that trailing point. The leader's forward arc therefore stays clear.
+
+The trail distance has to clear the worst forward reach of the jitter. Jitter is
+drawn independently per axis from `[-J, +J]`, so its projection onto any single
+direction is at most `J * sqrt(2)`, which is about `8.49R` at the chosen
+multiplier of six. A trail of `12R` leaves about `3.51R` of clearance, which is
+comfortably beyond the `2R` contact distance at which two bodies touch. The
+governing inequality is that `RallyTrailRadiusMultiplier` must always exceed
+`RallyJitterRadiusMultiplier * sqrt(2) + 2`, and changing either multiplier
+requires rechecking it. That inequality is recorded in `FormationRules`.
+
+If the rally agent has no target, there is no direction to trail along, and the
+aim point falls back to the leader's own position plus the jitter offset.
+
+### Followers give way
+
+A follower standing in its leader's forward corridor steps sideways out of the
+corridor instead of trying to travel back through the leader.
+
+The follower is in the corridor when it is in front of the leader and its
+lateral distance from the leader's line of travel is under
+`RallyCorridorHalfWidthMultiplier` body radii. In that case its aim point is a
+pure lateral step to the side it is already on, far enough to clear the corridor
+edge by a body radius. Its forward position is left alone, so a giving-way
+follower moves sideways only and cannot re-enter the corridor by moving. When
+the lateral distance is exactly zero the side is chosen deterministically, so
+the outcome never depends on array or iteration order.
+
+This is the one behaviour in this feature with any support in the research at
+all: `docs/research/battles/03-deep-past-formations-and-tactics.md` lists
+"avoiding blocking a companion's movement or weapon" among its plausible
+inferences about small-unit cooperation. It remains a design invention in its
+numbers and its geometry.
 
 ### Every other survivor regroups
 
@@ -181,35 +265,56 @@ Every value is stated in raw fixed-point units. One world unit is
 | --- | --- | --- | --- | --- |
 | `Scenario.LastStandThresholdAgents` | new hashed scenario field | property default `0`; `Scenario.CreateDefault` applies `6` | living warriors per faction | `0` disables the feature. `6` is roughly the point at which a 100-per-faction battle stops reading as a line and starts reading as scattered duels |
 | `FormationRules.DefaultLastStandThresholdAgents` | new constants file | `6` | warriors | The value `CreateDefault` applies |
-| `FormationRules.MaximumLastStandThresholdAgents` | new constants file | `16` | warriors | The square-packing bound derived below |
-| `FormationRules.RallyJitterRadiusMultiplier` | new constants file | `4` | multiples of `BodyRadiusRaw` | Sets cluster size relative to a body |
-| `RallyJitterRaw` (derived) | `4 * Scenario.BodyRadiusRaw` | `16384` at the default radius | raw units | 16 world units. Not a scenario field, so it adds no hash input and no tuning knob |
-| Per-axis offset range | derived | `[-16384, +16384]` inclusive at the default radius | raw units | 32,769 distinct values per axis |
-| Cluster extent | derived | `32768` raw across each axis | raw units | 32 world units, about four bodies wide |
+| `FormationRules.RallyJitterRadiusMultiplier` | new constants file | `6` | multiples of `BodyRadiusRaw` | Sets cluster size relative to a body |
+| `FormationRules.RallyPackingMargin` | new constants file | `4` | dimensionless | Bodies may cover at most a quarter of the bias square |
+| `FormationRules.MaximumLastStandThresholdAgents` | new constants file | `9` | warriors | Capacity divided by the packing margin, derived below |
+| `FormationRules.RallyTrailRadiusMultiplier` | new constants file | `12` | multiples of `BodyRadiusRaw` | How far behind the leader the cluster sits |
+| `FormationRules.RallyCorridorHalfWidthMultiplier` | new constants file | `2` | multiples of `BodyRadiusRaw` | Half-width of the leader's protected forward corridor |
+| `RallyJitterRaw` (derived) | `6 * Scenario.BodyRadiusRaw` | `24576` at the default radius | raw units | 24 world units. Not a scenario field, so it adds no hash input and no tuning knob |
+| `RallyTrailRaw` (derived) | `12 * Scenario.BodyRadiusRaw` | `49152` at the default radius | raw units | 48 world units behind the leader |
+| Per-axis offset range | derived | `[-24576, +24576]` inclusive at the default radius | raw units | 49,153 distinct values per axis |
+| Cluster extent | derived | `49152` raw across each axis | raw units | 48 world units, about six bodies wide |
 
 ### The packing bound
 
-The bias square has side `2 * RallyJitterRaw`, which is `8 * BodyRadiusRaw`. A
-body occupies a square of side `2 * BodyRadiusRaw`. Under conservative square
-packing, the bias square therefore holds `(8R / 2R)^2 = 16` non-overlapping
-bodies regardless of what `BodyRadiusRaw` actually is, because the multiplier is
-fixed. `MaximumLastStandThresholdAgents` is that 16. At the default threshold of
-6 there is more than two and a half times the room needed, and that margin is
-what stops a cluster from packing tighter than the solid-disc resolver permits
-and thrashing against it. A threshold above 16 is rejected by
-`Scenario.Validate` rather than merely discouraged.
+The bias square has side `2 * RallyJitterRaw`, which is
+`2 * RallyJitterRadiusMultiplier * BodyRadiusRaw`. A body occupies a square of
+side `2 * BodyRadiusRaw`. Dividing one side by the other gives
+`RallyJitterRadiusMultiplier`, and squaring it gives the square's *capacity* in
+non-overlapping bodies, which is 36 at the chosen multiplier of six. That result
+is independent of what `BodyRadiusRaw` actually is, because the multiplier is
+fixed.
+
+Capacity is not a safe headcount, and the first draft of this design made
+exactly that mistake by setting the maximum threshold to it. Filling the square
+to capacity requires perfect packing, and these offsets are drawn at random, so
+in practice every follower overlaps somebody, the resolver blocks the whole
+cluster, and — since the leader is surrounded by its own followers — even the
+exempt leader cannot move. That was not a theoretical concern: at a threshold
+equal to capacity, a sixteen-versus-sixteen battle ended in a forced draw at
+tick 10,000 with both factions at full strength and a longest blocked streak of
+9,975 ticks.
+
+`MaximumLastStandThresholdAgents` is therefore capacity divided by
+`RallyPackingMargin`, which is `36 / 4 = 9`. Bodies then cover at most a quarter
+of the bias square and the resolver always has room to separate them. At the
+default threshold of 6 there is more room still. A threshold above 9 is rejected
+by `Scenario.Validate` rather than merely discouraged.
 
 ### The overflow bound
 
 `SplitMix64.NextInt` takes an `int` exclusive upper bound, and the span is
-`8 * BodyRadiusRaw + 1`. `Scenario.Validate` already permits a body radius up to
-`MaximumMapDimension * FixedPoint.Scale`, and eight times that overflows a
-signed 32-bit integer. `Validate` therefore additionally rejects, **only when
-the last stand is enabled**, any `BodyRadiusRaw` for which
-`8L * BodyRadiusRaw + 1` exceeds `int.MaxValue`. That bound is
-`BodyRadiusRaw <= 268435455`, roughly 262,144 world units, which is far larger
-than any body the game will use and far smaller than the point at which the
-arithmetic breaks.
+`2 * RallyJitterRadiusMultiplier * BodyRadiusRaw + 1`. `Scenario.Validate`
+already permits a body radius up to `MaximumMapDimension * FixedPoint.Scale`,
+and twelve times that overflows a signed 32-bit integer. `Validate` therefore
+additionally rejects, **only when the last stand is enabled**, any
+`BodyRadiusRaw` for which that span exceeds `int.MaxValue`. The largest
+permitted radius is `(int.MaxValue - 1) / (2 * RallyJitterRadiusMultiplier)`,
+which is 178,956,970 raw units, or roughly 174,762 world units. That is far
+larger than any body the game will use and far smaller than the point at which
+the arithmetic breaks. The bound is expressed through
+`FormationRules.IsBodyRadiusWithinJitterSpanRange` rather than as a literal, so
+it tracks the multiplier automatically.
 
 ### Arithmetic rules
 
@@ -336,11 +441,14 @@ writer of positions, so both read tick-start state. No other stage changes.
 **3. Numeric units, bounds, and the same-tick conflict rule.** All positional
 values are raw fixed-point units where one world unit is 1,024 raw.
 `LastStandThresholdAgents` is a count of living warriors per faction, valid in
-`[0, 16]`, default `0` on the property and `6` from `Scenario.CreateDefault`.
-The per-axis bias is in `[-4 * BodyRadiusRaw, +4 * BodyRadiusRaw]`, which is
-`[-16384, +16384]` at the default radius. The 16 ceiling is the square-packing
-bound for the bias square. `Validate` additionally rejects a body radius for
-which `8L * BodyRadiusRaw + 1` exceeds `int.MaxValue`, but only when the
+`[0, 9]`, default `0` on the property and `6` from `Scenario.CreateDefault`.
+The per-axis bias is in `[-6 * BodyRadiusRaw, +6 * BodyRadiusRaw]`, which is
+`[-24576, +24576]` at the default radius. The aim point is centred
+`12 * BodyRadiusRaw` behind the leader, and a follower inside the leader's
+`2 * BodyRadiusRaw` forward corridor steps laterally clear instead. The 9
+ceiling is the bias square's capacity divided by the fourfold packing margin.
+`Validate` additionally rejects a body radius for
+which `2L * RallyJitterRadiusMultiplier * BodyRadiusRaw + 1` exceeds `int.MaxValue`, but only when the
 threshold is nonzero. Every computation is `checked`; the aim point is computed
 in `long`, saturated to `int`, then clamped by
 `CollisionGeometry.ClampCenterToBounds`. The same-tick conflict rule is that
@@ -379,8 +487,8 @@ verified run.
 linear pass over the agent array per tick, which is `O(n)` against a stage that
 already runs an `O(n^2)` all-pairs target scan, so the added term is
 asymptotically free. The bias draw is at most two `NextInt` calls per regrouping
-warrior per tick, bounded above by 16 warriors per faction by validation and by
-6 at the default, so at most 64 calls per tick in the worst legal configuration.
+warrior per tick, bounded above by 9 warriors per faction by validation and by
+6 at the default, so at most 36 calls per tick in the worst legal configuration.
 `SplitMix64` is a struct and the counters are preallocated, so warm-tick
 allocation must stay at its current level. Benchmark workloads are unchanged:
 200 agents, 10,000 ticks, seed 1 as acceptance, and 500 agents at the same
@@ -411,10 +519,12 @@ this without reading source code.**
 | R1 | Pre-existing: `BodyRadiusRaw` and `CollisionPolicy` are hashed but absent from the manual `Scenario.Equals` and `GetHashCode`, so two scenarios differing only in body radius compare equal | Medium | Latent today, because `Scenario.Equals` has no behavioural caller outside tests, but it shows the "three places" checklist was already missed once | `ScenariosDifferingOnlyInBodyRadiusAreNotEqual`, fixed in the same task that adds the new field |
 | R2 | Trigger flap causing per-tick intent oscillation | Eliminated by construction | Would appear as visible vibration | `LivingCountsNeverIncreaseAcrossAWholeBattle`. Hit points are only ever written as `Math.Max(0, hp - damage)` |
 | R3 | Rally-agent death makes the cluster goal jump | Low | A visible pop as everyone re-aims | Bounded: all followers are already within the jitter square of the old leader, and the new leader is one of them, so aim points shift by a bounded amount. `RallyAgentDeathPromotesTheNextLowestLivingEntityId` plus smoke row 61 |
-| R4 | Cluster packs tighter than the body radius and thrashes against the collision resolver | High if the threshold were uncapped | Warriors permanently blocked, visible vibration, blocked-streak spikes | Validation caps the threshold at the square-packing bound of 16. `AMaximumSizedLastStandNeverLeavesAWarriorBlockedForMoreThanSixtyConsecutiveTicks`, plus the blocked-streak figure in the benchmark report |
-| R5 | Both clusters stall and nobody advances | Eliminated by construction | Battle runs to the tick limit as a draw | The rally agent is exempt and uses today's unmodified nearest-enemy movement, so at least one warrior per living faction is always closing. `BothFactionsInASixVersusSixLastStandReachATerminalOutcome` |
+| R4 | Cluster packs tighter than the body radius and thrashes against the collision resolver | **Occurred.** Was High while the threshold was capped at full capacity | Warriors permanently blocked, blocked-streak spikes, a no-casualty draw at the tick limit | Fixed by the fourfold packing margin. `AMaximumSizedLastStandNeverLeavesAWarriorBlockedForMoreThanSixtyConsecutiveTicks`, now measuring 45 ticks against a 60-tick bound, plus the blocked-streak figure in the benchmark report |
+| R5 | Both clusters stall and nobody advances | **Occurred twice.** The original "eliminated by construction" claim was invalid | Battle runs to the tick limit as a draw with no casualties | Not eliminated by construction — a leader is exempt from the formation but not from bodies. Fixed by the trail rule and the give-way rule, and asserted by `NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwenty` across twenty seeds at the maximum threshold, plus `BothFactionsInASixVersusSixLastStandReachATerminalOutcome` |
+| R14 | A follower parks in its leader's line of travel and holds station there permanently | **Occurred.** Was unforeseen | Leader permanently `Blocked`; both factions deadlock; tick-limit draw with zero casualties | Fixed by the trail rule, which places every aim point behind the leader. Covered by `AFollowerAimsBehindTheRallyAgentRelativeToItsDirectionOfTravel` |
+| R15 | A follower starting in front of its leader must cross it to reach its trail point, and the two block each other head-on | **Occurred.** Was unforeseen | Six of twenty seeds deadlocked at the tick limit | Fixed by the give-way rule. Covered by `AFollowerStandingInItsLeadersPathStepsAsideRatherThanThroughIt` and the twenty-seed stall lock |
 | R6 | One-raw-unit twitch: the movement floor makes a settled warrior step one unit every tick forever and emit a `Move` event per tick | Medium | Event feed floods; event hash carries thousands of meaningless moves | The arrived-guard skips the proposal at contact distance. `ARegroupingFollowerAlreadyAtItsAimPointProposesNoMovementAndEmitsNoMoveEvent` |
-| R7 | `8 * BodyRadiusRaw + 1` overflows `int` for a large validated radius | Medium | Overflow exception or a negative bound at construction | The validation rule added with the scenario field. `ValidateRejectsABodyRadiusWhoseJitterSpanOverflowsWhenTheLastStandIsEnabled` |
+| R7 | The jitter span overflows `int` for a large validated radius | Medium | Overflow exception or a negative bound at construction | The validation rule added with the scenario field. `ValidateRejectsABodyRadiusWhoseJitterSpanOverflowsWhenTheLastStandIsEnabled` |
 | R8 | The default threshold silently changes every small-scenario Core test | High if the property default were 6 | Dozens of unrelated tests change behaviour | Neutralised by design: the property default is `0`, and `6` is applied only by `Scenario.CreateDefault`, which is the only route production code takes |
 | R9 | The endgame lengthens because survivors walk to each other before fighting | Low | Terminal tick rises | Measured by the benchmark against a 10,000-tick limit with large headroom; watch the delta |
 | R10 | An existing multi-seed victory test flips | Medium | One faction always wins | The existing test must pass unmodified. If it fails, treat it as a design signal about the threshold, not a test to weaken |
