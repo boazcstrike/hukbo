@@ -403,6 +403,168 @@ public sealed class LastStandFormationTests
         }
     }
 
+    /// <summary>
+    /// Task 7 coverage: locks the feature against liveness, flap, and
+    /// packing regressions once the rally-agent selection (task 5) and the
+    /// aim-point movement (task 6) are both in place.
+    /// </summary>
+    [Fact]
+    public void BothFactionsInASixVersusSixLastStandReachATerminalOutcome()
+    {
+        // Twelve total agents means six per faction, exactly
+        // FormationRules.DefaultLastStandThresholdAgents, so both factions
+        // are already in their last stand at tick zero. This is the
+        // anti-standoff lock for design risk R5: the rally agent is exempt
+        // from the formation and keeps chasing the nearest enemy under the
+        // ordinary movement rule, so at least one warrior per side is always
+        // closing and the battle can never settle into two clusters that
+        // only the tick limit ends.
+        const long WellInsideTheTickLimit = 2_000;
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 12);
+        var simulation = BattleSimulation.Create(scenario);
+
+        while (simulation.Outcome == BattleOutcome.Ongoing &&
+            simulation.Tick < WellInsideTheTickLimit)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        Assert.True(
+            simulation.Outcome != BattleOutcome.Ongoing,
+            simulation.Outcome == BattleOutcome.Ongoing
+                ? "The 6v6 last stand never reached a terminal outcome " +
+                  $"within {WellInsideTheTickLimit} ticks, well inside the " +
+                  $"{scenario.TickLimit}-tick limit. Both clusters appear " +
+                  "to have stalled, which is exactly the standoff design " +
+                  "risk R5 guards against."
+                : $"Reached terminal outcome {simulation.Outcome} at tick " +
+                  $"{simulation.Tick}.");
+    }
+
+    [Fact]
+    public void LivingCountsNeverIncreaseAcrossAWholeBattle()
+    {
+        // Proves design risk R2 by construction: hit points are only ever
+        // written as Math.Max(0, hp - damage) and nothing revives an agent,
+        // so a faction's living count must be monotone non-increasing. If
+        // this test can ever fail, the last-stand trigger could flap.
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200);
+        var simulation = BattleSimulation.Create(scenario);
+        var previousLivingCounts = new[] { int.MaxValue, int.MaxValue };
+
+        while (simulation.Outcome == BattleOutcome.Ongoing)
+        {
+            simulation.AdvanceOneTick();
+
+            var livingCounts = new[]
+            {
+                simulation.Agents.Count(agent =>
+                    agent.FactionId == 0 && agent.IsAlive),
+                simulation.Agents.Count(agent =>
+                    agent.FactionId == 1 && agent.IsAlive),
+            };
+
+            for (var faction = 0; faction < 2; faction++)
+            {
+                Assert.True(
+                    livingCounts[faction] <= previousLivingCounts[faction],
+                    $"Faction {faction}'s living count rose from " +
+                    $"{previousLivingCounts[faction]} to " +
+                    $"{livingCounts[faction]} at tick {simulation.Tick}. A " +
+                    "rising living count means the last-stand trigger could " +
+                    "flap (design risk R2).");
+            }
+
+            previousLivingCounts = livingCounts;
+        }
+
+        Assert.NotEqual(BattleOutcome.Ongoing, simulation.Outcome);
+    }
+
+    [Fact]
+    public void RallyAgentDeathPromotesTheNextLowestLivingEntityId()
+    {
+        // Entities 2, 5, and 9 all sit far from entity 100, so nobody is
+        // Attacking on tick 1 and the follower positions have barely moved
+        // toward the old rally point (2) by the time it dies. That leaves
+        // plenty of separation between the old rally point and the new one
+        // (5's tick-start position), so follower 9's aim point necessarily
+        // moves and a Move event is guaranteed on tick 2.
+        var scenario = CreateTestScenario(lastStandThreshold: 3);
+        var rallyAgentState = CreateAgent(2, factionId: 0, x: 10, y: 10, scenario);
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            rallyAgentState,
+            CreateAgent(5, factionId: 0, x: 20, y: 10, scenario),
+            CreateAgent(9, factionId: 0, x: 30, y: 10, scenario),
+            CreateAgent(100, factionId: 1, x: 300, y: 10, scenario));
+
+        simulation.AdvanceOneTick();
+
+        Assert.NotEqual(AgentIntent.Regrouping, AgentByEntityId(simulation, 2).Intent);
+        Assert.Equal(AgentIntent.Regrouping, AgentByEntityId(simulation, 5).Intent);
+        Assert.Equal(AgentIntent.Regrouping, AgentByEntityId(simulation, 9).Intent);
+
+        // Kill the current rally agent (entity 2) between ticks. The array
+        // passed to CreateForTesting holds these exact AgentState
+        // references, so mutating this field reaches the simulation's
+        // internal state the same way the existing dead-agent tests do.
+        rallyAgentState.HitPoints = 0;
+
+        simulation.AdvanceOneTick();
+
+        Assert.Equal(AgentIntent.Dead, AgentByEntityId(simulation, 2).Intent);
+        var promotedRally = AgentByEntityId(simulation, 5);
+        Assert.True(
+            promotedRally.Intent is AgentIntent.Moving or AgentIntent.Attacking,
+            "Expected entity 5, the next-lowest living EntityId, to be " +
+            $"promoted to rally agent and keep an ordinary intent, got " +
+            $"{promotedRally.Intent}.");
+        Assert.Equal(AgentIntent.Regrouping, AgentByEntityId(simulation, 9).Intent);
+
+        var reaimedMoveEvent = Assert.Single(
+            simulation.LastEvents,
+            evt => evt.Kind == BattleEventKind.Move && evt.SourceEntityId == 9);
+        Assert.Equal(
+            5UL,
+            reaimedMoveEvent.TargetEntityId);
+    }
+
+    [Fact]
+    public void AMaximumSizedLastStandNeverLeavesAWarriorBlockedForMoreThanSixtyConsecutiveTicks()
+    {
+        const int MaximumAllowedBlockedStreakTicks = 60;
+        // Sixteen agents per faction is FormationRules.MaximumLastStandThresholdAgents,
+        // the square-packing bound, so both factions are the most tightly
+        // clustered configuration the design permits from tick zero.
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 32) with
+        {
+            LastStandThresholdAgents = FormationRules.MaximumLastStandThresholdAgents,
+        };
+        var simulation = BattleSimulation.Create(scenario);
+
+        while (simulation.Outcome == BattleOutcome.Ongoing &&
+            simulation.Tick < scenario.TickLimit)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        var livingFaction0 = simulation.Agents.Count(
+            agent => agent.FactionId == 0 && agent.IsAlive);
+        var livingFaction1 = simulation.Agents.Count(
+            agent => agent.FactionId == 1 && agent.IsAlive);
+        Assert.True(
+            simulation.LongestBlockedStreakTicks <= MaximumAllowedBlockedStreakTicks,
+            "Longest observed blocked streak was " +
+            $"{simulation.LongestBlockedStreakTicks} ticks, exceeding the " +
+            $"{MaximumAllowedBlockedStreakTicks}-tick bound. A failure here " +
+            "means the last-stand cluster packs tighter than the collision " +
+            "resolver permits (design risk R4). Diagnostics: stopped at " +
+            $"tick {simulation.Tick} of {scenario.TickLimit}, outcome " +
+            $"{simulation.Outcome}, living counts " +
+            $"[{livingFaction0}, {livingFaction1}].");
+    }
+
     private static AgentState CreateAgentAtRawPosition(
         ulong entityId,
         int factionId,

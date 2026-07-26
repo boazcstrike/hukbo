@@ -224,6 +224,57 @@ public sealed class DeterminismTests
     }
 
     /// <summary>
+    /// Task 7 coverage: the same lockstep, every-tick comparison as
+    /// <see cref="TwoIndependentSameSeedRunsAgreeOnOrderedEventsAndStateHashEveryTick"/>,
+    /// but with the last-stand formation explicitly active, so a divergence
+    /// introduced by the rally-agent scan, the aim-point movement, or the
+    /// new <see cref="AgentIntent.Regrouping"/> hash input would be caught
+    /// here even if it cancelled out by the final tick.
+    /// </summary>
+    [Fact]
+    public void TheSameSeedProducesIdenticalHashesAndEventsWithTheLastStandActive()
+    {
+        var scenario = Scenario.CreateDefault(seed: 3, totalAgents: 40) with
+        {
+            LastStandThresholdAgents = 6,
+        };
+        var left = BattleSimulation.Create(scenario);
+        var right = BattleSimulation.Create(scenario);
+
+        Assert.Equal(left.ComputeStateHash(), right.ComputeStateHash());
+
+        while (left.Outcome == BattleOutcome.Ongoing)
+        {
+            left.AdvanceOneTick();
+            right.AdvanceOneTick();
+
+            if (!left.LastEvents.SequenceEqual(right.LastEvents))
+            {
+                Assert.Fail(
+                    $"Ordered events first diverged at tick {left.Tick} " +
+                    "with the last stand active: the first run emitted " +
+                    $"{left.LastEvents.Count} events and the second " +
+                    $"emitted {right.LastEvents.Count}.");
+            }
+
+            var leftHash = left.ComputeStateHash();
+            var rightHash = right.ComputeStateHash();
+
+            if (leftHash != rightHash)
+            {
+                Assert.Fail(
+                    $"State hash first diverged at tick {left.Tick} with " +
+                    $"the last stand active: 0x{leftHash:X16} against " +
+                    $"0x{rightHash:X16}.");
+            }
+        }
+
+        Assert.Equal(left.Tick, right.Tick);
+        Assert.Equal(left.Outcome, right.Outcome);
+        Assert.NotEqual(BattleOutcome.Ongoing, left.Outcome);
+    }
+
+    /// <summary>
     /// Acceptance row <c>Permutation</c>: the order the caller happens to store
     /// agents in cannot reach any ordered result. Three storage orders of one
     /// identical roster are advanced in lockstep and compared every tick.
