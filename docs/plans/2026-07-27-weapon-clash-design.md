@@ -1,8 +1,8 @@
 # Weapon Clash, Swing Animation, and Clash Sound — Design
 
 Date: 2026-07-27
-Revision: 5. Revision 4 opened the ruleset seam on the wrong factory; revision 5 puts it on
-`Create`, fixes the fixture format, and corrects the culling and discoverability arguments.
+Revision: 6. Revision 5 put the seam on `Create`; revision 6 makes the hasher take a content
+hash rather than a ruleset, and adds a per-tick state hash to the fixture.
 Status: design only. A design document does not authorize implementation.
 Plan: [2026-07-27-weapon-clash.md](2026-07-27-weapon-clash.md)
 Research: [docs/research/WEAPON_CLASH_1500s.md](../research/WEAPON_CLASH_1500s.md)
@@ -694,23 +694,52 @@ would have the scenario validated against the registry roster while the simulati
 the injected one, which is silently wrong. The overload therefore asserts roster equality
 against the registry entry for `scenario.CombatPreset` and throws otherwise.
 
-**`StateHasher.Compute` takes the ruleset as a parameter rather than re-fetching it at
-line 15.** Without this a simulation running on a neutral ruleset would still fold the
-shipped `ContentHash` into its state hash, and the control run would be comparing a hash
-that never saw the ruleset it was actually using.
+**`StateHasher.Compute` takes a `ulong contentHash` parameter rather than re-fetching the
+ruleset at line 15.** Without this a simulation running on a neutral ruleset would still
+fold the shipped `ContentHash` into its state hash, and the control run would be comparing
+a hash that never saw the ruleset it was actually using.
+
+**The parameter is the content hash, not the ruleset**, and that is both simpler and
+strictly more durable. `rules` is used at exactly one line inside `Compute`, line 32, so
+passing the `ulong` removes the dependency entirely rather than rerouting it.
+`BattleSimulation.ComputeStateHash` passes `_rules.ContentHash`, the test helper passes
+`CombatPresetRegistry.Get(scenario.CombatPreset).ContentHash`, and the control run in
+section 9 injects `0x59FB4CA563D87A49UL` directly.
+
+The durability matters more than the simplicity. `Fnv1a.Add` at
+`src/Hukbo.Core/Determinism/Fnv1a.cs:22-29` runs eight XOR-then-multiply rounds
+regardless of the value it is given, so **folding a zero word is not a no-op** — it
+multiplies the accumulator by the prime eight times. `ComputeContentHash` is a flat fold
+with no version gate, so the moment the clash tables are folded into it, *every* ruleset
+content hash moves, including a `version: 1` ruleset carrying `ClashProfile.Neutral`. Had
+the parameter been the ruleset, the control run would have recomputed a content hash that
+no longer matched the recorded one, and a correct guard would have started failing
+mid-implementation over a non-defect. Passing the `ulong` makes the recorded equality
+survive that fold permanently.
 
 It is a production signature change with **two** call sites, not one:
 `src/Hukbo.Core/Simulation/BattleSimulation.cs:198` and
 `tests/Hukbo.Core.Tests/DeterminismTests.cs:152`, the latter inside
 `ComputeSingleAgentStateHash`, which backs `StateHash_ChangesWhenAnyAgentWeaponArmorOrShieldChanges`
-and its body-radius and collision-policy siblings. The test-side fix is one line, passing
-`CombatPresetRegistry.Get(scenario.CombatPreset)`, but the file has to be declared or the
-first barrier does not compile.
+and its body-radius and collision-policy siblings. The test-side fix is one line, but the
+file has to be declared or the first barrier does not compile.
 
 It is hash-safe by construction: `BattleSimulation.ComputeStateHash` is an instance method
-holding `private readonly CombatRuleset _rules`, which is exactly what the registry returns
-for any `Create`-built simulation, so no hashed value changes and the seam task can prove
-that by re-running the seed-1 workload against the current baseline.
+holding `private readonly CombatRuleset _rules`, whose `ContentHash` is exactly what the
+registry path would have produced for any `Create`-built simulation, so no hashed value
+changes and the seam task can prove that by re-running the seed-1 workload against the
+current baseline.
+
+**A copy helper, so the injected ruleset is provably the preset.**
+`public CombatRuleset WithClashProfile(ClashProfile profile)` returns a copy with every
+other field preserved. Without it, building the neutral ruleset means hand-reassembling six
+constructor arguments — sixteen `ResolveWeaponWeight` reads per weapon, twenty-six
+`ResolveDefenseMultiplier` reads, and a hard-coded armor list, because `_armors` has no
+accessor at all yet is folded into `ComputeContentHash` at `CombatRuleset.cs:259-263`. That
+reassembly happens to work today only because `ArmorId` has one member, and it silently
+stops being faithful the moment a second is added. The helper removes the guess, makes the
+injected ruleset identical to the preset except for the profile, and is the same helper the
+five section 5 dispositions need.
 
 **There is no such thing as a clash-neutral loadout pairing.** The minimum total
 interception in the shipped tables is a `HeavyChopper` defending a `ThrustingBlade` at
@@ -1000,13 +1029,21 @@ FNV-1a fold together with the per-event field tuples, is therefore captured from
 linear fold and one cannot inspect an output and conclude that exactly one input word
 changed. Revision 4 therefore dropped the hash entirely, which went one level too far.
 
-The seam supplies a decidable form. Construct a `CombatRuleset` with `version: 1` and
-`ClashProfile.Neutral`, so its `ContentHash` is still `0x59FB4CA563D87A49UL`, inject it
-through the new `Create` overload, run seed 1 at 200 agents, and assert
-`ComputeStateHash()` equals **`D78F0B527B7F938F`** exactly at the terminal tick. That is a
-plain equality against a recorded value rather than an inference about a fold, and without
-it nothing in the plan asserts the state hash under a neutral profile at all and the
-fixture carries the entire load.
+The seam supplies a decidable form, provided the hasher takes a `ulong contentHash` rather
+than a ruleset. Build the neutral ruleset with `WithClashProfile(ClashProfile.Neutral)`,
+inject it through the new `Create` overload, run seed 1 at 200 agents, pass
+`0x59FB4CA563D87A49UL` as the content hash, and assert `ComputeStateHash()` equals
+**`D78F0B527B7F938F`** exactly at the terminal tick. That is a plain equality against a
+recorded value rather than an inference about a fold.
+
+**This only works because the parameter is the `ulong`.** Had it been the ruleset, the
+assertion would hold at the first barrier and then start failing the moment the clash
+tables are folded into `ComputeContentHash`, because folding thirty-two additional words
+moves every content hash including the neutral one — `Fnv1a.Add` multiplies by the prime
+eight times per word whatever the word contains, so zeros are not free. A correct guard
+failing mid-implementation over a non-defect, with no task authorised to touch it and the
+plan forbidding edits to goldens, would deadlock the second barrier. Passing the recorded
+`ulong` makes the equality permanent.
 
 The fixture comparison on the event stream and a field-by-field comparison of final agent
 state both remain, alongside it.
@@ -1022,6 +1059,26 @@ carries a field a pre-change event cannot and including it would guarantee a mis
 means nothing. Roughly 657 rows, and a failure reports a first-divergence tick in the same
 shape `benchmark.ps1` already reports as `firstMismatchTick`. The fixture also carries the
 terminal tick, the outcome, both survivor counts, and the final per-agent state tuples.
+
+**Each row also carries that tick and its `ComputeStateHash()` value**, one more `ulong` per row, and
+this is not padding. The event half of the digest is complete — the nine folded fields are
+every `BattleEvent` field except `Resolution`, FNV-1a is order-sensitive so an intra-tick
+reordering is caught, and the per-tick count catches insertion and deletion. The gap is
+**intermediate agent state**, and the repository has already written down why that matters:
+`DeterminismTests.TwoIndependentSameSeedRunsAgreeOnOrderedEventsAndStateHashEveryTick`
+carries the docstring "comparing only the final state would let a divergence that cancels
+itself out pass unnoticed".
+
+The concrete miss is a field that reaches the state hash but emits no event, diverging
+mid-battle and reconverging by the end. `MovementResolution` and `Intent` are both folded
+per agent at `StateHasher.cs:53-54` and neither emits an event, and a clash-induced shift in
+when an agent moves between `Attacking` and `Moving` is entirely plausible once a non-landed
+attack still resets the cooldown. There is a second reading of the same hole: a harness
+walking the public API sees only `AgentView`, which exposes eleven of the eighteen fields
+`StateHasher` folds, and the seven it misses include `AttackCooldownRemaining` — the one
+hashed field this change actually touches. A per-tick state hash closes both readings at
+once, and it is exactly reproducible under injection because the hasher now takes the
+content hash as a parameter.
 
 **Pinned mixer vectors at the existing standard.** `HitLocationResolverTests.cs:24-32`
 pins eight `[InlineData]` rows covering seed 0 and the maximum unsigned seed, tick 0 and
