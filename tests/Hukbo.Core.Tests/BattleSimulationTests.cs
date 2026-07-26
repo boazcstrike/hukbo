@@ -8,6 +8,17 @@ namespace Hukbo.Core.Tests;
 public sealed class BattleSimulationTests
 {
     [Fact]
+    public void AgentIntentNumericValuesArePinned()
+    {
+        Assert.Equal(0, (int)AgentIntent.Idle);
+        Assert.Equal(1, (int)AgentIntent.Moving);
+        Assert.Equal(2, (int)AgentIntent.Attacking);
+        Assert.Equal(3, (int)AgentIntent.Dead);
+        Assert.Equal(4, (int)AgentIntent.Regrouping);
+        Assert.Equal(5, Enum.GetValues<AgentIntent>().Length);
+    }
+
+    [Fact]
     public void NearestTargetUsesEntityIdToBreakDistanceTies()
     {
         var scenario = CreateTestScenario();
