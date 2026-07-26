@@ -1,29 +1,68 @@
 # Autonomous Arena
 
-An automated large-map combat sandbox where the player watches autonomous
-factions fight. The first visual representation is simple colored dots.
+Autonomous Arena is a deterministic, offline, 2D spectator battle built with
+.NET 10 and MonoGame DesktopGL. The first milestone simulates two autonomous
+factions, renders combatants as colored dots, and exposes Play, Pause, speed,
+reset, camera, and exit controls.
 
-## Initial direction
+## Run the game
 
-- Single-player spectator sandbox
-- Large logical maps with pan and zoom
-- Fully autonomous movement, targeting, fighting, retreat, and battle outcomes
-- Dot-based people as the first entity representation
-- Deterministic scenarios that can be replayed from a seed
-- Detailed combat systems added in deliberate layers
+Requirements: Windows x64, PowerShell 7, Git, and .NET SDK 10.0.302.
 
-## First design decisions
+```powershell
+./scripts/bootstrap.ps1
+./scripts/run.ps1
+```
 
-Before implementation, define:
+The fallback launch command is:
 
-1. Whether battles are disposable arena matches or part of a persistent world
-2. The first target scale: 50, 200, 500, or 1,000 simultaneous combatants
-3. Whether combat prioritizes readability or detailed physiology
-4. How much the player configures before starting a battle
-5. Whether dots are placeholders or the long-term visual identity
+```powershell
+dotnet run --project src/AutonomousArena.Client -c Release
+```
 
-## Recommended first milestone
+Controls:
 
-Build a deterministic arena proof with two factions, colored dots, autonomous
-enemy detection, movement, ranged attacks, health, death, camera controls,
-pause, speed controls, reset, and a visible winner.
+| Input | Action |
+| --- | --- |
+| Escape | Open or close the control menu |
+| Play button | Resume the battle and close the menu |
+| Pause button | Keep the battle paused with the menu visible |
+| Exit Game button | Close the game cleanly |
+| Space | Toggle play/pause while the menu is closed |
+| `1`, `2`, `4` | Set simulation speed |
+| `R` | Reset to the same seed |
+| WASD or arrow keys | Pan the camera |
+| Mouse wheel | Zoom |
+
+Opening the menu pauses logical simulation advancement. The menu is intentionally
+plain UI for the first milestone.
+
+## Verify the repository
+
+```powershell
+./scripts/verify.ps1
+```
+
+That command performs a locked restore, formatting check, Release build, Core
+tests, and deterministic 200-agent headless workload. Package the
+framework-dependent Windows client with:
+
+```powershell
+./scripts/package.ps1 -Runtime win-x64
+```
+
+The self-contained output is written to
+`artifacts/packages/client-win-x64/`.
+
+## Documentation
+
+- [Getting started](docs/development/getting-started.md)
+- [Testing and verification](docs/development/testing.md)
+- [Platform decision](docs/architecture/platform-decision.md)
+- [Repository readiness](docs/repository-readiness-report.md)
+- [Agent-role evidence index](docs/agents/README.md)
+- [Foundation design](docs/plans/2026-07-26-autonomous-arena-foundation-design.md)
+- [Orchestration and menu design](docs/plans/2026-07-26-orchestrated-arena-menu-design.md)
+
+v0.1 supports Windows x64 only. Networking, persistence, pathfinding, store
+distribution, and non-Windows packaging are intentionally deferred.
