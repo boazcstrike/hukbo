@@ -65,27 +65,42 @@ Related rules from `CLAUDE.md` §5 that cause most real failures:
 ## Recorded baseline
 
 From `docs/development/testing.md`, seed 1, 200 agents, one final verified run of
-the collision change:
+the collision change **as amended** to close to body contact:
 
 | Field | Value |
 | --- | --- |
-| Outcome | `Faction1Victory` at tick 781 |
-| State hash | `7EE8BF6EC0F11BB2` |
-| Event hash | `9BFC18AD06F4F572` |
-| Allocated | 50,454,728 bytes |
+| Outcome | `Faction1Victory` at tick 657 |
+| State hash | `D78F0B527B7F938F` |
+| Event hash | `AC3BAAEC684854D5` |
+| Allocated | 42,568,888 bytes |
 
 The 500-agent stress workload, report only, from the same run: `Faction1Victory`
-with 22 faction-1 survivors, state hash `7402CCC7C6EC3B50`, event hash
-`619CCC872BBB2413`, deterministic with no mismatch tick. The terminal tick of
-that run was not captured, so it is not stated.
+at tick 978 with 0 faction-0 and 17 faction-1 survivors, state hash
+`C81B4F48DE54B983`, event hash `D03F1213563DFD49`, deterministic with no mismatch
+tick.
 
-**The previous baseline was superseded by the collision change**, not corrected.
-It read `Faction1Victory` at tick 235 with state hash `6EBB1EA63114F6CE` and
-event hash `941377BD43C556FF`, and before that `210C5EF8E7BE4D48` and
-`CE35EDA4B2A4E5A4`. All of those are dead values now. Solid-disc contact put new
-fields into the state hash and changed where agents stand, so both hashes moved
-for every seed and the battle takes longer to resolve. Do not treat the tick-235
-figures as a regression target.
+### Superseded hashes — dead values, do not target
+
+Every pair below was superseded rather than corrected. None of them is a
+regression target, and none may be used to judge whether a hash "should" match.
+They are listed so a hash you find in an older document can be identified as
+history instead of mistaken for a live baseline.
+
+| Dead baseline | State hash | Event hash |
+| --- | --- | --- |
+| 200 agents, pre-amendment collision run, tick 781 | `7EE8BF6EC0F11BB2` | `9BFC18AD06F4F572` |
+| 500 agents, pre-amendment collision run | `7402CCC7C6EC3B50` | `619CCC872BBB2413` |
+| 200 agents, pre-collision, tick 235 | `6EBB1EA63114F6CE` | `941377BD43C556FF` |
+| 200 agents, earlier still | `210C5EF8E7BE4D48` | `CE35EDA4B2A4E5A4` |
+
+Two separate legitimate movements produced that chain. Solid-disc contact put new
+fields into the state hash and changed where agents stand, which retired the
+tick-235 pair. The later amendment changed the approach target from attack range
+to body contact — agents now advance until their bodies meet rather than until
+their weapons reach — which changed where agents stand again and retired the
+tick-781 pair. The proximity band introduced for contact metrics at the same time
+moved **neither** hash, because it is derived observability; that byte-identical
+result is what proved it had not leaked into authoritative state.
 
 Also still recorded: seeds 1-20 produce victories for both factions rather than
 one always-winning faction, verified by

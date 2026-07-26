@@ -457,11 +457,35 @@ units without affecting the simulation.
 Attack eligibility compares the squared distance between agent **centres** against `AttackRangeRaw`
 squared. No surface-gap subtraction is introduced anywhere. Because the body diameter is strictly
 less than the attack range, two agents pressed into contact are always inside reach with four world
-units of slack, so a packed front deals damage rather than deadlocking.
+units of slack, so a packed front deals damage rather than deadlocking. That same slack is what lets
+the rank immediately behind a pressed rank strike past it.
 
 `Scenario.Validate` rejects any configuration where `2 * BodyRadiusRaw > AttackRangeRaw`, because
 that combination produces bodies that can never reach each other. Intent selection and attack
 gathering call one shared reach helper so the two stages cannot disagree.
+
+The slack governs **reach only**. It does not decide where an advancing agent stops; that is the
+approach target below.
+
+### Agents advance until their bodies meet
+
+An advancing agent closes until its body meets its target's body, not merely until its weapon can
+reach. `BuildMovementProposal` subtracts `2 * BodyRadiusRaw` from the centre-to-centre distance, so
+the movement target is **body contact at eight world units**, not attack range at twelve. An agent
+already inside reach keeps walking in.
+
+This is what makes opposing front ranks touch. An earlier rule stopped an agent as soon as its
+target was inside `AttackRangeRaw`, which left four world units of permanent air between the two
+front ranks for the whole engagement, so cross-faction bodies never met and the collision stage only
+ever observed allies queueing behind their own line. Attack resolution was not changed by this and
+is still centre-to-centre at `AttackRangeRaw`.
+
+**`AgentIntent.Attacking` means the agent has arrived.** Intent selection marks an agent `Attacking`
+only when its squared distance to its target is at or inside the contact distance; an agent that is
+still closing is `Moving` even when it is already inside weapon reach. An agent that lands a blow
+while still closing is re-marked `Attacking` by attack gathering in the same tick, so a spectator
+reading the inspector still sees a fighting agent rather than a marching one. The two stages do not
+overlap: intent selection describes arrival, attack gathering describes striking.
 
 ### Interaction matrix
 
@@ -557,6 +581,25 @@ built, so a battlefield full of corpses costs nothing here.
 All grid, pair, proposal, and resolution storage is preallocated and reused, growing only when
 capacity is insufficient, so a warm collision tick allocates nothing.
 
+### Contact is measured over a proximity band
+
+A solid resolver guarantees that every living pair ends the tick at or beyond `(2R)^2`. "Touching"
+would therefore mean a squared distance of **exactly** `(2R)^2`, which on an integer lattice requires
+a Pythagorean coincidence between the two axis deltas and the diameter, and is unreachable in
+practice. An exact-tangency counter can essentially never fire, whatever the agents are doing, which
+is why the first gated run reported zero contact pairs.
+
+Contact metrics therefore use a proximity band of `BodyRadiusRaw + (MovementSpeedRaw / 2)` per body:
+a pair counts as in contact when the two bodies are within one movement step of touching. At the
+default values that is `5632` raw units per body, so the broad phase pairs bodies whose centres are
+within `11264` raw units. This is the honest reading of "pressed together" for a spectator, and it is
+stable against the one-raw-unit rounding that truncating integer division produces.
+
+The band is **derived observability only**. No rule consults it: the resolver's own legality tests
+use the exact `2 * BodyRadiusRaw` contact distance, unchanged. The band is never hashed, never
+snapshotted, and never persisted, and introducing it left both the state hash and the event hash
+byte-identical, which is the evidence that it stayed on the derived side of the line.
+
 ### Spawn and density
 
 `BattleSimulation.Create` resolves spawn overlaps deterministically. Agents are placed in ascending
@@ -601,20 +644,28 @@ because constraining movement changes where agents stand, both the state hash an
 moved for every seed when this contract shipped. Changing any of those three fields in future
 requires a new preset version and new golden expectations.
 
-### What the rule actually produces
-
-The shipped behaviour is not shield-to-shield contact between factions. Across an entire 200-agent
-battle and an entire 500-agent battle, the number of cross-faction contact pairs was **zero**.
-Opposing bodies never touch, because an agent stops advancing once its target is inside the
-twelve-world-unit attack reach while a body is only eight world units across, leaving four world
-units of permanent air between the two front ranks.
-
-The observable effect of collision is therefore **allies queueing behind their own front line**: a
-rear agent trying to advance into the space its own front rank already occupies is refused, holds
-position, and reports `Blocked`. That queueing is what constrains frontage and produces a visible
-line. It is measured in blocked agent-ticks, not in contacts. The recorded figures are in
+Both hashes moved a second time when the approach target changed from attack range to body contact,
+because that changes where agents stand. Introducing the contact-metric proximity band moved neither,
+because it is derived. The current recorded oracle is in
 [docs/development/testing.md](docs/development/testing.md).
 
-This is the shipped rule, recorded as observed rather than as intended. Anyone tuning the contact
-model later should start from the fact that the binding constraint on the battle line is attack
-reach, not body radius.
+### What the rule actually produces
+
+Opposing bodies meet. On the 200-agent, seed-1 acceptance workload the run recorded **5,649
+cross-faction contact pairs** against 57,295 candidate pairs, and the 500-agent report-only workload
+recorded 14,270 against 280,675. The two front ranks close all the way rather than halting with air
+in front of them.
+
+Alongside that, allies still **queue behind their own front line**: a rear agent trying to advance
+into space its own front rank already occupies is refused, holds position, and reports `Blocked`.
+That queueing is what constrains frontage and produces a visible line, and it roughly doubled once
+agents began closing to contact — 14,544 blocked agent-ticks at 200 agents, up from 7,154 under the
+earlier stop-at-reach rule. Both effects are real and both are worth watching; neither is a defect.
+
+Deepest living-body penetration remained exactly `0` on both workloads, before and after the change
+to the approach target. The solid-disc invariant is not affected by where agents choose to stop.
+
+The recorded figures for both workloads are in
+[docs/development/testing.md](docs/development/testing.md). Anyone tuning the contact model later
+should start from the fact that the binding constraint on the battle line is now the body diameter,
+while attack reach decides who can strike — the two are deliberately different distances.

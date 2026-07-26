@@ -2,6 +2,11 @@
 
 **Date:** 2026-07-27
 **Status:** Approved (product owner approved every value below on 2026-07-27)
+**Amended:** 2026-07-27. Sections 1 through 12 are the original approved record
+and are preserved unchanged. Two decisions were revised after the first gated
+run; they are recorded in the [Amendment](#amendment--2026-07-27) at the end of
+this document, which states exactly what it supersedes. Read the amendment
+before acting on section 3, section 9, or section 11.
 **Plan:** [docs/plans/2026-07-27-formation-collision-mechanics.md](../plans/2026-07-27-formation-collision-mechanics.md)
 **Research:** [docs/research/FORMATION_AND_COLLISION_MECHANICS.md](../research/FORMATION_AND_COLLISION_MECHANICS.md)
 
@@ -350,3 +355,122 @@ single final verified run.
 | Swept-disc tunneling tests | Made unnecessary by the `MovementSpeedRaw <= BodyRadiusRaw` validation; would add `Int128` arithmetic for an impossible case. |
 | Collision `BattleEvent` kinds | Unbounded per-contact spam against a 200-event feed. |
 | Rigid-body physics, ORCA, velocity, mass | Out of scope by the plan's guardrails and by `CLAUDE.md`. |
+
+## Amendment — 2026-07-27
+
+**Status:** Approved. The product owner approved both changes recorded below on
+2026-07-27, after the original policy had shipped and passed the canonical gate.
+
+Sections 1 through 12 above are the original approved record and have not been
+edited. This amendment exists because the first gated run of the shipped policy
+showed two things that the original record had not anticipated: agents never
+actually pressed their bodies together, and the counter that was supposed to
+report body contact could not register a contact even in principle. Both are
+recorded here as approved revisions. Where this amendment contradicts a statement
+above, this amendment is the current rule and the statement above is history.
+
+### A1. Movement targets body contact, not attack range
+
+**What changed.** An advancing agent used to close only until its target was
+inside `AttackRangeRaw`, that is until the centre-to-centre distance reached
+`12288` raw units. Because a body is `8192` raw units across, two opposing front
+ranks that both stopped at reach came to rest with `4096` raw units — four world
+units — of permanent air between their surfaces. Bodies therefore never touched
+for the whole engagement, and the collision stage only ever observed allies
+queueing behind their own front line. `BuildMovementProposal` now subtracts
+`2 * BodyRadiusRaw` rather than the attack range from the distance to the target,
+so the movement target is **body contact**.
+
+**What this supersedes.** Section 3 presented the `4096`-raw slack between the
+body diameter and the attack range as the spacing at which a packed front would
+settle, and section 9 leaned on the same figure when it argued that a blocked
+agent is still fighting. The slack is **retained, and it is still load-bearing
+for attack purposes**: attack resolution is unchanged, still measured
+centre-to-centre against `AttackRangeRaw`, and because that reach is wider than
+the diameter, a rank pressed into contact fights and the rank immediately behind
+it can strike past. What the slack no longer does is govern where an agent stops
+advancing. The validation rule in section 3 that rejects
+`2 * BodyRadiusRaw > AttackRangeRaw` is unchanged and is now more important, not
+less, because the movement target sits exactly at the diameter.
+
+Section 9's conclusion still holds on its own terms: a blocked agent remains
+inside reach and remains in combat, so no anti-stall or fairness escape rule is
+added, and `TickLimit` remains the terminal backstop.
+
+**`AgentIntent.Attacking` now means "arrived".** Intent selection marks an agent
+`Attacking` only once its squared distance to the target is at or inside the
+contact distance; an agent still closing is `Moving` even when it is already
+inside weapon reach. An agent that lands a blow while still closing is re-marked
+`Attacking` by attack gathering in the same tick, so a spectator watching the
+inspector or the pawn still sees a fighting agent rather than a marching one.
+This preserves the observability requirement in section 8 without making
+`Moving` and `Attacking` overlap in the intent-selection stage.
+
+### A2. Contact metrics are measured over a proximity band
+
+**Why the old counter could not work.** A solid resolver guarantees that every
+living pair ends the tick at or beyond `(2R)^2`. Counting a pair as "touching"
+therefore meant a squared distance of *exactly* `(2R)^2`, which on an integer
+lattice requires a Pythagorean coincidence between the two axis deltas and the
+diameter. That is unreachable in practice. This is the mechanical reason the
+first gated run reported `contactPairs` of `0`: not because the ranks stopped at
+reach alone, but because an exact-tangency test can essentially never fire even
+once bodies do close.
+
+**What changed.** Contact metrics now use a proximity band of
+`BodyRadiusRaw + (MovementSpeedRaw / 2)` per body, so a pair is counted when the
+two bodies are within one movement step of touching. That is the honest reading
+of "pressed together" for a spectator, and it is stable against the one-raw-unit
+rounding that integer truncation produces.
+
+**Determinism status.** The band is derived observability. It is never hashed,
+never snapshotted, and never persisted, exactly as section 11 requires of every
+collision counter. Both the state hash and the event hash were confirmed
+byte-identical before and after the band was introduced, which is the evidence
+that it stayed on the derived side of the line.
+
+### A3. The seed-1 oracle is re-recorded
+
+Section 11 said the canonical seed-1 oracle would be re-recorded exactly once, at
+the end of the plan's Task 10. This amendment re-records it a second time,
+because change A1 moves where agents stand and therefore moves both hashes again.
+The current recorded baseline, from one final verified run on the amended branch
+at 200 agents and seed 1, is `Faction1Victory` at tick `657` with state hash
+`D78F0B527B7F938F` and event hash `AC3BAAEC684854D5`.
+
+The hashes recorded for the pre-amendment run — state `7EE8BF6EC0F11BB2` and
+event `9BFC18AD06F4F572` at tick `781` for 200 agents, and state
+`7402CCC7C6EC3B50` with event `619CCC872BBB2413` for 500 agents — are
+**superseded**. They are kept on record so the transition can be traced; they are
+dead values and may not be used as a regression target. The full figures for both
+workloads are in
+[docs/development/testing.md](../development/testing.md).
+
+### A4. What the amendment actually changed in the numbers
+
+Measured on the 200-agent, seed-1 acceptance workload, before and after:
+
+| Metric | Before the amendment | After the amendment |
+| --- | --- | --- |
+| `contactPairs` | 0 | 5,649 |
+| `blockedAgentTicks` | 7,154 | 14,544 |
+| Terminal tick | 781 | 657 |
+| `maximumPenetrationRaw` | 0 | 0 |
+
+Bodies now meet, so cross-faction contact is observable for the first time.
+Crowding roughly doubled, which is the expected consequence of a front that
+closes all the way rather than halting with air in front of it. The battle
+resolves sooner because the fighting ranks are closer together and more agents
+are in contact at once. Penetration stayed at exactly zero, which is the point:
+the solid-disc invariant of section 1 is unaffected by either change.
+
+### A5. Alternatives ruled out by the amendment
+
+These extend the section 12 table rather than replacing any row in it. Every
+row above in section 12 was rejected on reasoning; these two were rejected on
+evidence from the amended branch.
+
+| Alternative | Reason for rejection |
+| --- | --- |
+| Raise `BodyRadiusRaw` so that `2 * BodyRadiusRaw == AttackRangeRaw` | Tempting, because it would make "at reach" and "in contact" the same condition and remove the need for a separate approach target. It does not work. The truncating integer division `delta * length / distance` makes a mover under-shoot its computed step, so it lands just beyond tangency rather than on it, and an exact-tangency contact test still never registers. It also destroys the slack that lets the second rank strike past the first. |
+| Set `2 * BodyRadiusRaw > AttackRangeRaw` | Two bodies in contact could then never reach each other, so a closed front would deadlock permanently. The `Scenario.Validate` rule recorded in section 3 exists precisely to make this configuration impossible, and the amendment leaves that rule in force. |
