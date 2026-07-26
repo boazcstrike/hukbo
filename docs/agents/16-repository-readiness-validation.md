@@ -28,7 +28,8 @@ non-destructive locked restore and explicit diff inspection. Defined
 Doctor, tool restore, locked package restore, formatting, zero-warning Release
 build, 42/42 tests, deterministic 200-agent headless execution, and
 self-contained Windows packaging passed. The client window opened, advanced,
-and closed normally. Hosted CI and direct menu interaction remain unrun.
+and closed normally. Direct menu interaction remains unrun. Hosted CI is
+intentionally not configured and is not a readiness gate.
 
 ## Status
 
@@ -41,4 +42,4 @@ substitute for the short manual menu checklist.
 
 ## Next action
 
-Execute the Play/Pause/Exit manual smoke and run the workflow on GitHub.
+Execute and record the Play/Pause/Exit manual smoke.

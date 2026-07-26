@@ -54,6 +54,11 @@ self-contained Windows client with:
 The self-contained output is written to
 `artifacts/packages/client-win-x64/`.
 
+Verification is intentionally local-only. The repository does not use GitHub
+Actions or another hosted CI service. Run the canonical gate before integrating
+changes and record interactive game behavior with the manual checklist in
+`docs/development/testing.md`.
+
 ## Documentation
 
 - [Getting started](docs/development/getting-started.md)
@@ -63,6 +68,8 @@ The self-contained output is written to
 - [Agent-role evidence index](docs/agents/README.md)
 - [Foundation design](docs/plans/2026-07-26-autonomous-arena-foundation-design.md)
 - [Orchestration and menu design](docs/plans/2026-07-26-orchestrated-arena-menu-design.md)
+- [Approved spectator-clarity design](docs/plans/2026-07-26-spectator-clarity-design.md)
+- [Next-phase orchestration plan](docs/plans/2026-07-26-spectator-clarity.md)
 
 v0.1 supports Windows x64 only. Networking, persistence, pathfinding, store
 distribution, and non-Windows packaging are intentionally deferred.

@@ -28,7 +28,7 @@ still need one direct manual interaction pass.
 | Client window smoke | Passed | 1280x720 window opened, simulation advanced, normal close returned exit code 0 |
 | Independent technical review | Passed | No remaining Critical or High findings |
 | Menu interaction | Conditional | Code and rendering build; automation could not inject keyboard input into SDL |
-| GitHub Actions run | Not run | Workflow exists but hosted execution has not occurred |
+| Verification policy | Passed | Owner selected local-only verification; `verify.ps1` is authoritative |
 
 ## Commands executed
 
@@ -49,12 +49,12 @@ the deterministic 200-agent workload. Packaging completed after reviewed
 - No multiplayer, persistence, pathfinding, store distribution, or
   non-Windows packaging is included.
 - A project license must be selected before public distribution.
-- Hosted CI and direct manual clicking of Play, Pause, and Exit Game have not
-  yet been recorded.
+- Direct manual clicking of Play, Pause, and Exit Game has not yet been
+  recorded.
+- Hosted CI is intentionally not configured and is not a readiness gate.
 
 ## Required follow-up
 
 Run the short interactive checklist in `docs/development/testing.md`: open the
-menu with Escape, activate Play, Pause, and Exit Game, and record the result.
-Then run the committed workflow on GitHub. If both pass, upgrade this report to
-`READY`.
+menu with Escape, activate Play, Pause, and Exit Game, and record the result. If
+that pass succeeds, upgrade this report to `READY`.

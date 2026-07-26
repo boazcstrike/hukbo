@@ -1,5 +1,10 @@
 # Enhanced Autonomous Arena Execution Prompt
 
+> **Historical foundation prompt:** The hosted-CI requirements below were
+> superseded by the repository owner's local-only verification decision on
+> 2026-07-26. Use
+> `docs/plans/2026-07-26-spectator-clarity.md` for the next execution phase.
+
 Use this prompt to coordinate the initial Autonomous Arena milestone. It
 replaces a strictly serial 17-role checklist with stage gates, explicit file
 ownership, and evidence-based completion.

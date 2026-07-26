@@ -44,9 +44,10 @@ current repository contains no required LFS-managed asset.
 
 ## Automation and tests
 
-PowerShell workflows live under `scripts/`; Windows CI lives in
-`.github/workflows/ci.yml`. Core tests use VSTest, xUnit, and the Visual Studio
-runner. Interactive client behavior remains a separate smoke test.
+PowerShell workflows live under `scripts/` and are the authoritative local
+automation. Hosted CI is intentionally not configured by repository-owner
+decision. Core tests use VSTest, xUnit, and the Visual Studio runner.
+Interactive client behavior remains a separate smoke test.
 
 ## Constraints
 

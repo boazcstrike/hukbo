@@ -7,16 +7,18 @@ onboarding, and final handoff readiness.
 
 ## Inputs inspected
 
-- Delivery scripts, CI, README, operating docs, and all numbered role reports.
+- Delivery scripts, local verification policy, README, operating docs, and all
+  numbered role reports.
 - Foundation source/configuration and Git diff/status.
 - Reported integration dependency on a pinned `dotnet-mgcb` tool manifest.
 
 ## Decisions and work
 
-Kept workflows Windows-scoped, repository-relative, locked, and
+Kept local workflows Windows-scoped, repository-relative, locked, and
 non-destructive. Integrated Core, Headless, Client/Menu, and delivery work.
-Documented the missing public-distribution license, hosted CI run, and direct
-menu interaction as explicit follow-ups.
+Documented the missing public-distribution license and direct menu interaction
+as explicit follow-ups. Hosted CI was removed by later repository-owner
+decision and is not a completion requirement.
 
 ## Files
 
@@ -29,10 +31,10 @@ menu interaction as explicit follow-ups.
 
 PowerShell scripts parse. The canonical gate passes formatting, zero-warning
 Release build, 42 tests, and deterministic 200-agent execution. Self-contained
-packaging and real window startup/normal close pass. Independent review is in
+packaging and real window startup/normal close pass. Independent review is
 complete with no remaining Critical or High findings. Its two Medium findings
 (maximum-map placement overflow and stale local package output) were corrected
-and reverified. Hosted CI and direct menu interaction remain conditional.
+and reverified. Direct menu interaction remains conditional.
 
 ## Status
 
@@ -45,4 +47,4 @@ interaction remains required.
 
 ## Next action
 
-Record the manual menu and hosted CI results.
+Record the manual menu result.

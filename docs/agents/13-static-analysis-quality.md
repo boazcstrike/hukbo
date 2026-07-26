@@ -40,4 +40,4 @@ added because repository/CI support for those gates was not established.
 
 ## Next action
 
-Keep the audit and formatting checks in every hosted CI run.
+Keep the audit and formatting checks in every canonical local verification run.

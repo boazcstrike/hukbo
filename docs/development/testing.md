@@ -17,6 +17,10 @@ The gate performs, in order:
 It does not launch a window or alter authoritative game state. It never runs a
 destructive Git or filesystem cleanup.
 
+This repository intentionally uses local-only verification. There is no GitHub
+Actions workflow or hosted-CI completion gate. Run the canonical gate on the
+integration workstation and record its exact result.
+
 ## Focused commands
 
 ```powershell

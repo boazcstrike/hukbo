@@ -16,15 +16,26 @@ workstreams with exclusive ownership.
 | 7 | [Solution architecture](07-solution-architecture.md) | Complete |
 | 8 | [Repository scaffolding](08-repository-scaffolding.md) | Complete |
 | 9 | [Configuration/package management](09-configuration-package-management.md) | Complete |
-| 10 | [Runtime integration](10-game-runtime-integration.md) | Deferred pending integration |
-| 11 | [Content pipeline](11-content-asset-pipeline.md) | Deferred pending integration |
-| 12 | [Test architecture](12-test-architecture.md) | Conditionally complete |
-| 13 | [Static analysis and quality](13-static-analysis-quality.md) | Conditionally complete |
+| 10 | [Runtime integration](10-game-runtime-integration.md) | Complete |
+| 11 | [Content pipeline](11-content-asset-pipeline.md) | Complete |
+| 12 | [Test architecture](12-test-architecture.md) | Complete |
+| 13 | [Static analysis and quality](13-static-analysis-quality.md) | Complete |
 | 14 | [Developer experience](14-developer-experience.md) | Complete |
-| 15 | [CI build and test](15-ci-build-test.md) | Conditionally complete |
-| 16 | [Readiness validation](16-repository-readiness-validation.md) | Deferred pending integration |
+| 15 | [Build and test automation](15-ci-build-test.md) | Complete |
+| 16 | [Readiness validation](16-repository-readiness-validation.md) | Conditionally complete |
 | 17 | [Technical review/handoff](17-technical-review-handoff.md) | Conditionally complete |
 
-The statuses describe the delivery-worktree snapshot before Core/Headless and
-Client/Menu branches are integrated. The orchestrator must replace conditional
-results with final command evidence after integration.
+The integration and all non-graphical local gates are complete. Roles 16 and 17
+remain conditional only because direct Play/Pause/Exit interaction still needs
+one recorded manual pass.
+
+## Next orchestration phase
+
+The approved spectator-clarity phase has two controlling documents:
+
+- [Spectator-clarity design](../plans/2026-07-26-spectator-clarity-design.md)
+- [Detailed orchestration and execution plan](../plans/2026-07-26-spectator-clarity.md)
+
+That plan gives the next orchestration agent explicit owners for presentation
+state/tests, MonoGame UI components, QA/evidence, and final integration. It also
+requires a new `18-spectator-clarity.md` evidence report during execution.
