@@ -1,3 +1,4 @@
+using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Simulation;
 
@@ -264,7 +265,8 @@ public sealed class BattleSimulationTests
         int factionId,
         int x,
         int y,
-        Scenario scenario) =>
+        Scenario scenario,
+        CombatLoadout? loadout = null) =>
         new(
             entityId,
             factionId,
@@ -275,5 +277,219 @@ public sealed class BattleSimulationTests
             scenario.PerceptionRangeRaw,
             scenario.AttackRangeRaw,
             scenario.DamagePerAttack,
-            scenario.AttackCooldownTicks);
+            scenario.AttackCooldownTicks,
+            loadout ?? new CombatLoadout(
+                WeaponId.GreatBlade,
+                ArmorId.LightOrganic,
+                ShieldId.None));
+
+    [Fact]
+    public void EntitiesOneThroughFourReceiveTheConfiguredRosterInOrder()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 8);
+        var simulation = BattleSimulation.Create(scenario);
+        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
+
+        Assert.All(
+            simulation.Agents,
+            agent => Assert.Equal(
+                rules.ResolveLoadout(agent.EntityId),
+                agent.Loadout));
+    }
+
+    [Fact]
+    public void EntityFiveWrapsToTheFirstRosterLoadout()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 10);
+        var simulation = BattleSimulation.Create(scenario);
+        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
+
+        var entityOne = Assert.Single(
+            simulation.Agents,
+            agent => agent.EntityId == 1);
+        var entityFive = Assert.Single(
+            simulation.Agents,
+            agent => agent.EntityId == 5);
+
+        Assert.Equal(entityOne.Loadout, entityFive.Loadout);
+        Assert.Equal(rules.Roster[0], entityFive.Loadout);
+    }
+
+    [Fact]
+    public void BothFactionsAssignLoadoutsUsingTheSameEntityIdRule()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 8);
+        var simulation = BattleSimulation.Create(scenario);
+        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
+
+        var faction0 = simulation.Agents.Where(agent => agent.FactionId == 0);
+        var faction1 = simulation.Agents.Where(agent => agent.FactionId == 1);
+
+        Assert.NotEmpty(faction0);
+        Assert.NotEmpty(faction1);
+        Assert.All(
+            faction0.Concat(faction1),
+            agent => Assert.Equal(
+                rules.ResolveLoadout(agent.EntityId),
+                agent.Loadout));
+    }
+
+    [Fact]
+    public void RepeatedCreationOfTheSameScenarioProducesIdenticalLoadouts()
+    {
+        var scenario = Scenario.CreateDefault(seed: 7, totalAgents: 8);
+
+        var first = BattleSimulation.Create(scenario);
+        var second = BattleSimulation.Create(scenario);
+
+        Assert.Equal(
+            first.Agents.Select(agent => agent.Loadout),
+            second.Agents.Select(agent => agent.Loadout));
+    }
+
+    [Fact]
+    public void AcceptedAttacksCarryTheSourceWeaponAndAResolvedHitLocation()
+    {
+        var scenario = CreateTestScenario() with
+        {
+            AttackRangeRaw = 12 * FixedPoint.Scale,
+        };
+        var attackerLoadout = new CombatLoadout(
+            WeaponId.Bolo,
+            ArmorId.LightOrganic,
+            ShieldId.None);
+        var defenderLoadout = new CombatLoadout(
+            WeaponId.GreatBlade,
+            ArmorId.LightOrganic,
+            ShieldId.TallHardwood);
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            CreateAgent(1, factionId: 0, x: 10, y: 10, scenario, attackerLoadout),
+            CreateAgent(2, factionId: 1, x: 22, y: 10, scenario, defenderLoadout));
+
+        simulation.AdvanceOneTick();
+
+        var attackFromOne = Assert.Single(
+            simulation.LastEvents,
+            battleEvent => battleEvent.Kind == BattleEventKind.Attack &&
+                battleEvent.SourceEntityId == 1);
+        Assert.Equal(WeaponId.Bolo, attackFromOne.Weapon);
+        Assert.Equal(scenario.DamagePerAttack, attackFromOne.Value);
+        Assert.True(
+            attackFromOne.HitLocation is { } part && Enum.IsDefined(part));
+
+        var expectedLocation = HitLocationResolver.Resolve(
+            CombatPresetRegistry.Get(scenario.CombatPreset),
+            attackerLoadout,
+            defenderLoadout,
+            scenario.Seed,
+            simulation.Tick,
+            sourceEntityId: 1,
+            targetEntityId: 2);
+        Assert.Equal(expectedLocation, attackFromOne.HitLocation);
+    }
+
+    [Fact]
+    public void MultipleAttackersOnOneTargetRetainIndividualHitLocationsButOneAggregatedDamageEvent()
+    {
+        var scenario = CreateTestScenario() with
+        {
+            AttackRangeRaw = 12 * FixedPoint.Scale,
+        };
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            CreateAgent(
+                1,
+                factionId: 0,
+                x: 10,
+                y: 10,
+                scenario,
+                new CombatLoadout(WeaponId.Bolo, ArmorId.LightOrganic, ShieldId.None)),
+            CreateAgent(
+                2,
+                factionId: 0,
+                x: 12,
+                y: 10,
+                scenario,
+                new CombatLoadout(
+                    WeaponId.HeavyChopper,
+                    ArmorId.LightOrganic,
+                    ShieldId.TallHardwood)),
+            CreateAgent(
+                3,
+                factionId: 1,
+                x: 11,
+                y: 10,
+                scenario,
+                new CombatLoadout(
+                    WeaponId.ThrustingBlade,
+                    ArmorId.LightOrganic,
+                    ShieldId.None)));
+
+        simulation.AdvanceOneTick();
+
+        var attacksOnThree = simulation.LastEvents
+            .Where(
+                battleEvent => battleEvent.Kind == BattleEventKind.Attack &&
+                    battleEvent.TargetEntityId == 3)
+            .ToArray();
+        Assert.Equal(2, attacksOnThree.Length);
+        Assert.Equal(
+            [WeaponId.HeavyChopper, WeaponId.Bolo],
+            attacksOnThree
+                .Select(battleEvent => battleEvent.Weapon!.Value)
+                .OrderBy(weapon => weapon));
+        Assert.All(
+            attacksOnThree,
+            battleEvent => Assert.True(battleEvent.HitLocation.HasValue));
+
+        var damageOnThree = Assert.Single(
+            simulation.LastEvents,
+            battleEvent => battleEvent.Kind == BattleEventKind.Damage &&
+                battleEvent.TargetEntityId == 3);
+        Assert.Equal(2 * scenario.DamagePerAttack, damageOnThree.Value);
+
+        var viewThree = Assert.Single(
+            simulation.Agents,
+            agent => agent.EntityId == 3);
+        Assert.Equal(
+            scenario.MaximumHitPoints - (2 * scenario.DamagePerAttack),
+            viewThree.HitPoints);
+    }
+
+    [Fact]
+    public void NonAttackEventsNeverCarryWeaponOrHitLocation()
+    {
+        var scenario = CreateTestScenario() with
+        {
+            AttackRangeRaw = 12 * FixedPoint.Scale,
+        };
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
+            CreateAgent(2, factionId: 1, x: 22, y: 10, scenario));
+
+        simulation.AdvanceOneTick();
+
+        Assert.NotEmpty(simulation.LastEvents);
+        Assert.Contains(
+            simulation.LastEvents,
+            battleEvent => battleEvent.Kind == BattleEventKind.Attack);
+        Assert.All(
+            simulation.LastEvents.Where(
+                battleEvent => battleEvent.Kind != BattleEventKind.Attack),
+            battleEvent =>
+            {
+                Assert.Null(battleEvent.Weapon);
+                Assert.Null(battleEvent.HitLocation);
+            });
+        Assert.All(
+            simulation.LastEvents.Where(
+                battleEvent => battleEvent.Kind == BattleEventKind.Attack),
+            battleEvent =>
+            {
+                Assert.NotNull(battleEvent.Weapon);
+                Assert.NotNull(battleEvent.HitLocation);
+            });
+    }
 }

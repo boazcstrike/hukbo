@@ -1,12 +1,10 @@
+using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Core.Determinism;
 
 internal static class StateHasher
 {
-    private const ulong OffsetBasis = 14_695_981_039_346_656_037UL;
-    private const ulong Prime = 1_099_511_628_211UL;
-
     internal static ulong Compute(
         Scenario scenario,
         long tick,
@@ -14,7 +12,8 @@ internal static class StateHasher
         long eventSequence,
         IReadOnlyList<AgentState> agents)
     {
-        var hash = OffsetBasis;
+        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
+        var hash = Fnv1a.OffsetBasis;
         Add(ref hash, scenario.Seed);
         Add(ref hash, scenario.MapWidth);
         Add(ref hash, scenario.MapHeight);
@@ -27,6 +26,8 @@ internal static class StateHasher
         Add(ref hash, scenario.PerceptionRangeRaw);
         Add(ref hash, scenario.MovementSpeedRaw);
         Add(ref hash, scenario.AttackCooldownTicks);
+        Add(ref hash, (int)scenario.CombatPreset);
+        Add(ref hash, rules.ContentHash);
         Add(ref hash, tick);
         Add(ref hash, (int)outcome);
         Add(ref hash, eventSequence);
@@ -48,23 +49,20 @@ internal static class StateHasher
             Add(ref hash, agent.AttackCooldownRemaining);
             Add(ref hash, agent.TargetEntityId ?? 0);
             Add(ref hash, (int)agent.Intent);
+            Add(ref hash, (int)agent.Loadout.Weapon);
+            Add(ref hash, (int)agent.Loadout.Armor);
+            Add(ref hash, (int)agent.Loadout.Shield);
         }
 
         return hash;
     }
 
     private static void Add(ref ulong hash, int value) =>
-        Add(ref hash, unchecked((ulong)(uint)value));
+        Fnv1a.Add(ref hash, unchecked((ulong)(uint)value));
 
     private static void Add(ref ulong hash, long value) =>
-        Add(ref hash, unchecked((ulong)value));
+        Fnv1a.Add(ref hash, unchecked((ulong)value));
 
-    private static void Add(ref ulong hash, ulong value)
-    {
-        for (var shift = 0; shift < 64; shift += 8)
-        {
-            hash ^= (byte)(value >> shift);
-            hash = unchecked(hash * Prime);
-        }
-    }
+    private static void Add(ref ulong hash, ulong value) =>
+        Fnv1a.Add(ref hash, value);
 }

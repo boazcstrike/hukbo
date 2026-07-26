@@ -241,3 +241,70 @@ The safest and most readable first Hukbo catalog is:
 Start with the first five for individual character placeholders. Add the
 blowgun and imported arquebus once ranged behavior exists, and reserve the
 bronze verso for a later crew-served or emplacement system.
+
+## Cross-reference: the combat targeting preset is a gameplay model
+
+Hukbo now has an authoritative pre-colonial Philippine combat preset in
+`Hukbo.Core.Combat` (see the approved design at
+`docs/archives/2026-07-26-philippine-combat-configuration-design.md`), which
+gives every warrior a weapon, an armor identity, and a shield identity, and
+resolves an explainable body-part hit location for every accepted attack.
+That preset was built from this document's evidence, but it is a distinct
+artifact with a different purpose, and the two must not be read as making the
+same kind of claim. This section records that boundary so a reader of either
+document understands what the other one is, and is not, asserting.
+
+- **The combat preset is a gameplay model, not measured historical
+  probability.** The general and per-weapon body-part target weights, and
+  the shield defense multipliers, in `PhilippineCombatPreset` are hand-authored
+  numbers chosen to produce a plausible, explainable, and replayable spread of
+  hit locations. They are not derived from any statistical study of actual
+  sixteenth-century wound distributions, and no such study is cited or implied
+  anywhere in the combat configuration code, tests, or design document. Where
+  this document above uses confidence labels such as **Documented** or
+  **Provisional reconstruction** to describe how strongly a source supports a
+  weapon's existence or general form, the combat preset's numeric weights
+  carry no equivalent evidentiary confidence at all; they are gameplay tuning
+  choices informed by, but not established by, the sources listed here.
+- **Named blade comparisons are regional- and period-sensitive and
+  provisional.** The combat preset's weapon definitions carry code comments
+  cross-referencing Kampilan, Panabas, and Kris as comparative names for the
+  Great Blade, Heavy Chopper, and Thrusting Blade weapon profiles. Exactly as
+  the "Named blade caution" section above already establishes for the visual
+  armory, those comparative names are provisional evidence metadata, not
+  player-facing sixteenth-century identifications, and they must not be
+  generalized as if one region's or one later century's naming applied evenly
+  across the archipelago and across the 1500s. Player-facing UI uses plain
+  descriptors (`Great Blade`, `Heavy Chopper`, `Thrusting Blade`, `Work
+  Blade`), consistent with the existing guidance in this document to keep
+  plain-English descriptors beside local or provisional terms. The fourth
+  weapon's stable enum identity is `Bolo` (a local and Spanish-era term); its
+  player-facing display name is the plain descriptor `Work Blade`, not the
+  enum identity, per CLAUDE.md SS7. This is a PROVISIONAL evidence
+  cross-reference to the general local utility-blade tradition described in
+  "Named blade caution" above, not one sixteenth-century object.
+- **Shield multipliers are provisional tuning values, not measurements.**
+  The tall-hardwood shield's chest and abdomen defense multiplier is a
+  starting gameplay balance value, not a measurement of any shield's actual
+  historical stopping power, coverage, or protective effectiveness. It was
+  chosen only to make a carried shield visibly change the resolved spread of
+  hit locations in a plausible direction, and it is explicitly labeled
+  `PROVISIONAL` in the combat configuration source and in its accompanying
+  tests for exactly that reason.
+- **Terrain, naval combat, directional defense, and physiology remain
+  deferred.** The combat preset introduces a body-part hit location only as
+  authoritative explanatory metadata for a single scalar health pool; it does
+  not add per-part hit points, wounds, bleeding, disability, or death rules
+  tied to a specific body part, and it does not model terrain, rice-field or
+  riverine combat, naval boarding actions, facing or directional defense, or
+  individual physiology. Those remain deferred design areas, not implied by
+  anything in the combat preset or in this document.
+
+In short: this document remains the evidence record for what sixteenth-century
+Philippine weapons, armor, and shields plausibly looked like and how they were
+described by available sources. The combat preset is a separate, clearly
+labeled gameplay system that uses this evidence as inspiration for its
+plain-English descriptors and comparative metadata, while keeping its
+targeting weights, multipliers, and roster assignments explicitly provisional
+gameplay tuning values. Nothing in the combat preset should be cited back into
+this document, or presented to a spectator, as a historical measurement.

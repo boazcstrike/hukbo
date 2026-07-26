@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
 using Hukbo.Core.Mathematics;
 
@@ -12,26 +13,33 @@ public sealed class BattleSimulation
     private static readonly ReadOnlyCollection<BattleEvent> EmptyEvents =
         Array.AsReadOnly<BattleEvent>([]);
 
+    private readonly CombatRuleset _rules;
     private readonly AgentState[] _agentStates;
     private readonly Dictionary<ulong, int> _agentIndexes;
     private readonly int[] _damageTotals;
     private readonly (int XRaw, int YRaw, ulong TargetId)?[] _movementProposals;
-    private readonly (int SourceIndex, int TargetIndex)[] _attackProposals;
+    private readonly (int SourceIndex, int TargetIndex, BodyPart HitLocation)[]
+        _attackProposals;
     private readonly AgentView[] _agentViews;
     private readonly ReadOnlyCollection<AgentView> _agents;
     private ReadOnlyCollection<BattleEvent> _lastEvents;
     private long _eventSequence;
 
-    private BattleSimulation(Scenario scenario, AgentState[] agents)
+    private BattleSimulation(
+        Scenario scenario,
+        AgentState[] agents,
+        CombatRuleset rules)
     {
         Scenario = scenario;
+        _rules = rules;
         _agentStates = agents;
         _agentIndexes = new Dictionary<ulong, int>(agents.Length);
         _damageTotals = new int[agents.Length];
         _movementProposals =
             new (int XRaw, int YRaw, ulong TargetId)?[agents.Length];
         _attackProposals =
-            new (int SourceIndex, int TargetIndex)[agents.Length];
+            new (int SourceIndex, int TargetIndex, BodyPart HitLocation)[
+                agents.Length];
         _agentViews = new AgentView[agents.Length];
         _agents = Array.AsReadOnly(_agentViews);
 
@@ -64,6 +72,7 @@ public sealed class BattleSimulation
         ArgumentNullException.ThrowIfNull(scenario);
         scenario.Validate();
 
+        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
         var random = new SplitMix64(scenario.Seed);
         var agents = new AgentState[scenario.TotalAgents];
         var mapWidthRaw = checked(scenario.MapWidth * FixedPoint.Scale);
@@ -83,7 +92,8 @@ public sealed class BattleSimulation
                 factionId: 0,
                 leftX,
                 leftY,
-                scenario);
+                scenario,
+                rules);
         }
 
         for (var index = 0; index < scenario.AgentsPerFaction; index++)
@@ -98,10 +108,11 @@ public sealed class BattleSimulation
                 factionId: 1,
                 rightX,
                 rightY,
-                scenario);
+                scenario,
+                rules);
         }
 
-        return new BattleSimulation(scenario, agents);
+        return new BattleSimulation(scenario, agents, rules);
     }
 
     internal static BattleSimulation CreateForTesting(
@@ -119,8 +130,9 @@ public sealed class BattleSimulation
                 nameof(agents));
         }
 
+        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
         var orderedAgents = agents.OrderBy(agent => agent.EntityId).ToArray();
-        return new BattleSimulation(scenario, orderedAgents);
+        return new BattleSimulation(scenario, orderedAgents, rules);
     }
 
     public void AdvanceOneTick()
@@ -171,7 +183,8 @@ public sealed class BattleSimulation
         int factionId,
         int xRaw,
         int yRaw,
-        Scenario scenario) =>
+        Scenario scenario,
+        CombatRuleset rules) =>
         new(
             entityId,
             factionId,
@@ -182,7 +195,8 @@ public sealed class BattleSimulation
             scenario.PerceptionRangeRaw,
             scenario.AttackRangeRaw,
             scenario.DamagePerAttack,
-            scenario.AttackCooldownTicks);
+            scenario.AttackCooldownTicks,
+            rules.ResolveLoadout(entityId));
 
     private void DecrementCooldowns()
     {
@@ -326,7 +340,15 @@ public sealed class BattleSimulation
             source.Intent = AgentIntent.Attacking;
             source.AttackCooldownRemaining = source.AttackCooldownTicks;
             var targetIndex = _agentIndexes[target.EntityId];
-            _attackProposals[proposalCount] = (sourceIndex, targetIndex);
+            var hitLocation = HitLocationResolver.Resolve(
+                _rules,
+                source.Loadout,
+                target.Loadout,
+                Scenario.Seed,
+                Tick,
+                source.EntityId,
+                target.EntityId);
+            _attackProposals[proposalCount] = (sourceIndex, targetIndex, hitLocation);
             proposalCount++;
             _damageTotals[targetIndex] = checked(
                 _damageTotals[targetIndex] + source.DamagePerAttack);
@@ -337,13 +359,14 @@ public sealed class BattleSimulation
             var proposal = _attackProposals[index];
             var source = _agentStates[proposal.SourceIndex];
             var target = _agentStates[proposal.TargetIndex];
-            AddEvent(
+            AddAttackEvent(
                 ref events,
-                BattleEventKind.Attack,
                 source.EntityId,
                 target.EntityId,
                 source.DamagePerAttack,
-                source.FactionId);
+                source.FactionId,
+                source.Loadout.Weapon,
+                proposal.HitLocation);
         }
 
         for (var index = 0; index < _damageTotals.Length; index++)
@@ -515,7 +538,7 @@ public sealed class BattleSimulation
         _eventSequence = checked(_eventSequence + 1);
         events ??= new List<BattleEvent>(_agentStates.Length * 2);
         events.Add(
-            new BattleEvent(
+            BattleEvent.NonAttack(
                 _eventSequence,
                 Tick,
                 kind,
@@ -523,6 +546,29 @@ public sealed class BattleSimulation
                 targetEntityId,
                 value,
                 factionId));
+    }
+
+    private void AddAttackEvent(
+        ref List<BattleEvent>? events,
+        ulong sourceEntityId,
+        ulong targetEntityId,
+        int damage,
+        int factionId,
+        WeaponId weapon,
+        BodyPart hitLocation)
+    {
+        _eventSequence = checked(_eventSequence + 1);
+        events ??= new List<BattleEvent>(_agentStates.Length * 2);
+        events.Add(
+            BattleEvent.Attack(
+                _eventSequence,
+                Tick,
+                sourceEntityId,
+                targetEntityId,
+                damage,
+                factionId,
+                weapon,
+                hitLocation));
     }
 
     private void UpdateViews()

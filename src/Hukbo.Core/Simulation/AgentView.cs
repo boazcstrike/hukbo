@@ -1,3 +1,5 @@
+using Hukbo.Core.Combat;
+
 namespace Hukbo.Core.Simulation;
 
 public readonly record struct AgentView(
@@ -9,4 +11,5 @@ public readonly record struct AgentView(
     int MaximumHitPoints,
     ulong? TargetEntityId,
     AgentIntent Intent,
-    bool IsAlive);
+    bool IsAlive,
+    CombatLoadout Loadout);

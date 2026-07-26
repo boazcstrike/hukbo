@@ -1,3 +1,4 @@
+using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
 
 namespace Hukbo.Core.Simulation;
@@ -33,6 +34,9 @@ public sealed record Scenario(
     public int MovementSpeedRaw { get; init; } = 3 * FixedPoint.Scale;
 
     public int AttackCooldownTicks { get; init; } = 5;
+
+    public CombatPresetId CombatPreset { get; init; } =
+        CombatPresetId.PrecolonialPhilippinesV1;
 
     public int TotalAgents => checked(AgentsPerFaction * 2);
 
@@ -95,6 +99,14 @@ public sealed record Scenario(
             1,
             MaximumTickLimit,
             nameof(AttackCooldownTicks));
+
+        if (!CombatPresetRegistry.IsRegistered(CombatPreset))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(CombatPreset),
+                CombatPreset,
+                "Combat preset must be a registered value.");
+        }
 
         if (PerceptionRangeRaw < AttackRangeRaw)
         {

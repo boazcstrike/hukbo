@@ -1,3 +1,5 @@
+using Hukbo.Core.Combat;
+
 namespace Hukbo.Core.Simulation;
 
 internal sealed class AgentState
@@ -12,7 +14,8 @@ internal sealed class AgentState
         int perceptionRangeRaw,
         int attackRangeRaw,
         int damagePerAttack,
-        int attackCooldownTicks)
+        int attackCooldownTicks,
+        CombatLoadout loadout)
     {
         if (entityId == 0)
         {
@@ -35,6 +38,7 @@ internal sealed class AgentState
         AttackRangeRaw = attackRangeRaw;
         DamagePerAttack = damagePerAttack;
         AttackCooldownTicks = attackCooldownTicks;
+        Loadout = loadout;
         Intent = AgentIntent.Idle;
     }
 
@@ -60,6 +64,8 @@ internal sealed class AgentState
 
     internal int AttackCooldownTicks { get; }
 
+    internal CombatLoadout Loadout { get; }
+
     internal int AttackCooldownRemaining { get; set; }
 
     internal ulong? TargetEntityId { get; set; }
@@ -78,5 +84,6 @@ internal sealed class AgentState
             MaximumHitPoints,
             TargetEntityId,
             Intent,
-            IsAlive);
+            IsAlive,
+            Loadout);
 }

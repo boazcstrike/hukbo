@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using Hukbo.Core.Determinism;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Headless;
@@ -15,9 +16,6 @@ public sealed record HeadlessOptions(
 
 public static class HeadlessRunner
 {
-    private const ulong HashOffsetBasis = 14_695_981_039_346_656_037UL;
-    private const ulong HashPrime = 1_099_511_628_211UL;
-
     public static int Run(
         string[] arguments,
         TextWriter standardOutput,
@@ -193,7 +191,7 @@ public static class HeadlessRunner
         var right = BattleSimulation.Create(scenario);
         var tickDurations = new List<double>(
             Math.Min(options.TickCount, 100_000));
-        var eventHash = HashOffsetBasis;
+        var eventHash = Fnv1a.OffsetBasis;
         long? firstMismatchTick = null;
         var allocationStart = GC.GetAllocatedBytesForCurrentThread();
 
@@ -273,7 +271,13 @@ public static class HeadlessRunner
         return sortedValues[Math.Clamp(rank, 0, sortedValues.Length - 1)];
     }
 
-    private static void AddEventToHash(
+    /// <summary>
+    /// Mixes one authoritative event into the running headless event hash.
+    /// Internal (rather than private) so its field sensitivity, including
+    /// the nullable weapon/hit-location sentinel, can be verified directly
+    /// by <c>Hukbo.Core.Tests</c> without running a full simulation.
+    /// </summary>
+    internal static void AddEventToHash(
         ref ulong hash,
         BattleEvent battleEvent)
     {
@@ -288,14 +292,18 @@ public static class HeadlessRunner
             battleEvent.FactionId is { } factionId
                 ? unchecked((ulong)(uint)factionId)
                 : ulong.MaxValue);
+        AddToHash(
+            ref hash,
+            battleEvent.Weapon is { } weapon
+                ? unchecked((ulong)(uint)(int)weapon)
+                : ulong.MaxValue);
+        AddToHash(
+            ref hash,
+            battleEvent.HitLocation is { } hitLocation
+                ? unchecked((ulong)(uint)(int)hitLocation)
+                : ulong.MaxValue);
     }
 
-    private static void AddToHash(ref ulong hash, ulong value)
-    {
-        for (var shift = 0; shift < 64; shift += 8)
-        {
-            hash ^= (byte)(value >> shift);
-            hash = unchecked(hash * HashPrime);
-        }
-    }
+    private static void AddToHash(ref ulong hash, ulong value) =>
+        Fnv1a.Add(ref hash, value);
 }

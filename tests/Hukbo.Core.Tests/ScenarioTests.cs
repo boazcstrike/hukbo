@@ -1,3 +1,4 @@
+using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Simulation;
 
@@ -17,6 +18,20 @@ public sealed class ScenarioTests
         Assert.Equal(200, scenario.TotalAgents);
         Assert.Equal(20, scenario.TickRate);
         Assert.Equal(10_000, scenario.TickLimit);
+        Assert.Equal(
+            CombatPresetId.PrecolonialPhilippinesV1,
+            scenario.CombatPreset);
+    }
+
+    [Fact]
+    public void ValidateRejectsUnregisteredCombatPreset()
+    {
+        var scenario = Scenario.CreateDefault() with
+        {
+            CombatPreset = (CombatPresetId)999,
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
     }
 
     [Fact]

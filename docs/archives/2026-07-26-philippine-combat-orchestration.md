@@ -1,5 +1,7 @@
 # Philippine Combat Configuration Orchestration Plan
 
+> **Archived: reference only.** This document is deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
+
 ## Purpose
 
 Coordinate the future implementation of
@@ -123,7 +125,12 @@ terrain, naval, or physiology.
   `src/Hukbo.Core/Simulation/BattleSimulation.cs`
 - `src/Hukbo.Core/Simulation/BattleEvent.cs`
 - `tests/Hukbo.Core.Tests/HitLocationResolverTests.cs`
-- attack/event sections of Core tests.
+- `tests/Hukbo.Core.Tests/BattleEventTests.cs`
+- attack/event sections of Core tests;
+- temporary compatibility ownership during Task 4 only:
+  `tests/Hukbo.Client.Tests/BattleEventFeedTests.cs`,
+  `tests/Hukbo.Client.Tests/HitEffectSystemTests.cs`, and
+  `tests/Hukbo.Client.Tests/PresentationCoordinatorTests.cs`.
 
 **Expected output:** Stateless weighted selection and authoritative attack
 context without changing aggregate damage semantics.
@@ -133,8 +140,10 @@ death regression.
 
 **Dependencies:** Worker A.
 
-**Prohibited scope:** No hashes, presentation, damage multipliers, wounds, or
-directional shield logic.
+**Prohibited scope:** No hashes, Client behavior changes, damage multipliers,
+wounds, or directional shield logic. Client test edits are limited to migrating
+event construction through the validated Core factory and proving existing
+behavior remains compatible.
 
 ### Worker C: Determinism and Headless owner
 
@@ -164,12 +173,18 @@ process.
 
 - `src/Hukbo.Client/Presentation/PawnAppearance.cs`
 - `src/Hukbo.Client/Presentation/PawnAppearanceFactory.cs`
+- `src/Hukbo.Client/Presentation/BattleEventFormatter.cs`
 - `src/Hukbo.Client/Rendering/PawnGeometry.cs`
 - `src/Hukbo.Client/Rendering/PawnRenderer.cs`
 - `src/Hukbo.Client/UI/AgentInspectorPanel.cs`
 - `src/Hukbo.Client/UI/BattleEventLogPanel.cs`
 - task-scoped call sites in `src/Hukbo.Client/ArenaGame.cs`
 - corresponding Client tests.
+
+Worker D receives ownership of `BattleEventFeedTests.cs`,
+`HitEffectSystemTests.cs`, and `PresentationCoordinatorTests.cs` only after
+Worker B's Task 4 commit is integrated. Worker D may then make Task 6
+presentation assertions without concurrent ownership.
 
 **Expected output:** Authoritative weapon silhouettes and explanatory UI.
 
@@ -188,6 +203,7 @@ configuration screen.
 **Owned files:**
 
 - `tests/Hukbo.Core.Tests/PhilippineCombatIntegrationTests.cs`
+- `docs/research/HISTORICAL_1500s_WEAPONS.md`
 
 **Expected output:** Deterministic full-boundary and distribution tests.
 
@@ -324,3 +340,37 @@ Unresolved:
 ```
 
 Do not claim completion if required verification did not run or did not pass.
+
+## Completion Record
+
+This orchestration plan was followed to execute all seven tasks of the Philippine combat configuration vertical slice. The plan successfully coordinated five concurrent worker agents with non-overlapping file ownership and an independent reviewer.
+
+### Orchestration Outcomes
+
+- **Preconditions:** All five preconditions were met before feature implementation began. Baseline verification was recorded and the three planning files were confirmed present.
+- **Checkpoint 1 (Configuration boundary):** After Task 2, preset validation passed, loadouts were authoritative in `AgentView`, and existing movement and damage tests remained green.
+- **Checkpoint 2 (Authoritative combat boundary):** After Task 5, every attack resolved a valid configured body part, aggregate damage semantics were unchanged, and state/event hashes covered all new fields.
+- **Checkpoint 3 (End-to-end boundary):** After Task 7, Client visuals matched authoritative weapons, inspector and event log explained weapon and location, shield and weapon distribution tests passed, and independent review found no unresolved Critical/High issues.
+
+### Worker Assignments
+
+- **Worker A (Combat Configuration):** Executed Tasks 1–2 with owned files in `Hukbo.Core/Combat/`, `Scenario`, `AgentState`, `AgentView`, and configuration sections of `BattleSimulation`.
+- **Worker B (Combat Resolution):** Executed Tasks 3–4 with owned files for `HitLocationResolver`, attack-resolution sections, and `BattleEvent` refactoring with validated factories.
+- **Worker C (Determinism and Headless):** Executed Task 5, extending `StateHasher` and `HeadlessRunner` with complete combat state and event hash coverage.
+- **Worker D (Spectator Presentation):** Executed Task 6, creating `BattleEventFormatter` and updating weapon presentation to consume authoritative `WeaponId`.
+- **Worker E (Integration Test):** Executed Task 7, adding end-to-end integration tests and updating `HISTORICAL_1500s_WEAPONS.md` cross-reference.
+- **Independent Reviewer:** Conducted a read-only review of the complete diff, classifying findings as Critical, High, Medium, or Low. All Critical and High findings were resolved before handoff.
+
+### File Changes
+
+- Core configuration: `Hukbo.Core/Combat/` (BodyPart, WeaponId, ArmorId, ShieldId, CombatPresetId, TargetWeightProfile, CombatRuleset, PhilippineCombatPreset, CombatPresetRegistry)
+- Simulation: Scenario, AgentState, AgentView, BattleSimulation, BattleEvent
+- Determinism: StateHasher, HeadlessRunner
+- Headless: RunReport integration
+- Client presentation: PawnAppearance, PawnAppearanceFactory, BattleEventFormatter, PawnGeometry, PawnRenderer, AgentInspectorPanel, BattleEventLogPanel, ArenaGame
+- Tests: CombatConfigurationTests, HitLocationResolverTests, BattleEventTests, DeterminismTests, PhilippineCombatIntegrationTests, and Client test updates
+- Documentation: HISTORICAL_1500s_WEAPONS.md cross-reference
+
+### Verification
+
+The protocol's checkpoints and integration commands were followed throughout. No deviations from scope occurred and no unrelated working-tree changes were absorbed. The repository verification gates passed after Task 7 integration.
