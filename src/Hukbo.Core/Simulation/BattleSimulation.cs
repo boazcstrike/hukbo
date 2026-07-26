@@ -533,6 +533,18 @@ public sealed class BattleSimulation
     /// rally agent cannot be resolved to a living agent, which falls back to
     /// no movement rather than throwing.
     /// </summary>
+    /// <remarks>
+    /// The follower's aim point trails <see cref="FormationRules.RallyTrailRadiusMultiplier"/>
+    /// body radii behind the rally agent, opposite the rally agent's own
+    /// direction of travel, before the jitter offset is applied. Without the
+    /// trail, a follower whose jitter offset happens to point along the rally
+    /// agent's forward arc parks permanently in front of its own leader and
+    /// blocks it — the rally agent is exempt from regrouping and never routes
+    /// around its own formation, so that block never clears. Two factions
+    /// doing this simultaneously deadlock the whole battle at the tick limit.
+    /// See the type-level remarks on <see cref="FormationRules"/> for the
+    /// clearance derivation.
+    /// </remarks>
     private (int XRaw, int YRaw, ulong TargetId)? BuildRegroupingProposal(
         AgentState agent)
     {
@@ -549,6 +561,8 @@ public sealed class BattleSimulation
             return null;
         }
 
+        var (trailBaseXRaw, trailBaseYRaw) = ComputeRallyTrailBase(rallyAgent);
+
         var (offsetXRaw, offsetYRaw) = RallyOffset.Compute(
             Scenario.Seed,
             agent.EntityId,
@@ -561,11 +575,11 @@ public sealed class BattleSimulation
         var mapWidthRaw = checked(Scenario.MapWidth * FixedPoint.Scale);
         var mapHeightRaw = checked(Scenario.MapHeight * FixedPoint.Scale);
         var aimXRaw = CollisionGeometry.ClampCenterToBounds(
-            SaturateToInt32(checked((long)rallyAgent.XRaw + offsetXRaw)),
+            SaturateToInt32(checked((long)trailBaseXRaw + offsetXRaw)),
             mapWidthRaw,
             Scenario.BodyRadiusRaw);
         var aimYRaw = CollisionGeometry.ClampCenterToBounds(
-            SaturateToInt32(checked((long)rallyAgent.YRaw + offsetYRaw)),
+            SaturateToInt32(checked((long)trailBaseYRaw + offsetYRaw)),
             mapHeightRaw,
             Scenario.BodyRadiusRaw);
 
@@ -588,6 +602,44 @@ public sealed class BattleSimulation
             aimXRaw,
             aimYRaw,
             rallyAgent.EntityId);
+    }
+
+    /// <summary>
+    /// Computes the point <see cref="FormationRules.RallyTrailRadiusMultiplier"/>
+    /// body radii behind the rally agent, opposite the rally agent's own
+    /// direction of travel — the point a follower's jitter offset is added
+    /// to. Falls back to the rally agent's raw position (no trail) when the
+    /// rally agent has no target, or when the rally agent is already exactly
+    /// at its target's position, since there is no direction of travel to
+    /// trail behind in either case. That fallback preserves the pre-fix
+    /// behaviour in that corner, which is otherwise untouched by this
+    /// method's own logic.
+    /// </summary>
+    private (int XRaw, int YRaw) ComputeRallyTrailBase(AgentState rallyAgent)
+    {
+        if (rallyAgent.TargetEntityId is not { } rallyTargetId ||
+            !_agentIndexes.TryGetValue(rallyTargetId, out var rallyTargetIndex))
+        {
+            return (rallyAgent.XRaw, rallyAgent.YRaw);
+        }
+
+        var rallyTarget = _agentStates[rallyTargetIndex];
+        var deltaXRaw = (long)rallyTarget.XRaw - rallyAgent.XRaw;
+        var deltaYRaw = (long)rallyTarget.YRaw - rallyAgent.YRaw;
+        var distanceRaw = IntegerSquareRoot(
+            checked((deltaXRaw * deltaXRaw) + (deltaYRaw * deltaYRaw)));
+        if (distanceRaw == 0)
+        {
+            return (rallyAgent.XRaw, rallyAgent.YRaw);
+        }
+
+        var trailRaw = FormationRules.ComputeRallyTrailRaw(Scenario.BodyRadiusRaw);
+        var trailXRaw = SaturateToInt32(checked(
+            rallyAgent.XRaw - (deltaXRaw * trailRaw / distanceRaw)));
+        var trailYRaw = SaturateToInt32(checked(
+            rallyAgent.YRaw - (deltaYRaw * trailRaw / distanceRaw)));
+
+        return (trailXRaw, trailYRaw);
     }
 
     /// <summary>

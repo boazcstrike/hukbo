@@ -248,17 +248,23 @@ public sealed class LastStandFormationTests
     [Fact]
     public void ARegroupingFollowerAlreadyAtItsAimPointProposesNoMovementAndEmitsNoMoveEvent()
     {
+        // The rally agent (2) and its enemy target (100) share a Y
+        // coordinate, so the direction of travel is purely +X and the trail
+        // computation needs no square root: distance == dx exactly.
         var scenario = CreateTestScenario(lastStandThreshold: 2);
         var mapWidthRaw = checked(scenario.MapWidth * FixedPoint.Scale);
         var mapHeightRaw = checked(scenario.MapHeight * FixedPoint.Scale);
         var rallyXRaw = checked(1000 * FixedPoint.Scale);
         var rallyYRaw = checked(1000 * FixedPoint.Scale);
+        var enemyXRaw = checked(1200 * FixedPoint.Scale);
+        var trailRaw = FormationRules.ComputeRallyTrailRaw(scenario.BodyRadiusRaw);
+        var trailBaseXRaw = checked(rallyXRaw - trailRaw);
         var (offsetXRaw, offsetYRaw) = RallyOffset.Compute(
             scenario.Seed,
             entityId: 5,
             scenario.BodyRadiusRaw);
         var aimXRaw = CollisionGeometry.ClampCenterToBounds(
-            checked(rallyXRaw + offsetXRaw),
+            checked(trailBaseXRaw + offsetXRaw),
             mapWidthRaw,
             scenario.BodyRadiusRaw);
         var aimYRaw = CollisionGeometry.ClampCenterToBounds(
@@ -270,7 +276,7 @@ public sealed class LastStandFormationTests
             scenario,
             CreateAgentAtRawPosition(2, factionId: 0, rallyXRaw, rallyYRaw, scenario),
             CreateAgentAtRawPosition(5, factionId: 0, aimXRaw, aimYRaw, scenario),
-            CreateAgent(100, factionId: 1, x: 1200, y: 1200, scenario));
+            CreateAgentAtRawPosition(100, factionId: 1, enemyXRaw, rallyYRaw, scenario));
 
         simulation.AdvanceOneTick();
 
@@ -280,6 +286,102 @@ public sealed class LastStandFormationTests
         Assert.Equal(
             MovementResolution.None,
             AgentByEntityId(simulation, 5).MovementResolution);
+    }
+
+    [Fact]
+    public void AFollowerAimsBehindTheRallyAgentRelativeToItsDirectionOfTravel()
+    {
+        // Rally agent (2) and its target (100) share a Y coordinate, so the
+        // direction of travel is purely +X and the trail computation needs
+        // no square root: distance == dx exactly. Placing the enemy inside
+        // contact range holds the rally agent's own position (and thus its
+        // direction of travel) steady while the follower's aim formula is
+        // evaluated.
+        var scenario = CreateTestScenario(lastStandThreshold: 2);
+        var rallyXRaw = checked(500 * FixedPoint.Scale);
+        var rallyYRaw = checked(10 * FixedPoint.Scale);
+        var enemyXRaw = checked(rallyXRaw + (2 * scenario.BodyRadiusRaw) - 1);
+
+        var trailRaw = FormationRules.ComputeRallyTrailRaw(scenario.BodyRadiusRaw);
+        var expectedTrailBaseXRaw = checked(rallyXRaw - trailRaw);
+
+        var mapWidthRaw = checked(scenario.MapWidth * FixedPoint.Scale);
+        var mapHeightRaw = checked(scenario.MapHeight * FixedPoint.Scale);
+        var (offsetXRaw, offsetYRaw) = RallyOffset.Compute(
+            scenario.Seed,
+            entityId: 5,
+            scenario.BodyRadiusRaw);
+        var expectedAimXRaw = CollisionGeometry.ClampCenterToBounds(
+            checked(expectedTrailBaseXRaw + offsetXRaw),
+            mapWidthRaw,
+            scenario.BodyRadiusRaw);
+        var expectedAimYRaw = CollisionGeometry.ClampCenterToBounds(
+            checked(rallyYRaw + offsetYRaw),
+            mapHeightRaw,
+            scenario.BodyRadiusRaw);
+
+        // The trail (12R) always exceeds the maximum jitter magnitude (6R),
+        // so the aim point's projection along the leader-to-target direction
+        // (here, the raw X axis) is always negative — the aim point always
+        // sits behind the rally agent, regardless of this follower's own
+        // deterministic jitter draw.
+        Assert.True(
+            expectedAimXRaw < rallyXRaw,
+            "Expected the follower's aim point to sit behind the rally " +
+            $"agent (aim X < rally X = {rallyXRaw}), but computed aim X " +
+            $"was {expectedAimXRaw}.");
+
+        // Placing the follower exactly at the independently computed aim
+        // point and confirming the arrived-guard fires proves this
+        // computation matches BuildRegroupingProposal's own aim point, not
+        // just an assertion about the test's private arithmetic.
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            CreateAgentAtRawPosition(2, factionId: 0, rallyXRaw, rallyYRaw, scenario),
+            CreateAgentAtRawPosition(
+                5, factionId: 0, expectedAimXRaw, expectedAimYRaw, scenario),
+            CreateAgentAtRawPosition(100, factionId: 1, enemyXRaw, rallyYRaw, scenario));
+
+        simulation.AdvanceOneTick();
+
+        var follower = AgentByEntityId(simulation, 5);
+        Assert.Equal(AgentIntent.Regrouping, follower.Intent);
+        Assert.Equal(MovementResolution.None, follower.MovementResolution);
+    }
+
+    [Fact]
+    public void ARallyAgentWithNoTargetStillGathersItsFollowers()
+    {
+        // A tight 50-world-unit perception range puts the enemy inside the
+        // follower's view (40 units away) but outside the rally agent's (940
+        // units away), so the rally agent has no target at all. The trail
+        // fallback in that case is the rally agent's raw position (no
+        // trail), matching the pre-fix formula.
+        var baseScenario = CreateTestScenario(lastStandThreshold: 2);
+        var scenario = baseScenario with
+        {
+            PerceptionRangeRaw = checked(50 * FixedPoint.Scale),
+        };
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            CreateAgent(2, factionId: 0, x: 1000, y: 1000, scenario),
+            CreateAgent(5, factionId: 0, x: 1000, y: 1900, scenario),
+            CreateAgent(100, factionId: 1, x: 1000, y: 1940, scenario));
+
+        var before = AgentByEntityId(simulation, 5);
+
+        simulation.AdvanceOneTick();
+
+        var rally = AgentByEntityId(simulation, 2);
+        var after = AgentByEntityId(simulation, 5);
+
+        Assert.Null(rally.TargetEntityId);
+        Assert.Equal(AgentIntent.Regrouping, after.Intent);
+        Assert.True(
+            after.YRaw < before.YRaw,
+            "Expected the follower to still move toward its rally agent " +
+            "even though the rally agent has no target of its own (the " +
+            "no-target trail fallback).");
     }
 
     [Fact]
@@ -342,6 +444,10 @@ public sealed class LastStandFormationTests
         // map, not off toward this raw coordinate.
         var farOutsideRallyXRaw = checked(mapWidthRaw + 500_000);
         var rallyYRaw = checked(1000 * FixedPoint.Scale);
+        // The enemy is far enough away (beyond the rally agent's perception
+        // range) that the rally agent has no target, so the trail fallback
+        // applies: the trail base is the rally agent's own raw position, no
+        // trail term, matching the pre-fix formula exactly.
         var (offsetXRaw, offsetYRaw) = RallyOffset.Compute(
             scenario.Seed,
             entityId: 5,
@@ -563,6 +669,66 @@ public sealed class LastStandFormationTests
             $"tick {simulation.Tick} of {scenario.TickLimit}, outcome " +
             $"{simulation.Outcome}, living counts " +
             $"[{livingFaction0}, {livingFaction1}].");
+    }
+
+    /// <summary>
+    /// Load-bearing regression lock for the follower-trailing fix. Before
+    /// the fix, a follower whose jitter offset pointed along its rally
+    /// agent's own direction of travel could park directly in front of that
+    /// rally agent and block it forever; two factions doing this at once
+    /// deadlocked the whole battle at the tick limit with zero casualties.
+    /// Observed concretely, before the fix: seed 5 stalled at a threshold of
+    /// 6, and seeds 2 and 6 stalled at a threshold of 9. Every seed here
+    /// runs at <see cref="FormationRules.MaximumLastStandThresholdAgents"/>,
+    /// the tightest formation the design permits, so this is the worst case
+    /// for the deadlock this test guards against.
+    /// </summary>
+    [Fact]
+    public void NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwenty()
+    {
+        const int TotalAgents = 18;
+        var stalledSeeds = new List<string>();
+
+        for (ulong seed = 1; seed <= 20; seed++)
+        {
+            var scenario = Scenario.CreateDefault(seed, totalAgents: TotalAgents) with
+            {
+                LastStandThresholdAgents = FormationRules.MaximumLastStandThresholdAgents,
+            };
+            var simulation = BattleSimulation.Create(scenario);
+
+            while (simulation.Outcome == BattleOutcome.Ongoing &&
+                simulation.Tick < scenario.TickLimit)
+            {
+                simulation.AdvanceOneTick();
+            }
+
+            // A battle that only reaches its terminal outcome because the
+            // tick limit forces one (see BattleSimulation's Tick >=
+            // TickLimit => Draw rule) is a stall, regardless of what the
+            // forced outcome reports. Reaching the tick limit at all — not
+            // the specific Outcome value — is the failure signal.
+            if (simulation.Tick < scenario.TickLimit)
+            {
+                continue;
+            }
+
+            var livingFaction0 = simulation.Agents.Count(
+                agent => agent.FactionId == 0 && agent.IsAlive);
+            var livingFaction1 = simulation.Agents.Count(
+                agent => agent.FactionId == 1 && agent.IsAlive);
+            stalledSeeds.Add(
+                $"seed {seed}: stalled at tick {simulation.Tick} of " +
+                $"{scenario.TickLimit}, outcome {simulation.Outcome}, " +
+                $"living counts [{livingFaction0}, {livingFaction1}], " +
+                "longest blocked streak " +
+                $"{simulation.LongestBlockedStreakTicks} ticks.");
+        }
+
+        Assert.True(
+            stalledSeeds.Count == 0,
+            "The following seeds never reached a terminal outcome before " +
+            $"the tick limit:\n{string.Join('\n', stalledSeeds)}");
     }
 
     private static AgentState CreateAgentAtRawPosition(
