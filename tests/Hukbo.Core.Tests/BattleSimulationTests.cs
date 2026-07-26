@@ -89,10 +89,17 @@ public sealed class BattleSimulationTests
             AttackRangeRaw = 12 * FixedPoint.Scale,
             AttackCooldownTicks = 2,
         };
+
+        // Placed already in body contact, one world unit apart against a
+        // half-unit radius. Agents now close to contact rather than halting at
+        // reach, so a pair starting at reach would still be advancing on the
+        // second tick and the feed would not be quiet. Starting in contact is
+        // what makes the second tick genuinely empty, which is the condition
+        // this test needs in order to observe the retained snapshot.
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
             CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
-            CreateAgent(2, factionId: 1, x: 22, y: 10, scenario));
+            CreateAgent(2, factionId: 1, x: 11, y: 10, scenario));
 
         simulation.AdvanceOneTick();
         var retainedEvents = simulation.LastEvents;
@@ -225,7 +232,13 @@ public sealed class BattleSimulationTests
     public void RepeatedCollisionTicksHaveBoundedAllocations()
     {
         const int measuredTicks = 1_000;
-        const long maximumAllocatedBytes = 500_000;
+
+        // Raised from 500,000 when agents began closing to body contact instead
+        // of halting at reach: the crowd now jostles every tick, so far more
+        // Move events are emitted. This ceiling tracks event traffic, which the
+        // collision stage does not own. The window comparison below is the
+        // assertion that actually guards collision storage.
+        const long maximumAllocatedBytes = 900_000;
         const int agentsPerFaction = 12;
 
         // Crowd two lines into one another so the resolver works every tick:

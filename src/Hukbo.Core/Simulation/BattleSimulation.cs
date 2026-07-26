@@ -410,7 +410,13 @@ public sealed class BattleSimulation
                 continue;
             }
 
-            agent.Intent = IsWithinAttackRange(agent, selectedDistance)
+            // An agent keeps advancing until its body meets the target's, even
+            // once the target is already inside reach. Attacking is reserved
+            // for an agent that has arrived. One that strikes while still
+            // closing is re-marked Attacking by attack gathering, so a
+            // spectator still sees it fighting.
+            agent.Intent = selectedDistance <= CollisionGeometry
+                .ContactSquaredDistance(Scenario.BodyRadiusRaw)
                 ? AgentIntent.Attacking
                 : AgentIntent.Moving;
         }
@@ -539,7 +545,9 @@ public sealed class BattleSimulation
                     agent.IsAlive));
         }
 
-        _collision.Grid.Rebuild(_collision.Bodies, Scenario.BodyRadiusRaw);
+        _collision.Grid.Rebuild(
+            _collision.Bodies,
+            _collision.ContactBandRadiusRaw);
 
         var contactDistanceRaw = checked(2 * Scenario.BodyRadiusRaw);
         var contactPairs = 0;
@@ -766,7 +774,16 @@ public sealed class BattleSimulation
         var deltaY = (long)target.YRaw - agent.YRaw;
         var distanceSquared = checked((deltaX * deltaX) + (deltaY * deltaY));
         var distance = IntegerSquareRoot(distanceSquared);
-        var desiredMovement = Math.Max(1, distance - agent.AttackRangeRaw);
+
+        // Agents close to body contact, not merely to weapon reach. Stopping at
+        // reach left four world units of permanent air between opposing front
+        // ranks, so bodies never touched and the collision stage only ever saw
+        // allies queueing. Attacks still resolve at reach, which is wider than
+        // the diameter, so a rank pressed into contact fights and the rank
+        // behind it can reach past.
+        var desiredMovement = Math.Max(
+            1,
+            distance - checked(2 * Scenario.BodyRadiusRaw));
         var movement = Math.Min(agent.MovementSpeedRaw, desiredMovement);
         var moveX = checked(deltaX * movement / Math.Max(1, distance));
         var moveY = checked(deltaY * movement / Math.Max(1, distance));

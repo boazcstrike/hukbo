@@ -65,7 +65,15 @@ internal sealed class CollisionScratch
 
     internal CollisionScratch(Scenario scenario, int agentCount)
     {
-        Grid = new CollisionUniformGrid(checked(2 * scenario.BodyRadiusRaw));
+        // A solid resolver guarantees every living pair ends the tick at or
+        // beyond the contact distance, so "touching" would mean a squared
+        // distance of exactly (2R)^2 — a Pythagorean coincidence on an integer
+        // lattice, and unreachable in practice. Contact is therefore counted
+        // over a band: bodies within one movement step of touching are pressed
+        // together as far as a spectator is concerned.
+        ContactBandRadiusRaw = checked(
+            scenario.BodyRadiusRaw + (scenario.MovementSpeedRaw / 2));
+        Grid = new CollisionUniformGrid(checked(2 * ContactBandRadiusRaw));
         Resolver = new CollisionResolver(
             scenario.BodyRadiusRaw,
             checked(scenario.MapWidth * FixedPoint.Scale),
@@ -81,6 +89,12 @@ internal sealed class CollisionScratch
     /// as it commits them.
     /// </summary>
     internal CollisionUniformGrid Grid { get; }
+
+    /// <summary>
+    /// Half the proximity band used for contact metrics: one body radius plus
+    /// half a movement step. Metrics only — no rule consults this.
+    /// </summary>
+    internal int ContactBandRadiusRaw { get; }
 
     internal CollisionResolver Resolver { get; }
 
