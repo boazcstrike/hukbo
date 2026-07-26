@@ -1,8 +1,8 @@
 # Weapon Clash, Swing Animation, and Clash Sound — Design
 
 Date: 2026-07-27
-Revision: 3. Revision 2 answered two review gates; revision 3 rebuilds the whole tuning
-model on research round two, which corrected a composition error in its own section 5.
+Revision: 4. Revision 3 rebuilt the tuning model on research round two; revision 4 opens the
+ruleset injection seam, corrects the void discoverability claim, and fixes the test oracles.
 Status: design only. A design document does not authorize implementation.
 Plan: [2026-07-27-weapon-clash.md](2026-07-27-weapon-clash.md)
 Research: [docs/research/WEAPON_CLASH_1500s.md](../research/WEAPON_CLASH_1500s.md)
@@ -222,6 +222,13 @@ hard-share clamp bounds, and one interception ceiling.
 
 **Scalars**: hard-share clamp 500 to 6000; `MaximumInterceptionBasisPoints` 5500.
 
+**Both clamps are guard-only and neither binds with shipped values.** The hard-share
+product spans `1200 * 700 / 1000 = 840` at the light end to `4000 * 1150 / 1000 = 4600`
+at the heavy end, comfortably inside 500 to 6000, and the largest total interception is
+4000 against a ceiling of 5500. Every test that exercises either clamp therefore
+constructs a synthetic `ClashProfile`. A clamp test written against
+`PhilippineCombatPreset` is unwritable, because neither bound is reachable.
+
 The resolution is computed in this exact order, every division truncating toward zero:
 
 1. `shield = ShieldIntercept[defenderShield]`
@@ -230,8 +237,26 @@ The resolution is computed in this exact order, every division truncating toward
 4. `total = shield + weapon + void`; if `total` exceeds 5500, all three channels are
    rescaled by `5500 / total` in the same integer form, so their proportions survive
 5. `hardShare = clamp(HardBase[attackerWeapon] * HardMultiplier[defenderWeapon] / 1000, 500, 6000)`
-6. `hard = weapon * hardShare / 10000` and `soft = weapon - hard`, so the two always sum
-   back to `weapon` exactly and truncation cannot leak or invent a basis point
+6. `hard = weapon * hardShare / 10000` and `soft = weapon - hard`
+
+**Step 6 splits the post-rescale weapon channel, never the pre-rescale one.** This
+sentence is normative and the naive oracle is required to cite it. Step 4 may reduce
+`weapon`, and if step 6 split the pre-rescale value then `hard + soft` would no longer
+equal the `weapon` the interval walk uses, and the five intervals would stop tiling the
+roll space. Splitting the rescaled value keeps `hard + soft` exactly equal to `weapon`,
+so truncation can neither leak nor invent a basis point. Revision 3 left the order
+unstated, which would have let the resolver and its supposedly independent oracle
+inherit the same misreading from the same sentence, and the sweep would then have agreed
+with itself.
+
+The rescale carries two further obligations. Each of the three channels is rescaled
+independently and each division truncates, so the post-rescale total lands at or below
+the ceiling with a small unallocated residue that silently becomes additional `Landed`
+probability. That is accepted, but it must be asserted rather than assumed: no channel
+may go negative, the post-rescale total may never exceed the ceiling, and the channel
+proportions must survive the rescale. With the shipped tables the largest total is 4000
+against a ceiling of 5500, so **the rescale branch is unreachable in production** and is
+exercised only by synthetic profiles.
 
 Worked example, `GreatBlade` with no shield defending against a `HeavyChopper`: shield
 is 0, weapon is 1900, void is 1000, total 2900, no rescale. Hard share is
@@ -265,12 +290,30 @@ with shipped values and exists only as a guard against a future tuning pass.
 Both are required, and both come from research section 5.2.
 
 **Criterion one, interception share.** The defence-attributable non-landed share over a
-whole 200-agent battle must fall in **0.30 to 0.40, centre 0.33**, and the change
-**fails outside 0.25 to 0.45**. It is measured as shield intercepts plus weapon
-intercepts plus voids, divided by accepted attack attempts against a defender in reach.
-It is deliberately **not** measured as total non-landed including any future
-attacker-accuracy failure, because that band would move whenever unrelated code
-changed. The `CombatMetrics` record is shaped to report exactly this ratio.
+whole 200-agent battle is measured as shield intercepts plus weapon intercepts plus
+voids, divided by **accepted attacks**. Every accepted attack is already in reach by the
+`IsWithinAttackRange` gate at `src/Hukbo.Core/Simulation/BattleSimulation.cs:643`, so no
+further qualifier belongs in the denominator; a narrower one would not match what
+`CombatMetrics` counts. It is deliberately **not** measured as total non-landed
+including any future attacker-accuracy failure, because that band would move whenever
+unrelated code changed.
+
+**There is exactly one enforced threshold, and it is the wide one.** The change **fails
+outside 0.25 to 0.45**, and that single band lives in one test,
+`DefenceAttributableNonLandedShareStaysInsideTheAcceptanceBand`. The narrower 0.30 to
+0.40 with centre 0.33 is the **design target**: it is what the shipped tables aim at and
+what a re-tune steers back toward, and it is deliberately **not** a second gate.
+Enforcing two thresholds in two places is how a plan acquires an undefined re-tune
+trigger, and revision 3 had exactly that, with the test at the wide band and the human
+gate at the narrow one.
+
+The distinction matters more than it looks. The shipped unweighted mean is 0.325, only
+0.025 above the narrow floor, and the **measured share drifts upward over a run**:
+shielded loadouts intercept at 0.3925 while shieldless sit at 0.2225 and 0.2925, so
+shielded warriors outlive shieldless ones and receive a rising share of all attacks as
+the battle proceeds. A whole-battle measurement is therefore expected to land above the
+static mean, and a run measuring 0.36 is behaving correctly rather than drifting out of
+tolerance.
 
 **Criterion two, termination.** Across a sweep of at least twenty seeds at 200 agents,
 **at least 95 per cent of battles must reach a winner before the tick cap, and the
@@ -286,6 +329,16 @@ battle stalls at 0.48 it may still stall at 0.33, and no interception figure ins
 defensible band will rescue it. If criterion two fails, the correct response is to look
 at the attack rate and the damage per landed blow before touching the clash tables at
 all.
+
+**If the two criteria genuinely conflict, the plan stops.** Section 2.3 settles the
+direction, termination wins and interception is lowered, but lowering it below 0.25
+fails criterion one, and the research floor of 0.15 is the hard limit below which the
+universal equipment record becomes inexplicable. There is therefore a band in which no
+authorized move exists. In that case the implementer **halts, records the measured
+interception share and the twenty-seed termination figures, and escalates to a human to
+amend the band in this document before any table or any assertion is touched.** Silently
+widening a test band to accommodate a tuning failure is forbidden, and plan section 6
+forbids weakening an assertion, so without this escalation the two rules deadlock.
 
 #### Same-tick conflict rule
 
@@ -432,22 +485,41 @@ Five outcomes, four discovery channels, none of which requires reading source.
 | Animation | the swing impact phase | A landed blow follows through, a clashed blow recoils, an evaded blow swings clean through empty air |
 | Visual effect | a small bright cross at the contact midpoint | Appears for the three contact outcomes and for neither a landed blow nor a void |
 
-**Void is discoverable, contrary to revision 2.** Revision 2 rejected it on the grounds
-that nothing visible or audible happens. That was the wrong reading. A void is the only
-outcome that produces a full swing with **no contact sound, no cross, no recoil, and no
-damage**, and against four neighbours that all produce one of those, its absence is the
-signal. It is the difference between a blow being stopped and a blow missing, and a
-spectator hears it immediately because the battle sounds thinner where footwork is
-working.
+**Void is discoverable, but by fewer channels than the other four, and this document
+states that honestly rather than claiming parity.** Revision 2 rejected the void outright
+because nothing visible or audible happens; revision 3 over-corrected and credited it
+with the same four independent channels as the rest. Neither is right.
+
+For `Evaded` the honest accounting is **one positive channel and three absences**: the
+event-log line is the only thing that names it, while the missing cue, the missing cross,
+and the missing blood are each an absence a spectator must notice rather than perceive.
+Absences are real signals, and each is well covered by an automated test, but three
+absences are not three independent discovery channels.
+
+The animation channel needs the same correction. It separates the three contact outcomes
+from everything else, because only a contact outcome recoils. Left as revision 3 had it,
+`Landed` and `Evaded` were the **same motion** — a follow-through — so the animation
+distinguished `{contact}` from `{landed, evaded}` and could not name the fifth outcome at
+all. **`Landed` therefore gets its own pose branch**: a landed blow follows through and
+stops on the target, an evaded blow follows through past it. Three pose classes rather
+than two, so the animation carries the distinction that matters.
+
+The claim this document makes is therefore narrower and checkable: **a spectator can
+discover the clash system through any one of the four channels; a spectator can separate
+`Evaded` from `ShieldBlocked` through any of them, and can separate `Evaded` from
+`Landed` through the event log, the animation, or the blood.** No claim is made that the
+battle sounds different in aggregate where footwork is working; that formulation is
+unfalsifiable and is withdrawn.
 
 The absence channel generally matters as much as the presence channel. A spectator who
 has watched a few battles will read "he swung, there was a ring, and nothing happened to
 the other man" without being told anything.
 
-**Can a spectator discover this effect without reading source code? Yes**, through any
-one of those four channels independently. That redundancy is deliberate: the event log
-works with the sound muted, the sound works with the log closed, and the animation works
-at any zoom where a pawn is visible.
+Because the `Evaded` claim is the weakest of the five, the smoke checklist carries **two
+separate rows** for it: one asking whether a void is distinguishable from a block, and
+one asking whether a void is distinguishable from a landed blow. The second is the
+question that actually decides whether the fifth outcome earns its place, and revision 3
+had no row asking it.
 
 Two channels have a live defect risk, and both are now owned by named tasks.
 
@@ -542,11 +614,60 @@ list is a task that must complete **before** the attack stage is touched.
 | `BattleSimulationTests.cs:677 MultipleAttackersOnOneTargetRetainIndividualHitLocationsButOneAggregatedDamageEvent` | Aggregation now sums only landed attacks. | **Needs a clash-neutral tuple.** |
 | `BattleSimulationTests.cs:411 CanonicalTwoHundredAgentBattleTerminatesWithinTheTickLimit` | Battles get about 1.48 times longer. | **Survives as written**, since the predicted terminal tick near 975 is far inside 10,000. It is also the cheapest early warning that interception is too high, so it runs before the full gate. |
 | `PhilippineCombatIntegrationTests.cs:427 Regression_SameTickMutualDeathEventsPrecedeTheOutcomeEventInEmissionOrder` | Requires both lethal blows to land. | **Needs a clash-neutral tuple.** Emission order is the property. |
-| `PhilippineCombatIntegrationTests Regression_AggregateDamagePerTargetPerTickEqualsSumOfIndividualAttackValues` | Compares aggregated damage against the sum of individual attack values. | **Survives, but only because a non-landed attack is emitted with a value of zero.** That coupling is load-bearing: if a later change suppressed the attack event instead of zeroing its value, this test would silently start comparing a shorter list. The coupling is recorded in a comment on the test. |
-| `CombatConfigurationTests.cs:268` and `:324` | Construct `CombatRuleset` with named arguments and no clash profile. | **Survive unmodified**, because the new constructor parameter is optional and defaults to a neutral all-zero profile. That default is also what makes the control test in section 9 cheap to build. |
+| `PhilippineCombatIntegrationTests.cs:367 Regression_AggregateDamagePerTargetPerTickEqualsSumOfIndividualAttackValuesAcrossAFullBattle` | Compares aggregated damage against the sum of individual attack values. | **Survives, but only because a non-landed attack is emitted with a value of zero.** That coupling is load-bearing: if a later change suppressed the attack event instead of zeroing its value, this test would silently start comparing a shorter list. The coupling is recorded in a comment on the test. |
+| `CombatConfigurationTests.cs:268` and `:324` | Construct `CombatRuleset` with named arguments and no clash profile. | **Survive unmodified**, because the new constructor parameter is optional and defaults to a neutral all-zero profile. |
 | `CombatConfigurationTests.cs:145` and `DeterminismTests.cs:54` | Pin `ContentHash` to `0x59FB4CA563D87A49UL`. | **Re-baselined by a dedicated task**, only after the two content-hash behaviour tests pass. |
 
-There is one more, created by this design rather than broken by it: `BattleEvent.Attack`
+### 5.1 The seam: no simulation can currently be given a ruleset
+
+Revision 3 asserted that the neutral constructor default made the control test cheap to
+build. **That was false**, and it is the largest correction in this revision.
+
+Four call sites fetch the ruleset from the registry and nothing else can supply one:
+
+```
+src/Hukbo.Core/Determinism/StateHasher.cs:15
+src/Hukbo.Core/Simulation/BattleSimulation.cs:90    Create
+src/Hukbo.Core/Simulation/BattleSimulation.cs:166   CreateForTesting
+src/Hukbo.Core/Simulation/Scenario.cs:195           Validate
+```
+
+The private `BattleSimulation` constructor at line 34 does take a `CombatRuleset`, but
+neither factory exposes it, and `CreateForTesting(Scenario, params AgentState[])` takes
+agents only. `CombatPresetId` has exactly one value and section 3.6 keeps it that way.
+The neutral default therefore only ever reaches a directly constructed `CombatRuleset`,
+which no simulation ever uses. Without a seam, the control run in section 9 is not
+constructible, and neither are the five dispositions above that need a clash-neutral
+configuration.
+
+Two changes open the seam, and **both halves are required**.
+
+**An overload that accepts a ruleset.** `internal static BattleSimulation
+CreateForTesting(Scenario, CombatRuleset, params AgentState[])`, alongside the existing
+overload which keeps fetching from the registry.
+
+**`StateHasher.Compute` takes the ruleset as a parameter rather than re-fetching it at
+line 15.** This half is not optional. Without it a simulation running on a neutral
+ruleset would still fold the shipped `ContentHash` into its state hash, and the control
+run would be comparing a hash that never saw the ruleset it was actually using. It is a
+production signature change on a file this design otherwise does not touch, so it needs
+an explicit owner. It is also hash-safe by construction:
+`BattleSimulation.ComputeStateHash` already holds `_rules` and passes exactly what the
+registry would have returned, so no hashed value changes.
+
+**There is no such thing as a clash-neutral loadout pairing.** The minimum total
+interception in the shipped tables is a `HeavyChopper` defending a `ThrustingBlade` at
+1100 weapon plus 0 shield plus 900 void, or 2000 basis points, and every defender has a
+non-zero void channel. So the five dispositions above cannot be met by picking a lucky
+pair of weapons. Meeting them by hand-picking seeds and entity identifiers whose roll
+happens to land would be worse: any re-tune of the tables, and any change to the mixer,
+would silently move those rolls and convert five preserved regression tests into five
+that quietly stop testing what their names claim. **The seam is the only sound
+mechanism**, and every disposition above uses it.
+
+### 5.2 One more, created rather than broken
+
+`BattleEvent.Attack`
 has **twenty call sites across eleven files**, nine of them test files owned by other
 workstreams. Making the resolution parameter required would fail the whole solution build
 and make the first barrier unsatisfiable. **The parameter is therefore optional and
@@ -613,9 +734,33 @@ renderer only consumes it, and the test asserts the layout field.
 **The per-pawn pose resolution loop does not live in `ArenaGame`.** That file is banned
 from tests, so anything in it is untestable by construction. The mapping from the swing
 store and the agent views to a per-pawn pose is extracted into a pure `SwingPoseResolver`,
-and `ArenaGame` keeps only the wiring.
+and `ArenaGame` keeps only the wiring. `SwingPoseResolver` must also pin the **lookup
+shape** a caller uses to fetch one pose inside a draw loop, because that lookup is the
+part that lands in the untestable file, and a resolver whose two tests only cover "no
+swing" and "one pose per swing" leaves it unspecified.
 
-### 6.4 What is explicitly not done
+### 6.4 The render path is four files, not one
+
+Revision 3 named only `ArenaGame.cs`. Verified, the swing pose has to travel through four
+files and one of them is a third-party call site that must not break:
+
+| File and line | What it needs |
+| --- | --- |
+| `src/Hukbo.Client/ArenaGame.Rendering.cs:264` | The actual per-pawn draw loop. Revision 3 did not name this file at all |
+| `src/Hukbo.Client/Rendering/PawnRenderer.cs:37` | `Draw` gains an **optional** pose parameter to reach `PawnGeometry.Create` at line 56 |
+| `src/Hukbo.Client/UI/AgentInspectorPanel.cs:109` | A third `PawnRenderer.Draw` call site, for the inspector portrait. It breaks unless the parameter is optional, and it deliberately passes no pose: a portrait is a still |
+| `src/Hukbo.Client/Rendering/PawnRenderer.cs:26` | `GetBounds` feeds the frustum cull at `ArenaGame.Rendering.cs:254` |
+
+The last row is a real decision rather than an oversight. `GetBounds` takes no pose, so a
+pawn whose swing extends its visual bounds beyond the neutral silhouette can pop at the
+screen edge as the camera moves. **The decision is that culling deliberately uses neutral
+bounds.** Passing the pose into `GetBounds` would make the cull result depend on
+animation phase, so a pawn could flicker in and out of the draw list as its own swing
+advanced, which is a worse artefact than a brief edge pop and a harder one to reproduce.
+The neutral bounds are already inflated by the selection padding in `PawnGeometry`, which
+absorbs most of the swing extent. This is recorded so it is not later filed as a bug.
+
+### 6.5 What is explicitly not done
 
 No hit stop, no screen shake, no full-screen flash. All three break down at 200 agents,
 and `hukbo-client-ui` already forbids letting a visual effect gate, pause, or reorder
@@ -733,43 +878,112 @@ Three mechanisms fix that, and all three are mandatory rather than nice to have.
 
 **A naive reference oracle.** `tests/Hukbo.Core.Tests/NaiveClashResolution.cs`, following
 the conventions of the existing `NaiveCollisionPairs.cs`, reimplements the six-step
-pipeline independently in `long` arithmetic and **calls no production helper**. The
-resolver is then swept against it across the whole roster matrix: four attacker weapons by
-four defender weapons by two shields by ticks 1 to 200. This is the only thing that catches
-a sign error, a rescale that charges the clamp to one channel, or a truncation that leaks a
-basis point — all of which pass every distribution test as long as they do so consistently.
-Section 9 of the standards requires exactly this pattern for optimized logic, and the
-collision work already set the precedent.
+pipeline independently in `long` arithmetic and **calls no production helper**. Its
+comment cites the step-6 ordering sentence in section 3.3 verbatim, because an oracle is
+only independent if the specification it is written from is unambiguous. This is the only
+thing that catches a sign error, a rescale that charges the ceiling to one channel, or a
+truncation that leaks a basis point, all of which pass every distribution test as long as
+they do so consistently. Section 9 of the standards requires this pattern for optimized
+logic and the collision work already set the precedent.
 
-**A zero-interception control run.** A `ClashProfile` with every interception value at zero
-must reproduce the **pre-change ordered event stream exactly** for seed 1: identical kind,
-sequence, source, target, and value on every event, every resolution reading `Landed`, and
-a state hash differing from the pre-change value **only** by the `ContentHash` fold. This
-is the single highest-value test in the plan. It isolates the four intended hash-movement
-mechanisms in section 3.6 from any unintended fifth one, and it is cheap because the new
-constructor parameter already defaults to a neutral profile.
+**The sweep must not read `PhilippineCombatPreset`.** Two failure modes follow if it does.
+At barrier B1 the ruleset default is `ClashProfile.Neutral`, so every channel is zero and
+every resolution is `Landed`; a sweep reading the preset would have the stub and the
+oracle agree on all 6,400 tuples and **pass green while proving nothing**. And a mixer
+vector pinned against the preset cannot have its expected values derived until the tables
+are populated, so they end up pasted from output afterwards, which restores the
+self-fulfilling golden the oracle exists to prevent. Every resolver test therefore
+constructs an **explicit literal `ClashProfile` written out in the test file** using the
+section 3.3 values. That also decouples the sweep from any later re-tune.
 
-**Pinned mixer vectors at the existing standard.** `HitLocationResolverTests.cs:24-32` pins
-eight `[InlineData]` rows covering seed 0 and `ulong.MaxValue`, tick 0 and `long.MaxValue`,
-all four weapons and both shields, **and the resulting `BodyPart`**, with a comment stating
-how the expected values were derived independently. The clash mixer matches that standard:
-at least eight rows, pinning both the roll and the resulting `AttackResolution`, with the
-derivation method in a comment. A single mid-range tuple with no pinned outcome, as
-revision 1 proposed, is self-fulfilling.
+**The sweep runs twice: once over the shipped tables and once over synthetic
+over-ceiling profiles.** The shipped tables top out at 4000 against a ceiling of 5500, so
+a sweep restricted to them never enters the rescale branch at all.
+
+**A zero-interception control run, against a committed fixture.** A `ClashProfile` with
+every interception value at zero, injected through the section 5.1 seam, must reproduce
+the **pre-change ordered event stream exactly** for seed 1 at 200 agents: identical kind,
+sequence, source, target, and value on every event, and every resolution reading
+`Landed`. This is the single highest-value test in the plan, because it isolates the four
+intended hash-movement mechanisms in section 3.6 from any unintended fifth one.
+
+It has two prerequisites that revision 3 left implicit and that make or break it.
+
+**The comparand must be captured before the resolver exists.** "The pre-change ordered
+event stream" is not available after Phase 2 — at that point the only thing to compare
+against is the same binary running with a neutral profile, which proves that zero
+interception yields `Landed` and nothing whatever about the pre-change behaviour. That is
+precisely the self-fulfilling shape this test was added to eliminate. The stream, or its
+FNV-1a fold together with the per-event field tuples, is therefore captured from
+**unmodified `main`** and committed as a fixture under `tests/Hukbo.Core.Tests/` in Phase
+0, before any resolver code is written.
+
+**The state-hash half of the revision-3 wording is dropped, because it is not a decidable
+operation.** "The state hash differs only by the `ContentHash` fold" cannot be evaluated:
+FNV-1a is a linear fold and one cannot inspect an output and conclude that exactly one
+input word changed. The replacement is a fixture comparison on the event stream plus a
+direct field-by-field comparison of final agent state. The only honest hash form would be
+to construct a version-1 ruleset whose `ContentHash` is `0x59FB4CA563D87A49UL` and assert
+the state hash equals `D78F0B527B7F938F` exactly — which the in-place `Version` bump makes
+awkward to build, so it is not required. The fixture comparison carries the weight.
+
+**Pinned mixer vectors at the existing standard.** `HitLocationResolverTests.cs:24-32`
+pins eight `[InlineData]` rows covering seed 0 and the maximum unsigned seed, tick 0 and
+the maximum tick, all four weapons and both shields, **and the resulting `BodyPart`**,
+with a comment stating how the expected values were derived independently. The clash
+mixer matches that standard: at least eight rows, pinning both the roll and the resulting
+resolution, with the derivation method in a comment, against an explicit literal profile.
+
+One addition the hit-location precedent does not need: **at least one pinned row per
+resolution value, all five.** Void sits at roughly 1000 of 10,000 and is the newest
+interval and the only one bounded on both sides, so eight arbitrarily chosen tuples may
+never produce an `Evaded` at all and the interval nobody has exercised is exactly the one
+most likely to be wrong.
 
 Beyond the three oracles, three categories of case that revision 1 omitted entirely:
 
-**Boundary values.** A total of exactly 5500 must not rescale while 5501 must; the roll
-exactly at each of the four interval edges must select the documented side; a zero-width
-channel must never be selected; a total interception of zero must always land; the
-hard-share clamp must bind at both 500 and 6000; and `ClashProfile` must accept the exact
-range bounds and reject one step outside each, including rejecting zero for
-`MaximumInterceptionBasisPoints` where the lower bound is one.
+**Boundary values, every one against a synthetic profile.** A total of exactly 5500 must
+not rescale while 5501 must; the rescale must preserve channel proportions, leave no
+channel negative, and never exceed the ceiling; the roll exactly at each of the four
+interval edges must select the documented side; a zero-width channel must never be
+selected; a total interception of zero must always land; the hard-share clamp must bind
+at both 500 and 6000; and `ClashProfile` must accept the exact range bounds and reject
+one step outside each, including rejecting zero for `MaximumInterceptionBasisPoints`
+where the lower bound is one. Neither clamp is reachable with shipped values, so a
+boundary test written against the preset is unwritable rather than merely weak.
 
-**Dead and missing references.** In Core, a proposal whose target died in an earlier stage.
-In the client, an attack event naming an entity absent from the supplied agent views, for
-both the swing system and the clash effect system, following the `ResolveDirection`
-precedent.
+**The thirty-two shipped values, pinned by table.** Nothing in the oracle strategy above
+constrains a transcription error: the naive sweep compares two implementations reading
+the *same* profile, so a wrong digit in any of the sixteen matrix cells is invisible to
+it, and a presence check only proves a value exists. The repository already has the right
+pattern in `CombatConfigurationTests.PhilippinePreset_UsesApprovedWeaponOverrides` at
+line 62, which pins every hit-location weight by `[InlineData]`. The clash values get the
+same treatment, plus a second test asserting that the four row means reproduce the
+totals in section 3.3 — 2925, 2225, 3925, 3925 — which is the cheapest possible check
+that the tables were entered as designed.
+
+**Mixed-resolution aggregation.** A damage event disappears only when *every* attack on a
+target is non-landed, and the single existing multi-attacker test is one of the ones
+neutralised in section 5. Two attackers on one target, one landing and one not, must
+produce exactly one damage event carrying exactly one blow of damage.
+
+**Dead and missing references.** In the client, an attack event naming an entity absent
+from the supplied agent views, for both the swing system and the clash effect system,
+following the `ResolveDirection` precedent. In Core there is no dead-target case to write:
+deaths are applied in the third loop of `GatherAndCommitAttacks` at
+`src/Hukbo.Core/Simulation/BattleSimulation.cs:699-716`, after gathering, and a target
+killed on an earlier tick is refused by the `!target.IsAlive` guard at `:640`, so no
+reachable state produces a proposal against a dead target. The real case, and the one
+that is written, is a target driven to zero hit points by the *aggregate* of several
+attacks in one tick: every contributing attack must still emit its own event carrying its
+own resolution.
+
+**Metrics, at the patterns the repository already uses.** `HeadlessRunnerTests.cs:259`
+and `:311` already carry `Run_CollisionMetricsSurviveAJsonRoundTrip` and
+`Run_SerializesByteIdenticalCollisionMetricsForTwoSameSeedRuns` for an identically shaped
+record; the second is the one that catches a metric leaking non-determinism. Combat
+metrics get both. The derived interception ratio also needs a defined value when no
+attack was accepted, because the criterion-one band test reads it.
 
 **The interception-share and termination criteria.** Criterion one is asserted as a band
 over the 200-agent run rather than eyeballed from a report. Criterion two needs a seed
@@ -793,6 +1007,16 @@ or below 5,000.
 | A tuning constant is read as a historical measurement | Medium | Every table carries the research statement that all sixteen weapon-intercept cells have zero evidentiary confidence, tests assert bands rather than values, and the research document is never written back into |
 
 ## 11. Not in scope
+
+**No per-agent inspector field is added.** `MovementResolution` exists on `AgentView`
+because a packed 200-agent front generates thousands of contacts per tick and a
+per-contact event would drown a 200-row feed. An accepted attack is already one event per
+attack, at most a few dozen per tick, so the event that already exists is the right
+carrier and a per-agent field would put a fifth value into the state hash to carry
+information the event already carries. This paragraph exists because revision 3 dropped it
+and the question is otherwise certain to be re-litigated.
+
+Also not in scope:
 
 Weapon durability, edge notching, the shield angled-versus-flat mode split, per-weapon
 reach, agent facing, fatigue, morale, a limb-interception channel, a spear, a buckler,
