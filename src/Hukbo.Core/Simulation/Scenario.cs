@@ -40,6 +40,15 @@ public sealed record Scenario(
 
     public CollisionPolicy CollisionPolicy { get; init; } = CollisionPolicy.Solid;
 
+    /// <summary>
+    /// The living-warrior count, per faction, at or below which the
+    /// last-stand rally formation engages. Zero (the record default) disables
+    /// the behaviour entirely; production scenarios enable it through
+    /// <see cref="CreateDefault"/>. This is a game-design tuning value, not a
+    /// historical measurement — see <see cref="FormationRules"/>.
+    /// </summary>
+    public int LastStandThresholdAgents { get; init; }
+
     public CombatPresetId CombatPreset { get; init; } =
         CombatPresetId.PrecolonialPhilippinesV1;
 
@@ -90,6 +99,9 @@ public sealed record Scenario(
             PerceptionRangeRaw == other.PerceptionRangeRaw &&
             MovementSpeedRaw == other.MovementSpeedRaw &&
             AttackCooldownTicks == other.AttackCooldownTicks &&
+            BodyRadiusRaw == other.BodyRadiusRaw &&
+            CollisionPolicy == other.CollisionPolicy &&
+            LastStandThresholdAgents == other.LastStandThresholdAgents &&
             CombatPreset == other.CombatPreset &&
             RosterCountsSpan.SequenceEqual(other.RosterCountsSpan);
     }
@@ -109,6 +121,9 @@ public sealed record Scenario(
         hash.Add(PerceptionRangeRaw);
         hash.Add(MovementSpeedRaw);
         hash.Add(AttackCooldownTicks);
+        hash.Add(BodyRadiusRaw);
+        hash.Add(CollisionPolicy);
+        hash.Add(LastStandThresholdAgents);
         hash.Add(CombatPreset);
         foreach (var count in RosterCountsSpan)
         {
@@ -138,7 +153,10 @@ public sealed record Scenario(
             DefaultMapHeight,
             totalAgents / 2,
             TickRate: 20,
-            TickLimit: 10_000);
+            TickLimit: 10_000)
+        {
+            LastStandThresholdAgents = FormationRules.DefaultLastStandThresholdAgents,
+        };
         scenario.Validate();
         return scenario;
     }
@@ -236,6 +254,22 @@ public sealed record Scenario(
         }
 
         ValidateCollisionConfiguration();
+
+        ValidateInRange(
+            LastStandThresholdAgents,
+            0,
+            FormationRules.MaximumLastStandThresholdAgents,
+            nameof(LastStandThresholdAgents));
+
+        if (LastStandThresholdAgents > 0 && 8L * BodyRadiusRaw + 1 > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(BodyRadiusRaw),
+                BodyRadiusRaw,
+                "Body radius is too large: with the last stand enabled, the " +
+                "rally jitter span (8 * BodyRadiusRaw + 1) would overflow " +
+                "Int32.");
+        }
 
         _ = checked(AgentsPerFaction * 2);
         var maximumRawDimension = checked(MaximumMapDimension * FixedPoint.Scale);

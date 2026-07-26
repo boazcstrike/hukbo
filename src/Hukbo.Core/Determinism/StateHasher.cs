@@ -28,6 +28,7 @@ internal static class StateHasher
         Add(ref hash, scenario.AttackCooldownTicks);
         Add(ref hash, scenario.BodyRadiusRaw);
         Add(ref hash, (int)scenario.CollisionPolicy);
+        Add(ref hash, scenario.LastStandThresholdAgents);
         Add(ref hash, (int)scenario.CombatPreset);
         Add(ref hash, rules.ContentHash);
         Add(ref hash, tick);

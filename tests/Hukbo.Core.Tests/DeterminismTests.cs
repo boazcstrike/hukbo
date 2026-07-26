@@ -132,6 +132,28 @@ public sealed class DeterminismTests
         Assert.NotEqual(baseline, changed);
     }
 
+    [Fact]
+    public void StateHashChangesWhenTheLastStandThresholdChanges()
+    {
+        var loadout = new CombatLoadout(
+            WeaponId.GreatBlade,
+            ArmorId.LightOrganic,
+            ShieldId.None);
+        var scenario = Scenario.CreateDefault(seed: 5, totalAgents: 2) with
+        {
+            LastStandThresholdAgents = 0,
+        };
+        var thresholdChanged = scenario with
+        {
+            LastStandThresholdAgents = 6,
+        };
+
+        var baseline = ComputeSingleAgentStateHash(scenario, loadout);
+        var changed = ComputeSingleAgentStateHash(thresholdChanged, loadout);
+
+        Assert.NotEqual(baseline, changed);
+    }
+
     private static ulong ComputeSingleAgentStateHash(
         Scenario scenario,
         CombatLoadout loadout)
