@@ -545,6 +545,14 @@ public sealed class BattleSimulation
     /// See the type-level remarks on <see cref="FormationRules"/> for the
     /// clearance derivation.
     /// </remarks>
+    /// <remarks>
+    /// The trail alone is not enough: a follower can start the tick already
+    /// ahead of the rally agent, in which case its trail-behind aim point
+    /// sits on the far side of the leader's own body, and reaching it in a
+    /// straight line means walking backward through the leader. See
+    /// <see cref="TryComputeGiveWayAimPoint"/> for the sideways escape this
+    /// method checks first.
+    /// </remarks>
     private (int XRaw, int YRaw, ulong TargetId)? BuildRegroupingProposal(
         AgentState agent)
     {
@@ -561,7 +569,22 @@ public sealed class BattleSimulation
             return null;
         }
 
-        var (trailBaseXRaw, trailBaseYRaw) = ComputeRallyTrailBase(rallyAgent);
+        var direction = ComputeRallyDirection(rallyAgent);
+
+        if (direction.DistanceRaw > 0 &&
+            TryComputeGiveWayAimPoint(agent, rallyAgent, direction) is
+                { XRaw: var giveWayXRaw, YRaw: var giveWayYRaw })
+        {
+            return BuildMovementProposal(
+                agent,
+                giveWayXRaw,
+                giveWayYRaw,
+                rallyAgent.EntityId);
+        }
+
+        var (trailBaseXRaw, trailBaseYRaw) = ComputeRallyTrailBase(
+            rallyAgent,
+            direction);
 
         var (offsetXRaw, offsetYRaw) = RallyOffset.Compute(
             Scenario.Seed,
@@ -605,22 +628,22 @@ public sealed class BattleSimulation
     }
 
     /// <summary>
-    /// Computes the point <see cref="FormationRules.RallyTrailRadiusMultiplier"/>
-    /// body radii behind the rally agent, opposite the rally agent's own
-    /// direction of travel — the point a follower's jitter offset is added
-    /// to. Falls back to the rally agent's raw position (no trail) when the
-    /// rally agent has no target, or when the rally agent is already exactly
-    /// at its target's position, since there is no direction of travel to
-    /// trail behind in either case. That fallback preserves the pre-fix
-    /// behaviour in that corner, which is otherwise untouched by this
-    /// method's own logic.
+    /// Computes the rally agent's direction of travel — the vector from the
+    /// rally agent to its own enemy target, plus the integer distance between
+    /// them — used both by <see cref="ComputeRallyTrailBase"/> and by
+    /// <see cref="TryComputeGiveWayAimPoint"/> for the corridor test. Returns
+    /// a zero <c>DistanceRaw</c> sentinel, meaning "no direction", when the
+    /// rally agent has no target, when the target cannot be resolved to a
+    /// living agent, or when the rally agent is already exactly at its
+    /// target's position.
     /// </summary>
-    private (int XRaw, int YRaw) ComputeRallyTrailBase(AgentState rallyAgent)
+    private (long DeltaXRaw, long DeltaYRaw, long DistanceRaw) ComputeRallyDirection(
+        AgentState rallyAgent)
     {
         if (rallyAgent.TargetEntityId is not { } rallyTargetId ||
             !_agentIndexes.TryGetValue(rallyTargetId, out var rallyTargetIndex))
         {
-            return (rallyAgent.XRaw, rallyAgent.YRaw);
+            return (0, 0, 0);
         }
 
         var rallyTarget = _agentStates[rallyTargetIndex];
@@ -628,18 +651,124 @@ public sealed class BattleSimulation
         var deltaYRaw = (long)rallyTarget.YRaw - rallyAgent.YRaw;
         var distanceRaw = IntegerSquareRoot(
             checked((deltaXRaw * deltaXRaw) + (deltaYRaw * deltaYRaw)));
-        if (distanceRaw == 0)
+
+        return (deltaXRaw, deltaYRaw, distanceRaw);
+    }
+
+    /// <summary>
+    /// Computes the point <see cref="FormationRules.RallyTrailRadiusMultiplier"/>
+    /// body radii behind the rally agent, opposite the rally agent's own
+    /// direction of travel — the point a follower's jitter offset is added
+    /// to. Falls back to the rally agent's raw position (no trail) when
+    /// <paramref name="direction"/> carries the "no direction" sentinel
+    /// (<c>DistanceRaw == 0</c>), since there is no direction of travel to
+    /// trail behind. That fallback preserves the pre-fix behaviour in that
+    /// corner, which is otherwise untouched by this method's own logic.
+    /// </summary>
+    private (int XRaw, int YRaw) ComputeRallyTrailBase(
+        AgentState rallyAgent,
+        (long DeltaXRaw, long DeltaYRaw, long DistanceRaw) direction)
+    {
+        if (direction.DistanceRaw == 0)
         {
             return (rallyAgent.XRaw, rallyAgent.YRaw);
         }
 
         var trailRaw = FormationRules.ComputeRallyTrailRaw(Scenario.BodyRadiusRaw);
         var trailXRaw = SaturateToInt32(checked(
-            rallyAgent.XRaw - (deltaXRaw * trailRaw / distanceRaw)));
+            rallyAgent.XRaw - (direction.DeltaXRaw * trailRaw / direction.DistanceRaw)));
         var trailYRaw = SaturateToInt32(checked(
-            rallyAgent.YRaw - (deltaYRaw * trailRaw / distanceRaw)));
+            rallyAgent.YRaw - (direction.DeltaYRaw * trailRaw / direction.DistanceRaw)));
 
         return (trailXRaw, trailYRaw);
+    }
+
+    /// <summary>
+    /// Checks whether a regrouping follower's tick-start position falls
+    /// inside its own rally agent's forward give-way corridor and, if so,
+    /// returns a pure-sideways aim point that clears it. Returns
+    /// <see langword="null"/> when the follower is not in the corridor, in
+    /// which case <see cref="BuildRegroupingProposal"/> falls back to the
+    /// ordinary trail-plus-jitter aim point.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Let <c>L</c> be the rally agent's tick-start position, <c>d</c> the
+    /// unit direction from <c>L</c> toward the rally agent's own target (the
+    /// same direction <see cref="ComputeRallyTrailBase"/> trails behind),
+    /// <c>F</c> the follower's tick-start position, and <c>r = F - L</c>.
+    /// <c>forward</c> is the scalar projection of <c>r</c> onto <c>d</c>;
+    /// <c>lateral</c> is the scalar projection of <c>r</c> onto the
+    /// perpendicular of <c>d</c>. The follower is in the corridor when
+    /// <c>forward &gt; 0</c> (ahead of the rally agent) and
+    /// <c>|lateral| &lt; corridor half-width</c>.
+    /// </para>
+    /// <para>
+    /// The escape point is <c>F</c> plus a step purely along the perpendicular
+    /// of <c>d</c>, signed toward the side the follower is already on
+    /// (<c>sign(lateral)</c>) so the step can only move it further from the
+    /// corridor centre, never across it. A follower sitting exactly on the
+    /// leader's axis (<c>lateral == 0</c>) always steps toward the same,
+    /// fixed perpendicular side — never decided by iteration or array order.
+    /// Because the step has no component along <c>d</c>, the follower's
+    /// forward position is unchanged: this is sideways motion only, so the
+    /// follower can never re-enter the corridor by taking this step.
+    /// </para>
+    /// </remarks>
+    private (int XRaw, int YRaw)? TryComputeGiveWayAimPoint(
+        AgentState agent,
+        AgentState rallyAgent,
+        (long DeltaXRaw, long DeltaYRaw, long DistanceRaw) direction)
+    {
+        var relativeXRaw = (long)agent.XRaw - rallyAgent.XRaw;
+        var relativeYRaw = (long)agent.YRaw - rallyAgent.YRaw;
+
+        var forwardRaw = checked(
+            (relativeXRaw * direction.DeltaXRaw) +
+            (relativeYRaw * direction.DeltaYRaw)) / direction.DistanceRaw;
+        if (forwardRaw <= 0)
+        {
+            return null;
+        }
+
+        var lateralRaw = checked(
+            (relativeXRaw * direction.DeltaYRaw) -
+            (relativeYRaw * direction.DeltaXRaw)) / direction.DistanceRaw;
+        var corridorHalfWidthRaw =
+            FormationRules.ComputeRallyCorridorHalfWidthRaw(Scenario.BodyRadiusRaw);
+        if (Math.Abs(lateralRaw) >= corridorHalfWidthRaw)
+        {
+            return null;
+        }
+
+        // Tie-break: exactly on the leader's axis always steps toward the
+        // fixed "+" perpendicular side, so the escape direction never
+        // depends on which side of zero a rounding error happened to land
+        // on, or on the order agents were supplied in.
+        var perpendicularSign = lateralRaw < 0 ? -1L : 1L;
+        var stepOutRaw = checked(corridorHalfWidthRaw + Scenario.BodyRadiusRaw);
+
+        var aimXRaw = SaturateToInt32(checked(
+            agent.XRaw +
+            (perpendicularSign * direction.DeltaYRaw * stepOutRaw /
+                direction.DistanceRaw)));
+        var aimYRaw = SaturateToInt32(checked(
+            agent.YRaw -
+            (perpendicularSign * direction.DeltaXRaw * stepOutRaw /
+                direction.DistanceRaw)));
+
+        var mapWidthRaw = checked(Scenario.MapWidth * FixedPoint.Scale);
+        var mapHeightRaw = checked(Scenario.MapHeight * FixedPoint.Scale);
+        aimXRaw = CollisionGeometry.ClampCenterToBounds(
+            aimXRaw,
+            mapWidthRaw,
+            Scenario.BodyRadiusRaw);
+        aimYRaw = CollisionGeometry.ClampCenterToBounds(
+            aimYRaw,
+            mapHeightRaw,
+            Scenario.BodyRadiusRaw);
+
+        return (aimXRaw, aimYRaw);
     }
 
     /// <summary>

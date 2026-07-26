@@ -731,6 +731,182 @@ public sealed class LastStandFormationTests
             $"the tick limit:\n{string.Join('\n', stalledSeeds)}");
     }
 
+    /// <summary>
+    /// Give-way regression coverage. Before this fix, a follower whose
+    /// tick-start position happened to sit ahead of its own rally agent, on
+    /// the rally agent's line of travel, aimed at a trail point behind the
+    /// leader and had to walk backward through the leader's body to reach
+    /// it. Solid collision then produced a head-on mutual block — the leader
+    /// blocked forward by the follower, the follower blocked backward by the
+    /// leader — that never cleared on its own.
+    /// </summary>
+    [Fact]
+    public void AFollowerStandingInItsLeadersPathStepsAsideRatherThanThroughIt()
+    {
+        // Rally (2) and its enemy target (100) share a Y coordinate, so the
+        // direction of travel is purely +X and every division below is
+        // exact: no square-root rounding to account for.
+        var scenario = CreateTestScenario(lastStandThreshold: 2);
+        var rallyXRaw = checked(1000 * FixedPoint.Scale);
+        var rallyYRaw = checked(1000 * FixedPoint.Scale);
+        var enemyXRaw = checked(rallyXRaw + (200 * FixedPoint.Scale));
+
+        // Ahead of the rally agent (relativeX > 0) and 600 raw units off the
+        // axis — inside the give-way corridor half-width of
+        // 2 * BodyRadiusRaw = 1024 raw units, but far enough past the
+        // one-tick movement step (MovementSpeedRaw = 512) that a single
+        // give-way step is guaranteed to carry it clear of the corridor.
+        var followerXRaw = checked(rallyXRaw + 5_000);
+        var followerYRaw = checked(rallyYRaw + 600);
+
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            CreateAgentAtRawPosition(2, factionId: 0, rallyXRaw, rallyYRaw, scenario),
+            CreateAgentAtRawPosition(
+                5, factionId: 0, followerXRaw, followerYRaw, scenario),
+            CreateAgentAtRawPosition(100, factionId: 1, enemyXRaw, rallyYRaw, scenario));
+
+        simulation.AdvanceOneTick();
+
+        var after = AgentByEntityId(simulation, 5);
+        Assert.Equal(AgentIntent.Regrouping, after.Intent);
+        Assert.NotEqual(MovementResolution.Blocked, after.MovementResolution);
+
+        // Forward projection unchanged: the give-way step has no component
+        // along the leader's direction of travel (here, raw X), so X must
+        // not move at all in this axis-aligned setup.
+        Assert.Equal(followerXRaw, after.XRaw);
+
+        // Left the corridor: the follower's distance from the leader's axis
+        // (here, raw Y, since the axis is horizontal) must now be at or
+        // beyond the corridor half-width, and it must have grown, not
+        // shrunk or reversed sign — proof the step went further to the side
+        // it was already on rather than across the leader's path.
+        var corridorHalfWidthRaw = FormationRules.ComputeRallyCorridorHalfWidthRaw(
+            scenario.BodyRadiusRaw);
+        var lateralBefore = followerYRaw - rallyYRaw;
+        var lateralAfter = after.YRaw - rallyYRaw;
+        Assert.True(
+            lateralAfter > lateralBefore,
+            $"Expected the follower to move further from the leader's axis " +
+            $"(lateral before {lateralBefore}, after {lateralAfter}).");
+        Assert.True(
+            Math.Abs(lateralAfter) >= corridorHalfWidthRaw,
+            $"Expected the follower to have left the give-way corridor " +
+            $"(half-width {corridorHalfWidthRaw}), but its lateral offset " +
+            $"was only {Math.Abs(lateralAfter)}.");
+    }
+
+    /// <summary>
+    /// A follower that is ahead of its rally agent along the direction of
+    /// travel, but far enough off to the side to sit outside the give-way
+    /// corridor, must still use the ordinary trail-plus-jitter aim point —
+    /// proof the corridor test does not fire merely because a follower is
+    /// ahead.
+    /// </summary>
+    [Fact]
+    public void AFollowerClearOfTheCorridorStillTrailsBehindTheLeader()
+    {
+        var scenario = CreateTestScenario(lastStandThreshold: 2);
+        var rallyXRaw = checked(1000 * FixedPoint.Scale);
+        var rallyYRaw = checked(1000 * FixedPoint.Scale);
+        var enemyXRaw = checked(rallyXRaw + (200 * FixedPoint.Scale));
+
+        // Ahead of the rally agent (5 world units) and 10 world units off
+        // the axis — well outside the 2 * BodyRadiusRaw = 1024 raw unit
+        // (~1 world unit) corridor half-width.
+        var followerXRaw = checked(rallyXRaw + (5 * FixedPoint.Scale));
+        var followerYRaw = checked(rallyYRaw + (10 * FixedPoint.Scale));
+
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            CreateAgentAtRawPosition(2, factionId: 0, rallyXRaw, rallyYRaw, scenario),
+            CreateAgentAtRawPosition(
+                5, factionId: 0, followerXRaw, followerYRaw, scenario),
+            CreateAgentAtRawPosition(100, factionId: 1, enemyXRaw, rallyYRaw, scenario));
+
+        simulation.AdvanceOneTick();
+
+        var after = AgentByEntityId(simulation, 5);
+        Assert.Equal(AgentIntent.Regrouping, after.Intent);
+
+        // The trail-plus-jitter aim point sits behind the rally agent
+        // (RallyTrailRadiusMultiplier = 12 body radii always exceeds the
+        // maximum jitter magnitude), so a follower using it moves backward
+        // in X — the opposite of what a (wrongly triggered) sideways
+        // give-way step would do, which would leave X exactly unchanged.
+        Assert.True(
+            after.XRaw < followerXRaw,
+            "Expected the follower to move toward the trail point behind " +
+            $"the rally agent (X should decrease from {followerXRaw}), " +
+            $"but X was {after.XRaw}.");
+
+        // The jitter offset is small relative to the follower's 10-world-unit
+        // lateral displacement, so the aim point's Y sits close to the rally
+        // agent's own Y — the follower must move toward it, not further
+        // away, which is what a (wrongly triggered) give-way step would do
+        // in this same-sign configuration.
+        Assert.True(
+            after.YRaw < followerYRaw,
+            "Expected the follower to move toward the rally agent's Y, not " +
+            $"further away from it. Y was {followerYRaw}, became {after.YRaw}.");
+    }
+
+    /// <summary>
+    /// A follower sitting exactly on the rally agent's own axis of travel
+    /// (lateral offset of zero) must break the give-way tie the same way no
+    /// matter what order the agents were supplied in — otherwise the escape
+    /// side, and therefore the resulting state hash, would depend on
+    /// incidental array order.
+    /// </summary>
+    [Fact]
+    public void TheGiveWaySideIsStableWhenAFollowerIsExactlyOnTheLeadersAxis()
+    {
+        var scenario = CreateTestScenario(lastStandThreshold: 2);
+        var rallyXRaw = checked(1000 * FixedPoint.Scale);
+        var rallyYRaw = checked(1000 * FixedPoint.Scale);
+        var enemyXRaw = checked(rallyXRaw + (200 * FixedPoint.Scale));
+        var followerXRaw = checked(rallyXRaw + 5_000);
+        var followerYRaw = rallyYRaw;
+
+        AgentState Rally() =>
+            CreateAgentAtRawPosition(2, factionId: 0, rallyXRaw, rallyYRaw, scenario);
+        AgentState Follower() =>
+            CreateAgentAtRawPosition(
+                5, factionId: 0, followerXRaw, followerYRaw, scenario);
+        AgentState Enemy() =>
+            CreateAgentAtRawPosition(100, factionId: 1, enemyXRaw, rallyYRaw, scenario);
+
+        var orderingA = BattleSimulation.CreateForTesting(
+            scenario, Rally(), Follower(), Enemy());
+        var orderingB = BattleSimulation.CreateForTesting(
+            scenario, Enemy(), Follower(), Rally());
+        var orderingC = BattleSimulation.CreateForTesting(
+            scenario, Follower(), Enemy(), Rally());
+
+        orderingA.AdvanceOneTick();
+        orderingB.AdvanceOneTick();
+        orderingC.AdvanceOneTick();
+
+        var afterA = AgentByEntityId(orderingA, 5);
+        var afterB = AgentByEntityId(orderingB, 5);
+        var afterC = AgentByEntityId(orderingC, 5);
+
+        Assert.Equal((afterA.XRaw, afterA.YRaw), (afterB.XRaw, afterB.YRaw));
+        Assert.Equal((afterA.XRaw, afterA.YRaw), (afterC.XRaw, afterC.YRaw));
+        Assert.Equal(orderingA.ComputeStateHash(), orderingB.ComputeStateHash());
+        Assert.Equal(orderingA.ComputeStateHash(), orderingC.ComputeStateHash());
+
+        // Ties break toward the fixed "+" perpendicular. For this
+        // purely-+X direction of travel that perpendicular is raw -Y, so
+        // the follower's Y must move below the axis (never above it and
+        // never stay put), regardless of array order.
+        Assert.True(
+            afterA.YRaw < followerYRaw,
+            $"Expected the tie-break to move the follower's Y below the " +
+            $"axis ({followerYRaw}), but it was {afterA.YRaw}.");
+    }
+
     private static AgentState CreateAgentAtRawPosition(
         ulong entityId,
         int factionId,

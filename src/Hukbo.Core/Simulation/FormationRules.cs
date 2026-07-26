@@ -77,6 +77,22 @@ namespace Hukbo.Core.Simulation;
 /// two body radii of contact distance in units of <c>R</c>); changing either
 /// multiplier requires rechecking this inequality.
 /// </para>
+/// <para>
+/// The trail alone does not fully solve the blocking problem: a follower can
+/// still be jittered ahead of its rally agent's own tick-start position, in
+/// which case reaching a trail point behind the leader means walking
+/// backward straight through the leader's body. Straight-line movement plus
+/// solid collision then produces a head-on mutual block that never clears —
+/// the rally agent is blocked going forward by the follower, and the
+/// follower is blocked going backward by the rally agent. The give-way rule
+/// detects a follower standing in its own leader's forward travel corridor
+/// (<see cref="RallyCorridorHalfWidthMultiplier"/>) and steps it sideways out
+/// of the corridor instead, leaving its forward position unchanged. This
+/// mirrors the one give-way behaviour the project's historical research
+/// records as plausible for this period and region — avoiding blocking a
+/// companion's movement or weapon; see
+/// <c>docs/research/battles/03-deep-past-formations-and-tactics.md</c>.
+/// </para>
 /// </remarks>
 public static class FormationRules
 {
@@ -110,6 +126,17 @@ public static class FormationRules
     /// multiplier requires rechecking that inequality.
     /// </summary>
     public const int RallyTrailRadiusMultiplier = 12;
+
+    /// <summary>
+    /// How many body radii wide, on each side of the rally agent's direction
+    /// of travel, the forward give-way corridor extends. A follower whose
+    /// tick-start position falls inside this corridor and ahead of the rally
+    /// agent steps sideways clear of it rather than trying to reach a trail
+    /// point behind the leader by walking through it. Set to contact distance
+    /// (two body radii), the same span two solid bodies already use to decide
+    /// they are touching.
+    /// </summary>
+    public const int RallyCorridorHalfWidthMultiplier = 2;
 
     /// <summary>
     /// The highest last-stand threshold a scenario may configure: the bias
@@ -220,4 +247,54 @@ public static class FormationRules
     public static bool IsBodyRadiusWithinTrailRange(int bodyRadiusRaw) =>
         bodyRadiusRaw > 0 &&
         ((long)RallyTrailRadiusMultiplier * bodyRadiusRaw) <= int.MaxValue;
+
+    /// <summary>
+    /// Computes the give-way corridor half-width, in raw fixed-point units,
+    /// for a body of the given radius:
+    /// <c>RallyCorridorHalfWidthMultiplier * bodyRadiusRaw</c>. A regrouping
+    /// follower whose tick-start position falls inside this distance of its
+    /// rally agent's line of travel, and ahead of the rally agent along that
+    /// line, gives way sideways instead of trailing behind.
+    /// </summary>
+    /// <param name="bodyRadiusRaw">
+    /// The living body radius, in raw fixed-point units. Must be positive.
+    /// </param>
+    /// <returns>The corridor half-width, in raw fixed-point units.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="bodyRadiusRaw"/> is not positive, or when
+    /// <c>RallyCorridorHalfWidthMultiplier * bodyRadiusRaw</c> would overflow
+    /// <see cref="int"/>.
+    /// </exception>
+    public static int ComputeRallyCorridorHalfWidthRaw(int bodyRadiusRaw)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(bodyRadiusRaw);
+
+        if (!IsBodyRadiusWithinCorridorRange(bodyRadiusRaw))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(bodyRadiusRaw),
+                bodyRadiusRaw,
+                "Body radius is too large: the give-way corridor half-width " +
+                "(RallyCorridorHalfWidthMultiplier * bodyRadiusRaw) would " +
+                "overflow Int32.");
+        }
+
+        return checked(RallyCorridorHalfWidthMultiplier * bodyRadiusRaw);
+    }
+
+    /// <summary>
+    /// Reports whether the give-way corridor half-width for the given body
+    /// radius fits in an <see cref="int"/>.
+    /// </summary>
+    /// <param name="bodyRadiusRaw">
+    /// The living body radius, in raw fixed-point units.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when
+    /// <c>RallyCorridorHalfWidthMultiplier * bodyRadiusRaw</c> is
+    /// representable as an <see cref="int"/>.
+    /// </returns>
+    public static bool IsBodyRadiusWithinCorridorRange(int bodyRadiusRaw) =>
+        bodyRadiusRaw > 0 &&
+        ((long)RallyCorridorHalfWidthMultiplier * bodyRadiusRaw) <= int.MaxValue;
 }
