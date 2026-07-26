@@ -80,6 +80,100 @@ noise and anything larger as worth investigating.
 These results prove the non-interactive gate only. They do not change any
 hands-on control, selection, event-log, scoring, or reset row below.
 
+### 2026-07-27 plains-backdrop gate run
+
+A second local run on 2026-07-27, recorded after the plains battlefield
+backdrop change, showed:
+
+- `./scripts/format.ps1 -Verify` passed with 0 warnings and 0 errors;
+- `./scripts/verify.ps1 -SkipBootstrap` passed all five stages;
+- 141/141 Core tests passed;
+- 223/223 Client tests passed, up from the 189 recorded above because of the 34
+  new plains backdrop geometry test cases across 14 test methods;
+- the seed-1, 200-agent, 10,000-tick headless workload ended in
+  `Faction1Victory` at tick 235 with state hash `6EBB1EA63114F6CE` and event
+  hash `941377BD43C556FF`, and the run reported `deterministic: true`;
+- the same workload allocated 15,122,504 bytes, slightly below the previously
+  recorded 15,128,696-byte baseline.
+
+Both the state hash and the event hash are unchanged from the values recorded
+above. That is the expected result for a presentation-only change: the plains
+backdrop touches only `Hukbo.Client` rendering, `Hukbo.Core` was not modified,
+and neither hash moving confirms the backdrop did not leak into the
+deterministic simulation.
+
+### 2026-07-27 plains-backdrop review-fix partial re-run
+
+Code review of the change above produced two high-severity findings, both fixed:
+a duplicated ground-cell formula that left the shipped render loop uncovered
+while the tests constrained a method with no production caller, and incorrect
+test counts in the entry above. Four medium findings were also fixed: decal
+shades are now bounded by a named ceiling so the high-contrast theme does not
+receive mid-grey speckle on pure black, decals are clipped to the map rectangle
+so they cannot bleed past the arena border, the shade-count and decal-kind
+couplings are now asserted by tests, and the renderer's positional parameter
+lists are grouped into a `PlainsBackdropFrame` value.
+
+The canonical gate could **not** be re-run in full after these fixes, and this
+is recorded as a limitation rather than a pass. At the time of the re-run the
+working tree also carried in-flight, unrelated work for a sound system, a
+blood-and-gore layer, and army-composition settings, and several of those
+untracked test files did not compile:
+
+```
+SoundCueMapperTests.cs(14,17): error CS0051: Inconsistent accessibility:
+parameter type 'GameSoundId' is less accessible than method
+'SoundCueMapperTests.Map_ReturnsTheWeaponSlotForAnAttack(WeaponId, GameSoundId)'
+```
+
+That failure belongs to the sound workstream, not to the backdrop. What was
+verified after the review fixes:
+
+- `./scripts/format.ps1 -Verify` passed, 0 of 148 files reformatted;
+- the `Hukbo.Client` Release build succeeded with 0 warnings and 0 errors;
+- all 42 plains backdrop test cases passed;
+- 284/284 Client tests passed with the five non-compiling sound test files
+  temporarily set aside and then restored;
+- 145/145 Core tests passed.
+
+The Core and Client totals above are higher than the 141 and 223 recorded for
+the earlier run because the concurrent sound and gore workstreams have added
+their own tests. Those totals are therefore not attributable to the backdrop
+change alone and should not be cited as its baseline.
+
+The headless determinism stage was not re-run after the review fixes. Every fix
+is confined to `Hukbo.Client` presentation code, so no hash movement is
+possible, but that remains an argument rather than recorded evidence. The full
+`./scripts/verify.ps1` must be re-run once the sound workstream's test files
+compile, and its output recorded here before this change is integrated.
+
+### 2026-07-27 sound-system gate run
+
+`./scripts/verify.ps1 -SkipBootstrap` on 2026-07-27, after the sound system
+change, ended with `[PASS] Canonical repository verification completed` and
+showed:
+
+- `./scripts/format.ps1 -Verify` passed: `Formatted 0 of 150 files`;
+- the Release build produced 0 warnings and 0 errors;
+- 156/156 Core tests passed;
+- 373/373 Client tests passed, including the 8 new sound suites — catalog,
+  library, mapper, budget, cue log, director, cue formatter, and panel layout —
+  plus the right-column split;
+- the seed-1, 200-agent, 10,000-tick headless workload reported state hash
+  `6EBB1EA63114F6CE`, event hash `941377BD43C556FF`, and
+  `deterministic: true`.
+
+Both hashes are unchanged from the values recorded above. That is the expected
+result for a presentation-only change: the audio path lives entirely in
+`Hukbo.Client`, reads the existing `BattleEvent` stream, and adds no Core type,
+no Core file, and no simulation state.
+
+An earlier attempt at this gate on the same day failed in the Core test stage,
+and then failed to compile `Hukbo.Core` at all, because the working tree
+simultaneously held an unfinished army-composition change to `Hukbo.Core`. That
+failure was in Core, not in the sound system, and it cleared once the Core change
+compiled again. Neither hash moved across either attempt.
+
 ## Interactive smoke checklist
 
 Run `./scripts/run.ps1` on an interactive Windows desktop. This repository uses
@@ -118,6 +212,26 @@ the interaction. Use `PASS`, `FAIL`, or `BLOCKED`; leave untouched rows
 | 13. Check seed progression | Each Next Round changes the seed to a distinct deterministic value. After Full Reset, repeating the same Next Round sequence produces the same seed sequence. | Not run | PENDING |
 | 14. Exercise Full Reset | After changing the score, speed, and camera, press `Shift+R`; both win totals become 0, seed returns to 1, speed returns to 1x, the camera fits the arena, disposable UI state clears, and the fresh round is paused. Change state again and confirm modal Full Reset has the same result. | Not run | PENDING |
 | 15. Close the window | The operating-system close button exits the process once with exit code 0. | Not run | PENDING |
+| 16. Check the plains backdrop ground | The battle floor shows varied ground shading with scattered grass, dirt, and stone marks rather than one flat color. | Not run | PENDING |
+| 17. Check backdrop stability at zoom extremes | Zooming fully out and fully in keeps the ground pattern locked to the same patches of map; the pattern does not crawl or shimmer, and decals neither vanish into flicker nor balloon into large blobs. | Not run | PENDING |
+| 18. Check backdrop continuity while panning | Panning the camera across the map shows no seam lines, gaps, or overlapping bright edges between ground cells. | Not run | PENDING |
+| 19. Check readability over the backdrop | Pawn silhouettes, faction ground rings, selection marks, and hit effects all remain clearly readable against the new backdrop. | Not run | PENDING |
+| 20. Cycle every theme against the backdrop | Each theme produces a backdrop in its own palette, with the arena border still distinguishable from the ground. | Not run | PENDING |
+| 21. Check backdrop reseeding on Next Round and Full Reset | Pressing `R` for a new round changes the backdrop with the new seed; pressing `Shift+R` for a full reset returns the seed-1 backdrop identical to the first launch. | Not run | PENDING |
+| 22. Confirm the sound log is hidden by default | On launch, no sound panel is visible and the battle event log occupies the full height of the right column exactly as before. | Not run | PENDING |
+| 23. Toggle the sound log | The `Sounds` control-bar button and `F9` both open and close the sound panel; the button shows an active state while it is open; the right column splits with battle events above and the sound log below, and nothing else on screen moves. | Not run | PENDING |
+| 24. Check the expected-file list with an empty audio folder | With no files in `Content/Audio/`, the panel lists all nine expected file names, each marked `MISSING`, shows `MISSING 9/9`, and the game stays silent without errors. | Not run | PENDING |
+| 25. Add one sound file | Drop a PCM WAV named `death.wav` into `Content/Audio/`, relaunch, and confirm that slot reads `READY`, the counter drops to `MISSING 8/9`, and a death audibly plays with a `PLAYED` row in the cue log. | Not run | PENDING |
+| 26. Check an unusable file | Replace `death.wav` with a non-PCM file of the same name, relaunch, and confirm the slot reads `FAILED` rather than `MISSING`, and the game still runs silently for that slot. | Not run | PENDING |
+| 27. Exercise mute and rate limiting | With files present, the panel's `MUTE` toggle silences playback while still logging rows; during a busy tick the cue log shows collapsed `LIMITED xN` rows rather than one row per suppressed cue. | Not run | PENDING |
+| 28. Exercise sound-log scrolling and isolation | The wheel scrolls only the panel under the pointer — sound log, battle log, or arena zoom — and clicks inside the sound panel do not click through to the arena or clear the agent selection. | Not run | PENDING |
+| 29. Check sound-log reset behavior | `R` and `Shift+R` clear the cue log while leaving the expected-file list and its statuses unchanged. | Not run | PENDING |
+| 30. Open the Army Composition panel | Menu opens and the Army Composition button (between Next Round and Full Reset) shows the currently saved units-per-team and category counts in four steppers. | Not run | PENDING |
+| 31. Adjust a category count | Left and Right arrows on a stepper adjust its value; Shift+Left and Shift+Right adjust by 10 instead of 1. The Unassigned readout updates live. | Not run | PENDING |
+| 32. Check Unassigned reaches zero | Adjusting steppers such that category sum equals units-per-team displays Unassigned: 0. | Not run | PENDING |
+| 33. Verify Apply gate behavior | Apply is disabled (ActionDisabled style, dimmed glyph) while Unassigned != 0 and while the draft equals the saved composition; Apply is enabled exactly when balanced and changed. | Not run | PENDING |
+| 34. Check the staged banner | After pressing Apply, the panel closes, the menu shows a one-line notice stating the composition takes effect on the next Full Reset, and Apply remains disabled until a different composition is drafted and applied. | Not run | PENDING |
+| 35. Verify Full Reset fields the chosen army | After applying a composition and pressing Full Reset (or `Shift+R`), the arena resets and both factions field the number and distribution of warriors specified by the staged composition, visible in the agent inspector and event log. | Not run | PENDING |
 
 For round scoring, record Team A (Blue) and Team B (Red) totals before and after
 each command together with the outgoing outcome and old/new seeds. Next Round

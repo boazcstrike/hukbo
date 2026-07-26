@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Microsoft.Xna.Framework;
@@ -10,24 +11,32 @@ namespace Hukbo.Client;
 internal readonly record struct MenuInteraction(
     ClientCommand Command,
     string? SelectedThemeId,
+    GoreIntensity? SelectedGoreIntensity,
     bool PointerConsumed)
 {
     public static MenuInteraction None =>
-        new(ClientCommand.None, null, false);
+        new(ClientCommand.None, null, null, false);
 }
 
 internal sealed class MenuOverlay
 {
-    private readonly UiButton[] _buttons =
-    [
-        new("Play", ClientCommand.Play),
-        new("Pause", ClientCommand.Pause),
-        new("Next Round", ClientCommand.NextRound),
-        new("Full Reset", ClientCommand.FullReset),
-        new("Exit Game", ClientCommand.Exit),
-    ];
+    internal static readonly (string Label, ClientCommand Command)[]
+        ButtonDefinitions =
+        [
+            ("Play", ClientCommand.Play),
+            ("Pause", ClientCommand.Pause),
+            ("Next Round", ClientCommand.NextRound),
+            ("Army Composition", ClientCommand.OpenArmyComposition),
+            ("Full Reset", ClientCommand.FullReset),
+            ("Exit Game", ClientCommand.Exit),
+        ];
+
+    private readonly UiButton[] _buttons = ButtonDefinitions
+        .Select(definition => new UiButton(definition.Label, definition.Command))
+        .ToArray();
 
     private readonly UiThemeSelector _themeSelector;
+    private readonly GoreIntensitySelector _goreSelector;
     private readonly UiMenuLayout _layout;
     private readonly UiThemeSelectorLayout _selectorLayout;
     private readonly UiTextScales _textScales;
@@ -38,12 +47,38 @@ internal sealed class MenuOverlay
         UiThemeStandards standards)
     {
         _themeSelector = new UiThemeSelector(themes, standards);
+        _goreSelector = new GoreIntensitySelector(standards);
         _layout = standards.Shared.Menu;
         _selectorLayout = standards.Shared.Selector;
         _textScales = standards.Shared.TextScales;
     }
 
     public bool IsVisible { get; private set; }
+
+    /// <summary>
+    /// Focus index 0 is the theme selector, indices 1..N are the N buttons, and
+    /// the gore selector takes the terminal index N+1. Appending rather than
+    /// interleaving leaves every existing button index unchanged.
+    /// </summary>
+    internal static int GoreSelectorControlIndex =>
+        ButtonDefinitions.Length + 1;
+
+    internal static int ControlCount => ButtonDefinitions.Length + 2;
+
+    internal static bool IsButtonControlIndex(int controlIndex) =>
+        controlIndex > 0 && controlIndex <= ButtonDefinitions.Length;
+
+    /// <summary>
+    /// The offset, from the panel's top edge, of the bottom of the lowest
+    /// control. The panel data must leave room for this above its helper line,
+    /// which the client tests assert directly.
+    /// </summary>
+    internal static int CalculateContentBottomOffset(
+        UiMenuLayout layout,
+        UiThemeSelectorLayout selectorLayout,
+        int buttonCount) =>
+        CalculateGoreSelectorTopOffset(layout, selectorLayout, buttonCount) +
+        selectorLayout.Height;
 
     public void Open()
     {
@@ -60,7 +95,8 @@ internal sealed class MenuOverlay
     public MenuInteraction Update(
         InputEdges input,
         Rectangle screenBounds,
-        string activeThemeId)
+        string activeThemeId,
+        GoreIntensity activeGoreIntensity)
     {
         if (!IsVisible)
         {
@@ -96,11 +132,18 @@ internal sealed class MenuOverlay
             }
         }
 
+        // Evaluated after the button loop so a hovered button is never
+        // clobbered by the terminal control.
+        if (_goreSelector.Bounds.Contains(input.MousePosition))
+        {
+            hoveredControlIndex = GoreSelectorControlIndex;
+        }
+
         var resolvedFocus = ResolveFocusedControlIndex(
             _focusedControlIndex,
             focusDirection,
             hoveredControlIndex,
-            _buttons.Length + 1);
+            ControlCount);
         if (resolvedFocus != _focusedControlIndex)
         {
             _focusedControlIndex = resolvedFocus;
@@ -122,18 +165,34 @@ internal sealed class MenuOverlay
             return new MenuInteraction(
                 ClientCommand.None,
                 themeInteraction.SelectedThemeId,
-                true);
-        }
-
-        if (input.WasLeftMousePressed() && hoveredControlIndex > 0)
-        {
-            return new MenuInteraction(
-                _buttons[hoveredControlIndex - 1].Command,
                 null,
                 true);
         }
 
-        if (_focusedControlIndex > 0 &&
+        var goreInteraction = _goreSelector.Update(
+            input,
+            _focusedControlIndex == GoreSelectorControlIndex,
+            activeGoreIntensity);
+        if (goreInteraction.SelectedGoreIntensity is { } selectedGoreIntensity)
+        {
+            return new MenuInteraction(
+                ClientCommand.None,
+                null,
+                selectedGoreIntensity,
+                true);
+        }
+
+        if (input.WasLeftMousePressed() &&
+            IsButtonControlIndex(hoveredControlIndex))
+        {
+            return new MenuInteraction(
+                _buttons[hoveredControlIndex - 1].Command,
+                null,
+                null,
+                true);
+        }
+
+        if (IsButtonControlIndex(_focusedControlIndex) &&
             (input.WasPressed(Keys.Enter) ||
              input.WasPressed(Keys.Space)))
         {
@@ -143,10 +202,11 @@ internal sealed class MenuOverlay
                     ? focusedButton.Command
                     : ClientCommand.None,
                 null,
+                null,
                 true);
         }
 
-        return new MenuInteraction(ClientCommand.None, null, true);
+        return new MenuInteraction(ClientCommand.None, null, null, true);
     }
 
     public void Draw(
@@ -154,7 +214,8 @@ internal sealed class MenuOverlay
         Texture2D pixel,
         SpriteFont font,
         Rectangle screenBounds,
-        UiTheme theme)
+        UiTheme theme,
+        GoreIntensity activeGoreIntensity)
     {
         if (!IsVisible)
         {
@@ -222,10 +283,18 @@ internal sealed class MenuOverlay
                 _textScales.MenuButton);
         }
 
+        _goreSelector.Draw(
+            spriteBatch,
+            pixel,
+            font,
+            theme,
+            activeGoreIntensity,
+            _focusedControlIndex == GoreSelectorControlIndex);
+
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             font,
-            "Esc closes  |  Up/Down focus  |  Left/Right theme",
+            "Esc closes  |  Up/Down focus  |  Left/Right change",
             new Vector2(
                 panelBounds.Center.X,
                 panelBounds.Bottom - _layout.HelperBottomOffset),
@@ -254,6 +323,31 @@ internal sealed class MenuOverlay
                 _layout.ButtonWidth,
                 _layout.ButtonHeight);
         }
+
+        _goreSelector.Bounds = new Rectangle(
+            buttonLeft,
+            panel.Top + CalculateGoreSelectorTopOffset(
+                _layout,
+                _selectorLayout,
+                _buttons.Length),
+            _layout.ButtonWidth,
+            _selectorLayout.Height);
+    }
+
+    private static int CalculateGoreSelectorTopOffset(
+        UiMenuLayout layout,
+        UiThemeSelectorLayout selectorLayout,
+        int buttonCount)
+    {
+        var buttonTopOffset =
+            layout.SelectorTopOffset +
+            selectorLayout.Height +
+            layout.SelectorGap;
+        var buttonBandHeight = buttonCount <= 0
+            ? 0
+            : (buttonCount * layout.ButtonHeight) +
+              ((buttonCount - 1) * layout.ButtonGap);
+        return buttonTopOffset + buttonBandHeight + layout.SelectorGap;
     }
 
     internal static int ResolveFocusedControlIndex(

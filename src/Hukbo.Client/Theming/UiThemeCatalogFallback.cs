@@ -76,7 +76,7 @@ internal sealed partial class UiThemeCatalog
                 "Default",
                 new UiMenuLayout(
                     360,
-                    590,
+                    660,
                     280,
                     44,
                     8,
@@ -96,6 +96,13 @@ internal sealed partial class UiThemeCatalog
                     22,
                     7,
                     5),
+                new UiArmyCompositionLayout(
+                    420,
+                    560,
+                    44,
+                    8,
+                    260,
+                    44),
                 new UiTextScales(
                     1f,
                     1f,

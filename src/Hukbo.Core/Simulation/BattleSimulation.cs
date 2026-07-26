@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
@@ -82,18 +83,26 @@ public sealed class BattleSimulation
         var usableHeightRaw = Math.Max(
             1,
             mapHeightRaw - (verticalMarginRaw * 2));
+        var rosterCountsAreEmpty = scenario.RosterCounts.IsDefaultOrEmpty;
+        var expandedRosterIndices = rosterCountsAreEmpty
+            ? ImmutableArray<int>.Empty
+            : RosterCountExpansion.Expand(scenario.RosterCounts);
 
         for (var index = 0; index < scenario.AgentsPerFaction; index++)
         {
             var leftX = (mapWidthRaw / 4) + random.NextInt(horizontalBandRaw);
             var leftY = verticalMarginRaw + random.NextInt(usableHeightRaw);
+            var entityId = checked((ulong)index + 1);
+            var loadout = rosterCountsAreEmpty
+                ? rules.ResolveLoadout(entityId)
+                : rules.Roster[expandedRosterIndices[index]];
             agents[index] = CreateAgent(
-                checked((ulong)index + 1),
+                entityId,
                 factionId: 0,
                 leftX,
                 leftY,
                 scenario,
-                rules);
+                loadout);
         }
 
         for (var index = 0; index < scenario.AgentsPerFaction; index++)
@@ -103,13 +112,21 @@ public sealed class BattleSimulation
                 random.NextInt(horizontalBandRaw));
             var rightY = verticalMarginRaw + random.NextInt(usableHeightRaw);
             var stateIndex = scenario.AgentsPerFaction + index;
+            var entityId = checked((ulong)stateIndex + 1);
+            // Faction-local index, not entityId/stateIndex: RosterCounts
+            // describes one faction, and reusing the global index would
+            // continue faction 1's category offset from wherever faction 0
+            // stopped, silently giving the two factions different armies.
+            var loadout = rosterCountsAreEmpty
+                ? rules.ResolveLoadout(entityId)
+                : rules.Roster[expandedRosterIndices[index]];
             agents[stateIndex] = CreateAgent(
-                checked((ulong)stateIndex + 1),
+                entityId,
                 factionId: 1,
                 rightX,
                 rightY,
                 scenario,
-                rules);
+                loadout);
         }
 
         return new BattleSimulation(scenario, agents, rules);
@@ -184,7 +201,7 @@ public sealed class BattleSimulation
         int xRaw,
         int yRaw,
         Scenario scenario,
-        CombatRuleset rules) =>
+        CombatLoadout loadout) =>
         new(
             entityId,
             factionId,
@@ -196,7 +213,7 @@ public sealed class BattleSimulation
             scenario.AttackRangeRaw,
             scenario.DamagePerAttack,
             scenario.AttackCooldownTicks,
-            rules.ResolveLoadout(entityId));
+            loadout);
 
     private void DecrementCooldowns()
     {

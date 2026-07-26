@@ -96,6 +96,8 @@ internal sealed partial class UiThemeCatalog
 
         public SelectorLayoutDocument? Selector { get; init; }
 
+        public ArmyCompositionLayoutDocument? ArmyComposition { get; init; }
+
         public TextScalesDocument? TextScales { get; init; }
     }
 
@@ -143,6 +145,21 @@ internal sealed partial class UiThemeCatalog
         public int SwatchHeight { get; init; }
 
         public int SwatchGap { get; init; }
+    }
+
+    private sealed class ArmyCompositionLayoutDocument
+    {
+        public int PanelWidth { get; init; }
+
+        public int PanelHeight { get; init; }
+
+        public int RowHeight { get; init; }
+
+        public int RowGap { get; init; }
+
+        public int StepperWidth { get; init; }
+
+        public int ArrowWidth { get; init; }
     }
 
     private sealed class TextScalesDocument

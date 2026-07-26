@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Hukbo.Client.Theming;
 
 namespace Hukbo.Client.Tests;
@@ -260,6 +261,51 @@ public sealed class UiThemeCatalogTests
         Assert.Equal(
             catalog.GetRequired("command").Colors,
             catalog.GetRequired("signal").Colors);
+    }
+
+    [Fact]
+    public void StandardsExposeTheArmyCompositionLayout()
+    {
+        var catalog = UiThemeCatalog.Load(BuiltInCatalogPath);
+
+        var layout = catalog.Standards.Shared.ArmyComposition;
+
+        Assert.Equal(420, layout.PanelWidth);
+        Assert.Equal(560, layout.PanelHeight);
+        Assert.Equal(44, layout.RowHeight);
+        Assert.Equal(8, layout.RowGap);
+        Assert.Equal(260, layout.StepperWidth);
+        Assert.Equal(44, layout.ArrowWidth);
+    }
+
+    [Fact]
+    public void ValidationRejectsAMissingArmyCompositionLayout()
+    {
+        var document = JsonNode.Parse(ReadCatalog())!.AsObject();
+        var shared = document["standards"]!["shared"]!.AsObject();
+        shared.Remove("armyComposition");
+
+        Assert.Throws<InvalidDataException>(
+            () => UiThemeCatalog.LoadFromJson(document.ToJsonString()));
+    }
+
+    [Fact]
+    public void TheFallbackCatalogIncludesTheArmyCompositionLayout()
+    {
+        var missingPath = Path.Combine(
+            Path.GetTempPath(),
+            $"missing-theme-catalog-{Guid.NewGuid():N}.json");
+
+        var catalog = UiThemeCatalog.LoadOrFallback(missingPath);
+
+        var layout = catalog.Standards.Shared.ArmyComposition;
+        Assert.True(layout.PanelWidth > 0);
+        Assert.True(layout.PanelHeight > 0);
+        Assert.True(layout.RowHeight > 0);
+        Assert.True(
+            layout.ArrowWidth >= catalog.Standards.MetricRanges.TargetSize.Minimum &&
+            layout.ArrowWidth <= catalog.Standards.MetricRanges.TargetSize.Maximum);
+        Assert.True(layout.ArrowWidth <= layout.StepperWidth);
     }
 
     private static string ReadCatalog() =>

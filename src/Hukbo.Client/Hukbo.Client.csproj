@@ -16,5 +16,10 @@
   <ItemGroup>
     <None Update="Content/Themes/ui-theme-standards.json"
           CopyToOutputDirectory="PreserveNewest" />
+    <!-- Sound files the owner drops in are copied verbatim: the audio system
+         reads them at runtime instead of going through the content pipeline,
+         so naming a file is the only step needed to give a slot a sound. -->
+    <None Update="Content/Audio/**"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

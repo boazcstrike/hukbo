@@ -13,7 +13,7 @@ internal sealed class UiThemeManager
         : this(
             catalog,
             settingsStore.Load(catalog.DefaultThemeId).SelectedThemeId,
-            settingsStore.TrySave)
+            themeId => TryPersistTheme(settingsStore, catalog, themeId))
     {
     }
 
@@ -27,6 +27,24 @@ internal sealed class UiThemeManager
         ActiveTheme = catalog.TryGet(initialThemeId, out var initial)
             ? initial
             : catalog.GetRequired(catalog.DefaultThemeId);
+    }
+
+    /// <summary>
+    /// Re-reads the whole settings file at save time so that persisting a
+    /// theme change carries forward the army composition and gore intensity a
+    /// panel may have written since this manager was constructed, rather than
+    /// overwriting them with values captured at startup.
+    /// </summary>
+    private static bool TryPersistTheme(
+        ClientSettingsStore settingsStore,
+        UiThemeCatalog catalog,
+        string themeId)
+    {
+        var current = settingsStore.Load(catalog.DefaultThemeId);
+        return settingsStore.TrySave(
+            themeId,
+            current.Composition,
+            current.GoreIntensity);
     }
 
     public UiTheme ActiveTheme { get; private set; }

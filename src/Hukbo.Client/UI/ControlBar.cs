@@ -7,7 +7,7 @@ namespace Hukbo.Client.UI;
 
 internal sealed class ControlBar
 {
-    private const int BarWidth = 292;
+    private const int BarWidth = 384;
     private const int BarHeight = 48;
     private const int Margin = 10;
     private const int ButtonGap = 8;
@@ -19,6 +19,7 @@ internal sealed class ControlBar
         new("Play", ClientCommand.Play),
         new("Pause", ClientCommand.Pause),
         new("Menu", ClientCommand.OpenMenu),
+        new("Sounds", ClientCommand.ToggleSoundLog),
     ];
 
     public Rectangle Bounds { get; private set; }
@@ -26,15 +27,17 @@ internal sealed class ControlBar
     public UiInteraction Update(
         InputEdges input,
         Rectangle availableBounds,
-        bool isPlaying)
+        bool isPlaying,
+        bool isSoundLogVisible)
     {
         Layout(availableBounds);
 
         foreach (var button in _buttons)
         {
-            var isActive =
-                (button.Command == ClientCommand.Play && isPlaying) ||
-                (button.Command == ClientCommand.Pause && !isPlaying);
+            var isActive = IsButtonActive(
+                button.Command,
+                isPlaying,
+                isSoundLogVisible);
             if (button.Update(input, isActive: isActive))
             {
                 return new UiInteraction(button.Command, true);
@@ -52,10 +55,11 @@ internal sealed class ControlBar
         SpriteFont font,
         Rectangle availableBounds,
         bool isPlaying,
+        bool isSoundLogVisible,
         UiTheme theme)
     {
         Layout(availableBounds);
-        SynchronizeVisualState(isPlaying);
+        SynchronizeVisualState(isPlaying, isSoundLogVisible);
 
         spriteBatch.Draw(pixel, Bounds, theme.Colors.PanelSurface);
         UiPrimitives.DrawBorder(
@@ -96,14 +100,29 @@ internal sealed class ControlBar
         }
     }
 
-    private void SynchronizeVisualState(bool isPlaying)
+    private void SynchronizeVisualState(
+        bool isPlaying,
+        bool isSoundLogVisible)
     {
         foreach (var button in _buttons)
         {
-            var isActive =
-                (button.Command == ClientCommand.Play && isPlaying) ||
-                (button.Command == ClientCommand.Pause && !isPlaying);
-            button.UpdateVisualState(isActive);
+            button.UpdateVisualState(
+                IsButtonActive(
+                    button.Command,
+                    isPlaying,
+                    isSoundLogVisible));
         }
     }
+
+    private static bool IsButtonActive(
+        ClientCommand command,
+        bool isPlaying,
+        bool isSoundLogVisible) =>
+        command switch
+        {
+            ClientCommand.Play => isPlaying,
+            ClientCommand.Pause => !isPlaying,
+            ClientCommand.ToggleSoundLog => isSoundLogVisible,
+            _ => false,
+        };
 }

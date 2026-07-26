@@ -1,0 +1,636 @@
+<#
+.SYNOPSIS
+    Generates a game sound file with the ElevenLabs text-to-sound-effects API.
+
+.DESCRIPTION
+    Fills one of the sound slots declared by
+    src/Hukbo.Client/Audio/SoundCatalog.cs with an uncompressed PCM WAV file
+    written into src/Hukbo.Client/Content/Audio/.
+
+    The slot list is parsed out of SoundCatalog.cs, so the catalog stays the
+    single source of truth for file names and this script cannot drift from it.
+
+    Nothing in the game calls this script. It is an authoring tool: the client
+    only ever reads whatever WAV files happen to be in the content folder, so
+    the simulation, the build, and the canonical gate remain fully offline.
+
+.PARAMETER Slot
+    The sound slot to fill, for example 'death' or 'attack-great-blade'.
+    Run with -List to see every slot and whether it already has a file.
+
+.PARAMETER Prompt
+    The description sent to ElevenLabs. Omit it to use this script's default
+    prompt for the slot.
+
+.PARAMETER Duration
+    Requested length in seconds, between 0.5 and 30. Defaults to the slot's
+    recommended length. The API's own floor is 0.5 seconds, so a combat hit
+    always arrives longer than it should sound; trailing silence is trimmed
+    afterwards unless -NoTrim is set.
+
+.PARAMETER Trim
+    Forces quiet-run trimming on for a slot whose default is off.
+
+.PARAMETER NoTrim
+    Forces trimming off, keeping the generation exactly as returned.
+
+.PARAMETER AllowQuiet
+    Keeps a take that peaks below ten percent of full scale. By default such a
+    take is rejected without writing anything, because the model occasionally
+    returns near-silent audio and that must never replace a good file.
+
+.PARAMETER SilenceThreshold
+    The percentage of the file's own peak below which audio counts as quiet
+    when trimming. Defaults to 5. A generation never contains true digital
+    silence — it has a room-tone floor of a few percent — so this is measured
+    against the peak rather than against zero.
+
+.PARAMETER PromptInfluence
+    Between 0 and 1. Higher values follow the prompt more literally and produce
+    less variety. Defaults to 0.4.
+
+.PARAMETER SampleRate
+    PCM sample rate. 44100 requires an ElevenLabs Pro subscription or above;
+    24000 is the default because it works on lower tiers and is plenty for
+    short combat hits.
+
+.PARAMETER Channels
+    Overrides channel detection. By default the script infers the channel count
+    from the returned byte count and the requested duration.
+
+.PARAMETER OutputDirectory
+    Where the WAV file is written. Defaults to src/Hukbo.Client/Content/Audio.
+
+.PARAMETER Force
+    Overwrites an existing file for the slot. Without it, an existing file is
+    left alone and the script fails.
+
+.PARAMETER List
+    Prints every slot, its default prompt, and whether a file already exists,
+    then exits without calling the API.
+
+.PARAMETER DryRun
+    Resolves the slot, prompt, and output path and prints the request that
+    would be sent, without calling the API.
+
+.EXAMPLE
+    ./scripts/sfx.ps1 -List
+
+.EXAMPLE
+    ./scripts/sfx.ps1 -Slot death
+
+.EXAMPLE
+    ./scripts/sfx.ps1 -Slot attack-great-blade -Prompt 'single heavy steel blade cleaving flesh, wet impact, no music' -Duration 0.4 -Force
+#>
+[CmdletBinding(DefaultParameterSetName = 'Generate')]
+param(
+    [Parameter(ParameterSetName = 'Generate', Position = 0)]
+    [string] $Slot,
+
+    [Parameter(ParameterSetName = 'Generate')]
+    [string] $Prompt,
+
+    [Parameter(ParameterSetName = 'Generate')]
+    [ValidateRange(0.5, 30.0)]
+    [double] $Duration,
+
+    [Parameter(ParameterSetName = 'Generate')]
+    [ValidateRange(0.0, 1.0)]
+    [double] $PromptInfluence = 0.4,
+
+    [Parameter(ParameterSetName = 'Generate')]
+    [ValidateSet(16000, 22050, 24000, 44100)]
+    [int] $SampleRate = 24000,
+
+    [Parameter(ParameterSetName = 'Generate')]
+    [ValidateSet(1, 2)]
+    [int] $Channels,
+
+    [Parameter(ParameterSetName = 'Generate')]
+    [string] $OutputDirectory,
+
+    [Parameter(ParameterSetName = 'Generate')]
+    [switch] $Trim,
+
+    [Parameter(ParameterSetName = 'Generate')]
+    [switch] $NoTrim,
+
+    [Parameter(ParameterSetName = 'Generate')]
+    [ValidateRange(0.5, 50.0)]
+    [double] $SilenceThreshold = 5.0,
+
+    [Parameter(ParameterSetName = 'Generate')]
+    [switch] $AllowQuiet,
+
+    [Parameter(ParameterSetName = 'Generate')]
+    [switch] $Force,
+
+    [Parameter(ParameterSetName = 'Generate')]
+    [switch] $DryRun,
+
+    [Parameter(ParameterSetName = 'List', Mandatory)]
+    [switch] $List
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '_common.ps1')
+
+$root = Get-RepositoryRoot
+$catalogPath = Join-Path $root 'src/Hukbo.Client/Audio/SoundCatalog.cs'
+$defaultOutputDirectory = Join-Path $root 'src/Hukbo.Client/Content/Audio'
+$provenancePath = Join-Path $defaultOutputDirectory 'GENERATED.md'
+
+$apiEndpoint = 'https://api.elevenlabs.io/v1/sound-generation'
+$modelId = 'eleven_text_to_sound_v2'
+$bitsPerSample = 16
+
+# The API refuses anything shorter, so a tenth-of-a-second hit is generated at
+# this length and then trimmed back down.
+$minimumApiDuration = 0.5
+
+# A take peaking below this is rejected. Full scale is 32767, so this is ten
+# percent of it, roughly -20 dBFS. A usable generation lands far above it.
+$minimumPeakAmplitude = 3277
+
+# Kept either side of the audible part so trimming cannot land on a hard edge.
+$trimTailSeconds = 0.01
+$trimLeadSeconds = 0.005
+
+# Starting points, not house style. Every one of these is meant to be replaced
+# by a better -Prompt once someone hears the result in a real battle.
+$defaultPrompts = @{
+    'attack-great-blade'     = @{
+        Prompt   = 'one heavy two-handed steel blade swinging fast and landing a solid cut, sharp metallic whoosh into a wet chopping impact, dry outdoor air, no music, no voice'
+        Duration = 0.5
+        Trim     = $true
+    }
+    'attack-heavy-chopper'   = @{
+        Prompt   = 'one broad heavy chopping blade landing a deep cleaving blow, low thick impact with a short metallic ring, no music, no voice'
+        Duration = 0.5
+        Trim     = $true
+    }
+    'attack-thrusting-blade' = @{
+        Prompt   = 'one narrow blade thrusting and puncturing, quick tight stab, light metal slide, no music, no voice'
+        Duration = 0.5
+        Trim     = $true
+    }
+    'attack-work-blade'      = @{
+        Prompt   = 'one short single-edged working knife slashing quickly, light fast metal swipe with a small cut impact, no music, no voice'
+        Duration = 0.5
+        Trim     = $true
+    }
+    'death'                  = @{
+        Prompt   = 'a body collapsing onto dry packed earth, dull heavy thud with a short scrape of cloth and gear, no music, no voice'
+        Duration = 0.7
+        Trim     = $true
+    }
+    # The decaying ring is the whole point of an outcome cue, and a
+    # peak-relative threshold would eat it, so these three are not trimmed.
+    'victory-blue'           = @{
+        Prompt   = 'short low ceremonial gong strike with a warm decaying ring, single hit, no music bed, no voice'
+        Duration = 1.6
+        Trim     = $false
+    }
+    'victory-red'            = @{
+        Prompt   = 'short bright ceremonial gong strike with a higher decaying ring, single hit, no music bed, no voice'
+        Duration = 1.6
+        Trim     = $false
+    }
+    'draw'                   = @{
+        Prompt   = 'two dull wooden strikes ending flat with no resonance, unresolved and neutral, no music, no voice'
+        Duration = 1.2
+        Trim     = $false
+    }
+    'ui-click'               = @{
+        Prompt   = 'one very short dry wooden tick, quiet interface click, no reverb, no music, no voice'
+        Duration = 0.5
+        Trim     = $true
+    }
+}
+
+function Get-CatalogSlot {
+    if (-not (Test-Path -LiteralPath $catalogPath -PathType Leaf)) {
+        throw "The sound catalog was not found at $catalogPath."
+    }
+
+    $catalogText = Get-Content -Raw -LiteralPath $catalogPath
+    $slotMatches = [regex]::Matches($catalogText, 'GameSoundId\.\w+\s*=>\s*"([a-z0-9-]+)"')
+    if ($slotMatches.Count -eq 0) {
+        throw "No slot names could be parsed from $catalogPath. The catalog's GetBaseName shape changed; update this script to match."
+    }
+
+    return @($slotMatches | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+}
+
+function Get-SlotPath {
+    param(
+        [Parameter(Mandatory)] [string] $SlotName,
+        [Parameter(Mandatory)] [string] $Directory
+    )
+
+    return Join-Path $Directory "$SlotName.wav"
+}
+
+function Get-ApiKey {
+    # The environment wins, so a session override never needs a file edit.
+    if (-not [string]::IsNullOrWhiteSpace($env:ELEVENLABS_API_KEY)) {
+        return $env:ELEVENLABS_API_KEY.Trim()
+    }
+
+    $envFilePath = Join-Path $root '.env'
+    if (-not (Test-Path -LiteralPath $envFilePath -PathType Leaf)) {
+        return $null
+    }
+
+    foreach ($line in (Get-Content -LiteralPath $envFilePath)) {
+        $trimmed = $line.Trim()
+        if ($trimmed.Length -eq 0 -or $trimmed.StartsWith('#')) {
+            continue
+        }
+
+        $separator = $trimmed.IndexOf('=')
+        if ($separator -lt 1) {
+            continue
+        }
+
+        if ($trimmed.Substring(0, $separator).Trim() -ne 'ELEVENLABS_API_KEY') {
+            continue
+        }
+
+        $value = $trimmed.Substring($separator + 1).Trim().Trim('"', "'")
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            return $null
+        }
+
+        return $value
+    }
+
+    return $null
+}
+
+function Get-PeakAmplitude {
+    param(
+        [Parameter(Mandatory)] [byte[]] $PcmData
+    )
+
+    $peak = 0
+    for ($offset = 0; $offset -lt $PcmData.Length - 1; $offset += 2) {
+        $sample = [System.Math]::Abs([BitConverter]::ToInt16($PcmData, $offset))
+        if ($sample -gt $peak) {
+            $peak = $sample
+        }
+    }
+
+    return $peak
+}
+
+function Remove-Silence {
+    <#
+        Cuts the quiet run at each end of the audio. A generation always has a
+        noise floor rather than true digital silence, so "quiet" is measured
+        against the file's own peak, not against zero.
+    #>
+    param(
+        [Parameter(Mandatory)] [byte[]] $PcmData,
+        [Parameter(Mandatory)] [int] $Rate,
+        [Parameter(Mandatory)] [int] $ChannelCount,
+        [Parameter(Mandatory)] [double] $ThresholdRatio
+    )
+
+    $bytesPerFrame = $ChannelCount * ($bitsPerSample / 8)
+    $frameCount = [int] ($PcmData.Length / $bytesPerFrame)
+    if ($frameCount -lt 2) {
+        return $PcmData
+    }
+
+    $peak = 0
+    for ($frame = 0; $frame -lt $frameCount; $frame++) {
+        for ($channel = 0; $channel -lt $ChannelCount; $channel++) {
+            $sample = [System.Math]::Abs([BitConverter]::ToInt16($PcmData, ($frame * $bytesPerFrame) + ($channel * 2)))
+            if ($sample -gt $peak) {
+                $peak = $sample
+            }
+        }
+    }
+
+    if ($peak -eq 0) {
+        return $PcmData
+    }
+
+    $threshold = [int] [System.Math]::Max($peak * $ThresholdRatio, 8)
+
+    $firstAudibleFrame = -1
+    for ($frame = 0; $frame -lt $frameCount; $frame++) {
+        for ($channel = 0; $channel -lt $ChannelCount; $channel++) {
+            if ([System.Math]::Abs([BitConverter]::ToInt16($PcmData, ($frame * $bytesPerFrame) + ($channel * 2))) -ge $threshold) {
+                $firstAudibleFrame = $frame
+                break
+            }
+        }
+
+        if ($firstAudibleFrame -ge 0) {
+            break
+        }
+    }
+
+    if ($firstAudibleFrame -lt 0) {
+        return $PcmData
+    }
+
+    $lastAudibleFrame = $firstAudibleFrame
+    for ($frame = $frameCount - 1; $frame -ge $firstAudibleFrame; $frame--) {
+        $loud = $false
+        for ($channel = 0; $channel -lt $ChannelCount; $channel++) {
+            if ([System.Math]::Abs([BitConverter]::ToInt16($PcmData, ($frame * $bytesPerFrame) + ($channel * 2))) -ge $threshold) {
+                $loud = $true
+                break
+            }
+        }
+
+        if ($loud) {
+            $lastAudibleFrame = $frame
+            break
+        }
+    }
+
+    $startFrame = [System.Math]::Max(0, $firstAudibleFrame - [int] ($Rate * $trimLeadSeconds))
+    $endFrame = [System.Math]::Min($frameCount, $lastAudibleFrame + 1 + [int] ($Rate * $trimTailSeconds))
+    $keepFrames = $endFrame - $startFrame
+    if ($keepFrames -ge $frameCount -or $keepFrames -lt 1) {
+        return $PcmData
+    }
+
+    $trimmed = [byte[]]::new($keepFrames * $bytesPerFrame)
+    [System.Array]::Copy($PcmData, $startFrame * $bytesPerFrame, $trimmed, 0, $trimmed.Length)
+    return $trimmed
+}
+
+function Write-WavFile {
+    param(
+        [Parameter(Mandatory)] [byte[]] $PcmData,
+        [Parameter(Mandatory)] [int] $Rate,
+        [Parameter(Mandatory)] [int] $ChannelCount,
+        [Parameter(Mandatory)] [string] $Path
+    )
+
+    if ($PcmData.Length -eq 0) {
+        throw 'The API returned an empty audio body.'
+    }
+
+    $blockAlign = $ChannelCount * ($bitsPerSample / 8)
+    if (($PcmData.Length % $blockAlign) -ne 0) {
+        throw "The returned PCM length $($PcmData.Length) is not a whole number of $ChannelCount-channel 16-bit frames. Re-run with an explicit -Channels value."
+    }
+
+    $stream = [System.IO.File]::Create($Path)
+    try {
+        $writer = [System.IO.BinaryWriter]::new($stream)
+        try {
+            $ascii = [System.Text.Encoding]::ASCII
+            $writer.Write($ascii.GetBytes('RIFF'))
+            $writer.Write([int] (36 + $PcmData.Length))
+            $writer.Write($ascii.GetBytes('WAVE'))
+            $writer.Write($ascii.GetBytes('fmt '))
+            $writer.Write([int] 16)
+            $writer.Write([int16] 1)                                     # PCM, uncompressed
+            $writer.Write([int16] $ChannelCount)
+            $writer.Write([int] $Rate)
+            $writer.Write([int] ($Rate * $blockAlign))                   # byte rate
+            $writer.Write([int16] $blockAlign)
+            $writer.Write([int16] $bitsPerSample)
+            $writer.Write($ascii.GetBytes('data'))
+            $writer.Write([int] $PcmData.Length)
+            $writer.Write($PcmData)
+            $writer.Flush()
+        }
+        finally {
+            $writer.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
+$slots = Get-CatalogSlot
+
+if ($List) {
+    Write-Host 'Hukbo sound slots'
+    Write-Host "Catalog: $catalogPath"
+    Write-Host "Folder:  $defaultOutputDirectory"
+    Write-Host ''
+    foreach ($name in $slots) {
+        $exists = Test-Path -LiteralPath (Get-SlotPath -SlotName $name -Directory $defaultOutputDirectory) -PathType Leaf
+        $status = if ($exists) { 'PRESENT' } else { 'MISSING' }
+        $defaultPrompt = if ($defaultPrompts.ContainsKey($name)) { $defaultPrompts[$name].Prompt } else { '(no default prompt)' }
+        Write-Host ("[{0}] {1}" -f $status, $name)
+        Write-Host ("          {0}" -f $defaultPrompt)
+    }
+
+    Write-Host ''
+    Write-Host 'Generate one with: ./scripts/sfx.ps1 -Slot <name> [-Prompt "..."] [-Force]'
+    return
+}
+
+if ([string]::IsNullOrWhiteSpace($Slot)) {
+    throw 'A -Slot is required. Run ./scripts/sfx.ps1 -List to see the available slots.'
+}
+
+$Slot = $Slot.Trim().ToLowerInvariant()
+if ($Slot.EndsWith('.wav')) {
+    $Slot = $Slot.Substring(0, $Slot.Length - 4)
+}
+
+if ($slots -notcontains $Slot) {
+    throw "'$Slot' is not a sound slot. The game ignores any other file name. Available slots: $($slots -join ', ')."
+}
+
+if ([string]::IsNullOrWhiteSpace($Prompt)) {
+    if (-not $defaultPrompts.ContainsKey($Slot)) {
+        throw "Slot '$Slot' has no default prompt in this script. Pass -Prompt explicitly."
+    }
+
+    $Prompt = $defaultPrompts[$Slot].Prompt
+}
+
+if (-not $PSBoundParameters.ContainsKey('Duration')) {
+    $slotDuration = if ($defaultPrompts.ContainsKey($Slot)) { $defaultPrompts[$Slot].Duration } else { 1.0 }
+    $Duration = [System.Math]::Max($slotDuration, $minimumApiDuration)
+}
+
+if ($Trim -and $NoTrim) {
+    throw 'Pass either -Trim or -NoTrim, not both.'
+}
+
+if ($Trim) {
+    $shouldTrim = $true
+}
+elseif ($NoTrim) {
+    $shouldTrim = $false
+}
+else {
+    $shouldTrim = $defaultPrompts.ContainsKey($Slot) -and $defaultPrompts[$Slot].Trim
+}
+
+if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    $OutputDirectory = $defaultOutputDirectory
+}
+
+if (-not (Test-Path -LiteralPath $OutputDirectory -PathType Container)) {
+    New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
+}
+
+$outputPath = Get-SlotPath -SlotName $Slot -Directory $OutputDirectory
+if ((Test-Path -LiteralPath $outputPath -PathType Leaf) -and -not $Force) {
+    throw "$outputPath already exists. Re-run with -Force to replace it."
+}
+
+Write-Host "Slot:     $Slot"
+Write-Host "Output:   $outputPath"
+Write-Host "Model:    $modelId"
+Write-Host ("Duration: {0}s at {1} Hz, prompt influence {2}" -f $Duration, $SampleRate, $PromptInfluence)
+Write-Host ("Trim:     {0}" -f $(if ($shouldTrim) { "yes, below $SilenceThreshold% of peak" } else { 'no, the full generation is kept' }))
+Write-Host "Prompt:   $Prompt"
+
+if ($DryRun) {
+    Write-Host '[INFO] -DryRun was set; no request was sent and no file was written.'
+    return
+}
+
+$apiKey = Get-ApiKey
+if ([string]::IsNullOrWhiteSpace($apiKey)) {
+    throw @'
+No ElevenLabs API key was found. Provide it either way:
+
+    ELEVENLABS_API_KEY=<your key>        in the repository's .env file
+    $env:ELEVENLABS_API_KEY = '<key>'    for the current shell session only
+
+.env is ignored by .gitignore and must stay that way. Never commit the key,
+never put it in a tracked file, and never pass it on the command line where it
+lands in shell history.
+'@
+}
+
+$body = [ordered] @{
+    text             = $Prompt
+    model_id         = $modelId
+    duration_seconds = $Duration
+    prompt_influence = $PromptInfluence
+} | ConvertTo-Json -Depth 3
+
+$requestUri = "$($apiEndpoint)?output_format=pcm_$SampleRate"
+$temporaryPath = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "hukbo-sfx-$([System.Guid]::NewGuid()).pcm")
+
+try {
+    Write-Host 'Requesting audio from ElevenLabs...'
+    Invoke-WebRequest `
+        -Uri $requestUri `
+        -Method Post `
+        -Headers @{ 'xi-api-key' = $apiKey } `
+        -ContentType 'application/json' `
+        -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) `
+        -OutFile $temporaryPath `
+        -MaximumRedirection 0 | Out-Null
+
+    $pcm = [System.IO.File]::ReadAllBytes($temporaryPath)
+    if ($pcm.Length -lt 1024) {
+        throw "The API returned only $($pcm.Length) bytes, which is not usable audio. The request may have been rejected."
+    }
+
+    if (-not $PSBoundParameters.ContainsKey('Channels')) {
+        # Raw PCM carries no header, so the channel count is inferred from how
+        # many 16-bit frames came back for the requested duration.
+        $expectedMonoBytes = $SampleRate * ($bitsPerSample / 8) * $Duration
+        $ratio = $pcm.Length / $expectedMonoBytes
+        if ($ratio -lt 1.5) {
+            $Channels = 1
+        }
+        elseif ($ratio -lt 2.5) {
+            $Channels = 2
+        }
+        else {
+            throw "Returned $($pcm.Length) bytes, which is $([math]::Round($ratio, 2))x the mono size for ${Duration}s at $SampleRate Hz. Re-run with an explicit -Channels value."
+        }
+    }
+
+    # The model sometimes returns a take that is technically valid audio and
+    # far too quiet to hear in a battle. Catching it here is what stops -Force
+    # from replacing a good file with a dud.
+    $peak = Get-PeakAmplitude -PcmData $pcm
+    $peakPercent = [math]::Round(100.0 * $peak / 32767.0, 1)
+    if ($peak -lt $minimumPeakAmplitude -and -not $AllowQuiet) {
+        throw "This take peaks at only $peakPercent% of full scale, which is too quiet to hear over a battle. Nothing was written, so any existing $Slot.wav is untouched. Run the same command again for another take, or pass -AllowQuiet to keep this one."
+    }
+
+    Write-Host "[INFO] Peak level: $peakPercent% of full scale."
+
+    $generatedSeconds = [math]::Round($pcm.Length / ($SampleRate * $Channels * ($bitsPerSample / 8)), 2)
+    if ($shouldTrim) {
+        $trimmed = Remove-Silence `
+            -PcmData $pcm `
+            -Rate $SampleRate `
+            -ChannelCount $Channels `
+            -ThresholdRatio ($SilenceThreshold / 100.0)
+
+        if ($trimmed.Length -lt $pcm.Length) {
+            Write-Host ("[INFO] Trimmed to the audible part at {0}% of peak: {1}s generated, {2}s kept. Use -NoTrim to keep it all." -f `
+                    $SilenceThreshold,
+                $generatedSeconds,
+                [math]::Round($trimmed.Length / ($SampleRate * $Channels * ($bitsPerSample / 8)), 2))
+            $pcm = $trimmed
+        }
+        else {
+            Write-Host "[INFO] Nothing to trim: the audio is audible from end to end at $SilenceThreshold% of peak."
+        }
+    }
+
+    Write-WavFile -PcmData $pcm -Rate $SampleRate -ChannelCount $Channels -Path $outputPath
+
+    $seconds = [math]::Round($pcm.Length / ($SampleRate * $Channels * ($bitsPerSample / 8)), 2)
+    $kilobytes = [math]::Round($pcm.Length / 1024.0, 1)
+    Write-Host "[PASS] Wrote $outputPath ($kilobytes KB, ${seconds}s, $Channels channel(s), $SampleRate Hz, 16-bit PCM)."
+
+    if (-not (Test-Path -LiteralPath $provenancePath -PathType Leaf)) {
+        @(
+            '# Generated sound provenance'
+            ''
+            'Every file in this folder produced by `scripts/sfx.ps1` is logged here.'
+            'The game ignores this file; it exists so a sound can be traced back to'
+            'the prompt and model that made it.'
+            ''
+            '| Date | File | Model | Requested | Kept | Influence | Prompt |'
+            '| --- | --- | --- | --- | --- | --- | --- |'
+        ) | Set-Content -LiteralPath $provenancePath -Encoding utf8
+    }
+
+    $escapedPrompt = $Prompt -replace '\|', '\|'
+    $row = '| {0} | `{1}.wav` | `{2}` | {3}s | {4}s | {5} | {6} |' -f `
+    (Get-Date -Format 'yyyy-MM-dd'), $Slot, $modelId, $Duration, $seconds, $PromptInfluence, $escapedPrompt
+    Add-Content -LiteralPath $provenancePath -Value $row -Encoding utf8
+
+    Write-Host "[PASS] Logged the prompt in $provenancePath."
+    Write-Host 'Next: launch with ./scripts/run.ps1 and press F9 to confirm the slot reports READY.'
+}
+catch {
+    $detail = $null
+    if ($null -ne $_.ErrorDetails -and -not [string]::IsNullOrWhiteSpace($_.ErrorDetails.Message)) {
+        $detail = $_.ErrorDetails.Message
+    }
+
+    if ($null -ne $detail) {
+        if ($detail.Length -gt 800) {
+            $detail = $detail.Substring(0, 800) + '...'
+        }
+
+        Write-Host "[FAIL] ElevenLabs rejected the request: $detail" -ForegroundColor Red
+        Write-Host '[INFO] A PCM output format above pcm_24000 requires a Pro subscription; re-run with -SampleRate 24000 if that is the cause.'
+    }
+
+    throw
+}
+finally {
+    if (Test-Path -LiteralPath $temporaryPath -PathType Leaf) {
+        Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
+    }
+}
