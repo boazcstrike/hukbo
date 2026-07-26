@@ -51,6 +51,7 @@ internal static class StateHasher
             Add(ref hash, agent.AttackCooldownRemaining);
             Add(ref hash, agent.TargetEntityId ?? 0);
             Add(ref hash, (int)agent.Intent);
+            Add(ref hash, (int)agent.MovementResolution);
             Add(ref hash, (int)agent.Loadout.Weapon);
             Add(ref hash, (int)agent.Loadout.Armor);
             Add(ref hash, (int)agent.Loadout.Shield);

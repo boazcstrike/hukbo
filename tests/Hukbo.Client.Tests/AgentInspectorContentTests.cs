@@ -185,6 +185,40 @@ public sealed class AgentInspectorContentTests
         Assert.Equal(0, budget);
     }
 
+    [Theory]
+    [InlineData(MovementResolution.None, "Movement: Holding")]
+    [InlineData(MovementResolution.Moved, "Movement: Moving")]
+    [InlineData(MovementResolution.Truncated, "Movement: Crowded")]
+    [InlineData(MovementResolution.Slid, "Movement: Sliding")]
+    [InlineData(MovementResolution.Blocked, "Movement: Blocked")]
+    [InlineData(MovementResolution.Separated, "Movement: Pushed apart")]
+    public void FormatMovementLineLabelsEveryResolution(
+        MovementResolution resolution,
+        string expected)
+    {
+        var line = AgentInspectorContent.FormatMovementLine(resolution);
+
+        Assert.Equal(expected, line);
+    }
+
+    [Fact]
+    public void EveryMovementResolutionHasADistinctSpectatorLabel()
+    {
+        var labels = Enum.GetValues<MovementResolution>()
+            .Select(AgentInspectorContent.GetMovementLabel)
+            .ToArray();
+
+        Assert.Equal(labels.Length, labels.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public void MovementLineOccupiesItsOwnReservedLowerRow()
+    {
+        // The panel draws the movement line at row 6, so the lower block must
+        // reserve seven rows before evidence wrapping begins.
+        Assert.True(AgentInspectorContent.LowerRowCount >= 7);
+    }
+
     private static Func<string, float> FixedWidthMeasure(
         float pixelsPerCharacter) =>
         text => text.Length * pixelsPerCharacter;

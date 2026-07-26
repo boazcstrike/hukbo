@@ -194,13 +194,11 @@ public static class HeadlessRunner
         var eventHash = Fnv1a.OffsetBasis;
         long? firstMismatchTick = null;
 
-        // The collision stage does not exist yet, so nothing calls AddTick or
-        // ObserveBlockedStreak. The accumulator is wired here so that stage only
-        // has to feed it; until then the run reports an all-zero aggregate,
-        // which is also the correct reading for a build without collisions.
+        // Fed from the left simulation only. The right simulation exists purely
+        // to prove determinism, and both are verified identical every tick, so
+        // aggregating one is aggregating both.
         var collisionMetrics = new CollisionMetricsAccumulator();
         collisionMetrics.Reset();
-
 
         var allocationStart = GC.GetAllocatedBytesForCurrentThread();
 
@@ -213,6 +211,17 @@ public static class HeadlessRunner
             left.AdvanceOneTick();
             var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
             tickDurations.Add(elapsed.TotalMilliseconds);
+
+            var tickCollision = left.LastTickCollision;
+            collisionMetrics.AddTick(
+                tickCollision.CandidatePairs,
+                tickCollision.ContactPairs,
+                tickCollision.AcceptedMoves,
+                tickCollision.BlockedAgents,
+                tickCollision.AttackCapableAgents,
+                tickCollision.FrontWidthRaw,
+                tickCollision.FrontDepthRaw,
+                tickCollision.PenetrationRaw);
 
             right.AdvanceOneTick();
             var leftStateHash = left.ComputeStateHash();
@@ -233,6 +242,7 @@ public static class HeadlessRunner
         }
 
         var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocationStart;
+        collisionMetrics.ObserveBlockedStreak(left.LongestBlockedStreakTicks);
         var sortedDurations = tickDurations.Order().ToArray();
         var survivors = left.Agents
             .Where(agent => agent.IsAlive)
