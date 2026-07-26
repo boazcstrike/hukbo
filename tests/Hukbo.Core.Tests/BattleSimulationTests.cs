@@ -242,6 +242,34 @@ public sealed class BattleSimulationTests
         Assert.Contains(BattleOutcome.Faction1Victory, outcomes);
     }
 
+    /// <summary>
+    /// Acceptance row <c>Battle completion</c> of
+    /// <c>docs/plans/2026-07-27-formation-collision-mechanics.md</c>: the
+    /// canonical two-hundred-agent battle still reaches a decisive result well
+    /// inside its tick limit. Solid bodies must not turn the battle into a
+    /// stalemate that only the limit ends.
+    /// </summary>
+    [Fact]
+    public void CanonicalTwoHundredAgentBattleTerminatesWithinTheTickLimit()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200);
+        var simulation = BattleSimulation.Create(scenario);
+
+        while (simulation.Outcome == BattleOutcome.Ongoing &&
+            simulation.Tick < scenario.TickLimit)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        Assert.True(
+            simulation.Tick < scenario.TickLimit,
+            $"The canonical battle reached tick {simulation.Tick} of a " +
+            $"{scenario.TickLimit} tick limit without resolving.");
+        Assert.Contains(
+            simulation.Outcome,
+            new[] { BattleOutcome.Faction0Victory, BattleOutcome.Faction1Victory });
+    }
+
     private static Scenario CreateTestScenario() =>
         new(
             Seed: 1,
