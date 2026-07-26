@@ -500,17 +500,104 @@ public sealed class BattleSimulation
         for (var index = 0; index < _agentStates.Length; index++)
         {
             var agent = _agentStates[index];
-            if (!agent.IsAlive ||
-                agent.Intent != AgentIntent.Moving ||
-                agent.TargetEntityId is not { } targetId)
+            if (!agent.IsAlive)
             {
                 continue;
             }
 
-            var target = _agentStates[_agentIndexes[targetId]];
-            _movementProposals[index] = BuildMovementProposal(agent, target);
+            if (agent.Intent == AgentIntent.Moving &&
+                agent.TargetEntityId is { } enemyTargetId)
+            {
+                var target = _agentStates[_agentIndexes[enemyTargetId]];
+                _movementProposals[index] = BuildMovementProposal(agent, target);
+                continue;
+            }
+
+            if (agent.Intent == AgentIntent.Regrouping)
+            {
+                _movementProposals[index] = BuildRegroupingProposal(agent);
+            }
         }
     }
+
+    /// <summary>
+    /// Builds the movement proposal that closes a regrouping follower on its
+    /// faction's rally agent plus that follower's own fixed positional bias
+    /// (<see cref="RallyOffset"/>). Returns <c>null</c> — propose no movement
+    /// — in two cases: the arrived-guard, when the follower's squared distance
+    /// to its aim point is already at or inside
+    /// <see cref="CollisionGeometry.ContactSquaredDistance"/>, which stops the
+    /// one-raw-unit movement-floor twitch and the resulting <c>Move</c>-event
+    /// flood a settled cluster would otherwise emit every tick; and the
+    /// defensive case where the rally entity ID is the zero sentinel or the
+    /// rally agent cannot be resolved to a living agent, which falls back to
+    /// no movement rather than throwing.
+    /// </summary>
+    private (int XRaw, int YRaw, ulong TargetId)? BuildRegroupingProposal(
+        AgentState agent)
+    {
+        var rallyEntityId = _factionRallyEntityIds[agent.FactionId];
+        if (rallyEntityId == 0 ||
+            !_agentIndexes.TryGetValue(rallyEntityId, out var rallyIndex))
+        {
+            return null;
+        }
+
+        var rallyAgent = _agentStates[rallyIndex];
+        if (!rallyAgent.IsAlive)
+        {
+            return null;
+        }
+
+        var (offsetXRaw, offsetYRaw) = RallyOffset.Compute(
+            Scenario.Seed,
+            agent.EntityId,
+            Scenario.BodyRadiusRaw);
+
+        // The aim point is computed in long and saturated into int the same
+        // way CollisionResolver.ToCoordinate saturates a candidate coordinate
+        // before its own boundary clamp: safe, because ClampCenterToBounds
+        // immediately pulls anything outside the map back to the edge.
+        var mapWidthRaw = checked(Scenario.MapWidth * FixedPoint.Scale);
+        var mapHeightRaw = checked(Scenario.MapHeight * FixedPoint.Scale);
+        var aimXRaw = CollisionGeometry.ClampCenterToBounds(
+            SaturateToInt32(checked((long)rallyAgent.XRaw + offsetXRaw)),
+            mapWidthRaw,
+            Scenario.BodyRadiusRaw);
+        var aimYRaw = CollisionGeometry.ClampCenterToBounds(
+            SaturateToInt32(checked((long)rallyAgent.YRaw + offsetYRaw)),
+            mapHeightRaw,
+            Scenario.BodyRadiusRaw);
+
+        var squaredDistanceToAim = CollisionGeometry.SquaredDistance(
+            agent.XRaw,
+            agent.YRaw,
+            aimXRaw,
+            aimYRaw);
+        if (squaredDistanceToAim <=
+            CollisionGeometry.ContactSquaredDistance(Scenario.BodyRadiusRaw))
+        {
+            return null;
+        }
+
+        // The event log names the rally agent as the target, not the enemy
+        // the follower would otherwise be chasing, so a spectator reads
+        // "entity N moved toward entity <rally>" during a last stand.
+        return BuildMovementProposal(
+            agent,
+            aimXRaw,
+            aimYRaw,
+            rallyAgent.EntityId);
+    }
+
+    /// <summary>
+    /// Saturates a long coordinate into <see cref="int"/>, mirroring
+    /// <c>CollisionResolver.ToCoordinate</c>. Safe because the caller always
+    /// runs the result through <see cref="CollisionGeometry.ClampCenterToBounds"/>
+    /// immediately afterward.
+    /// </summary>
+    private static int SaturateToInt32(long valueRaw) =>
+        (int)Math.Clamp(valueRaw, int.MinValue, int.MaxValue);
 
     /// <summary>
     /// Hands every living agent to the solid-disc resolver. Agents without a
@@ -834,24 +921,64 @@ public sealed class BattleSimulation
             factionId: winningFaction);
     }
 
+    /// <summary>
+    /// Builds a movement proposal that closes an agent on an enemy it is
+    /// fighting. Delegates to the point-taking overload, stopping short by
+    /// one body diameter so bodies come to rest touching rather than
+    /// overlapping — see the point-taking overload's remarks for why a rally
+    /// point is handled differently.
+    /// </summary>
     private (int XRaw, int YRaw, ulong TargetId) BuildMovementProposal(
         AgentState agent,
-        AgentState target)
+        AgentState target) =>
+        BuildMovementProposal(
+            agent,
+            target.XRaw,
+            target.YRaw,
+            target.EntityId,
+            // Agents close to body contact, not merely to weapon reach.
+            // Stopping at reach left four world units of permanent air
+            // between opposing front ranks, so bodies never touched and the
+            // collision stage only ever saw allies queueing. Attacks still
+            // resolve at reach, which is wider than the diameter, so a rank
+            // pressed into contact fights and the rank behind it can reach
+            // past.
+            stopShortRaw: checked(2 * Scenario.BodyRadiusRaw));
+
+    /// <summary>
+    /// Builds a movement proposal toward an arbitrary destination point
+    /// rather than another agent's live position. Used for last-stand rally
+    /// movement, where a follower wants to actually reach its aim point
+    /// rather than stop short of it the way it would closing on an enemy
+    /// body — so this overload walks all the way in (<c>stopShortRaw: 0</c>)
+    /// instead of duplicating the enemy-closing overload's stopping-distance
+    /// arithmetic.
+    /// </summary>
+    private (int XRaw, int YRaw, ulong TargetId) BuildMovementProposal(
+        AgentState agent,
+        int destinationXRaw,
+        int destinationYRaw,
+        ulong targetId) =>
+        BuildMovementProposal(
+            agent,
+            destinationXRaw,
+            destinationYRaw,
+            targetId,
+            stopShortRaw: 0);
+
+    private (int XRaw, int YRaw, ulong TargetId) BuildMovementProposal(
+        AgentState agent,
+        int destinationXRaw,
+        int destinationYRaw,
+        ulong targetId,
+        int stopShortRaw)
     {
-        var deltaX = (long)target.XRaw - agent.XRaw;
-        var deltaY = (long)target.YRaw - agent.YRaw;
+        var deltaX = (long)destinationXRaw - agent.XRaw;
+        var deltaY = (long)destinationYRaw - agent.YRaw;
         var distanceSquared = checked((deltaX * deltaX) + (deltaY * deltaY));
         var distance = IntegerSquareRoot(distanceSquared);
 
-        // Agents close to body contact, not merely to weapon reach. Stopping at
-        // reach left four world units of permanent air between opposing front
-        // ranks, so bodies never touched and the collision stage only ever saw
-        // allies queueing. Attacks still resolve at reach, which is wider than
-        // the diameter, so a rank pressed into contact fights and the rank
-        // behind it can reach past.
-        var desiredMovement = Math.Max(
-            1,
-            distance - checked(2 * Scenario.BodyRadiusRaw));
+        var desiredMovement = Math.Max(1, distance - stopShortRaw);
         var movement = Math.Min(agent.MovementSpeedRaw, desiredMovement);
         var moveX = checked(deltaX * movement / Math.Max(1, distance));
         var moveY = checked(deltaY * movement / Math.Max(1, distance));
@@ -876,7 +1003,7 @@ public sealed class BattleSimulation
             checked(agent.YRaw + (int)moveY),
             checked(Scenario.MapHeight * FixedPoint.Scale),
             Scenario.BodyRadiusRaw);
-        return (nextX, nextY, target.EntityId);
+        return (nextX, nextY, targetId);
     }
 
     /// <summary>
