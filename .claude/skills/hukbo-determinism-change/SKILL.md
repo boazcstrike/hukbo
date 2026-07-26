@@ -64,20 +64,72 @@ Related rules from `CLAUDE.md` §5 that cause most real failures:
 
 ## Recorded baseline
 
-From `docs/development/testing.md`, seed 1, 200 agents:
+From `docs/development/testing.md`, seed 1, 200 agents, one final verified run of
+the collision change **as amended** to close to body contact:
 
 | Field | Value |
 | --- | --- |
-| Outcome | `Faction1Victory` at tick 235 |
-| State hash | `210C5EF8E7BE4D48` |
-| Event hash | `CE35EDA4B2A4E5A4` |
-| Allocated | 12,108,304 bytes (captured baseline 19,856,712) |
+| Outcome | `Faction1Victory` at tick 657 |
+| State hash | `D78F0B527B7F938F` |
+| Event hash | `AC3BAAEC684854D5` |
+| Allocated | 42,568,888 bytes |
 
-Also recorded: seeds 1-20 produce victories for both factions rather than one
-always-winning faction, and the 500-agent stress workload ends at tick 309.
+The 500-agent stress workload, report only, from the same run: `Faction1Victory`
+at tick 978 with 0 faction-0 and 17 faction-1 survivors, state hash
+`C81B4F48DE54B983`, event hash `D03F1213563DFD49`, deterministic with no mismatch
+tick.
 
-If your change moves any of these, update that section explicitly. Do not let a
-new number appear silently.
+### Superseded hashes — dead values, do not target
+
+Every pair below was superseded rather than corrected. None of them is a
+regression target, and none may be used to judge whether a hash "should" match.
+They are listed so a hash you find in an older document can be identified as
+history instead of mistaken for a live baseline.
+
+| Dead baseline | State hash | Event hash |
+| --- | --- | --- |
+| 200 agents, pre-amendment collision run, tick 781 | `7EE8BF6EC0F11BB2` | `9BFC18AD06F4F572` |
+| 500 agents, pre-amendment collision run | `7402CCC7C6EC3B50` | `619CCC872BBB2413` |
+| 200 agents, pre-collision, tick 235 | `6EBB1EA63114F6CE` | `941377BD43C556FF` |
+| 200 agents, earlier still | `210C5EF8E7BE4D48` | `CE35EDA4B2A4E5A4` |
+
+Two separate legitimate movements produced that chain. Solid-disc contact put new
+fields into the state hash and changed where agents stand, which retired the
+tick-235 pair. The later amendment changed the approach target from attack range
+to body contact — agents now advance until their bodies meet rather than until
+their weapons reach — which changed where agents stand again and retired the
+tick-781 pair. The proximity band introduced for contact metrics at the same time
+moved **neither** hash, because it is derived observability; that byte-identical
+result is what proved it had not leaked into authoritative state.
+
+Also still recorded: seeds 1-20 produce victories for both factions rather than
+one always-winning faction, verified by
+`SeedsOneThroughTwentyProduceVictoriesForBothFactions` inside the ordinary Core
+suite.
+
+If your change moves any of these, update `docs/development/testing.md`
+explicitly and say which hash moved and why. Do not let a new number appear
+silently.
+
+## Hashed fields that force a new preset version
+
+Changing any of these moves the hashes for every seed, so each one requires a new
+preset version plus new golden expectations. This is in addition to the
+`CLAUDE.md` §5 list of enum values, enum order, roster order, weights, and hash
+mixers.
+
+| Field | Where | Why it is hashed |
+| --- | --- | --- |
+| `MovementResolution` | per agent, written by the collision stage | The authoritative reason an agent finished a tick where it did. Numeric values are pinned; reordering or renumbering them changes the state hash. |
+| `Scenario.BodyRadiusRaw` | immutable scenario | The one common body radius. Changing it changes every legality test in the resolver and therefore every position. |
+| `Scenario.CollisionPolicy` | immutable scenario | Hashed as its integer value so the contact rule is authoritative and legible in a saved scenario. Exactly one value, `Solid`, is accepted. |
+
+The uniform grid, the collision pair and proposal buffers, and the aggregate
+collision counters are **derived**. They are never hashed, never snapshotted, and
+never persisted, so a change to any of them must leave both hashes
+byte-identical. If a grid or buffer change moves a hash, the derived layer has
+leaked into authoritative state — treat that as a determinism defect, not as a
+baseline to re-record.
 
 ## Diagnosing a mismatch
 

@@ -153,6 +153,11 @@ internal sealed class AgentInspectorPanel
             textX,
             lowerTextY,
             5);
+        DrawLine(
+            AgentInspectorContent.FormatMovementLine(selected.MovementResolution),
+            textX,
+            lowerTextY,
+            6);
 
         var contentWidthBudget = AgentInspectorContent.ComputeContentWidthBudget(
             Bounds.Width);

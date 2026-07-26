@@ -25,6 +25,161 @@ public sealed class ScenarioTests
     }
 
     [Fact]
+    public void CreateDefaultUsesTheApprovedSolidCollisionConfiguration()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200);
+
+        scenario.Validate();
+
+        Assert.Equal(CollisionRules.DefaultBodyRadiusRaw, scenario.BodyRadiusRaw);
+        Assert.Equal(4 * FixedPoint.Scale, scenario.BodyRadiusRaw);
+        Assert.Equal(CollisionPolicy.Solid, scenario.CollisionPolicy);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(int.MinValue)]
+    public void ValidateRejectsNonpositiveBodyRadius(int bodyRadiusRaw)
+    {
+        var scenario = Scenario.CreateDefault() with
+        {
+            BodyRadiusRaw = bodyRadiusRaw,
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateRejectsBodyRadiusAboveTheRawWorldMaximum()
+    {
+        var scenario = Scenario.CreateDefault() with
+        {
+            BodyRadiusRaw = checked(
+                (Scenario.MaximumMapDimension * FixedPoint.Scale) + 1),
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateRejectsAnyCollisionPolicyOtherThanSolid()
+    {
+        var scenario = Scenario.CreateDefault() with
+        {
+            CollisionPolicy = (CollisionPolicy)1,
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateAcceptsBodiesThatExactlyFillTheAttackRange()
+    {
+        var scenario = Scenario.CreateDefault() with
+        {
+            AttackRangeRaw = 8 * FixedPoint.Scale,
+            BodyRadiusRaw = 4 * FixedPoint.Scale,
+        };
+
+        scenario.Validate();
+
+        Assert.Equal(
+            scenario.AttackRangeRaw,
+            checked(2 * scenario.BodyRadiusRaw));
+    }
+
+    [Fact]
+    public void ValidateRejectsBodiesWiderThanTheAttackRange()
+    {
+        var scenario = Scenario.CreateDefault() with
+        {
+            AttackRangeRaw = 8 * FixedPoint.Scale,
+            BodyRadiusRaw = (4 * FixedPoint.Scale) + 1,
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateAcceptsMovementSpeedEqualToTheBodyRadius()
+    {
+        var scenario = Scenario.CreateDefault() with
+        {
+            MovementSpeedRaw = CollisionRules.DefaultBodyRadiusRaw,
+        };
+
+        scenario.Validate();
+
+        Assert.Equal(scenario.BodyRadiusRaw, scenario.MovementSpeedRaw);
+    }
+
+    [Fact]
+    public void ValidateRejectsMovementSpeedAboveTheBodyRadius()
+    {
+        var scenario = Scenario.CreateDefault() with
+        {
+            MovementSpeedRaw = CollisionRules.DefaultBodyRadiusRaw + 1,
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateAcceptsAMapExactlyOneBodyWideOrOneBodyTall()
+    {
+        var exactlyOneBodyWide = CreateSingleBodyMapScenario(
+            mapWidth: 2,
+            mapHeight: 4);
+        var exactlyOneBodyTall = CreateSingleBodyMapScenario(
+            mapWidth: 4,
+            mapHeight: 2);
+
+        exactlyOneBodyWide.Validate();
+        exactlyOneBodyTall.Validate();
+    }
+
+    [Fact]
+    public void ValidateRejectsAMapNarrowerOrShorterThanOneBody()
+    {
+        var tooNarrow = CreateSingleBodyMapScenario(mapWidth: 1, mapHeight: 4);
+        var tooShort = CreateSingleBodyMapScenario(mapWidth: 4, mapHeight: 1);
+
+        Assert.Throws<ArgumentOutOfRangeException>(tooNarrow.Validate);
+        Assert.Throws<ArgumentOutOfRangeException>(tooShort.Validate);
+    }
+
+    [Fact]
+    public void ValidateAcceptsAPopulationThatExactlySquarePacksTheMap()
+    {
+        var scenario = CreateSquarePackedScenario(agentsPerFaction: 8);
+
+        scenario.Validate();
+
+        Assert.Equal(16, scenario.TotalAgents);
+    }
+
+    [Fact]
+    public void ValidateRejectsAPopulationDenserThanSquarePacking()
+    {
+        var scenario = CreateSquarePackedScenario(agentsPerFaction: 9);
+
+        Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateAcceptsTheLargestSupportedMapWithTheDefaultBody()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 2) with
+        {
+            MapWidth = Scenario.MaximumMapDimension,
+            MapHeight = Scenario.MaximumMapDimension,
+        };
+
+        scenario.Validate();
+    }
+
+    [Fact]
     public void ValidateRejectsUnregisteredCombatPreset()
     {
         var scenario = Scenario.CreateDefault() with
@@ -133,9 +288,10 @@ public sealed class ScenarioTests
         {
             MapWidth = 1,
             MapHeight = 1,
-            AttackRangeRaw = 1,
+            AttackRangeRaw = 2,
             PerceptionRangeRaw = FixedPoint.Scale,
             MovementSpeedRaw = 1,
+            BodyRadiusRaw = 1,
         };
 
         var simulation = BattleSimulation.Create(scenario);
@@ -254,4 +410,25 @@ public sealed class ScenarioTests
 
         Assert.Equal(first.GetHashCode(), second.GetHashCode());
     }
+
+    private static Scenario CreateSingleBodyMapScenario(
+        int mapWidth,
+        int mapHeight) =>
+        Scenario.CreateDefault(totalAgents: 2) with
+        {
+            MapWidth = mapWidth,
+            MapHeight = mapHeight,
+            BodyRadiusRaw = FixedPoint.Scale,
+            MovementSpeedRaw = FixedPoint.Scale,
+        };
+
+    private static Scenario CreateSquarePackedScenario(int agentsPerFaction) =>
+        Scenario.CreateDefault(totalAgents: 2) with
+        {
+            AgentsPerFaction = agentsPerFaction,
+            MapWidth = 8,
+            MapHeight = 8,
+            BodyRadiusRaw = FixedPoint.Scale,
+            MovementSpeedRaw = FixedPoint.Scale,
+        };
 }

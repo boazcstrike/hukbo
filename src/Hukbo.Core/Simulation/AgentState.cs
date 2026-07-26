@@ -72,6 +72,12 @@ internal sealed class AgentState
 
     internal AgentIntent Intent { get; set; }
 
+    /// <summary>
+    /// Why this agent finished the tick where it did. Written by the collision
+    /// stage, authoritative, and included in the state hash.
+    /// </summary>
+    internal MovementResolution MovementResolution { get; set; }
+
     internal bool IsAlive => HitPoints > 0;
 
     internal AgentView ToView() =>
@@ -85,5 +91,6 @@ internal sealed class AgentState
             TargetEntityId,
             Intent,
             IsAlive,
-            Loadout);
+            Loadout,
+            MovementResolution);
 }

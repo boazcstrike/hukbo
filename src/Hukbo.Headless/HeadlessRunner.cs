@@ -193,6 +193,13 @@ public static class HeadlessRunner
             Math.Min(options.TickCount, 100_000));
         var eventHash = Fnv1a.OffsetBasis;
         long? firstMismatchTick = null;
+
+        // Fed from the left simulation only. The right simulation exists purely
+        // to prove determinism, and both are verified identical every tick, so
+        // aggregating one is aggregating both.
+        var collisionMetrics = new CollisionMetricsAccumulator();
+        collisionMetrics.Reset();
+
         var allocationStart = GC.GetAllocatedBytesForCurrentThread();
 
         for (var requestedTick = 0;
@@ -204,6 +211,17 @@ public static class HeadlessRunner
             left.AdvanceOneTick();
             var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
             tickDurations.Add(elapsed.TotalMilliseconds);
+
+            var tickCollision = left.LastTickCollision;
+            collisionMetrics.AddTick(
+                tickCollision.CandidatePairs,
+                tickCollision.ContactPairs,
+                tickCollision.AcceptedMoves,
+                tickCollision.BlockedAgents,
+                tickCollision.AttackCapableAgents,
+                tickCollision.FrontWidthRaw,
+                tickCollision.FrontDepthRaw,
+                tickCollision.PenetrationRaw);
 
             right.AdvanceOneTick();
             var leftStateHash = left.ComputeStateHash();
@@ -224,6 +242,7 @@ public static class HeadlessRunner
         }
 
         var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocationStart;
+        collisionMetrics.ObserveBlockedStreak(left.LongestBlockedStreakTicks);
         var sortedDurations = tickDurations.Order().ToArray();
         var survivors = left.Agents
             .Where(agent => agent.IsAlive)
@@ -254,7 +273,8 @@ public static class HeadlessRunner
             eventHash.ToString("X16", CultureInfo.InvariantCulture),
             left.ComputeStateHash().ToString("X16", CultureInfo.InvariantCulture),
             firstMismatchTick is null,
-            firstMismatchTick);
+            firstMismatchTick,
+            collisionMetrics.ToMetrics());
     }
 
     private static bool IsSupportedArgument(string argument) =>

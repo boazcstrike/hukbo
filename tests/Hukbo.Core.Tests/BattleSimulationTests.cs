@@ -31,7 +31,6 @@ public sealed class BattleSimulationTests
         var scenario = CreateTestScenario() with
         {
             AttackRangeRaw = FixedPoint.Scale,
-            MovementSpeedRaw = 3 * FixedPoint.Scale,
         };
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
@@ -43,7 +42,7 @@ public sealed class BattleSimulationTests
         var mover = Assert.Single(
             simulation.Agents,
             agent => agent.EntityId == 1);
-        Assert.Equal(13 * FixedPoint.Scale, mover.XRaw);
+        Assert.Equal((10 * FixedPoint.Scale) + (FixedPoint.Scale / 2), mover.XRaw);
         Assert.Equal(10 * FixedPoint.Scale, mover.YRaw);
         Assert.Equal(AgentIntent.Moving, mover.Intent);
     }
@@ -90,10 +89,17 @@ public sealed class BattleSimulationTests
             AttackRangeRaw = 12 * FixedPoint.Scale,
             AttackCooldownTicks = 2,
         };
+
+        // Placed already in body contact, one world unit apart against a
+        // half-unit radius. Agents now close to contact rather than halting at
+        // reach, so a pair starting at reach would still be advancing on the
+        // second tick and the feed would not be quiet. Starting in contact is
+        // what makes the second tick genuinely empty, which is the condition
+        // this test needs in order to observe the retained snapshot.
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
             CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
-            CreateAgent(2, factionId: 1, x: 22, y: 10, scenario));
+            CreateAgent(2, factionId: 1, x: 11, y: 10, scenario));
 
         simulation.AdvanceOneTick();
         var retainedEvents = simulation.LastEvents;
@@ -223,6 +229,156 @@ public sealed class BattleSimulationTests
     }
 
     [Fact]
+    public void RepeatedCollisionTicksHaveBoundedAllocations()
+    {
+        const int measuredTicks = 1_000;
+
+        // Raised from 500,000 when agents began closing to body contact instead
+        // of halting at reach: the crowd now jostles every tick, so far more
+        // Move events are emitted. This ceiling tracks event traffic, which the
+        // collision stage does not own. The window comparison below is the
+        // assertion that actually guards collision storage.
+        const long maximumAllocatedBytes = 900_000;
+        const int agentsPerFaction = 12;
+
+        // Crowd two lines into one another so the resolver works every tick:
+        // the grid rebuilds, pairs are generated, and the movers behind the
+        // front are blocked or truncated instead of walking freely. Hit points
+        // are high and damage minimal so nobody dies inside the measured
+        // window, which keeps the crowd intact for the whole run.
+        // Two measured windows plus warm-up must all fit inside the limit, or
+        // the battle ends in a draw part-way and the second window measures
+        // no-op ticks.
+        var scenario = CreateTestScenario() with
+        {
+            TickLimit = (measuredTicks * 2) + 100,
+            MaximumHitPoints = 1_000_000,
+            DamagePerAttack = 1,
+            AttackCooldownTicks = 20,
+        };
+
+        var agents = new List<AgentState>(agentsPerFaction * 2);
+        for (var index = 0; index < agentsPerFaction; index++)
+        {
+            agents.Add(
+                CreateAgent(
+                    checked((ulong)index + 1),
+                    factionId: 0,
+                    x: 90 - (index % 3),
+                    y: 40 + index,
+                    scenario));
+            agents.Add(
+                CreateAgent(
+                    checked((ulong)(agentsPerFaction + index) + 1),
+                    factionId: 1,
+                    x: 110 + (index % 3),
+                    y: 40 + index,
+                    scenario));
+        }
+
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            [.. agents]);
+
+        for (var tick = 0; tick < 32; tick++)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        var firstWindowStart = GC.GetAllocatedBytesForCurrentThread();
+        for (var tick = 0; tick < measuredTicks; tick++)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        var secondWindowStart = GC.GetAllocatedBytesForCurrentThread();
+        for (var tick = 0; tick < measuredTicks; tick++)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        var windowEnd = GC.GetAllocatedBytesForCurrentThread();
+        var firstWindowBytes = secondWindowStart - firstWindowStart;
+        var secondWindowBytes = windowEnd - secondWindowStart;
+
+        Assert.Equal(BattleOutcome.Ongoing, simulation.Outcome);
+
+        // The ceiling is generous because per-tick event traffic dominates it:
+        // twenty-four agents in sustained contact emit far more events than the
+        // two-agent quiet scenario above, and each tick's event list is an
+        // allocation the collision stage does not control.
+        Assert.True(
+            firstWindowBytes <= maximumAllocatedBytes,
+            $"Collision ticks allocated {firstWindowBytes:N0} bytes; " +
+            $"expected at most {maximumAllocatedBytes:N0}.");
+
+        // This is the assertion that actually guards the collision buffers.
+        // Grid cells, pair lists, proposal buffers, and resolver scratch are all
+        // reused, so a second identical window must not cost more than the
+        // first. Any growth means something is reallocating per tick.
+        Assert.True(
+            secondWindowBytes <= firstWindowBytes,
+            $"A warm window allocated {secondWindowBytes:N0} bytes after a " +
+            $"first window of {firstWindowBytes:N0}. Collision storage must " +
+            "be reused, growing only when capacity is insufficient.");
+    }
+
+    [Fact]
+    public void CollisionTicksActuallyExerciseTheResolver()
+    {
+        // Guards the allocation test above: a crowd that never blocks anyone
+        // would keep that budget trivially, and the measurement would prove
+        // nothing about the collision stage.
+        const int agentsPerFaction = 12;
+        var scenario = CreateTestScenario() with
+        {
+            TickLimit = 500,
+            MaximumHitPoints = 1_000_000,
+            DamagePerAttack = 1,
+            AttackCooldownTicks = 20,
+        };
+
+        var agents = new List<AgentState>(agentsPerFaction * 2);
+        for (var index = 0; index < agentsPerFaction; index++)
+        {
+            agents.Add(
+                CreateAgent(
+                    checked((ulong)index + 1),
+                    factionId: 0,
+                    x: 90 - (index % 3),
+                    y: 40 + index,
+                    scenario));
+            agents.Add(
+                CreateAgent(
+                    checked((ulong)(agentsPerFaction + index) + 1),
+                    factionId: 1,
+                    x: 110 + (index % 3),
+                    y: 40 + index,
+                    scenario));
+        }
+
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            [.. agents]);
+
+        var constrained = false;
+        for (var tick = 0; tick < 200 && !constrained; tick++)
+        {
+            simulation.AdvanceOneTick();
+            constrained = simulation.Agents.Any(
+                agent => agent.MovementResolution
+                    is MovementResolution.Blocked
+                    or MovementResolution.Truncated
+                    or MovementResolution.Slid);
+        }
+
+        Assert.True(
+            constrained,
+            "No agent was ever blocked, truncated, or slid, so the allocation " +
+            "measurement would not be exercising the collision resolver.");
+    }
+
+    [Fact]
     public void SeedsOneThroughTwentyProduceVictoriesForBothFactions()
     {
         var outcomes = new HashSet<BattleOutcome>();
@@ -244,6 +400,34 @@ public sealed class BattleSimulationTests
         Assert.Contains(BattleOutcome.Faction1Victory, outcomes);
     }
 
+    /// <summary>
+    /// Acceptance row <c>Battle completion</c> of
+    /// <c>docs/plans/2026-07-27-formation-collision-mechanics.md</c>: the
+    /// canonical two-hundred-agent battle still reaches a decisive result well
+    /// inside its tick limit. Solid bodies must not turn the battle into a
+    /// stalemate that only the limit ends.
+    /// </summary>
+    [Fact]
+    public void CanonicalTwoHundredAgentBattleTerminatesWithinTheTickLimit()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200);
+        var simulation = BattleSimulation.Create(scenario);
+
+        while (simulation.Outcome == BattleOutcome.Ongoing &&
+            simulation.Tick < scenario.TickLimit)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        Assert.True(
+            simulation.Tick < scenario.TickLimit,
+            $"The canonical battle reached tick {simulation.Tick} of a " +
+            $"{scenario.TickLimit} tick limit without resolving.");
+        Assert.Contains(
+            simulation.Outcome,
+            new[] { BattleOutcome.Faction0Victory, BattleOutcome.Faction1Victory });
+    }
+
     private static Scenario CreateTestScenario() =>
         new(
             Seed: 1,
@@ -257,7 +441,11 @@ public sealed class BattleSimulationTests
             DamagePerAttack = 10,
             AttackRangeRaw = 5 * FixedPoint.Scale,
             PerceptionRangeRaw = 200 * FixedPoint.Scale,
-            MovementSpeedRaw = FixedPoint.Scale,
+            // Bodies are half a world unit across so that the hand-placed agents
+            // below stay clear of one another, and the step is capped at the
+            // radius by the tunneling guard in Scenario.Validate.
+            BodyRadiusRaw = FixedPoint.Scale / 2,
+            MovementSpeedRaw = FixedPoint.Scale / 2,
             AttackCooldownTicks = 1,
         };
 

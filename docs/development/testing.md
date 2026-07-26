@@ -39,8 +39,287 @@ types. Performance output is evidence, not a universal frame-time guarantee.
 
 ## Latest non-interactive result
 
-The sound-variant run on 2026-07-27 recorded `./scripts/verify.ps1 -SkipBootstrap`
-passing every stage:
+Every figure in this section comes from one final verified run of the **amended**
+collision change on 2026-07-27, taken on the `feature/collision-mechanics`
+branch after the contact-closing amendment recorded in
+[docs/decisions/2026-07-27-collision-policy.md](../decisions/2026-07-27-collision-policy.md).
+Nothing here is estimated, rounded, or carried over from an earlier run.
+
+**Every result recorded further down this file predates the amendment.** The
+pre-amendment collision figures, the plains-backdrop run, the sound-system run,
+the sound-variant run, and the blood-and-gore run were all taken before agents
+closed to body contact and before the contact metric used a proximity band. They
+are kept as history and must not be read as current.
+
+Note on test counts: the sound-variant run below reports 505 Client tests, more
+than this section's 437, because collision was verified on a branch taken before
+the sound-variant work was committed. The merge carries both, so the next full
+run on `main` will report a higher Client count than either figure. That is a
+sequencing artefact, not a lost test.
+
+Environment: Windows 11 Pro 10.0.26200, .NET SDK 10.0.302 as pinned in
+`global.json`. The CPU model and installed memory were not captured, so they are
+not stated; a future performance comparison that depends on them has to capture
+them first.
+
+### Canonical gate
+
+`./scripts/verify.ps1 -SkipBootstrap` passed at all five stages: format
+verification, the Release solution build with zero warnings, the Release
+repository tests, the seed-1 / 200-agent / 10,000-tick headless determinism
+workload, and the overall gate.
+
+| Suite | Passed | Failed | Skipped |
+| --- | --- | --- | --- |
+| `Hukbo.Core.Tests` | 326 | 0 | 0 |
+| `Hukbo.Client.Tests` | 437 | 0 | 0 |
+
+Both counts are higher than the figures recorded for the pre-amendment collision
+run because `main` was merged into this branch in the meantime, bringing the
+sound, plains backdrop, blood, and army-composition suites with it. The increase
+is not attributable to the collision work and must not be cited as its coverage.
+
+### 200-agent acceptance workload
+
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`. This is the
+acceptance workload named in the collision policy decision record, and these
+values are the current recorded oracle.
+
+| Field | Value |
+| --- | --- |
+| Measured ticks | 657 |
+| Outcome | `Faction1Victory` |
+| Faction 0 survivors | 0 |
+| Faction 1 survivors | 10 |
+| State hash | `D78F0B527B7F938F` |
+| Event hash | `AC3BAAEC684854D5` |
+| Deterministic | `true` |
+| First mismatch tick | `null` |
+| Tick p50 | 0.0878 ms |
+| Tick p95 | 1.6322 ms |
+| Tick p99 | 2.1088 ms |
+| Tick maximum | 9.249 ms |
+| Allocated | 42,568,888 bytes |
+
+Collision metrics for the same run:
+
+| Metric | Value |
+| --- | --- |
+| `candidatePairs` | 57,295 |
+| `contactPairs` | 5,649 |
+| `acceptedMoves` | 40,868 |
+| `blockedAgentTicks` | 14,544 |
+| `attackCapableAgentTicks` | 8,945 |
+| `longestBlockedStreakTicks` | 52 |
+| `maximumFrontWidthRaw` | 549,331 |
+| `maximumFrontDepthRaw` | 51,072 |
+| `maximumPenetrationRaw` | 0 |
+
+### 500-agent stress workload
+
+The same command with `-Agents 500`. This workload is **report only**. It is not
+gated, and its timing and allocation figures are recorded rather than budgeted.
+
+| Field | Value |
+| --- | --- |
+| Measured ticks | 978 |
+| Outcome | `Faction1Victory` |
+| Faction 0 survivors | 0 |
+| Faction 1 survivors | 17 |
+| State hash | `C81B4F48DE54B983` |
+| Event hash | `D03F1213563DFD49` |
+| Deterministic | `true` |
+| First mismatch tick | `null` |
+| Tick p50 | 0.3167 ms |
+| Tick p95 | 1.9138 ms |
+| Tick p99 | 4.1672 ms |
+| Tick maximum | 12.6946 ms |
+| Allocated | 157,426,736 bytes |
+
+| Metric | Value |
+| --- | --- |
+| `candidatePairs` | 280,675 |
+| `contactPairs` | 14,270 |
+| `acceptedMoves` | 155,460 |
+| `blockedAgentTicks` | 48,573 |
+| `attackCapableAgentTicks` | 22,848 |
+| `longestBlockedStreakTicks` | 61 |
+| `maximumFrontWidthRaw` | 695,062 |
+| `maximumFrontDepthRaw` | 50,868 |
+| `maximumPenetrationRaw` | 0 |
+
+### What the amendment moved, on the same workload
+
+Stated plainly, because these four numbers are the whole point of the amendment.
+All figures are the 200-agent, seed-1 workload.
+
+| Metric | Before the amendment | After the amendment |
+| --- | --- | --- |
+| `contactPairs` | 0 | 5,649 |
+| `blockedAgentTicks` | 7,154 | 14,544 |
+| Terminal tick | 781 | 657 |
+| `maximumPenetrationRaw` | 0 | 0 |
+
+Contact went from unobservable to observable, crowding roughly doubled, the
+battle resolves sooner because the fighting ranks are closer together, and
+penetration stayed at exactly zero. The last row is the guard: neither change
+weakened the solid-disc invariant.
+
+### Tactical guards inside the passing suite
+
+Three named guards ride inside the 326 passing `Hukbo.Core.Tests` above rather
+than in a separate report, because they are ordinary deterministic tests:
+
+- `SeedsOneThroughTwentyProduceVictoriesForBothFactions` keeps the seed
+  distribution honest, so solid contact did not turn every seed into a draw or
+  hand every seed to one faction.
+- `PackedFront_OpposingBodiesInContactStayInsideReachAndDealDamage` proves a
+  packed line stays inside the approved attack geometry and deals damage instead
+  of deadlocking.
+- `PackedFront_DenseLinesThatMarchIntoReachStillDealDamage` proves agents that
+  have to march into reach through their own crowd still get there and still deal
+  damage.
+
+### Reading the hashes and the allocation figure
+
+Both hashes moved again, and the movement is expected and was approved in
+advance. The amendment changed the approach target from attack range to body
+contact, which changes where agents stand and therefore changes both the state
+hash and the ordered event stream. The proximity band introduced for contact
+metrics moved neither hash: it was confirmed byte-identical before and after,
+which is the evidence that it stayed derived rather than authoritative.
+
+The tables above are the only recorded oracle. Two earlier pairs are
+**superseded** and are listed here so the transition can be traced rather than
+guessed at. They are dead values and may not be used as a regression target:
+
+| Superseded oracle | State hash | Event hash | Note |
+| --- | --- | --- | --- |
+| 200 agents, seed 1, pre-amendment | `7EE8BF6EC0F11BB2` | `9BFC18AD06F4F572` | Terminal tick 781. Superseded by the amendment. |
+| 500 agents, seed 1, pre-amendment | `7402CCC7C6EC3B50` | `619CCC872BBB2413` | Report-only workload. Superseded by the amendment. |
+| 200 agents, seed 1, pre-collision | `6EBB1EA63114F6CE` | `941377BD43C556FF` | Terminal tick 235. Superseded when the collision policy first shipped. |
+
+Allocation for the 200-agent workload is 42,568,888 bytes, against the 50,454,728
+bytes recorded before the amendment. That is a same-agent-count, same-seed
+comparison, but it is **not** a like-for-like efficiency claim: the amended battle
+also ends 124 ticks earlier, so fewer ticks were paid for. Neither figure is
+comparable to the much older 15,128,696-byte measurement, which covered a far
+shorter battle under a different contact rule, and no ratio between them is
+stated here. The open allocation-packing item in
+[docs/plans/2026-07-27-battle-event-allocation-packing.md](../plans/2026-07-27-battle-event-allocation-packing.md)
+is unaffected by the collision work and remains the place where per-event
+allocation is paid down. The next meaningful allocation comparison is against the
+42,568,888-byte figure above, at the same agent count and the same seed.
+
+The collision stage itself is required to add no steady-state allocation: all
+grid, pair, proposal, and resolution storage is preallocated and reused, and a
+Release test asserts that a warm collision tick reuses its buffers.
+
+### Collision metric definitions
+
+These counters are derived observability data. They are never hashed, never
+snapshotted, and never persisted, so they cannot influence an outcome. Two
+same-seed runs of the same build must produce identical values in every field.
+
+| Metric | Definition |
+| --- | --- |
+| `candidatePairs` | Living pairs the metrics broad phase emitted, summed over ticks: every pair whose bodies are inside the proximity band described below, allies and enemies alike. |
+| `contactPairs` | The cross-faction subset of `candidatePairs`, summed over ticks. This is the fighting front rather than incidental friendly crowding. |
+| `acceptedMoves` | Movement proposals that resolved to a destination other than the agent's tick-start position, summed over ticks. |
+| `blockedAgentTicks` | One unit per agent per tick that resolved to `MovementResolution.Blocked`. An agent-tick count, not a count of distinct agents. |
+| `attackCapableAgentTicks` | One unit per agent per tick in which that agent held a target inside attack reach at its resolved position. Also an agent-tick count. |
+| `longestBlockedStreakTicks` | The longest run of consecutive ticks any single agent spent blocked. A running maximum, not a sum. |
+| `maximumFrontWidthRaw` | The largest vertical span, in raw fixed-point units, of the agents holding an enemy inside attack reach in any one tick. A running maximum. |
+| `maximumFrontDepthRaw` | The horizontal span of that same set, in raw fixed-point units. A running maximum. |
+| `maximumPenetrationRaw` | The deepest overlap between two living bodies observed at the end of any tick, in raw fixed-point units. A guard metric, not a tuning signal: under `CollisionPolicy.Solid` a correct run reports exactly `0`, and any nonzero value is a contract violation. |
+
+**`candidatePairs` and `contactPairs` are counted over a proximity band, not over
+exact tangency.** This is the single most important thing to understand before
+reading either figure. The solid resolver guarantees that every living pair ends
+the tick at or beyond `(2R)^2`, so an exact-tangency test asks for a squared
+distance of *precisely* `(2R)^2`. On an integer lattice that needs a Pythagorean
+coincidence between the two axis deltas and the diameter, and it is unreachable
+in practice. That is the mechanical reason the earlier run reported `contactPairs`
+of `0`: an exact-tangency counter can essentially never fire, whatever the agents
+are doing.
+
+The band is `BodyRadiusRaw + (MovementSpeedRaw / 2)` per body, so a pair counts
+as in contact when the two bodies are within one movement step of touching. At
+the default values that is `5632` raw units per body, pairing bodies whose
+centres are within `11264` raw units. The band is derived observability: no rule
+consults it, the resolver's own legality tests still use the exact
+`2 * BodyRadiusRaw` contact distance, and both hashes were confirmed
+byte-identical before and after it was introduced.
+
+**Front width and depth are measured over agents holding an enemy in reach, not
+over agents in body contact.** Width and depth are named for the default
+left-versus-right deployment. They are a readability signal only, and no rule
+depends on them.
+
+No penetration percentiles are reported. Under the solid contact policy,
+penetration between two living bodies is identically zero at the end of every
+tick, so a p50 or p95 histogram would be a column of zeros carrying no
+information.
+
+### What the collision numbers actually show
+
+Opposing bodies meet. `contactPairs` is 5,649 at 200 agents against 57,295
+candidate pairs, and 14,270 at 500 agents against 280,675. An advancing agent
+closes until its body meets its target's body, so the two front ranks press
+together instead of halting with air in front of them. The earlier zero was the
+product of two separate problems, both now fixed: agents stopped at
+twelve-world-unit attack reach while a body is only eight world units across, and
+the counter itself asked for exact tangency.
+
+Allies also still queue behind their own front line. A rear agent trying to
+advance into space its own front rank already occupies is refused, holds position,
+and reports `Blocked`. That shows up as 14,544 blocked agent-ticks at 200 agents
+and 48,573 at 500 agents, against 8,945 and 22,848 attack-capable agent-ticks
+respectively. Crowding roughly doubled at 200 agents once the front closed all the
+way, which is the expected consequence rather than a regression: being blocked
+does not remove an agent from combat, which is exactly why no separate anti-stall
+rule was added.
+
+`maximumPenetrationRaw` is `0` on both workloads. It was also `0` before the
+amendment. Where agents choose to stop does not affect the solid-disc invariant,
+and any nonzero value in this field would be a contract violation rather than a
+tuning signal.
+
+Anyone tuning contact behaviour later should start from the fact that the binding
+constraint on the battle line is now the body diameter, while attack reach decides
+who can strike. The two are deliberately different distances, and the four world
+units between them are what let a second rank strike past a pressed first rank.
+
+### Scope of these results
+
+These results prove the non-interactive gate only. **The interactive
+`./scripts/run.ps1` spectator check for this change has not been performed.**
+Every row in the interactive smoke checklist below is therefore left `PENDING`.
+Automated tests, a clean gate, a benchmark, and a zero-warning build do not
+substitute for that check and do not entitle anyone to flip a row to `PASS`.
+
+The amendment makes that outstanding check matter more, not less. It changes what
+a spectator sees: front ranks now press their bodies together instead of stopping
+four world units apart, roughly twice as many agents are held up behind their own
+line, and `AgentIntent.Attacking` now appears only once an agent has arrived at
+contact. None of that has been observed in a live window by a person. Nothing in
+the automated evidence above speaks to whether the resulting battle line is
+legible, and no row may be flipped on the strength of it.
+
+### Superseded records below this line
+
+Everything from here to the interactive smoke checklist is kept for traceability
+and is **not current**. All of it predates the contact-closing amendment. Where
+one of those entries says a hash is "unchanged from the values recorded above", it
+means unchanged relative to the values that were current when it was written, all
+of which are now superseded by the tables at the top of this section. Do not read
+any hash, tick count, test count, or allocation figure below as a live baseline.
+
+### The sound-variant run
+
+Superseded, and kept for traceability. This run verified the hit-location sound
+variant matrix, which lives entirely in `Hukbo.Client` and touches no Core code.
+`./scripts/verify.ps1 -SkipBootstrap` passed every stage:
 
 - 505/505 Client tests passed;
 - 156/156 Core tests passed;
@@ -51,57 +330,31 @@ passing every stage:
   `deterministic: true` and `firstMismatchTick: null`;
 - that workload allocated 15,122,504 bytes.
 
-Both hashes are **unchanged** from the baseline recorded below, which is the
-expected result: hit-location sound variants live entirely in `Hukbo.Client` and
-touch no Core code, so any movement would have been a bug in that change rather
-than a new oracle.
+Those two hashes were unchanged relative to the baseline that was current when
+this run was recorded, which was the correct expectation for a Client-only
+change. **Both are now dead values**, superseded first by the pre-amendment
+collision baseline and then by the amended baseline at the top of this file. The
+tick-235 figure belongs to a build in which agents halted at weapon reach and is
+not comparable to the current terminal tick.
 
-Interactive variant playback is unverified. Rows 18 to 21 below are `PENDING`;
-compiling the client and listing the files on disk does not establish that a
-single sound was ever heard.
+Interactive variant playback remains unverified. Compiling the Client and listing
+the files on disk does not establish that a single sound was ever heard.
 
-### The earlier post-integration result
+### Retained evidence from the earlier spectator-clarity work
 
-The post-integration local run on 2026-07-27 recorded:
+Kept so it is not lost when the section above is next replaced. These
+observations belong to the earlier spectator-clarity package run, not to the
+collision change:
 
-- 189/189 Client presentation and round-lifecycle tests passed;
-- 141/141 Core tests passed;
-- `./scripts/verify.ps1 -SkipBootstrap` passed formatting and the Release build
-  with 0 warnings and 0 errors;
-- the seed-1 200-agent workload ended in `Faction1Victory` at tick 235 with
-  state hash `6EBB1EA63114F6CE` and event hash `941377BD43C556FF`;
-- the same workload allocated 15,128,696 bytes, below the captured
-  19,856,712-byte baseline;
-- the seed-distribution guard for seeds 1 through 20 produced victories for
-  both factions rather than a single always-winning faction;
-- the 500-agent stress workload remained deterministic and ended at tick 309;
-- the earlier spectator-clarity package run produced
+- the package run produced
   `artifacts/packages/client-win-x64/Hukbo.Client.exe`;
 - that packaged Client opened visibly, remained responsive, showed
-  `Hukbo — A 0 : 0 B — Seed 1 — Tick 0 — 1x — Paused — Ongoing`, and returned exit code 0
-  after a normal window-close request;
-- the earlier spectator-clarity independent review reported no Critical, High,
-  Medium, or Low findings.
+  `Hukbo — A 0 : 0 B — Seed 1 — Tick 0 — 1x — Paused — Ongoing`, and returned
+  exit code 0 after a normal window-close request;
+- the spectator-clarity independent review reported no Critical, High, Medium, or
+  Low findings.
 
-Both hashes moved from the previously recorded `210C5EF8E7BE4D48` and
-`CE35EDA4B2A4E5A4`. That movement is expected rather than a regression: the
-Philippine combat configuration put each agent's loadout into the state hash and
-each attack's weapon and hit location into the event hash. The values above are
-the new oracle. The outcome (`Faction1Victory` at tick 235) and the 500-agent
-stress result (tick 309) are unchanged across that transition, which is what
-tells us the change was additive rather than behavioural.
-
-Allocation for the same workload rose from 12,108,304 bytes, a 24.9% increase
-caused by the two nullable enum fields added to `BattleEvent`. That is past the
-ten-percent reporting threshold in `SIMULATION-GAME-STANDARDS.md` §8, so it is
-reported rather than absorbed: see
-[docs/plans/2026-07-27-battle-event-allocation-packing.md](../plans/2026-07-27-battle-event-allocation-packing.md)
-for the measurement and the conditions for paying it down. Run-to-run variation
-in this figure is roughly a few thousand bytes; treat a change of that size as
-noise and anything larger as worth investigating.
-
-These results prove the non-interactive gate only. They do not change any
-hands-on control, selection, event-log, scoring, or reset row below.
+None of that was re-observed after the collision change.
 
 ### 2026-07-27 plains-backdrop gate run
 
@@ -349,6 +602,34 @@ For round scoring, record Team A (Blue) and Team B (Red) totals before and after
 each command together with the outgoing outcome and old/new seeds. Next Round
 scores only a terminal victory and always advances the deterministic seed.
 Full Reset never scores the outgoing round.
+
+### Collision readability smoke
+
+Added by the collision change and revised by the contact-closing amendment.
+**Not performed.** Observe one collision-heavy engagement in a live window and
+record what was actually seen. The automated gate, the benchmarks, and the
+collision regression tests above prove the rule is enforced; none of them prove
+the resulting battle line is legible to a person watching it, which is the only
+thing these rows are for. The amendment changed what a spectator should expect to
+see here, so these rows carry more weight than they did before and none of them
+has been observed.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 16. Read the battle line | Agents form a visible front instead of a shapeless blob, and the shape reads as a consequence of crowding rather than as a snapped grid. | Not run | PENDING |
+| 17. Look for stacking and jitter | No two living pawns visually occupy the same spot, and a pressed front settles instead of vibrating between positions tick after tick. | Not run | PENDING |
+| 18. Confirm combat continues | A packed front keeps dealing damage; the match does not stall into a standoff and reaches a terminal outcome inside its tick limit. | Not run | PENDING |
+| 19. Inspect a blocked agent | Selecting an agent in the second rank shows a movement label explaining why it is not advancing, and that label changes as the situation changes. | Not run | PENDING |
+| 20. Inspect the front rank | Selecting a front-rank agent shows it moving or attacking rather than blocked, and an agent that has arrived at an enemy reads as attacking rather than still marching. | Not run | PENDING |
+| 21. Confirm the ranks actually touch | Opposing front ranks close until their pawn bodies meet, rather than settling with a visible gap of open ground between the two lines. This is the amendment's whole visible effect and the pre-amendment behaviour was a persistent gap. | Not run | PENDING |
 
 ## Failure classification
 

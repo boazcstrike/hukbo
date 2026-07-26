@@ -1,3 +1,5 @@
+using Hukbo.Core.Simulation;
+
 namespace Hukbo.Headless;
 
 public sealed record RunEnvironment(
@@ -27,4 +29,5 @@ public sealed record RunReport(
     string EventHash,
     string StateHash,
     bool Deterministic,
-    long? FirstMismatchTick);
+    long? FirstMismatchTick,
+    CollisionMetrics CollisionMetrics);

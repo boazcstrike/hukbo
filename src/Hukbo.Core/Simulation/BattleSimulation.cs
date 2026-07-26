@@ -23,8 +23,10 @@ public sealed class BattleSimulation
         _attackProposals;
     private readonly AgentView[] _agentViews;
     private readonly ReadOnlyCollection<AgentView> _agents;
+    private readonly CollisionScratch _collision;
     private ReadOnlyCollection<BattleEvent> _lastEvents;
     private long _eventSequence;
+    private CollisionTickMetrics _lastTickCollision;
 
     private BattleSimulation(
         Scenario scenario,
@@ -43,6 +45,7 @@ public sealed class BattleSimulation
                 agents.Length];
         _agentViews = new AgentView[agents.Length];
         _agents = Array.AsReadOnly(_agentViews);
+        _collision = new CollisionScratch(scenario, agents.Length);
 
         for (var index = 0; index < agents.Length; index++)
         {
@@ -67,6 +70,17 @@ public sealed class BattleSimulation
     public IReadOnlyList<AgentView> Agents => _agents;
 
     public IReadOnlyList<BattleEvent> LastEvents => _lastEvents;
+
+    /// <summary>
+    /// Derived collision counters for the tick just completed. Observability
+    /// only: never hashed, never snapshotted, never persisted.
+    /// </summary>
+    internal CollisionTickMetrics LastTickCollision => _lastTickCollision;
+
+    /// <summary>
+    /// Longest run of consecutive blocked ticks any single agent has reached.
+    /// </summary>
+    internal int LongestBlockedStreakTicks => _collision.LongestBlockedStreakTicks;
 
     public static BattleSimulation Create(Scenario scenario)
     {
@@ -129,6 +143,8 @@ public sealed class BattleSimulation
                 loadout);
         }
 
+        ResolveSpawnPlacement(agents, scenario);
+
         return new BattleSimulation(scenario, agents, rules);
     }
 
@@ -165,7 +181,10 @@ public sealed class BattleSimulation
 
         DecrementCooldowns();
         SelectTargetsAndIntents();
-        GatherAndCommitMovement(ref events);
+        GatherMovementProposals();
+        ResolveCollisions();
+        CommitMovement(ref events);
+        MeasureCollision();
         GatherAndCommitAttacks(ref events);
         ResolveOutcome(ref events);
 
@@ -193,6 +212,125 @@ public sealed class BattleSimulation
             agents,
             events,
             ComputeStateHash());
+    }
+
+    /// <summary>
+    /// Makes the initial placement collision-free before the first tick.
+    /// </summary>
+    /// <remarks>
+    /// Random spawn bands are allowed to overlap, so overlaps are repaired
+    /// deterministically here: agents are placed in ascending entity ID, and an
+    /// agent that lands on an occupied spot is relocated by scanning rings of
+    /// the eight compass offsets at increasing radius in one fixed order. The
+    /// random stream is never consulted during relocation, so repairing a spawn
+    /// cannot shift the seed sequence for anything that follows.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// An agent could not be placed. Scenario validation rejects impossible
+    /// densities up front, so reaching this means the ring scan was exhausted
+    /// and the placement is genuinely infeasible rather than merely crowded.
+    /// </exception>
+    private static void ResolveSpawnPlacement(
+        AgentState[] agents,
+        Scenario scenario)
+    {
+        var bodyRadiusRaw = scenario.BodyRadiusRaw;
+        var stepRaw = checked(2 * bodyRadiusRaw);
+        var mapWidthRaw = checked(scenario.MapWidth * FixedPoint.Scale);
+        var mapHeightRaw = checked(scenario.MapHeight * FixedPoint.Scale);
+        var maximumRing = checked(
+            (Math.Max(mapWidthRaw, mapHeightRaw) / stepRaw) + 1);
+        var grid = new CollisionUniformGrid(stepRaw);
+
+        foreach (var agent in agents)
+        {
+            agent.XRaw = CollisionGeometry.ClampCenterToBounds(
+                agent.XRaw,
+                mapWidthRaw,
+                bodyRadiusRaw);
+            agent.YRaw = CollisionGeometry.ClampCenterToBounds(
+                agent.YRaw,
+                mapHeightRaw,
+                bodyRadiusRaw);
+
+            var isOccupied = grid.AnyContact(
+                agent.XRaw,
+                agent.YRaw,
+                bodyRadiusRaw,
+                agent.EntityId);
+            if (isOccupied &&
+                !TryRelocateSpawn(
+                    grid,
+                    agent,
+                    bodyRadiusRaw,
+                    stepRaw,
+                    mapWidthRaw,
+                    mapHeightRaw,
+                    maximumRing))
+            {
+                throw new InvalidOperationException(
+                    $"Entity {agent.EntityId} could not be placed without " +
+                    "overlapping another body. Reduce the agent count or " +
+                    "enlarge the map.");
+            }
+
+            grid.Insert(
+                new CollisionBody(
+                    agent.EntityId,
+                    agent.XRaw,
+                    agent.YRaw,
+                    agent.IsAlive));
+        }
+    }
+
+    private static bool TryRelocateSpawn(
+        CollisionUniformGrid grid,
+        AgentState agent,
+        int bodyRadiusRaw,
+        int stepRaw,
+        int mapWidthRaw,
+        int mapHeightRaw,
+        int maximumRing)
+    {
+        ReadOnlySpan<(int X, int Y)> offsets =
+        [
+            (1, 0), (1, 1), (0, 1), (-1, 1),
+            (-1, 0), (-1, -1), (0, -1), (1, -1),
+        ];
+        var originX = agent.XRaw;
+        var originY = agent.YRaw;
+
+        for (var ring = 1; ring <= maximumRing; ring++)
+        {
+            var spanRaw = checked((long)ring * stepRaw);
+
+            foreach (var offset in offsets)
+            {
+                var candidateX = originX + (offset.X * spanRaw);
+                var candidateY = originY + (offset.Y * spanRaw);
+
+                if (candidateX < bodyRadiusRaw ||
+                    candidateX > mapWidthRaw - bodyRadiusRaw ||
+                    candidateY < bodyRadiusRaw ||
+                    candidateY > mapHeightRaw - bodyRadiusRaw)
+                {
+                    continue;
+                }
+
+                var nextX = checked((int)candidateX);
+                var nextY = checked((int)candidateY);
+                if (grid.AnyContact(nextX, nextY, bodyRadiusRaw, agent.EntityId))
+                {
+                    continue;
+                }
+
+                agent.XRaw = nextX;
+                agent.YRaw = nextY;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static AgentState CreateAgent(
@@ -272,15 +410,23 @@ public sealed class BattleSimulation
                 continue;
             }
 
-            var attackRangeSquared = checked(
-                (long)agent.AttackRangeRaw * agent.AttackRangeRaw);
-            agent.Intent = selectedDistance <= attackRangeSquared
+            // An agent keeps advancing until its body meets the target's, even
+            // once the target is already inside reach. Attacking is reserved
+            // for an agent that has arrived. One that strikes while still
+            // closing is re-marked Attacking by attack gathering, so a
+            // spectator still sees it fighting.
+            agent.Intent = selectedDistance <= CollisionGeometry
+                .ContactSquaredDistance(Scenario.BodyRadiusRaw)
                 ? AgentIntent.Attacking
                 : AgentIntent.Moving;
         }
     }
 
-    private void GatherAndCommitMovement(ref List<BattleEvent>? events)
+    /// <summary>
+    /// Reads tick-start state only. Nothing is committed here, so no agent can
+    /// see another agent's move while proposals are still being formed.
+    /// </summary>
+    private void GatherMovementProposals()
     {
         Array.Clear(_movementProposals);
 
@@ -297,31 +443,178 @@ public sealed class BattleSimulation
             var target = _agentStates[_agentIndexes[targetId]];
             _movementProposals[index] = BuildMovementProposal(agent, target);
         }
+    }
 
-        for (var index = 0; index < _movementProposals.Length; index++)
+    /// <summary>
+    /// Hands every living agent to the solid-disc resolver. Agents without a
+    /// proposal are still submitted: they occupy space, and a stationary body
+    /// with a high entity ID would otherwise have its ground taken by a
+    /// lower-ID mover.
+    /// </summary>
+    private void ResolveCollisions()
+    {
+        _collision.BeginTick();
+
+        for (var index = 0; index < _agentStates.Length; index++)
         {
-            if (_movementProposals[index] is not { } proposal)
+            var agent = _agentStates[index];
+            if (!agent.IsAlive)
             {
                 continue;
             }
 
+            var proposal = _movementProposals[index];
+            _collision.Requests.Add(
+                new CollisionMoveRequest(
+                    agent.EntityId,
+                    agent.XRaw,
+                    agent.YRaw,
+                    proposal?.XRaw ?? agent.XRaw,
+                    proposal?.YRaw ?? agent.YRaw,
+                    proposal is not null));
+        }
+
+        _collision.Resolver.Resolve(_collision.Requests);
+    }
+
+    /// <summary>
+    /// The single position commit for the tick. Resolver results are ordered to
+    /// match the living agents in ascending entity ID, which is the same order
+    /// they were submitted in.
+    /// </summary>
+    private void CommitMovement(ref List<BattleEvent>? events)
+    {
+        var results = _collision.Resolver.Results;
+        var resultIndex = 0;
+
+        for (var index = 0; index < _agentStates.Length; index++)
+        {
             var agent = _agentStates[index];
+            if (!agent.IsAlive)
+            {
+                agent.MovementResolution = MovementResolution.None;
+                _collision.RecordBlocked(index, isBlocked: false);
+                continue;
+            }
+
+            var result = results[resultIndex];
+            resultIndex++;
+
             var previousX = agent.XRaw;
             var previousY = agent.YRaw;
-            agent.XRaw = proposal.XRaw;
-            agent.YRaw = proposal.YRaw;
+            agent.XRaw = result.XRaw;
+            agent.YRaw = result.YRaw;
+            agent.MovementResolution = result.Resolution;
+            _collision.RecordBlocked(
+                index,
+                result.Resolution == MovementResolution.Blocked);
+
             var deltaX = (long)agent.XRaw - previousX;
             var deltaY = (long)agent.YRaw - previousY;
+            if (deltaX == 0 && deltaY == 0)
+            {
+                continue;
+            }
+
             var movedRaw = checked((int)IntegerSquareRoot(
                 checked((deltaX * deltaX) + (deltaY * deltaY))));
             AddEvent(
                 ref events,
                 BattleEventKind.Move,
                 agent.EntityId,
-                proposal.TargetId,
+                _movementProposals[index]?.TargetId,
                 movedRaw,
                 agent.FactionId);
         }
+    }
+
+    /// <summary>
+    /// Derives this tick's collision counters from committed positions. Pure
+    /// observation: nothing here writes agent state, and none of it is hashed.
+    /// </summary>
+    private void MeasureCollision()
+    {
+        _collision.Bodies.Clear();
+        foreach (var agent in _agentStates)
+        {
+            _collision.Bodies.Add(
+                new CollisionBody(
+                    agent.EntityId,
+                    agent.XRaw,
+                    agent.YRaw,
+                    agent.IsAlive));
+        }
+
+        _collision.Grid.Rebuild(
+            _collision.Bodies,
+            _collision.ContactBandRadiusRaw);
+
+        var contactDistanceRaw = checked(2 * Scenario.BodyRadiusRaw);
+        var contactPairs = 0;
+        var penetrationRaw = 0;
+        var minimumX = int.MaxValue;
+        var maximumX = int.MinValue;
+        var minimumY = int.MaxValue;
+        var maximumY = int.MinValue;
+
+        foreach (var pair in _collision.Grid.Pairs)
+        {
+            var left = _agentStates[_agentIndexes[pair.LowEntityId]];
+            var right = _agentStates[_agentIndexes[pair.HighEntityId]];
+            var separationRaw = checked((int)IntegerSquareRoot(
+                CollisionGeometry.SquaredDistance(
+                    left.XRaw,
+                    left.YRaw,
+                    right.XRaw,
+                    right.YRaw)));
+            penetrationRaw = Math.Max(
+                penetrationRaw,
+                contactDistanceRaw - separationRaw);
+
+            if (left.FactionId == right.FactionId)
+            {
+                continue;
+            }
+
+            contactPairs++;
+        }
+
+        // The front spans agents holding an enemy in reach, not strictly
+        // touching bodies. The resolver leaves every living pair at or beyond
+        // the contact distance, so strict touching means a squared distance of
+        // exactly (2R)^2 — a Pythagorean coincidence on an integer lattice — and
+        // a span built on it would read zero through an entire battle. Contact
+        // pairs are counted separately, over a proximity band.
+        var attackCapableAgents = 0;
+        foreach (var agent in _agentStates)
+        {
+            if (!agent.IsAlive || agent.TargetEntityId is not { } targetId)
+            {
+                continue;
+            }
+
+            var target = _agentStates[_agentIndexes[targetId]];
+            if (!target.IsAlive || !IsWithinAttackRange(agent, target))
+            {
+                continue;
+            }
+
+            attackCapableAgents++;
+            minimumX = Math.Min(minimumX, agent.XRaw);
+            maximumX = Math.Max(maximumX, agent.XRaw);
+            minimumY = Math.Min(minimumY, agent.YRaw);
+            maximumY = Math.Max(maximumY, agent.YRaw);
+        }
+
+        _lastTickCollision = new CollisionTickMetrics(
+            _collision.Grid.Pairs.Count,
+            contactPairs,
+            _collision.Resolver.AcceptedMoveCount,
+            _collision.Resolver.BlockedCount,
+            attackCapableAgents,
+            attackCapableAgents == 0 ? 0 : checked(maximumY - minimumY),
+            attackCapableAgents == 0 ? 0 : checked(maximumX - minimumX),
+            penetrationRaw);
     }
 
     private void GatherAndCommitAttacks(ref List<BattleEvent>? events)
@@ -347,9 +640,7 @@ public sealed class BattleSimulation
                 continue;
             }
 
-            var attackRangeSquared = checked(
-                (long)source.AttackRangeRaw * source.AttackRangeRaw);
-            if (SquaredDistance(source, target) > attackRangeSquared)
+            if (!IsWithinAttackRange(source, target))
             {
                 continue;
             }
@@ -484,7 +775,16 @@ public sealed class BattleSimulation
         var deltaY = (long)target.YRaw - agent.YRaw;
         var distanceSquared = checked((deltaX * deltaX) + (deltaY * deltaY));
         var distance = IntegerSquareRoot(distanceSquared);
-        var desiredMovement = Math.Max(1, distance - agent.AttackRangeRaw);
+
+        // Agents close to body contact, not merely to weapon reach. Stopping at
+        // reach left four world units of permanent air between opposing front
+        // ranks, so bodies never touched and the collision stage only ever saw
+        // allies queueing. Attacks still resolve at reach, which is wider than
+        // the diameter, so a rank pressed into contact fights and the rank
+        // behind it can reach past.
+        var desiredMovement = Math.Max(
+            1,
+            distance - checked(2 * Scenario.BodyRadiusRaw));
         var movement = Math.Min(agent.MovementSpeedRaw, desiredMovement);
         var moveX = checked(deltaX * movement / Math.Max(1, distance));
         var moveY = checked(deltaY * movement / Math.Max(1, distance));
@@ -501,12 +801,30 @@ public sealed class BattleSimulation
             }
         }
 
-        var maximumX = checked(Scenario.MapWidth * FixedPoint.Scale);
-        var maximumY = checked(Scenario.MapHeight * FixedPoint.Scale);
-        var nextX = Math.Clamp(checked(agent.XRaw + (int)moveX), 0, maximumX);
-        var nextY = Math.Clamp(checked(agent.YRaw + (int)moveY), 0, maximumY);
+        var nextX = CollisionGeometry.ClampCenterToBounds(
+            checked(agent.XRaw + (int)moveX),
+            checked(Scenario.MapWidth * FixedPoint.Scale),
+            Scenario.BodyRadiusRaw);
+        var nextY = CollisionGeometry.ClampCenterToBounds(
+            checked(agent.YRaw + (int)moveY),
+            checked(Scenario.MapHeight * FixedPoint.Scale),
+            Scenario.BodyRadiusRaw);
         return (nextX, nextY, target.EntityId);
     }
+
+    /// <summary>
+    /// The single approved reach test. Attack range is measured centre to
+    /// centre, never surface to surface, so intent selection and attack
+    /// gathering cannot disagree about who can strike whom.
+    /// </summary>
+    private static bool IsWithinAttackRange(AgentState source, AgentState target) =>
+        IsWithinAttackRange(source, SquaredDistance(source, target));
+
+    private static bool IsWithinAttackRange(
+        AgentState source,
+        long squaredDistance) =>
+        squaredDistance <= checked(
+            (long)source.AttackRangeRaw * source.AttackRangeRaw);
 
     private static long SquaredDistance(AgentState left, AgentState right)
     {

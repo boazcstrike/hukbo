@@ -1,4 +1,5 @@
 using Hukbo.Core.Combat;
+using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.UI;
 
@@ -18,7 +19,7 @@ internal static class AgentInspectorContent
     internal const int LineHeight = 19;
     internal const int TitleHeight = 31;
     internal const int TopDetailRowCount = 4;
-    internal const int LowerRowCount = 6;
+    internal const int LowerRowCount = 7;
     internal const int PortraitBottomGap = 5;
     internal const int TopDetailBottomGap = 2;
 
@@ -62,6 +63,26 @@ internal static class AgentInspectorContent
         var lastRowBottom = lastRowY + LineHeight;
         return lastRowBottom + Padding;
     }
+
+    /// <summary>
+    /// The spectator's explanation of what collision did to this agent's
+    /// movement this tick. Reads the authoritative
+    /// <see cref="MovementResolution"/> the simulation wrote; presentation
+    /// never infers it from positions.
+    /// </summary>
+    internal static string FormatMovementLine(MovementResolution resolution) =>
+        $"Movement: {GetMovementLabel(resolution)}";
+
+    internal static string GetMovementLabel(MovementResolution resolution) =>
+        resolution switch
+        {
+            MovementResolution.Moved => "Moving",
+            MovementResolution.Truncated => "Crowded",
+            MovementResolution.Slid => "Sliding",
+            MovementResolution.Blocked => "Blocked",
+            MovementResolution.Separated => "Pushed apart",
+            _ => "Holding",
+        };
 
     internal static string FormatWeaponLine(string weaponLabel) =>
         $"Weapon: {weaponLabel}";
