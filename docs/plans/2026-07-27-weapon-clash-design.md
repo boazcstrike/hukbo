@@ -1,8 +1,8 @@
 # Weapon Clash, Swing Animation, and Clash Sound — Design
 
 Date: 2026-07-27
-Revision: 4. Revision 3 rebuilt the tuning model on research round two; revision 4 opens the
-ruleset injection seam, corrects the void discoverability claim, and fixes the test oracles.
+Revision: 5. Revision 4 opened the ruleset seam on the wrong factory; revision 5 puts it on
+`Create`, fixes the fixture format, and corrects the culling and discoverability arguments.
 Status: design only. A design document does not authorize implementation.
 Plan: [2026-07-27-weapon-clash.md](2026-07-27-weapon-clash.md)
 Research: [docs/research/WEAPON_CLASH_1500s.md](../research/WEAPON_CLASH_1500s.md)
@@ -482,7 +482,7 @@ Five outcomes, four discovery channels, none of which requires reading source.
 | --- | --- | --- |
 | Event log text | `BattleEventFormatter.GetActionLabel` | Five distinct lines: hit, stopped by the shield, parried, turned aside, stepped off the line |
 | Sound | three new slots plus deliberate silence | Wooden thud, hard metallic ring, short metallic scrape, and for a void, nothing at all |
-| Animation | the swing impact phase | A landed blow follows through, a clashed blow recoils, an evaded blow swings clean through empty air |
+| Animation | the swing impact phase | Three branches: a contact outcome recoils, a landed blow follows through and stops on the target, an evaded blow follows through past it |
 | Visual effect | a small bright cross at the contact midpoint | Appears for the three contact outcomes and for neither a landed blow nor a void |
 
 **Void is discoverable, but by fewer channels than the other four, and this document
@@ -504,12 +504,37 @@ all. **`Landed` therefore gets its own pose branch**: a landed blow follows thro
 stops on the target, an evaded blow follows through past it. Three pose classes rather
 than two, so the animation carries the distinction that matters.
 
-The claim this document makes is therefore narrower and checkable: **a spectator can
-discover the clash system through any one of the four channels; a spectator can separate
-`Evaded` from `ShieldBlocked` through any of them, and can separate `Evaded` from
-`Landed` through the event log, the animation, or the blood.** No claim is made that the
-battle sounds different in aggregate where footwork is working; that formulation is
-unfalsifiable and is withdrawn.
+The claim this document makes is therefore narrower, checkable, and in one place still
+**unproven**: a spectator can discover the clash system through any one of the four
+channels, and can separate `Evaded` from `ShieldBlocked` through any of them. Separating
+`Evaded` from `Landed` is the hard case, and it rests on:
+
+| Separator | Status |
+| --- | --- |
+| The event-log line | Shipped and asserted by a test. Solid |
+| The absent `HitEffectSystem` impact ring | Solid. The ring keys on `Damage`, so it is present for a landed blow and absent for a void, and unlike blood it survives every user setting |
+| The animation | **`PENDING`.** See below |
+| The absent blood | **Not counted.** Blood disappears entirely under `GoreIntensity.Off` at `src/Hukbo.Client/Presentation/BloodEffectSystem.cs:87`, which is a shipped user setting, so it cannot be leaned on. Revision 4 listed it and should not have |
+
+The animation leg is marked `PENDING` rather than claimed, because the arithmetic does not
+obviously support it. At shipped zoom a pawn is roughly 26 pixels tall and adjacent pawns
+sit 10 to 16 pixels apart, and the difference between stopping on the target and
+following through past it is a few pixels of weapon-tip travel held for the 50-millisecond
+impact phase — one to three frames at 1x, under one frame at 4x, and sub-pixel below
+`PawnDetailTier.Medium`. The third pose branch is still the right thing to build: it makes
+the distinction nameable, testable, and available at high zoom, and without it the
+animation could not express the outcome at all. But whether a person can see it is a
+question for the smoke checklist, not an assertion for this document.
+
+**If the smoke row returns FAIL**, the recorded disposition is: `Evaded` keeps the
+event-log line and the absent impact ring, which are two independent separators and enough
+to justify the outcome, and the animation leg is struck from this table rather than the
+outcome being struck from the model. If both of those were also to fail, the honest move is
+to drop `Evaded` and fold the void probability into `Landed`, which would then require
+re-deriving the acceptance band in section 3.3.
+
+No claim is made that the battle sounds different in aggregate where footwork is working;
+that formulation is unfalsifiable and is withdrawn.
 
 The absence channel generally matters as much as the presence channel. A spectator who
 has watched a few battles will read "he swung, there was a ring, and nothing happened to
@@ -640,20 +665,52 @@ which no simulation ever uses. Without a seam, the control run in section 9 is n
 constructible, and neither are the five dispositions above that need a clash-neutral
 configuration.
 
-Two changes open the seam, and **both halves are required**.
+Three changes open the seam, and **all three are required**.
 
-**An overload that accepts a ruleset.** `internal static BattleSimulation
+**An overload on `CreateForTesting`.** `internal static BattleSimulation
 CreateForTesting(Scenario, CombatRuleset, params AgentState[])`, alongside the existing
-overload which keeps fetching from the registry.
+overload which keeps fetching from the registry. This serves the five dispositions above,
+every one of which already calls `CreateForTesting`, at
+`BattleSimulationTests.cs:59`, `:124`, `:649`, `:683` and
+`PhilippineCombatIntegrationTests.cs:444`.
+
+**An overload on `Create`, which is the one the control run actually needs.** Revision 4
+put the seam only on `CreateForTesting`, and that is not sufficient.
+`CreateForTesting(Scenario, params AgentState[])` at
+`src/Hukbo.Core/Simulation/BattleSimulation.cs:151-169` takes explicit agents and never
+runs spawn placement or the `SplitMix64` draws that `Create` performs at `:85-149`. The
+control run is seed 1 at **200 agents**, which only `Create` can produce, and there is no
+way to lift agents out of a `Create`d simulation to feed the other overload: `Agents` and
+`CreateSnapshot` both return `AgentView`, and `_agentStates` is private. So
+`internal static BattleSimulation Create(Scenario, CombatRuleset)` is added beside the
+public `Create`, and the public one delegates to it after its registry fetch.
+
+**The seam is bounded to rulesets that share the preset roster.** `Scenario.Validate` at
+`src/Hukbo.Core/Simulation/Scenario.cs:195` fetches from the registry solely to check
+`RosterCounts.Length` against `rules.Roster.Count`, and it is deliberately left alone. For
+the only sanctioned use — a neutral-`ClashProfile` variant of the same preset — the roster
+is identical and the validation is correct. Injecting a ruleset with a *different* roster
+would have the scenario validated against the registry roster while the simulation ran on
+the injected one, which is silently wrong. The overload therefore asserts roster equality
+against the registry entry for `scenario.CombatPreset` and throws otherwise.
 
 **`StateHasher.Compute` takes the ruleset as a parameter rather than re-fetching it at
-line 15.** This half is not optional. Without it a simulation running on a neutral
-ruleset would still fold the shipped `ContentHash` into its state hash, and the control
-run would be comparing a hash that never saw the ruleset it was actually using. It is a
-production signature change on a file this design otherwise does not touch, so it needs
-an explicit owner. It is also hash-safe by construction:
-`BattleSimulation.ComputeStateHash` already holds `_rules` and passes exactly what the
-registry would have returned, so no hashed value changes.
+line 15.** Without this a simulation running on a neutral ruleset would still fold the
+shipped `ContentHash` into its state hash, and the control run would be comparing a hash
+that never saw the ruleset it was actually using.
+
+It is a production signature change with **two** call sites, not one:
+`src/Hukbo.Core/Simulation/BattleSimulation.cs:198` and
+`tests/Hukbo.Core.Tests/DeterminismTests.cs:152`, the latter inside
+`ComputeSingleAgentStateHash`, which backs `StateHash_ChangesWhenAnyAgentWeaponArmorOrShieldChanges`
+and its body-radius and collision-policy siblings. The test-side fix is one line, passing
+`CombatPresetRegistry.Get(scenario.CombatPreset)`, but the file has to be declared or the
+first barrier does not compile.
+
+It is hash-safe by construction: `BattleSimulation.ComputeStateHash` is an instance method
+holding `private readonly CombatRuleset _rules`, which is exactly what the registry returns
+for any `Create`-built simulation, so no hashed value changes and the seam task can prove
+that by re-running the seed-1 workload against the current baseline.
 
 **There is no such thing as a clash-neutral loadout pairing.** The minimum total
 interception in the shipped tables is a `HeavyChopper` defending a `ThrustingBlade` at
@@ -751,14 +808,34 @@ files and one of them is a third-party call site that must not break:
 | `src/Hukbo.Client/UI/AgentInspectorPanel.cs:109` | A third `PawnRenderer.Draw` call site, for the inspector portrait. It breaks unless the parameter is optional, and it deliberately passes no pose: a portrait is a still |
 | `src/Hukbo.Client/Rendering/PawnRenderer.cs:26` | `GetBounds` feeds the frustum cull at `ArenaGame.Rendering.cs:254` |
 
-The last row is a real decision rather than an oversight. `GetBounds` takes no pose, so a
-pawn whose swing extends its visual bounds beyond the neutral silhouette can pop at the
-screen edge as the camera moves. **The decision is that culling deliberately uses neutral
-bounds.** Passing the pose into `GetBounds` would make the cull result depend on
-animation phase, so a pawn could flicker in and out of the draw list as its own swing
-advanced, which is a worse artefact than a brief edge pop and a harder one to reproduce.
-The neutral bounds are already inflated by the selection padding in `PawnGeometry`, which
-absorbs most of the swing extent. This is recorded so it is not later filed as a bug.
+The last row is a real decision rather than an oversight, and revision 4 defended it with
+two arguments that are both wrong. Both are withdrawn here and replaced with the correct
+one.
+
+**The decision stands: culling deliberately uses neutral, pose-blind bounds.** The reason
+is **draw-list determinism**. Making the cull depend on the swing pose makes the set of
+drawn pawns a function of presentation animation phase, so the same tick renders a
+different draw list depending on where each swing clock happens to sit. That is a
+presentation-side dependency on a clock, of exactly the kind this repository keeps out of
+every decision that matters, and it makes a rendering discrepancy irreproducible from a
+tick number alone.
+
+**Withdrawn argument one: flicker.** A pose-aware cull would not flicker a pawn in and
+out. For a pawn whose neutral bounds miss the arena rectangle, it would *add* the pawn
+while the weapon is genuinely inside and drop it once the swing recovered, which is
+correct inclusion rather than an artefact.
+
+**Withdrawn argument two: the padding absorbs it.** It does not, by roughly four times.
+`PawnGeometry.cs:115-118` inflates by `Math.Max(3, ceil(3 * apparentScale))`, which is 3
+to 8 pixels. A `GreatBlade` tip at `(15, -19) * scale` rotating about a grip at
+`(1, -6) * scale` sweeps a lever of about 14 units, roughly 34 pixels at the maximum
+apparent scale of 2.40.
+
+**The real artefact, stated accurately.** `arenaBounds` is the scissored arena panel, not
+the screen, at `src/Hukbo.Client/ArenaGame.Rendering.cs:64-72`. So a pawn whose body sits
+outside the panel while its weapon would sweep into it is dropped entirely, and the
+visible symptom is a weapon tip clipped at the **panel** edge while panning. That is
+accepted, and it gets its own `PENDING` smoke row rather than being asserted away here.
 
 ### 6.5 What is explicitly not done
 
@@ -918,14 +995,33 @@ FNV-1a fold together with the per-event field tuples, is therefore captured from
 **unmodified `main`** and committed as a fixture under `tests/Hukbo.Core.Tests/` in Phase
 0, before any resolver code is written.
 
-**The state-hash half of the revision-3 wording is dropped, because it is not a decidable
-operation.** "The state hash differs only by the `ContentHash` fold" cannot be evaluated:
-FNV-1a is a linear fold and one cannot inspect an output and conclude that exactly one
-input word changed. The replacement is a fixture comparison on the event stream plus a
-direct field-by-field comparison of final agent state. The only honest hash form would be
-to construct a version-1 ruleset whose `ContentHash` is `0x59FB4CA563D87A49UL` and assert
-the state hash equals `D78F0B527B7F938F` exactly — which the in-place `Version` bump makes
-awkward to build, so it is not required. The fixture comparison carries the weight.
+**The state hash is asserted, in the one form that is decidable.** The revision-3 wording,
+"the state hash differs only by the `ContentHash` fold", cannot be evaluated: FNV-1a is a
+linear fold and one cannot inspect an output and conclude that exactly one input word
+changed. Revision 4 therefore dropped the hash entirely, which went one level too far.
+
+The seam supplies a decidable form. Construct a `CombatRuleset` with `version: 1` and
+`ClashProfile.Neutral`, so its `ContentHash` is still `0x59FB4CA563D87A49UL`, inject it
+through the new `Create` overload, run seed 1 at 200 agents, and assert
+`ComputeStateHash()` equals **`D78F0B527B7F938F`** exactly at the terminal tick. That is a
+plain equality against a recorded value rather than an inference about a fold, and without
+it nothing in the plan asserts the state hash under a neutral profile at all and the
+fixture carries the entire load.
+
+The fixture comparison on the event stream and a field-by-field comparison of final agent
+state both remain, alongside it.
+
+**The fixture format is per-tick digest rows, and the exclusion is load-bearing.** Seed 1
+at 200 agents runs 657 ticks and tens of thousands of events, so serialising every event is
+megabytes committed to the repository, while a single whole-run fold is one number that
+destroys the event-for-event comparison this test promises. The committed shape is one row
+per tick carrying the event count plus an FNV-1a fold over the ordered
+`(Sequence, Tick, Kind, SourceEntityId, TargetEntityId ?? 0, Value, FactionId, Weapon,
+HitLocation)` tuples, **deliberately excluding `Resolution`**, because a post-change event
+carries a field a pre-change event cannot and including it would guarantee a mismatch that
+means nothing. Roughly 657 rows, and a failure reports a first-divergence tick in the same
+shape `benchmark.ps1` already reports as `firstMismatchTick`. The fixture also carries the
+terminal tick, the outcome, both survivor counts, and the final per-agent state tuples.
 
 **Pinned mixer vectors at the existing standard.** `HitLocationResolverTests.cs:24-32`
 pins eight `[InlineData]` rows covering seed 0 and the maximum unsigned seed, tick 0 and
@@ -984,6 +1080,16 @@ and `:311` already carry `Run_CollisionMetricsSurviveAJsonRoundTrip` and
 record; the second is the one that catches a metric leaking non-determinism. Combat
 metrics get both. The derived interception ratio also needs a defined value when no
 attack was accepted, because the criterion-one band test reads it.
+
+**Metrics must also be proven to reach neither hash**, and nothing in revision 4 checked
+it. The repository treats derived counters as never hashed, never snapshotted, and never
+persisted, and the collision proximity band was accepted only after both hashes were shown
+byte-identical across its introduction. Here the seam check proves only that the seam moved
+nothing, the control run no longer speaks to metrics, and the Phase 4 comparison is against
+a Phase 2 pair that already contains them. The gap is closed by recording the seed-1 hash
+pair immediately **before** the metrics task and asserting it is byte-identical immediately
+**after**, which is the same evidence the proximity band produced and is decidable without
+inspecting a fold.
 
 **The interception-share and termination criteria.** Criterion one is asserted as a band
 over the 200-agent run rather than eyeballed from a report. Criterion two needs a seed
