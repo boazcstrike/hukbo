@@ -10,9 +10,37 @@ $ErrorActionPreference = 'Stop'
 
 $root = Get-RepositoryRoot
 $clientProject = 'src/AutonomousArena.Client/AutonomousArena.Client.csproj'
-$output = Join-Path $root "artifacts/packages/client-$Runtime"
+$packageRoot = Join-Path $root 'artifacts/packages'
+$outputLeaf = "client-$Runtime"
+$output = Join-Path $packageRoot $outputLeaf
+$stagingLeaf = ".$outputLeaf-staging-$([guid]::NewGuid().ToString('N'))"
+$staging = Join-Path $packageRoot $stagingLeaf
 
-New-Item -ItemType Directory -Force -Path $output | Out-Null
+New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
+
+function Assert-ExpectedPackagePath {
+    param(
+        [Parameter(Mandatory)]
+        [string] $Path,
+
+        [Parameter(Mandatory)]
+        [string] $ExpectedLeaf
+    )
+
+    $resolvedPackageRoot = [System.IO.Path]::GetFullPath($packageRoot)
+    $resolvedPath = [System.IO.Path]::GetFullPath($Path)
+    $expectedPath = [System.IO.Path]::GetFullPath(
+        (Join-Path $resolvedPackageRoot $ExpectedLeaf))
+    if (-not [string]::Equals(
+        $resolvedPath,
+        $expectedPath,
+        [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to modify unexpected package path '$resolvedPath'."
+    }
+}
+
+Assert-ExpectedPackagePath -Path $output -ExpectedLeaf $outputLeaf
+Assert-ExpectedPackagePath -Path $staging -ExpectedLeaf $stagingLeaf
 
 Push-Location $root
 try {
@@ -38,12 +66,22 @@ try {
         '--runtime', $Runtime,
         '--self-contained', 'true',
         '--no-restore',
-        '--output', $output,
+        '--output', $staging,
         '-p:PublishSingleFile=false'
     )
+
+    if (Test-Path -LiteralPath $output) {
+        Remove-Item -LiteralPath $output -Recurse -Force
+    }
+
+    Move-Item -LiteralPath $staging -Destination $output
 }
 finally {
     Pop-Location
+    if (Test-Path -LiteralPath $staging) {
+        Assert-ExpectedPackagePath -Path $staging -ExpectedLeaf $stagingLeaf
+        Remove-Item -LiteralPath $staging -Recurse -Force
+    }
 }
 
 Write-Host "[PASS] Windows package published to $output"

@@ -50,11 +50,11 @@ function Invoke-RepositoryScript {
         [Parameter(Mandatory)]
         [string] $Name,
 
-        [string[]] $Arguments = @()
+        [hashtable] $Parameters = @{}
     )
 
     $scriptPath = Join-Path (Join-Path (Get-RepositoryRoot) 'scripts') $Name
-    & $scriptPath @Arguments
+    & $scriptPath @Parameters
     if ($LASTEXITCODE -ne 0) {
         throw "$Name failed with exit code $LASTEXITCODE."
     }
