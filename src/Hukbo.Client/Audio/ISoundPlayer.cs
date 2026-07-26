@@ -15,13 +15,28 @@ internal interface ISoundPlayer
     /// </summary>
     IReadOnlyList<SoundBinding> Bindings { get; }
 
-    SoundBindingStatus GetStatus(GameSoundId sound);
+    /// <summary>
+    /// The status of one slot's resolved variant list, after the fallback
+    /// chain has already been applied. <paramref name="hitClass"/> is
+    /// <c>null</c> for a slot that is not hit-location driven.
+    /// </summary>
+    SoundBindingStatus GetStatus(GameSoundId sound, HitClass? hitClass);
 
     /// <summary>
-    /// Requests playback. Called only for a slot whose status is
+    /// The number of variants in the resolved list, so the caller can compute
+    /// a selection index. Zero when <see cref="GetStatus"/> is not
     /// <see cref="SoundBindingStatus.Ready"/>.
     /// </summary>
-    void Play(GameSoundId sound, float volume);
+    int GetVariantCount(GameSoundId sound, HitClass? hitClass);
+
+    /// <summary>
+    /// Requests playback of one specific variant. Called only for a
+    /// (<paramref name="sound"/>, <paramref name="hitClass"/>) pair whose
+    /// status is <see cref="SoundBindingStatus.Ready"/>, with
+    /// <paramref name="variantIndex"/> in
+    /// <c>[0, GetVariantCount(sound, hitClass))</c>.
+    /// </summary>
+    void Play(GameSoundId sound, HitClass? hitClass, int variantIndex, float volume);
 }
 
 /// <summary>
@@ -43,7 +58,10 @@ internal sealed class SilentSoundPlayer : ISoundPlayer
             bindings[index] = new SoundBinding(
                 sound,
                 SoundCatalog.GetFileName(sound),
-                FilePath: null,
+                SoundCatalog.IsHitLocationDriven(sound)
+                    ? BuildMissingClassCounts()
+                    : [],
+                VariantCount: 0,
                 SoundBindingStatus.Missing);
         }
 
@@ -54,11 +72,31 @@ internal sealed class SilentSoundPlayer : ISoundPlayer
 
     public IReadOnlyList<SoundBinding> Bindings { get; }
 
-    public SoundBindingStatus GetStatus(GameSoundId sound) =>
+    public SoundBindingStatus GetStatus(GameSoundId sound, HitClass? hitClass) =>
         SoundBindingStatus.Missing;
 
-    public void Play(GameSoundId sound, float volume) =>
+    public int GetVariantCount(GameSoundId sound, HitClass? hitClass) => 0;
+
+    public void Play(
+        GameSoundId sound,
+        HitClass? hitClass,
+        int variantIndex,
+        float volume) =>
         throw new InvalidOperationException(
             "The silent player has no ready bindings and must never be asked " +
             "to play a sound.");
+
+    private static SoundClassCount[] BuildMissingClassCounts()
+    {
+        var counts = new SoundClassCount[HitClassCatalog.All.Count];
+        for (var index = 0; index < counts.Length; index++)
+        {
+            counts[index] = new SoundClassCount(
+                HitClassCatalog.All[index],
+                Count: 0,
+                SoundBindingStatus.Missing);
+        }
+
+        return counts;
+    }
 }

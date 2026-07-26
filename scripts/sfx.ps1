@@ -91,6 +91,14 @@ param(
     [string] $Prompt,
 
     [Parameter(ParameterSetName = 'Generate')]
+    [ValidateSet('skull', 'neck', 'ribcage', 'gut', 'limb', 'extremity')]
+    [string] $Class,
+
+    [Parameter(ParameterSetName = 'Generate')]
+    [ValidateRange(1, 99)]
+    [int] $Index,
+
+    [Parameter(ParameterSetName = 'Generate')]
     [ValidateRange(0.5, 30.0)]
     [double] $Duration,
 
@@ -153,30 +161,38 @@ $minimumApiDuration = 0.5
 # percent of it, roughly -20 dBFS. A usable generation lands far above it.
 $minimumPeakAmplitude = 3277
 
+# Concurrent generation runs draw rate-limit responses, so retry rather than
+# throwing the take away.
+$rateLimitRetries = 6
+
 # Kept either side of the audible part so trimming cannot land on a hard edge.
 $trimTailSeconds = 0.01
 $trimLeadSeconds = 0.005
 
 # Starting points, not house style. Every one of these is meant to be replaced
 # by a better -Prompt once someone hears the result in a real battle.
+# An attack event only exists when the attack landed, so every combat prompt is
+# a contact. A prompt that produces a blade cutting empty air is wrong for this
+# game. Each of these is the weapon's most common hit, and each doubles as the
+# single-file fallback for its slot.
 $defaultPrompts = @{
     'attack-great-blade'     = @{
-        Prompt   = 'one heavy two-handed steel blade swinging fast and landing a solid cut, sharp metallic whoosh into a wet chopping impact, dry outdoor air, no music, no voice'
+        Prompt   = 'one heavy two-handed blade cutting deep through a neck, thick wet sever with a brief metallic shiver in the steel, no music, no voice'
         Duration = 0.5
         Trim     = $true
     }
     'attack-heavy-chopper'   = @{
-        Prompt   = 'one broad heavy chopping blade landing a deep cleaving blow, low thick impact with a short metallic ring, no music, no voice'
+        Prompt   = 'one broad heavy chopping blade cleaving a shoulder, wet meat with a hard joint break, no ring, no music, no voice'
         Duration = 0.5
         Trim     = $true
     }
     'attack-thrusting-blade' = @{
-        Prompt   = 'one narrow blade thrusting and puncturing, quick tight stab, light metal slide, no music, no voice'
+        Prompt   = 'one narrow blade sinking into a belly, soft deep wet entry with no bone, no music, no voice'
         Duration = 0.5
         Trim     = $true
     }
     'attack-work-blade'      = @{
-        Prompt   = 'one short single-edged working knife slashing quickly, light fast metal swipe with a small cut impact, no music, no voice'
+        Prompt   = 'one short light blade slashing a forearm, fast light cut with a thin bone tick, no music, no voice'
         Duration = 0.5
         Trim     = $true
     }
@@ -185,27 +201,34 @@ $defaultPrompts = @{
         Duration = 0.7
         Trim     = $true
     }
-    # The decaying ring is the whole point of an outcome cue, and a
-    # peak-relative threshold would eat it, so these three are not trimmed.
+    # The outcome and interface cues are short, soft notification sounds in the
+    # manner of a messaging app, not ceremonial instruments. They are the only
+    # non-diegetic sounds in the game. A pitched tone decays smoothly, so they
+    # trim at a gentler threshold than a combat hit: 5% of peak audibly chops
+    # the tail, 2% only removes the dead air after it.
     'victory-blue'           = @{
-        Prompt   = 'short low ceremonial gong strike with a warm decaying ring, single hit, no music bed, no voice'
-        Duration = 1.6
-        Trim     = $false
+        Prompt    = 'two soft glass notes rising a fifth, gentle bright interface notification, very short, clean decay, no reverb tail, no music, no voice'
+        Duration  = 0.5
+        Trim      = $true
+        Threshold = 2.0
     }
     'victory-red'            = @{
-        Prompt   = 'short bright ceremonial gong strike with a higher decaying ring, single hit, no music bed, no voice'
-        Duration = 1.6
-        Trim     = $false
+        Prompt    = 'two soft mallet notes rising a fifth in a low warm register, gentle interface notification, very short, clean decay, no reverb tail, no music, no voice'
+        Duration  = 0.5
+        Trim      = $true
+        Threshold = 2.0
     }
     'draw'                   = @{
-        Prompt   = 'two dull wooden strikes ending flat with no resonance, unresolved and neutral, no music, no voice'
-        Duration = 1.2
-        Trim     = $false
+        Prompt    = 'two soft muted notes at the same pitch, flat and unresolved interface notification, very short, dry, no reverb tail, no music, no voice'
+        Duration  = 0.5
+        Trim      = $true
+        Threshold = 2.0
     }
     'ui-click'               = @{
-        Prompt   = 'one very short dry wooden tick, quiet interface click, no reverb, no music, no voice'
-        Duration = 0.5
-        Trim     = $true
+        Prompt    = 'one very short soft tap, subtle interface tick, tiny and clean, almost no tone, no reverb, no music, no voice'
+        Duration  = 0.5
+        Trim      = $true
+        Threshold = 2.0
     }
 }
 
@@ -224,12 +247,96 @@ function Get-CatalogSlot {
 }
 
 function Get-SlotPath {
+    <#
+        Builds "<slot>[-<class>][-NN].wav". The hit class lives in the file name
+        rather than in a code-side table so the mapping between a body part and
+        the sound it makes cannot silently drift from the files on disk.
+    #>
     param(
         [Parameter(Mandatory)] [string] $SlotName,
-        [Parameter(Mandatory)] [string] $Directory
+        [Parameter(Mandatory)] [string] $Directory,
+        [string] $ClassName,
+        [int] $VariantIndex
     )
 
-    return Join-Path $Directory "$SlotName.wav"
+    $name = $SlotName
+    if (-not [string]::IsNullOrWhiteSpace($ClassName)) {
+        $name += "-$ClassName"
+    }
+
+    if ($VariantIndex -gt 0) {
+        $name += '-{0:D2}' -f $VariantIndex
+    }
+
+    return Join-Path $Directory "$name.wav"
+}
+
+function Add-ProvenanceRow {
+    <#
+        Several generation runs append here at once, so a plain Add-Content
+        loses rows to file-sharing collisions. Retries around the lock instead.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Path,
+        [Parameter(Mandatory)] [string] $Row,
+
+        # AllowEmptyString because the header contains blank separator lines,
+        # and a mandatory string array rejects an empty element without it.
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string[]] $HeaderLines
+    )
+
+    for ($attempt = 1; $attempt -le 20; $attempt++) {
+        try {
+            if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+                $stream = [System.IO.File]::Open(
+                    $Path,
+                    [System.IO.FileMode]::CreateNew,
+                    [System.IO.FileAccess]::Write,
+                    [System.IO.FileShare]::None)
+                try {
+                    $writer = [System.IO.StreamWriter]::new($stream)
+                    try {
+                        foreach ($line in $HeaderLines) {
+                            $writer.WriteLine($line)
+                        }
+                    }
+                    finally {
+                        $writer.Dispose()
+                    }
+                }
+                finally {
+                    $stream.Dispose()
+                }
+            }
+
+            $appendStream = [System.IO.File]::Open(
+                $Path,
+                [System.IO.FileMode]::Append,
+                [System.IO.FileAccess]::Write,
+                [System.IO.FileShare]::None)
+            try {
+                $appendWriter = [System.IO.StreamWriter]::new($appendStream)
+                try {
+                    $appendWriter.WriteLine($Row)
+                }
+                finally {
+                    $appendWriter.Dispose()
+                }
+            }
+            finally {
+                $appendStream.Dispose()
+            }
+
+            return
+        }
+        catch [System.IO.IOException] {
+            Start-Sleep -Milliseconds (100 * $attempt)
+        }
+    }
+
+    Write-Host "[WARN] Could not append the provenance row for $Row" -ForegroundColor Yellow
 }
 
 function Get-ApiKey {
@@ -274,9 +381,12 @@ function Get-PeakAmplitude {
         [Parameter(Mandatory)] [byte[]] $PcmData
     )
 
+    # Widened to int before Abs: a sample of exactly Int16.MinValue has no
+    # positive Int16 counterpart, and Math.Abs would throw on the loudest
+    # possible take rather than accepting it.
     $peak = 0
     for ($offset = 0; $offset -lt $PcmData.Length - 1; $offset += 2) {
-        $sample = [System.Math]::Abs([BitConverter]::ToInt16($PcmData, $offset))
+        $sample = [System.Math]::Abs([int] [BitConverter]::ToInt16($PcmData, $offset))
         if ($sample -gt $peak) {
             $peak = $sample
         }
@@ -307,7 +417,7 @@ function Remove-Silence {
     $peak = 0
     for ($frame = 0; $frame -lt $frameCount; $frame++) {
         for ($channel = 0; $channel -lt $ChannelCount; $channel++) {
-            $sample = [System.Math]::Abs([BitConverter]::ToInt16($PcmData, ($frame * $bytesPerFrame) + ($channel * 2)))
+            $sample = [System.Math]::Abs([int] [BitConverter]::ToInt16($PcmData, ($frame * $bytesPerFrame) + ($channel * 2)))
             if ($sample -gt $peak) {
                 $peak = $sample
             }
@@ -323,7 +433,7 @@ function Remove-Silence {
     $firstAudibleFrame = -1
     for ($frame = 0; $frame -lt $frameCount; $frame++) {
         for ($channel = 0; $channel -lt $ChannelCount; $channel++) {
-            if ([System.Math]::Abs([BitConverter]::ToInt16($PcmData, ($frame * $bytesPerFrame) + ($channel * 2))) -ge $threshold) {
+            if ([System.Math]::Abs([int] [BitConverter]::ToInt16($PcmData, ($frame * $bytesPerFrame) + ($channel * 2))) -ge $threshold) {
                 $firstAudibleFrame = $frame
                 break
             }
@@ -342,7 +452,7 @@ function Remove-Silence {
     for ($frame = $frameCount - 1; $frame -ge $firstAudibleFrame; $frame--) {
         $loud = $false
         for ($channel = 0; $channel -lt $ChannelCount; $channel++) {
-            if ([System.Math]::Abs([BitConverter]::ToInt16($PcmData, ($frame * $bytesPerFrame) + ($channel * 2))) -ge $threshold) {
+            if ([System.Math]::Abs([int] [BitConverter]::ToInt16($PcmData, ($frame * $bytesPerFrame) + ($channel * 2))) -ge $threshold) {
                 $loud = $true
                 break
             }
@@ -473,6 +583,13 @@ else {
     $shouldTrim = $defaultPrompts.ContainsKey($Slot) -and $defaultPrompts[$Slot].Trim
 }
 
+# A slot may carry its own trim threshold; an explicit -SilenceThreshold wins.
+if (-not $PSBoundParameters.ContainsKey('SilenceThreshold') -and
+    $defaultPrompts.ContainsKey($Slot) -and
+    $defaultPrompts[$Slot].ContainsKey('Threshold')) {
+    $SilenceThreshold = $defaultPrompts[$Slot].Threshold
+}
+
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = $defaultOutputDirectory
 }
@@ -481,7 +598,16 @@ if (-not (Test-Path -LiteralPath $OutputDirectory -PathType Container)) {
     New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 }
 
-$outputPath = Get-SlotPath -SlotName $Slot -Directory $OutputDirectory
+if (-not [string]::IsNullOrWhiteSpace($Class) -and -not $Slot.StartsWith('attack-')) {
+    throw "-Class applies only to an attack slot. '$Slot' events carry no hit location, so a class would name a file the game can never select."
+}
+
+$outputPath = Get-SlotPath `
+    -SlotName $Slot `
+    -Directory $OutputDirectory `
+    -ClassName $Class `
+    -VariantIndex $Index
+
 if ((Test-Path -LiteralPath $outputPath -PathType Leaf) -and -not $Force) {
     throw "$outputPath already exists. Re-run with -Force to replace it."
 }
@@ -524,14 +650,39 @@ $temporaryPath = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "huk
 
 try {
     Write-Host 'Requesting audio from ElevenLabs...'
-    Invoke-WebRequest `
-        -Uri $requestUri `
-        -Method Post `
-        -Headers @{ 'xi-api-key' = $apiKey } `
-        -ContentType 'application/json' `
-        -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) `
-        -OutFile $temporaryPath `
-        -MaximumRedirection 0 | Out-Null
+
+    # Several slots are commonly generated at once, so a rate-limit response is
+    # expected rather than exceptional. Back off and retry rather than failing
+    # the whole run and losing the take.
+    for ($attempt = 1; $attempt -le $rateLimitRetries; $attempt++) {
+        try {
+            Invoke-WebRequest `
+                -Uri $requestUri `
+                -Method Post `
+                -Headers @{ 'xi-api-key' = $apiKey } `
+                -ContentType 'application/json' `
+                -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) `
+                -OutFile $temporaryPath `
+                -MaximumRedirection 0 | Out-Null
+
+            break
+        }
+        catch {
+            $statusCode = 0
+            if ($null -ne $_.Exception.Response) {
+                $statusCode = [int] $_.Exception.Response.StatusCode
+            }
+
+            $isRetryable = $statusCode -eq 429 -or ($statusCode -ge 500 -and $statusCode -le 599)
+            if (-not $isRetryable -or $attempt -eq $rateLimitRetries) {
+                throw
+            }
+
+            $backoffSeconds = [System.Math]::Min(30, [System.Math]::Pow(2, $attempt))
+            Write-Host "[INFO] HTTP $statusCode from ElevenLabs. Waiting ${backoffSeconds}s, then retrying (attempt $attempt of $rateLimitRetries)."
+            Start-Sleep -Seconds $backoffSeconds
+        }
+    }
 
     $pcm = [System.IO.File]::ReadAllBytes($temporaryPath)
     if ($pcm.Length -lt 1024) {
@@ -591,23 +742,26 @@ try {
     $kilobytes = [math]::Round($pcm.Length / 1024.0, 1)
     Write-Host "[PASS] Wrote $outputPath ($kilobytes KB, ${seconds}s, $Channels channel(s), $SampleRate Hz, 16-bit PCM)."
 
-    if (-not (Test-Path -LiteralPath $provenancePath -PathType Leaf)) {
-        @(
-            '# Generated sound provenance'
-            ''
-            'Every file in this folder produced by `scripts/sfx.ps1` is logged here.'
-            'The game ignores this file; it exists so a sound can be traced back to'
-            'the prompt and model that made it.'
-            ''
-            '| Date | File | Model | Requested | Kept | Influence | Prompt |'
-            '| --- | --- | --- | --- | --- | --- | --- |'
-        ) | Set-Content -LiteralPath $provenancePath -Encoding utf8
-    }
-
     $escapedPrompt = $Prompt -replace '\|', '\|'
-    $row = '| {0} | `{1}.wav` | `{2}` | {3}s | {4}s | {5} | {6} |' -f `
-    (Get-Date -Format 'yyyy-MM-dd'), $Slot, $modelId, $Duration, $seconds, $PromptInfluence, $escapedPrompt
-    Add-Content -LiteralPath $provenancePath -Value $row -Encoding utf8
+    $row = '| {0} | `{1}` | `{2}` | {3}s | {4}s | {5} | {6} |' -f `
+    (Get-Date -Format 'yyyy-MM-dd'),
+    (Split-Path -Leaf $outputPath),
+    $modelId,
+    $Duration,
+    $seconds,
+    $PromptInfluence,
+    $escapedPrompt
+
+    Add-ProvenanceRow -Path $provenancePath -Row $row -HeaderLines @(
+        '# Generated sound provenance'
+        ''
+        'Every file in this folder produced by `scripts/sfx.ps1` is logged here.'
+        'The game ignores this file; it exists so a sound can be traced back to'
+        'the prompt and model that made it.'
+        ''
+        '| Date | File | Model | Requested | Kept | Influence | Prompt |'
+        '| --- | --- | --- | --- | --- | --- | --- |'
+    )
 
     Write-Host "[PASS] Logged the prompt in $provenancePath."
     Write-Host 'Next: launch with ./scripts/run.ps1 and press F9 to confirm the slot reports READY.'

@@ -244,6 +244,79 @@ public sealed class SoundLogPanelTests
     }
 
     [Fact]
+    public void BuildBindingRows_AddsOneHeaderRowForAClasslessSlot()
+    {
+        var bindings = new[]
+        {
+            new SoundBinding(
+                GameSoundId.Death,
+                "death.wav",
+                ClassCounts: [],
+                VariantCount: 10,
+                SoundBindingStatus.Ready),
+        };
+
+        var rows = SoundLogPanel.BuildBindingRows(bindings);
+
+        var row = Assert.Single(rows);
+        Assert.Equal("death.wav", row.Label);
+        Assert.Equal("READY (10)", row.StatusText);
+        Assert.Equal(SoundBindingStatus.Ready, row.Status);
+    }
+
+    [Fact]
+    public void BuildBindingRows_AddsOneIndentedSubRowPerClassForAWeaponSlot()
+    {
+        var classCounts = new[]
+        {
+            new SoundClassCount(HitClass.Skull, 2, SoundBindingStatus.Ready),
+            new SoundClassCount(HitClass.Neck, 0, SoundBindingStatus.Missing),
+        };
+        var bindings = new[]
+        {
+            new SoundBinding(
+                GameSoundId.AttackGreatBlade,
+                "attack-great-blade.wav",
+                classCounts,
+                VariantCount: 2,
+                SoundBindingStatus.Ready),
+        };
+
+        var rows = SoundLogPanel.BuildBindingRows(bindings);
+
+        Assert.Equal(3, rows.Count);
+        Assert.Equal("attack-great-blade.wav", rows[0].Label);
+        Assert.Equal("READY (2)", rows[0].StatusText);
+        Assert.Contains("skull", rows[1].Label);
+        Assert.Equal("READY (2)", rows[1].StatusText);
+        Assert.Contains("neck", rows[2].Label);
+        Assert.Equal("MISSING", rows[2].StatusText);
+    }
+
+    [Fact]
+    public void BuildBindingRows_ShowsAPlainStatusWithNoCountWhenNotReady()
+    {
+        var bindings = new[]
+        {
+            new SoundBinding(
+                GameSoundId.Draw,
+                "draw.wav",
+                ClassCounts: [],
+                VariantCount: 0,
+                SoundBindingStatus.Missing),
+        };
+
+        var rows = SoundLogPanel.BuildBindingRows(bindings);
+
+        Assert.Equal("MISSING", Assert.Single(rows).StatusText);
+    }
+
+    [Fact]
+    public void BuildBindingRows_RejectsNullBindings() =>
+        Assert.Throws<ArgumentNullException>(
+            () => SoundLogPanel.BuildBindingRows(null!));
+
+    [Fact]
     public void CalculateLayout_ShowsEveryExpectedFileNameAtTheDefaultSize()
     {
         // The panel is the documentation of what to name a file, so at the

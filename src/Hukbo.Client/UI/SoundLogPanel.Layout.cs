@@ -123,6 +123,50 @@ internal sealed partial class SoundLogPanel
             Math.Max(0, bounds.Height - (verticalPadding * 2)));
     }
 
+    /// <summary>
+    /// Prefix for an indented per-class sub-row, keeping it visually distinct
+    /// from a slot's own header row.
+    /// </summary>
+    private const string ClassRowIndent = "  ";
+
+    /// <summary>
+    /// Flattens every slot's binding into the rows the "EXPECTED FILES"
+    /// section draws: one header row per slot, plus — for a hit-location
+    /// driven slot — one indented sub-row per acoustic class showing its raw,
+    /// pre-fallback variant count.
+    /// </summary>
+    internal static IReadOnlyList<SoundBindingRow> BuildBindingRows(
+        IReadOnlyList<SoundBinding> bindings)
+    {
+        ArgumentNullException.ThrowIfNull(bindings);
+
+        var rows = new List<SoundBindingRow>();
+        foreach (var binding in bindings)
+        {
+            rows.Add(
+                new SoundBindingRow(
+                    binding.FileName,
+                    FormatRowStatus(binding.Status, binding.VariantCount),
+                    binding.Status));
+
+            foreach (var classCount in binding.ClassCounts)
+            {
+                rows.Add(
+                    new SoundBindingRow(
+                        ClassRowIndent + HitClassCatalog.GetToken(classCount.HitClass),
+                        FormatRowStatus(classCount.Status, classCount.Count),
+                        classCount.Status));
+            }
+        }
+
+        return rows;
+    }
+
+    private static string FormatRowStatus(SoundBindingStatus status, int variantCount) =>
+        status == SoundBindingStatus.Ready
+            ? $"{SoundCatalog.GetStatusLabel(status)} ({variantCount})"
+            : SoundCatalog.GetStatusLabel(status);
+
     internal static int GetVisibleBindingRowCount(SoundLogPanelLayout layout) =>
         Math.Max(0, layout.BindingRowsBounds.Height / BindingRowHeight);
 

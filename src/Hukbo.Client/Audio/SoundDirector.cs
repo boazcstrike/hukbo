@@ -69,22 +69,32 @@ internal sealed class SoundDirector
             var battleEvent = events[index];
             if (SoundCueMapper.Map(battleEvent) is { } sound)
             {
-                Resolve(sound, battleEvent.Tick);
+                var hitClass = battleEvent.HitLocation is { } bodyPart
+                    ? HitClassCatalog.FromBodyPart(bodyPart)
+                    : (HitClass?)null;
+                Resolve(sound, hitClass, battleEvent.Tick, battleEvent.SourceEntityId);
             }
         }
     }
 
     /// <summary>
     /// Requests a cue that no simulation event produced, such as a UI click.
+    /// It carries no hit location and no source entity, so variant selection
+    /// falls back to the fixed entity ID zero — deterministic, and immaterial
+    /// for the single-file interface cues that use this path today.
     /// </summary>
     public void RequestCue(GameSoundId sound, long tick) =>
-        Resolve(sound, tick);
+        Resolve(sound, hitClass: null, tick, sourceEntityId: 0UL);
 
     public void Clear() => Log.Clear();
 
-    private void Resolve(GameSoundId sound, long tick)
+    private void Resolve(
+        GameSoundId sound,
+        HitClass? hitClass,
+        long tick,
+        ulong sourceEntityId)
     {
-        var status = Player.GetStatus(sound);
+        var status = Player.GetStatus(sound, hitClass);
         if (status != SoundBindingStatus.Ready)
         {
             // A broken binding outranks mute and the budget: it is the one
@@ -110,7 +120,9 @@ internal sealed class SoundDirector
             return;
         }
 
-        Player.Play(sound, CueVolume);
+        var variantCount = Player.GetVariantCount(sound, hitClass);
+        var variantIndex = SoundVariantSelector.Select(tick, sourceEntityId, variantCount);
+        Player.Play(sound, hitClass, variantIndex, CueVolume);
         Log.Append(tick, sound, SoundCueStatus.Played);
     }
 }

@@ -18,7 +18,7 @@ internal sealed partial class SoundLogPanel
     private const float RowScale = 0.48f;
     private const float MuteScale = 0.50f;
     private const int CharacterWidthEstimate = 6;
-    private const int StatusColumnWidth = 58;
+    private const int StatusColumnWidth = 74;
     private const string Ellipsis = "...";
 
     private Point _pointerPosition;
@@ -158,18 +158,18 @@ internal sealed partial class SoundLogPanel
             theme.Colors.TextSecondary,
             SectionScale);
 
-        var bindings = director.Player.Bindings;
+        var rows = BuildBindingRows(director.Player.Bindings);
         var visibleRowCount = GetVisibleBindingRowCount(layout);
-        if (visibleRowCount <= 0 || bindings.Count == 0)
+        if (visibleRowCount <= 0 || rows.Count == 0)
         {
             return;
         }
 
-        var hasOverflow = bindings.Count > visibleRowCount;
-        var drawnRowCount = hasOverflow ? visibleRowCount - 1 : bindings.Count;
+        var hasOverflow = rows.Count > visibleRowCount;
+        var drawnRowCount = hasOverflow ? visibleRowCount - 1 : rows.Count;
         for (var index = 0; index < drawnRowCount; index++)
         {
-            var binding = bindings[index];
+            var row = rows[index];
             var rowBounds = GetBindingRowBounds(layout, index);
             var nameWidth = Math.Max(
                 0,
@@ -178,7 +178,7 @@ internal sealed partial class SoundLogPanel
                 spriteBatch,
                 font,
                 ClipText(
-                    binding.FileName,
+                    row.Label,
                     GetMaximumCharacters(nameWidth)),
                 new Vector2(rowBounds.Left, rowBounds.Top),
                 theme.Colors.TextPrimary,
@@ -186,11 +186,11 @@ internal sealed partial class SoundLogPanel
             DrawText(
                 spriteBatch,
                 font,
-                SoundCatalog.GetStatusLabel(binding.Status),
+                row.StatusText,
                 new Vector2(
                     rowBounds.Right - StatusColumnWidth + 4,
                     rowBounds.Top),
-                GetBindingStatusColor(theme.Colors, binding.Status),
+                GetBindingStatusColor(theme.Colors, row.Status),
                 RowScale);
         }
 
@@ -203,7 +203,7 @@ internal sealed partial class SoundLogPanel
         DrawText(
             spriteBatch,
             font,
-            $"+{bindings.Count - drawnRowCount} more (enlarge the panel)",
+            $"+{rows.Count - drawnRowCount} more (enlarge the panel)",
             new Vector2(overflowBounds.Left, overflowBounds.Top),
             theme.Colors.TextSecondary,
             RowScale);

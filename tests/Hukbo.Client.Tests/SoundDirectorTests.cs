@@ -25,6 +25,82 @@ public sealed class SoundDirectorTests
     }
 
     [Fact]
+    public void Ingest_MapsTheEventHitLocationToTheAcousticHitClass()
+    {
+        var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
+        var director = new SoundDirector(logCapacity: 64, player);
+
+        director.BeginFrame();
+        director.Ingest(
+            [Attack(1, WeaponId.GreatBlade, BodyPart.Head)]);
+
+        Assert.Equal(HitClass.Skull, Assert.Single(player.Played).HitClass);
+    }
+
+    [Fact]
+    public void Ingest_UsesANullHitClassForAnEventWithNoHitLocation()
+    {
+        var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
+        var director = new SoundDirector(logCapacity: 64, player);
+
+        director.BeginFrame();
+        director.Ingest([NonAttack(1, BattleEventKind.Death)]);
+
+        Assert.Null(Assert.Single(player.Played).HitClass);
+    }
+
+    [Fact]
+    public void Ingest_SpreadsVariantSelectionAcrossDifferentSourceEntities()
+    {
+        var player = new RecordingSoundPlayer(SoundBindingStatus.Ready, variantCount: 10);
+        var director = new SoundDirector(
+            logCapacity: 64,
+            player,
+            new SoundCueBudget(maximumPerSound: 20, maximumTotal: 20));
+        var events = new BattleEvent[10];
+        for (var index = 0; index < events.Length; index++)
+        {
+            events[index] = BattleEvent.Attack(
+                index + 1,
+                tick: 5,
+                sourceEntityId: (ulong)(index + 1),
+                targetEntityId: 99,
+                damage: 9,
+                factionId: 0,
+                WeaponId.GreatBlade,
+                BodyPart.Chest);
+        }
+
+        director.BeginFrame();
+        director.Ingest(events);
+
+        var distinctIndexes = player.Played
+            .Select(played => played.VariantIndex)
+            .Distinct()
+            .Count();
+        Assert.True(
+            distinctIndexes > 1,
+            "Ten different source entities should not all select the same variant.");
+    }
+
+    [Fact]
+    public void RequestCue_SelectsTheSameVariantDeterministicallyWithNoSourceEntity()
+    {
+        var player = new RecordingSoundPlayer(SoundBindingStatus.Ready, variantCount: 10);
+        var director = new SoundDirector(
+            logCapacity: 64,
+            player,
+            new SoundCueBudget(maximumPerSound: 5, maximumTotal: 5));
+
+        director.BeginFrame();
+        director.RequestCue(GameSoundId.UiClick, tick: 1);
+        director.RequestCue(GameSoundId.UiClick, tick: 1);
+
+        Assert.Equal(2, player.Played.Count);
+        Assert.Equal(player.Played[0].VariantIndex, player.Played[1].VariantIndex);
+    }
+
+    [Fact]
     public void Ingest_IgnoresSilentEventKinds()
     {
         var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
@@ -236,6 +312,12 @@ public sealed class SoundDirectorTests
     }
 
     private static BattleEvent Attack(long sequence, WeaponId weapon) =>
+        Attack(sequence, weapon, BodyPart.Chest);
+
+    private static BattleEvent Attack(
+        long sequence,
+        WeaponId weapon,
+        BodyPart hitLocation) =>
         BattleEvent.Attack(
             sequence,
             tick: 5,
@@ -244,7 +326,7 @@ public sealed class SoundDirectorTests
             damage: 9,
             factionId: 0,
             weapon,
-            BodyPart.Chest);
+            hitLocation);
 
     private static BattleEvent NonAttack(
         long sequence,
@@ -261,10 +343,12 @@ public sealed class SoundDirectorTests
     private sealed class RecordingSoundPlayer : ISoundPlayer
     {
         private readonly SoundBindingStatus _status;
+        private readonly int _variantCount;
 
-        public RecordingSoundPlayer(SoundBindingStatus status)
+        public RecordingSoundPlayer(SoundBindingStatus status, int variantCount = 1)
         {
             _status = status;
+            _variantCount = variantCount;
             var bindings = new SoundBinding[SoundCatalog.AllSounds.Count];
             for (var index = 0; index < SoundCatalog.AllSounds.Count; index++)
             {
@@ -272,9 +356,8 @@ public sealed class SoundDirectorTests
                 bindings[index] = new SoundBinding(
                     sound,
                     SoundCatalog.GetFileName(sound),
-                    status == SoundBindingStatus.Missing
-                        ? null
-                        : $"/audio/{SoundCatalog.GetFileName(sound)}",
+                    ClassCounts: [],
+                    status == SoundBindingStatus.Ready ? variantCount : 0,
                     status);
             }
 
@@ -285,11 +368,20 @@ public sealed class SoundDirectorTests
 
         public IReadOnlyList<SoundBinding> Bindings { get; }
 
-        public List<(GameSoundId Sound, float Volume)> Played { get; } = [];
+        public List<(GameSoundId Sound, HitClass? HitClass, int VariantIndex, float Volume)>
+            Played
+        { get; } = [];
 
-        public SoundBindingStatus GetStatus(GameSoundId sound) => _status;
+        public SoundBindingStatus GetStatus(GameSoundId sound, HitClass? hitClass) => _status;
 
-        public void Play(GameSoundId sound, float volume)
+        public int GetVariantCount(GameSoundId sound, HitClass? hitClass) =>
+            _status == SoundBindingStatus.Ready ? _variantCount : 0;
+
+        public void Play(
+            GameSoundId sound,
+            HitClass? hitClass,
+            int variantIndex,
+            float volume)
         {
             if (_status != SoundBindingStatus.Ready)
             {
@@ -297,7 +389,7 @@ public sealed class SoundDirectorTests
                     "The director must never play an unready binding.");
             }
 
-            Played.Add((sound, volume));
+            Played.Add((sound, hitClass, variantIndex, volume));
         }
     }
 }

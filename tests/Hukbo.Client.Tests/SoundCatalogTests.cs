@@ -88,12 +88,13 @@ public sealed class SoundCatalogTests
     {
         SoundBinding[] bindings =
         [
-            new(GameSoundId.Death, "death.wav", "/a/death.wav", SoundBindingStatus.Ready),
-            new(GameSoundId.Draw, "draw.wav", null, SoundBindingStatus.Missing),
+            new(GameSoundId.Death, "death.wav", [], 10, SoundBindingStatus.Ready),
+            new(GameSoundId.Draw, "draw.wav", [], 0, SoundBindingStatus.Missing),
             new(
                 GameSoundId.UiClick,
                 "ui-click.wav",
-                "/a/ui-click.wav",
+                [],
+                0,
                 SoundBindingStatus.LoadFailed),
         ];
 
@@ -102,4 +103,44 @@ public sealed class SoundCatalogTests
         Assert.Throws<ArgumentNullException>(
             () => SoundCatalog.CountUnavailable(null!));
     }
+
+    // The sound parameter is an int because xunit requires public test
+    // methods and GameSoundId is internal to Hukbo.Client.
+    [Theory]
+    [InlineData((int)GameSoundId.AttackGreatBlade, true)]
+    [InlineData((int)GameSoundId.AttackHeavyChopper, true)]
+    [InlineData((int)GameSoundId.AttackThrustingBlade, true)]
+    [InlineData((int)GameSoundId.AttackWorkBlade, true)]
+    [InlineData((int)GameSoundId.Death, false)]
+    [InlineData((int)GameSoundId.VictoryBlue, false)]
+    [InlineData((int)GameSoundId.VictoryRed, false)]
+    [InlineData((int)GameSoundId.Draw, false)]
+    [InlineData((int)GameSoundId.UiClick, false)]
+    public void IsHitLocationDriven_IsTrueOnlyForTheFourWeaponSlots(
+        int sound,
+        bool expected) =>
+        Assert.Equal(expected, SoundCatalog.IsHitLocationDriven((GameSoundId)sound));
+
+    [Fact]
+    public void GetVariantFileName_BuildsTheSlotClassIndexPattern() =>
+        Assert.Equal(
+            "attack-great-blade-skull-01.wav",
+            SoundCatalog.GetVariantFileName(
+                GameSoundId.AttackGreatBlade,
+                HitClass.Skull,
+                variantIndex: 1));
+
+    [Fact]
+    public void GetVariantFileName_RejectsANonAttackSlot() =>
+        Assert.Throws<ArgumentException>(
+            () => SoundCatalog.GetVariantFileName(
+                GameSoundId.Death,
+                HitClass.Skull,
+                variantIndex: 1));
+
+    [Fact]
+    public void GetSlotVariantFileName_BuildsTheSlotIndexPattern() =>
+        Assert.Equal(
+            "death-01.wav",
+            SoundCatalog.GetSlotVariantFileName(GameSoundId.Death, variantIndex: 1));
 }

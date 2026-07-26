@@ -19,6 +19,13 @@ internal static class SoundCatalog
     public const string FolderName = "Audio";
 
     /// <summary>
+    /// The zero-padded width of a variant index in a file name, e.g. the
+    /// <c>01</c> in <c>attack-great-blade-skull-01.wav</c>. Matches the
+    /// <c>{0:D2}</c> format <c>scripts/sfx.ps1</c> writes.
+    /// </summary>
+    public const int VariantIndexDigits = 2;
+
+    /// <summary>
     /// Every slot, in a fixed order. The panel and the loader both walk this
     /// list, so the display order never depends on enum reflection order.
     /// </summary>
@@ -64,6 +71,73 @@ internal static class SoundCatalog
     /// </summary>
     public static string GetFileName(GameSoundId sound) =>
         GetBaseName(sound) + SupportedExtension;
+
+    /// <summary>
+    /// Whether a slot's variant is chosen by the event's hit location. Only
+    /// the four weapon attack slots carry combat context; every other slot's
+    /// variant, if it has one, is chosen from a single slot-level list.
+    /// </summary>
+    public static bool IsHitLocationDriven(GameSoundId sound) =>
+        sound is GameSoundId.AttackGreatBlade or
+            GameSoundId.AttackHeavyChopper or
+            GameSoundId.AttackThrustingBlade or
+            GameSoundId.AttackWorkBlade;
+
+    /// <summary>
+    /// The file-name prefix shared by every numbered take of one hit class,
+    /// e.g. <c>attack-great-blade-skull-</c>. Only valid for a slot where
+    /// <see cref="IsHitLocationDriven"/> is <c>true</c>. Used both to build a
+    /// full variant file name and, by <see cref="SoundLibrary"/>, to match one
+    /// against the owner's folder.
+    /// </summary>
+    public static string GetVariantPrefix(GameSoundId sound, HitClass hitClass)
+    {
+        if (!IsHitLocationDriven(sound))
+        {
+            throw new ArgumentException(
+                "Only a hit-location-driven slot has class variants.",
+                nameof(sound));
+        }
+
+        return GetBaseName(sound) + "-" + HitClassCatalog.GetToken(hitClass) + "-";
+    }
+
+    /// <summary>
+    /// The file-name prefix shared by every numbered take of a classless slot,
+    /// e.g. <c>death-</c>.
+    /// </summary>
+    public static string GetSlotVariantPrefix(GameSoundId sound) =>
+        GetBaseName(sound) + "-";
+
+    /// <summary>
+    /// The file name of one hit-class variant, e.g.
+    /// <c>attack-great-blade-skull-01.wav</c>. Only valid for a slot where
+    /// <see cref="IsHitLocationDriven"/> is <c>true</c>.
+    /// </summary>
+    public static string GetVariantFileName(
+        GameSoundId sound,
+        HitClass hitClass,
+        int variantIndex)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(variantIndex);
+
+        return GetVariantPrefix(sound, hitClass) +
+            variantIndex.ToString("D" + VariantIndexDigits) +
+            SupportedExtension;
+    }
+
+    /// <summary>
+    /// The file name of one classless slot-level variant, e.g.
+    /// <c>death-01.wav</c>.
+    /// </summary>
+    public static string GetSlotVariantFileName(GameSoundId sound, int variantIndex)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(variantIndex);
+
+        return GetSlotVariantPrefix(sound) +
+            variantIndex.ToString("D" + VariantIndexDigits) +
+            SupportedExtension;
+    }
 
     public static string GetStatusLabel(SoundBindingStatus status) =>
         status switch

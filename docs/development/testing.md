@@ -39,6 +39,29 @@ types. Performance output is evidence, not a universal frame-time guarantee.
 
 ## Latest non-interactive result
 
+The sound-variant run on 2026-07-27 recorded `./scripts/verify.ps1 -SkipBootstrap`
+passing every stage:
+
+- 505/505 Client tests passed;
+- 156/156 Core tests passed;
+- formatting verification and the Release build passed with 0 warnings and
+  0 errors;
+- the seed-1 200-agent workload ended in `Faction1Victory` at tick 235 with
+  state hash `6EBB1EA63114F6CE` and event hash `941377BD43C556FF`, reporting
+  `deterministic: true` and `firstMismatchTick: null`;
+- that workload allocated 15,122,504 bytes.
+
+Both hashes are **unchanged** from the baseline recorded below, which is the
+expected result: hit-location sound variants live entirely in `Hukbo.Client` and
+touch no Core code, so any movement would have been a bug in that change rather
+than a new oracle.
+
+Interactive variant playback is unverified. Rows 18 to 21 below are `PENDING`;
+compiling the client and listing the files on disk does not establish that a
+single sound was ever heard.
+
+### The earlier post-integration result
+
 The post-integration local run on 2026-07-27 recorded:
 
 - 189/189 Client presentation and round-lifecycle tests passed;
@@ -316,6 +339,11 @@ the interaction. Use `PASS`, `FAIL`, or `BLOCKED`; leave untouched rows
 | 45. Check blood clears on Next Round and Full Reset | With sprays and ground marks visible on screen, trigger Next Round (`R`, modal, or summary); all blood clears immediately alongside the event log, inspector, and summary. Repeat separately with Full Reset (`Shift+R` and the modal command) and confirm the same. | Not run | PENDING |
 | 46. Check blood readability across every theme | Cycle all five visual themes while blood is on screen. In every theme, including `high-contrast`, blood stays clearly distinguishable from the Blue faction pawns, from the Red faction pawns, and from the arena ground surface; no theme makes a spray or a ground mark disappear into a pawn or the backdrop. | Not run | PENDING |
 | 47. Check speed and gore independence | At 1x, 2x, and 4x speed, switch gore between Off and Full and confirm the tick counter in the window title advances at the same visible rate for both settings at each speed. The gore setting never slows, pauses, or reorders simulation advancement. | Not run | PENDING |
+| 48. Confirm variants resolve | Press `F9`. Every attack slot reports `READY` with a per-class breakdown, and the counts match the files in `Content/Audio/`: 10 for each of the four attack slots, 10 for `death`. A class with no take of its own shows its real count rather than a fallback-inflated one. | Not run | PENDING |
+| 49. Hear the variation | Watch an unpaused battle for a full minute. Blows do not sound like one repeating sample: cuts to different parts of the body are audibly different, and the same weapon striking the same class does not always play the identical take. | Not run | PENDING |
+| 50. Confirm no human voice | Listen through a full battle including many deaths. No cue contains a scream, grunt, groan, or breath. Pay particular attention to `death-02`, `death-06`, and `death-07`, whose prompt wording carries the highest risk of an accidental vocalisation. Any file that vocalises must be regenerated before release. | Not run | PENDING |
+| 51. Check level consistency | No cue is obviously louder or quieter than its neighbours. The known-quiet takes — `attack-great-blade-ribcage-01`, `attack-great-blade-gut-01`, `attack-heavy-chopper-neck-01`, `death-02` — are audible under a busy battle rather than disappearing. Any that vanish need a re-roll. | Not run | PENDING |
+| 52. Verify a partial set falls back | Move one hit class's takes for a single weapon out of `Content/Audio/` and relaunch. That weapon still makes a sound on a hit to that body part, drawn from the fallback class, and the sound log shows the class as missing rather than the whole slot going silent. | Not run | PENDING |
 
 For round scoring, record Team A (Blue) and Team B (Red) totals before and after
 each command together with the outgoing outcome and old/new seeds. Next Round

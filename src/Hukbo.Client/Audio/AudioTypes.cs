@@ -48,14 +48,39 @@ internal enum SoundCueStatus
 }
 
 /// <summary>
-/// One slot paired with the file that backs it. <see cref="FilePath"/> is
-/// <c>null</c> when <see cref="Status"/> is
-/// <see cref="SoundBindingStatus.Missing"/>.
+/// One class's raw, pre-fallback file count for a hit-location-driven slot.
+/// This is the count an owner uses to see which class still needs a take —
+/// showing the fallback-covered count would hide a real gap.
+/// </summary>
+internal readonly record struct SoundClassCount(
+    HitClass HitClass,
+    int Count,
+    SoundBindingStatus Status);
+
+/// <summary>
+/// One slot paired with the files that back it. <see cref="ClassCounts"/> is
+/// empty for a slot that is not hit-location driven.
+/// <see cref="VariantCount"/> is the raw count of every file discovered for
+/// the slot — across every class plus the bare single, before any fallback
+/// substitution.
 /// </summary>
 internal readonly record struct SoundBinding(
     GameSoundId Sound,
     string FileName,
-    string? FilePath,
+    IReadOnlyList<SoundClassCount> ClassCounts,
+    int VariantCount,
+    SoundBindingStatus Status);
+
+/// <summary>
+/// One resolved, fallback-substituted variant list for a slot, optionally
+/// scoped to one hit class. <see cref="FileNames"/> is ordered ascending by
+/// the file's variant index. A classless slot (death, the outcome cues, the
+/// UI click) carries a <c>null</c> hit class.
+/// </summary>
+internal readonly record struct SoundVariantList(
+    GameSoundId Sound,
+    HitClass? HitClass,
+    IReadOnlyList<string> FileNames,
     SoundBindingStatus Status);
 
 /// <summary>
