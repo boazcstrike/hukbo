@@ -523,6 +523,42 @@ its baseline.
 These results prove the non-interactive gate only. The blood-and-gore smoke rows
 below remain `PENDING` a human at an interactive Windows desktop.
 
+## The camera auto-pan run — 2026-07-27
+
+Current, and later than everything above. This change adds `ArenaAutoPan` and
+`ArenaAutoPanController` to `Hukbo.Client`, plus a `Center` property, a
+`MoveCenterTo` method, a `GetVisibleHalfExtents` helper, and an `Update` return
+value on `SpectatorCamera`. It touches no `Hukbo.Core` file.
+
+`./scripts/verify.ps1` passed at all five stages: prerequisites and locked
+restore, format verification, the Release solution build, the Release repository
+tests, and the seed-1 / 200-agent / 10,000-tick headless determinism workload.
+
+| Suite | Passed | Failed | Skipped |
+| --- | --- | --- | --- |
+| `Hukbo.Core.Tests` | 326 | 0 | 0 |
+| `Hukbo.Client.Tests` | 532 | 0 | 0 |
+
+Core is unchanged from `main`'s 326. Client rises from `main`'s 513 by exactly
+the 19 new `ArenaAutoPanTests` cases.
+
+The gate's headless workload reported state hash `D78F0B527B7F938F` and event
+hash `AC3BAAEC684854D5` at 657 measured ticks, `Faction1Victory`, 0 and 10
+survivors, `deterministic: true`, `firstMismatchTick: null`, and 42,568,888
+allocated bytes. Every one of those values is identical to the recorded 200-agent
+acceptance oracle at the top of this file, which is the required outcome for a
+Client-only change: a moved hash here would have meant the camera work had
+reached simulation state.
+
+These results prove the non-interactive gate only. **The interactive
+`./scripts/run.ps1` spectator check for this change has not been performed.**
+The five camera auto-pan rows in the checklist below are therefore left
+`PENDING`. The unit tests prove that the controller picks the nearest melee,
+engages only on an empty screen, settles inside the inner margin, and yields to
+spectator input. None of them prove that the resulting camera motion reads as
+helpful rather than as the view drifting on its own, which is the only thing
+those rows are for.
+
 ## Interactive smoke checklist
 
 Run `./scripts/run.ps1` on an interactive Windows desktop. This repository uses
@@ -631,6 +667,28 @@ has been observed.
 | 19. Inspect a blocked agent | Selecting an agent in the second rank shows a movement label explaining why it is not advancing, and that label changes as the situation changes. | Not run | PENDING |
 | 20. Inspect the front rank | Selecting a front-rank agent shows it moving or attacking rather than blocked, and an agent that has arrived at an enemy reads as attacking rather than still marching. | Not run | PENDING |
 | 21. Confirm the ranks actually touch | Opposing front ranks close until their pawn bodies meet, rather than settling with a visible gap of open ground between the two lines. This is the amendment's whole visible effect and the pre-amendment behaviour was a persistent gap. | Not run | PENDING |
+
+### Camera auto-pan smoke
+
+Added by the camera auto-pan change. **Not performed.** The unit tests prove the
+targeting and state-machine decisions; only a person watching a live window can
+say whether the resulting camera motion is helpful rather than distracting.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 53. Confirm the camera holds still during a visible fight | Zoom in on an engagement so fighting fills the screen. The camera stays exactly where it was left for the whole engagement; it never creeps, drifts, or re-centres on its own while anyone on screen is fighting. | Not run | PENDING |
+| 54. Watch the camera find a fight it lost | Zoom in, then pan away until no fighting is on screen. Within a moment the camera slides on its own toward the nearest melee, slows as it arrives, and stops with the fighting comfortably inside the view rather than pinned to an edge. | Not run | PENDING |
+| 55. Confirm zoom never changes | Through several auto-pans, the zoom level is exactly what the spectator set. The camera only slides; it never zooms out to find the fight or zooms in on arrival. | Not run | PENDING |
+| 56. Take control back | While the camera is auto-panning, hold a pan key. Motion stops under the spectator's hand immediately, the camera goes exactly where they steer it, and it does not resume on its own for a couple of seconds after the key is released. | Not run | PENDING |
+| 57. Watch the end of a long battle | Let a match run to its final few survivors at a zoom where they leave the screen. The camera follows the fighting to the end instead of leaving the spectator on empty ground, and it stands still once the match summary appears. | Not run | PENDING |
 
 ## Failure classification
 

@@ -58,6 +58,7 @@ public sealed partial class ArenaGame : Game
     private readonly PresentationCoordinator _presentation =
         new(EventHistoryCapacity);
     private readonly AgentSelection _hoverSelection = new();
+    private readonly ArenaAutoPanController _autoPan = new();
     private readonly MatchSeries _matchSeries = new(DefaultSeed);
     private readonly ClientSettingsStore _settingsStore;
     private readonly GoreIntensityManager _goreManager;
@@ -312,11 +313,35 @@ public sealed partial class ArenaGame : Game
 
         HandleArenaSelection(layout.ArenaBounds, pointerConsumed);
 
-        _camera.Update(
+        var manualPanApplied = _camera.Update(
             _input,
             elapsedSeconds,
             allowZoom: !pointerConsumed,
             gate.PanInput);
+
+        UpdateAutoPan(layout.ArenaBounds, manualPanApplied, elapsedSeconds);
+    }
+
+    /// <summary>
+    /// Drifts the camera to the nearest melee once the spectator's screen holds
+    /// no fighting at all. Spectator pan input always wins, and the assistant
+    /// stays out of the way while the match summary is up.
+    /// </summary>
+    private void UpdateAutoPan(
+        Rectangle arenaBounds,
+        bool manualPanApplied,
+        float elapsedSeconds)
+    {
+        var center = _autoPan.Update(
+            _simulation.Agents,
+            _camera.Center,
+            _camera.GetVisibleHalfExtents(arenaBounds),
+            _camera.Zoom,
+            manualPanApplied,
+            isSuppressed: _presentation.Summary is not null,
+            elapsedSeconds);
+
+        _camera.MoveCenterTo(center);
     }
 
     private ClientCommand GetSpectatorKeyboardCommand()
@@ -584,6 +609,7 @@ public sealed partial class ArenaGame : Game
         _hoverSelection.Clear();
         _simulationAccumulator = 0;
         _menu.Close();
+        _autoPan.Reset();
 
         if (resetCommand == ClientCommand.FullReset)
         {

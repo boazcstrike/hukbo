@@ -36,7 +36,28 @@ internal sealed class SpectatorCamera
 
     public float Zoom => _zoom;
 
-    public void Update(
+    public Vector2 Center => _center;
+
+    /// <summary>
+    /// Half the world-space rectangle the spectator can currently see inside
+    /// <paramref name="contentBounds"/>.
+    /// </summary>
+    public Vector2 GetVisibleHalfExtents(Rectangle contentBounds) =>
+        new(
+            contentBounds.Width / 2f / _zoom,
+            contentBounds.Height / 2f / _zoom);
+
+    /// <summary>
+    /// Moves the camera without spectator input. Used by auto-pan, which owns
+    /// the camera only while the spectator is not driving it.
+    /// </summary>
+    public void MoveCenterTo(Vector2 center) => _center = center;
+
+    /// <summary>
+    /// Returns <see langword="true"/> when spectator pan input moved the camera
+    /// this frame, so auto-pan can yield to it.
+    /// </summary>
+    public bool Update(
         InputEdges input,
         float elapsedSeconds,
         bool allowZoom = true,
@@ -70,7 +91,8 @@ internal sealed class SpectatorCamera
             direction.Y += 1f;
         }
 
-        if (direction != Vector2.Zero)
+        var manualPanApplied = direction != Vector2.Zero;
+        if (manualPanApplied)
         {
             direction.Normalize();
             _center += direction * (PanPixelsPerSecond / _zoom) * elapsedSeconds;
@@ -84,6 +106,8 @@ internal sealed class SpectatorCamera
                 MinimumZoom,
                 MaximumZoom);
         }
+
+        return manualPanApplied;
     }
 
     public void Fit(Viewport viewport) => Fit(viewport.Bounds);
