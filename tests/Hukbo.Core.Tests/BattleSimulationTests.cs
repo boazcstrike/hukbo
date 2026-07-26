@@ -221,6 +221,150 @@ public sealed class BattleSimulationTests
     }
 
     [Fact]
+    public void RepeatedCollisionTicksHaveBoundedAllocations()
+    {
+        const int measuredTicks = 1_000;
+        const long maximumAllocatedBytes = 500_000;
+        const int agentsPerFaction = 12;
+
+        // Crowd two lines into one another so the resolver works every tick:
+        // the grid rebuilds, pairs are generated, and the movers behind the
+        // front are blocked or truncated instead of walking freely. Hit points
+        // are high and damage minimal so nobody dies inside the measured
+        // window, which keeps the crowd intact for the whole run.
+        // Two measured windows plus warm-up must all fit inside the limit, or
+        // the battle ends in a draw part-way and the second window measures
+        // no-op ticks.
+        var scenario = CreateTestScenario() with
+        {
+            TickLimit = (measuredTicks * 2) + 100,
+            MaximumHitPoints = 1_000_000,
+            DamagePerAttack = 1,
+            AttackCooldownTicks = 20,
+        };
+
+        var agents = new List<AgentState>(agentsPerFaction * 2);
+        for (var index = 0; index < agentsPerFaction; index++)
+        {
+            agents.Add(
+                CreateAgent(
+                    checked((ulong)index + 1),
+                    factionId: 0,
+                    x: 90 - (index % 3),
+                    y: 40 + index,
+                    scenario));
+            agents.Add(
+                CreateAgent(
+                    checked((ulong)(agentsPerFaction + index) + 1),
+                    factionId: 1,
+                    x: 110 + (index % 3),
+                    y: 40 + index,
+                    scenario));
+        }
+
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            [.. agents]);
+
+        for (var tick = 0; tick < 32; tick++)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        var firstWindowStart = GC.GetAllocatedBytesForCurrentThread();
+        for (var tick = 0; tick < measuredTicks; tick++)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        var secondWindowStart = GC.GetAllocatedBytesForCurrentThread();
+        for (var tick = 0; tick < measuredTicks; tick++)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        var windowEnd = GC.GetAllocatedBytesForCurrentThread();
+        var firstWindowBytes = secondWindowStart - firstWindowStart;
+        var secondWindowBytes = windowEnd - secondWindowStart;
+
+        Assert.Equal(BattleOutcome.Ongoing, simulation.Outcome);
+
+        // The ceiling is generous because per-tick event traffic dominates it:
+        // twenty-four agents in sustained contact emit far more events than the
+        // two-agent quiet scenario above, and each tick's event list is an
+        // allocation the collision stage does not control.
+        Assert.True(
+            firstWindowBytes <= maximumAllocatedBytes,
+            $"Collision ticks allocated {firstWindowBytes:N0} bytes; " +
+            $"expected at most {maximumAllocatedBytes:N0}.");
+
+        // This is the assertion that actually guards the collision buffers.
+        // Grid cells, pair lists, proposal buffers, and resolver scratch are all
+        // reused, so a second identical window must not cost more than the
+        // first. Any growth means something is reallocating per tick.
+        Assert.True(
+            secondWindowBytes <= firstWindowBytes,
+            $"A warm window allocated {secondWindowBytes:N0} bytes after a " +
+            $"first window of {firstWindowBytes:N0}. Collision storage must " +
+            "be reused, growing only when capacity is insufficient.");
+    }
+
+    [Fact]
+    public void CollisionTicksActuallyExerciseTheResolver()
+    {
+        // Guards the allocation test above: a crowd that never blocks anyone
+        // would keep that budget trivially, and the measurement would prove
+        // nothing about the collision stage.
+        const int agentsPerFaction = 12;
+        var scenario = CreateTestScenario() with
+        {
+            TickLimit = 500,
+            MaximumHitPoints = 1_000_000,
+            DamagePerAttack = 1,
+            AttackCooldownTicks = 20,
+        };
+
+        var agents = new List<AgentState>(agentsPerFaction * 2);
+        for (var index = 0; index < agentsPerFaction; index++)
+        {
+            agents.Add(
+                CreateAgent(
+                    checked((ulong)index + 1),
+                    factionId: 0,
+                    x: 90 - (index % 3),
+                    y: 40 + index,
+                    scenario));
+            agents.Add(
+                CreateAgent(
+                    checked((ulong)(agentsPerFaction + index) + 1),
+                    factionId: 1,
+                    x: 110 + (index % 3),
+                    y: 40 + index,
+                    scenario));
+        }
+
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            [.. agents]);
+
+        var constrained = false;
+        for (var tick = 0; tick < 200 && !constrained; tick++)
+        {
+            simulation.AdvanceOneTick();
+            constrained = simulation.Agents.Any(
+                agent => agent.MovementResolution
+                    is MovementResolution.Blocked
+                    or MovementResolution.Truncated
+                    or MovementResolution.Slid);
+        }
+
+        Assert.True(
+            constrained,
+            "No agent was ever blocked, truncated, or slid, so the allocation " +
+            "measurement would not be exercising the collision resolver.");
+    }
+
+    [Fact]
     public void SeedsOneThroughTwentyProduceVictoriesForBothFactions()
     {
         var outcomes = new HashSet<BattleOutcome>();
