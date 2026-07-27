@@ -355,7 +355,7 @@ here proves how it sounds.
 Every figure in this section comes from one final verified run of the collision
 priority fairness change on 2026-07-27, taken on the
 `feature/collision-priority-fairness` branch. See
-[docs/archives/2026-07-27-collision-priority-fairness-design.md](../archives/2026-07-27-collision-priority-fairness-design.md),
+[docs/archives/2026-07-27/2026-07-27-collision-priority-fairness-design.md](../archives/2026-07-27/2026-07-27-collision-priority-fairness-design.md),
 kept for traceability only, and section 9 of
 [docs/decisions/2026-07-27-collision-policy.md](../decisions/2026-07-27-collision-policy.md).
 
@@ -717,7 +717,7 @@ Every figure in this section comes from the mirrored starting-formation change
 on 2026-07-27, taken on the `feature/starting-formations` branch. Starting
 positions are now planned once per battle as a set of contingents and mirrored
 across the vertical centre line, so both hashes moved. See
-[docs/archives/2026-07-27-starting-formations-design.md](../archives/2026-07-27-starting-formations-design.md),
+[docs/archives/2026-07-27/2026-07-27-starting-formations-design.md](../archives/2026-07-27/2026-07-27-starting-formations-design.md),
 kept for traceability only.
 
 **This entire section is superseded by the last-stand formation run recorded

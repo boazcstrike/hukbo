@@ -171,15 +171,16 @@ Debug logging (full design in
    `docs/development/testing.md`. Compilation, unit tests, or a
    window-opening probe do not let you flip a row to `PASS`. Leave untouched
    rows `PENDING`; report `BLOCKED` honestly.
-5. Move finished plans to `docs/archives/` and add the "Archived: reference only"
-   banner under the title.
+5. Move finished plans to `docs/archives/<YYYY-MM-DD>/`, dated for the day of
+   archiving, and add the "Archived: reference only" banner under the title.
 
 **`docs/archives/` is deprecated by definition.** It is the dump for finished and
 abandoned work, kept only so a past decision can be traced to its reasoning.
 Never execute an archived plan, never treat its versions or tooling references as
 current, and never cite one as justification for a change. Active work lives in
 `docs/plans/`; the live contract is this file, `SIMULATION-GAME-STANDARDS.md`,
-`docs/development/testing.md`, and `.claude/skills/`. See
+`docs/development/testing.md`, and `.claude/skills/`. Archived files are grouped
+into dated subfolders — full rules, including the layout, in
 [docs/archives/README.md](docs/archives/README.md).
 6. Every feature proposal answers the nine questions in
    `SIMULATION-GAME-STANDARDS.md` §10, including: *can a spectator discover this

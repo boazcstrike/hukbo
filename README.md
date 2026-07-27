@@ -125,11 +125,11 @@ changes and record interactive game behavior with the manual checklist in
 - [Platform decision](docs/architecture/platform-decision.md)
 - [Repository readiness](docs/repository-readiness-report.md)
 - [Agent-role evidence index](docs/agents/README.md)
-- [Foundation design](docs/archives/2026-07-26-hukbo-foundation-design.md)
-- [Orchestration and menu design](docs/archives/2026-07-26-hukbo-menu-design.md)
+- [Foundation design](docs/archives/2026-07-26/2026-07-26-hukbo-foundation-design.md)
+- [Orchestration and menu design](docs/archives/2026-07-26/2026-07-26-hukbo-menu-design.md)
 - [Approved spectator-clarity design](docs/plans/2026-07-26-spectator-clarity-design.md)
 - [Active spectator-clarity plan](docs/plans/2026-07-26-spectator-clarity.md)
-- [Round scoring, reset, and memory plan](docs/archives/2026-07-26-round-scoring-reset-memory.md)
+- [Round scoring, reset, and memory plan](docs/archives/2026-07-26/2026-07-26-round-scoring-reset-memory.md)
 
 v0.1 supports Windows x64 only. Networking, persistence, pathfinding, store
 distribution, and non-Windows packaging are intentionally deferred.

@@ -287,7 +287,7 @@ scaled display is never mistaken for a failure of the size ramp.
 
 ## 8. Relationship to the archived five-themes plan
 
-`docs/archives/2026-07-26-five-ui-themes-design.md` has been archived and is
+`docs/archives/2026-07-26/2026-07-26-five-ui-themes-design.md` has been archived and is
 reference-only, so nothing in it is an instruction to this work. It is described
 here because the shared-typography constraint it recorded is a real property of
 the user interface layer that this design had to keep intact, not because the
