@@ -176,6 +176,46 @@ One that has not bitten yet:
    lives, in `CombatRuleset.ValidateClashProfileCoversTheRoster`, which is the
    only place that knows the roster.
 
+## 6A. What a review pass added on 2026-07-27
+
+Eight tasks were added to the plan after this handoff was written. They are not
+started, and three of them change what "next" means.
+
+**T13A is the urgent one, and it belongs immediately after T10.** The D3 re-key
+stops one layer short of where its data is consumed.
+`CombatRuleset.FoldClashProfile` reduces each intercept key to
+`(key.Defender, key.Attacker)` and never folds the defender shield, so once the
+key carries a shield, two profiles differing only in whether a cell describes a
+shielded or a bare defender hash **identically**. A replay would accept one
+configuration as the other. `OrderedWeaponRows` has the matching problem: it is
+built by iterating `_voidChannel` and joining the hard-share tables onto each
+weapon, which stops describing one row per weapon the moment the void channel
+is keyed on `(WeaponId, ShieldId)` while the hard-share tables stay
+weapon-keyed. Design section D3.1 records the extended decision; T41A pins it.
+
+**T44A settles the pre-clash digest fixture before anything depends on it.**
+Design section 6 lists the fixture as "Kept". That is an assumption nobody has
+executed. Its provenance header names `7abf8fc`, preset
+`PrecolonialPhilippinesV1`, and a folded content hash of `0x59FB4CA563D87A49`,
+while the merged tree defaults to V2 with six loadouts and per-weapon damage,
+reach, and cooldown. It is still valid only if the control run is pinned to V1
+*and* V1's behaviour is genuinely unchanged across `32e4f1a`. Run it early. If
+it fails, recapture rather than edit the golden.
+
+**T67 through T71 are completeness gaps** rather than defects: standards section
+14 was dropped when the weapon-clash plan was superseded and the document still
+ends at section 13; the determinism skill's live baseline will be stale after
+T46 and it is the file an agent reads *before* touching Core; the three
+`2026-07-27-weapon-clash*` documents are still live in `docs/plans/` with a
+Phase 4 that this plan supersedes; both `tools/` harnesses reference
+`BattleEvent` and sit outside the gate, so nothing else would notice them
+breaking; and no 500-agent stress run is scheduled although both prior features
+produced one.
+
+There is also a sequencing hazard now recorded under the plan's Sequencing
+heading: a T22 retune during the T60 gate loop invalidates T23, T41, and T46,
+and those must be re-run on **each** pass, not only the last.
+
 ## 7. The next three tasks, in order
 
 **T10 — re-key `ClashProfile`.** `_weaponIntercept` becomes

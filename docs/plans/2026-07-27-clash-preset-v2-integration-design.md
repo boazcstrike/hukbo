@@ -200,6 +200,38 @@ does.
 put a presentation concern into the enum that the state hash depends on, and
 `WeaponId` values are pinned.
 
+#### D3.1 — The content-hash fold and the ordered accessors are part of the re-key
+
+Added 2026-07-27, after review found the decision stopped one layer short of
+where its data is consumed.
+
+`CombatRuleset.FoldClashProfile` reads two accessors on `ClashProfile`, and both
+are shaped by the old key:
+
+- `OrderedWeaponIntercepts` yields `(key, value)` pairs whose key the fold
+  reduces to `key.Defender` and `key.Attacker`. Under the new key the defender
+  shield is never folded, so two profiles differing only in whether a cell
+  describes a shielded or a bare defender would produce **the same content
+  hash**. That is precisely the failure the fold exists to prevent: a save or a
+  replay would accept a materially different configuration as the same one.
+- `OrderedWeaponRows` is built by iterating `_voidChannel`, keyed on `WeaponId`,
+  and joining the two hard-share tables onto each weapon. Once the void channel
+  is keyed on `(WeaponId, ShieldId)` while the hard-share tables stay
+  weapon-keyed, that join no longer describes one row per weapon and the
+  accessor has no coherent shape.
+
+The decision is therefore extended: the defender shield joins both the ordering
+comparator and the folded bytes for the weapon-intercept table, and the void
+channel separates from the hard-share tables into its own ordered accessor and
+its own fold block rather than being carried as a column of a weapon row. The
+hard-share tables keep their existing weapon-keyed accessor and fold unchanged,
+which is consistent with section 3.1: the research drives the hard-versus-soft
+split from weapon identity alone.
+
+Fold order is extended to: roster, weapon attributes, weapon intercepts, shield
+scalar, void channels, hard-share rows. As in D2, the order is arbitrary but
+must be fixed, documented, and never reordered without a preset version bump.
+
 ### D4 — Table validation moves from the enum cross-product to the roster.
 
 `ClashProfile.ValidateMatrix` currently demands exactly
