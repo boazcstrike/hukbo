@@ -1,5 +1,7 @@
 # Pawn Character Visuals Design
 
+> **Archived: reference only.** This document is deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
+
 ## Goal
 
 Replace Hukbo's arena dots with original, zoom-aware procedural pawn characters
@@ -12,18 +14,28 @@ battle outcomes.
 
 ## Approved scope
 
-The first cosmetic roster uses five individual weapon roles from
-`docs/research/HISTORICAL_1500s_WEAPONS.md`:
+> **Correction (2026-07-27):** The roster below was revised before the feature
+> shipped. The implementation carries **four** cosmetic weapon roles, not five,
+> and the weapon role is taken from the authoritative Core loadout rather than
+> being derived from the agent's entity ID. The shipped behavior lives in
+> `src/Hukbo.Client/Presentation/PawnAppearance.cs` and
+> `src/Hukbo.Client/Presentation/PawnAppearanceFactory.cs`.
 
-1. Bangkaw - Long Spear
-2. Hardened Javelin
-3. Busog - War Bow
-4. Broad Dagger
-5. Great Blade
+The cosmetic roster uses four weapon roles grounded in
+`docs/research/HISTORICAL_1500s_WEAPONS.md`. Each one is presented to the player
+under the plain descriptor required by `CLAUDE.md` section 7:
 
-The Great Blade must not be labeled as a definitive kampilan. Appearance is
-derived deterministically from stable agent identity without consuming
-simulation randomness.
+1. Great Blade
+2. Heavy Chopper
+3. Thrusting Blade
+4. Work Blade
+
+No player-facing label may claim a definitive kampilan, panabas, or kris. Those
+comparative identifications appear only in the descriptor's evidence note, and
+always carry a `PROVISIONAL` prefix. The weapon role comes from the agent's
+authoritative Core loadout; the entity ID drives stature, build, head treatment,
+clothing, and skin variation only, and must never influence weapon identity.
+Appearance is derived deterministically without consuming simulation randomness.
 
 ## Architecture
 
@@ -63,7 +75,10 @@ Body variation is cosmetic:
 - stable head size; and
 - stable reach per weapon class.
 
-Weapon silhouettes provide the primary role cue:
+Weapon silhouettes provide the primary role cue. The four entries below were
+written against the superseded five-role roster and describe the proposed
+silhouette language rather than the shipped one; the shipped roles are Great
+Blade, Heavy Chopper, Thrusting Blade, and Work Blade.
 
 - Long Spear: the longest diagonal shaft with a leaf-shaped iron point.
 - Hardened Javelin: a shorter warm-brown shaft with a charred point and rear
@@ -123,7 +138,7 @@ determinism tests or expected hashes.
 GPU-independent Client tests cover:
 
 - deterministic appearance for a stable identity;
-- reachability of all five weapon roles;
+- reachability of all four weapon roles;
 - allowed stature and build values;
 - monotonic zoom scaling and screen-size clamps;
 - stable foot anchoring;
@@ -154,7 +169,7 @@ readability.
 
 - Every living arena agent is drawn as an original zoom-aware pawn rather than
   a square dot.
-- The five cosmetic weapon roles are visually distinct at readable zoom.
+- The four cosmetic weapon roles are visually distinct at readable zoom.
 - Selecting an agent shows a matching weapon-bearing portrait.
 - Hover, selection, culling, and inspector interaction still work.
 - Existing simulation outcomes and hashes remain unchanged.

@@ -1,8 +1,18 @@
 # Pawn Character Visuals Implementation Plan
 
+> **Archived: reference only.** This document is deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
+
 > **For Claude:** Work this plan task by task. Use the `hukbo-verify-and-record` skill to run the canonical gate and record evidence; use `hukbo-determinism-change` for any `Hukbo.Core` edit and `hukbo-client-ui` for any `Hukbo.Client` edit.
 
-**Goal:** Replace arena dots with original zoom-aware procedural pawns and matching inspector portraits for five deterministic cosmetic weapon roles.
+**Goal:** Replace arena dots with original zoom-aware procedural pawns and matching inspector portraits for the deterministic cosmetic weapon roles.
+
+> **Correction (2026-07-27):** This plan was written against a proposed roster of
+> five entity-ID-derived weapon roles. The feature shipped with **four** roles,
+> and the weapon role is read from the authoritative Core loadout rather than
+> derived from the entity ID. Steps below that still say "five" or
+> `entityId % 5` describe the superseded proposal; the shipped behavior lives in
+> `src/Hukbo.Client/Presentation/PawnAppearance.cs` and
+> `src/Hukbo.Client/Presentation/PawnAppearanceFactory.cs`.
 
 **Architecture:** A pure presentation factory derives immutable appearance data from `EntityId`. Pure geometry computes zoom detail, body parts, and complete bounds from a foot anchor. One allocation-free MonoGame renderer consumes that data in both the arena and inspector without changing Core simulation or content assets.
 
@@ -22,11 +32,13 @@
 Cover:
 
 - identical `EntityId` values produce identical descriptors;
-- IDs `0..4` reach all five roles;
+- every `WeaponId` value in the Core loadout reaches its matching role, so all
+  four roles are reachable;
 - every descriptor uses one allowed stature and build multiplier;
-- the player-facing labels are exactly `Bangkaw - Long Spear`,
-  `Hardened Javelin`, `Busog - War Bow`, `Broad Dagger`, and `Great Blade`;
-- no label claims a definitive kampilan.
+- the player-facing labels are exactly `Great Blade`, `Heavy Chopper`,
+  `Thrusting Blade`, and `Work Blade`;
+- no label claims a definitive kampilan, panabas, or kris; those comparative
+  names appear only in the evidence note, prefixed `PROVISIONAL`.
 
 Use an internal `enum PawnWeaponRole` and immutable `readonly record struct
 PawnAppearance`. Keep colors as stable presentation palette indices or MonoGame
@@ -44,7 +56,8 @@ Expected: compilation fails because the appearance types do not exist.
 
 **Step 3: Implement the smallest pure factory**
 
-Map weapon role from `entityId % 5`. Derive independent stature, build,
+Map the weapon role from the agent's authoritative Core `WeaponId`; the entity ID
+must never influence weapon identity. Derive independent stature, build,
 head-treatment, clothing, and material variants using integer mixing of
 `EntityId`; do not construct `Random` or read simulation state.
 
@@ -53,7 +66,7 @@ Representative API:
 ```csharp
 internal static class PawnAppearanceFactory
 {
-    public static PawnAppearance Create(ulong entityId);
+    public static PawnAppearance Create(ulong entityId, WeaponId weapon);
 }
 ```
 
@@ -160,7 +173,7 @@ internal static class PawnRenderer
 
 Use rotated/scaled pixel rectangles for shafts and blades, layered rectangles
 for torso/head/headcloth, and outline/base shapes for faction and selection.
-Implement all five weapon silhouettes. Low detail omits secondary gear; medium
+Implement all four weapon silhouettes. Low detail omits secondary gear; medium
 adds bundle/quiver/head treatment; high adds restrained material accents.
 
 Do not allocate collections, format strings, cache per-frame objects, or create
@@ -234,6 +247,12 @@ git commit -m "feat(ui): replace arena dots with pawns"
 - Create: `tests/Hukbo.Client.Tests/AgentInspectorLayoutTests.cs` only if layout
   math is extracted as a pure helper
 
+> **Outcome (2026-07-27):** The conditional test file was created under a
+> different name. The landed tests are
+> `tests/Hukbo.Client.Tests/AgentInspectorContentTests.cs`, covering the pure
+> helper `src/Hukbo.Client/UI/AgentInspectorContent.cs`. No file named
+> `AgentInspectorLayoutTests.cs` exists.
+
 **Step 1: Add portrait layout**
 
 Reserve a 48-56 pixel portrait frame below the inspector heading. Derive the
@@ -270,7 +289,7 @@ implementation, environment, pre-existing, or unrelated before editing.
 Run Hukbo and verify at 1280x720 and a resized window:
 
 - fitted, minimum, medium, and maximum zoom;
-- all five weapon roles are distinguishable at readable zoom;
+- all four weapon roles are distinguishable at readable zoom;
 - dense fights retain faction readability;
 - hover/selection frames contain long weapons;
 - arena pawn and inspector portrait match;
@@ -289,6 +308,6 @@ files are untouched by this feature.
 Commit only immediate implementation files:
 
 ```powershell
-git add src/Hukbo.Client/UI/AgentInspectorPanel.cs src/Hukbo.Client/ArenaGame.cs tests/Hukbo.Client.Tests/AgentInspectorLayoutTests.cs
+git add src/Hukbo.Client/UI/AgentInspectorPanel.cs src/Hukbo.Client/ArenaGame.cs tests/Hukbo.Client.Tests/AgentInspectorContentTests.cs
 git commit -m "feat(ui): add matching pawn portraits"
 ```

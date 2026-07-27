@@ -1,5 +1,7 @@
 # Battle Events Inspector Design
 
+> **Archived: reference only.** This document is deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
+
 ## Goal
 
 Turn Hukbo's right-side Battle Events debug feed into an interactive inspector
