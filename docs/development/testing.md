@@ -65,8 +65,17 @@ and 0 errors, the Release repository tests, and the seed-1 / 200-agent /
 
 | Suite | Passed | Failed | Skipped |
 | --- | --- | --- | --- |
-| `Hukbo.Core.Tests` | 412 | 0 | 0 |
+| `Hukbo.Core.Tests` | 418 | 0 | 0 |
 | `Hukbo.Client.Tests` | 564 | 0 | 0 |
+
+The Core figure was recorded as 412 when this section was first written and was
+corrected to 418 by the role 17 handoff review on 2026-07-27, which measured
+`dotnet test tests/Hukbo.Core.Tests -c Release` directly at merge commit
+`8815a3c` and read back `Passed: 418, Failed: 0, Skipped: 0`. The merge added no
+test file that the branch tip `c01ea9f` did not already carry, so the branch and
+`main` run the identical suite and 418 is the count for both. The paragraph
+below already implied that figure: 398 plus 20 is 418. See
+[docs/agents/17-technical-review-handoff.md](../agents/17-technical-review-handoff.md).
 
 The Core count rises from `main`'s 398 by 20: 19 new `CollisionPriorityTests`
 cases, counting theory rows, covering five golden mixer vectors, the key's

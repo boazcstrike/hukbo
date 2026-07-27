@@ -2,81 +2,108 @@
 
 **Status: CONDITIONALLY READY**
 
-**Evidence snapshot:** spectator clarity plus round-scoring/reset integration
-on 2026-07-26
+**Evidence snapshot:** role 17 handoff review on 2026-07-27, at merge commit
+`8815a3c` on `main`
 
 The toolchain, deterministic simulation, MonoGame client, content pipeline,
-workflow scripts, package, and onboarding documentation are integrated.
-The foundation non-graphical gates passed and the published client opened and
-advanced on the reference Windows machine. Spectator-clarity automated
-verification, deterministic regression, stress, and Windows packaging now
-pass. The round-scoring/reset extension also passes the current local gate and
-allocation regression without changing the seed-1 result or hashes. Its fresh
-review and direct Windows interaction remain pending, so readiness remains
-conditional.
+workflow scripts, package, and onboarding documentation are integrated. Every
+non-graphical gate passes on one pinned commit, and the deterministic 200-agent
+oracle was independently reproduced field for field. Readiness remains
+conditional for two reasons that no automated gate can clear: no interactive
+verification has been performed by a person, and the repository still has no
+license.
 
-## Validated
+This report was refreshed by
+[role 17 — technical review and handoff](agents/17-technical-review-handoff.md),
+which holds the full evidence, the review findings, and the commands. Figures
+recorded here for earlier snapshots have been replaced rather than kept, because
+this document is a readiness statement rather than a history; the superseded
+determinism oracles are traced in
+[docs/development/testing.md](development/testing.md).
+
+## Measured at commit `8815a3c`
+
+Environment: Microsoft Windows 10.0.26200 x64, .NET SDK 10.0.302 as pinned in
+`global.json`, runtime 10.0.10, PowerShell 7.6.4, Git 2.55.0, 20 processors. No
+tracked file was modified while these commands ran, and the commit was confirmed
+both before and after each one.
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| Windows developer prerequisites | Passed | Doctor: Windows x64, PowerShell 7.6.4, Git, SDK 10.0.302 |
-| Locked NuGet and tool restore | Passed | Five projects and dotnet-mgcb 3.8.5 restored |
-| Complete Release build | Passed | 0 warnings, 0 errors; SpriteFont compiled |
-| Foundation Core and headless tests | Passed | 42/42 Release tests |
-| Formatting | Passed | `dotnet format --verify-no-changes`, 0 files changed |
-| NuGet vulnerability audit | Passed | No vulnerable direct/transitive packages reported by nuget.org on 2026-07-26 |
-| Script parsing | Passed | Every `scripts/*.ps1` parsed with the PowerShell AST parser |
-| 200-agent headless determinism | Passed | Same-seed hashes match; Faction 1 victory at tick 235 |
-| 500-agent stress | Passed | Deterministic result at tick 309 |
-| Foundation Windows package | Passed | Self-contained `win-x64` output created |
-| Foundation client window smoke | Passed | 1280x720 window opened, simulation advanced, normal close returned exit code 0 |
-| Foundation independent technical review | Passed | No remaining Critical or High findings |
-| Current Client tests | Passed | 41/41 presentation and round-lifecycle tests |
-| Current repository tests | Passed | Core 45/45; Client 41/41 |
-| Current canonical verification | Passed | Formatting; Release build with 0 warnings/errors; both test projects; seed-1 workload |
-| Round score lifecycle | Passed | Team A/Blue and Team B/Red victories score separately; ongoing/draw score neither; deterministic seed progression and full reset covered |
-| Current deterministic regression | Passed | `Faction1Victory`, tick 235, state `210C5EF8E7BE4D48`, events `CE35EDA4B2A4E5A4` |
-| Allocation improvement | Passed | 12,108,304 allocated bytes, below the 19,856,712-byte baseline |
-| Spectator-clarity 500-agent stress | Passed | Deterministic result at tick 309 |
-| Current Windows package | Passed | Round-scoring build published to `artifacts/packages/client-win-x64/Hukbo.Client.exe` |
-| Current package window smoke | Passed | Visible and responsive at score 0-0, seed 1, tick 0, 1x, paused, ongoing; normal window close returned 0 |
-| Prior spectator-clarity independent review | Passed | No Critical, High, Medium, or Low findings; no unresolved Critical/High issue |
-| Round-scoring independent review | Passed | No code Critical/High/Medium findings; the stale-documentation High and two Low row references were corrected |
-| Direct interaction | Pending | All 15 rows in the expanded direct smoke table remain `PENDING` |
-| Verification policy | Passed | Owner selected local-only verification; `verify.ps1` is authoritative |
+| Windows developer prerequisites | Passed | `doctor.ps1`: Windows x64, PowerShell 7.6.4, Git 2.55.0, Git LFS, SDK 10.0.302, MonoGame 3.8.5 centrally pinned |
+| Locked NuGet and tool restore | Passed | Five projects restored in `--locked-mode`; `dotnet-mgcb` 3.8.5 restored from the tool manifest |
+| Formatting | Passed | `Formatted 0 of 197 files` |
+| Complete Release build | Passed | 0 warnings, 0 errors under repository-wide `TreatWarningsAsErrors` with nullable enabled |
+| Repository tests | Passed | `Hukbo.Core.Tests` 418/418; `Hukbo.Client.Tests` 564/564; 0 failed, 0 skipped |
+| Canonical verification | Passed | `./scripts/verify.ps1 -SkipBootstrap` passed all five stages and ended `[PASS] Canonical repository verification completed.` |
+| 200-agent headless determinism | Passed | Seed 1, 10,000 ticks: `Faction1Victory` at tick 1154, state `5BEBA7A68F69BE0D`, events `D379B60B2E30FFFC`, `deterministic: true`, `firstMismatchTick: null` |
+| Oracle reproduction | Passed | Every hashed field, both hashes, and all nine collision metrics matched `docs/development/testing.md` exactly; only timing and allocation differed, as they must |
+| 500-agent stress | Passed | Report only, not gated. `Faction0Victory` at tick 2668, state `FE44ADA93E0E202A`, events `9C8EF5CB79810560`; four consecutive runs produced identical hashes |
+| Solid-disc invariant | Passed | `maximumPenetrationRaw` is exactly 0 on both the 200-agent and 500-agent workloads |
+| Script parsing | Passed | All 11 scripts under `scripts/` parsed with the PowerShell AST parser; 0 parse errors |
+| NuGet vulnerability audit | Passed | `dotnet list package --vulnerable --include-transitive` reports no vulnerable packages in any of the five projects |
+| Windows package | Passed | `./scripts/package.ps1 -Runtime win-x64` published 273 files, 85 MB, to `artifacts/packages/client-win-x64/Hukbo.Client.exe` |
+| Secret hygiene | Passed | `.env` ignored and untracked; no tracked file carries a key value, only the `ELEVENLABS_API_KEY` variable name |
+| Package output hygiene | Passed | `artifacts/`, `bin/`, and `obj/` are ignored; no build or package output is tracked |
+| Verification policy | Passed | Owner selected local-only verification; `verify.ps1` is authoritative and there is no hosted CI |
+| Direct interaction | **Pending** | All 88 interactive rows across the six checklists in `docs/development/testing.md` remain `PENDING` |
+| Project license | **Absent** | No `LICENSE` or `COPYING` file exists |
 
 ## Commands executed
 
 ```powershell
-dotnet test tests/Hukbo.Client.Tests/Hukbo.Client.Tests.csproj -c Release
-./scripts/test.ps1 -Configuration Release
+./scripts/doctor.ps1
 ./scripts/verify.ps1 -SkipBootstrap
+./scripts/benchmark.ps1 -Agents 500 -Ticks 10000 -Seed 1
 ./scripts/package.ps1 -Runtime win-x64
+dotnet test tests/Hukbo.Core.Tests -c Release --no-build
+dotnet list Hukbo.slnx package --vulnerable --include-transitive
 ```
 
-For the spectator-clarity snapshot, canonical verification completed
-formatting and a zero-warning Release build. The current round-scoring/reset
-gate passes 45 Core tests and 41 Client tests and preserves the deterministic
-200-agent result. That workload now records 12,108,304 allocated bytes, below
-the 19,856,712-byte baseline. The prior 500-agent workload remained
-deterministic at tick 309.
+## Inherited evidence, not re-observed at this commit
+
+These results were recorded against earlier snapshots and are carried forward
+because nothing since has invalidated them. They were **not** re-observed at
+`8815a3c` and should not be read as current measurements.
+
+- The foundation and spectator-clarity independent reviews closed with no
+  remaining Critical or High findings.
+- The published client opened at 1280x720 on the reference Windows machine,
+  advanced its simulation, and returned exit code 0 after a normal window close.
+- Round score lifecycle behaviour — Team A/Blue and Team B/Red scoring
+  separately, ongoing and drawn rounds scoring neither, deterministic seed
+  progression, and full reset — was covered by tests that still pass inside the
+  418-case Core suite and the 564-case Client suite above.
+
+The client window smoke in particular is a foundation-snapshot observation. It is
+not a substitute for the interactive checklist and does not make any row `PASS`.
 
 ## Known limitations
 
+- **No interactive verification has been performed.** All 88 rows are `PENDING`.
+  Compilation, a green gate, benchmarks, a zero-warning build, and a
+  window-opening probe do not substitute for it, and synthetic input may not be
+  used to flip a row.
+- **No project license.** `README.md` links to a public GitHub repository while
+  the tree carries no license file. Selecting one is a repository-owner
+  decision. Until it is made, the repository is not ready for public
+  distribution regardless of gate status.
 - Windows x64 is the only supported v0.1 target.
 - The Windows package is self-contained and intentionally larger than a
   framework-dependent publish.
-- No multiplayer, persistence, pathfinding, store distribution, or
-  non-Windows packaging is included.
-- A project license must be selected before public distribution.
-- The full direct smoke, including controls, selection, event scrolling,
-  summary, score timing, Next Round, Full Reset, modal commands, and clean exit,
-  has not yet been recorded.
+- No multiplayer, persistence, pathfinding, store distribution, or non-Windows
+  packaging is included.
 - Hosted CI is intentionally not configured and is not a readiness gate.
+- A concurrent sound-capacity workstream has untracked files in the tree —
+  `docs/research/SOUND-CAPACITY-MEASUREMENTS.md` and
+  `tools/Hukbo.Tools.MixAnalysis/`. They were not measured by this snapshot and
+  should be landed or discarded before handover.
 
 ## Required follow-up
 
-Complete the round-scoring/reset independent review, then run and record every
-direct row in `docs/development/testing.md`. Upgrade this report to `READY` only
-when the review and the hands-on control, selection, event-log, score/reset,
-summary, modal Exit Game, and close checks pass.
+Run and record every interactive row in
+[docs/development/testing.md](development/testing.md), starting with the
+Play/Pause/Menu/Exit rows that have held roles 16, 17, and 18 at conditional
+since the foundation snapshot, and add a project license. Upgrade this report to
+`READY` only when the hands-on control, selection, event-log, score and reset,
+summary, modal Exit Game, and clean-close checks pass and a license is in place.

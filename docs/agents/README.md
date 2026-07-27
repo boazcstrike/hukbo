@@ -27,8 +27,11 @@ Several roles were grouped into bounded workstreams with exclusive ownership.
 | 18 | [Spectator clarity and round lifecycle](18-spectator-clarity.md) | Conditionally complete |
 
 The foundation integration and its non-graphical local gates are complete.
-Roles 16 and 17 remain conditional because direct interaction was not recorded
-for that snapshot. Report 18 separately tracks the spectator-clarity automated,
+Roles 16 and 17 remain conditional because direct interaction has still not been
+recorded by a person. Report 17 is the exception to the snapshot rule: it was
+re-executed on 2026-07-27 against merge commit `8815a3c` and now carries current
+evidence rather than a foundation-era one, with the original snapshot preserved
+at the end of that file. Report 18 separately tracks the spectator-clarity automated,
 package, review, round-scoring/reset extension, and expanded direct-interaction
 evidence. The current automated gate passes; the extension's fresh review and
 all direct interactions remain pending.
