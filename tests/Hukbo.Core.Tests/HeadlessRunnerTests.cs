@@ -280,7 +280,7 @@ public sealed class HeadlessRunnerTests
             targetEntityId: 2,
             damage: 10,
             factionId: 0,
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
             BodyPart.Head,
             resolution);
 

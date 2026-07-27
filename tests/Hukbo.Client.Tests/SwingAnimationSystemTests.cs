@@ -164,7 +164,7 @@ public sealed class SwingAnimationSystemTests
             Intent: AgentIntent.Idle,
             IsAlive: true,
             Loadout: new CombatLoadout(
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
                 ArmorId.LightOrganic,
                 ShieldId.TallHardwood));
 
@@ -180,7 +180,7 @@ public sealed class SwingAnimationSystemTests
             target,
             damage: resolution == AttackResolution.Landed ? 10 : 0,
             factionId: 0,
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
             BodyPart.Chest,
             resolution);
 

@@ -66,8 +66,8 @@ public sealed class BattleSimulationTests
     /// <remarks>
     /// Design section 5 disposition. No shipped loadout pairing is
     /// clash-neutral — the minimum total interception is a
-    /// <see cref="WeaponId.HeavyChopper"/> defending a
-    /// <see cref="WeaponId.ThrustingBlade"/> at 2,000 basis points, and every
+    /// <see cref="WeaponId.Wasay"/> defending a
+    /// <see cref="WeaponId.Kalis"/> at 2,000 basis points, and every
     /// defender carries a non-zero void channel — so the seam is the only sound
     /// mechanism. Hand-picking a seed or an entity identifier whose roll happens
     /// to land would be silently invalidated by any later re-tune or mixer
@@ -758,9 +758,9 @@ public sealed class BattleSimulationTests
             AttackRangeRaw = 12 * FixedPoint.Scale,
         };
 
-        // Entity 1 attacks with a Bolo, whose cell against a ThrustingBlade
+        // Entity 1 attacks with a Bolo, whose cell against a Kalis
         // defender is zero, so it always lands. Entity 2 attacks with a
-        // HeavyChopper, whose cell is the whole roll space at a hard share of
+        // Wasay, whose cell is the whole roll space at a hard share of
         // one, so it is always arrested.
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
@@ -771,7 +771,7 @@ public sealed class BattleSimulationTests
                 x: 10,
                 y: 10,
                 scenario,
-                new CombatLoadout(WeaponId.Bolo, ArmorId.LightOrganic, ShieldId.None)),
+                new CombatLoadout(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.None)),
             CreateAgent(
                 2,
                 factionId: 0,
@@ -779,7 +779,7 @@ public sealed class BattleSimulationTests
                 y: 10,
                 scenario,
                 new CombatLoadout(
-                    WeaponId.HeavyChopper,
+                    WeaponId.Wasay,
                     ArmorId.LightOrganic,
                     ShieldId.None)),
             CreateAgent(
@@ -789,7 +789,7 @@ public sealed class BattleSimulationTests
                 y: 10,
                 scenario,
                 new CombatLoadout(
-                    WeaponId.ThrustingBlade,
+                    WeaponId.Kalis,
                     ArmorId.LightOrganic,
                     ShieldId.None)));
 
@@ -898,7 +898,7 @@ public sealed class BattleSimulationTests
                 y: 10,
                 scenario,
                 new CombatLoadout(
-                    WeaponId.GreatBlade,
+                    WeaponId.Kampilan,
                     ArmorId.LightOrganic,
                     ShieldId.None)),
             CreateAgent(
@@ -908,7 +908,7 @@ public sealed class BattleSimulationTests
                 y: 10,
                 scenario,
                 new CombatLoadout(
-                    WeaponId.ThrustingBlade,
+                    WeaponId.Kalis,
                     ArmorId.LightOrganic,
                     defenderShield)));
 
@@ -993,7 +993,7 @@ public sealed class BattleSimulationTests
     }
 
     /// <summary>
-    /// A HeavyChopper against a ThrustingBlade defender is always arrested;
+    /// A Wasay against a Kalis defender is always arrested;
     /// every other pairing always lands. Roll-independent on both sides, so the
     /// case does not rest on a lucky tuple that a later re-tune would move.
     /// </summary>
@@ -1006,8 +1006,8 @@ public sealed class BattleSimulationTests
             foreach (var attacker in weapons)
             {
                 matrix[(defender, attacker)] =
-                    defender == WeaponId.ThrustingBlade &&
-                    attacker == WeaponId.HeavyChopper
+                    defender == WeaponId.Kalis &&
+                    attacker == WeaponId.Wasay
                         ? ClashProfile.BasisPointScale
                         : 0;
             }
@@ -1019,7 +1019,7 @@ public sealed class BattleSimulationTests
             voidChannel: weapons.ToDictionary(weapon => weapon, _ => 0),
             hardShareBases: weapons.ToDictionary(
                 weapon => weapon,
-                weapon => weapon == WeaponId.HeavyChopper
+                weapon => weapon == WeaponId.Wasay
                     ? ClashProfile.BasisPointScale
                     : 0),
             hardShareMultipliers: weapons.ToDictionary(
@@ -1044,44 +1044,44 @@ public sealed class BattleSimulationTests
         new(
             new Dictionary<(WeaponId Defender, WeaponId Attacker), int>
             {
-                [(WeaponId.GreatBlade, WeaponId.GreatBlade)] = 2_200,
-                [(WeaponId.GreatBlade, WeaponId.HeavyChopper)] = 1_900,
-                [(WeaponId.GreatBlade, WeaponId.ThrustingBlade)] = 1_600,
-                [(WeaponId.GreatBlade, WeaponId.Bolo)] = 2_000,
-                [(WeaponId.HeavyChopper, WeaponId.GreatBlade)] = 1_500,
-                [(WeaponId.HeavyChopper, WeaponId.HeavyChopper)] = 1_300,
-                [(WeaponId.HeavyChopper, WeaponId.ThrustingBlade)] = 1_100,
-                [(WeaponId.HeavyChopper, WeaponId.Bolo)] = 1_400,
-                [(WeaponId.ThrustingBlade, WeaponId.GreatBlade)] = 500,
-                [(WeaponId.ThrustingBlade, WeaponId.HeavyChopper)] = 400,
-                [(WeaponId.ThrustingBlade, WeaponId.ThrustingBlade)] = 600,
-                [(WeaponId.ThrustingBlade, WeaponId.Bolo)] = 600,
-                [(WeaponId.Bolo, WeaponId.GreatBlade)] = 400,
-                [(WeaponId.Bolo, WeaponId.HeavyChopper)] = 300,
-                [(WeaponId.Bolo, WeaponId.ThrustingBlade)] = 500,
-                [(WeaponId.Bolo, WeaponId.Bolo)] = 500,
+                [(WeaponId.Kampilan, WeaponId.Kampilan)] = 2_200,
+                [(WeaponId.Kampilan, WeaponId.Wasay)] = 1_900,
+                [(WeaponId.Kampilan, WeaponId.Kalis)] = 1_600,
+                [(WeaponId.Kampilan, WeaponId.Itak)] = 2_000,
+                [(WeaponId.Wasay, WeaponId.Kampilan)] = 1_500,
+                [(WeaponId.Wasay, WeaponId.Wasay)] = 1_300,
+                [(WeaponId.Wasay, WeaponId.Kalis)] = 1_100,
+                [(WeaponId.Wasay, WeaponId.Itak)] = 1_400,
+                [(WeaponId.Kalis, WeaponId.Kampilan)] = 500,
+                [(WeaponId.Kalis, WeaponId.Wasay)] = 400,
+                [(WeaponId.Kalis, WeaponId.Kalis)] = 600,
+                [(WeaponId.Kalis, WeaponId.Itak)] = 600,
+                [(WeaponId.Itak, WeaponId.Kampilan)] = 400,
+                [(WeaponId.Itak, WeaponId.Wasay)] = 300,
+                [(WeaponId.Itak, WeaponId.Kalis)] = 500,
+                [(WeaponId.Itak, WeaponId.Itak)] = 500,
             },
             shieldIntercept: 2_400,
             voidChannel: new Dictionary<WeaponId, int>
             {
-                [WeaponId.GreatBlade] = 1_000,
-                [WeaponId.HeavyChopper] = 900,
-                [WeaponId.ThrustingBlade] = 1_000,
-                [WeaponId.Bolo] = 1_100,
+                [WeaponId.Kampilan] = 1_000,
+                [WeaponId.Wasay] = 900,
+                [WeaponId.Kalis] = 1_000,
+                [WeaponId.Itak] = 1_100,
             },
             hardShareBases: new Dictionary<WeaponId, int>
             {
-                [WeaponId.GreatBlade] = 3_300,
-                [WeaponId.HeavyChopper] = 4_000,
-                [WeaponId.ThrustingBlade] = 1_200,
-                [WeaponId.Bolo] = 1_800,
+                [WeaponId.Kampilan] = 3_300,
+                [WeaponId.Wasay] = 4_000,
+                [WeaponId.Kalis] = 1_200,
+                [WeaponId.Itak] = 1_800,
             },
             hardShareMultipliers: new Dictionary<WeaponId, int>
             {
-                [WeaponId.GreatBlade] = 1_150,
-                [WeaponId.HeavyChopper] = 1_050,
-                [WeaponId.ThrustingBlade] = 750,
-                [WeaponId.Bolo] = 700,
+                [WeaponId.Kampilan] = 1_150,
+                [WeaponId.Wasay] = 1_050,
+                [WeaponId.Kalis] = 750,
+                [WeaponId.Itak] = 700,
             },
             minimumHardShareBasisPoints: 500,
             maximumHardShareBasisPoints: 6_000,
@@ -1107,7 +1107,7 @@ public sealed class BattleSimulationTests
             generalTargets: weightProfile,
             weaponTargets: new Dictionary<WeaponId, TargetWeightProfile>
             {
-                [WeaponId.GreatBlade] = weightProfile,
+                [WeaponId.Kampilan] = weightProfile,
             },
             armors: [ArmorId.LightOrganic],
             shieldMultipliers: new Dictionary<ShieldId, TargetWeightProfile>
@@ -1116,7 +1116,7 @@ public sealed class BattleSimulationTests
             },
             roster:
             [
-                new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.None),
+                new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None),
             ]);
     }
 
@@ -1331,8 +1331,8 @@ public sealed class BattleSimulationTests
     /// <summary>
     /// A landed attack carries its weapon, its hit location, and a value equal
     /// to the configured damage. Design section 5 disposition: this pairing — a
-    /// <see cref="WeaponId.Bolo"/> attacker against a
-    /// <see cref="WeaponId.GreatBlade"/> defender carrying a
+    /// <see cref="WeaponId.Itak"/> attacker against a
+    /// <see cref="WeaponId.Kampilan"/> defender carrying a
     /// <see cref="ShieldId.TallHardwood"/> shield — computes to 3,000 basis
     /// points of non-landed resolution under the shipped tables, so the value
     /// assertion would fail about one exchange in three without the seam.

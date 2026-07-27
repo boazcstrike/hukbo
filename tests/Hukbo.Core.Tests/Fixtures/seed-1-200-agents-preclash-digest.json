@@ -7197,7 +7197,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7212,7 +7212,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7227,7 +7227,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -7257,7 +7257,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7272,7 +7272,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7287,7 +7287,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -7317,7 +7317,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7332,7 +7332,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7347,7 +7347,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -7377,7 +7377,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7392,7 +7392,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7407,7 +7407,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -7437,7 +7437,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7452,7 +7452,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7467,7 +7467,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -7497,7 +7497,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7512,7 +7512,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7527,7 +7527,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -7557,7 +7557,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7572,7 +7572,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7587,7 +7587,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -7617,7 +7617,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7632,7 +7632,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7647,7 +7647,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -7677,7 +7677,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7692,7 +7692,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7707,7 +7707,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -7737,7 +7737,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7752,7 +7752,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7767,7 +7767,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -7797,7 +7797,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7812,7 +7812,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7827,7 +7827,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -7857,7 +7857,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7872,7 +7872,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7887,7 +7887,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -7917,7 +7917,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7932,7 +7932,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7947,7 +7947,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "Blocked"
@@ -7977,7 +7977,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -7992,7 +7992,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8007,7 +8007,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8037,7 +8037,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8052,7 +8052,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8067,7 +8067,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8097,7 +8097,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8112,7 +8112,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8127,7 +8127,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8157,7 +8157,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8172,7 +8172,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8187,7 +8187,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8217,7 +8217,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8232,7 +8232,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8247,7 +8247,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8277,7 +8277,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8292,7 +8292,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8307,7 +8307,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8337,7 +8337,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8352,7 +8352,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8367,7 +8367,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8397,7 +8397,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8412,7 +8412,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8427,7 +8427,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8457,7 +8457,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8472,7 +8472,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8487,7 +8487,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8517,7 +8517,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8532,7 +8532,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8547,7 +8547,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8577,7 +8577,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8592,7 +8592,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8607,7 +8607,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8637,7 +8637,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8652,7 +8652,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8667,7 +8667,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8697,7 +8697,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8712,7 +8712,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8727,7 +8727,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8757,7 +8757,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8772,7 +8772,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8787,7 +8787,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8817,7 +8817,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "Blocked"
@@ -8832,7 +8832,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8847,7 +8847,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8877,7 +8877,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8892,7 +8892,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8907,7 +8907,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8937,7 +8937,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8952,7 +8952,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -8967,7 +8967,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -8997,7 +8997,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9012,7 +9012,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9027,7 +9027,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9057,7 +9057,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9072,7 +9072,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9087,7 +9087,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9117,7 +9117,7 @@
       "targetEntityId": 51,
       "intent": "Regrouping",
       "isAlive": true,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9132,7 +9132,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9147,7 +9147,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9177,7 +9177,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9192,7 +9192,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9207,7 +9207,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9237,7 +9237,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9252,7 +9252,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9267,7 +9267,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9297,7 +9297,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9312,7 +9312,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9327,7 +9327,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9357,7 +9357,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9372,7 +9372,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9387,7 +9387,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9417,7 +9417,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9432,7 +9432,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9447,7 +9447,7 @@
       "targetEntityId": 51,
       "intent": "Regrouping",
       "isAlive": true,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9477,7 +9477,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9492,7 +9492,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9507,7 +9507,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9537,7 +9537,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9552,7 +9552,7 @@
       "targetEntityId": 51,
       "intent": "Regrouping",
       "isAlive": true,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9567,7 +9567,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9597,7 +9597,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9612,7 +9612,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9627,7 +9627,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9657,7 +9657,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9672,7 +9672,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9687,7 +9687,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9717,7 +9717,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9732,7 +9732,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9747,7 +9747,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9777,7 +9777,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9792,7 +9792,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9807,7 +9807,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9837,7 +9837,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9852,7 +9852,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9867,7 +9867,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9897,7 +9897,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9912,7 +9912,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9927,7 +9927,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -9957,7 +9957,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9972,7 +9972,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -9987,7 +9987,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -10017,7 +10017,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -10032,7 +10032,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -10047,7 +10047,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -10077,7 +10077,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -10092,7 +10092,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -10107,7 +10107,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"
@@ -10137,7 +10137,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "GreatBlade",
+      "weapon": "Kampilan",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -10152,7 +10152,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "HeavyChopper",
+      "weapon": "Wasay",
       "armor": "LightOrganic",
       "shield": "None",
       "movementResolution": "None"
@@ -10167,7 +10167,7 @@
       "targetEntityId": 0,
       "intent": "Dead",
       "isAlive": false,
-      "weapon": "ThrustingBlade",
+      "weapon": "Kalis",
       "armor": "LightOrganic",
       "shield": "TallHardwood",
       "movementResolution": "None"

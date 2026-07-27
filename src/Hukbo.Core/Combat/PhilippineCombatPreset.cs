@@ -181,52 +181,52 @@ public static class PhilippineCombatPreset
         // Zero evidentiary confidence; see the remarks above.
         var weaponIntercept = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>
         {
-            [(WeaponId.GreatBlade, WeaponId.GreatBlade)] = 2_200,
-            [(WeaponId.GreatBlade, WeaponId.HeavyChopper)] = 1_900,
-            [(WeaponId.GreatBlade, WeaponId.ThrustingBlade)] = 1_600,
-            [(WeaponId.GreatBlade, WeaponId.Bolo)] = 2_000,
-            [(WeaponId.HeavyChopper, WeaponId.GreatBlade)] = 1_500,
-            [(WeaponId.HeavyChopper, WeaponId.HeavyChopper)] = 1_300,
-            [(WeaponId.HeavyChopper, WeaponId.ThrustingBlade)] = 1_100,
-            [(WeaponId.HeavyChopper, WeaponId.Bolo)] = 1_400,
-            [(WeaponId.ThrustingBlade, WeaponId.GreatBlade)] = 500,
-            [(WeaponId.ThrustingBlade, WeaponId.HeavyChopper)] = 400,
-            [(WeaponId.ThrustingBlade, WeaponId.ThrustingBlade)] = 600,
-            [(WeaponId.ThrustingBlade, WeaponId.Bolo)] = 600,
-            [(WeaponId.Bolo, WeaponId.GreatBlade)] = 400,
-            [(WeaponId.Bolo, WeaponId.HeavyChopper)] = 300,
-            [(WeaponId.Bolo, WeaponId.ThrustingBlade)] = 500,
-            [(WeaponId.Bolo, WeaponId.Bolo)] = 500,
+            [(WeaponId.Kampilan, WeaponId.Kampilan)] = 2_200,
+            [(WeaponId.Kampilan, WeaponId.Wasay)] = 1_900,
+            [(WeaponId.Kampilan, WeaponId.Kalis)] = 1_600,
+            [(WeaponId.Kampilan, WeaponId.Itak)] = 2_000,
+            [(WeaponId.Wasay, WeaponId.Kampilan)] = 1_500,
+            [(WeaponId.Wasay, WeaponId.Wasay)] = 1_300,
+            [(WeaponId.Wasay, WeaponId.Kalis)] = 1_100,
+            [(WeaponId.Wasay, WeaponId.Itak)] = 1_400,
+            [(WeaponId.Kalis, WeaponId.Kampilan)] = 500,
+            [(WeaponId.Kalis, WeaponId.Wasay)] = 400,
+            [(WeaponId.Kalis, WeaponId.Kalis)] = 600,
+            [(WeaponId.Kalis, WeaponId.Itak)] = 600,
+            [(WeaponId.Itak, WeaponId.Kampilan)] = 400,
+            [(WeaponId.Itak, WeaponId.Wasay)] = 300,
+            [(WeaponId.Itak, WeaponId.Kalis)] = 500,
+            [(WeaponId.Itak, WeaponId.Itak)] = 500,
         };
 
         // PROVISIONAL. Basis points the defender steps off the line entirely,
         // by defending weapon. Zero evidentiary confidence.
         var voidChannel = new Dictionary<WeaponId, int>
         {
-            [WeaponId.GreatBlade] = 1_000,
-            [WeaponId.HeavyChopper] = 900,
-            [WeaponId.ThrustingBlade] = 1_000,
-            [WeaponId.Bolo] = 1_100,
+            [WeaponId.Kampilan] = 1_000,
+            [WeaponId.Wasay] = 900,
+            [WeaponId.Kalis] = 1_000,
+            [WeaponId.Itak] = 1_100,
         };
 
         // PROVISIONAL. Share of the weapon channel that arrests rather than
         // brushes, by incoming attacker weapon. Zero evidentiary confidence.
         var hardShareBases = new Dictionary<WeaponId, int>
         {
-            [WeaponId.GreatBlade] = 3_300,
-            [WeaponId.HeavyChopper] = 4_000,
-            [WeaponId.ThrustingBlade] = 1_200,
-            [WeaponId.Bolo] = 1_800,
+            [WeaponId.Kampilan] = 3_300,
+            [WeaponId.Wasay] = 4_000,
+            [WeaponId.Kalis] = 1_200,
+            [WeaponId.Itak] = 1_800,
         };
 
         // PROVISIONAL. Per-thousand scaling of that share by the defending
         // instrument. Zero evidentiary confidence.
         var hardShareMultipliers = new Dictionary<WeaponId, int>
         {
-            [WeaponId.GreatBlade] = 1_150,
-            [WeaponId.HeavyChopper] = 1_050,
-            [WeaponId.ThrustingBlade] = 750,
-            [WeaponId.Bolo] = 700,
+            [WeaponId.Kampilan] = 1_150,
+            [WeaponId.Wasay] = 1_050,
+            [WeaponId.Kalis] = 750,
+            [WeaponId.Itak] = 700,
         };
 
         return new ClashProfile(

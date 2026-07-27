@@ -101,16 +101,16 @@ public sealed class ClashResolverTests
     // of section 3.3 validated against all six pre-existing
     // HitLocationResolverTests vectors, never by running ClashResolver.
     [Theory]
-    [InlineData(0UL, 0L, 60UL, 1UL, WeaponId.GreatBlade, WeaponId.GreatBlade, ShieldId.None, 670, AttackResolution.Parried)]
-    [InlineData(0UL, 0L, 60UL, 1UL, WeaponId.GreatBlade, WeaponId.GreatBlade, ShieldId.TallHardwood, 1_261, AttackResolution.ShieldBlocked)]
-    [InlineData(0UL, 0L, 60UL, 1UL, WeaponId.HeavyChopper, WeaponId.Bolo, ShieldId.TallHardwood, 2_811, AttackResolution.Evaded)]
-    [InlineData(0xFFFFFFFFFFFFFFFFUL, 0x7FFFFFFFFFFFFFFFL, 4UL, 2UL, WeaponId.ThrustingBlade, WeaponId.Bolo, ShieldId.TallHardwood, 33, AttackResolution.ShieldBlocked)]
-    [InlineData(0xFFFFFFFFFFFFFFFFUL, 0x7FFFFFFFFFFFFFFFL, 4UL, 2UL, WeaponId.Bolo, WeaponId.HeavyChopper, ShieldId.None, 6_995, AttackResolution.Landed)]
-    [InlineData(1UL, 1L, 10UL, 15UL, WeaponId.ThrustingBlade, WeaponId.ThrustingBlade, ShieldId.None, 566, AttackResolution.Deflected)]
-    [InlineData(1UL, 1L, 15UL, 10UL, WeaponId.HeavyChopper, WeaponId.ThrustingBlade, ShieldId.None, 55, AttackResolution.Parried)]
-    [InlineData(0xDEADBEEFUL, 99L, 198UL, 200UL, WeaponId.HeavyChopper, WeaponId.HeavyChopper, ShieldId.TallHardwood, 2_539, AttackResolution.Parried)]
-    [InlineData(987654321UL, 1234L, 87UL, 18UL, WeaponId.GreatBlade, WeaponId.HeavyChopper, ShieldId.None, 2_046, AttackResolution.Evaded)]
-    [InlineData(987654321UL, 1234L, 87UL, 18UL, WeaponId.Bolo, WeaponId.Bolo, ShieldId.TallHardwood, 9_886, AttackResolution.Landed)]
+    [InlineData(0UL, 0L, 60UL, 1UL, WeaponId.Kampilan, WeaponId.Kampilan, ShieldId.None, 670, AttackResolution.Parried)]
+    [InlineData(0UL, 0L, 60UL, 1UL, WeaponId.Kampilan, WeaponId.Kampilan, ShieldId.TallHardwood, 1_261, AttackResolution.ShieldBlocked)]
+    [InlineData(0UL, 0L, 60UL, 1UL, WeaponId.Wasay, WeaponId.Itak, ShieldId.TallHardwood, 2_811, AttackResolution.Evaded)]
+    [InlineData(0xFFFFFFFFFFFFFFFFUL, 0x7FFFFFFFFFFFFFFFL, 4UL, 2UL, WeaponId.Kalis, WeaponId.Itak, ShieldId.TallHardwood, 33, AttackResolution.ShieldBlocked)]
+    [InlineData(0xFFFFFFFFFFFFFFFFUL, 0x7FFFFFFFFFFFFFFFL, 4UL, 2UL, WeaponId.Itak, WeaponId.Wasay, ShieldId.None, 6_995, AttackResolution.Landed)]
+    [InlineData(1UL, 1L, 10UL, 15UL, WeaponId.Kalis, WeaponId.Kalis, ShieldId.None, 566, AttackResolution.Deflected)]
+    [InlineData(1UL, 1L, 15UL, 10UL, WeaponId.Wasay, WeaponId.Kalis, ShieldId.None, 55, AttackResolution.Parried)]
+    [InlineData(0xDEADBEEFUL, 99L, 198UL, 200UL, WeaponId.Wasay, WeaponId.Wasay, ShieldId.TallHardwood, 2_539, AttackResolution.Parried)]
+    [InlineData(987654321UL, 1234L, 87UL, 18UL, WeaponId.Kampilan, WeaponId.Wasay, ShieldId.None, 2_046, AttackResolution.Evaded)]
+    [InlineData(987654321UL, 1234L, 87UL, 18UL, WeaponId.Itak, WeaponId.Itak, ShieldId.TallHardwood, 9_886, AttackResolution.Landed)]
     public void MixClash_MatchesEveryPinnedVector(
         ulong seed,
         long tick,
@@ -158,8 +158,8 @@ public sealed class ClashResolverTests
                 7,
                 11,
                 12,
-                WeaponId.GreatBlade,
-                WeaponId.Bolo,
+                WeaponId.Kampilan,
+                WeaponId.Itak,
                 ShieldId.TallHardwood),
             "the scenario seed");
 
@@ -172,8 +172,8 @@ public sealed class ClashResolverTests
                 8,
                 11,
                 12,
-                WeaponId.GreatBlade,
-                WeaponId.Bolo,
+                WeaponId.Kampilan,
+                WeaponId.Itak,
                 ShieldId.TallHardwood),
             "the tick");
 
@@ -186,8 +186,8 @@ public sealed class ClashResolverTests
                 7,
                 13,
                 12,
-                WeaponId.GreatBlade,
-                WeaponId.Bolo,
+                WeaponId.Kampilan,
+                WeaponId.Itak,
                 ShieldId.TallHardwood),
             "the source entity ID");
 
@@ -200,8 +200,8 @@ public sealed class ClashResolverTests
                 7,
                 11,
                 14,
-                WeaponId.GreatBlade,
-                WeaponId.Bolo,
+                WeaponId.Kampilan,
+                WeaponId.Itak,
                 ShieldId.TallHardwood),
             "the target entity ID");
 
@@ -214,8 +214,8 @@ public sealed class ClashResolverTests
                 7,
                 11,
                 12,
-                WeaponId.HeavyChopper,
-                WeaponId.Bolo,
+                WeaponId.Wasay,
+                WeaponId.Itak,
                 ShieldId.TallHardwood),
             "the attacking weapon");
 
@@ -228,8 +228,8 @@ public sealed class ClashResolverTests
                 7,
                 11,
                 12,
-                WeaponId.GreatBlade,
-                WeaponId.ThrustingBlade,
+                WeaponId.Kampilan,
+                WeaponId.Kalis,
                 ShieldId.TallHardwood),
             "the defending weapon");
 
@@ -242,8 +242,8 @@ public sealed class ClashResolverTests
                 7,
                 11,
                 12,
-                WeaponId.GreatBlade,
-                WeaponId.Bolo,
+                WeaponId.Kampilan,
+                WeaponId.Itak,
                 ShieldId.None),
             "the defending shield");
 
@@ -395,8 +395,8 @@ public sealed class ClashResolverTests
 
         var channels = ClashResolver.ComputeChannels(
             profile,
-            WeaponId.GreatBlade,
-            WeaponId.Bolo,
+            WeaponId.Kampilan,
+            WeaponId.Itak,
             ShieldId.TallHardwood);
 
         Assert.Equal(2_400, channels.Shield);
@@ -428,8 +428,8 @@ public sealed class ClashResolverTests
                 voidChannel: 1_000,
                 hardShare: 5_000,
                 ceiling: 5_500),
-            WeaponId.GreatBlade,
-            WeaponId.Bolo,
+            WeaponId.Kampilan,
+            WeaponId.Itak,
             ShieldId.TallHardwood);
 
         Assert.Equal(2_399, justOver.Shield);
@@ -443,8 +443,8 @@ public sealed class ClashResolverTests
                 voidChannel: 900,
                 hardShare: 5_000,
                 ceiling: 5_500),
-            WeaponId.GreatBlade,
-            WeaponId.Bolo,
+            WeaponId.Kampilan,
+            WeaponId.Itak,
             ShieldId.TallHardwood);
 
         Assert.Equal(2_538, wellOver.Shield);
@@ -472,13 +472,13 @@ public sealed class ClashResolverTests
         var floored = ClashResolver.SplitWeaponChannel(
             belowFloor,
             ClashProfile.BasisPointScale,
-            WeaponId.GreatBlade,
-            WeaponId.Bolo);
+            WeaponId.Kampilan,
+            WeaponId.Itak);
         var capped = ClashResolver.SplitWeaponChannel(
             aboveCeiling,
             ClashProfile.BasisPointScale,
-            WeaponId.GreatBlade,
-            WeaponId.Bolo);
+            WeaponId.Kampilan,
+            WeaponId.Itak);
 
         Assert.Equal(500, floored.Hard);
         Assert.Equal(ClashProfile.BasisPointScale - 500, floored.Soft);
@@ -513,8 +513,8 @@ public sealed class ClashResolverTests
                 ZeroRollTick,
                 ZeroRollSource,
                 ZeroRollTarget,
-                WeaponId.GreatBlade,
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
+                WeaponId.Kampilan,
                 ShieldId.None));
 
         var selected = new HashSet<AttackResolution>
@@ -525,8 +525,8 @@ public sealed class ClashResolverTests
                 ZeroRollTick,
                 ZeroRollSource,
                 ZeroRollTarget,
-                WeaponId.GreatBlade,
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
+                WeaponId.Kampilan,
                 ShieldId.None),
         };
 
@@ -760,13 +760,13 @@ public sealed class ClashResolverTests
         var heavyPair = ClashResolver.SplitWeaponChannel(
             ShippedTables,
             ClashProfile.BasisPointScale,
-            WeaponId.HeavyChopper,
-            WeaponId.GreatBlade);
+            WeaponId.Wasay,
+            WeaponId.Kampilan);
         var lightPair = ClashResolver.SplitWeaponChannel(
             ShippedTables,
             ClashProfile.BasisPointScale,
-            WeaponId.ThrustingBlade,
-            WeaponId.Bolo);
+            WeaponId.Kalis,
+            WeaponId.Itak);
 
         // 4000 * 1150 / 1000 and 1200 * 700 / 1000, both inside the 500 to 6000
         // clamp, so neither bound binds here.
@@ -876,8 +876,8 @@ public sealed class ClashResolverTests
             tick: 7,
             sourceEntityId: 11,
             targetEntityId: 12,
-            WeaponId.GreatBlade,
-            WeaponId.Bolo,
+            WeaponId.Kampilan,
+            WeaponId.Itak,
             ShieldId.TallHardwood);
 
     /// <summary>
@@ -892,8 +892,8 @@ public sealed class ClashResolverTests
             EdgeTick,
             EdgeSource,
             EdgeTarget,
-            WeaponId.GreatBlade,
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
+            WeaponId.Kampilan,
             ShieldId.TallHardwood);
 
     /// <summary>
@@ -909,8 +909,8 @@ public sealed class ClashResolverTests
             EdgeTick,
             EdgeSource,
             EdgeTarget,
-            WeaponId.GreatBlade,
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
+            WeaponId.Kampilan,
             ShieldId.TallHardwood);
 
     /// <summary>
@@ -964,22 +964,22 @@ public sealed class ClashResolverTests
     {
         var weaponIntercept = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>
         {
-            [(WeaponId.GreatBlade, WeaponId.GreatBlade)] = 2_200,
-            [(WeaponId.GreatBlade, WeaponId.HeavyChopper)] = 1_900,
-            [(WeaponId.GreatBlade, WeaponId.ThrustingBlade)] = 1_600,
-            [(WeaponId.GreatBlade, WeaponId.Bolo)] = 2_000,
-            [(WeaponId.HeavyChopper, WeaponId.GreatBlade)] = 1_500,
-            [(WeaponId.HeavyChopper, WeaponId.HeavyChopper)] = 1_300,
-            [(WeaponId.HeavyChopper, WeaponId.ThrustingBlade)] = 1_100,
-            [(WeaponId.HeavyChopper, WeaponId.Bolo)] = 1_400,
-            [(WeaponId.ThrustingBlade, WeaponId.GreatBlade)] = 500,
-            [(WeaponId.ThrustingBlade, WeaponId.HeavyChopper)] = 400,
-            [(WeaponId.ThrustingBlade, WeaponId.ThrustingBlade)] = 600,
-            [(WeaponId.ThrustingBlade, WeaponId.Bolo)] = 600,
-            [(WeaponId.Bolo, WeaponId.GreatBlade)] = 400,
-            [(WeaponId.Bolo, WeaponId.HeavyChopper)] = 300,
-            [(WeaponId.Bolo, WeaponId.ThrustingBlade)] = 500,
-            [(WeaponId.Bolo, WeaponId.Bolo)] = 500,
+            [(WeaponId.Kampilan, WeaponId.Kampilan)] = 2_200,
+            [(WeaponId.Kampilan, WeaponId.Wasay)] = 1_900,
+            [(WeaponId.Kampilan, WeaponId.Kalis)] = 1_600,
+            [(WeaponId.Kampilan, WeaponId.Itak)] = 2_000,
+            [(WeaponId.Wasay, WeaponId.Kampilan)] = 1_500,
+            [(WeaponId.Wasay, WeaponId.Wasay)] = 1_300,
+            [(WeaponId.Wasay, WeaponId.Kalis)] = 1_100,
+            [(WeaponId.Wasay, WeaponId.Itak)] = 1_400,
+            [(WeaponId.Kalis, WeaponId.Kampilan)] = 500,
+            [(WeaponId.Kalis, WeaponId.Wasay)] = 400,
+            [(WeaponId.Kalis, WeaponId.Kalis)] = 600,
+            [(WeaponId.Kalis, WeaponId.Itak)] = 600,
+            [(WeaponId.Itak, WeaponId.Kampilan)] = 400,
+            [(WeaponId.Itak, WeaponId.Wasay)] = 300,
+            [(WeaponId.Itak, WeaponId.Kalis)] = 500,
+            [(WeaponId.Itak, WeaponId.Itak)] = 500,
         };
 
         return new ClashProfile(
@@ -987,24 +987,24 @@ public sealed class ClashResolverTests
             shieldIntercept: 2_400,
             voidChannel: new Dictionary<WeaponId, int>
             {
-                [WeaponId.GreatBlade] = 1_000,
-                [WeaponId.HeavyChopper] = 900,
-                [WeaponId.ThrustingBlade] = 1_000,
-                [WeaponId.Bolo] = 1_100,
+                [WeaponId.Kampilan] = 1_000,
+                [WeaponId.Wasay] = 900,
+                [WeaponId.Kalis] = 1_000,
+                [WeaponId.Itak] = 1_100,
             },
             hardShareBases: new Dictionary<WeaponId, int>
             {
-                [WeaponId.GreatBlade] = 3_300,
-                [WeaponId.HeavyChopper] = 4_000,
-                [WeaponId.ThrustingBlade] = 1_200,
-                [WeaponId.Bolo] = 1_800,
+                [WeaponId.Kampilan] = 3_300,
+                [WeaponId.Wasay] = 4_000,
+                [WeaponId.Kalis] = 1_200,
+                [WeaponId.Itak] = 1_800,
             },
             hardShareMultipliers: new Dictionary<WeaponId, int>
             {
-                [WeaponId.GreatBlade] = 1_150,
-                [WeaponId.HeavyChopper] = 1_050,
-                [WeaponId.ThrustingBlade] = 750,
-                [WeaponId.Bolo] = 700,
+                [WeaponId.Kampilan] = 1_150,
+                [WeaponId.Wasay] = 1_050,
+                [WeaponId.Kalis] = 750,
+                [WeaponId.Itak] = 700,
             },
             minimumHardShareBasisPoints: 500,
             maximumHardShareBasisPoints: 6_000,

@@ -142,7 +142,7 @@ public sealed class PawnGeometryTests
     public void Create_WithoutASwingPose_MatchesTheStaticLayout()
     {
         var footAnchor = new Vector2(137.25f, 241.75f);
-        var baseAppearance = PawnAppearanceFactory.Create(0, WeaponId.GreatBlade);
+        var baseAppearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan);
 
         foreach (var role in Enum.GetValues<PawnWeaponRole>())
         {
@@ -181,7 +181,7 @@ public sealed class PawnGeometryTests
     public void Create_WithASwingPose_RotatesTheWeaponAndLeansTheTorso()
     {
         var footAnchor = new Vector2(140f, 240f);
-        var appearance = PawnAppearanceFactory.Create(0, WeaponId.GreatBlade);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan);
         var pose = new SwingPose(
             SwingPhase.ImpactHold,
             PhaseProgress: 0.5f,
@@ -222,7 +222,7 @@ public sealed class PawnGeometryTests
     public void Create_ExposesTheSwingTrailOnTheLayoutRatherThanRequiringTheRendererToRecomputeIt()
     {
         var footAnchor = new Vector2(140f, 240f);
-        var appearance = PawnAppearanceFactory.Create(0, WeaponId.GreatBlade);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan);
         var pose = new SwingPose(
             SwingPhase.Strike,
             PhaseProgress: 1f,
@@ -259,7 +259,7 @@ public sealed class PawnGeometryTests
     public void Create_OmitsTheSwingTrailAtTheLowDetailTier()
     {
         var footAnchor = new Vector2(140f, 240f);
-        var appearance = PawnAppearanceFactory.Create(0, WeaponId.GreatBlade);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan);
         var pose = new SwingPose(
             SwingPhase.Strike,
             PhaseProgress: 1f,

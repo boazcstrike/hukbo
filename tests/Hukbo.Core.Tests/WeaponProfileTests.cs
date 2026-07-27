@@ -22,7 +22,7 @@ public sealed class WeaponProfileTests
         int expected)
     {
         // The numeric value is the hashed quantity, so renaming the symbols
-        // from GreatBlade/HeavyChopper/ThrustingBlade/Bolo had to leave every
+        // from Kampilan/Wasay/Kalis/Bolo had to leave every
         // one of these alone. A change here silently invalidates every replay
         // recorded against preset V1.
         Assert.Equal(expected, (int)weapon);

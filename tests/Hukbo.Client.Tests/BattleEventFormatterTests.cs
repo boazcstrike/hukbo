@@ -159,7 +159,7 @@ public sealed class BattleEventFormatterTests
                 targetEntityId: 12,
                 damage: resolution == AttackResolution.Landed ? 10 : 0,
                 factionId: 0,
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
                 BodyPart.Shoulder,
                 resolution);
 
@@ -204,7 +204,7 @@ public sealed class BattleEventFormatterTests
                 targetEntityId: 12,
                 damage: 0,
                 factionId: 0,
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
                 BodyPart.Shoulder,
                 resolution);
 
@@ -221,7 +221,7 @@ public sealed class BattleEventFormatterTests
             targetEntityId: 12,
             damage: 10,
             factionId: 0,
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
             BodyPart.Shoulder,
             AttackResolution.Landed);
         var damage = BattleEvent.NonAttack(

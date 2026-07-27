@@ -93,7 +93,7 @@ public sealed class BattleEventTests
             targetEntityId: 11,
             damage: 7,
             factionId: 0,
-            WeaponId.Bolo,
+            WeaponId.Itak,
             BodyPart.WeaponArm);
 
         Assert.Equal(AttackResolution.Landed, attack.Resolution);
@@ -114,7 +114,7 @@ public sealed class BattleEventTests
             targetEntityId: 11,
             damage: 0,
             factionId: 0,
-            WeaponId.Bolo,
+            WeaponId.Itak,
             BodyPart.WeaponArm,
             resolution);
 
@@ -131,7 +131,7 @@ public sealed class BattleEventTests
             targetEntityId: 2,
             damage: 1,
             factionId: 0,
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
             BodyPart.Head,
             (AttackResolution)999));
     }

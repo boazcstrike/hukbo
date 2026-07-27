@@ -109,7 +109,7 @@ public sealed class SwingPoseResolverTests
             Intent: AgentIntent.Idle,
             IsAlive: true,
             Loadout: new CombatLoadout(
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
                 ArmorId.LightOrganic,
                 ShieldId.TallHardwood));
 
@@ -125,7 +125,7 @@ public sealed class SwingPoseResolverTests
             target,
             damage: resolution == AttackResolution.Landed ? 10 : 0,
             factionId: 0,
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
             BodyPart.Chest,
             resolution);
 }
