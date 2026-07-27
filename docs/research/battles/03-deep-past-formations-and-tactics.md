@@ -24,6 +24,20 @@ Navigate:
   unobserved.
 - **Unknown or unsupported** — absent from the current evidence.
 
+```mermaid
+flowchart LR
+    A["Attested"]:::attested --> B["Strong reconstruction"]:::strong --> C["Plausible inference"]:::plausible --> D["Unknown or unsupported"]:::unknown
+
+    classDef attested fill:#2e7d32,color:#fff,stroke:#1b5e20
+    classDef strong fill:#7cb342,color:#000,stroke:#558b2f
+    classDef plausible fill:#f9a825,color:#000,stroke:#f57f17
+    classDef unknown fill:#c62828,color:#fff,stroke:#8e0000
+```
+
+Node color for these four tiers repeats in every diagram below. Left is best
+supported, right is design space — it is a confidence spectrum, not a claimed
+sequence.
+
 ## Formation evidence: the short answer
 
 ### Attested
@@ -178,6 +192,62 @@ The minimum defensible geometry is:
 Every item above is a **plausible inference from coalition organization**, not
 a recovered formation.
 
+Drawn as a DAG — how a unit's behavior differs by setting, with no edge
+between settings and no back-edge implying return to an earlier state:
+
+```mermaid
+flowchart TD
+    subgraph FH["Fortified high ground (Batanes)"]
+        direction TB
+        FH1["Height expands observation,<br/>hides approach"]:::strong
+        FH2["Steep/restricted access<br/>reduces attacker frontage"]:::strong
+        FH3["Prepared refuge concentrates<br/>defenders in advance"]:::strong
+        FH4["Attackers spend time/energy<br/>climbing obstacles"]:::strong
+        FH5["Defenders use edges/access<br/>points as force multipliers"]:::strong
+        FH6["Watch approaches, occupy<br/>choke points, shift toward threat"]:::plausible
+    end
+
+    subgraph RC["Riverine and coastal approach"]
+        direction TB
+        RC1["Boat group forms a natural<br/>contingent: shared transport, timing, risk"]:::strong
+        RC2["Multiple boats converge<br/>separately near objective"]:::plausible
+        RC3["Landing compresses<br/>movement around usable shore"]:::plausible
+        RC4["Seek unobserved or<br/>weakly defended landing"]:::plausible
+        RC5["Retain boats to<br/>preserve escape route"]:::plausible
+        RC6["Boat loss/separation<br/>fragments coalition"]:::plausible
+    end
+
+    subgraph SA["Settlement attack"]
+        direction TB
+        SA1["Raiding risks inhabitants,<br/>wealth, stores, status property"]:::strong
+        SA2["Surprise/speed helps seize<br/>people or goods before defense forms"]:::plausible
+        SA3["Delay gives inhabitants time<br/>to flee, fortify, or assemble"]:::plausible
+    end
+
+    subgraph FR["Forest, ridge, and path"]
+        direction TB
+        FR1["Terrain is a visibility<br/>and cohesion constraint"]:::strong
+        FR2["Use concealment<br/>before contact"]:::plausible
+    end
+
+    subgraph OG["Open ground"]
+        direction TB
+        OG1["Several contingents, stronger<br/>internal than cross-contingent cohesion"]:::plausible
+        OG2["Irregular spacing from<br/>movement, terrain, weapon reach"]:::plausible
+        OG3["Leaders embedded within<br/>or near their own followers"]:::plausible
+        OG4["Local advance, hesitation,<br/>withdrawal — not army-wide motion"]:::plausible
+        OG5["Command friction increases<br/>with distance and crowd size"]:::plausible
+    end
+
+    classDef strong fill:#7cb342,color:#000,stroke:#558b2f
+    classDef plausible fill:#f9a825,color:#000,stroke:#f57f17
+```
+
+Every node is a bullet already stated in "Tactics by strategic setting" above,
+colored by its own evidence tier. Five separate roots, not one merged tree —
+the source never claims a unit trained under one setting behaves the same way
+under another.
+
 ## Battle phases: evidence audit
 
 | Phase | Defensible deep-past statement | Evidence label |
@@ -192,6 +262,26 @@ a recovered formation.
 | Break and withdrawal | Self-preserving withdrawal is humanly plausible. | **Plausible inference**, procedures unknown |
 | Pursuit | A victor could pursue people or portable objectives. | **Plausible inference**, method unknown |
 | Capture and aftermath | Late chiefdom models give captives and portable wealth strategic value. | **Strong reconstruction**, regional/period-limited |
+
+```mermaid
+flowchart TD
+    P1["Intelligence<br/>observation"]:::strong --> P2["Assembly<br/>leaders gather followers"]:::strong
+    P2 --> P3["Approach<br/>boats, coasts, rivers, ridges, paths"]:::attested
+    P3 --> P4["Concealment<br/>terrain hides movement"]:::plausible
+    P4 --> P5["Opening missiles<br/>spear throwing"]:::attested
+    P5 --> P6["Close contact<br/>severe violence, sequence unknown"]:::attested
+    P6 --> P7["Local cooperation<br/>shared leaders, kin, boats"]:::plausible
+    P7 --> P8["Break and withdrawal"]:::plausible
+    P8 --> P9["Pursuit"]:::plausible
+    P9 --> P10["Capture and aftermath<br/>captives, portable wealth"]:::strong
+
+    classDef attested fill:#2e7d32,color:#fff,stroke:#1b5e20
+    classDef strong fill:#7cb342,color:#000,stroke:#558b2f
+    classDef plausible fill:#f9a825,color:#000,stroke:#f57f17
+```
+
+Arrows mirror the row order above; node color is each phase's evidence tier,
+not a claim about duration or how tightly one phase causes the next.
 
 This table is deliberately asymmetrical. The approach and political context
 are better supported than the few minutes of weapon contact.
@@ -243,6 +333,39 @@ advantages, interference, and crowding.
 
 **Do not claim:** choreographed paired duels or formal melee lanes.
 
+```mermaid
+flowchart TB
+    subgraph S1["1. Boat contingent"]
+        direction TB
+        B1["Basis: shared transport"]
+        B2["Safe: arrive together, stay mutually aware"]
+    end
+    subgraph S2["2. Leader-centered cluster"]
+        direction TB
+        L1["Basis: personalized alliance"]
+        L2["Safe: followers orient to a known leader"]
+    end
+    subgraph S3["3. Access-point defense"]
+        direction TB
+        A1["Basis: ijang, restricted approaches"]
+        A2["Safe: defenders mass where terrain lets attackers in"]
+    end
+    subgraph S4["4. Loose missile-capable frontage"]
+        direction TB
+        M1["Basis: thrown-spear vocabulary, spearheads"]
+        M2["Safe: individuals space out for a throwing lane"]
+    end
+    subgraph S5["5. Close-contact cluster"]
+        direction TB
+        C1["Basis: violence, short-range weapon affordances"]
+        C2["Safe: contact makes local crowding and interference"]
+    end
+```
+
+No arrows between the five boxes — they are independent envelopes, not a
+sequence. Drawing an order between them would assert something the sources
+don't.
+
 These arrangements are **simulation-safe envelopes**, not historical names.
 
 ## Small-unit cooperation
@@ -275,6 +398,27 @@ supports broad pressures:
 | Missile distance -> close contact | Distance closes, ammunition/opportunity changes | **Plausible inference** |
 | Local cluster -> retreat | Leader loss, isolation, injury, or escape route threatened | **Plausible inference** |
 | Retreat -> regroup | Reach a boat, refuge, leader, or defensible path | **Plausible inference** |
+
+```mermaid
+stateDiagram-v2
+    TravelGroup: Travel group
+    DispersedApproach: Dispersed approach
+    LocalCluster: Local cluster
+    MissileDistance: Missile distance
+    CloseContact: Close contact
+    Retreat: Retreat
+    Regroup: Regroup
+
+    TravelGroup --> DispersedApproach: shore, vegetation,\npath width, visibility
+    DispersedApproach --> LocalCluster: threat appears or\naccess point narrows
+    MissileDistance --> CloseContact: distance closes,\nammunition/opportunity changes
+    LocalCluster --> Retreat: leader loss, isolation,\ninjury, escape threatened
+    Retreat --> Regroup: reach boat, refuge,\nleader, or path
+```
+
+`MissileDistance` has no incoming arrow on purpose — the table gives no
+pressure for what precedes it, so the gap stays visible instead of being
+quietly filled in.
 
 Exact thresholds, timings, and shapes are design inventions.
 
