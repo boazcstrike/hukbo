@@ -116,6 +116,104 @@ immediately after, on the same workload and the same build.
 Both hashes are byte-identical across the change. That is the whole point of
 recording them: accumulating the counters moved nothing the simulation reads.
 
+The event hash in that pair, `A67575E7BAB6BDCC`, is not the Phase 2 reference
+value. It was measured before the resolution was folded into the headless event
+hash, which is a later task and which moved it on purpose. The reference pair is
+below.
+
+### The Phase 2 reference pair
+
+Measured at commit `cffbb6c`, the end of Phase 2, by
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`. Phase 3 is
+presentation-only, so a Phase 4 run of the same workload must reproduce both
+hashes byte for byte; any difference means presentation work leaked into the
+simulation.
+
+| Field | Value |
+| --- | --- |
+| `measuredTicks` | 1 858 |
+| `outcome` | `Faction1Victory` |
+| `eventHash` | `372C9217E5CB8BE9` |
+| `stateHash` | `27DC94C6E9A01E35` |
+| `deterministic` | `true` |
+| `firstMismatchTick` | `null` |
+| `allocatedBytes` | 122 880 440 |
+| Tick p50 / p95 / p99 / max | 0.0871 / 1.0934 / 2.8755 / 9.4353 ms |
+| Ruleset `ContentHash` | `0x4EAFE27A42DE87B2UL` (preset version 2) |
+
+Combat metrics from the same run:
+
+| Field | Value |
+| --- | --- |
+| `acceptedAttacks` | 3 026 |
+| `landedAttacks` | 1 993 |
+| `shieldBlockedAttacks` | 432 |
+| `parriedAttacks` | 79 |
+| `deflectedAttacks` | 237 |
+| `evadedAttacks` | 285 |
+| `defenceAttributableShare` | 0.3414 |
+
+Both Phase 2 acceptance criteria are met with no re-tuning of the shipped
+tables.
+
+**Criterion one, interception share.** 0.3414 on seed 1, and across seeds 1 to
+20 the share ranges from 0.3137 to 0.3478. Every seed is inside the enforced
+0.25 to 0.45 band, and every seed is also inside the narrower 0.30 to 0.40
+design target, which is not a gate.
+
+**Criterion two, termination.** All twenty of twenty seeds decided before the
+tick cap, and the median decisive tick is 1 916 against the 5 000 clause. Per
+seed:
+
+| Seed | Terminal tick | Outcome | Seed | Terminal tick | Outcome |
+| ---: | ---: | --- | ---: | ---: | --- |
+| 1 | 1 858 | `Faction1Victory` | 11 | 1 924 | `Faction1Victory` |
+| 2 | 1 945 | `Faction0Victory` | 12 | 1 920 | `Faction1Victory` |
+| 3 | 1 743 | `Faction1Victory` | 13 | 1 916 | `Faction0Victory` |
+| 4 | 1 994 | `Faction1Victory` | 14 | 1 820 | `Faction0Victory` |
+| 5 | 1 550 | `Faction0Victory` | 15 | 2 044 | `Faction0Victory` |
+| 6 | 1 812 | `Faction1Victory` | 16 | 2 139 | `Faction1Victory` |
+| 7 | 1 308 | `Faction0Victory` | 17 | 1 790 | `Faction1Victory` |
+| 8 | 1 527 | `Faction1Victory` | 18 | 1 751 | `Faction1Victory` |
+| 9 | 1 856 | `Faction0Victory` | 19 | 2 047 | `Faction0Victory` |
+| 10 | 2 077 | `Faction0Victory` | 20 | 2 050 | `Faction0Victory` |
+
+The battle lengthened from a terminal tick of 1 154 to 1 858 on seed 1, a factor
+of 1.61 against the 1.48 the design predicted at a mean interception of 0.325.
+
+### Two failures Phase 2 did not clear
+
+Barrier B2 requires the whole suite green and it is not. Two cases fail, neither
+of them a criterion and neither owned by a Phase 2 task. Both are recorded here
+rather than worked around.
+
+`LastStandFormationTests.AMaximumSizedLastStandNeverLeavesAWarriorBlockedForMoreThanSixtyConsecutiveTicks`
+measures a longest blocked streak of 69 ticks against its 60-tick bound. The
+collision resolver is untouched by this change; battles simply last longer under
+interception, so a maximally packed last-stand cluster stays packed longer. The
+bound was set at 60 when the case measured 45, and the risk it guards, R4 in the
+last-stand design, is a cluster that thrashes permanently and produces a
+no-casualty draw at the tick limit — the failing run decided at tick 735 with a
+clear victory and living counts of 4 against 0. This is the same shape as the
+collision allocation ceiling that was raised earlier in this feature: a budget
+whose input legitimately grew. Raising it is an owner decision and no agent has
+made it.
+
+`PhilippineCombatIntegrationTests.ShieldedRosterEntriesSurviveMoreOftenThanShieldlessOnesAcrossSeedsOneThroughTwenty`
+measures 41 shielded survivors of 2 000 against 46 shieldless of 2 000, and
+requires the shielded rate to exceed the shieldless rate by a quarter. The clash
+does give shielded loadouts the advantage the case is named for: their total
+interception is 3 925 basis points against 2 225 and 2 925 for the two shieldless
+rows, and `ShieldedDefenderTakesLessDamageThanUnshieldedAtTheSameSeed` passes.
+The problem is the measurement. These battles run to annihilation, so roughly
+two of two hundred agents survive each seed and the whole twenty-seed sample is
+about forty-five survivors, all of them the winning faction's last few. A
+five-survivor difference on that sample is noise, and no tuning inside the
+defensible interception band would move it reliably. The case needs a
+higher-powered statistic — mean hit points remaining, or mean tick of death,
+across all four thousand agents rather than the survivors alone. Changing what a
+named test measures is not a Phase 2 task and has not been done.
+
 ## Latest non-interactive result — sound gain compensation, 2026-07-27
 
 Presentation-only change: per-cue gain now scales with the number of voices
