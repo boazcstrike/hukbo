@@ -13,9 +13,10 @@ public enum BattleEventKind
 
 /// <summary>
 /// One authoritative simulation event. <see cref="Weapon"/>,
-/// <see cref="Shield"/>, and <see cref="HitLocation"/> are populated only for
-/// <see cref="Kind"/> <see cref="BattleEventKind.Attack"/>; every other kind
-/// carries all three as <c>null</c>. Construct instances only through
+/// <see cref="Shield"/>, <see cref="HitLocation"/>, and
+/// <see cref="Resolution"/> are populated only for <see cref="Kind"/>
+/// <see cref="BattleEventKind.Attack"/>; every other kind carries all four as
+/// <c>null</c>. Construct instances only through
 /// <see cref="Attack"/> or <see cref="NonAttack"/>; both validate the
 /// combat-context invariant.
 /// </summary>
@@ -38,7 +39,8 @@ public readonly record struct BattleEvent
         int? factionId,
         WeaponId? weapon,
         ShieldId? shield,
-        BodyPart? hitLocation)
+        BodyPart? hitLocation,
+        AttackResolution? resolution)
     {
         Sequence = sequence;
         Tick = tick;
@@ -48,34 +50,44 @@ public readonly record struct BattleEvent
         Value = value;
         FactionId = factionId;
         _combatContext = weapon is { } presentWeapon
-            ? ((int)presentWeapon << WeaponShift) |
+            ? ((int)resolution!.Value << ResolutionShift) |
+                ((int)presentWeapon << WeaponShift) |
                 ((int)shield!.Value << ShieldShift) |
                 (int)hitLocation!.Value
             : CombatContextAbsent;
     }
 
     private const int CombatContextAbsent = 0;
+    private const int ResolutionShift = 24;
     private const int WeaponShift = 16;
     private const int ShieldShift = 8;
     private const int FieldMask = 0xFF;
 
     /// <summary>
-    /// <see cref="Weapon"/>, <see cref="Shield"/>, and
-    /// <see cref="HitLocation"/> packed into one field, or
+    /// <see cref="Resolution"/>, <see cref="Weapon"/>, <see cref="Shield"/>,
+    /// and <see cref="HitLocation"/> packed into one field, or
     /// <see cref="CombatContextAbsent"/> for an event that carries no combat
     /// context.
     /// </summary>
     /// <remarks>
-    /// Three separate nullable enum fields cost eight bytes each and are the
+    /// Four separate nullable enum fields cost eight bytes each and are the
     /// bulk of per-tick allocation, which
     /// <c>RepeatedCollisionTicksHaveBoundedAllocations</c> budgets. Packed
-    /// this way the three together cost four bytes, so adding the shield made
-    /// the event smaller than it was with only two of them.
+    /// this way the four together cost four bytes, so carrying the attack
+    /// resolution as well as the shield left the event the same size it was
+    /// with only two of them.
     /// <para>
-    /// Every one of the three enums starts numbering at one and none exceeds
-    /// 255, so a byte apiece is sufficient and a zero weapon field is an
-    /// unambiguous "absent" marker rather than a real value. A test pins that
-    /// range assumption.
+    /// None of the four enums exceeds 255, so a byte apiece is sufficient and
+    /// the four occupy one <c>int</c> exactly. A test pins that range
+    /// assumption.
+    /// </para>
+    /// <para>
+    /// Absence is tested on the whole field rather than on any one byte, which
+    /// is what makes <see cref="AttackResolution.Landed"/> safe at numeric
+    /// zero: a landed attack contributes nothing to the resolution byte, but
+    /// its weapon byte is always nonzero because <see cref="WeaponId"/> starts
+    /// numbering at one. An event carrying no combat context is the only value
+    /// for which the whole field is zero.
     /// </para>
     /// </remarks>
     private readonly int _combatContext;
@@ -129,11 +141,30 @@ public readonly record struct BattleEvent
             : (BodyPart)(_combatContext & FieldMask);
 
     /// <summary>
+    /// How the defender met the blow. Populated only for
+    /// <see cref="BattleEventKind.Attack"/>. This value is folded into the
+    /// headless event hash.
+    /// </summary>
+    public AttackResolution? Resolution =>
+        _combatContext == CombatContextAbsent
+            ? null
+            : (AttackResolution)((_combatContext >> ResolutionShift) & FieldMask);
+
+    /// <summary>
     /// Creates a validated <see cref="BattleEventKind.Attack"/> event.
     /// <paramref name="weapon"/>, <paramref name="shield"/>, and
     /// <paramref name="hitLocation"/> are all required and must be defined
     /// enum values.
     /// </summary>
+    /// <param name="resolution">
+    /// How the defender met the blow. Optional, defaulting to
+    /// <see cref="AttackResolution.Landed"/>, because this factory has twenty
+    /// call sites across eleven files and a required parameter would break the
+    /// whole solution build. The default benefits test call sites only:
+    /// production code reaches this factory through
+    /// <c>BattleSimulation.AddAttackEvent</c>, where the resolution is a
+    /// required parameter so the default can never mask a missing wire-up.
+    /// </param>
     public static BattleEvent Attack(
         long sequence,
         long tick,
@@ -143,7 +174,8 @@ public readonly record struct BattleEvent
         int factionId,
         WeaponId weapon,
         ShieldId shield,
-        BodyPart hitLocation)
+        BodyPart hitLocation,
+        AttackResolution resolution = AttackResolution.Landed)
     {
         if (targetEntityId == 0)
         {
@@ -177,6 +209,14 @@ public readonly record struct BattleEvent
                 "An attack event requires a defined hit location.");
         }
 
+        if (!Enum.IsDefined(resolution))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(resolution),
+                resolution,
+                "An attack event requires a defined resolution.");
+        }
+
         return new BattleEvent(
             sequence,
             tick,
@@ -187,14 +227,17 @@ public readonly record struct BattleEvent
             factionId,
             weapon,
             shield,
-            hitLocation);
+            hitLocation,
+            resolution);
     }
 
     /// <summary>
     /// Creates a validated event for every kind other than
     /// <see cref="BattleEventKind.Attack"/>. Rejects
     /// <see cref="BattleEventKind.Attack"/>, since only an
-    /// <see cref="Attack"/> event may carry combat context.
+    /// <see cref="Attack"/> event may carry combat context. The weapon, shield,
+    /// hit location, and resolution are forced to <c>null</c> here rather than
+    /// accepted from the caller.
     /// </summary>
     public static BattleEvent NonAttack(
         long sequence,
@@ -222,6 +265,7 @@ public readonly record struct BattleEvent
             factionId,
             weapon: null,
             shield: null,
-            hitLocation: null);
+            hitLocation: null,
+            resolution: null);
     }
 }

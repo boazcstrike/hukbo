@@ -158,7 +158,131 @@ public sealed class HeadlessRunnerTests
 
         Assert.Equal(firstMoveHash, secondMoveHash);
         Assert.NotEqual(firstMoveHash, attackHash);
+
+        // The resolution follows the same nullable convention as the weapon and
+        // the hit location: null on every kind other than Attack, defined on an
+        // attack event. A null resolution is unreachable on an attack event, so
+        // it cannot be isolated from the kind word; the theory below covers the
+        // five defined values, and this covers the sentinel.
+        Assert.Null(move.Resolution);
+        Assert.NotNull(attack.Resolution);
     }
+
+    /// <summary>
+    /// Two attack events identical in every other field but carrying different
+    /// resolutions must fold to different event hashes. The resolution is
+    /// authoritative and rides on every attack event, so a fold that ignored it
+    /// would let a parry and a landed blow share a replay signature.
+    /// </summary>
+    [Theory]
+    [InlineData(AttackResolution.Landed, AttackResolution.ShieldBlocked)]
+    [InlineData(AttackResolution.Landed, AttackResolution.Parried)]
+    [InlineData(AttackResolution.Landed, AttackResolution.Deflected)]
+    [InlineData(AttackResolution.Landed, AttackResolution.Evaded)]
+    [InlineData(AttackResolution.ShieldBlocked, AttackResolution.Parried)]
+    [InlineData(AttackResolution.ShieldBlocked, AttackResolution.Deflected)]
+    [InlineData(AttackResolution.ShieldBlocked, AttackResolution.Evaded)]
+    [InlineData(AttackResolution.Parried, AttackResolution.Deflected)]
+    [InlineData(AttackResolution.Parried, AttackResolution.Evaded)]
+    [InlineData(AttackResolution.Deflected, AttackResolution.Evaded)]
+    public void EventHash_DiffersForEveryDistinctResolutionPair(
+        AttackResolution first,
+        AttackResolution second)
+    {
+        var firstHash = 0UL;
+        HeadlessRunner.AddEventToHash(ref firstHash, AttackWith(first));
+        var secondHash = 0UL;
+        HeadlessRunner.AddEventToHash(ref secondHash, AttackWith(second));
+
+        Assert.True(
+            firstHash != secondHash,
+            $"The event hash treated {first} and {second} as the same event: " +
+            $"both folded to 0x{firstHash:X16}.");
+    }
+
+    [Fact]
+    public void Run_CombatMetricsSurviveAJsonRoundTrip()
+    {
+        var output = new StringWriter();
+        var errorOutput = new StringWriter();
+
+        var exitCode = HeadlessRunner.Run(
+            ["--agents", "20", "--ticks", "200", "--seed", "1234"],
+            output,
+            errorOutput);
+
+        Assert.Equal(0, exitCode);
+        var deserialized = JsonSerializer.Deserialize<RunReport>(
+            output.ToString(),
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            });
+
+        Assert.NotNull(deserialized);
+        using var report = JsonDocument.Parse(output.ToString());
+        var metrics = report.RootElement.GetProperty("combatMetrics");
+
+        Assert.Equal(
+            metrics.GetProperty("acceptedAttacks").GetInt64(),
+            deserialized.CombatMetrics.AcceptedAttacks);
+        Assert.Equal(
+            metrics.GetProperty("landedAttacks").GetInt64(),
+            deserialized.CombatMetrics.LandedAttacks);
+        Assert.Equal(
+            metrics.GetProperty("shieldBlockedAttacks").GetInt64(),
+            deserialized.CombatMetrics.ShieldBlockedAttacks);
+        Assert.Equal(
+            metrics.GetProperty("parriedAttacks").GetInt64(),
+            deserialized.CombatMetrics.ParriedAttacks);
+        Assert.Equal(
+            metrics.GetProperty("deflectedAttacks").GetInt64(),
+            deserialized.CombatMetrics.DeflectedAttacks);
+        Assert.Equal(
+            metrics.GetProperty("evadedAttacks").GetInt64(),
+            deserialized.CombatMetrics.EvadedAttacks);
+    }
+
+    /// <summary>
+    /// The case that catches a metric leaking non-determinism. Two same-seed
+    /// runs must serialize a byte-identical combat-metrics block.
+    /// </summary>
+    [Fact]
+    public void Run_SerializesByteIdenticalCombatMetricsForTwoSameSeedRuns()
+    {
+        var firstOutput = new StringWriter();
+        var secondOutput = new StringWriter();
+        var errorOutput = new StringWriter();
+        string[] arguments =
+        [
+            "--agents", "20", "--ticks", "200", "--seed", "1234",
+        ];
+
+        var firstExitCode = HeadlessRunner.Run(arguments, firstOutput, errorOutput);
+        var secondExitCode = HeadlessRunner.Run(arguments, secondOutput, errorOutput);
+
+        Assert.Equal(0, firstExitCode);
+        Assert.Equal(0, secondExitCode);
+        using var firstReport = JsonDocument.Parse(firstOutput.ToString());
+        using var secondReport = JsonDocument.Parse(secondOutput.ToString());
+
+        Assert.Equal(
+            firstReport.RootElement.GetProperty("combatMetrics").GetRawText(),
+            secondReport.RootElement.GetProperty("combatMetrics").GetRawText(),
+            StringComparer.Ordinal);
+    }
+
+    private static BattleEvent AttackWith(AttackResolution resolution) =>
+        BattleEvent.Attack(
+            sequence: 5,
+            tick: 3,
+            sourceEntityId: 1,
+            targetEntityId: 2,
+            damage: 10,
+            factionId: 0,
+            WeaponId.GreatBlade,
+            BodyPart.Head,
+            resolution);
 
     [Fact]
     public void Run_ProducesIdenticalHashesForTwoIndependentDeterministicRuns()

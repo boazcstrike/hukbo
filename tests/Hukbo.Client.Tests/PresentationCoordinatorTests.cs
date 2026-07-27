@@ -105,6 +105,61 @@ public sealed class PresentationCoordinatorTests
         Assert.Single(coordinator.Blood.ActiveGroundMarks.ToArray());
     }
 
+    /// <summary>
+    /// The swing is the only action in progress rather than a wound already
+    /// dealt, so it is the only clock the playback speed touches.
+    /// </summary>
+    [Fact]
+    public void AdvanceEffects_ScalesOnlyTheSwingClockByTheSpeedMultiplier()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
+        coordinator.IngestTick(
+            [
+                DamageEvent(1, 1),
+                AttackEvent(2, 2, 1),
+                AttackEvent(3, 2, 1, AttackResolution.Parried),
+            ],
+            agents);
+
+        coordinator.AdvanceEffects(0.02f, speedMultiplier: 4f);
+
+        var swing = Assert.Single(coordinator.Swings.ActiveSwings.ToArray());
+        Assert.Equal(0.08f, swing.AgeSeconds, precision: 5);
+        var clash = Assert.Single(coordinator.ClashEffects.ActiveEffects.ToArray());
+        Assert.Equal(0.02f, clash.AgeSeconds, precision: 5);
+        var hit = Assert.Single(coordinator.HitEffects.ActiveEffects.ToArray());
+        Assert.Equal(0.02f, hit.AgeSeconds, precision: 5);
+        var burst = Assert.Single(coordinator.Blood.ActiveBursts.ToArray());
+        Assert.Equal(0.02f, burst.AgeSeconds, precision: 5);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => coordinator.AdvanceEffects(0.02f, speedMultiplier: 0f));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => coordinator.AdvanceEffects(0.02f, speedMultiplier: -1f));
+    }
+
+    [Fact]
+    public void ResetFor_ClearsSwingsAndClashEffects()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
+        coordinator.IngestTick(
+            [
+                AttackEvent(1, 2, 1),
+                AttackEvent(2, 1, 2, AttackResolution.ShieldBlocked),
+            ],
+            agents);
+
+        Assert.NotEmpty(coordinator.Swings.ActiveSwings.ToArray());
+        Assert.NotEmpty(coordinator.ClashEffects.ActiveEffects.ToArray());
+
+        coordinator.ResetFor(ClientCommand.NextRound);
+
+        Assert.Empty(coordinator.Swings.ActiveSwings.ToArray());
+        Assert.Empty(coordinator.ClashEffects.ActiveEffects.ToArray());
+    }
+
     [Fact]
     public void ResetFor_RejectsCommandsThatDoNotResetTheRound()
     {
@@ -172,17 +227,19 @@ public sealed class PresentationCoordinatorTests
     private static BattleEvent AttackEvent(
         long sequence,
         ulong sourceEntityId,
-        ulong targetEntityId) =>
+        ulong targetEntityId,
+        AttackResolution resolution = AttackResolution.Landed) =>
         BattleEvent.Attack(
             sequence,
             tick: sequence,
             sourceEntityId,
             targetEntityId,
-            damage: 10,
+            damage: resolution == AttackResolution.Landed ? 10 : 0,
             factionId: 0,
             WeaponId.Kampilan,
             ShieldId.None,
-            BodyPart.Chest);
+            BodyPart.Chest,
+            resolution);
 
     private static BattleEvent DamageEvent(
         long sequence,

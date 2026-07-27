@@ -131,6 +131,163 @@ public sealed class PawnGeometryTests
         }
     }
 
+    /// <summary>
+    /// The swing pose is optional so that every existing call site and every
+    /// existing case here compiles and passes unchanged. A neutral pose is
+    /// asserted alongside no pose at all, because <c>default(SwingPose)</c> is
+    /// documented as a pawn standing as it does today and a caller may hand
+    /// one over rather than a null.
+    /// </summary>
+    [Fact]
+    public void Create_WithoutASwingPose_MatchesTheStaticLayout()
+    {
+        var footAnchor = new Vector2(137.25f, 241.75f);
+        var baseAppearance = PawnAppearanceFactory.Create(0, WeaponId.GreatBlade);
+
+        foreach (var role in Enum.GetValues<PawnWeaponRole>())
+        {
+            var appearance = baseAppearance with { WeaponRole = role };
+
+            var withoutPose = PawnGeometry.Create(footAnchor, 2f, appearance);
+            var withNullPose = PawnGeometry.Create(
+                footAnchor,
+                2f,
+                appearance,
+                scaleMultiplier: 1f,
+                swingPose: null);
+            var withNeutralPose = PawnGeometry.Create(
+                footAnchor,
+                2f,
+                appearance,
+                scaleMultiplier: 1f,
+                swingPose: default(SwingPose));
+
+            Assert.Equal(withoutPose, withNullPose);
+            Assert.Equal(withoutPose, withNeutralPose);
+        }
+    }
+
+    /// <summary>
+    /// The two operations the pose drives: the weapon line rotates about the
+    /// grip, which leaves the grip where it was, and the torso leans along the
+    /// swing while the feet stay planted.
+    /// </summary>
+    /// <remarks>
+    /// Added beyond the single case the plan names for this task. The named
+    /// case asserts that no pose changes nothing, which a parameter accepted
+    /// and then ignored would also satisfy; this one fails in that situation.
+    /// </remarks>
+    [Fact]
+    public void Create_WithASwingPose_RotatesTheWeaponAndLeansTheTorso()
+    {
+        var footAnchor = new Vector2(140f, 240f);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.GreatBlade);
+        var pose = new SwingPose(
+            SwingPhase.ImpactHold,
+            PhaseProgress: 0.5f,
+            WeaponAngleRadians: 0.8f,
+            TorsoLeanX: 1.6f,
+            TorsoLeanY: 0f,
+            ExtensionRatio: 1f,
+            TrailStrength: 1f);
+
+        var still = PawnGeometry.Create(footAnchor, 2f, appearance);
+        var swinging = PawnGeometry.Create(
+            footAnchor,
+            2f,
+            appearance,
+            scaleMultiplier: 1f,
+            swingPose: pose);
+
+        Assert.Equal(footAnchor, swinging.FootAnchor);
+        Assert.Equal(still.GroundRingBounds, swinging.GroundRingBounds);
+        Assert.True(swinging.TorsoBounds.Left > still.TorsoBounds.Left);
+        Assert.Equal(still.TorsoBounds.Size, swinging.TorsoBounds.Size);
+        Assert.True(swinging.HeadBounds.Left > still.HeadBounds.Left);
+        Assert.NotEqual(still.WeaponEnd, swinging.WeaponEnd);
+        Assert.True(
+            (swinging.WeaponEnd - swinging.WeaponStart).Length() >
+            (still.WeaponEnd - still.WeaponStart).Length(),
+            "An extended weapon line should be longer than the neutral one.");
+        Assert.True(swinging.VisualBounds.Contains(swinging.WeaponBounds));
+    }
+
+    /// <summary>
+    /// The arc lives on the layout so the renderer consumes it rather than
+    /// deriving it a second time. That shape is required by the
+    /// plains-backdrop review finding, where a duplicated formula left the
+    /// shipped render loop uncovered.
+    /// </summary>
+    [Fact]
+    public void Create_ExposesTheSwingTrailOnTheLayoutRatherThanRequiringTheRendererToRecomputeIt()
+    {
+        var footAnchor = new Vector2(140f, 240f);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.GreatBlade);
+        var pose = new SwingPose(
+            SwingPhase.Strike,
+            PhaseProgress: 1f,
+            WeaponAngleRadians: 0.8f,
+            TorsoLeanX: 1.6f,
+            TorsoLeanY: 0f,
+            ExtensionRatio: 1f,
+            TrailStrength: 1f);
+
+        foreach (var cameraZoom in new[] { 1f, 3f })
+        {
+            var layout = PawnGeometry.Create(
+                footAnchor,
+                cameraZoom,
+                appearance,
+                scaleMultiplier: 1f,
+                swingPose: pose);
+            var trail = layout.SwingTrail;
+
+            Assert.NotEqual(PawnDetailTier.Low, layout.DetailTier);
+            Assert.False(trail.IsEmpty);
+            Assert.Equal(layout.WeaponStart, trail.Pivot);
+            Assert.Equal(
+                (layout.WeaponEnd - layout.WeaponStart).Length(),
+                trail.Radius,
+                precision: 3);
+            Assert.NotEqual(trail.StartAngleRadians, trail.EndAngleRadians);
+            Assert.Equal(pose.TrailStrength, trail.Strength);
+            Assert.True(trail.Thickness >= 1f);
+        }
+    }
+
+    [Fact]
+    public void Create_OmitsTheSwingTrailAtTheLowDetailTier()
+    {
+        var footAnchor = new Vector2(140f, 240f);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.GreatBlade);
+        var pose = new SwingPose(
+            SwingPhase.Strike,
+            PhaseProgress: 1f,
+            WeaponAngleRadians: 0.8f,
+            TorsoLeanX: 1.6f,
+            TorsoLeanY: 0f,
+            ExtensionRatio: 1f,
+            TrailStrength: 1f);
+
+        var low = PawnGeometry.Create(
+            footAnchor,
+            cameraZoom: 0.05f,
+            appearance,
+            scaleMultiplier: 1f,
+            swingPose: pose);
+        var untrailed = PawnGeometry.Create(
+            footAnchor,
+            cameraZoom: 3f,
+            appearance,
+            scaleMultiplier: 1f,
+            swingPose: pose with { TrailStrength = 0f });
+
+        Assert.Equal(PawnDetailTier.Low, low.DetailTier);
+        Assert.True(low.SwingTrail.IsEmpty);
+        Assert.Equal(default, low.SwingTrail);
+        Assert.True(untrailed.SwingTrail.IsEmpty);
+    }
+
     [Fact]
     public void Create_FixedPortraitScaleFitsRenderedPartsInsideFrame()
     {

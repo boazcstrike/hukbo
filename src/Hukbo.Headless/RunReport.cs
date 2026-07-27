@@ -30,4 +30,8 @@ public sealed record RunReport(
     string StateHash,
     bool Deterministic,
     long? FirstMismatchTick,
-    CollisionMetrics CollisionMetrics);
+    CollisionMetrics CollisionMetrics,
+    // Defaulted so that a caller reading an older report, or a test building
+    // one by hand, does not have to supply a block it does not care about. The
+    // runner always populates it.
+    CombatMetrics CombatMetrics = default);

@@ -159,6 +159,156 @@ three combat-context fields than it was with two.
 
 ## Previous non-interactive result — sound gain compensation, 2026-07-27
 
+## Phase 2 reference pair, superseded at T39
+
+Weapon clash, Phase 2. See
+[docs/plans/2026-07-27-weapon-clash.md](../plans/2026-07-27-weapon-clash.md).
+Every figure below comes from `./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`
+run on this branch. These pairs are a comparand for the far side of the Phase 3
+fan-out and are superseded once that work lands.
+
+### Combat metrics reach neither hash
+
+The combat metrics are derived observability counters. The repository treats
+derived counters as never hashed, never snapshotted, and never persisted, and
+nothing else in this plan would notice if one leaked into `StateHasher`: the
+seam check predates the metrics, the zero-interception control run does not
+speak to them, and the Phase 4 comparison is against a Phase 2 pair that would
+already contain them. The proof is therefore the pair below, recorded
+immediately before the accumulation was wired into the gather loop and again
+immediately after, on the same workload and the same build.
+
+| Field | Immediately before accumulation | Immediately after accumulation |
+| --- | --- | --- |
+| Commit | `75fd24f` | `10c4be9` |
+| `measuredTicks` | 1 858 | 1 858 |
+| `outcome` | `Faction1Victory` | `Faction1Victory` |
+| `eventHash` | `A67575E7BAB6BDCC` | `A67575E7BAB6BDCC` |
+| `stateHash` | `27DC94C6E9A01E35` | `27DC94C6E9A01E35` |
+| `deterministic` | `true` | `true` |
+| `firstMismatchTick` | `null` | `null` |
+
+Both hashes are byte-identical across the change. That is the whole point of
+recording them: accumulating the counters moved nothing the simulation reads.
+
+The event hash in that pair, `A67575E7BAB6BDCC`, is not the Phase 2 reference
+value. It was measured before the resolution was folded into the headless event
+hash, which is a later task and which moved it on purpose. The reference pair is
+below.
+
+### The Phase 2 reference pair
+
+Measured at commit `cffbb6c`, the end of Phase 2, by
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`. Phase 3 is
+presentation-only, so a Phase 4 run of the same workload must reproduce both
+hashes byte for byte; any difference means presentation work leaked into the
+simulation.
+
+| Field | Value |
+| --- | --- |
+| `measuredTicks` | 1 858 |
+| `outcome` | `Faction1Victory` |
+| `eventHash` | `372C9217E5CB8BE9` |
+| `stateHash` | `27DC94C6E9A01E35` |
+| `deterministic` | `true` |
+| `firstMismatchTick` | `null` |
+| `allocatedBytes` | 122 880 440 |
+| Tick p50 / p95 / p99 / max | 0.0871 / 1.0934 / 2.8755 / 9.4353 ms |
+| Ruleset `ContentHash` | `0x4EAFE27A42DE87B2UL` (preset version 2) |
+
+Combat metrics from the same run:
+
+| Field | Value |
+| --- | --- |
+| `acceptedAttacks` | 3 026 |
+| `landedAttacks` | 1 993 |
+| `shieldBlockedAttacks` | 432 |
+| `parriedAttacks` | 79 |
+| `deflectedAttacks` | 237 |
+| `evadedAttacks` | 285 |
+| `defenceAttributableShare` | 0.3414 |
+
+Both Phase 2 acceptance criteria are met with no re-tuning of the shipped
+tables.
+
+**Criterion one, interception share.** 0.3414 on seed 1, and across seeds 1 to
+20 the share ranges from 0.3137 to 0.3478. Every seed is inside the enforced
+0.25 to 0.45 band, and every seed is also inside the narrower 0.30 to 0.40
+design target, which is not a gate.
+
+**Criterion two, termination.** All twenty of twenty seeds decided before the
+tick cap, and the median decisive tick is 1 916 against the 5 000 clause. Per
+seed:
+
+| Seed | Terminal tick | Outcome | Seed | Terminal tick | Outcome |
+| ---: | ---: | --- | ---: | ---: | --- |
+| 1 | 1 858 | `Faction1Victory` | 11 | 1 924 | `Faction1Victory` |
+| 2 | 1 945 | `Faction0Victory` | 12 | 1 920 | `Faction1Victory` |
+| 3 | 1 743 | `Faction1Victory` | 13 | 1 916 | `Faction0Victory` |
+| 4 | 1 994 | `Faction1Victory` | 14 | 1 820 | `Faction0Victory` |
+| 5 | 1 550 | `Faction0Victory` | 15 | 2 044 | `Faction0Victory` |
+| 6 | 1 812 | `Faction1Victory` | 16 | 2 139 | `Faction1Victory` |
+| 7 | 1 308 | `Faction0Victory` | 17 | 1 790 | `Faction1Victory` |
+| 8 | 1 527 | `Faction1Victory` | 18 | 1 751 | `Faction1Victory` |
+| 9 | 1 856 | `Faction0Victory` | 19 | 2 047 | `Faction0Victory` |
+| 10 | 2 077 | `Faction0Victory` | 20 | 2 050 | `Faction0Victory` |
+
+The battle lengthened from a terminal tick of 1 154 to 1 858 on seed 1, a factor
+of 1.61 against the 1.48 the design predicted at a mean interception of 0.325.
+
+### Two pre-existing cases Phase 2 had to amend
+
+Two cases failed when Phase 2 landed. Neither was a criterion and neither was
+owned by a Phase 2 task, so both were investigated before anything was edited,
+and the owner approved each change on 2026-07-27.
+
+**The last-stand blocked-streak bound was stale.** The case, now
+`LastStandFormationTests.AMaximumSizedLastStandNeverLeavesAWarriorBlockedTooLongAcrossSeedsOneThroughTwenty`,
+measured a longest blocked streak of 69 ticks against a 60-tick bound. The
+decisive evidence that collision behaviour itself is unchanged came from the
+ruleset seam: running the same scenario at the same commit with
+`ClashProfile.Neutral` reproduces a streak of 45, which is exactly the figure
+recorded when the 60-tick bound was chosen. Interception means fewer landed
+blows per exchange, so battles last longer and a maximally packed cluster stays
+packed longer; the collision resolver, the last-stand formation, and the
+collision priority amendment are all untouched.
+
+Seed 1 turned out to be a 25th-percentile seed for this metric, so the case now
+sweeps twenty seeds and asserts on the worst. Across seeds 1 to 20 at the
+maximum threshold the streak runs 59 to 92 with a median of 74, and the bound is
+now 125 — 1.36 times the worst observed, the same headroom the original 60 had
+over its measured 45. Risk R4, which the case guards, is a cluster that thrashes
+permanently and produces a no-casualty draw at the tick limit: across those
+twenty seeds no battle reached the tick limit, none drew, and none ended without
+casualties, and terminal ticks ran 649 to 919 against a limit of 10 000.
+
+**The shield survivability case could never have passed, for arithmetic
+reasons.** It counted end-of-battle survivors and measured 41 shielded of 2 000
+against 46 shieldless of 2 000. Maximum hit points are 100 and damage per attack
+is 10, so exactly ten landed blows kill anyone. Shieldless entries take about
+13.3 swings at an intercepted share of 0.26 and shielded entries about 16.3 at
+0.39, so both absorb about 9.9 landed blows. Landed damage is equal by
+construction, which pins survivorship, hit points remaining, and damage taken at
+saturation regardless of how good the shield is. It is why the pre-clash
+measurement read exactly 31 of 2 000 against 31 of 2 000.
+
+The clash did close the gap, but only on blows absorbed before dying: 1.00
+before, 1.22 after, with a per-seed minimum of 1.17 and a standard deviation of
+0.04. The case was re-pointed at that statistic, given a PROVISIONAL band of
+1.15, and renamed to
+`PhilippineCombatIntegrationTests.ShieldedRosterEntriesAbsorbMoreBlowsBeforeDyingThanShieldlessOnesAcrossSeedsOneThroughTwenty`
+so that it still claims what it measures. The same measurement against
+`ZeroInterceptionRules` pools to 1.00 with a maximum of 1.02, so the bound
+cannot be met without the clash.
+
+One consequence worth carrying into Part B and the smoke rows: mean tick of
+death separates the two groups by only 1.04, and already reads 1.02 with
+interception switched off. A spectator therefore perceives the shield as blows
+turned aside, not as a warrior who visibly lives longer, which is what the
+per-resolution event-log labels in T54 have to convey.
+
+## Latest non-interactive result — sound gain compensation, 2026-07-27
+
 Presentation-only change: per-cue gain now scales with the number of voices
 still sounding, and the per-frame cue budget was raised from a throttle to a
 backstop. See

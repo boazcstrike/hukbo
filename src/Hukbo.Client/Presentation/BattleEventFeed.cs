@@ -407,18 +407,24 @@ internal sealed class BattleEventFeed
         }
 
         // BattleEventFormatter.Format throws for an Attack-kind event missing
-        // Weapon/HitLocation. Core's BattleEvent factories guarantee both are
-        // always set for an Attack event, so TryFormat returning false here
-        // is defense-in-depth against that invariant, not a reachable path
-        // with today's Core.
+        // Weapon, HitLocation, or Resolution. Core's BattleEvent factories
+        // guarantee all three are always set for an Attack event, so TryFormat
+        // returning false here is defense-in-depth against that invariant, not
+        // a reachable path with today's Core.
         return TryFormat(battleEvent, out var formatted) &&
             formatted.Contains(searchTerm, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool TryFormat(BattleEvent battleEvent, out string formatted)
     {
+        // The resolution joins the guard because the formatter now
+        // dereferences it too. A record struct always exposes an implicit
+        // parameterless constructor, so default(BattleEvent) bypasses the
+        // factory validation that guarantees the three combat-context fields.
         if (battleEvent.Kind == BattleEventKind.Attack &&
-            (battleEvent.Weapon is null || battleEvent.HitLocation is null))
+            (battleEvent.Weapon is null ||
+             battleEvent.HitLocation is null ||
+             battleEvent.Resolution is null))
         {
             formatted = string.Empty;
             return false;

@@ -10,6 +10,38 @@ internal enum PawnDetailTier
     High,
 }
 
+/// <summary>
+/// The arc a swinging weapon has just travelled, expressed as a pivot, a
+/// radius, and the two angles it spans, so that a renderer walks the arc
+/// without knowing how it was derived.
+/// </summary>
+/// <remarks>
+/// It is computed once from the pose, with no position history, and it lives
+/// on <see cref="PawnLayout"/> rather than in the renderer. The
+/// plains-backdrop finding recorded in <c>docs/development/testing.md</c> is
+/// what fixes this shape: a duplicated ground-cell formula left the shipped
+/// render loop uncovered while the tests constrained a method with no
+/// production caller.
+/// </remarks>
+/// <param name="Pivot">The grip the arc turns about.</param>
+/// <param name="Radius">Distance from the grip to the weapon tip.</param>
+/// <param name="StartAngleRadians">The trailing end of the arc.</param>
+/// <param name="EndAngleRadians">The current weapon tip.</param>
+/// <param name="Strength">
+/// Trail opacity, zero when no trail is drawn at all.
+/// </param>
+/// <param name="Thickness">Stroke thickness in pixels.</param>
+internal readonly record struct SwingTrail(
+    Vector2 Pivot,
+    float Radius,
+    float StartAngleRadians,
+    float EndAngleRadians,
+    float Strength,
+    float Thickness)
+{
+    public bool IsEmpty => Strength <= 0f || Radius <= 0f;
+}
+
 internal readonly record struct PawnLayout(
     Vector2 FootAnchor,
     float ApparentScale,
@@ -25,7 +57,8 @@ internal readonly record struct PawnLayout(
     Rectangle SecondaryEquipmentBounds,
     Rectangle ShieldBounds,
     Rectangle SelectionBounds,
-    Rectangle VisualBounds);
+    Rectangle VisualBounds,
+    SwingTrail SwingTrail);
 
 internal static class PawnGeometry
 {
@@ -35,11 +68,31 @@ internal static class PawnGeometry
     private const float MediumDetailScale = 0.95f;
     private const float HighDetailScale = 1.80f;
 
+    /// <summary>
+    /// PROVISIONAL. Share of the neutral reach added to the weapon line at an
+    /// extension ratio of one, which is where a blow makes contact.
+    /// </summary>
+    private const float ExtensionReach = 0.35f;
+
+    /// <summary>
+    /// PROVISIONAL. Angular span of the arc trail at full trail strength.
+    /// </summary>
+    private const float TrailSweepRadians = 0.85f;
+
+    /// <summary>PROVISIONAL. Trail stroke thickness in pawn units.</summary>
+    private const float TrailThickness = 1.2f;
+
+    /// <param name="swingPose">
+    /// The pose one in-flight swing puts this pawn in, or <c>null</c> for a
+    /// pawn standing still. A neutral pose produces the same layout as no pose
+    /// at all, so a caller may pass either.
+    /// </param>
     public static PawnLayout Create(
         Vector2 footAnchor,
         float cameraZoom,
         PawnAppearance appearance,
-        float scaleMultiplier = 1f)
+        float scaleMultiplier = 1f,
+        SwingPose? swingPose = null)
     {
         if (!float.IsFinite(cameraZoom) || cameraZoom < 0f)
         {
@@ -70,14 +123,21 @@ internal static class PawnGeometry
             ringWidth,
             ringHeight);
 
+        // The feet stay planted, so the ground ring keeps the foot anchor
+        // while everything the warrior can lean moves with the torso.
+        var pose = swingPose ?? default;
+        var bodyAnchor = footAnchor + new Vector2(
+            pose.TorsoLeanX * apparentScale,
+            pose.TorsoLeanY * apparentScale);
+
         var torsoHeight = ToSize(
             12f * appearance.StatureMultiplier * apparentScale);
         var torsoWidth = ToSize(
             7f * appearance.BuildMultiplier * apparentScale);
         var torsoBottom = (int)MathF.Round(
-            footAnchor.Y - MathF.Max(1f, apparentScale));
+            bodyAnchor.Y - MathF.Max(1f, apparentScale));
         var torsoBounds = new Rectangle(
-            (int)MathF.Round(footAnchor.X - (torsoWidth / 2f)),
+            (int)MathF.Round(bodyAnchor.X - (torsoWidth / 2f)),
             torsoBottom - torsoHeight,
             torsoWidth,
             torsoHeight);
@@ -85,7 +145,7 @@ internal static class PawnGeometry
         var headSize = ToSize(7f * apparentScale);
         var headGap = ToSize(apparentScale);
         var headBounds = new Rectangle(
-            (int)MathF.Round(footAnchor.X - (headSize / 2f)),
+            (int)MathF.Round(bodyAnchor.X - (headSize / 2f)),
             torsoBounds.Top - headGap - headSize,
             headSize,
             headSize);
@@ -97,10 +157,16 @@ internal static class PawnGeometry
             headTreatmentHeight);
 
         var weapon = CreateWeaponLayout(
-            footAnchor,
+            bodyAnchor,
             apparentScale,
             appearance.WeaponRole,
-            detailTier);
+            detailTier,
+            pose);
+
+        // The shield is deliberately not posed. A swing moves the weapon arm;
+        // the off-hand block stays where the torso puts it, so a spectator can
+        // still tell a shielded warrior from a solo one at the moment of
+        // impact, which is exactly when the weapon line is least readable.
         var shieldBounds = CreateShieldBounds(
             footAnchor,
             apparentScale,
@@ -145,7 +211,47 @@ internal static class PawnGeometry
             weapon.SecondaryBounds,
             shieldBounds,
             selectionBounds,
-            visualBounds);
+            visualBounds,
+            CreateSwingTrail(weapon, apparentScale, detailTier, pose));
+    }
+
+    /// <summary>
+    /// The arc the weapon tip has just swept, derived from the pose alone. It
+    /// is omitted entirely at the low detail tier, where a pawn is a handful
+    /// of pixels tall and the arc would be noise.
+    /// </summary>
+    private static SwingTrail CreateSwingTrail(
+        WeaponLayout weapon,
+        float scale,
+        PawnDetailTier detailTier,
+        SwingPose pose)
+    {
+        if (detailTier == PawnDetailTier.Low || pose.TrailStrength <= 0f)
+        {
+            return default;
+        }
+
+        var reach = weapon.End - weapon.Start;
+        var radius = reach.Length();
+        if (radius <= 0f)
+        {
+            return default;
+        }
+
+        // The arc trails behind the direction of travel, and the sign of the
+        // weapon rotation is what says which way that is. There is no position
+        // history to consult and none is kept.
+        var facing = pose.WeaponAngleRadians >= 0f ? 1f : -1f;
+        var endAngle = MathF.Atan2(reach.Y, reach.X);
+        var sweep = TrailSweepRadians * pose.TrailStrength * facing;
+
+        return new SwingTrail(
+            weapon.Start,
+            radius,
+            endAngle - sweep,
+            endAngle,
+            pose.TrailStrength,
+            MathF.Max(1f, TrailThickness * scale));
     }
 
     /// <summary>
@@ -195,7 +301,8 @@ internal static class PawnGeometry
         Vector2 footAnchor,
         float scale,
         PawnWeaponRole role,
-        PawnDetailTier detailTier)
+        PawnDetailTier detailTier,
+        SwingPose pose)
     {
         // The Wasay is a haft, not a blade: a thinner shaft than the old
         // broad chopper carrying a distinct head at the far end, which
@@ -242,6 +349,7 @@ internal static class PawnGeometry
             PawnWeaponRole.Kalis => 3.2f * scale,
             _ => throw new ArgumentOutOfRangeException(nameof(role), role, null),
         };
+        end = ApplySwing(start, end, pose);
         var bounds = BoundsFromLine(start, end, weaponPadding);
 
         // The Wasay's head is what distinguishes an axe from a blade, so it
@@ -258,6 +366,33 @@ internal static class PawnGeometry
             thickness,
             bounds,
             secondaryBounds);
+    }
+
+    /// <summary>
+    /// Rotates the weapon line about the grip and lengthens it along the
+    /// reach. A neutral pose rotates by nothing and lengthens by nothing, so
+    /// the line is bit-for-bit the static one.
+    /// </summary>
+    /// <remarks>
+    /// The rotation is applied to the drawn line only; the pawn silhouette is
+    /// not mirrored for a warrior striking to its left, so a leftward swing
+    /// reads as an overhead sweep rather than as a blade ending on the target.
+    /// Mirroring the silhouette needs a facing this pose does not carry, and
+    /// is outside what this task was asked to change.
+    /// </remarks>
+    private static Vector2 ApplySwing(Vector2 start, Vector2 end, SwingPose pose)
+    {
+        var reach = end - start;
+        var cosine = MathF.Cos(pose.WeaponAngleRadians);
+        var sine = MathF.Sin(pose.WeaponAngleRadians);
+        var rotated = new Vector2(
+            (reach.X * cosine) - (reach.Y * sine),
+            (reach.X * sine) + (reach.Y * cosine));
+        var extension = MathF.Max(
+            0f,
+            1f + (pose.ExtensionRatio * ExtensionReach));
+
+        return start + (rotated * extension);
     }
 
     private static Rectangle CreateSecondaryBounds(

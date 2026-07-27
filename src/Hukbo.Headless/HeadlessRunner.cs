@@ -284,6 +284,8 @@ public static class HeadlessRunner
         // aggregating one is aggregating both.
         var collisionMetrics = new CollisionMetricsAccumulator();
         collisionMetrics.Reset();
+        var combatMetrics = new CombatMetricsAccumulator();
+        combatMetrics.Reset();
 
         var allocationStart = GC.GetAllocatedBytesForCurrentThread();
 
@@ -307,6 +309,15 @@ public static class HeadlessRunner
                 tickCollision.FrontWidthRaw,
                 tickCollision.FrontDepthRaw,
                 tickCollision.PenetrationRaw);
+
+            var tickCombat = left.LastTickCombat;
+            combatMetrics.AddTick(
+                checked((int)tickCombat.AcceptedAttacks),
+                checked((int)tickCombat.LandedAttacks),
+                checked((int)tickCombat.ShieldBlockedAttacks),
+                checked((int)tickCombat.ParriedAttacks),
+                checked((int)tickCombat.DeflectedAttacks),
+                checked((int)tickCombat.EvadedAttacks));
 
             right.AdvanceOneTick();
             var leftStateHash = left.ComputeStateHash();
@@ -402,7 +413,8 @@ public static class HeadlessRunner
             ToHex(finalStateHash),
             firstMismatchTick is null,
             firstMismatchTick,
-            collisionMetrics.ToMetrics());
+            collisionMetrics.ToMetrics(),
+            combatMetrics.ToMetrics());
     }
 
     /// <summary>
@@ -517,6 +529,17 @@ public static class HeadlessRunner
             ref hash,
             battleEvent.HitLocation is { } hitLocation
                 ? unchecked((ulong)(uint)(int)hitLocation)
+                : ulong.MaxValue);
+
+        // The resolution is authoritative and rides on every attack event, so
+        // a fold that ignored it would let a parry and a landed blow share a
+        // replay signature. Absent-means-maximum, the same sentinel the two
+        // nullable fields above use, so a non-attack event stays distinct from
+        // any defined resolution.
+        AddToHash(
+            ref hash,
+            battleEvent.Resolution is { } resolution
+                ? unchecked((ulong)(uint)(int)resolution)
                 : ulong.MaxValue);
     }
 

@@ -58,6 +58,22 @@ public sealed class BattleSimulationTests
         Assert.Equal(AgentIntent.Moving, mover.Intent);
     }
 
+    /// <summary>
+    /// The property under test is cooldown spacing, not interception, so the
+    /// simulation runs on a zero-interception ruleset and the hit-point
+    /// assertions keep meaning what they meant before the clash existed.
+    /// </summary>
+    /// <remarks>
+    /// Design section 5 disposition. No shipped loadout pairing is
+    /// clash-neutral — the minimum total interception is a
+    /// <see cref="WeaponId.HeavyChopper"/> defending a
+    /// <see cref="WeaponId.ThrustingBlade"/> at 2,000 basis points, and every
+    /// defender carries a non-zero void channel — so the seam is the only sound
+    /// mechanism. Hand-picking a seed or an entity identifier whose roll happens
+    /// to land would be silently invalidated by any later re-tune or mixer
+    /// change, turning a preserved regression test into one that no longer tests
+    /// what its name claims.
+    /// </remarks>
     [Fact]
     public void AgentsAtExactRangeAttackAndRespectCooldown()
     {
@@ -69,6 +85,7 @@ public sealed class BattleSimulationTests
         };
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
+            PresetWith(ClashProfile.Neutral),
             CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
             CreateAgent(2, factionId: 1, x: 22, y: 10, scenario));
 
@@ -123,6 +140,12 @@ public sealed class BattleSimulationTests
         Assert.Equal(expectedEvents, retainedEvents);
     }
 
+    /// <summary>
+    /// The property under test is simultaneity, not interception: both blows
+    /// have to land for the mutual death to be observable at all. Design section
+    /// 5 disposition, resolved through the ruleset seam rather than by a lucky
+    /// tuple.
+    /// </summary>
     [Fact]
     public void DamageIsAccumulatedBeforeMutualDeathResolution()
     {
@@ -134,6 +157,7 @@ public sealed class BattleSimulationTests
         };
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
+            PresetWith(ClashProfile.Neutral),
             CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
             CreateAgent(2, factionId: 1, x: 20, y: 10, scenario));
 
@@ -249,7 +273,15 @@ public sealed class BattleSimulationTests
         // Move events are emitted. This ceiling tracks event traffic, which the
         // collision stage does not own. The window comparison below is the
         // assertion that actually guards collision storage.
-        const long maximumAllocatedBytes = 900_000;
+        //
+        // Raised again from 900,000 when BattleEvent widened from 80 to 88 bytes
+        // to carry the nullable attack resolution. The measured figure moved from
+        // about 898,000 to 988,192, the same 9.9 per cent the whole-workload
+        // allocation moved by, and 900,000 had left only a fifth of a per cent of
+        // headroom. The new ceiling restores about eleven per cent so one more
+        // field does not break it, without loosening what the test claims: that
+        // collision ticks allocate a bounded amount rather than growing with time.
+        const long maximumAllocatedBytes = 1_100_000;
         const int agentsPerFaction = 12;
 
         // Crowd two lines into one another so the resolver works every tick:
@@ -390,26 +422,49 @@ public sealed class BattleSimulationTests
     }
 
     /// <summary>
-    /// Neither faction may hold a standing advantage across seeds. This asserts
-    /// a distribution rather than mere presence: it previously required only one
-    /// victory each, and passed on exactly one seed while the collision stage
-    /// was handing faction 0 every contested push of every battle. Four in
-    /// twenty is loose enough that ordinary seed variance cannot fail it and
-    /// tight enough that a returning structural bias would.
+    /// Neither faction may hold a standing advantage across seeds, and the
+    /// battle must reach a decision quickly enough to be worth watching. This
+    /// carries two independent properties.
+    ///
+    /// The fairness clause asserts a distribution rather than mere presence: it
+    /// previously required only one victory each, and passed on exactly one seed
+    /// while the collision stage was handing faction 0 every contested push of
+    /// every battle. Four in twenty is loose enough that ordinary seed variance
+    /// cannot fail it and tight enough that a returning structural bias would.
+    ///
+    /// The termination clause is acceptance criterion two of the weapon-clash
+    /// change: at least nineteen of twenty seeds decide before the tick cap, and
+    /// the median decisive tick sits at or below half the cap.
     /// </summary>
+    /// <remarks>
+    /// The median clause is the one that can actually fail. A termination-rate
+    /// clause alone passes happily while every battle finishes at ninety-eight
+    /// per cent of the cap. Interception is a multiplier on a stall rather than
+    /// its cause, so if this clause goes red the attack rate and the damage per
+    /// landed blow are examined before the clash tables.
+    /// </remarks>
     [Fact]
     public void SeedsOneThroughTwentyProduceVictoriesForBothFactions()
     {
-        const int minimumVictoriesPerFaction = 4;
+        const int Seeds = 20;
+        const int MinimumDecisiveSeeds = 19;
+        const int MedianDecisiveTickLimit = 5_000;
+        const int MinimumVictoriesPerFaction = 4;
+
         var faction0Victories = 0;
         var faction1Victories = 0;
+        var decisiveTicks = new List<long>(Seeds);
 
-        for (ulong seed = 1; seed <= 20; seed++)
+        for (ulong seed = 1; seed <= Seeds; seed++)
         {
             var scenario = Scenario.CreateDefault(seed, totalAgents: 200);
             var simulation = BattleSimulation.Create(scenario);
 
-            while (simulation.Outcome == BattleOutcome.Ongoing)
+            // Bounded. An unbounded loop turns a stall into a suite that hangs
+            // with no diagnosis rather than a test that fails and names the
+            // seed, which would defeat the whole point of the criterion.
+            while (simulation.Outcome == BattleOutcome.Ongoing &&
+                simulation.Tick < scenario.TickLimit)
             {
                 simulation.AdvanceOneTick();
             }
@@ -429,14 +484,35 @@ public sealed class BattleSimulationTests
                 default:
                     break;
             }
+
+            if (simulation.Outcome is BattleOutcome.Faction0Victory or
+                BattleOutcome.Faction1Victory or
+                BattleOutcome.Draw)
+            {
+                decisiveTicks.Add(simulation.Tick);
+            }
         }
 
         Assert.True(
-            faction0Victories >= minimumVictoriesPerFaction &&
-            faction1Victories >= minimumVictoriesPerFaction,
+            faction0Victories >= MinimumVictoriesPerFaction &&
+            faction1Victories >= MinimumVictoriesPerFaction,
             $"Faction 0 won {faction0Victories} of 20 seeds and faction 1 won " +
             $"{faction1Victories}. Each faction must win at least " +
-            $"{minimumVictoriesPerFaction}.");
+            $"{MinimumVictoriesPerFaction}.");
+
+        Assert.True(
+            decisiveTicks.Count >= MinimumDecisiveSeeds,
+            $"Only {decisiveTicks.Count} of {Seeds} seeds decided before the " +
+            $"tick cap; at least {MinimumDecisiveSeeds} are required.");
+
+        var sorted = decisiveTicks.Order().ToArray();
+        var median = sorted[sorted.Length / 2];
+        Assert.True(
+            median <= MedianDecisiveTickLimit,
+            $"The median decisive tick was {median}, above the " +
+            $"{MedianDecisiveTickLimit} tick clause. Interception multiplies a " +
+            "stall rather than causing one, so examine the attack rate and the " +
+            "damage per landed blow before the clash tables.");
     }
 
     /// <summary>
@@ -465,6 +541,583 @@ public sealed class BattleSimulationTests
         Assert.Contains(
             simulation.Outcome,
             new[] { BattleOutcome.Faction0Victory, BattleOutcome.Faction1Victory });
+    }
+
+    [Fact]
+    public void Create_WithAnInjectedRulesetRejectsARosterThatDisagreesWithTheScenarioPreset()
+    {
+        // Scenario.Validate checks roster counts against the registry and is
+        // deliberately left alone, so a differently rostered ruleset would have
+        // the scenario validated against one roster while the simulation ran on
+        // another. Both injecting factories refuse it.
+        var scenario = CreateTestScenario();
+        var mismatched = BuildRulesetWithASingleEntryRoster();
+
+        Assert.NotEqual(
+            CombatPresetRegistry.Get(scenario.CombatPreset).Roster,
+            mismatched.Roster);
+        Assert.Throws<ArgumentException>(
+            () => BattleSimulation.Create(scenario, mismatched));
+        Assert.Throws<ArgumentException>(
+            () => BattleSimulation.CreateForTesting(
+                scenario,
+                mismatched,
+                CreateAgent(1, factionId: 0, x: 10, y: 10, scenario)));
+    }
+
+    [Fact]
+    public void Create_WithTheInjectedPresetRulesetMatchesTheRegistryPathExactly()
+    {
+        // The seam must move no value. A ruleset routed through the injection
+        // overload produces the same agents, the same events, and the same
+        // state hash as the registry path.
+        //
+        // The injected profile is the preset's own. While the preset carried
+        // ClashProfile.Neutral the two were the same object's worth of data and
+        // naming Neutral here read as "the preset's profile"; now that the
+        // preset ships real tables, injecting Neutral would be injecting a
+        // genuinely different configuration and the two paths would rightly
+        // diverge. The property under test is the seam, not the profile, and it
+        // is unchanged. The zero-interception control run keeps its own test:
+        // ZeroInterceptionProfile_ReproducesThePreClashDigest is where a
+        // neutral profile is required to reproduce the pre-clash stream.
+        var scenario = Scenario.CreateDefault(seed: 7, totalAgents: 20);
+        var registryRules = CombatPresetRegistry.Get(scenario.CombatPreset);
+        var injected = registryRules.WithClashProfile(registryRules.ClashProfile);
+
+        var registryPath = BattleSimulation.Create(scenario);
+        var injectedPath = BattleSimulation.Create(scenario, injected);
+
+        for (var tick = 0; tick < 50; tick++)
+        {
+            registryPath.AdvanceOneTick();
+            injectedPath.AdvanceOneTick();
+
+            Assert.Equal(registryPath.LastEvents, injectedPath.LastEvents);
+            Assert.Equal(
+                registryPath.ComputeStateHash(),
+                injectedPath.ComputeStateHash());
+            Assert.Equal(
+                registryPath.ComputeStateHash(),
+                injectedPath.ComputeStateHash(injected.ContentHash));
+        }
+    }
+
+    [Fact]
+    public void CreateForTesting_WithTheInjectedPresetRulesetMatchesTheRegistryPathExactly()
+    {
+        var scenario = CreateTestScenario() with
+        {
+            AttackRangeRaw = 12 * FixedPoint.Scale,
+        };
+        // The preset's own profile, for the reason recorded on
+        // Create_WithTheInjectedPresetRulesetMatchesTheRegistryPathExactly.
+        var registryRules = CombatPresetRegistry.Get(scenario.CombatPreset);
+        var injected = registryRules.WithClashProfile(registryRules.ClashProfile);
+
+        var registryPath = BattleSimulation.CreateForTesting(
+            scenario,
+            CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
+            CreateAgent(2, factionId: 1, x: 22, y: 10, scenario));
+        var injectedPath = BattleSimulation.CreateForTesting(
+            scenario,
+            injected,
+            CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
+            CreateAgent(2, factionId: 1, x: 22, y: 10, scenario));
+
+        registryPath.AdvanceOneTick();
+        injectedPath.AdvanceOneTick();
+
+        Assert.Equal(registryPath.LastEvents, injectedPath.LastEvents);
+        Assert.Equal(
+            registryPath.ComputeStateHash(),
+            injectedPath.ComputeStateHash());
+    }
+
+    /// <summary>
+    /// PROVISIONAL gameplay-tuning comparison, not a historical claim. The
+    /// research says the visible gap between a shielded and a shieldless warrior
+    /// is the part to defend hardest, above any absolute interception figure.
+    /// </summary>
+    /// <remarks>
+    /// Both defenders carry the same weapon and differ only in the shield, so
+    /// the shield channel is the only thing that can separate them. Hit points
+    /// are high and damage minimal so nobody dies inside the measured window and
+    /// both defenders take the same number of accepted attacks.
+    /// </remarks>
+    [Fact]
+    public void ShieldedDefenderTakesLessDamageThanUnshieldedAtTheSameSeed()
+    {
+        var shieldedDamage = 0;
+        var unshieldedDamage = 0;
+
+        for (ulong seed = 1; seed <= 10; seed++)
+        {
+            shieldedDamage += MeasureDamageTaken(seed, ShieldId.TallHardwood);
+            unshieldedDamage += MeasureDamageTaken(seed, ShieldId.None);
+        }
+
+        Assert.True(
+            shieldedDamage < unshieldedDamage,
+            "PROVISIONAL band. Expected a tall hardwood shield to reduce damage " +
+            $"taken, but the shielded defender took {shieldedDamage} against " +
+            $"{unshieldedDamage} for the shieldless one.");
+        Assert.True(
+            shieldedDamage < unshieldedDamage * 9 / 10,
+            "PROVISIONAL band. Expected a comfortable margin rather than a " +
+            $"handful of rolls: {shieldedDamage} against {unshieldedDamage}.");
+    }
+
+    [Fact]
+    public void NonLandedAttack_EmitsAValueOfZeroAndNoDamageEvent()
+    {
+        var scenario = CreateTestScenario() with
+        {
+            AttackRangeRaw = 12 * FixedPoint.Scale,
+        };
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            PresetWith(BuildAlwaysEvadedProfile()),
+            CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
+            CreateAgent(2, factionId: 1, x: 22, y: 10, scenario));
+
+        simulation.AdvanceOneTick();
+
+        var attacks = simulation.LastEvents
+            .Where(battleEvent => battleEvent.Kind == BattleEventKind.Attack)
+            .ToArray();
+
+        Assert.NotEmpty(attacks);
+        Assert.All(
+            attacks,
+            attack =>
+            {
+                Assert.Equal(AttackResolution.Evaded, attack.Resolution);
+                Assert.Equal(0, attack.Value);
+
+                // The attack event still carries its combat context: the hit
+                // location of a non-landed blow is the point it was aimed at.
+                Assert.NotNull(attack.Weapon);
+                Assert.NotNull(attack.HitLocation);
+            });
+        Assert.DoesNotContain(
+            simulation.LastEvents,
+            battleEvent => battleEvent.Kind == BattleEventKind.Damage);
+        Assert.All(
+            simulation.Agents,
+            agent => Assert.Equal(scenario.MaximumHitPoints, agent.HitPoints));
+    }
+
+    [Fact]
+    public void NonLandedAttack_StillResetsTheAttackerCooldown()
+    {
+        var scenario = CreateTestScenario() with
+        {
+            AttackRangeRaw = 12 * FixedPoint.Scale,
+            AttackCooldownTicks = 2,
+        };
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            PresetWith(BuildAlwaysEvadedProfile()),
+            CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
+            CreateAgent(2, factionId: 1, x: 22, y: 10, scenario));
+
+        simulation.AdvanceOneTick();
+        var firstTickAttacks = simulation.LastEvents
+            .Where(battleEvent => battleEvent.Kind == BattleEventKind.Attack)
+            .ToArray();
+
+        Assert.NotEmpty(firstTickAttacks);
+        Assert.All(
+            firstTickAttacks,
+            attack => Assert.Equal(AttackResolution.Evaded, attack.Resolution));
+
+        simulation.AdvanceOneTick();
+
+        Assert.DoesNotContain(
+            simulation.LastEvents,
+            battleEvent => battleEvent.Kind == BattleEventKind.Attack);
+
+        simulation.AdvanceOneTick();
+
+        Assert.Contains(
+            simulation.LastEvents,
+            battleEvent => battleEvent.Kind == BattleEventKind.Attack);
+    }
+
+    /// <summary>
+    /// A damage event disappears only when <em>every</em> attack on a target is
+    /// non-landed. Two attackers, one landing and one not, must leave exactly
+    /// one damage event carrying exactly one blow of damage.
+    /// </summary>
+    [Fact]
+    public void MixedResolutionsOnOneTarget_AggregateOnlyTheLandedDamage()
+    {
+        var scenario = CreateTestScenario() with
+        {
+            AttackRangeRaw = 12 * FixedPoint.Scale,
+        };
+
+        // Entity 1 attacks with a Bolo, whose cell against a ThrustingBlade
+        // defender is zero, so it always lands. Entity 2 attacks with a
+        // HeavyChopper, whose cell is the whole roll space at a hard share of
+        // one, so it is always arrested.
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            PresetWith(BuildSplitResolutionProfile()),
+            CreateAgent(
+                1,
+                factionId: 0,
+                x: 10,
+                y: 10,
+                scenario,
+                new CombatLoadout(WeaponId.Bolo, ArmorId.LightOrganic, ShieldId.None)),
+            CreateAgent(
+                2,
+                factionId: 0,
+                x: 12,
+                y: 10,
+                scenario,
+                new CombatLoadout(
+                    WeaponId.HeavyChopper,
+                    ArmorId.LightOrganic,
+                    ShieldId.None)),
+            CreateAgent(
+                3,
+                factionId: 1,
+                x: 11,
+                y: 10,
+                scenario,
+                new CombatLoadout(
+                    WeaponId.ThrustingBlade,
+                    ArmorId.LightOrganic,
+                    ShieldId.None)));
+
+        simulation.AdvanceOneTick();
+
+        var attacksOnThree = simulation.LastEvents
+            .Where(
+                battleEvent => battleEvent.Kind == BattleEventKind.Attack &&
+                    battleEvent.TargetEntityId == 3)
+            .ToArray();
+        Assert.Equal(2, attacksOnThree.Length);
+
+        var landed = Assert.Single(
+            attacksOnThree,
+            attack => attack.SourceEntityId == 1);
+        var arrested = Assert.Single(
+            attacksOnThree,
+            attack => attack.SourceEntityId == 2);
+        Assert.Equal(AttackResolution.Landed, landed.Resolution);
+        Assert.Equal(scenario.DamagePerAttack, landed.Value);
+        Assert.Equal(AttackResolution.Parried, arrested.Resolution);
+        Assert.Equal(0, arrested.Value);
+
+        var damageOnThree = Assert.Single(
+            simulation.LastEvents,
+            battleEvent => battleEvent.Kind == BattleEventKind.Damage &&
+                battleEvent.TargetEntityId == 3);
+        Assert.Equal(scenario.DamagePerAttack, damageOnThree.Value);
+
+        var viewThree = Assert.Single(
+            simulation.Agents,
+            agent => agent.EntityId == 3);
+        Assert.Equal(
+            scenario.MaximumHitPoints - scenario.DamagePerAttack,
+            viewThree.HitPoints);
+    }
+
+    /// <summary>
+    /// The storage order the caller happens to use cannot reach any resolution.
+    /// Both entity identifiers are folded into the clash key, so two warriors
+    /// who swap identifiers are <em>expected</em> to resolve differently; the
+    /// property under test is that the same identifiers in a different array
+    /// order cannot.
+    /// </summary>
+    [Fact]
+    public void CrowdedTarget_ResolvesIdenticallyUnderEveryStorageOrder()
+    {
+        var scenario = CreateTestScenario() with
+        {
+            AttackRangeRaw = 12 * FixedPoint.Scale,
+            MaximumHitPoints = 1_000,
+            DamagePerAttack = 1,
+        };
+        var rules = PresetWith(BuildShippedClashTables());
+
+        var ascending = BattleSimulation.CreateForTesting(
+            scenario,
+            rules,
+            BuildCrowdedRoster(scenario, reversed: false, interleaved: false));
+        var descending = BattleSimulation.CreateForTesting(
+            scenario,
+            rules,
+            BuildCrowdedRoster(scenario, reversed: true, interleaved: false));
+        var interleaved = BattleSimulation.CreateForTesting(
+            scenario,
+            rules,
+            BuildCrowdedRoster(scenario, reversed: false, interleaved: true));
+
+        for (var tick = 0; tick < 40; tick++)
+        {
+            ascending.AdvanceOneTick();
+            descending.AdvanceOneTick();
+            interleaved.AdvanceOneTick();
+
+            Assert.Equal(ascending.LastEvents, descending.LastEvents);
+            Assert.Equal(ascending.LastEvents, interleaved.LastEvents);
+            Assert.Equal(
+                ascending.ComputeStateHash(),
+                descending.ComputeStateHash());
+            Assert.Equal(
+                ascending.ComputeStateHash(),
+                interleaved.ComputeStateHash());
+        }
+
+        Assert.Contains(
+            ascending.Agents,
+            agent => agent.HitPoints < scenario.MaximumHitPoints);
+    }
+
+    private static int MeasureDamageTaken(ulong seed, ShieldId defenderShield)
+    {
+        var scenario = CreateTestScenario() with
+        {
+            Seed = seed,
+            AttackRangeRaw = 12 * FixedPoint.Scale,
+            MaximumHitPoints = 100_000,
+            DamagePerAttack = 1,
+        };
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            PresetWith(BuildShippedClashTables()),
+            CreateAgent(
+                1,
+                factionId: 0,
+                x: 10,
+                y: 10,
+                scenario,
+                new CombatLoadout(
+                    WeaponId.GreatBlade,
+                    ArmorId.LightOrganic,
+                    ShieldId.None)),
+            CreateAgent(
+                2,
+                factionId: 1,
+                x: 22,
+                y: 10,
+                scenario,
+                new CombatLoadout(
+                    WeaponId.ThrustingBlade,
+                    ArmorId.LightOrganic,
+                    defenderShield)));
+
+        for (var tick = 0; tick < 200; tick++)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        var defender = Assert.Single(
+            simulation.Agents,
+            agent => agent.EntityId == 2);
+        return scenario.MaximumHitPoints - defender.HitPoints;
+    }
+
+    private static AgentState[] BuildCrowdedRoster(
+        Scenario scenario,
+        bool reversed,
+        bool interleaved)
+    {
+        var agents = new List<AgentState>
+        {
+            CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
+            CreateAgent(2, factionId: 0, x: 10, y: 12, scenario),
+            CreateAgent(3, factionId: 0, x: 10, y: 14, scenario),
+            CreateAgent(4, factionId: 1, x: 20, y: 10, scenario),
+            CreateAgent(5, factionId: 1, x: 20, y: 12, scenario),
+            CreateAgent(6, factionId: 1, x: 20, y: 14, scenario),
+        };
+
+        if (reversed)
+        {
+            agents.Reverse();
+        }
+        else if (interleaved)
+        {
+            agents = [.. agents.OrderBy(agent => agent.EntityId % 2)];
+        }
+
+        return [.. agents];
+    }
+
+    /// <summary>
+    /// The registered preset carrying one explicit clash profile. Every clash
+    /// value a simulation case depends on is written out in this file rather
+    /// than read from <see cref="PhilippineCombatPreset"/>, so no case here can
+    /// pass vacuously against a neutral preset or be re-tuned out from under.
+    /// </summary>
+    private static CombatRuleset PresetWith(ClashProfile profile) =>
+        CombatPresetRegistry
+            .Get(CombatPresetId.PrecolonialPhilippinesV1)
+            .WithClashProfile(profile);
+
+    /// <summary>
+    /// Every accepted attack meets empty air: the void channel is the whole roll
+    /// space, so the outcome does not depend on the roll at all.
+    /// </summary>
+    private static ClashProfile BuildAlwaysEvadedProfile()
+    {
+        var weapons = Enum.GetValues<WeaponId>();
+        var matrix = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>();
+        foreach (var defender in weapons)
+        {
+            foreach (var attacker in weapons)
+            {
+                matrix[(defender, attacker)] = 0;
+            }
+        }
+
+        return new ClashProfile(
+            matrix,
+            shieldIntercept: 0,
+            voidChannel: weapons.ToDictionary(
+                weapon => weapon,
+                _ => ClashProfile.BasisPointScale),
+            hardShareBases: weapons.ToDictionary(weapon => weapon, _ => 0),
+            hardShareMultipliers: weapons.ToDictionary(
+                weapon => weapon,
+                _ => ClashProfile.HardShareMultiplierScale),
+            minimumHardShareBasisPoints: 0,
+            maximumHardShareBasisPoints: ClashProfile.BasisPointScale,
+            maximumInterceptionBasisPoints: ClashProfile.BasisPointScale);
+    }
+
+    /// <summary>
+    /// A HeavyChopper against a ThrustingBlade defender is always arrested;
+    /// every other pairing always lands. Roll-independent on both sides, so the
+    /// case does not rest on a lucky tuple that a later re-tune would move.
+    /// </summary>
+    private static ClashProfile BuildSplitResolutionProfile()
+    {
+        var weapons = Enum.GetValues<WeaponId>();
+        var matrix = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>();
+        foreach (var defender in weapons)
+        {
+            foreach (var attacker in weapons)
+            {
+                matrix[(defender, attacker)] =
+                    defender == WeaponId.ThrustingBlade &&
+                    attacker == WeaponId.HeavyChopper
+                        ? ClashProfile.BasisPointScale
+                        : 0;
+            }
+        }
+
+        return new ClashProfile(
+            matrix,
+            shieldIntercept: 0,
+            voidChannel: weapons.ToDictionary(weapon => weapon, _ => 0),
+            hardShareBases: weapons.ToDictionary(
+                weapon => weapon,
+                weapon => weapon == WeaponId.HeavyChopper
+                    ? ClashProfile.BasisPointScale
+                    : 0),
+            hardShareMultipliers: weapons.ToDictionary(
+                weapon => weapon,
+                _ => ClashProfile.HardShareMultiplierScale),
+            minimumHardShareBasisPoints: 0,
+            maximumHardShareBasisPoints: ClashProfile.BasisPointScale,
+            maximumInterceptionBasisPoints: ClashProfile.BasisPointScale);
+    }
+
+    /// <summary>
+    /// The design section 3.3 tables, written out here rather than read from the
+    /// preset, which still carries <see cref="ClashProfile.Neutral"/> until the
+    /// implementation phase populates it.
+    /// </summary>
+    /// <remarks>
+    /// <b>PROVISIONAL.</b> Gameplay tuning values, not historical measurements.
+    /// All sixteen weapon-intercept cells have no evidentiary confidence
+    /// whatsoever.
+    /// </remarks>
+    private static ClashProfile BuildShippedClashTables() =>
+        new(
+            new Dictionary<(WeaponId Defender, WeaponId Attacker), int>
+            {
+                [(WeaponId.GreatBlade, WeaponId.GreatBlade)] = 2_200,
+                [(WeaponId.GreatBlade, WeaponId.HeavyChopper)] = 1_900,
+                [(WeaponId.GreatBlade, WeaponId.ThrustingBlade)] = 1_600,
+                [(WeaponId.GreatBlade, WeaponId.Bolo)] = 2_000,
+                [(WeaponId.HeavyChopper, WeaponId.GreatBlade)] = 1_500,
+                [(WeaponId.HeavyChopper, WeaponId.HeavyChopper)] = 1_300,
+                [(WeaponId.HeavyChopper, WeaponId.ThrustingBlade)] = 1_100,
+                [(WeaponId.HeavyChopper, WeaponId.Bolo)] = 1_400,
+                [(WeaponId.ThrustingBlade, WeaponId.GreatBlade)] = 500,
+                [(WeaponId.ThrustingBlade, WeaponId.HeavyChopper)] = 400,
+                [(WeaponId.ThrustingBlade, WeaponId.ThrustingBlade)] = 600,
+                [(WeaponId.ThrustingBlade, WeaponId.Bolo)] = 600,
+                [(WeaponId.Bolo, WeaponId.GreatBlade)] = 400,
+                [(WeaponId.Bolo, WeaponId.HeavyChopper)] = 300,
+                [(WeaponId.Bolo, WeaponId.ThrustingBlade)] = 500,
+                [(WeaponId.Bolo, WeaponId.Bolo)] = 500,
+            },
+            shieldIntercept: 2_400,
+            voidChannel: new Dictionary<WeaponId, int>
+            {
+                [WeaponId.GreatBlade] = 1_000,
+                [WeaponId.HeavyChopper] = 900,
+                [WeaponId.ThrustingBlade] = 1_000,
+                [WeaponId.Bolo] = 1_100,
+            },
+            hardShareBases: new Dictionary<WeaponId, int>
+            {
+                [WeaponId.GreatBlade] = 3_300,
+                [WeaponId.HeavyChopper] = 4_000,
+                [WeaponId.ThrustingBlade] = 1_200,
+                [WeaponId.Bolo] = 1_800,
+            },
+            hardShareMultipliers: new Dictionary<WeaponId, int>
+            {
+                [WeaponId.GreatBlade] = 1_150,
+                [WeaponId.HeavyChopper] = 1_050,
+                [WeaponId.ThrustingBlade] = 750,
+                [WeaponId.Bolo] = 700,
+            },
+            minimumHardShareBasisPoints: 500,
+            maximumHardShareBasisPoints: 6_000,
+            maximumInterceptionBasisPoints: 5_500);
+
+    /// <summary>
+    /// A structurally valid ruleset whose roster is one loadout, so it cannot
+    /// agree with the registered preset roster.
+    /// </summary>
+    private static CombatRuleset BuildRulesetWithASingleEntryRoster()
+    {
+        var weights = Enum.GetValues<BodyPart>()
+            .Select(part => (part, 1))
+            .ToArray();
+        var multipliers = Enum.GetValues<BodyPart>()
+            .Select(part => (part, 1_000))
+            .ToArray();
+        var weightProfile = new TargetWeightProfile(weights);
+
+        return new CombatRuleset(
+            CombatPresetId.PrecolonialPhilippinesV1,
+            version: 1,
+            generalTargets: weightProfile,
+            weaponTargets: new Dictionary<WeaponId, TargetWeightProfile>
+            {
+                [WeaponId.GreatBlade] = weightProfile,
+            },
+            armors: [ArmorId.LightOrganic],
+            shieldMultipliers: new Dictionary<ShieldId, TargetWeightProfile>
+            {
+                [ShieldId.None] = new TargetWeightProfile(multipliers),
+            },
+            roster:
+            [
+                new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.None),
+            ]);
     }
 
     private static Scenario CreateTestScenario() =>
@@ -675,6 +1328,22 @@ public sealed class BattleSimulationTests
         Assert.Equal(baselinePositions, compositionPositions);
     }
 
+    /// <summary>
+    /// A landed attack carries its weapon, its hit location, and a value equal
+    /// to the configured damage. Design section 5 disposition: this pairing — a
+    /// <see cref="WeaponId.Bolo"/> attacker against a
+    /// <see cref="WeaponId.GreatBlade"/> defender carrying a
+    /// <see cref="ShieldId.TallHardwood"/> shield — computes to 3,000 basis
+    /// points of non-landed resolution under the shipped tables, so the value
+    /// assertion would fail about one exchange in three without the seam.
+    /// </summary>
+    /// <remarks>
+    /// The non-landed sibling design section 5 asks for is
+    /// <see cref="NonLandedAttack_EmitsAValueOfZeroAndNoDamageEvent"/>, which
+    /// asserts the same weapon and hit-location carriage against a value of
+    /// zero. Keep the two together: they are one property split across the
+    /// landed and non-landed halves of the same event contract.
+    /// </remarks>
     [Fact]
     public void AcceptedAttacksCarryTheSourceWeaponAndAResolvedHitLocation()
     {
@@ -692,6 +1361,7 @@ public sealed class BattleSimulationTests
             ShieldId.TallHardwood);
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
+            PresetWith(ClashProfile.Neutral),
             CreateAgent(1, factionId: 0, x: 10, y: 10, scenario, attackerLoadout),
             CreateAgent(2, factionId: 1, x: 22, y: 10, scenario, defenderLoadout));
 
@@ -717,6 +1387,13 @@ public sealed class BattleSimulationTests
         Assert.Equal(expectedLocation, attackFromOne.HitLocation);
     }
 
+    /// <summary>
+    /// The property under test is that two attackers keep two individual hit
+    /// locations while the target receives one aggregated damage event.
+    /// Aggregation sums only landed attacks once the clash resolves, so design
+    /// section 5 gives this a zero-interception ruleset and the aggregate stays
+    /// the full two blows.
+    /// </summary>
     [Fact]
     public void MultipleAttackersOnOneTargetRetainIndividualHitLocationsButOneAggregatedDamageEvent()
     {
@@ -726,6 +1403,7 @@ public sealed class BattleSimulationTests
         };
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
+            PresetWith(ClashProfile.Neutral),
             CreateAgent(
                 1,
                 factionId: 0,

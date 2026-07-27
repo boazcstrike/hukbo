@@ -7,11 +7,15 @@ internal sealed class PresentationCoordinator
     public PresentationCoordinator(
         int eventCapacity,
         int hitEffectCapacity = 256,
-        int bloodBurstCapacity = 256)
+        int bloodBurstCapacity = 256,
+        int swingCapacity = 256,
+        int clashEffectCapacity = 256)
     {
         EventFeed = new BattleEventFeed(eventCapacity);
         HitEffects = new HitEffectSystem(hitEffectCapacity);
         Blood = new BloodEffectSystem(bloodBurstCapacity);
+        Swings = new SwingAnimationSystem(swingCapacity);
+        ClashEffects = new ClashEffectSystem(clashEffectCapacity);
     }
 
     public PlaybackController Playback { get; } = new();
@@ -28,6 +32,17 @@ internal sealed class PresentationCoordinator
     /// </summary>
     public BloodEffectSystem Blood { get; }
 
+    /// <summary>
+    /// The in-flight weapon swings. Its clock is the only one scaled by the
+    /// playback speed.
+    /// </summary>
+    public SwingAnimationSystem Swings { get; }
+
+    /// <summary>
+    /// The crosses where two weapons, or a weapon and a shield, met.
+    /// </summary>
+    public ClashEffectSystem ClashEffects { get; }
+
     public MatchSummary? Summary { get; private set; }
 
     public void IngestTick(
@@ -37,12 +52,29 @@ internal sealed class PresentationCoordinator
         EventFeed.Ingest(events);
         HitEffects.Ingest(events, agents);
         Blood.Ingest(events, agents);
+        Swings.Ingest(events, agents);
+        ClashEffects.Ingest(events, agents);
     }
 
-    public void AdvanceEffects(float elapsedSeconds)
+    /// <param name="speedMultiplier">
+    /// The playback speed. It scales the swing clock and nothing else: the
+    /// simulation issues attacks at the playback speed, so at 4x an unscaled
+    /// swing would still be mid-recovery when the next blow landed and every
+    /// warrior would read as permanently mid-swing. The hit and blood effects
+    /// are wounds already dealt rather than actions in progress, and they keep
+    /// advancing on unscaled presentation time.
+    /// </param>
+    public void AdvanceEffects(float elapsedSeconds, float speedMultiplier = 1f)
     {
+        if (!float.IsFinite(speedMultiplier) || speedMultiplier <= 0f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(speedMultiplier));
+        }
+
         HitEffects.Advance(elapsedSeconds);
         Blood.Advance(elapsedSeconds);
+        ClashEffects.Advance(elapsedSeconds);
+        Swings.Advance(elapsedSeconds * speedMultiplier);
     }
 
     public MatchSummary ProcessTerminal(
@@ -85,6 +117,8 @@ internal sealed class PresentationCoordinator
         EventFeed.Clear();
         HitEffects.Clear();
         Blood.Clear();
+        Swings.Clear();
+        ClashEffects.Clear();
         Summary = null;
     }
 }

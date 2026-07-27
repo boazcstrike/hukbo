@@ -19,8 +19,8 @@ public sealed class BattleSimulation
     private readonly Dictionary<ulong, int> _agentIndexes;
     private readonly int[] _damageTotals;
     private readonly (int XRaw, int YRaw, ulong TargetId)?[] _movementProposals;
-    private readonly (int SourceIndex, int TargetIndex, BodyPart HitLocation)[]
-        _attackProposals;
+    private readonly (int SourceIndex, int TargetIndex, BodyPart HitLocation,
+        AttackResolution Resolution)[] _attackProposals;
     private readonly AgentView[] _agentViews;
     private readonly ReadOnlyCollection<AgentView> _agents;
     private readonly CollisionScratch _collision;
@@ -36,6 +36,7 @@ public sealed class BattleSimulation
     private ReadOnlyCollection<BattleEvent> _lastEvents;
     private long _eventSequence;
     private CollisionTickMetrics _lastTickCollision;
+    private CombatMetrics _lastTickCombat;
 
     private BattleSimulation(
         Scenario scenario,
@@ -50,8 +51,8 @@ public sealed class BattleSimulation
         _movementProposals =
             new (int XRaw, int YRaw, ulong TargetId)?[agents.Length];
         _attackProposals =
-            new (int SourceIndex, int TargetIndex, BodyPart HitLocation)[
-                agents.Length];
+            new (int SourceIndex, int TargetIndex, BodyPart HitLocation,
+                AttackResolution Resolution)[agents.Length];
         _agentViews = new AgentView[agents.Length];
         _agents = Array.AsReadOnly(_agentViews);
         _collision = new CollisionScratch(scenario, agents.Length);
@@ -89,6 +90,12 @@ public sealed class BattleSimulation
     internal CollisionTickMetrics LastTickCollision => _lastTickCollision;
 
     /// <summary>
+    /// Derived attack-resolution counters for the tick just completed.
+    /// Observability only: never hashed, never snapshotted, never persisted.
+    /// </summary>
+    internal CombatMetrics LastTickCombat => _lastTickCombat;
+
+    /// <summary>
     /// Longest run of consecutive blocked ticks any single agent has reached.
     /// </summary>
     internal int LongestBlockedStreakTicks => _collision.LongestBlockedStreakTicks;
@@ -98,7 +105,38 @@ public sealed class BattleSimulation
         ArgumentNullException.ThrowIfNull(scenario);
         scenario.Validate();
 
-        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
+        return Create(scenario, CombatPresetRegistry.Get(scenario.CombatPreset));
+    }
+
+    /// <summary>
+    /// Builds a full spawn-placed battle on a caller-supplied ruleset, so a
+    /// test can run the canonical workload against a tuning variant of the
+    /// scenario's own preset.
+    /// </summary>
+    /// <remarks>
+    /// The other testing factory takes explicit agents and never runs spawn
+    /// placement, and no agents can be lifted out of a simulation built here:
+    /// <see cref="Agents"/> and <see cref="CreateSnapshot"/> both return
+    /// <see cref="AgentView"/> and the underlying states are private. A
+    /// 200-agent seeded battle is therefore only reachable through this
+    /// overload.
+    /// </remarks>
+    /// <param name="scenario">The scenario to build.</param>
+    /// <param name="rules">The ruleset the simulation runs on.</param>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="rules"/> declares a different roster from the registered
+    /// entry for the scenario's combat preset. Scenario validation checks
+    /// roster counts against the <em>registry</em>, so a differing roster would
+    /// leave the scenario validated against one roster while the simulation ran
+    /// on another.
+    /// </exception>
+    internal static BattleSimulation Create(Scenario scenario, CombatRuleset rules)
+    {
+        ArgumentNullException.ThrowIfNull(scenario);
+        ArgumentNullException.ThrowIfNull(rules);
+        scenario.Validate();
+        AssertRosterMatchesRegisteredPreset(scenario, rules);
+
         var random = new SplitMix64(scenario.Seed);
         var agents = new AgentState[scenario.TotalAgents];
         var mapWidthRaw = checked(scenario.MapWidth * FixedPoint.Scale);
@@ -163,8 +201,38 @@ public sealed class BattleSimulation
         params AgentState[] agents)
     {
         ArgumentNullException.ThrowIfNull(scenario);
+        scenario.Validate();
+
+        return CreateForTesting(
+            scenario,
+            CombatPresetRegistry.Get(scenario.CombatPreset),
+            agents);
+    }
+
+    /// <summary>
+    /// Builds a battle from explicit agents on a caller-supplied ruleset. This
+    /// is the only sanctioned way to give a test a clash-neutral
+    /// configuration: no shipped loadout pairing is clash-neutral, and
+    /// hand-picking seeds and entity identifiers whose roll happens to land
+    /// would be silently invalidated by any later tuning or mixer change.
+    /// </summary>
+    /// <param name="scenario">The scenario to build.</param>
+    /// <param name="rules">The ruleset the simulation runs on.</param>
+    /// <param name="agents">The agents to place, in any order.</param>
+    /// <exception cref="ArgumentException">
+    /// No agent was supplied, or <paramref name="rules"/> declares a different
+    /// roster from the registered entry for the scenario's combat preset.
+    /// </exception>
+    internal static BattleSimulation CreateForTesting(
+        Scenario scenario,
+        CombatRuleset rules,
+        params AgentState[] agents)
+    {
+        ArgumentNullException.ThrowIfNull(scenario);
+        ArgumentNullException.ThrowIfNull(rules);
         ArgumentNullException.ThrowIfNull(agents);
         scenario.Validate();
+        AssertRosterMatchesRegisteredPreset(scenario, rules);
 
         if (agents.Length == 0)
         {
@@ -173,9 +241,37 @@ public sealed class BattleSimulation
                 nameof(agents));
         }
 
-        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
         var orderedAgents = agents.OrderBy(agent => agent.EntityId).ToArray();
         return new BattleSimulation(scenario, orderedAgents, rules);
+    }
+
+    /// <summary>
+    /// Rejects an injected ruleset whose roster disagrees with the registered
+    /// entry for the scenario's combat preset.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Scenario.Validate"/> checks roster counts against the
+    /// registry and is deliberately left alone, so injecting a differently
+    /// rostered ruleset would validate the scenario against one roster and run
+    /// it on another. The sanctioned use is a tuning variant of the same
+    /// preset, where the roster is identical.
+    /// </remarks>
+    private static void AssertRosterMatchesRegisteredPreset(
+        Scenario scenario,
+        CombatRuleset rules)
+    {
+        var registered = CombatPresetRegistry.Get(scenario.CombatPreset);
+        if (rules.Roster.SequenceEqual(registered.Roster))
+        {
+            return;
+        }
+
+        throw new ArgumentException(
+            "The supplied ruleset declares a different roster from the " +
+            $"registered entry for combat preset {scenario.CombatPreset}. " +
+            "Scenario validation checks roster counts against the registry, " +
+            "so the scenario and the simulation would disagree.",
+            nameof(rules));
     }
 
     public void AdvanceOneTick()
@@ -204,13 +300,28 @@ public sealed class BattleSimulation
             : events.AsReadOnly();
     }
 
-    public ulong ComputeStateHash() =>
+    public ulong ComputeStateHash() => ComputeStateHash(_rules.ContentHash);
+
+    /// <summary>
+    /// Computes the state hash folding a caller-supplied ruleset content hash
+    /// in place of this simulation's own.
+    /// </summary>
+    /// <remarks>
+    /// The parameterless overload unconditionally folds the running ruleset's
+    /// content hash, so there is no way through it to reproduce a hash recorded
+    /// before that content hash moved. Reaching
+    /// <see cref="StateHasher.Compute"/> directly is not an option either: it
+    /// needs the agent states, which are private.
+    /// </remarks>
+    /// <param name="contentHash">The content hash to fold.</param>
+    internal ulong ComputeStateHash(ulong contentHash) =>
         StateHasher.Compute(
             Scenario,
             Tick,
             Outcome,
             _eventSequence,
-            _agentStates);
+            _agentStates,
+            contentHash);
 
     public BattleSnapshot CreateSnapshot()
     {
@@ -996,6 +1107,15 @@ public sealed class BattleSimulation
         Array.Clear(_damageTotals);
         var proposalCount = 0;
 
+        // Derived observability counters for this tick. Locals rather than
+        // state, folded into the reported value once at the end of the loop,
+        // so nothing here can be read by the simulation itself.
+        var landed = 0;
+        var shieldBlocked = 0;
+        var parried = 0;
+        var deflected = 0;
+        var evaded = 0;
+
         for (var sourceIndex = 0;
              sourceIndex < _agentStates.Length;
              sourceIndex++)
@@ -1030,11 +1150,62 @@ public sealed class BattleSimulation
                 Tick,
                 source.EntityId,
                 target.EntityId);
-            _attackProposals[proposalCount] = (sourceIndex, targetIndex, hitLocation);
+
+            // Resolved inline, immediately after the hit location, in the same
+            // pass. A second pass over the proposals would be a second place
+            // the attack tuple has to stay consistent, and a per-target buffer
+            // would be state whose staleness nothing checks. The clash costs no
+            // draw from any generator, so nothing downstream shifts merely
+            // because this call was added.
+            var resolution = ClashResolver.Resolve(
+                _rules.ClashProfile,
+                Scenario.Seed,
+                Tick,
+                source.EntityId,
+                target.EntityId,
+                source.Loadout.Weapon,
+                target.Loadout.Weapon,
+                target.Loadout.Shield);
+            _attackProposals[proposalCount] =
+                (sourceIndex, targetIndex, hitLocation, resolution);
             proposalCount++;
-            _damageTotals[targetIndex] = checked(
-                _damageTotals[targetIndex] + source.DamagePerAttack);
+
+            // Only a landed blow reaches the damage total. Every other
+            // resolution still emitted its attack event above and still burned
+            // the attacker's cooldown; it simply carries no damage.
+            if (resolution == AttackResolution.Landed)
+            {
+                _damageTotals[targetIndex] = checked(
+                    _damageTotals[targetIndex] + source.DamagePerAttack);
+            }
+
+            switch (resolution)
+            {
+                case AttackResolution.Landed:
+                    landed++;
+                    break;
+                case AttackResolution.ShieldBlocked:
+                    shieldBlocked++;
+                    break;
+                case AttackResolution.Parried:
+                    parried++;
+                    break;
+                case AttackResolution.Deflected:
+                    deflected++;
+                    break;
+                default:
+                    evaded++;
+                    break;
+            }
         }
+
+        _lastTickCombat = new CombatMetrics(
+            proposalCount,
+            landed,
+            shieldBlocked,
+            parried,
+            deflected,
+            evaded);
 
         for (var index = 0; index < proposalCount; index++)
         {
@@ -1045,11 +1216,14 @@ public sealed class BattleSimulation
                 ref events,
                 source.EntityId,
                 target.EntityId,
-                source.DamagePerAttack,
+                proposal.Resolution == AttackResolution.Landed
+                    ? source.DamagePerAttack
+                    : 0,
                 source.FactionId,
                 source.Loadout.Weapon,
                 source.Loadout.Shield,
-                proposal.HitLocation);
+                proposal.HitLocation,
+                proposal.Resolution);
         }
 
         for (var index = 0; index < _damageTotals.Length; index++)
@@ -1298,6 +1472,18 @@ public sealed class BattleSimulation
                 factionId));
     }
 
+    /// <summary>
+    /// Emits one attack event.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="resolution"/> is required, unlike the optional
+    /// parameter on the public <see cref="BattleEvent.Attack"/> factory. The
+    /// factory keeps its default so that the twenty call sites in tests and
+    /// presentation code that do not care about defensive resolution keep
+    /// compiling; here the default would be a way for production code to emit
+    /// an unresolved attack as though it had landed, and nothing downstream
+    /// would notice.
+    /// </remarks>
     private void AddAttackEvent(
         ref List<BattleEvent>? events,
         ulong sourceEntityId,
@@ -1306,7 +1492,8 @@ public sealed class BattleSimulation
         int factionId,
         WeaponId weapon,
         ShieldId shield,
-        BodyPart hitLocation)
+        BodyPart hitLocation,
+        AttackResolution resolution)
     {
         _eventSequence = checked(_eventSequence + 1);
         events ??= new List<BattleEvent>(_agentStates.Length * 2);
@@ -1320,7 +1507,8 @@ public sealed class BattleSimulation
                 factionId,
                 weapon,
                 shield,
-                hitLocation));
+                hitLocation,
+                resolution));
     }
 
     private void UpdateViews()

@@ -11,10 +11,16 @@ namespace Hukbo.Client.Presentation;
 /// advance allocate nothing on the heap.
 /// </summary>
 /// <remarks>
+/// <para>
 /// A victim struck twice in one tick therefore shows one impact ring and two
 /// sprays. That is intended: the simulation names no killing blow, so every
 /// blow on a victim who dies this tick renders at the lethal tier rather than
 /// awarding the kill to one attacker.
+/// </para>
+/// <para>
+/// Because it keys on the attack rather than on the damage, it has to read the
+/// resolution itself: only a landed blow draws blood.
+/// </para>
 /// </remarks>
 internal sealed class BloodEffectSystem
 {
@@ -109,7 +115,13 @@ internal sealed class BloodEffectSystem
         for (var index = 0; index < events.Count; index++)
         {
             var battleEvent = events[index];
+
+            // This system keys on the Attack event rather than on damage, so
+            // the resolution is the only thing separating a blow that reached
+            // the defender from one the shield, the weapon, or the footwork
+            // turned aside. Without this clause every parried blow sprays.
             if (battleEvent.Kind != BattleEventKind.Attack ||
+                battleEvent.Resolution is not AttackResolution.Landed ||
                 battleEvent.TargetEntityId is not { } targetEntityId ||
                 battleEvent.Weapon is not { } weapon ||
                 battleEvent.HitLocation is not { } hitLocation ||

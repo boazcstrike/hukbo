@@ -118,7 +118,7 @@ internal sealed partial class BattleEventLogPanel
                 $"SEQUENCE {battleEvent.Sequence}",
                 maxCharacters),
             ClipLabel(
-                $"Tick: {battleEvent.Tick}    Value: {battleEvent.Value}",
+                BattleEventFormatter.GetDetailSummaryLine(battleEvent),
                 maxCharacters),
             ClipLabel(
                 $"Source: {BattleEventFormatter.GetActorLabel(battleEvent)}",

@@ -22,7 +22,29 @@ internal static class PawnRenderer
     private static readonly Color HoverColor = new(231, 199, 84);
     private static readonly Color DeadColor = new(91, 98, 105);
     private static readonly Color HitPulseColor = new(255, 244, 214);
+    private static readonly Color SwingTrailColor = new(206, 214, 220);
 
+    /// <summary>
+    /// Segments used to walk one arc trail. The arc itself comes from the
+    /// layout; this is only how finely it is stroked.
+    /// </summary>
+    private const int SwingTrailSegments = 6;
+
+    /// <summary>
+    /// Neutral, pose-blind bounds, deliberately. This feeds the frustum cull,
+    /// and a pose-aware cull would make the set of drawn pawns a function of
+    /// presentation animation phase, so the same tick would render a different
+    /// draw list depending on where each swing clock happened to sit. That is
+    /// draw-list determinism and it is the whole reason.
+    /// </summary>
+    /// <remarks>
+    /// The cost is real and is not waved away: the arena bounds are the
+    /// scissored arena panel rather than the screen, so a pawn whose body sits
+    /// outside the panel while its weapon would sweep into it is dropped
+    /// entirely, and the tip clips at the panel edge while panning. The
+    /// selection padding does not absorb this, by roughly four times. It is
+    /// accepted and carries an interactive smoke row rather than an assertion.
+    /// </remarks>
     public static Rectangle GetBounds(
         Vector2 footAnchor,
         float cameraZoom,
@@ -34,6 +56,11 @@ internal static class PawnRenderer
             appearance,
             scaleMultiplier).VisualBounds;
 
+    /// <param name="swingPose">
+    /// The pose an in-flight swing puts this pawn in, or <c>null</c> for a
+    /// pawn standing still. Optional so that the inspector portrait, which is
+    /// a still, keeps compiling without passing one.
+    /// </param>
     public static void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
@@ -43,7 +70,8 @@ internal static class PawnRenderer
         Color factionColor,
         PawnVisualState state,
         float scaleMultiplier = 1f,
-        float hitPulseStrength = 0f)
+        float hitPulseStrength = 0f,
+        SwingPose? swingPose = null)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(pixel);
@@ -57,7 +85,8 @@ internal static class PawnRenderer
             footAnchor,
             cameraZoom,
             appearance,
-            scaleMultiplier);
+            scaleMultiplier,
+            swingPose);
         var isDead = state == PawnVisualState.Dead;
         var clothingColor = ApplyHitPulse(
             ApplyState(appearance.ClothingColor, isDead),
@@ -109,6 +138,7 @@ internal static class PawnRenderer
                 headTreatmentColor);
         }
 
+        DrawSwingTrail(spriteBatch, pixel, layout.SwingTrail);
         DrawWeapon(
             spriteBatch,
             pixel,
@@ -331,6 +361,46 @@ internal static class PawnRenderer
                     Math.Max(1, bounds.Height - 2)),
                 ApplyState(Iron, isDead));
         }
+    }
+
+    /// <summary>
+    /// Strokes the arc the layout already computed. There is no trail formula
+    /// here: the pivot, radius, and both angles arrive from
+    /// <see cref="PawnGeometry"/>, and this method only walks between them.
+    /// </summary>
+    private static void DrawSwingTrail(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        SwingTrail trail)
+    {
+        if (trail.IsEmpty)
+        {
+            return;
+        }
+
+        var previous = PointOnArc(trail, 0f);
+        for (var segment = 1; segment <= SwingTrailSegments; segment++)
+        {
+            var along = segment / (float)SwingTrailSegments;
+            var current = PointOnArc(trail, along);
+            DrawLine(
+                spriteBatch,
+                pixel,
+                previous,
+                current,
+                SwingTrailColor * (trail.Strength * along * 0.55f),
+                trail.Thickness);
+            previous = current;
+        }
+    }
+
+    private static Vector2 PointOnArc(SwingTrail trail, float along)
+    {
+        var angle = trail.StartAngleRadians +
+            ((trail.EndAngleRadians - trail.StartAngleRadians) * along);
+        return trail.Pivot + new Vector2(
+            MathF.Cos(angle) * trail.Radius,
+            MathF.Sin(angle) * trail.Radius);
     }
 
     private static void DrawWeapon(

@@ -104,6 +104,9 @@ internal sealed class AgentInspectorPanel
             portraitBounds,
             GetUiFactionColor(selected.FactionId, theme),
             1);
+        // The third PawnRenderer.Draw call site, and the one that deliberately
+        // passes no swing pose: a portrait is a still. It compiles unchanged
+        // only because the pose parameter is optional.
         PawnRenderer.Draw(
             spriteBatch,
             pixel,

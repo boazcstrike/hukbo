@@ -7,19 +7,28 @@ namespace Hukbo.Core.Combat;
 /// <summary>
 /// Immutable, versioned combat targeting configuration: general and
 /// per-weapon body-part target weights, per-shield defense multipliers,
-/// and the deterministic warrior loadout roster. Gameplay tuning values
+/// the deterministic warrior loadout roster, and the defensive-interception
+/// clash profile an accepted attack is resolved against. Gameplay tuning values
 /// here (for example shield multipliers) are provisional balance
 /// starting points, not historical measurements; see
 /// docs/research/HISTORICAL_1500s_WEAPONS.md for evidence context.
 /// </summary>
 public sealed class CombatRuleset
 {
+    /// <summary>
+    /// The constructor parameter roster validation blames. Spelled out because
+    /// the validation runs in a helper where the parameter itself is out of
+    /// scope, so <c>nameof</c> is unavailable.
+    /// </summary>
+    private const string ClashProfileParameterName = "clashProfile";
+
     private readonly TargetWeightProfile _generalTargets;
     private readonly IReadOnlyDictionary<WeaponId, TargetWeightProfile> _weaponTargets;
     private readonly IReadOnlyList<ArmorId> _armors;
     private readonly IReadOnlyDictionary<ShieldId, TargetWeightProfile> _shieldMultipliers;
     private readonly IReadOnlyList<CombatLoadout> _roster;
     private readonly IReadOnlyDictionary<WeaponId, WeaponAttributes>? _weaponAttributes;
+    private readonly ClashProfile? _declaredClashProfile;
     private readonly IReadOnlyDictionary<(WeaponId Weapon, ShieldId Shield), EffectiveWeightTable> _effectiveWeights;
 
     /// <summary>
@@ -44,7 +53,8 @@ public sealed class CombatRuleset
         IReadOnlyList<ArmorId> armors,
         IReadOnlyDictionary<ShieldId, TargetWeightProfile> shieldMultipliers,
         IReadOnlyList<CombatLoadout> roster,
-        IReadOnlyDictionary<WeaponId, WeaponAttributes>? weaponAttributes = null)
+        IReadOnlyDictionary<WeaponId, WeaponAttributes>? weaponAttributes = null,
+        ClashProfile? clashProfile = null)
     {
         ArgumentNullException.ThrowIfNull(generalTargets);
         ArgumentNullException.ThrowIfNull(weaponTargets);
@@ -83,6 +93,18 @@ public sealed class CombatRuleset
 
         Id = id;
         Version = version;
+
+        // Not a compile-time constant, so the parameter is nullable rather
+        // than carrying ClashProfile.Neutral as a C# default. Optional at all
+        // because existing named-argument constructions must keep compiling
+        // untouched.
+        //
+        // Kept in both forms deliberately. The public property is the single
+        // read path for every clash value and never needs a null check, while
+        // the nullable field is what ComputeContentHash tests to decide
+        // whether this preset declared a profile at all.
+        _declaredClashProfile = clashProfile;
+        ClashProfile = clashProfile ?? ClashProfile.Neutral;
         _generalTargets = generalTargets;
 
         // Defensive copies: a caller retaining the collection it passed in
@@ -109,6 +131,7 @@ public sealed class CombatRuleset
         ValidateWeaponAttributes();
         _effectiveWeights = BuildEffectiveWeightTables();
         ValidateResolvedTotals();
+        ValidateClashProfileCoversTheRoster();
         ContentHash = ComputeContentHash();
     }
 
@@ -120,7 +143,53 @@ public sealed class CombatRuleset
 
     public TargetWeightProfile GeneralTargets => _generalTargets;
 
+    /// <summary>
+    /// The defensive-interception tuning data this ruleset resolves an
+    /// accepted attack against. Every clash value is reached through this
+    /// profile's own accessors, so there is one place a value lives.
+    /// <see cref="ClashProfile.Neutral"/> when the constructor was given none.
+    /// </summary>
+    public ClashProfile ClashProfile { get; }
+
     public IReadOnlyList<CombatLoadout> Roster => _roster;
+
+    /// <summary>
+    /// Returns a copy of this ruleset carrying <paramref name="profile"/> and
+    /// every other field unchanged.
+    /// </summary>
+    /// <remarks>
+    /// This exists so that an injected ruleset is provably the preset except
+    /// for its clash profile. Reassembling the six constructor arguments by
+    /// hand would mean sixteen weapon-weight reads per weapon, twenty-six
+    /// defense-multiplier reads, and a guessed armor list, because the armor
+    /// set has no accessor yet is folded into the content hash. That guess
+    /// happens to be faithful today only because <see cref="ArmorId"/> has one
+    /// member.
+    /// </remarks>
+    /// <param name="profile">The clash profile the copy carries.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="profile"/> is null.
+    /// </exception>
+    public CombatRuleset WithClashProfile(ClashProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+
+        // Both trailing parameters are named. Passing the profile positionally
+        // would land it in the weapon-attribute slot, and carrying the
+        // attributes forward is not optional: dropping them would silently
+        // return a copy whose weapons had lost their per-weapon damage, reach,
+        // and cooldown.
+        return new CombatRuleset(
+            Id,
+            Version,
+            _generalTargets,
+            _weaponTargets,
+            _armors,
+            _shieldMultipliers,
+            _roster,
+            weaponAttributes: _weaponAttributes,
+            clashProfile: profile);
+    }
 
     public int ResolveWeaponWeight(WeaponId weapon, BodyPart bodyPart)
     {
@@ -379,6 +448,52 @@ public sealed class CombatRuleset
             "Unknown shield identity for this combat ruleset.");
     }
 
+    /// <summary>
+    /// Fails construction if the clash profile cannot answer for a loadout
+    /// this ruleset actually fields. Validated at the boundary rather than at
+    /// the first attack, because a profile missing one roster weapon would
+    /// otherwise throw part-way through a battle, on a tick that depends on
+    /// which entity IDs happened to come into reach.
+    /// </summary>
+    private void ValidateClashProfileCoversTheRoster()
+    {
+        foreach (var defender in _roster)
+        {
+            foreach (var attacker in _roster)
+            {
+                try
+                {
+                    ClashProfile.ResolveWeaponIntercept(defender.Weapon, attacker.Weapon);
+                    ClashProfile.ResolveHardShareBase(attacker.Weapon);
+                }
+                catch (ArgumentOutOfRangeException exception)
+                {
+                    throw new ArgumentException(
+                        "The clash profile carries no value for roster " +
+                        $"defender weapon {defender.Weapon} against attacker " +
+                        $"weapon {attacker.Weapon}.",
+                        ClashProfileParameterName,
+                        exception);
+                }
+            }
+
+            try
+            {
+                ClashProfile.ResolveVoid(defender.Weapon);
+                ClashProfile.ResolveHardShareMultiplier(defender.Weapon);
+                ClashProfile.ResolveShieldIntercept(defender.Shield);
+            }
+            catch (ArgumentOutOfRangeException exception)
+            {
+                throw new ArgumentException(
+                    "The clash profile carries no row for roster weapon " +
+                    $"{defender.Weapon}.",
+                    ClashProfileParameterName,
+                    exception);
+            }
+        }
+    }
+
     private void ValidateResolvedTotals()
     {
         foreach (var weapon in _weaponTargets.Keys.OrderBy(id => (int)id))
@@ -427,6 +542,41 @@ public sealed class CombatRuleset
         Fnv1a.Add(
             ref hash,
             unchecked((ulong)(uint)profile.AttackCooldownTicks));
+    }
+
+    /// <summary>
+    /// Folds all thirty-two clash tuning values into the content hash. Every
+    /// table is read through the profile's ordered accessors, which sort by
+    /// ascending enum value, so two rulesets carrying identical tuning data
+    /// supplied in different dictionary order hash identically. Without that a
+    /// replay would refuse a save that is in fact the same configuration.
+    /// </summary>
+    private void FoldClashProfile(ref ulong hash)
+    {
+        var cells = ClashProfile.OrderedWeaponIntercepts.ToArray();
+        Fnv1a.Add(ref hash, (ulong)cells.Length);
+        foreach (var (key, value) in cells)
+        {
+            Fnv1a.Add(ref hash, (ulong)key.Defender);
+            Fnv1a.Add(ref hash, (ulong)key.Attacker);
+            Fnv1a.Add(ref hash, (ulong)value);
+        }
+
+        Fnv1a.Add(ref hash, (ulong)ClashProfile.ShieldInterceptBasisPoints);
+
+        var rows = ClashProfile.OrderedWeaponRows.ToArray();
+        Fnv1a.Add(ref hash, (ulong)rows.Length);
+        foreach (var (weapon, voidChannel, hardShareBase, hardShareMultiplier) in rows)
+        {
+            Fnv1a.Add(ref hash, (ulong)weapon);
+            Fnv1a.Add(ref hash, (ulong)voidChannel);
+            Fnv1a.Add(ref hash, (ulong)hardShareBase);
+            Fnv1a.Add(ref hash, (ulong)hardShareMultiplier);
+        }
+
+        Fnv1a.Add(ref hash, (ulong)ClashProfile.MinimumHardShareBasisPoints);
+        Fnv1a.Add(ref hash, (ulong)ClashProfile.MaximumHardShareBasisPoints);
+        Fnv1a.Add(ref hash, (ulong)ClashProfile.MaximumInterceptionBasisPoints);
     }
 
     private static IReadOnlyList<ArmorId> NormalizeArmors(IReadOnlyList<ArmorId> armors)
@@ -498,6 +648,13 @@ public sealed class CombatRuleset
             Fnv1a.Add(ref hash, (ulong)loadout.Shield);
         }
 
+        // Both trailing blocks are contributed only by a preset that declares
+        // the data, and the weapon-attribute block always precedes the clash
+        // block. That order is arbitrary but fixed: reordering these two would
+        // move every content hash without changing a single tuning value, so a
+        // reorder requires a new preset version and fresh golden expectations
+        // exactly as a retune would.
+
         // Contributed only by a preset that declares attributes. A preset
         // without them mixes nothing here at all — not even a zero count —
         // which is what leaves version 1's content hash, and therefore every
@@ -520,6 +677,19 @@ public sealed class CombatRuleset
                     AddProfile(ref hash, paired);
                 }
             }
+        }
+
+        // Contributed only by a preset that declares a clash profile, on the
+        // same terms and for the same reason as the block above: preset V1 is
+        // frozen and declares none, so nothing is mixed here at all — not even
+        // a zero count — and its pinned content hash survives this feature
+        // untouched. A ruleset that resolves every clash channel to zero
+        // because it was given no profile and one that was handed
+        // ClashProfile.Neutral explicitly are the same configuration, and they
+        // hash the same.
+        if (_declaredClashProfile is not null)
+        {
+            FoldClashProfile(ref hash);
         }
 
         return hash;

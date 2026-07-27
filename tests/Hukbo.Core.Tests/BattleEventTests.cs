@@ -80,6 +80,63 @@ public sealed class BattleEventTests
     }
 
     [Fact]
+    public void Attack_DefaultsAnUnsuppliedResolutionToLanded()
+    {
+        // The parameter is optional so that the twenty existing call sites
+        // across eleven files keep compiling. Production code never relies on
+        // this default: BattleSimulation.AddAttackEvent takes the resolution
+        // as a required parameter.
+        var attack = BattleEvent.Attack(
+            sequence: 1,
+            tick: 4,
+            sourceEntityId: 10,
+            targetEntityId: 11,
+            damage: 7,
+            factionId: 0,
+            WeaponId.Bolo,
+            BodyPart.WeaponArm);
+
+        Assert.Equal(AttackResolution.Landed, attack.Resolution);
+    }
+
+    [Theory]
+    [InlineData(AttackResolution.Landed)]
+    [InlineData(AttackResolution.ShieldBlocked)]
+    [InlineData(AttackResolution.Parried)]
+    [InlineData(AttackResolution.Deflected)]
+    [InlineData(AttackResolution.Evaded)]
+    public void Attack_CarriesTheSuppliedResolution(AttackResolution resolution)
+    {
+        var attack = BattleEvent.Attack(
+            sequence: 1,
+            tick: 4,
+            sourceEntityId: 10,
+            targetEntityId: 11,
+            damage: 0,
+            factionId: 0,
+            WeaponId.Bolo,
+            BodyPart.WeaponArm,
+            resolution);
+
+        Assert.Equal(resolution, attack.Resolution);
+    }
+
+    [Fact]
+    public void Attack_RejectsAnUndefinedResolution()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => BattleEvent.Attack(
+            sequence: 1,
+            tick: 1,
+            sourceEntityId: 1,
+            targetEntityId: 2,
+            damage: 1,
+            factionId: 0,
+            WeaponId.GreatBlade,
+            BodyPart.Head,
+            (AttackResolution)999));
+    }
+
+    [Fact]
     public void Attack_RejectsZeroTarget()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => BattleEvent.Attack(
@@ -150,6 +207,25 @@ public sealed class BattleEventTests
     [InlineData(BattleEventKind.Damage)]
     [InlineData(BattleEventKind.Death)]
     [InlineData(BattleEventKind.Outcome)]
+    public void NonAttack_LeavesTheResolutionNull(BattleEventKind kind)
+    {
+        var battleEvent = BattleEvent.NonAttack(
+            sequence: 2,
+            tick: 5,
+            kind,
+            sourceEntityId: 3,
+            targetEntityId: 4,
+            value: 12,
+            factionId: 1);
+
+        Assert.Null(battleEvent.Resolution);
+    }
+
+    [Theory]
+    [InlineData(BattleEventKind.Move)]
+    [InlineData(BattleEventKind.Damage)]
+    [InlineData(BattleEventKind.Death)]
+    [InlineData(BattleEventKind.Outcome)]
     public void NonAttack_AllowsEveryNonAttackKind(BattleEventKind kind)
     {
         var battleEvent = BattleEvent.NonAttack(
@@ -189,5 +265,6 @@ public sealed class BattleEventTests
         Assert.Equal(BattleEventKind.Move, defaultEvent.Kind);
         Assert.Null(defaultEvent.Weapon);
         Assert.Null(defaultEvent.HitLocation);
+        Assert.Null(defaultEvent.Resolution);
     }
 }

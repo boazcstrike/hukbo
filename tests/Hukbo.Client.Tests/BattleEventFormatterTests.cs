@@ -139,6 +139,108 @@ public sealed class BattleEventFormatterTests
         Assert.DoesNotContain("(shielded)", actionLabel);
     }
 
+    /// <summary>
+    /// RED. Without a line of its own per resolution no spectator can tell a
+    /// parry from a block from a landed blow, which is the discoverability
+    /// question the repository requires every feature to answer, and the event
+    /// log is the only channel that names a void at all.
+    /// </summary>
+    [Fact]
+    public void GetActionLabel_ProducesADistinctLinePerResolution()
+    {
+        var labels = new List<string>();
+
+        foreach (var resolution in Enum.GetValues<AttackResolution>())
+        {
+            var battleEvent = BattleEvent.Attack(
+                sequence: 1,
+                tick: 42,
+                sourceEntityId: 7,
+                targetEntityId: 12,
+                damage: resolution == AttackResolution.Landed ? 10 : 0,
+                factionId: 0,
+                WeaponId.GreatBlade,
+                BodyPart.Shoulder,
+                resolution);
+
+            var actionLabel = BattleEventFormatter.GetActionLabel(battleEvent);
+
+            Assert.DoesNotContain("for 0", actionLabel);
+            Assert.DoesNotContain("0 damage", actionLabel);
+            if (resolution != AttackResolution.Landed)
+            {
+                Assert.DoesNotContain(" for ", actionLabel);
+            }
+
+            labels.Add(actionLabel);
+        }
+
+        Assert.Equal(5, labels.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    /// <summary>
+    /// RED. The detail block reports a value beside the tick, and a blow the
+    /// shield turned aside carries a value of zero, so without this the panel
+    /// reads "Value: 0" and invites a spectator to read a landed blow that
+    /// happened to do nothing.
+    /// </summary>
+    [Fact]
+    public void Details_OmitsTheDamageLineForANonLandedAttack()
+    {
+        AttackResolution[] nonLanded =
+        [
+            AttackResolution.ShieldBlocked,
+            AttackResolution.Parried,
+            AttackResolution.Deflected,
+            AttackResolution.Evaded,
+        ];
+
+        foreach (var resolution in nonLanded)
+        {
+            var battleEvent = BattleEvent.Attack(
+                sequence: 1,
+                tick: 42,
+                sourceEntityId: 7,
+                targetEntityId: 12,
+                damage: 0,
+                factionId: 0,
+                WeaponId.GreatBlade,
+                BodyPart.Shoulder,
+                resolution);
+
+            var summary = BattleEventFormatter.GetDetailSummaryLine(battleEvent);
+
+            Assert.Equal("Tick: 42", summary);
+            Assert.DoesNotContain("Value", summary);
+        }
+
+        var landed = BattleEvent.Attack(
+            sequence: 2,
+            tick: 42,
+            sourceEntityId: 7,
+            targetEntityId: 12,
+            damage: 10,
+            factionId: 0,
+            WeaponId.GreatBlade,
+            BodyPart.Shoulder,
+            AttackResolution.Landed);
+        var damage = BattleEvent.NonAttack(
+            sequence: 3,
+            tick: 42,
+            BattleEventKind.Damage,
+            sourceEntityId: 12,
+            targetEntityId: 12,
+            value: 10,
+            factionId: null);
+
+        Assert.Equal(
+            "Tick: 42    Value: 10",
+            BattleEventFormatter.GetDetailSummaryLine(landed));
+        Assert.Equal(
+            "Tick: 42    Value: 10",
+            BattleEventFormatter.GetDetailSummaryLine(damage));
+    }
+
     [Fact]
     public void GetActionLabel_MoveEventFormattingIsUnchanged()
     {

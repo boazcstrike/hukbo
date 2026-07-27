@@ -33,19 +33,54 @@ internal static class BattleEventFormatter
         };
     }
 
+    /// <summary>
+    /// One distinct line per resolution. The event log is the only channel
+    /// that names a void at all, and it is the channel a spectator can read
+    /// without knowing what to look for, so all five have to be separable
+    /// here.
+    /// </summary>
+    /// <remarks>
+    /// A non-landed blow names no body part and reports no damage figure. The
+    /// simulation still resolves a hit location for one, but naming it would
+    /// say the blow reached a shoulder the shield turned aside, and reporting
+    /// the value would print a bare zero.
+    /// </remarks>
     private static string FormatAttack(BattleEvent battleEvent, string target)
     {
         if (battleEvent.Weapon is not { } weapon ||
             battleEvent.Shield is not { } shield ||
-            battleEvent.HitLocation is not { } hitLocation)
+            battleEvent.HitLocation is not { } hitLocation ||
+            battleEvent.Resolution is not { } resolution)
         {
             throw new InvalidOperationException(
-                "Attack events must carry weapon, shield, and hit location " +
-                "metadata.");
+                "Attack events must carry weapon, shield, hit location, and " +
+                "resolution metadata.");
         }
 
-        return $"hit {target}'s {GetBodyPartLabel(hitLocation)} with " +
-            $"{GetWeaponLabel(weapon, shield)} for {battleEvent.Value}";
+        // The two-argument overload, so every one of the five lines below
+        // carries the pair form and the grip suffix. A turned-aside blow names
+        // its weapon exactly the way a landed one does; the resolution changes
+        // what happened, not what the warrior was holding.
+        var weaponLabel = GetWeaponLabel(weapon, shield);
+
+        return resolution switch
+        {
+            AttackResolution.Landed =>
+                $"hit {target}'s {GetBodyPartLabel(hitLocation)} with " +
+                $"{weaponLabel} for {battleEvent.Value}",
+            AttackResolution.ShieldBlocked =>
+                $"swung {weaponLabel} at {target} — stopped by the shield",
+            AttackResolution.Parried =>
+                $"swung {weaponLabel} at {target} — parried",
+            AttackResolution.Deflected =>
+                $"swung {weaponLabel} at {target} — turned aside",
+            AttackResolution.Evaded =>
+                $"swung {weaponLabel} at {target} — stepped off the line",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(battleEvent),
+                resolution,
+                null),
+        };
     }
 
     /// <summary>
@@ -124,6 +159,23 @@ internal static class BattleEventFormatter
                 bodyPart,
                 null),
         };
+
+    /// <summary>
+    /// The tick-and-value row of the event detail block. A non-landed attack
+    /// omits the value entirely rather than printing a bare zero, which a
+    /// spectator would otherwise read as a landed blow that happened to do
+    /// nothing.
+    /// </summary>
+    /// <remarks>
+    /// It lives here rather than in the panel so that the one place deciding
+    /// how an event reads is the one place tested for it; the panel that draws
+    /// the block cannot be constructed in a test.
+    /// </remarks>
+    public static string GetDetailSummaryLine(BattleEvent battleEvent) =>
+        battleEvent.Kind == BattleEventKind.Attack &&
+        battleEvent.Resolution is not AttackResolution.Landed
+            ? $"Tick: {battleEvent.Tick}"
+            : $"Tick: {battleEvent.Tick}    Value: {battleEvent.Value}";
 
     public static string GetFactionLabel(int? factionId) =>
         factionId switch
