@@ -1,5 +1,7 @@
 # Combat Preset V3 — Attack Combinations — Design
 
+> **Archived: reference only.** This plan is complete and deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
+
 Date: 2026-07-27
 
 Status: design only. This document does not authorize implementation. It depends
