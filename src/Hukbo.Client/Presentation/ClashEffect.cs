@@ -25,4 +25,14 @@ internal readonly record struct ClashEffect(
 {
     /// <summary>PROVISIONAL. Short enough to read as an impact.</summary>
     public float LifetimeSeconds => 0.14f;
+
+    /// <summary>
+    /// Whether a resolution puts a cross on screen. Declared here so the
+    /// system, the geometry, and any later reader share one statement of the
+    /// rule rather than three lists of enum members that can drift apart.
+    /// </summary>
+    public static bool FiresFor(AttackResolution resolution) =>
+        resolution is AttackResolution.ShieldBlocked or
+            AttackResolution.Parried or
+            AttackResolution.Deflected;
 }
