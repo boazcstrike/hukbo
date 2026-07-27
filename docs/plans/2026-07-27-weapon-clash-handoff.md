@@ -88,11 +88,42 @@ What Phase 0 landed and later phases depend on:
 - `NaiveClashResolution.cs`, the independent oracle. It calls no production helper.
 - `tests/Hukbo.Core.Tests/Fixtures/seed-1-200-agents-preclash-digest.json`.
 
-### Phase 1 — was running when this file was written
+### Phase 1 — done, Barrier B1 satisfied
 
-Eleven test tasks, T13–T23, one agent. **Check `git log` first — its commits may
-already be present.** Its barrier is B1, which asserts the RED/GUARD
-classification per case rather than blanket failure.
+Eleven test tasks, T13–T23, in five commits: `9f0bb41`, `d275c18`, `9dc54f6`,
+`f961506`, `95a3036`.
+
+**All 38 named cases matched their labels.** 81 failing cases across 29 methods,
+and the 81 are exactly the RED set — no RED passed, no GUARD failed, no compile
+error. The Core suite is *expected to be red* right now:
+
+```
+Total tests: 468
+     Passed: 387
+     Failed: 81
+```
+
+`./scripts/test.ps1` throws on the Core failure and never reaches the Client
+project, so run `Hukbo.Client.Tests` directly to see it: 564 passed, 0 failed.
+
+**Do not "fix" those 81.** They are the specification for Phase 2. They go green
+as the resolver, the preset values, and the attack-stage integration land.
+
+The two guards that matter most already pass:
+`ZeroInterceptionProfile_ReproducesThePreClashDigest` across all 1081 rows, and
+`ZeroInterceptionProfile_ReproducesTheRecordedStateHash`.
+
+**One deviation, and it was the right call.** T22 asks for the event-hash theory
+to cover "every resolution pair including the null sentinel". That row is not
+satisfiable as a RED: a null `Resolution` is unreachable on an attack event —
+`BattleEvent.Attack` requires a defined value and `NonAttack` forces null — so any
+null-versus-defined pair also differs in `Kind` and its hashes already differ
+today. It would have been a RED that passes, which the barrier treats as hard a
+block as a build error. Implemented as the 10 distinct pairs of the five defined
+resolutions, all RED, with the pre-existing
+`EventHashMixer_NullCombatContextIsStableAndDistinctFromDefinedValues` gaining
+resolution clauses and staying GUARD. Reasoning recorded at
+`tests/Hukbo.Core.Tests/HeadlessRunnerTests.cs:132-136`.
 
 ### Phases 2 to 4 — not started
 
@@ -125,11 +156,45 @@ after T19 goes green.** The literal `0x59FB4CA563D87A49UL` that T21 passes as a
 *content-hash argument* is not one of those goldens and must not be swept up in
 that edit.
 
+### `main` has already moved again — read this before merging
+
+While Phase 1 was running, `main` took the **last-stand formation** (`6b4f809`),
+which redirects a faction's last survivors onto their own leader once it drops to
+`Scenario.LastStandThresholdAgents` or fewer. That is an authoritative movement
+change, so it moved both hashes again. `main`'s own recorded baseline is now:
+
+```
+terminal tick   1176
+state hash      BBB40D2240720DC8
+event hash      2A6BAEA1E3567046
+allocated       72,856,392 bytes
+```
+
+and it explicitly lists **our** tick-1081 pair as a dead, superseded baseline.
+
+**This worktree has none of that code, and 1081 is correct here.** Do not adopt
+1176 until the merge actually happens. When it does, expect all of the following:
+
+- recapture the digest fixture (procedure below) — the 1081-row file becomes wrong;
+- re-derive criterion two, because the median-tick clause is measured against a
+  baseline that has now moved three times: 657, then 1081, then 1176;
+- reconcile `.claude/skills/hukbo-determinism-change/SKILL.md`, whose copy in the
+  main checkout is ahead of this worktree's;
+- re-run and re-record, since `ZeroInterceptionProfile_ReproducesThePreClashDigest`
+  and `..._ReproducesTheRecordedStateHash` both compare against the fixture and
+  will fail loudly. **That failure is the merge, not a defect** — but confirm it is
+  the merge before touching either test.
+
+Three deployment changes have landed on `main` during this feature's planning and
+first two phases. Assume a fourth. The cost each time is one fixture recapture
+plus a plan-constant sweep, so merging early and often is cheaper than merging at
+the end.
+
 ### If the hashes move again
 
 They will, the moment Phase 2 lands — that is intended and T32 re-records them.
-They will also move if `main` is merged again with any change to deployment,
-movement, or targeting. In that case the digest fixture must be recaptured:
+They will also move on any merge like the one above. The digest fixture must then
+be recaptured:
 
 1. The capture harness source is embedded in the fixture's own
    `provenance.harnessSource` array. Extract it to
@@ -168,12 +233,23 @@ eventually wanted.
 
 ## 7. What to do next
 
-1. `git log --oneline -15` to see whether Phase 1 landed.
-2. If Phase 1 is incomplete, finish T13–T23 and reach Barrier B1.
-3. Then Phase 2, T24–T34, in order. T24's nine existing-test dispositions come
-   **before** any attack-stage edit.
-4. Then Phase 3a only, the swing animation.
-5. Then Phase 4.
+**Start Phase 2, T24–T34.** Phase 1 is done and B1 is satisfied.
+
+1. Decide whether to merge `main`'s last-stand formation first — see section 5.
+   Merging now costs one fixture recapture; merging after Phase 2 costs the same
+   recapture plus a golden re-baseline in flight.
+2. T24's nine existing-test dispositions come **before** any attack-stage edit.
+   They use the seam; do not hand-pick lucky-roll seeds. No shipped pairing is
+   clash-neutral — the minimum total is 2000 basis points.
+3. Then the resolver, the ruleset content-hash fold, the preset values, the
+   attack-stage integration, metrics accumulation, and the hash re-baseline.
+4. T32 re-baselines the two golden content-hash constants, and **only after T19
+   is green.**
+5. Then Phase 3a only, the swing animation. 3b and 3c are dropped.
+6. Then Phase 4.
+
+The 81 red Core tests are Phase 2's specification. Watch them go green; any that
+does not is either an incomplete task or a defect worth stopping for.
 
 Barriers, in the plan's own words, are hard. Do not start a phase whose
 predecessor's barrier is not green.
@@ -237,13 +313,26 @@ window-opening probe do not count as verification of interactive behaviour.
 
 ---
 
-## 9. Two known planning defects, unfixed and harmless
+## 9. Known defects and open items, none blocking
 
 - **T10's verification** names a smoke assertion that reads the fixture back, but
-  its Files column lists no test file to hold it. It was verified out of band
-  instead. By the plan's own rule this is a planning defect.
+  its Files column lists no test file to hold it. No committed test read the
+  fixture before Phase 1; it is now covered incidentally by T21, which asserts
+  terminal tick 1081 and `Faction1Victory` from the fixture.
 - **T03's Files column** omits `ClashProfileTests.cs`, which §4 assigns to T02,
   T03 and T18.
+- **Two test files exceed the 800-line hard maximum** in the coding standards:
+  `tests/Hukbo.Core.Tests/BattleSimulationTests.cs` at 1388 and
+  `ClashResolverTests.cs` at 1013. Both are the files the plan's ownership table
+  names for their tasks, and `BattleSimulationTests.cs` is also declared for T24
+  and T30, so splitting either now would contradict the plan. Backlog item, worth
+  doing after Phase 2 lands.
+- **The tall-hardwood shield currently confers no survival advantage at all.**
+  `ShieldedRosterEntriesSurviveMoreOftenThanShieldlessOnesAcrossSeedsOneThroughTwenty`
+  measured 31 of 2000 against 31 of 2000 — exactly equal. The shield only
+  reweights hit location while damage per attack is flat, so it changes *where* a
+  warrior is hit and never *whether*. **That gap is precisely what the clash is
+  meant to close**, and this test is the measurement of whether it did.
 
 ---
 
