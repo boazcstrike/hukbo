@@ -33,13 +33,41 @@ namespace Hukbo.Core.Combat;
 /// Ticks between one blow and the next. Must be positive; zero would be an
 /// infinite attack rate.
 /// </param>
+/// <param name="ComboOpenChanceBasisPoints">
+/// Basis points out of <see cref="ClashProfile.BasisPointScale"/> that a
+/// landed blow, not already part of a chain, opens an attack combination.
+/// Must be between <c>0</c> and <see cref="ClashProfile.BasisPointScale"/>
+/// inclusive. <c>0</c> is a valid, deliberate no-op — see
+/// <c>PhilippineCombatPresetV2</c>, whose profiles all set this to zero so
+/// that preset never opens a chain.
+/// </param>
+/// <param name="ComboContinueChanceBasisPoints">
+/// Basis points out of <see cref="ClashProfile.BasisPointScale"/> that an
+/// active chain survives past a blow that just landed. Must be between
+/// <c>0</c> and <see cref="ClashProfile.BasisPointScale"/> inclusive.
+/// </param>
+/// <param name="ComboMaxSteps">
+/// The ceiling this weapon imposes on a chain's length, independent of the
+/// attacker's level. Must be positive. The chain's actual maximum is the
+/// lesser of this and the attacker's level.
+/// </param>
+/// <param name="ComboCooldownTicks">
+/// Ticks between one blow and the next while a chain is active, used instead
+/// of <see cref="AttackCooldownTicks"/>. Must be positive, same rule as
+/// <see cref="AttackCooldownTicks"/>.
+/// </param>
 public readonly record struct WeaponProfile(
     int DamagePerAttack,
     int AttackRangeRaw,
-    int AttackCooldownTicks)
+    int AttackCooldownTicks,
+    int ComboOpenChanceBasisPoints = 0,
+    int ComboContinueChanceBasisPoints = 0,
+    int ComboMaxSteps = 1,
+    int ComboCooldownTicks = 1)
 {
     /// <summary>
-    /// Throws when any attribute is not positive. Called by
+    /// Throws when any attribute is not positive, or when a combo chance is
+    /// outside <c>[0, ClashProfile.BasisPointScale]</c>. Called by
     /// <see cref="CombatRuleset"/> for every declared profile, so a
     /// misconfigured preset fails loudly at construction rather than
     /// producing a battle that quietly cannot happen.
@@ -55,6 +83,30 @@ public readonly record struct WeaponProfile(
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(
             AttackCooldownTicks,
             $"{parameterName}.{nameof(AttackCooldownTicks)}");
+        ValidateBasisPoints(
+            ComboOpenChanceBasisPoints,
+            $"{parameterName}.{nameof(ComboOpenChanceBasisPoints)}");
+        ValidateBasisPoints(
+            ComboContinueChanceBasisPoints,
+            $"{parameterName}.{nameof(ComboContinueChanceBasisPoints)}");
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(
+            ComboMaxSteps,
+            $"{parameterName}.{nameof(ComboMaxSteps)}");
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(
+            ComboCooldownTicks,
+            $"{parameterName}.{nameof(ComboCooldownTicks)}");
+    }
+
+    private static void ValidateBasisPoints(int value, string parameterName)
+    {
+        if (value < 0 || value > ClashProfile.BasisPointScale)
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                value,
+                $"{parameterName} must be between 0 and " +
+                $"{ClashProfile.BasisPointScale} inclusive.");
+        }
     }
 }
 

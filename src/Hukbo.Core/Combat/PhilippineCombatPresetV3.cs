@@ -3,27 +3,46 @@ using Hukbo.Core.Mathematics;
 namespace Hukbo.Core.Combat;
 
 /// <summary>
-/// Version 2 of the pre-colonial Philippine combat preset: version 1's
-/// targeting weights, plus per-weapon damage, reach, and attack cooldown
-/// split by grip, plus a six-entry roster that fields a solo and a paired
-/// loadout for each one-handed weapon.
+/// Version 3 of the pre-colonial Philippine combat preset: version 2 minus
+/// its two paired loadouts, plus attack combinations. Fields exactly the
+/// four solo loadouts version 2 already established — Kampilan, Wasay, solo
+/// Kalis, solo Itak — each carrying the same damage, reach, cooldown,
+/// target-weight, grip, and clash values version 2 gave that weapon, plus
+/// four new combo attributes: the chance a landed blow opens a chain, the
+/// chance a chain continues past its next blow, the chain's maximum length,
+/// and the faster cooldown a chain uses while active.
 /// </summary>
 /// <remarks>
 /// Configuration is written as explicit, hand-authored data rather than a
-/// deserialized or reflection-driven configuration graph. Each preset version
-/// is a frozen snapshot: version 1's values are restated here rather than
-/// referenced, so retuning version 2 can never reach back and move a hash
-/// version 1's replays depend on.
+/// deserialized or reflection-driven configuration graph, matching the
+/// convention every earlier preset version follows. Version 3 is a frozen
+/// snapshot in the same sense versions 1 and 2 are: version 2's values are
+/// restated here rather than referenced, so retuning version 3 can never
+/// reach back and move a hash version 2's replays depend on.
 /// <para>
 /// Every attribute value below is a provisional gameplay tuning value, not a
 /// historical measurement, and none of them may be cited back into
 /// docs/research/HISTORICAL_1500s_WEAPONS.md. Weapon names carry evidence
 /// tiers recorded on <see cref="WeaponId"/> and shown in the agent inspector.
 /// </para>
+/// <para>
+/// Kalis and Itak are <see cref="WeaponGrip.OneHanded"/>, and
+/// <see cref="CombatRuleset"/> requires a one-handed weapon to declare a
+/// paired profile even when no roster entry ever resolves it — a missing
+/// paired profile is an error, not a silent fallback to the solo one. This
+/// preset's roster fields only the solo loadout for each, so the paired rows
+/// below are unreachable through <see cref="CombatRuleset.Roster"/>; they
+/// exist solely to satisfy that construction invariant. Each carries its
+/// weapon's version 2 paired damage/reach/cooldown values (the same
+/// numbers version 2 authored for its own paired row) and, for the four new
+/// combo fields, the same values as that weapon's solo row here — the
+/// neutral-default convention design section 4 already uses for version 2's
+/// own paired rows, applied consistently to an unrostered row.
+/// </para>
 /// </remarks>
-public static class PhilippineCombatPresetV2
+public static class PhilippineCombatPresetV3
 {
-    public const int Version = 3;
+    public const int Version = 1;
 
     public static CombatRuleset Rules { get; } = Build();
 
@@ -46,6 +65,8 @@ public static class PhilippineCombatPresetV2
             (BodyPart.Feet, 2),
         ]);
 
+        // Target weights, per weapon, are copied exactly from
+        // PhilippineCombatPresetV2 for the four weapons V3 fields.
         var weaponTargets = new Dictionary<WeaponId, TargetWeightProfile>
         {
             // Kampilan — Great Blade. A long single-edged blade reaching for
@@ -98,34 +119,14 @@ public static class PhilippineCombatPresetV2
                 }),
         };
 
-        // PROVISIONAL gameplay tuning values, not historical measurements.
-        // What justifies them is the physical character of the objects —
-        // length, where the mass sits, how many hands the thing takes — not
-        // any source on how hard a sixteenth-century blade hit.
-        //
-        // Two axes, not one. Across weapons the two-handed weapons top raw
-        // throughput, which is deliberate headroom for the attack
-        // combinations a later preset gives the one-handed weapons. Within a
-        // one-handed weapon, dropping the shield buys one damage and one
-        // world unit of reach and gives up the shield's halving of chest and
-        // abdomen targeting weight — neither strictly dominates, which is the
-        // requirement, because a choice that always resolves the same way is
-        // not a choice.
-        //
-        // The paired Kalis row is exactly version 1's global defaults, which
-        // makes it the control: if a battle's character shifts unexpectedly,
-        // shielded Kalis warriors are the ones whose behaviour should not
-        // have moved at all.
-        // The four ComboXxx fields on every profile below are a true no-op:
-        // ComboOpenChanceBasisPoints = 0 on every row means the roll
-        // `roll < 0` can never succeed, so V2 can never open a chain and its
-        // battles play out identically to before attack combinations
-        // existed. The other three combo fields are unreachable once no
-        // chain can open, but WeaponProfile.Validate() still requires
-        // positive values, so each row borrows that weapon's V3 solo-row
-        // combo values (docs/plans/2026-07-27-combat-preset-v3-combos.md
-        // section 5, "V2's combo values must be a true no-op") rather than
-        // inventing a divergent number.
+        // Damage/reach/cooldown are copied exactly from
+        // PhilippineCombatPresetV2 for these four weapons (both grip and, for
+        // the two one-handed weapons, both the solo and paired rows). The
+        // four combo fields are new: the design doc's section 4 attribute
+        // table gives the per-weapon Open/Continue/MaxSteps/ComboCD values
+        // used on every solo row below; each unrostered paired row (see the
+        // class remarks) reuses its own weapon's solo-row combo values as the
+        // neutral default.
         var weaponAttributes = new Dictionary<WeaponId, WeaponAttributes>
         {
             [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
@@ -133,7 +134,7 @@ public static class PhilippineCombatPresetV2
                     damage: 15,
                     reachWorldUnits: 16,
                     cooldownTicks: 7,
-                    comboOpenChanceBasisPoints: 0,
+                    comboOpenChanceBasisPoints: 2_000,
                     comboContinueChanceBasisPoints: 3_000,
                     comboMaxSteps: 2,
                     comboCooldownTicks: 4)),
@@ -143,7 +144,7 @@ public static class PhilippineCombatPresetV2
                     damage: 18,
                     reachWorldUnits: 13,
                     cooldownTicks: 8,
-                    comboOpenChanceBasisPoints: 0,
+                    comboOpenChanceBasisPoints: 1_000,
                     comboContinueChanceBasisPoints: 2_000,
                     comboMaxSteps: 2,
                     comboCooldownTicks: 5)),
@@ -153,7 +154,7 @@ public static class PhilippineCombatPresetV2
                     damage: 11,
                     reachWorldUnits: 13,
                     cooldownTicks: 5,
-                    comboOpenChanceBasisPoints: 0,
+                    comboOpenChanceBasisPoints: 3_500,
                     comboContinueChanceBasisPoints: 4_500,
                     comboMaxSteps: 4,
                     comboCooldownTicks: 3),
@@ -161,7 +162,7 @@ public static class PhilippineCombatPresetV2
                     damage: 10,
                     reachWorldUnits: 12,
                     cooldownTicks: 5,
-                    comboOpenChanceBasisPoints: 0,
+                    comboOpenChanceBasisPoints: 3_500,
                     comboContinueChanceBasisPoints: 4_500,
                     comboMaxSteps: 4,
                     comboCooldownTicks: 3)),
@@ -171,7 +172,7 @@ public static class PhilippineCombatPresetV2
                     damage: 9,
                     reachWorldUnits: 11,
                     cooldownTicks: 4,
-                    comboOpenChanceBasisPoints: 0,
+                    comboOpenChanceBasisPoints: 4_500,
                     comboContinueChanceBasisPoints: 5_500,
                     comboMaxSteps: 5,
                     comboCooldownTicks: 2),
@@ -179,7 +180,7 @@ public static class PhilippineCombatPresetV2
                     damage: 8,
                     reachWorldUnits: 10,
                     cooldownTicks: 4,
-                    comboOpenChanceBasisPoints: 0,
+                    comboOpenChanceBasisPoints: 4_500,
                     comboContinueChanceBasisPoints: 5_500,
                     comboMaxSteps: 5,
                     comboCooldownTicks: 2)),
@@ -187,16 +188,15 @@ public static class PhilippineCombatPresetV2
 
         var armors = new[] { ArmorId.LightOrganic };
 
+        // Copied exactly from PhilippineCombatPresetV2. V3's roster never
+        // pairs a shield with any weapon, so only the ShieldId.None row is
+        // ever resolved; ShieldId.TallHardwood is carried across unchanged
+        // so this data stays a faithful copy rather than a partial one.
         var shieldMultipliers = new Dictionary<ShieldId, TargetWeightProfile>
         {
             [ShieldId.None] = TargetWeightProfiles.FromMultiplierOverrides(
                 new Dictionary<BodyPart, int>()),
 
-            // PROVISIONAL gameplay tuning, not a historical measurement:
-            // a tall hardwood shield halves (500 of 1000 basis points)
-            // chest and abdomen targeting weight, raising the relative
-            // probability of arm, leg, head, neck, and face hits without
-            // inventing bonuses for those parts.
             [ShieldId.TallHardwood] =
                 TargetWeightProfiles.FromMultiplierOverrides(
                     new Dictionary<BodyPart, int>
@@ -206,23 +206,20 @@ public static class PhilippineCombatPresetV2
                     }),
         };
 
-        // Roster order is part of the content-hash contract and is indexed by
-        // Scenario.RosterCounts. The ordering rule is stated rather than
-        // incidental: weapon order first, then solo before paired within a
-        // weapon. The two-handed weapons declare no paired entry because no
-        // shield may be carried with them.
+        // Roster order is part of the content-hash contract and is indexed
+        // by Scenario.RosterCounts. All four entries are solo — V3's roster
+        // omits the two paired loadouts version 2 fields, per design section
+        // 2's scope boundary.
         var roster = new CombatLoadout[]
         {
             new(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None),
             new(WeaponId.Wasay, ArmorId.LightOrganic, ShieldId.None),
             new(WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.None),
-            new(WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.TallHardwood),
             new(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.None),
-            new(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.TallHardwood),
         };
 
         return new CombatRuleset(
-            CombatPresetId.PrecolonialPhilippinesV2,
+            CombatPresetId.PrecolonialPhilippinesV3,
             Version,
             general,
             weaponTargets,
@@ -234,33 +231,22 @@ public static class PhilippineCombatPresetV2
     }
 
     /// <summary>
-    /// The defensive-interception tuning data for the six-loadout roster.
-    /// PROVISIONAL gameplay tuning throughout; see
-    /// docs/research/WEAPON_CLASH_1500s.md and CLAUDE.md section 7. The
-    /// sixteen legacy weapon-intercept cells and the four legacy void cells
-    /// were authored under preset V1's four-loadout roster, where Kalis and
-    /// Itak always carried a <see cref="ShieldId.TallHardwood"/> shield — see
-    /// the integration design document section 3.1 for the full reasoning.
-    /// They carry across onto the shield state each row's original roster
-    /// entry actually had: Kampilan and Wasay never carried a shield, so their
-    /// rows land on the bare defender key; Kalis and Itak always did, so
-    /// theirs land on the shielded key. The ten new cells — four
-    /// weapon-intercept cells each for shieldless Kalis and shieldless Itak,
-    /// plus one new void cell for each — have no per-pair figure in the
-    /// research at all and are drawn from the loadout-level band design
-    /// section 5 derives: a weapon-intercept band of roughly 0.10 to 0.18
-    /// (1,000 to 1,800 basis points) and a void band of roughly 0.11 to 0.19
-    /// (1,100 to 1,900 basis points), reasoned as a shieldless one-handed
-    /// defender turning more with the weapon and evading more because it has
-    /// nothing else to turn with.
+    /// The defensive-interception tuning data for V3's four-loadout,
+    /// all-solo roster. Every cell below is copied exactly from
+    /// <see cref="PhilippineCombatPresetV2"/>'s shieldless (<see
+    /// cref="ShieldId.None"/>) rows, which are the only rows V3's roster ever
+    /// resolves — see <see cref="CombatRuleset"/>'s
+    /// <c>ValidateClashProfileCoversTheRoster</c>, which requires coverage
+    /// only for the (defender weapon, defender shield, attacker weapon)
+    /// combinations the roster actually contains. PROVISIONAL gameplay
+    /// tuning throughout; see docs/research/WEAPON_CLASH_1500s.md and
+    /// CLAUDE.md section 7.
     /// </summary>
     private static ClashProfile BuildClashProfile()
     {
         var weaponIntercept = new Dictionary<
             (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>
         {
-            // Legacy cells: Kampilan and Wasay defenders, bare key. Values
-            // unchanged from preset V1.
             [(WeaponId.Kampilan, ShieldId.None, WeaponId.Kampilan)] = 2_200,
             [(WeaponId.Kampilan, ShieldId.None, WeaponId.Wasay)] = 1_900,
             [(WeaponId.Kampilan, ShieldId.None, WeaponId.Kalis)] = 1_600,
@@ -271,34 +257,11 @@ public static class PhilippineCombatPresetV2
             [(WeaponId.Wasay, ShieldId.None, WeaponId.Kalis)] = 1_100,
             [(WeaponId.Wasay, ShieldId.None, WeaponId.Itak)] = 1_400,
 
-            // Legacy cells: Kalis and Itak defenders, shielded key. Values
-            // unchanged from preset V1, where these two always carried
-            // ShieldId.TallHardwood.
-            [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Kampilan)] = 500,
-            [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Wasay)] = 400,
-            [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Kalis)] = 600,
-            [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Itak)] = 600,
-
-            [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Kampilan)] = 400,
-            [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Wasay)] = 300,
-            [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Kalis)] = 500,
-            [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Itak)] = 500,
-
-            // New cells: shieldless Kalis. Provisional reconstruction, drawn
-            // from the 0.10-to-0.18 (1,000-to-1,800 basis point) weapon band
-            // in design section 5. Retuned once, within the same band, after
-            // PhilippineCombatIntegrationTests measured the shielded-versus-
-            // shieldless survival ratio at 1.145 against a required >1.15 —
-            // T60's acceptance criterion, applied here rather than waiting
-            // for the Phase 5 headless sweep because a unit test already
-            // measures it across the same 20 seeds.
             [(WeaponId.Kalis, ShieldId.None, WeaponId.Kampilan)] = 1_200,
             [(WeaponId.Kalis, ShieldId.None, WeaponId.Wasay)] = 1_000,
             [(WeaponId.Kalis, ShieldId.None, WeaponId.Kalis)] = 1_500,
             [(WeaponId.Kalis, ShieldId.None, WeaponId.Itak)] = 1_500,
 
-            // New cells: shieldless Itak. Provisional reconstruction, same
-            // band as above, retuned for the same reason.
             [(WeaponId.Itak, ShieldId.None, WeaponId.Kampilan)] = 1_100,
             [(WeaponId.Itak, ShieldId.None, WeaponId.Wasay)] = 1_000,
             [(WeaponId.Itak, ShieldId.None, WeaponId.Kalis)] = 1_400,
@@ -307,17 +270,8 @@ public static class PhilippineCombatPresetV2
 
         var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>
         {
-            // Legacy cells, carried across per the shield state each weapon's
-            // V1 roster entry actually had.
             [(WeaponId.Kampilan, ShieldId.None)] = 1_000,
             [(WeaponId.Wasay, ShieldId.None)] = 900,
-            [(WeaponId.Kalis, ShieldId.TallHardwood)] = 1_000,
-            [(WeaponId.Itak, ShieldId.TallHardwood)] = 1_100,
-
-            // New cells: the two shieldless loadouts. Provisional
-            // reconstruction, drawn from the 0.11-to-0.19 (1,100-to-1,900
-            // basis point) void band in design section 5. Retuned once, see
-            // the weapon-intercept comment above for why.
             [(WeaponId.Kalis, ShieldId.None)] = 1_350,
             [(WeaponId.Itak, ShieldId.None)] = 1_450,
         };
