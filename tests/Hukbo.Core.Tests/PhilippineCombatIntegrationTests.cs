@@ -478,6 +478,10 @@ public sealed class PhilippineCombatIntegrationTests
             PerceptionRangeRaw = 200 * FixedPoint.Scale,
             MovementSpeedRaw = FixedPoint.Scale,
             AttackCooldownTicks = 1,
+            // ZeroInterceptionRules is built off PhilippineCombatPreset.Rules
+            // (V1)'s four-loadout roster; V1 must be named explicitly now that
+            // Scenario.CombatPreset defaults to V2's six-loadout roster.
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV1,
         };
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
@@ -844,6 +848,11 @@ public sealed class PhilippineCombatIntegrationTests
             PerceptionRangeRaw = 200 * FixedPoint.Scale,
             MovementSpeedRaw = FixedPoint.Scale,
             AttackCooldownTicks = 1,
+            // ZeroInterceptionRules and Rules are both built off
+            // PhilippineCombatPreset.Rules (V1)'s four-loadout roster, so the
+            // scenario has to name V1 explicitly now that Scenario.CombatPreset
+            // defaults to V2's six-loadout roster.
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV1,
         };
 
     private static AgentState CreateAgent(

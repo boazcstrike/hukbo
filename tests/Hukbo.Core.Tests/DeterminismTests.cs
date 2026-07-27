@@ -4,6 +4,7 @@ using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Simulation;
+using Hukbo.Headless;
 
 namespace Hukbo.Core.Tests;
 
@@ -89,27 +90,94 @@ public sealed class DeterminismTests
         var first = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
         var second = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
 
-        // Re-baselined for preset version 2, in step with the golden in
-        // CombatConfigurationTests. The superseded value was
-        // 0x59FB4CA563D87A49UL, which survives above as PreClashContentHash
-        // for a different purpose entirely: it is the argument the control run
-        // passes to the state hasher, not a golden.
-        Assert.Equal(0x4EAFE27A42DE87B2UL, first.ContentHash);
+        // D1/D2 regression guard: preset V1 is frozen, declares no weapon
+        // attributes and no clash profile, and neither block is folded into
+        // its content hash -- not even a zero count -- so this value must
+        // never move. It is also PreClashContentHash above, used for a
+        // different purpose entirely: the argument the control run passes to
+        // the state hasher, not a golden pinned here for its own sake.
+        Assert.Equal(0x59FB4CA563D87A49UL, first.ContentHash);
         Assert.Equal(first.ContentHash, second.ContentHash);
     }
 
     [Fact]
     public void PresetV2ContentHash_IsPinnedAndDistinctFromV1()
     {
-        // Pinned so that an accidental edit to a V2 weight, profile, grip, or
-        // roster entry fails here rather than silently invalidating every V2
-        // replay. Changing a V2 value on purpose means a new preset version,
-        // not a new literal in this test.
+        // Pinned so that an accidental edit to a V2 weight, profile, grip,
+        // roster entry, or clash table fails here rather than silently
+        // invalidating every V2 replay. Changing a V2 value on purpose means a
+        // new preset version, not a new literal in this test. Re-baselined for
+        // the clash integration: V2 now folds a full clash profile (D1), which
+        // moved this value. The superseded value was 0xE653F1802A447662UL,
+        // captured before the six-loadout roster carried clash tables. Moved
+        // again to 0x10AB1CC226AB3636UL after the T60 retune of the
+        // shieldless Kalis/Itak cells in PhilippineCombatPresetV2.BuildClashProfile,
+        // per the plan's retune-invalidates-T23/T41/T46 sequencing rule.
         var v1 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
         var v2 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV2);
 
-        Assert.Equal(0xE653F1802A447662UL, v2.ContentHash);
+        Assert.Equal(0x10AB1CC226AB3636UL, v2.ContentHash);
         Assert.NotEqual(v1.ContentHash, v2.ContentHash);
+    }
+
+    /// <summary>
+    /// T45. <c>CombatMetrics</c> is a per-tick counter of resolutions,
+    /// accumulated only by <c>HeadlessRunner.Execute</c> for the report; it is
+    /// never read by <see cref="BattleSimulation.ComputeStateHash()"/> and
+    /// never folded into the event hash alongside the ordinary event fields.
+    /// This is the "before" (a bare <see cref="BattleSimulation"/>, which never
+    /// builds a <c>CombatMetricsAccumulator</c> at all) against the "after" (the
+    /// full headless pipeline, which builds and serializes one every tick) for
+    /// the same seed and scenario: if <c>CombatMetrics</c> had leaked into
+    /// authoritative state, the two paths would diverge. Captured fresh on this
+    /// merged tree rather than trusting the clash branch's own pair, per design
+    /// section 6.
+    /// </summary>
+    [Fact]
+    public void CombatMetrics_ReachesNeitherHash()
+    {
+        const ulong Seed = 1234;
+        const int Agents = 20;
+        const int Ticks = 200;
+
+        var bareScenario = Scenario.CreateDefault(Seed, Agents) with
+        {
+            TickLimit = Ticks,
+        };
+        bareScenario.Validate();
+        var bareSimulation = BattleSimulation.Create(bareScenario);
+        while (bareSimulation.Outcome == BattleOutcome.Ongoing &&
+            bareSimulation.Tick < bareScenario.TickLimit)
+        {
+            bareSimulation.AdvanceOneTick();
+        }
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+        string[] arguments =
+        [
+            "--agents", Agents.ToString(CultureInfo.InvariantCulture),
+            "--ticks", Ticks.ToString(CultureInfo.InvariantCulture),
+            "--seed", Seed.ToString(CultureInfo.InvariantCulture),
+        ];
+        var exitCode = HeadlessRunner.Run(arguments, output, error);
+        Assert.Equal(0, exitCode);
+
+        using var report = JsonDocument.Parse(output.ToString());
+        var headlessStateHash = report.RootElement.GetProperty("stateHash").GetString();
+        var combatMetrics = report.RootElement.GetProperty("combatMetrics");
+
+        // The "after" path actually built a non-trivial CombatMetrics: this
+        // scenario is not clash-neutral, so some accepted attack besides a
+        // landed one must have occurred, or this comparison would prove
+        // nothing about whether the metrics leaked into the hash.
+        Assert.True(
+            combatMetrics.GetProperty("acceptedAttacks").GetInt64() > 0,
+            "Expected at least one accepted attack in this run.");
+
+        Assert.Equal(
+            bareSimulation.ComputeStateHash().ToString("X16", CultureInfo.InvariantCulture),
+            headlessStateHash);
     }
 
     [Fact]
@@ -659,6 +727,13 @@ public sealed class DeterminismTests
         var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
         {
             TickLimit = 10_000,
+            // The pre-clash digest fixture was captured against preset V1
+            // (PrecolonialPhilippinesV1), the four-loadout roster, before
+            // Scenario.CombatPreset defaulted to V2. The control run has to
+            // name V1 explicitly, or it silently proves neutrality against a
+            // different preset's six-loadout roster and per-weapon attributes
+            // than the one the fixture actually recorded.
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV1,
         };
         scenario.Validate();
 
@@ -671,6 +746,20 @@ public sealed class DeterminismTests
 
         return BattleSimulation.Create(scenario, rules);
     }
+
+    /// <summary>
+    /// The pre-clash digest fixture recorded <c>WeaponId.Itak</c>'s name at
+    /// capture time under its prior identifier, <c>Bolo</c>, before the V2
+    /// weapon-identity rename (design section 2.1) renumbered no value and
+    /// changed no behaviour -- only the enum member's name. Translating the
+    /// legacy label here, rather than editing the committed fixture or its
+    /// pinned hashes, keeps the fixture's own recorded provenance intact while
+    /// still comparing the name a fixture row actually identifies. No other
+    /// weapon name differs: Kampilan, Wasay, and Kalis already carried their
+    /// current names by the commit the digest was captured from.
+    /// </summary>
+    private static string TranslateLegacyWeaponName(string legacyName) =>
+        legacyName == "Bolo" ? nameof(WeaponId.Itak) : legacyName;
 
     private static void AssertFinalAgentsMatch(
         PreClashDigest digest,
@@ -693,7 +782,9 @@ public sealed class DeterminismTests
             Assert.Equal(expected.TargetEntityId, agent.TargetEntityId ?? 0);
             Assert.Equal(expected.Intent, agent.Intent.ToString());
             Assert.Equal(expected.IsAlive, agent.IsAlive);
-            Assert.Equal(expected.Weapon, agent.Loadout.Weapon.ToString());
+            Assert.Equal(
+                TranslateLegacyWeaponName(expected.Weapon),
+                agent.Loadout.Weapon.ToString());
             Assert.Equal(expected.Armor, agent.Loadout.Armor.ToString());
             Assert.Equal(expected.Shield, agent.Loadout.Shield.ToString());
             Assert.Equal(

@@ -281,6 +281,7 @@ public sealed class HeadlessRunnerTests
             damage: 10,
             factionId: 0,
             WeaponId.Kampilan,
+            ShieldId.None,
             BodyPart.Head,
             resolution);
 

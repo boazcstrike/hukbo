@@ -26,6 +26,62 @@ public sealed class BattleEventTests
         }
     }
 
+    /// <summary>
+    /// T42 / D5. <see cref="AttackResolution.Landed"/> is packed at numeric
+    /// zero into the fourth byte of the combat-context field, which is safe
+    /// only because absence is tested on the whole field and the weapon byte
+    /// is never zero for an attack event: <see cref="WeaponId"/> starts
+    /// numbering at one. If a future weapon or the resolution enum ever
+    /// started at zero, or if a fifth field were packed into the context
+    /// without widening this reasoning, an attack carrying
+    /// <see cref="AttackResolution.Landed"/> could no longer be told apart
+    /// from an event with no combat context at all. This test pins the
+    /// concrete mechanism rather than only the round-trip.
+    /// </summary>
+    [Fact]
+    public void Landed_IsNumericZero_AndWeaponIsNeverZero_SoAbsenceStaysUnambiguous()
+    {
+        Assert.Equal(0, (int)AttackResolution.Landed);
+
+        foreach (var weapon in Enum.GetValues<WeaponId>())
+        {
+            Assert.NotEqual(0, (int)weapon);
+        }
+
+        // A Landed attack event, packed with the lowest-numbered weapon,
+        // shield, and hit location this profile declares, must still report
+        // Weapon/Shield/HitLocation/Resolution as populated (non-null) rather
+        // than being mistaken for the all-zero "absent" sentinel.
+        var lowestWeapon = Enum.GetValues<WeaponId>().Min();
+        var lowestShield = Enum.GetValues<ShieldId>().Min();
+        var lowestHitLocation = BodyPartCatalog.Ordered.Min();
+
+        var landed = BattleEvent.Attack(
+            sequence: 1,
+            tick: 1,
+            sourceEntityId: 1,
+            targetEntityId: 2,
+            damage: 1,
+            factionId: 0,
+            lowestWeapon,
+            lowestShield,
+            lowestHitLocation,
+            AttackResolution.Landed);
+
+        Assert.NotNull(landed.Weapon);
+        Assert.NotNull(landed.Shield);
+        Assert.NotNull(landed.HitLocation);
+        Assert.NotNull(landed.Resolution);
+        Assert.Equal(AttackResolution.Landed, landed.Resolution);
+
+        // The default (unvalidated) BattleEvent is the one value for which
+        // the whole packed field is genuinely zero -- carrying no weapon at
+        // all rather than a weapon paired with Landed.
+        var absent = default(BattleEvent);
+        Assert.Null(absent.Weapon);
+        Assert.Null(absent.Resolution);
+    }
+
     [Fact]
     public void AttackRoundTripsEveryCombinationOfPackedCombatContext()
     {
@@ -94,6 +150,7 @@ public sealed class BattleEventTests
             damage: 7,
             factionId: 0,
             WeaponId.Itak,
+            ShieldId.None,
             BodyPart.WeaponArm);
 
         Assert.Equal(AttackResolution.Landed, attack.Resolution);
@@ -115,6 +172,7 @@ public sealed class BattleEventTests
             damage: 0,
             factionId: 0,
             WeaponId.Itak,
+            ShieldId.None,
             BodyPart.WeaponArm,
             resolution);
 
@@ -132,6 +190,7 @@ public sealed class BattleEventTests
             damage: 1,
             factionId: 0,
             WeaponId.Kampilan,
+            ShieldId.None,
             BodyPart.Head,
             (AttackResolution)999));
     }

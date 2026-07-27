@@ -58,10 +58,13 @@ internal static class NaiveClashResolution
         long shield = profile.ResolveShieldIntercept(defenderShield);
 
         // Step 2.
-        long weapon = profile.ResolveWeaponIntercept(defenderWeapon, attackerWeapon);
+        long weapon = profile.ResolveWeaponIntercept(
+            defenderWeapon,
+            defenderShield,
+            attackerWeapon);
 
         // Step 3.
-        long voidChannel = profile.ResolveVoid(defenderWeapon);
+        long voidChannel = profile.ResolveVoid(defenderWeapon, defenderShield);
 
         // Step 4. Each channel is rescaled independently and each division
         // truncates, so the post-rescale total lands at or below the ceiling

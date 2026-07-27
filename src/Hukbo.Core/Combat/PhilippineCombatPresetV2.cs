@@ -234,18 +234,23 @@ public static class PhilippineCombatPresetV2
 
             // New cells: shieldless Kalis. Provisional reconstruction, drawn
             // from the 0.10-to-0.18 (1,000-to-1,800 basis point) weapon band
-            // in design section 5.
-            [(WeaponId.Kalis, ShieldId.None, WeaponId.Kampilan)] = 1_400,
-            [(WeaponId.Kalis, ShieldId.None, WeaponId.Wasay)] = 1_200,
-            [(WeaponId.Kalis, ShieldId.None, WeaponId.Kalis)] = 1_700,
-            [(WeaponId.Kalis, ShieldId.None, WeaponId.Itak)] = 1_700,
+            // in design section 5. Retuned once, within the same band, after
+            // PhilippineCombatIntegrationTests measured the shielded-versus-
+            // shieldless survival ratio at 1.145 against a required >1.15 —
+            // T60's acceptance criterion, applied here rather than waiting
+            // for the Phase 5 headless sweep because a unit test already
+            // measures it across the same 20 seeds.
+            [(WeaponId.Kalis, ShieldId.None, WeaponId.Kampilan)] = 1_200,
+            [(WeaponId.Kalis, ShieldId.None, WeaponId.Wasay)] = 1_000,
+            [(WeaponId.Kalis, ShieldId.None, WeaponId.Kalis)] = 1_500,
+            [(WeaponId.Kalis, ShieldId.None, WeaponId.Itak)] = 1_500,
 
             // New cells: shieldless Itak. Provisional reconstruction, same
-            // band as above.
-            [(WeaponId.Itak, ShieldId.None, WeaponId.Kampilan)] = 1_300,
-            [(WeaponId.Itak, ShieldId.None, WeaponId.Wasay)] = 1_100,
-            [(WeaponId.Itak, ShieldId.None, WeaponId.Kalis)] = 1_600,
-            [(WeaponId.Itak, ShieldId.None, WeaponId.Itak)] = 1_600,
+            // band as above, retuned for the same reason.
+            [(WeaponId.Itak, ShieldId.None, WeaponId.Kampilan)] = 1_100,
+            [(WeaponId.Itak, ShieldId.None, WeaponId.Wasay)] = 1_000,
+            [(WeaponId.Itak, ShieldId.None, WeaponId.Kalis)] = 1_400,
+            [(WeaponId.Itak, ShieldId.None, WeaponId.Itak)] = 1_400,
         };
 
         var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>
@@ -259,9 +264,10 @@ public static class PhilippineCombatPresetV2
 
             // New cells: the two shieldless loadouts. Provisional
             // reconstruction, drawn from the 0.11-to-0.19 (1,100-to-1,900
-            // basis point) void band in design section 5.
-            [(WeaponId.Kalis, ShieldId.None)] = 1_500,
-            [(WeaponId.Itak, ShieldId.None)] = 1_600,
+            // basis point) void band in design section 5. Retuned once, see
+            // the weapon-intercept comment above for why.
+            [(WeaponId.Kalis, ShieldId.None)] = 1_350,
+            [(WeaponId.Itak, ShieldId.None)] = 1_450,
         };
 
         var hardShareBases = new Dictionary<WeaponId, int>
