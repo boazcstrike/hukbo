@@ -463,15 +463,19 @@ public sealed class CombatRuleset
             {
                 try
                 {
-                    ClashProfile.ResolveWeaponIntercept(defender.Weapon, attacker.Weapon);
+                    ClashProfile.ResolveWeaponIntercept(
+                        defender.Weapon,
+                        defender.Shield,
+                        attacker.Weapon);
                     ClashProfile.ResolveHardShareBase(attacker.Weapon);
                 }
                 catch (ArgumentOutOfRangeException exception)
                 {
                     throw new ArgumentException(
                         "The clash profile carries no value for roster " +
-                        $"defender weapon {defender.Weapon} against attacker " +
-                        $"weapon {attacker.Weapon}.",
+                        $"defender weapon {defender.Weapon} with shield " +
+                        $"{defender.Shield} against attacker weapon " +
+                        $"{attacker.Weapon}.",
                         ClashProfileParameterName,
                         exception);
                 }
@@ -479,7 +483,7 @@ public sealed class CombatRuleset
 
             try
             {
-                ClashProfile.ResolveVoid(defender.Weapon);
+                ClashProfile.ResolveVoid(defender.Weapon, defender.Shield);
                 ClashProfile.ResolveHardShareMultiplier(defender.Weapon);
                 ClashProfile.ResolveShieldIntercept(defender.Shield);
             }
@@ -487,7 +491,7 @@ public sealed class CombatRuleset
             {
                 throw new ArgumentException(
                     "The clash profile carries no row for roster weapon " +
-                    $"{defender.Weapon}.",
+                    $"{defender.Weapon} with shield {defender.Shield}.",
                     ClashProfileParameterName,
                     exception);
             }
@@ -545,12 +549,24 @@ public sealed class CombatRuleset
     }
 
     /// <summary>
-    /// Folds all thirty-two clash tuning values into the content hash. Every
-    /// table is read through the profile's ordered accessors, which sort by
-    /// ascending enum value, so two rulesets carrying identical tuning data
-    /// supplied in different dictionary order hash identically. Without that a
-    /// replay would refuse a save that is in fact the same configuration.
+    /// Folds every clash tuning value into the content hash. Every table is
+    /// read through the profile's ordered accessors, which sort by ascending
+    /// enum value, so two rulesets carrying identical tuning data supplied in
+    /// different dictionary order hash identically. Without that a replay
+    /// would refuse a save that is in fact the same configuration.
     /// </summary>
+    /// <remarks>
+    /// Fold order per D3.1: roster (already folded above), weapon attributes
+    /// (already folded above), weapon intercepts, shield scalar, void
+    /// channels, hard-share rows. The weapon-intercept fold carries the
+    /// defender's shield alongside the defender and attacker weapons — the
+    /// key that stops the T13A hole, where a profile differing only in
+    /// whether a cell describes a shielded or a bare defender would otherwise
+    /// hash identically. The void channel folds separately from the
+    /// hard-share rows because the void channel is keyed on
+    /// (weapon, shield) while the hard-share tables stay weapon-keyed; the two
+    /// no longer join into one row per weapon.
+    /// </remarks>
     private void FoldClashProfile(ref ulong hash)
     {
         var cells = ClashProfile.OrderedWeaponIntercepts.ToArray();
@@ -558,18 +574,27 @@ public sealed class CombatRuleset
         foreach (var (key, value) in cells)
         {
             Fnv1a.Add(ref hash, (ulong)key.Defender);
+            Fnv1a.Add(ref hash, (ulong)key.DefenderShield);
             Fnv1a.Add(ref hash, (ulong)key.Attacker);
             Fnv1a.Add(ref hash, (ulong)value);
         }
 
         Fnv1a.Add(ref hash, (ulong)ClashProfile.ShieldInterceptBasisPoints);
 
-        var rows = ClashProfile.OrderedWeaponRows.ToArray();
-        Fnv1a.Add(ref hash, (ulong)rows.Length);
-        foreach (var (weapon, voidChannel, hardShareBase, hardShareMultiplier) in rows)
+        var voidCells = ClashProfile.OrderedVoidChannels.ToArray();
+        Fnv1a.Add(ref hash, (ulong)voidCells.Length);
+        foreach (var (key, value) in voidCells)
+        {
+            Fnv1a.Add(ref hash, (ulong)key.Weapon);
+            Fnv1a.Add(ref hash, (ulong)key.Shield);
+            Fnv1a.Add(ref hash, (ulong)value);
+        }
+
+        var hardShareRows = ClashProfile.OrderedHardShareRows.ToArray();
+        Fnv1a.Add(ref hash, (ulong)hardShareRows.Length);
+        foreach (var (weapon, hardShareBase, hardShareMultiplier) in hardShareRows)
         {
             Fnv1a.Add(ref hash, (ulong)weapon);
-            Fnv1a.Add(ref hash, (ulong)voidChannel);
             Fnv1a.Add(ref hash, (ulong)hardShareBase);
             Fnv1a.Add(ref hash, (ulong)hardShareMultiplier);
         }

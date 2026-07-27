@@ -8,19 +8,35 @@ public sealed class ClashProfileTests
     public void Constructor_RoundTripsEveryTable()
     {
         // Every cell is given a distinct value, so a table wired to the wrong
-        // accessor, or a matrix transposed between defender and attacker,
-        // fails here rather than surviving as a plausible-looking number.
+        // accessor, or a matrix transposed between defender and attacker (or
+        // between the defender's weapon and shield), fails here rather than
+        // surviving as a plausible-looking number.
         var weapons = Enum.GetValues<WeaponId>();
-        var matrix = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>();
+        var shields = Enum.GetValues<ShieldId>();
+
+        var matrix = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>();
         foreach (var defender in weapons)
         {
-            foreach (var attacker in weapons)
+            foreach (var defenderShield in shields)
             {
-                matrix[(defender, attacker)] = MatrixCell(defender, attacker);
+                foreach (var attacker in weapons)
+                {
+                    matrix[(defender, defenderShield, attacker)] =
+                        MatrixCell(defender, defenderShield, attacker);
+                }
             }
         }
 
-        var voidChannel = weapons.ToDictionary(weapon => weapon, VoidCell);
+        var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>();
+        foreach (var weapon in weapons)
+        {
+            foreach (var shield in shields)
+            {
+                voidChannel[(weapon, shield)] = VoidCell(weapon, shield);
+            }
+        }
+
         var hardShareBases = weapons.ToDictionary(weapon => weapon, HardShareBaseCell);
         var hardShareMultipliers =
             weapons.ToDictionary(weapon => weapon, HardShareMultiplierCell);
@@ -37,14 +53,20 @@ public sealed class ClashProfileTests
 
         foreach (var defender in weapons)
         {
-            foreach (var attacker in weapons)
+            foreach (var defenderShield in shields)
             {
+                foreach (var attacker in weapons)
+                {
+                    Assert.Equal(
+                        MatrixCell(defender, defenderShield, attacker),
+                        profile.ResolveWeaponIntercept(defender, defenderShield, attacker));
+                }
+
                 Assert.Equal(
-                    MatrixCell(defender, attacker),
-                    profile.ResolveWeaponIntercept(defender, attacker));
+                    VoidCell(defender, defenderShield),
+                    profile.ResolveVoid(defender, defenderShield));
             }
 
-            Assert.Equal(VoidCell(defender), profile.ResolveVoid(defender));
             Assert.Equal(
                 HardShareBaseCell(defender),
                 profile.ResolveHardShareBase(defender));
@@ -62,23 +84,34 @@ public sealed class ClashProfileTests
     }
 
     [Fact]
-    public void Neutral_ReportsZeroInterceptionForEveryRosterPair()
+    public void Neutral_ReportsZeroInterceptionForEveryWeaponAndShieldCombination()
     {
-        // Iterating the declared enums rather than the shipped roster: it
-        // covers every roster pairing by construction and keeps this case
+        // Neutral resolves any key to zero -- it does not throw for an
+        // undeclared cell the way a real profile does, and it needs no
+        // roster to answer for every weapon and shield. Iterating the
+        // declared enums rather than a shipped roster keeps this case
         // independent of any later roster or preset change.
         foreach (var defenderWeapon in Enum.GetValues<WeaponId>())
         {
-            Assert.Equal(0, ClashProfile.Neutral.ResolveVoid(defenderWeapon));
-
-            foreach (var attackerWeapon in Enum.GetValues<WeaponId>())
+            foreach (var defenderShield in Enum.GetValues<ShieldId>())
             {
                 Assert.Equal(
                     0,
-                    ClashProfile.Neutral.ResolveWeaponIntercept(
-                        defenderWeapon,
-                        attackerWeapon));
+                    ClashProfile.Neutral.ResolveVoid(defenderWeapon, defenderShield));
+
+                foreach (var attackerWeapon in Enum.GetValues<WeaponId>())
+                {
+                    Assert.Equal(
+                        0,
+                        ClashProfile.Neutral.ResolveWeaponIntercept(
+                            defenderWeapon,
+                            defenderShield,
+                            attackerWeapon));
+                }
             }
+
+            Assert.Equal(0, ClashProfile.Neutral.ResolveHardShareBase(defenderWeapon));
+            Assert.Equal(0, ClashProfile.Neutral.ResolveHardShareMultiplier(defenderWeapon));
         }
 
         foreach (var defenderShield in Enum.GetValues<ShieldId>())
@@ -89,6 +122,35 @@ public sealed class ClashProfileTests
         }
 
         Assert.Equal(0, ClashProfile.Neutral.ShieldInterceptBasisPoints);
+    }
+
+    /// <summary>
+    /// D4: coverage of the roster is no longer this type's job, so a profile
+    /// declaring no cells at all -- unlike <see cref="ClashProfile.Neutral"/>
+    /// -- throws rather than resolving to zero.
+    /// </summary>
+    [Fact]
+    public void ConstructorWithNoCells_ThrowsOnResolveRatherThanReturningZero()
+    {
+        var empty = new ClashProfile(
+            weaponIntercept: new Dictionary<
+                (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>(),
+            shieldIntercept: 0,
+            voidChannel: new Dictionary<(WeaponId Weapon, ShieldId Shield), int>(),
+            hardShareBases: new Dictionary<WeaponId, int>(),
+            hardShareMultipliers: new Dictionary<WeaponId, int>(),
+            minimumHardShareBasisPoints: 0,
+            maximumHardShareBasisPoints: ClashProfile.BasisPointScale,
+            maximumInterceptionBasisPoints: ClashProfile.BasisPointScale);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            empty.ResolveWeaponIntercept(WeaponId.Kalis, ShieldId.None, WeaponId.Kalis));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            empty.ResolveVoid(WeaponId.Kalis, ShieldId.None));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            empty.ResolveHardShareBase(WeaponId.Kalis));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            empty.ResolveHardShareMultiplier(WeaponId.Kalis));
     }
 
     /// <summary>
@@ -179,19 +241,34 @@ public sealed class ClashProfileTests
         int maximumInterception = ClashProfile.BasisPointScale)
     {
         var weapons = Enum.GetValues<WeaponId>();
-        var matrix = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>();
+        var shields = Enum.GetValues<ShieldId>();
+
+        var matrix = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>();
         foreach (var defender in weapons)
         {
-            foreach (var attacker in weapons)
+            foreach (var defenderShield in shields)
             {
-                matrix[(defender, attacker)] = matrixCell;
+                foreach (var attacker in weapons)
+                {
+                    matrix[(defender, defenderShield, attacker)] = matrixCell;
+                }
+            }
+        }
+
+        var voidTable = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>();
+        foreach (var weapon in weapons)
+        {
+            foreach (var shield in shields)
+            {
+                voidTable[(weapon, shield)] = voidChannel;
             }
         }
 
         return new ClashProfile(
             matrix,
             shieldIntercept,
-            weapons.ToDictionary(weapon => weapon, _ => voidChannel),
+            voidTable,
             weapons.ToDictionary(weapon => weapon, _ => hardShareBase),
             weapons.ToDictionary(weapon => weapon, _ => hardShareMultiplier),
             minimumHardShare,
@@ -199,10 +276,11 @@ public sealed class ClashProfileTests
             maximumInterception);
     }
 
-    private static int MatrixCell(WeaponId defender, WeaponId attacker) =>
-        (((int)defender * 10) + (int)attacker) * 10;
+    private static int MatrixCell(WeaponId defender, ShieldId defenderShield, WeaponId attacker) =>
+        ((int)defender * 1_000) + ((int)defenderShield * 100) + ((int)attacker * 10);
 
-    private static int VoidCell(WeaponId defender) => 900 + (int)defender;
+    private static int VoidCell(WeaponId weapon, ShieldId shield) =>
+        900 + ((int)weapon * 10) + (int)shield;
 
     private static int HardShareBaseCell(WeaponId attacker) => 1_200 + (int)attacker;
 

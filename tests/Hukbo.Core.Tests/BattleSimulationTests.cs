@@ -274,14 +274,16 @@ public sealed class BattleSimulationTests
         // collision stage does not own. The window comparison below is the
         // assertion that actually guards collision storage.
         //
-        // Raised again from 900,000 when BattleEvent widened from 80 to 88 bytes
-        // to carry the nullable attack resolution. The measured figure moved from
-        // about 898,000 to 988,192, the same 9.9 per cent the whole-workload
-        // allocation moved by, and 900,000 had left only a fifth of a per cent of
-        // headroom. The new ceiling restores about eleven per cent so one more
-        // field does not break it, without loosening what the test claims: that
-        // collision ticks allocate a bounded amount rather than growing with time.
-        const long maximumAllocatedBytes = 1_100_000;
+        // Reverted to 900,000 per D5: the merged BattleEvent packs Weapon,
+        // Shield, HitLocation, and Resolution into the same one-int
+        // _combatContext field (ResolutionShift = 24, the fourth spare byte),
+        // so the event never widened to 88 bytes the way the pre-integration
+        // clash branch's raise to 1,100,000 assumed. Measured on this merged
+        // tree (T43) at 815,312 bytes -- comfortably under the 900,000
+        // ceiling, and below the clash branch's own 898,000-ish pre-widening
+        // figure too, because this run's ClashResolver now turns some accepted
+        // attacks aside instead of emitting a Damage event for every one.
+        const long maximumAllocatedBytes = 900_000;
         const int agentsPerFaction = 12;
 
         // Crowd two lines into one another so the resolver works every tick:
@@ -609,6 +611,15 @@ public sealed class BattleSimulationTests
         var scenario = CreateTestScenario() with
         {
             AttackRangeRaw = 12 * FixedPoint.Scale,
+            // D2: the clash profile folds into the content hash only when one
+            // was supplied. Preset V1 (CreateTestScenario's default) declares
+            // none, so WithClashProfile(registryRules.ClashProfile) below would
+            // hand it the Neutral fallback explicitly and turn an undeclared
+            // profile into a declared one, moving the content hash the state
+            // hash depends on and breaking the very equivalence this test
+            // checks. Preset V2 already declares a profile, so round-tripping
+            // it through WithClashProfile changes nothing.
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
         };
         // The preset's own profile, for the reason recorded on
         // Create_WithTheInjectedPresetRulesetMatchesTheRegistryPathExactly.
@@ -968,21 +979,27 @@ public sealed class BattleSimulationTests
     private static ClashProfile BuildAlwaysEvadedProfile()
     {
         var weapons = Enum.GetValues<WeaponId>();
-        var matrix = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>();
+        var shields = Enum.GetValues<ShieldId>();
+
+        var matrix = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>();
+        var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>();
         foreach (var defender in weapons)
         {
-            foreach (var attacker in weapons)
+            foreach (var shield in shields)
             {
-                matrix[(defender, attacker)] = 0;
+                voidChannel[(defender, shield)] = ClashProfile.BasisPointScale;
+                foreach (var attacker in weapons)
+                {
+                    matrix[(defender, shield, attacker)] = 0;
+                }
             }
         }
 
         return new ClashProfile(
             matrix,
             shieldIntercept: 0,
-            voidChannel: weapons.ToDictionary(
-                weapon => weapon,
-                _ => ClashProfile.BasisPointScale),
+            voidChannel: voidChannel,
             hardShareBases: weapons.ToDictionary(weapon => weapon, _ => 0),
             hardShareMultipliers: weapons.ToDictionary(
                 weapon => weapon,
@@ -1000,23 +1017,31 @@ public sealed class BattleSimulationTests
     private static ClashProfile BuildSplitResolutionProfile()
     {
         var weapons = Enum.GetValues<WeaponId>();
-        var matrix = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>();
+        var shields = Enum.GetValues<ShieldId>();
+
+        var matrix = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>();
+        var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>();
         foreach (var defender in weapons)
         {
-            foreach (var attacker in weapons)
+            foreach (var shield in shields)
             {
-                matrix[(defender, attacker)] =
-                    defender == WeaponId.Kalis &&
-                    attacker == WeaponId.Wasay
-                        ? ClashProfile.BasisPointScale
-                        : 0;
+                voidChannel[(defender, shield)] = 0;
+                foreach (var attacker in weapons)
+                {
+                    matrix[(defender, shield, attacker)] =
+                        defender == WeaponId.Kalis &&
+                        attacker == WeaponId.Wasay
+                            ? ClashProfile.BasisPointScale
+                            : 0;
+                }
             }
         }
 
         return new ClashProfile(
             matrix,
             shieldIntercept: 0,
-            voidChannel: weapons.ToDictionary(weapon => weapon, _ => 0),
+            voidChannel: voidChannel,
             hardShareBases: weapons.ToDictionary(
                 weapon => weapon,
                 weapon => weapon == WeaponId.Wasay
@@ -1040,35 +1065,56 @@ public sealed class BattleSimulationTests
     /// All sixteen weapon-intercept cells have no evidentiary confidence
     /// whatsoever.
     /// </remarks>
-    private static ClashProfile BuildShippedClashTables() =>
-        new(
-            new Dictionary<(WeaponId Defender, WeaponId Attacker), int>
+    private static ClashProfile BuildShippedClashTables()
+    {
+        var weaponInterceptByWeaponPair = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>
+        {
+            [(WeaponId.Kampilan, WeaponId.Kampilan)] = 2_200,
+            [(WeaponId.Kampilan, WeaponId.Wasay)] = 1_900,
+            [(WeaponId.Kampilan, WeaponId.Kalis)] = 1_600,
+            [(WeaponId.Kampilan, WeaponId.Itak)] = 2_000,
+            [(WeaponId.Wasay, WeaponId.Kampilan)] = 1_500,
+            [(WeaponId.Wasay, WeaponId.Wasay)] = 1_300,
+            [(WeaponId.Wasay, WeaponId.Kalis)] = 1_100,
+            [(WeaponId.Wasay, WeaponId.Itak)] = 1_400,
+            [(WeaponId.Kalis, WeaponId.Kampilan)] = 500,
+            [(WeaponId.Kalis, WeaponId.Wasay)] = 400,
+            [(WeaponId.Kalis, WeaponId.Kalis)] = 600,
+            [(WeaponId.Kalis, WeaponId.Itak)] = 600,
+            [(WeaponId.Itak, WeaponId.Kampilan)] = 400,
+            [(WeaponId.Itak, WeaponId.Wasay)] = 300,
+            [(WeaponId.Itak, WeaponId.Kalis)] = 500,
+            [(WeaponId.Itak, WeaponId.Itak)] = 500,
+        };
+
+        var voidByWeapon = new Dictionary<WeaponId, int>
+        {
+            [WeaponId.Kampilan] = 1_000,
+            [WeaponId.Wasay] = 900,
+            [WeaponId.Kalis] = 1_000,
+            [WeaponId.Itak] = 1_100,
+        };
+
+        var weaponIntercept = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>();
+        var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>();
+        foreach (var shield in Enum.GetValues<ShieldId>())
+        {
+            foreach (var (pair, value) in weaponInterceptByWeaponPair)
             {
-                [(WeaponId.Kampilan, WeaponId.Kampilan)] = 2_200,
-                [(WeaponId.Kampilan, WeaponId.Wasay)] = 1_900,
-                [(WeaponId.Kampilan, WeaponId.Kalis)] = 1_600,
-                [(WeaponId.Kampilan, WeaponId.Itak)] = 2_000,
-                [(WeaponId.Wasay, WeaponId.Kampilan)] = 1_500,
-                [(WeaponId.Wasay, WeaponId.Wasay)] = 1_300,
-                [(WeaponId.Wasay, WeaponId.Kalis)] = 1_100,
-                [(WeaponId.Wasay, WeaponId.Itak)] = 1_400,
-                [(WeaponId.Kalis, WeaponId.Kampilan)] = 500,
-                [(WeaponId.Kalis, WeaponId.Wasay)] = 400,
-                [(WeaponId.Kalis, WeaponId.Kalis)] = 600,
-                [(WeaponId.Kalis, WeaponId.Itak)] = 600,
-                [(WeaponId.Itak, WeaponId.Kampilan)] = 400,
-                [(WeaponId.Itak, WeaponId.Wasay)] = 300,
-                [(WeaponId.Itak, WeaponId.Kalis)] = 500,
-                [(WeaponId.Itak, WeaponId.Itak)] = 500,
-            },
+                weaponIntercept[(pair.Defender, shield, pair.Attacker)] = value;
+            }
+
+            foreach (var (weapon, value) in voidByWeapon)
+            {
+                voidChannel[(weapon, shield)] = value;
+            }
+        }
+
+        return new ClashProfile(
+            weaponIntercept,
             shieldIntercept: 2_400,
-            voidChannel: new Dictionary<WeaponId, int>
-            {
-                [WeaponId.Kampilan] = 1_000,
-                [WeaponId.Wasay] = 900,
-                [WeaponId.Kalis] = 1_000,
-                [WeaponId.Itak] = 1_100,
-            },
+            voidChannel: voidChannel,
             hardShareBases: new Dictionary<WeaponId, int>
             {
                 [WeaponId.Kampilan] = 3_300,
@@ -1086,6 +1132,7 @@ public sealed class BattleSimulationTests
             minimumHardShareBasisPoints: 500,
             maximumHardShareBasisPoints: 6_000,
             maximumInterceptionBasisPoints: 5_500);
+    }
 
     /// <summary>
     /// A structurally valid ruleset whose roster is one loadout, so it cannot
@@ -1139,6 +1186,13 @@ public sealed class BattleSimulationTests
             BodyRadiusRaw = FixedPoint.Scale / 2,
             MovementSpeedRaw = FixedPoint.Scale / 2,
             AttackCooldownTicks = 1,
+            // This file's rulesets (PresetWith, BuildRulesetWithASingleEntryRoster)
+            // are all built off PhilippineCombatPreset.Rules (V1)'s four-loadout
+            // roster. Scenario.CombatPreset now defaults to V2's six-loadout
+            // roster, so it has to be pinned back to V1 here or
+            // BattleSimulation.AssertRosterMatchesRegisteredPreset rejects every
+            // injected ruleset in this file as a roster mismatch.
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV1,
         };
 
     private static AgentState CreateAgent(

@@ -1,5 +1,7 @@
 # Weapon clash on preset V2 — integration plan
 
+> **Archived: reference only.** This document is deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md`, `SIMULATION-GAME-STANDARDS.md` §14, and the skills in `.claude/skills/`. The integration this plan describes shipped; see `docs/development/testing.md` for the recorded gate result and acceptance figures.
+
 Date: 2026-07-27
 Design: [2026-07-27-clash-preset-v2-integration-design.md](2026-07-27-clash-preset-v2-integration-design.md)
 Branch: `clash-integration`, based on `main` at `de19c57`.

@@ -1,5 +1,9 @@
 # Weapon clash — session handoff
 
+> **Archived: reference only.** This plan is complete and deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
+
+Superseded by: [2026-07-27-clash-preset-v2-integration.md](2026-07-27-clash-preset-v2-integration.md)
+
 Written 2026-07-27 to move this work into a fresh session. Read this file first,
 then the four files in section 2, then start at section 7.
 

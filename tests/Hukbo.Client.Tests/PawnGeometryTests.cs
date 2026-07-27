@@ -132,6 +132,53 @@ public sealed class PawnGeometryTests
     }
 
     /// <summary>
+    /// No shield in the loadout draws no block on the battlefield: the
+    /// silhouette carries only what the authoritative Core loadout grants.
+    /// </summary>
+    [Fact]
+    public void Create_OmitsTheShieldBoundsForAnUnshieldedWarrior()
+    {
+        var appearance = PawnAppearanceFactory.Create(
+            0,
+            WeaponId.Kalis,
+            ShieldId.None) with
+        { ShieldRole = PawnShieldRole.None };
+
+        var layout = PawnGeometry.Create(new Vector2(100, 100), 1f, appearance);
+
+        Assert.True(layout.ShieldBounds.IsEmpty);
+    }
+
+    /// <summary>
+    /// A shielded warrior draws a solid block beside the torso at every
+    /// detail tier, including <see cref="PawnDetailTier.Low"/> — a shield
+    /// changes what the warrior is, not how ornamented they are, so it must
+    /// stay legible at distance and be contained in the visual bounds like
+    /// every other rendered part.
+    /// </summary>
+    [Theory]
+    [InlineData(0.05f)]
+    [InlineData(1f)]
+    [InlineData(3f)]
+    public void Create_DrawsTheShieldBoundsAtEveryDetailTierWhenShielded(
+        float cameraZoom)
+    {
+        var appearance = PawnAppearanceFactory.Create(
+            0,
+            WeaponId.Kalis,
+            ShieldId.TallHardwood) with
+        { ShieldRole = PawnShieldRole.TallHardwood };
+
+        var layout = PawnGeometry.Create(
+            new Vector2(100, 100),
+            cameraZoom,
+            appearance);
+
+        Assert.False(layout.ShieldBounds.IsEmpty);
+        Assert.True(layout.VisualBounds.Contains(layout.ShieldBounds));
+    }
+
+    /// <summary>
     /// The swing pose is optional so that every existing call site and every
     /// existing case here compiles and passes unchanged. A neutral pose is
     /// asserted alongside no pose at all, because <c>default(SwingPose)</c> is
@@ -142,7 +189,7 @@ public sealed class PawnGeometryTests
     public void Create_WithoutASwingPose_MatchesTheStaticLayout()
     {
         var footAnchor = new Vector2(137.25f, 241.75f);
-        var baseAppearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan);
+        var baseAppearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan, ShieldId.None);
 
         foreach (var role in Enum.GetValues<PawnWeaponRole>())
         {
@@ -181,7 +228,7 @@ public sealed class PawnGeometryTests
     public void Create_WithASwingPose_RotatesTheWeaponAndLeansTheTorso()
     {
         var footAnchor = new Vector2(140f, 240f);
-        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan, ShieldId.None);
         var pose = new SwingPose(
             SwingPhase.ImpactHold,
             PhaseProgress: 0.5f,
@@ -222,7 +269,7 @@ public sealed class PawnGeometryTests
     public void Create_ExposesTheSwingTrailOnTheLayoutRatherThanRequiringTheRendererToRecomputeIt()
     {
         var footAnchor = new Vector2(140f, 240f);
-        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan, ShieldId.None);
         var pose = new SwingPose(
             SwingPhase.Strike,
             PhaseProgress: 1f,
@@ -259,7 +306,7 @@ public sealed class PawnGeometryTests
     public void Create_OmitsTheSwingTrailAtTheLowDetailTier()
     {
         var footAnchor = new Vector2(140f, 240f);
-        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan, ShieldId.None);
         var pose = new SwingPose(
             SwingPhase.Strike,
             PhaseProgress: 1f,
