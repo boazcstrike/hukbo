@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.Json;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
 using Hukbo.Core.Mathematics;
@@ -7,6 +9,27 @@ namespace Hukbo.Core.Tests;
 
 public sealed class DeterminismTests
 {
+    /// <summary>
+    /// The ruleset content hash recorded at the commit the pre-clash digest was
+    /// captured from. It is passed to the state hasher as a literal rather than
+    /// read off the injected ruleset, and that is what makes the comparison
+    /// survive folding the clash tables into <c>ComputeContentHash</c>: that fold
+    /// moves every content hash, including a neutral one, because
+    /// <c>Fnv1a.Add</c> runs eight multiply rounds per word whatever the word
+    /// contains. It is <b>not</b> one of the golden constants the
+    /// implementation phase re-baselines, and must not be swept up in that edit.
+    /// </summary>
+    private const ulong PreClashContentHash = 0x59FB4CA563D87A49UL;
+
+    /// <summary>
+    /// The state hash the pre-change build reported at the terminal tick of the
+    /// seed-1, two-hundred-agent workload.
+    /// </summary>
+    private const ulong PreClashTerminalStateHash = 0xDC7F2E7A107C885AUL;
+
+    private const string PreClashDigestFileName =
+        "seed-1-200-agents-preclash-digest.json";
+
     [Fact]
     public void IndependentSameSeedRunsProduceIdenticalEventsAndStateHashes()
     {
@@ -25,18 +48,29 @@ public sealed class DeterminismTests
             Assert.Equal(left.LastEvents, right.LastEvents);
             Assert.Equal(left.ComputeStateHash(), right.ComputeStateHash());
 
-            foreach (var battleEvent in left.LastEvents)
+            for (var index = 0; index < left.LastEvents.Count; index++)
             {
+                var battleEvent = left.LastEvents[index];
                 if (battleEvent.Kind != BattleEventKind.Attack)
                 {
                     Assert.Null(battleEvent.Weapon);
                     Assert.Null(battleEvent.HitLocation);
+                    Assert.Null(battleEvent.Resolution);
                     continue;
                 }
 
                 sawAttackEvent = true;
                 Assert.NotNull(battleEvent.Weapon);
                 Assert.NotNull(battleEvent.HitLocation);
+
+                // The resolution is authoritative, so two runs of one seed must
+                // agree on it event for event, and every attack event must carry
+                // a defined one.
+                Assert.NotNull(battleEvent.Resolution);
+                Assert.True(Enum.IsDefined(battleEvent.Resolution!.Value));
+                Assert.Equal(
+                    battleEvent.Resolution,
+                    right.LastEvents[index].Resolution);
             }
         }
 
@@ -403,6 +437,303 @@ public sealed class DeterminismTests
                 WeaponId.GreatBlade,
                 ArmorId.LightOrganic,
                 ShieldId.None));
+
+    /// <summary>
+    /// The zero-interception control run. A ruleset that is the registered
+    /// preset except for an all-zero clash profile must reproduce the committed
+    /// pre-change event stream event for event, and the pre-change state hash
+    /// tick for tick, for seed 1 at two hundred agents.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the highest-value case in the change. Four separate mechanisms
+    /// move both hashes when the clash lands — the preset version, blows that no
+    /// longer land, longer battles, and the new event field — so an ordinary run
+    /// gives no way to tell an intended movement from an accidental fifth one.
+    /// Holding every clash channel at zero isolates them.
+    /// </para>
+    /// <para>
+    /// The comparand is a fixture captured from the pre-change build, not
+    /// another run of this build. Comparing this build against itself would
+    /// prove only that zero interception yields <c>Landed</c>, and nothing
+    /// whatever about the pre-change behaviour.
+    /// </para>
+    /// <para>
+    /// The per-tick state hash is the half that catches a hashed field which
+    /// emits no event, diverges mid-battle, and reconverges by the end.
+    /// <c>MovementResolution</c> and <c>Intent</c> are both folded per agent and
+    /// neither emits an event.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void ZeroInterceptionProfile_ReproducesThePreClashDigest()
+    {
+        var digest = LoadPreClashDigest();
+        var simulation = CreateZeroInterceptionControlRun();
+
+        foreach (var row in digest.Ticks)
+        {
+            simulation.AdvanceOneTick();
+
+            if (simulation.Tick != row.Tick)
+            {
+                Assert.Fail(
+                    $"The control run reached tick {simulation.Tick} where the " +
+                    $"pre-change digest recorded tick {row.Tick}.");
+            }
+
+            var fold = Fnv1a.OffsetBasis;
+            var count = 0;
+            foreach (var battleEvent in simulation.LastEvents)
+            {
+                FoldPreClashEvent(ref fold, battleEvent);
+                count++;
+            }
+
+            if (count != row.EventCount)
+            {
+                Assert.Fail(
+                    $"Event count first diverged at tick {row.Tick}: the control " +
+                    $"run emitted {count} events against {row.EventCount} " +
+                    "recorded before the change.");
+            }
+
+            if (fold != row.EventFold)
+            {
+                Assert.Fail(
+                    $"The ordered event stream first diverged at tick " +
+                    $"{row.Tick}: fold 0x{fold:X16} against the recorded " +
+                    $"0x{row.EventFold:X16}.");
+            }
+
+            var stateHash = simulation.ComputeStateHash(PreClashContentHash);
+            if (stateHash != row.StateHash)
+            {
+                Assert.Fail(
+                    $"The state hash first diverged at tick {row.Tick}: " +
+                    $"0x{stateHash:X16} against the recorded " +
+                    $"0x{row.StateHash:X16}.");
+            }
+        }
+
+        Assert.Equal(digest.TerminalTick, simulation.Tick);
+        Assert.Equal(digest.Outcome, simulation.Outcome.ToString());
+        Assert.Equal(
+            digest.Faction0Survivors,
+            simulation.Agents.Count(agent => agent.IsAlive && agent.FactionId == 0));
+        Assert.Equal(
+            digest.Faction1Survivors,
+            simulation.Agents.Count(agent => agent.IsAlive && agent.FactionId == 1));
+
+        AssertFinalAgentsMatch(digest, simulation);
+    }
+
+    /// <summary>
+    /// The one decidable terminal assertion. "The state hash differs only by the
+    /// content-hash fold" cannot be evaluated, because FNV-1a is a linear fold
+    /// and one cannot inspect an output and conclude that exactly one input word
+    /// changed. Passing the recorded content hash to the hasher turns it into a
+    /// plain equality against a recorded value instead.
+    /// </summary>
+    [Fact]
+    public void ZeroInterceptionProfile_ReproducesTheRecordedStateHash()
+    {
+        var digest = LoadPreClashDigest();
+        var simulation = CreateZeroInterceptionControlRun();
+
+        while (simulation.Outcome == BattleOutcome.Ongoing &&
+            simulation.Tick < digest.TerminalTick)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        Assert.Equal(digest.TerminalTick, simulation.Tick);
+        Assert.Equal(digest.Outcome, simulation.Outcome.ToString());
+        Assert.Equal(
+            PreClashTerminalStateHash,
+            simulation.ComputeStateHash(PreClashContentHash));
+        Assert.Equal(PreClashTerminalStateHash, digest.TerminalStateHash);
+    }
+
+    private static BattleSimulation CreateZeroInterceptionControlRun()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            TickLimit = 10_000,
+        };
+        scenario.Validate();
+
+        // Built with the copy helper so the injected ruleset is provably the
+        // preset except for the clash profile, rather than six constructor
+        // arguments reassembled by hand from the public surface.
+        var rules = CombatPresetRegistry
+            .Get(scenario.CombatPreset)
+            .WithClashProfile(ClashProfile.Neutral);
+
+        return BattleSimulation.Create(scenario, rules);
+    }
+
+    private static void AssertFinalAgentsMatch(
+        PreClashDigest digest,
+        BattleSimulation simulation)
+    {
+        var actual = simulation.Agents;
+        Assert.Equal(digest.FinalAgents.Count, actual.Count);
+
+        for (var index = 0; index < actual.Count; index++)
+        {
+            var expected = digest.FinalAgents[index];
+            var agent = actual[index];
+
+            Assert.Equal(expected.EntityId, agent.EntityId);
+            Assert.Equal(expected.FactionId, agent.FactionId);
+            Assert.Equal(expected.XRaw, agent.XRaw);
+            Assert.Equal(expected.YRaw, agent.YRaw);
+            Assert.Equal(expected.HitPoints, agent.HitPoints);
+            Assert.Equal(expected.MaximumHitPoints, agent.MaximumHitPoints);
+            Assert.Equal(expected.TargetEntityId, agent.TargetEntityId ?? 0);
+            Assert.Equal(expected.Intent, agent.Intent.ToString());
+            Assert.Equal(expected.IsAlive, agent.IsAlive);
+            Assert.Equal(expected.Weapon, agent.Loadout.Weapon.ToString());
+            Assert.Equal(expected.Armor, agent.Loadout.Armor.ToString());
+            Assert.Equal(expected.Shield, agent.Loadout.Shield.ToString());
+            Assert.Equal(
+                expected.MovementResolution,
+                agent.MovementResolution.ToString());
+        }
+    }
+
+    /// <summary>
+    /// Folds one event exactly as the capture harness did, over the nine fields
+    /// a pre-change event carries. <see cref="BattleEvent.Resolution"/> is
+    /// deliberately excluded: a post-change event carries a field a pre-change
+    /// event cannot, and folding it would guarantee a mismatch that means
+    /// nothing.
+    /// </summary>
+    private static void FoldPreClashEvent(ref ulong hash, BattleEvent battleEvent)
+    {
+        Fnv1a.Add(ref hash, unchecked((ulong)battleEvent.Sequence));
+        Fnv1a.Add(ref hash, unchecked((ulong)battleEvent.Tick));
+        Fnv1a.Add(ref hash, (ulong)battleEvent.Kind);
+        Fnv1a.Add(ref hash, battleEvent.SourceEntityId);
+        Fnv1a.Add(ref hash, battleEvent.TargetEntityId ?? 0);
+        Fnv1a.Add(ref hash, unchecked((ulong)(uint)battleEvent.Value));
+        Fnv1a.Add(
+            ref hash,
+            battleEvent.FactionId is { } factionId
+                ? unchecked((ulong)(uint)factionId)
+                : ulong.MaxValue);
+        Fnv1a.Add(
+            ref hash,
+            battleEvent.Weapon is { } weapon
+                ? unchecked((ulong)(uint)(int)weapon)
+                : ulong.MaxValue);
+        Fnv1a.Add(
+            ref hash,
+            battleEvent.HitLocation is { } hitLocation
+                ? unchecked((ulong)(uint)(int)hitLocation)
+                : ulong.MaxValue);
+    }
+
+    private static PreClashDigest LoadPreClashDigest()
+    {
+        var path = Path.Combine(
+            AppContext.BaseDirectory,
+            "Fixtures",
+            PreClashDigestFileName);
+
+        Assert.True(
+            File.Exists(path),
+            $"The pre-clash digest fixture is missing at '{path}'. It is " +
+            "committed under tests/Hukbo.Core.Tests/Fixtures and copied to the " +
+            "output directory by the project's Fixtures item.");
+
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        var root = document.RootElement;
+
+        var ticks = new List<PreClashTickRow>();
+        foreach (var row in root.GetProperty("ticks").EnumerateArray())
+        {
+            ticks.Add(
+                new PreClashTickRow(
+                    row.GetProperty("tick").GetInt64(),
+                    row.GetProperty("eventCount").GetInt32(),
+                    ParseHex(row.GetProperty("eventFold").GetString()),
+                    ParseHex(row.GetProperty("stateHash").GetString())));
+        }
+
+        var agents = new List<PreClashAgentRow>();
+        foreach (var agent in root.GetProperty("finalAgents").EnumerateArray())
+        {
+            agents.Add(
+                new PreClashAgentRow(
+                    agent.GetProperty("entityId").GetUInt64(),
+                    agent.GetProperty("factionId").GetInt32(),
+                    agent.GetProperty("xRaw").GetInt32(),
+                    agent.GetProperty("yRaw").GetInt32(),
+                    agent.GetProperty("hitPoints").GetInt32(),
+                    agent.GetProperty("maximumHitPoints").GetInt32(),
+                    agent.GetProperty("targetEntityId").GetUInt64(),
+                    agent.GetProperty("intent").GetString() ?? string.Empty,
+                    agent.GetProperty("isAlive").GetBoolean(),
+                    agent.GetProperty("weapon").GetString() ?? string.Empty,
+                    agent.GetProperty("armor").GetString() ?? string.Empty,
+                    agent.GetProperty("shield").GetString() ?? string.Empty,
+                    agent.GetProperty("movementResolution").GetString() ??
+                        string.Empty));
+        }
+
+        return new PreClashDigest(
+            root.GetProperty("terminalTick").GetInt64(),
+            root.GetProperty("outcome").GetString() ?? string.Empty,
+            root.GetProperty("faction0Survivors").GetInt32(),
+            root.GetProperty("faction1Survivors").GetInt32(),
+            ParseHex(root.GetProperty("terminalStateHash").GetString()),
+            ticks,
+            agents);
+    }
+
+    private static ulong ParseHex(string? value)
+    {
+        Assert.False(
+            string.IsNullOrWhiteSpace(value),
+            "The pre-clash digest fixture carries an empty hash field.");
+
+        return ulong.Parse(
+            value!,
+            NumberStyles.HexNumber,
+            CultureInfo.InvariantCulture);
+    }
+
+    private sealed record PreClashTickRow(
+        long Tick,
+        int EventCount,
+        ulong EventFold,
+        ulong StateHash);
+
+    private sealed record PreClashAgentRow(
+        ulong EntityId,
+        int FactionId,
+        int XRaw,
+        int YRaw,
+        int HitPoints,
+        int MaximumHitPoints,
+        ulong TargetEntityId,
+        string Intent,
+        bool IsAlive,
+        string Weapon,
+        string Armor,
+        string Shield,
+        string MovementResolution);
+
+    private sealed record PreClashDigest(
+        long TerminalTick,
+        string Outcome,
+        int Faction0Survivors,
+        int Faction1Survivors,
+        ulong TerminalStateHash,
+        IReadOnlyList<PreClashTickRow> Ticks,
+        IReadOnlyList<PreClashAgentRow> FinalAgents);
 
     [Fact]
     public void SnapshotIsAnImmutableCopyOfTheCompletedTick()
