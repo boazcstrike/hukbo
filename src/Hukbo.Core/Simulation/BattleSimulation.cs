@@ -1160,7 +1160,8 @@ public sealed class BattleSimulation
                     : 0,
                 source.FactionId,
                 source.Loadout.Weapon,
-                proposal.HitLocation);
+                proposal.HitLocation,
+                proposal.Resolution);
         }
 
         for (var index = 0; index < _damageTotals.Length; index++)
@@ -1409,6 +1410,18 @@ public sealed class BattleSimulation
                 factionId));
     }
 
+    /// <summary>
+    /// Emits one attack event.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="resolution"/> is required, unlike the optional
+    /// parameter on the public <see cref="BattleEvent.Attack"/> factory. The
+    /// factory keeps its default so that the twenty call sites in tests and
+    /// presentation code that do not care about defensive resolution keep
+    /// compiling; here the default would be a way for production code to emit
+    /// an unresolved attack as though it had landed, and nothing downstream
+    /// would notice.
+    /// </remarks>
     private void AddAttackEvent(
         ref List<BattleEvent>? events,
         ulong sourceEntityId,
@@ -1416,7 +1429,8 @@ public sealed class BattleSimulation
         int damage,
         int factionId,
         WeaponId weapon,
-        BodyPart hitLocation)
+        BodyPart hitLocation,
+        AttackResolution resolution)
     {
         _eventSequence = checked(_eventSequence + 1);
         events ??= new List<BattleEvent>(_agentStates.Length * 2);
@@ -1429,7 +1443,8 @@ public sealed class BattleSimulation
                 damage,
                 factionId,
                 weapon,
-                hitLocation));
+                hitLocation,
+                resolution));
     }
 
     private void UpdateViews()

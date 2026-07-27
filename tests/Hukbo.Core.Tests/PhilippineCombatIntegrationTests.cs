@@ -419,8 +419,24 @@ public sealed class PhilippineCombatIntegrationTests
             }
 
             // No damaged target is missing its aggregated Damage event.
+            //
+            // A target every one of whose attacks was intercepted is not a
+            // damaged target: its attack values all read zero and no Damage
+            // event is emitted for it, which is exactly what
+            // NonLandedAttack_EmitsAValueOfZeroAndNoDamageEvent requires.
+            // Skipping those targets here is what keeps the two compatible;
+            // asserting a Damage event for them would demand the opposite
+            // behaviour. The coupling design section 5 calls load-bearing is
+            // untouched: a change that suppressed the attack event instead of
+            // zeroing its value would shorten attacksByTarget and break the
+            // forward comparison above.
             foreach (var (targetId, summedAttackValue) in attacksByTarget)
             {
+                if (summedAttackValue == 0)
+                {
+                    continue;
+                }
+
                 Assert.Contains(
                     damageEvents,
                     battleEvent => battleEvent.SourceEntityId == targetId &&
