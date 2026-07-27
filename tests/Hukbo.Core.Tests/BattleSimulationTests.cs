@@ -389,10 +389,20 @@ public sealed class BattleSimulationTests
             "measurement would not be exercising the collision resolver.");
     }
 
+    /// <summary>
+    /// Neither faction may hold a standing advantage across seeds. This asserts
+    /// a distribution rather than mere presence: it previously required only one
+    /// victory each, and passed on exactly one seed while the collision stage
+    /// was handing faction 0 every contested push of every battle. Four in
+    /// twenty is loose enough that ordinary seed variance cannot fail it and
+    /// tight enough that a returning structural bias would.
+    /// </summary>
     [Fact]
     public void SeedsOneThroughTwentyProduceVictoriesForBothFactions()
     {
-        var outcomes = new HashSet<BattleOutcome>();
+        const int minimumVictoriesPerFaction = 4;
+        var faction0Victories = 0;
+        var faction1Victories = 0;
 
         for (ulong seed = 1; seed <= 20; seed++)
         {
@@ -404,11 +414,29 @@ public sealed class BattleSimulationTests
                 simulation.AdvanceOneTick();
             }
 
-            outcomes.Add(simulation.Outcome);
+            switch (simulation.Outcome)
+            {
+                case BattleOutcome.Faction0Victory:
+                    faction0Victories++;
+                    break;
+
+                case BattleOutcome.Faction1Victory:
+                    faction1Victories++;
+                    break;
+
+                case BattleOutcome.Ongoing:
+                case BattleOutcome.Draw:
+                default:
+                    break;
+            }
         }
 
-        Assert.Contains(BattleOutcome.Faction0Victory, outcomes);
-        Assert.Contains(BattleOutcome.Faction1Victory, outcomes);
+        Assert.True(
+            faction0Victories >= minimumVictoriesPerFaction &&
+            faction1Victories >= minimumVictoriesPerFaction,
+            $"Faction 0 won {faction0Victories} of 20 seeds and faction 1 won " +
+            $"{faction1Victories}. Each faction must win at least " +
+            $"{minimumVictoriesPerFaction}.");
     }
 
     /// <summary>

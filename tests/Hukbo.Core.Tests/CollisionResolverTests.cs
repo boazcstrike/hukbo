@@ -689,21 +689,77 @@ public sealed class CollisionResolverTests
         Assert.Equal(expectedBlocked, fresh.BlockedCount);
     }
 
+    /// <summary>
+    /// The resolver orders movers by their priority key, not by their entity ID.
+    /// Two allies converge on ground only one of them can take; giving the
+    /// higher-ID mover the lower key hands it the ground, which the old
+    /// ascending-ID order could never do.
+    /// </summary>
+    [Fact]
+    public void ContestedGroundFollowsThePriorityKeyRatherThanTheEntityId()
+    {
+        const int contestedXRaw = 40 * FixedPoint.Scale;
+        const int contestedYRaw = 40 * FixedPoint.Scale;
+        var resolver = NewResolver();
+
+        // Entity 2 carries the lower key, so it resolves first and takes the
+        // ground even though entity 1 would have won under ascending entity ID.
+        // The keys differ in their high half, which is the half the resolver
+        // reads; it stamps the entity ID into the low half itself.
+        var requests = new[]
+        {
+            Mover(
+                1,
+                contestedXRaw - DiameterRaw,
+                contestedYRaw,
+                contestedXRaw,
+                contestedYRaw,
+                priorityKey: 20UL << 32),
+            Mover(
+                2,
+                contestedXRaw + DiameterRaw,
+                contestedYRaw,
+                contestedXRaw,
+                contestedYRaw,
+                priorityKey: 10UL << 32),
+        };
+
+        resolver.Resolve(requests);
+
+        Assert.Equal(MovementResolution.Moved, ResultOf(resolver, 2).Resolution);
+        Assert.NotEqual(MovementResolution.Moved, ResultOf(resolver, 1).Resolution);
+        Assert.Equal(contestedXRaw, ResultOf(resolver, 2).XRaw);
+    }
+
     // ------------------------------------------------------------- helpers
 
     private static CollisionResolver NewResolver() =>
         new(BodyRadiusRaw, MapDimensionRaw, MapDimensionRaw);
 
     private static CollisionMoveRequest Stationary(ulong entityId, int xRaw, int yRaw) =>
-        new(entityId, xRaw, yRaw, xRaw, yRaw, HasProposal: false);
+        new(entityId, xRaw, yRaw, xRaw, yRaw, HasProposal: false, PriorityKey: entityId);
 
+    /// <summary>
+    /// A mover whose contested-ground priority equals its entity ID, so these
+    /// fixtures keep expressing the old ascending-ID order explicitly. The
+    /// battle simulation supplies a per-tick shuffled key instead; that the
+    /// resolver honours the key rather than the ID is asserted separately.
+    /// </summary>
     private static CollisionMoveRequest Mover(
         ulong entityId,
         int startXRaw,
         int startYRaw,
         int preferredXRaw,
-        int preferredYRaw) =>
-        new(entityId, startXRaw, startYRaw, preferredXRaw, preferredYRaw, HasProposal: true);
+        int preferredYRaw,
+        ulong? priorityKey = null) =>
+        new(
+            entityId,
+            startXRaw,
+            startYRaw,
+            preferredXRaw,
+            preferredYRaw,
+            HasProposal: true,
+            PriorityKey: priorityKey ?? entityId);
 
     private static CollisionMoveResult ResultOf(CollisionResolver resolver, ulong entityId) =>
         resolver.Results.Single(result => result.EntityId == entityId);
@@ -832,7 +888,15 @@ public sealed class CollisionResolverTests
                 StartYRaw: startYRaw,
                 PreferredXRaw: hasProposal ? startXRaw + deltaXRaw : startXRaw,
                 PreferredYRaw: hasProposal ? startYRaw + deltaYRaw : startYRaw,
-                HasProposal: hasProposal);
+                HasProposal: hasProposal,
+                // A real per-tick key, not the entity ID: the randomized
+                // invariant tests must fuzz the shuffled resolution order the
+                // battle actually uses, not the ascending-ID order it retired.
+                // This consumes no draw, so the crowd itself is unchanged.
+                PriorityKey: CollisionPriority.Resolve(
+                    seed: 1,
+                    tick: 1,
+                    entityId: (ulong)((index * 3) + 1)));
         }
 
         return requests;

@@ -217,14 +217,39 @@ ResolveOutcome
 
 ### Priority
 
-Movers are resolved in **ascending `EntityId`** order. Once an agent's position
-is committed for the tick, later movers treat it as an obstacle. This is an
-explicit, documented ID priority: a lower `EntityId` wins a contested destination.
+**Amended 2026-07-27.** Movers are resolved in ascending
+**`CollisionPriority` key** order, where the key is
+`(Fnv1a(tag, seed, tick, entityId) >> 32) << 32 | entityId`. Once an agent's
+position is committed for the tick, later movers treat it as an obstacle, so a
+lower key wins a contested destination. The key is recomputed every tick, and
+its low half is the entity ID, which keeps the order strict and total when two
+mixes collide in their top halves — ties still break on stable `EntityId`
+beneath the shuffle. No random stream is consumed; the key is a pure hash, like
+hit-location selection, so it reproduces exactly on a resumed save.
 
-This is accepted as fair enough for this game because being blocked does not
-remove an agent from combat. Contact happens at 8 world units while attack reach
-is 12, so a blocked agent is still attacking. No separate anti-stall or fairness
-escape rule is added. `TickLimit` remains the terminal backstop.
+Stationary bodies still commit first, in ascending `EntityId`. They contest no
+ground with one another; the only decision in that pass is the exact
+co-location repair.
+
+The original rule resolved movers in ascending `EntityId`, which this record
+accepted as fair enough on the grounds that a blocked agent is still inside
+attack reach and therefore still fighting. That reasoning is correct about an
+individual agent and wrong about outcomes. Faction 0 holds entity IDs
+`1..AgentsPerFaction`, so under the original rule it won **every** cross-faction
+contest of every battle. Taking contested ground means advancing into the enemy
+mass, where more enemies hold you in reach; damage is simultaneous, so the
+faction that always wins the push always takes more damage. Once the mirrored
+starting deployment removed the positional noise that had been masking it, the
+rule decided 19 of 20 seeds. Measured over seeds 1 to 20 at 200 agents:
+1 faction-0 victory before the amendment, 7 after; over seeds 1 to 40 after the
+amendment, 16 faction-0 victories, 23 faction-1 victories and 1 draw. Three
+attempts to correct it in the deployment geometry instead — independent jitter,
+a half-lane offset, and the exact mirror — all produced the same 1-in-20 result,
+which is what established that the rule and not the geometry was the cause.
+
+Being blocked still does not remove an agent from combat, so no separate
+anti-stall or fairness escape rule is added. `TickLimit` remains the terminal
+backstop.
 
 ### Candidate order
 

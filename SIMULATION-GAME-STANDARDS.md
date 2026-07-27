@@ -114,7 +114,8 @@ Every logical tick executes in this order:
 4. Find eligible hostiles and select targets.
 5. Select intent: idle, approach, attack, retreat, or dead.
 6. Compute movement proposals.
-7. Commit movement in ascending `EntityId`.
+7. Commit movement in ascending `EntityId`. Resolution order inside the collision stage is the
+   per-tick `CollisionPriority` key; the state commit stays in ascending `EntityId`.
 8. Create hitscan attack proposals.
 9. Apply accumulated damage simultaneously.
 10. Resolve death and victory.
@@ -524,10 +525,17 @@ and nothing it produces is hashed.
 
 ### Priority and the candidate ladder
 
-Movers are resolved in **ascending `EntityId`**. Once an agent's position is committed for the
-tick, later movers treat it as an obstacle. A lower `EntityId` therefore wins a contested
-destination. This is an explicit, documented identifier priority rather than an accident of
-iteration order.
+Movers are resolved in **ascending `CollisionPriority` key**, which is
+`(Fnv1a(tag, seed, tick, entityId) >> 32) << 32 | entityId`. Once an agent's position is committed
+for the tick, later movers treat it as an obstacle, so a lower key wins a contested destination.
+The key is a pure hash rather than a draw from any stream, it is recomputed every tick, and its low
+half is the entity ID, so the order is strict and total and ties still break on stable `EntityId`.
+This is an explicit, documented priority rather than an accident of iteration order.
+
+It replaced a plain ascending-`EntityId` order on 2026-07-27. Faction 0 holds the low IDs, so that
+order handed it every cross-faction contest of every battle, and once the mirrored starting
+deployment removed the spawn noise that had masked it, one faction won 19 of 20 seeds. See section
+9 of [docs/decisions/2026-07-27-collision-policy.md](docs/decisions/2026-07-27-collision-policy.md).
 
 No separate anti-stall or fairness escape rule is added, because being blocked does not remove an
 agent from combat: contact happens at eight world units while attack reach is twelve, so a blocked

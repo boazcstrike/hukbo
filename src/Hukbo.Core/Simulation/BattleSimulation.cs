@@ -783,8 +783,10 @@ public sealed class BattleSimulation
     /// <summary>
     /// Hands every living agent to the solid-disc resolver. Agents without a
     /// proposal are still submitted: they occupy space, and a stationary body
-    /// with a high entity ID would otherwise have its ground taken by a
-    /// lower-ID mover.
+    /// would otherwise have its ground taken by a mover resolved before it.
+    /// Each mover carries this tick's contested-ground priority, which is a
+    /// pure hash of the seed, the tick, and the agent rather than a draw from
+    /// any stream.
     /// </summary>
     private void ResolveCollisions()
     {
@@ -806,7 +808,15 @@ public sealed class BattleSimulation
                     agent.YRaw,
                     proposal?.XRaw ?? agent.XRaw,
                     proposal?.YRaw ?? agent.YRaw,
-                    proposal is not null));
+                    proposal is not null,
+                    // Only a mover is ordered by its key, so a standing agent
+                    // does not pay for a mix it will never be sorted by.
+                    proposal is null
+                        ? 0
+                        : CollisionPriority.Resolve(
+                            Scenario.Seed,
+                            Tick,
+                            agent.EntityId)));
         }
 
         _collision.Resolver.Resolve(_collision.Requests);
