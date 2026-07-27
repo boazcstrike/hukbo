@@ -1,13 +1,18 @@
 namespace Hukbo.Core.Combat;
 
 /// <summary>
-/// Version 2 of the pre-colonial Philippine combat preset: four warrior
+/// Version 1 of the pre-colonial Philippine combat preset: four warrior
 /// target-weighting profiles derived from the supplied research brief, one
-/// light-organic armor identity, one tall-hardwood shield profile, and the
-/// defensive-interception clash profile an accepted attack is resolved
-/// against.
+/// light-organic armor identity, and one tall-hardwood shield profile.
 /// </summary>
 /// <remarks>
+/// Frozen. This preset declares no weapon attributes and no clash profile, so
+/// neither block is mixed into its content hash and that hash is the same value
+/// it was before either feature existed. Every replay recorded against version
+/// 1 still verifies. New combat behavior goes into
+/// <see cref="PhilippineCombatPresetV2"/>, which is what
+/// <c>Scenario.CombatPreset</c> defaults to.
+/// <para>
 /// Configuration is written as explicit, hand-authored data rather than a
 /// deserialized or reflection-driven configuration graph. Combined
 /// weapon-comparison names (Kampilan, Panabas, Kris) are provisional
@@ -15,16 +20,11 @@ namespace Hukbo.Core.Combat;
 /// identifications; see docs/research/HISTORICAL_1500s_WEAPONS.md. Shield
 /// multipliers are provisional gameplay tuning values, not historical
 /// measurements.
+/// </para>
 /// </remarks>
 public static class PhilippineCombatPreset
 {
-    /// <summary>
-    /// Raised from 1 to 2 when the clash tables landed. The clash values are
-    /// folded into <see cref="CombatRuleset.ContentHash"/> and reach the
-    /// authoritative event stream, so a ruleset carrying them is a different
-    /// preset version even though its identity is unchanged.
-    /// </summary>
-    public const int Version = 2;
+    public const int Version = 1;
 
     private const int DefaultMultiplierBasisPoints = 1_000;
 
@@ -144,111 +144,7 @@ public static class PhilippineCombatPreset
             weaponTargets,
             armors,
             shieldMultipliers,
-            roster,
-            BuildClashProfile());
-    }
-
-    /// <summary>
-    /// The thirty-two defensive-interception tuning values: sixteen weapon
-    /// intercept cells, one flat shield intercept, four void values, four
-    /// hard-share bases, four hard-share multipliers, two hard-share clamp
-    /// bounds, and one interception ceiling.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>PROVISIONAL.</b> Every value returned here is a gameplay tuning
-    /// choice, not a historical measurement. The research states plainly that
-    /// <b>all sixteen cells of the weapon-intercept matrix are provisional
-    /// reconstructions with no evidentiary confidence</b>: no source,
-    /// Philippine or otherwise, describes these four loadouts — or any four
-    /// loadouts — fighting one another, and only their relative ordering is
-    /// argued from evidence, and only weakly. See
-    /// docs/research/WEAPON_CLASH_1500s.md section 5.3 and CLAUDE.md section 7.
-    /// </para>
-    /// <para>
-    /// The shield channel is the only defensive channel with sixteenth-century
-    /// documentary support, and even there the figure is a tuning choice rather
-    /// than a measured rate. Interception is also deliberately set below what
-    /// the historical record would suggest, because Hukbo has no morale model
-    /// and must therefore reach a decision by attrition, a mechanism that
-    /// historically did not decide battles. That is a design compensation and
-    /// must never be read back as evidence about how often people parried.
-    /// </para>
-    /// </remarks>
-    private static ClashProfile BuildClashProfile()
-    {
-        // PROVISIONAL. Defender row against attacker column, in basis points.
-        // Zero evidentiary confidence; see the remarks above.
-        var weaponIntercept = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>
-        {
-            [(WeaponId.Kampilan, WeaponId.Kampilan)] = 2_200,
-            [(WeaponId.Kampilan, WeaponId.Wasay)] = 1_900,
-            [(WeaponId.Kampilan, WeaponId.Kalis)] = 1_600,
-            [(WeaponId.Kampilan, WeaponId.Itak)] = 2_000,
-            [(WeaponId.Wasay, WeaponId.Kampilan)] = 1_500,
-            [(WeaponId.Wasay, WeaponId.Wasay)] = 1_300,
-            [(WeaponId.Wasay, WeaponId.Kalis)] = 1_100,
-            [(WeaponId.Wasay, WeaponId.Itak)] = 1_400,
-            [(WeaponId.Kalis, WeaponId.Kampilan)] = 500,
-            [(WeaponId.Kalis, WeaponId.Wasay)] = 400,
-            [(WeaponId.Kalis, WeaponId.Kalis)] = 600,
-            [(WeaponId.Kalis, WeaponId.Itak)] = 600,
-            [(WeaponId.Itak, WeaponId.Kampilan)] = 400,
-            [(WeaponId.Itak, WeaponId.Wasay)] = 300,
-            [(WeaponId.Itak, WeaponId.Kalis)] = 500,
-            [(WeaponId.Itak, WeaponId.Itak)] = 500,
-        };
-
-        // PROVISIONAL. Basis points the defender steps off the line entirely,
-        // by defending weapon. Zero evidentiary confidence.
-        var voidChannel = new Dictionary<WeaponId, int>
-        {
-            [WeaponId.Kampilan] = 1_000,
-            [WeaponId.Wasay] = 900,
-            [WeaponId.Kalis] = 1_000,
-            [WeaponId.Itak] = 1_100,
-        };
-
-        // PROVISIONAL. Share of the weapon channel that arrests rather than
-        // brushes, by incoming attacker weapon. Zero evidentiary confidence.
-        var hardShareBases = new Dictionary<WeaponId, int>
-        {
-            [WeaponId.Kampilan] = 3_300,
-            [WeaponId.Wasay] = 4_000,
-            [WeaponId.Kalis] = 1_200,
-            [WeaponId.Itak] = 1_800,
-        };
-
-        // PROVISIONAL. Per-thousand scaling of that share by the defending
-        // instrument. Zero evidentiary confidence.
-        var hardShareMultipliers = new Dictionary<WeaponId, int>
-        {
-            [WeaponId.Kampilan] = 1_150,
-            [WeaponId.Wasay] = 1_050,
-            [WeaponId.Kalis] = 750,
-            [WeaponId.Itak] = 700,
-        };
-
-        return new ClashProfile(
-            weaponIntercept,
-
-            // PROVISIONAL. Flat across every attacker: the research states
-            // plainly that the per-attacker spread it suggests has no source
-            // behind it.
-            shieldIntercept: 2_400,
-            voidChannel,
-            hardShareBases,
-            hardShareMultipliers,
-
-            // Both clamp bounds are guard-only and neither binds with these
-            // tables: the hard-share product spans 840 to 4,600. They exist so
-            // that a future tuning pass cannot produce a degenerate split.
-            minimumHardShareBasisPoints: 500,
-            maximumHardShareBasisPoints: 6_000,
-
-            // Likewise a guard. The largest total these tables produce is
-            // 4,000, so the rescale branch is unreachable in production.
-            maximumInterceptionBasisPoints: 5_500);
+            roster);
     }
 
     private static TargetWeightProfile BuildProfile(
