@@ -84,6 +84,38 @@ not prove a sound was audible, that it arrived at the right moment, or that it
 sounded right. Smoke rows below still require a human at an interactive desktop;
 see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
+## Phase 2 reference pair, superseded at T39
+
+Weapon clash, Phase 2. See
+[docs/plans/2026-07-27-weapon-clash.md](../plans/2026-07-27-weapon-clash.md).
+Every figure below comes from `./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`
+run on this branch. These pairs are a comparand for the far side of the Phase 3
+fan-out and are superseded once that work lands.
+
+### Combat metrics reach neither hash
+
+The combat metrics are derived observability counters. The repository treats
+derived counters as never hashed, never snapshotted, and never persisted, and
+nothing else in this plan would notice if one leaked into `StateHasher`: the
+seam check predates the metrics, the zero-interception control run does not
+speak to them, and the Phase 4 comparison is against a Phase 2 pair that would
+already contain them. The proof is therefore the pair below, recorded
+immediately before the accumulation was wired into the gather loop and again
+immediately after, on the same workload and the same build.
+
+| Field | Immediately before accumulation | Immediately after accumulation |
+| --- | --- | --- |
+| Commit | `75fd24f` | `10c4be9` |
+| `measuredTicks` | 1 858 | 1 858 |
+| `outcome` | `Faction1Victory` | `Faction1Victory` |
+| `eventHash` | `A67575E7BAB6BDCC` | `A67575E7BAB6BDCC` |
+| `stateHash` | `27DC94C6E9A01E35` | `27DC94C6E9A01E35` |
+| `deterministic` | `true` | `true` |
+| `firstMismatchTick` | `null` | `null` |
+
+Both hashes are byte-identical across the change. That is the whole point of
+recording them: accumulating the counters moved nothing the simulation reads.
+
 ## Latest non-interactive result — sound gain compensation, 2026-07-27
 
 Presentation-only change: per-cue gain now scales with the number of voices
