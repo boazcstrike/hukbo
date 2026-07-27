@@ -12,7 +12,15 @@ namespace Hukbo.Client.UI;
 /// </summary>
 internal sealed partial class SoundLogPanel
 {
-    internal const int BindingRowHeight = 15;
+    // Eleven, not fifteen, so that every slot still fits the expected-files
+    // section at the default 420x288 panel. The section is capped at
+    // `available - Gap - reservedCueHeight`, which is 155 pixels there, and the
+    // twelve-slot catalog wants `SectionHeaderHeight + 12 * BindingRowHeight`.
+    // At fifteen that is 196 and the list silently truncates to nine rows,
+    // hiding the three clash slots in the one panel whose job is to document
+    // what to name a file. At eleven it is 148 and all twelve show, without
+    // taking a row from the cue log's reserved minimum.
+    internal const int BindingRowHeight = 11;
     internal const int CueRowHeight = 15;
     internal const int MinimumThumbHeight = 18;
 

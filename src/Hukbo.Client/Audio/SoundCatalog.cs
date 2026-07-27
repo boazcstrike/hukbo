@@ -40,6 +40,9 @@ internal static class SoundCatalog
         GameSoundId.VictoryRed,
         GameSoundId.Draw,
         GameSoundId.UiClick,
+        GameSoundId.ClashBladeHard,
+        GameSoundId.ClashBladeSoft,
+        GameSoundId.ClashShield,
     ];
 
     /// <summary>
@@ -60,6 +63,9 @@ internal static class SoundCatalog
             GameSoundId.VictoryRed => "victory-red",
             GameSoundId.Draw => "draw",
             GameSoundId.UiClick => "ui-click",
+            GameSoundId.ClashBladeHard => "clash-blade-hard",
+            GameSoundId.ClashBladeSoft => "clash-blade-soft",
+            GameSoundId.ClashShield => "clash-shield",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(sound),
                 sound,

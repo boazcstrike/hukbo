@@ -22,6 +22,28 @@ public sealed class SoundCatalogTests
     }
 
     [Fact]
+    public void AllSounds_ContainsTheThreeClashSlots()
+    {
+        Assert.Contains(GameSoundId.ClashBladeHard, SoundCatalog.AllSounds);
+        Assert.Contains(GameSoundId.ClashBladeSoft, SoundCatalog.AllSounds);
+        Assert.Contains(GameSoundId.ClashShield, SoundCatalog.AllSounds);
+    }
+
+    [Fact]
+    public void GetBaseName_NamesEveryClashSlot()
+    {
+        Assert.Equal(
+            "clash-blade-hard",
+            SoundCatalog.GetBaseName(GameSoundId.ClashBladeHard));
+        Assert.Equal(
+            "clash-blade-soft",
+            SoundCatalog.GetBaseName(GameSoundId.ClashBladeSoft));
+        Assert.Equal(
+            "clash-shield",
+            SoundCatalog.GetBaseName(GameSoundId.ClashShield));
+    }
+
+    [Fact]
     public void GetFileName_IsUniqueLowercaseKebabWavForEverySlot()
     {
         var fileNames = new HashSet<string>(StringComparer.Ordinal);
@@ -116,6 +138,9 @@ public sealed class SoundCatalogTests
     [InlineData((int)GameSoundId.VictoryRed, false)]
     [InlineData((int)GameSoundId.Draw, false)]
     [InlineData((int)GameSoundId.UiClick, false)]
+    [InlineData((int)GameSoundId.ClashBladeHard, false)]
+    [InlineData((int)GameSoundId.ClashBladeSoft, false)]
+    [InlineData((int)GameSoundId.ClashShield, false)]
     public void IsHitLocationDriven_IsTrueOnlyForTheFourWeaponSlots(
         int sound,
         bool expected) =>
