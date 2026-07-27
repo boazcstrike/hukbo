@@ -46,7 +46,7 @@ both before and after each one.
 | Secret hygiene | Passed | `.env` ignored and untracked; no tracked file carries a key value, only the `ELEVENLABS_API_KEY` variable name |
 | Package output hygiene | Passed | `artifacts/`, `bin/`, and `obj/` are ignored; no build or package output is tracked |
 | Verification policy | Passed | Owner selected local-only verification; `verify.ps1` is authoritative and there is no hosted CI |
-| Direct interaction | **Pending** | All 88 interactive rows across the six checklists in `docs/development/testing.md` remain `PENDING` |
+| Direct interaction | **Mostly pending** | 2 of 88 interactive rows are `PASS` — launch-to-paused and Pause, observed by the owner on 2026-07-27 at `8815a3c`. Rows 2, 4, 5, and 15 are partly observed and stay `PENDING`; 82 rows are untouched |
 | Project license | **Absent** | No `LICENSE` or `COPYING` file exists |
 
 ## Commands executed
@@ -80,10 +80,13 @@ not a substitute for the interactive checklist and does not make any row `PASS`.
 
 ## Known limitations
 
-- **No interactive verification has been performed.** All 88 rows are `PENDING`.
-  Compilation, a green gate, benchmarks, a zero-warning build, and a
-  window-opening probe do not substitute for it, and synthetic input may not be
-  used to flip a row.
+- **Interactive verification has barely started.** 2 of 88 rows are `PASS`, 4
+  are partly observed and still `PENDING`, and 82 are untouched. The menu path
+  has now been walked by a person without misbehaving, which is the first real
+  movement on this since the foundation snapshot, but it is a long way from a
+  recorded pass. Compilation, a green gate, benchmarks, a zero-warning build,
+  and a window-opening probe do not substitute for the remainder, and synthetic
+  input may not be used to flip a row.
 - **No project license.** `README.md` links to a public GitHub repository while
   the tree carries no license file. Selecting one is a repository-owner
   decision. Until it is made, the repository is not ready for public

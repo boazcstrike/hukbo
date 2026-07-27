@@ -211,12 +211,45 @@ flip a row in any case. Compilation, a green gate, a benchmark, a zero-warning
 build, and a window-opening probe do not entitle anyone to mark a manual row
 `PASS`.
 
-Every interactive row in `docs/development/testing.md` therefore remains
-`PENDING`. That is 88 rows across six checklists, counted directly: 52 in the
-spectator-clarity smoke, 7 in collision readability including the `21a` row the
-collision-priority amendment added, 5 in camera auto-pan, 4 in starting
-deployment, 14 in typography, and 6 in the last-stand formation. Not one has
-been observed in a live window by a person, and this review did not change that.
+The interactive checklists hold 88 rows across six tables, counted directly: 52
+in the spectator-clarity smoke, 7 in collision readability including the `21a`
+row the collision-priority amendment added, 5 in camera auto-pan, 4 in starting
+deployment, 14 in typography, and 6 in the last-stand formation.
+
+**Two of those 88 are now `PASS`.** On 2026-07-27 the repository owner ran
+`./scripts/run.ps1` from source at commit `8815a3c` on the reference Windows
+desktop and reported the result, which this review transcribed into the
+spectator-clarity table with the evidence fields filled in. Rows 1 and 3 —
+launching to a paused match with a still tick counter, and Pause stopping tick
+advancement with the paused state visible — were exercised in full and are
+recorded as `PASS`.
+
+Four more rows were partly observed and deliberately left `PENDING`, with the
+observed half written into `Actual` so the remainder is a short follow-up rather
+than a repeat of the whole pass:
+
+| Row | Observed | Still needed to close it |
+| --- | --- | --- |
+| 2. Activate Play | Play advanced the ticks | The `Space` toggle |
+| 4. Open Menu | The Menu button opened the modal | `Escape` as a toggle |
+| 5. Exercise modal commands | Exit Game quit cleanly | Modal Play, modal Pause, and Escape closing without resuming |
+| 15. Close the window | The window closed and the game exited | The exit code, which must be `0` |
+
+A row carries one status, so half a row is not a pass. The remaining 82 rows
+were not exercised and stay `PENDING`; several of them — the empty-audio-folder
+listing, the deliberately unusable WAV, the 100%-against-150% display-scaling
+comparison — describe setups that were certainly not performed.
+
+The count of 88 is correct as of this commit. A concurrent sound-gain
+compensation workstream had an unlanded checklist of eight further rows, 82
+through 89, in its working tree while this review was written. If that work
+lands, the total becomes 96 and the figures in this section need re-counting
+rather than adjusting by hand.
+
+This is real movement on the oldest blocker in the repository rather than its
+removal. The menu path that has held roles 16, 17, and 18 at conditional since
+the foundation snapshot has now been walked by a person and partly recorded, and
+nothing in it misbehaved.
 
 No project license is present. The repository has no `LICENSE` or `COPYING`
 file, while `README.md` links to a public GitHub repository. Choosing a license
@@ -239,11 +272,12 @@ this one did, and discard the run rather than the discrepancy if the two differ.
 
 Three items, in the order that unblocks the most:
 
-1. Run `./scripts/run.ps1` on an interactive Windows desktop and record the
-   manual menu result — Play, Pause, Menu, modal commands, and Exit Game — into
-   the spectator-clarity smoke table, filling the date, machine, commit, and
-   launch-path evidence fields. This is the single item that has held roles 16,
-   17, and 18 at conditional since the foundation snapshot.
+1. Close the four partly observed rows. This is a two-minute pass on an
+   interactive Windows desktop and needs only four things: press `Space` to
+   confirm it toggles play (row 2), press `Escape` to confirm it toggles the
+   menu (row 4), exercise modal Play, modal Pause, and Escape-closes-without-
+   resuming (row 5), and capture the exit code on an operating-system window
+   close (row 15). Then work outward through the remaining 82 rows.
 2. Select and add a project license before any public distribution.
 3. Land or discard the in-flight sound-capacity work so the tree is clean at
    handover: `docs/research/SOUND-CAPACITY-MEASUREMENTS.md` and

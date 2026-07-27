@@ -1169,19 +1169,27 @@ the interaction. Use `PASS`, `FAIL`, or `BLOCKED`; leave untouched rows
 
 | Evidence field | Recorded value |
 | --- | --- |
-| Date | Not recorded |
-| Machine/platform | Not recorded |
-| Source commit | Not recorded |
-| Launch path (`source` or package path) | Not recorded |
+| Date | 2026-07-27 |
+| Machine/platform | Microsoft Windows 10.0.26200 (Windows 11 Pro) x64 |
+| Source commit | `8815a3c`; the later `d6818a8` is documentation-only and builds the identical binary |
+| Launch path (`source` or package path) | `source`, via `./scripts/run.ps1` |
 | Optional screenshot paths | None recorded |
+
+The rows below were observed by the repository owner at an interactive Windows
+desktop and reported to the role 17 review, which transcribed them. Only rows
+whose **whole** expected observation was exercised are marked `PASS`. Rows 2, 4,
+5, and 15 were partly observed: the observed half is recorded in `Actual` and the
+row stays `PENDING`, because a row is a single status and half a row is not a
+pass. Each of those four names exactly what is still missing, so closing them is
+a short follow-up rather than a repeat of the whole pass.
 
 | Check | Expected observation | Actual | Status |
 | --- | --- | --- | --- |
-| 1. Launch the game | The window opens, agents render, and the match starts paused with tick unchanged. | Not run | PENDING |
-| 2. Activate Play | The always-visible Play button advances ticks; Space provides the same toggle while the modal is closed. | Not run | PENDING |
-| 3. Activate Pause | The always-visible Pause button stops tick advancement and visibly indicates the paused state. | Not run | PENDING |
-| 4. Open Menu | The always-visible Menu button pauses the match and opens the modal; Escape toggles that same menu behavior. | Not run | PENDING |
-| 5. Exercise modal commands | Modal Play resumes and closes; modal Pause remains open and paused; Escape closes without resuming; Exit Game, which is available only in the modal, requests one clean shutdown. | Not run | PENDING |
+| 1. Launch the game | The window opens, agents render, and the match starts paused with tick unchanged. | Window opened; match started paused with the tick counter sitting still. | PASS |
+| 2. Activate Play | The always-visible Play button advances ticks; Space provides the same toggle while the modal is closed. | Play advanced the ticks. The Space toggle was not exercised. | PENDING |
+| 3. Activate Pause | The always-visible Pause button stops tick advancement and visibly indicates the paused state. | Pause stopped tick advancement and the paused state was visible on screen. | PASS |
+| 4. Open Menu | The always-visible Menu button pauses the match and opens the modal; Escape toggles that same menu behavior. | The Menu button opened the modal. Escape as a toggle was not exercised. | PENDING |
+| 5. Exercise modal commands | Modal Play resumes and closes; modal Pause remains open and paused; Escape closes without resuming; Exit Game, which is available only in the modal, requests one clean shutdown. | Exit Game quit the game cleanly. Modal Play, modal Pause, and Escape-closes-without-resuming were not exercised. | PENDING |
 | 6. Select an agent | A primary click on a living agent pins the inspector with ID, faction, alive/dead state, health, intent, target, and position. | Not run | PENDING |
 | 7. Move away and observe death | Moving the pointer away does not clear selection; if the selected agent dies, the inspector remains pinned and shows its final `DEAD` state. | Not run | PENDING |
 | 8. Check observational behavior | Selecting or inspecting an agent does not alter tick progression or the deterministic battle result; an empty-arena click clears selection and UI clicks do not click through. | Not run | PENDING |
@@ -1191,7 +1199,7 @@ the interaction. Use `PASS`, `FAIL`, or `BLOCKED`; leave untouched rows
 | 12. Exercise ordinary Next Round | `R`, modal Next Round, and summary Next Round each preserve the score, speed, and camera; clear selection, event history, scroll state, and summary; and leave the fresh round paused. | Not run | PENDING |
 | 13. Check seed progression | Each Next Round changes the seed to a distinct deterministic value. After Full Reset, repeating the same Next Round sequence produces the same seed sequence. | Not run | PENDING |
 | 14. Exercise Full Reset | After changing the score, speed, and camera, press `Shift+R`; both win totals become 0, seed returns to 1, speed returns to 1x, the camera fits the arena, disposable UI state clears, and the fresh round is paused. Change state again and confirm modal Full Reset has the same result. | Not run | PENDING |
-| 15. Close the window | The operating-system close button exits the process once with exit code 0. | Not run | PENDING |
+| 15. Close the window | The operating-system close button exits the process once with exit code 0. | Closing the window exited the game. The exit code was not captured, so the `0` half of this row is unproven. | PENDING |
 | 16. Check the plains backdrop ground | The battle floor shows varied ground shading with scattered grass, dirt, and stone marks rather than one flat color. | Not run | PENDING |
 | 17. Check backdrop stability at zoom extremes | Zooming fully out and fully in keeps the ground pattern locked to the same patches of map; the pattern does not crawl or shimmer, and decals neither vanish into flicker nor balloon into large blobs. | Not run | PENDING |
 | 18. Check backdrop continuity while panning | Panning the camera across the map shows no seam lines, gaps, or overlapping bright edges between ground cells. | Not run | PENDING |
