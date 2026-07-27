@@ -669,3 +669,73 @@ The recorded figures for both workloads are in
 [docs/development/testing.md](docs/development/testing.md). Anyone tuning the contact model later
 should start from the fact that the binding constraint on the battle line is now the body diameter,
 while attack reach decides who can strike — the two are deliberately different distances.
+
+### Last-stand formation
+
+This subsection records the shipped last-stand rally behaviour. It is the game-rule statement of
+the approved design at
+[docs/plans/2026-07-27-last-stand-formation-design.md](docs/plans/2026-07-27-last-stand-formation-design.md),
+which remains the authority on the numeric derivation and the rejected alternatives.
+
+**This is a game-design invention, not a historical claim, and the prohibition on named or
+slot-based formations stated above applies to it without exception.** No source documents a rally
+radius, a formation headcount, or a formation shape for this period and region. The only
+player-facing word for this behaviour is `Regrouping`, a plain English descriptor in the same
+spirit as `Great Blade` for a weapon whose specific cultural identification stays provisional
+metadata. No cultural or foreign formation name may ever appear in a player-facing string for it.
+
+A faction enters its last stand, independently of the other faction, on any tick where its living
+count is at or below `Scenario.LastStandThresholdAgents` and that value is greater than zero. Hit
+points are only ever written downward, in exactly one place, so the trigger is monotone and cannot
+flap once armed: a faction's living count never rises inside a battle, so once the threshold is
+crossed it stays crossed. A threshold of `0` — the property's own default — disables the feature
+entirely; `Scenario.CreateDefault` applies `FormationRules.DefaultLastStandThresholdAgents` (`6`),
+and `Scenario.Validate` rejects any threshold above `FormationRules.MaximumLastStandThresholdAgents`
+(`9`).
+
+Each faction's rally agent is its living warrior with the lowest `EntityId` — a total order over a
+finite, unique set that needs no tie-break. It is recomputed by a single forward scan at the top of
+`SelectTargetsAndIntents` every tick and compared explicitly on `EntityId` rather than on array
+order, so a permuted agent array yields the same rally agent. The rally agent is exempt from the
+formation: it keeps its ordinary nearest-enemy targeting and is never `Regrouping`. Every other
+living warrior of a faction that has entered its last stand, whose selected target is not already
+within body-contact distance, is marked `AgentIntent.Regrouping` and aims at a point derived from
+the rally agent's position instead of at its own enemy.
+
+A follower's aim point is not the rally agent's own position. It trails
+`FormationRules.RallyTrailRadiusMultiplier` body radii (`12`) behind the rally agent, opposite the
+rally agent's direction of travel, and then adds a fixed per-follower jitter offset drawn
+independently on each axis from `[-J, +J]`, where `J` is
+`FormationRules.RallyJitterRadiusMultiplier` (`6`) times the body radius. A follower already
+standing inside its leader's forward corridor — within `FormationRules.RallyCorridorHalfWidthMultiplier`
+(`2`) body radii of the leader's line of travel, and ahead of it — gives way sideways instead of
+walking back through the leader to reach its trail point, clearing the corridor by a body radius
+and leaving its forward position unchanged. The trail rule and the give-way rule together are what
+keep the formation live: a rally agent is exempt from the *formation* but not from *bodies*, and
+without both rules a follower or the leader itself can become permanently blocked, running the
+battle to the tick limit with no casualties on either side.
+
+The jitter offset is a personal constant for the whole battle, computed by a dedicated
+deterministic stream rather than stored on any agent. `Fnv1a(LastStandTag, Seed, EntityId)` seeds a
+fresh `SplitMix64`, where `LastStandTag` is the 64-bit constant `0x484B424F5F4C5354`. This satisfies
+the `(match_seed, system_tag, entity_id)` random-stream requirement in section 4 above, and the key
+deliberately excludes the tick: a tick-keyed offset would move every warrior's aim point every tick
+and reproduce the jitter-and-stall failure the steering research already warns against. The draw
+uses its own fresh generator instance and never advances the spawn generator, so enabling the
+feature cannot shift spawn placement or hit-location resolution for any seed.
+
+`AgentIntent.Regrouping = 4` is the primary spectator channel, appended after `Dead` because the
+append-only rule for hashed enum values forbids reordering, not because it is conceptually
+terminal. It is authoritative simulation state, written by the intent stage and read by the
+existing agent inspector through the enum's own `ToString()`, so `Intent: Regrouping` appears with
+no `Hukbo.Client` change. A regrouping warrior's `Move` event also names its rally agent in the
+event's target field rather than an enemy, so the battle event log reads the rally rather than a
+duel. Attack eligibility is unchanged by any of this: it is decided entirely by cooldown and
+centre-to-centre range, so a regrouping warrior that passes an enemy inside reach still strikes it
+and is re-marked `Attacking` in the same tick.
+
+Both the state hash and the event hash move whenever a last stand is active. `Scenario.LastStandThresholdAgents`
+enters the scenario block of `StateHasher.Compute`, `AgentIntent.Regrouping` enters the state hash
+through the existing per-agent `Intent` write, and regrouping survivors stand in different places
+than they would under ordinary targeting. The current recorded oracle is in
+[docs/development/testing.md](docs/development/testing.md).

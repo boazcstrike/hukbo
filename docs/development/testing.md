@@ -39,12 +39,167 @@ types. Performance output is evidence, not a universal frame-time guarantee.
 
 ## Latest non-interactive result
 
+Every figure in this section comes from one final verified run of the
+last-stand formation change on 2026-07-27, taken on the
+`worktree-last-stand-formation` branch after it was rebased onto `main`'s
+mirrored starting-formation deployment. See
+[docs/plans/2026-07-27-last-stand-formation-design.md](../plans/2026-07-27-last-stand-formation-design.md)
+and
+[docs/plans/2026-07-27-last-stand-formation.md](../plans/2026-07-27-last-stand-formation.md).
+Nothing here is estimated, rounded, or carried over from an earlier run.
+
+Both hashes moved because this is an authoritative movement change: a
+faction's last survivors now rally on their own lowest-`EntityId` comrade
+instead of continuing to advance on the nearest enemy once the faction's
+living count drops to `Scenario.LastStandThresholdAgents` or fewer, so
+regrouping survivors stand in different places than they would under ordinary
+targeting, and a regrouping warrior's `Move` event names its rally agent in
+the event's target field rather than an enemy.
+
+**Everything below the next heading predates this change and is superseded.**
+
+### Canonical gate
+
+`./scripts/verify.ps1 -SkipBootstrap` passed at all five stages: prerequisite
+validation and locked restore, format verification, the Release solution
+build, the Release repository tests, and the seed-1 / 200-agent / 10,000-tick
+headless determinism workload. It ended with
+`[PASS] Canonical repository verification completed.` The Release build
+produced 0 warnings and 0 errors.
+
+| Suite | Passed | Failed | Skipped |
+| --- | --- | --- | --- |
+| `Hukbo.Core.Tests` | 398 | 0 | 0 |
+| `Hukbo.Client.Tests` | 564 | 0 | 0 |
+
+The Core count rises from `main`'s 351 by the 47 new last-stand tests. The
+Client count is unchanged from `main`'s 564: no `Hukbo.Client` file was touched
+by this change.
+
+### 200-agent acceptance workload
+
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`. This is the current
+recorded oracle.
+
+| Field | Value |
+| --- | --- |
+| Measured ticks | 1176 |
+| Outcome | `Faction1Victory` |
+| Faction 0 survivors | 0 |
+| Faction 1 survivors | 3 |
+| State hash | `BBB40D2240720DC8` |
+| Event hash | `2A6BAEA1E3567046` |
+| Deterministic | `true` |
+| First mismatch tick | `null` |
+| Tick p50 | 0.0672 ms |
+| Tick p95 | 1.4434 ms |
+| Tick p99 | 2.4551 ms |
+| Tick maximum | 7.3394 ms |
+| Allocated | 72,856,392 bytes |
+
+Collision metrics for the same run:
+
+| Metric | Value |
+| --- | --- |
+| `candidatePairs` | 107,401 |
+| `contactPairs` | 4,974 |
+| `acceptedMoves` | 67,112 |
+| `blockedAgentTicks` | 28,609 |
+| `attackCapableAgentTicks` | 9,248 |
+| `longestBlockedStreakTicks` | 48 |
+| `maximumFrontWidthRaw` | 630,752 |
+| `maximumFrontDepthRaw` | 40,469 |
+| `maximumPenetrationRaw` | 0 |
+
+### 500-agent stress workload
+
+The same command with `-Agents 500`. Report only; not gated.
+
+| Field | Value |
+| --- | --- |
+| Measured ticks | 2245 |
+| Outcome | `Faction1Victory` |
+| Faction 0 survivors | 0 |
+| Faction 1 survivors | 5 |
+| State hash | `73FB96A4C5963149` |
+| Event hash | `1531FF58B7C7557B` |
+| Deterministic | `true` |
+| First mismatch tick | `null` |
+| Tick p50 | 0.3384 ms |
+| Tick p95 | 2.9438 ms |
+| Tick p99 | 4.5846 ms |
+| Tick maximum | 11.4977 ms |
+| Allocated | 355,573,472 bytes |
+
+| Metric | Value |
+| --- | --- |
+| `candidatePairs` | 636,139 |
+| `contactPairs` | 12,722 |
+| `acceptedMoves` | 346,926 |
+| `blockedAgentTicks` | 91,845 |
+| `attackCapableAgentTicks` | 23,112 |
+| `longestBlockedStreakTicks` | 48 |
+| `maximumFrontWidthRaw` | 639,480 |
+| `maximumFrontDepthRaw` | 62,961 |
+| `maximumPenetrationRaw` | 0 |
+
+### What the last-stand formation moved, on the same workload
+
+| Metric | Mirrored deployment | Last-stand formation |
+| --- | --- | --- |
+| Terminal tick, 200 agents | 1081 | 1176 |
+| `longestBlockedStreakTicks`, 200 agents | 48 | 48 |
+| `maximumPenetrationRaw`, 200 agents | 0 | 0 |
+| Allocated, 200 agents | 69,693,688 bytes | 72,856,392 bytes |
+
+The battle runs 95 ticks longer under the last-stand formation, and
+`longestBlockedStreakTicks` stayed unchanged at exactly 48 on both the
+200-agent and 500-agent workloads: the rally cluster does not create a new
+worst-case blocked streak anywhere on the field. `maximumPenetrationRaw`
+stayed at exactly 0, which is the guard: the last-stand formation did not
+weaken the solid-disc invariant. Allocation rose from 69,693,688 to 72,856,392
+bytes on the 200-agent workload, consistent with more ticks paid for rather
+than a new steady-state allocation source — the battle also ran 95 ticks
+longer.
+
+### Superseded oracles
+
+Dead values, kept so the transition can be traced. None may be used as a
+regression target.
+
+| Superseded oracle | State hash | Event hash | Note |
+| --- | --- | --- | --- |
+| 200 agents, seed 1, amended collision | `D78F0B527B7F938F` | `AC3BAAEC684854D5` | Terminal tick 657. Superseded by the mirrored deployment. |
+| 500 agents, seed 1, amended collision | `C81B4F48DE54B983` | `D03F1213563DFD49` | Report-only workload. Superseded by the mirrored deployment. |
+| 200 agents, seed 1, mirrored deployment | `DC7F2E7A107C885A` | `6C641E90DDF0B943` | Terminal tick 1081, 3 survivors. Superseded by the last-stand formation, an authoritative movement change. |
+| 500 agents, seed 1, mirrored deployment | `0C53793DEB700A53` | `4F373537096F2551` | Terminal tick 2231. Report-only workload. Superseded by the last-stand formation, an authoritative movement change. |
+
+The combat preset is untouched: `CombatRuleset.ContentHash` is still
+`0x59FB4CA563D87A49`, asserted by two tests in the passing suite.
+
+### Interactive verification
+
+**Not performed.** The opening frame is the whole visible point of the
+mirrored deployment, and the converging endgame is the whole visible point of
+the last-stand formation, and no person has watched either in a live window.
+The rows in the deployment smoke checklist and the new last-stand formation
+smoke checklist below stay `PENDING`.
+
+## Superseded: the mirrored starting-formation deployment run
+
 Every figure in this section comes from the mirrored starting-formation change
 on 2026-07-27, taken on the `feature/starting-formations` branch. Starting
 positions are now planned once per battle as a set of contingents and mirrored
 across the vertical centre line, so both hashes moved. See
 [docs/archives/2026-07-27-starting-formations-design.md](../archives/2026-07-27-starting-formations-design.md),
 kept for traceability only.
+
+**This entire section is superseded by the last-stand formation run recorded
+at the top of this file.** Its two oracle pairs are the mirrored-deployment
+rows in that section's "Superseded oracles" table. Everything in this section,
+including the "Everything below the next heading predates this change and is
+superseded" sentence that follows, described the live baseline only until the
+last-stand formation shipped.
 
 **Everything below the next heading predates this change and is superseded.**
 
@@ -74,8 +229,8 @@ unchanged.
 
 ### 200-agent acceptance workload
 
-`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`. This is the current
-recorded oracle.
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`. This was the
+recorded oracle before the last-stand formation.
 
 | Field | Value |
 | --- | --- |
@@ -236,29 +391,30 @@ state hash `DC7F2E7A107C885A`, event hash `6C641E90DDF0B943`,
 `1.3886` ms, p99 `2.4117` ms, maximum `6.9264` ms, and `allocatedBytes`
 `69693688`.
 
-**Both hashes are unchanged from the 200-agent acceptance oracle recorded at
-the top of this section** (`DC7F2E7A107C885A` and `6C641E90DDF0B943`,
-respectively). That is the expected result for a presentation-only change: the
-font ramp, the six vendored typeface bakes, the sampler-state switch from
-`PointClamp` to `LinearClamp` in the user interface sprite batch, and the
-whole-pixel text geometry helper all live entirely in `Hukbo.Client`, and the
-scope boundary enforced by the font plan means zero files under
-`src/Hukbo.Core`, `src/Hukbo.Headless`, or `tests/Hukbo.Core.Tests` were
-touched.
+**Both hashes were unchanged from the 200-agent acceptance oracle this section
+recorded above** (`DC7F2E7A107C885A` and `6C641E90DDF0B943`, respectively).
+That was the expected result for a presentation-only change: the font ramp,
+the six vendored typeface bakes, the sampler-state switch from `PointClamp` to
+`LinearClamp` in the user interface sprite batch, and the whole-pixel text
+geometry helper all live entirely in `Hukbo.Client`, and the scope boundary
+enforced by the font plan means zero files under `src/Hukbo.Core`,
+`src/Hukbo.Headless`, or `tests/Hukbo.Core.Tests` were touched. Both hashes
+are now dead values in their own right, superseded along with the rest of
+this section by the last-stand formation run at the top of this file.
 
 The pair `D78F0B527B7F938F` and `AC3BAAEC684854D5`, recorded further down this
-file both under "Superseded oracles" and again under "Superseded: the amended
-collision run" (`:193` in this file as of this writing), is the
-terminal-tick-657 amended-collision baseline. It was superseded by the mirrored
-starting-formation deployment change before this font work began, and it is
-**not** the current baseline; it must not be cited as one, and it is not the
-pair this run reproduced.
+file both under this section's "Superseded oracles" table and again under
+"Superseded: the amended collision run", is the terminal-tick-657
+amended-collision baseline. It was superseded by the mirrored
+starting-formation deployment change before this font work began, and it was
+**not** the current baseline even when this entry was written; it must not be
+cited as one, and it is not the pair this run reproduced.
 
-These results prove the non-interactive gate only. No visual claim is made by
-this entry. Every row in the new "Typography smoke" subsection below is
-`PENDING`, and the display-scaling measurement task (gated, separate, and
-requiring a human at an interactive Windows desktop) remains untouched by this
-run.
+These results proved the non-interactive gate only. No visual claim was made by
+this entry. The "Typography smoke" subsection in the interactive checklist
+below remains `PENDING`, and the display-scaling measurement task (gated,
+separate, and requiring a human at an interactive Windows desktop) remains
+untouched by this run.
 
 ## Superseded: the amended collision run
 
@@ -973,6 +1129,34 @@ Compilation, unit tests, and a window-opening probe do not.
 | 73. Window resize | Resizing between small and maximised keeps text pixel size constant and re-lays out panels without clipping. | Not run | PENDING |
 | 74. Subpixel blur is gone | Panning, zooming, and pausing produce no shimmering or swimming text. | Not run | PENDING |
 | 75. Display scaling | Record the appearance at 100% and at 150% Windows scaling. Feeds the separate, gated display-scaling measurement task; not itself a pass/fail row for the font ramp. | Not run | PENDING |
+
+### Last-stand formation smoke
+
+Added by the last-stand formation change. **Not performed.** The automated
+tests prove the trigger, the rally-agent choice, the deterministic offset, the
+trail distance, the give-way rule, and that a last stand still resolves inside
+the tick limit. None of them prove that the resulting endgame reads as a
+converging last stand rather than as warriors wandering, which is the only
+thing these rows are for. Only a human running `./scripts/run.ps1` on an
+interactive Windows desktop may flip one of these rows to `PASS`. Compilation,
+unit tests, and a window-opening probe do not.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 76. Watch the endgame converge | Let a full 200-agent battle run to its final handful of warriors on each side. As each side thins out, its survivors visibly turn toward one another and gather instead of continuing to spread across the map. | Not run | PENDING |
+| 77. Confirm the cluster is irregular | The gathered survivors form a ragged clump. They do not form a ring, a grid, a line, an arc, or any shape that looks placed. No warrior sits at an obviously exact distance from the one it gathered on. | Not run | PENDING |
+| 78. Confirm the cluster advances as a body | The gathered survivors travel toward the enemy together rather than one at a time. The group arrives roughly at once, and the fight that follows is a group fight rather than a sequence of separate duels. | Not run | PENDING |
+| 79. Watch a leader fall | When the warrior the group has gathered on is killed, the group re-forms on another warrior within a moment. The re-form is a short, small adjustment, not a sudden jump across the screen or a scatter. | Not run | PENDING |
+| 80. Inspect a regrouping warrior | Selecting a survivor that is closing on its comrades shows `Intent: Regrouping` in the inspector, and the battle event log shows its movement naming the warrior it is closing on rather than an enemy. The intent changes to `Attacking` once it is actually swinging at an enemy. | Not run | PENDING |
+| 81. Confirm regrouping never stops the fight | A warrior that is regrouping still strikes any enemy it passes within reach. The final engagement is not delayed by warriors refusing to fight while they are still gathering, and the match reaches a terminal outcome rather than two clusters standing apart. | Not run | PENDING |
 
 ## Failure classification
 
