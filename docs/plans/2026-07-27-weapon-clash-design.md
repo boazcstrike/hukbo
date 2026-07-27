@@ -464,17 +464,19 @@ proposals per tick.
 
 At a mean interception of 0.325, damage throughput falls by a third and battle length
 rises by roughly one over `1 - 0.325`, a factor of about 1.48. Against the recorded seed-1
-terminal tick of **1081** that predicts a terminal tick near **1600**, inside the
+terminal tick of **1154** that predicts a terminal tick near **1710**, inside the
 10,000-tick cap and inside the 5,000-tick median clause of criterion two, though with less
 headroom than the pre-merge baseline gave.
 
-**That baseline moved once already and the margin narrowed.** Before merging `main`'s
-mirrored starting formations, seed 1 terminated at tick 657 and the same arithmetic
-predicted 975. Mirrored deployment lengthened the battle to 1081 ticks on its own, with no
-clash mechanic present at all, so the prediction rose with it. The lesson for whoever reads
-this next: the 5,000-tick median clause is measured against a baseline that any deployment,
-movement, or targeting change can move, and criterion two should be re-derived rather than
-assumed after any such merge.
+**That baseline has now moved three times and the margin has narrowed each time.** Before
+merging `main`'s mirrored starting formations, seed 1 terminated at tick 657 and the same
+arithmetic predicted 975. Mirrored deployment lengthened the battle to 1081 ticks on its
+own, with no clash mechanic present at all, so the prediction rose to 1600. The last-stand
+formation then took it to 1176, and the collision priority amendment settled it at the
+current 1154. None of those three changes involved a clash mechanic. The lesson for whoever
+reads this next: the 5,000-tick median clause is measured against a baseline that any
+deployment, movement, or targeting change can move, and criterion two should be re-derived
+rather than assumed after any such merge.
 
 That is a prediction, not a budget. Criterion two is the budget.
 
@@ -1055,12 +1057,12 @@ The seam supplies a decidable form, provided the hasher takes a `ulong contentHa
 than a ruleset. Build the neutral ruleset with `WithClashProfile(ClashProfile.Neutral)`,
 inject it through the new `Create` overload, run seed 1 at 200 agents, and call
 `ComputeStateHash(0x59FB4CA563D87A49UL)` — the overload described in section 5.1, not the
-parameterless method — asserting it equals **`DC7F2E7A107C885A`** exactly at the terminal
+parameterless method — asserting it equals **`5BEBA7A68F69BE0D`** exactly at the terminal
 tick. That is a plain equality against a recorded value rather than an inference about a
 fold. The per-tick state-hash column uses the same overload, for the same reason: the
 parameterless method folds the injected ruleset's own `ContentHash`, which after the
 content-hash fold lands differs from the recorded value on both the version word and the
-thirty-two clash words, so every one of the roughly 1081 rows would mismatch.
+thirty-two clash words, so every one of the 1154 rows would mismatch.
 
 **This only works because the parameter is the `ulong`.** Had it been the ruleset, the
 assertion would hold at the first barrier and then start failing the moment the clash
@@ -1075,14 +1077,14 @@ The fixture comparison on the event stream and a field-by-field comparison of fi
 state both remain, alongside it.
 
 **The fixture format is per-tick digest rows, and the exclusion is load-bearing.** Seed 1
-at 200 agents runs 1081 ticks and tens of thousands of events, so serialising every event is
+at 200 agents runs 1154 ticks and tens of thousands of events, so serialising every event is
 megabytes committed to the repository, while a single whole-run fold is one number that
 destroys the event-for-event comparison this test promises. The committed shape is one row
 per tick carrying the event count plus an FNV-1a fold over the ordered
 `(Sequence, Tick, Kind, SourceEntityId, TargetEntityId ?? 0, Value, FactionId, Weapon,
 HitLocation)` tuples, **deliberately excluding `Resolution`**, because a post-change event
 carries a field a pre-change event cannot and including it would guarantee a mismatch that
-means nothing. Roughly 1081 rows, and a failure reports a first-divergence tick in the same
+means nothing. 1154 rows, and a failure reports a first-divergence tick in the same
 shape `benchmark.ps1` already reports as `firstMismatchTick`. The fixture also carries the
 terminal tick, the outcome, both survivor counts, and the final per-agent state tuples.
 

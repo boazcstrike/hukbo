@@ -23,9 +23,13 @@ public sealed class DeterminismTests
 
     /// <summary>
     /// The state hash the pre-change build reported at the terminal tick of the
-    /// seed-1, two-hundred-agent workload.
+    /// seed-1, two-hundred-agent workload. Recaptured with the fixture when the
+    /// last-stand formation and the collision priority amendment merged from
+    /// <c>main</c>; the superseded value was <c>0xDC7F2E7A107C885A</c> at tick
+    /// 1081. It is the value the capture harness recorded, not a golden edited
+    /// to match output: the per-tick digest guard proves the same run row by row.
     /// </summary>
-    private const ulong PreClashTerminalStateHash = 0xDC7F2E7A107C885AUL;
+    private const ulong PreClashTerminalStateHash = 0x5BEBA7A68F69BE0DUL;
 
     private const string PreClashDigestFileName =
         "seed-1-200-agents-preclash-digest.json";

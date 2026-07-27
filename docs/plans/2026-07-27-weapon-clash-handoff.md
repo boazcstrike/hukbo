@@ -11,7 +11,7 @@ then the four files in section 2, then start at section 7.
 | --- | --- |
 | Worktree | `C:\Users\boazs\webdev\autonomous-arena\.claude\worktrees\weapon-clash` |
 | Branch | `worktree-weapon-clash` |
-| Base | merged with `main` at `b70d812` |
+| Base | merged with `main` at `7abf8fc`, which carried `2d88b43` |
 | Merged into `main`? | **No.** Nothing is merged. The branch is ahead by the whole feature |
 
 **Run every command from the worktree, not the main checkout.** The scripts are
@@ -95,13 +95,18 @@ Eleven test tasks, T13–T23, in five commits: `9f0bb41`, `d275c18`, `9dc54f6`,
 
 **All 38 named cases matched their labels.** 81 failing cases across 29 methods,
 and the 81 are exactly the RED set — no RED passed, no GUARD failed, no compile
-error. The Core suite is *expected to be red* right now:
+error. The Core suite is *expected to be red* right now. After the `main` merge
+described in section 5 the suite grew by main's own 71 cases and the count reads:
 
 ```
-Total tests: 468
-     Passed: 387
-     Failed: 81
+Total tests: 539
+     Passed: 457
+     Failed: 82
 ```
+
+81 of those 82 are the RED set, unchanged. The eighty-second is
+`RepeatedCollisionTicksHaveBoundedAllocations`, which the merge broke and which
+is described at the end of section 5.
 
 `./scripts/test.ps1` throws on the Core failure and never reaches the Client
 project, so run `Hukbo.Client.Tests` directly to see it: 564 passed, 0 failed.
@@ -137,17 +142,26 @@ resolution clauses and staying GUARD. Reasoning recorded at
 
 ## 5. Recorded values — use these, ignore older ones
 
-Merging `main` brought mirrored starting formations, which changed spawn
-placement and lengthened the seed-1 battle. **Any number you find from before the
-merge is stale.**
+`main` has been merged three times during this feature. The current merge,
+`7abf8fc`, brought the last-stand formation and the collision priority
+amendment, both authoritative movement changes, plus the JSON Lines debug log,
+the sound gain compensation, and the documentation archive move. **Any number you
+find from before that merge is stale.**
 
 ```
-terminal tick   1081        (was 657 before the merge)
-state hash      DC7F2E7A107C885A
-event hash      6C641E90DDF0B943
-content hash    0x59FB4CA563D87A49UL     unchanged by the merge
-fixture rows    1081
+terminal tick   1154        (657, then 1081, then 1176, now 1154)
+state hash      5BEBA7A68F69BE0D
+event hash      D379B60B2E30FFFC
+content hash    0x59FB4CA563D87A49UL     unchanged by every merge so far
+fixture rows    1154
+allocated       78,806,784 bytes
 ```
+
+Both hashes are byte-identical to what `main` reports on its own, which is the
+evidence that Phase 0 remains hash-neutral: `ClashResolver.Resolve` still returns
+`Landed` unconditionally and the neutral profile intercepts nothing. Allocation
+is 9.9 per cent above main's 71,698,480, the documented cost of widening
+`BattleEvent` from 80 to 88 bytes for the nullable resolution.
 
 The content hash is still pinned twice in the suite, at
 `tests/Hukbo.Core.Tests/CombatConfigurationTests.cs:145` and
@@ -156,37 +170,42 @@ after T19 goes green.** The literal `0x59FB4CA563D87A49UL` that T21 passes as a
 *content-hash argument* is not one of those goldens and must not be swept up in
 that edit.
 
-### `main` has already moved again — read this before merging
+### What the `7abf8fc` merge cost, and what it left open
 
-While Phase 1 was running, `main` took the **last-stand formation** (`6b4f809`),
-which redirects a faction's last survivors onto their own leader once it drops to
-`Scenario.LastStandThresholdAgents` or fewer. That is an authoritative movement
-change, so it moved both hashes again. `main`'s own recorded baseline is now:
+`main` took the **last-stand formation** (`6b4f809`), which redirects a faction's
+last survivors onto their own leader once it drops to
+`Scenario.LastStandThresholdAgents` or fewer, and then the **collision priority
+amendment** (`c01ea9f`), which resolves contested ground by a per-tick priority
+key. Both are authoritative movement changes and both moved the hashes. The
+merge itself also had to resolve one conflict and left one test failing:
 
-```
-terminal tick   1176
-state hash      BBB40D2240720DC8
-event hash      2A6BAEA1E3567046
-allocated       72,856,392 bytes
-```
+- **One merge conflict**, in `SeedsOneThroughTwentyProduceVictoriesForBothFactions`.
+  Both sides had extended the same test. Both properties are kept: main's
+  fairness clause, at least four victories per faction rather than the original
+  one, and this branch's T22/T23 termination clause, nineteen of twenty seeds
+  decisive with a median at or below 5,000. The `outcomes` HashSet was dropped
+  because the victory counters subsume it.
+- **The digest fixture was recaptured** by the procedure below and now holds
+  1154 rows captured at `7abf8fc`. `ZeroInterceptionProfile_ReproducesThePreClashDigest`
+  passes across every row.
+- **`DeterminismTests.PreClashTerminalStateHash` was re-baselined** to
+  `0x5BEBA7A68F69BE0D`. It is the value the capture harness recorded, not a
+  golden edited to match output; the per-tick digest guard proves the same run
+  row by row and it passes.
+- **Criterion two was re-derived.** At a mean interception of 0.325 the 1.48
+  factor now predicts a terminal tick near 1710 rather than 1600, still inside
+  the 5,000 median clause.
+- **`RepeatedCollisionTicksHaveBoundedAllocations` is left failing**, at 988,192
+  bytes against its 900,000 ceiling. The test is named nowhere in the plan or the
+  design, so no task owns it. `main` passes it at roughly 898,000 bytes, within a
+  fifth of a per cent of its own ceiling, and Phase 0's 88-byte `BattleEvent`
+  pushed it over — the same 9.9 per cent that shows up in the whole-workload
+  allocation figure. It is a budget whose input legitimately grew, not a
+  regression in the collision stage, but raising a ceiling is a decision rather
+  than a merge mechanic and it was left visible instead of quietly widened.
 
-and it explicitly lists **our** tick-1081 pair as a dead, superseded baseline.
-
-**This worktree has none of that code, and 1081 is correct here.** Do not adopt
-1176 until the merge actually happens. When it does, expect all of the following:
-
-- recapture the digest fixture (procedure below) — the 1081-row file becomes wrong;
-- re-derive criterion two, because the median-tick clause is measured against a
-  baseline that has now moved three times: 657, then 1081, then 1176;
-- reconcile `.claude/skills/hukbo-determinism-change/SKILL.md`, whose copy in the
-  main checkout is ahead of this worktree's;
-- re-run and re-record, since `ZeroInterceptionProfile_ReproducesThePreClashDigest`
-  and `..._ReproducesTheRecordedStateHash` both compare against the fixture and
-  will fail loudly. **That failure is the merge, not a defect** — but confirm it is
-  the merge before touching either test.
-
-Three deployment changes have landed on `main` during this feature's planning and
-first two phases. Assume a fourth. The cost each time is one fixture recapture
+Five deployment changes have now landed on `main` during this feature's planning
+and first two phases. Assume a sixth. The cost each time is one fixture recapture
 plus a plan-constant sweep, so merging early and often is cheaper than merging at
 the end.
 
@@ -235,9 +254,9 @@ eventually wanted.
 
 **Start Phase 2, T24–T34.** Phase 1 is done and B1 is satisfied.
 
-1. Decide whether to merge `main`'s last-stand formation first — see section 5.
-   Merging now costs one fixture recapture; merging after Phase 2 costs the same
-   recapture plus a golden re-baseline in flight.
+1. Settle `RepeatedCollisionTicksHaveBoundedAllocations` — see the end of
+   section 5. It is a failing guard that no task owns, and the plan's own barrier
+   rule treats a failing guard as a hard block.
 2. T24's nine existing-test dispositions come **before** any attack-stage edit.
    They use the seam; do not hand-pick lucky-roll seeds. No shipped pairing is
    clash-neutral — the minimum total is 2000 basis points.
@@ -245,7 +264,14 @@ eventually wanted.
    attack-stage integration, metrics accumulation, and the hash re-baseline.
 4. T32 re-baselines the two golden content-hash constants, and **only after T19
    is green.**
-5. Then Phase 3a only, the swing animation. 3b and 3c are dropped.
+5. Then Phase 3a, the swing animation, **plus T54 rescued out of the dropped
+   Phase 3b**. T54 is not audio work: it gives the battle event log a distinct
+   action label per resolution, stops a non-landed attack reading as a bare zero
+   damage line, and extends the feed's defence-in-depth guard. Without it no
+   spectator can tell a parry from a block from a landed blow, which fails the
+   discoverability question in `CLAUDE.md` §6, and T65's smoke row requiring the
+   event log to distinguish all five resolutions is unsatisfiable. The owner
+   approved the rescue on 2026-07-27. The rest of 3b and all of 3c stay dropped.
 6. Then Phase 4.
 
 The 81 red Core tests are Phase 2's specification. Watch them go green; any that
