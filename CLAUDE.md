@@ -1,7 +1,9 @@
 # Hukbo — Agent Instructions
 
-Read this before touching anything. `AGENTS.md` holds the naming contract and is
-the companion file for non-Claude agents; keep the two consistent.
+Read this before touching anything. `AGENTS.md` is the standalone contract for
+non-Claude agents — naming, commands, non-negotiables, workflow, historical
+policy, do-nots. It stands on its own for tools that never load this file;
+keep the two consistent.
 
 ## 1. Product
 
