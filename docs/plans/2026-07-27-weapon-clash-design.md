@@ -464,9 +464,17 @@ proposals per tick.
 
 At a mean interception of 0.325, damage throughput falls by a third and battle length
 rises by roughly one over `1 - 0.325`, a factor of about 1.48. Against the recorded seed-1
-terminal tick of 657 that predicts a terminal tick near **975**, comfortably inside both
-the 10,000-tick cap and the 5,000-tick median clause of criterion two. Allocation should
-rise in roughly the same proportion from the recorded 42,568,888 bytes.
+terminal tick of **1081** that predicts a terminal tick near **1600**, inside the
+10,000-tick cap and inside the 5,000-tick median clause of criterion two, though with less
+headroom than the pre-merge baseline gave.
+
+**That baseline moved once already and the margin narrowed.** Before merging `main`'s
+mirrored starting formations, seed 1 terminated at tick 657 and the same arithmetic
+predicted 975. Mirrored deployment lengthened the battle to 1081 ticks on its own, with no
+clash mechanic present at all, so the prediction rose with it. The lesson for whoever reads
+this next: the 5,000-tick median clause is measured against a baseline that any deployment,
+movement, or targeting change can move, and criterion two should be re-derived rather than
+assumed after any such merge.
 
 That is a prediction, not a budget. Criterion two is the budget.
 
@@ -593,7 +601,7 @@ enum on `AgentView`, because a packed front produces thousands of contacts per t
 each other, every tick, for every pair — the recorded 200-agent run counted 57,295
 candidate pairs. An accepted attack requires a living attacker, a living target, a target
 in reach, and a cooldown at zero; the same run recorded 8,945 attack-capable agent-ticks
-across 657 ticks, and with a five-tick cooldown the number actually accepted is a
+across the pre-merge 657-tick run, and with a five-tick cooldown the number actually accepted is a
 fraction of that. Attacks are already one event each.
 
 The design therefore adds **no new `BattleEventKind` member**. `BattleEvent` gains a
@@ -637,7 +645,7 @@ list is a task that must complete **before** the attack stage is touched.
 | `BattleSimulationTests.cs:116 DamageIsAccumulatedBeforeMutualDeathResolution` | Asserts both agents die on one tick, which requires both blows to land. | **Needs a clash-neutral tuple.** The property is simultaneity, not interception. |
 | `BattleSimulationTests.cs:635 AcceptedAttacksCarryTheSourceWeaponAndAResolvedHitLocation` | Asserts `Value == DamagePerAttack`. Its `Bolo` attacker against a `GreatBlade` with `TallHardwood` defender now computes to 3000 basis points non-landed, so the assertion fails about one time in three. | **Needs a clash-neutral tuple**, plus a new sibling asserting the same weapon and hit-location carriage on a non-landed attack with `Value == 0`. |
 | `BattleSimulationTests.cs:677 MultipleAttackersOnOneTargetRetainIndividualHitLocationsButOneAggregatedDamageEvent` | Aggregation now sums only landed attacks. | **Needs a clash-neutral tuple.** |
-| `BattleSimulationTests.cs:411 CanonicalTwoHundredAgentBattleTerminatesWithinTheTickLimit` | Battles get about 1.48 times longer. | **Survives as written**, since the predicted terminal tick near 975 is far inside 10,000. It is also the cheapest early warning that interception is too high, so it runs before the full gate. |
+| `BattleSimulationTests.cs:411 CanonicalTwoHundredAgentBattleTerminatesWithinTheTickLimit` | Battles get about 1.48 times longer. | **Survives as written**, since the predicted terminal tick near 1600 is far inside 10,000. It is also the cheapest early warning that interception is too high, so it runs before the full gate. |
 | `PhilippineCombatIntegrationTests.cs:427 Regression_SameTickMutualDeathEventsPrecedeTheOutcomeEventInEmissionOrder` | Requires both lethal blows to land. | **Needs a clash-neutral tuple.** Emission order is the property. |
 | `PhilippineCombatIntegrationTests.cs:367 Regression_AggregateDamagePerTargetPerTickEqualsSumOfIndividualAttackValuesAcrossAFullBattle` | Compares aggregated damage against the sum of individual attack values. | **Survives, but only because a non-landed attack is emitted with a value of zero.** That coupling is load-bearing: if a later change suppressed the attack event instead of zeroing its value, this test would silently start comparing a shorter list. The coupling is recorded in a comment on the test. |
 | `CombatConfigurationTests.cs:268` and `:324` | Construct `CombatRuleset` with named arguments and no clash profile. | **Survive unmodified**, because the new constructor parameter is optional and defaults to a neutral all-zero profile. |
@@ -1047,12 +1055,12 @@ The seam supplies a decidable form, provided the hasher takes a `ulong contentHa
 than a ruleset. Build the neutral ruleset with `WithClashProfile(ClashProfile.Neutral)`,
 inject it through the new `Create` overload, run seed 1 at 200 agents, and call
 `ComputeStateHash(0x59FB4CA563D87A49UL)` — the overload described in section 5.1, not the
-parameterless method — asserting it equals **`D78F0B527B7F938F`** exactly at the terminal
+parameterless method — asserting it equals **`DC7F2E7A107C885A`** exactly at the terminal
 tick. That is a plain equality against a recorded value rather than an inference about a
 fold. The per-tick state-hash column uses the same overload, for the same reason: the
 parameterless method folds the injected ruleset's own `ContentHash`, which after the
 content-hash fold lands differs from the recorded value on both the version word and the
-thirty-two clash words, so every one of the roughly 657 rows would mismatch.
+thirty-two clash words, so every one of the roughly 1081 rows would mismatch.
 
 **This only works because the parameter is the `ulong`.** Had it been the ruleset, the
 assertion would hold at the first barrier and then start failing the moment the clash
@@ -1067,14 +1075,14 @@ The fixture comparison on the event stream and a field-by-field comparison of fi
 state both remain, alongside it.
 
 **The fixture format is per-tick digest rows, and the exclusion is load-bearing.** Seed 1
-at 200 agents runs 657 ticks and tens of thousands of events, so serialising every event is
+at 200 agents runs 1081 ticks and tens of thousands of events, so serialising every event is
 megabytes committed to the repository, while a single whole-run fold is one number that
 destroys the event-for-event comparison this test promises. The committed shape is one row
 per tick carrying the event count plus an FNV-1a fold over the ordered
 `(Sequence, Tick, Kind, SourceEntityId, TargetEntityId ?? 0, Value, FactionId, Weapon,
 HitLocation)` tuples, **deliberately excluding `Resolution`**, because a post-change event
 carries a field a pre-change event cannot and including it would guarantee a mismatch that
-means nothing. Roughly 657 rows, and a failure reports a first-divergence tick in the same
+means nothing. Roughly 1081 rows, and a failure reports a first-divergence tick in the same
 shape `benchmark.ps1` already reports as `firstMismatchTick`. The fixture also carries the
 terminal tick, the outcome, both survivor counts, and the final per-agent state tuples.
 
