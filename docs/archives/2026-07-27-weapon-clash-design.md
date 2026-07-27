@@ -1,5 +1,9 @@
 # Weapon Clash, Swing Animation, and Clash Sound — Design
 
+> **Archived: reference only.** This plan is complete and deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
+
+Superseded by: [2026-07-27-clash-preset-v2-integration.md](2026-07-27-clash-preset-v2-integration.md)
+
 Date: 2026-07-27
 Revision: 6. Revision 5 put the seam on `Create`; revision 6 makes the hasher take a content
 hash rather than a ruleset, and adds a per-tick state hash to the fixture.

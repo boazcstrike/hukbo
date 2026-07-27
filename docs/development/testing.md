@@ -84,7 +84,119 @@ not prove a sound was audible, that it arrived at the right moment, or that it
 sounded right. Smoke rows below still require a human at an interactive desktop;
 see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
-## Latest non-interactive result — weapon identity and attributes (preset V2), 2026-07-27
+## Latest non-interactive result — weapon clash on preset V2, 2026-07-28
+
+Merges the weapon-clash defensive-resolution feature onto preset V2. See
+[docs/plans/2026-07-27-clash-preset-v2-integration.md](../plans/2026-07-27-clash-preset-v2-integration.md),
+its design document, and its handoff. An accepted attack now resolves against
+a five-way `AttackResolution` — `Landed`, `ShieldBlocked`, `Parried`,
+`Deflected`, `Evaded` — instead of landing unconditionally. Preset V1 stays
+frozen with no clash profile (D1); preset V2 carries the clash tables for its
+six-loadout roster, including the ten new cells the two shieldless loadouts
+(solo Kalis, solo Itak) needed that the four-loadout V1 roster never had to
+resolve.
+
+`./scripts/verify.ps1 -SkipBootstrap` passed at all five stages:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+| Field | Value |
+| --- | --- |
+| Tests | 660 passed (Client), 587 passed (Core), 0 failed, 0 skipped |
+| `measuredTicks` | 1 710 |
+| `outcome` | `Faction1Victory` |
+| `eventHash` | `A2DC3ECA3F7345ED` |
+| `stateHash` | `71211929A44A16CA` |
+| `deterministic` | `true` |
+| `firstMismatchTick` | `null` |
+| `allocatedBytes` | 93 905 304 |
+| Tick p50 / p95 / p99 / max | 0.0812 / 1.5217 / 2.8857 / 9.4846 ms |
+
+**Both hashes moved, which is the point.** The previous baseline was
+`eventHash CF8C3EDBC59C3319` and `stateHash C669281B67CF8871`, recorded before
+this change under the weapon-identity preset V2. Damage is now conditional on
+`Landed` and the packed `Resolution` byte enters the event, so an unchanged
+hash would have meant the clash stage was never actually wired in.
+
+- V1's `ContentHash` still equals its pinned literal `0x59FB4CA563D87A49`,
+  proving V1 was not disturbed by the merge (D2's conditional fold).
+- V2's `ContentHash` is pinned at `0x10AB1CC226AB3636`. It moved twice during
+  this integration: once when the clash profile was first attached
+  (`0x718825F30DC69593`), and again after the T60 retune below moved four
+  shieldless weapon-intercept cells and two void cells within their existing
+  bands. Both moves are legitimate content changes, not re-baseline drift —
+  see the retune note under "T60 — the 20-seed defence-attributable share"
+  below.
+- The collision allocation ceiling stays at 900,000 bytes. The merged
+  `BattleEvent` — carrying `Weapon`, `Shield`, `HitLocation`, and `Resolution`
+  all packed into one `int` per D5 — measures 815,312 bytes, comfortably under
+  the ceiling and smaller than the pre-clash 200-agent figure above.
+- `CombatMetrics` reaches neither hash: `DeterminismTests.CombatMetrics_ReachesNeitherHash`
+  captures the before/after pair on the merged tree and both are
+  byte-identical.
+
+### T60 — the 20-seed defence-attributable share
+
+Gate task, not a report: the merged share must fall inside 0.25 to 0.45 across
+seeds 1 through 20 at 200 agents, 10,000-tick cap.
+
+| Seed | Share | Seed | Share | Seed | Share | Seed | Share |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 0.3055 | 6 | 0.29 | 11 | 0.32 | 16 | 0.32 |
+| 2 | 0.29 | 7 | 0.30 | 12 | 0.33 | 17 | 0.30 |
+| 3 | 0.31 | 8 | 0.30 | 13 | 0.31 | 18 | 0.31 |
+| 4 | 0.32 | 9 | 0.30 | 14 | 0.31 | 19 | 0.30 |
+| 5 | 0.31 | 10 | 0.31 | 15 | 0.32 | 20 | 0.30 |
+
+Range 0.292 to 0.3301, inside the 0.25 to 0.45 band. No further retune needed
+after the one described below.
+
+**One retune fired during Phase 4, not Phase 5.** The unit test
+`PhilippineCombatIntegrationTests.ShieldedRosterEntriesAbsorbMoreBlowsBeforeDyingThanShieldlessOnesAcrossSeedsOneThroughTwenty`
+already measures a related but distinct acceptance criterion — the
+shielded-versus-shieldless survival ratio, required above 1.15 — across the
+same 20 seeds, and it failed once at 1.145 with the cells' first-authored
+values. The four shieldless Kalis and four shieldless Itak weapon-intercept
+cells, plus their two void cells, were lowered within their already-declared
+0.10-to-0.18 and 0.11-to-0.19 bands (design section 5) until the ratio
+cleared 1.15. Per the plan's sequencing rule, this retune invalidated the
+pinned V2 content hash and the row-mean regression test, both re-captured
+against the retuned tables; the 20-seed share above was measured after the
+retune, not before.
+
+### T61 — termination
+
+At least 19 of 20 seeds must decide before the 5,000-tick cap, median
+decisive tick at or below 5,000.
+
+| Field | Value |
+| --- | --- |
+| Seeds decided before cap | 20 / 20 |
+| Median decisive tick | 1 616 |
+| Deterministic on every seed | `true` |
+
+### T71 — 500-agent stress workload, reported not asserted
+
+`./scripts/benchmark.ps1 -Agents 500 -Ticks 10000 -Seed 1`:
+
+| Field | Value |
+| --- | --- |
+| `outcome` | `Faction0Victory`, 11 against 0 survivors |
+| `measuredTicks` | 2 832 |
+| `eventHash` | `A5C77685987DBA49` |
+| `stateHash` | `A4C8B82F2A445691` |
+| `deterministic` | `true` |
+| `allocatedBytes` | 409 560 528 |
+| Tick p95 / p99 / max | 1.9817 / 4.0499 / 14.0668 ms |
+| `defenceAttributableShare` | 0.3159 |
+
+## Previous non-interactive result — weapon identity and attributes (preset V2), 2026-07-27
 
 Every weapon now carries its own damage, reach, and attack cooldown, split by
 grip, and a Filipino pair-form name with an evidence tier. See
@@ -1494,6 +1606,30 @@ the six-row composition panel fits the window.
 | V2-8 | Use Distribute Evenly, then Apply, then Full Reset | The battle fields the chosen composition across all six categories | | PENDING |
 | V2-9 | Launch with an existing pre-V2 settings file present | Settings reset to defaults without an error dialog or a crash; the composition is the six-category default | | PENDING |
 | V2-10 | Listen during a Wasay attack | The war-axe sound plays; no slot is silent | | PENDING |
+
+### Weapon clash smoke (preset V2)
+
+**No interactive run was performed for this change.** Every row below is
+`PENDING`. The automated tests prove the resolver, the table coverage, the
+event packing, and the blood/label suppression; none of them prove that a
+spectator watching the arena can actually tell the five resolutions apart.
+Rows marked with a dagger (†) are the ones that decide something about the
+design rather than merely confirm it — see design section 3.8 for the
+recorded disposition if the void-versus-landed row returns `FAIL`.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| CL-1 | Watch the battle event feed for one exchange of each resolution | The five lines are distinguishable: a damage line for `Landed`, "stopped by the shield" for `ShieldBlocked`, "parried" for `Parried`, "turned aside" for `Deflected`, "stepped off the line" for `Evaded` | | PENDING |
+| CL-2 | Watch a shield-blocked, parried, or deflected blow | No blood spray and no impact ring appear for any of the three | | PENDING |
+| CL-3 | Watch the clash cross render | It appears for `ShieldBlocked`, `Parried`, and `Deflected`, and for neither `Landed` nor `Evaded` | | PENDING |
+| CL-4 † | Distinguish a void from a shield block | An `Evaded` blow (no clash cross, follow-through swing) reads differently on screen from a `ShieldBlocked` blow (clash cross, recoil) without reading the event log | | PENDING |
+| CL-5 † | Distinguish a void from a landed blow | An `Evaded` blow (follow-through swing, no blood, no impact ring) reads differently on screen from a `Landed` blow (stops on target, blood, impact ring) without reading the event log | | PENDING |
+| CL-6 | Watch any warrior attack | Weapons visibly swing through an arc rather than sitting static during an attack | | PENDING |
+| CL-7 | Watch one attack at 1x, then the same weapon at 4x | The swing reads as one countable action at 1x and does not smear into a blur at 4x | | PENDING |
+| CL-8 | Compare a `Parried` or `Deflected` blow, a `Landed` blow, and an `Evaded` blow | The clashed blow visibly recoils, the landed blow stops on the target, and the void follows through past it | | PENDING |
+| CL-9 | Zoom to high detail, then to low detail, during a swing | The swing arc trail is visible at high zoom and absent at low zoom | | PENDING |
+| CL-10 | Pan the camera so a swinging weapon crosses the arena panel edge | A weapon tip may be visibly clipped at the panel edge while panning — this is the accepted cost of the pose-blind frustum cull, not a defect | | PENDING |
+| CL-11 | Observe the merged pawn silhouette in motion, both a shield-bearing and a solo warrior | The silhouette under D7 (main's geometry constants plus the clash branch's swing pose applied on top) reads correctly: shield block and swing pose both present, axe head distinguishable from blade, no visual corruption | | PENDING |
 
 ### Spectator clarity smoke
 

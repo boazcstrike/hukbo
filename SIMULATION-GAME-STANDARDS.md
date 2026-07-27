@@ -747,3 +747,116 @@ enters the scenario block of `StateHasher.Compute`, `AgentIntent.Regrouping` ent
 through the existing per-agent `Intent` write, and regrouping survivors stand in different places
 than they would under ordinary targeting. The current recorded oracle is in
 [docs/development/testing.md](docs/development/testing.md).
+
+## 14. Defensive resolution contract
+
+This section records the shipped weapon-clash mechanic: the step that decides whether an accepted
+attack actually lands. It is the game-rule statement of the decisions recorded in
+[docs/plans/2026-07-27-clash-preset-v2-integration-design.md](docs/plans/2026-07-27-clash-preset-v2-integration-design.md),
+which remains the authority on why each value was chosen and which alternatives were rejected. This
+section was dropped from the standards document when the original weapon-clash plan was superseded
+by the preset-V2 integration; it is restored here rather than left missing, because the mechanic it
+describes is shipped and authoritative.
+
+### Tick stage
+
+Defensive resolution runs inside `GatherAndCommitAttacks`, immediately after an attack has passed the
+reach and cooldown gates and after `HitLocationResolver.Resolve` has chosen the struck body part, and
+before damage is applied. An attack that fails the reach or cooldown gate never reaches this stage at
+all; only an **accepted** attack is resolved against the clash profile.
+
+### The five outcomes
+
+`AttackResolution` is a five-member enum with pinned numeric values, appended-only per the section 4
+enum-value rule:
+
+| Value | Name | Meaning |
+|---|---|---|
+| `0` | `Landed` | The blow struck as gathered; damage applies. |
+| `1` | `ShieldBlocked` | The defender's shield took the blow. |
+| `2` | `Parried` | The defender's weapon arrested the blow (the hard share of the weapon channel). |
+| `3` | `Deflected` | The defender's weapon brushed the blow aside (the soft share of the weapon channel). |
+| `4` | `Evaded` | The defender stepped off the line entirely; the blow met empty air. |
+
+Only `Landed` applies damage. The other four are mutually exclusive, jointly exhaustive alternatives
+to a landed blow, never summed on top of a separate base probability.
+
+### The `HKBO_CLS` domain tag
+
+`ClashResolver.MixClash` derives a stateless keyed roll from an FNV-1a fold tagged with the ASCII
+constant `HKBO_CLS` (`0x484B424F5F434C53`), folding, in order: the domain tag, the seed, the tick,
+the source entity ID, the target entity ID, the attacking weapon, the defending weapon, and the
+defending shield. This is the same construction `HitLocationResolver` uses under its own `HKBO_HIT`
+tag, over an overlapping input tuple; the distinct tags are what keep the two rolls independent
+rather than correlated draws off the same stream. Neither draws from `SplitMix64` or any other
+shared generator, so adding this stage shifts no pre-existing deterministic behaviour — proven by the
+zero-interception control run, which reproduces the pre-change event stream and state hash tick for
+tick when every clash channel is held at zero.
+
+### The composition rule
+
+The roll walks a fixed five-way cumulative interval in this order: shield, hard (parry), soft
+(deflect), void, landed. Each channel's width is basis points out of `ClashProfile.BasisPointScale`
+(10,000). The shield, weapon, and void channels are resolved from `ClashProfile`, keyed by
+`(defending weapon, defending shield, attacking weapon)` for the weapon channel and
+`(defending weapon, defending shield)` for the void channel; the weapon channel is then split into
+its hard and soft halves by a per-weapon hard-share base and multiplier, keyed by weapon alone. If the
+summed shield, weapon, and void channels exceed `MaximumInterceptionBasisPoints`, all three are
+rescaled proportionally; the residue left by truncation becomes additional `Landed` probability.
+Every comparison in the interval walk is strictly lower-exclusive, so a zero-width channel — a
+shieldless defender's shield interval, in particular — is stepped over rather than selected.
+
+### The single enforced acceptance band
+
+The defence-attributable share — `(ShieldBlocked + Parried + Deflected + Evaded) / AcceptedAttacks`,
+exposed as `CombatMetrics.DefenceAttributableShare` — is a gate, not a report, on preset V2's shipped
+tables: it must land inside 0.25 to 0.45 across seeds 1 through 20 at 200 agents. No other acceptance
+band on the individual channel values is enforced; the tables may be retuned freely within their
+declared per-cell bands as long as the aggregate share and the termination criterion below both hold.
+
+### The termination criterion
+
+At least 19 of 20 seeds must reach a decisive outcome before the 5,000-tick cap, with a median
+decisive tick at or below 5,000. Preset V2's shipped tables satisfy both the share band and the
+termination criterion; the recorded figures are in
+[docs/development/testing.md](docs/development/testing.md).
+
+### The hashed fields
+
+`AttackResolution` packs into bits 24 through 26 of `BattleEvent`'s combined `_combatContext` `int`
+(`ResolutionShift = 24`), alongside `Weapon` (bits 16-23), `Shield` (bits 8-15), and `HitLocation`
+(bits 0-7). `Landed = 0` contributes nothing to the resolution byte, which is safe only because the
+weapon field is non-zero for every attack event and "absent" is tested on the whole field, not on any
+one byte — a pinned test guards this reasoning. The event stays at 72 bytes and the collision
+allocation ceiling stays at 900,000. `ClashProfile`'s entire tuning surface — the weapon-intercept
+matrix keyed by all three key parts, the shield scalar, the void channel, the hard-share rows, and the
+clamp bounds — folds into `CombatRuleset.ContentHash` conditionally: only a ruleset actually
+constructed with a clash profile folds it, which is what keeps preset V1's pinned content hash
+(`0x59FB4CA563D87A49`) unchanged. `CombatMetrics` reaches neither the state hash nor the event hash;
+it is derived observability data only.
+
+### Spectator channels
+
+| Channel | `Landed` | `ShieldBlocked` | `Parried` | `Deflected` | `Evaded` |
+| --- | --- | --- | --- | --- | --- |
+| Event log line | damage line | "stopped by the shield" | "parried" | "turned aside" | "stepped off the line" |
+| Blood spray | yes | suppressed | suppressed | suppressed | suppressed |
+| Impact ring | yes | absent | absent | absent | absent |
+| Clash cross | absent | yes | yes | yes | absent |
+| Swing pose | stops on target | recoil | recoil | recoil | follows through |
+
+`Evaded` is the weakest case: distinguished by one positive channel, the event-log line, and three
+absences. The three clash sound slots that would have given it a fourth channel are deferred by owner
+decision and are not part of this contract.
+
+### Historical boundary
+
+**Every value in this contract is a gameplay tuning choice, not a historical measurement.** The
+weapon-intercept matrix's sixteen legacy cells and the ten cells added for the shieldless Kalis and
+Itak loadouts are all labelled **Provisional reconstruction** in `PhilippineCombatPresetV2`'s own code
+comments, naming the band each was drawn from. The shield channel is the only defensive channel with
+any sixteenth-century documentary support — anchored only in direction, by documented shield use at
+Mactan and Cole's 1922 account of angled deflection (**Documented, form uncertain**) — and its
+magnitude of 2,400 basis points is invented and stays labelled as such. No value in this section may
+be cited back into `docs/research/HISTORICAL_1500s_WEAPONS.md` or `WEAPON_CLASH_1500s.md` as a
+measurement.

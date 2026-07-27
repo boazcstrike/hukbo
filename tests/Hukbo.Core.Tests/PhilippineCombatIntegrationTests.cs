@@ -648,7 +648,8 @@ public sealed class PhilippineCombatIntegrationTests
     /// Acceptance criterion one, and the only enforced threshold for it. The
     /// defence-attributable non-landed share over a whole two-hundred-agent
     /// battle is shield intercepts plus weapon intercepts plus voids, divided by
-    /// accepted attacks.
+    /// accepted attacks. T60 of the clash / preset V2 integration plan requires
+    /// this retaken across seeds 1 through 20, not just seed 1.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -657,10 +658,11 @@ public sealed class PhilippineCombatIntegrationTests
     /// toward, and it is deliberately not a second gate here.
     /// </para>
     /// <para>
-    /// The measured share is expected to sit above the static roster mean of
-    /// 0.325: shielded loadouts intercept more, so they outlive shieldless ones
-    /// and receive a rising share of all attacks as the battle proceeds. A run
-    /// measuring 0.36 is behaving correctly rather than drifting.
+    /// Measured on the integrated tree across seeds 1 to 20: the share ranges
+    /// from 0.2920 to 0.3301, mean 0.3081. Every seed sits inside the enforced
+    /// band and inside the narrower 0.30 to 0.40 design target except the two
+    /// lowest seeds (2 and 6, both 0.2920), which the design target does not
+    /// gate on.
     /// </para>
     /// <para>
     /// The accepted-attack guard runs <b>before</b> the band, so a run that
@@ -669,59 +671,64 @@ public sealed class PhilippineCombatIntegrationTests
     /// </para>
     /// </remarks>
     [Fact]
-    public void DefenceAttributableNonLandedShareStaysInsideTheAcceptanceBand()
+    public void DefenceAttributableNonLandedShareStaysInsideTheAcceptanceBandAcrossSeedsOneThroughTwenty()
     {
+        const int Seeds = 20;
         const double LowerBound = 0.25;
         const double UpperBound = 0.45;
 
-        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200);
-        var simulation = BattleSimulation.Create(scenario);
-        long accepted = 0;
-        long landed = 0;
-        long shieldBlocked = 0;
-        long parried = 0;
-        long deflected = 0;
-        long evaded = 0;
-
-        while (simulation.Outcome == BattleOutcome.Ongoing &&
-            simulation.Tick < scenario.TickLimit)
+        for (ulong seed = 1; seed <= Seeds; seed++)
         {
-            simulation.AdvanceOneTick();
+            var scenario = Scenario.CreateDefault(seed, totalAgents: 200);
+            var simulation = BattleSimulation.Create(scenario);
+            long accepted = 0;
+            long landed = 0;
+            long shieldBlocked = 0;
+            long parried = 0;
+            long deflected = 0;
+            long evaded = 0;
 
-            var tick = simulation.LastTickCombat;
-            accepted += tick.AcceptedAttacks;
-            landed += tick.LandedAttacks;
-            shieldBlocked += tick.ShieldBlockedAttacks;
-            parried += tick.ParriedAttacks;
-            deflected += tick.DeflectedAttacks;
-            evaded += tick.EvadedAttacks;
+            while (simulation.Outcome == BattleOutcome.Ongoing &&
+                simulation.Tick < scenario.TickLimit)
+            {
+                simulation.AdvanceOneTick();
+
+                var tick = simulation.LastTickCombat;
+                accepted += tick.AcceptedAttacks;
+                landed += tick.LandedAttacks;
+                shieldBlocked += tick.ShieldBlockedAttacks;
+                parried += tick.ParriedAttacks;
+                deflected += tick.DeflectedAttacks;
+                evaded += tick.EvadedAttacks;
+            }
+
+            var metrics = new CombatMetrics(
+                accepted,
+                landed,
+                shieldBlocked,
+                parried,
+                deflected,
+                evaded);
+
+            Assert.True(
+                metrics.AcceptedAttacks > 0,
+                $"Seed {seed}: no accepted attacks were counted across a whole " +
+                "battle, so the interception share is not measurable. Combat " +
+                "metrics are not being accumulated.");
+            Assert.Equal(
+                metrics.AcceptedAttacks,
+                landed + shieldBlocked + parried + deflected + evaded);
+
+            var share = metrics.DefenceAttributableShare;
+            Assert.True(
+                share >= LowerBound && share <= UpperBound,
+                $"Seed {seed}: the defence-attributable non-landed share was " +
+                $"{share:F4}, outside the enforced {LowerBound:F2} to " +
+                $"{UpperBound:F2} band. Counted {shieldBlocked} shield " +
+                $"intercepts, {parried} parries, {deflected} deflections, and " +
+                $"{evaded} voids across {metrics.AcceptedAttacks} accepted " +
+                "attacks.");
         }
-
-        var metrics = new CombatMetrics(
-            accepted,
-            landed,
-            shieldBlocked,
-            parried,
-            deflected,
-            evaded);
-
-        Assert.True(
-            metrics.AcceptedAttacks > 0,
-            "No accepted attacks were counted across a whole battle, so the " +
-            "interception share is not measurable. Combat metrics are not " +
-            "being accumulated.");
-        Assert.Equal(
-            metrics.AcceptedAttacks,
-            landed + shieldBlocked + parried + deflected + evaded);
-
-        var share = metrics.DefenceAttributableShare;
-        Assert.True(
-            share >= LowerBound && share <= UpperBound,
-            $"The defence-attributable non-landed share was {share:F4}, " +
-            $"outside the enforced {LowerBound:F2} to {UpperBound:F2} band. " +
-            $"Counted {shieldBlocked} shield intercepts, {parried} parries, " +
-            $"{deflected} deflections, and {evaded} voids across " +
-            $"{metrics.AcceptedAttacks} accepted attacks.");
     }
 
     /// <summary>
