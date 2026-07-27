@@ -636,39 +636,85 @@ public sealed class LastStandFormationTests
             reaimedMoveEvent.TargetEntityId);
     }
 
+    /// <summary>
+    /// PROVISIONAL tuning bound, not a measured property of the collision
+    /// resolver. It guards design risk R4: permanent thrashing that produces a
+    /// no-casualty draw at the tick limit.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The bound was 60 when this case measured 45 on seed 1 alone. The weapon
+    /// clash raised it to 69 by lengthening battles rather than by changing
+    /// anything about collision: running this same scenario at the same commit
+    /// through the ruleset seam with <c>ClashProfile.Neutral</c> reproduces 45
+    /// exactly, which is the evidence that the collision resolver, the
+    /// last-stand formation, and the collision priority amendment are all
+    /// untouched. Interception means fewer landed blows per exchange, so a
+    /// maximally packed cluster stays packed for longer.
+    /// </para>
+    /// <para>
+    /// Seed 1 turned out to be a 25th-percentile seed for this metric, so the
+    /// assertion now sweeps twenty seeds and takes the worst, following
+    /// <see cref="NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwenty"/>
+    /// in this file. Across seeds 1 to 20 the streak runs 59 to 92 with a
+    /// median of 74; 125 is 1.36 times the worst observed, the same headroom
+    /// the original 60 had over its measured 45.
+    /// </para>
+    /// <para>
+    /// The bound stays two orders of magnitude below the R4 signal, so it loses
+    /// no detection power: a genuinely permanent block runs into the thousands
+    /// as it approaches the tick limit. Across the same twenty seeds no battle
+    /// reached the tick limit, none drew, and none ended without casualties.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public void AMaximumSizedLastStandNeverLeavesAWarriorBlockedForMoreThanSixtyConsecutiveTicks()
+    public void AMaximumSizedLastStandNeverLeavesAWarriorBlockedTooLongAcrossSeedsOneThroughTwenty()
     {
-        const int MaximumAllowedBlockedStreakTicks = 60;
-        // Sixteen agents per faction is FormationRules.MaximumLastStandThresholdAgents,
-        // the square-packing bound, so both factions are the most tightly
-        // clustered configuration the design permits from tick zero.
-        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 32) with
-        {
-            LastStandThresholdAgents = FormationRules.MaximumLastStandThresholdAgents,
-        };
-        var simulation = BattleSimulation.Create(scenario);
+        const int MaximumAllowedBlockedStreakTicks = 125;
+        var worstStreakTicks = 0;
+        var worstDiagnostics = string.Empty;
 
-        while (simulation.Outcome == BattleOutcome.Ongoing &&
-            simulation.Tick < scenario.TickLimit)
+        for (ulong seed = 1; seed <= 20; seed++)
         {
-            simulation.AdvanceOneTick();
+            // Sixteen agents per faction is FormationRules.MaximumLastStandThresholdAgents,
+            // the square-packing bound, so both factions are the most tightly
+            // clustered configuration the design permits from tick zero.
+            var scenario = Scenario.CreateDefault(seed, totalAgents: 32) with
+            {
+                LastStandThresholdAgents = FormationRules.MaximumLastStandThresholdAgents,
+            };
+            var simulation = BattleSimulation.Create(scenario);
+
+            while (simulation.Outcome == BattleOutcome.Ongoing &&
+                simulation.Tick < scenario.TickLimit)
+            {
+                simulation.AdvanceOneTick();
+            }
+
+            if (simulation.LongestBlockedStreakTicks <= worstStreakTicks)
+            {
+                continue;
+            }
+
+            var livingFaction0 = simulation.Agents.Count(
+                agent => agent.FactionId == 0 && agent.IsAlive);
+            var livingFaction1 = simulation.Agents.Count(
+                agent => agent.FactionId == 1 && agent.IsAlive);
+            worstStreakTicks = simulation.LongestBlockedStreakTicks;
+            worstDiagnostics =
+                $"seed {seed} stopped at tick {simulation.Tick} of " +
+                $"{scenario.TickLimit}, outcome {simulation.Outcome}, " +
+                $"living counts [{livingFaction0}, {livingFaction1}]";
         }
 
-        var livingFaction0 = simulation.Agents.Count(
-            agent => agent.FactionId == 0 && agent.IsAlive);
-        var livingFaction1 = simulation.Agents.Count(
-            agent => agent.FactionId == 1 && agent.IsAlive);
         Assert.True(
-            simulation.LongestBlockedStreakTicks <= MaximumAllowedBlockedStreakTicks,
-            "Longest observed blocked streak was " +
-            $"{simulation.LongestBlockedStreakTicks} ticks, exceeding the " +
-            $"{MaximumAllowedBlockedStreakTicks}-tick bound. A failure here " +
-            "means the last-stand cluster packs tighter than the collision " +
-            "resolver permits (design risk R4). Diagnostics: stopped at " +
-            $"tick {simulation.Tick} of {scenario.TickLimit}, outcome " +
-            $"{simulation.Outcome}, living counts " +
-            $"[{livingFaction0}, {livingFaction1}].");
+            worstStreakTicks <= MaximumAllowedBlockedStreakTicks,
+            $"Longest observed blocked streak was {worstStreakTicks} ticks " +
+            $"across seeds 1 to 20, exceeding the " +
+            $"{MaximumAllowedBlockedStreakTicks}-tick PROVISIONAL bound. A " +
+            "failure here means the last-stand cluster packs tighter than the " +
+            "collision resolver permits (design risk R4). Worst seed: " +
+            $"{worstDiagnostics}.");
     }
 
     /// <summary>

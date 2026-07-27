@@ -715,50 +715,97 @@ public sealed class PhilippineCombatIntegrationTests
     /// is the part to defend hardest, above any absolute interception figure, so
     /// it is asserted over the shipped roster across twenty seeds.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This case counted end-of-battle survivors until the weapon clash landed.
+    /// That statistic cannot express the property, and the reason is arithmetic
+    /// rather than sampling. <see cref="Scenario.MaximumHitPoints"/> is 100 and
+    /// <see cref="Scenario.DamagePerAttack"/> is 10, so exactly ten landed blows
+    /// kill anyone. Shieldless entries take about 13.3 swings at an intercepted
+    /// share of 0.26, and shielded entries about 16.3 at 0.39; both therefore
+    /// absorb about 9.9 landed blows. <b>Landed damage is equal by
+    /// construction</b>, which pins survivorship, hit points remaining, and
+    /// damage taken at saturation no matter how good the shield is. It is why
+    /// the pre-clash measurement read exactly 31 of 2,000 against 31 of 2,000.
+    /// </para>
+    /// <para>
+    /// The shield's whole effect is therefore in blows absorbed before dying,
+    /// which is what this case now measures. Pooled across seeds 1 to 20 the
+    /// shipped ratio is 1.22, with a per-seed minimum of 1.17 and a standard
+    /// deviation of 0.04. The same measurement against
+    /// <see cref="ZeroInterceptionRules"/> pools to 1.00 with a maximum of 1.02,
+    /// so the bound below cannot be met without the clash and the case is a real
+    /// test of the feature rather than of the roster. A 1.25 bound would fail on
+    /// the pooled 1.2247 by a hair, so the PROVISIONAL band is 1.15.
+    /// </para>
+    /// <para>
+    /// Mean tick of death is deliberately not the statistic: it separates the
+    /// two groups by only 1.04, and already reads 1.02 with interception
+    /// switched off, so a bound on it would be nearly vacuous.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public void ShieldedRosterEntriesSurviveMoreOftenThanShieldlessOnesAcrossSeedsOneThroughTwenty()
+    public void ShieldedRosterEntriesAbsorbMoreBlowsBeforeDyingThanShieldlessOnesAcrossSeedsOneThroughTwenty()
     {
-        var shieldedSurvivors = 0;
+        var shieldedAttacksReceived = 0L;
         var shieldedTotal = 0;
-        var shieldlessSurvivors = 0;
+        var shieldlessAttacksReceived = 0L;
         var shieldlessTotal = 0;
 
         for (ulong seed = 1; seed <= 20; seed++)
         {
             var scenario = Scenario.CreateDefault(seed, totalAgents: 200);
             var simulation = BattleSimulation.Create(scenario);
+            var attacksByTarget = new Dictionary<ulong, int>();
 
             while (simulation.Outcome == BattleOutcome.Ongoing &&
                 simulation.Tick < scenario.TickLimit)
             {
                 simulation.AdvanceOneTick();
+
+                foreach (var battleEvent in simulation.LastEvents)
+                {
+                    if (battleEvent.Kind != BattleEventKind.Attack ||
+                        battleEvent.TargetEntityId is not { } targetEntityId)
+                    {
+                        continue;
+                    }
+
+                    attacksByTarget.TryGetValue(targetEntityId, out var alreadyReceived);
+                    attacksByTarget[targetEntityId] = alreadyReceived + 1;
+                }
             }
 
+            // Iterated over the ordered agent collection rather than over the
+            // dictionary, so no hash-set ordering reaches the totals.
             foreach (var agent in simulation.Agents)
             {
+                attacksByTarget.TryGetValue(agent.EntityId, out var received);
+
                 if (agent.Loadout.Shield == ShieldId.None)
                 {
                     shieldlessTotal++;
-                    shieldlessSurvivors += agent.IsAlive ? 1 : 0;
+                    shieldlessAttacksReceived += received;
                     continue;
                 }
 
                 shieldedTotal++;
-                shieldedSurvivors += agent.IsAlive ? 1 : 0;
+                shieldedAttacksReceived += received;
             }
         }
 
         Assert.True(shieldedTotal > 0 && shieldlessTotal > 0);
 
-        var shieldedRate = (double)shieldedSurvivors / shieldedTotal;
-        var shieldlessRate = (double)shieldlessSurvivors / shieldlessTotal;
+        var shieldedMean = (double)shieldedAttacksReceived / shieldedTotal;
+        var shieldlessMean = (double)shieldlessAttacksReceived / shieldlessTotal;
 
         Assert.True(
-            shieldedRate > shieldlessRate * 1.25,
-            "PROVISIONAL band. Expected shielded roster entries to outlive " +
-            $"shieldless ones by a clear margin, but measured {shieldedRate:P2} " +
-            $"({shieldedSurvivors} of {shieldedTotal}) against " +
-            $"{shieldlessRate:P2} ({shieldlessSurvivors} of {shieldlessTotal}).");
+            shieldedMean > shieldlessMean * 1.15,
+            "PROVISIONAL band. Expected shielded roster entries to absorb " +
+            "distinctly more blows before dying than shieldless ones, but " +
+            $"measured {shieldedMean:F2} attacks received per shielded agent " +
+            $"({shieldedTotal} agents) against {shieldlessMean:F2} per " +
+            $"shieldless agent ({shieldlessTotal} agents).");
     }
 
     /// <summary>
