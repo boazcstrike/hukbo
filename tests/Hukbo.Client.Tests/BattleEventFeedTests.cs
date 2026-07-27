@@ -360,6 +360,31 @@ public sealed class BattleEventFeedTests
         Assert.Equal(1L, Assert.Single(feed.Entries).Sequence);
     }
 
+    /// <summary>
+    /// GUARD. The text filter formats every candidate event, and the formatter
+    /// now dereferences the resolution as well as the weapon and the hit
+    /// location. A record struct always exposes an implicit parameterless
+    /// constructor, so <c>default(BattleEvent)</c> bypasses the factory
+    /// validation that guarantees those three; the feed's defence-in-depth
+    /// guard is what stops that reaching the formatter.
+    /// </summary>
+    [Fact]
+    public void MatchesFilters_DoesNotThrowOnADefaultAttackEvent()
+    {
+        var feed = new BattleEventFeed(capacity: 8);
+        feed.SetTextFilter("shoulder");
+
+        feed.Ingest(new BattleEvent[3]);
+        feed.Ingest([CreateEvent(9, 9, BattleEventKind.Attack)]);
+
+        Assert.NotEmpty(feed.Entries);
+        Assert.Empty(feed.FilteredEntries);
+
+        feed.SetTextFilter("chest");
+
+        Assert.Single(feed.FilteredEntries);
+    }
+
     private static BattleEventFeed CreatePopulatedFeed(int capacity, int eventCount)
     {
         var feed = new BattleEventFeed(capacity);
