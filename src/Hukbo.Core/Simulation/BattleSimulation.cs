@@ -24,6 +24,15 @@ public sealed class BattleSimulation
     private readonly AgentView[] _agentViews;
     private readonly ReadOnlyCollection<AgentView> _agents;
     private readonly CollisionScratch _collision;
+
+    // Per-faction last-stand state, recomputed by one forward scan at the top
+    // of every SelectTargetsAndIntents call. Allocated once here so the scan
+    // never allocates per tick. Index 0 is faction 0, index 1 is faction 1.
+    // A rally entity ID of 0 means the faction has no living agent this tick;
+    // 0 is never a valid EntityId (AgentState rejects it), so it is a safe
+    // sentinel.
+    private readonly int[] _factionLivingCounts;
+    private readonly ulong[] _factionRallyEntityIds;
     private ReadOnlyCollection<BattleEvent> _lastEvents;
     private long _eventSequence;
     private CollisionTickMetrics _lastTickCollision;
@@ -46,6 +55,8 @@ public sealed class BattleSimulation
         _agentViews = new AgentView[agents.Length];
         _agents = Array.AsReadOnly(_agentViews);
         _collision = new CollisionScratch(scenario, agents.Length);
+        _factionLivingCounts = new int[2];
+        _factionRallyEntityIds = new ulong[2];
 
         for (var index = 0; index < agents.Length; index++)
         {
@@ -489,6 +500,8 @@ public sealed class BattleSimulation
 
     private void SelectTargetsAndIntents()
     {
+        ComputeRallyAgents();
+
         foreach (var agent in _agentStates)
         {
             if (!agent.IsAlive)
@@ -542,6 +555,52 @@ public sealed class BattleSimulation
                 .ContactSquaredDistance(Scenario.BodyRadiusRaw)
                 ? AgentIntent.Attacking
                 : AgentIntent.Moving;
+
+            // Regrouping only overrides an intent that would otherwise be
+            // Moving: Attacking beats Regrouping (the same-tick conflict
+            // rule), and the rally agent itself is exempt and keeps its
+            // ordinary nearest-enemy intent.
+            if (Scenario.LastStandThresholdAgents > 0 &&
+                agent.Intent == AgentIntent.Moving &&
+                _factionLivingCounts[agent.FactionId] <=
+                    Scenario.LastStandThresholdAgents &&
+                agent.EntityId != _factionRallyEntityIds[agent.FactionId])
+            {
+                agent.Intent = AgentIntent.Regrouping;
+            }
+        }
+    }
+
+    /// <summary>
+    /// One forward scan over the agent array, computing the living count and
+    /// the lowest living <see cref="AgentState.EntityId"/> per faction. The
+    /// comparison is against <see cref="AgentState.EntityId"/> explicitly, so
+    /// the result does not depend on the incidental order of
+    /// <see cref="_agentStates"/>. Runs before any intent is assigned, so no
+    /// warrior's intent can depend on scan order either.
+    /// </summary>
+    private void ComputeRallyAgents()
+    {
+        _factionLivingCounts[0] = 0;
+        _factionLivingCounts[1] = 0;
+        _factionRallyEntityIds[0] = 0;
+        _factionRallyEntityIds[1] = 0;
+
+        foreach (var candidate in _agentStates)
+        {
+            if (!candidate.IsAlive)
+            {
+                continue;
+            }
+
+            var faction = candidate.FactionId;
+            _factionLivingCounts[faction]++;
+
+            if (_factionRallyEntityIds[faction] == 0 ||
+                candidate.EntityId < _factionRallyEntityIds[faction])
+            {
+                _factionRallyEntityIds[faction] = candidate.EntityId;
+            }
         }
     }
 
@@ -556,23 +615,293 @@ public sealed class BattleSimulation
         for (var index = 0; index < _agentStates.Length; index++)
         {
             var agent = _agentStates[index];
-            if (!agent.IsAlive ||
-                agent.Intent != AgentIntent.Moving ||
-                agent.TargetEntityId is not { } targetId)
+            if (!agent.IsAlive)
             {
                 continue;
             }
 
-            var target = _agentStates[_agentIndexes[targetId]];
-            _movementProposals[index] = BuildMovementProposal(agent, target);
+            if (agent.Intent == AgentIntent.Moving &&
+                agent.TargetEntityId is { } enemyTargetId)
+            {
+                var target = _agentStates[_agentIndexes[enemyTargetId]];
+                _movementProposals[index] = BuildMovementProposal(agent, target);
+                continue;
+            }
+
+            if (agent.Intent == AgentIntent.Regrouping)
+            {
+                _movementProposals[index] = BuildRegroupingProposal(agent);
+            }
         }
     }
 
     /// <summary>
+    /// Builds the movement proposal that closes a regrouping follower on its
+    /// faction's rally agent plus that follower's own fixed positional bias
+    /// (<see cref="RallyOffset"/>). Returns <c>null</c> — propose no movement
+    /// — in two cases: the arrived-guard, when the follower's squared distance
+    /// to its aim point is already at or inside
+    /// <see cref="CollisionGeometry.ContactSquaredDistance"/>, which stops the
+    /// one-raw-unit movement-floor twitch and the resulting <c>Move</c>-event
+    /// flood a settled cluster would otherwise emit every tick; and the
+    /// defensive case where the rally entity ID is the zero sentinel or the
+    /// rally agent cannot be resolved to a living agent, which falls back to
+    /// no movement rather than throwing.
+    /// </summary>
+    /// <remarks>
+    /// The follower's aim point trails <see cref="FormationRules.RallyTrailRadiusMultiplier"/>
+    /// body radii behind the rally agent, opposite the rally agent's own
+    /// direction of travel, before the jitter offset is applied. Without the
+    /// trail, a follower whose jitter offset happens to point along the rally
+    /// agent's forward arc parks permanently in front of its own leader and
+    /// blocks it — the rally agent is exempt from regrouping and never routes
+    /// around its own formation, so that block never clears. Two factions
+    /// doing this simultaneously deadlock the whole battle at the tick limit.
+    /// See the type-level remarks on <see cref="FormationRules"/> for the
+    /// clearance derivation.
+    /// </remarks>
+    /// <remarks>
+    /// The trail alone is not enough: a follower can start the tick already
+    /// ahead of the rally agent, in which case its trail-behind aim point
+    /// sits on the far side of the leader's own body, and reaching it in a
+    /// straight line means walking backward through the leader. See
+    /// <see cref="TryComputeGiveWayAimPoint"/> for the sideways escape this
+    /// method checks first.
+    /// </remarks>
+    private (int XRaw, int YRaw, ulong TargetId)? BuildRegroupingProposal(
+        AgentState agent)
+    {
+        var rallyEntityId = _factionRallyEntityIds[agent.FactionId];
+        if (rallyEntityId == 0 ||
+            !_agentIndexes.TryGetValue(rallyEntityId, out var rallyIndex))
+        {
+            return null;
+        }
+
+        var rallyAgent = _agentStates[rallyIndex];
+        if (!rallyAgent.IsAlive)
+        {
+            return null;
+        }
+
+        var direction = ComputeRallyDirection(rallyAgent);
+
+        if (direction.DistanceRaw > 0 &&
+            TryComputeGiveWayAimPoint(agent, rallyAgent, direction) is
+            { XRaw: var giveWayXRaw, YRaw: var giveWayYRaw })
+        {
+            return BuildMovementProposal(
+                agent,
+                giveWayXRaw,
+                giveWayYRaw,
+                rallyAgent.EntityId);
+        }
+
+        var (trailBaseXRaw, trailBaseYRaw) = ComputeRallyTrailBase(
+            rallyAgent,
+            direction);
+
+        var (offsetXRaw, offsetYRaw) = RallyOffset.Compute(
+            Scenario.Seed,
+            agent.EntityId,
+            Scenario.BodyRadiusRaw);
+
+        // The aim point is computed in long and saturated into int the same
+        // way CollisionResolver.ToCoordinate saturates a candidate coordinate
+        // before its own boundary clamp: safe, because ClampCenterToBounds
+        // immediately pulls anything outside the map back to the edge.
+        var mapWidthRaw = checked(Scenario.MapWidth * FixedPoint.Scale);
+        var mapHeightRaw = checked(Scenario.MapHeight * FixedPoint.Scale);
+        var aimXRaw = CollisionGeometry.ClampCenterToBounds(
+            SaturateToInt32(checked((long)trailBaseXRaw + offsetXRaw)),
+            mapWidthRaw,
+            Scenario.BodyRadiusRaw);
+        var aimYRaw = CollisionGeometry.ClampCenterToBounds(
+            SaturateToInt32(checked((long)trailBaseYRaw + offsetYRaw)),
+            mapHeightRaw,
+            Scenario.BodyRadiusRaw);
+
+        var squaredDistanceToAim = CollisionGeometry.SquaredDistance(
+            agent.XRaw,
+            agent.YRaw,
+            aimXRaw,
+            aimYRaw);
+        if (squaredDistanceToAim <=
+            CollisionGeometry.ContactSquaredDistance(Scenario.BodyRadiusRaw))
+        {
+            return null;
+        }
+
+        // The event log names the rally agent as the target, not the enemy
+        // the follower would otherwise be chasing, so a spectator reads
+        // "entity N moved toward entity <rally>" during a last stand.
+        return BuildMovementProposal(
+            agent,
+            aimXRaw,
+            aimYRaw,
+            rallyAgent.EntityId);
+    }
+
+    /// <summary>
+    /// Computes the rally agent's direction of travel — the vector from the
+    /// rally agent to its own enemy target, plus the integer distance between
+    /// them — used both by <see cref="ComputeRallyTrailBase"/> and by
+    /// <see cref="TryComputeGiveWayAimPoint"/> for the corridor test. Returns
+    /// a zero <c>DistanceRaw</c> sentinel, meaning "no direction", when the
+    /// rally agent has no target, when the target cannot be resolved to a
+    /// living agent, or when the rally agent is already exactly at its
+    /// target's position.
+    /// </summary>
+    private (long DeltaXRaw, long DeltaYRaw, long DistanceRaw) ComputeRallyDirection(
+        AgentState rallyAgent)
+    {
+        if (rallyAgent.TargetEntityId is not { } rallyTargetId ||
+            !_agentIndexes.TryGetValue(rallyTargetId, out var rallyTargetIndex))
+        {
+            return (0, 0, 0);
+        }
+
+        var rallyTarget = _agentStates[rallyTargetIndex];
+        var deltaXRaw = (long)rallyTarget.XRaw - rallyAgent.XRaw;
+        var deltaYRaw = (long)rallyTarget.YRaw - rallyAgent.YRaw;
+        var distanceRaw = IntegerSquareRoot(
+            checked((deltaXRaw * deltaXRaw) + (deltaYRaw * deltaYRaw)));
+
+        return (deltaXRaw, deltaYRaw, distanceRaw);
+    }
+
+    /// <summary>
+    /// Computes the point <see cref="FormationRules.RallyTrailRadiusMultiplier"/>
+    /// body radii behind the rally agent, opposite the rally agent's own
+    /// direction of travel — the point a follower's jitter offset is added
+    /// to. Falls back to the rally agent's raw position (no trail) when
+    /// <paramref name="direction"/> carries the "no direction" sentinel
+    /// (<c>DistanceRaw == 0</c>), since there is no direction of travel to
+    /// trail behind. That fallback preserves the pre-fix behaviour in that
+    /// corner, which is otherwise untouched by this method's own logic.
+    /// </summary>
+    private (int XRaw, int YRaw) ComputeRallyTrailBase(
+        AgentState rallyAgent,
+        (long DeltaXRaw, long DeltaYRaw, long DistanceRaw) direction)
+    {
+        if (direction.DistanceRaw == 0)
+        {
+            return (rallyAgent.XRaw, rallyAgent.YRaw);
+        }
+
+        var trailRaw = FormationRules.ComputeRallyTrailRaw(Scenario.BodyRadiusRaw);
+        var trailXRaw = SaturateToInt32(checked(
+            rallyAgent.XRaw - (direction.DeltaXRaw * trailRaw / direction.DistanceRaw)));
+        var trailYRaw = SaturateToInt32(checked(
+            rallyAgent.YRaw - (direction.DeltaYRaw * trailRaw / direction.DistanceRaw)));
+
+        return (trailXRaw, trailYRaw);
+    }
+
+    /// <summary>
+    /// Checks whether a regrouping follower's tick-start position falls
+    /// inside its own rally agent's forward give-way corridor and, if so,
+    /// returns a pure-sideways aim point that clears it. Returns
+    /// <see langword="null"/> when the follower is not in the corridor, in
+    /// which case <see cref="BuildRegroupingProposal"/> falls back to the
+    /// ordinary trail-plus-jitter aim point.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Let <c>L</c> be the rally agent's tick-start position, <c>d</c> the
+    /// unit direction from <c>L</c> toward the rally agent's own target (the
+    /// same direction <see cref="ComputeRallyTrailBase"/> trails behind),
+    /// <c>F</c> the follower's tick-start position, and <c>r = F - L</c>.
+    /// <c>forward</c> is the scalar projection of <c>r</c> onto <c>d</c>;
+    /// <c>lateral</c> is the scalar projection of <c>r</c> onto the
+    /// perpendicular of <c>d</c>. The follower is in the corridor when
+    /// <c>forward &gt; 0</c> (ahead of the rally agent) and
+    /// <c>|lateral| &lt; corridor half-width</c>.
+    /// </para>
+    /// <para>
+    /// The escape point is <c>F</c> plus a step purely along the perpendicular
+    /// of <c>d</c>, signed toward the side the follower is already on
+    /// (<c>sign(lateral)</c>) so the step can only move it further from the
+    /// corridor centre, never across it. A follower sitting exactly on the
+    /// leader's axis (<c>lateral == 0</c>) always steps toward the same,
+    /// fixed perpendicular side — never decided by iteration or array order.
+    /// Because the step has no component along <c>d</c>, the follower's
+    /// forward position is unchanged: this is sideways motion only, so the
+    /// follower can never re-enter the corridor by taking this step.
+    /// </para>
+    /// </remarks>
+    private (int XRaw, int YRaw)? TryComputeGiveWayAimPoint(
+        AgentState agent,
+        AgentState rallyAgent,
+        (long DeltaXRaw, long DeltaYRaw, long DistanceRaw) direction)
+    {
+        var relativeXRaw = (long)agent.XRaw - rallyAgent.XRaw;
+        var relativeYRaw = (long)agent.YRaw - rallyAgent.YRaw;
+
+        var forwardRaw = checked(
+            (relativeXRaw * direction.DeltaXRaw) +
+            (relativeYRaw * direction.DeltaYRaw)) / direction.DistanceRaw;
+        if (forwardRaw <= 0)
+        {
+            return null;
+        }
+
+        var lateralRaw = checked(
+            (relativeXRaw * direction.DeltaYRaw) -
+            (relativeYRaw * direction.DeltaXRaw)) / direction.DistanceRaw;
+        var corridorHalfWidthRaw =
+            FormationRules.ComputeRallyCorridorHalfWidthRaw(Scenario.BodyRadiusRaw);
+        if (Math.Abs(lateralRaw) >= corridorHalfWidthRaw)
+        {
+            return null;
+        }
+
+        // Tie-break: exactly on the leader's axis always steps toward the
+        // fixed "+" perpendicular side, so the escape direction never
+        // depends on which side of zero a rounding error happened to land
+        // on, or on the order agents were supplied in.
+        var perpendicularSign = lateralRaw < 0 ? -1L : 1L;
+        var stepOutRaw = checked(corridorHalfWidthRaw + Scenario.BodyRadiusRaw);
+
+        var aimXRaw = SaturateToInt32(checked(
+            agent.XRaw +
+            (perpendicularSign * direction.DeltaYRaw * stepOutRaw /
+                direction.DistanceRaw)));
+        var aimYRaw = SaturateToInt32(checked(
+            agent.YRaw -
+            (perpendicularSign * direction.DeltaXRaw * stepOutRaw /
+                direction.DistanceRaw)));
+
+        var mapWidthRaw = checked(Scenario.MapWidth * FixedPoint.Scale);
+        var mapHeightRaw = checked(Scenario.MapHeight * FixedPoint.Scale);
+        aimXRaw = CollisionGeometry.ClampCenterToBounds(
+            aimXRaw,
+            mapWidthRaw,
+            Scenario.BodyRadiusRaw);
+        aimYRaw = CollisionGeometry.ClampCenterToBounds(
+            aimYRaw,
+            mapHeightRaw,
+            Scenario.BodyRadiusRaw);
+
+        return (aimXRaw, aimYRaw);
+    }
+
+    /// <summary>
+    /// Saturates a long coordinate into <see cref="int"/>, mirroring
+    /// <c>CollisionResolver.ToCoordinate</c>. Safe because the caller always
+    /// runs the result through <see cref="CollisionGeometry.ClampCenterToBounds"/>
+    /// immediately afterward.
+    /// </summary>
+    private static int SaturateToInt32(long valueRaw) =>
+        (int)Math.Clamp(valueRaw, int.MinValue, int.MaxValue);
+
+    /// <summary>
     /// Hands every living agent to the solid-disc resolver. Agents without a
     /// proposal are still submitted: they occupy space, and a stationary body
-    /// with a high entity ID would otherwise have its ground taken by a
-    /// lower-ID mover.
+    /// would otherwise have its ground taken by a mover resolved before it.
+    /// Each mover carries this tick's contested-ground priority, which is a
+    /// pure hash of the seed, the tick, and the agent rather than a draw from
+    /// any stream.
     /// </summary>
     private void ResolveCollisions()
     {
@@ -594,7 +923,15 @@ public sealed class BattleSimulation
                     agent.YRaw,
                     proposal?.XRaw ?? agent.XRaw,
                     proposal?.YRaw ?? agent.YRaw,
-                    proposal is not null));
+                    proposal is not null,
+                    // Only a mover is ordered by its key, so a standing agent
+                    // does not pay for a mix it will never be sorted by.
+                    proposal is null
+                        ? 0
+                        : CollisionPriority.Resolve(
+                            Scenario.Seed,
+                            Tick,
+                            agent.EntityId)));
         }
 
         _collision.Resolver.Resolve(_collision.Requests);
@@ -890,24 +1227,64 @@ public sealed class BattleSimulation
             factionId: winningFaction);
     }
 
+    /// <summary>
+    /// Builds a movement proposal that closes an agent on an enemy it is
+    /// fighting. Delegates to the point-taking overload, stopping short by
+    /// one body diameter so bodies come to rest touching rather than
+    /// overlapping — see the point-taking overload's remarks for why a rally
+    /// point is handled differently.
+    /// </summary>
     private (int XRaw, int YRaw, ulong TargetId) BuildMovementProposal(
         AgentState agent,
-        AgentState target)
+        AgentState target) =>
+        BuildMovementProposal(
+            agent,
+            target.XRaw,
+            target.YRaw,
+            target.EntityId,
+            // Agents close to body contact, not merely to weapon reach.
+            // Stopping at reach left four world units of permanent air
+            // between opposing front ranks, so bodies never touched and the
+            // collision stage only ever saw allies queueing. Attacks still
+            // resolve at reach, which is wider than the diameter, so a rank
+            // pressed into contact fights and the rank behind it can reach
+            // past.
+            stopShortRaw: checked(2 * Scenario.BodyRadiusRaw));
+
+    /// <summary>
+    /// Builds a movement proposal toward an arbitrary destination point
+    /// rather than another agent's live position. Used for last-stand rally
+    /// movement, where a follower wants to actually reach its aim point
+    /// rather than stop short of it the way it would closing on an enemy
+    /// body — so this overload walks all the way in (<c>stopShortRaw: 0</c>)
+    /// instead of duplicating the enemy-closing overload's stopping-distance
+    /// arithmetic.
+    /// </summary>
+    private (int XRaw, int YRaw, ulong TargetId) BuildMovementProposal(
+        AgentState agent,
+        int destinationXRaw,
+        int destinationYRaw,
+        ulong targetId) =>
+        BuildMovementProposal(
+            agent,
+            destinationXRaw,
+            destinationYRaw,
+            targetId,
+            stopShortRaw: 0);
+
+    private (int XRaw, int YRaw, ulong TargetId) BuildMovementProposal(
+        AgentState agent,
+        int destinationXRaw,
+        int destinationYRaw,
+        ulong targetId,
+        int stopShortRaw)
     {
-        var deltaX = (long)target.XRaw - agent.XRaw;
-        var deltaY = (long)target.YRaw - agent.YRaw;
+        var deltaX = (long)destinationXRaw - agent.XRaw;
+        var deltaY = (long)destinationYRaw - agent.YRaw;
         var distanceSquared = checked((deltaX * deltaX) + (deltaY * deltaY));
         var distance = IntegerSquareRoot(distanceSquared);
 
-        // Agents close to body contact, not merely to weapon reach. Stopping at
-        // reach left four world units of permanent air between opposing front
-        // ranks, so bodies never touched and the collision stage only ever saw
-        // allies queueing. Attacks still resolve at reach, which is wider than
-        // the diameter, so a rank pressed into contact fights and the rank
-        // behind it can reach past.
-        var desiredMovement = Math.Max(
-            1,
-            distance - checked(2 * Scenario.BodyRadiusRaw));
+        var desiredMovement = Math.Max(1, distance - stopShortRaw);
         var movement = Math.Min(agent.MovementSpeedRaw, desiredMovement);
         var moveX = checked(deltaX * movement / Math.Max(1, distance));
         var moveY = checked(deltaY * movement / Math.Max(1, distance));
@@ -932,7 +1309,7 @@ public sealed class BattleSimulation
             checked(agent.YRaw + (int)moveY),
             checked(Scenario.MapHeight * FixedPoint.Scale),
             Scenario.BodyRadiusRaw);
-        return (nextX, nextY, target.EntityId);
+        return (nextX, nextY, targetId);
     }
 
     /// <summary>

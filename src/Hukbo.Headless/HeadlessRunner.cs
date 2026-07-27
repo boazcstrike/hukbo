@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Hukbo.Core.Determinism;
 using Hukbo.Core.Simulation;
+using Hukbo.Diagnostics;
 
 namespace Hukbo.Headless;
 
@@ -12,7 +13,10 @@ public sealed record HeadlessOptions(
     int AgentCount,
     int TickCount,
     ulong Seed,
-    string? OutputPath);
+    string? OutputPath,
+    LogLevel? LogLevel = null,
+    LogChannel? LogChannels = null,
+    string? LogDirectory = null);
 
 public static class HeadlessRunner
 {
@@ -30,13 +34,27 @@ public static class HeadlessRunner
             standardError.WriteLine($"Argument error: {error}");
             standardError.WriteLine(
                 "Usage: --agents <positive-even-count> --ticks <positive-count> " +
-                "--seed <unsigned-integer> [--output <json-path>]");
+                "--seed <unsigned-integer> [--output <json-path>] " +
+                "[--log-level off|err|warn|inf|dbg|trc] " +
+                "[--log-channels all|<comma-separated>] " +
+                "[--log-dir <directory>]");
             return 2;
         }
 
+        // Command-line switches outrank the environment: a one-off diagnostic
+        // run should never require mutating the shell.
+        var logOptions = LogOptions
+            .FromEnvironment(standardError)
+            .WithOverrides(
+                options.LogLevel,
+                options.LogChannels,
+                options.LogDirectory);
+        using var log = DiagnosticLog.Create(logOptions, standardError);
+
         try
         {
-            var report = Execute(options);
+            var report = Execute(options, log);
+            log.Flush();
             var json = JsonSerializer.Serialize(
                 report,
                 new JsonSerializerOptions
@@ -81,6 +99,9 @@ public static class HeadlessRunner
         var tickCount = 10_000;
         ulong seed = 1;
         string? outputPath = null;
+        LogLevel? logLevel = null;
+        LogChannel? logChannels = null;
+        string? logDirectory = null;
         var encounteredArguments = new HashSet<string>(StringComparer.Ordinal);
 
         for (var index = 0; index < arguments.Count; index += 2)
@@ -171,21 +192,85 @@ public static class HeadlessRunner
 
                     outputPath = value;
                     break;
+
+                case "--log-level":
+                    if (!LogLevels.TryParse(value, out var parsedLevel))
+                    {
+                        options = default!;
+                        error =
+                            "'--log-level' must be one of off, err, warn, " +
+                            "inf, dbg, trc.";
+                        return false;
+                    }
+
+                    logLevel = parsedLevel;
+                    break;
+
+                case "--log-channels":
+                    if (!LogChannels.TryParseMask(
+                            value,
+                            out var parsedChannels,
+                            out var unknownChannel))
+                    {
+                        options = default!;
+                        error =
+                            $"'--log-channels' names an unknown channel " +
+                            $"'{unknownChannel}'. Valid names are boot, " +
+                            "assets, settings, sim, audio, input, ui, all.";
+                        return false;
+                    }
+
+                    logChannels = parsedChannels;
+                    break;
+
+                case "--log-dir":
+                    if (string.IsNullOrWhiteSpace(value))
+                    {
+                        options = default!;
+                        error = "'--log-dir' must be a nonempty directory path.";
+                        return false;
+                    }
+
+                    logDirectory = value;
+                    break;
             }
         }
 
-        options = new HeadlessOptions(agentCount, tickCount, seed, outputPath);
+        options = new HeadlessOptions(
+            agentCount,
+            tickCount,
+            seed,
+            outputPath,
+            logLevel,
+            logChannels,
+            logDirectory);
         error = string.Empty;
         return true;
     }
 
-    private static RunReport Execute(HeadlessOptions options)
+    private static RunReport Execute(HeadlessOptions options, DiagnosticLog log)
     {
         var scenario = Scenario.CreateDefault(options.Seed, options.AgentCount) with
         {
             TickLimit = options.TickCount,
         };
         scenario.Validate();
+
+        log.SetTick(DiagnosticLog.NoTick);
+        log.Write(
+            LogLevel.Information,
+            LogChannel.Simulation,
+            LogEvents.SimScenarioBuilt,
+            "seed",
+            options.Seed,
+            "agents",
+            options.AgentCount,
+            "requestedTicks",
+            options.TickCount,
+            "mapWidth",
+            scenario.MapWidth,
+            "mapHeight",
+            scenario.MapHeight);
 
         var left = BattleSimulation.Create(scenario);
         var right = BattleSimulation.Create(scenario);
@@ -232,6 +317,27 @@ public static class HeadlessRunner
                 !left.LastEvents.SequenceEqual(right.LastEvents))
             {
                 firstMismatchTick = left.Tick;
+                log.SetTick(left.Tick);
+
+                // The single highest-value line in the whole facility: when the
+                // two simulations part ways, this is the only record of what
+                // each of them believed at the moment they did.
+                log.Write(
+                    LogLevel.Error,
+                    LogChannel.Simulation,
+                    LogEvents.SimMismatch,
+                    "leftTick",
+                    left.Tick,
+                    "rightTick",
+                    right.Tick,
+                    "leftOutcome",
+                    left.Outcome.ToString(),
+                    "rightOutcome",
+                    right.Outcome.ToString(),
+                    "leftStateHash",
+                    ToHex(leftStateHash),
+                    "rightStateHash",
+                    ToHex(rightStateHash));
                 break;
             }
 
@@ -239,6 +345,9 @@ public static class HeadlessRunner
             {
                 AddEventToHash(ref eventHash, battleEvent);
             }
+
+            log.SetTick(left.Tick);
+            LogTick(log, left, leftStateHash);
         }
 
         var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocationStart;
@@ -249,6 +358,25 @@ public static class HeadlessRunner
             .GroupBy(agent => agent.FactionId)
             .ToDictionary(group => group.Key, group => group.Count());
         var totalDuration = tickDurations.Sum();
+        var finalStateHash = left.ComputeStateHash();
+
+        log.SetTick(left.Tick);
+        log.Write(
+            LogLevel.Information,
+            LogChannel.Simulation,
+            LogEvents.SimOutcome,
+            "outcome",
+            left.Outcome.ToString(),
+            "tick",
+            left.Tick,
+            "survivors0",
+            survivors.GetValueOrDefault(0),
+            "survivors1",
+            survivors.GetValueOrDefault(1),
+            "stateHash",
+            ToHex(finalStateHash),
+            "eventHash",
+            ToHex(eventHash));
 
         return new RunReport(
             new RunEnvironment(
@@ -270,15 +398,78 @@ public static class HeadlessRunner
             left.Outcome.ToString(),
             survivors.GetValueOrDefault(0),
             survivors.GetValueOrDefault(1),
-            eventHash.ToString("X16", CultureInfo.InvariantCulture),
-            left.ComputeStateHash().ToString("X16", CultureInfo.InvariantCulture),
+            ToHex(eventHash),
+            ToHex(finalStateHash),
             firstMismatchTick is null,
             firstMismatchTick,
             collisionMetrics.ToMetrics());
     }
 
+    /// <summary>
+    /// Emits one observation of the tick that just advanced. Sampled ticks go
+    /// out at <see cref="LogLevel.Debug"/> and every other tick at
+    /// <see cref="LogLevel.Trace"/>, so an ordinary verbose run carries a
+    /// bisectable skeleton and a trace run carries the whole thing.
+    /// </summary>
+    /// <remarks>
+    /// The state hash is passed in rather than recomputed: the caller already
+    /// computed it to compare the two simulations, and a log must never add a
+    /// call the run would not otherwise make.
+    /// </remarks>
+    private static void LogTick(
+        DiagnosticLog log,
+        BattleSimulation simulation,
+        ulong stateHash)
+    {
+        var level = LogSampling.IsSampledTick(simulation.Tick)
+            ? LogLevel.Debug
+            : LogLevel.Trace;
+        if (!log.IsEnabledFor(level, LogChannel.Simulation))
+        {
+            return;
+        }
+
+        var alive0 = 0;
+        var alive1 = 0;
+        foreach (var agent in simulation.Agents)
+        {
+            if (!agent.IsAlive)
+            {
+                continue;
+            }
+
+            if (agent.FactionId == 0)
+            {
+                alive0++;
+            }
+            else
+            {
+                alive1++;
+            }
+        }
+
+        log.Write(
+            level,
+            LogChannel.Simulation,
+            LogEvents.SimTick,
+            "tick",
+            simulation.Tick,
+            "alive0",
+            alive0,
+            "alive1",
+            alive1,
+            "events",
+            simulation.LastEvents.Count,
+            "stateHash",
+            ToHex(stateHash));
+    }
+
+    private static string ToHex(ulong value) =>
+        value.ToString("X16", CultureInfo.InvariantCulture);
+
     private static bool IsSupportedArgument(string argument) =>
-        argument is "--agents" or "--ticks" or "--seed" or "--output";
+        argument is "--agents" or "--ticks" or "--seed" or "--output" or
+            "--log-level" or "--log-channels" or "--log-dir";
 
     private static double Percentile(double[] sortedValues, double percentile)
     {

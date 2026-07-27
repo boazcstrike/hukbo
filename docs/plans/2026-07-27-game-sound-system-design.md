@@ -78,6 +78,20 @@ Constraints this design must respect, from `CLAUDE.md` and
 Nine slots. Each slot maps to exactly one canonical base file name, and the
 loader looks for that base name plus `.wav`.
 
+> **Partly superseded by
+> [2026-07-27-sound-variant-matrix-design.md](2026-07-27-sound-variant-matrix-design.md).**
+> The nine slots below survived unchanged and are still the roster. The
+> one-file-per-slot rule did not. A slot now owns a set of numbered takes rather
+> than a single file, and the four attack slots additionally fan out by hit
+> class, so the shipped file names look like
+> `attack-great-blade-skull-01.wav` and `death-01.wav` rather than
+> `attack-great-blade.wav` and `death.wav`. The prefixes are built by
+> `SoundCatalog.GetVariantPrefix` and `SoundCatalog.GetSlotVariantPrefix` in
+> `src/Hukbo.Client/Audio/SoundCatalog.cs`, the hit classes live in
+> `src/Hukbo.Client/Audio/HitClass.cs`, and the per-cue choice is made by
+> `src/Hukbo.Client/Audio/SoundVariantSelector.cs`. Read the file-name column
+> below as the base name a variant is derived from, not as a complete file name.
+
 | Slot | File name | Trigger |
 | --- | --- | --- |
 | `AttackGreatBlade` | `attack-great-blade.wav` | `Attack` event whose weapon is `GreatBlade` |
@@ -120,7 +134,12 @@ Discovery happens once, during `LoadContent`:
 1. List the file names present in the folder. A missing folder yields an empty
    list rather than an exception.
 2. For each slot, look for `<base-name>.wav`, matched case-insensitively so
-   `Death.WAV` works on a case-sensitive filesystem too.
+   `Death.WAV` works on a case-sensitive filesystem too. **Superseded by the
+   variant matrix:** the loader now collects every file sharing the slot's
+   variant prefix — `<base-name>-<hit-class>-` for the four attack slots,
+   `<base-name>-` for the other five — instead of looking for one exact name.
+   Matching is still case-insensitive. See
+   [2026-07-27-sound-variant-matrix-design.md](2026-07-27-sound-variant-matrix-design.md).
 3. Load each match. A successful load produces a `Ready` binding; a failed load
    produces a `LoadFailed` binding; no match produces a `Missing` binding.
 

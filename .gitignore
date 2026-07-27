@@ -20,6 +20,9 @@ coverage/
 # MonoGame content output
 *.xnb
 
+# Rendered output from tools/Hukbo.Tools.MixAnalysis
+tools/mix-output/
+
 # Claude Code local overrides
 .claude/settings.local.json
 

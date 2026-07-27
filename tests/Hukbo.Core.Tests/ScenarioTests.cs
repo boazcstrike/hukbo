@@ -411,6 +411,100 @@ public sealed class ScenarioTests
         Assert.Equal(first.GetHashCode(), second.GetHashCode());
     }
 
+    [Fact]
+    public void ValidateAcceptsAZeroLastStandThresholdAsDisabled()
+    {
+        var scenario = Scenario.CreateDefault() with
+        {
+            LastStandThresholdAgents = 0,
+        };
+
+        scenario.Validate();
+    }
+
+    [Fact]
+    public void ValidateRejectsALastStandThresholdAboveTheApprovedMaximum()
+    {
+        var scenario = Scenario.CreateDefault() with
+        {
+            LastStandThresholdAgents =
+                FormationRules.MaximumLastStandThresholdAgents + 1,
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateRejectsANegativeLastStandThreshold()
+    {
+        var scenario = Scenario.CreateDefault() with
+        {
+            LastStandThresholdAgents = -1,
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateRejectsABodyRadiusWhoseJitterSpanOverflowsWhenTheLastStandIsEnabled()
+    {
+        var oversizedBody = Scenario.CreateDefault(totalAgents: 2) with
+        {
+            BodyRadiusRaw = 268_435_456,
+            AttackRangeRaw = 536_870_912,
+            PerceptionRangeRaw = 536_870_912,
+            MovementSpeedRaw = FixedPoint.Scale,
+            MapWidth = Scenario.MaximumMapDimension,
+            MapHeight = Scenario.MaximumMapDimension,
+            LastStandThresholdAgents = 0,
+        };
+
+        oversizedBody.Validate();
+
+        var withLastStandEnabled = oversizedBody with
+        {
+            LastStandThresholdAgents = 6,
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(withLastStandEnabled.Validate);
+    }
+
+    [Fact]
+    public void CreateDefaultEnablesTheLastStandAtTheApprovedThreshold()
+    {
+        var scenario = Scenario.CreateDefault();
+
+        Assert.Equal(
+            FormationRules.DefaultLastStandThresholdAgents,
+            scenario.LastStandThresholdAgents);
+    }
+
+    [Fact]
+    public void ScenariosDifferingOnlyInLastStandThresholdAreNotEqual()
+    {
+        var first = Scenario.CreateDefault() with { LastStandThresholdAgents = 0 };
+        var second = Scenario.CreateDefault() with { LastStandThresholdAgents = 6 };
+
+        Assert.NotEqual(first, second);
+        Assert.NotEqual(first.GetHashCode(), second.GetHashCode());
+    }
+
+    [Fact]
+    public void ScenariosDifferingOnlyInBodyRadiusAreNotEqual()
+    {
+        var first = Scenario.CreateDefault() with
+        {
+            BodyRadiusRaw = 2 * FixedPoint.Scale,
+        };
+        var second = Scenario.CreateDefault() with
+        {
+            BodyRadiusRaw = 3 * FixedPoint.Scale,
+        };
+
+        Assert.NotEqual(first, second);
+        Assert.NotEqual(first.GetHashCode(), second.GetHashCode());
+    }
+
     private static Scenario CreateSingleBodyMapScenario(
         int mapWidth,
         int mapHeight) =>

@@ -21,6 +21,7 @@ internal static class SoundCueFormatter
             SoundCueStatus.LoadFailed => "FAILED",
             SoundCueStatus.Muted => "MUTED",
             SoundCueStatus.Suppressed => "LIMITED",
+            SoundCueStatus.Refused => "REFUSED",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(status),
                 status,
@@ -39,5 +40,19 @@ internal static class SoundCueFormatter
         return unavailableCount == 0
             ? $"ALL {totalCount} READY"
             : $"MISSING {unavailableCount}/{totalCount}";
+    }
+
+    /// <summary>
+    /// The live playback load, shown in the panel header. This is the whole
+    /// spectator explanation for why a busy fight is quieter per blow than a
+    /// duel: the voice count climbs and the gain falls to keep the mix under
+    /// full scale.
+    /// </summary>
+    public static string FormatLoad(int soundingVoices, float gain)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(soundingVoices);
+        ArgumentOutOfRangeException.ThrowIfNegative(gain);
+
+        return $"VOICES {soundingVoices}  GAIN {gain:0.00}";
     }
 }

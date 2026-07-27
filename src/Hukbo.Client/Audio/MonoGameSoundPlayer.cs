@@ -83,19 +83,37 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
     public int GetVariantCount(GameSoundId sound, HitClass? hitClass) =>
         _effects.TryGetValue((sound, hitClass), out var loaded) ? loaded.Length : 0;
 
-    public void Play(GameSoundId sound, HitClass? hitClass, int variantIndex, float volume)
+    public double GetDurationSeconds(
+        GameSoundId sound,
+        HitClass? hitClass,
+        int variantIndex) =>
+        !_isDisposed &&
+        _effects.TryGetValue((sound, hitClass), out var loaded) &&
+        variantIndex >= 0 &&
+        variantIndex < loaded.Length
+            ? loaded[variantIndex].Duration.TotalSeconds
+            : 0;
+
+    public bool Play(GameSoundId sound, HitClass? hitClass, int variantIndex, float volume)
     {
         if (_isDisposed ||
             !_effects.TryGetValue((sound, hitClass), out var loaded) ||
             variantIndex < 0 ||
             variantIndex >= loaded.Length)
         {
-            return;
+            return false;
         }
 
         try
         {
-            loaded[variantIndex].Play(Math.Clamp(volume, 0f, 1f), pitch: 0f, pan: 0f);
+            // Both refusal paths are reported. Play returns false when
+            // MonoGame's managed instance pool is exhausted; the OpenAL layer
+            // beneath it throws when its source list is. Silently swallowing
+            // either one is what made an earlier audio investigation slow.
+            return loaded[variantIndex].Play(
+                Math.Clamp(volume, 0f, 1f),
+                pitch: 0f,
+                pan: 0f);
         }
         catch (Exception exception) when (
             exception is InstancePlayLimitException or
@@ -104,6 +122,7 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
         {
             // The platform refused one voice. Dropping a single cue is the
             // correct outcome; audio must never interrupt a battle.
+            return false;
         }
     }
 

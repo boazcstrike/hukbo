@@ -42,15 +42,17 @@ not alternate product names.
 src/Hukbo.Core       authoritative simulation: tick pipeline, agents, events, RNG, hashing
 src/Hukbo.Client     MonoGame DesktopGL shell: rendering, camera, UI, themes, input
 src/Hukbo.Headless   determinism + benchmark runner, no window
+src/Hukbo.Diagnostics JSON Lines debug log shared by Client and Headless; never referenced by Core
 tests/Hukbo.Core.Tests
 tests/Hukbo.Client.Tests
 scripts/             the only supported entry points (PowerShell 7)
+tools/               hand-run measurement harnesses; not in Hukbo.slnx, not in the gate
 docs/                design, plans, research, agent-role evidence
 ```
 
 `Hukbo.Core` must not reference MonoGame, the filesystem, the network, windowing,
-audio, or the wall clock. `Hukbo.Client` must not decide targeting, damage,
-retreat, or victory.
+audio, the wall clock, or `Hukbo.Diagnostics`. `Hukbo.Client` must not decide
+targeting, damage, retreat, or victory.
 
 ## 4. Commands
 
@@ -66,6 +68,18 @@ retreat, or victory.
 ./scripts/doctor.ps1
 ./scripts/sfx.ps1 -List                        # sound slots and which ones have a file
 ./scripts/sfx.ps1 -Slot death                  # generate that slot with ElevenLabs
+./scripts/run.ps1 -Configuration Debug -LogLevel dbg
+./scripts/run.ps1 -Configuration Debug -LogLevel trc -LogChannels audio,input
+./scripts/benchmark.ps1 -LogLevel err          # log only a determinism mismatch
+```
+
+A `Debug` run writes `artifacts/logs/hukbo-<utc>-<pid>.jsonl` with no flags at
+all. Read it back with, for example:
+
+```powershell
+Get-Content (Get-ChildItem artifacts/logs -Filter *.jsonl |
+  Sort-Object Name | Select-Object -Last 1) |
+  ConvertFrom-Json | Where-Object ch -eq 'audio' | Select-Object -First 40
 ```
 
 `sfx.ps1` is an authoring tool, not part of any pipeline. It is the only script
@@ -110,6 +124,38 @@ Build and quality:
   a sprite batch, or a window, and must not depend on GPU, audio, focus,
   network, or the wall clock.
 - The battle event feed retains at most 200 ordered events.
+
+Debug logging (full design in
+`docs/plans/2026-07-27-debug-logging-standard-design.md`):
+
+- The game is in development and testing, and every development run must leave
+  behind a record an agent can read without having watched the screen. That
+  record is JSON Lines, one object per line, under `artifacts/logs/`.
+- Write through `Hukbo.Diagnostics.DiagnosticLog`. Never `Console.Write*`,
+  never `Debug.WriteLine`, never a bespoke text file. A test scans `src/` and
+  fails the build if anything but the two `Program.cs` entry points touches the
+  console.
+- **`Hukbo.Core` must never reference `Hukbo.Diagnostics`.** The simulation is
+  forbidden the filesystem and the wall clock, and the logger needs both.
+  Observe the simulation from outside, reading state the caller already holds.
+  A test asserts the absence of the assembly reference.
+- Every line carries `seq`, `t`, `ms`, `lvl`, `ch`, `ev` first, in that order,
+  followed by flat `camelCase` payload fields. No nesting, no arrays.
+- `ev` is a stable dotted identifier declared as a `const` on `LogEvents` — a
+  machine key, never a sentence, never carrying a value or a count, never
+  reworded. Free prose goes in an optional `msg` field on `err` and `warn`
+  only.
+- Levels are `err`, `warn`, `inf`, `dbg`, `trc`. Anything firing more than once
+  a second belongs at `dbg` or below. Per-tick and per-frame lines are `trc`.
+- Default `dbg` in `Debug`, `off` in `Release`; `HUKBO_LOG_LEVEL`,
+  `HUKBO_LOG_CHANNELS`, and `HUKBO_LOG_DIR` override both. The canonical gate
+  builds `Release` and its determinism workload runs unlogged.
+- A disabled call must allocate nothing. Test the level and channel before
+  doing any work whose only purpose is to produce a payload value, and never
+  add a query the run would not otherwise make.
+- Logging may not change a simulation. A test runs the seed-1 headless workload
+  with logging off and at `trc` and requires identical state hash, event hash,
+  outcome, and event stream.
 
 ## 6. Workflow
 
@@ -189,6 +235,7 @@ Project-local skills in `.claude/skills/` — prefer these over generic advice:
 | `hukbo-client-ui` | The pure-helper testability pattern, the 27 semantic theme roles, pointer priority |
 | `hukbo-determinism-change` | The two independent hashes, the pinned SplitMix64 vectors, the recorded seed-1 baseline |
 | `hukbo-sound-effects` | Generating a sound slot with ElevenLabs through `scripts/sfx.ps1`, the API-key rule, the PCM WAV requirement, prompt guidance |
+| `hukbo-debug-logging` | Turning the JSON Lines debug log on, reading it, adding an event to `LogEvents`, and the four rules enforced by tests |
 
 Plugins that earn their keep here (see `.claude/settings.json`):
 

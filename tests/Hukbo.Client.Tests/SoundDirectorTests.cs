@@ -12,7 +12,7 @@ public sealed class SoundDirectorTests
         var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
         var director = new SoundDirector(logCapacity: 64, player);
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest([Attack(1, WeaponId.GreatBlade)]);
 
         Assert.Equal(
@@ -30,7 +30,7 @@ public sealed class SoundDirectorTests
         var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
         var director = new SoundDirector(logCapacity: 64, player);
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest(
             [Attack(1, WeaponId.GreatBlade, BodyPart.Head)]);
 
@@ -43,7 +43,7 @@ public sealed class SoundDirectorTests
         var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
         var director = new SoundDirector(logCapacity: 64, player);
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest([NonAttack(1, BattleEventKind.Death)]);
 
         Assert.Null(Assert.Single(player.Played).HitClass);
@@ -71,7 +71,7 @@ public sealed class SoundDirectorTests
                 BodyPart.Chest);
         }
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest(events);
 
         var distinctIndexes = player.Played
@@ -92,7 +92,7 @@ public sealed class SoundDirectorTests
             player,
             new SoundCueBudget(maximumPerSound: 5, maximumTotal: 5));
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.RequestCue(GameSoundId.UiClick, tick: 1);
         director.RequestCue(GameSoundId.UiClick, tick: 1);
 
@@ -106,7 +106,7 @@ public sealed class SoundDirectorTests
         var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
         var director = new SoundDirector(logCapacity: 64, player);
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest(
         [
             NonAttack(1, BattleEventKind.Move),
@@ -123,7 +123,7 @@ public sealed class SoundDirectorTests
         var player = new RecordingSoundPlayer(SoundBindingStatus.Missing);
         var director = new SoundDirector(logCapacity: 64, player);
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest([NonAttack(1, BattleEventKind.Death)]);
 
         Assert.Empty(player.Played);
@@ -138,7 +138,7 @@ public sealed class SoundDirectorTests
         var player = new RecordingSoundPlayer(SoundBindingStatus.LoadFailed);
         var director = new SoundDirector(logCapacity: 64, player);
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest([NonAttack(1, BattleEventKind.Death)]);
 
         Assert.Empty(player.Played);
@@ -154,7 +154,7 @@ public sealed class SoundDirectorTests
         var director = new SoundDirector(logCapacity: 64, player);
         director.ToggleMute();
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest([NonAttack(1, BattleEventKind.Death)]);
 
         Assert.True(director.IsMuted);
@@ -170,7 +170,7 @@ public sealed class SoundDirectorTests
         var director = new SoundDirector(logCapacity: 64, player);
         director.ToggleMute();
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest([NonAttack(1, BattleEventKind.Death)]);
 
         Assert.Empty(player.Played);
@@ -179,7 +179,7 @@ public sealed class SoundDirectorTests
             Assert.Single(director.Log.Entries).Status);
 
         director.ToggleMute();
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest([NonAttack(2, BattleEventKind.Death)]);
 
         Assert.Single(player.Played);
@@ -200,7 +200,7 @@ public sealed class SoundDirectorTests
             events[index] = Attack(index + 1, WeaponId.GreatBlade);
         }
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest(events);
 
         Assert.Equal(2, player.Played.Count);
@@ -220,11 +220,11 @@ public sealed class SoundDirectorTests
             player,
             new SoundCueBudget(maximumPerSound: 1, maximumTotal: 1));
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest([Attack(1, WeaponId.Bolo), Attack(2, WeaponId.Bolo)]);
         Assert.Single(player.Played);
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest([Attack(3, WeaponId.Bolo)]);
 
         Assert.Equal(2, player.Played.Count);
@@ -239,7 +239,7 @@ public sealed class SoundDirectorTests
             player,
             new SoundCueBudget(maximumPerSound: 1, maximumTotal: 1));
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest([Attack(1, WeaponId.Bolo)]);
         director.Ingest([Attack(2, WeaponId.Bolo)]);
 
@@ -252,7 +252,7 @@ public sealed class SoundDirectorTests
         var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
         var director = new SoundDirector(logCapacity: 64, player);
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.RequestCue(GameSoundId.UiClick, tick: 42);
 
         Assert.Equal(GameSoundId.UiClick, Assert.Single(player.Played).Sound);
@@ -263,7 +263,7 @@ public sealed class SoundDirectorTests
     public void AttachPlayer_ReplacesThePlayerAndKeepsTheLog()
     {
         var director = new SoundDirector(logCapacity: 64);
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest([NonAttack(1, BattleEventKind.Death)]);
         var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
 
@@ -280,7 +280,7 @@ public sealed class SoundDirectorTests
     {
         var director = new SoundDirector(logCapacity: 64);
 
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest([Attack(1, WeaponId.GreatBlade)]);
 
         Assert.IsType<SilentSoundPlayer>(director.Player);
@@ -293,7 +293,7 @@ public sealed class SoundDirectorTests
     public void Clear_EmptiesTheLog()
     {
         var director = new SoundDirector(logCapacity: 64);
-        director.BeginFrame();
+        director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest([NonAttack(1, BattleEventKind.Death)]);
 
         director.Clear();
@@ -340,15 +340,170 @@ public sealed class SoundDirectorTests
             value: 9,
             factionId: 0);
 
+    [Fact]
+    public void Ingest_LowersTheGainAsVoicesAccumulateWithinAFrame()
+    {
+        var player = new RecordingSoundPlayer(
+            SoundBindingStatus.Ready,
+            variantCount: 1,
+            durationSeconds: 0.25);
+        var director = new SoundDirector(logCapacity: 64, player);
+
+        director.BeginFrame(elapsedSeconds: 1.0);
+        director.Ingest(
+        [
+            Attack(1, WeaponId.GreatBlade),
+            Attack(2, WeaponId.GreatBlade),
+            Attack(3, WeaponId.GreatBlade),
+            Attack(4, WeaponId.GreatBlade),
+        ]);
+
+        Assert.Equal(4, player.Played.Count);
+        Assert.Equal(SoundDirector.CueVolume, player.Played[0].Volume);
+        Assert.Equal(
+            SoundDirector.CueVolume / MathF.Sqrt(2),
+            player.Played[1].Volume,
+            tolerance: 0.0001f);
+        Assert.Equal(
+            SoundDirector.CueVolume / MathF.Sqrt(4),
+            player.Played[3].Volume,
+            tolerance: 0.0001f);
+    }
+
+    [Fact]
+    public void BeginFrame_RestoresFullGainOnceTheVoicesHaveFinished()
+    {
+        var player = new RecordingSoundPlayer(
+            SoundBindingStatus.Ready,
+            variantCount: 1,
+            durationSeconds: 0.25);
+        var director = new SoundDirector(logCapacity: 64, player);
+
+        director.BeginFrame(elapsedSeconds: 0.016);
+        director.Ingest([Attack(1, WeaponId.GreatBlade), Attack(2, WeaponId.GreatBlade)]);
+        Assert.True(player.Played[1].Volume < SoundDirector.CueVolume);
+
+        // Long enough that both clips have finished.
+        director.BeginFrame(elapsedSeconds: 1.0);
+        director.Ingest([Attack(3, WeaponId.GreatBlade)]);
+
+        Assert.Equal(SoundDirector.CueVolume, player.Played[2].Volume);
+    }
+
+    [Fact]
+    public void BeginFrame_KeepsCountingAVoiceWhoseClipIsStillSounding()
+    {
+        var player = new RecordingSoundPlayer(
+            SoundBindingStatus.Ready,
+            variantCount: 1,
+            durationSeconds: 0.25);
+        var director = new SoundDirector(logCapacity: 64, player);
+
+        director.BeginFrame(elapsedSeconds: 1.0);
+        director.Ingest([Attack(1, WeaponId.GreatBlade)]);
+
+        // One frame at sixty per second is far shorter than a 250 ms clip, so
+        // the first voice is still sounding and must still lower the gain.
+        director.BeginFrame(elapsedSeconds: 0.016);
+        director.Ingest([Attack(2, WeaponId.GreatBlade)]);
+
+        Assert.Equal(
+            SoundDirector.CueVolume / MathF.Sqrt(2),
+            player.Played[1].Volume,
+            tolerance: 0.0001f);
+    }
+
+    [Fact]
+    public void Ingest_LogsARefusedCueRatherThanReportingItAsPlayed()
+    {
+        var player = new RecordingSoundPlayer(
+            SoundBindingStatus.Ready,
+            variantCount: 1,
+            durationSeconds: 0.25,
+            refusesPlayback: true);
+        var director = new SoundDirector(logCapacity: 64, player);
+
+        director.BeginFrame(elapsedSeconds: 1.0);
+        director.Ingest([Attack(1, WeaponId.GreatBlade)]);
+
+        Assert.Empty(player.Played);
+        Assert.Equal(
+            SoundCueStatus.Refused,
+            Assert.Single(director.Log.Entries).Status);
+    }
+
+    [Fact]
+    public void Ingest_DoesNotChargeARefusedCueAgainstTheVoiceCount()
+    {
+        var player = new RecordingSoundPlayer(
+            SoundBindingStatus.Ready,
+            variantCount: 1,
+            durationSeconds: 0.25,
+            refusesPlayback: true);
+        var director = new SoundDirector(logCapacity: 64, player);
+
+        director.BeginFrame(elapsedSeconds: 1.0);
+        director.Ingest([Attack(1, WeaponId.GreatBlade), Attack(2, WeaponId.GreatBlade)]);
+
+        Assert.Equal(0, director.SoundingVoices);
+        Assert.Equal(SoundDirector.CueVolume, director.NextCueGain);
+    }
+
+    [Fact]
+    public void SoundingVoices_ReportsTheLiveCountForThePanel()
+    {
+        var player = new RecordingSoundPlayer(
+            SoundBindingStatus.Ready,
+            variantCount: 1,
+            durationSeconds: 0.25);
+        var director = new SoundDirector(logCapacity: 64, player);
+
+        director.BeginFrame(elapsedSeconds: 1.0);
+        director.Ingest([Attack(1, WeaponId.GreatBlade), Attack(2, WeaponId.GreatBlade)]);
+
+        Assert.Equal(2, director.SoundingVoices);
+        Assert.Equal(
+            SoundDirector.CueVolume / MathF.Sqrt(3),
+            director.NextCueGain,
+            tolerance: 0.0001f);
+    }
+
+    [Fact]
+    public void Clear_RetiresEveryVoiceSoTheNextRoundStartsAtFullGain()
+    {
+        var player = new RecordingSoundPlayer(
+            SoundBindingStatus.Ready,
+            variantCount: 1,
+            durationSeconds: 5);
+        var director = new SoundDirector(logCapacity: 64, player);
+
+        director.BeginFrame(elapsedSeconds: 1.0);
+        director.Ingest([Attack(1, WeaponId.GreatBlade)]);
+        Assert.Equal(1, director.SoundingVoices);
+
+        director.Clear();
+
+        Assert.Equal(0, director.SoundingVoices);
+        Assert.Equal(SoundDirector.CueVolume, director.NextCueGain);
+    }
+
     private sealed class RecordingSoundPlayer : ISoundPlayer
     {
         private readonly SoundBindingStatus _status;
         private readonly int _variantCount;
+        private readonly double _durationSeconds;
+        private readonly bool _refusesPlayback;
 
-        public RecordingSoundPlayer(SoundBindingStatus status, int variantCount = 1)
+        public RecordingSoundPlayer(
+            SoundBindingStatus status,
+            int variantCount = 1,
+            double durationSeconds = 0.25,
+            bool refusesPlayback = false)
         {
             _status = status;
             _variantCount = variantCount;
+            _durationSeconds = durationSeconds;
+            _refusesPlayback = refusesPlayback;
             var bindings = new SoundBinding[SoundCatalog.AllSounds.Count];
             for (var index = 0; index < SoundCatalog.AllSounds.Count; index++)
             {
@@ -377,7 +532,13 @@ public sealed class SoundDirectorTests
         public int GetVariantCount(GameSoundId sound, HitClass? hitClass) =>
             _status == SoundBindingStatus.Ready ? _variantCount : 0;
 
-        public void Play(
+        public double GetDurationSeconds(
+            GameSoundId sound,
+            HitClass? hitClass,
+            int variantIndex) =>
+            _status == SoundBindingStatus.Ready ? _durationSeconds : 0;
+
+        public bool Play(
             GameSoundId sound,
             HitClass? hitClass,
             int variantIndex,
@@ -389,7 +550,13 @@ public sealed class SoundDirectorTests
                     "The director must never play an unready binding.");
             }
 
+            if (_refusesPlayback)
+            {
+                return false;
+            }
+
             Played.Add((sound, hitClass, variantIndex, volume));
+            return true;
         }
     }
 }

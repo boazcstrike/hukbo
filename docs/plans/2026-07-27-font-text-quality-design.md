@@ -285,12 +285,16 @@ limitation is documented honestly and the task is closed as declined.
 The measurement runs *after* the canonical gate, specifically so that a blurry
 scaled display is never mistaken for a failure of the size ramp.
 
-## 8. Relationship to the active five-themes plan
+## 8. Relationship to the archived five-themes plan
 
-`docs/plans/2026-07-26-five-ui-themes-design.md` is still active and states at
-`:166-167` that "version one keeps the existing packaged font and shared
-typography metrics", and at `:174` that all themes "share the current layout,
-controls, and font asset".
+`docs/archives/2026-07-26-five-ui-themes-design.md` has been archived and is
+reference-only, so nothing in it is an instruction to this work. It is described
+here because the shared-typography constraint it recorded is a real property of
+the user interface layer that this design had to keep intact, not because the
+archived document governs anything. That document states at `:166-167` that
+"version one keeps the existing packaged font and shared typography metrics",
+and at `:174` that all themes "share the current layout, controls, and font
+asset".
 
 The conflict is narrower than it looks. This design does not introduce
 per-theme fonts. All five themes continue to share one font set; that set simply
@@ -298,8 +302,12 @@ has six members instead of one, and typography remains shared rather than
 per-theme, which is the constraint that section was protecting. What genuinely
 changes is the identity of the packaged font and the singular word "asset".
 
-The historical rationale was correct when written and is not rewritten. A dated
-amendment note is appended instead.
+The historical rationale was correct when it was written and was not rewritten.
+A dated amendment note was appended to that document instead, before it was
+archived, and it survives there as the "Amendment — 2026-07-27, font and text
+quality change" section. That note is now historical record rather than an open
+item: the archived document is frozen, and no further edit to it is expected or
+permitted.
 
 ## 9. The nine questions from `SIMULATION-GAME-STANDARDS.md` §10
 

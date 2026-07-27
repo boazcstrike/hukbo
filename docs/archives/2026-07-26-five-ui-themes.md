@@ -1,5 +1,7 @@
 # Five UI Themes Implementation Plan
 
+> **Archived: reference only.** This document is deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
+
 > **For Claude:** Work this plan task by task. Use the `hukbo-verify-and-record` skill to run the canonical gate and record evidence; use `hukbo-determinism-change` for any `Hukbo.Core` edit and `hukbo-client-ui` for any `Hukbo.Client` edit.
 
 **Goal:** Add five validated, immediately switchable, locally persisted visual
@@ -17,12 +19,17 @@ xUnit
 
 ---
 
-## Working-tree constraint
+## Working-tree constraint (resolved)
 
-The Hukbo rename is currently present as a large unstaged/untracked change.
-Never stage or commit existing renamed source files as part of this work. Inspect
-and verify the exact theme diff, then leave source changes unstaged for the user
-unless the rename is committed separately.
+> **Resolved (2026-07-27):** The Hukbo rename has since been committed, so this
+> constraint no longer applies. The paragraph below is kept only to explain why
+> the plan's commit steps are written so narrowly.
+
+At the time this plan was written, the Hukbo rename was present as a large
+unstaged and untracked change. Renamed source files were never to be staged or
+committed as part of this work; the exact theme diff was to be inspected and
+verified, and unrelated source changes left unstaged for the user unless the
+rename was committed separately.
 
 ### Task 1: Theme contract and catalog validation
 
@@ -174,7 +181,13 @@ Use a temporary directory injected into the store. Cover:
 - saving replaces the previous file;
 - a failed save leaves the previous valid file and no orphan temporary file.
 
-Representative contract:
+Representative contract, as designed for this plan's schema version 1:
+
+> **Correction (2026-07-27):** The settings schema advanced after this plan
+> shipped. `src/Hukbo.Client/Settings/ClientSettingsStore.cs` now declares
+> `SupportedSchemaVersion = 2`, and the persisted settings carry a gore-intensity
+> value in addition to the selected theme ID. The contract below records the
+> version 1 shape this plan delivered and is not the current one.
 
 ```csharp
 internal sealed record ClientSettings(int SchemaVersion, string SelectedThemeId);
@@ -202,7 +215,8 @@ Expected: compilation failure because the settings types do not exist.
 
 - Production path:
   `Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Hukbo", "settings.json")`.
-- Persist only `schemaVersion` and `selectedThemeId`.
+- Persist only `schemaVersion` and `selectedThemeId`. (Superseded: schema
+  version 2 also persists the gore-intensity setting.)
 - Create the directory when needed.
 - Write UTF-8 JSON to a sibling temporary file.
 - Flush the stream before replacing the destination.

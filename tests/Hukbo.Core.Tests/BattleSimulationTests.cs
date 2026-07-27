@@ -8,6 +8,17 @@ namespace Hukbo.Core.Tests;
 public sealed class BattleSimulationTests
 {
     [Fact]
+    public void AgentIntentNumericValuesArePinned()
+    {
+        Assert.Equal(0, (int)AgentIntent.Idle);
+        Assert.Equal(1, (int)AgentIntent.Moving);
+        Assert.Equal(2, (int)AgentIntent.Attacking);
+        Assert.Equal(3, (int)AgentIntent.Dead);
+        Assert.Equal(4, (int)AgentIntent.Regrouping);
+        Assert.Equal(5, Enum.GetValues<AgentIntent>().Length);
+    }
+
+    [Fact]
     public void NearestTargetUsesEntityIdToBreakDistanceTies()
     {
         var scenario = CreateTestScenario();
@@ -379,10 +390,19 @@ public sealed class BattleSimulationTests
     }
 
     /// <summary>
-    /// Acceptance criterion two of the weapon-clash change, alongside the
-    /// original both-factions-win property: at least nineteen of twenty seeds
-    /// decide before the tick cap, and the median decisive tick sits at or below
-    /// half the cap.
+    /// Neither faction may hold a standing advantage across seeds, and the
+    /// battle must reach a decision quickly enough to be worth watching. This
+    /// carries two independent properties.
+    ///
+    /// The fairness clause asserts a distribution rather than mere presence: it
+    /// previously required only one victory each, and passed on exactly one seed
+    /// while the collision stage was handing faction 0 every contested push of
+    /// every battle. Four in twenty is loose enough that ordinary seed variance
+    /// cannot fail it and tight enough that a returning structural bias would.
+    ///
+    /// The termination clause is acceptance criterion two of the weapon-clash
+    /// change: at least nineteen of twenty seeds decide before the tick cap, and
+    /// the median decisive tick sits at or below half the cap.
     /// </summary>
     /// <remarks>
     /// The median clause is the one that can actually fail. A termination-rate
@@ -397,8 +417,10 @@ public sealed class BattleSimulationTests
         const int Seeds = 20;
         const int MinimumDecisiveSeeds = 19;
         const int MedianDecisiveTickLimit = 5_000;
+        const int MinimumVictoriesPerFaction = 4;
 
-        var outcomes = new HashSet<BattleOutcome>();
+        var faction0Victories = 0;
+        var faction1Victories = 0;
         var decisiveTicks = new List<long>(Seeds);
 
         for (ulong seed = 1; seed <= Seeds; seed++)
@@ -415,7 +437,22 @@ public sealed class BattleSimulationTests
                 simulation.AdvanceOneTick();
             }
 
-            outcomes.Add(simulation.Outcome);
+            switch (simulation.Outcome)
+            {
+                case BattleOutcome.Faction0Victory:
+                    faction0Victories++;
+                    break;
+
+                case BattleOutcome.Faction1Victory:
+                    faction1Victories++;
+                    break;
+
+                case BattleOutcome.Ongoing:
+                case BattleOutcome.Draw:
+                default:
+                    break;
+            }
+
             if (simulation.Outcome is BattleOutcome.Faction0Victory or
                 BattleOutcome.Faction1Victory or
                 BattleOutcome.Draw)
@@ -424,8 +461,12 @@ public sealed class BattleSimulationTests
             }
         }
 
-        Assert.Contains(BattleOutcome.Faction0Victory, outcomes);
-        Assert.Contains(BattleOutcome.Faction1Victory, outcomes);
+        Assert.True(
+            faction0Victories >= MinimumVictoriesPerFaction &&
+            faction1Victories >= MinimumVictoriesPerFaction,
+            $"Faction 0 won {faction0Victories} of 20 seeds and faction 1 won " +
+            $"{faction1Victories}. Each faction must win at least " +
+            $"{MinimumVictoriesPerFaction}.");
 
         Assert.True(
             decisiveTicks.Count >= MinimumDecisiveSeeds,

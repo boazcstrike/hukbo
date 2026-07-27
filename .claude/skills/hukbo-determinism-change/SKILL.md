@@ -65,18 +65,19 @@ Related rules from `CLAUDE.md` §5 that cause most real failures:
 ## Recorded baseline
 
 From `docs/development/testing.md`, seed 1, 200 agents, one final verified run of
-the collision change **as amended** to close to body contact:
+the collision priority fairness change on the
+`feature/collision-priority-fairness` branch:
 
 | Field | Value |
 | --- | --- |
-| Outcome | `Faction1Victory` at tick 657 |
-| State hash | `D78F0B527B7F938F` |
-| Event hash | `AC3BAAEC684854D5` |
-| Allocated | 42,568,888 bytes |
+| Outcome | `Faction1Victory` at tick 1154 |
+| State hash | `5BEBA7A68F69BE0D` |
+| Event hash | `D379B60B2E30FFFC` |
+| Allocated | 71,698,480 bytes |
 
-The 500-agent stress workload, report only, from the same run: `Faction1Victory`
-at tick 978 with 0 faction-0 and 17 faction-1 survivors, state hash
-`C81B4F48DE54B983`, event hash `D03F1213563DFD49`, deterministic with no mismatch
+The 500-agent stress workload, report only, from the same run: `Faction0Victory`
+at tick 2668 with 1 faction-0 and 0 faction-1 survivors, state hash
+`FE44ADA93E0E202A`, event hash `9C8EF5CB79810560`, deterministic with no mismatch
 tick.
 
 ### Superseded hashes — dead values, do not target
@@ -88,21 +89,50 @@ history instead of mistaken for a live baseline.
 
 | Dead baseline | State hash | Event hash |
 | --- | --- | --- |
+| 200 agents, last-stand run, tick 1176 | `BBB40D2240720DC8` | `2A6BAEA1E3567046` |
+| 500 agents, last-stand run, tick 2245 | `73FB96A4C5963149` | `1531FF58B7C7557B` |
+| 200 agents, mirrored-deployment run, tick 1081 | `DC7F2E7A107C885A` | `6C641E90DDF0B943` |
+| 500 agents, mirrored-deployment run, tick 2231 | `0C53793DEB700A53` | `4F373537096F2551` |
+| 200 agents, amended-collision run, tick 657 | `D78F0B527B7F938F` | `AC3BAAEC684854D5` |
 | 200 agents, pre-amendment collision run, tick 781 | `7EE8BF6EC0F11BB2` | `9BFC18AD06F4F572` |
 | 500 agents, pre-amendment collision run | `7402CCC7C6EC3B50` | `619CCC872BBB2413` |
 | 200 agents, pre-collision, tick 235 | `6EBB1EA63114F6CE` | `941377BD43C556FF` |
 | 200 agents, earlier still | `210C5EF8E7BE4D48` | `CE35EDA4B2A4E5A4` |
 
-Two separate legitimate movements produced that chain. Solid-disc contact put new
-fields into the state hash and changed where agents stand, which retired the
-tick-235 pair. The later amendment changed the approach target from attack range
+The tick-1176 pair is superseded by the collision priority amendment, which
+resolves movers in ascending per-tick `CollisionPriority` key instead of
+ascending `EntityId`. Contested ground therefore goes to a different agent and
+agents finish ticks in different places — an authoritative movement change that
+moves both hashes without adding any state field, event kind, or enum value.
+Its cause is recorded in section 9 of
+`docs/decisions/2026-07-27-collision-policy.md`: the old order handed faction 0,
+which holds the low entity IDs, every cross-faction contest of every battle, and
+that decided 19 of 20 seeds once the mirrored deployment stopped masking it.
+
+The tick-1081 pair is superseded by the last-stand formation, which redirects a
+faction's last survivors onto their own leader instead of their own nearest
+enemy once the faction drops to `Scenario.LastStandThresholdAgents` or fewer
+living warriors — an authoritative movement change, so it moved both hashes:
+regrouping survivors stand in different places, and a regrouping warrior's
+`Move` event names its rally agent rather than an enemy.
+
+Four separate legitimate movements produced that chain. Solid-disc contact put
+new fields into the state hash and changed where agents stand, which retired the
+tick-235 pair. The amendment then changed the approach target from attack range
 to body contact — agents now advance until their bodies meet rather than until
 their weapons reach — which changed where agents stand again and retired the
 tick-781 pair. The proximity band introduced for contact metrics at the same time
 moved **neither** hash, because it is derived observability; that byte-identical
-result is what proved it had not leaked into authoritative state.
+result is what proved it had not leaked into authoritative state. The mirrored
+starting-formation deployment then planned both factions' spawns as mirrored
+contingents instead of independent random scatter, which retired the tick-657
+pair. Most recently, the last-stand formation changed where regrouping
+survivors stand and what their `Move` events name as a target, which retired
+the tick-1081 pair.
 
-Also still recorded: seeds 1-20 produce victories for both factions rather than
+Also still recorded, and strengthened by the priority amendment from "at least
+one victory each" to "at least four victories each": seeds 1-20 produce
+victories for both factions rather than
 one always-winning faction, verified by
 `SeedsOneThroughTwentyProduceVictoriesForBothFactions` inside the ordinary Core
 suite.
@@ -123,6 +153,8 @@ mixers.
 | `MovementResolution` | per agent, written by the collision stage | The authoritative reason an agent finished a tick where it did. Numeric values are pinned; reordering or renumbering them changes the state hash. |
 | `Scenario.BodyRadiusRaw` | immutable scenario | The one common body radius. Changing it changes every legality test in the resolver and therefore every position. |
 | `Scenario.CollisionPolicy` | immutable scenario | Hashed as its integer value so the contact rule is authoritative and legible in a saved scenario. Exactly one value, `Solid`, is accepted. |
+| `Scenario.LastStandThresholdAgents` | immutable scenario | The per-faction living-count trigger for last-stand rallying. Changing it changes which ticks redirect survivors onto their own leader, and therefore both hashes for any seed where the threshold matters. |
+| `AgentIntent.Regrouping` | enum, appended after `Dead` | Enters the state hash through the existing per-agent `Intent` write. Numeric values are pinned and append-only; reordering or renumbering moves the hash for every seed with a last stand. |
 
 The uniform grid, the collision pair and proposal buffers, and the aggregate
 collision counters are **derived**. They are never hashed, never snapshotted, and

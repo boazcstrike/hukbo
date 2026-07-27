@@ -54,7 +54,8 @@ Implement:
 - ordered, deduplicated, scrollable, 200-entry battle event feed;
 - always-visible Play, Pause, and Menu buttons;
 - terminal winner/survivor/duration/tick/seed summary;
-- Replay Same Seed;
+- Replay Same Seed (shipped instead as the **Next Round** and **Full Reset**
+  commands — see the superseding note at criterion 14);
 - automated presentation-state tests;
 - direct Windows manual UI checklist and evidence;
 - local-only build, test, benchmark, package, and review.
@@ -105,7 +106,17 @@ The implementation is done only if all statements are true:
 13. A terminal outcome pauses and shows correct winner, survivors, tick,
     simulated duration, and seed.
 14. Replay Same Seed creates a fresh paused match, clears disposable UI state,
-    and preserves the deterministic outcome and hashes.
+    and preserves the deterministic outcome and hashes. **Superseded during
+    implementation:** no control of that name was shipped, and none exists in
+    the source today. It became two commands in
+    `src/Hukbo.Client/Presentation/ClientCommand.cs` — `NextRound`, which
+    advances the match series to a new seed
+    (`src/Hukbo.Client/Presentation/MatchSeries.cs:22`), and `FullReset`, which
+    restores the initial seed and clears the round score (the same file, line
+    37). The match summary button is labelled **Next Round**
+    (`src/Hukbo.Client/UI/MatchSummaryPanel.cs:38`), and the menu overlay offers
+    both. The same-seed guarantee stated here belongs to `FullReset`. Read every
+    later mention of "Replay Same Seed" in this plan against that mapping.
 15. All focused tests, `./scripts/verify.ps1`, Windows packaging, direct manual
     smoke, and independent Critical/High review gates pass.
 16. No hosted-CI workflow or hosted-CI completion gate is added.
@@ -118,8 +129,9 @@ Verify these facts against the current source before editing:
 - Client integration: `src/Hukbo.Client/ArenaGame.cs`;
 - input edges: locate the class named `InputEdges` under
   `src/Hukbo.Client/`;
-- current modal: `src/Hukbo.Client/MenuOverlay.cs` and
-  `src/Hukbo.Client/MenuButton.cs`;
+- current modal: `src/Hukbo.Client/MenuOverlay.cs` and, at the time this plan was
+  written, `src/Hukbo.Client/MenuButton.cs` — that file no longer exists, and the
+  reusable button it became is `src/Hukbo.Client/UI/UiButton.cs`;
 - camera transforms: locate the class named `SpectatorCamera` under Client;
 - authoritative views: `src/Hukbo.Core/Simulation/AgentView.cs`;
 - authoritative events:
@@ -133,15 +145,23 @@ Verify these facts against the current source before editing:
   `scripts/package.ps1`;
 - manual checklist: `docs/development/testing.md`.
 
-The last recorded seed-1, 200-agent baseline was:
+The seed-1, 200-agent baseline recorded at the time this plan was written was:
 
-| Value | Baseline |
+| Value | Baseline at time of writing |
 | --- | --- |
 | Outcome | Faction 1 victory |
 | Terminal tick | 235 |
 | State hash | `210C5EF8E7BE4D48` |
 | Event hash | `CE35EDA4B2A4E5A4` |
 | Existing tests | 42 passing |
+
+**Those are historical values and are no longer a regression target.** The
+current recorded baseline is a `Faction1Victory` at terminal tick 1154, with
+state hash `5BEBA7A68F69BE0D` and event hash `D379B60B2E30FFFC`. See
+`docs/development/testing.md`, which is the single source of truth for the
+oracle. The tick-235 figures belong to a build in which agents halted at weapon
+reach rather than at body contact, so no comparison between the two tick counts
+is meaningful, and the test count has since grown well beyond 42.
 
 Timing is machine-dependent. Hashes, outcome, tick, and test count are objective
 baseline values. The total test count must increase after Client tests are

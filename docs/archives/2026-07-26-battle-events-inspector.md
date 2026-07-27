@@ -1,5 +1,7 @@
 # Battle Events Inspector Implementation Plan
 
+> **Archived: reference only.** This document is deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
+
 > **For Claude:** Work this plan task by task. Use the `hukbo-verify-and-record` skill to run the canonical gate and record evidence; use `hukbo-determinism-change` for any `Hukbo.Core` edit and `hukbo-client-ui` for any `Hukbo.Client` edit.
 
 **Goal:** Replace Hukbo's wheel-only Battle Events feed with a filterable split inspector that supports stable selection, event details, keyboard and mouse navigation, and explicit live-follow recovery.

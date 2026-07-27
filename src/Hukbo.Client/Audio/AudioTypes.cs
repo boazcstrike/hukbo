@@ -45,6 +45,14 @@ internal enum SoundCueStatus
     LoadFailed = 2,
     Muted = 3,
     Suppressed = 4,
+
+    /// <summary>
+    /// The player was asked to play the cue and declined. On the MonoGame
+    /// backend this means the instance pool or the OpenAL source list was
+    /// exhausted. Distinct from <see cref="Suppressed"/>, which is this game's
+    /// own budget deciding not to ask at all.
+    /// </summary>
+    Refused = 5,
 }
 
 /// <summary>

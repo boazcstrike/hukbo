@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hukbo.Client.Tests" />
+    <InternalsVisibleTo Include="Hukbo.Core.Tests" />
+  </ItemGroup>
+</Project>

@@ -1,20 +1,31 @@
 namespace Hukbo.Client.Audio;
 
 /// <summary>
-/// Per-frame playback budget. Two hundred agents can produce dozens of attacks
-/// in a single tick, and one frame at 4x speed can advance several ticks, so
-/// without a cap the audio device would be handed more voices than it has and
-/// the result would be noise rather than feedback.
+/// Per-frame playback ceiling. A backstop against a pathological scenario, not
+/// a throttle on ordinary play.
 /// </summary>
 /// <remarks>
-/// The default limits are provisional tuning values chosen so a busy tick still
-/// reads as a clatter of blows rather than a wall of sound. They are not
-/// measurements of anything.
+/// <para>
+/// The original limits of three per slot and eight in total were chosen to
+/// prevent an event volume that measurement showed does not occur: a 500-agent
+/// battle peaks at 21 cues in a frame and a 200-agent battle at 15, against a
+/// backend that plays 256 voices at once. Those limits discarded real cues for
+/// no benefit, so they were raised above measured demand.
+/// </para>
+/// <para>
+/// Loudness is handled where it belongs, by <see cref="SoundVoiceLedger"/>
+/// scaling each cue's gain against the voices already sounding. This type no
+/// longer has any part in that.
+/// </para>
+/// <para>
+/// The limits remain provisional tuning values rather than measurements. See
+/// <c>docs/research/SOUND-CAPACITY-MEASUREMENTS.md</c>.
+/// </para>
 /// </remarks>
 internal sealed class SoundCueBudget
 {
-    public const int DefaultMaximumPerSound = 3;
-    public const int DefaultMaximumTotal = 8;
+    public const int DefaultMaximumPerSound = 16;
+    public const int DefaultMaximumTotal = 64;
 
     private readonly int[] _perSoundCounts;
     private int _total;

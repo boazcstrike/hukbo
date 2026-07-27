@@ -37,7 +37,457 @@ sprite batch, or window. Tests must remain independent from GPU, audio
 hardware, window focus, network, wall clock, `System.Random`, and platform input
 types. Performance output is evidence, not a universal frame-time guarantee.
 
-## Latest non-interactive result
+## Capturing a debug log
+
+The debug log is on by default in `Debug` and off in `Release`. The canonical
+gate builds `Release`, so a gate run is unlogged and its timing figures measure
+the simulation rather than the simulation plus a writer.
+
+Every interactive session should be run with the log on, so that a smoke row
+recorded as `FAIL` or `BLOCKED` can be handed to someone else with evidence
+attached:
+
+```powershell
+./scripts/run.ps1 -Configuration Debug
+```
+
+That writes `artifacts/logs/hukbo-<yyyyMMdd-HHmmss>-<pid>.jsonl`. The script
+prints the directory before launching, and the log's first line repeats the
+resolved level, channels, and absolute path. Only the newest twenty files are
+kept, so copy a log you intend to keep out of that directory.
+
+To narrow a session to one subsystem:
+
+```powershell
+./scripts/run.ps1 -Configuration Debug -LogLevel trc -LogChannels audio,input
+```
+
+Reading it back:
+
+```powershell
+$log = Get-ChildItem artifacts/logs -Filter *.jsonl | Sort-Object Name | Select-Object -Last 1
+Get-Content $log | ConvertFrom-Json | Where-Object lvl -in 'err','warn'
+```
+
+For a headless determinism failure, `--log-level err` is enough: it emits the
+one `sim.mismatch` line carrying both state hashes at the tick the two
+simulations parted.
+
+```powershell
+./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1 -LogLevel err
+```
+
+**A log is evidence of what the code did, never a substitute for a person
+confirming what the screen showed.** An `audio.cue` line with
+`"status":"Played"` proves the client asked the device to play a sound. It does
+not prove a sound was audible, that it arrived at the right moment, or that it
+sounded right. Smoke rows below still require a human at an interactive desktop;
+see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
+
+## Latest non-interactive result — sound gain compensation, 2026-07-27
+
+Presentation-only change: per-cue gain now scales with the number of voices
+still sounding, and the per-frame cue budget was raised from a throttle to a
+backstop. See
+[docs/plans/2026-07-27-sound-gain-compensation.md](../plans/2026-07-27-sound-gain-compensation.md)
+and [docs/research/SOUND-CAPACITY-MEASUREMENTS.md](../research/SOUND-CAPACITY-MEASUREMENTS.md).
+
+`./scripts/verify.ps1 -SkipBootstrap` passed at all five stages:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+| Field | Value |
+| --- | --- |
+| `Hukbo.Client.Tests` | 585 passed, 0 failed, 0 skipped |
+| `measuredTicks` | 1 154 |
+| `outcome` | `Faction1Victory` |
+| `eventHash` | `D379B60B2E30FFFC` |
+| `stateHash` | `5BEBA7A68F69BE0D` |
+| `deterministic` | `true` |
+| `allocatedBytes` | 71 704 672 |
+| Tick p50 / p95 / p99 / max | 0.0955 / 1.5235 / 2.5473 / 9.3252 ms |
+
+**Both hashes are unchanged from the collision priority fairness baseline
+recorded in the next section.** That is the point: nothing in this change
+reaches `Hukbo.Core`, so a moved hash would have meant the change was wrong.
+The collision section below remains the authoritative determinism baseline.
+
+Audio evidence, from `tools/Hukbo.Tools.MixAnalysis` against the shipped policy:
+every cue played, zero suppressed, and peak level between −6.1 and −0.2 dBFS
+with zero flattened samples at 200 and 500 agents and at 1x and 4x. Before the
+change the same workloads peaked between +7.7 and +11.0 dBFS.
+
+Every row in the sound gain compensation smoke checklist is `PENDING`. Nothing
+here proves how it sounds.
+
+## Previous non-interactive result — collision priority fairness
+
+Every figure in this section comes from one final verified run of the collision
+priority fairness change on 2026-07-27, taken on the
+`feature/collision-priority-fairness` branch. See
+[docs/archives/2026-07-27-collision-priority-fairness-design.md](../archives/2026-07-27-collision-priority-fairness-design.md),
+kept for traceability only, and section 9 of
+[docs/decisions/2026-07-27-collision-policy.md](../decisions/2026-07-27-collision-policy.md).
+
+Both hashes moved because this is an authoritative movement change: movers are
+now resolved in ascending per-tick `CollisionPriority` key instead of ascending
+`EntityId`, so contested ground goes to a different agent and agents finish
+ticks in different places. No state field, event kind, or enum value was added
+or reordered, and `CombatRuleset.ContentHash` is unchanged at
+`0x59FB4CA563D87A49`.
+
+**Everything below the next heading predates this change and is superseded.**
+
+### Canonical gate
+
+`./scripts/verify.ps1` passed at all five stages: prerequisite validation and
+locked restore, format verification, the Release solution build with 0 warnings
+and 0 errors, the Release repository tests, and the seed-1 / 200-agent /
+10,000-tick headless determinism workload. It ended with
+`[PASS] Canonical repository verification completed.`
+
+| Suite | Passed | Failed | Skipped |
+| --- | --- | --- | --- |
+| `Hukbo.Core.Tests` | 418 | 0 | 0 |
+| `Hukbo.Client.Tests` | 564 | 0 | 0 |
+
+The Core figure was recorded as 412 when this section was first written and was
+corrected to 418 by the role 17 handoff review on 2026-07-27, which measured
+`dotnet test tests/Hukbo.Core.Tests -c Release` directly at merge commit
+`8815a3c` and read back `Passed: 418, Failed: 0, Skipped: 0`. The merge added no
+test file that the branch tip `c01ea9f` did not already carry, so the branch and
+`main` run the identical suite and 418 is the count for both. The paragraph
+below already implied that figure: 398 plus 20 is 418. See
+[docs/agents/17-technical-review-handoff.md](../agents/17-technical-review-handoff.md).
+
+The Core count rises from `main`'s 398 by 20: 19 new `CollisionPriorityTests`
+cases, counting theory rows, covering five golden mixer vectors, the key's
+purity, its sensitivity to each of seed, tick and entity, the entity ID in its
+low half, distinctness across a tick, the absence of a standing advantage for
+either faction's ID range, the per-tick reshuffle observed through the battle
+simulation itself, and the rejected inputs; and one new `CollisionResolverTests`
+case proving the resolver follows the key rather than the entity ID. Two further
+cases were rewritten rather than added: the `DeterminismTests` contested-ground
+case, and `SeedsOneThroughTwentyProduceVictoriesForBothFactions`, strengthened
+from "at least one victory each" to "at least four each" — it had been passing
+on exactly one seed. The Client count is unchanged from `main`'s 564: no
+`Hukbo.Client` file was touched.
+
+Two of those tests exist because a review found the rule was underconstrained.
+`TheContestSequenceFollowsThePerTickShuffle` was verified by mutation: replacing
+`Tick` with a constant in `BattleSimulation.ResolveCollisions` makes it fail, and
+before it was added the whole 412-case suite stayed green under that mutation.
+The randomized crowd fixture in `CollisionResolverTests` now generates real
+per-tick keys, so the resolver's no-penetration invariant is fuzzed against the
+shuffled order the battle actually uses rather than the retired ascending-ID
+order.
+
+### 200-agent acceptance workload
+
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`. This is the current
+recorded oracle.
+
+| Field | Value |
+| --- | --- |
+| Measured ticks | 1154 |
+| Outcome | `Faction1Victory` |
+| Faction 0 survivors | 0 |
+| Faction 1 survivors | 3 |
+| State hash | `5BEBA7A68F69BE0D` |
+| Event hash | `D379B60B2E30FFFC` |
+| Deterministic | `true` |
+| First mismatch tick | `null` |
+| Tick p50 | 0.0951 ms |
+| Tick p95 | 1.5156 ms |
+| Tick p99 | 2.4546 ms |
+| Tick maximum | 8.4526 ms |
+| Allocated | 71,698,480 bytes |
+
+Collision metrics for the same run:
+
+| Metric | Value |
+| --- | --- |
+| `candidatePairs` | 110,970 |
+| `contactPairs` | 5,198 |
+| `acceptedMoves` | 71,780 |
+| `blockedAgentTicks` | 24,703 |
+| `attackCapableAgentTicks` | 9,231 |
+| `longestBlockedStreakTicks` | 47 |
+| `maximumFrontWidthRaw` | 629,652 |
+| `maximumFrontDepthRaw` | 51,086 |
+| `maximumPenetrationRaw` | 0 |
+
+### 500-agent stress workload
+
+The same command with `-Agents 500`. Report only; not gated.
+
+| Field | Value |
+| --- | --- |
+| Measured ticks | 2668 |
+| Outcome | `Faction0Victory` |
+| Faction 0 survivors | 1 |
+| Faction 1 survivors | 0 |
+| State hash | `FE44ADA93E0E202A` |
+| Event hash | `9C8EF5CB79810560` |
+| Deterministic | `true` |
+| First mismatch tick | `null` |
+| Tick p50 | 0.2609 ms |
+| Tick p95 | 1.813 ms |
+| Tick p99 | 4.4052 ms |
+| Tick maximum | 13.19 ms |
+| Allocated | 416,546,128 bytes |
+
+| Metric | Value |
+| --- | --- |
+| `candidatePairs` | 699,589 |
+| `contactPairs` | 12,497 |
+| `acceptedMoves` | 372,527 |
+| `blockedAgentTicks` | 102,147 |
+| `attackCapableAgentTicks` | 23,319 |
+| `longestBlockedStreakTicks` | 54 |
+| `maximumFrontWidthRaw` | 637,159 |
+| `maximumFrontDepthRaw` | 69,415 |
+| `maximumPenetrationRaw` | 0 |
+
+### The seed distribution, which is the point of the change
+
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000`, one run per seed, outcomes
+counted:
+
+| Build | Seeds | Faction 0 | Faction 1 | Draw |
+| --- | --- | --- | --- | --- |
+| `main`, before this change | 1-20 | 1 | 19 | 0 |
+| This change | 1-20 | 7 | 13 | 0 |
+| This change | 21-40 | 9 | 10 | 1 |
+| This change | 1-40 | 16 | 23 | 1 |
+
+The old rule gave faction 0 every cross-faction push of every battle, which cost
+it 19 seeds in 20. It now wins 16 of 40. That is not a claim of a perfectly fair
+simulation — 16 against 23 over 40 samples still leans, and 40 battles is a
+small sample — but the standing structural advantage is gone.
+
+The seed-24 draw is a genuine mutual annihilation at tick 1197 with zero
+survivors on both sides, not a `TickLimit` timeout. Draws were previously
+unobserved in this range.
+
+One caveat on the 500-agent stress row above: at 250 warriors per faction,
+`CombatRuleset.ResolveLoadout` — which keys off the **global** entity ID while
+positions are mirrored by faction-local index — gives faction 1 two more
+tall-hardwood shields than faction 0. That workload therefore compares slightly
+unequal armies. It is report-only and it is not the evidence for this change;
+the seed census above uses the 200-agent workload, where 100 per faction divides
+evenly into the four-entry roster and both armies are identical. The loadout
+asymmetry is a separate defect, recorded in the design document and not fixed
+here.
+
+### What moved, on the same workload
+
+| Metric | Last-stand run | This change |
+| --- | --- | --- |
+| Terminal tick, 200 agents | 1176 | 1154 |
+| `acceptedMoves`, 200 agents | 67,112 | 71,780 |
+| `blockedAgentTicks`, 200 agents | 28,609 | 24,703 |
+| `maximumFrontDepthRaw`, 200 agents | 40,469 | 51,086 |
+| `maximumPenetrationRaw`, 200 agents | 0 | 0 |
+
+Accepted moves rose and blocked agent ticks fell by roughly the same proportion,
+which is the mechanical signature of the change: an agent that lost a contest
+last tick can win the next one, so fewer agents sit blocked for long runs. Front
+depth grew because both sides now push into one another instead of one side
+consistently giving way. Penetration stayed at exactly zero, which is the guard.
+
+### Cost
+
+Tick p50 at 200 agents rose from 0.0672 ms to 0.0951 ms. **That figure is not a
+clean attribution**: the two runs are different battles — 1176 ticks against
+1154, seven per cent more accepted moves, twenty-six per cent more front depth —
+so an unknown part of the difference is the battle rather than the rule. The
+rule's own cost is one FNV-1a mix per mover per tick plus one sort of at most
+`TotalAgents` keys, which for 200 movers is microseconds, not tens of them. An
+A/B at a fixed tick count on one seed would separate the two and has not been
+run.
+
+In absolute terms the measured p50 is a tenth of a millisecond against a 50 ms
+tick budget at the 20 Hz tick rate. p95, p99 and the maximum are within noise of
+the previous run, the 500-agent percentiles are lower rather than higher, and the
+allocation figures are comparable at both populations, so the sort buffers did
+not add steady-state allocation. If a future population makes the sort matter,
+the recorded fallback is a per-tick rotation of the ascending order, which is
+O(1) and delivers roughly half of the cross-faction pairs to each side.
+
+### Superseded oracles
+
+Dead values, kept so the transition can be traced. Not regression targets.
+
+| Superseded oracle | State hash | Event hash | Note |
+| --- | --- | --- | --- |
+| 200 agents, seed 1, last-stand run | `BBB40D2240720DC8` | `2A6BAEA1E3567046` | Terminal tick 1176. Superseded by the priority amendment. |
+| 500 agents, seed 1, last-stand run | `73FB96A4C5963149` | `1531FF58B7C7557B` | Report-only workload. Superseded by the priority amendment. |
+
+### Interactive verification
+
+**Not performed.** No `Hukbo.Client` file changed, and the visible effect of this
+change is a statistical one across many battles rather than anything a single
+frame shows. The one single-screen observation worth making is recorded as a
+`PENDING` row in the collision readability checklist below: a second-rank agent
+pressed against the same enemy should alternate between blocked and moving
+rather than staying blocked for the whole engagement.
+
+## Superseded: the last-stand formation run
+
+Every figure in this section comes from one final verified run of the
+last-stand formation change on 2026-07-27, taken on the
+`worktree-last-stand-formation` branch after it was rebased onto `main`'s
+mirrored starting-formation deployment. See
+[docs/plans/2026-07-27-last-stand-formation-design.md](../plans/2026-07-27-last-stand-formation-design.md)
+and
+[docs/plans/2026-07-27-last-stand-formation.md](../plans/2026-07-27-last-stand-formation.md).
+Nothing here is estimated, rounded, or carried over from an earlier run.
+
+Both hashes moved because this is an authoritative movement change: a
+faction's last survivors now rally on their own lowest-`EntityId` comrade
+instead of continuing to advance on the nearest enemy once the faction's
+living count drops to `Scenario.LastStandThresholdAgents` or fewer, so
+regrouping survivors stand in different places than they would under ordinary
+targeting, and a regrouping warrior's `Move` event names its rally agent in
+the event's target field rather than an enemy.
+
+**Everything below the next heading predates this change and is superseded.**
+
+### Canonical gate
+
+`./scripts/verify.ps1 -SkipBootstrap` passed at all five stages: prerequisite
+validation and locked restore, format verification, the Release solution
+build, the Release repository tests, and the seed-1 / 200-agent / 10,000-tick
+headless determinism workload. It ended with
+`[PASS] Canonical repository verification completed.` The Release build
+produced 0 warnings and 0 errors.
+
+| Suite | Passed | Failed | Skipped |
+| --- | --- | --- | --- |
+| `Hukbo.Core.Tests` | 398 | 0 | 0 |
+| `Hukbo.Client.Tests` | 564 | 0 | 0 |
+
+The Core count rises from `main`'s 351 by the 47 new last-stand tests. The
+Client count is unchanged from `main`'s 564: no `Hukbo.Client` file was touched
+by this change.
+
+### 200-agent acceptance workload
+
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`. This is the current
+recorded oracle.
+
+| Field | Value |
+| --- | --- |
+| Measured ticks | 1176 |
+| Outcome | `Faction1Victory` |
+| Faction 0 survivors | 0 |
+| Faction 1 survivors | 3 |
+| State hash | `BBB40D2240720DC8` |
+| Event hash | `2A6BAEA1E3567046` |
+| Deterministic | `true` |
+| First mismatch tick | `null` |
+| Tick p50 | 0.0672 ms |
+| Tick p95 | 1.4434 ms |
+| Tick p99 | 2.4551 ms |
+| Tick maximum | 7.3394 ms |
+| Allocated | 72,856,392 bytes |
+
+Collision metrics for the same run:
+
+| Metric | Value |
+| --- | --- |
+| `candidatePairs` | 107,401 |
+| `contactPairs` | 4,974 |
+| `acceptedMoves` | 67,112 |
+| `blockedAgentTicks` | 28,609 |
+| `attackCapableAgentTicks` | 9,248 |
+| `longestBlockedStreakTicks` | 48 |
+| `maximumFrontWidthRaw` | 630,752 |
+| `maximumFrontDepthRaw` | 40,469 |
+| `maximumPenetrationRaw` | 0 |
+
+### 500-agent stress workload
+
+The same command with `-Agents 500`. Report only; not gated.
+
+| Field | Value |
+| --- | --- |
+| Measured ticks | 2245 |
+| Outcome | `Faction1Victory` |
+| Faction 0 survivors | 0 |
+| Faction 1 survivors | 5 |
+| State hash | `73FB96A4C5963149` |
+| Event hash | `1531FF58B7C7557B` |
+| Deterministic | `true` |
+| First mismatch tick | `null` |
+| Tick p50 | 0.3384 ms |
+| Tick p95 | 2.9438 ms |
+| Tick p99 | 4.5846 ms |
+| Tick maximum | 11.4977 ms |
+| Allocated | 355,573,472 bytes |
+
+| Metric | Value |
+| --- | --- |
+| `candidatePairs` | 636,139 |
+| `contactPairs` | 12,722 |
+| `acceptedMoves` | 346,926 |
+| `blockedAgentTicks` | 91,845 |
+| `attackCapableAgentTicks` | 23,112 |
+| `longestBlockedStreakTicks` | 48 |
+| `maximumFrontWidthRaw` | 639,480 |
+| `maximumFrontDepthRaw` | 62,961 |
+| `maximumPenetrationRaw` | 0 |
+
+### What the last-stand formation moved, on the same workload
+
+| Metric | Mirrored deployment | Last-stand formation |
+| --- | --- | --- |
+| Terminal tick, 200 agents | 1081 | 1176 |
+| `longestBlockedStreakTicks`, 200 agents | 48 | 48 |
+| `maximumPenetrationRaw`, 200 agents | 0 | 0 |
+| Allocated, 200 agents | 69,693,688 bytes | 72,856,392 bytes |
+
+The battle runs 95 ticks longer under the last-stand formation, and
+`longestBlockedStreakTicks` stayed unchanged at exactly 48 on both the
+200-agent and 500-agent workloads: the rally cluster does not create a new
+worst-case blocked streak anywhere on the field. `maximumPenetrationRaw`
+stayed at exactly 0, which is the guard: the last-stand formation did not
+weaken the solid-disc invariant. Allocation rose from 69,693,688 to 72,856,392
+bytes on the 200-agent workload, consistent with more ticks paid for rather
+than a new steady-state allocation source — the battle also ran 95 ticks
+longer.
+
+### Superseded oracles
+
+Dead values, kept so the transition can be traced. None may be used as a
+regression target.
+
+| Superseded oracle | State hash | Event hash | Note |
+| --- | --- | --- | --- |
+| 200 agents, seed 1, amended collision | `D78F0B527B7F938F` | `AC3BAAEC684854D5` | Terminal tick 657. Superseded by the mirrored deployment. |
+| 500 agents, seed 1, amended collision | `C81B4F48DE54B983` | `D03F1213563DFD49` | Report-only workload. Superseded by the mirrored deployment. |
+| 200 agents, seed 1, mirrored deployment | `DC7F2E7A107C885A` | `6C641E90DDF0B943` | Terminal tick 1081, 3 survivors. Superseded by the last-stand formation, an authoritative movement change. |
+| 500 agents, seed 1, mirrored deployment | `0C53793DEB700A53` | `4F373537096F2551` | Terminal tick 2231. Report-only workload. Superseded by the last-stand formation, an authoritative movement change. |
+
+The combat preset is untouched: `CombatRuleset.ContentHash` is still
+`0x59FB4CA563D87A49`, asserted by two tests in the passing suite.
+
+### Interactive verification
+
+**Not performed.** The opening frame is the whole visible point of the
+mirrored deployment, and the converging endgame is the whole visible point of
+the last-stand formation, and no person has watched either in a live window.
+The rows in the deployment smoke checklist and the new last-stand formation
+smoke checklist below stay `PENDING`.
+
+## Superseded: the mirrored starting-formation deployment run
 
 Every figure in this section comes from the mirrored starting-formation change
 on 2026-07-27, taken on the `feature/starting-formations` branch. Starting
@@ -45,6 +495,13 @@ positions are now planned once per battle as a set of contingents and mirrored
 across the vertical centre line, so both hashes moved. See
 [docs/archives/2026-07-27-starting-formations-design.md](../archives/2026-07-27-starting-formations-design.md),
 kept for traceability only.
+
+**This entire section is superseded by the last-stand formation run recorded
+at the top of this file.** Its two oracle pairs are the mirrored-deployment
+rows in that section's "Superseded oracles" table. Everything in this section,
+including the "Everything below the next heading predates this change and is
+superseded" sentence that follows, described the live baseline only until the
+last-stand formation shipped.
 
 **Everything below the next heading predates this change and is superseded.**
 
@@ -74,8 +531,8 @@ unchanged.
 
 ### 200-agent acceptance workload
 
-`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`. This is the current
-recorded oracle.
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`. This was the
+recorded oracle before the last-stand formation.
 
 | Field | Value |
 | --- | --- |
@@ -236,29 +693,30 @@ state hash `DC7F2E7A107C885A`, event hash `6C641E90DDF0B943`,
 `1.3886` ms, p99 `2.4117` ms, maximum `6.9264` ms, and `allocatedBytes`
 `69693688`.
 
-**Both hashes are unchanged from the 200-agent acceptance oracle recorded at
-the top of this section** (`DC7F2E7A107C885A` and `6C641E90DDF0B943`,
-respectively). That is the expected result for a presentation-only change: the
-font ramp, the six vendored typeface bakes, the sampler-state switch from
-`PointClamp` to `LinearClamp` in the user interface sprite batch, and the
-whole-pixel text geometry helper all live entirely in `Hukbo.Client`, and the
-scope boundary enforced by the font plan means zero files under
-`src/Hukbo.Core`, `src/Hukbo.Headless`, or `tests/Hukbo.Core.Tests` were
-touched.
+**Both hashes were unchanged from the 200-agent acceptance oracle this section
+recorded above** (`DC7F2E7A107C885A` and `6C641E90DDF0B943`, respectively).
+That was the expected result for a presentation-only change: the font ramp,
+the six vendored typeface bakes, the sampler-state switch from `PointClamp` to
+`LinearClamp` in the user interface sprite batch, and the whole-pixel text
+geometry helper all live entirely in `Hukbo.Client`, and the scope boundary
+enforced by the font plan means zero files under `src/Hukbo.Core`,
+`src/Hukbo.Headless`, or `tests/Hukbo.Core.Tests` were touched. Both hashes
+are now dead values in their own right, superseded along with the rest of
+this section by the last-stand formation run at the top of this file.
 
 The pair `D78F0B527B7F938F` and `AC3BAAEC684854D5`, recorded further down this
-file both under "Superseded oracles" and again under "Superseded: the amended
-collision run" (`:193` in this file as of this writing), is the
-terminal-tick-657 amended-collision baseline. It was superseded by the mirrored
-starting-formation deployment change before this font work began, and it is
-**not** the current baseline; it must not be cited as one, and it is not the
-pair this run reproduced.
+file both under this section's "Superseded oracles" table and again under
+"Superseded: the amended collision run", is the terminal-tick-657
+amended-collision baseline. It was superseded by the mirrored
+starting-formation deployment change before this font work began, and it was
+**not** the current baseline even when this entry was written; it must not be
+cited as one, and it is not the pair this run reproduced.
 
-These results prove the non-interactive gate only. No visual claim is made by
-this entry. Every row in the new "Typography smoke" subsection below is
-`PENDING`, and the display-scaling measurement task (gated, separate, and
-requiring a human at an interactive Windows desktop) remains untouched by this
-run.
+These results proved the non-interactive gate only. No visual claim was made by
+this entry. The "Typography smoke" subsection in the interactive checklist
+below remains `PENDING`, and the display-scaling measurement task (gated,
+separate, and requiring a human at an interactive Windows desktop) remains
+untouched by this run.
 
 ## Superseded: the amended collision run
 
@@ -800,19 +1258,27 @@ the interaction. Use `PASS`, `FAIL`, or `BLOCKED`; leave untouched rows
 
 | Evidence field | Recorded value |
 | --- | --- |
-| Date | Not recorded |
-| Machine/platform | Not recorded |
-| Source commit | Not recorded |
-| Launch path (`source` or package path) | Not recorded |
+| Date | 2026-07-27 |
+| Machine/platform | Microsoft Windows 10.0.26200 (Windows 11 Pro) x64 |
+| Source commit | `8815a3c`; the later `d6818a8` is documentation-only and builds the identical binary |
+| Launch path (`source` or package path) | `source`, via `./scripts/run.ps1` |
 | Optional screenshot paths | None recorded |
+
+The rows below were observed by the repository owner at an interactive Windows
+desktop and reported to the role 17 review, which transcribed them. Only rows
+whose **whole** expected observation was exercised are marked `PASS`. Rows 2, 4,
+5, and 15 were partly observed: the observed half is recorded in `Actual` and the
+row stays `PENDING`, because a row is a single status and half a row is not a
+pass. Each of those four names exactly what is still missing, so closing them is
+a short follow-up rather than a repeat of the whole pass.
 
 | Check | Expected observation | Actual | Status |
 | --- | --- | --- | --- |
-| 1. Launch the game | The window opens, agents render, and the match starts paused with tick unchanged. | Not run | PENDING |
-| 2. Activate Play | The always-visible Play button advances ticks; Space provides the same toggle while the modal is closed. | Not run | PENDING |
-| 3. Activate Pause | The always-visible Pause button stops tick advancement and visibly indicates the paused state. | Not run | PENDING |
-| 4. Open Menu | The always-visible Menu button pauses the match and opens the modal; Escape toggles that same menu behavior. | Not run | PENDING |
-| 5. Exercise modal commands | Modal Play resumes and closes; modal Pause remains open and paused; Escape closes without resuming; Exit Game, which is available only in the modal, requests one clean shutdown. | Not run | PENDING |
+| 1. Launch the game | The window opens, agents render, and the match starts paused with tick unchanged. | Window opened; match started paused with the tick counter sitting still. | PASS |
+| 2. Activate Play | The always-visible Play button advances ticks; Space provides the same toggle while the modal is closed. | Play advanced the ticks. The Space toggle was not exercised. | PENDING |
+| 3. Activate Pause | The always-visible Pause button stops tick advancement and visibly indicates the paused state. | Pause stopped tick advancement and the paused state was visible on screen. | PASS |
+| 4. Open Menu | The always-visible Menu button pauses the match and opens the modal; Escape toggles that same menu behavior. | The Menu button opened the modal. Escape as a toggle was not exercised. | PENDING |
+| 5. Exercise modal commands | Modal Play resumes and closes; modal Pause remains open and paused; Escape closes without resuming; Exit Game, which is available only in the modal, requests one clean shutdown. | Exit Game quit the game cleanly. Modal Play, modal Pause, and Escape-closes-without-resuming were not exercised. | PENDING |
 | 6. Select an agent | A primary click on a living agent pins the inspector with ID, faction, alive/dead state, health, intent, target, and position. | Not run | PENDING |
 | 7. Move away and observe death | Moving the pointer away does not clear selection; if the selected agent dies, the inspector remains pinned and shows its final `DEAD` state. | Not run | PENDING |
 | 8. Check observational behavior | Selecting or inspecting an agent does not alter tick progression or the deterministic battle result; an empty-arena click clears selection and UI clicks do not click through. | Not run | PENDING |
@@ -822,7 +1288,7 @@ the interaction. Use `PASS`, `FAIL`, or `BLOCKED`; leave untouched rows
 | 12. Exercise ordinary Next Round | `R`, modal Next Round, and summary Next Round each preserve the score, speed, and camera; clear selection, event history, scroll state, and summary; and leave the fresh round paused. | Not run | PENDING |
 | 13. Check seed progression | Each Next Round changes the seed to a distinct deterministic value. After Full Reset, repeating the same Next Round sequence produces the same seed sequence. | Not run | PENDING |
 | 14. Exercise Full Reset | After changing the score, speed, and camera, press `Shift+R`; both win totals become 0, seed returns to 1, speed returns to 1x, the camera fits the arena, disposable UI state clears, and the fresh round is paused. Change state again and confirm modal Full Reset has the same result. | Not run | PENDING |
-| 15. Close the window | The operating-system close button exits the process once with exit code 0. | Not run | PENDING |
+| 15. Close the window | The operating-system close button exits the process once with exit code 0. | Closing the window exited the game. The exit code was not captured, so the `0` half of this row is unproven. | PENDING |
 | 16. Check the plains backdrop ground | The battle floor shows varied ground shading with scattered grass, dirt, and stone marks rather than one flat color. | Not run | PENDING |
 | 17. Check backdrop stability at zoom extremes | Zooming fully out and fully in keeps the ground pattern locked to the same patches of map; the pattern does not crawl or shimmer, and decals neither vanish into flicker nor balloon into large blobs. | Not run | PENDING |
 | 18. Check backdrop continuity while panning | Panning the camera across the map shows no seam lines, gaps, or overlapping bright edges between ground cells. | Not run | PENDING |
@@ -893,6 +1359,7 @@ has been observed.
 | 19. Inspect a blocked agent | Selecting an agent in the second rank shows a movement label explaining why it is not advancing, and that label changes as the situation changes. | Not run | PENDING |
 | 20. Inspect the front rank | Selecting a front-rank agent shows it moving or attacking rather than blocked, and an agent that has arrived at an enemy reads as attacking rather than still marching. | Not run | PENDING |
 | 21. Confirm the ranks actually touch | Opposing front ranks close until their pawn bodies meet, rather than settling with a visible gap of open ground between the two lines. This is the amendment's whole visible effect and the pre-amendment behaviour was a persistent gap. | Not run | PENDING |
+| 21a. Watch a contested push change hands | Added by the collision priority amendment. Select a second-rank agent pressed against the same enemy for a sustained engagement. Its movement label alternates between blocked and moving across ticks rather than reading blocked for the whole engagement, and neither faction's line is the one that always gives way. | Not run | PENDING |
 
 ### Camera auto-pan smoke
 
@@ -942,12 +1409,23 @@ person watching it, which is the only thing these rows are for.
 
 Added by the font and text quality change. **Not performed.** The automated
 gate proves the ramp is internally consistent, the theme catalog resolves
-every role, text positions round to whole pixels, and the compiled em-dash
-byte assertion passes; none of that proves the resulting text reads as crisp,
-correctly sized, or correctly hierarchical to a person watching it, which is
-the only thing these rows are for. Per `CLAUDE.md` section 6, only a human at
-an interactive Windows desktop may flip one of these rows to `PASS`.
-Compilation, unit tests, and a window-opening probe do not.
+every role, and text positions round to whole pixels; none of that proves the
+resulting text reads as crisp, correctly sized, or correctly hierarchical to a
+person watching it, which is the only thing these rows are for.
+
+**Correction — there is no automated em-dash check.** An earlier revision of
+this section claimed a "compiled em-dash byte assertion passes". No such
+assertion exists. Searching `tests/` for `.xnb`, `CharacterMap`, `2014`,
+`8212`, or `em-dash` returns nothing. The only thing backing the em dash is the
+second `CharacterRegion` in each of the six `.spritefont` files under
+`src/Hukbo.Client/Content/Fonts/`, which spans `&#8211;` to `&#8212;` and so
+asks the content builder to include the glyph. Whether the builder actually
+produced it, and whether the running game draws it instead of throwing, is
+verified by row 71 below and by nothing else. That row is `PENDING`.
+
+Per `CLAUDE.md` section 6, only a human at an interactive Windows desktop may
+flip one of these rows to `PASS`. Compilation, unit tests, and a
+window-opening probe do not.
 
 | Evidence field | Recorded value |
 | --- | --- |
@@ -973,6 +1451,98 @@ Compilation, unit tests, and a window-opening probe do not.
 | 73. Window resize | Resizing between small and maximised keeps text pixel size constant and re-lays out panels without clipping. | Not run | PENDING |
 | 74. Subpixel blur is gone | Panning, zooming, and pausing produce no shimmering or swimming text. | Not run | PENDING |
 | 75. Display scaling | Record the appearance at 100% and at 150% Windows scaling. Feeds the separate, gated display-scaling measurement task; not itself a pass/fail row for the font ramp. | Not run | PENDING |
+
+### Last-stand formation smoke
+
+Added by the last-stand formation change. **Not performed.** The automated
+tests prove the trigger, the rally-agent choice, the deterministic offset, the
+trail distance, the give-way rule, and that a last stand still resolves inside
+the tick limit. None of them prove that the resulting endgame reads as a
+converging last stand rather than as warriors wandering, which is the only
+thing these rows are for. Only a human running `./scripts/run.ps1` on an
+interactive Windows desktop may flip one of these rows to `PASS`. Compilation,
+unit tests, and a window-opening probe do not.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 76. Watch the endgame converge | Let a full 200-agent battle run to its final handful of warriors on each side. As each side thins out, its survivors visibly turn toward one another and gather instead of continuing to spread across the map. | Not run | PENDING |
+| 77. Confirm the cluster is irregular | The gathered survivors form a ragged clump. They do not form a ring, a grid, a line, an arc, or any shape that looks placed. No warrior sits at an obviously exact distance from the one it gathered on. | Not run | PENDING |
+| 78. Confirm the cluster advances as a body | The gathered survivors travel toward the enemy together rather than one at a time. The group arrives roughly at once, and the fight that follows is a group fight rather than a sequence of separate duels. | Not run | PENDING |
+| 79. Watch a leader fall | When the warrior the group has gathered on is killed, the group re-forms on another warrior within a moment. The re-form is a short, small adjustment, not a sudden jump across the screen or a scatter. | Not run | PENDING |
+| 80. Inspect a regrouping warrior | Selecting a survivor that is closing on its comrades shows `Intent: Regrouping` in the inspector, and the battle event log shows its movement naming the warrior it is closing on rather than an enemy. The intent changes to `Attacking` once it is actually swinging at an enemy. | Not run | PENDING |
+| 81. Confirm regrouping never stops the fight | A warrior that is regrouping still strikes any enemy it passes within reach. The final engagement is not delayed by warriors refusing to fight while they are still gathering, and the match reaches a terminal outcome rather than two clusters standing apart. | Not run | PENDING |
+
+### Sound gain compensation smoke
+
+Covers the change recorded in
+`docs/plans/2026-07-27-sound-gain-compensation.md`. The measured evidence is in
+`docs/research/SOUND-CAPACITY-MEASUREMENTS.md`; these rows are the part that
+only a person with working speakers can settle.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 82. Hear a busy melee without distortion | Let a 200-agent battle reach its densest fighting at normal speed. Blows stay individually distinguishable. There is no continuous rasp, crackle, or buzz underneath the fighting, and no moment where the sound seems to break up or drop out. | Not run | PENDING |
+| 83. Compare a duel with a melee | The final one-on-one survivors sound clearly louder per blow than the same weapon does in the middle of the melee. The change is gradual as the fight thins out, not a sudden jump. | Not run | PENDING |
+| 84. Watch the voice count and gain react | Open the sound log with `F9`. During heavy fighting `VOICES` climbs into the tens and `GAIN` falls well below 0.65; as the battle thins both recover, and `GAIN` returns to `0.65` once nothing is sounding. | Not run | PENDING |
+| 85. Confirm nothing is being limited | Through a full 200-agent battle at normal speed, the sound log shows no `LIMITED` row and no `REFUSED` row. | Not run | PENDING |
+| 86. Check 4x speed | At 4x the audio stays clean and undistorted, `VOICES` climbs higher than at 1x, and `GAIN` falls further. Still no `LIMITED` or `REFUSED` rows. | Not run | PENDING |
+| 87. Confirm mute still works | Toggling `MUTE` silences everything immediately and unmuting resumes without a burst of backed-up sound. | Not run | PENDING |
+| 88. Confirm a new round starts at full gain | After a match ends and a new one starts, the first blow of the new battle is at full volume rather than carrying the previous battle's reduction. | Not run | PENDING |
+| 89. Confirm the header stays readable | The `VOICES n GAIN 0.nn` text in the sound log header does not overflow its panel, overlap the `MUTE` button, or clip at any of the five themes. | Not run | PENDING |
+
+### Tactical hit animations smoke
+
+Covers the change recorded in
+`docs/plans/2026-07-26-tactical-hit-animations.md`, whose Task 6 requires a
+manual checklist that this document was previously missing. **Not performed.**
+`HitEffectSystemTests.cs` and `HitEffectGeometryTests.cs` prove that the effect
+buffer has a fixed capacity and replaces its oldest entry in a defined order,
+that ordinary and lethal effects expire on their stated schedules, that each
+damage event produces exactly one effect, and that a reset clears every effect.
+The system lives entirely in `Hukbo.Client`, so it cannot reach the simulation
+by construction; no test asserts that a battle's tick count, outcome, state
+hash, or event hash is unchanged, and row 98 below is the only check of that.
+Nothing automated proves that a hit reads as a hit to a person watching the
+screen, or that the effects stay legible when the fighting gets crowded, which
+is the only thing these rows are for. Only a human running
+`./scripts/run.ps1` on an interactive Windows desktop may flip one of these rows
+to `PASS`. Compilation, unit tests, and a window-opening probe do not.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 90. Read an ordinary hit at 1x | At normal speed a non-lethal blow produces a brief pulse on the struck pawn, one thin ring, and a small restrained shard burst. The blow is unmistakable without the screen filling with debris. | Not run | PENDING |
+| 91. Check hits survive 4x | At 4x, hits landed on consecutive simulation ticks are each still visible, rather than only the last tick's hit appearing in each drawn frame. | Not run | PENDING |
+| 92. Tell a lethal hit apart | A killing blow reads as clearly heavier than an ordinary one: a larger double ring and longer shards, appearing after the pawn has disappeared rather than on top of it. | Not run | PENDING |
+| 93. Check readability across the zoom range | At fitted, minimum, and maximum zoom the primary ring stays readable. Zooming out reduces clutter without removing the ring, so a hit is never invisible at any zoom the spectator can reach. | Not run | PENDING |
+| 94. Watch a crowded exchange | With many pawns trading blows at once the effects stay bounded. No persistent trail, smear, or lingering colour builds up on the arena, and the fighting stays legible underneath. | Not run | PENDING |
+| 95. Pause and resume | Pausing lets effects already on screen finish while the simulation stops advancing. Resuming produces new effects normally, with no burst of stored-up effects on the first frame. | Not run | PENDING |
+| 96. Reset clears everything | Next Round (`R`) and Full Reset (`Shift+R`) both clear every pulse and burst immediately. No effect from the previous match survives into the new one. | Not run | PENDING |
+| 97. Check the arena edges | Resize the window and zoom in near each arena edge. No ring or shard draws over the status bar, the agent inspector, the event log, the match summary, or the menu overlay. | Not run | PENDING |
+| 98. Confirm the effects change nothing | Run to a terminal result. Effects expire on their own, and the outcome, tick count, state hash, and event hash match a run of the same seed with the effects never observed. | Not run | PENDING |
 
 ## Failure classification
 

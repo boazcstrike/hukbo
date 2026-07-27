@@ -166,6 +166,28 @@ public sealed class DeterminismTests
         Assert.NotEqual(baseline, changed);
     }
 
+    [Fact]
+    public void StateHashChangesWhenTheLastStandThresholdChanges()
+    {
+        var loadout = new CombatLoadout(
+            WeaponId.GreatBlade,
+            ArmorId.LightOrganic,
+            ShieldId.None);
+        var scenario = Scenario.CreateDefault(seed: 5, totalAgents: 2) with
+        {
+            LastStandThresholdAgents = 0,
+        };
+        var thresholdChanged = scenario with
+        {
+            LastStandThresholdAgents = 6,
+        };
+
+        var baseline = ComputeSingleAgentStateHash(scenario, loadout);
+        var changed = ComputeSingleAgentStateHash(thresholdChanged, loadout);
+
+        Assert.NotEqual(baseline, changed);
+    }
+
     private static ulong ComputeSingleAgentStateHash(
         Scenario scenario,
         CombatLoadout loadout)
@@ -237,6 +259,57 @@ public sealed class DeterminismTests
     }
 
     /// <summary>
+    /// Task 7 coverage: the same lockstep, every-tick comparison as
+    /// <see cref="TwoIndependentSameSeedRunsAgreeOnOrderedEventsAndStateHashEveryTick"/>,
+    /// but with the last-stand formation explicitly active, so a divergence
+    /// introduced by the rally-agent scan, the aim-point movement, or the
+    /// new <see cref="AgentIntent.Regrouping"/> hash input would be caught
+    /// here even if it cancelled out by the final tick.
+    /// </summary>
+    [Fact]
+    public void TheSameSeedProducesIdenticalHashesAndEventsWithTheLastStandActive()
+    {
+        var scenario = Scenario.CreateDefault(seed: 3, totalAgents: 40) with
+        {
+            LastStandThresholdAgents = 6,
+        };
+        var left = BattleSimulation.Create(scenario);
+        var right = BattleSimulation.Create(scenario);
+
+        Assert.Equal(left.ComputeStateHash(), right.ComputeStateHash());
+
+        while (left.Outcome == BattleOutcome.Ongoing)
+        {
+            left.AdvanceOneTick();
+            right.AdvanceOneTick();
+
+            if (!left.LastEvents.SequenceEqual(right.LastEvents))
+            {
+                Assert.Fail(
+                    $"Ordered events first diverged at tick {left.Tick} " +
+                    "with the last stand active: the first run emitted " +
+                    $"{left.LastEvents.Count} events and the second " +
+                    $"emitted {right.LastEvents.Count}.");
+            }
+
+            var leftHash = left.ComputeStateHash();
+            var rightHash = right.ComputeStateHash();
+
+            if (leftHash != rightHash)
+            {
+                Assert.Fail(
+                    $"State hash first diverged at tick {left.Tick} with " +
+                    $"the last stand active: 0x{leftHash:X16} against " +
+                    $"0x{rightHash:X16}.");
+            }
+        }
+
+        Assert.Equal(left.Tick, right.Tick);
+        Assert.Equal(left.Outcome, right.Outcome);
+        Assert.NotEqual(BattleOutcome.Ongoing, left.Outcome);
+    }
+
+    /// <summary>
     /// Acceptance row <c>Permutation</c>: the order the caller happens to store
     /// agents in cannot reach any ordered result. Three storage orders of one
     /// identical roster are advanced in lockstep and compared every tick.
@@ -273,12 +346,14 @@ public sealed class DeterminismTests
     }
 
     /// <summary>
-    /// Acceptance row <c>ID order</c>: the collision policy decision record,
-    /// section 9, gives a contested destination to the lower
-    /// <c>EntityId</c>. Renumbering the same two bodies therefore moves the win
-    /// to the other body. ID independence is explicitly <em>not</em> the
-    /// contract, so this test asserts the documented dependence rather than
-    /// asserting it away.
+    /// Acceptance row <c>ID order</c>: a contested destination goes to the mover
+    /// with the lower <see cref="CollisionPriority"/> key for the tick being
+    /// resolved, not to the lower <c>EntityId</c>. Identity still decides the
+    /// contest — the key is a hash of the seed, the tick and the entity ID — so
+    /// renumbering the same two bodies still moves the win. What changed is that
+    /// the winner is no longer the same agent on every tick of the battle, which
+    /// is what let the faction holding the low IDs win every cross-faction push
+    /// of an entire battle.
     /// </summary>
     /// <remarks>
     /// Two allies sit one body diameter apart and converge on one enemy. Their
@@ -286,25 +361,26 @@ public sealed class DeterminismTests
     /// preferred destination and report <see cref="MovementResolution.Moved"/>.
     /// </remarks>
     [Fact]
-    public void ContestedGroundGoesToTheLowerEntityIdAndFollowsARenumbering()
+    public void ContestedGroundGoesToTheLowerPriorityKeyAndFollowsARenumbering()
     {
         var straight = ResolveContestedGround(lowerRowEntityId: 1, upperRowEntityId: 2);
         var renumbered = ResolveContestedGround(lowerRowEntityId: 2, upperRowEntityId: 1);
 
-        Assert.Equal(MovementResolution.Moved, straight[1].MovementResolution);
-        Assert.Equal(MovementResolution.Moved, renumbered[1].MovementResolution);
-        Assert.NotEqual(MovementResolution.Moved, straight[2].MovementResolution);
-        Assert.NotEqual(MovementResolution.Moved, renumbered[2].MovementResolution);
+        var scenario = ContestScenario();
+        var firstKey = CollisionPriority.Resolve(scenario.Seed, tick: 1, entityId: 1);
+        var secondKey = CollisionPriority.Resolve(scenario.Seed, tick: 1, entityId: 2);
+        var winner = firstKey < secondKey ? 1UL : 2UL;
+        var loser = winner == 1UL ? 2UL : 1UL;
 
-        // Entity 1 occupies the lower row in the first arrangement and entity 2
-        // occupies it in the second, so these two views describe the same body on
-        // the same ground under two numberings. They must differ.
-        var lowerRowStraight = straight[1];
-        var lowerRowRenumbered = renumbered[2];
-        Assert.NotEqual(
-            lowerRowStraight.MovementResolution,
-            lowerRowRenumbered.MovementResolution);
-        Assert.NotEqual(lowerRowStraight.XRaw, lowerRowRenumbered.XRaw);
+        Assert.Equal(MovementResolution.Moved, straight[winner].MovementResolution);
+        Assert.Equal(MovementResolution.Moved, renumbered[winner].MovementResolution);
+        Assert.NotEqual(MovementResolution.Moved, straight[loser].MovementResolution);
+        Assert.NotEqual(MovementResolution.Moved, renumbered[loser].MovementResolution);
+
+        // One body stands on the lower row in both arrangements, under the
+        // winning ID in the first and the losing ID in the second. Renumbering
+        // therefore has to move it: same ground, different outcome.
+        Assert.NotEqual(straight[winner].XRaw, renumbered[loser].XRaw);
     }
 
     private static void AssertSameOrderedResults(

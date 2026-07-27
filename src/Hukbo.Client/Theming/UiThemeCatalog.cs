@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Hukbo.Diagnostics;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Theming;
@@ -45,11 +46,33 @@ internal sealed partial class UiThemeCatalog
     public static UiThemeCatalog Load(string path) =>
         LoadFromJson(File.ReadAllText(path));
 
-    public static UiThemeCatalog LoadOrFallback(string path)
+    /// <summary>
+    /// Loads the content-shipped catalog, or the built-in one when that fails.
+    /// </summary>
+    /// <param name="log">
+    /// Records which of the two happened. Falling back is otherwise silent, and
+    /// a game running on built-in colors when a designer expected their edited
+    /// JSON looks approximately right while being wrong.
+    /// </param>
+    public static UiThemeCatalog LoadOrFallback(
+        string path,
+        DiagnosticLog? log = null)
     {
+        var diagnostics = log ?? DiagnosticLog.Disabled;
         try
         {
-            return Load(path);
+            var catalog = Load(path);
+            diagnostics.Write(
+                LogLevel.Information,
+                LogChannel.Assets,
+                LogEvents.AssetsThemeLoaded,
+                "path",
+                path,
+                "themes",
+                catalog.Themes.Count,
+                "defaultThemeId",
+                catalog.DefaultThemeId);
+            return catalog;
         }
         catch (Exception exception) when (
             exception is IOException or
@@ -57,7 +80,18 @@ internal sealed partial class UiThemeCatalog
             JsonException or
             InvalidDataException)
         {
-            return CreateFallback();
+            var fallback = CreateFallback();
+            diagnostics.Write(
+                LogLevel.Warning,
+                LogChannel.Assets,
+                LogEvents.AssetsThemeFallback,
+                "path",
+                path,
+                "reason",
+                exception.GetType().Name,
+                "msg",
+                exception.Message);
+            return fallback;
         }
     }
 
