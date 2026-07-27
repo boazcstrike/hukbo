@@ -1,9 +1,11 @@
 # Measurement tools
 
-Three console programs that measure things about Hukbo which are otherwise
-argued about rather than known. They exist to produce the evidence in
-[`docs/research/SOUND-CAPACITY-MEASUREMENTS.md`](../docs/research/SOUND-CAPACITY-MEASUREMENTS.md)
-and to let those numbers be reproduced later.
+Four console programs that measure things about Hukbo which are otherwise
+argued about rather than known. Three exist to produce the evidence in
+[`docs/research/SOUND-CAPACITY-MEASUREMENTS.md`](../docs/research/SOUND-CAPACITY-MEASUREMENTS.md);
+the fourth, `Hukbo.Tools.WeaponBalance`, produces the per-weapon evidence in
+[`docs/development/testing.md`](../docs/development/testing.md) under "T32 —
+weapon balance measurement". All four let those numbers be reproduced later.
 
 ## They are not part of the build
 
@@ -93,3 +95,25 @@ Arguments: audio directory, output directory, agents, seed, speed multiplier.
 > **If the client's slot mapping, hit-class mapping, fallback chain, or variant
 > selection changes, `CueSchedule.cs` must change with it** — otherwise it keeps
 > reporting confident numbers about a game that no longer exists.
+
+### `Hukbo.Tools.WeaponBalance`
+
+Mean ticks-to-kill per weapon loadout, and per-faction win rate, for the
+per-weapon damage/reach/cooldown attributes preset V2 introduced.
+
+Runs real `BattleSimulation` instances across a fixed 5-seed sweep, at
+200 and 500 agents with the default even roster, and at 500 agents with
+each of the six loadouts stacked to half the faction in turn. Read-only
+against `Hukbo.Core`.
+
+```powershell
+dotnet run --project tools/Hukbo.Tools.WeaponBalance -c Release -- 10000
+```
+
+Argument: tick limit per battle (optional, defaults to 10 000).
+
+> **`Scenario.RosterCounts` applies identically to both factions.** This tool
+> cannot field two different rosters against each other — only a composition
+> stacked toward one loadout, mirrored on both sides. A genuine per-faction
+> asymmetric matchup needs `Scenario` extended to carry a roster per faction,
+> which is a separate, non-trivial change with its own design document.

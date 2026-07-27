@@ -196,6 +196,93 @@ decisive tick at or below 5,000.
 | Tick p95 / p99 / max | 1.9817 / 4.0499 / 14.0668 ms |
 | `defenceAttributableShare` | 0.3159 |
 
+## T32 — weapon balance measurement (preset V2 + clash), 2026-07-28
+
+Closes T32/T27 of
+[docs/plans/2026-07-27-weapon-identity-and-attributes.md](../plans/2026-07-27-weapon-identity-and-attributes.md),
+recorded as "not done, deliberately" in that plan's completion record. Measures
+mean ticks-to-kill per weapon loadout and per-faction win rate against the
+current tree — preset V2 plus the weapon-clash defensive-resolution system
+merged above (commit `dbd907a`) — using a new hand-run harness,
+[`tools/Hukbo.Tools.WeaponBalance`](../../tools/Hukbo.Tools.WeaponBalance/Program.cs).
+Read-only against `Hukbo.Core`; not part of `Hukbo.slnx` or the canonical
+gate, per the `tools/` convention. No `Hukbo.Core` file was touched to
+produce this measurement, so no hash moved and the gate was not re-run.
+
+`dotnet run --project tools/Hukbo.Tools.WeaponBalance -c Release -- 10000`, 5
+seeds (1 through 5) per scenario, `TickLimit 10000`.
+
+**Method.** For every death, the ticks between the victim's first landed hit
+and its death tick are attributed to the weapon loadout of whichever
+attacker(s) landed a hit on it during the death tick (split credit, no
+double-counting guard, if more than one attacker lands in the same tick — an
+approximation acceptable for a tuning diagnostic, not exact kill attribution).
+`Scenario.RosterCounts` is applied identically to both factions (see its doc
+comment on `Scenario.cs`), so there is no built-in way to field two different
+rosters against each other — a genuine per-faction asymmetric matchup needs
+`Scenario` extended to carry a roster per faction, which is a separate,
+non-trivial change with its own design document and was **not** attempted
+here. "Asymmetric roster" below means a composition stacked toward one
+loadout, still mirrored on both sides.
+
+### 200-agent and 500-agent, mirrored, even roster
+
+| Loadout | 200-agent kills | 200-agent mean TTK (ticks) | 500-agent kills | 500-agent mean TTK (ticks) |
+| --- | ---: | ---: | ---: | ---: |
+| Kampilan (solo) | 277 | 49.08 | 643 | 46.64 |
+| Wasay (solo) | 161 | 58.11 | 403 | 54.50 |
+| Kalis (solo) | 157 | 58.64 | 403 | 59.66 |
+| Kalis (paired) | 167 | 63.11 | 413 | 62.96 |
+| Itak (solo) | 137 | 59.20 | 375 | 60.18 |
+| Itak (paired) | 148 | 65.00 | 375 | 69.35 |
+
+200-agent: `faction0Wins=0 faction1Wins=5 draws=0`. 500-agent:
+`faction0Wins=3 faction1Wins=2 draws=0`. The 200-agent split is a 5-seed
+sample of a symmetric matchup — with only 5 seeds, a 0/5 split is within
+normal noise, not evidence of first-mover bias; the 500-agent split at the
+same roster is close to even.
+
+### 500-agent, mirrored, single-loadout-heavy roster (one loadout at half the faction, remainder split across the other five)
+
+| Heavy loadout | Heavy loadout kills | Heavy loadout mean TTK | Win split (faction0/faction1/draw) |
+| --- | ---: | ---: | --- |
+| Kampilan (solo) | 1 542 | 45.57 | 4/1/0 |
+| Wasay (solo) | 1 258 | 50.63 | 3/2/0 |
+| Kalis (solo) | 1 228 | 58.09 | 1/4/0 |
+| Kalis (paired) | 1 279 | 68.49 | 4/1/0 |
+| Itak (solo) | 1 205 | 61.67 | 2/3/0 |
+| Itak (paired) | 1 234 | 72.89 | 2/3/0 |
+
+Full per-scenario minority-loadout breakdown is in the tool's own console
+output; the table above keeps the headline number.
+
+### Finding: Kampilan (solo) outperforms its intended role at every roster mix tested
+
+Design section 3.4 expected the wasay to lead sustained throughput (highest
+damage-per-tick, 2.25 against the kampilan's 2.14) and the kampilan to trade
+that for the longest reach. In every one of the eight scenarios above — the
+even roster and all seven single-loadout-heavy variants — Kampilan (solo)
+records both the most kills per capita and the lowest mean ticks-to-kill of
+any loadout, typically 30 to 70 percent more kills than Wasay (solo) at a
+comparable population share, and several ticks faster per kill than every
+other loadout. The most likely mechanism is reach, not damage: at 16 world
+units against Wasay's 13, a kampilan-wielder can start landing hits before an
+approaching wasay-wielder is in range at all, which compounds every
+clash-resolution roll and every point of accumulated damage in the kampilan's
+favor before the fight is otherwise even. The clash-integration retune above
+changed how often a landed hit is blocked, parried, deflected, or evaded, and
+lengthened every mean-ticks-to-kill figure accordingly (compare the ticks
+above against the earlier commit this measurement was first taken against),
+but did not change the ordering: Kampilan (solo) topped every scenario both
+before and after that retune.
+
+**Not retuned.** Per the plan's own framing ("the attribute values in design
+section 3.3 are therefore still unvalidated tuning ... preset V3 should not
+treat them as settled"), and confirmed with the user rather than decided
+unilaterally, this measurement is recorded as evidence for V3 tuning rather
+than acted on inside V2. No preset value changed, no hash moved, no gate
+re-run was required.
+
 ## Previous non-interactive result — weapon identity and attributes (preset V2), 2026-07-27
 
 Every weapon now carries its own damage, reach, and attack cooldown, split by
