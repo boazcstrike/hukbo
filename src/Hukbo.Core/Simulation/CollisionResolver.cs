@@ -19,13 +19,19 @@ namespace Hukbo.Core.Simulation;
 /// <param name="HasProposal">
 /// <see langword="true"/> when the agent proposed movement this tick.
 /// </param>
+/// <param name="PriorityKey">
+/// This tick's contested-ground priority, from
+/// <see cref="CollisionPriority.Resolve"/>. Lower resolves first. Meaningful
+/// only for a mover; a stationary body is committed before any mover regardless.
+/// </param>
 internal readonly record struct CollisionMoveRequest(
     ulong EntityId,
     int StartXRaw,
     int StartYRaw,
     int PreferredXRaw,
     int PreferredYRaw,
-    bool HasProposal);
+    bool HasProposal,
+    ulong PriorityKey);
 
 /// <summary>
 /// Where one agent actually finished the collision stage, and the authoritative
@@ -68,16 +74,22 @@ internal readonly record struct CollisionMoveResult(
 /// </para>
 /// <para>
 /// <b>Order.</b> Stationary bodies are committed first, in ascending entity ID,
-/// then movers, in ascending entity ID. Stationary bodies must go first because a
-/// standing agent with a high entity ID would otherwise have its ground taken by
-/// a lower-ID mover that arrives before the standing agent is ever considered.
+/// then movers, in ascending
+/// <see cref="CollisionMoveRequest.PriorityKey"/>. Stationary bodies must go
+/// first because a standing agent would otherwise have its ground taken by a
+/// mover that arrives before the standing agent is ever considered. Movers are
+/// ordered by a key that reshuffles every tick rather than by entity ID,
+/// because a fixed order hands every cross-faction contest of an entire battle
+/// to the faction holding the low IDs; see <see cref="CollisionPriority"/>. The
+/// key's low half is the entity ID, so the order is strict and total no matter
+/// how the sort behaves on equal keys.
 /// </para>
 /// <para>
 /// <b>Obstacles.</b> A candidate position is tested against every other body:
 /// those already committed this tick, and those still pending at their tick-start
 /// positions. Testing the pending movers is what makes the output invariant hold
-/// unconditionally. Without it a lower-ID mover could step onto ground a
-/// higher-ID mover has not yet vacated, and the higher-ID mover's last-resort
+/// unconditionally. Without it a mover resolved earlier could step onto ground a
+/// mover resolved later has not yet vacated, and that later mover's last-resort
 /// "hold position" fallback would then commit an overlap. A plain head-on
 /// approach between two tangent agents is enough to produce that case.
 /// </para>
@@ -150,8 +162,18 @@ internal sealed class CollisionResolver
     /// <summary>Bodies committed so far this tick, in commit order.</summary>
     private CollisionBody[] _committed = new CollisionBody[InitialCapacity];
 
-    /// <summary>Indices into the request list of every mover, in request order.</summary>
+    /// <summary>
+    /// Indices into the request list of every mover, in resolution order:
+    /// ascending <see cref="CollisionMoveRequest.PriorityKey"/>.
+    /// </summary>
     private int[] _moverIndices = new int[InitialCapacity];
+
+    /// <summary>
+    /// The priority keys of <see cref="_moverIndices"/>, kept as a parallel
+    /// array so the pair can be sorted without a comparison delegate and
+    /// therefore without allocating on a warm tick.
+    /// </summary>
+    private ulong[] _moverKeys = new ulong[InitialCapacity];
 
     private int _committedCount;
 
@@ -328,6 +350,7 @@ internal sealed class CollisionResolver
 
         Grow(ref _committed, requests.Count);
         Grow(ref _moverIndices, requests.Count);
+        Grow(ref _moverKeys, requests.Count);
 
         for (var index = 0; index < requests.Count; index++)
         {
@@ -336,9 +359,22 @@ internal sealed class CollisionResolver
             if (requests[index].HasProposal)
             {
                 _moverIndices[_moverCount] = index;
+
+                // The entity ID is stamped into the low half here rather than
+                // trusted from the caller. Array.Sort is an unstable introsort,
+                // so two equal keys would permute in an implementation-defined
+                // way and the same build could diverge from itself. Composing
+                // the ID in makes distinctness structural: keys can only be
+                // equal if the entity IDs are, and those are validated unique.
+                _moverKeys[_moverCount] =
+                    (requests[index].PriorityKey & 0xFFFF_FFFF_0000_0000UL) |
+                    (requests[index].EntityId & 0xFFFF_FFFFUL);
                 _moverCount++;
             }
         }
+
+        // Ascending priority key: this tick's contested-ground order.
+        Array.Sort(_moverKeys, _moverIndices, 0, _moverCount);
     }
 
     /// <summary>

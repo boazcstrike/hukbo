@@ -65,19 +65,19 @@ Related rules from `CLAUDE.md` §5 that cause most real failures:
 ## Recorded baseline
 
 From `docs/development/testing.md`, seed 1, 200 agents, one final verified run of
-the last-stand formation change taken after rebasing onto `main`'s mirrored
-starting-formation deployment, on the `worktree-last-stand-formation` branch:
+the collision priority fairness change on the
+`feature/collision-priority-fairness` branch:
 
 | Field | Value |
 | --- | --- |
-| Outcome | `Faction1Victory` at tick 1176 |
-| State hash | `BBB40D2240720DC8` |
-| Event hash | `2A6BAEA1E3567046` |
-| Allocated | 72,856,392 bytes |
+| Outcome | `Faction1Victory` at tick 1154 |
+| State hash | `5BEBA7A68F69BE0D` |
+| Event hash | `D379B60B2E30FFFC` |
+| Allocated | 71,698,480 bytes |
 
-The 500-agent stress workload, report only, from the same run: `Faction1Victory`
-at tick 2245 with 0 faction-0 and 5 faction-1 survivors, state hash
-`73FB96A4C5963149`, event hash `1531FF58B7C7557B`, deterministic with no mismatch
+The 500-agent stress workload, report only, from the same run: `Faction0Victory`
+at tick 2668 with 1 faction-0 and 0 faction-1 survivors, state hash
+`FE44ADA93E0E202A`, event hash `9C8EF5CB79810560`, deterministic with no mismatch
 tick.
 
 ### Superseded hashes — dead values, do not target
@@ -89,6 +89,8 @@ history instead of mistaken for a live baseline.
 
 | Dead baseline | State hash | Event hash |
 | --- | --- | --- |
+| 200 agents, last-stand run, tick 1176 | `BBB40D2240720DC8` | `2A6BAEA1E3567046` |
+| 500 agents, last-stand run, tick 2245 | `73FB96A4C5963149` | `1531FF58B7C7557B` |
 | 200 agents, mirrored-deployment run, tick 1081 | `DC7F2E7A107C885A` | `6C641E90DDF0B943` |
 | 500 agents, mirrored-deployment run, tick 2231 | `0C53793DEB700A53` | `4F373537096F2551` |
 | 200 agents, amended-collision run, tick 657 | `D78F0B527B7F938F` | `AC3BAAEC684854D5` |
@@ -96,6 +98,16 @@ history instead of mistaken for a live baseline.
 | 500 agents, pre-amendment collision run | `7402CCC7C6EC3B50` | `619CCC872BBB2413` |
 | 200 agents, pre-collision, tick 235 | `6EBB1EA63114F6CE` | `941377BD43C556FF` |
 | 200 agents, earlier still | `210C5EF8E7BE4D48` | `CE35EDA4B2A4E5A4` |
+
+The tick-1176 pair is superseded by the collision priority amendment, which
+resolves movers in ascending per-tick `CollisionPriority` key instead of
+ascending `EntityId`. Contested ground therefore goes to a different agent and
+agents finish ticks in different places — an authoritative movement change that
+moves both hashes without adding any state field, event kind, or enum value.
+Its cause is recorded in section 9 of
+`docs/decisions/2026-07-27-collision-policy.md`: the old order handed faction 0,
+which holds the low entity IDs, every cross-faction contest of every battle, and
+that decided 19 of 20 seeds once the mirrored deployment stopped masking it.
 
 The tick-1081 pair is superseded by the last-stand formation, which redirects a
 faction's last survivors onto their own leader instead of their own nearest
@@ -118,7 +130,9 @@ pair. Most recently, the last-stand formation changed where regrouping
 survivors stand and what their `Move` events name as a target, which retired
 the tick-1081 pair.
 
-Also still recorded: seeds 1-20 produce victories for both factions rather than
+Also still recorded, and strengthened by the priority amendment from "at least
+one victory each" to "at least four victories each": seeds 1-20 produce
+victories for both factions rather than
 one always-winning faction, verified by
 `SeedsOneThroughTwentyProduceVictoriesForBothFactions` inside the ordinary Core
 suite.

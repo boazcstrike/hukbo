@@ -39,6 +39,210 @@ types. Performance output is evidence, not a universal frame-time guarantee.
 
 ## Latest non-interactive result
 
+Every figure in this section comes from one final verified run of the collision
+priority fairness change on 2026-07-27, taken on the
+`feature/collision-priority-fairness` branch. See
+[docs/archives/2026-07-27-collision-priority-fairness-design.md](../archives/2026-07-27-collision-priority-fairness-design.md),
+kept for traceability only, and section 9 of
+[docs/decisions/2026-07-27-collision-policy.md](../decisions/2026-07-27-collision-policy.md).
+
+Both hashes moved because this is an authoritative movement change: movers are
+now resolved in ascending per-tick `CollisionPriority` key instead of ascending
+`EntityId`, so contested ground goes to a different agent and agents finish
+ticks in different places. No state field, event kind, or enum value was added
+or reordered, and `CombatRuleset.ContentHash` is unchanged at
+`0x59FB4CA563D87A49`.
+
+**Everything below the next heading predates this change and is superseded.**
+
+### Canonical gate
+
+`./scripts/verify.ps1` passed at all five stages: prerequisite validation and
+locked restore, format verification, the Release solution build with 0 warnings
+and 0 errors, the Release repository tests, and the seed-1 / 200-agent /
+10,000-tick headless determinism workload. It ended with
+`[PASS] Canonical repository verification completed.`
+
+| Suite | Passed | Failed | Skipped |
+| --- | --- | --- | --- |
+| `Hukbo.Core.Tests` | 412 | 0 | 0 |
+| `Hukbo.Client.Tests` | 564 | 0 | 0 |
+
+The Core count rises from `main`'s 398 by 20: 19 new `CollisionPriorityTests`
+cases, counting theory rows, covering five golden mixer vectors, the key's
+purity, its sensitivity to each of seed, tick and entity, the entity ID in its
+low half, distinctness across a tick, the absence of a standing advantage for
+either faction's ID range, the per-tick reshuffle observed through the battle
+simulation itself, and the rejected inputs; and one new `CollisionResolverTests`
+case proving the resolver follows the key rather than the entity ID. Two further
+cases were rewritten rather than added: the `DeterminismTests` contested-ground
+case, and `SeedsOneThroughTwentyProduceVictoriesForBothFactions`, strengthened
+from "at least one victory each" to "at least four each" — it had been passing
+on exactly one seed. The Client count is unchanged from `main`'s 564: no
+`Hukbo.Client` file was touched.
+
+Two of those tests exist because a review found the rule was underconstrained.
+`TheContestSequenceFollowsThePerTickShuffle` was verified by mutation: replacing
+`Tick` with a constant in `BattleSimulation.ResolveCollisions` makes it fail, and
+before it was added the whole 412-case suite stayed green under that mutation.
+The randomized crowd fixture in `CollisionResolverTests` now generates real
+per-tick keys, so the resolver's no-penetration invariant is fuzzed against the
+shuffled order the battle actually uses rather than the retired ascending-ID
+order.
+
+### 200-agent acceptance workload
+
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`. This is the current
+recorded oracle.
+
+| Field | Value |
+| --- | --- |
+| Measured ticks | 1154 |
+| Outcome | `Faction1Victory` |
+| Faction 0 survivors | 0 |
+| Faction 1 survivors | 3 |
+| State hash | `5BEBA7A68F69BE0D` |
+| Event hash | `D379B60B2E30FFFC` |
+| Deterministic | `true` |
+| First mismatch tick | `null` |
+| Tick p50 | 0.0951 ms |
+| Tick p95 | 1.5156 ms |
+| Tick p99 | 2.4546 ms |
+| Tick maximum | 8.4526 ms |
+| Allocated | 71,698,480 bytes |
+
+Collision metrics for the same run:
+
+| Metric | Value |
+| --- | --- |
+| `candidatePairs` | 110,970 |
+| `contactPairs` | 5,198 |
+| `acceptedMoves` | 71,780 |
+| `blockedAgentTicks` | 24,703 |
+| `attackCapableAgentTicks` | 9,231 |
+| `longestBlockedStreakTicks` | 47 |
+| `maximumFrontWidthRaw` | 629,652 |
+| `maximumFrontDepthRaw` | 51,086 |
+| `maximumPenetrationRaw` | 0 |
+
+### 500-agent stress workload
+
+The same command with `-Agents 500`. Report only; not gated.
+
+| Field | Value |
+| --- | --- |
+| Measured ticks | 2668 |
+| Outcome | `Faction0Victory` |
+| Faction 0 survivors | 1 |
+| Faction 1 survivors | 0 |
+| State hash | `FE44ADA93E0E202A` |
+| Event hash | `9C8EF5CB79810560` |
+| Deterministic | `true` |
+| First mismatch tick | `null` |
+| Tick p50 | 0.2609 ms |
+| Tick p95 | 1.813 ms |
+| Tick p99 | 4.4052 ms |
+| Tick maximum | 13.19 ms |
+| Allocated | 416,546,128 bytes |
+
+| Metric | Value |
+| --- | --- |
+| `candidatePairs` | 699,589 |
+| `contactPairs` | 12,497 |
+| `acceptedMoves` | 372,527 |
+| `blockedAgentTicks` | 102,147 |
+| `attackCapableAgentTicks` | 23,319 |
+| `longestBlockedStreakTicks` | 54 |
+| `maximumFrontWidthRaw` | 637,159 |
+| `maximumFrontDepthRaw` | 69,415 |
+| `maximumPenetrationRaw` | 0 |
+
+### The seed distribution, which is the point of the change
+
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000`, one run per seed, outcomes
+counted:
+
+| Build | Seeds | Faction 0 | Faction 1 | Draw |
+| --- | --- | --- | --- | --- |
+| `main`, before this change | 1-20 | 1 | 19 | 0 |
+| This change | 1-20 | 7 | 13 | 0 |
+| This change | 21-40 | 9 | 10 | 1 |
+| This change | 1-40 | 16 | 23 | 1 |
+
+The old rule gave faction 0 every cross-faction push of every battle, which cost
+it 19 seeds in 20. It now wins 16 of 40. That is not a claim of a perfectly fair
+simulation — 16 against 23 over 40 samples still leans, and 40 battles is a
+small sample — but the standing structural advantage is gone.
+
+The seed-24 draw is a genuine mutual annihilation at tick 1197 with zero
+survivors on both sides, not a `TickLimit` timeout. Draws were previously
+unobserved in this range.
+
+One caveat on the 500-agent stress row above: at 250 warriors per faction,
+`CombatRuleset.ResolveLoadout` — which keys off the **global** entity ID while
+positions are mirrored by faction-local index — gives faction 1 two more
+tall-hardwood shields than faction 0. That workload therefore compares slightly
+unequal armies. It is report-only and it is not the evidence for this change;
+the seed census above uses the 200-agent workload, where 100 per faction divides
+evenly into the four-entry roster and both armies are identical. The loadout
+asymmetry is a separate defect, recorded in the design document and not fixed
+here.
+
+### What moved, on the same workload
+
+| Metric | Last-stand run | This change |
+| --- | --- | --- |
+| Terminal tick, 200 agents | 1176 | 1154 |
+| `acceptedMoves`, 200 agents | 67,112 | 71,780 |
+| `blockedAgentTicks`, 200 agents | 28,609 | 24,703 |
+| `maximumFrontDepthRaw`, 200 agents | 40,469 | 51,086 |
+| `maximumPenetrationRaw`, 200 agents | 0 | 0 |
+
+Accepted moves rose and blocked agent ticks fell by roughly the same proportion,
+which is the mechanical signature of the change: an agent that lost a contest
+last tick can win the next one, so fewer agents sit blocked for long runs. Front
+depth grew because both sides now push into one another instead of one side
+consistently giving way. Penetration stayed at exactly zero, which is the guard.
+
+### Cost
+
+Tick p50 at 200 agents rose from 0.0672 ms to 0.0951 ms. **That figure is not a
+clean attribution**: the two runs are different battles — 1176 ticks against
+1154, seven per cent more accepted moves, twenty-six per cent more front depth —
+so an unknown part of the difference is the battle rather than the rule. The
+rule's own cost is one FNV-1a mix per mover per tick plus one sort of at most
+`TotalAgents` keys, which for 200 movers is microseconds, not tens of them. An
+A/B at a fixed tick count on one seed would separate the two and has not been
+run.
+
+In absolute terms the measured p50 is a tenth of a millisecond against a 50 ms
+tick budget at the 20 Hz tick rate. p95, p99 and the maximum are within noise of
+the previous run, the 500-agent percentiles are lower rather than higher, and the
+allocation figures are comparable at both populations, so the sort buffers did
+not add steady-state allocation. If a future population makes the sort matter,
+the recorded fallback is a per-tick rotation of the ascending order, which is
+O(1) and delivers roughly half of the cross-faction pairs to each side.
+
+### Superseded oracles
+
+Dead values, kept so the transition can be traced. Not regression targets.
+
+| Superseded oracle | State hash | Event hash | Note |
+| --- | --- | --- | --- |
+| 200 agents, seed 1, last-stand run | `BBB40D2240720DC8` | `2A6BAEA1E3567046` | Terminal tick 1176. Superseded by the priority amendment. |
+| 500 agents, seed 1, last-stand run | `73FB96A4C5963149` | `1531FF58B7C7557B` | Report-only workload. Superseded by the priority amendment. |
+
+### Interactive verification
+
+**Not performed.** No `Hukbo.Client` file changed, and the visible effect of this
+change is a statistical one across many battles rather than anything a single
+frame shows. The one single-screen observation worth making is recorded as a
+`PENDING` row in the collision readability checklist below: a second-rank agent
+pressed against the same enemy should alternate between blocked and moving
+rather than staying blocked for the whole engagement.
+
+## Superseded: the last-stand formation run
+
 Every figure in this section comes from one final verified run of the
 last-stand formation change on 2026-07-27, taken on the
 `worktree-last-stand-formation` branch after it was rebased onto `main`'s
@@ -1049,6 +1253,7 @@ has been observed.
 | 19. Inspect a blocked agent | Selecting an agent in the second rank shows a movement label explaining why it is not advancing, and that label changes as the situation changes. | Not run | PENDING |
 | 20. Inspect the front rank | Selecting a front-rank agent shows it moving or attacking rather than blocked, and an agent that has arrived at an enemy reads as attacking rather than still marching. | Not run | PENDING |
 | 21. Confirm the ranks actually touch | Opposing front ranks close until their pawn bodies meet, rather than settling with a visible gap of open ground between the two lines. This is the amendment's whole visible effect and the pre-amendment behaviour was a persistent gap. | Not run | PENDING |
+| 21a. Watch a contested push change hands | Added by the collision priority amendment. Select a second-rank agent pressed against the same enemy for a sustained engagement. Its movement label alternates between blocked and moving across ticks rather than reading blocked for the whole engagement, and neither faction's line is the one that always gives way. | Not run | PENDING |
 
 ### Camera auto-pan smoke
 

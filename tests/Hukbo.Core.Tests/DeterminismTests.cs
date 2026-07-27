@@ -311,12 +311,14 @@ public sealed class DeterminismTests
     }
 
     /// <summary>
-    /// Acceptance row <c>ID order</c>: the collision policy decision record,
-    /// section 9, gives a contested destination to the lower
-    /// <c>EntityId</c>. Renumbering the same two bodies therefore moves the win
-    /// to the other body. ID independence is explicitly <em>not</em> the
-    /// contract, so this test asserts the documented dependence rather than
-    /// asserting it away.
+    /// Acceptance row <c>ID order</c>: a contested destination goes to the mover
+    /// with the lower <see cref="CollisionPriority"/> key for the tick being
+    /// resolved, not to the lower <c>EntityId</c>. Identity still decides the
+    /// contest — the key is a hash of the seed, the tick and the entity ID — so
+    /// renumbering the same two bodies still moves the win. What changed is that
+    /// the winner is no longer the same agent on every tick of the battle, which
+    /// is what let the faction holding the low IDs win every cross-faction push
+    /// of an entire battle.
     /// </summary>
     /// <remarks>
     /// Two allies sit one body diameter apart and converge on one enemy. Their
@@ -324,25 +326,26 @@ public sealed class DeterminismTests
     /// preferred destination and report <see cref="MovementResolution.Moved"/>.
     /// </remarks>
     [Fact]
-    public void ContestedGroundGoesToTheLowerEntityIdAndFollowsARenumbering()
+    public void ContestedGroundGoesToTheLowerPriorityKeyAndFollowsARenumbering()
     {
         var straight = ResolveContestedGround(lowerRowEntityId: 1, upperRowEntityId: 2);
         var renumbered = ResolveContestedGround(lowerRowEntityId: 2, upperRowEntityId: 1);
 
-        Assert.Equal(MovementResolution.Moved, straight[1].MovementResolution);
-        Assert.Equal(MovementResolution.Moved, renumbered[1].MovementResolution);
-        Assert.NotEqual(MovementResolution.Moved, straight[2].MovementResolution);
-        Assert.NotEqual(MovementResolution.Moved, renumbered[2].MovementResolution);
+        var scenario = ContestScenario();
+        var firstKey = CollisionPriority.Resolve(scenario.Seed, tick: 1, entityId: 1);
+        var secondKey = CollisionPriority.Resolve(scenario.Seed, tick: 1, entityId: 2);
+        var winner = firstKey < secondKey ? 1UL : 2UL;
+        var loser = winner == 1UL ? 2UL : 1UL;
 
-        // Entity 1 occupies the lower row in the first arrangement and entity 2
-        // occupies it in the second, so these two views describe the same body on
-        // the same ground under two numberings. They must differ.
-        var lowerRowStraight = straight[1];
-        var lowerRowRenumbered = renumbered[2];
-        Assert.NotEqual(
-            lowerRowStraight.MovementResolution,
-            lowerRowRenumbered.MovementResolution);
-        Assert.NotEqual(lowerRowStraight.XRaw, lowerRowRenumbered.XRaw);
+        Assert.Equal(MovementResolution.Moved, straight[winner].MovementResolution);
+        Assert.Equal(MovementResolution.Moved, renumbered[winner].MovementResolution);
+        Assert.NotEqual(MovementResolution.Moved, straight[loser].MovementResolution);
+        Assert.NotEqual(MovementResolution.Moved, renumbered[loser].MovementResolution);
+
+        // One body stands on the lower row in both arrangements, under the
+        // winning ID in the first and the losing ID in the second. Renumbering
+        // therefore has to move it: same ground, different outcome.
+        Assert.NotEqual(straight[winner].XRaw, renumbered[loser].XRaw);
     }
 
     private static void AssertSameOrderedResults(
