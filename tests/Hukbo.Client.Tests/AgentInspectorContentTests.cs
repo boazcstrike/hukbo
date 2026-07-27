@@ -1,6 +1,7 @@
 using Hukbo.Client.Presentation;
 using Hukbo.Client.UI;
 using Hukbo.Core.Combat;
+using Hukbo.Core.Mathematics;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.Tests;
@@ -288,6 +289,70 @@ public sealed class AgentInspectorContentTests
     }
 
     [Fact]
+    public void FormatLevelLineRendersTheRawLevelValue()
+    {
+        var line = AgentInspectorContent.FormatLevelLine(3);
+
+        Assert.Equal("Level: 3", line);
+    }
+
+    [Fact]
+    public void FormatComboAttributeLineRendersAllFourComboFieldsAsPercentagesAndCounts()
+    {
+        // Kalis solo, PhilippineCombatPresetV3.Profile's exact authored
+        // values: ComboOpenChanceBasisPoints 3,500,
+        // ComboContinueChanceBasisPoints 4,500, ComboMaxSteps 4,
+        // ComboCooldownTicks 3.
+        var profile = new WeaponProfile(
+            DamagePerAttack: 11,
+            AttackRangeRaw: 13 * FixedPoint.Scale,
+            AttackCooldownTicks: 5,
+            ComboOpenChanceBasisPoints: 3_500,
+            ComboContinueChanceBasisPoints: 4_500,
+            ComboMaxSteps: 4,
+            ComboCooldownTicks: 3);
+
+        var line = AgentInspectorContent.FormatComboAttributeLine(profile);
+
+        Assert.Equal(
+            "        35% combo open / 45% combo continue / " +
+            "4 max steps / 3 tick combo cooldown",
+            line);
+    }
+
+    [Fact]
+    public void LowerLinesCarryTheAgentLevelAndComboAttributesWhenAProfileResolves()
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(WeaponId.Kalis, ShieldId.TallHardwood, level: 3),
+            "Kalis — Thrusting Blade",
+            "Documented");
+
+        Assert.Contains(lines, line => line == "Level: 3");
+
+        // The paired Kalis profile (the first registered preset with
+        // weapon profiles that TryResolveProfile resolves is V2, whose
+        // combo fields are a true no-op per
+        // docs/plans/2026-07-27-combat-preset-v3-combos.md section 5):
+        // ComboOpenChanceBasisPoints 0, ComboContinueChanceBasisPoints
+        // 4,500, ComboMaxSteps 4, ComboCooldownTicks 3 — rendered here
+        // exactly as authored, and immediately below the V2 attribute
+        // line and the level line.
+        var attributeLineIndex = lines.ToList().FindIndex(
+            line => line.Contains("10 dmg", StringComparison.Ordinal));
+        var levelLineIndex = lines.ToList().FindIndex(
+            line => line == "Level: 3");
+        var comboLineIndex = lines.ToList().FindIndex(
+            line => line ==
+                "        0% combo open / 45% combo continue / " +
+                "4 max steps / 3 tick combo cooldown");
+
+        Assert.True(attributeLineIndex >= 0);
+        Assert.Equal(attributeLineIndex + 1, levelLineIndex);
+        Assert.Equal(levelLineIndex + 1, comboLineIndex);
+    }
+
+    [Fact]
     public void LowerLinesOmitTheGripRowForATwoHandedWeapon()
     {
         var lines = AgentInspectorContent.BuildLowerLines(
@@ -308,7 +373,8 @@ public sealed class AgentInspectorContentTests
 
     private static AgentView CreateAgentView(
         WeaponId weapon,
-        ShieldId shield) =>
+        ShieldId shield,
+        int level = 1) =>
         new(
             EntityId: 1,
             FactionId: 0,
@@ -320,7 +386,8 @@ public sealed class AgentInspectorContentTests
             Intent: AgentIntent.Idle,
             IsAlive: true,
             Loadout: new CombatLoadout(weapon, ArmorId.LightOrganic, shield),
-            MovementResolution: MovementResolution.Moved);
+            MovementResolution: MovementResolution.Moved,
+            Level: level);
 
     private static Func<string, float> FixedWidthMeasure(
         float pixelsPerCharacter) =>

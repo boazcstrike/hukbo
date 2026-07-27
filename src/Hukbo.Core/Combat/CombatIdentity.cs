@@ -101,6 +101,16 @@ public enum CombatPresetId
     /// remain reproducible.
     /// </summary>
     PrecolonialPhilippinesV2 = 2,
+
+    /// <summary>
+    /// V2 minus the two paired loadouts, plus attack combinations: an
+    /// opening roll on a landed blow, a continuation roll on each following
+    /// blow, a maximum chain length driven by a placeholder fighter level,
+    /// and a faster cooldown while a chain is active. Fields only the four
+    /// solo loadouts — Kampilan, Wasay, solo Kalis, solo Itak. V1 and V2 stay
+    /// registered and unmodified so their replays remain reproducible.
+    /// </summary>
+    PrecolonialPhilippinesV3 = 3,
 }
 
 /// <summary>

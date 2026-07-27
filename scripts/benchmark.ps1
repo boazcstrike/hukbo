@@ -19,6 +19,12 @@ param(
 
     [string] $LogDirectory,
 
+    # Passed straight through to the headless runner's --preset argument as a
+    # CombatPresetId member name (for example PrecolonialPhilippinesV3) or its
+    # numeric value. Left empty, the runner falls back to Scenario's own
+    # default preset.
+    [string] $Preset,
+
     [switch] $NoBuild
 )
 
@@ -47,6 +53,10 @@ try {
         '--seed', [string]$Seed,
         '--log-level', $LogLevel
     )
+
+    if (-not [string]::IsNullOrWhiteSpace($Preset)) {
+        $runnerArguments += @('--preset', $Preset)
+    }
 
     if (-not [string]::IsNullOrWhiteSpace($LogChannels)) {
         $runnerArguments += @('--log-channels', $LogChannels)

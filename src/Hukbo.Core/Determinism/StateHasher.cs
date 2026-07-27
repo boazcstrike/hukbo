@@ -70,6 +70,9 @@ internal static class StateHasher
             Add(ref hash, (int)agent.Loadout.Weapon);
             Add(ref hash, (int)agent.Loadout.Armor);
             Add(ref hash, (int)agent.Loadout.Shield);
+            Add(ref hash, agent.Level);
+            Add(ref hash, agent.ComboStepsRemaining);
+            Add(ref hash, agent.ComboTargetEntityId ?? 0);
         }
 
         return hash;

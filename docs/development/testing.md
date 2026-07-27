@@ -84,7 +84,49 @@ not prove a sound was audible, that it arrived at the right moment, or that it
 sounded right. Smoke rows below still require a human at an interactive desktop;
 see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
-## Latest non-interactive result — arch-informed performance hardening workstream (T1, T2, T6, T7, T8, T11), 2026-07-28
+## Latest non-interactive result — perf hardening merged with attack combinations on preset V3, 2026-07-28
+
+`./scripts/verify.ps1` on `main` after merging branch `combat-preset-v3-combos`
+(attack combinations, section below) with the arch-informed performance
+hardening workstream (also below), which had landed on `main` independently
+while the combos branch was in progress. The two touched overlapping lines in
+`BattleSimulation.cs` (event-buffer signatures around `GatherAndCommitAttacks`
+and `ResolveOutcome`) requiring a manual conflict resolution — no logic from
+either side was dropped: the combo state machine's `ResolveComboTransition`
+and the pre-check clearing clause are intact, and every event-emitting method
+keeps perf hardening's non-nullable, non-`ref`, double-buffered
+`List<BattleEvent> events` signature.
+
+```
+Total tests: 664
+     Passed: 664
+[PASS] Release repository tests completed.
+seed 1, agentCount 200, requestedTicks 10000, measuredTicks 1710
+outcome Faction1Victory, faction0Survivors 0, faction1Survivors 2
+eventHash 2A9F2D7054CD1805
+stateHash A883926A3B93792E
+deterministic true, firstMismatchTick null
+allocatedBytes 521296, coreAllocatedBytes 118896
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+The state and event hashes are byte-identical to the combos branch's own
+pre-merge gate run (see "Canonical gate result — attack combinations on
+preset V3 integration" below) — confirming the performance work is genuinely
+hash-neutral exactly as its own entry below claims, and that this merge
+introduced no additional determinism drift beyond what the combos branch
+already recorded. `allocatedBytes` dropped from that same pre-merge run's
+93,905,304 bytes to 521,296 bytes here, which is perf hardening's allocation
+work, not a combos regression.
+
+**Both entries below still describe `71211929A44A16CA` /
+`A2DC3ECA3F7345ED` as "the recorded baseline, unchanged."** That was true
+when each was written in isolation; it stopped being true once the combos
+branch's `StateHasher`/event-hash fold changes and this merge were both
+folded into `main`. Treat this section as the current baseline instead.
+
+## Previous non-interactive result — arch-informed performance hardening workstream (T1, T2, T6, T7, T8, T11), 2026-07-28
 
 Implements T1 and T2 of the arch-informed performance hardening workstream.
 See [docs/archives/2026-07-28/2026-07-28-arch-informed-performance-hardening.md](../archives/2026-07-28/2026-07-28-arch-informed-performance-hardening.md)
@@ -446,6 +488,268 @@ exactly why the percentile comparison recorded above is drawn from the
 controlled sweep rather than from a gate run. `allocatedBytes`,
 `coreAllocatedBytes`, `measuredTicks`, and both hashes were identical across
 both gate runs.
+
+## Canonical gate result — attack combinations on preset V3 integration, 2026-07-28
+
+`./scripts/verify.ps1`, run once by the orchestrator after all five combo
+tasks landed (build, format check, Release Core+Client tests, then the
+default-preset 200-agent/10,000-tick/seed-1 headless workload — the default
+preset is still V2, `verify.ps1` does not take a `-Preset` flag):
+
+```
+Total tests: 663
+     Passed: 663
+[PASS] Release repository tests completed.
+seed 1, agentCount 200, requestedTicks 10000, measuredTicks 1710
+outcome Faction1Victory, faction0Survivors 0, faction1Survivors 2
+eventHash 2A9F2D7054CD1805
+stateHash A883926A3B93792E
+deterministic true, firstMismatchTick null
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+**This supersedes the V2 hash pair recorded below** ("Previous
+non-interactive result — weapon clash on preset V2", state hash
+`71211929A44A16CA`, event hash `A2DC3ECA3F7345ED`, same seed/agents/tick
+count). The outcome and measured-tick count are unchanged — V2's gameplay is
+untouched — but `StateHasher` now folds three new per-agent words
+(`Level`, `ComboStepsRemaining`, `ComboTargetEntityId`) and the event hash
+folds one new word (`ComboPosition`) for **every** `CombatPresetId`, not only
+V3, because both hashers are shared code. Per
+`.claude/skills/hukbo-determinism-change/SKILL.md`, this is the expected
+shape of an authoritative core-simulation change and not a regression; V2's
+own pinned `ContentHash` (`0x10AB1CC226AB3636`) is unaffected because
+`CombatRuleset.ComputeContentHash` never reads the new `WeaponProfile.ComboXxx`
+fields, only `StateHasher`/the event fold read the new per-agent/per-event
+state.
+
+## Previous non-interactive result — attack combinations on preset V3, 2026-07-28
+
+Adds the section 3 attack-combination state machine (an opening roll on a
+landed blow, a continuation roll on each following blow, a maximum chain
+length bounded by both the weapon and a placeholder fighter level, and a
+faster cooldown while a chain is active) behind a new
+`CombatPresetId.PrecolonialPhilippinesV3 = 3`, registered alongside V1 and
+V2, not instead of them. V3 fields exactly the four solo loadouts V2 already
+carries — Kampilan, Wasay, solo Kalis, solo Itak — with V2's own
+damage/reach/cooldown/target-weight/grip/clash values for those four
+weapons, plus the new combo attributes. See
+[docs/plans/2026-07-27-combat-preset-v3-combos.md](../plans/2026-07-27-combat-preset-v3-combos.md)
+and its design document. `AgentState` gains `Level`, `ComboStepsRemaining`,
+and `ComboTargetEntityId`; `BattleEvent` gains `ComboPosition`; both are
+folded into `StateHasher.Compute` and `HeadlessRunner.AddEventToHash` for
+every `CombatPresetId`, not only V3 — see "what moved" below.
+
+This entry is task 4 of the plan's section 6 table, and records only
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1 -Preset
+PrecolonialPhilippinesV3`. The canonical gate, `./scripts/verify.ps1`, is run
+once by the orchestrator after every task in the plan has landed, not
+per-task, so its result belongs in a separate entry once that run has
+happened.
+
+`--preset` is new on `HeadlessRunner` and `scripts/benchmark.ps1`, added by
+this task because no earlier task in the plan owned giving the headless
+workload a way to select a non-default `CombatPresetId`. It accepts either a
+`CombatPresetId` member name (for example `PrecolonialPhilippinesV3`) or its
+numeric value, and rejects anything `CombatPresetRegistry.IsRegistered`
+does not recognize.
+
+| Field | Value |
+| --- | --- |
+| `measuredTicks` | 1 473 |
+| `outcome` | `Faction1Victory`, 0 against 2 survivors |
+| `eventHash` | `8C2E3752572E3946` |
+| `stateHash` | `81C6655CFC5F8881` |
+| `deterministic` | `true` |
+| `firstMismatchTick` | `null` |
+| `allocatedBytes` | 80 445 216 |
+| Tick p50 / p95 / p99 / max | 0.0863 / 1.554 / 2.5919 / 13.1881 ms |
+| `defenceAttributableShare` | 0.2685 |
+| `acceptedAttacks` / `landedAttacks` | 2 335 / 1 708 |
+| `parriedAttacks` / `deflectedAttacks` / `evadedAttacks` | 93 / 277 / 257 |
+
+**Every pinned hash literal in `DeterminismTests.cs` moved, not only the new
+V3 ones — expected, per the plan's own "consequence that must not be
+missed."** `StateHasher.Compute` folds three new per-agent words (`Level`,
+`ComboStepsRemaining`, `ComboTargetEntityId ?? 0`) for every
+`CombatPresetId`, so a V1 or V2 scenario's state hash under this build
+differs from the same scenario under the pre-combo build even though neither
+preset's own gameplay changed. Re-recorded, from an actual test run's
+failure output rather than by calculation:
+
+- `DeterminismTests.PreClashTerminalStateHash` — the seed-1, 200-agent,
+  zero-interception preset-V1 control run's terminal state hash — moved from
+  `0x5BEBA7A68F69BE0D` to `0xFD85207FF329F02D`. The terminal tick is
+  unchanged, at 1154.
+- The committed fixture
+  `tests/Hukbo.Core.Tests/Fixtures/seed-1-200-agents-preclash-digest.json`'s
+  per-tick `stateHash` field, across all 1,154 rows, and its
+  `terminalStateHash`, re-captured against the same zero-interception
+  control run with the widened `StateHasher` fold. Its `eventFold` and
+  `eventCount` rows, final agent rows, outcome, and survivor counts are
+  unchanged — only `StateHasher`'s own output moved, because the folded
+  event fields (`Weapon`/`HitLocation`, deliberately excluding
+  `Resolution`) never touch the three new agent-state words.
+- V2's pinned `ContentHash` (`0x10AB1CC226AB3636`) did **not** move.
+  `CombatRuleset.ComputeContentHash`'s `AddProfile` helper only folds
+  `DamagePerAttack`, `AttackRangeRaw`, and `AttackCooldownTicks` from a
+  `WeaponProfile` — not the four new `ComboXxx` fields — so widening V2's
+  `Build()` to supply real no-op combo values (task 1) left V2's content
+  hash exactly where it was. Confirmed by running the pinned
+  `PresetV2ContentHash_IsPinnedAndDistinctFromV1` fact before touching
+  anything else in this task: it already passed against the new build,
+  unedited.
+
+New V3 pinned facts added to `DeterminismTests.cs`:
+
+- `PresetV3ContentHash_IsPinnedAndDistinctFromV1AndV2`: `0xCD790E489293B304`.
+- `PresetV3_SeedOneStateAndEventHashArePinned`: a fast 20-agent, 200-tick,
+  seed-1 workload through the same `HeadlessRunner.Run` path
+  `CombatMetrics_ReachesNeitherHash` already uses, pinned at
+  `stateHash 0xC2728456AEB9F760` and `eventHash 0xE30AD003EFDDD267`. Not a
+  substitute for the 200-agent/10,000-tick benchmark above — it runs on
+  every `dotnet test` invocation, the benchmark does not.
+
+`tests/Hukbo.Core.Tests/ComboChainTests.cs` (new) covers the section 3 state
+machine directly, against constructed `AgentState`/`WeaponProfile` fixtures
+rather than a full battle: one attacker against one inert target
+(`damagePerAttack: 0`, so the target can never harm the attacker back),
+close enough to stay in attack range and never move.
+`ComboOpenChanceBasisPoints` and `ComboContinueChanceBasisPoints` are pinned
+to either `0` or `ClashProfile.BasisPointScale` per fixture, so a roll's
+outcome is certain by construction rather than dependent on predicting
+`ComboResolver.MixCombo`'s hash for a given seed/tick/entity tuple, and
+`ClashProfile.Neutral` (guaranteed `Landed`) or a custom always-`Evaded`
+profile stand in for the clash roll the same way. Covered: the opening roll
+succeeding and failing; the continuation roll succeeding below the cap,
+failing below the cap, and being overridden by the cap on an otherwise
+successful roll; a target switch breaking the chain before any roll is
+evaluated; the bound target dying breaking the chain on the tick the
+attacker discovers it (observed through the "no other candidate" pre-check
+clause, since `SelectTargetsAndIntents` always refreshes `TargetEntityId` to
+a living candidate or `null` before `GatherAndCommitAttacks` ever runs, so a
+stale reference to a literally-dead target is not reachable through
+`AdvanceOneTick`); the target leaving attack range breaking the chain
+through the distinct "target now out of reach" pre-check clause, with
+`TargetEntityId` unchanged so it cannot be mistaken for a retarget; and a
+non-landed follow-up leaving `ComboStepsRemaining` and `ComboTargetEntityId`
+exactly as they were.
+
+`dotnet test tests/Hukbo.Core.Tests` (full, unfiltered): 603 passed, 0
+failed, 0 skipped — zero pinned-hash mismatches anywhere in the suite.
+
+## T32 (V3) — chain metrics and level sweep, 2026-07-28
+
+Closes task 5 of
+[docs/plans/2026-07-27-combat-preset-v3-combos.md](../plans/2026-07-27-combat-preset-v3-combos.md).
+Extends
+[`tools/Hukbo.Tools.WeaponBalance`](../../tools/Hukbo.Tools.WeaponBalance/Program.cs)
+— the same hand-run harness the V2 T32 entry above already used — to run
+against `CombatPresetId.PrecolonialPhilippinesV3` instead of the default V2
+preset, additionally tallying, per weapon, the fraction of landed blows that
+were part of a chain (`BattleEvent.ComboPosition` non-null) and the mean
+realized chain length (the maximum `ComboPosition` reached per opened chain,
+averaged over every chain that opened), swept across
+`Scenario.PlaceholderFighterLevel` 1 through 5, per design section 7. V3's
+roster fields only the four solo loadouts (Kampilan, Wasay, solo Kalis, solo
+Itak — no shields, no paired rows), so this run uses its own four-entry
+label set rather than the six-entry V2 one above. Read-only against
+`Hukbo.Core`; not part of `Hukbo.slnx` or the canonical gate, per the
+`tools/` convention. No `Hukbo.Core` file was touched to produce this
+measurement, so no hash moved and the gate was not re-run.
+
+**Method.** A chain opens exactly when `ComboPosition == 1` — see
+`BattleSimulation.GatherAndCommitAttacks` section 3(c) step 5, which only
+ever assigns position `1` on a successful opening roll for an attacker that
+was not already chaining. Because an attacker can only open a new chain once
+its previous one has already ended (broken, capped, or the target killed —
+step 5 requires `wasChaining == false`), seeing `ComboPosition == 1` again
+for the same attacker means its previous chain, if any, has already ended;
+that previous chain's realized length is the highest `ComboPosition` this
+tool last recorded for that attacker. Any chain still open when a battle
+ends is finalized the same way once the seed's tick loop exits. Chain
+fraction is `comboBlows / landedBlows` per weapon — the same "non-null
+`ComboPosition`" definition the plan's task 5 row specifies. Each level's
+run is the 200-agent, mirrored, even roster across all four V3 loadouts
+(the same shape as the first table in the V2 T32 entry above), 5 seeds (1
+through 5), `TickLimit 10000`.
+
+`dotnet run --project tools/Hukbo.Tools.WeaponBalance -c Release` (exit code
+`0`; full V2 suite above ran first, unmodified, followed by the new V3
+sweep below).
+
+### V3, 200-agent mirrored even roster, swept across PlaceholderFighterLevel
+
+| Level | Win split (faction0/faction1/draw) | Loadout | Kills | Mean TTK (ticks) | Landed blows | Chain fraction | Mean realized chain length |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 2/3/0 | Kampilan (solo) | 366 | 45.58 | 2 333 | 0.1993 | 1.000 |
+| 1 | 2/3/0 | Wasay (solo) | 217 | 48.67 | 1 302 | 0.1175 | 1.000 |
+| 1 | 2/3/0 | Kalis (solo) | 258 | 54.25 | 2 247 | 0.3569 | 1.000 |
+| 1 | 2/3/0 | Itak (solo) | 217 | 54.29 | 2 571 | 0.4469 | 1.000 |
+| 2 | 2/3/0 | Kampilan (solo) | 330 | 39.29 | 2 253 | 0.3174 | 1.770 |
+| 2 | 2/3/0 | Wasay (solo) | 228 | 45.75 | 1 272 | 0.1384 | 1.586 |
+| 2 | 2/3/0 | Kalis (solo) | 259 | 48.31 | 2 222 | 0.4941 | 1.785 |
+| 2 | 2/3/0 | Itak (solo) | 225 | 47.32 | 2 713 | 0.6082 | 1.839 |
+| 3 | 3/2/0 | Kampilan (solo) | 339 | 38.84 | 2 197 | 0.2940 | 1.746 |
+| 3 | 3/2/0 | Wasay (solo) | 203 | 43.95 | 1 244 | 0.1752 | 1.690 |
+| 3 | 3/2/0 | Kalis (solo) | 244 | 49.50 | 2 299 | 0.5241 | 2.029 |
+| 3 | 3/2/0 | Itak (solo) | 261 | 46.25 | 2 763 | 0.6750 | 2.218 |
+| 4 | 2/3/0 | Kampilan (solo) | 351 | 40.67 | 2 215 | 0.2849 | 1.743 |
+| 4 | 2/3/0 | Wasay (solo) | 219 | 46.62 | 1 275 | 0.1569 | 1.681 |
+| 4 | 2/3/0 | Kalis (solo) | 233 | 45.45 | 2 247 | 0.5452 | 2.215 |
+| 4 | 2/3/0 | Itak (solo) | 247 | 46.51 | 2 863 | 0.6884 | 2.485 |
+| 5 | 3/2/0 | Kampilan (solo) | 334 | 38.82 | 2 222 | 0.3029 | 1.739 |
+| 5 | 3/2/0 | Wasay (solo) | 221 | 43.30 | 1 241 | 0.1579 | 1.704 |
+| 5 | 3/2/0 | Kalis (solo) | 256 | 47.01 | 2 242 | 0.5580 | 2.153 |
+| 5 | 3/2/0 | Itak (solo) | 247 | 44.74 | 2 870 | 0.6829 | 2.481 |
+
+At level 1, `Math.Min(source.Level, weaponProfile.ComboMaxSteps)` evaluates
+to `1` for every weapon regardless of that weapon's own `ComboMaxSteps`, so
+every opened chain caps immediately at its own first blow — the mean
+realized chain length of exactly `1.000` on every row at level 1 is that
+cap being observed directly, not noise. From level 2 onward, Kampilan and
+Wasay (`ComboMaxSteps = 2` for both) plateau around a mean chain length of
+roughly 1.7-1.8 once the level stops being the binding constraint, while
+Kalis (`ComboMaxSteps = 4`) and Itak (`ComboMaxSteps = 5`) keep climbing
+through level 5 without plateauing, consistent with `PhilippineCombatPresetV3`'s
+per-weapon `ComboMaxSteps` table.
+
+### Finding: no design-intent inversion between the itak and the wasay
+
+Design section 7's stated check is stark: "if the itak's realised throughput
+exceeds the wasay's, the design intent has inverted." Reading realized
+throughput as mean ticks-to-kill (lower is faster, i.e. higher throughput —
+the direct measured proxy this suite produces; chain fraction and mean
+chain length in the table above give the same comparison from the
+combo-specific side instead), the wasay is faster than the itak at four of
+the five levels swept:
+
+| Level | Wasay mean TTK | Itak mean TTK | Itak faster than wasay? |
+| ---: | ---: | ---: | --- |
+| 1 | 48.67 | 54.29 | No |
+| 2 | 45.75 | 47.32 | No |
+| 3 | 43.95 | 46.25 | No |
+| 4 | 46.62 | 46.51 | Yes, by 0.11 ticks |
+| 5 | 43.30 | 44.74 | No |
+
+Level 4 is the sole exception, and the margin — 0.11 ticks out of a
+mean-TTK figure in the mid-40s, on a 5-seed, 200-agent sample — is well
+inside ordinary run-to-run noise for this measurement method (compare the
+V2 T32 entry above, where the mirrored 200-agent win split itself swung
+0/5 on 5 seeds without being read as evidence of anything). It is not read
+here as a genuine crossover, and the itak's own chain fraction and mean
+chain length are consistently higher than the wasay's at every level from
+2 onward (for example at level 4: itak chain fraction 0.6884 against
+wasay's 0.1569, itak mean chain length 2.485 against wasay's 1.681) —
+exactly the "combos more often, for less per hit" identity design section
+3.4 gives the itak, with the wasay's higher per-hit damage and lower combo
+chance still winning it the sustained-throughput comparison the design
+intended. **No inversion is confirmed at any level in this sweep.**
+
+**Not retuned.** As with the V2 T32 entry above, this measurement is
+recorded as evidence, not acted on. No preset value changed, no hash
+moved, no gate re-run was required.
 
 ## Previous non-interactive result — weapon clash on preset V2, 2026-07-28
 

@@ -20,7 +20,7 @@ public sealed class BattleSimulation
     private readonly int[] _damageTotals;
     private readonly (int XRaw, int YRaw, ulong TargetId)?[] _movementProposals;
     private readonly (int SourceIndex, int TargetIndex, BodyPart HitLocation,
-        AttackResolution Resolution)[] _attackProposals;
+        AttackResolution Resolution, int? ComboPosition)[] _attackProposals;
     private readonly AgentView[] _agentViews;
     private readonly ReadOnlyCollection<AgentView> _agents;
     private readonly CollisionScratch _collision;
@@ -65,7 +65,7 @@ public sealed class BattleSimulation
             new (int XRaw, int YRaw, ulong TargetId)?[agents.Length];
         _attackProposals =
             new (int SourceIndex, int TargetIndex, BodyPart HitLocation,
-                AttackResolution Resolution)[agents.Length];
+                AttackResolution Resolution, int? ComboPosition)[agents.Length];
         _agentViews = new AgentView[agents.Length];
         _agents = Array.AsReadOnly(_agentViews);
         _collision = new CollisionScratch(scenario, agents.Length);
@@ -547,7 +547,55 @@ public sealed class BattleSimulation
             profile.AttackRangeRaw,
             profile.DamagePerAttack,
             profile.AttackCooldownTicks,
-            loadout);
+            loadout,
+            scenario.PlaceholderFighterLevel);
+    }
+
+    /// <summary>
+    /// Resolves the <see cref="WeaponProfile"/> that governs one warrior's
+    /// attack-combination attributes at the moment of an attack attempt.
+    /// Mirrors the fallback <see cref="CreateAgent"/> uses for damage, reach,
+    /// and cooldown: a preset that declares no weapon profiles — version 1 —
+    /// falls back to a synthetic profile built from the scenario's global
+    /// values, whose combo fields default to the record's own no-op
+    /// defaults (see <see cref="WeaponProfile"/>), so version 1 rolls the
+    /// same combo checks every other preset does and they simply never
+    /// succeed.
+    /// </summary>
+    /// <remarks>
+    /// Resolved fresh on every attack attempt rather than cached on
+    /// <see cref="AgentState"/> at spawn, unlike damage/reach/cooldown:
+    /// those three are read every tick regardless of whether an attack is
+    /// attempted, but the combo fields are read only on the attempts that
+    /// pass the pre-check gate, which per-tick is a small fraction of the
+    /// full roster.
+    /// </remarks>
+    private WeaponProfile ResolveAttackerWeaponProfile(CombatLoadout loadout) =>
+        _rules.HasWeaponProfiles
+            ? _rules.ResolveWeaponProfile(loadout.Weapon, loadout.Shield)
+            : new WeaponProfile(
+                Scenario.DamagePerAttack,
+                Scenario.AttackRangeRaw,
+                Scenario.AttackCooldownTicks);
+
+    /// <summary>
+    /// Clears an attacker's active attack combination. Called by the pre-
+    /// check gate in <see cref="GatherAndCommitAttacks"/> per plan section
+    /// 3(a): the moment this attacker discovers — on any tick, whether or
+    /// not it is itself off cooldown — that it has no living target or that
+    /// its target is out of reach, its chain is over. A no-op when no chain
+    /// is active, so callers do not need to test
+    /// <see cref="AgentState.ComboStepsRemaining"/> first.
+    /// </summary>
+    private static void ClearActiveComboChain(AgentState attacker)
+    {
+        if (attacker.ComboStepsRemaining <= 0)
+        {
+            return;
+        }
+
+        attacker.ComboStepsRemaining = 0;
+        attacker.ComboTargetEntityId = null;
     }
 
     private void DecrementCooldowns()
@@ -1181,26 +1229,45 @@ public sealed class BattleSimulation
              sourceIndex++)
         {
             var source = _agentStates[sourceIndex];
-            if (!source.IsAlive ||
-                source.TargetEntityId is not { } targetId ||
-                source.AttackCooldownRemaining != 0)
+            if (!source.IsAlive)
             {
+                continue;
+            }
+
+            // Plan section 3(a): a chaining attacker's pre-check runs ahead
+            // of the cooldown check below, not after it, so that an attacker
+            // still mid-cooldown discovers a dead or out-of-reach target — and
+            // clears its chain — on the very tick that becomes true, rather
+            // than only once its own cooldown next lets it act.
+            if (source.TargetEntityId is not { } targetId)
+            {
+                ClearActiveComboChain(source);
                 continue;
             }
 
             var target = _agentStates[_agentIndexes[targetId]];
             if (!target.IsAlive)
             {
+                ClearActiveComboChain(source);
                 continue;
             }
 
             if (!IsWithinAttackRange(source, target))
             {
+                ClearActiveComboChain(source);
                 continue;
             }
 
+            if (source.AttackCooldownRemaining != 0)
+            {
+                continue;
+            }
+
+            // 3(b): resolve the attack. Unchanged from before this feature —
+            // the cooldown write that used to happen here moves below, after
+            // the combo transition, because which cooldown to write now
+            // depends on the combo outcome.
             source.Intent = AgentIntent.Attacking;
-            source.AttackCooldownRemaining = source.AttackCooldownTicks;
             var targetIndex = _agentIndexes[target.EntityId];
             var hitLocation = HitLocationResolver.Resolve(
                 _rules,
@@ -1226,8 +1293,11 @@ public sealed class BattleSimulation
                 source.Loadout.Weapon,
                 target.Loadout.Weapon,
                 target.Loadout.Shield);
+
+            var comboPosition = ResolveComboTransition(source, target, resolution);
+
             _attackProposals[proposalCount] =
-                (sourceIndex, targetIndex, hitLocation, resolution);
+                (sourceIndex, targetIndex, hitLocation, resolution, comboPosition);
             proposalCount++;
 
             // Only a landed blow reaches the damage total. Every other
@@ -1283,7 +1353,8 @@ public sealed class BattleSimulation
                 source.Loadout.Weapon,
                 source.Loadout.Shield,
                 proposal.HitLocation,
-                proposal.Resolution);
+                proposal.Resolution,
+                proposal.ComboPosition);
         }
 
         for (var index = 0; index < _damageTotals.Length; index++)
@@ -1323,6 +1394,160 @@ public sealed class BattleSimulation
                 0,
                 agent.FactionId);
         }
+    }
+
+    /// <summary>
+    /// Plan section 3(c): the full combo-transition algorithm, run
+    /// immediately after one attack attempt's <see cref="AttackResolution"/>
+    /// is known and immediately before the attack proposal is buffered.
+    /// Mutates <paramref name="source"/>'s
+    /// <see cref="AgentState.ComboStepsRemaining"/> and
+    /// <see cref="AgentState.ComboTargetEntityId"/>, writes the cooldown this
+    /// blow earns into <see cref="AgentState.AttackCooldownRemaining"/> —
+    /// replacing the unconditional pre-resolution write this preset family
+    /// used before attack combinations existed — and returns this attack
+    /// event's chain-position value, or <c>null</c> when the blow is not
+    /// part of a chain.
+    /// </summary>
+    /// <remarks>
+    /// The six numbered steps below are plan section 3(c)'s six numbered
+    /// steps, in the same order, and must not be reordered or simplified:
+    /// this is the determinism-critical core of the feature.
+    /// <para>
+    /// Every branch below that writes the plan's "normal" (non-combo)
+    /// cooldown reads it from <see cref="AgentState.AttackCooldownTicks"/>
+    /// rather than from <c>weaponProfile.AttackCooldownTicks</c>. The two are
+    /// bit-identical for every agent <see cref="CreateAgent"/> ever produces
+    /// — both are the same ruleset lookup against the same immutable
+    /// loadout — so this is not a behavioural choice, only which of two
+    /// equal sources to read. <see cref="AgentState.AttackCooldownTicks"/>
+    /// is preferred because it is the single cached value every other tick
+    /// stage already reads (see <see cref="CreateAgent"/>'s remarks on why a
+    /// second reach path must never exist), rather than opening a second,
+    /// redundant profile lookup that could only ever disagree with it by
+    /// construction error.
+    /// </para>
+    /// </remarks>
+    private int? ResolveComboTransition(
+        AgentState source,
+        AgentState target,
+        AttackResolution resolution)
+    {
+        var weaponProfile = ResolveAttackerWeaponProfile(source.Loadout);
+
+        // Step 1.
+        var wasChaining = source.ComboStepsRemaining > 0;
+
+        // Step 2: Question 1's strict target-binding check. The retarget, if
+        // any, already happened earlier this same tick in
+        // SelectTargetsAndIntents.
+        var retargeted =
+            wasChaining && source.ComboTargetEntityId != source.TargetEntityId;
+
+        // Step 3.
+        if (retargeted)
+        {
+            source.ComboStepsRemaining = 0;
+            source.ComboTargetEntityId = null;
+            wasChaining = false;
+        }
+
+        int? comboPosition;
+        int cooldown;
+
+        if (resolution != AttackResolution.Landed)
+        {
+            // Step 4: a non-landed attempt is neither a roll nor a break.
+            // ComboStepsRemaining and ComboTargetEntityId are left exactly as
+            // they are post step 3.
+            comboPosition = null;
+            cooldown = wasChaining
+                ? weaponProfile.ComboCooldownTicks
+                : source.AttackCooldownTicks;
+        }
+        else if (!wasChaining)
+        {
+            // Step 5: an unchained landed blow, eligible to open a chain.
+            var openRoll = (int)(ComboResolver.MixCombo(
+                Scenario.Seed,
+                Tick,
+                source.EntityId,
+                target.EntityId,
+                source.Loadout.Weapon,
+                comboStepsRemaining: 0,
+                ComboResolver.ComboOpenTag) % ClashProfile.BasisPointScale);
+
+            if (openRoll < weaponProfile.ComboOpenChanceBasisPoints)
+            {
+                var maxSteps = Math.Min(source.Level, weaponProfile.ComboMaxSteps);
+                comboPosition = 1;
+                source.ComboStepsRemaining = maxSteps - 1;
+                source.ComboTargetEntityId = target.EntityId;
+                cooldown = source.ComboStepsRemaining > 0
+                    ? weaponProfile.ComboCooldownTicks
+                    : source.AttackCooldownTicks;
+            }
+            else
+            {
+                comboPosition = null;
+                cooldown = source.AttackCooldownTicks;
+            }
+        }
+        else
+        {
+            // Step 6: a continuing blow candidate.
+            var maxSteps = Math.Min(source.Level, weaponProfile.ComboMaxSteps);
+            var thisPosition = maxSteps - source.ComboStepsRemaining + 1;
+            var continueRoll = (int)(ComboResolver.MixCombo(
+                Scenario.Seed,
+                Tick,
+                source.EntityId,
+                target.EntityId,
+                source.Loadout.Weapon,
+                source.ComboStepsRemaining,
+                ComboResolver.ComboContinueTag) % ClashProfile.BasisPointScale);
+            var continuationSucceeded =
+                continueRoll < weaponProfile.ComboContinueChanceBasisPoints;
+
+            // Mirrors however _damageTotals's accumulation reads
+            // target.HitPoints for this same purpose: against the value as
+            // it stands before the end-of-pass-1 damage-application loop
+            // applies it, not adjusted for any other attacker's damage
+            // accumulated this same tick.
+            var killedByThisBlow =
+                target.HitPoints - source.DamagePerAttack <= 0;
+
+            // The blow landed, so it always counts, regardless of what
+            // happens next.
+            comboPosition = thisPosition;
+
+            // Design 3.2's exact order: check 1 (continuation), check 2 (max
+            // length reached), check 3 (the target dies on this blow). Check
+            // 4 ("target out of reach") cannot fire here — the pre-check
+            // above already guaranteed the target is in range for this
+            // tick's attempt — it fires on a later tick via that pre-check's
+            // clearing clause instead.
+            var chainSurvives = continuationSucceeded &&
+                thisPosition < maxSteps &&
+                !killedByThisBlow;
+
+            if (chainSurvives)
+            {
+                // Guaranteed > 0 here, since thisPosition < maxSteps was
+                // just confirmed.
+                source.ComboStepsRemaining -= 1;
+                cooldown = weaponProfile.ComboCooldownTicks;
+            }
+            else
+            {
+                source.ComboStepsRemaining = 0;
+                source.ComboTargetEntityId = null;
+                cooldown = source.AttackCooldownTicks;
+            }
+        }
+
+        source.AttackCooldownRemaining = cooldown;
+        return comboPosition;
     }
 
     private void ResolveOutcome(List<BattleEvent> events)
@@ -1552,7 +1777,8 @@ public sealed class BattleSimulation
         WeaponId weapon,
         ShieldId shield,
         BodyPart hitLocation,
-        AttackResolution resolution)
+        AttackResolution resolution,
+        int? comboPosition)
     {
         _eventSequence = checked(_eventSequence + 1);
         events.Add(
@@ -1566,7 +1792,8 @@ public sealed class BattleSimulation
                 weapon,
                 shield,
                 hitLocation,
-                resolution));
+                resolution,
+                comboPosition));
     }
 
     private void UpdateViews()

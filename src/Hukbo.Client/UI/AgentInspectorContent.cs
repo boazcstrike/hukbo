@@ -32,12 +32,15 @@ internal static class AgentInspectorContent
 
     /// <summary>
     /// The most lower detail rows <see cref="BuildLowerLines"/> can produce:
-    /// intent, target, position, weapon, attributes, evidence tier, grip,
-    /// armor, shield, and movement. The grip row is absent for a two-handed
-    /// weapon, so a real panel draws this many or one fewer — the panel is
-    /// sized for the maximum so the taller case never clips.
+    /// intent, target, position, weapon, attributes, level, combo
+    /// attributes, evidence tier, grip, armor, shield, and movement. The
+    /// combo attributes row is present exactly when the attributes row is
+    /// (both come from the same resolved <see cref="WeaponProfile"/>), and
+    /// the grip row is absent for a two-handed weapon, so a real panel draws
+    /// this many or fewer — the panel is sized for the maximum so the
+    /// taller case never clips.
     /// </summary>
-    internal const int MaximumLowerRowCount = 10;
+    internal const int MaximumLowerRowCount = 12;
     internal const int PortraitBottomGap = 5;
     internal const int TopDetailBottomGap = 2;
 
@@ -119,9 +122,17 @@ internal static class AgentInspectorContent
             FormatWeaponLine(weaponLabel),
         };
 
-        if (TryResolveProfile(loadout) is { } profile)
+        var profile = TryResolveProfile(loadout);
+        if (profile is { } resolvedProfile)
         {
-            lines.Add(FormatAttributeLine(profile));
+            lines.Add(FormatAttributeLine(resolvedProfile));
+        }
+
+        lines.Add(FormatLevelLine(agent.Level));
+
+        if (profile is { } comboProfile)
+        {
+            lines.Add(FormatComboAttributeLine(comboProfile));
         }
 
         lines.Add(FormatEvidenceTierLine(evidenceTierLabel));
@@ -199,6 +210,34 @@ internal static class AgentInspectorContent
         $"        {profile.DamagePerAttack} dmg / " +
         $"{profile.AttackRangeRaw / FixedPoint.Scale} reach / " +
         $"{profile.AttackCooldownTicks} tick recovery";
+
+    /// <summary>
+    /// This warrior's level, set once at spawn from
+    /// <see cref="Scenario.PlaceholderFighterLevel"/>. Shown unconditionally
+    /// — even at the placeholder value, where every fighter shares the same
+    /// level and the field is not yet spectator-discoverable from battle
+    /// outcomes — so the row is already present when leveling becomes real.
+    /// </summary>
+    internal static string FormatLevelLine(int level) =>
+        $"Level: {level}";
+
+    /// <summary>
+    /// The four attack-combination attributes a weapon's profile declares:
+    /// the opening-roll chance, the continuation-roll chance, the maximum
+    /// chain length, and the faster cooldown a chain uses while active. This
+    /// is where a spectator confirms, for example, that the itak chains more
+    /// often than the wasay, rather than inferring it from a sample of
+    /// battles. Basis points are out of <see cref="ClashProfile.
+    /// BasisPointScale"/> (10,000), so dividing by 100 renders a whole or
+    /// fractional percentage.
+    /// </summary>
+    internal static string FormatComboAttributeLine(WeaponProfile profile) =>
+        $"        {profile.ComboOpenChanceBasisPoints / 100.0:0.##}% " +
+        $"combo open / " +
+        $"{profile.ComboContinueChanceBasisPoints / 100.0:0.##}% " +
+        $"combo continue / " +
+        $"{profile.ComboMaxSteps} max steps / " +
+        $"{profile.ComboCooldownTicks} tick combo cooldown";
 
     /// <summary>
     /// Which of the weapon's profiles is active, and nothing at all for a
