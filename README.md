@@ -123,7 +123,6 @@ changes and record interactive game behavior with the manual checklist in
 - [Getting started](docs/development/getting-started.md)
 - [Testing and verification](docs/development/testing.md)
 - [Platform decision](docs/architecture/platform-decision.md)
-- [Repository readiness](docs/repository-readiness-report.md)
 - [Agent-role evidence index](docs/agents/README.md)
 - [Foundation design](docs/archives/2026-07-26/2026-07-26-hukbo-foundation-design.md)
 - [Orchestration and menu design](docs/archives/2026-07-26/2026-07-26-hukbo-menu-design.md)
