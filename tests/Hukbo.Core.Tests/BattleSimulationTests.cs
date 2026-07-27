@@ -58,6 +58,22 @@ public sealed class BattleSimulationTests
         Assert.Equal(AgentIntent.Moving, mover.Intent);
     }
 
+    /// <summary>
+    /// The property under test is cooldown spacing, not interception, so the
+    /// simulation runs on a zero-interception ruleset and the hit-point
+    /// assertions keep meaning what they meant before the clash existed.
+    /// </summary>
+    /// <remarks>
+    /// Design section 5 disposition. No shipped loadout pairing is
+    /// clash-neutral — the minimum total interception is a
+    /// <see cref="WeaponId.HeavyChopper"/> defending a
+    /// <see cref="WeaponId.ThrustingBlade"/> at 2,000 basis points, and every
+    /// defender carries a non-zero void channel — so the seam is the only sound
+    /// mechanism. Hand-picking a seed or an entity identifier whose roll happens
+    /// to land would be silently invalidated by any later re-tune or mixer
+    /// change, turning a preserved regression test into one that no longer tests
+    /// what its name claims.
+    /// </remarks>
     [Fact]
     public void AgentsAtExactRangeAttackAndRespectCooldown()
     {
@@ -69,6 +85,7 @@ public sealed class BattleSimulationTests
         };
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
+            PresetWith(ClashProfile.Neutral),
             CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
             CreateAgent(2, factionId: 1, x: 22, y: 10, scenario));
 
@@ -123,6 +140,12 @@ public sealed class BattleSimulationTests
         Assert.Equal(expectedEvents, retainedEvents);
     }
 
+    /// <summary>
+    /// The property under test is simultaneity, not interception: both blows
+    /// have to land for the mutual death to be observable at all. Design section
+    /// 5 disposition, resolved through the ruleset seam rather than by a lucky
+    /// tuple.
+    /// </summary>
     [Fact]
     public void DamageIsAccumulatedBeforeMutualDeathResolution()
     {
@@ -134,6 +157,7 @@ public sealed class BattleSimulationTests
         };
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
+            PresetWith(ClashProfile.Neutral),
             CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
             CreateAgent(2, factionId: 1, x: 20, y: 10, scenario));
 
@@ -1289,6 +1313,22 @@ public sealed class BattleSimulationTests
         Assert.Equal(baselinePositions, compositionPositions);
     }
 
+    /// <summary>
+    /// A landed attack carries its weapon, its hit location, and a value equal
+    /// to the configured damage. Design section 5 disposition: this pairing — a
+    /// <see cref="WeaponId.Bolo"/> attacker against a
+    /// <see cref="WeaponId.GreatBlade"/> defender carrying a
+    /// <see cref="ShieldId.TallHardwood"/> shield — computes to 3,000 basis
+    /// points of non-landed resolution under the shipped tables, so the value
+    /// assertion would fail about one exchange in three without the seam.
+    /// </summary>
+    /// <remarks>
+    /// The non-landed sibling design section 5 asks for is
+    /// <see cref="NonLandedAttack_EmitsAValueOfZeroAndNoDamageEvent"/>, which
+    /// asserts the same weapon and hit-location carriage against a value of
+    /// zero. Keep the two together: they are one property split across the
+    /// landed and non-landed halves of the same event contract.
+    /// </remarks>
     [Fact]
     public void AcceptedAttacksCarryTheSourceWeaponAndAResolvedHitLocation()
     {
@@ -1306,6 +1346,7 @@ public sealed class BattleSimulationTests
             ShieldId.TallHardwood);
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
+            PresetWith(ClashProfile.Neutral),
             CreateAgent(1, factionId: 0, x: 10, y: 10, scenario, attackerLoadout),
             CreateAgent(2, factionId: 1, x: 22, y: 10, scenario, defenderLoadout));
 
@@ -1331,6 +1372,13 @@ public sealed class BattleSimulationTests
         Assert.Equal(expectedLocation, attackFromOne.HitLocation);
     }
 
+    /// <summary>
+    /// The property under test is that two attackers keep two individual hit
+    /// locations while the target receives one aggregated damage event.
+    /// Aggregation sums only landed attacks once the clash resolves, so design
+    /// section 5 gives this a zero-interception ruleset and the aggregate stays
+    /// the full two blows.
+    /// </summary>
     [Fact]
     public void MultipleAttackersOnOneTargetRetainIndividualHitLocationsButOneAggregatedDamageEvent()
     {
@@ -1340,6 +1388,7 @@ public sealed class BattleSimulationTests
         };
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
+            PresetWith(ClashProfile.Neutral),
             CreateAgent(
                 1,
                 factionId: 0,

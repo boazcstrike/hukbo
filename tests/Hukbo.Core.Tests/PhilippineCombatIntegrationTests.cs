@@ -363,6 +363,21 @@ public sealed class PhilippineCombatIntegrationTests
     //    tick, same-tick mutual death ordering, and cooldown spacing.
     // ---------------------------------------------------------------
 
+    /// <summary>
+    /// Survives the clash unmodified, and design section 5 records exactly why:
+    /// <b>only because a non-landed attack is emitted with a value of zero.</b>
+    /// </summary>
+    /// <remarks>
+    /// That coupling is load-bearing. This test compares the aggregated damage
+    /// event against the sum of the individual attack values in the same tick,
+    /// and a non-landed attack contributes a zero to that sum. If a later change
+    /// suppressed the attack event for a non-landed blow instead of zeroing its
+    /// value, both sides of the comparison would shrink together and this test
+    /// would silently start comparing a shorter list while still passing. It
+    /// therefore runs against the registered preset rather than a
+    /// zero-interception ruleset: the mixed landed and non-landed stream is the
+    /// condition the property needs, not an obstacle to it.
+    /// </remarks>
     [Fact]
     public void Regression_AggregateDamagePerTargetPerTickEqualsSumOfIndividualAttackValuesAcrossAFullBattle()
     {
@@ -423,6 +438,13 @@ public sealed class PhilippineCombatIntegrationTests
             "Expected at least one tick with damage across the full battle.");
     }
 
+    /// <summary>
+    /// Emission order is the property under test, and observing it requires both
+    /// lethal blows to land. Design section 5 disposition: the simulation runs on
+    /// <see cref="ZeroInterceptionRules"/> rather than on a hand-picked seed,
+    /// because no shipped loadout pairing is clash-neutral and a lucky roll would
+    /// be silently invalidated by any later re-tune or mixer change.
+    /// </summary>
     [Fact]
     public void Regression_SameTickMutualDeathEventsPrecedeTheOutcomeEventInEmissionOrder()
     {
@@ -443,6 +465,7 @@ public sealed class PhilippineCombatIntegrationTests
         };
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
+            ZeroInterceptionRules,
             CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
             CreateAgent(2, factionId: 1, x: 20, y: 10, scenario));
 
