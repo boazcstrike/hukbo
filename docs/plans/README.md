@@ -79,6 +79,50 @@ incorrectly:
   `docs/development/testing.md`. The attribute values above are provisional
   gameplay tuning, not settled.
 
+## The performance hardening workstream
+
+Two documents, per the table above:
+
+| Document | Status |
+| --- | --- |
+| [`2026-07-28-arch-informed-performance-hardening-design.md`](2026-07-28-arch-informed-performance-hardening-design.md) | Design only. Does not authorize implementation. |
+| [`2026-07-28-arch-informed-performance-hardening.md`](2026-07-28-arch-informed-performance-hardening.md) | The ordered task list, its verification criteria, and the Gate A verdict. |
+
+This workstream is hash-neutral by construction: every task in the plan is
+required to leave the seed-1 200-agent pair unchanged, and it is unchanged —
+`stateHash 71211929A44A16CA`, `eventHash A2DC3ECA3F7345ED`. **No ECS, archetype
+system, or chunk system was adopted, and no package was added.** `CLAUDE.md`
+section 9's prohibition on a general-purpose ECS before a profiler demands one
+stands exactly as it did before this workstream started.
+
+What it delivered:
+
+- A `Hukbo.Core`-only per-tick allocation figure, separated from the
+  whole-loop harness total the headless runner already reported.
+- A four-point agent-count scaling curve — 200, 500, 1,000, and 2,000 agents
+  at seed 1 — recorded in `docs/development/testing.md`.
+- A per-stage tick profile in
+  [`docs/research/TICK-STAGE-PROFILE.md`](../research/TICK-STAGE-PROFILE.md),
+  sampled from the unmodified Release headless seed-1 workload.
+- Removal of per-tick allocations that were visible in the source without that
+  profile.
+- One previously undocumented invariant, the no-copy contract on
+  `CollisionResolver.Grow<T>`, written down at the symbol and pinned by a
+  test.
+- A performance technique inventory added to `SIMULATION-GAME-STANDARDS.md`
+  section 15, recording which of the techniques an external research pass
+  found in the Arch library are usable in Hukbo as-is, which need a named
+  discipline, and which are forbidden outright.
+
+The plan's Gate A closed three of the four structural candidates it gated —
+spatial acceleration for target selection, a dense identifier-to-index map in
+place of `Dictionary<ulong,int>`, and the `AgentState` memory-layout question —
+and authorized the fourth, an axis-delta rejection ahead of the existing
+squared-distance check in target selection. The same stage profile that decided
+those four verdicts points at collision resolution as the next candidate for
+attention; that stage is explicitly out of scope for this plan and needs its own
+design document before anyone touches it.
+
 ## Where the live contract lives
 
 | Question | Source |

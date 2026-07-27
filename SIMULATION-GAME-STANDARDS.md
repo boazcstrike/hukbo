@@ -860,3 +860,118 @@ Mactan and Cole's 1922 account of angled deflection (**Documented, form uncertai
 magnitude of 2,400 basis points is invented and stays labelled as such. No value in this section may
 be cited back into `docs/research/HISTORICAL_1500s_WEAPONS.md` or `WEAPON_CLASH_1500s.md` as a
 measurement.
+
+## 15. Performance technique inventory
+
+This section is the durable record of
+[docs/plans/2026-07-28-arch-informed-performance-hardening-design.md](docs/plans/2026-07-28-arch-informed-performance-hardening-design.md)'s
+conclusions: which techniques an external research pass over the Arch entity-component-system
+library found usable in Hukbo, which are usable only with a named discipline, and which are
+forbidden and why. The design document carries the reasoning; this section carries the consequence,
+so that a future contributor who reaches for a fast ECS does not have to re-read the design document
+to know what already got decided, and does not re-derive the same argument from scratch — possibly
+wrong.
+
+### The library was read, not adopted
+
+An external research pass read the Arch library end to end — its chunk layout, its entity-location
+storage, its query enumerators, its command buffer, its build configuration, and its benchmark
+harness — looking for techniques usable inside a deterministic, single-threaded, fixed-schema battle
+simulation without adopting an ECS. **This repository does not adopt Arch, does not add an archetype
+or chunk system, and takes no package dependency on Arch or on any part of it.** `CLAUDE.md` section 9
+already lists "Add a general-purpose ECS framework before a profiler demands it" among the things this
+repository does not do, and nothing in this section is an argument for relaxing that rule: every
+technique below is either already legal under the standards stated elsewhere in this document, or is
+explicitly gated behind a profile that does not exist yet. What was taken is a set of techniques, not
+a library. A dense integer array in place of a dictionary is not an ECS. A `ref` return in place of an
+indexer is not an ECS. Splitting a record by access pattern is not an ECS. **"We looked at Arch" must
+never later be read as "we are moving toward an ECS."** A future proposal that cites this section as
+grounds for adopting Arch, an archetype system, a chunk system, or any general-purpose ECS has misread
+it: the profiler evidence CLAUDE.md section 9 requires does not exist today, and authorizing that
+adoption would need its own design document, written after that evidence exists.
+
+### Techniques judged portable
+
+| Technique | Portable? | Discipline required |
+| --- | --- | --- |
+| Structure-of-arrays with a cache-sized block | Yes | Block size chosen from measured cache size; integer arithmetic only, never a float |
+| Dense `int[]` index in place of a dictionary | Yes | None; strictly safer than a dictionary here |
+| `ref` returns instead of indexers | Yes, once a value-type agent layout exists | Not authorized by this section; depends on the `AgentState` layout change the design document assesses separately and does not authorize |
+| `MemoryMarshal.CreateSpan` / `Unsafe.Add` | Yes, once a value-type agent layout exists | Requires `AllowUnsafeBlocks`, which is absent from `Directory.Build.props` and needs its own justification, in addition to the same layout change |
+| `[SkipLocalsInit]` on hot accessors | Yes, once a value-type agent layout exists | Same dependency as the two rows above |
+| Dense identifier-to-location addressing by shift and mask | Yes | Power-of-two bucket size; `BitOperations.Log2`, never `Math.Log` or any other floating-point capacity arithmetic |
+| Hash container for lookup only, ordered collection for iteration | Yes — already the local practice | The ordered collection must be the only thing enumerated, and that separation must be documented at the symbol; see the dedicated rule below |
+| Bit-set signature matching for whole-group rejection | Yes | Fixed word order |
+| `ref struct` enumerators | Yes | Cannot be boxed or captured — which is the entire point of using one |
+| Struct callback as a generic type parameter instead of a delegate | Yes | Hand-written per tick stage; never generated |
+| Deferred structural change through a command buffer | Yes | Fixed playback phase order, one ordered pass |
+| Sparse sets for pending-flag membership | Yes | No hashing |
+| Reverse iteration | Yes, with discipline | A descending order is still a total order, but the direction must be pinned by a test; an unpinned refactor can silently move a hash |
+| Swap-remove | Yes, with discipline | Storage position must never break a tie; `EntityId` stays the sort key regardless of where an element physically sits |
+| Pooled or uninitialised buffers | Yes, with discipline | Every slot must be written before it is read, and the invariant must be documented and tested at the symbol — `CollisionResolver.Grow`'s no-copy invariant is the existing model to follow |
+
+The struct-callback row deserves a caveat beyond the table: its measured advantage over a delegate
+comes from the JIT devirtualising and inlining a struct's method call, not from any source generator.
+Hukbo has eight fixed tick stages, not an open-ended set of user-authored systems, so writing the
+shape by hand where it helps is preferable to adding a source-generator dependency, which would bring
+a build dependency, a generated-code review surface, and a new class of golden file to maintain.
+
+### The lookup-only-hash-container rule
+
+A hash container — a `Dictionary`, a `HashSet`, or any structure whose enumeration order is not
+part of its contract — may be used inside `Hukbo.Core` for lookup only. Whatever is actually iterated
+over must be a separate, ordered collection, and the separation between the two must be documented in
+an XML doc comment at the symbol that owns both. This states, as a positive construction rule rather
+than only as a prohibition, what section 4's existing determinism contract already implies: hash-set
+and dictionary iteration order may not affect gameplay. The rule here asks for more than avoiding a
+violation after the fact — it asks that the lookup-only structure and the ordered structure it defers
+to be built as a declared pair from the start.
+
+The repository already practices this in two places, one of which documents it and one of which does
+not yet. `CollisionUniformGrid` (`src/Hukbo.Core/Simulation/CollisionUniformGrid.cs:74-76`) keys its
+cell lookup by a packed integer while the pairs it produces come from a separately maintained, ordered
+list, and the ownership and iteration contract is written down at the symbol. `BattleSimulation`'s
+`_agentIndexes` (`src/Hukbo.Core/Simulation/BattleSimulation.cs:19`) is a `Dictionary<ulong, int>` used
+for identifier-to-slot lookup only and is never enumerated; the `AgentState[]` array it indexes into is
+the thing actually iterated, in storage order. Both are legal today because neither is enumerated by
+its hash structure, but only the grid says so at the symbol. Any future lookup-only hash container —
+including a dense identifier-to-index map built to replace `_agentIndexes` — must state and preserve
+the same separation, and must say so at the symbol rather than leaving it as an implicit accident of
+how the code happens to be called today.
+
+### Techniques deliberately not ported
+
+| Technique | Why it is forbidden here |
+| --- | --- |
+| `World.ParallelQuery`, `JobScheduler`, `[Query(Parallel = true)]` | The partitioner that splits the work does so by processor count, which makes the split machine-dependent, and the resulting chunks complete in an arbitrary order. Arch's own documentation states that a parallel query must not be called from anything but the main thread. This is non-negotiable against the single-threaded authoritative schedule the determinism contract requires |
+| Runtime component-identifier assignment | Arch's component registry hands out identifiers from an incrementing counter the first time a type is touched, via a static constructor, so the identifier a type receives depends on which type the runtime happens to touch first — and those identifiers feed the archetype signature hash. Any identifier-per-type registry adopted here would have to draw from an explicit, committed, ordered table instead, versioned exactly like an enum's numeric values already must be |
+| `QueryDescription.Equals` by hash code only | Equality decided purely by a 32-bit hash mix means a hash collision reproducibly returns the wrong entity set. That is a determinism bug wearing the appearance of a logic bug, which is the worst kind to debug because nothing about the symptom points at the cause |
+| `UnsafeArray`, `UnsafeList`, and other bounds-check-free collections | In a deterministic simulation an `IndexOutOfRangeException` is an asset, not a defect: it is a loud, reproducible failure at an exact tick that points straight at the bug. Removing the bounds check trades that loud failure for a silent out-of-bounds read, which converts a debuggable crash into a silent hash divergence discovered only much later, far from its cause |
+| The archetype and chunk machinery | This machinery pays off when component composition is dynamic and diverse across many entity kinds. A fixed-schema two-faction battle simulation gets the cache-locality win from plain parallel arrays and pays none of the archetype-transition cost, because there is no composition change to transition between |
+| `Arch.System.SourceGenerator` | The generator's measured win is the inlined struct-query call shape, and that shape is hand-writable for Hukbo's eight fixed tick stages without a code-generation dependency, so the generator buys nothing here that hand-written code does not already provide |
+| `Arch.Persistence` | It has no version field and no magic number in its envelope, its layout is fully positional MessagePack, and its own documentation requires component registration order to match exactly across the save boundary with no mechanism to detect a mismatch before deserializing wrong data into the wrong fields. It also pins `MessagePack 2.6.100-alpha`, a version carrying a known security advisory that Arch suppresses through `<NoWarn>NU1902</NoWarn>` — a suppression this repository's `Directory.Build.props` promotes to a build-breaking error instead |
+| Build flags that change behaviour | Arch ships six build configurations whose `#if PURE_ECS` and `#if EVENTS` variants change both public API surface and runtime behaviour. A build flag that changes simulation behaviour means, in effect, a separate state hash per configuration, which is a determinism hazard with no corresponding benefit here |
+
+### Snapshot version and schema requirement
+
+Section 7 already requires a snapshot envelope that records "type/version, scenario/registry hashes,
+tick, RNG identity/state, payload length/checksum, and authoritative state," and requires a
+non-destructive error for an unsupported version rather than a silent misload. This section states the
+sharper form that requirement must take once a real snapshot format is authored under Gate 3: **a
+Hukbo snapshot header must carry a preset version and a schema version as two distinct fields, and a
+mismatch on either one is a hard failure, never a warning and never a best-effort load.** The preset
+version identifies which combat ruleset produced the authoritative state being restored — the same
+versioning already required of any `CombatPresetId` change under the determinism contract in section
+4. The schema version identifies the shape of the envelope itself, independent of which preset wrote
+it. The two move independently: a schema change with no preset change means the same combat rules
+serialized in a different shape, while a preset change with no schema change means the same envelope
+shape now carrying a different ruleset. Collapsing the two into a single field loses that distinction
+and lets a stale save look compatible when it is not.
+
+This requirement answers a specific negative example rather than a hypothetical one. `Arch.Persistence`
+— the persistence add-on for the very library this section otherwise draws techniques from — has no
+version field, no magic number, and a fully positional layout that depends on component registration
+order matching exactly across the save boundary, with nothing to detect or reject a mismatch before it
+silently deserializes the wrong bytes into the wrong fields. That is precisely the failure mode this
+requirement exists to close off before Hukbo authors its own snapshot format, not after a save file has
+already demonstrated the gap.

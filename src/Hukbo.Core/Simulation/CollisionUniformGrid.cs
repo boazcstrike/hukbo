@@ -126,6 +126,15 @@ internal sealed class CollisionUniformGrid
     internal IReadOnlyList<CollisionPair> Pairs => _pairs;
 
     /// <summary>
+    /// The same collection as <see cref="Pairs"/>, exposed as its concrete
+    /// <see cref="List{T}"/> type so a per-tick <c>foreach</c> can bind to
+    /// <see cref="List{T}.Enumerator"/> instead of boxing through
+    /// <see cref="IEnumerator{T}"/>. Carries the exact same ownership and
+    /// lifetime rules as <see cref="Pairs"/>.
+    /// </summary>
+    internal List<CollisionPair> PairsList => _pairs;
+
+    /// <summary>
     /// Runs the whole broad phase: discards the previous contents, indexes every
     /// living body, and produces <see cref="Pairs"/>.
     /// </summary>

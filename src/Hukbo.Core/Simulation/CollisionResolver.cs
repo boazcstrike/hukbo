@@ -324,6 +324,19 @@ internal sealed class CollisionResolver
         return result;
     }
 
+    /// <summary>
+    /// Grows <paramref name="buffer"/> to at least <paramref name="requiredLength"/>
+    /// by replacing it with a fresh, larger array, doubling capacity for
+    /// amortized cost. The old array's contents are deliberately not copied
+    /// into the replacement.
+    /// </summary>
+    /// <remarks>
+    /// Discarding the old contents is safe only because <see cref="Reset"/>,
+    /// this method's only caller, always refills every slot of the new array
+    /// that this tick will read before any read happens. A copy here would
+    /// cost real time on every reallocating tick to preserve data no read
+    /// ever depends on.
+    /// </remarks>
     private static void Grow<T>(ref T[] buffer, int requiredLength)
     {
         if (requiredLength <= buffer.Length)

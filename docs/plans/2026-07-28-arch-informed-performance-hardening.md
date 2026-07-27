@@ -2,7 +2,7 @@
 
 Date: 2026-07-28
 
-**Status:** not started. Phase 1 is authorized; Phase 3 is authorized per item only by the Gate A verdict that Phase 1 produces.
+**Status:** Complete. Phase 1 is measured, Phase 2 is implemented, the Gate A verdict below is recorded, and T11 is the only Phase 3 item that verdict authorized — it is implemented. The canonical gate passes, with both hashes unchanged from the recorded baseline. See the Completion record at the end of this document for the full account.
 
 Design: [`2026-07-28-arch-informed-performance-hardening-design.md`](2026-07-28-arch-informed-performance-hardening-design.md)
 
@@ -114,6 +114,84 @@ Per `SIMULATION-GAME-STANDARDS.md` section 10.
 | T17 | Add manual smoke rows for the event-feed lifetime change — the feed shows correct ordered events during a live run, survives pause and speed changes, and shows nothing stale after a battle ends — all left `PENDING` | `docs/development/testing.md` | T16 | The rows exist and are `PENDING`. No agent flips a row | Read-through; only a person at an interactive Windows desktop may flip one |
 | T18 | Review the complete diff | — | T17 | No hash moved, no enum renumbered, no preset edited, no `AllowUnsafeBlocks`, no new package, no `Directory.Packages.props` or `packages.lock.json` diff, no `Hukbo.Diagnostics` reference in `Hukbo.Core`, no wall-clock or filesystem access in `Hukbo.Core`, no console write outside the two `Program.cs` entry points, no `Hukbo.slnx` diff, no GitHub Actions workflow | `/code-review` on the diff; `./scripts/verify.ps1` output from T16 |
 
+## Gate A verdict
+
+The T3 stage profile inverts the expectation the design was written against. The
+design treated `SelectTargetsAndIntents` as the presumptive hot stage — it is the
+only O(n²) loop in `Hukbo.Core` with no spatial acceleration, and every
+structural candidate in Phase 3 targets it. The measured profile does not agree.
+`ResolveCollisions` dominates the tick at every agent count sampled, and its
+share rises with scale rather than falling: 63.11 percent of inclusive samples
+at 200 agents, 70.11 percent at 1,000, 74.77 percent at 2,000. Within it,
+`CollisionResolver.IsFree` alone accounts for half of all exclusive tick time at
+2,000 agents. `SelectTargetsAndIntents` never exceeds 16.67 percent of inclusive
+samples across the same sweep. The gap between the two stages is not close at
+any point measured — 44.83, 54.23, and 58.10 percentage points at 200, 1,000,
+and 2,000 agents respectively — so this is not a case where a different
+sampling interval or a denser run could plausibly flip the ranking. Every
+verdict below follows from that one measurement.
+
+**T5 — staged tick driver (design section 4.3 option (b)): closed.** The rule
+was authorization if and only if no single stage exceeds thirty percent of
+inclusive samples, or the top two stages are within five percentage points of
+each other. `ResolveCollisions` is above thirty percent at every point sampled
+— 63.11 percent, 70.11 percent, 74.77 percent — and its lead over the
+second-place stage is 44.83, 54.23, and 58.10 percentage points, far outside
+the five-point band. The sampling profile ranks the stages unambiguously
+without instrumentation, so the expensive per-stage timing harness is not
+warranted and `Hukbo.Core`'s internal surface stays closed. **74.77 percent is
+the number that closed this item.**
+
+**T11 — axis-delta rejection in the target scan: authorized.** The precondition
+was that `SelectTargetsAndIntents` appear in the profile at all, with
+abandonment triggered only if it stayed below five percent of tick time. It
+appears at 5.04 percent, 15.88 percent, and 16.67 percent inclusive across the
+sweep, and at 16.63 percent exclusive at 2,000 agents, where it is the third
+most expensive method in the entire tick. Even the sparsest column, the
+200-agent trace, clears the five-percent floor. **5.04 percent is the number
+that authorized this item.**
+
+**T12 — spatial acceleration for target selection: closed.** The precondition
+had two parts, both required: at least twenty percent of tick time attributed
+to `SelectTargetsAndIntents`, and tick time growing faster than linearly in
+agent count. The second part holds — the T2 p50 growth exponent rises from 1.60
+to 1.97 to 2.19 across the sweep — but the first part fails. The largest share
+`SelectTargetsAndIntents` reaches anywhere in the profile is 16.67 percent, at
+2,000 agents, short of the twenty-percent floor. **16.67 percent is the number
+that closed this item.**
+
+**T13 — dense identifier-to-index map: closed.** The precondition was that the
+profile attribute measurable time to `MeasureCollision`'s per-pair lookups, or
+to any other dictionary lookup on the tick path. `_agentIndexes`, a
+`Dictionary<ulong,int>`, appears in the trace as
+`Dictionary<UInt64,Int32>.FindValue` at 6.9 ms of 137,175.2 ms at 2,000 agents
+— 0.005 percent of tick time — and does not appear at all in the 200-agent
+trace. **0.005 percent is the number that closed this item.** The honest
+caveat: a different dictionary does show measurable time in the same traces —
+`CollisionUniformGrid`'s `Dictionary<long,int>` cell-key map, at 3.81 percent
+of tick time at 200 agents and 0.006 percent at 2,000. That container is not
+the one T13 names, so it does not authorize T13; it is recorded here as a
+separate observation, not as evidence for this item.
+
+**Section 6.4 `AgentState` layout question, and therefore T14: closed.** The
+precondition for opening that design was a tick dominated by memory access
+rather than by a single algorithmic hot spot — no stage above thirty percent,
+spread broadly and flatly across the eight passes. The measured distribution is
+the opposite of flat: one stage, `ResolveCollisions`, holds 63.11 to 74.77
+percent of inclusive samples across the sweep. The design's own abandonment
+clause fires verbatim: one stage dominates, so the instruction is to fix that
+stage and leave the layout alone. **74.77 percent is the number that closed
+this item.** T14 therefore writes no design document.
+
+The design's section 6.4 abandonment clause was written on the assumption that
+the dominant stage, if there were one, would be the stage section 6.2
+addresses — target selection. It is not. The dominant stage is
+`ResolveCollisions`, which no task in this plan touches and no design document
+in this workstream authorizes touching. The clause's own instruction, "fix that
+stage," therefore points at collision resolution rather than at anything this
+plan was scoped to change. Collision resolution needs its own design document
+before any of that work can start, and this workstream does not write one.
+
 ## Verification criteria
 
 Complete only when all of the following hold.
@@ -175,6 +253,10 @@ when the allocation number improves; it is finished when every caller has been
 enumerated and judged. This is also the only part of the workstream a spectator
 could see go wrong, which is why T17's smoke rows are about the event feed and
 nothing else.
+
+The double buffer actually implemented for T7 grants one further tick beyond
+what this paragraph describes. See the Completion record at the end of this
+document for the reason.
 
 **T5 widens `Hukbo.Core`'s internal surface around the event accumulator**, which
 is the input to the event hash. It is conditional for that reason. Design section
@@ -282,3 +364,116 @@ the workstream delivers a Core-only allocation figure, a scaling curve, a stage
 profile, three allocations removed, one undocumented invariant written down and
 tested, and a standards section that stops the next reader re-deriving the same
 argument. That is a complete result, not an abandoned one.
+
+## Completion record
+
+This workstream is complete. T1 through T4, T6 through T11, and T15 through T18
+were implemented; each produced the code, the tests, or the documentation its
+table row describes. T5, T12, T13, and T14 were closed by the Gate A verdict
+above, with no code written for any of them, exactly as their table rows
+anticipated. T5 was closed at 74.77 percent, the share of inclusive samples
+`ResolveCollisions` holds at 2,000 agents, far above the thirty-percent ceiling
+its authorization rule required. T12 was closed at 16.67 percent, the largest
+share `SelectTargetsAndIntents` reaches anywhere in the profile, short of the
+twenty-percent floor its precondition required. T13 was closed at 0.005
+percent, the share of tick time attributable to
+`Dictionary<UInt64,Int32>.FindValue` at 2,000 agents. The section 6.4
+`AgentState` layout question, and therefore T14, was closed at the same 74.77
+percent that closed T5, because the design's own abandonment clause fires when
+one stage dominates the tick rather than cost spreading flatly across the
+eight passes. T11 was the only Phase 3 item the Gate A verdict authorized, at
+5.04 percent, the share `SelectTargetsAndIntents` holds at 200 agents, and it
+was implemented.
+
+The headline result: `Hukbo.Core` per-tick allocation fell by between 99.75
+and 99.96 percent across the four agent counts measured. At 200 agents it fell
+from 46,738,440 bytes to 118,896 bytes, a reduction of 99.75 percent. At 500
+agents it fell from 204,408,512 bytes to 259,376 bytes, a reduction of 99.87
+percent. At 1,000 agents it fell from 838,905,704 bytes to 541,552 bytes, a
+reduction of 99.94 percent. At 2,000 agents it fell from 2,882,640,616 bytes
+to 1,133,656 bytes, a reduction of 99.96 percent. `stateHash` and `eventHash`
+are byte-identical at every one of those four points, comparing the
+measurement taken before T7 and T11 against the final tree, and no percentile
+regressed at any agent count measured: p50 and p95 tick time both improved
+everywhere they were compared, and the ten percent regression threshold in
+`SIMULATION-GAME-STANDARDS.md` section 8 was never approached in the
+regressing direction.
+
+T7 departs from its table row's literal wording, and the deviation is stated
+here plainly. The row specifies one simulation-owned list, cleared at the top
+of each tick, with a single `ReadOnlyCollection<BattleEvent>` created once
+over it. What was built instead is a double buffer: two lists, each wrapped
+once by a permanent `ReadOnlyCollection`, with a flag selecting which one is
+written next, and `AdvanceOneTick` clearing the buffer that is not currently
+exposed through `LastEvents`, at the start of the tick. The reason is a
+pre-existing tested contract the plan's task row did not account for.
+`tests/Hukbo.Core.Tests/BattleSimulationTests.cs` already contains
+`LastEventsRemainsACompletedTickSnapshot`, which pins that a reference
+captured on one tick still reads that tick's data after one further
+`AdvanceOneTick`. A single shared buffer, cleared every tick, would have
+broken that test. The plan's own Risks section describes the T7 lifetime
+hazard as a caller retaining `LastEvents` "past the next tick" — that is not
+what was built. What the double buffer actually grants is one further tick,
+a narrower and safer window than the risk paragraph describes, and the XML
+doc comment on `LastEvents` states the stricter read-within-the-tick contract
+deliberately, rather than documenting the one-further-tick grant the
+implementation actually provides.
+
+T17's smoke rows — the feed shows correct ordered events during a live run,
+survives pause and speed changes, and shows nothing stale after a battle ends
+— are recorded `PENDING` in `docs/development/testing.md`. No agent flipped
+one; only a person at an interactive Windows desktop may do that.
+
+The T3 stage profile pointed at collision resolution, not at target selection:
+`ResolveCollisions` accounted for 63.11 to 74.77 percent of inclusive samples
+across the sweep, and `CollisionResolver.IsFree` alone accounted for half of
+all exclusive tick time at 2,000 agents. This workstream did not touch
+collision resolution — no task in its table authorized doing so — and the
+Gate A verdict above says plainly that fixing it needs its own design document
+before any of that work can start.
+
+### T19, added during execution: an assertion T7 made ill posed
+
+One task was added that this plan's table does not contain, and it is recorded
+here rather than retro-fitted into the table, so that the table continues to say
+what was planned and this section says what happened.
+
+`RepeatedCollisionTicksHaveBoundedAllocations` is named in verification
+criterion 8, and its guard was "the second measured window must not allocate
+more than the first". That comparison was sound while both windows measured
+roughly 815,000 bytes of simulation allocation. T7 removed that allocation, so
+both windows now measure between 0 and 2,064 bytes across 1,000 ticks, and the
+comparison began ranking runtime infrastructure noise instead of simulation
+behaviour. The test failed roughly one full-suite run in three, while passing
+eight times out of eight in isolation, which is why the first canonical gate run
+recorded for this workstream did not reveal it. An adversarial reviewer
+reproduced it, and its diagnosis that the flake was probably pre-existing was
+wrong: the flake is a direct consequence of T7 driving the measured quantity to
+near zero.
+
+The relative comparison was replaced by an absolute ceiling of 16,384 bytes on
+both windows, which is a strictly stronger guard rather than a weaker one — the
+old form would have accepted a first window of 899,999 bytes — and
+`RepeatedQuietTicksHaveBoundedAllocations` was retuned from 300,000 bytes to
+8,192, because that window now measures exactly zero. Ten consecutive full-suite
+runs pass with no failures. The measured basis and the arithmetic separating the
+ceiling from a real regression are recorded in `docs/development/testing.md`.
+
+This is the only test in the workstream whose assertion was changed rather than
+added, and the change tightens it.
+
+### Verification criterion 9, and the working set
+
+Criterion 9 asks that p95 tick time **and the whole-process working set** have
+not regressed by more than ten percent. The percentile half was measured from
+the headless runner throughout. The working-set half had no baseline anywhere in
+the repository and no field in `RunReport` that carries it, so a reviewer was
+right to flag that the criterion could not be marked met on the evidence
+originally recorded.
+
+It was therefore measured directly, from outside the process, against the
+unmodified `main` tree at commit `8a3d930` as the baseline. Peak working set at
+200 agents fell from about 49.7 MiB to about 37.6 MiB, a reduction of roughly
+24.6 percent. Both halves of criterion 9 are now met on measured evidence, and
+both moved in the improving direction. The method and its limitations are
+recorded in `docs/development/testing.md`.

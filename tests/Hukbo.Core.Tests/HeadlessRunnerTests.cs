@@ -460,4 +460,47 @@ public sealed class HeadlessRunnerTests
             secondReport.RootElement.GetProperty("collisionMetrics").GetRawText(),
             StringComparer.Ordinal);
     }
+
+    /// <summary>
+    /// coreAllocatedBytes measures only left.AdvanceOneTick() across the run,
+    /// while allocatedBytes measures the whole harness loop -- both
+    /// simulations, both hash computations, and the determinism comparison.
+    /// The Core figure must be strictly positive (advancing a live 20-agent
+    /// battle allocates something) and can never exceed the harness total it
+    /// is a strict subset of.
+    /// </summary>
+    [Fact]
+    public void Run_ReportsACoreAllocationFigureThatIsPositiveAndNeverExceedsTheHarnessTotal()
+    {
+        var output = new StringWriter();
+        var errorOutput = new StringWriter();
+
+        var exitCode = HeadlessRunner.Run(
+            ["--agents", "20", "--ticks", "200", "--seed", "1234"],
+            output,
+            errorOutput);
+
+        Assert.Equal(0, exitCode);
+        var deserialized = JsonSerializer.Deserialize<RunReport>(
+            output.ToString(),
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            });
+
+        Assert.NotNull(deserialized);
+        using var report = JsonDocument.Parse(output.ToString());
+
+        Assert.Equal(
+            report.RootElement.GetProperty("coreAllocatedBytes").GetInt64(),
+            deserialized.CoreAllocatedBytes);
+        Assert.True(
+            deserialized.CoreAllocatedBytes > 0,
+            $"Expected a strictly positive core allocation figure, got " +
+            $"{deserialized.CoreAllocatedBytes}.");
+        Assert.True(
+            deserialized.CoreAllocatedBytes <= deserialized.AllocatedBytes,
+            $"Core allocation {deserialized.CoreAllocatedBytes} exceeded the " +
+            $"harness total {deserialized.AllocatedBytes}.");
+    }
 }
