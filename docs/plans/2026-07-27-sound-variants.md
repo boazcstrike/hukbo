@@ -36,9 +36,8 @@ Design: `2026-07-27-sound-variant-matrix-design.md`
 12. [x] 40 attack variants, ten per weapon slot, allocated by that weapon's
     targeting bias.
 13. [x] 10 death variants.
-14. [ ] Notification candidates for `victory-blue`, `victory-red`, `draw`, and
-    `ui-click`; 12 generated. Audition, keep one each, delete the rest —
-    **blocked on a human listening pass.**
+14. [x] Notification candidates for `victory-blue`, `victory-red`, `draw`, and
+    `ui-click`; 12 generated, audited by ear, one kept each, the rest deleted.
 
 ### Close-out
 
@@ -113,3 +112,15 @@ tasks 1 to 4 and both found by the generation agents rather than by review:
 Both are fixed and were verified against the exact inputs that crashed. The
 lesson recorded for next time: a dry run does not exercise the write path, and
 these would have surfaced in one real generation.
+
+## Notification audition — 2026-07-28
+
+The human listening pass on the twelve outcome/interface candidates ran on
+2026-07-28. Kept: `victory-red-01` (as `victory-red.wav`), `victory-blue-03`
+(as `victory-blue.wav`), `draw-03` (as `draw.wav`), and the pre-existing
+`ui-click.wav` over all three new `ui-click` candidates. The losing candidate
+files were deleted; `GENERATED.md` keeps its rows for them unchanged, per that
+file's own append-only, what-was-generated-not-what-exists-today convention.
+
+Every slot in `SoundCatalog` now resolves to a file on disk. Task 14 is
+closed, and the plan has no open tasks left.
