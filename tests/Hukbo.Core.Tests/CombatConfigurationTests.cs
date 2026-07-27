@@ -174,7 +174,18 @@ public sealed class CombatConfigurationTests
     {
         // The constructor parameter is optional so the named-argument
         // constructions elsewhere in this file keep compiling untouched.
-        Assert.Same(ClashProfile.Neutral, PhilippineCombatPreset.Rules.ClashProfile);
+        //
+        // The subject is a ruleset actually built without a clash profile.
+        // While the preset carried none it was the obvious subject, but the
+        // preset now supplies its own tables, so reading it here would assert
+        // the exact opposite of what
+        // Ruleset_DeclaresNonDefaultClashDataForEveryWeaponAndShield requires
+        // of the same object. The property this test is named for — a ruleset
+        // given no profile falls back to the neutral one — is unchanged and
+        // still enforced; only the object exhibiting it moved.
+        var givenNone = BuildMinimalRuleset(weaponWeight: 5, shieldMultiplier: 1_000);
+
+        Assert.Same(ClashProfile.Neutral, givenNone.ClashProfile);
     }
 
     [Fact]

@@ -1,9 +1,11 @@
 namespace Hukbo.Core.Combat;
 
 /// <summary>
-/// Version 1 of the pre-colonial Philippine combat preset: four warrior
+/// Version 2 of the pre-colonial Philippine combat preset: four warrior
 /// target-weighting profiles derived from the supplied research brief, one
-/// light-organic armor identity, and one tall-hardwood shield profile.
+/// light-organic armor identity, one tall-hardwood shield profile, and the
+/// defensive-interception clash profile an accepted attack is resolved
+/// against.
 /// </summary>
 /// <remarks>
 /// Configuration is written as explicit, hand-authored data rather than a
@@ -16,7 +18,13 @@ namespace Hukbo.Core.Combat;
 /// </remarks>
 public static class PhilippineCombatPreset
 {
-    public const int Version = 1;
+    /// <summary>
+    /// Raised from 1 to 2 when the clash tables landed. The clash values are
+    /// folded into <see cref="CombatRuleset.ContentHash"/> and reach the
+    /// authoritative event stream, so a ruleset carrying them is a different
+    /// preset version even though its identity is unchanged.
+    /// </summary>
+    public const int Version = 2;
 
     private const int DefaultMultiplierBasisPoints = 1_000;
 
@@ -136,7 +144,111 @@ public static class PhilippineCombatPreset
             weaponTargets,
             armors,
             shieldMultipliers,
-            roster);
+            roster,
+            BuildClashProfile());
+    }
+
+    /// <summary>
+    /// The thirty-two defensive-interception tuning values: sixteen weapon
+    /// intercept cells, one flat shield intercept, four void values, four
+    /// hard-share bases, four hard-share multipliers, two hard-share clamp
+    /// bounds, and one interception ceiling.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>PROVISIONAL.</b> Every value returned here is a gameplay tuning
+    /// choice, not a historical measurement. The research states plainly that
+    /// <b>all sixteen cells of the weapon-intercept matrix are provisional
+    /// reconstructions with no evidentiary confidence</b>: no source,
+    /// Philippine or otherwise, describes these four loadouts — or any four
+    /// loadouts — fighting one another, and only their relative ordering is
+    /// argued from evidence, and only weakly. See
+    /// docs/research/WEAPON_CLASH_1500s.md section 5.3 and CLAUDE.md section 7.
+    /// </para>
+    /// <para>
+    /// The shield channel is the only defensive channel with sixteenth-century
+    /// documentary support, and even there the figure is a tuning choice rather
+    /// than a measured rate. Interception is also deliberately set below what
+    /// the historical record would suggest, because Hukbo has no morale model
+    /// and must therefore reach a decision by attrition, a mechanism that
+    /// historically did not decide battles. That is a design compensation and
+    /// must never be read back as evidence about how often people parried.
+    /// </para>
+    /// </remarks>
+    private static ClashProfile BuildClashProfile()
+    {
+        // PROVISIONAL. Defender row against attacker column, in basis points.
+        // Zero evidentiary confidence; see the remarks above.
+        var weaponIntercept = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>
+        {
+            [(WeaponId.GreatBlade, WeaponId.GreatBlade)] = 2_200,
+            [(WeaponId.GreatBlade, WeaponId.HeavyChopper)] = 1_900,
+            [(WeaponId.GreatBlade, WeaponId.ThrustingBlade)] = 1_600,
+            [(WeaponId.GreatBlade, WeaponId.Bolo)] = 2_000,
+            [(WeaponId.HeavyChopper, WeaponId.GreatBlade)] = 1_500,
+            [(WeaponId.HeavyChopper, WeaponId.HeavyChopper)] = 1_300,
+            [(WeaponId.HeavyChopper, WeaponId.ThrustingBlade)] = 1_100,
+            [(WeaponId.HeavyChopper, WeaponId.Bolo)] = 1_400,
+            [(WeaponId.ThrustingBlade, WeaponId.GreatBlade)] = 500,
+            [(WeaponId.ThrustingBlade, WeaponId.HeavyChopper)] = 400,
+            [(WeaponId.ThrustingBlade, WeaponId.ThrustingBlade)] = 600,
+            [(WeaponId.ThrustingBlade, WeaponId.Bolo)] = 600,
+            [(WeaponId.Bolo, WeaponId.GreatBlade)] = 400,
+            [(WeaponId.Bolo, WeaponId.HeavyChopper)] = 300,
+            [(WeaponId.Bolo, WeaponId.ThrustingBlade)] = 500,
+            [(WeaponId.Bolo, WeaponId.Bolo)] = 500,
+        };
+
+        // PROVISIONAL. Basis points the defender steps off the line entirely,
+        // by defending weapon. Zero evidentiary confidence.
+        var voidChannel = new Dictionary<WeaponId, int>
+        {
+            [WeaponId.GreatBlade] = 1_000,
+            [WeaponId.HeavyChopper] = 900,
+            [WeaponId.ThrustingBlade] = 1_000,
+            [WeaponId.Bolo] = 1_100,
+        };
+
+        // PROVISIONAL. Share of the weapon channel that arrests rather than
+        // brushes, by incoming attacker weapon. Zero evidentiary confidence.
+        var hardShareBases = new Dictionary<WeaponId, int>
+        {
+            [WeaponId.GreatBlade] = 3_300,
+            [WeaponId.HeavyChopper] = 4_000,
+            [WeaponId.ThrustingBlade] = 1_200,
+            [WeaponId.Bolo] = 1_800,
+        };
+
+        // PROVISIONAL. Per-thousand scaling of that share by the defending
+        // instrument. Zero evidentiary confidence.
+        var hardShareMultipliers = new Dictionary<WeaponId, int>
+        {
+            [WeaponId.GreatBlade] = 1_150,
+            [WeaponId.HeavyChopper] = 1_050,
+            [WeaponId.ThrustingBlade] = 750,
+            [WeaponId.Bolo] = 700,
+        };
+
+        return new ClashProfile(
+            weaponIntercept,
+
+            // PROVISIONAL. Flat across every attacker: the research states
+            // plainly that the per-attacker spread it suggests has no source
+            // behind it.
+            shieldIntercept: 2_400,
+            voidChannel,
+            hardShareBases,
+            hardShareMultipliers,
+
+            // Both clamp bounds are guard-only and neither binds with these
+            // tables: the hard-share product spans 840 to 4,600. They exist so
+            // that a future tuning pass cannot produce a degenerate split.
+            minimumHardShareBasisPoints: 500,
+            maximumHardShareBasisPoints: 6_000,
+
+            // Likewise a guard. The largest total these tables produce is
+            // 4,000, so the rescale branch is unreachable in production.
+            maximumInterceptionBasisPoints: 5_500);
     }
 
     private static TargetWeightProfile BuildProfile(
