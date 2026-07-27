@@ -15,7 +15,7 @@
     the simulation, the build, and the canonical gate remain fully offline.
 
 .PARAMETER Slot
-    The sound slot to fill, for example 'death' or 'attack-great-blade'.
+    The sound slot to fill, for example 'death' or 'attack-kampilan'.
     Run with -List to see every slot and whether it already has a file.
 
 .PARAMETER Prompt
@@ -80,7 +80,7 @@
     ./scripts/sfx.ps1 -Slot death
 
 .EXAMPLE
-    ./scripts/sfx.ps1 -Slot attack-great-blade -Prompt 'single heavy steel blade cleaving flesh, wet impact, no music' -Duration 0.4 -Force
+    ./scripts/sfx.ps1 -Slot attack-kampilan -Prompt 'single heavy steel blade cleaving flesh, wet impact, no music' -Duration 0.4 -Force
 #>
 [CmdletBinding(DefaultParameterSetName = 'Generate')]
 param(
@@ -176,22 +176,22 @@ $trimLeadSeconds = 0.005
 # game. Each of these is the weapon's most common hit, and each doubles as the
 # single-file fallback for its slot.
 $defaultPrompts = @{
-    'attack-great-blade'     = @{
+    'attack-kampilan' = @{
         Prompt   = 'one heavy two-handed blade cutting deep through a neck, thick wet sever with a brief metallic shiver in the steel, no music, no voice'
         Duration = 0.5
         Trim     = $true
     }
-    'attack-war-axe'         = @{
+    'attack-wasay'    = @{
         Prompt   = 'one heavy hafted axe cleaving a shoulder, wet meat with a hard joint break, no ring, no music, no voice'
         Duration = 0.5
         Trim     = $true
     }
-    'attack-thrusting-blade' = @{
+    'attack-kalis'    = @{
         Prompt   = 'one narrow blade sinking into a belly, soft deep wet entry with no bone, no music, no voice'
         Duration = 0.5
         Trim     = $true
     }
-    'attack-work-blade'      = @{
+    'attack-itak'     = @{
         Prompt   = 'one short light blade slashing a forearm, fast light cut with a thin bone tick, no music, no voice'
         Duration = 0.5
         Trim     = $true

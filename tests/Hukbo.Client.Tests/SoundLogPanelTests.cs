@@ -275,8 +275,8 @@ public sealed class SoundLogPanelTests
         var bindings = new[]
         {
             new SoundBinding(
-                GameSoundId.AttackGreatBlade,
-                "attack-great-blade.wav",
+                GameSoundId.AttackKampilan,
+                "attack-kampilan.wav",
                 classCounts,
                 VariantCount: 2,
                 SoundBindingStatus.Ready),
@@ -285,7 +285,7 @@ public sealed class SoundLogPanelTests
         var rows = SoundLogPanel.BuildBindingRows(bindings);
 
         Assert.Equal(3, rows.Count);
-        Assert.Equal("attack-great-blade.wav", rows[0].Label);
+        Assert.Equal("attack-kampilan.wav", rows[0].Label);
         Assert.Equal("READY (2)", rows[0].StatusText);
         Assert.Contains("skull", rows[1].Label);
         Assert.Equal("READY (2)", rows[1].StatusText);

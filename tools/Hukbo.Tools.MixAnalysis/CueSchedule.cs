@@ -28,10 +28,10 @@ internal static class CueSchedule
 
     private static readonly string[] SlotBaseNames =
     [
-        "attack-great-blade",
-        "attack-heavy-chopper",
-        "attack-thrusting-blade",
-        "attack-work-blade",
+        "attack-kampilan",
+        "attack-wasay",
+        "attack-kalis",
+        "attack-itak",
         "death",
         "victory-blue",
         "victory-red",
@@ -113,10 +113,10 @@ internal static class CueSchedule
             },
             BattleEventKind.Attack => battleEvent.Weapon switch
             {
-                WeaponId.GreatBlade => 0,
-                WeaponId.HeavyChopper => 1,
-                WeaponId.ThrustingBlade => 2,
-                WeaponId.Bolo => 3,
+                WeaponId.Kampilan => 0,
+                WeaponId.Wasay => 1,
+                WeaponId.Kalis => 2,
+                WeaponId.Itak => 3,
                 _ => -1,
             },
             _ => -1,

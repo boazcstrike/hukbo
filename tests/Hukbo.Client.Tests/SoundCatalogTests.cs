@@ -108,10 +108,10 @@ public sealed class SoundCatalogTests
     // The sound parameter is an int because xunit requires public test
     // methods and GameSoundId is internal to Hukbo.Client.
     [Theory]
-    [InlineData((int)GameSoundId.AttackGreatBlade, true)]
-    [InlineData((int)GameSoundId.AttackWarAxe, true)]
-    [InlineData((int)GameSoundId.AttackThrustingBlade, true)]
-    [InlineData((int)GameSoundId.AttackWorkBlade, true)]
+    [InlineData((int)GameSoundId.AttackKampilan, true)]
+    [InlineData((int)GameSoundId.AttackWasay, true)]
+    [InlineData((int)GameSoundId.AttackKalis, true)]
+    [InlineData((int)GameSoundId.AttackItak, true)]
     [InlineData((int)GameSoundId.Death, false)]
     [InlineData((int)GameSoundId.VictoryBlue, false)]
     [InlineData((int)GameSoundId.VictoryRed, false)]
@@ -125,9 +125,9 @@ public sealed class SoundCatalogTests
     [Fact]
     public void GetVariantFileName_BuildsTheSlotClassIndexPattern() =>
         Assert.Equal(
-            "attack-great-blade-skull-01.wav",
+            "attack-kampilan-skull-01.wav",
             SoundCatalog.GetVariantFileName(
-                GameSoundId.AttackGreatBlade,
+                GameSoundId.AttackKampilan,
                 HitClass.Skull,
                 variantIndex: 1));
 

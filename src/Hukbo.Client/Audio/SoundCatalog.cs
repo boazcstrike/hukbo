@@ -20,7 +20,7 @@ internal static class SoundCatalog
 
     /// <summary>
     /// The zero-padded width of a variant index in a file name, e.g. the
-    /// <c>01</c> in <c>attack-great-blade-skull-01.wav</c>. Matches the
+    /// <c>01</c> in <c>attack-kampilan-skull-01.wav</c>. Matches the
     /// <c>{0:D2}</c> format <c>scripts/sfx.ps1</c> writes.
     /// </summary>
     public const int VariantIndexDigits = 2;
@@ -31,10 +31,10 @@ internal static class SoundCatalog
     /// </summary>
     public static IReadOnlyList<GameSoundId> AllSounds { get; } =
     [
-        GameSoundId.AttackGreatBlade,
-        GameSoundId.AttackWarAxe,
-        GameSoundId.AttackThrustingBlade,
-        GameSoundId.AttackWorkBlade,
+        GameSoundId.AttackKampilan,
+        GameSoundId.AttackWasay,
+        GameSoundId.AttackKalis,
+        GameSoundId.AttackItak,
         GameSoundId.Death,
         GameSoundId.VictoryBlue,
         GameSoundId.VictoryRed,
@@ -43,18 +43,20 @@ internal static class SoundCatalog
     ];
 
     /// <summary>
-    /// The file name, without extension, that backs a slot. Weapon slots use
-    /// the player-facing descriptors required by the historical accuracy
-    /// policy, so <see cref="Hukbo.Core.Combat.WeaponId.Itak"/> appears here as
-    /// <c>attack-work-blade</c>.
+    /// The file name, without extension, that backs a slot. Weapon slots are
+    /// named for the weapon identity rather than its English descriptor, so
+    /// <see cref="Hukbo.Core.Combat.WeaponId.Itak"/> appears here as
+    /// <c>attack-itak</c>. These names are internal file-system keys and are
+    /// never shown to a spectator; the player-facing label stays the pair form
+    /// the historical accuracy policy requires, and it is built elsewhere.
     /// </summary>
     public static string GetBaseName(GameSoundId sound) =>
         sound switch
         {
-            GameSoundId.AttackGreatBlade => "attack-great-blade",
-            GameSoundId.AttackWarAxe => "attack-war-axe",
-            GameSoundId.AttackThrustingBlade => "attack-thrusting-blade",
-            GameSoundId.AttackWorkBlade => "attack-work-blade",
+            GameSoundId.AttackKampilan => "attack-kampilan",
+            GameSoundId.AttackWasay => "attack-wasay",
+            GameSoundId.AttackKalis => "attack-kalis",
+            GameSoundId.AttackItak => "attack-itak",
             GameSoundId.Death => "death",
             GameSoundId.VictoryBlue => "victory-blue",
             GameSoundId.VictoryRed => "victory-red",
@@ -78,14 +80,14 @@ internal static class SoundCatalog
     /// variant, if it has one, is chosen from a single slot-level list.
     /// </summary>
     public static bool IsHitLocationDriven(GameSoundId sound) =>
-        sound is GameSoundId.AttackGreatBlade or
-            GameSoundId.AttackWarAxe or
-            GameSoundId.AttackThrustingBlade or
-            GameSoundId.AttackWorkBlade;
+        sound is GameSoundId.AttackKampilan or
+            GameSoundId.AttackWasay or
+            GameSoundId.AttackKalis or
+            GameSoundId.AttackItak;
 
     /// <summary>
     /// The file-name prefix shared by every numbered take of one hit class,
-    /// e.g. <c>attack-great-blade-skull-</c>. Only valid for a slot where
+    /// e.g. <c>attack-kampilan-skull-</c>. Only valid for a slot where
     /// <see cref="IsHitLocationDriven"/> is <c>true</c>. Used both to build a
     /// full variant file name and, by <see cref="SoundLibrary"/>, to match one
     /// against the owner's folder.
@@ -111,7 +113,7 @@ internal static class SoundCatalog
 
     /// <summary>
     /// The file name of one hit-class variant, e.g.
-    /// <c>attack-great-blade-skull-01.wav</c>. Only valid for a slot where
+    /// <c>attack-kampilan-skull-01.wav</c>. Only valid for a slot where
     /// <see cref="IsHitLocationDriven"/> is <c>true</c>.
     /// </summary>
     public static string GetVariantFileName(

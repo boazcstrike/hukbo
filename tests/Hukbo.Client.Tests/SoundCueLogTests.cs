@@ -18,12 +18,12 @@ public sealed class SoundCueLogTests
 
         for (var index = 0; index < 40; index++)
         {
-            log.Append(7, GameSoundId.AttackGreatBlade, SoundCueStatus.Suppressed);
+            log.Append(7, GameSoundId.AttackKampilan, SoundCueStatus.Suppressed);
         }
 
         var row = Assert.Single(log.Entries);
         Assert.Equal(7, row.Tick);
-        Assert.Equal(GameSoundId.AttackGreatBlade, row.Sound);
+        Assert.Equal(GameSoundId.AttackKampilan, row.Sound);
         Assert.Equal(SoundCueStatus.Suppressed, row.Status);
         Assert.Equal(40, row.Count);
     }

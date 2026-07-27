@@ -15,11 +15,11 @@ public sealed class SoundCueFormatterTests
     public void Format_AppendsARepeatCountOnlyWhenItIsGreaterThanOne()
     {
         Assert.Equal(
-            "T00007  attack-work-blade  LIMITED x12",
+            "T00007  attack-itak  LIMITED x12",
             SoundCueFormatter.Format(
                 new SoundCue(
                     7,
-                    GameSoundId.AttackWorkBlade,
+                    GameSoundId.AttackItak,
                     SoundCueStatus.Suppressed,
                     12)));
         Assert.DoesNotContain(

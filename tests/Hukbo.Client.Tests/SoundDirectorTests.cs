@@ -16,12 +16,12 @@ public sealed class SoundDirectorTests
         director.Ingest([Attack(1, WeaponId.Kampilan)]);
 
         Assert.Equal(
-            GameSoundId.AttackGreatBlade,
+            GameSoundId.AttackKampilan,
             Assert.Single(player.Played).Sound);
         Assert.Equal(SoundDirector.CueVolume, player.Played[0].Volume);
         var cue = Assert.Single(director.Log.Entries);
         Assert.Equal(SoundCueStatus.Played, cue.Status);
-        Assert.Equal(GameSoundId.AttackGreatBlade, cue.Sound);
+        Assert.Equal(GameSoundId.AttackKampilan, cue.Sound);
     }
 
     [Fact]

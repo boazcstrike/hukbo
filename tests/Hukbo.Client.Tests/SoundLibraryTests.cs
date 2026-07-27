@@ -117,21 +117,21 @@ public sealed class SoundLibraryTests
         var bindings = SoundLibrary.Resolve(
             AudioDirectory,
             [
-                "attack-great-blade-skull-01.wav",
-                "attack-great-blade-skull-02.wav",
-                "attack-great-blade-neck-01.wav",
+                "attack-kampilan-skull-01.wav",
+                "attack-kampilan-skull-02.wav",
+                "attack-kampilan-neck-01.wav",
             ]);
 
-        var greatBlade = Single(bindings, GameSoundId.AttackGreatBlade);
-        Assert.Equal(6, greatBlade.ClassCounts.Count);
-        Assert.Equal(3, greatBlade.VariantCount);
-        Assert.Equal(SoundBindingStatus.Ready, greatBlade.Status);
+        var kampilan = Single(bindings, GameSoundId.AttackKampilan);
+        Assert.Equal(6, kampilan.ClassCounts.Count);
+        Assert.Equal(3, kampilan.VariantCount);
+        Assert.Equal(SoundBindingStatus.Ready, kampilan.Status);
 
-        var skull = ClassCount(greatBlade, HitClass.Skull);
+        var skull = ClassCount(kampilan, HitClass.Skull);
         Assert.Equal(2, skull.Count);
         Assert.Equal(SoundBindingStatus.Ready, skull.Status);
 
-        var limb = ClassCount(greatBlade, HitClass.Limb);
+        var limb = ClassCount(kampilan, HitClass.Limb);
         Assert.Equal(0, limb.Count);
         Assert.Equal(SoundBindingStatus.Missing, limb.Status);
     }
@@ -144,11 +144,11 @@ public sealed class SoundLibraryTests
         // ResolveVariants guarantees every class can play something.
         var bindings = SoundLibrary.Resolve(
             AudioDirectory,
-            ["attack-work-blade-ribcage-01.wav"]);
+            ["attack-itak-ribcage-01.wav"]);
 
-        var workBlade = Single(bindings, GameSoundId.AttackWorkBlade);
-        Assert.Equal(SoundBindingStatus.Ready, workBlade.Status);
-        Assert.Equal(1, workBlade.VariantCount);
+        var itak = Single(bindings, GameSoundId.AttackItak);
+        Assert.Equal(SoundBindingStatus.Ready, itak.Status);
+        Assert.Equal(1, itak.VariantCount);
     }
 
     [Fact]
@@ -156,13 +156,13 @@ public sealed class SoundLibraryTests
     {
         var variants = SoundLibrary.ResolveVariants(AudioDirectory, []);
 
-        var greatBladeEntries = variants
-            .Where(v => v.Sound == GameSoundId.AttackGreatBlade)
+        var kampilanEntries = variants
+            .Where(v => v.Sound == GameSoundId.AttackKampilan)
             .ToList();
-        Assert.Equal(HitClassCatalog.All.Count, greatBladeEntries.Count);
+        Assert.Equal(HitClassCatalog.All.Count, kampilanEntries.Count);
         foreach (var hitClass in HitClassCatalog.All)
         {
-            Assert.Contains(greatBladeEntries, v => v.HitClass == hitClass);
+            Assert.Contains(kampilanEntries, v => v.HitClass == hitClass);
         }
     }
 
@@ -182,17 +182,17 @@ public sealed class SoundLibraryTests
         var variants = SoundLibrary.ResolveVariants(
             AudioDirectory,
             [
-                "attack-great-blade-skull-03.wav",
-                "attack-great-blade-skull-01.wav",
-                "attack-great-blade-skull-02.wav",
+                "attack-kampilan-skull-03.wav",
+                "attack-kampilan-skull-01.wav",
+                "attack-kampilan-skull-02.wav",
             ]);
 
-        var skull = Single(variants, GameSoundId.AttackGreatBlade, HitClass.Skull);
+        var skull = Single(variants, GameSoundId.AttackKampilan, HitClass.Skull);
         Assert.Equal(
             [
-                "attack-great-blade-skull-01.wav",
-                "attack-great-blade-skull-02.wav",
-                "attack-great-blade-skull-03.wav",
+                "attack-kampilan-skull-01.wav",
+                "attack-kampilan-skull-02.wav",
+                "attack-kampilan-skull-03.wav",
             ],
             skull.FileNames);
     }
@@ -203,13 +203,13 @@ public sealed class SoundLibraryTests
         var variants = SoundLibrary.ResolveVariants(
             AudioDirectory,
             [
-                "attack-great-blade-skull-1.wav",
-                "attack-great-blade-skull-001.wav",
-                "attack-great-blade-skull-01.wav",
+                "attack-kampilan-skull-1.wav",
+                "attack-kampilan-skull-001.wav",
+                "attack-kampilan-skull-01.wav",
             ]);
 
-        var skull = Single(variants, GameSoundId.AttackGreatBlade, HitClass.Skull);
-        Assert.Equal(["attack-great-blade-skull-01.wav"], skull.FileNames);
+        var skull = Single(variants, GameSoundId.AttackKampilan, HitClass.Skull);
+        Assert.Equal(["attack-kampilan-skull-01.wav"], skull.FileNames);
     }
 
     [Fact]
@@ -217,28 +217,28 @@ public sealed class SoundLibraryTests
     {
         var withLimb = SoundLibrary.ResolveVariants(
             AudioDirectory,
-            ["attack-war-axe-limb-01.wav"]);
+            ["attack-wasay-limb-01.wav"]);
         var withRibcageOnly = SoundLibrary.ResolveVariants(
             AudioDirectory,
-            ["attack-war-axe-ribcage-01.wav"]);
+            ["attack-wasay-ribcage-01.wav"]);
 
         var extremityViaLimb = Single(
             withLimb,
-            GameSoundId.AttackWarAxe,
+            GameSoundId.AttackWasay,
             HitClass.Extremity);
         Assert.Equal(
             SoundBindingStatus.Ready,
             extremityViaLimb.Status);
         Assert.Equal(
-            ["attack-war-axe-limb-01.wav"],
+            ["attack-wasay-limb-01.wav"],
             extremityViaLimb.FileNames);
 
         var extremityViaRibcage = Single(
             withRibcageOnly,
-            GameSoundId.AttackWarAxe,
+            GameSoundId.AttackWasay,
             HitClass.Extremity);
         Assert.Equal(
-            ["attack-war-axe-ribcage-01.wav"],
+            ["attack-wasay-ribcage-01.wav"],
             extremityViaRibcage.FileNames);
     }
 
@@ -247,17 +247,17 @@ public sealed class SoundLibraryTests
     {
         var withNeck = SoundLibrary.ResolveVariants(
             AudioDirectory,
-            ["attack-work-blade-neck-01.wav"]);
+            ["attack-itak-neck-01.wav"]);
         var withRibcageOnly = SoundLibrary.ResolveVariants(
             AudioDirectory,
-            ["attack-work-blade-ribcage-01.wav"]);
+            ["attack-itak-ribcage-01.wav"]);
 
         Assert.Equal(
-            ["attack-work-blade-neck-01.wav"],
-            Single(withNeck, GameSoundId.AttackWorkBlade, HitClass.Skull).FileNames);
+            ["attack-itak-neck-01.wav"],
+            Single(withNeck, GameSoundId.AttackItak, HitClass.Skull).FileNames);
         Assert.Equal(
-            ["attack-work-blade-ribcage-01.wav"],
-            Single(withRibcageOnly, GameSoundId.AttackWorkBlade, HitClass.Skull).FileNames);
+            ["attack-itak-ribcage-01.wav"],
+            Single(withRibcageOnly, GameSoundId.AttackItak, HitClass.Skull).FileNames);
     }
 
     // The hit-class parameter is an int because xunit requires public test
@@ -270,15 +270,15 @@ public sealed class SoundLibraryTests
     {
         var variants = SoundLibrary.ResolveVariants(
             AudioDirectory,
-            ["attack-thrusting-blade-ribcage-01.wav"]);
+            ["attack-kalis-ribcage-01.wav"]);
 
         var resolved = Single(
             variants,
-            GameSoundId.AttackThrustingBlade,
+            GameSoundId.AttackKalis,
             (HitClass)hitClass);
         Assert.Equal(SoundBindingStatus.Ready, resolved.Status);
         Assert.Equal(
-            ["attack-thrusting-blade-ribcage-01.wav"],
+            ["attack-kalis-ribcage-01.wav"],
             resolved.FileNames);
     }
 
@@ -287,11 +287,11 @@ public sealed class SoundLibraryTests
     {
         var variants = SoundLibrary.ResolveVariants(
             AudioDirectory,
-            ["attack-great-blade.wav"]);
+            ["attack-kampilan.wav"]);
 
-        var ribcage = Single(variants, GameSoundId.AttackGreatBlade, HitClass.Ribcage);
+        var ribcage = Single(variants, GameSoundId.AttackKampilan, HitClass.Ribcage);
         Assert.Equal(SoundBindingStatus.Ready, ribcage.Status);
-        Assert.Equal(["attack-great-blade.wav"], ribcage.FileNames);
+        Assert.Equal(["attack-kampilan.wav"], ribcage.FileNames);
     }
 
     [Fact]
@@ -299,7 +299,7 @@ public sealed class SoundLibraryTests
     {
         var variants = SoundLibrary.ResolveVariants(AudioDirectory, []);
 
-        var ribcage = Single(variants, GameSoundId.AttackGreatBlade, HitClass.Ribcage);
+        var ribcage = Single(variants, GameSoundId.AttackKampilan, HitClass.Ribcage);
         Assert.Equal(SoundBindingStatus.Missing, ribcage.Status);
         Assert.Empty(ribcage.FileNames);
     }
@@ -312,12 +312,12 @@ public sealed class SoundLibraryTests
         var variants = SoundLibrary.ResolveVariants(
             AudioDirectory,
             [
-                "attack-great-blade-gut-01.wav",
-                "attack-great-blade-gut-02.wav",
-                "attack-great-blade-gut-03.wav",
+                "attack-kampilan-gut-01.wav",
+                "attack-kampilan-gut-02.wav",
+                "attack-kampilan-gut-03.wav",
             ]);
 
-        var gut = Single(variants, GameSoundId.AttackGreatBlade, HitClass.Gut);
+        var gut = Single(variants, GameSoundId.AttackKampilan, HitClass.Gut);
         Assert.Equal(3, gut.FileNames.Count);
         Assert.Equal(SoundBindingStatus.Ready, gut.Status);
     }

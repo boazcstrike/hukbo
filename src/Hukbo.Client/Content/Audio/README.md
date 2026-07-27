@@ -13,10 +13,10 @@ for, whether each one was found, and what happened to each cue.
 
 | File name | Plays when |
 | --- | --- |
-| `attack-great-blade.wav` | An agent attacks with a Kampilan — Great Blade |
-| `attack-war-axe.wav` | An agent attacks with a Wasay — War Axe |
-| `attack-thrusting-blade.wav` | An agent attacks with a Kalis — Thrusting Blade |
-| `attack-work-blade.wav` | An agent attacks with an Itak — Work Blade |
+| `attack-kampilan.wav` | An agent attacks with a Kampilan — Great Blade |
+| `attack-wasay.wav` | An agent attacks with a Wasay — War Axe |
+| `attack-kalis.wav` | An agent attacks with a Kalis — Thrusting Blade |
+| `attack-itak.wav` | An agent attacks with an Itak — Work Blade |
 | `death.wav` | An agent dies |
 | `victory-blue.wav` | The battle ends with Blue, faction 0, winning |
 | `victory-red.wav` | The battle ends with Red, faction 1, winning |

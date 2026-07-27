@@ -17,17 +17,17 @@ public sealed class PawnAppearanceFactoryTests
     [Fact]
     public void Create_SameEntityIdDifferentWeaponKeepsBodyButChangesRole()
     {
-        var greatBlade = PawnAppearanceFactory.Create(42, WeaponId.Kampilan, ShieldId.None);
-        var bolo = PawnAppearanceFactory.Create(42, WeaponId.Itak, ShieldId.None);
+        var kampilan = PawnAppearanceFactory.Create(42, WeaponId.Kampilan, ShieldId.None);
+        var itak = PawnAppearanceFactory.Create(42, WeaponId.Itak, ShieldId.None);
 
-        Assert.Equal(greatBlade.StatureMultiplier, bolo.StatureMultiplier);
-        Assert.Equal(greatBlade.BuildMultiplier, bolo.BuildMultiplier);
-        Assert.Equal(greatBlade.HeadTreatment, bolo.HeadTreatment);
-        Assert.Equal(greatBlade.ClothingColor, bolo.ClothingColor);
-        Assert.Equal(greatBlade.AccentColor, bolo.AccentColor);
-        Assert.Equal(greatBlade.SkinColor, bolo.SkinColor);
-        Assert.Equal(greatBlade.HeadTreatmentColor, bolo.HeadTreatmentColor);
-        Assert.NotEqual(greatBlade.WeaponRole, bolo.WeaponRole);
+        Assert.Equal(kampilan.StatureMultiplier, itak.StatureMultiplier);
+        Assert.Equal(kampilan.BuildMultiplier, itak.BuildMultiplier);
+        Assert.Equal(kampilan.HeadTreatment, itak.HeadTreatment);
+        Assert.Equal(kampilan.ClothingColor, itak.ClothingColor);
+        Assert.Equal(kampilan.AccentColor, itak.AccentColor);
+        Assert.Equal(kampilan.SkinColor, itak.SkinColor);
+        Assert.Equal(kampilan.HeadTreatmentColor, itak.HeadTreatmentColor);
+        Assert.NotEqual(kampilan.WeaponRole, itak.WeaponRole);
     }
 
     [Theory]

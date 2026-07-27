@@ -21,7 +21,7 @@ public sealed class SoundCueBudgetTests
         Assert.True(budget.TryConsume(GameSoundId.Death));
         Assert.True(budget.TryConsume(GameSoundId.Death));
         Assert.False(budget.TryConsume(GameSoundId.Death));
-        Assert.True(budget.TryConsume(GameSoundId.AttackGreatBlade));
+        Assert.True(budget.TryConsume(GameSoundId.AttackKampilan));
     }
 
     [Fact]
@@ -30,8 +30,8 @@ public sealed class SoundCueBudgetTests
         var budget = new SoundCueBudget(maximumPerSound: 5, maximumTotal: 2);
 
         Assert.True(budget.TryConsume(GameSoundId.Death));
-        Assert.True(budget.TryConsume(GameSoundId.AttackGreatBlade));
-        Assert.False(budget.TryConsume(GameSoundId.AttackWarAxe));
+        Assert.True(budget.TryConsume(GameSoundId.AttackKampilan));
+        Assert.False(budget.TryConsume(GameSoundId.AttackWasay));
     }
 
     [Fact]

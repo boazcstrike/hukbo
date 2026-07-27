@@ -12,13 +12,24 @@ instructions and the kept durations were measured from the WAV headers, so the
 rows are accurate — but they are a reconstruction, and the exact time of day and
 the number of attempts each take needed are lost.
 
-The ten `attack-heavy-chopper-*.wav` rows below name files that no longer exist
-under that name. Combat preset V2 renamed the weapon from Heavy Chopper to
-`Wasay — War Axe`, and the files were renamed to `attack-war-axe-*.wav` rather
-than regenerated: the prompts describe a heavy chopping impact, which suits an
-axe as well as it suited the previous weapon. The rows are left as written
-because this file records what was generated and under which prompt, not what
-the files are called today.
+**No weapon-attack row below names a file that still exists under that name.**
+Every one of the forty weapon takes was generated before the sound slots were
+renamed to carry the weapon identity, and none of them was regenerated. The
+rows are left exactly as written, because this file records what was generated
+and under which prompt — not what the files are called today. To find a row's
+file on disk, apply this mapping to its base name:
+
+| Generated as | On disk today | Weapon |
+| --- | --- | --- |
+| `attack-great-blade-*` | `attack-kampilan-*` | Kampilan — Great Blade |
+| `attack-heavy-chopper-*` | `attack-wasay-*` | Wasay — War Axe |
+| `attack-thrusting-blade-*` | `attack-kalis-*` | Kalis — Thrusting Blade |
+| `attack-work-blade-*` | `attack-itak-*` | Itak — Work Blade |
+
+The heavy chopper rows carry a second layer of history: combat preset V2 changed
+that weapon from a broad chopping blade to a hafted axe, and its takes were kept
+rather than re-rolled because the prompts describe a heavy chopping impact, which
+suits an axe as well as it suited the previous weapon.
 
 | Date | File | Model | Requested | Kept | Influence | Prompt |
 | --- | --- | --- | --- | --- | --- | --- |

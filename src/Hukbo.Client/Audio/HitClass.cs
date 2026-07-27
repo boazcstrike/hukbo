@@ -69,7 +69,7 @@ internal static class HitClassCatalog
 
     /// <summary>
     /// The lowercase token used inside a variant file name, e.g. the
-    /// <c>skull</c> in <c>attack-great-blade-skull-01.wav</c>. Matches the
+    /// <c>skull</c> in <c>attack-kampilan-skull-01.wav</c>. Matches the
     /// <c>-Class</c> parameter's validated set in <c>scripts/sfx.ps1</c>
     /// exactly.
     /// </summary>

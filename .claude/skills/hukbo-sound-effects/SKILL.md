@@ -42,7 +42,7 @@ exists. Start here whenever the question is "which sounds are missing".
 
 ```powershell
 ./scripts/sfx.ps1 -Slot death
-./scripts/sfx.ps1 -Slot attack-great-blade -Prompt 'single heavy steel blade cleaving flesh, wet impact, no music' -Duration 0.4
+./scripts/sfx.ps1 -Slot attack-kampilan -Prompt 'single heavy steel blade cleaving flesh, wet impact, no music' -Duration 0.4
 ./scripts/sfx.ps1 -Slot ui-click -Force        # replace an existing file
 ./scripts/sfx.ps1 -Slot draw -DryRun           # resolve everything, send nothing
 ```
