@@ -23,12 +23,13 @@ Four documents describe one dependent sequence of changes to
 misread, because each one describes a game that does not exist yet, and each
 depends on the one before it.
 
-**As of 2026-07-27, none of them are implemented. The game runs preset V1.**
+**As of 2026-07-28, stage 1 (V2, plus its clash-integration follow-on) is
+implemented and the game runs it. Stages 2 and 3 are design only.**
 
 | Order | Document | Status |
 | --- | --- | --- |
-| 1 | [`2026-07-27-weapon-identity-and-attributes-design.md`](2026-07-27-weapon-identity-and-attributes-design.md) — preset V2 | Design complete |
-| 1 | [`2026-07-27-weapon-identity-and-attributes.md`](2026-07-27-weapon-identity-and-attributes.md) — preset V2 task list | Plan complete, no code |
+| 1 | [`docs/archives/2026-07-28/2026-07-27-weapon-identity-and-attributes-design.md`](../archives/2026-07-28/2026-07-27-weapon-identity-and-attributes-design.md) — preset V2 | Archived: implemented and complete |
+| 1 | [`docs/archives/2026-07-28/2026-07-27-weapon-identity-and-attributes.md`](../archives/2026-07-28/2026-07-27-weapon-identity-and-attributes.md) — preset V2 task list | Archived: implemented and complete |
 | 2 | [`2026-07-27-combat-preset-v3-combos-design.md`](2026-07-27-combat-preset-v3-combos-design.md) — preset V3 | Design complete, no plan document |
 | 3 | [`SHIELDS.md`](SHIELDS.md) — shields as a stat-variant layer | Design complete, no plan document |
 
@@ -53,19 +54,30 @@ rewriting the same three files in `Hukbo.Core/Combat` three times.
 So that nobody reads the four documents above and reports the current build
 incorrectly:
 
-- The combat preset is `PrecolonialPhilippinesV1`, and it is the only registered
-  preset.
-- There are four weapons. Player-facing labels are the plain descriptors
-  `Great Blade`, `Heavy Chopper`, `Thrusting Blade`, and `Work Blade`. No
-  Filipino weapon name appears in any player-facing string.
-- Weapons differ **only** in which body part they tend to hit. Damage, reach,
-  and cooldown are global values on `Scenario` — 10 hit points, 12 world units,
-  5 ticks — shared by every warrior on the field.
-- There is no grip concept, no weapon profile, no attack combination, and no
-  fighter level.
-- Shields are `None` and `TallHardwood`. A shield's only effect is halving chest
-  and abdomen targeting weight.
-- The roster has four entries, and the army composition panel has four rows.
+- The combat preset is `PrecolonialPhilippinesV2`. `PrecolonialPhilippinesV1`
+  stays registered, frozen, and unmodified so its replays remain reproducible.
+- There are four weapons, each with a Filipino pair-form player-facing label
+  and a recorded evidence tier: `Kampilan — Great Blade`, `Wasay — War Axe`,
+  `Kalis — Thrusting Blade`, `Itak — Work Blade`.
+- Each weapon has its own damage, reach, and attack cooldown, split by grip.
+  `Kampilan` and `Wasay` are two-handed (one profile each, no shield
+  permitted); `Kalis` and `Itak` are one-handed (a solo profile and a
+  shield-paired profile each). An accepted attack additionally resolves
+  against a five-way `AttackResolution` — `Landed`, `ShieldBlocked`,
+  `Parried`, `Deflected`, `Evaded` — from the weapon-clash system merged on
+  top of V2, so a landed hit is no longer unconditional.
+- The roster has six entries — one per weapon-and-grip combination — and the
+  army composition panel has six rows.
+- Shields are still `None` and `TallHardwood`, and a shield's targeting
+  effect is still halving chest and abdomen targeting weight; per-shield
+  attribute modification (beyond the existing paired-profile values) has not
+  been built.
+- There is still no attack combination and no fighter level — those are
+  preset V3, design only, no plan document yet.
+- Per-weapon balance (mean time to kill, per-faction win rate) has been
+  measured but not tuned against; see "T32 — weapon balance measurement" in
+  `docs/development/testing.md`. The attribute values above are provisional
+  gameplay tuning, not settled.
 
 ## Where the live contract lives
 

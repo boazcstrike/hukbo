@@ -3,9 +3,9 @@
 Date: 2026-07-27
 
 Status: design only. This document does not authorize implementation. It depends
-on `docs/plans/2026-07-27-weapon-identity-and-attributes-design.md` (preset V2)
-being implemented first, because V3 is defined as V2 plus combinations minus
-shields.
+on `docs/archives/2026-07-28/2026-07-27-weapon-identity-and-attributes-design.md`
+(preset V2, archived: implemented and complete) being implemented first, because
+V3 is defined as V2 plus combinations minus shields.
 
 ## 1. What this adds
 

@@ -199,7 +199,7 @@ decisive tick at or below 5,000.
 ## T32 — weapon balance measurement (preset V2 + clash), 2026-07-28
 
 Closes T32/T27 of
-[docs/plans/2026-07-27-weapon-identity-and-attributes.md](../plans/2026-07-27-weapon-identity-and-attributes.md),
+[docs/archives/2026-07-28/2026-07-27-weapon-identity-and-attributes.md](../archives/2026-07-28/2026-07-27-weapon-identity-and-attributes.md),
 recorded as "not done, deliberately" in that plan's completion record. Measures
 mean ticks-to-kill per weapon loadout and per-faction win rate against the
 current tree — preset V2 plus the weapon-clash defensive-resolution system
@@ -287,7 +287,8 @@ re-run was required.
 
 Every weapon now carries its own damage, reach, and attack cooldown, split by
 grip, and a Filipino pair-form name with an evidence tier. See
-[docs/plans/2026-07-27-weapon-identity-and-attributes.md](../plans/2026-07-27-weapon-identity-and-attributes.md).
+[docs/archives/2026-07-28/2026-07-27-weapon-identity-and-attributes.md](../archives/2026-07-28/2026-07-27-weapon-identity-and-attributes.md)
+(archived: this plan is complete).
 
 **This is a hash-moving change.** `CombatPresetId.PrecolonialPhilippinesV2` is
 appended, V1 stays registered and unmodified, and `Scenario.CombatPreset`
