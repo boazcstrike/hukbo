@@ -10,6 +10,38 @@ internal enum PawnDetailTier
     High,
 }
 
+/// <summary>
+/// The arc a swinging weapon has just travelled, expressed as a pivot, a
+/// radius, and the two angles it spans, so that a renderer walks the arc
+/// without knowing how it was derived.
+/// </summary>
+/// <remarks>
+/// It is computed once from the pose, with no position history, and it lives
+/// on <see cref="PawnLayout"/> rather than in the renderer. The
+/// plains-backdrop finding recorded in <c>docs/development/testing.md</c> is
+/// what fixes this shape: a duplicated ground-cell formula left the shipped
+/// render loop uncovered while the tests constrained a method with no
+/// production caller.
+/// </remarks>
+/// <param name="Pivot">The grip the arc turns about.</param>
+/// <param name="Radius">Distance from the grip to the weapon tip.</param>
+/// <param name="StartAngleRadians">The trailing end of the arc.</param>
+/// <param name="EndAngleRadians">The current weapon tip.</param>
+/// <param name="Strength">
+/// Trail opacity, zero when no trail is drawn at all.
+/// </param>
+/// <param name="Thickness">Stroke thickness in pixels.</param>
+internal readonly record struct SwingTrail(
+    Vector2 Pivot,
+    float Radius,
+    float StartAngleRadians,
+    float EndAngleRadians,
+    float Strength,
+    float Thickness)
+{
+    public bool IsEmpty => Strength <= 0f || Radius <= 0f;
+}
+
 internal readonly record struct PawnLayout(
     Vector2 FootAnchor,
     float ApparentScale,
@@ -24,7 +56,8 @@ internal readonly record struct PawnLayout(
     Rectangle WeaponBounds,
     Rectangle SecondaryEquipmentBounds,
     Rectangle SelectionBounds,
-    Rectangle VisualBounds);
+    Rectangle VisualBounds,
+    SwingTrail SwingTrail);
 
 internal static class PawnGeometry
 {
@@ -39,6 +72,14 @@ internal static class PawnGeometry
     /// extension ratio of one, which is where a blow makes contact.
     /// </summary>
     private const float ExtensionReach = 0.35f;
+
+    /// <summary>
+    /// PROVISIONAL. Angular span of the arc trail at full trail strength.
+    /// </summary>
+    private const float TrailSweepRadians = 0.85f;
+
+    /// <summary>PROVISIONAL. Trail stroke thickness in pawn units.</summary>
+    private const float TrailThickness = 1.2f;
 
     /// <param name="swingPose">
     /// The pose one in-flight swing puts this pawn in, or <c>null</c> for a
@@ -152,7 +193,47 @@ internal static class PawnGeometry
             weapon.Bounds,
             weapon.SecondaryBounds,
             selectionBounds,
-            visualBounds);
+            visualBounds,
+            CreateSwingTrail(weapon, apparentScale, detailTier, pose));
+    }
+
+    /// <summary>
+    /// The arc the weapon tip has just swept, derived from the pose alone. It
+    /// is omitted entirely at the low detail tier, where a pawn is a handful
+    /// of pixels tall and the arc would be noise.
+    /// </summary>
+    private static SwingTrail CreateSwingTrail(
+        WeaponLayout weapon,
+        float scale,
+        PawnDetailTier detailTier,
+        SwingPose pose)
+    {
+        if (detailTier == PawnDetailTier.Low || pose.TrailStrength <= 0f)
+        {
+            return default;
+        }
+
+        var reach = weapon.End - weapon.Start;
+        var radius = reach.Length();
+        if (radius <= 0f)
+        {
+            return default;
+        }
+
+        // The arc trails behind the direction of travel, and the sign of the
+        // weapon rotation is what says which way that is. There is no position
+        // history to consult and none is kept.
+        var facing = pose.WeaponAngleRadians >= 0f ? 1f : -1f;
+        var endAngle = MathF.Atan2(reach.Y, reach.X);
+        var sweep = TrailSweepRadians * pose.TrailStrength * facing;
+
+        return new SwingTrail(
+            weapon.Start,
+            radius,
+            endAngle - sweep,
+            endAngle,
+            pose.TrailStrength,
+            MathF.Max(1f, TrailThickness * scale));
     }
 
     private static WeaponLayout CreateWeaponLayout(

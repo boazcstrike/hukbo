@@ -22,6 +22,13 @@ internal static class PawnRenderer
     private static readonly Color HoverColor = new(231, 199, 84);
     private static readonly Color DeadColor = new(91, 98, 105);
     private static readonly Color HitPulseColor = new(255, 244, 214);
+    private static readonly Color SwingTrailColor = new(206, 214, 220);
+
+    /// <summary>
+    /// Segments used to walk one arc trail. The arc itself comes from the
+    /// layout; this is only how finely it is stroked.
+    /// </summary>
+    private const int SwingTrailSegments = 6;
 
     public static Rectangle GetBounds(
         Vector2 footAnchor,
@@ -104,6 +111,7 @@ internal static class PawnRenderer
                 headTreatmentColor);
         }
 
+        DrawSwingTrail(spriteBatch, pixel, layout.SwingTrail);
         DrawWeapon(
             spriteBatch,
             pixel,
@@ -274,6 +282,46 @@ internal static class PawnRenderer
             layout.FootAnchor + new Vector2(-6f * scale, -11f * scale),
             ApplyState(CharredWood, isDead),
             MathF.Max(2f, 2f * scale));
+    }
+
+    /// <summary>
+    /// Strokes the arc the layout already computed. There is no trail formula
+    /// here: the pivot, radius, and both angles arrive from
+    /// <see cref="PawnGeometry"/>, and this method only walks between them.
+    /// </summary>
+    private static void DrawSwingTrail(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        SwingTrail trail)
+    {
+        if (trail.IsEmpty)
+        {
+            return;
+        }
+
+        var previous = PointOnArc(trail, 0f);
+        for (var segment = 1; segment <= SwingTrailSegments; segment++)
+        {
+            var along = segment / (float)SwingTrailSegments;
+            var current = PointOnArc(trail, along);
+            DrawLine(
+                spriteBatch,
+                pixel,
+                previous,
+                current,
+                SwingTrailColor * (trail.Strength * along * 0.55f),
+                trail.Thickness);
+            previous = current;
+        }
+    }
+
+    private static Vector2 PointOnArc(SwingTrail trail, float along)
+    {
+        var angle = trail.StartAngleRadians +
+            ((trail.EndAngleRadians - trail.StartAngleRadians) * along);
+        return trail.Pivot + new Vector2(
+            MathF.Cos(angle) * trail.Radius,
+            MathF.Sin(angle) * trail.Radius);
     }
 
     private static void DrawWeapon(
