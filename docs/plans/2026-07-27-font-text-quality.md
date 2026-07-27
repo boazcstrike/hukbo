@@ -40,7 +40,7 @@ corresponding row in `docs/development/testing.md` to `PASS`.
 | T23 | Retune vertical layout | `Content/Themes/ui-theme-standards.json`, `Theming/UiThemeCatalogFallback.cs`, `tests/Hukbo.Client.Tests/UiThemeCatalogTests.cs` if pinned values move | Adjust menu title, subtitle, and selector offsets, the menu panel height, the selector label, name, marker offsets and height, and the army composition row height. Mirror every change in the code fallback. | JSON and fallback agree, asserted by a test. The wordmark does not overlap the subtitle. | T20 | GATE for parity, MANUAL for the visual |
 | T24 | Prove the em-dash defect is fixed | `docs/development/testing.md` | Add a smoke row for staging an army composition change. Additionally assert at the byte level that a compiled character map contains `U+2014`. | Row added as `PENDING`; byte assertion passes. | T06, T14 | GATE for the byte check, MANUAL for the row |
 | T25 | Licensing and provenance | `docs/dependency-risk-register.md`, `docs/agents/11-content-asset-pipeline.md`, `src/Hukbo.Client/Hukbo.Client.csproj` | Rewrite the register row: the control becomes the two vendored OFL faces with provenance recorded in the content README, and the remaining action becomes none. Rewrite the agent document's verification, limitations, and next-action sections. Add a copy item so the license texts reach the package output. | Neither document mentions Arial or an unresolved font license. Both license texts appear in the packaged output. | T03, T21 | GATE plus a package check |
-| T26 | Reconcile the five-themes plan | `docs/plans/2026-07-26-five-ui-themes-design.md` | Append a dated amendment note rather than editing the historical rationale. | Amendment present and dated. | T21 | review |
+| T26 | Reconcile the five-themes plan — **complete, no further action** | `docs/archives/2026-07-26-five-ui-themes-design.md`, reference-only; not to be edited again | Already done, before that document was archived: a dated amendment note was appended to it instead of editing the historical rationale. The document has since moved to `docs/archives/`, where it is deprecated and unmaintained, so no future implementer may edit it to satisfy this row. | Satisfied. The "Amendment — 2026-07-27, font and text quality change" section is present and dated in the archived document, and it records that typography remains shared across all five themes while the identity and count of the shared asset changed. Reopening this task is not possible without editing an archived file, which `docs/archives/README.md` and `CLAUDE.md` section 6 forbid. | T21 | review — verified by inspection of the archived document |
 | T27 | Smoke checklist rows | `docs/development/testing.md` | Add a typography smoke subsection with the fourteen rows listed below, all `PENDING`. | Rows present, none flipped to `PASS` by this workstream. | T21 | MANUAL |
 | T28 | Run the canonical gate and record | `docs/development/testing.md` | `./scripts/verify.ps1`. Record the exact five-stage output, the test counts, and the seed-1 hashes verbatim. | Both recorded hashes unchanged. Output pasted, not paraphrased. | T21–T27 | GATE |
 | T29 | Display scaling — measure only | none; the diagnostic is reverted | Draw viewport width against client bounds width, launch at 100% and at 150% Windows scaling, record both integers each time, revert. | Four integers recorded. | T28 | MANUAL |
@@ -140,7 +140,7 @@ flip one of these. Compilation, unit tests, and a window-opening probe do not.
 | R11 | A magic offset in the event log chip is tuned to Arial metrics | verified present | Included in T17's retune. |
 | R12 | Open Font License compliance | assumed satisfied | The license permits bundling and embedding; baking to a texture atlas is a permitted derivative. The reserved font name clause binds only modified-and-renamed derivatives, which these are not. T03 vendors both license texts and T25 ships them. |
 | R13 | A future non-ASCII string reintroduces R1 | mitigated, not eliminated | An explicit default character converts a future crash into a visible question mark. A wrong glyph is a bug report; a thrown exception is a dead game. |
-| R14 | Conflict with the active five-themes plan | verified, narrow | Typography stays shared across themes; only the asset count and identity change. Resolved by a dated amendment in T26. |
+| R14 | Conflict with the shared-typography constraint recorded in the now-archived five-themes plan | verified, narrow | Typography stays shared across themes; only the asset count and identity change. Resolved by the dated amendment T26 appended to that design document before it was archived. The document is now reference-only and is not edited again. |
 
 ## Measured line spacing — use these, do not estimate
 
@@ -260,5 +260,8 @@ correctness rule that no test will catch for you.
   coverage and is 381 kilobytes as a result. Only ASCII is baked, so this costs
   repository weight rather than runtime cost, and subsetting would add a
   tooling dependency.
-- Per-theme typography. Explicitly out of scope, and still constrained by the
-  active five-themes plan.
+- Per-theme typography. Explicitly out of scope. The constraint that typography
+  is shared across all five themes rather than chosen per theme still holds in
+  the user interface layer; it was first recorded by the five-themes design
+  document, which is now archived and reference-only, and it is restated in the
+  dated amendment appended to that document.

@@ -165,7 +165,8 @@ The summary contains:
 - terminal tick;
 - simulated duration calculated as `Tick / TickRate`;
 - seed;
-- **Replay Same Seed** button;
+- **Replay Same Seed** button (shipped as **Next Round** — see the superseding
+  note below);
 - **Menu** button.
 
 Replay Same Seed creates a fresh `BattleSimulation` from the existing scenario,
@@ -173,6 +174,21 @@ clears presentation history and selection, resets the camera only if current
 reset behavior already does so, and begins in a paused state. The user chooses
 Play when ready. Replaying the same seed must preserve the existing deterministic
 outcome, event hash, and state hash.
+
+**Superseded during implementation.** No control named "Replay Same Seed" was
+ever shipped, and none exists in the source today. The single button described
+above became two commands in
+`src/Hukbo.Client/Presentation/ClientCommand.cs`: `NextRound`, which advances
+the match series to a new seed
+(`MatchSeries.StartNextRound`, `src/Hukbo.Client/Presentation/MatchSeries.cs:22`),
+and `FullReset`, which restores the initial seed and clears the round score
+(`MatchSeries.FullReset`, the same file, line 37). The match summary panel shows
+a single button labelled **Next Round**
+(`src/Hukbo.Client/UI/MatchSummaryPanel.cs:38`), and the menu overlay offers
+both **Next Round** and **Full Reset**. The same-seed guarantee stated in the
+paragraph above belongs to the `FullReset` path, because `NextRound`
+deliberately changes the seed. Every later mention of "Replay Same Seed" in this
+document is the design-time name and should be read against that mapping.
 
 ## Architecture
 
@@ -324,7 +340,8 @@ Record a manual pass that proves:
 8. selecting an agent does not change simulation behavior;
 9. the event log updates and scrolls without zooming the arena;
 10. terminal summary values match the final status;
-11. Replay Same Seed clears UI state and reproduces the same terminal result;
+11. the shipped round-reset controls clear UI state, and Full Reset reproduces
+    the same terminal result at the initial seed;
 12. closing the window exits with code 0.
 
 Manual interaction is not replaced by synthetic keyboard injection because SDL
@@ -341,7 +358,7 @@ This phase is complete only when:
 - Play, Pause, and Menu are always visible and share the existing semantics;
 - Exit Game remains available in the modal and exits cleanly;
 - terminal summary winner, survivors, duration, tick, and seed are correct;
-- Replay Same Seed starts paused with cleared presentation state;
+- the shipped round-reset controls start paused with cleared presentation state;
 - same-seed Core hashes and outcome are unchanged;
 - focused client tests and the canonical local verification gate pass;
 - the Windows package succeeds;

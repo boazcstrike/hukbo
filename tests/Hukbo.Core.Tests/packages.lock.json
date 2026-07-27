@@ -90,10 +90,14 @@
       "hukbo.core": {
         "type": "Project"
       },
+      "hukbo.diagnostics": {
+        "type": "Project"
+      },
       "hukbo.headless": {
         "type": "Project",
         "dependencies": {
-          "Hukbo.Core": "[1.0.0, )"
+          "Hukbo.Core": "[1.0.0, )",
+          "Hukbo.Diagnostics": "[1.0.0, )"
         }
       }
     }

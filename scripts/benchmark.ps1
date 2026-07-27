@@ -10,6 +10,15 @@ param(
 
     [string] $Output,
 
+    # Off by default so the canonical gate measures the simulation and not the
+    # simulation plus a writer. Raise it only for a deliberate diagnostic run.
+    [ValidateSet('off', 'err', 'warn', 'inf', 'dbg', 'trc')]
+    [string] $LogLevel = 'off',
+
+    [string] $LogChannels,
+
+    [string] $LogDirectory,
+
     [switch] $NoBuild
 )
 
@@ -35,8 +44,17 @@ try {
         '--',
         '--agents', [string]$Agents,
         '--ticks', [string]$Ticks,
-        '--seed', [string]$Seed
+        '--seed', [string]$Seed,
+        '--log-level', $LogLevel
     )
+
+    if (-not [string]::IsNullOrWhiteSpace($LogChannels)) {
+        $runnerArguments += @('--log-channels', $LogChannels)
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($LogDirectory)) {
+        $runnerArguments += @('--log-dir', $LogDirectory)
+    }
 
     if (-not [string]::IsNullOrWhiteSpace($Output)) {
         $resolvedOutput = if ([System.IO.Path]::IsPathRooted($Output)) {

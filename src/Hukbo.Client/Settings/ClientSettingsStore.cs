@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Hukbo.Diagnostics;
 
 namespace Hukbo.Client.Settings;
 
@@ -15,21 +16,24 @@ internal sealed class ClientSettingsStore
     };
 
     private readonly string _settingsPath;
+    private readonly DiagnosticLog _log;
 
-    public ClientSettingsStore(string settingsPath)
+    public ClientSettingsStore(string settingsPath, DiagnosticLog? log = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(settingsPath);
         _settingsPath = Path.GetFullPath(settingsPath);
+        _log = log ?? DiagnosticLog.Disabled;
     }
 
-    public static ClientSettingsStore CreateDefault()
+    public static ClientSettingsStore CreateDefault(DiagnosticLog? log = null)
     {
         var directory = Path.Combine(
             Environment.GetFolderPath(
                 Environment.SpecialFolder.LocalApplicationData),
             "Hukbo");
         return new ClientSettingsStore(
-            Path.Combine(directory, "settings.json"));
+            Path.Combine(directory, "settings.json"),
+            log);
     }
 
     public ClientSettings Load(string defaultThemeId)
@@ -38,6 +42,7 @@ internal sealed class ClientSettingsStore
         {
             if (!File.Exists(_settingsPath))
             {
+                LogDefaulted(defaultThemeId, "missing");
                 return Default(defaultThemeId);
             }
 
@@ -58,20 +63,65 @@ internal sealed class ClientSettingsStore
                 } ||
                 !raw.Composition.IsValid())
             {
+                // A rejected file is replaced by defaults in memory, which
+                // looks exactly like a first run from the outside. Saying which
+                // field failed is the difference between a two-minute fix and
+                // an afternoon.
+                _log.Write(
+                    LogLevel.Warning,
+                    LogChannel.Settings,
+                    LogEvents.SettingsInvalid,
+                    "path",
+                    _settingsPath,
+                    "schemaVersion",
+                    raw?.SchemaVersion ?? -1,
+                    "supportedSchemaVersion",
+                    SupportedSchemaVersion,
+                    "hasThemeId",
+                    raw?.SelectedThemeId is { Length: > 0 },
+                    "hasComposition",
+                    raw?.Composition is not null,
+                    "compositionValid",
+                    raw?.Composition?.IsValid() ?? false);
                 return Default(defaultThemeId);
             }
 
-            return new ClientSettings(
+            var settings = new ClientSettings(
                 raw.SchemaVersion,
                 raw.SelectedThemeId,
                 raw.Composition,
                 ResolveGoreIntensity(raw.GoreIntensity));
+            _log.Write(
+                LogLevel.Debug,
+                LogChannel.Settings,
+                LogEvents.SettingsLoaded,
+                "path",
+                _settingsPath,
+                "schemaVersion",
+                settings.SchemaVersion,
+                "themeId",
+                settings.SelectedThemeId,
+                "gore",
+                settings.GoreIntensity.ToString(),
+                "defaulted",
+                false);
+            return settings;
         }
         catch (Exception exception) when (
             exception is IOException or
             UnauthorizedAccessException or
             JsonException)
         {
+            _log.Write(
+                LogLevel.Warning,
+                LogChannel.Settings,
+                LogEvents.SettingsInvalid,
+                "path",
+                _settingsPath,
+                "reason",
+                exception.GetType().Name,
+                "msg",
+                exception.Message);
             return Default(defaultThemeId);
         }
     }
@@ -124,6 +174,16 @@ internal sealed class ClientSettingsStore
                 File.Move(temporaryPath, _settingsPath);
             }
 
+            _log.Write(
+                LogLevel.Information,
+                LogChannel.Settings,
+                LogEvents.SettingsSaved,
+                "path",
+                _settingsPath,
+                "themeId",
+                selectedThemeId,
+                "gore",
+                goreIntensity.ToString());
             return true;
         }
         catch (Exception exception) when (
@@ -131,9 +191,33 @@ internal sealed class ClientSettingsStore
             UnauthorizedAccessException)
         {
             TryDelete(temporaryPath);
+            _log.Write(
+                LogLevel.Warning,
+                LogChannel.Settings,
+                LogEvents.SettingsSaveFailed,
+                "path",
+                _settingsPath,
+                "reason",
+                exception.GetType().Name,
+                "msg",
+                exception.Message);
             return false;
         }
     }
+
+    private void LogDefaulted(string defaultThemeId, string reason) =>
+        _log.Write(
+            LogLevel.Information,
+            LogChannel.Settings,
+            LogEvents.SettingsLoaded,
+            "path",
+            _settingsPath,
+            "themeId",
+            defaultThemeId,
+            "reason",
+            reason,
+            "defaulted",
+            true);
 
     private static ClientSettings Default(string defaultThemeId) =>
         new(

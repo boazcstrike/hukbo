@@ -298,7 +298,10 @@ from conversation notes.
 
 **Step 1: Discover through the graph**
 
-Use `search_graph` for:
+Use the `tokensave` code-graph tools — `tokensave_context` first, then
+`tokensave_search`, `tokensave_callers`, and `tokensave_impact` as the question
+narrows. `CLAUDE.md` section 8 makes these the required code-discovery path for
+this repository, ahead of Grep and Glob. Query for:
 
 - `AdvanceOneTick`;
 - target selection;
@@ -409,7 +412,12 @@ State explicitly:
 - one simulation is timed while two run;
 - deaths reduce later work;
 - there is no warm-up separation inside the runner;
-- there are no stage percentiles;
+- the runner reports whole-tick percentiles only. `RunReport` carries a
+  `TickPercentiles` record with the 50th, 95th, and 99th percentile and the
+  maximum, all measured over the complete tick, and a `CollisionMetrics` block.
+  Nothing breaks a tick down by pipeline stage, so a slow tick cannot be
+  attributed to target selection, movement, attack resolution, collision, or
+  hashing without new instrumentation;
 - rendering is excluded; and
 - missing future systems make extrapolation unsafe.
 
@@ -527,6 +535,19 @@ The design must evaluate:
 - Modify: `tests/Hukbo.Core.Tests/BattleSimulationTests.cs`
 - Modify: `tests/Hukbo.Core.Tests/DeterminismTests.cs`
 - Modify: `src/Hukbo.Headless/RunReport.cs`
+
+**Note added after this plan was written.**
+`src/Hukbo.Core/Simulation/CollisionUniformGrid.cs` has since shipped as the
+broadphase for collision resolution. It serves a different purpose from the
+perception grid proposed here, but it is the same machinery: a uniform grid
+rebuilt each tick from authoritative positions, in a stable order, excluded from
+the state hash and from snapshots. The design task must therefore begin by
+reading that file and deciding explicitly whether the perception query extends
+the existing grid, shares a common cell structure with it, or genuinely needs a
+second independent grid with a different cell size. Creating a parallel
+`Spatial/UniformGrid.cs` without answering that question is a duplication, and
+two grids rebuilt each tick from the same positions are two chances for a
+derived cache to drift out of agreement.
 
 Expected: cell size, storage, traversal, and scratch-buffer ownership are
 design decisions supported by the new metrics.

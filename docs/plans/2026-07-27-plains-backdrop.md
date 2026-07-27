@@ -193,10 +193,15 @@ Record the exact output. Do not claim a pass without pasting it.
 
 Checks against the recorded baseline in `docs/development/testing.md`:
 
-- The seed-1 200-agent workload must still end in `Faction1Victory` at tick 235
-  with state hash `6EBB1EA63114F6CE` and event hash `941377BD43C556FF`. Any
+- The seed-1 200-agent workload must still end in `Faction1Victory` at tick 1154
+  with state hash `5BEBA7A68F69BE0D` and event hash `D379B60B2E30FFFC`. Any
   movement in either hash means the change has leaked into the simulation and is
-  a defect, not a new baseline.
+  a defect, not a new baseline. Always read the current oracle out of
+  `docs/development/testing.md` before running this check rather than trusting
+  the pair quoted here: an earlier version of this plan named the pre-collision
+  pair `6EBB1EA63114F6CE` / `941377BD43C556FF` at tick 235, which
+  `docs/development/testing.md` now lists as superseded and which would make this
+  check fail for the wrong reason.
 - Client and Core test counts must not decrease.
 - Zero warnings and zero errors.
 

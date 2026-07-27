@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Hukbo.Core/Hukbo.Core.csproj" />
+    <ProjectReference Include="../Hukbo.Diagnostics/Hukbo.Diagnostics.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MonoGame.Content.Builder.Task" />

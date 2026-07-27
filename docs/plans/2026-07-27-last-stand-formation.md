@@ -53,21 +53,27 @@ Tasks 1, 2, and 3 are independent of one another and may run in parallel. Tasks
 
 - `DefaultLastStandThresholdIsSix` — asserts
   `FormationRules.DefaultLastStandThresholdAgents == 6`.
-- `MaximumLastStandThresholdMatchesTheSquarePackingBoundOfTheJitterSquare` —
-  asserts `MaximumLastStandThresholdAgents == 16` and independently recomputes
+- `MaximumLastStandThresholdLeavesAFourfoldAreaMarginUnderTheJitterSquaresCapacity`
+  — asserts `MaximumLastStandThresholdAgents == 9` and independently recomputes
   it from the derivation, so the constant and its derivation cannot drift apart.
-  The bias square has side `8R` and a body square has side `2R`, so the ratio is
-  `RallyJitterRadiusMultiplier` and the bound is that ratio squared, which is
-  `RallyJitterRadiusMultiplier * RallyJitterRadiusMultiplier`.
-- `RallyJitterRadiusForTheDefaultBodyIsSixteenWorldUnits` — asserts
+  The bias square has side `12R` and a body square has side `2R`, so the ratio is
+  `RallyJitterRadiusMultiplier` and the square's full packing capacity is that
+  ratio squared. The approved ceiling is that capacity divided by
+  `RallyPackingMargin`. Full packing capacity is deliberately not the ceiling:
+  the margin keeps three quarters of the square empty so the collision resolver
+  always has room to separate the gathered bodies.
+- `RallyJitterRadiusForTheDefaultBodyIsTwentyFourWorldUnits` — asserts
   `FormationRules.ComputeRallyJitterRaw(CollisionRules.DefaultBodyRadiusRaw)`
-  equals `16 * FixedPoint.Scale`.
+  equals `24 * FixedPoint.Scale`.
 - `ComputeRallyJitterRawRejectsARadiusWhoseSpanOverflowsAnInt32` — asserts the
   helper throws for a body radius of `268435456`.
 
 **GREEN:** create `FormationRules` as a `public static class` mirroring
 `CollisionRules.cs`, holding `DefaultLastStandThresholdAgents = 6`,
-`MaximumLastStandThresholdAgents = 16`, `RallyJitterRadiusMultiplier = 4`, and a
+`RallyJitterRadiusMultiplier = 6`, `RallyPackingMargin = 4`, a
+`MaximumLastStandThresholdAgents` derived as
+`RallyJitterRadiusMultiplier * RallyJitterRadiusMultiplier / RallyPackingMargin`,
+which is 9, and a
 `ComputeRallyJitterRaw(int bodyRadiusRaw)` helper doing the `checked` multiply.
 Document the packing derivation in the doc comment, and state that these values
 are game-design inventions, not measurements.
@@ -89,7 +95,8 @@ are game-design inventions, not measurements.
 **RED tests:**
 
 - `ValidateAcceptsAZeroLastStandThresholdAsDisabled`
-- `ValidateRejectsALastStandThresholdAboveTheApprovedMaximum` — 17 throws
+- `ValidateRejectsALastStandThresholdAboveTheApprovedMaximum` —
+  `FormationRules.MaximumLastStandThresholdAgents + 1`, which is 10, throws
   `ArgumentOutOfRangeException`.
 - `ValidateRejectsANegativeLastStandThreshold`
 - `ValidateRejectsABodyRadiusWhoseJitterSpanOverflowsWhenTheLastStandIsEnabled`
@@ -270,8 +277,9 @@ duplicate the normalisation.
 - `LivingCountsNeverIncreaseAcrossAWholeBattle` — proves the trigger cannot flap.
 - `RallyAgentDeathPromotesTheNextLowestLivingEntityId`
 - `AMaximumSizedLastStandNeverLeavesAWarriorBlockedForMoreThanSixtyConsecutiveTicks`
-  — threshold 16 with 16 warriors. The assertion message must state that a
-  failure means the cluster packs tighter than the resolver permits.
+  — the threshold set to `FormationRules.MaximumLastStandThresholdAgents`, which
+  is 9, in a battle of thirty-two warriors. The assertion message must state that
+  a failure means the cluster packs tighter than the resolver permits.
 - `TheSameSeedProducesIdenticalHashesAndEventsWithTheLastStandActive` — two
   independent runs to a terminal outcome, comparing every tick's state hash and
   full ordered event stream.

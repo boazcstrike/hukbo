@@ -20,7 +20,10 @@ grew by sixteen bytes. `BattleSimulation` pre-sizes its per-tick event list at
 ## Measured cost
 
 The canonical seed-1, 200-agent, 10,000-tick headless workload was measured
-before and after the change on the same machine and the same pinned SDK:
+before and after the change on the same machine and the same pinned SDK. Both
+columns below were taken on the pre-collision build, whose seed-1 battle ended
+at tick 235. They are a historical record of the change that created this debt,
+and they are not comparable to the current baseline described further down:
 
 | Metric | Before | After | Change |
 | --- | --- | --- | --- |
@@ -29,13 +32,31 @@ before and after the change on the same machine and the same pinned SDK:
 | Deterministic | yes | yes | unchanged |
 
 `SIMULATION-GAME-STANDARDS.md` §8 requires that an allocation change above ten
-percent be reported rather than absorbed silently. This document is that report,
-and `docs/development/testing.md` now records 15,122,336 bytes as the current
-baseline so the next reviewer compares against a true oracle.
+percent be reported rather than absorbed silently. This document is that report.
 
-The figure still sits below the captured 19,856,712-byte ceiling, which is why
-this is debt and not a blocker. The measurement varies by a few thousand bytes
-between runs, so compare against it with that tolerance in mind.
+The 15,122,504-byte figure that `docs/development/testing.md` recorded shortly
+after this measurement is itself superseded. The current canonical seed-1,
+200-agent baseline is `Faction1Victory` at terminal tick 1154 allocating
+71,704,672 bytes, and the report-only 500-agent workload allocates 416,546,128
+bytes at terminal tick 2668. Both figures live in `docs/development/testing.md`,
+which is the single source of truth for the oracle.
+
+Those later figures are not a like-for-like regression against the table above.
+The collision and formation work that landed in between changed how long a
+seed-1 battle runs, so the current workload pays for roughly five times as many
+ticks as the tick-235 build did. `docs/development/testing.md` makes the same
+point about its own superseded numbers and deliberately declines to state a
+ratio between them.
+
+No allocation ceiling survives in `docs/development/testing.md`. The
+19,856,712-byte figure that this document previously cited now exists only in
+`docs/archives/`, which is reference-only by repository policy and may not be
+used as a live budget. This therefore remains debt rather than a blocker on a
+different and still-current ground: the cost is a fixed sixteen bytes per
+emitted event, it scales linearly with the number of events a battle emits
+rather than compounding, and no gated stage fails because of it. The
+measurement varies by a few thousand bytes between runs, so compare against it
+with that tolerance in mind.
 
 ## Why it was not fixed in place
 
@@ -57,8 +78,9 @@ document first:
 
 - a preset version bump is already being made for another reason, so the golden
   re-record is paid once rather than twice;
-- the 500-agent stress workload approaches the allocation ceiling recorded in
-  `docs/development/testing.md`;
+- the 500-agent stress workload's allocation grows materially against the
+  416,546,128-byte figure recorded in `docs/development/testing.md`, compared at
+  a similar battle length so the comparison means something;
 - Gate 3 in `SIMULATION-GAME-STANDARDS.md` is being prepared, since the
   save/resume equivalence and 500-agent stress report both read this budget.
 

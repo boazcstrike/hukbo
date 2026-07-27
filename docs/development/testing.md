@@ -37,7 +37,96 @@ sprite batch, or window. Tests must remain independent from GPU, audio
 hardware, window focus, network, wall clock, `System.Random`, and platform input
 types. Performance output is evidence, not a universal frame-time guarantee.
 
-## Latest non-interactive result
+## Capturing a debug log
+
+The debug log is on by default in `Debug` and off in `Release`. The canonical
+gate builds `Release`, so a gate run is unlogged and its timing figures measure
+the simulation rather than the simulation plus a writer.
+
+Every interactive session should be run with the log on, so that a smoke row
+recorded as `FAIL` or `BLOCKED` can be handed to someone else with evidence
+attached:
+
+```powershell
+./scripts/run.ps1 -Configuration Debug
+```
+
+That writes `artifacts/logs/hukbo-<yyyyMMdd-HHmmss>-<pid>.jsonl`. The script
+prints the directory before launching, and the log's first line repeats the
+resolved level, channels, and absolute path. Only the newest twenty files are
+kept, so copy a log you intend to keep out of that directory.
+
+To narrow a session to one subsystem:
+
+```powershell
+./scripts/run.ps1 -Configuration Debug -LogLevel trc -LogChannels audio,input
+```
+
+Reading it back:
+
+```powershell
+$log = Get-ChildItem artifacts/logs -Filter *.jsonl | Sort-Object Name | Select-Object -Last 1
+Get-Content $log | ConvertFrom-Json | Where-Object lvl -in 'err','warn'
+```
+
+For a headless determinism failure, `--log-level err` is enough: it emits the
+one `sim.mismatch` line carrying both state hashes at the tick the two
+simulations parted.
+
+```powershell
+./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1 -LogLevel err
+```
+
+**A log is evidence of what the code did, never a substitute for a person
+confirming what the screen showed.** An `audio.cue` line with
+`"status":"Played"` proves the client asked the device to play a sound. It does
+not prove a sound was audible, that it arrived at the right moment, or that it
+sounded right. Smoke rows below still require a human at an interactive desktop;
+see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
+
+## Latest non-interactive result — sound gain compensation, 2026-07-27
+
+Presentation-only change: per-cue gain now scales with the number of voices
+still sounding, and the per-frame cue budget was raised from a throttle to a
+backstop. See
+[docs/plans/2026-07-27-sound-gain-compensation.md](../plans/2026-07-27-sound-gain-compensation.md)
+and [docs/research/SOUND-CAPACITY-MEASUREMENTS.md](../research/SOUND-CAPACITY-MEASUREMENTS.md).
+
+`./scripts/verify.ps1 -SkipBootstrap` passed at all five stages:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+| Field | Value |
+| --- | --- |
+| `Hukbo.Client.Tests` | 585 passed, 0 failed, 0 skipped |
+| `measuredTicks` | 1 154 |
+| `outcome` | `Faction1Victory` |
+| `eventHash` | `D379B60B2E30FFFC` |
+| `stateHash` | `5BEBA7A68F69BE0D` |
+| `deterministic` | `true` |
+| `allocatedBytes` | 71 704 672 |
+| Tick p50 / p95 / p99 / max | 0.0955 / 1.5235 / 2.5473 / 9.3252 ms |
+
+**Both hashes are unchanged from the collision priority fairness baseline
+recorded in the next section.** That is the point: nothing in this change
+reaches `Hukbo.Core`, so a moved hash would have meant the change was wrong.
+The collision section below remains the authoritative determinism baseline.
+
+Audio evidence, from `tools/Hukbo.Tools.MixAnalysis` against the shipped policy:
+every cue played, zero suppressed, and peak level between −6.1 and −0.2 dBFS
+with zero flattened samples at 200 and 500 agents and at 1x and 4x. Before the
+change the same workloads peaked between +7.7 and +11.0 dBFS.
+
+Every row in the sound gain compensation smoke checklist is `PENDING`. Nothing
+here proves how it sounds.
+
+## Previous non-interactive result — collision priority fairness
 
 Every figure in this section comes from one final verified run of the collision
 priority fairness change on 2026-07-27, taken on the
@@ -1320,12 +1409,23 @@ person watching it, which is the only thing these rows are for.
 
 Added by the font and text quality change. **Not performed.** The automated
 gate proves the ramp is internally consistent, the theme catalog resolves
-every role, text positions round to whole pixels, and the compiled em-dash
-byte assertion passes; none of that proves the resulting text reads as crisp,
-correctly sized, or correctly hierarchical to a person watching it, which is
-the only thing these rows are for. Per `CLAUDE.md` section 6, only a human at
-an interactive Windows desktop may flip one of these rows to `PASS`.
-Compilation, unit tests, and a window-opening probe do not.
+every role, and text positions round to whole pixels; none of that proves the
+resulting text reads as crisp, correctly sized, or correctly hierarchical to a
+person watching it, which is the only thing these rows are for.
+
+**Correction — there is no automated em-dash check.** An earlier revision of
+this section claimed a "compiled em-dash byte assertion passes". No such
+assertion exists. Searching `tests/` for `.xnb`, `CharacterMap`, `2014`,
+`8212`, or `em-dash` returns nothing. The only thing backing the em dash is the
+second `CharacterRegion` in each of the six `.spritefont` files under
+`src/Hukbo.Client/Content/Fonts/`, which spans `&#8211;` to `&#8212;` and so
+asks the content builder to include the glyph. Whether the builder actually
+produced it, and whether the running game draws it instead of throwing, is
+verified by row 71 below and by nothing else. That row is `PENDING`.
+
+Per `CLAUDE.md` section 6, only a human at an interactive Windows desktop may
+flip one of these rows to `PASS`. Compilation, unit tests, and a
+window-opening probe do not.
 
 | Evidence field | Recorded value |
 | --- | --- |
@@ -1379,6 +1479,70 @@ unit tests, and a window-opening probe do not.
 | 79. Watch a leader fall | When the warrior the group has gathered on is killed, the group re-forms on another warrior within a moment. The re-form is a short, small adjustment, not a sudden jump across the screen or a scatter. | Not run | PENDING |
 | 80. Inspect a regrouping warrior | Selecting a survivor that is closing on its comrades shows `Intent: Regrouping` in the inspector, and the battle event log shows its movement naming the warrior it is closing on rather than an enemy. The intent changes to `Attacking` once it is actually swinging at an enemy. | Not run | PENDING |
 | 81. Confirm regrouping never stops the fight | A warrior that is regrouping still strikes any enemy it passes within reach. The final engagement is not delayed by warriors refusing to fight while they are still gathering, and the match reaches a terminal outcome rather than two clusters standing apart. | Not run | PENDING |
+
+### Sound gain compensation smoke
+
+Covers the change recorded in
+`docs/plans/2026-07-27-sound-gain-compensation.md`. The measured evidence is in
+`docs/research/SOUND-CAPACITY-MEASUREMENTS.md`; these rows are the part that
+only a person with working speakers can settle.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 82. Hear a busy melee without distortion | Let a 200-agent battle reach its densest fighting at normal speed. Blows stay individually distinguishable. There is no continuous rasp, crackle, or buzz underneath the fighting, and no moment where the sound seems to break up or drop out. | Not run | PENDING |
+| 83. Compare a duel with a melee | The final one-on-one survivors sound clearly louder per blow than the same weapon does in the middle of the melee. The change is gradual as the fight thins out, not a sudden jump. | Not run | PENDING |
+| 84. Watch the voice count and gain react | Open the sound log with `F9`. During heavy fighting `VOICES` climbs into the tens and `GAIN` falls well below 0.65; as the battle thins both recover, and `GAIN` returns to `0.65` once nothing is sounding. | Not run | PENDING |
+| 85. Confirm nothing is being limited | Through a full 200-agent battle at normal speed, the sound log shows no `LIMITED` row and no `REFUSED` row. | Not run | PENDING |
+| 86. Check 4x speed | At 4x the audio stays clean and undistorted, `VOICES` climbs higher than at 1x, and `GAIN` falls further. Still no `LIMITED` or `REFUSED` rows. | Not run | PENDING |
+| 87. Confirm mute still works | Toggling `MUTE` silences everything immediately and unmuting resumes without a burst of backed-up sound. | Not run | PENDING |
+| 88. Confirm a new round starts at full gain | After a match ends and a new one starts, the first blow of the new battle is at full volume rather than carrying the previous battle's reduction. | Not run | PENDING |
+| 89. Confirm the header stays readable | The `VOICES n GAIN 0.nn` text in the sound log header does not overflow its panel, overlap the `MUTE` button, or clip at any of the five themes. | Not run | PENDING |
+
+### Tactical hit animations smoke
+
+Covers the change recorded in
+`docs/plans/2026-07-26-tactical-hit-animations.md`, whose Task 6 requires a
+manual checklist that this document was previously missing. **Not performed.**
+`HitEffectSystemTests.cs` and `HitEffectGeometryTests.cs` prove that the effect
+buffer has a fixed capacity and replaces its oldest entry in a defined order,
+that ordinary and lethal effects expire on their stated schedules, that each
+damage event produces exactly one effect, and that a reset clears every effect.
+The system lives entirely in `Hukbo.Client`, so it cannot reach the simulation
+by construction; no test asserts that a battle's tick count, outcome, state
+hash, or event hash is unchanged, and row 98 below is the only check of that.
+Nothing automated proves that a hit reads as a hit to a person watching the
+screen, or that the effects stay legible when the fighting gets crowded, which
+is the only thing these rows are for. Only a human running
+`./scripts/run.ps1` on an interactive Windows desktop may flip one of these rows
+to `PASS`. Compilation, unit tests, and a window-opening probe do not.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 90. Read an ordinary hit at 1x | At normal speed a non-lethal blow produces a brief pulse on the struck pawn, one thin ring, and a small restrained shard burst. The blow is unmistakable without the screen filling with debris. | Not run | PENDING |
+| 91. Check hits survive 4x | At 4x, hits landed on consecutive simulation ticks are each still visible, rather than only the last tick's hit appearing in each drawn frame. | Not run | PENDING |
+| 92. Tell a lethal hit apart | A killing blow reads as clearly heavier than an ordinary one: a larger double ring and longer shards, appearing after the pawn has disappeared rather than on top of it. | Not run | PENDING |
+| 93. Check readability across the zoom range | At fitted, minimum, and maximum zoom the primary ring stays readable. Zooming out reduces clutter without removing the ring, so a hit is never invisible at any zoom the spectator can reach. | Not run | PENDING |
+| 94. Watch a crowded exchange | With many pawns trading blows at once the effects stay bounded. No persistent trail, smear, or lingering colour builds up on the arena, and the fighting stays legible underneath. | Not run | PENDING |
+| 95. Pause and resume | Pausing lets effects already on screen finish while the simulation stops advancing. Resuming produces new effects normally, with no burst of stored-up effects on the first frame. | Not run | PENDING |
+| 96. Reset clears everything | Next Round (`R`) and Full Reset (`Shift+R`) both clear every pulse and burst immediately. No effect from the previous match survives into the new one. | Not run | PENDING |
+| 97. Check the arena edges | Resize the window and zoom in near each arena edge. No ring or shard draws over the status bar, the agent inspector, the event log, the match summary, or the menu overlay. | Not run | PENDING |
+| 98. Confirm the effects change nothing | Run to a terminal result. Effects expire on their own, and the outcome, tick count, state hash, and event hash match a run of the same seed with the effects never observed. | Not run | PENDING |
 
 ## Failure classification
 

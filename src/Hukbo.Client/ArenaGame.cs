@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using Hukbo.Client.Audio;
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Rendering;
@@ -7,6 +8,7 @@ using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Simulation;
+using Hukbo.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -66,9 +68,7 @@ public sealed partial class ArenaGame : Game
     private readonly AgentInspectorPanel _inspectorPanel = new();
     private readonly BattleEventLogPanel _eventLogPanel = new();
     private readonly SoundLogPanel _soundLogPanel = new();
-    private readonly SoundDirector _soundDirector = new(
-        EventHistoryCapacity,
-        new SilentSoundPlayer(SoundLibrary.GetDefaultDirectoryPath()));
+    private readonly SoundDirector _soundDirector;
     private readonly MatchSummaryPanel _summaryPanel = new();
     private readonly PresentationCoordinator _presentation =
         new(EventHistoryCapacity);
@@ -78,6 +78,7 @@ public sealed partial class ArenaGame : Game
     private readonly ClientSettingsStore _settingsStore;
     private readonly GoreIntensityManager _goreManager;
     private readonly ArmyCompositionPanel _armyCompositionPanel;
+    private readonly DiagnosticLog _log;
 
     private Scenario _scenario;
     private BattleSimulation _simulation;
@@ -96,15 +97,33 @@ public sealed partial class ArenaGame : Game
     private int _speedMultiplier = 1;
     private double _simulationAccumulator;
 
-    public ArenaGame()
+    // CompleteMatch runs on every frame that follows a decided match, so the
+    // outcome line needs its own guard or the log fills with one identical row
+    // per frame until the spectator resets.
+    private long _loggedOutcomeTick = -1;
+    private string _lastFocusTarget = string.Empty;
+
+    /// <param name="log">
+    /// The debug log every subsystem in the client writes through. Optional so
+    /// nothing outside <c>Program</c> has to supply one; defaults to the
+    /// no-op log, which is also what a <c>Release</c> build resolves to.
+    /// </param>
+    public ArenaGame(DiagnosticLog? log = null)
     {
+        _log = log ?? DiagnosticLog.Disabled;
+        _soundDirector = new SoundDirector(
+            EventHistoryCapacity,
+            new SilentSoundPlayer(SoundLibrary.GetDefaultDirectoryPath()),
+            budget: null,
+            _log);
+
         var catalogPath = Path.Combine(
             AppContext.BaseDirectory,
             "Content",
             "Themes",
             "ui-theme-standards.json");
-        var catalog = UiThemeCatalog.LoadOrFallback(catalogPath);
-        _settingsStore = ClientSettingsStore.CreateDefault();
+        var catalog = UiThemeCatalog.LoadOrFallback(catalogPath, _log);
+        _settingsStore = ClientSettingsStore.CreateDefault(_log);
         _themeManager = new UiThemeManager(catalog, _settingsStore);
         _goreManager = new GoreIntensityManager(
             _settingsStore.Load(catalog.DefaultThemeId).GoreIntensity,
@@ -140,6 +159,8 @@ public sealed partial class ArenaGame : Game
             _scenario.Seed,
             _scenario.MapWidth,
             _scenario.MapHeight);
+
+        LogScenarioBuilt("startup");
     }
 
     /// <summary>
@@ -169,10 +190,45 @@ public sealed partial class ArenaGame : Game
         };
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData([Color.White]);
-        _fonts = UiFontSet.Load(Content.Load<SpriteFont>);
+        try
+        {
+            _fonts = UiFontSet.Load(Content.Load<SpriteFont>);
+            _log.Write(
+                LogLevel.Information,
+                LogChannel.Assets,
+                LogEvents.AssetsFontLoaded);
+        }
+        catch (Exception exception)
+        {
+            // Rethrown: without fonts there is no readable UI at all. The log
+            // line exists because the crash text alone does not say which
+            // content root was searched.
+            _log.Write(
+                LogLevel.Error,
+                LogChannel.Assets,
+                LogEvents.AssetsFontFailed,
+                "contentRoot",
+                Content.RootDirectory,
+                "reason",
+                exception.GetType().Name,
+                "msg",
+                exception.Message);
+            _log.Flush();
+            throw;
+        }
+
         _soundPlayer = MonoGameSoundPlayer.Load(
             SoundLibrary.GetDefaultDirectoryPath());
         _soundDirector.AttachPlayer(_soundPlayer);
+
+        _log.Write(
+            LogLevel.Information,
+            LogChannel.Boot,
+            LogEvents.BootWindowCreated,
+            "width",
+            GraphicsDevice.Viewport.Width,
+            "height",
+            GraphicsDevice.Viewport.Height);
 
         _camera.Fit(GetLayout(GraphicsDevice.Viewport.Bounds).ArenaBounds);
     }
@@ -189,7 +245,7 @@ public sealed partial class ArenaGame : Game
     protected override void Update(GameTime gameTime)
     {
         _input.Update();
-        _soundDirector.BeginFrame();
+        _soundDirector.BeginFrame(gameTime.ElapsedGameTime.TotalSeconds);
         _presentation.AdvanceEffects(
             (float)gameTime.ElapsedGameTime.TotalSeconds);
         var screenBounds = GraphicsDevice.Viewport.Bounds;
@@ -218,12 +274,18 @@ public sealed partial class ArenaGame : Game
         }
 
         var pointerConsumed = false;
+
+        // Which surface claimed the press. The priority chain below is
+        // invisible from outside the debugger, and a click that "did nothing"
+        // is almost always a click a surface above the intended one swallowed.
+        var consumedBy = "none";
         if (_menu.IsVisible && _isArmyCompositionPanelVisible)
         {
             var panelInteraction = _armyCompositionPanel.Update(
                 _input,
                 screenBounds);
             pointerConsumed = panelInteraction.PointerConsumed;
+            consumedBy = pointerConsumed ? "armyComposition" : consumedBy;
             ApplyArmyCompositionResult(panelInteraction.Result);
         }
         else if (_menu.IsVisible)
@@ -234,15 +296,31 @@ public sealed partial class ArenaGame : Game
                 _themeManager.ActiveTheme.Id,
                 _goreManager.Value);
             pointerConsumed = menuInteraction.PointerConsumed;
+            consumedBy = pointerConsumed ? "menu" : consumedBy;
             if (menuInteraction.SelectedThemeId is { } selectedThemeId)
             {
-                _themeManager.TrySelect(selectedThemeId);
+                var previousThemeId = _themeManager.ActiveTheme.Id;
+                if (_themeManager.TrySelect(selectedThemeId))
+                {
+                    LogSettingChanged(
+                        "theme",
+                        previousThemeId,
+                        _themeManager.ActiveTheme.Id);
+                }
             }
 
             if (menuInteraction.SelectedGoreIntensity is { } selectedGore)
             {
+                var previousGore = _goreManager.Value;
                 _goreManager.TrySelect(selectedGore);
                 _presentation.Blood.Intensity = _goreManager.Value;
+                if (_goreManager.Value != previousGore)
+                {
+                    LogSettingChanged(
+                        "gore",
+                        previousGore.ToString(),
+                        _goreManager.Value.ToString());
+                }
             }
 
             ApplyClientCommand(menuInteraction.Command);
@@ -254,6 +332,7 @@ public sealed partial class ArenaGame : Game
                 _presentation.Summary,
                 layout.ArenaBounds);
             pointerConsumed = interaction.PointerConsumed;
+            consumedBy = pointerConsumed ? "matchSummary" : consumedBy;
 
             if (!pointerConsumed)
             {
@@ -263,6 +342,7 @@ public sealed partial class ArenaGame : Game
                     _presentation.Playback.IsPlaying,
                     _isSoundLogVisible);
                 pointerConsumed = interaction.PointerConsumed;
+                consumedBy = pointerConsumed ? "controlBar" : consumedBy;
             }
 
             if (!pointerConsumed)
@@ -272,6 +352,7 @@ public sealed partial class ArenaGame : Game
                     _presentation.EventFeed,
                     layout.EventBounds);
                 pointerConsumed = interaction.PointerConsumed;
+                consumedBy = pointerConsumed ? "eventLog" : consumedBy;
             }
 
             if (!pointerConsumed && _isSoundLogVisible)
@@ -281,6 +362,7 @@ public sealed partial class ArenaGame : Game
                     _soundDirector,
                     layout.SoundLogBounds);
                 pointerConsumed = interaction.PointerConsumed;
+                consumedBy = pointerConsumed ? "soundLog" : consumedBy;
             }
 
             if (!pointerConsumed)
@@ -290,6 +372,13 @@ public sealed partial class ArenaGame : Game
                     _presentation.Selection.Resolve(_simulation.Agents),
                     layout.InspectorBounds);
                 pointerConsumed = interaction.PointerConsumed;
+                consumedBy = pointerConsumed ? "inspector" : consumedBy;
+            }
+
+            if (!pointerConsumed &&
+                layout.ArenaBounds.Contains(_input.MousePosition))
+            {
+                consumedBy = "arena";
             }
 
             UpdateSpectatorInput(
@@ -299,10 +388,77 @@ public sealed partial class ArenaGame : Game
                 (float)gameTime.ElapsedGameTime.TotalSeconds);
         }
 
+        LogPointer(consumedBy);
+        LogFocusChange();
         AdvanceSimulation(gameTime.ElapsedGameTime.TotalSeconds);
         UpdateWindowTitle();
 
+        // One flush per frame rather than one per line: a crash still keeps
+        // everything up to the previous frame, and warnings and errors flush
+        // themselves the moment they are written.
+        _log.Flush();
+
         base.Update(gameTime);
+    }
+
+    /// <summary>
+    /// Records a move of the event log's keyboard focus. Focus decides whether
+    /// the spectator's next keystroke reaches the panel or the simulation
+    /// shortcuts, which makes it the usual explanation for a shortcut that
+    /// stopped working.
+    /// </summary>
+    private void LogFocusChange()
+    {
+        var target = _eventLogPanel.KeyboardFocusTarget.ToString();
+        if (string.Equals(target, _lastFocusTarget, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var previous = _lastFocusTarget;
+        _lastFocusTarget = target;
+        _log.Write(
+            LogLevel.Debug,
+            LogChannel.Input,
+            LogEvents.InputFocusChanged,
+            "from",
+            previous,
+            "to",
+            target);
+    }
+
+    /// <summary>
+    /// Records a left-button press and the surface that claimed it. Only a
+    /// press is logged, never a hover or a held button, so the line count
+    /// tracks what the spectator actually did.
+    /// </summary>
+    private void LogPointer(string consumedBy)
+    {
+        if (!_input.WasLeftMousePressed())
+        {
+            return;
+        }
+
+        // A press whose position is off the viewport happened in another window
+        // or on another monitor. No surface could have claimed it, and calling
+        // that "none" would read as a dead click on our own UI.
+        var position = _input.MousePosition;
+        var target = GraphicsDevice.Viewport.Bounds.Contains(position)
+            ? consumedBy
+            : "outside";
+
+        _log.Write(
+            LogLevel.Debug,
+            LogChannel.Input,
+            LogEvents.InputPointer,
+            "button",
+            "left",
+            "x",
+            position.X,
+            "y",
+            position.Y,
+            "consumedBy",
+            target);
     }
 
     private void UpdateSpectatorInput(
@@ -362,29 +518,51 @@ public sealed partial class ArenaGame : Game
     {
         if (_input.WasPressed(Keys.R))
         {
-            return _input.IsDown(Keys.LeftShift) ||
-                _input.IsDown(Keys.RightShift)
-                ? ClientCommand.FullReset
-                : ClientCommand.NextRound;
+            var shifted = _input.IsDown(Keys.LeftShift) ||
+                _input.IsDown(Keys.RightShift);
+            return LogKeyCommand(
+                shifted ? "Shift+R" : "R",
+                shifted ? ClientCommand.FullReset : ClientCommand.NextRound);
         }
 
         if (_input.WasPressed(Keys.Space))
         {
-            return _presentation.Playback.IsPlaying
-                ? ClientCommand.Pause
-                : ClientCommand.Play;
+            return LogKeyCommand(
+                "Space",
+                _presentation.Playback.IsPlaying
+                    ? ClientCommand.Pause
+                    : ClientCommand.Play);
         }
 
         if (_input.WasPressed(Keys.F9))
         {
-            return ClientCommand.ToggleSoundLog;
+            return LogKeyCommand("F9", ClientCommand.ToggleSoundLog);
         }
 
         return ClientCommand.None;
     }
 
+    /// <summary>
+    /// Records the key that produced a command and returns the command
+    /// unchanged, so the mapping is visible in the log without the caller
+    /// growing a second statement per branch.
+    /// </summary>
+    private ClientCommand LogKeyCommand(string key, ClientCommand command)
+    {
+        _log.Write(
+            LogLevel.Debug,
+            LogChannel.Input,
+            LogEvents.InputKey,
+            "key",
+            key,
+            "command",
+            command.ToString());
+        return command;
+    }
+
     private void HandleSpeedInput()
     {
+        var previous = _speedMultiplier;
         if (_input.WasPressed(Keys.D1) || _input.WasPressed(Keys.NumPad1))
         {
             _speedMultiplier = 1;
@@ -396,6 +574,18 @@ public sealed partial class ArenaGame : Game
         else if (_input.WasPressed(Keys.D4) || _input.WasPressed(Keys.NumPad4))
         {
             _speedMultiplier = 4;
+        }
+
+        if (_speedMultiplier != previous)
+        {
+            _log.Write(
+                LogLevel.Information,
+                LogChannel.Simulation,
+                LogEvents.SimSpeedChanged,
+                "from",
+                previous,
+                "to",
+                _speedMultiplier);
         }
     }
 
@@ -424,6 +614,30 @@ public sealed partial class ArenaGame : Game
         ApplyClientCommand(ClientCommand.OpenMenu);
     }
 
+    private void LogSettingChanged(string key, string from, string to) =>
+        _log.Write(
+            LogLevel.Information,
+            LogChannel.Settings,
+            LogEvents.SettingsChanged,
+            "key",
+            key,
+            "from",
+            from,
+            "to",
+            to);
+
+    private void LogPlaybackChanged() =>
+        _log.Write(
+            LogLevel.Information,
+            LogChannel.Simulation,
+            LogEvents.SimPlaybackChanged,
+            "playing",
+            _presentation.Playback.IsPlaying,
+            "tick",
+            _simulation.Tick,
+            "outcome",
+            _simulation.Outcome.ToString());
+
     private void ApplyClientCommand(ClientCommand command)
     {
         if (command != ClientCommand.None)
@@ -448,10 +662,12 @@ public sealed partial class ArenaGame : Game
 
                 _simulationAccumulator = 0;
                 _menu.Close();
+                LogPlaybackChanged();
                 return;
             case ClientCommand.Pause:
                 _presentation.Playback.Pause();
                 _simulationAccumulator = 0;
+                LogPlaybackChanged();
                 return;
             case ClientCommand.OpenMenu:
                 _presentation.Playback.Pause();
@@ -567,10 +783,12 @@ public sealed partial class ArenaGame : Game
                _simulation.Outcome == BattleOutcome.Ongoing)
         {
             _simulation.AdvanceOneTick();
+            _log.SetTick(_simulation.Tick);
             _presentation.IngestTick(
                 _simulation.LastEvents,
                 _simulation.Agents);
             _soundDirector.Ingest(_simulation.LastEvents);
+            LogTick();
             _simulationAccumulator -= secondsPerTick;
         }
 
@@ -579,6 +797,80 @@ public sealed partial class ArenaGame : Game
             CompleteMatch();
         }
     }
+
+    /// <summary>
+    /// Emits one observation of the tick that just advanced. Sampled ticks go
+    /// out at debug level and every other tick at trace level, so an ordinary
+    /// verbose run carries a bisectable skeleton rather than a firehose.
+    /// </summary>
+    /// <remarks>
+    /// The state hash is computed only when the line is actually going to be
+    /// written. It is a read-only query, but it is not free, and a client that
+    /// pays for it every tick in a build nobody is debugging is a client that
+    /// drops frames for no reason.
+    /// </remarks>
+    private void LogTick()
+    {
+        var level = LogSampling.IsSampledTick(_simulation.Tick)
+            ? LogLevel.Debug
+            : LogLevel.Trace;
+        if (!_log.IsEnabledFor(level, LogChannel.Simulation))
+        {
+            return;
+        }
+
+        var alive0 = 0;
+        var alive1 = 0;
+        foreach (var agent in _simulation.Agents)
+        {
+            if (!agent.IsAlive)
+            {
+                continue;
+            }
+
+            if (agent.FactionId == 0)
+            {
+                alive0++;
+            }
+            else
+            {
+                alive1++;
+            }
+        }
+
+        _log.Write(
+            level,
+            LogChannel.Simulation,
+            LogEvents.SimTick,
+            "tick",
+            _simulation.Tick,
+            "alive0",
+            alive0,
+            "alive1",
+            alive1,
+            "events",
+            _simulation.LastEvents.Count,
+            "stateHash",
+            _simulation.ComputeStateHash().ToString(
+                "X16",
+                CultureInfo.InvariantCulture));
+    }
+
+    private void LogScenarioBuilt(string reason) =>
+        _log.Write(
+            LogLevel.Information,
+            LogChannel.Simulation,
+            LogEvents.SimScenarioBuilt,
+            "seed",
+            _scenario.Seed,
+            "agents",
+            _activeComposition.UnitsPerTeam * 2,
+            "mapWidth",
+            _scenario.MapWidth,
+            "mapHeight",
+            _scenario.MapHeight,
+            "reason",
+            reason);
 
     private void CompleteMatch()
     {
@@ -589,6 +881,27 @@ public sealed partial class ArenaGame : Game
             _scenario.TickRate,
             _scenario.Seed);
         _simulationAccumulator = 0;
+
+        if (_loggedOutcomeTick == _simulation.Tick)
+        {
+            return;
+        }
+
+        _loggedOutcomeTick = _simulation.Tick;
+        _log.Write(
+            LogLevel.Information,
+            LogChannel.Simulation,
+            LogEvents.SimOutcome,
+            "outcome",
+            _simulation.Outcome.ToString(),
+            "tick",
+            _simulation.Tick,
+            "seed",
+            _scenario.Seed,
+            "stateHash",
+            _simulation.ComputeStateHash().ToString(
+                "X16",
+                CultureInfo.InvariantCulture));
     }
 
     private void ResetSimulation(ClientCommand resetCommand)
@@ -614,6 +927,17 @@ public sealed partial class ArenaGame : Game
 
         _scenario = BuildScenario(_matchSeries.CurrentSeed, _activeComposition);
         _simulation = BattleSimulation.Create(_scenario);
+        _loggedOutcomeTick = -1;
+        _log.SetTick(DiagnosticLog.NoTick);
+        _log.Write(
+            LogLevel.Information,
+            LogChannel.Simulation,
+            LogEvents.SimReset,
+            "kind",
+            resetCommand.ToString(),
+            "seed",
+            _matchSeries.CurrentSeed);
+        LogScenarioBuilt(resetCommand.ToString());
         _plainsDecals = PlainsBackdropGeometry.GenerateDecals(
             _scenario.Seed,
             _scenario.MapWidth,

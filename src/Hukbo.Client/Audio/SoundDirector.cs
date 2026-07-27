@@ -1,4 +1,5 @@
 using Hukbo.Core.Simulation;
+using Hukbo.Diagnostics;
 
 namespace Hukbo.Client.Audio;
 
@@ -15,21 +16,35 @@ namespace Hukbo.Client.Audio;
 internal sealed class SoundDirector
 {
     /// <summary>
-    /// A provisional tuning value, not a measurement. Individual files should be
-    /// normalised by the owner rather than balanced here.
+    /// The gain a cue plays at when nothing else is sounding. Every other cue
+    /// is this value divided by the square root of the voices already
+    /// sounding.
     /// </summary>
-    internal const float CueVolume = 0.8f;
+    /// <remarks>
+    /// A provisional tuning value, not a measurement of anything. It was
+    /// lowered from 0.8 because 0.8 still let the busiest measured case — 500
+    /// agents at normal speed — reach +1.6 dBFS and flatten two samples. At
+    /// 0.65 the peak stays under full scale in every measured configuration,
+    /// from −6.1 to −0.2 dBFS, with nothing flattened. See
+    /// <c>docs/research/SOUND-CAPACITY-MEASUREMENTS.md</c>. Individual files
+    /// should be normalised by the owner rather than balanced here.
+    /// </remarks>
+    internal const float CueVolume = 0.65f;
 
     private readonly SoundCueBudget _budget;
+    private readonly SoundVoiceLedger _voices = new();
+    private readonly DiagnosticLog _diagnostics;
 
     public SoundDirector(
         int logCapacity,
         ISoundPlayer? player = null,
-        SoundCueBudget? budget = null)
+        SoundCueBudget? budget = null,
+        DiagnosticLog? diagnostics = null)
     {
         Log = new SoundCueLog(logCapacity);
         Player = player ?? new SilentSoundPlayer();
         _budget = budget ?? new SoundCueBudget();
+        _diagnostics = diagnostics ?? DiagnosticLog.Disabled;
     }
 
     public ISoundPlayer Player { get; private set; }
@@ -37,6 +52,18 @@ internal sealed class SoundDirector
     public SoundCueLog Log { get; }
 
     public bool IsMuted { get; private set; }
+
+    /// <summary>
+    /// Voices still sounding. Presentation state, shown in the sound panel so a
+    /// spectator can see why a busy fight is quieter per blow than a duel.
+    /// </summary>
+    public int SoundingVoices => _voices.SoundingVoices;
+
+    /// <summary>
+    /// The gain the next cue would play at. Presentation state, shown beside
+    /// <see cref="SoundingVoices"/>.
+    /// </summary>
+    public float NextCueGain => _voices.GetGainForNextCue(CueVolume);
 
     /// <summary>
     /// Replaces the player once real content has been loaded. The log is kept:
@@ -47,15 +74,45 @@ internal sealed class SoundDirector
     {
         ArgumentNullException.ThrowIfNull(player);
         Player = player;
+        LogBindings(player);
     }
 
-    public void ToggleMute() => IsMuted = !IsMuted;
+    public void ToggleMute()
+    {
+        IsMuted = !IsMuted;
+        _diagnostics.Write(
+            LogLevel.Information,
+            LogChannel.Audio,
+            LogEvents.AudioMuteToggled,
+            "muted",
+            IsMuted);
+    }
 
     /// <summary>
-    /// Clears the frame's playback budget. Call once per frame, before the
+    /// Clears the frame's playback budget and retires the voices whose clips
+    /// finished during the frame. Call once per frame, before the
     /// <see cref="Ingest"/> calls for the ticks that frame advances.
     /// </summary>
-    public void BeginFrame() => _budget.BeginFrame();
+    /// <param name="elapsedSeconds">
+    /// The frame's real elapsed time. Passed in rather than read from a clock
+    /// so nothing in this class depends on the wall clock, which keeps it
+    /// testable and keeps the dependence visible at the call site.
+    /// </param>
+    public void BeginFrame(double elapsedSeconds)
+    {
+        _budget.BeginFrame();
+        _voices.Advance(elapsedSeconds);
+        _diagnostics.Write(
+            LogLevel.Trace,
+            LogChannel.Audio,
+            LogEvents.AudioFrame,
+            "elapsedSeconds",
+            elapsedSeconds,
+            "voices",
+            _voices.SoundingVoices,
+            "nextGain",
+            NextCueGain);
+    }
 
     /// <summary>
     /// Processes one tick's events in emission order.
@@ -86,7 +143,11 @@ internal sealed class SoundDirector
     public void RequestCue(GameSoundId sound, long tick) =>
         Resolve(sound, hitClass: null, tick, sourceEntityId: 0UL);
 
-    public void Clear() => Log.Clear();
+    public void Clear()
+    {
+        Log.Clear();
+        _voices.Clear();
+    }
 
     private void Resolve(
         GameSoundId sound,
@@ -99,30 +160,198 @@ internal sealed class SoundDirector
         {
             // A broken binding outranks mute and the budget: it is the one
             // thing the owner needs to see in order to fix the folder.
-            Log.Append(
+            Record(
                 tick,
                 sound,
+                hitClass,
                 status == SoundBindingStatus.LoadFailed
                     ? SoundCueStatus.LoadFailed
-                    : SoundCueStatus.Missing);
+                    : SoundCueStatus.Missing,
+                variantIndex: -1,
+                gain: 0f,
+                _voices.SoundingVoices);
             return;
         }
 
         if (IsMuted)
         {
-            Log.Append(tick, sound, SoundCueStatus.Muted);
+            Record(
+                tick,
+                sound,
+                hitClass,
+                SoundCueStatus.Muted,
+                variantIndex: -1,
+                gain: 0f,
+                _voices.SoundingVoices);
             return;
         }
 
         if (!_budget.TryConsume(sound))
         {
-            Log.Append(tick, sound, SoundCueStatus.Suppressed);
+            Record(
+                tick,
+                sound,
+                hitClass,
+                SoundCueStatus.Suppressed,
+                variantIndex: -1,
+                gain: 0f,
+                _voices.SoundingVoices);
             return;
         }
 
         var variantCount = Player.GetVariantCount(sound, hitClass);
         var variantIndex = SoundVariantSelector.Select(tick, sourceEntityId, variantCount);
-        Player.Play(sound, hitClass, variantIndex, CueVolume);
-        Log.Append(tick, sound, SoundCueStatus.Played);
+
+        // Scale against the voices already sounding. Without this the mix sums
+        // past full scale and the output stage flattens the peaks, which is
+        // heard as a continuous rasp rather than as separate blows.
+        //
+        // Captured before Add so the logged figure is the count the gain was
+        // derived from, not that count plus this cue.
+        var voicesBefore = _voices.SoundingVoices;
+        var gain = _voices.GetGainForNextCue(CueVolume);
+        if (!Player.Play(sound, hitClass, variantIndex, gain))
+        {
+            Record(
+                tick,
+                sound,
+                hitClass,
+                SoundCueStatus.Refused,
+                variantIndex,
+                gain,
+                voicesBefore);
+            return;
+        }
+
+        _voices.Add(Player.GetDurationSeconds(sound, hitClass, variantIndex));
+        Record(
+            tick,
+            sound,
+            hitClass,
+            SoundCueStatus.Played,
+            variantIndex,
+            gain,
+            voicesBefore);
+    }
+
+    /// <summary>
+    /// The single place a cue decision is recorded. The on-screen log gets the
+    /// row a spectator can read; the debug log gets the same decision plus the
+    /// variant, the gain, and the voice count, which are the three figures that
+    /// explain why a blow in a crowded melee sounds different from the same
+    /// blow in a duel and which no panel shows.
+    /// </summary>
+    private void Record(
+        long tick,
+        GameSoundId sound,
+        HitClass? hitClass,
+        SoundCueStatus status,
+        int variantIndex,
+        float gain,
+        int voices)
+    {
+        Log.Append(tick, sound, status);
+
+        if (!_diagnostics.IsEnabledFor(LogLevel.Debug, LogChannel.Audio))
+        {
+            return;
+        }
+
+        // The tick is not repeated as a payload field: the line's own `t`
+        // already carries it.
+        _diagnostics.Write(
+            LogLevel.Debug,
+            LogChannel.Audio,
+            LogEvents.AudioCue,
+            "slot",
+            sound.ToString(),
+            "hitClass",
+            hitClass?.ToString(),
+            "status",
+            status.ToString(),
+            "variant",
+            variantIndex,
+            "gain",
+            gain,
+            "voices",
+            voices);
+    }
+
+    /// <summary>
+    /// Reports the whole binding table once, when real content replaces the
+    /// silent player. A slot with no file is otherwise invisible until the
+    /// moment it fails to sound.
+    /// </summary>
+    private void LogBindings(ISoundPlayer player)
+    {
+        if (!_diagnostics.IsEnabledFor(LogLevel.Information, LogChannel.Assets))
+        {
+            return;
+        }
+
+        var ready = 0;
+        var missing = 0;
+        var failed = 0;
+        foreach (var binding in player.Bindings)
+        {
+            switch (binding.Status)
+            {
+                case SoundBindingStatus.Ready:
+                    ready++;
+                    break;
+
+                case SoundBindingStatus.LoadFailed:
+                    failed++;
+                    _diagnostics.Write(
+                        LogLevel.Warning,
+                        LogChannel.Assets,
+                        LogEvents.AssetsSoundLoadFailed,
+                        "slot",
+                        binding.Sound.ToString(),
+                        "file",
+                        binding.FileName,
+                        "variants",
+                        binding.VariantCount);
+                    break;
+
+                default:
+                    missing++;
+                    _diagnostics.Write(
+                        LogLevel.Warning,
+                        LogChannel.Assets,
+                        LogEvents.AssetsSoundMissing,
+                        "slot",
+                        binding.Sound.ToString(),
+                        "file",
+                        binding.FileName);
+                    break;
+            }
+        }
+
+        _diagnostics.Write(
+            LogLevel.Information,
+            LogChannel.Assets,
+            LogEvents.AssetsSoundScanned,
+            "directory",
+            player.DirectoryPath,
+            "slots",
+            player.Bindings.Count,
+            "ready",
+            ready,
+            "missing",
+            missing,
+            "loadFailed",
+            failed);
+
+        _diagnostics.Write(
+            LogLevel.Information,
+            LogChannel.Audio,
+            LogEvents.AudioPlayerAttached,
+            "player",
+            player.GetType().Name,
+            "directory",
+            player.DirectoryPath,
+            "ready",
+            ready);
     }
 }

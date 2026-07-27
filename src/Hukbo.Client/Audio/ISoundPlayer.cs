@@ -30,13 +30,27 @@ internal interface ISoundPlayer
     int GetVariantCount(GameSoundId sound, HitClass? hitClass);
 
     /// <summary>
+    /// How long one specific variant sounds for. Zero when the variant is not
+    /// loaded. The director uses this to know how long the cue occupies a
+    /// voice, so the figure must be the clip's real length rather than an
+    /// assumed one.
+    /// </summary>
+    double GetDurationSeconds(GameSoundId sound, HitClass? hitClass, int variantIndex);
+
+    /// <summary>
     /// Requests playback of one specific variant. Called only for a
     /// (<paramref name="sound"/>, <paramref name="hitClass"/>) pair whose
     /// status is <see cref="SoundBindingStatus.Ready"/>, with
     /// <paramref name="variantIndex"/> in
     /// <c>[0, GetVariantCount(sound, hitClass))</c>.
     /// </summary>
-    void Play(GameSoundId sound, HitClass? hitClass, int variantIndex, float volume);
+    /// <returns>
+    /// <c>false</c> when the backend declined the cue — on MonoGame, an
+    /// exhausted instance pool or source list. The caller records that as
+    /// <see cref="SoundCueStatus.Refused"/> rather than reporting a cue that
+    /// never sounded as played.
+    /// </returns>
+    bool Play(GameSoundId sound, HitClass? hitClass, int variantIndex, float volume);
 }
 
 /// <summary>
@@ -77,7 +91,12 @@ internal sealed class SilentSoundPlayer : ISoundPlayer
 
     public int GetVariantCount(GameSoundId sound, HitClass? hitClass) => 0;
 
-    public void Play(
+    public double GetDurationSeconds(
+        GameSoundId sound,
+        HitClass? hitClass,
+        int variantIndex) => 0;
+
+    public bool Play(
         GameSoundId sound,
         HitClass? hitClass,
         int variantIndex,

@@ -103,7 +103,11 @@ internal sealed partial class SoundLogPanel
             captionFont,
             SoundCueFormatter.FormatAvailability(
                 unavailableCount,
-                bindings.Count),
+                bindings.Count) +
+                "  " +
+                SoundCueFormatter.FormatLoad(
+                    director.SoundingVoices,
+                    director.NextCueGain),
             new Vector2(
                 layout.HeaderBounds.Left,
                 layout.HeaderBounds.Top + HeaderCaptionTopOffset),

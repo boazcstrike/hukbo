@@ -80,8 +80,17 @@ tests, and the seed-1 200-agent workload ending in `Faction1Victory` at tick 235
 with `deterministic: true`.
 
 State hash `6EBB1EA63114F6CE` and event hash `941377BD43C556FF` are unchanged
-from the recorded baseline, which is the expected outcome: this change lives
-entirely in `Hukbo.Client`.
+from the baseline that was recorded at the time of this run, which is the
+expected outcome: this change lives entirely in `Hukbo.Client`.
+
+**That pair is now historical and must not be used as a regression target.** The
+collision policy shipped afterwards and legitimately moved both hashes.
+`docs/development/testing.md` lists `6EBB1EA63114F6CE` / `941377BD43C556FF` at
+tick 235 among the superseded oracles; the current seed-1 200-agent oracle is
+state hash `5BEBA7A68F69BE0D` and event hash `D379B60B2E30FFFC` at tick 1154.
+The conclusion this section drew still holds — the sound work did not touch the
+simulation — but anyone re-running the gate should compare against the current
+oracle in `docs/development/testing.md`, not against the numbers above.
 
 63 WAV files are on disk, every one matching the loader's naming contract and
 every one carrying a provenance row.
