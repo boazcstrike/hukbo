@@ -59,6 +59,25 @@ internal readonly record struct SwingPose(
 internal static class SwingGeometry
 {
     /// <summary>
+    /// PROVISIONAL. Share of the total duration spent pulling the weapon back
+    /// outside the body silhouette. Taken from the design timing table, which
+    /// budgets the swing against the attack cooldown rather than against the
+    /// animation research figure.
+    /// </summary>
+    public const float AnticipationShare = 0.36f;
+
+    /// <summary>PROVISIONAL. Share spent sweeping the arc through.</summary>
+    public const float StrikeShare = 0.20f;
+
+    /// <summary>
+    /// PROVISIONAL. Share held at full extension, where the clash reads.
+    /// </summary>
+    public const float ImpactHoldShare = 0.20f;
+
+    /// <summary>PROVISIONAL. Share spent returning to neutral.</summary>
+    public const float RecoveryShare = 0.24f;
+
+    /// <summary>
     /// Resolves which phase a swing is in from its progress through the total
     /// duration.
     /// </summary>
