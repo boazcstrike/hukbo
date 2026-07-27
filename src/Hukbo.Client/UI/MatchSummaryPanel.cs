@@ -12,8 +12,26 @@ internal sealed class MatchSummaryPanel
     private const int MinimumWidth = 360;
     private const int Margin = 20;
     private const int ButtonWidth = 198;
+
+    // Carries the Label rung (measured 29px real line spacing).
     private const int ButtonHeight = 44;
     private const int ButtonGap = 14;
+
+    // Summary detail lines draw at the Body rung (measured 24px real line
+    // spacing); 25 clears it with a 1px margin.
+    private const int DetailLineHeight = 25;
+
+    // Vertical center offsets (from Bounds.Top) for the two centered header
+    // lines. DrawCenteredText measures a single-line string's height as the
+    // font's full real vertical line spacing, so the winner line (Subtitle,
+    // measured 34px) occupies WinnerLineTopOffset +/- 17, and the header
+    // (Title, measured 35px) occupies HeaderTopOffset +/- 17.5. The previous
+    // pair (42, 72) was tuned before these rungs carried their real bakes:
+    // the winner line's box bottom (59) fell below the header's box top
+    // (54.5), a 4.5px overlap. HeaderTopOffset is raised to 80 to clear it
+    // with a small margin.
+    private const int WinnerLineTopOffset = 42;
+    private const int HeaderTopOffset = 80;
 
     private readonly UiButton[] _buttons =
     [
@@ -52,7 +70,7 @@ internal sealed class MatchSummaryPanel
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        UiFontSet fonts,
         MatchSummary? summary,
         Rectangle arenaContentBounds,
         UiTheme theme)
@@ -72,22 +90,25 @@ internal sealed class MatchSummaryPanel
             theme.Colors.PanelBorder,
             Math.Max(3, theme.Metrics.BorderThickness));
 
+        var subtitleFont = fonts.Get(UiFontRole.Subtitle);
+        var titleFont = fonts.Get(UiFontRole.Title);
+        var labelFont = fonts.Get(UiFontRole.Label);
+        var bodyFont = fonts.Get(UiFontRole.Body);
+
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            subtitleFont,
             summary.WinnerLabel == "Draw"
                 ? "Draw"
                 : $"{summary.WinnerLabel} wins",
-            new Vector2(Bounds.Center.X, Bounds.Top + 42),
-            theme.Colors.TextPrimary,
-            1.05f);
+            new Vector2(Bounds.Center.X, Bounds.Top + WinnerLineTopOffset),
+            theme.Colors.TextPrimary);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            titleFont,
             "MATCH COMPLETE",
-            new Vector2(Bounds.Center.X, Bounds.Top + 72),
-            theme.Colors.TextSecondary,
-            0.72f);
+            new Vector2(Bounds.Center.X, Bounds.Top + HeaderTopOffset),
+            theme.Colors.TextSecondary);
 
         var detailsLeft = Bounds.Left + 45;
         var detailsTop = Bounds.Top + 105;
@@ -102,21 +123,17 @@ internal sealed class MatchSummaryPanel
 
         foreach (var button in _buttons)
         {
-            button.Draw(spriteBatch, pixel, font, theme, 0.72f);
+            button.Draw(spriteBatch, pixel, labelFont, theme);
         }
 
         void DrawDetail(string text, int row)
         {
-            spriteBatch.DrawString(
-                font,
+            UiPrimitives.DrawText(
+                spriteBatch,
+                bodyFont,
                 text,
-                new Vector2(detailsLeft, detailsTop + (row * 25)),
-                theme.Colors.TextPrimary,
-                0f,
-                Vector2.Zero,
-                0.76f,
-                SpriteEffects.None,
-                0f);
+                new Vector2(detailsLeft, detailsTop + (row * DetailLineHeight)),
+                theme.Colors.TextPrimary);
         }
     }
 

@@ -16,8 +16,17 @@ internal static class AgentInspectorContent
     internal const int AccentWidth = 5;
     internal const int PortraitSize = 56;
     internal const int PortraitGap = 10;
-    internal const int LineHeight = 19;
-    internal const int TitleHeight = 31;
+
+    // Detail and evidence rows draw at the Body rung (Rajdhani SemiBold,
+    // baked 14px), whose real vertical line spacing measures 24px. Was 22,
+    // which clipped that spacing; raised to 24.
+    internal const int LineHeight = 24;
+
+    // The space reserved for "AGENT INSPECTOR" before the portrait and
+    // detail rows begin. Carries the Title rung (Bebas Neue, baked 22px),
+    // whose real vertical line spacing measures 35px. Was 31, which clipped
+    // the header face; raised to 35.
+    internal const int TitleHeight = 35;
     internal const int TopDetailRowCount = 4;
     internal const int LowerRowCount = 7;
     internal const int PortraitBottomGap = 5;
@@ -25,18 +34,23 @@ internal static class AgentInspectorContent
 
     /// <summary>
     /// Wrapped-line budget reserved for the evidence note when sizing the
-    /// panel. The longest known evidence string ("PROVISIONAL: comparable
-    /// to Spanish-era accounts of the kampilan.", 64 characters) wraps to
-    /// 2 lines at the panel's ~277px text width budget (InspectorWidth
-    /// 310 minus Padding*2 minus AccentWidth) using the Default.spritefont
-    /// Arial-18 face drawn at the panel's 0.64 detail-text scale (roughly
-    /// 5-6px average advance per character at that size and scale). This
-    /// is a sizing estimate, not a hard limit — <see cref="AgentInspectorPanel"/>
+    /// panel. Detail and evidence rows are drawn at the <c>Body</c> rung
+    /// (Rajdhani SemiBold, baked at 14px, scale 1.0 — see
+    /// <c>Theming/UiFontRamp.cs</c>). The longest known evidence string
+    /// ("PROVISIONAL: comparable to Spanish-era accounts of the
+    /// kampilan.", 64 characters) is proven, in
+    /// <c>AgentInspectorContentTests</c>, to wrap to no more than 3 lines
+    /// at the panel's ~277px text width budget (InspectorWidth 310 minus
+    /// Padding*2 minus AccentWidth) across a theory spanning 5, 6, 7, and
+    /// 8 pixels of average advance per character — a range chosen to
+    /// bracket Rajdhani SemiBold's real condensed advance at this size
+    /// rather than pinning to one legacy measurement. This is a sizing
+    /// estimate, not a hard limit — <see cref="AgentInspectorPanel"/>
     /// additionally refuses to draw any wrapped line that would fall
     /// past the panel bounds, so an under-estimate here can only drop a
     /// line, never overflow the panel.
     /// </summary>
-    internal const int EvidenceReservedLineCount = 2;
+    internal const int EvidenceReservedLineCount = 3;
 
     /// <summary>
     /// Available pixel width for detail and evidence text inside a panel

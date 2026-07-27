@@ -321,7 +321,24 @@ public sealed class SoundLogPanelTests
     {
         // The panel is the documentation of what to name a file, so at the
         // layout the client actually uses it must be able to list every slot.
-        var layout = SoundLogPanel.CalculateLayout(new Rectangle(0, 0, 420, 288));
+        //
+        // 420x396 is the real `SoundLogBounds` `ArenaGame.ComputeLayout`
+        // produces at the default 1280x720 window with the sound log
+        // visible, traced through `RightColumnSplit.Split`: the right
+        // column is 420 wide (`EventPanelWidth`, under the
+        // `screenBounds.Width / 3` cap) and 640 tall
+        // (`720 - StatusBarHeight(68) - LayoutMargin(12)`), and
+        // `SoundLogHeightPercent` (62) of that column height is
+        // `640 * 62 / 100 == 396` under integer division — above
+        // `SoundLogMinimumHeight` (236), so the percentage branch decides.
+        // 396 is also the exact height the panel's own row math needs at
+        // zero slack once the font overhaul grew `HeaderHeight`,
+        // `PathHeight`, `SectionHeaderHeight`, `BindingRowHeight`, and
+        // `CueRowHeight` to clear the new Caption/Title bakes: header (62)
+        // + path (20) + two 6px gaps + two 20px section headers + nine
+        // 20px binding rows + three 20px reserved cue rows + 20px of
+        // panel padding.
+        var layout = SoundLogPanel.CalculateLayout(new Rectangle(0, 0, 420, 396));
 
         Assert.True(
             SoundLogPanel.GetVisibleBindingRowCount(layout) >=

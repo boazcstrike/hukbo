@@ -77,8 +77,6 @@ internal sealed partial class UiThemeCatalog
         public NumberRangeDocument? ShadowOffset { get; init; }
 
         public NumberRangeDocument? TargetSize { get; init; }
-
-        public NumberRangeDocument? TextScale { get; init; }
     }
 
     private sealed class NumberRangeDocument
@@ -90,15 +88,25 @@ internal sealed partial class UiThemeCatalog
 
     private sealed class SharedStandardsDocument
     {
-        public string? FontAssetId { get; init; }
-
         public MenuLayoutDocument? Menu { get; init; }
 
         public SelectorLayoutDocument? Selector { get; init; }
 
         public ArmyCompositionLayoutDocument? ArmyComposition { get; init; }
 
-        public TextScalesDocument? TextScales { get; init; }
+        /// <summary>
+        /// Role-name to content-pipeline asset-id map, one entry per
+        /// <see cref="UiFontRole"/> (keyed on the camel-cased role name, for
+        /// example <c>"caption"</c>).
+        /// </summary>
+        public Dictionary<string, string>? Fonts { get; init; }
+
+        /// <summary>
+        /// Slot-name to font-role-name map for the eight theme text slots
+        /// (for example <c>"menuTitle"</c> to <c>"Display"</c>). Each value
+        /// must parse via <see cref="UiFontRamp.Parse"/>.
+        /// </summary>
+        public Dictionary<string, string>? TextRoles { get; init; }
     }
 
     private sealed class MenuLayoutDocument
@@ -160,24 +168,5 @@ internal sealed partial class UiThemeCatalog
         public int StepperWidth { get; init; }
 
         public int ArrowWidth { get; init; }
-    }
-
-    private sealed class TextScalesDocument
-    {
-        public float MenuTitle { get; init; }
-
-        public float MenuSubtitle { get; init; }
-
-        public float MenuButton { get; init; }
-
-        public float MenuHelper { get; init; }
-
-        public float SelectorArrow { get; init; }
-
-        public float SelectorLabel { get; init; }
-
-        public float SelectorName { get; init; }
-
-        public float SelectorMarker { get; init; }
     }
 }

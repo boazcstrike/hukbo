@@ -69,20 +69,41 @@ internal sealed partial class UiThemeCatalog
                 new UiIntegerRange(1, 4),
                 new UiIntegerRange(2, 5),
                 new UiIntegerRange(0, 6),
-                new UiIntegerRange(44, 64),
-                new UiNumberRange(0.45d, 1.25d)),
-            ["Default"],
+                new UiIntegerRange(44, 64)),
+            [
+                "Fonts/UiCaption",
+                "Fonts/UiBody",
+                "Fonts/UiLabel",
+                "Fonts/UiSubtitle",
+                "Fonts/UiTitle",
+                "Fonts/UiDisplay",
+            ],
             new UiSharedStandards(
-                "Default",
                 new UiMenuLayout(
+                    // menu.panelHeight: 660 -> 688. Grows by the same 28px
+                    // delta as subtitleTopOffset below, so the gore selector
+                    // and the helper line keep their original clearance from
+                    // the panel bottom. See ui-theme-standards.json for the
+                    // full derivation.
                     360,
-                    660,
+                    688,
                     280,
                     44,
                     8,
+                    // menu.titleTopOffset unchanged; Display bake (rung
+                    // Display, line spacing 61) still centres at y=42, giving
+                    // a title box of y=12..73.
                     42,
-                    72,
-                    94,
+                    // menu.subtitleTopOffset: 72 -> 100. Subtitle bake (rung
+                    // Subtitle, line spacing 34) centred at y=100 gives a box
+                    // of y=83..117, clearing the title box bottom (73) by a
+                    // visible 10px gap instead of overlapping it by 18px.
+                    100,
+                    // menu.selectorTopOffset: 94 -> 122. Cascaded by the same
+                    // 28px delta as subtitleTopOffset so the theme selector
+                    // keeps its original 5px clearance below the subtitle box
+                    // bottom (117 + 5 = 122).
+                    122,
                     14,
                     23),
                 new UiThemeSelectorLayout(
@@ -103,15 +124,22 @@ internal sealed partial class UiThemeCatalog
                     8,
                     260,
                     44),
-                new UiTextScales(
-                    1f,
-                    1f,
-                    0.78f,
-                    0.58f,
-                    1.15f,
-                    0.58f,
-                    0.82f,
-                    0.56f)));
+                new UiFontAssignments(
+                    "Fonts/UiCaption",
+                    "Fonts/UiBody",
+                    "Fonts/UiLabel",
+                    "Fonts/UiSubtitle",
+                    "Fonts/UiTitle",
+                    "Fonts/UiDisplay"),
+                new UiTextRoles(
+                    UiFontRole.Display,
+                    UiFontRole.Subtitle,
+                    UiFontRole.Label,
+                    UiFontRole.Caption,
+                    UiFontRole.Subtitle,
+                    UiFontRole.Caption,
+                    UiFontRole.Label,
+                    UiFontRole.Caption)));
         return new UiThemeCatalog("command", themes, standards);
     }
 }

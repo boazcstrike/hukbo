@@ -14,27 +14,27 @@ internal sealed partial class BattleEventLogPanel
     private void DrawDetails(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        UiFontSet fonts,
         BattleEventFeed feed,
         BattleEventPanelLayout layout,
         UiTheme theme)
     {
-        DrawDetailsChrome(spriteBatch, pixel, font, layout, theme);
+        var captionFont = fonts.Get(UiFontRole.Caption);
+        DrawDetailsChrome(spriteBatch, pixel, captionFont, layout, theme);
 
         if (feed.SelectedEvent is not { } selected)
         {
             UiPrimitives.DrawCenteredText(
                 spriteBatch,
-                font,
+                captionFont,
                 "Select an event to inspect every field",
                 layout.DetailsBounds.Center.ToVector2() + new Vector2(0, 6),
-                theme.Colors.TextSecondary,
-                0.54f);
+                theme.Colors.TextSecondary);
             return;
         }
 
         SynchronizeDetails(selected, layout.DetailsBounds.Width);
-        DrawDetailLines(spriteBatch, font, layout, selected, theme);
+        DrawDetailLines(spriteBatch, fonts, layout, selected, theme);
     }
 
     private static void DrawDetailsChrome(
@@ -54,27 +54,25 @@ internal sealed partial class BattleEventLogPanel
             layout.DetailsBounds,
             theme.Colors.PanelBorder,
             1);
-        spriteBatch.DrawString(
+        UiPrimitives.DrawText(
+            spriteBatch,
             font,
             "SELECTED EVENT",
             new Vector2(
                 layout.DetailsBounds.Left + 9,
                 layout.DetailsBounds.Top + 7),
-            theme.Colors.TextDisabled,
-            0f,
-            Vector2.Zero,
-            0.53f,
-            SpriteEffects.None,
-            0f);
+            theme.Colors.TextDisabled);
     }
 
     private void DrawDetailLines(
         SpriteBatch spriteBatch,
-        SpriteFont font,
+        UiFontSet fonts,
         BattleEventPanelLayout layout,
         BattleEvent selected,
         UiTheme theme)
     {
+        var headFont = fonts.Get(UiFontRole.Body);
+        var restFont = fonts.Get(UiFontRole.Caption);
         for (var index = 0; index < _cachedDetails.Length; index++)
         {
             var lineBounds = GetDetailLineBounds(layout, index);
@@ -88,16 +86,12 @@ internal sealed partial class BattleEventLogPanel
                 : index == _cachedDetails.Length - 1
                     ? theme.Colors.TextPrimary
                     : theme.Colors.TextSecondary;
-            spriteBatch.DrawString(
-                font,
+            UiPrimitives.DrawText(
+                spriteBatch,
+                index == 0 ? headFont : restFont,
                 _cachedDetails[index],
                 new Vector2(lineBounds.Left, lineBounds.Top),
-                color,
-                0f,
-                Vector2.Zero,
-                index == 0 ? 0.61f : 0.55f,
-                SpriteEffects.None,
-                0f);
+                color);
         }
     }
 
@@ -109,7 +103,14 @@ internal sealed partial class BattleEventLogPanel
             return;
         }
 
-        var maxCharacters = Math.Max(12, (width - 18) / 7);
+        // The head row (index 0) draws at the wider Body rung while the
+        // rest draw at Caption; using Body's conservative advance estimate
+        // here keeps the shared wrap budget safe for the widest rung in
+        // this block, at the cost of a little unused margin on the
+        // narrower Caption rows.
+        var maxCharacters = Math.Max(
+            12,
+            (width - 18) / UiFontRamp.GetApproximateAdvancePx(UiFontRole.Body));
         _cachedDetails =
         [
             ClipLabel(

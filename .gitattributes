@@ -7,5 +7,7 @@
 *.props text eol=lf
 *.ps1 text eol=crlf
 *.slnx text eol=lf
+*.spritefont text eol=lf
 *.targets text eol=lf
+*.ttf binary
 *.yml text eol=lf

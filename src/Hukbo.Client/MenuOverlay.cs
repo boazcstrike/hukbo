@@ -39,7 +39,7 @@ internal sealed class MenuOverlay
     private readonly GoreIntensitySelector _goreSelector;
     private readonly UiMenuLayout _layout;
     private readonly UiThemeSelectorLayout _selectorLayout;
-    private readonly UiTextScales _textScales;
+    private readonly UiTextRoles _textRoles;
     private int _focusedControlIndex;
 
     public MenuOverlay(
@@ -50,7 +50,7 @@ internal sealed class MenuOverlay
         _goreSelector = new GoreIntensitySelector(standards);
         _layout = standards.Shared.Menu;
         _selectorLayout = standards.Shared.Selector;
-        _textScales = standards.Shared.TextScales;
+        _textRoles = standards.Shared.TextRoles;
     }
 
     public bool IsVisible { get; private set; }
@@ -212,7 +212,7 @@ internal sealed class MenuOverlay
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        UiFontSet fonts,
         Rectangle screenBounds,
         UiTheme theme,
         GoreIntensity activeGoreIntensity)
@@ -249,27 +249,25 @@ internal sealed class MenuOverlay
 
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            fonts.Get(_textRoles.MenuTitle),
             "HUKBO",
             new Vector2(
                 panelBounds.Center.X,
                 panelBounds.Top + _layout.TitleTopOffset),
-            theme.Colors.TextPrimary,
-            _textScales.MenuTitle);
+            theme.Colors.TextPrimary);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            fonts.Get(_textRoles.MenuSubtitle),
             "Simulation controls",
             new Vector2(
                 panelBounds.Center.X,
                 panelBounds.Top + _layout.SubtitleTopOffset),
-            theme.Colors.TextSecondary,
-            _textScales.MenuSubtitle);
+            theme.Colors.TextSecondary);
 
         _themeSelector.Draw(
             spriteBatch,
             pixel,
-            font,
+            fonts,
             theme,
             _focusedControlIndex == 0);
 
@@ -278,28 +276,26 @@ internal sealed class MenuOverlay
             button.Draw(
                 spriteBatch,
                 pixel,
-                font,
-                theme,
-                _textScales.MenuButton);
+                fonts.Get(_textRoles.MenuButton),
+                theme);
         }
 
         _goreSelector.Draw(
             spriteBatch,
             pixel,
-            font,
+            fonts,
             theme,
             activeGoreIntensity,
             _focusedControlIndex == GoreSelectorControlIndex);
 
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            fonts.Get(_textRoles.MenuHelper),
             "Esc closes  |  Up/Down focus  |  Left/Right change",
             new Vector2(
                 panelBounds.Center.X,
                 panelBounds.Bottom - _layout.HelperBottomOffset),
-            theme.Colors.TextSecondary,
-            _textScales.MenuHelper);
+            theme.Colors.TextSecondary);
     }
 
     private void Layout(Rectangle screenBounds)
