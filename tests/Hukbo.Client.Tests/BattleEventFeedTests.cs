@@ -389,7 +389,8 @@ public sealed class BattleEventFeedTests
                 targetEntityId ?? checked(source + 1),
                 value,
                 factionId ?? 0,
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
+                ShieldId.None,
                 BodyPart.Chest);
         }
 

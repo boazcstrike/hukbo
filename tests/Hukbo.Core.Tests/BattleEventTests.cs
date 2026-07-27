@@ -6,6 +6,55 @@ namespace Hukbo.Core.Tests;
 public sealed class BattleEventTests
 {
     [Fact]
+    public void CombatContextEnumsFitTheBytesTheyArePackedInto()
+    {
+        // BattleEvent packs Weapon, Shield, and HitLocation into one int, a
+        // byte apiece. Every one of the three must start numbering at one so
+        // that a zero weapon field is an unambiguous "absent" marker, and
+        // none may exceed 255. An enum value added outside that range would
+        // otherwise silently alias another value inside a packed event.
+        AssertPackable(Enum.GetValues<WeaponId>().Select(id => (int)id));
+        AssertPackable(Enum.GetValues<ShieldId>().Select(id => (int)id));
+        AssertPackable(Enum.GetValues<BodyPart>().Select(part => (int)part));
+
+        static void AssertPackable(IEnumerable<int> values)
+        {
+            foreach (var value in values)
+            {
+                Assert.InRange(value, 1, 255);
+            }
+        }
+    }
+
+    [Fact]
+    public void AttackRoundTripsEveryCombinationOfPackedCombatContext()
+    {
+        foreach (var weapon in Enum.GetValues<WeaponId>())
+        {
+            foreach (var shield in Enum.GetValues<ShieldId>())
+            {
+                foreach (var hitLocation in BodyPartCatalog.Ordered)
+                {
+                    var attack = BattleEvent.Attack(
+                        sequence: 1,
+                        tick: 1,
+                        sourceEntityId: 1,
+                        targetEntityId: 2,
+                        damage: 1,
+                        factionId: 0,
+                        weapon,
+                        shield,
+                        hitLocation);
+
+                    Assert.Equal(weapon, attack.Weapon);
+                    Assert.Equal(shield, attack.Shield);
+                    Assert.Equal(hitLocation, attack.HitLocation);
+                }
+            }
+        }
+    }
+
+    [Fact]
     public void Attack_PopulatesWeaponAndHitLocation()
     {
         var attack = BattleEvent.Attack(
@@ -15,7 +64,8 @@ public sealed class BattleEventTests
             targetEntityId: 11,
             damage: 7,
             factionId: 0,
-            WeaponId.Bolo,
+            WeaponId.Itak,
+            ShieldId.None,
             BodyPart.WeaponArm);
 
         Assert.Equal(1, attack.Sequence);
@@ -25,7 +75,7 @@ public sealed class BattleEventTests
         Assert.Equal(11UL, attack.TargetEntityId);
         Assert.Equal(7, attack.Value);
         Assert.Equal(0, attack.FactionId);
-        Assert.Equal(WeaponId.Bolo, attack.Weapon);
+        Assert.Equal(WeaponId.Itak, attack.Weapon);
         Assert.Equal(BodyPart.WeaponArm, attack.HitLocation);
     }
 
@@ -39,7 +89,8 @@ public sealed class BattleEventTests
             targetEntityId: 0,
             damage: 1,
             factionId: 0,
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
+            ShieldId.None,
             BodyPart.Head));
     }
 
@@ -54,6 +105,7 @@ public sealed class BattleEventTests
             damage: 1,
             factionId: 0,
             (WeaponId)999,
+            ShieldId.None,
             BodyPart.Head));
     }
 
@@ -67,7 +119,8 @@ public sealed class BattleEventTests
             targetEntityId: 2,
             damage: 1,
             factionId: 0,
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
+            ShieldId.None,
             (BodyPart)999));
     }
 

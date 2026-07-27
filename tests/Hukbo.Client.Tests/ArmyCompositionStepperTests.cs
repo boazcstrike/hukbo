@@ -52,7 +52,7 @@ public sealed class ArmyCompositionStepperTests
         var result = ArmyCompositionStepper.DistributeEvenly(202);
 
         Assert.Equal(
-            new[] { 51, 51, 50, 50 },
+            new[] { 34, 34, 34, 34, 33, 33 },
             result.ToArray());
     }
 

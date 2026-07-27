@@ -12,11 +12,12 @@ public enum BattleEventKind
 }
 
 /// <summary>
-/// One authoritative simulation event. <see cref="Weapon"/> and
-/// <see cref="HitLocation"/> are populated only for <see cref="Kind"/>
-/// <see cref="BattleEventKind.Attack"/>; every other kind carries both as
-/// <c>null</c>. Construct instances only through <see cref="Attack"/> or
-/// <see cref="NonAttack"/>; both validate the combat-context invariant.
+/// One authoritative simulation event. <see cref="Weapon"/>,
+/// <see cref="Shield"/>, and <see cref="HitLocation"/> are populated only for
+/// <see cref="Kind"/> <see cref="BattleEventKind.Attack"/>; every other kind
+/// carries all three as <c>null</c>. Construct instances only through
+/// <see cref="Attack"/> or <see cref="NonAttack"/>; both validate the
+/// combat-context invariant.
 /// </summary>
 /// <remarks>
 /// Record structs always expose an implicit public parameterless
@@ -36,6 +37,7 @@ public readonly record struct BattleEvent
         int value,
         int? factionId,
         WeaponId? weapon,
+        ShieldId? shield,
         BodyPart? hitLocation)
     {
         Sequence = sequence;
@@ -45,9 +47,38 @@ public readonly record struct BattleEvent
         TargetEntityId = targetEntityId;
         Value = value;
         FactionId = factionId;
-        Weapon = weapon;
-        HitLocation = hitLocation;
+        _combatContext = weapon is { } presentWeapon
+            ? ((int)presentWeapon << WeaponShift) |
+                ((int)shield!.Value << ShieldShift) |
+                (int)hitLocation!.Value
+            : CombatContextAbsent;
     }
+
+    private const int CombatContextAbsent = 0;
+    private const int WeaponShift = 16;
+    private const int ShieldShift = 8;
+    private const int FieldMask = 0xFF;
+
+    /// <summary>
+    /// <see cref="Weapon"/>, <see cref="Shield"/>, and
+    /// <see cref="HitLocation"/> packed into one field, or
+    /// <see cref="CombatContextAbsent"/> for an event that carries no combat
+    /// context.
+    /// </summary>
+    /// <remarks>
+    /// Three separate nullable enum fields cost eight bytes each and are the
+    /// bulk of per-tick allocation, which
+    /// <c>RepeatedCollisionTicksHaveBoundedAllocations</c> budgets. Packed
+    /// this way the three together cost four bytes, so adding the shield made
+    /// the event smaller than it was with only two of them.
+    /// <para>
+    /// Every one of the three enums starts numbering at one and none exceeds
+    /// 255, so a byte apiece is sufficient and a zero weapon field is an
+    /// unambiguous "absent" marker rather than a real value. A test pins that
+    /// range assumption.
+    /// </para>
+    /// </remarks>
+    private readonly int _combatContext;
 
     public long Sequence { get; }
 
@@ -66,18 +97,42 @@ public readonly record struct BattleEvent
     /// <summary>
     /// The attacking weapon. Populated only for <see cref="BattleEventKind.Attack"/>.
     /// </summary>
-    public WeaponId? Weapon { get; }
+    public WeaponId? Weapon =>
+        _combatContext == CombatContextAbsent
+            ? null
+            : (WeaponId)((_combatContext >> WeaponShift) & FieldMask);
+
+    /// <summary>
+    /// The shield the <em>attacker</em> was carrying, which is what decides
+    /// which of the weapon's profiles produced this blow. Populated only for
+    /// <see cref="BattleEventKind.Attack"/>.
+    /// </summary>
+    /// <remarks>
+    /// Carried on the event rather than looked up later because a feed line
+    /// is read long after the tick that produced it, and because loadout
+    /// assignment depends on the scenario's roster counts — so there is no
+    /// reliable way to recover it from an entity ID alone. Without it, the
+    /// same weapon label would mean either of two different damage values.
+    /// </remarks>
+    public ShieldId? Shield =>
+        _combatContext == CombatContextAbsent
+            ? null
+            : (ShieldId)((_combatContext >> ShieldShift) & FieldMask);
 
     /// <summary>
     /// The resolved body part struck. Populated only for
     /// <see cref="BattleEventKind.Attack"/>.
     /// </summary>
-    public BodyPart? HitLocation { get; }
+    public BodyPart? HitLocation =>
+        _combatContext == CombatContextAbsent
+            ? null
+            : (BodyPart)(_combatContext & FieldMask);
 
     /// <summary>
-    /// Creates a validated <see cref="BattleEventKind.Attack"/> event. Both
-    /// <paramref name="weapon"/> and <paramref name="hitLocation"/> are
-    /// required and must be defined enum values.
+    /// Creates a validated <see cref="BattleEventKind.Attack"/> event.
+    /// <paramref name="weapon"/>, <paramref name="shield"/>, and
+    /// <paramref name="hitLocation"/> are all required and must be defined
+    /// enum values.
     /// </summary>
     public static BattleEvent Attack(
         long sequence,
@@ -87,6 +142,7 @@ public readonly record struct BattleEvent
         int damage,
         int factionId,
         WeaponId weapon,
+        ShieldId shield,
         BodyPart hitLocation)
     {
         if (targetEntityId == 0)
@@ -103,6 +159,14 @@ public readonly record struct BattleEvent
                 nameof(weapon),
                 weapon,
                 "An attack event requires a defined weapon.");
+        }
+
+        if (!Enum.IsDefined(shield))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(shield),
+                shield,
+                "An attack event requires a defined shield.");
         }
 
         if (!Enum.IsDefined(hitLocation))
@@ -122,6 +186,7 @@ public readonly record struct BattleEvent
             damage,
             factionId,
             weapon,
+            shield,
             hitLocation);
     }
 
@@ -156,6 +221,7 @@ public readonly record struct BattleEvent
             value,
             factionId,
             weapon: null,
+            shield: null,
             hitLocation: null);
     }
 }

@@ -82,7 +82,8 @@ internal sealed class AgentInspectorPanel
 
         var appearance = PawnAppearanceFactory.Create(
             selected.EntityId,
-            selected.Loadout.Weapon);
+            selected.Loadout.Weapon,
+            selected.Loadout.Shield);
         var factionLabel = GetFactionLabel(selected.FactionId);
         var stateLabel = selected.IsAlive ? "ALIVE" : "DEAD";
         var targetLabel = selected.TargetEntityId?.ToString() ?? "none";
@@ -132,29 +133,17 @@ internal sealed class AgentInspectorPanel
             textY
                 + (AgentInspectorContent.TopDetailRowCount * LineHeight)
                 + AgentInspectorContent.TopDetailBottomGap);
-        DrawLine($"Intent: {selected.Intent}", textX, lowerTextY, 0);
-        DrawLine($"Target: {targetLabel}", textX, lowerTextY, 1);
-        DrawLine($"Position: {x:0.00}, {y:0.00}", textX, lowerTextY, 2);
-        DrawLine(
-            AgentInspectorContent.FormatWeaponLine(appearance.WeaponLabel),
-            textX,
-            lowerTextY,
-            3);
-        DrawLine(
-            AgentInspectorContent.FormatArmorLine(selected.Loadout.Armor),
-            textX,
-            lowerTextY,
-            4);
-        DrawLine(
-            AgentInspectorContent.FormatShieldLine(selected.Loadout.Shield),
-            textX,
-            lowerTextY,
-            5);
-        DrawLine(
-            AgentInspectorContent.FormatMovementLine(selected.MovementResolution),
-            textX,
-            lowerTextY,
-            6);
+        // Built as an ordered list rather than fixed row indices because the
+        // grip line is absent for a two-handed weapon, and hard-coded indices
+        // would leave a blank row where it would have been.
+        var lowerLines = AgentInspectorContent.BuildLowerLines(
+            selected,
+            appearance.WeaponLabel,
+            appearance.EvidenceTierLabel);
+        for (var row = 0; row < lowerLines.Count; row++)
+        {
+            DrawLine(lowerLines[row], textX, lowerTextY, row);
+        }
 
         var contentWidthBudget = AgentInspectorContent.ComputeContentWidthBudget(
             Bounds.Width);
@@ -165,7 +154,7 @@ internal sealed class AgentInspectorPanel
         var maxRowBottom = Bounds.Bottom - Padding;
         for (var i = 0; i < evidenceLines.Count; i++)
         {
-            var row = AgentInspectorContent.LowerRowCount + i;
+            var row = lowerLines.Count + i;
             var rowBottom = lowerTextY + (row * LineHeight) + LineHeight;
             if (rowBottom > maxRowBottom)
             {

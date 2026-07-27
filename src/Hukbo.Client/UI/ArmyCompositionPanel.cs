@@ -82,7 +82,13 @@ internal readonly record struct ArmyCompositionInteraction(
 
 internal sealed partial class ArmyCompositionPanel
 {
-    internal const int ControlCount = 9;
+    /// <summary>
+    /// One control per category, plus the units-per-team stepper and the four
+    /// buttons. Derived rather than written as a literal so growing the
+    /// roster cannot leave the last category unreachable by keyboard focus.
+    /// </summary>
+    internal const int ControlCount =
+        ArmyCompositionStepper.CategoryCount + 5;
     internal const int UnitsPerTeamControlIndex =
         ArmyCompositionStepper.CategoryCount;
     internal const int DistributeEvenlyControlIndex =
@@ -93,15 +99,24 @@ internal sealed partial class ArmyCompositionPanel
     internal const int ApplyControlIndex = CancelControlIndex + 1;
 
     /// <summary>
-    /// Plain descriptors only, in declared roster-index order. Never a
-    /// cultural weapon identification (CLAUDE.md §7).
+    /// One label per roster entry, in declared roster-index order. Pair form
+    /// only — a cultural identification never appears without its plain
+    /// English descriptor (CLAUDE.md section 7).
     /// </summary>
+    /// <remarks>
+    /// Six entries, not six weapons: a one-handed weapon appears twice, once
+    /// solo and once shielded, because the two are different loadouts that
+    /// fight differently. The grip is named so a spectator choosing a
+    /// composition knows which of the two they are fielding.
+    /// </remarks>
     internal static readonly IReadOnlyList<string> CategoryLabels =
     [
-        "Great Blade",
-        "Heavy Chopper",
-        "Thrusting Blade",
-        "Work Blade",
+        "Kampilan — Great Blade",
+        "Wasay — War Axe",
+        "Kalis — Thrusting Blade (solo)",
+        "Kalis — Thrusting Blade (shielded)",
+        "Itak — Work Blade (solo)",
+        "Itak — Work Blade (shielded)",
     ];
 
     private readonly UiArmyCompositionLayout _metrics;

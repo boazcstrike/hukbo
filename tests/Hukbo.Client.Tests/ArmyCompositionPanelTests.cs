@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
 using Hukbo.Client.UI;
+using Hukbo.Core.Combat;
+using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Tests;
 
@@ -20,18 +22,121 @@ public sealed class ArmyCompositionPanelTests
         TestArmyCompositionLayout =>
         new(
             PanelWidth: 420,
-            PanelHeight: 560,
+            PanelHeight: 648,
             RowHeight: 44,
             RowGap: 8,
             StepperWidth: 260,
             ArrowWidth: 44);
 
     [Fact]
-    public void FocusWrapsAcrossTheNinePanelControls()
+    public void EveryCategoryIsOneRosterEntryOfTheActivePreset()
     {
-        Assert.Equal(9, ArmyCompositionPanel.ControlCount);
+        // A category is a roster entry, not a weapon: preset V2 fields a solo
+        // and a shielded loadout for each one-handed weapon. Scenario
+        // validation requires RosterCounts to match the roster length exactly,
+        // so a mismatch here is a battle that refuses to start.
+        var rosterLength = CombatPresetRegistry
+            .Get(CombatPresetId.PrecolonialPhilippinesV2)
+            .Roster
+            .Count;
+
+        Assert.Equal(ArmyCompositionStepper.CategoryCount, rosterLength);
         Assert.Equal(
-            8,
+            Hukbo.Client.Settings.ArmyComposition.CategoryCount,
+            rosterLength);
+        Assert.Equal(rosterLength, ArmyCompositionPanel.CategoryLabels.Count);
+    }
+
+    [Fact]
+    public void EveryCategoryLabelNamesItsWeaponAndItsGrip()
+    {
+        var labels = ArmyCompositionPanel.CategoryLabels;
+
+        // Pair form throughout, so no label is a bare cultural name.
+        foreach (var label in labels)
+        {
+            Assert.Contains(" — ", label, StringComparison.Ordinal);
+        }
+
+        // A weapon that appears twice must say which of the two it is, or the
+        // spectator cannot tell the rows apart.
+        foreach (var group in labels.GroupBy(
+            label => label.Split(" (")[0],
+            StringComparer.Ordinal))
+        {
+            if (group.Count() == 1)
+            {
+                continue;
+            }
+
+            Assert.Contains(group, label => label.EndsWith("(solo)", StringComparison.Ordinal));
+            Assert.Contains(
+                group,
+                label => label.EndsWith("(shielded)", StringComparison.Ordinal));
+        }
+
+        Assert.Equal(
+            labels.Count,
+            labels.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public void EveryLaidOutRowFitsInsideThePanel()
+    {
+        // The panel height is theme data while the row count is code, so the
+        // two can drift apart silently: growing the roster from four entries
+        // to six pushed the Apply row past a 560px panel. This is the check
+        // that catches it rather than a spectator finding a clipped button.
+        var layout = ArmyCompositionPanel.CalculateLayout(
+            new Rectangle(0, 0, 1280, 720),
+            TestArmyCompositionLayout);
+        var margin = TestArmyCompositionLayout.RowGap * 2;
+
+        Assert.Equal(
+            ArmyCompositionStepper.CategoryCount,
+            layout.CategoryRows.Length);
+
+        foreach (var bounds in AllRowBounds(layout))
+        {
+            Assert.True(
+                bounds.Top >= layout.PanelBounds.Top + margin,
+                $"A row starting at {bounds.Top} sits above the panel's top " +
+                $"margin at {layout.PanelBounds.Top + margin}.");
+            Assert.True(
+                bounds.Bottom <= layout.PanelBounds.Bottom - margin,
+                $"A row ending at {bounds.Bottom} falls past the panel's " +
+                $"bottom margin at {layout.PanelBounds.Bottom - margin}.");
+        }
+    }
+
+    private static IEnumerable<Rectangle> AllRowBounds(
+        ArmyCompositionPanelLayout layout)
+    {
+        yield return layout.TitleBounds;
+        foreach (var row in layout.CategoryRows)
+        {
+            yield return row.RowBounds;
+        }
+
+        yield return layout.UnitsPerTeamRow.RowBounds;
+        yield return layout.UnassignedBounds;
+        yield return layout.DistributeEvenlyBounds;
+        yield return layout.ResetToDefaultBounds;
+        yield return layout.CancelBounds;
+        yield return layout.ApplyBounds;
+    }
+
+    [Fact]
+    public void FocusWrapsAcrossEveryPanelControl()
+    {
+        // One control per roster category plus the units-per-team stepper and
+        // the four buttons. Derived from the category count so growing the
+        // roster cannot leave the last category unreachable by keyboard.
+        Assert.Equal(
+            ArmyCompositionStepper.CategoryCount + 5,
+            ArmyCompositionPanel.ControlCount);
+        Assert.Equal(
+            ArmyCompositionPanel.ControlCount - 1,
             MenuOverlay.ResolveFocusedControlIndex(
                 currentIndex: 0,
                 keyboardDirection: -1,
@@ -40,7 +145,7 @@ public sealed class ArmyCompositionPanelTests
         Assert.Equal(
             0,
             MenuOverlay.ResolveFocusedControlIndex(
-                currentIndex: 8,
+                currentIndex: ArmyCompositionPanel.ControlCount - 1,
                 keyboardDirection: 1,
                 hoveredIndex: -1,
                 controlCount: ArmyCompositionPanel.ControlCount));

@@ -257,7 +257,7 @@ public sealed class CollisionPriorityTests
             scenario.DamagePerAttack,
             scenario.AttackCooldownTicks,
             new CombatLoadout(
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
                 ArmorId.LightOrganic,
                 ShieldId.None));
 

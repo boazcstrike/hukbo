@@ -49,8 +49,13 @@ public sealed record Scenario(
     /// </summary>
     public int LastStandThresholdAgents { get; init; }
 
+    /// <summary>
+    /// The combat ruleset this battle is fought under. Defaults to the
+    /// newest preset; earlier ones stay registered and unmodified so a
+    /// replay recorded against one remains reproducible by naming it here.
+    /// </summary>
     public CombatPresetId CombatPreset { get; init; } =
-        CombatPresetId.PrecolonialPhilippinesV1;
+        CombatPresetId.PrecolonialPhilippinesV2;
 
     /// <summary>
     /// Per-battle warrior counts, one entry per roster index in
@@ -246,7 +251,16 @@ public sealed record Scenario(
                 "Perception range must be at least the attack range.");
         }
 
-        if ((long)AgentsPerFaction * DamagePerAttack > int.MaxValue)
+        // Checked against the largest damage any warrior could actually
+        // deal, not against this scenario's global value: from combat preset
+        // V2 onward a weapon profile supplies the per-warrior damage and can
+        // exceed DamagePerAttack, so guarding on the scenario value alone
+        // would under-count the worst case this accumulator has to hold.
+        var worstCaseDamage = Math.Max(
+            DamagePerAttack,
+            CombatPresetRegistry.Get(CombatPreset)
+                .MaximumProfileDamagePerAttack ?? 0);
+        if ((long)AgentsPerFaction * worstCaseDamage > int.MaxValue)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(DamagePerAttack),

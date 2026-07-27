@@ -16,10 +16,13 @@ internal static class PawnAppearanceFactory
     private static readonly Color MediumSkin = new(156, 103, 66);
     private static readonly Color DarkSkin = new(119, 76, 50);
 
-    // Weapon role comes only from the authoritative Core loadout. Entity ID
-    // drives stature, build, clothing, skin, and head treatment only — it
-    // must never influence weapon identity.
-    public static PawnAppearance Create(ulong entityId, WeaponId weapon)
+    // Weapon and shield roles come only from the authoritative Core loadout.
+    // Entity ID drives stature, build, clothing, skin, and head treatment
+    // only — it must never influence equipment identity.
+    public static PawnAppearance Create(
+        ulong entityId,
+        WeaponId weapon,
+        ShieldId shield)
     {
         var bodyMix = Mix(entityId ^ 0xA0761D6478BD642FUL);
         var clothingMix = Mix(entityId ^ 0xE7037ED1A0B428DBUL);
@@ -27,6 +30,7 @@ internal static class PawnAppearanceFactory
 
         return new PawnAppearance(
             ToWeaponRole(weapon),
+            ToShieldRole(shield),
             SelectStature(bodyMix),
             SelectBuild(bodyMix >> 8),
             (PawnHeadTreatment)((bodyMix >> 16) % 3),
@@ -39,13 +43,24 @@ internal static class PawnAppearanceFactory
     private static PawnWeaponRole ToWeaponRole(WeaponId weapon) =>
         weapon switch
         {
-            WeaponId.GreatBlade => PawnWeaponRole.GreatBlade,
-            WeaponId.HeavyChopper => PawnWeaponRole.HeavyChopper,
-            WeaponId.ThrustingBlade => PawnWeaponRole.ThrustingBlade,
-            WeaponId.Bolo => PawnWeaponRole.Bolo,
+            WeaponId.Kampilan => PawnWeaponRole.Kampilan,
+            WeaponId.Wasay => PawnWeaponRole.Wasay,
+            WeaponId.Kalis => PawnWeaponRole.Kalis,
+            WeaponId.Itak => PawnWeaponRole.Itak,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(weapon),
                 weapon,
+                null),
+        };
+
+    private static PawnShieldRole ToShieldRole(ShieldId shield) =>
+        shield switch
+        {
+            ShieldId.None => PawnShieldRole.None,
+            ShieldId.TallHardwood => PawnShieldRole.TallHardwood,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(shield),
+                shield,
                 null),
         };
 

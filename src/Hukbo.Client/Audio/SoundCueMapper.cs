@@ -39,10 +39,10 @@ internal static class SoundCueMapper
     private static GameSoundId? MapWeapon(WeaponId? weapon) =>
         weapon switch
         {
-            WeaponId.GreatBlade => GameSoundId.AttackGreatBlade,
-            WeaponId.HeavyChopper => GameSoundId.AttackHeavyChopper,
-            WeaponId.ThrustingBlade => GameSoundId.AttackThrustingBlade,
-            WeaponId.Bolo => GameSoundId.AttackWorkBlade,
+            WeaponId.Kampilan => GameSoundId.AttackGreatBlade,
+            WeaponId.Wasay => GameSoundId.AttackWarAxe,
+            WeaponId.Kalis => GameSoundId.AttackThrustingBlade,
+            WeaponId.Itak => GameSoundId.AttackWorkBlade,
             _ => null,
         };
 

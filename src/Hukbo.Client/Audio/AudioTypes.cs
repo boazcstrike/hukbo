@@ -8,7 +8,7 @@ namespace Hukbo.Client.Audio;
 internal enum GameSoundId
 {
     AttackGreatBlade = 0,
-    AttackHeavyChopper = 1,
+    AttackWarAxe = 1,
     AttackThrustingBlade = 2,
     AttackWorkBlade = 3,
     Death = 4,

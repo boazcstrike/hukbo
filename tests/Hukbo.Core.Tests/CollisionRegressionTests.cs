@@ -734,7 +734,7 @@ public sealed class CollisionRegressionTests
             scenario.DamagePerAttack,
             scenario.AttackCooldownTicks,
             new CombatLoadout(
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
                 ArmorId.LightOrganic,
                 ShieldId.None));
 }

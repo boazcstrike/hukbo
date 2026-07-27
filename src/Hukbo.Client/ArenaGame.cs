@@ -723,11 +723,7 @@ public sealed partial class ArenaGame : Game
 
     private static ImmutableArray<int> ToRosterCounts(
         Settings.ArmyComposition composition) =>
-        ImmutableArray.Create(
-            composition.GreatBladeCount,
-            composition.HeavyChopperCount,
-            composition.ThrustingBladeCount,
-            composition.WorkBladeCount);
+        [.. composition.CategoryCounts];
 
     private static UI.ArmyComposition ToPanelComposition(
         Settings.ArmyComposition composition) =>
@@ -740,7 +736,9 @@ public sealed partial class ArenaGame : Game
             composition.CategoryCounts[0],
             composition.CategoryCounts[1],
             composition.CategoryCounts[2],
-            composition.CategoryCounts[3]);
+            composition.CategoryCounts[3],
+            composition.CategoryCounts[4],
+            composition.CategoryCounts[5]);
 
     private static Scenario BuildScenario(
         ulong seed,

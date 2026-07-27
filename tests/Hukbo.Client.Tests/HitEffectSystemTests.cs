@@ -277,7 +277,7 @@ public sealed class HitEffectSystemTests
             Intent: AgentIntent.Idle,
             isAlive,
             Loadout: new CombatLoadout(
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
                 ArmorId.LightOrganic,
                 ShieldId.TallHardwood));
 
@@ -297,7 +297,8 @@ public sealed class HitEffectSystemTests
                 target ?? checked(source + 1),
                 value,
                 factionId: 0,
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
+                ShieldId.None,
                 BodyPart.Chest);
         }
 

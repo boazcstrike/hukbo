@@ -91,7 +91,8 @@ public sealed class HeadlessRunnerTests
             targetEntityId: 2,
             damage: 10,
             factionId: 0,
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
+            ShieldId.None,
             BodyPart.Head);
         var weaponChanged = BattleEvent.Attack(
             sequence: 5,
@@ -100,7 +101,8 @@ public sealed class HeadlessRunnerTests
             targetEntityId: 2,
             damage: 10,
             factionId: 0,
-            WeaponId.Bolo,
+            WeaponId.Itak,
+            ShieldId.None,
             BodyPart.Head);
         var locationChanged = BattleEvent.Attack(
             sequence: 5,
@@ -109,7 +111,8 @@ public sealed class HeadlessRunnerTests
             targetEntityId: 2,
             damage: 10,
             factionId: 0,
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
+            ShieldId.None,
             BodyPart.Feet);
 
         var baselineHash = 0UL;
@@ -142,7 +145,8 @@ public sealed class HeadlessRunnerTests
             targetEntityId: 2,
             damage: 10,
             factionId: 0,
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
+            ShieldId.None,
             BodyPart.Head);
 
         var firstMoveHash = 0UL;

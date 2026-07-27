@@ -32,7 +32,7 @@ internal static class SoundCatalog
     public static IReadOnlyList<GameSoundId> AllSounds { get; } =
     [
         GameSoundId.AttackGreatBlade,
-        GameSoundId.AttackHeavyChopper,
+        GameSoundId.AttackWarAxe,
         GameSoundId.AttackThrustingBlade,
         GameSoundId.AttackWorkBlade,
         GameSoundId.Death,
@@ -45,14 +45,14 @@ internal static class SoundCatalog
     /// <summary>
     /// The file name, without extension, that backs a slot. Weapon slots use
     /// the player-facing descriptors required by the historical accuracy
-    /// policy, so <see cref="Hukbo.Core.Combat.WeaponId.Bolo"/> appears here as
+    /// policy, so <see cref="Hukbo.Core.Combat.WeaponId.Itak"/> appears here as
     /// <c>attack-work-blade</c>.
     /// </summary>
     public static string GetBaseName(GameSoundId sound) =>
         sound switch
         {
             GameSoundId.AttackGreatBlade => "attack-great-blade",
-            GameSoundId.AttackHeavyChopper => "attack-heavy-chopper",
+            GameSoundId.AttackWarAxe => "attack-war-axe",
             GameSoundId.AttackThrustingBlade => "attack-thrusting-blade",
             GameSoundId.AttackWorkBlade => "attack-work-blade",
             GameSoundId.Death => "death",
@@ -79,7 +79,7 @@ internal static class SoundCatalog
     /// </summary>
     public static bool IsHitLocationDriven(GameSoundId sound) =>
         sound is GameSoundId.AttackGreatBlade or
-            GameSoundId.AttackHeavyChopper or
+            GameSoundId.AttackWarAxe or
             GameSoundId.AttackThrustingBlade or
             GameSoundId.AttackWorkBlade;
 

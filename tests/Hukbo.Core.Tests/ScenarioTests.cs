@@ -20,7 +20,7 @@ public sealed class ScenarioTests
         Assert.Equal(20, scenario.TickRate);
         Assert.Equal(10_000, scenario.TickLimit);
         Assert.Equal(
-            CombatPresetId.PrecolonialPhilippinesV1,
+            CombatPresetId.PrecolonialPhilippinesV2,
             scenario.CombatPreset);
     }
 
@@ -352,7 +352,7 @@ public sealed class ScenarioTests
     {
         var scenario = Scenario.CreateDefault(totalAgents: 200) with
         {
-            RosterCounts = ImmutableArray.Create(-1, 26, 25, 50),
+            RosterCounts = ImmutableArray.Create(-1, 26, 25, 50, 0, 0),
         };
 
         Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
@@ -363,7 +363,7 @@ public sealed class ScenarioTests
     {
         var scenario = Scenario.CreateDefault(totalAgents: 200) with
         {
-            RosterCounts = ImmutableArray.Create(25, 25, 25, 24),
+            RosterCounts = ImmutableArray.Create(25, 25, 25, 24, 0, 0),
         };
 
         Assert.Throws<ArgumentException>(scenario.Validate);
@@ -385,11 +385,11 @@ public sealed class ScenarioTests
     {
         var first = Scenario.CreateDefault(totalAgents: 200) with
         {
-            RosterCounts = ImmutableArray.Create(25, 25, 25, 25),
+            RosterCounts = ImmutableArray.Create(25, 25, 25, 25, 0, 0),
         };
         var second = Scenario.CreateDefault(totalAgents: 200) with
         {
-            RosterCounts = ImmutableArray.Create(25, 25, 25, 25),
+            RosterCounts = ImmutableArray.Create(25, 25, 25, 25, 0, 0),
         };
 
         Assert.Equal(first, second);
@@ -401,11 +401,11 @@ public sealed class ScenarioTests
     {
         var first = Scenario.CreateDefault(totalAgents: 200) with
         {
-            RosterCounts = ImmutableArray.Create(10, 20, 30, 40),
+            RosterCounts = ImmutableArray.Create(10, 20, 30, 40, 0, 0),
         };
         var second = Scenario.CreateDefault(totalAgents: 200) with
         {
-            RosterCounts = ImmutableArray.Create(10, 20, 30, 40),
+            RosterCounts = ImmutableArray.Create(10, 20, 30, 40, 0, 0),
         };
 
         Assert.Equal(first.GetHashCode(), second.GetHashCode());

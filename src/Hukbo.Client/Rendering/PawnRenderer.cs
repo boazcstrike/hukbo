@@ -92,6 +92,11 @@ internal static class PawnRenderer
             layout,
             clothingColor,
             accentColor);
+
+        // After the torso: the shield is held in front of the body, so it
+        // reads correctly only when it overlaps the torso rather than being
+        // occluded by it.
+        DrawShield(spriteBatch, pixel, layout, isDead);
         DrawHead(spriteBatch, pixel, layout.HeadBounds, skinColor);
 
         if (layout.DetailTier != PawnDetailTier.Low)
@@ -259,14 +264,31 @@ internal static class PawnRenderer
         PawnWeaponRole role,
         bool isDead)
     {
-        if (layout.DetailTier == PawnDetailTier.Low ||
-            layout.SecondaryEquipmentBounds.IsEmpty ||
-            role != PawnWeaponRole.Bolo)
+        if (layout.SecondaryEquipmentBounds.IsEmpty)
         {
             return;
         }
 
         var scale = layout.ApparentScale;
+
+        // The axe head is what separates the Wasay's silhouette from a thin
+        // blade, so unlike the Itak's off-hand piece it survives the low
+        // detail tier. PawnGeometry decides that; this only draws it.
+        if (role == PawnWeaponRole.Wasay)
+        {
+            spriteBatch.Draw(
+                pixel,
+                layout.SecondaryEquipmentBounds,
+                ApplyState(Iron, isDead));
+            return;
+        }
+
+        if (layout.DetailTier == PawnDetailTier.Low ||
+            role != PawnWeaponRole.Itak)
+        {
+            return;
+        }
+
         DrawLine(
             spriteBatch,
             pixel,
@@ -274,6 +296,41 @@ internal static class PawnRenderer
             layout.FootAnchor + new Vector2(-6f * scale, -11f * scale),
             ApplyState(CharredWood, isDead),
             MathF.Max(2f, 2f * scale));
+    }
+
+    /// <summary>
+    /// The shield block beside the torso. Drawn at every detail tier: a
+    /// shield changes what the warrior is, and dropping it at distance would
+    /// erase the solo-versus-shielded distinction exactly when a spectator is
+    /// watching whole formations.
+    /// </summary>
+    private static void DrawShield(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        PawnLayout layout,
+        bool isDead)
+    {
+        if (layout.ShieldBounds.IsEmpty)
+        {
+            return;
+        }
+
+        var bounds = layout.ShieldBounds;
+        spriteBatch.Draw(pixel, bounds, ApplyState(CharredWood, isDead));
+
+        // A lighter vertical seam so the block reads as a face rather than a
+        // silhouette hole once the pawn is large enough to show it.
+        if (layout.DetailTier != PawnDetailTier.Low && bounds.Width >= 3)
+        {
+            spriteBatch.Draw(
+                pixel,
+                new Rectangle(
+                    bounds.Center.X,
+                    bounds.Top + 1,
+                    1,
+                    Math.Max(1, bounds.Height - 2)),
+                ApplyState(Iron, isDead));
+        }
     }
 
     private static void DrawWeapon(
@@ -289,7 +346,7 @@ internal static class PawnRenderer
 
         switch (role)
         {
-            case PawnWeaponRole.Bolo:
+            case PawnWeaponRole.Itak:
                 DrawBlade(
                     spriteBatch,
                     pixel,
@@ -300,7 +357,7 @@ internal static class PawnRenderer
                     gripEnd: 0.30f,
                     widthMultiplier: 2.1f);
                 break;
-            case PawnWeaponRole.GreatBlade:
+            case PawnWeaponRole.Kampilan:
                 DrawBlade(
                     spriteBatch,
                     pixel,
@@ -311,7 +368,7 @@ internal static class PawnRenderer
                     gripEnd: 0.22f,
                     widthMultiplier: 2.45f);
                 break;
-            case PawnWeaponRole.HeavyChopper:
+            case PawnWeaponRole.Wasay:
                 DrawBlade(
                     spriteBatch,
                     pixel,
@@ -322,7 +379,7 @@ internal static class PawnRenderer
                     gripEnd: 0.28f,
                     widthMultiplier: 2.9f);
                 break;
-            case PawnWeaponRole.ThrustingBlade:
+            case PawnWeaponRole.Kalis:
                 DrawBlade(
                     spriteBatch,
                     pixel,

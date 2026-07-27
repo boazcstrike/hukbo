@@ -5,7 +5,13 @@ namespace Hukbo.Client.Settings;
 
 internal sealed class ClientSettingsStore
 {
-    public const int SupportedSchemaVersion = 2;
+    /// <summary>
+    /// Raised from 2 to 3 by combat preset V2, which turned four weapon
+    /// categories into six roster-entry categories and renamed all of them.
+    /// A version 2 file is discarded rather than migrated — a deliberate
+    /// reset recorded in <see cref="ArmyComposition"/>, not an oversight.
+    /// </summary>
+    public const int SupportedSchemaVersion = 3;
 
     private const GoreIntensity DefaultGoreIntensity = GoreIntensity.Stylized;
 

@@ -421,12 +421,12 @@ internal static class BloodGeometry
             // A great blade throws a broad even arc; the chopper's mass throws
             // the widest, heaviest, shortest spray; the thrusting blade throws
             // a narrow far one; the work blade throws a short modest one.
-            WeaponId.GreatBlade => new WeaponSprayProfile(6, 1.15f, 15f, 5f, 1.6f),
-            WeaponId.HeavyChopper =>
+            WeaponId.Kampilan => new WeaponSprayProfile(6, 1.15f, 15f, 5f, 1.6f),
+            WeaponId.Wasay =>
                 new WeaponSprayProfile(7, 1.55f, 12f, 6.5f, 2.1f),
-            WeaponId.ThrustingBlade =>
+            WeaponId.Kalis =>
                 new WeaponSprayProfile(4, 0.45f, 20f, 7f, 1.2f),
-            WeaponId.Bolo => new WeaponSprayProfile(5, 0.95f, 11f, 4f, 1.4f),
+            WeaponId.Itak => new WeaponSprayProfile(5, 0.95f, 11f, 4f, 1.4f),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(weapon),
                 weapon,

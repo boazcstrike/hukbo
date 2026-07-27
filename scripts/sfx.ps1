@@ -181,8 +181,8 @@ $defaultPrompts = @{
         Duration = 0.5
         Trim     = $true
     }
-    'attack-heavy-chopper'   = @{
-        Prompt   = 'one broad heavy chopping blade cleaving a shoulder, wet meat with a hard joint break, no ring, no music, no voice'
+    'attack-war-axe'         = @{
+        Prompt   = 'one heavy hafted axe cleaving a shoulder, wet meat with a hard joint break, no ring, no music, no voice'
         Duration = 0.5
         Trim     = $true
     }

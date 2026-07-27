@@ -84,7 +84,80 @@ not prove a sound was audible, that it arrived at the right moment, or that it
 sounded right. Smoke rows below still require a human at an interactive desktop;
 see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
-## Latest non-interactive result — sound gain compensation, 2026-07-27
+## Latest non-interactive result — weapon identity and attributes (preset V2), 2026-07-27
+
+Every weapon now carries its own damage, reach, and attack cooldown, split by
+grip, and a Filipino pair-form name with an evidence tier. See
+[docs/plans/2026-07-27-weapon-identity-and-attributes.md](../plans/2026-07-27-weapon-identity-and-attributes.md).
+
+**This is a hash-moving change.** `CombatPresetId.PrecolonialPhilippinesV2` is
+appended, V1 stays registered and unmodified, and `Scenario.CombatPreset`
+defaults to V2.
+
+`./scripts/verify.ps1` passed at all five stages:
+
+```
+[PASS] Locked package restore completed.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+| Field | Value |
+| --- | --- |
+| Tests | 621 passed, 0 failed, 0 skipped (Client 621 in the gate run; Core 453 locally) |
+| `measuredTicks` | 1 209 |
+| `outcome` | `Faction0Victory` |
+| `eventHash` | `CF8C3EDBC59C3319` |
+| `stateHash` | `C669281B67CF8871` |
+| `deterministic` | `true` |
+| `firstMismatchTick` | `null` |
+| `allocatedBytes` | 66 391 224 |
+| Tick p50 / p95 / p99 / max | 0.0857 / 1.441 / 3.2661 / 10.4976 ms |
+
+**Both hashes moved, which is the point.** The previous baseline was
+`eventHash D379B60B2E30FFFC` and `stateHash 5BEBA7A68F69BE0D`. An unchanged
+hash after this change would have meant the preset was not actually being
+read.
+
+Two independent verifications ran during implementation and are recorded
+because they are what makes the move trustworthy:
+
+- After the `WeaponId` symbol rename alone — `GreatBlade` to `Kampilan`,
+  `HeavyChopper` to `Wasay`, `ThrustingBlade` to `Kalis`, `Bolo` to `Itak`,
+  numeric values untouched — the seed-1 workload returned
+  `eventHash D379B60B2E30FFFC` and `stateHash 5BEBA7A68F69BE0D`, byte-identical
+  to the baseline. The rename is hash-neutral, as it must be, because the
+  numeric value is the hashed quantity.
+- V1's `ContentHash` still equals its pinned literal `0x59FB4CA563D87A49`,
+  proving V1 was not disturbed. V2's is pinned at `0xE653F1802A447662`.
+
+### 500-agent result, reported not asserted
+
+`./scripts/benchmark.ps1 -Agents 500 -Ticks 10000 -Seed 1`:
+
+| Field | Value |
+| --- | --- |
+| `outcome` | `Faction1Victory`, 0 against 7 survivors |
+| `eventHash` | `B6FA93AB66696485` |
+| `stateHash` | `DA4AA823020FAB3C` |
+| `deterministic` | `true` |
+| `allocatedBytes` | 316 682 016 |
+| Tick p95 / p99 / max | 2.8523 / 4.8983 / 15.306 ms |
+| `maximumPenetrationRaw` | 0 |
+
+### A note on per-tick allocation
+
+Adding the attacker's shield to `BattleEvent` — needed so a feed line can say
+whether a one-handed blow was solo or shielded — first pushed the collision
+allocation budget from its 900,000-byte ceiling to 982,744 bytes. Rather than
+raise the ceiling, `Weapon`, `Shield`, and `HitLocation` were packed into a
+single `int`. The event went from 80 bytes to 72, so it is now smaller with
+three combat-context fields than it was with two.
+
+## Previous non-interactive result — sound gain compensation, 2026-07-27
 
 Presentation-only change: per-cue gain now scales with the number of voices
 still sounding, and the per-frame cue budget was raised from a throttle to a
@@ -114,9 +187,10 @@ and [docs/research/SOUND-CAPACITY-MEASUREMENTS.md](../research/SOUND-CAPACITY-ME
 | Tick p50 / p95 / p99 / max | 0.0955 / 1.5235 / 2.5473 / 9.3252 ms |
 
 **Both hashes are unchanged from the collision priority fairness baseline
-recorded in the next section.** That is the point: nothing in this change
-reaches `Hukbo.Core`, so a moved hash would have meant the change was wrong.
-The collision section below remains the authoritative determinism baseline.
+recorded further down.** That is the point: nothing in this change reaches
+`Hukbo.Core`, so a moved hash would have meant the change was wrong. Those
+hashes were the authoritative baseline until preset V2 replaced them; the
+weapon identity section above is now the current one.
 
 Audio evidence, from `tools/Hukbo.Tools.MixAnalysis` against the shipped policy:
 every cue played, zero suppressed, and peak level between −6.1 and −0.2 dBFS
@@ -126,7 +200,7 @@ change the same workloads peaked between +7.7 and +11.0 dBFS.
 Every row in the sound gain compensation smoke checklist is `PENDING`. Nothing
 here proves how it sounds.
 
-## Previous non-interactive result — collision priority fairness
+## Superseded: the collision priority fairness run
 
 Every figure in this section comes from one final verified run of the collision
 priority fairness change on 2026-07-27, taken on the
@@ -1249,6 +1323,27 @@ Run `./scripts/run.ps1` on an interactive Windows desktop. This repository uses
 local-only verification: there is no hosted-CI substitute for this direct
 interaction pass. Compilation, automated tests, a window-opening probe, or
 synthetic input do not make a manual row pass.
+
+### Weapon identity and attributes smoke (preset V2)
+
+**No interactive run was performed for this change.** Every row below is
+`PENDING`. The automated tests prove the labels, the profiles, the resolver,
+the reach floor, and the panel arithmetic; none of them prove that an axe reads
+as an axe on screen, that a shield block is visible at battle scale, or that
+the six-row composition panel fits the window.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| V2-1 | Watch the battle event feed for one exchange | Attack lines read `Kampilan — Great Blade`, `Wasay — War Axe`, `Kalis — Thrusting Blade (solo)`, `Kalis — Thrusting Blade (shielded)`, `Itak — Work Blade (solo)`, `Itak — Work Blade (shielded)`, with differing damage values | | PENDING |
+| V2-2 | Watch the two-handed weapons in the feed | Neither Kampilan nor Wasay ever carries a `(solo)` or `(shielded)` suffix | | PENDING |
+| V2-3 | Click a warrior, then a second of the same weapon and the other grip | The inspector shows the pair label, the evidence tier, the grip, and the three attribute values, and the two differ by one damage and one reach | | PENDING |
+| V2-4 | Look at the battlefield at default zoom | Shield bearers are distinguishable from solo warriors of the same weapon without clicking either | | PENDING |
+| V2-5 | Zoom out to the lowest detail tier | The shield block is still visible; the Wasay is still distinguishable from the Kampilan | | PENDING |
+| V2-6 | Compare a Wasay warrior against a Kampilan warrior up close | The Wasay reads as a hafted axe with a distinct head, not as a narrow blade | | PENDING |
+| V2-7 | Open the army composition panel | Six rows, each naming its weapon in pair form and its grip where the weapon appears twice; every row and both buttons are fully on screen | | PENDING |
+| V2-8 | Use Distribute Evenly, then Apply, then Full Reset | The battle fields the chosen composition across all six categories | | PENDING |
+| V2-9 | Launch with an existing pre-V2 settings file present | Settings reset to defaults without an error dialog or a crash; the composition is the six-category default | | PENDING |
+| V2-10 | Listen during a Wasay attack | The war-axe sound plays; no slot is silent | | PENDING |
 
 ### Spectator clarity smoke
 

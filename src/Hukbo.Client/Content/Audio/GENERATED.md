@@ -12,6 +12,14 @@ instructions and the kept durations were measured from the WAV headers, so the
 rows are accurate — but they are a reconstruction, and the exact time of day and
 the number of attempts each take needed are lost.
 
+The ten `attack-heavy-chopper-*.wav` rows below name files that no longer exist
+under that name. Combat preset V2 renamed the weapon from Heavy Chopper to
+`Wasay — War Axe`, and the files were renamed to `attack-war-axe-*.wav` rather
+than regenerated: the prompts describe a heavy chopping impact, which suits an
+axe as well as it suited the previous weapon. The rows are left as written
+because this file records what was generated and under which prompt, not what
+the files are called today.
+
 | Date | File | Model | Requested | Kept | Influence | Prompt |
 | --- | --- | --- | --- | --- | --- | --- |
 | 2026-07-27 | `ui-click.wav` | `eleven_text_to_sound_v2` | 0.5s | 0.48s | 0.4 | one very short dry wooden tick, quiet interface click, no reverb, no music, no voice |

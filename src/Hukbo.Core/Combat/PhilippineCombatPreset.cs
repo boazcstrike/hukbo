@@ -48,7 +48,7 @@ public static class PhilippineCombatPreset
             // describing a kampilan-type long, single-edged blade; see
             // docs/research/HISTORICAL_1500s_WEAPONS.md. Not a player-facing
             // sixteenth-century identification.
-            [WeaponId.GreatBlade] = BuildProfile(general, new Dictionary<BodyPart, int>
+            [WeaponId.Kampilan] = BuildProfile(general, new Dictionary<BodyPart, int>
             {
                 [BodyPart.Head] = 10,
                 [BodyPart.Neck] = 10,
@@ -63,7 +63,7 @@ public static class PhilippineCombatPreset
             // describing a panabas-type forward-weighted chopping blade; see
             // docs/research/HISTORICAL_1500s_WEAPONS.md. Not a player-facing
             // sixteenth-century identification.
-            [WeaponId.HeavyChopper] = BuildProfile(general, new Dictionary<BodyPart, int>
+            [WeaponId.Wasay] = BuildProfile(general, new Dictionary<BodyPart, int>
             {
                 [BodyPart.Shoulder] = 10,
                 [BodyPart.Head] = 9,
@@ -76,7 +76,7 @@ public static class PhilippineCombatPreset
             // describing a kris-type thrusting blade; see
             // docs/research/HISTORICAL_1500s_WEAPONS.md. Not a player-facing
             // sixteenth-century identification.
-            [WeaponId.ThrustingBlade] = BuildProfile(general, new Dictionary<BodyPart, int>
+            [WeaponId.Kalis] = BuildProfile(general, new Dictionary<BodyPart, int>
             {
                 [BodyPart.Abdomen] = 10,
                 [BodyPart.Chest] = 9,
@@ -88,7 +88,7 @@ public static class PhilippineCombatPreset
             // evidence cross-reference: a general local utility-blade
             // tradition rather than one sixteenth-century object; see
             // docs/research/HISTORICAL_1500s_WEAPONS.md.
-            [WeaponId.Bolo] = BuildProfile(general, new Dictionary<BodyPart, int>
+            [WeaponId.Itak] = BuildProfile(general, new Dictionary<BodyPart, int>
             {
                 [BodyPart.WeaponArm] = 10,
                 [BodyPart.ShieldArm] = 10,
@@ -123,10 +123,10 @@ public static class PhilippineCombatPreset
 
         var roster = new CombatLoadout[]
         {
-            new(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.None),
-            new(WeaponId.HeavyChopper, ArmorId.LightOrganic, ShieldId.None),
-            new(WeaponId.ThrustingBlade, ArmorId.LightOrganic, ShieldId.TallHardwood),
-            new(WeaponId.Bolo, ArmorId.LightOrganic, ShieldId.TallHardwood),
+            new(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None),
+            new(WeaponId.Wasay, ArmorId.LightOrganic, ShieldId.None),
+            new(WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.TallHardwood),
+            new(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.TallHardwood),
         };
 
         return new CombatRuleset(

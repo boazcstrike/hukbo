@@ -64,6 +64,7 @@ public sealed class SoundCatalogTests
                 damage: 5,
                 factionId: 0,
                 weapon,
+                ShieldId.None,
                 BodyPart.Chest);
 
             Assert.NotNull(SoundCueMapper.Map(attackEvent));
@@ -108,7 +109,7 @@ public sealed class SoundCatalogTests
     // methods and GameSoundId is internal to Hukbo.Client.
     [Theory]
     [InlineData((int)GameSoundId.AttackGreatBlade, true)]
-    [InlineData((int)GameSoundId.AttackHeavyChopper, true)]
+    [InlineData((int)GameSoundId.AttackWarAxe, true)]
     [InlineData((int)GameSoundId.AttackThrustingBlade, true)]
     [InlineData((int)GameSoundId.AttackWorkBlade, true)]
     [InlineData((int)GameSoundId.Death, false)]

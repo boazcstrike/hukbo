@@ -4,20 +4,65 @@ namespace Hukbo.Core.Combat;
 /// Stable weapon identity. Numeric values are part of the deterministic
 /// replay and content-hash contract; do not renumber or reorder.
 /// </summary>
+/// <remarks>
+/// Symbols carry the Filipino name; the player-facing label is the pair form
+/// (the name, an em dash, and a plain English descriptor) built in the client.
+/// Renaming a symbol is hash-neutral because the numeric value is the hashed
+/// quantity. The evidence tier behind each name is presentation metadata and
+/// lives in the client; see docs/research/HISTORICAL_1500s_WEAPONS.md.
+/// </remarks>
 public enum WeaponId
 {
-    GreatBlade = 1,
-    HeavyChopper = 2,
-    ThrustingBlade = 3,
+    /// <summary>
+    /// Documented, form uncertain. Pigafetta records a large cutting sword at
+    /// Mactan in 1521 and gives it no local name; <c>kampilan</c> is the name
+    /// later tradition attaches to this blade class.
+    /// </summary>
+    Kampilan = 1,
 
     /// <summary>
-    /// Enum identity only. The player-facing display name is the plain
-    /// descriptor "Work Blade", not this identifier: "Bolo" is a local and
-    /// Spanish-era term, and CLAUDE.md SS7 confines cultural identifications
-    /// like it to evidence metadata, never an unqualified UI label. See the
-    /// PROVISIONAL note in docs/research/HISTORICAL_1500s_WEAPONS.md.
+    /// Documented, form uncertain. A hafted battle axe with a broad metal
+    /// head. Chosen over <c>panabas</c>, whose first documented mentions are
+    /// nineteenth-century — a gap the pair-form policy in CLAUDE.md section 7
+    /// refuses to badge as PROVISIONAL.
     /// </summary>
-    Bolo = 4,
+    Wasay = 2,
+
+    /// <summary>
+    /// Documented. Pigafetta recorded <c>calis</c> in the Visayas in 1521 and
+    /// the term recurs across vocabularies from 1612 onward. The
+    /// best-attested of the four.
+    /// </summary>
+    Kalis = 3,
+
+    /// <summary>
+    /// Provisional reconstruction. A Tagalog term for a field and utility
+    /// blade also used in fighting. Preferred over the former enum identity
+    /// "Bolo", a Spanish-era term the research document warns against using
+    /// as a blanket name.
+    /// </summary>
+    Itak = 4,
+}
+
+/// <summary>
+/// How many hands a weapon occupies. Static configuration: never drawn from,
+/// never written to agent state. Numeric values are part of the deterministic
+/// content-hash contract; do not renumber or reorder.
+/// </summary>
+public enum WeaponGrip
+{
+    /// <summary>
+    /// Occupies both hands. A shield is forbidden, not merely absent, and
+    /// <see cref="CombatRuleset"/> throws at construction for a roster entry
+    /// that pairs one with a shield.
+    /// </summary>
+    TwoHanded = 1,
+
+    /// <summary>
+    /// May be carried alone or paired with a shield, and declares one
+    /// attribute profile for each.
+    /// </summary>
+    OneHanded = 2,
 }
 
 /// <summary>
@@ -48,6 +93,14 @@ public enum ShieldId
 public enum CombatPresetId
 {
     PrecolonialPhilippinesV1 = 1,
+
+    /// <summary>
+    /// V1 plus per-weapon damage, reach, and attack cooldown split by grip,
+    /// and a six-entry roster fielding a solo and a paired loadout for each
+    /// one-handed weapon. V1 stays registered and unmodified so its replays
+    /// remain reproducible.
+    /// </summary>
+    PrecolonialPhilippinesV2 = 2,
 }
 
 /// <summary>

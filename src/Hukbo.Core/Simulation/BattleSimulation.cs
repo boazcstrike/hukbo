@@ -126,6 +126,7 @@ public sealed class BattleSimulation
                 deployment[index].XRaw,
                 deployment[index].YRaw,
                 scenario,
+                rules,
                 loadout);
         }
 
@@ -148,6 +149,7 @@ public sealed class BattleSimulation
                 rightX,
                 rightY,
                 scenario,
+                rules,
                 loadout);
         }
 
@@ -352,14 +354,40 @@ public sealed class BattleSimulation
         return false;
     }
 
+    /// <summary>
+    /// Resolves this warrior's damage, reach, and cooldown once, at spawn,
+    /// from the weapon and shield they carry, and writes them into the
+    /// per-agent fields that already exist and are already hashed.
+    /// </summary>
+    /// <remarks>
+    /// This is the only place a weapon profile is read. Every tick stage goes
+    /// on reading exactly the <see cref="AgentState"/> fields it read before,
+    /// including the single approved reach test in
+    /// <c>IsWithinAttackRange</c>, so intent selection and attack gathering
+    /// still cannot disagree and no second reach path exists.
+    /// <para>
+    /// A preset that declares no profiles — version 1 — falls back to the
+    /// scenario's global values, which is what its replays were recorded
+    /// against.
+    /// </para>
+    /// </remarks>
     private static AgentState CreateAgent(
         ulong entityId,
         int factionId,
         int xRaw,
         int yRaw,
         Scenario scenario,
-        CombatLoadout loadout) =>
-        new(
+        CombatRuleset rules,
+        CombatLoadout loadout)
+    {
+        var profile = rules.HasWeaponProfiles
+            ? rules.ResolveWeaponProfile(loadout.Weapon, loadout.Shield)
+            : new WeaponProfile(
+                scenario.DamagePerAttack,
+                scenario.AttackRangeRaw,
+                scenario.AttackCooldownTicks);
+
+        return new AgentState(
             entityId,
             factionId,
             xRaw,
@@ -367,10 +395,11 @@ public sealed class BattleSimulation
             scenario.MaximumHitPoints,
             scenario.MovementSpeedRaw,
             scenario.PerceptionRangeRaw,
-            scenario.AttackRangeRaw,
-            scenario.DamagePerAttack,
-            scenario.AttackCooldownTicks,
+            profile.AttackRangeRaw,
+            profile.DamagePerAttack,
+            profile.AttackCooldownTicks,
             loadout);
+    }
 
     private void DecrementCooldowns()
     {
@@ -1019,6 +1048,7 @@ public sealed class BattleSimulation
                 source.DamagePerAttack,
                 source.FactionId,
                 source.Loadout.Weapon,
+                source.Loadout.Shield,
                 proposal.HitLocation);
         }
 
@@ -1275,6 +1305,7 @@ public sealed class BattleSimulation
         int damage,
         int factionId,
         WeaponId weapon,
+        ShieldId shield,
         BodyPart hitLocation)
     {
         _eventSequence = checked(_eventSequence + 1);
@@ -1288,6 +1319,7 @@ public sealed class BattleSimulation
                 damage,
                 factionId,
                 weapon,
+                shield,
                 hitLocation));
     }
 

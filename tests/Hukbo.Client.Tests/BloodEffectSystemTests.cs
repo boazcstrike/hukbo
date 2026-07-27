@@ -105,13 +105,13 @@ public sealed class BloodEffectSystemTests
                 source: 2,
                 target: 7,
                 damage: 40,
-                weapon: WeaponId.HeavyChopper,
+                weapon: WeaponId.Wasay,
                 hitLocation: BodyPart.Neck),
             AttackEvent(2, source: 2, target: 7, damage: 4000),
         ], agents);
 
         var bursts = system.ActiveBursts.ToArray();
-        Assert.Equal(WeaponId.HeavyChopper, bursts[0].Weapon);
+        Assert.Equal(WeaponId.Wasay, bursts[0].Weapon);
         Assert.Equal(BodyPart.Neck, bursts[0].HitLocation);
         Assert.Equal(0.4f, bursts[0].SeverityRatio, precision: 5);
         Assert.Equal(1f, bursts[1].SeverityRatio);
@@ -363,7 +363,7 @@ public sealed class BloodEffectSystemTests
             Intent: AgentIntent.Idle,
             isAlive,
             Loadout: new CombatLoadout(
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
                 ArmorId.LightOrganic,
                 ShieldId.TallHardwood));
 
@@ -372,7 +372,7 @@ public sealed class BloodEffectSystemTests
         ulong source,
         ulong target,
         int damage = 10,
-        WeaponId weapon = WeaponId.GreatBlade,
+        WeaponId weapon = WeaponId.Kampilan,
         BodyPart hitLocation = BodyPart.Chest) =>
         BattleEvent.Attack(
             sequence,
@@ -382,6 +382,7 @@ public sealed class BloodEffectSystemTests
             damage,
             factionId: 0,
             weapon,
+            ShieldId.None,
             hitLocation);
 
     private static BattleEvent DamageEvent(

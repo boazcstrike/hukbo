@@ -6,15 +6,18 @@ public sealed class ClientSettingsStoreTests
 {
     private static readonly ArmyComposition SampleComposition = new(
         UnitsPerTeam: 80,
-        GreatBladeCount: 40,
-        HeavyChopperCount: 10,
-        ThrustingBladeCount: 10,
-        WorkBladeCount: 20);
+        KampilanCount: 30,
+        WasayCount: 10,
+        KalisSoloCount: 10,
+        KalisShieldedCount: 10,
+        ItakSoloCount: 10,
+        ItakShieldedCount: 10);
 
     private const string ValidCompositionJson =
-        "\"composition\":{\"unitsPerTeam\":80,\"greatBladeCount\":20," +
-        "\"heavyChopperCount\":20,\"thrustingBladeCount\":20," +
-        "\"workBladeCount\":20}";
+        "\"composition\":{\"unitsPerTeam\":80,\"kampilanCount\":20," +
+        "\"wasayCount\":20,\"kalisSoloCount\":20," +
+        "\"kalisShieldedCount\":20,\"itakSoloCount\":0," +
+        "\"itakShieldedCount\":0}";
 
     [Fact]
     public void MissingFileReturnsProvidedDefault()

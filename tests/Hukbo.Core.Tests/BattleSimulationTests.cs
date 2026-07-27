@@ -507,7 +507,7 @@ public sealed class BattleSimulationTests
             scenario.DamagePerAttack,
             scenario.AttackCooldownTicks,
             loadout ?? new CombatLoadout(
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
                 ArmorId.LightOrganic,
                 ShieldId.None));
 
@@ -526,21 +526,26 @@ public sealed class BattleSimulationTests
     }
 
     [Fact]
-    public void EntityFiveWrapsToTheFirstRosterLoadout()
+    public void TheEntityAfterTheLastRosterEntryWrapsToTheFirstLoadout()
     {
-        var scenario = Scenario.CreateDefault(totalAgents: 10);
+        // Derived from the roster length rather than hard-coded, so growing
+        // the roster retunes the test instead of breaking it. Round-robin
+        // assignment is (entityId - 1) % rosterCount, so the first wrap lands
+        // on entity rosterCount + 1.
+        var scenario = Scenario.CreateDefault(totalAgents: 20);
         var simulation = BattleSimulation.Create(scenario);
         var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
+        var firstWrappedEntityId = (ulong)rules.Roster.Count + 1;
 
         var entityOne = Assert.Single(
             simulation.Agents,
             agent => agent.EntityId == 1);
-        var entityFive = Assert.Single(
+        var wrapped = Assert.Single(
             simulation.Agents,
-            agent => agent.EntityId == 5);
+            agent => agent.EntityId == firstWrappedEntityId);
 
-        Assert.Equal(entityOne.Loadout, entityFive.Loadout);
-        Assert.Equal(rules.Roster[0], entityFive.Loadout);
+        Assert.Equal(entityOne.Loadout, wrapped.Loadout);
+        Assert.Equal(rules.Roster[0], wrapped.Loadout);
     }
 
     [Fact]
@@ -601,7 +606,7 @@ public sealed class BattleSimulationTests
         // branch, not a coincidence of the numbers chosen.
         var scenario = Scenario.CreateDefault(totalAgents: 12) with
         {
-            RosterCounts = ImmutableArray.Create(2, 2, 1, 1),
+            RosterCounts = ImmutableArray.Create(2, 2, 1, 1, 0, 0),
         };
         var simulation = BattleSimulation.Create(scenario);
         var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
@@ -628,7 +633,7 @@ public sealed class BattleSimulationTests
         // 0's, so it would give the two factions different armies here.
         var scenario = Scenario.CreateDefault(totalAgents: 12) with
         {
-            RosterCounts = ImmutableArray.Create(2, 2, 1, 1),
+            RosterCounts = ImmutableArray.Create(2, 2, 1, 1, 0, 0),
         };
         var simulation = BattleSimulation.Create(scenario);
 
@@ -652,7 +657,7 @@ public sealed class BattleSimulationTests
         var baseline = Scenario.CreateDefault(seed: 3, totalAgents: 8);
         var withComposition = baseline with
         {
-            RosterCounts = ImmutableArray.Create(1, 1, 1, 1),
+            RosterCounts = ImmutableArray.Create(1, 1, 1, 1, 0, 0),
         };
 
         var baselineSimulation = BattleSimulation.Create(baseline);
@@ -678,11 +683,11 @@ public sealed class BattleSimulationTests
             AttackRangeRaw = 12 * FixedPoint.Scale,
         };
         var attackerLoadout = new CombatLoadout(
-            WeaponId.Bolo,
+            WeaponId.Itak,
             ArmorId.LightOrganic,
             ShieldId.None);
         var defenderLoadout = new CombatLoadout(
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
             ArmorId.LightOrganic,
             ShieldId.TallHardwood);
         var simulation = BattleSimulation.CreateForTesting(
@@ -696,7 +701,7 @@ public sealed class BattleSimulationTests
             simulation.LastEvents,
             battleEvent => battleEvent.Kind == BattleEventKind.Attack &&
                 battleEvent.SourceEntityId == 1);
-        Assert.Equal(WeaponId.Bolo, attackFromOne.Weapon);
+        Assert.Equal(WeaponId.Itak, attackFromOne.Weapon);
         Assert.Equal(scenario.DamagePerAttack, attackFromOne.Value);
         Assert.True(
             attackFromOne.HitLocation is { } part && Enum.IsDefined(part));
@@ -727,7 +732,7 @@ public sealed class BattleSimulationTests
                 x: 10,
                 y: 10,
                 scenario,
-                new CombatLoadout(WeaponId.Bolo, ArmorId.LightOrganic, ShieldId.None)),
+                new CombatLoadout(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.None)),
             CreateAgent(
                 2,
                 factionId: 0,
@@ -735,7 +740,7 @@ public sealed class BattleSimulationTests
                 y: 10,
                 scenario,
                 new CombatLoadout(
-                    WeaponId.HeavyChopper,
+                    WeaponId.Wasay,
                     ArmorId.LightOrganic,
                     ShieldId.TallHardwood)),
             CreateAgent(
@@ -745,7 +750,7 @@ public sealed class BattleSimulationTests
                 y: 10,
                 scenario,
                 new CombatLoadout(
-                    WeaponId.ThrustingBlade,
+                    WeaponId.Kalis,
                     ArmorId.LightOrganic,
                     ShieldId.None)));
 
@@ -758,7 +763,7 @@ public sealed class BattleSimulationTests
             .ToArray();
         Assert.Equal(2, attacksOnThree.Length);
         Assert.Equal(
-            [WeaponId.HeavyChopper, WeaponId.Bolo],
+            [WeaponId.Wasay, WeaponId.Itak],
             attacksOnThree
                 .Select(battleEvent => battleEvent.Weapon!.Value)
                 .OrderBy(weapon => weapon));

@@ -924,7 +924,7 @@ public sealed class LastStandFormationTests
             scenario.AttackRangeRaw,
             scenario.DamagePerAttack,
             scenario.AttackCooldownTicks,
-            new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.None));
+            new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None));
 
     private static Dictionary<ulong, AgentIntent> IntentsByEntityId(
         BattleSimulation simulation) =>
@@ -977,7 +977,7 @@ public sealed class LastStandFormationTests
             scenario.DamagePerAttack,
             scenario.AttackCooldownTicks,
             loadout ?? new CombatLoadout(
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
                 ArmorId.LightOrganic,
                 ShieldId.None));
 }

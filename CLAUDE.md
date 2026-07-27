@@ -210,9 +210,16 @@ sources. The rules in `docs/research/HISTORICAL_1500s_WEAPONS.md` are binding:
 
 - Label every claim **Documented**, **Documented, form uncertain**, or
   **Provisional reconstruction**.
-- Player-facing UI uses plain descriptors (`Great Blade`, `Heavy Chopper`).
-  Specific cultural identifications (Kampilan, Panabas, Kris) live in evidence
-  metadata with a `PROVISIONAL` note, never as an unqualified label.
+- Specific cultural identifications appear in player-facing UI only in pair
+  form — the Filipino name, an em dash, and a plain English descriptor
+  (`Kampilan — Great Blade`, `Wasay — War Axe`) — and only with an evidence
+  tier recorded in metadata and shown in the agent inspector. A cultural
+  identification never appears as a bare, unqualified label, and a name whose
+  earliest attestation postdates the depicted period by more than a century is
+  not used at all. That final clause is what keeps this policy load-bearing
+  rather than decorative: it is the rule that excluded the panabas, whose
+  first documented mentions are nineteenth-century, and the next weapon added
+  has to clear the same bar.
 - Spanish accounts are evidence about equipment, not neutral ethnography. The
   Boxer Codex guides silhouette and color, not exact technical cataloging.
 - Gameplay tuning values (for example the tall-hardwood shield multiplier) are
@@ -231,6 +238,7 @@ Project-local skills in `.claude/skills/` — prefer these over generic advice:
 
 | Skill | Covers |
 | --- | --- |
+| `hukbo-orchestrate` | The three-stage pipeline in §10 as an invocable procedure: parallel read-only research, one planner, scoped implementers, worktree isolation, the prompt contract |
 | `hukbo-verify-and-record` | The five gate stages, headless exit codes, which `RunReport` fields are evidence, and the smoke-checklist honesty protocol |
 | `hukbo-client-ui` | The pure-helper testability pattern, the 27 semantic theme roles, pointer priority |
 | `hukbo-determinism-change` | The two independent hashes, the pinned SplitMix64 vectors, the recorded seed-1 baseline |
@@ -270,3 +278,73 @@ presentation-only), `game-ui-ux` (HUD anchoring, controller focus),
 - Commit credentials, absolute local paths, `bin/`, `obj/`, or package output.
 - Start terrain, pathfinding, morale, projectile ammunition, persistence
   migrations, multiplayer, or mod APIs before the gate that authorizes them.
+
+## 10. Agent orchestration
+
+Non-trivial work runs through the following shape. Each stage consumes the
+output of the stage above it, and no stage starts before the one it depends on
+has actually reported.
+
+```
+Research agents (plan and knowledge)
+         ↙        ↘
+Requirements     Existing code
+        ↘        ↙
+Task planner agent (list of granular tasks)
+        ↓
+Developer agent
+```
+
+**Stage 1 — research, in parallel.** One group establishes what the change has
+to do: the requirement, the acceptance criteria, the user-visible effect, the
+historical evidence when the change touches weapons or culture. The other group
+establishes what the repository already does: the existing types, the tick
+stage the change lands in, the tests that already cover the area, the
+conventions to match. These two groups are independent, so run them at the same
+time rather than one after the other.
+
+**Stage 2 — planning.** A single planner agent reads both research outputs and
+produces one ordered list of granular tasks, each small enough for one agent to
+finish, with its files, its verification, and its dependencies named. The
+planner writes the plan document described in section 6. It does not write
+code.
+
+**Stage 3 — implementation.** Developer agents execute the task list. Give each
+one an explicit, non-overlapping set of files; two agents editing the same file
+in parallel is a merge conflict you created on purpose.
+
+Rules that bind this pipeline:
+
+- **Eight parallel agents is the ceiling.** Fan out to at most eight at once.
+  Beyond that the results arrive faster than they can be read, and the review
+  quality drops below what the work is worth. Prefer fewer, better-scoped
+  agents.
+- **Research and planning agents are read-only.** Only the implementation stage
+  writes files. If a research agent proposes an edit, that proposal becomes a
+  task in the plan, not an edit.
+- **Never spawn an Explore agent for code research in this repository.** Code
+  discovery goes through the `tokensave` MCP tools and the codebase-memory
+  graph, as section 8 requires. That rule applies inside the orchestration
+  pipeline exactly as it applies outside it, and it applies to the prompts you
+  hand to sub-agents.
+- **Every agent prompt names its evidence and its return format.** State the
+  files, the symbols, and the exact shape of the answer you expect back. An
+  agent that returns prose you then have to re-read has cost more than it
+  saved.
+- **The canonical gate is not delegated.** `./scripts/verify.ps1` runs once,
+  after integration, and its real output is the evidence. No sub-agent's report
+  substitutes for it, and no agent may flip a manual smoke-checklist row.
+- Agent-to-agent prompts may be compressed; repository documentation may not.
+  See the rule in section 6.
+
+The `hukbo-orchestrate` skill is the invocable form of this section — the
+worktree setup, the two research groups, the planner audit, the prompt contract,
+and the known failure modes, in one place. Invoke it rather than restating the
+diagram in a prompt.
+
+The full agent roster, the model each one runs on, and which ones are allowed
+to write live in the user-level `~/.claude/rules/agents.md`. The `/flow:*`
+slash commands run a general version of this pipeline and suit work in other
+repositories; inside Hukbo they do not know about worktree isolation, the
+`tokensave`-only discovery rule, or the canonical gate, so `hukbo-orchestrate`
+takes precedence here.

@@ -11,7 +11,7 @@ namespace Hukbo.Client.UI;
 /// </summary>
 internal static class ArmyCompositionStepper
 {
-    internal const int CategoryCount = 4;
+    internal const int CategoryCount = 6;
 
     internal const int MinimumUnitsPerTeam = 4;
 

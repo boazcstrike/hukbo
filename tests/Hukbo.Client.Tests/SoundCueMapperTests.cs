@@ -9,12 +9,12 @@ public sealed class SoundCueMapperTests
     // Expected slots are ints because xunit requires public test methods and
     // GameSoundId is internal to Hukbo.Client.
     [Theory]
-    [InlineData(WeaponId.GreatBlade, (int)GameSoundId.AttackGreatBlade)]
-    [InlineData(WeaponId.HeavyChopper, (int)GameSoundId.AttackHeavyChopper)]
+    [InlineData(WeaponId.Kampilan, (int)GameSoundId.AttackGreatBlade)]
+    [InlineData(WeaponId.Wasay, (int)GameSoundId.AttackWarAxe)]
     [InlineData(
-        WeaponId.ThrustingBlade,
+        WeaponId.Kalis,
         (int)GameSoundId.AttackThrustingBlade)]
-    [InlineData(WeaponId.Bolo, (int)GameSoundId.AttackWorkBlade)]
+    [InlineData(WeaponId.Itak, (int)GameSoundId.AttackWorkBlade)]
     public void Map_ReturnsTheWeaponSlotForAnAttack(
         WeaponId weapon,
         int expected) =>
@@ -29,6 +29,7 @@ public sealed class SoundCueMapperTests
                     damage: 7,
                     factionId: 0,
                     weapon,
+                    ShieldId.None,
                     BodyPart.Chest)));
 
     [Fact]

@@ -357,7 +357,7 @@ public sealed class ArenaAutoPanTests
             intent,
             isAlive,
             Loadout: new CombatLoadout(
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
                 ArmorId.LightOrganic,
                 ShieldId.TallHardwood));
 }

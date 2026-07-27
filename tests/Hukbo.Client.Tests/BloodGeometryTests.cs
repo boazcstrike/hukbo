@@ -83,10 +83,10 @@ public sealed class BloodGeometryTests
     {
         var layouts = new[]
         {
-            BloodGeometry.Create(Burst(weapon: WeaponId.GreatBlade), 1f),
-            BloodGeometry.Create(Burst(weapon: WeaponId.HeavyChopper), 1f),
-            BloodGeometry.Create(Burst(weapon: WeaponId.ThrustingBlade), 1f),
-            BloodGeometry.Create(Burst(weapon: WeaponId.Bolo), 1f),
+            BloodGeometry.Create(Burst(weapon: WeaponId.Kampilan), 1f),
+            BloodGeometry.Create(Burst(weapon: WeaponId.Wasay), 1f),
+            BloodGeometry.Create(Burst(weapon: WeaponId.Kalis), 1f),
+            BloodGeometry.Create(Burst(weapon: WeaponId.Itak), 1f),
         };
 
         Assert.Equal(4, layouts.Select(x => x.DropletCount).Distinct().Count());
@@ -323,7 +323,7 @@ public sealed class BloodGeometryTests
         ulong targetEntityId = 7,
         float directionX = 1f,
         float directionY = 0f,
-        WeaponId weapon = WeaponId.GreatBlade,
+        WeaponId weapon = WeaponId.Kampilan,
         BodyPart hitLocation = BodyPart.Chest,
         float severityRatio = 0.5f,
         bool isLethal = false,

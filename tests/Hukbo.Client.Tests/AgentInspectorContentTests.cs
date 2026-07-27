@@ -18,7 +18,7 @@ public sealed class AgentInspectorContentTests
         Intent: AgentIntent.Idle,
         IsAlive: true,
         Loadout: new CombatLoadout(
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
             ArmorId.LightOrganic,
             ShieldId.TallHardwood));
 
@@ -27,11 +27,12 @@ public sealed class AgentInspectorContentTests
     {
         var appearance = PawnAppearanceFactory.Create(
             SampleAgent.EntityId,
-            SampleAgent.Loadout.Weapon);
+            SampleAgent.Loadout.Weapon,
+            SampleAgent.Loadout.Shield);
 
         var line = AgentInspectorContent.FormatWeaponLine(appearance.WeaponLabel);
 
-        Assert.Equal("Weapon: Great Blade", line);
+        Assert.Equal("Weapon: Kampilan — Great Blade", line);
     }
 
     [Fact]
@@ -232,12 +233,94 @@ public sealed class AgentInspectorContentTests
     }
 
     [Fact]
-    public void MovementLineOccupiesItsOwnReservedLowerRow()
+    public void EveryLowerLineFitsInsideTheReservedRowBudget()
     {
-        // The panel draws the movement line at row 6, so the lower block must
-        // reserve seven rows before evidence wrapping begins.
-        Assert.True(AgentInspectorContent.LowerRowCount >= 7);
+        // ComputeRequiredHeight sizes the panel from MaximumLowerRowCount, so
+        // a line added to BuildLowerLines without raising that constant would
+        // be drawn past the panel bounds and silently dropped.
+        var shielded = BuildLowerLineCount(
+            WeaponId.Kalis,
+            ShieldId.TallHardwood);
+        var twoHanded = BuildLowerLineCount(
+            WeaponId.Kampilan,
+            ShieldId.None);
+
+        Assert.True(
+            shielded <= AgentInspectorContent.MaximumLowerRowCount,
+            $"A shielded warrior produced {shielded} lower rows against a " +
+            $"budget of {AgentInspectorContent.MaximumLowerRowCount}.");
+        Assert.True(
+            twoHanded <= AgentInspectorContent.MaximumLowerRowCount,
+            $"A two-handed warrior produced {twoHanded} lower rows against " +
+            $"a budget of {AgentInspectorContent.MaximumLowerRowCount}.");
+
+        // The grip row is the only optional one, so a two-handed warrior
+        // draws exactly one row fewer than a one-handed one.
+        Assert.Equal(shielded - 1, twoHanded);
     }
+
+    [Fact]
+    public void LowerLinesCarryTheWeaponEvidenceTierAndAttributes()
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(WeaponId.Kalis, ShieldId.TallHardwood),
+            "Kalis — Thrusting Blade",
+            "Documented");
+
+        Assert.Contains(
+            lines,
+            line => line.Contains(
+                "Kalis — Thrusting Blade",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            lines,
+            line => line.Contains("Documented", StringComparison.Ordinal));
+
+        // The paired Kalis profile: 10 damage, 12 world units, 5 ticks.
+        Assert.Contains(
+            lines,
+            line => line.Contains("10 dmg", StringComparison.Ordinal) &&
+                line.Contains("12 reach", StringComparison.Ordinal) &&
+                line.Contains("5 tick recovery", StringComparison.Ordinal));
+        Assert.Contains(
+            lines,
+            line => line.Contains("shielded", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LowerLinesOmitTheGripRowForATwoHandedWeapon()
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(WeaponId.Kampilan, ShieldId.None),
+            "Kampilan — Great Blade",
+            "Documented, form uncertain");
+
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("Grip:", StringComparison.Ordinal));
+    }
+
+    private static int BuildLowerLineCount(WeaponId weapon, ShieldId shield) =>
+        AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(weapon, shield),
+            "label",
+            "tier").Count;
+
+    private static AgentView CreateAgentView(
+        WeaponId weapon,
+        ShieldId shield) =>
+        new(
+            EntityId: 1,
+            FactionId: 0,
+            XRaw: 0,
+            YRaw: 0,
+            HitPoints: 10,
+            MaximumHitPoints: 10,
+            TargetEntityId: null,
+            Intent: AgentIntent.Idle,
+            IsAlive: true,
+            Loadout: new CombatLoadout(weapon, ArmorId.LightOrganic, shield),
+            MovementResolution: MovementResolution.Moved);
 
     private static Func<string, float> FixedWidthMeasure(
         float pixelsPerCharacter) =>

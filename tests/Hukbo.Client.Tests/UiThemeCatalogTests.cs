@@ -280,7 +280,7 @@ public sealed class UiThemeCatalogTests
         var layout = catalog.Standards.Shared.ArmyComposition;
 
         Assert.Equal(420, layout.PanelWidth);
-        Assert.Equal(560, layout.PanelHeight);
+        Assert.Equal(648, layout.PanelHeight);
         Assert.Equal(44, layout.RowHeight);
         Assert.Equal(8, layout.RowGap);
         Assert.Equal(260, layout.StepperWidth);

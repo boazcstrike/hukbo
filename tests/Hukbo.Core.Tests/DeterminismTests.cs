@@ -56,22 +56,36 @@ public sealed class DeterminismTests
     }
 
     [Fact]
+    public void PresetV2ContentHash_IsPinnedAndDistinctFromV1()
+    {
+        // Pinned so that an accidental edit to a V2 weight, profile, grip, or
+        // roster entry fails here rather than silently invalidating every V2
+        // replay. Changing a V2 value on purpose means a new preset version,
+        // not a new literal in this test.
+        var v1 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
+        var v2 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV2);
+
+        Assert.Equal(0xE653F1802A447662UL, v2.ContentHash);
+        Assert.NotEqual(v1.ContentHash, v2.ContentHash);
+    }
+
+    [Fact]
     public void StateHash_ChangesWhenAnyAgentWeaponArmorOrShieldChanges()
     {
         var scenario = Scenario.CreateDefault(seed: 5, totalAgents: 2);
 
         var baseline = ComputeSingleAgentStateHash(
             scenario,
-            new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.None));
+            new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None));
         var weaponChanged = ComputeSingleAgentStateHash(
             scenario,
-            new CombatLoadout(WeaponId.Bolo, ArmorId.LightOrganic, ShieldId.None));
+            new CombatLoadout(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.None));
         var armorChanged = ComputeSingleAgentStateHash(
             scenario,
-            new CombatLoadout(WeaponId.GreatBlade, (ArmorId)99, ShieldId.None));
+            new CombatLoadout(WeaponId.Kampilan, (ArmorId)99, ShieldId.None));
         var shieldChanged = ComputeSingleAgentStateHash(
             scenario,
-            new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.TallHardwood));
+            new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.TallHardwood));
 
         Assert.NotEqual(baseline, weaponChanged);
         Assert.NotEqual(baseline, armorChanged);
@@ -85,7 +99,7 @@ public sealed class DeterminismTests
     public void StateHash_ChangesWhenTheScenarioBodyRadiusChanges()
     {
         var loadout = new CombatLoadout(
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
             ArmorId.LightOrganic,
             ShieldId.None);
         // The step is lowered once up front so that halving the radius still
@@ -116,7 +130,7 @@ public sealed class DeterminismTests
         // the only policy Validate accepts. StateHasher does not validate, so an
         // unapproved value is the only way to prove the field reaches the hash.
         var loadout = new CombatLoadout(
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
             ArmorId.LightOrganic,
             ShieldId.None);
         var scenario = Scenario.CreateDefault(seed: 5, totalAgents: 2);
@@ -136,7 +150,7 @@ public sealed class DeterminismTests
     public void StateHashChangesWhenTheLastStandThresholdChanges()
     {
         var loadout = new CombatLoadout(
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
             ArmorId.LightOrganic,
             ShieldId.None);
         var scenario = Scenario.CreateDefault(seed: 5, totalAgents: 2) with
@@ -475,7 +489,7 @@ public sealed class DeterminismTests
             scenario.DamagePerAttack,
             scenario.AttackCooldownTicks,
             new CombatLoadout(
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
                 ArmorId.LightOrganic,
                 ShieldId.None));
 

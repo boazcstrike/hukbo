@@ -251,7 +251,8 @@ public sealed partial class ArenaGame
                 arenaBounds);
             var appearance = PawnAppearanceFactory.Create(
                 agent.EntityId,
-                agent.Loadout.Weapon);
+                agent.Loadout.Weapon,
+                agent.Loadout.Shield);
             var visualBounds = PawnRenderer.GetBounds(
                 footAnchor,
                 _camera.Zoom,

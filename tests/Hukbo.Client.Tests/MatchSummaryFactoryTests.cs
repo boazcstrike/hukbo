@@ -120,7 +120,7 @@ public sealed class MatchSummaryFactoryTests
             Intent: isAlive ? AgentIntent.Idle : AgentIntent.Dead,
             isAlive,
             Loadout: new CombatLoadout(
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
                 ArmorId.LightOrganic,
                 ShieldId.TallHardwood));
 }

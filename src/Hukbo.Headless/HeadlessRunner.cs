@@ -510,6 +510,11 @@ public static class HeadlessRunner
                 : ulong.MaxValue);
         AddToHash(
             ref hash,
+            battleEvent.Shield is { } shield
+                ? unchecked((ulong)(uint)(int)shield)
+                : ulong.MaxValue);
+        AddToHash(
+            ref hash,
             battleEvent.HitLocation is { } hitLocation
                 ? unchecked((ulong)(uint)(int)hitLocation)
                 : ulong.MaxValue);

@@ -215,19 +215,19 @@ public sealed class PhilippineCombatIntegrationTests
         // other weapon over the same large fixed matrix.
         AssertSignatureGroupIsDominant(
             histograms,
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
             [BodyPart.Head, BodyPart.Neck]);
         AssertSignatureGroupIsDominant(
             histograms,
-            WeaponId.HeavyChopper,
+            WeaponId.Wasay,
             [BodyPart.Shoulder]);
         AssertSignatureGroupIsDominant(
             histograms,
-            WeaponId.ThrustingBlade,
+            WeaponId.Kalis,
             [BodyPart.Abdomen, BodyPart.Chest]);
         AssertSignatureGroupIsDominant(
             histograms,
-            WeaponId.Bolo,
+            WeaponId.Itak,
             [BodyPart.WeaponArm, BodyPart.ShieldArm, BodyPart.Hands]);
     }
 
@@ -240,7 +240,7 @@ public sealed class PhilippineCombatIntegrationTests
         {
             var attacker = new CombatLoadout(weapon, ArmorId.LightOrganic, ShieldId.None);
             var defender = new CombatLoadout(
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
                 ArmorId.LightOrganic,
                 defenderShield);
 
@@ -270,7 +270,7 @@ public sealed class PhilippineCombatIntegrationTests
         var histogram = Enum.GetValues<BodyPart>().ToDictionary(part => part, _ => 0);
         var attacker = new CombatLoadout(weapon, ArmorId.LightOrganic, ShieldId.None);
         var defender = new CombatLoadout(
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
             ArmorId.LightOrganic,
             defenderShield);
 
@@ -473,6 +473,7 @@ public sealed class PhilippineCombatIntegrationTests
     public void Regression_AttackCooldownGapsRemainAtLeastTheConfiguredCooldownTicksAcrossAFullBattle()
     {
         var scenario = Scenario.CreateDefault(seed: 55, totalAgents: 20);
+        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
         var simulation = BattleSimulation.Create(scenario);
         var attackTicksBySource = new Dictionary<ulong, List<long>>();
 
@@ -496,14 +497,24 @@ public sealed class PhilippineCombatIntegrationTests
         Assert.NotEmpty(attackTicksBySource);
         foreach (var (sourceId, ticks) in attackTicksBySource)
         {
+            // The cooldown is a property of the warrior's own weapon and
+            // shield, not of the scenario, from preset V2 onward. Checking
+            // the scenario's global value instead would pass vacuously for
+            // every warrior slower than it and miss the fast ones entirely.
+            var loadout = rules.ResolveLoadout(sourceId);
+            var expectedCooldown = rules
+                .ResolveWeaponProfile(loadout.Weapon, loadout.Shield)
+                .AttackCooldownTicks;
+
             for (var index = 1; index < ticks.Count; index++)
             {
                 var gap = ticks[index] - ticks[index - 1];
                 Assert.True(
-                    gap >= scenario.AttackCooldownTicks,
-                    $"Entity {sourceId} attacked at ticks " +
+                    gap >= expectedCooldown,
+                    $"Entity {sourceId} carrying {loadout.Weapon} with " +
+                    $"{loadout.Shield} attacked at ticks " +
                     $"{ticks[index - 1]} and {ticks[index]} (gap {gap}), which is " +
-                    $"below the configured cooldown of {scenario.AttackCooldownTicks} ticks.");
+                    $"below its weapon cooldown of {expectedCooldown} ticks.");
             }
         }
     }

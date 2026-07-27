@@ -155,7 +155,7 @@ public sealed class PresentationCoordinatorTests
             Intent: AgentIntent.Idle,
             IsAlive: true,
             Loadout: new CombatLoadout(
-                WeaponId.GreatBlade,
+                WeaponId.Kampilan,
                 ArmorId.LightOrganic,
                 ShieldId.TallHardwood));
 
@@ -180,7 +180,8 @@ public sealed class PresentationCoordinatorTests
             targetEntityId,
             damage: 10,
             factionId: 0,
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
+            ShieldId.None,
             BodyPart.Chest);
 
     private static BattleEvent DamageEvent(

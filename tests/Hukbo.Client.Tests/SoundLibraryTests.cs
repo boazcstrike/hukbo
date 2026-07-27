@@ -217,28 +217,28 @@ public sealed class SoundLibraryTests
     {
         var withLimb = SoundLibrary.ResolveVariants(
             AudioDirectory,
-            ["attack-heavy-chopper-limb-01.wav"]);
+            ["attack-war-axe-limb-01.wav"]);
         var withRibcageOnly = SoundLibrary.ResolveVariants(
             AudioDirectory,
-            ["attack-heavy-chopper-ribcage-01.wav"]);
+            ["attack-war-axe-ribcage-01.wav"]);
 
         var extremityViaLimb = Single(
             withLimb,
-            GameSoundId.AttackHeavyChopper,
+            GameSoundId.AttackWarAxe,
             HitClass.Extremity);
         Assert.Equal(
             SoundBindingStatus.Ready,
             extremityViaLimb.Status);
         Assert.Equal(
-            ["attack-heavy-chopper-limb-01.wav"],
+            ["attack-war-axe-limb-01.wav"],
             extremityViaLimb.FileNames);
 
         var extremityViaRibcage = Single(
             withRibcageOnly,
-            GameSoundId.AttackHeavyChopper,
+            GameSoundId.AttackWarAxe,
             HitClass.Extremity);
         Assert.Equal(
-            ["attack-heavy-chopper-ribcage-01.wav"],
+            ["attack-war-axe-ribcage-01.wav"],
             extremityViaRibcage.FileNames);
     }
 

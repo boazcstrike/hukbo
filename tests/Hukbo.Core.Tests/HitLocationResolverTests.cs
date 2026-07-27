@@ -22,14 +22,14 @@ public sealed class HitLocationResolverTests
     // cumulative-interval selection. Any deliberate change to the mixer or
     // targeting data requires new vectors and a new preset version.
     [Theory]
-    [InlineData(1UL, 1L, 1UL, 2UL, WeaponId.GreatBlade, ShieldId.None, 0x5AB2E78583A95197UL, BodyPart.Shin)]
-    [InlineData(1UL, 1L, 2UL, 1UL, WeaponId.HeavyChopper, ShieldId.TallHardwood, 0x84BF4CC561D9E994UL, BodyPart.ShieldArm)]
-    [InlineData(42UL, 17L, 7UL, 12UL, WeaponId.ThrustingBlade, ShieldId.TallHardwood, 0x2A18A5AFEF928686UL, BodyPart.Knee)]
-    [InlineData(42UL, 17L, 12UL, 7UL, WeaponId.Bolo, ShieldId.None, 0xA98FBA5910945501UL, BodyPart.Thigh)]
-    [InlineData(0xDEADBEEFUL, 99L, 199UL, 200UL, WeaponId.GreatBlade, ShieldId.TallHardwood, 0x56E9870A427F50A6UL, BodyPart.Knee)]
-    [InlineData(0UL, 0L, 3UL, 4UL, WeaponId.ThrustingBlade, ShieldId.None, 0x295B7F1E45FC5AB1UL, BodyPart.Chest)]
-    [InlineData(0xFFFFFFFFFFFFFFFFUL, 0x7FFFFFFFFFFFFFFFL, 4UL, 3UL, WeaponId.HeavyChopper, ShieldId.None, 0x4F91245EAE04F060UL, BodyPart.Neck)]
-    [InlineData(987654321UL, 1234L, 88UL, 17UL, WeaponId.Bolo, ShieldId.TallHardwood, 0x7B598081E38B044FUL, BodyPart.Thigh)]
+    [InlineData(1UL, 1L, 1UL, 2UL, WeaponId.Kampilan, ShieldId.None, 0x5AB2E78583A95197UL, BodyPart.Shin)]
+    [InlineData(1UL, 1L, 2UL, 1UL, WeaponId.Wasay, ShieldId.TallHardwood, 0x84BF4CC561D9E994UL, BodyPart.ShieldArm)]
+    [InlineData(42UL, 17L, 7UL, 12UL, WeaponId.Kalis, ShieldId.TallHardwood, 0x2A18A5AFEF928686UL, BodyPart.Knee)]
+    [InlineData(42UL, 17L, 12UL, 7UL, WeaponId.Itak, ShieldId.None, 0xA98FBA5910945501UL, BodyPart.Thigh)]
+    [InlineData(0xDEADBEEFUL, 99L, 199UL, 200UL, WeaponId.Kampilan, ShieldId.TallHardwood, 0x56E9870A427F50A6UL, BodyPart.Knee)]
+    [InlineData(0UL, 0L, 3UL, 4UL, WeaponId.Kalis, ShieldId.None, 0x295B7F1E45FC5AB1UL, BodyPart.Chest)]
+    [InlineData(0xFFFFFFFFFFFFFFFFUL, 0x7FFFFFFFFFFFFFFFL, 4UL, 3UL, WeaponId.Wasay, ShieldId.None, 0x4F91245EAE04F060UL, BodyPart.Neck)]
+    [InlineData(987654321UL, 1234L, 88UL, 17UL, WeaponId.Itak, ShieldId.TallHardwood, 0x7B598081E38B044FUL, BodyPart.Thigh)]
     public void GoldenVectors_MatchTheIndependentlyCalculatedRollAndBodyPart(
         ulong seed,
         long tick,
@@ -41,7 +41,7 @@ public sealed class HitLocationResolverTests
         BodyPart expectedBodyPart)
     {
         var attacker = new CombatLoadout(weapon, ArmorId.LightOrganic, ShieldId.None);
-        var defender = new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, defenderShield);
+        var defender = new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, defenderShield);
 
         var roll = HitLocationResolver.MixAttack(seed, tick, sourceEntityId, targetEntityId, weapon);
         var resolved = HitLocationResolver.Resolve(
@@ -60,8 +60,8 @@ public sealed class HitLocationResolverTests
     [Fact]
     public void Resolve_IsDeterministicForIdenticalInputs()
     {
-        var attacker = new CombatLoadout(WeaponId.Bolo, ArmorId.LightOrganic, ShieldId.None);
-        var defender = new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.TallHardwood);
+        var attacker = new CombatLoadout(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.None);
+        var defender = new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.TallHardwood);
 
         var first = HitLocationResolver.Resolve(Rules, attacker, defender, 55UL, 12L, 3UL, 9UL);
         var second = HitLocationResolver.Resolve(Rules, attacker, defender, 55UL, 12L, 3UL, 9UL);
@@ -72,8 +72,8 @@ public sealed class HitLocationResolverTests
     [Fact]
     public void Resolve_AlwaysReturnsADefinedBodyPart()
     {
-        var attacker = new CombatLoadout(WeaponId.ThrustingBlade, ArmorId.LightOrganic, ShieldId.None);
-        var defender = new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.TallHardwood);
+        var attacker = new CombatLoadout(WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.None);
+        var defender = new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.TallHardwood);
 
         for (ulong seed = 1; seed <= 25; seed++)
         {
@@ -86,7 +86,7 @@ public sealed class HitLocationResolverTests
     public void Resolve_ReachesMoreThanOneBodyPartAcrossAFixedTupleMatrix()
     {
         var results = new HashSet<BodyPart>();
-        var weapons = new[] { WeaponId.GreatBlade, WeaponId.HeavyChopper, WeaponId.ThrustingBlade, WeaponId.Bolo };
+        var weapons = new[] { WeaponId.Kampilan, WeaponId.Wasay, WeaponId.Kalis, WeaponId.Itak };
         var shields = new[] { ShieldId.None, ShieldId.TallHardwood };
 
         foreach (var weapon in weapons)
@@ -94,7 +94,7 @@ public sealed class HitLocationResolverTests
             var attacker = new CombatLoadout(weapon, ArmorId.LightOrganic, ShieldId.None);
             foreach (var shield in shields)
             {
-                var defender = new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, shield);
+                var defender = new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, shield);
                 for (ulong tick = 1; tick <= 20; tick++)
                 {
                     results.Add(HitLocationResolver.Resolve(
@@ -115,7 +115,7 @@ public sealed class HitLocationResolverTests
     [Fact]
     public void WeaponOverrides_CanChangeTheResolvedBodyPartForTheSameTuple()
     {
-        var defender = new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.None);
+        var defender = new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None);
         var results = new HashSet<BodyPart>();
 
         foreach (var weapon in Enum.GetValues<WeaponId>())
@@ -133,7 +133,7 @@ public sealed class HitLocationResolverTests
         // PROVISIONAL gameplay-tuning comparison, not a historical claim.
         // Broad inequality over a large fixed tuple matrix, not an exact
         // percentage, to avoid brittle statistical assertions.
-        var attacker = new CombatLoadout(WeaponId.ThrustingBlade, ArmorId.LightOrganic, ShieldId.None);
+        var attacker = new CombatLoadout(WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.None);
         const int SampleTickCount = 500;
 
         var unshieldedChestOrAbdomen = CountChestOrAbdomenHits(attacker, ShieldId.None, SampleTickCount);
@@ -150,7 +150,7 @@ public sealed class HitLocationResolverTests
         ShieldId defenderShield,
         int sampleTickCount)
     {
-        var defender = new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, defenderShield);
+        var defender = new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, defenderShield);
         var count = 0;
 
         for (long tick = 1; tick <= sampleTickCount; tick++)
@@ -178,7 +178,7 @@ public sealed class HitLocationResolverTests
     [InlineData(long.MinValue)]
     public void Resolve_RejectsNegativeTicks(long tick)
     {
-        var loadout = new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.None);
+        var loadout = new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None);
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => HitLocationResolver.Resolve(Rules, loadout, loadout, 1UL, tick, 1UL, 2UL));
@@ -187,7 +187,7 @@ public sealed class HitLocationResolverTests
     [Fact]
     public void Resolve_RejectsAZeroSourceEntityId()
     {
-        var loadout = new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.None);
+        var loadout = new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None);
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => HitLocationResolver.Resolve(Rules, loadout, loadout, 1UL, 1L, 0UL, 2UL));
@@ -196,7 +196,7 @@ public sealed class HitLocationResolverTests
     [Fact]
     public void Resolve_RejectsAZeroTargetEntityId()
     {
-        var loadout = new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.None);
+        var loadout = new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None);
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => HitLocationResolver.Resolve(Rules, loadout, loadout, 1UL, 1L, 1UL, 0UL));
@@ -205,12 +205,12 @@ public sealed class HitLocationResolverTests
     [Fact]
     public void MixAttack_ChangesWhenAnySingleFieldChanges()
     {
-        var baseline = HitLocationResolver.MixAttack(1UL, 1L, 1UL, 2UL, WeaponId.GreatBlade);
+        var baseline = HitLocationResolver.MixAttack(1UL, 1L, 1UL, 2UL, WeaponId.Kampilan);
 
-        Assert.NotEqual(baseline, HitLocationResolver.MixAttack(2UL, 1L, 1UL, 2UL, WeaponId.GreatBlade));
-        Assert.NotEqual(baseline, HitLocationResolver.MixAttack(1UL, 2L, 1UL, 2UL, WeaponId.GreatBlade));
-        Assert.NotEqual(baseline, HitLocationResolver.MixAttack(1UL, 1L, 3UL, 2UL, WeaponId.GreatBlade));
-        Assert.NotEqual(baseline, HitLocationResolver.MixAttack(1UL, 1L, 1UL, 3UL, WeaponId.GreatBlade));
-        Assert.NotEqual(baseline, HitLocationResolver.MixAttack(1UL, 1L, 1UL, 2UL, WeaponId.Bolo));
+        Assert.NotEqual(baseline, HitLocationResolver.MixAttack(2UL, 1L, 1UL, 2UL, WeaponId.Kampilan));
+        Assert.NotEqual(baseline, HitLocationResolver.MixAttack(1UL, 2L, 1UL, 2UL, WeaponId.Kampilan));
+        Assert.NotEqual(baseline, HitLocationResolver.MixAttack(1UL, 1L, 3UL, 2UL, WeaponId.Kampilan));
+        Assert.NotEqual(baseline, HitLocationResolver.MixAttack(1UL, 1L, 1UL, 3UL, WeaponId.Kampilan));
+        Assert.NotEqual(baseline, HitLocationResolver.MixAttack(1UL, 1L, 1UL, 2UL, WeaponId.Itak));
     }
 }

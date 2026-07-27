@@ -31,7 +31,7 @@ public sealed class SoundCueBudgetTests
 
         Assert.True(budget.TryConsume(GameSoundId.Death));
         Assert.True(budget.TryConsume(GameSoundId.AttackGreatBlade));
-        Assert.False(budget.TryConsume(GameSoundId.AttackHeavyChopper));
+        Assert.False(budget.TryConsume(GameSoundId.AttackWarAxe));
     }
 
     [Fact]

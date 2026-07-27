@@ -65,20 +65,24 @@ Related rules from `CLAUDE.md` §5 that cause most real failures:
 ## Recorded baseline
 
 From `docs/development/testing.md`, seed 1, 200 agents, one final verified run of
-the collision priority fairness change on the
-`feature/collision-priority-fairness` branch:
+the weapon identity and attributes change (combat preset V2):
 
 | Field | Value |
 | --- | --- |
-| Outcome | `Faction1Victory` at tick 1154 |
-| State hash | `5BEBA7A68F69BE0D` |
-| Event hash | `D379B60B2E30FFFC` |
-| Allocated | 71,698,480 bytes |
+| Outcome | `Faction0Victory` at tick 1209 |
+| State hash | `C669281B67CF8871` |
+| Event hash | `CF8C3EDBC59C3319` |
+| Allocated | 66,391,224 bytes |
 
-The 500-agent stress workload, report only, from the same run: `Faction0Victory`
-at tick 2668 with 1 faction-0 and 0 faction-1 survivors, state hash
-`FE44ADA93E0E202A`, event hash `9C8EF5CB79810560`, deterministic with no mismatch
-tick.
+The 500-agent stress workload, report only, from the same build:
+`Faction1Victory` with 0 faction-0 and 7 faction-1 survivors, state hash
+`DA4AA823020FAB3C`, event hash `B6FA93AB66696485`, deterministic with no
+mismatch tick.
+
+Pinned content hashes, asserted in `DeterminismTests`: preset V1
+`0x59FB4CA563D87A49`, preset V2 `0xE653F1802A447662`. V1 stays registered and
+unmodified, so a replay recorded against it remains reproducible by naming it
+in `Scenario.CombatPreset`; `Scenario` itself now defaults to V2.
 
 ### Superseded hashes — dead values, do not target
 
@@ -89,6 +93,8 @@ history instead of mistaken for a live baseline.
 
 | Dead baseline | State hash | Event hash |
 | --- | --- | --- |
+| 200 agents, collision priority fairness run (preset V1), tick 1154 | `5BEBA7A68F69BE0D` | `D379B60B2E30FFFC` |
+| 500 agents, collision priority fairness run (preset V1), tick 2668 | `FE44ADA93E0E202A` | `9C8EF5CB79810560` |
 | 200 agents, last-stand run, tick 1176 | `BBB40D2240720DC8` | `2A6BAEA1E3567046` |
 | 500 agents, last-stand run, tick 2245 | `73FB96A4C5963149` | `1531FF58B7C7557B` |
 | 200 agents, mirrored-deployment run, tick 1081 | `DC7F2E7A107C885A` | `6C641E90DDF0B943` |

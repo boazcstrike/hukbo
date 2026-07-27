@@ -119,7 +119,7 @@ internal sealed partial class UiThemeCatalog
                     5),
                 new UiArmyCompositionLayout(
                     420,
-                    560,
+                    648,
                     44,
                     8,
                     260,

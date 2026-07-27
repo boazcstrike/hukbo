@@ -1,4 +1,5 @@
 using Hukbo.Core.Combat;
+using Hukbo.Core.Mathematics;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.UI;
@@ -28,7 +29,15 @@ internal static class AgentInspectorContent
     // the header face; raised to 35.
     internal const int TitleHeight = 35;
     internal const int TopDetailRowCount = 4;
-    internal const int LowerRowCount = 7;
+
+    /// <summary>
+    /// The most lower detail rows <see cref="BuildLowerLines"/> can produce:
+    /// intent, target, position, weapon, attributes, evidence tier, grip,
+    /// armor, shield, and movement. The grip row is absent for a two-handed
+    /// weapon, so a real panel draws this many or one fewer — the panel is
+    /// sized for the maximum so the taller case never clips.
+    /// </summary>
+    internal const int MaximumLowerRowCount = 10;
     internal const int PortraitBottomGap = 5;
     internal const int TopDetailBottomGap = 2;
 
@@ -72,7 +81,8 @@ internal static class AgentInspectorContent
         var lowerTextY = Math.Max(
             portraitBottom + PortraitBottomGap,
             textY + (TopDetailRowCount * LineHeight) + TopDetailBottomGap);
-        var lowerRowCount = LowerRowCount + Math.Max(0, evidenceLineCount);
+        var lowerRowCount =
+            MaximumLowerRowCount + Math.Max(0, evidenceLineCount);
         var lastRowY = lowerTextY + ((lowerRowCount - 1) * LineHeight);
         var lastRowBottom = lastRowY + LineHeight;
         return lastRowBottom + Padding;
@@ -84,6 +94,80 @@ internal static class AgentInspectorContent
     /// <see cref="MovementResolution"/> the simulation wrote; presentation
     /// never infers it from positions.
     /// </summary>
+    /// <summary>
+    /// Every lower detail row for one selected warrior, in draw order. The
+    /// grip row is present only for a one-handed weapon, so the caller draws
+    /// this list sequentially rather than indexing fixed rows.
+    /// </summary>
+    /// <remarks>
+    /// Pure: takes the authoritative <see cref="AgentView"/> and two
+    /// presentation labels, touches no <c>SpriteBatch</c>,
+    /// <c>GraphicsDevice</c>, or window, and is therefore unit testable in
+    /// full — the split this repository enforces for panel content.
+    /// </remarks>
+    internal static IReadOnlyList<string> BuildLowerLines(
+        AgentView agent,
+        string weaponLabel,
+        string evidenceTierLabel)
+    {
+        var loadout = agent.Loadout;
+        var lines = new List<string>(MaximumLowerRowCount)
+        {
+            $"Intent: {agent.Intent}",
+            $"Target: {agent.TargetEntityId?.ToString() ?? "none"}",
+            FormatPositionLine(agent),
+            FormatWeaponLine(weaponLabel),
+        };
+
+        if (TryResolveProfile(loadout) is { } profile)
+        {
+            lines.Add(FormatAttributeLine(profile));
+        }
+
+        lines.Add(FormatEvidenceTierLine(evidenceTierLabel));
+
+        if (FormatGripLine(loadout.Weapon, loadout.Shield) is { } gripLine)
+        {
+            lines.Add(gripLine);
+        }
+
+        lines.Add(FormatArmorLine(loadout.Armor));
+        lines.Add(FormatShieldLine(loadout.Shield));
+        lines.Add(FormatMovementLine(agent.MovementResolution));
+
+        return lines;
+    }
+
+    internal static string FormatPositionLine(AgentView agent) =>
+        $"Position: {agent.XRaw / (double)FixedPoint.Scale:0.00}, " +
+        $"{agent.YRaw / (double)FixedPoint.Scale:0.00}";
+
+    /// <summary>
+    /// The active profile for a loadout, or <c>null</c> when no registered
+    /// preset declares attributes for its weapon. Presentation reads the
+    /// authoritative preset here; it never recomputes an attribute itself.
+    /// </summary>
+    private static WeaponProfile? TryResolveProfile(CombatLoadout loadout)
+    {
+        foreach (var id in Enum.GetValues<CombatPresetId>())
+        {
+            if (!CombatPresetRegistry.IsRegistered(id))
+            {
+                continue;
+            }
+
+            var rules = CombatPresetRegistry.Get(id);
+            if (rules.HasWeaponProfiles)
+            {
+                return rules.ResolveWeaponProfile(
+                    loadout.Weapon,
+                    loadout.Shield);
+            }
+        }
+
+        return null;
+    }
+
     internal static string FormatMovementLine(MovementResolution resolution) =>
         $"Movement: {GetMovementLabel(resolution)}";
 
@@ -100,6 +184,38 @@ internal static class AgentInspectorContent
 
     internal static string FormatWeaponLine(string weaponLabel) =>
         $"Weapon: {weaponLabel}";
+
+    /// <summary>
+    /// The three attributes the weapon and shield resolve to, in the units a
+    /// spectator can check against the event feed: damage as it appears in an
+    /// attack line, reach in world units, recovery in ticks.
+    /// </summary>
+    /// <remarks>
+    /// This is the line that makes the solo-versus-shielded trade readable
+    /// without watching two battles. Reach is converted out of raw
+    /// fixed-point here because nobody reasons in raw units.
+    /// </remarks>
+    internal static string FormatAttributeLine(WeaponProfile profile) =>
+        $"        {profile.DamagePerAttack} dmg / " +
+        $"{profile.AttackRangeRaw / FixedPoint.Scale} reach / " +
+        $"{profile.AttackCooldownTicks} tick recovery";
+
+    /// <summary>
+    /// Which of the weapon's profiles is active, and nothing at all for a
+    /// two-handed weapon, which has only one.
+    /// </summary>
+    internal static string? FormatGripLine(WeaponId weapon, ShieldId shield) =>
+        CombatPresetRegistry.TryResolveGrip(weapon) is WeaponGrip.OneHanded
+            ? $"Grip:   One-handed, {(shield == ShieldId.None ? "solo" : "shielded")}"
+            : null;
+
+    /// <summary>
+    /// How far the evidence behind this weapon's name actually reaches.
+    /// Shown so a spectator can tell a contemporary attestation from a later
+    /// reconstruction rather than reading every name as equally certain.
+    /// </summary>
+    internal static string FormatEvidenceTierLine(string tierLabel) =>
+        $"        Evidence: {tierLabel}";
 
     internal static string FormatArmorLine(ArmorId armor) =>
         $"Armor: {GetArmorLabel(armor)}";

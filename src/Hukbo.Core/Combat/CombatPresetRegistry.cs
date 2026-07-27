@@ -12,13 +12,51 @@ public static class CombatPresetRegistry
         id switch
         {
             CombatPresetId.PrecolonialPhilippinesV1 => true,
+            CombatPresetId.PrecolonialPhilippinesV2 => true,
             _ => false,
         };
+
+    /// <summary>
+    /// The grip every registered preset agrees a weapon is fought with, or
+    /// <c>null</c> when no registered preset declares attributes for it.
+    /// </summary>
+    /// <remarks>
+    /// Presentation needs the grip to label a blow — a one-handed weapon
+    /// deals different damage solo than shielded, so the bare weapon name
+    /// would mean either value — but a feed line is read long after the tick
+    /// that produced it and carries no preset identity. Answering from the
+    /// registry rather than from a hard-coded list in the client keeps grip
+    /// preset data, which is what it is.
+    /// <para>
+    /// <c>CombatPresetRegistryTests</c> asserts every registered preset
+    /// agrees on each weapon's grip, so a future preset that disagrees fails
+    /// a test rather than silently making this answer arbitrary.
+    /// </para>
+    /// </remarks>
+    public static WeaponGrip? TryResolveGrip(WeaponId weapon)
+    {
+        foreach (var id in Enum.GetValues<CombatPresetId>().OrderBy(id => (int)id))
+        {
+            if (!IsRegistered(id))
+            {
+                continue;
+            }
+
+            var rules = Get(id);
+            if (rules.HasWeaponProfiles)
+            {
+                return rules.ResolveWeaponGrip(weapon);
+            }
+        }
+
+        return null;
+    }
 
     public static CombatRuleset Get(CombatPresetId id) =>
         id switch
         {
             CombatPresetId.PrecolonialPhilippinesV1 => PhilippineCombatPreset.Rules,
+            CombatPresetId.PrecolonialPhilippinesV2 => PhilippineCombatPresetV2.Rules,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,

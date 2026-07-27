@@ -16,13 +16,15 @@ public sealed class BattleEventFormatterTests
             targetEntityId: 12,
             damage: 10,
             factionId: 0,
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
+            ShieldId.None,
             BodyPart.Shoulder);
 
         var formatted = BattleEventFormatter.Format(battleEvent);
 
         Assert.Equal(
-            "T00042  Blue #7 hit #12's shoulder with Great Blade for 10",
+            "T00042  Blue #7 hit #12's shoulder with " +
+            "Kampilan — Great Blade for 10",
             formatted);
     }
 
@@ -51,7 +53,8 @@ public sealed class BattleEventFormatterTests
             targetEntityId: 2,
             damage: 5,
             factionId: 0,
-            WeaponId.Bolo,
+            WeaponId.Itak,
+            ShieldId.None,
             bodyPart);
 
         var actionLabel = BattleEventFormatter.GetActionLabel(battleEvent);
@@ -60,11 +63,11 @@ public sealed class BattleEventFormatterTests
     }
 
     [Theory]
-    [InlineData(WeaponId.GreatBlade, "Great Blade")]
-    [InlineData(WeaponId.HeavyChopper, "Heavy Chopper")]
-    [InlineData(WeaponId.ThrustingBlade, "Thrusting Blade")]
-    [InlineData(WeaponId.Bolo, "Work Blade")]
-    public void GetActionLabel_UsesApprovedWeaponLabels(
+    [InlineData(WeaponId.Kampilan, "Kampilan — Great Blade")]
+    [InlineData(WeaponId.Wasay, "Wasay — War Axe")]
+    [InlineData(WeaponId.Kalis, "Kalis — Thrusting Blade")]
+    [InlineData(WeaponId.Itak, "Itak — Work Blade")]
+    public void GetActionLabel_UsesTheApprovedPairFormWeaponLabels(
         WeaponId weapon,
         string expectedLabel)
     {
@@ -76,11 +79,64 @@ public sealed class BattleEventFormatterTests
             damage: 5,
             factionId: 0,
             weapon,
+            ShieldId.None,
             BodyPart.Chest);
 
         var actionLabel = BattleEventFormatter.GetActionLabel(battleEvent);
 
         Assert.Contains(expectedLabel, actionLabel);
+    }
+
+    [Theory]
+    // A one-handed weapon deals different damage solo than shielded, so the
+    // feed has to say which: the same bare label would otherwise mean either
+    // value. A two-handed weapon appends nothing, having no second form.
+    [InlineData(WeaponId.Kalis, ShieldId.None, "(solo)")]
+    [InlineData(WeaponId.Kalis, ShieldId.TallHardwood, "(shielded)")]
+    [InlineData(WeaponId.Itak, ShieldId.None, "(solo)")]
+    [InlineData(WeaponId.Itak, ShieldId.TallHardwood, "(shielded)")]
+    public void GetActionLabel_AppendsTheGripForAOneHandedWeapon(
+        WeaponId weapon,
+        ShieldId shield,
+        string expectedSuffix)
+    {
+        var battleEvent = BattleEvent.Attack(
+            sequence: 1,
+            tick: 1,
+            sourceEntityId: 1,
+            targetEntityId: 2,
+            damage: 5,
+            factionId: 0,
+            weapon,
+            shield,
+            BodyPart.Chest);
+
+        Assert.Contains(
+            expectedSuffix,
+            BattleEventFormatter.GetActionLabel(battleEvent));
+    }
+
+    [Theory]
+    [InlineData(WeaponId.Kampilan)]
+    [InlineData(WeaponId.Wasay)]
+    public void GetActionLabel_AppendsNoGripForATwoHandedWeapon(
+        WeaponId weapon)
+    {
+        var battleEvent = BattleEvent.Attack(
+            sequence: 1,
+            tick: 1,
+            sourceEntityId: 1,
+            targetEntityId: 2,
+            damage: 5,
+            factionId: 0,
+            weapon,
+            ShieldId.None,
+            BodyPart.Chest);
+
+        var actionLabel = BattleEventFormatter.GetActionLabel(battleEvent);
+
+        Assert.DoesNotContain("(solo)", actionLabel);
+        Assert.DoesNotContain("(shielded)", actionLabel);
     }
 
     [Fact]

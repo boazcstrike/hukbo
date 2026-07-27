@@ -37,28 +37,28 @@ public sealed class CombatConfigurationTests
     }
 
     [Theory]
-    [InlineData(WeaponId.GreatBlade, BodyPart.Head, 10)]
-    [InlineData(WeaponId.GreatBlade, BodyPart.Neck, 10)]
-    [InlineData(WeaponId.GreatBlade, BodyPart.Shoulder, 9)]
-    [InlineData(WeaponId.GreatBlade, BodyPart.WeaponArm, 8)]
-    [InlineData(WeaponId.GreatBlade, BodyPart.ShieldArm, 8)]
-    [InlineData(WeaponId.GreatBlade, BodyPart.Chest, 8)]
-    [InlineData(WeaponId.GreatBlade, BodyPart.Feet, 2)]
-    [InlineData(WeaponId.HeavyChopper, BodyPart.Shoulder, 10)]
-    [InlineData(WeaponId.HeavyChopper, BodyPart.Head, 9)]
-    [InlineData(WeaponId.HeavyChopper, BodyPart.WeaponArm, 9)]
-    [InlineData(WeaponId.HeavyChopper, BodyPart.ShieldArm, 9)]
-    [InlineData(WeaponId.HeavyChopper, BodyPart.Neck, 9)]
-    [InlineData(WeaponId.ThrustingBlade, BodyPart.Abdomen, 10)]
-    [InlineData(WeaponId.ThrustingBlade, BodyPart.Chest, 9)]
-    [InlineData(WeaponId.ThrustingBlade, BodyPart.Neck, 8)]
-    [InlineData(WeaponId.ThrustingBlade, BodyPart.WeaponArm, 10)]
-    [InlineData(WeaponId.Bolo, BodyPart.WeaponArm, 10)]
-    [InlineData(WeaponId.Bolo, BodyPart.ShieldArm, 10)]
-    [InlineData(WeaponId.Bolo, BodyPart.Hands, 9)]
-    [InlineData(WeaponId.Bolo, BodyPart.Neck, 8)]
-    [InlineData(WeaponId.Bolo, BodyPart.Face, 8)]
-    [InlineData(WeaponId.Bolo, BodyPart.Shoulder, 9)]
+    [InlineData(WeaponId.Kampilan, BodyPart.Head, 10)]
+    [InlineData(WeaponId.Kampilan, BodyPart.Neck, 10)]
+    [InlineData(WeaponId.Kampilan, BodyPart.Shoulder, 9)]
+    [InlineData(WeaponId.Kampilan, BodyPart.WeaponArm, 8)]
+    [InlineData(WeaponId.Kampilan, BodyPart.ShieldArm, 8)]
+    [InlineData(WeaponId.Kampilan, BodyPart.Chest, 8)]
+    [InlineData(WeaponId.Kampilan, BodyPart.Feet, 2)]
+    [InlineData(WeaponId.Wasay, BodyPart.Shoulder, 10)]
+    [InlineData(WeaponId.Wasay, BodyPart.Head, 9)]
+    [InlineData(WeaponId.Wasay, BodyPart.WeaponArm, 9)]
+    [InlineData(WeaponId.Wasay, BodyPart.ShieldArm, 9)]
+    [InlineData(WeaponId.Wasay, BodyPart.Neck, 9)]
+    [InlineData(WeaponId.Kalis, BodyPart.Abdomen, 10)]
+    [InlineData(WeaponId.Kalis, BodyPart.Chest, 9)]
+    [InlineData(WeaponId.Kalis, BodyPart.Neck, 8)]
+    [InlineData(WeaponId.Kalis, BodyPart.WeaponArm, 10)]
+    [InlineData(WeaponId.Itak, BodyPart.WeaponArm, 10)]
+    [InlineData(WeaponId.Itak, BodyPart.ShieldArm, 10)]
+    [InlineData(WeaponId.Itak, BodyPart.Hands, 9)]
+    [InlineData(WeaponId.Itak, BodyPart.Neck, 8)]
+    [InlineData(WeaponId.Itak, BodyPart.Face, 8)]
+    [InlineData(WeaponId.Itak, BodyPart.Shoulder, 9)]
     public void PhilippinePreset_UsesApprovedWeaponOverrides(
         WeaponId weapon,
         BodyPart bodyPart,
@@ -100,16 +100,16 @@ public sealed class CombatConfigurationTests
 
         Assert.Equal(4, roster.Count);
         Assert.Equal(
-            new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.None),
+            new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None),
             roster[0]);
         Assert.Equal(
-            new CombatLoadout(WeaponId.HeavyChopper, ArmorId.LightOrganic, ShieldId.None),
+            new CombatLoadout(WeaponId.Wasay, ArmorId.LightOrganic, ShieldId.None),
             roster[1]);
         Assert.Equal(
-            new CombatLoadout(WeaponId.ThrustingBlade, ArmorId.LightOrganic, ShieldId.TallHardwood),
+            new CombatLoadout(WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.TallHardwood),
             roster[2]);
         Assert.Equal(
-            new CombatLoadout(WeaponId.Bolo, ArmorId.LightOrganic, ShieldId.TallHardwood),
+            new CombatLoadout(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.TallHardwood),
             roster[3]);
     }
 
@@ -215,7 +215,7 @@ public sealed class CombatConfigurationTests
             shieldMultiplier: 1_000);
 
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => rules.ResolveWeaponWeight(WeaponId.Bolo, BodyPart.Head));
+            () => rules.ResolveWeaponWeight(WeaponId.Itak, BodyPart.Head));
     }
 
     [Fact]
@@ -253,7 +253,7 @@ public sealed class CombatConfigurationTests
 
         var weaponTargets = new Dictionary<WeaponId, TargetWeightProfile>
         {
-            [WeaponId.GreatBlade] = weaponProfile,
+            [WeaponId.Kampilan] = weaponProfile,
         };
         var armors = new List<ArmorId> { ArmorId.LightOrganic };
         var shieldMultipliers = new Dictionary<ShieldId, TargetWeightProfile>
@@ -262,7 +262,7 @@ public sealed class CombatConfigurationTests
         };
         var roster = new List<CombatLoadout>
         {
-            new(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.None),
+            new(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None),
         };
 
         var rules = new CombatRuleset(
@@ -276,7 +276,7 @@ public sealed class CombatConfigurationTests
 
         var hashBeforeMutation = rules.ContentHash;
         var weaponWeightBeforeMutation = rules.ResolveWeaponWeight(
-            WeaponId.GreatBlade,
+            WeaponId.Kampilan,
             BodyPart.Head);
         var defenseMultiplierBeforeMutation = rules.ResolveDefenseMultiplier(
             ShieldId.None,
@@ -286,26 +286,26 @@ public sealed class CombatConfigurationTests
         // Mutate every caller-supplied collection after construction. If
         // CombatRuleset kept these by reference, the ruleset's behavior
         // and ContentHash would silently drift apart.
-        weaponTargets[WeaponId.HeavyChopper] = otherWeaponProfile;
-        weaponTargets[WeaponId.GreatBlade] = otherWeaponProfile;
+        weaponTargets[WeaponId.Wasay] = otherWeaponProfile;
+        weaponTargets[WeaponId.Kampilan] = otherWeaponProfile;
         shieldMultipliers[ShieldId.TallHardwood] = otherShieldProfile;
         shieldMultipliers[ShieldId.None] = otherShieldProfile;
         armors.Add(ArmorId.LightOrganic);
         roster.Add(new CombatLoadout(
-            WeaponId.HeavyChopper,
+            WeaponId.Wasay,
             ArmorId.LightOrganic,
             ShieldId.TallHardwood));
 
         Assert.Equal(hashBeforeMutation, rules.ContentHash);
         Assert.Equal(
             weaponWeightBeforeMutation,
-            rules.ResolveWeaponWeight(WeaponId.GreatBlade, BodyPart.Head));
+            rules.ResolveWeaponWeight(WeaponId.Kampilan, BodyPart.Head));
         Assert.Equal(
             defenseMultiplierBeforeMutation,
             rules.ResolveDefenseMultiplier(ShieldId.None, BodyPart.Head));
         Assert.Equal(loadoutBeforeMutation, rules.ResolveLoadout(1));
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => rules.ResolveWeaponWeight(WeaponId.HeavyChopper, BodyPart.Head));
+            () => rules.ResolveWeaponWeight(WeaponId.Wasay, BodyPart.Head));
     }
 
     private static CombatRuleset BuildMinimalRuleset(int weaponWeight, int shieldMultiplier)
@@ -327,7 +327,7 @@ public sealed class CombatConfigurationTests
             generalTargets: general,
             weaponTargets: new Dictionary<WeaponId, TargetWeightProfile>
             {
-                [WeaponId.GreatBlade] = weaponProfile,
+                [WeaponId.Kampilan] = weaponProfile,
             },
             armors: [ArmorId.LightOrganic],
             shieldMultipliers: new Dictionary<ShieldId, TargetWeightProfile>
@@ -336,7 +336,7 @@ public sealed class CombatConfigurationTests
             },
             roster:
             [
-                new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.None),
+                new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None),
             ]);
     }
 }

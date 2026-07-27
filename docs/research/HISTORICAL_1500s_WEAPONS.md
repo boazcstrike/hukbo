@@ -69,13 +69,25 @@ use of the kampilan, kris, bolo, shields, spears, axes, knives, and lantaka.
 These traditions are valuable references, but most cataloged surviving objects
 are considerably later than the sixteenth century.
 
-For the first Hukbo UI:
+For Hukbo's UI:
 
 - do not state that a kampilan definitively killed Magellan;
 - do not use kampilan, kris or kalis, barong, or bolo as blanket names for
   weapons across every region;
-- label a visually kampilan-like large sword as **Great Blade** in player-facing
-  UI until more exact regional and object-level research is complete;
+- present a local name only in **pair form** — the Filipino name, an em dash,
+  and a plain English descriptor, as in **Kampilan — Great Blade** — and never
+  as a bare label. The descriptor is what the game guarantees; the Filipino
+  name is what the tradition offers. Every pair-form label carries an evidence
+  tier shown in the agent inspector;
+- do not use a name whose earliest attestation postdates the depicted period
+  by more than a century. This excluded the **panabas**, first documented in
+  nineteenth-century Spanish accounts of Moro resistance and surviving in
+  objects dated to the eighteenth and nineteenth centuries — roughly a
+  three-hundred-year gap. A `PROVISIONAL` badge is a reasonable instrument for
+  "the class is attested but this identification is a reconstruction"; it is
+  not a reasonable instrument for a gap of that size, and using it that way
+  would drain the badge of meaning everywhere else it appears. The
+  forward-weighted chopping role went to the **wasay**, a hafted axe, instead;
 - use **Bronze Verso** or **Small Culverin** for the documented 1570 artillery
   before adopting the more familiar `lantaka` label; and
 - keep plain-English descriptors beside local or provisional terms.
@@ -266,23 +278,39 @@ document understands what the other one is, and is not, asserting.
   weapon's existence or general form, the combat preset's numeric weights
   carry no equivalent evidentiary confidence at all; they are gameplay tuning
   choices informed by, but not established by, the sources listed here.
-- **Named blade comparisons are regional- and period-sensitive and
-  provisional.** The combat preset's weapon definitions carry code comments
-  cross-referencing Kampilan, Panabas, and Kris as comparative names for the
-  Great Blade, Heavy Chopper, and Thrusting Blade weapon profiles. Exactly as
-  the "Named blade caution" section above already establishes for the visual
-  armory, those comparative names are provisional evidence metadata, not
-  player-facing sixteenth-century identifications, and they must not be
-  generalized as if one region's or one later century's naming applied evenly
-  across the archipelago and across the 1500s. Player-facing UI uses plain
-  descriptors (`Great Blade`, `Heavy Chopper`, `Thrusting Blade`, `Work
-  Blade`), consistent with the existing guidance in this document to keep
-  plain-English descriptors beside local or provisional terms. The fourth
-  weapon's stable enum identity is `Bolo` (a local and Spanish-era term); its
-  player-facing display name is the plain descriptor `Work Blade`, not the
-  enum identity, per CLAUDE.md SS7. This is a PROVISIONAL evidence
-  cross-reference to the general local utility-blade tradition described in
-  "Named blade caution" above, not one sixteenth-century object.
+- **Named blades are regional- and period-sensitive, and each carries its own
+  evidence tier.** From combat preset V2 the four weapons carry pair-form
+  player-facing labels — `Kampilan — Great Blade`, `Wasay — War Axe`,
+  `Kalis — Thrusting Blade`, and `Itak — Work Blade` — with the tier shown in
+  the agent inspector:
+
+  | Label | Tier | Basis |
+  | --- | --- | --- |
+  | Kampilan — Great Blade | Documented, form uncertain | Pigafetta records a large cutting sword at Mactan in 1521 and gives it no local name. *Kampilan* is attached to this blade class by later tradition, and surviving cataloged objects are largely eighteenth- and nineteenth-century. |
+  | Wasay — War Axe | Documented, form uncertain | A hafted battle axe with a broad metal head, attested among Tausug and Ibanag groups. Pre-contact use is implied by accounts of later iron reinforcement, but no sixteenth-century lexical attestation was located. |
+  | Kalis — Thrusting Blade | Documented | The strongest of the four. Pigafetta recorded *calis* in the Visayas in 1521, and the term recurs across vocabularies from 1612 onward in Ilocano, Kapampangan, Ibanag, Tagalog, Bicolano, Waray, Hiligaynon, and Cebuano. A contemporary, pan-archipelagic term rather than a regional back-projection. |
+  | Itak — Work Blade | Provisional reconstruction | A Tagalog term for a field and utility blade also used in fighting. Preferred over the former enum identity `Bolo`, a Spanish-era term this document warns against as a blanket name. The specific 1613 vocabulary attestation could not be confirmed, so the tier stays provisional. |
+
+  None of these names may be generalized as if one region's or one later
+  century's naming applied evenly across the archipelago and across the 1500s.
+  The pair form is what keeps the claim honest: the plain descriptor is what
+  the game guarantees, and the Filipino name is what the tradition offers.
+- **The panabas is deliberately absent.** It was the obvious candidate for the
+  forward-weighted chopping role and was the working assumption until the
+  evidence was checked. Its first documented mentions are nineteenth-century
+  and its surviving objects are eighteenth- and nineteenth-century, roughly
+  three centuries after the depicted period. The hundred-year attestation rule
+  in CLAUDE.md section 7 excludes it outright rather than badging it
+  provisional. The role went to the wasay, whose weapon class has far better
+  footing in the period, at the cost of redrawing the silhouette as an axe and
+  renaming a family of sound files.
+- **Weapon attribute values are provisional tuning, not measurements.** Preset
+  V2 gives each weapon its own damage, reach, and attack cooldown, and gives
+  each one-handed weapon a second profile for fighting behind a shield. What
+  justifies those numbers is the physical character of the objects — length,
+  where the mass sits, how many hands the thing takes — not any source on how
+  hard a sixteenth-century blade hit. None of them may be cited back into this
+  document.
 - **Shield multipliers are provisional tuning values, not measurements.**
   The tall-hardwood shield's chest and abdomen defense multiplier is a
   starting gameplay balance value, not a measurement of any shield's actual
