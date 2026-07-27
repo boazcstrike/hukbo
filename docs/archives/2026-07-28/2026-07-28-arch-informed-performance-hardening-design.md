@@ -1,8 +1,10 @@
 # Arch-Informed Performance Hardening — Design
 
+> **Archived: reference only.** This design is complete and deprecated. Do not execute it, and do not treat its steps, versions, file paths, or line-number citations as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`. Note in particular that this document's section 6 ranked target selection as the leading structural candidate; the profile the workstream then produced showed collision resolution dominating instead, and closed every structural candidate here except the axis-delta rejection. Read the Gate A verdict in the companion plan before taking any conclusion from this document.
+
 Date: 2026-07-28
 
-Status: design only. This document does not authorize implementation. The ordered task list lives in the companion plan document, [docs/plans/2026-07-28-arch-informed-performance-hardening.md](2026-07-28-arch-informed-performance-hardening.md).
+Status: design only. This document did not authorize implementation. The ordered task list lives in the companion plan document, [2026-07-28-arch-informed-performance-hardening.md](2026-07-28-arch-informed-performance-hardening.md).
 
 ## 1. What this workstream is, and the one thing it is not
 

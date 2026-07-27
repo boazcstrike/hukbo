@@ -79,14 +79,19 @@ incorrectly:
   `docs/development/testing.md`. The attribute values above are provisional
   gameplay tuning, not settled.
 
-## The performance hardening workstream
+## The performance hardening workstream — complete and archived
 
-Two documents, per the table above:
+Both documents were archived on 2026-07-28, the day the work completed. They are
+reference only; do not execute either. The evidence the workstream produced is
+live and stays where it is, in
+[docs/development/testing.md](../development/testing.md),
+[docs/research/TICK-STAGE-PROFILE.md](../research/TICK-STAGE-PROFILE.md), and
+the performance technique inventory in `SIMULATION-GAME-STANDARDS.md`.
 
 | Document | Status |
 | --- | --- |
-| [`2026-07-28-arch-informed-performance-hardening-design.md`](2026-07-28-arch-informed-performance-hardening-design.md) | Design only. Does not authorize implementation. |
-| [`2026-07-28-arch-informed-performance-hardening.md`](2026-07-28-arch-informed-performance-hardening.md) | The ordered task list, its verification criteria, and the Gate A verdict. |
+| [`docs/archives/2026-07-28/2026-07-28-arch-informed-performance-hardening-design.md`](../archives/2026-07-28/2026-07-28-arch-informed-performance-hardening-design.md) | Archived. Design only; it never authorized implementation, and the profile later overturned its ranking of the structural candidates. |
+| [`docs/archives/2026-07-28/2026-07-28-arch-informed-performance-hardening.md`](../archives/2026-07-28/2026-07-28-arch-informed-performance-hardening.md) | Archived. Carries the ordered task list, the verification criteria, the Gate A verdict, and the completion record. |
 
 This workstream is hash-neutral by construction: every task in the plan is
 required to leave the seed-1 200-agent pair unchanged, and it is unchanged —

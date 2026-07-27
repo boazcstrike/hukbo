@@ -1,5 +1,7 @@
 # Arch-Informed Performance Hardening — Implementation Plan
 
+> **Archived: reference only.** This plan is complete and deprecated. Do not execute it, and do not treat its steps, versions, file paths, or line-number citations as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`. The evidence this workstream produced is live and lives in [docs/development/testing.md](../../development/testing.md) and [docs/research/TICK-STAGE-PROFILE.md](../../research/TICK-STAGE-PROFILE.md).
+
 Date: 2026-07-28
 
 **Status:** Complete. Phase 1 is measured, Phase 2 is implemented, the Gate A verdict below is recorded, and T11 is the only Phase 3 item that verdict authorized — it is implemented. The canonical gate passes, with both hashes unchanged from the recorded baseline. See the Completion record at the end of this document for the full account.

@@ -87,9 +87,9 @@ see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 ## Latest non-interactive result — arch-informed performance hardening workstream (T1, T2, T6, T7, T8, T11), 2026-07-28
 
 Implements T1 and T2 of the arch-informed performance hardening workstream.
-See [docs/plans/2026-07-28-arch-informed-performance-hardening.md](../plans/2026-07-28-arch-informed-performance-hardening.md)
+See [docs/archives/2026-07-28/2026-07-28-arch-informed-performance-hardening.md](../archives/2026-07-28/2026-07-28-arch-informed-performance-hardening.md)
 and its design document,
-[docs/plans/2026-07-28-arch-informed-performance-hardening-design.md](../plans/2026-07-28-arch-informed-performance-hardening-design.md).
+[docs/archives/2026-07-28/2026-07-28-arch-informed-performance-hardening-design.md](../archives/2026-07-28/2026-07-28-arch-informed-performance-hardening-design.md).
 
 **This workstream is hash-neutral by design.** Nothing in T1 or T2 changes
 tick order, RNG draws, or any value that feeds the state or event hash. The
@@ -2379,7 +2379,7 @@ to `PASS`. Compilation, unit tests, and a window-opening probe do not.
 ### Event feed lifetime smoke (T17)
 
 Covers the change recorded under T7 of
-[docs/plans/2026-07-28-arch-informed-performance-hardening.md](../plans/2026-07-28-arch-informed-performance-hardening.md):
+[docs/archives/2026-07-28/2026-07-28-arch-informed-performance-hardening.md](../archives/2026-07-28/2026-07-28-arch-informed-performance-hardening.md):
 `LastEvents` now returns one of two permanent double-buffered collections
 instead of a fresh one created each tick. The automated tests — the seed-1
 hash equality above, `LastEventsRemainsACompletedTickSnapshot`,

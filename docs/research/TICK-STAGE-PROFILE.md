@@ -2,9 +2,9 @@
 
 **Status:** Complete. This is the T3 measurement referenced by the Gate A
 verdict in
-[docs/plans/2026-07-28-arch-informed-performance-hardening.md](../plans/2026-07-28-arch-informed-performance-hardening.md)
+[docs/archives/2026-07-28/2026-07-28-arch-informed-performance-hardening.md](../archives/2026-07-28/2026-07-28-arch-informed-performance-hardening.md)
 and by its companion,
-[docs/plans/2026-07-28-arch-informed-performance-hardening-design.md](../plans/2026-07-28-arch-informed-performance-hardening-design.md).
+[docs/archives/2026-07-28/2026-07-28-arch-informed-performance-hardening-design.md](../archives/2026-07-28/2026-07-28-arch-informed-performance-hardening-design.md).
 
 ## Limitations
 
