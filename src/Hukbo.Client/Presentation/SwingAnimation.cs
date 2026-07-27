@@ -33,4 +33,12 @@ internal readonly record struct SwingAnimation(
     /// PROVISIONAL. One attack cooldown period at the default tick rate.
     /// </summary>
     public const float TotalSeconds = 0.25f;
+
+    /// <summary>
+    /// Progress through the total duration, clamped to zero and one. Declared
+    /// here rather than in the geometry so that the store, the geometry, and
+    /// the renderer all read one formula.
+    /// </summary>
+    public float Progress =>
+        Math.Clamp(AgeSeconds / TotalSeconds, 0f, 1f);
 }

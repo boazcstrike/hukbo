@@ -16,7 +16,8 @@ public sealed class SwingAnimationSystemTests
     public void Ingest_CreatesOneSwingPerAttacker()
     {
         var system = new SwingAnimationSystem(capacity: 8);
-        AgentView[] agents = [Agent(2, 0, 0), Agent(7, 300, 0), Agent(9, 0, 300)];
+        AgentView[] agents =
+            [Agent(2, 0, 0), Agent(7, 300, 0), Agent(9, 300, 300)];
 
         system.Ingest(
             [
@@ -47,7 +48,8 @@ public sealed class SwingAnimationSystemTests
     public void Ingest_ReplacesAnInFlightSwingForTheSameAgent()
     {
         var system = new SwingAnimationSystem(capacity: 8);
-        AgentView[] agents = [Agent(2, 0, 0), Agent(7, 300, 0), Agent(9, 0, 300)];
+        AgentView[] agents =
+            [Agent(2, 0, 0), Agent(7, 300, 0), Agent(9, 300, 300)];
 
         system.Ingest([AttackEvent(1, source: 2, target: 7)], agents);
         system.Advance(0.05f);
