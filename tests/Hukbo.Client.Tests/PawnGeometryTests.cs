@@ -172,6 +172,11 @@ public sealed class PawnGeometryTests
     /// grip, which leaves the grip where it was, and the torso leans along the
     /// swing while the feet stay planted.
     /// </summary>
+    /// <remarks>
+    /// Added beyond the single case the plan names for this task. The named
+    /// case asserts that no pose changes nothing, which a parameter accepted
+    /// and then ignored would also satisfy; this one fails in that situation.
+    /// </remarks>
     [Fact]
     public void Create_WithASwingPose_RotatesTheWeaponAndLeansTheTorso()
     {
