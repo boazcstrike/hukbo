@@ -1,5 +1,7 @@
 # Tactical Hit Animations Design
 
+> **Archived: reference only.** This design is implemented and deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
+
 ## Goal
 
 Add short, readable hit feedback to Hukbo's spectator arena without changing
