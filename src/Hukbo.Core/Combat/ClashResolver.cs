@@ -205,8 +205,8 @@ internal static class ClashResolver
 
         // Steps one to three.
         long shield = profile.ResolveShieldIntercept(defenderShield);
-        long weapon = profile.ResolveWeaponIntercept(defenderWeapon, attackerWeapon);
-        long voidChannel = profile.ResolveVoid(defenderWeapon);
+        long weapon = profile.ResolveWeaponIntercept(defenderWeapon, defenderShield, attackerWeapon);
+        long voidChannel = profile.ResolveVoid(defenderWeapon, defenderShield);
 
         // Step four. Each channel is rescaled independently and each division
         // truncates toward zero, so the post-rescale total lands at or below

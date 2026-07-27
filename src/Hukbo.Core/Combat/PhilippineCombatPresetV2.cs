@@ -23,7 +23,7 @@ namespace Hukbo.Core.Combat;
 /// </remarks>
 public static class PhilippineCombatPresetV2
 {
-    public const int Version = 2;
+    public const int Version = 3;
 
     public static CombatRuleset Rules { get; } = Build();
 
@@ -177,7 +177,118 @@ public static class PhilippineCombatPresetV2
             armors,
             shieldMultipliers,
             roster,
-            weaponAttributes);
+            weaponAttributes: weaponAttributes,
+            clashProfile: BuildClashProfile());
+    }
+
+    /// <summary>
+    /// The defensive-interception tuning data for the six-loadout roster.
+    /// PROVISIONAL gameplay tuning throughout; see
+    /// docs/research/WEAPON_CLASH_1500s.md and CLAUDE.md section 7. The
+    /// sixteen legacy weapon-intercept cells and the four legacy void cells
+    /// were authored under preset V1's four-loadout roster, where Kalis and
+    /// Itak always carried a <see cref="ShieldId.TallHardwood"/> shield — see
+    /// the integration design document section 3.1 for the full reasoning.
+    /// They carry across onto the shield state each row's original roster
+    /// entry actually had: Kampilan and Wasay never carried a shield, so their
+    /// rows land on the bare defender key; Kalis and Itak always did, so
+    /// theirs land on the shielded key. The ten new cells — four
+    /// weapon-intercept cells each for shieldless Kalis and shieldless Itak,
+    /// plus one new void cell for each — have no per-pair figure in the
+    /// research at all and are drawn from the loadout-level band design
+    /// section 5 derives: a weapon-intercept band of roughly 0.10 to 0.18
+    /// (1,000 to 1,800 basis points) and a void band of roughly 0.11 to 0.19
+    /// (1,100 to 1,900 basis points), reasoned as a shieldless one-handed
+    /// defender turning more with the weapon and evading more because it has
+    /// nothing else to turn with.
+    /// </summary>
+    private static ClashProfile BuildClashProfile()
+    {
+        var weaponIntercept = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>
+        {
+            // Legacy cells: Kampilan and Wasay defenders, bare key. Values
+            // unchanged from preset V1.
+            [(WeaponId.Kampilan, ShieldId.None, WeaponId.Kampilan)] = 2_200,
+            [(WeaponId.Kampilan, ShieldId.None, WeaponId.Wasay)] = 1_900,
+            [(WeaponId.Kampilan, ShieldId.None, WeaponId.Kalis)] = 1_600,
+            [(WeaponId.Kampilan, ShieldId.None, WeaponId.Itak)] = 2_000,
+
+            [(WeaponId.Wasay, ShieldId.None, WeaponId.Kampilan)] = 1_500,
+            [(WeaponId.Wasay, ShieldId.None, WeaponId.Wasay)] = 1_300,
+            [(WeaponId.Wasay, ShieldId.None, WeaponId.Kalis)] = 1_100,
+            [(WeaponId.Wasay, ShieldId.None, WeaponId.Itak)] = 1_400,
+
+            // Legacy cells: Kalis and Itak defenders, shielded key. Values
+            // unchanged from preset V1, where these two always carried
+            // ShieldId.TallHardwood.
+            [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Kampilan)] = 500,
+            [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Wasay)] = 400,
+            [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Kalis)] = 600,
+            [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Itak)] = 600,
+
+            [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Kampilan)] = 400,
+            [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Wasay)] = 300,
+            [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Kalis)] = 500,
+            [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Itak)] = 500,
+
+            // New cells: shieldless Kalis. Provisional reconstruction, drawn
+            // from the 0.10-to-0.18 (1,000-to-1,800 basis point) weapon band
+            // in design section 5.
+            [(WeaponId.Kalis, ShieldId.None, WeaponId.Kampilan)] = 1_400,
+            [(WeaponId.Kalis, ShieldId.None, WeaponId.Wasay)] = 1_200,
+            [(WeaponId.Kalis, ShieldId.None, WeaponId.Kalis)] = 1_700,
+            [(WeaponId.Kalis, ShieldId.None, WeaponId.Itak)] = 1_700,
+
+            // New cells: shieldless Itak. Provisional reconstruction, same
+            // band as above.
+            [(WeaponId.Itak, ShieldId.None, WeaponId.Kampilan)] = 1_300,
+            [(WeaponId.Itak, ShieldId.None, WeaponId.Wasay)] = 1_100,
+            [(WeaponId.Itak, ShieldId.None, WeaponId.Kalis)] = 1_600,
+            [(WeaponId.Itak, ShieldId.None, WeaponId.Itak)] = 1_600,
+        };
+
+        var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>
+        {
+            // Legacy cells, carried across per the shield state each weapon's
+            // V1 roster entry actually had.
+            [(WeaponId.Kampilan, ShieldId.None)] = 1_000,
+            [(WeaponId.Wasay, ShieldId.None)] = 900,
+            [(WeaponId.Kalis, ShieldId.TallHardwood)] = 1_000,
+            [(WeaponId.Itak, ShieldId.TallHardwood)] = 1_100,
+
+            // New cells: the two shieldless loadouts. Provisional
+            // reconstruction, drawn from the 0.11-to-0.19 (1,100-to-1,900
+            // basis point) void band in design section 5.
+            [(WeaponId.Kalis, ShieldId.None)] = 1_500,
+            [(WeaponId.Itak, ShieldId.None)] = 1_600,
+        };
+
+        var hardShareBases = new Dictionary<WeaponId, int>
+        {
+            [WeaponId.Kampilan] = 3_300,
+            [WeaponId.Wasay] = 4_000,
+            [WeaponId.Kalis] = 1_200,
+            [WeaponId.Itak] = 1_800,
+        };
+
+        var hardShareMultipliers = new Dictionary<WeaponId, int>
+        {
+            [WeaponId.Kampilan] = 1_150,
+            [WeaponId.Wasay] = 1_050,
+            [WeaponId.Kalis] = 750,
+            [WeaponId.Itak] = 700,
+        };
+
+        return new ClashProfile(
+            weaponIntercept: weaponIntercept,
+            shieldIntercept: 2_400,
+            voidChannel: voidChannel,
+            hardShareBases: hardShareBases,
+            hardShareMultipliers: hardShareMultipliers,
+            minimumHardShareBasisPoints: 500,
+            maximumHardShareBasisPoints: 6_000,
+            maximumInterceptionBasisPoints: 5_500);
     }
 
     /// <summary>
