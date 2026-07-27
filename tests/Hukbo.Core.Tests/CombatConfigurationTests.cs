@@ -222,6 +222,203 @@ public sealed class CombatConfigurationTests
             source.WithClashProfile(source.ClashProfile).ContentHash);
     }
 
+    /// <summary>
+    /// Which clash value a <see cref="Preset_UsesApprovedClashValues"/> row
+    /// pins. Public because the theory method that takes it has to be public
+    /// for the test runner to see it.
+    /// </summary>
+    public enum ClashValueKind
+    {
+        WeaponIntercept,
+        ShieldIntercept,
+        Void,
+        HardShareBase,
+        HardShareMultiplier,
+        MinimumHardShare,
+        MaximumHardShare,
+        MaximumInterception,
+    }
+
+    [Fact]
+    public void Preset_ReportsVersionTwo()
+    {
+        // The clash tables are folded into the content hash, so the preset that
+        // carries them is a different preset version. Section 3.6 of the design
+        // keeps the preset identity and changes only its version.
+        Assert.Equal(2, PhilippineCombatPreset.Rules.Version);
+    }
+
+    [Fact]
+    public void Ruleset_DeclaresNonDefaultClashDataForEveryWeaponAndShield()
+    {
+        // Non-zero, not merely present. ClashProfile.Neutral is a complete
+        // all-zero profile that answers every accessor, so a presence check
+        // would pass against it and prove nothing.
+        var profile = PhilippineCombatPreset.Rules.ClashProfile;
+
+        foreach (var defender in Enum.GetValues<WeaponId>())
+        {
+            Assert.True(
+                profile.ResolveVoid(defender) > 0,
+                $"The void channel for defender {defender} is zero.");
+            Assert.True(
+                profile.ResolveHardShareBase(defender) > 0,
+                $"The hard-share base for attacker {defender} is zero.");
+            Assert.True(
+                profile.ResolveHardShareMultiplier(defender) > 0,
+                $"The hard-share multiplier for defender {defender} is zero.");
+
+            foreach (var attacker in Enum.GetValues<WeaponId>())
+            {
+                Assert.True(
+                    profile.ResolveWeaponIntercept(defender, attacker) > 0,
+                    $"The weapon-intercept cell for defender {defender} " +
+                    $"against attacker {attacker} is zero.");
+            }
+        }
+
+        Assert.True(profile.ShieldInterceptBasisPoints > 0);
+        Assert.True(profile.ResolveShieldIntercept(ShieldId.TallHardwood) > 0);
+        Assert.Equal(0, profile.ResolveShieldIntercept(ShieldId.None));
+        Assert.True(profile.MinimumHardShareBasisPoints > 0);
+        Assert.True(
+            profile.MaximumHardShareBasisPoints >
+                profile.MinimumHardShareBasisPoints);
+        Assert.True(profile.MaximumInterceptionBasisPoints > 0);
+    }
+
+    /// <summary>
+    /// All thirty-two shipped tuning values, pinned one row each. Nothing else
+    /// in the plan constrains a transcription error: the naive-reference sweep
+    /// compares two implementations reading the <em>same</em> profile, so a
+    /// wrong digit in any matrix cell is invisible to it.
+    /// </summary>
+    /// <remarks>
+    /// <b>PROVISIONAL.</b> Every value here is a gameplay tuning choice, not a
+    /// historical measurement. The research is explicit that all sixteen cells
+    /// of the weapon-intercept matrix have no evidentiary confidence whatsoever;
+    /// only their relative ordering is argued, and weakly.
+    /// </remarks>
+    [Theory]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.GreatBlade, WeaponId.GreatBlade, 2_200)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.GreatBlade, WeaponId.HeavyChopper, 1_900)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.GreatBlade, WeaponId.ThrustingBlade, 1_600)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.GreatBlade, WeaponId.Bolo, 2_000)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.HeavyChopper, WeaponId.GreatBlade, 1_500)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.HeavyChopper, WeaponId.HeavyChopper, 1_300)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.HeavyChopper, WeaponId.ThrustingBlade, 1_100)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.HeavyChopper, WeaponId.Bolo, 1_400)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.ThrustingBlade, WeaponId.GreatBlade, 500)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.ThrustingBlade, WeaponId.HeavyChopper, 400)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.ThrustingBlade, WeaponId.ThrustingBlade, 600)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.ThrustingBlade, WeaponId.Bolo, 600)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Bolo, WeaponId.GreatBlade, 400)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Bolo, WeaponId.HeavyChopper, 300)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Bolo, WeaponId.ThrustingBlade, 500)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Bolo, WeaponId.Bolo, 500)]
+    [InlineData(ClashValueKind.ShieldIntercept, WeaponId.GreatBlade, WeaponId.GreatBlade, 2_400)]
+    [InlineData(ClashValueKind.Void, WeaponId.GreatBlade, WeaponId.GreatBlade, 1_000)]
+    [InlineData(ClashValueKind.Void, WeaponId.HeavyChopper, WeaponId.GreatBlade, 900)]
+    [InlineData(ClashValueKind.Void, WeaponId.ThrustingBlade, WeaponId.GreatBlade, 1_000)]
+    [InlineData(ClashValueKind.Void, WeaponId.Bolo, WeaponId.GreatBlade, 1_100)]
+    [InlineData(ClashValueKind.HardShareBase, WeaponId.GreatBlade, WeaponId.GreatBlade, 3_300)]
+    [InlineData(ClashValueKind.HardShareBase, WeaponId.GreatBlade, WeaponId.HeavyChopper, 4_000)]
+    [InlineData(ClashValueKind.HardShareBase, WeaponId.GreatBlade, WeaponId.ThrustingBlade, 1_200)]
+    [InlineData(ClashValueKind.HardShareBase, WeaponId.GreatBlade, WeaponId.Bolo, 1_800)]
+    [InlineData(ClashValueKind.HardShareMultiplier, WeaponId.GreatBlade, WeaponId.GreatBlade, 1_150)]
+    [InlineData(ClashValueKind.HardShareMultiplier, WeaponId.HeavyChopper, WeaponId.GreatBlade, 1_050)]
+    [InlineData(ClashValueKind.HardShareMultiplier, WeaponId.ThrustingBlade, WeaponId.GreatBlade, 750)]
+    [InlineData(ClashValueKind.HardShareMultiplier, WeaponId.Bolo, WeaponId.GreatBlade, 700)]
+    [InlineData(ClashValueKind.MinimumHardShare, WeaponId.GreatBlade, WeaponId.GreatBlade, 500)]
+    [InlineData(ClashValueKind.MaximumHardShare, WeaponId.GreatBlade, WeaponId.GreatBlade, 6_000)]
+    [InlineData(ClashValueKind.MaximumInterception, WeaponId.GreatBlade, WeaponId.GreatBlade, 5_500)]
+    public void Preset_UsesApprovedClashValues(
+        ClashValueKind kind,
+        WeaponId defenderWeapon,
+        WeaponId attackerWeapon,
+        int expected)
+    {
+        var profile = PhilippineCombatPreset.Rules.ClashProfile;
+        var actual = kind switch
+        {
+            ClashValueKind.WeaponIntercept =>
+                profile.ResolveWeaponIntercept(defenderWeapon, attackerWeapon),
+            ClashValueKind.ShieldIntercept => profile.ShieldInterceptBasisPoints,
+            ClashValueKind.Void => profile.ResolveVoid(defenderWeapon),
+            ClashValueKind.HardShareBase =>
+                profile.ResolveHardShareBase(attackerWeapon),
+            ClashValueKind.HardShareMultiplier =>
+                profile.ResolveHardShareMultiplier(defenderWeapon),
+            ClashValueKind.MinimumHardShare => profile.MinimumHardShareBasisPoints,
+            ClashValueKind.MaximumHardShare => profile.MaximumHardShareBasisPoints,
+            _ => profile.MaximumInterceptionBasisPoints,
+        };
+
+        Assert.Equal(expected, actual);
+    }
+
+    /// <summary>
+    /// The cheapest possible check that the tables were entered as designed: the
+    /// four row means of the total-interception matrix in design section 3.3.
+    /// </summary>
+    [Theory]
+    [InlineData(WeaponId.GreatBlade, ShieldId.None, 2_925)]
+    [InlineData(WeaponId.HeavyChopper, ShieldId.None, 2_225)]
+    [InlineData(WeaponId.ThrustingBlade, ShieldId.TallHardwood, 3_925)]
+    [InlineData(WeaponId.Bolo, ShieldId.TallHardwood, 3_925)]
+    public void Preset_RowMeansMatchTheDesignedTotalInterceptionMatrix(
+        WeaponId defenderWeapon,
+        ShieldId defenderShield,
+        int expectedMean)
+    {
+        var profile = PhilippineCombatPreset.Rules.ClashProfile;
+        var attackers = Enum.GetValues<WeaponId>();
+        var total = 0;
+
+        foreach (var attacker in attackers)
+        {
+            total +=
+                profile.ResolveShieldIntercept(defenderShield) +
+                profile.ResolveWeaponIntercept(defenderWeapon, attacker) +
+                profile.ResolveVoid(defenderWeapon);
+        }
+
+        // Compared as a sum so that an exact expectation is possible without
+        // arguing about how a mean should round.
+        Assert.Equal(expectedMean * attackers.Length, total);
+        Assert.Equal(expectedMean, total / attackers.Length);
+    }
+
+    [Fact]
+    public void ContentHash_ChangesWhenAClashValueChanges()
+    {
+        var preset = PhilippineCombatPreset.Rules;
+        var baseline = preset.WithClashProfile(BuildUniformClashProfile(matrixCell: 1_000));
+        var oneCellChanged =
+            preset.WithClashProfile(BuildUniformClashProfile(matrixCell: 1_001));
+
+        Assert.NotEqual(baseline.ContentHash, oneCellChanged.ContentHash);
+        Assert.NotEqual(
+            baseline.ContentHash,
+            preset.WithClashProfile(ClashProfile.Neutral).ContentHash);
+    }
+
+    [Fact]
+    public void ContentHash_IsIndependentOfClashDictionaryOrder()
+    {
+        // Identical values supplied in opposite key order. A fold that inherited
+        // the caller's dictionary order would give two equivalent rulesets two
+        // different content hashes, and a replay would refuse a save that is in
+        // fact the same configuration.
+        var preset = PhilippineCombatPreset.Rules;
+        var ascending = preset.WithClashProfile(
+            BuildOrderedClashProfile(reversed: false));
+        var descending = preset.WithClashProfile(
+            BuildOrderedClashProfile(reversed: true));
+
+        Assert.Equal(ascending.ContentHash, descending.ContentHash);
+    }
+
     [Fact]
     public void CombatPresetRegistry_ResolvesThePhilippinePreset()
     {
@@ -415,6 +612,78 @@ public sealed class CombatConfigurationTests
             [
                 new CombatLoadout(WeaponId.GreatBlade, ArmorId.LightOrganic, ShieldId.None),
             ]);
+    }
+
+    /// <summary>
+    /// A profile whose tables are uniform apart from one matrix cell value, so
+    /// two calls differing only in <paramref name="matrixCell"/> differ in
+    /// exactly sixteen folded words and nothing else.
+    /// </summary>
+    private static ClashProfile BuildUniformClashProfile(int matrixCell)
+    {
+        var weapons = Enum.GetValues<WeaponId>();
+        var matrix = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>();
+        foreach (var defender in weapons)
+        {
+            foreach (var attacker in weapons)
+            {
+                matrix[(defender, attacker)] = matrixCell;
+            }
+        }
+
+        var rows = weapons.ToDictionary(weapon => weapon, _ => 500);
+
+        return new ClashProfile(
+            matrix,
+            shieldIntercept: 2_400,
+            voidChannel: rows,
+            hardShareBases: rows,
+            hardShareMultipliers: rows,
+            minimumHardShareBasisPoints: 500,
+            maximumHardShareBasisPoints: 6_000,
+            maximumInterceptionBasisPoints: 5_500);
+    }
+
+    /// <summary>
+    /// One set of clash values supplied to the constructor in ascending or
+    /// descending key order. The two profiles are equal in content and differ
+    /// only in the order the dictionaries were populated.
+    /// </summary>
+    private static ClashProfile BuildOrderedClashProfile(bool reversed)
+    {
+        var weapons = Enum.GetValues<WeaponId>().OrderBy(weapon => (int)weapon).ToArray();
+        if (reversed)
+        {
+            weapons = [.. weapons.Reverse()];
+        }
+
+        var matrix = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>();
+        var voidChannel = new Dictionary<WeaponId, int>();
+        var hardShareBases = new Dictionary<WeaponId, int>();
+        var hardShareMultipliers = new Dictionary<WeaponId, int>();
+
+        foreach (var defender in weapons)
+        {
+            voidChannel[defender] = 900 + (int)defender;
+            hardShareBases[defender] = 1_200 + (int)defender;
+            hardShareMultipliers[defender] = 700 + (int)defender;
+
+            foreach (var attacker in weapons)
+            {
+                matrix[(defender, attacker)] =
+                    (((int)defender * 10) + (int)attacker) * 10;
+            }
+        }
+
+        return new ClashProfile(
+            matrix,
+            shieldIntercept: 2_400,
+            voidChannel: voidChannel,
+            hardShareBases: hardShareBases,
+            hardShareMultipliers: hardShareMultipliers,
+            minimumHardShareBasisPoints: 500,
+            maximumHardShareBasisPoints: 6_000,
+            maximumInterceptionBasisPoints: 5_500);
     }
 
     /// <summary>
