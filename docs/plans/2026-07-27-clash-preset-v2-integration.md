@@ -8,6 +8,20 @@ Source branch: `worktree-weapon-clash`, tip `3cd4bc6`, true merge base `2d88b43`
 Decisions D1 through D8 referenced below are defined in the design document.
 This plan does not restate their reasoning.
 
+## Progress
+
+Per-task status, the working state, the deleted V1 tuning values, and the traps
+that have already bitten live in
+[2026-07-27-clash-preset-v2-integration-handoff.md](2026-07-27-clash-preset-v2-integration-handoff.md).
+Read that before picking this plan up mid-flight.
+
+Done so far: T01, T02, T03, T12, T13, T15, T20, T30, T35, T36, T37. Partly done
+or unverified: T16, T17, T18, T19, T31, T32. Next up: T10.
+
+The feature is inert in the current tree — V1 no longer carries the clash tables
+and V2 does not carry them yet, so every attack lands. No measurement taken
+before T22 means anything.
+
 ## Sequencing
 
 The work funnels through a small number of shared seams — one tick stage, one
@@ -29,7 +43,7 @@ else, two agents in flight would be a merge conflict created on purpose.
 | Task | What | Files | Done when | Depends on | Verified by |
 | --- | --- | --- | --- | --- | --- |
 | T01 | Merge `worktree-weapon-clash` into `clash-integration`, resolving each of the eleven conflicts to the *union* of both sides wherever the design says both are wanted. Do not attempt to make it compile yet. | all eleven conflicted files | merge commit exists, no conflict markers remain in the tree | — | `git grep -n '^<<<<<<<\|^>>>>>>>'` returns nothing |
-| T02 | Sweep the 41 files still referencing `WeaponId.GreatBlade`, `HeavyChopper`, `ThrustingBlade`, `Bolo` to the V2 names `Kampilan`, `Wasay`, `Kalis`, `Itak`. Mechanical rename only — no behavior change, no retuning. | 41 files: 17 `tests/Hukbo.Client.Tests`, 11 `tests/Hukbo.Core.Tests`, 3 `src/Hukbo.Client/Rendering`, 3 `src/Hukbo.Client/Presentation`, 2 `src/Hukbo.Core/Combat`, 2 `src/Hukbo.Client/Audio`, 2 `tools/`, 1 fixture | zero references to the four old symbols remain | T01 | `git grep -c 'GreatBlade\|HeavyChopper\|ThrustingBlade\|WeaponId.Bolo'` returns nothing |
+| T02 | Sweep the 41 files still referencing `WeaponId.GreatBlade`, `HeavyChopper`, `ThrustingBlade`, `Bolo` to the V2 names `Kampilan`, `Wasay`, `Kalis`, `Itak`. Mechanical rename only — no behavior change, no retuning. **Scope the sweep to `src tests tools`. Never include `docs`:** documentation legitimately carries the old names where it records what a past branch did, and a sweep across it produces sentences like "renamed `Kampilan` to `Kampilan`". | 41 files: 17 `tests/Hukbo.Client.Tests`, 11 `tests/Hukbo.Core.Tests`, 3 `src/Hukbo.Client/Rendering`, 3 `src/Hukbo.Client/Presentation`, 2 `src/Hukbo.Core/Combat`, 2 `src/Hukbo.Client/Audio`, 2 `tools/`, 1 fixture | zero references to the four old symbols remain | T01 | `git grep -c 'GreatBlade\|HeavyChopper\|ThrustingBlade\|WeaponId.Bolo'` returns nothing |
 | T03 | Record the tree as knowingly non-compiling and enumerate every remaining break, grouped by cause. This is the checklist Phase 1 works against. | none — a scratch note, not a repository file | a list exists naming every compile error and its owning task | T02 | `dotnet build` output captured and grouped |
 
 ## Phase 1 — Core structure
