@@ -332,7 +332,8 @@ process: a supervisor started `Hukbo.Headless.exe` directly and sampled
 | 2 | 49.83 MiB | 37.49 MiB |
 | 3 | 49.74 MiB | 37.96 MiB |
 
-Peak working set fell by roughly 24.6 per cent. "Before" is the unmodified
+Mean peak working set fell from 49.75 MiB to 37.61 MiB, which is 24.4 per
+cent. "Before" is the unmodified
 `main` tree at commit `8a3d930`; "after" is this worktree. This is the
 consequence of the allocation removal rather than a separate change: a run that
 no longer allocates roughly ninety-four megabytes across its measured loop does
@@ -365,13 +366,30 @@ messages including "A warm window allocated 1,032 bytes after a first window of
 0" and "2,064 bytes after a first window of 1,200". In isolation it passed
 eight times out of eight, which is why a single gate run did not reveal it.
 
-The relative comparison was replaced by an absolute ceiling of 16 384 bytes
-applied to **both** windows. That is a strictly stronger guard, not a weaker
-one: the old relative form would have accepted a first window of 899 999 bytes.
-Reinstating a per-tick event list in that 24-agent scenario would allocate
-24 × 2 × 72 = 3 456 bytes a tick, or 3 456 000 across a window, which is 210
-times the new ceiling; even a single boxed enumerator per tick would allocate
-roughly 46 000 across a window, nearly three times it.
+The test now carries three assertions where it carried two.
+
+An absolute ceiling of 16 384 bytes applies to **each** window. The old form
+would have accepted a first window of 899 999 bytes, so on that axis this is a
+large tightening. Reinstating a per-tick event list in that 24-agent scenario
+would allocate 24 × 2 × 72 = 3 456 bytes a tick, or 3 456 000 across a window,
+which is 210 times the ceiling; even a single boxed enumerator per tick would
+allocate roughly 46 000 across a window, nearly three times it.
+
+The relative comparison is **kept**, with a tolerance of 4 096 bytes. An
+earlier revision of this work replaced it outright and described the result as
+"strictly stronger" than what it replaced. **That claim was wrong**, and it is
+recorded here rather than quietly corrected, because it is the kind of error
+that a reader would otherwise inherit. A regression allocating 500 bytes in the
+first window and 12 000 in the second fails the old zero-tolerance comparison
+and passes a 16 384-byte ceiling, so an absolute ceiling alone does not
+subsume the relative one. Growth between two identical windows is a real
+signal and is still asserted.
+
+The tolerance is a genuine relaxation of the old assertion and is not presented
+as anything else. Zero tolerance is unachievable now that the measured
+quantity is near zero and the counter is not reproducible run to run. The
+largest run-to-run increase observed across the thirteen measurement runs was
+1 032 bytes, and the tolerance is four times that.
 
 `RepeatedQuietTicksHaveBoundedAllocations` was retuned in the same pass, from a
 ceiling of 300 000 bytes down to 8 192. That window now measures **exactly 0

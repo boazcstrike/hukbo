@@ -451,16 +451,69 @@ reproduced it, and its diagnosis that the flake was probably pre-existing was
 wrong: the flake is a direct consequence of T7 driving the measured quantity to
 near zero.
 
-The relative comparison was replaced by an absolute ceiling of 16,384 bytes on
-both windows, which is a strictly stronger guard rather than a weaker one — the
-old form would have accepted a first window of 899,999 bytes — and
+The test now carries an absolute ceiling of 16,384 bytes on each window — the
+old form would have accepted a first window of 899,999 — **and keeps the
+relative comparison**, with a tolerance of 4,096 bytes.
 `RepeatedQuietTicksHaveBoundedAllocations` was retuned from 300,000 bytes to
 8,192, because that window now measures exactly zero. Ten consecutive full-suite
 runs pass with no failures. The measured basis and the arithmetic separating the
 ceiling from a real regression are recorded in `docs/development/testing.md`.
 
+An intermediate revision of this work dropped the relative comparison entirely
+and described the absolute ceiling as "strictly stronger" than what it replaced.
+That claim was false, a reviewer produced the counterexample — a regression
+allocating 500 bytes in the first window and 12,000 in the second fails the old
+zero-tolerance comparison and passes a 16,384-byte ceiling — and the relative
+comparison was restored. It is recorded here because a plan document that
+quietly deletes its own wrong reasoning teaches a later reader nothing. The
+tolerance that comparison now carries is a real relaxation of the original
+assertion, sized at four times the largest run-to-run increase measured, and it
+is not claimed to be anything else.
+
 This is the only test in the workstream whose assertion was changed rather than
-added, and the change tightens it.
+added.
+
+Verification criterion 8 above says the collision test's second window must be
+"no greater than the first". As committed it must be no greater than the first
+plus 4,096 bytes, for the reason given. The criterion is left as written, since
+it records what was required when the plan was authored, and this paragraph
+records the difference.
+
+### T7's alternative, which the original justification omitted
+
+The reasoning recorded above for the double buffer presented two options: a
+single buffer cleared unconditionally at the top of every tick, which breaks
+`LastEventsRemainsACompletedTickSnapshot`, and the double buffer that was built.
+A reviewer pointed out that this is a false dichotomy, and the reviewer is
+right. A **single** buffer cleared lazily, on the first event written in a tick
+rather than unconditionally at the start of one, would also have satisfied that
+test: a quiet tick would touch the buffer at all, so a retained reference would
+survive it, while `LastEvents` would still report empty through the existing
+`EmptyEvents` sentinel. That design matches this plan's task row far more
+closely, holds half the standing memory, and needs no swap flag.
+
+It is recorded rather than implemented. The double buffer is committed, tested,
+and verified against an unchanged hash pair, and swapping a working
+simulation-state mechanism for a simpler one at the end of a workstream buys
+elegance at the cost of re-verifying everything. Anyone revisiting this should
+start from the lazy-clear single buffer rather than from the false dichotomy.
+
+Note also that `RetainedLastEventsReferenceIsNotValidPastTheProducingTick`,
+added by T8, pins grace across an *active* following tick, which is a stronger
+property than any pre-existing constraint required. That test documents the
+double buffer's behaviour; it does not justify it.
+
+### A note on file and line citations in this document
+
+The citations in the task list and in the nine questions — for example
+`BattleSimulation.cs:557-561` for the target tie-break, `:888` for the give-way
+sign, `:277-301` for `AdvanceOneTick`, and `CollisionResolver.cs:369-371` for
+the collision priority key — were taken against the pre-workstream tree at
+commit `8a3d930`. This workstream's own edits shifted them, by roughly sixty
+lines in `BattleSimulation.cs` and thirteen in `CollisionResolver.cs`. They are
+deliberately **not** rewritten, because the task list should keep saying what
+was planned against the tree it was planned against. A reader working in the
+current tree should search for the symbol rather than trust the line number.
 
 ### Verification criterion 9, and the working set
 
@@ -474,6 +527,6 @@ originally recorded.
 It was therefore measured directly, from outside the process, against the
 unmodified `main` tree at commit `8a3d930` as the baseline. Peak working set at
 200 agents fell from about 49.7 MiB to about 37.6 MiB, a reduction of roughly
-24.6 percent. Both halves of criterion 9 are now met on measured evidence, and
+24.4 percent. Both halves of criterion 9 are now met on measured evidence, and
 both moved in the improving direction. The method and its limitations are
 recorded in `docs/development/testing.md`.

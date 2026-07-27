@@ -363,16 +363,34 @@ public sealed class BattleSimulationTests
         // a different byte count from run to run -- and it failed about one
         // full-suite run in three.
         //
-        // It is replaced by an absolute ceiling applied to BOTH windows, which
-        // is a strictly stronger guard rather than a weaker one: the old
-        // relative form would have accepted a first window of 899,999 bytes,
-        // and this one accepts at most 16,384 in either. The separation from a
-        // real regression is wide. Reinstating a per-tick event list in this
-        // 24-agent scenario would allocate 24 * 2 * 72 = 3,456 bytes a tick,
-        // or 3,456,000 across a window, which is 210 times the ceiling; even a
-        // single boxed enumerator per tick would allocate roughly 46,000 across
-        // a window, which is nearly three times it.
+        // It is replaced by three assertions rather than one, because no single
+        // assertion covers what the old one did once noise entered the
+        // measurement.
+        //
+        // The first two are an absolute ceiling on each window. The old
+        // relative form would have accepted a first window of 899,999 bytes;
+        // these accept at most 16,384 in either. Reinstating a per-tick event
+        // list in this 24-agent scenario would allocate 24 * 2 * 72 = 3,456
+        // bytes a tick, or 3,456,000 across a window, which is 210 times the
+        // ceiling; even a single boxed enumerator per tick would allocate
+        // roughly 46,000 across a window, nearly three times it.
+        //
+        // The third keeps the relative guard, with a tolerance sized from the
+        // measured noise. It is needed because an absolute ceiling alone is
+        // NOT strictly stronger than the old relative form, and it is worth
+        // being exact about why: a regression that allocated, say, 500 bytes
+        // in the first window and 12,000 in the second would have failed the
+        // old zero-tolerance comparison and would pass a 16,384-byte ceiling.
+        // Growth between two identical windows is a real signal and it is kept.
+        //
+        // The tolerance is not strictness thrown away, but it is a genuine
+        // relaxation of the old assertion and is not pretended otherwise. Zero
+        // tolerance is unachievable here: the same deterministic workload
+        // reports different byte counts run to run. The largest run-to-run
+        // increase observed across thirteen full-suite runs was 1,032 bytes,
+        // and 4,096 is four times that.
         const long maximumAllocatedBytes = 16_384;
+        const long warmWindowGrowthTolerance = 4_096;
         const int agentsPerFaction = 12;
 
         // Crowd two lines into one another so the resolver works every tick:
@@ -453,6 +471,17 @@ public sealed class BattleSimulationTests
             $"first window of {firstWindowBytes:N0}; expected at most " +
             $"{maximumAllocatedBytes:N0}. Collision and event storage must be " +
             "reused, growing only when capacity is insufficient.");
+
+        // The relative guard, kept because an absolute ceiling alone would let
+        // a window that grew several thousand bytes relative to its
+        // predecessor pass unnoticed.
+        Assert.True(
+            secondWindowBytes <= firstWindowBytes + warmWindowGrowthTolerance,
+            $"A warm window allocated {secondWindowBytes:N0} bytes after a " +
+            $"first window of {firstWindowBytes:N0}, a growth of " +
+            $"{secondWindowBytes - firstWindowBytes:N0} bytes against a " +
+            $"tolerance of {warmWindowGrowthTolerance:N0}. Two identical " +
+            "windows must cost the same to within measurement noise.");
     }
 
     [Fact]
