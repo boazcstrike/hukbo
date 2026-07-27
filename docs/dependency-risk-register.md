@@ -7,7 +7,7 @@
 | Package vulnerability appears after pinning | Security/maintenance issue | Locked explicit versions | Run current vulnerability audit during final integration and periodically |
 | .NET 10.0.302 removed from a developer machine | Build cannot resolve SDK | `global.json` and doctor diagnostics | Install exact SDK |
 | Self-contained runtime increases artifact size and patch surface | Larger download and bundled-runtime maintenance | Pin SDK/runtime and package only `win-x64` | Rebuild for patched .NET servicing releases |
-| Font/content source license is unclear | Distribution risk | Use only redistributable content with provenance | Record font license before public distribution |
+| Font/content source license is unclear | Distribution risk | Two vendored SIL Open Font License 1.1 typefaces — Rajdhani SemiBold and Bebas Neue Regular — with provenance recorded in `src/Hukbo.Client/Content/Fonts/README.md` | None — resolved |
 
 No critical dependency conflict is known from the foundation snapshot. This
 register is not a substitute for a current advisory scan after final restore.

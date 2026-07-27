@@ -98,12 +98,16 @@ internal sealed partial class ArmyCompositionPanel
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        UiFontSet fonts,
         Rectangle screenBounds,
         UiTheme theme)
     {
         var layout = CalculateLayout(screenBounds, _metrics);
         var colors = theme.Colors;
+        var titleFont = fonts.Get(UiFontRole.Title);
+        var bodyFont = fonts.Get(UiFontRole.Body);
+        var labelFont = fonts.Get(UiFontRole.Label);
+        var subtitleFont = fonts.Get(UiFontRole.Subtitle);
 
         spriteBatch.Draw(pixel, screenBounds, colors.OverlayScrim);
         spriteBatch.Draw(pixel, layout.PanelBounds, colors.PanelSurface);
@@ -116,7 +120,7 @@ internal sealed partial class ArmyCompositionPanel
 
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            titleFont,
             "ARMY COMPOSITION",
             layout.TitleBounds.Center.ToVector2(),
             colors.TextPrimary);
@@ -127,7 +131,8 @@ internal sealed partial class ArmyCompositionPanel
             DrawStepperRow(
                 spriteBatch,
                 pixel,
-                font,
+                labelFont,
+                subtitleFont,
                 layout.CategoryRows[index],
                 CategoryLabels[index],
                 count,
@@ -142,7 +147,8 @@ internal sealed partial class ArmyCompositionPanel
         DrawStepperRow(
             spriteBatch,
             pixel,
-            font,
+            labelFont,
+            subtitleFont,
             layout.UnitsPerTeamRow,
             "Units Per Team",
             _draft.UnitsPerTeam,
@@ -158,7 +164,7 @@ internal sealed partial class ArmyCompositionPanel
             : colors.StatusWarning;
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            bodyFont,
             $"Unassigned: {Unassigned.ToString(CultureInfo.InvariantCulture)}",
             layout.UnassignedBounds.Center.ToVector2(),
             unassignedColor);
@@ -166,7 +172,7 @@ internal sealed partial class ArmyCompositionPanel
         DrawActionRow(
             spriteBatch,
             pixel,
-            font,
+            labelFont,
             layout.DistributeEvenlyBounds,
             "Distribute Evenly",
             isEnabled: true,
@@ -175,7 +181,7 @@ internal sealed partial class ArmyCompositionPanel
         DrawActionRow(
             spriteBatch,
             pixel,
-            font,
+            labelFont,
             layout.ResetToDefaultBounds,
             "Reset to Default",
             isEnabled: true,
@@ -184,7 +190,7 @@ internal sealed partial class ArmyCompositionPanel
         DrawActionRow(
             spriteBatch,
             pixel,
-            font,
+            labelFont,
             layout.CancelBounds,
             "Cancel",
             isEnabled: true,
@@ -193,7 +199,7 @@ internal sealed partial class ArmyCompositionPanel
         DrawActionRow(
             spriteBatch,
             pixel,
-            font,
+            labelFont,
             layout.ApplyBounds,
             "Apply",
             CanApply,
@@ -204,7 +210,8 @@ internal sealed partial class ArmyCompositionPanel
     private static void DrawStepperRow(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        SpriteFont labelFont,
+        SpriteFont arrowFont,
         ArmyCompositionStepperRowLayout row,
         string label,
         int value,
@@ -214,8 +221,9 @@ internal sealed partial class ArmyCompositionPanel
         UiTheme theme)
     {
         var colors = theme.Colors;
-        spriteBatch.DrawString(
-            font,
+        UiPrimitives.DrawText(
+            spriteBatch,
+            labelFont,
             label,
             new Vector2(
                 row.LabelBounds.Left,
@@ -225,7 +233,7 @@ internal sealed partial class ArmyCompositionPanel
         DrawArrow(
             spriteBatch,
             pixel,
-            font,
+            arrowFont,
             row.MinusBounds,
             "-",
             isDecrementDisabled,
@@ -233,14 +241,14 @@ internal sealed partial class ArmyCompositionPanel
             theme);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            labelFont,
             value.ToString(CultureInfo.InvariantCulture),
             row.ValueBounds.Center.ToVector2(),
             colors.TextPrimary);
         DrawArrow(
             spriteBatch,
             pixel,
-            font,
+            arrowFont,
             row.PlusBounds,
             "+",
             isIncrementDisabled,

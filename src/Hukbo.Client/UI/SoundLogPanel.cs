@@ -13,11 +13,6 @@ namespace Hukbo.Client.UI;
 /// </summary>
 internal sealed partial class SoundLogPanel
 {
-    private const float TitleScale = 0.62f;
-    private const float SectionScale = 0.52f;
-    private const float RowScale = 0.48f;
-    private const float MuteScale = 0.50f;
-    private const int CharacterWidthEstimate = 6;
     private const int StatusColumnWidth = 74;
     private const string Ellipsis = "...";
 
@@ -60,7 +55,7 @@ internal sealed partial class SoundLogPanel
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        UiFontSet fonts,
         SoundDirector director,
         Rectangle bounds,
         UiTheme theme)
@@ -76,15 +71,18 @@ internal sealed partial class SoundLogPanel
             theme.Colors.PanelBorder,
             theme.Metrics.BorderThickness);
 
-        DrawHeader(spriteBatch, pixel, font, director, layout, theme);
-        DrawBindings(spriteBatch, font, director, layout, theme);
-        DrawCues(spriteBatch, pixel, font, director, layout, theme);
+        var titleFont = fonts.Get(UiFontRole.Title);
+        var captionFont = fonts.Get(UiFontRole.Caption);
+        DrawHeader(spriteBatch, pixel, titleFont, captionFont, director, layout, theme);
+        DrawBindings(spriteBatch, captionFont, director, layout, theme);
+        DrawCues(spriteBatch, pixel, captionFont, director, layout, theme);
     }
 
     private void DrawHeader(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        SpriteFont titleFont,
+        SpriteFont captionFont,
         SoundDirector director,
         SoundLogPanelLayout layout,
         UiTheme theme)
@@ -92,24 +90,26 @@ internal sealed partial class SoundLogPanel
         var bindings = director.Player.Bindings;
         var unavailableCount = SoundCatalog.CountUnavailable(bindings);
 
-        DrawText(
+        UiPrimitives.DrawText(
             spriteBatch,
-            font,
+            titleFont,
             "SOUND LOG",
-            new Vector2(layout.HeaderBounds.Left, layout.HeaderBounds.Top + 3),
-            theme.Colors.TextPrimary,
-            TitleScale);
-        DrawText(
+            new Vector2(
+                layout.HeaderBounds.Left,
+                layout.HeaderBounds.Top + HeaderTitleTopOffset),
+            theme.Colors.TextPrimary);
+        UiPrimitives.DrawText(
             spriteBatch,
-            font,
+            captionFont,
             SoundCueFormatter.FormatAvailability(
                 unavailableCount,
                 bindings.Count),
-            new Vector2(layout.HeaderBounds.Left, layout.HeaderBounds.Top + 15),
+            new Vector2(
+                layout.HeaderBounds.Left,
+                layout.HeaderBounds.Top + HeaderCaptionTopOffset),
             unavailableCount == 0
                 ? theme.Colors.StatusSuccess
-                : theme.Colors.TextSecondary,
-            SectionScale);
+                : theme.Colors.TextSecondary);
 
         var isMuteHovered = layout.MuteBounds.Contains(_pointerPosition);
         var muteFill = director.IsMuted
@@ -126,21 +126,19 @@ internal sealed partial class SoundLogPanel
             1);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            captionFont,
             director.IsMuted ? "MUTED" : "MUTE",
             layout.MuteBounds.Center.ToVector2(),
-            theme.Colors.TextInverse,
-            MuteScale);
+            theme.Colors.TextInverse);
 
-        DrawText(
+        UiPrimitives.DrawText(
             spriteBatch,
-            font,
+            captionFont,
             ClipPathTail(
                 director.Player.DirectoryPath,
                 GetMaximumCharacters(layout.PathBounds.Width)),
             new Vector2(layout.PathBounds.Left, layout.PathBounds.Top),
-            theme.Colors.TextSecondary,
-            RowScale);
+            theme.Colors.TextSecondary);
     }
 
     private static void DrawBindings(
@@ -150,13 +148,12 @@ internal sealed partial class SoundLogPanel
         SoundLogPanelLayout layout,
         UiTheme theme)
     {
-        DrawText(
+        UiPrimitives.DrawText(
             spriteBatch,
             font,
             "EXPECTED FILES",
             new Vector2(layout.BindingsBounds.Left, layout.BindingsBounds.Top),
-            theme.Colors.TextSecondary,
-            SectionScale);
+            theme.Colors.TextSecondary);
 
         var rows = BuildBindingRows(director.Player.Bindings);
         var visibleRowCount = GetVisibleBindingRowCount(layout);
@@ -174,24 +171,22 @@ internal sealed partial class SoundLogPanel
             var nameWidth = Math.Max(
                 0,
                 rowBounds.Width - StatusColumnWidth);
-            DrawText(
+            UiPrimitives.DrawText(
                 spriteBatch,
                 font,
                 ClipText(
                     row.Label,
                     GetMaximumCharacters(nameWidth)),
                 new Vector2(rowBounds.Left, rowBounds.Top),
-                theme.Colors.TextPrimary,
-                RowScale);
-            DrawText(
+                theme.Colors.TextPrimary);
+            UiPrimitives.DrawText(
                 spriteBatch,
                 font,
                 row.StatusText,
                 new Vector2(
                     rowBounds.Right - StatusColumnWidth + 4,
                     rowBounds.Top),
-                GetBindingStatusColor(theme.Colors, row.Status),
-                RowScale);
+                GetBindingStatusColor(theme.Colors, row.Status));
         }
 
         if (!hasOverflow)
@@ -200,13 +195,12 @@ internal sealed partial class SoundLogPanel
         }
 
         var overflowBounds = GetBindingRowBounds(layout, drawnRowCount);
-        DrawText(
+        UiPrimitives.DrawText(
             spriteBatch,
             font,
             $"+{rows.Count - drawnRowCount} more (enlarge the panel)",
             new Vector2(overflowBounds.Left, overflowBounds.Top),
-            theme.Colors.TextSecondary,
-            RowScale);
+            theme.Colors.TextSecondary);
     }
 
     private static void DrawCues(
@@ -218,13 +212,12 @@ internal sealed partial class SoundLogPanel
         UiTheme theme)
     {
         var log = director.Log;
-        DrawText(
+        UiPrimitives.DrawText(
             spriteBatch,
             font,
             $"CUE LOG  {log.Entries.Count}",
             new Vector2(layout.CueListBounds.Left, layout.CueListBounds.Top),
-            theme.Colors.TextSecondary,
-            SectionScale);
+            theme.Colors.TextSecondary);
 
         var visibleRowCount = GetVisibleCueRowCount(layout);
         if (visibleRowCount <= 0)
@@ -235,13 +228,12 @@ internal sealed partial class SoundLogPanel
         if (log.Entries.Count == 0)
         {
             var emptyBounds = GetCueRowBounds(layout, 0);
-            DrawText(
+            UiPrimitives.DrawText(
                 spriteBatch,
                 font,
                 "No cues yet.",
                 new Vector2(emptyBounds.Left, emptyBounds.Top),
-                theme.Colors.TextDisabled,
-                RowScale);
+                theme.Colors.TextDisabled);
             return;
         }
 
@@ -250,15 +242,14 @@ internal sealed partial class SoundLogPanel
         {
             var cue = visibleEntries[index];
             var rowBounds = GetCueRowBounds(layout, index);
-            DrawText(
+            UiPrimitives.DrawText(
                 spriteBatch,
                 font,
                 ClipText(
                     SoundCueFormatter.Format(cue),
                     GetMaximumCharacters(rowBounds.Width)),
                 new Vector2(rowBounds.Left, rowBounds.Top),
-                GetCueStatusColor(theme.Colors, cue.Status),
-                RowScale);
+                GetCueStatusColor(theme.Colors, cue.Status));
         }
 
         if (log.Entries.Count <= visibleRowCount)
@@ -280,26 +271,11 @@ internal sealed partial class SoundLogPanel
             theme.Colors.ActionDefault);
     }
 
-    private static void DrawText(
-        SpriteBatch spriteBatch,
-        SpriteFont font,
-        string text,
-        Vector2 position,
-        Color color,
-        float scale) =>
-        spriteBatch.DrawString(
-            font,
-            text,
-            position,
-            color,
-            0f,
-            Vector2.Zero,
-            scale,
-            SpriteEffects.None,
-            0f);
-
     private static int GetMaximumCharacters(int availableWidth) =>
-        Math.Max(0, availableWidth / CharacterWidthEstimate);
+        Math.Max(
+            0,
+            availableWidth /
+                UiFontRamp.GetApproximateAdvancePx(UiFontRole.Caption));
 
     /// <summary>
     /// Trims text to fit a row, keeping the start.

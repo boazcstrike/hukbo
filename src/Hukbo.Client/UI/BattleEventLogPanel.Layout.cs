@@ -134,7 +134,7 @@ internal sealed partial class BattleEventLogPanel
     {
         var availableContentHeight = Math.Max(0, inner.Bottom - contentTop);
         var detailsHeight = Math.Min(
-            164,
+            MaximumDetailsHeight,
             Math.Max(
                 Math.Min(MinimumDetailsHeight, availableContentHeight),
                 availableContentHeight / 3));

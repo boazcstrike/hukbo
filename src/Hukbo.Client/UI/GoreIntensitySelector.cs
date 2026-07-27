@@ -43,13 +43,13 @@ internal sealed class GoreIntensitySelector
     ];
 
     private readonly UiThemeSelectorLayout _layout;
-    private readonly UiTextScales _textScales;
+    private readonly UiTextRoles _textRoles;
 
     public GoreIntensitySelector(UiThemeStandards standards)
     {
         ArgumentNullException.ThrowIfNull(standards);
         _layout = standards.Shared.Selector;
-        _textScales = standards.Shared.TextScales;
+        _textRoles = standards.Shared.TextRoles;
     }
 
     public Rectangle Bounds { get; set; }
@@ -153,7 +153,7 @@ internal sealed class GoreIntensitySelector
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        UiFontSet fonts,
         UiTheme activeTheme,
         GoreIntensity current,
         bool isFocused)
@@ -171,44 +171,39 @@ internal sealed class GoreIntensitySelector
 
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            fonts.Get(_textRoles.SelectorArrow),
             "<",
             PreviousBounds.Center.ToVector2(),
-            colors.TextPrimary,
-            _textScales.SelectorArrow);
+            colors.TextPrimary);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            fonts.Get(_textRoles.SelectorArrow),
             ">",
             NextBounds.Center.ToVector2(),
-            colors.TextPrimary,
-            _textScales.SelectorArrow);
+            colors.TextPrimary);
 
         var centerX = Bounds.Center.X;
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            fonts.Get(_textRoles.SelectorLabel),
             Label,
             new Vector2(centerX, Bounds.Top + _layout.LabelTopOffset),
-            colors.TextSecondary,
-            _textScales.SelectorLabel);
+            colors.TextSecondary);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            fonts.Get(_textRoles.SelectorName),
             GetDisplayName(current),
             new Vector2(centerX, Bounds.Top + _layout.NameTopOffset),
-            colors.TextPrimary,
-            _textScales.SelectorName);
+            colors.TextPrimary);
 
         // The level is stated as text as well as position, so the control never
         // relies on color alone to say which level is active.
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            fonts.Get(_textRoles.SelectorMarker),
             GetSelectedMarkerText(current),
             new Vector2(centerX, Bounds.Top + _layout.MarkerTopOffset),
-            colors.Selection,
-            _textScales.SelectorMarker);
+            colors.Selection);
     }
 
     private static GoreIntensity GetRelative(

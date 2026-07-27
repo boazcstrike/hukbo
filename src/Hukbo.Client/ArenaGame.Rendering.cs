@@ -30,7 +30,7 @@ public sealed partial class ArenaGame
         if (_spriteBatch is null ||
             _arenaRasterizerState is null ||
             _pixel is null ||
-            _font is null)
+            _fonts is null)
         {
             return;
         }
@@ -49,7 +49,7 @@ public sealed partial class ArenaGame
         DrawUiLayer(
             _spriteBatch,
             _pixel,
-            _font,
+            _fonts,
             screenBounds,
             layout,
             theme);
@@ -83,7 +83,7 @@ public sealed partial class ArenaGame
     private void DrawUiLayer(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        UiFontSet fonts,
         Rectangle screenBounds,
         ClientLayout layout,
         UiTheme theme)
@@ -94,12 +94,12 @@ public sealed partial class ArenaGame
         spriteBatch.Begin(
             SpriteSortMode.Deferred,
             BlendState.AlphaBlend,
-            SamplerState.PointClamp);
-        DrawStatus(spriteBatch, pixel, font, screenBounds, theme);
+            SamplerState.LinearClamp);
+        DrawStatus(spriteBatch, pixel, fonts, screenBounds, theme);
         _controlBar.Draw(
             spriteBatch,
             pixel,
-            font,
+            fonts,
             screenBounds,
             _presentation.Playback.IsPlaying,
             _isSoundLogVisible,
@@ -107,14 +107,14 @@ public sealed partial class ArenaGame
         _inspectorPanel.Draw(
             spriteBatch,
             pixel,
-            font,
+            fonts,
             selectedAgent,
             layout.InspectorBounds,
             theme);
         _eventLogPanel.Draw(
             spriteBatch,
             pixel,
-            font,
+            fonts,
             _presentation.EventFeed,
             layout.EventBounds,
             theme);
@@ -123,7 +123,7 @@ public sealed partial class ArenaGame
             _soundLogPanel.Draw(
                 spriteBatch,
                 pixel,
-                font,
+                fonts,
                 _soundDirector,
                 layout.SoundLogBounds,
                 theme);
@@ -132,14 +132,14 @@ public sealed partial class ArenaGame
         _summaryPanel.Draw(
             spriteBatch,
             pixel,
-            font,
+            fonts,
             _presentation.Summary,
             layout.ArenaBounds,
             theme);
         _menu.Draw(
             spriteBatch,
             pixel,
-            font,
+            fonts,
             screenBounds,
             theme,
             _goreManager.Value);
@@ -148,7 +148,7 @@ public sealed partial class ArenaGame
             _armyCompositionPanel.Draw(
                 spriteBatch,
                 pixel,
-                font,
+                fonts,
                 screenBounds,
                 theme);
         }
@@ -292,7 +292,7 @@ public sealed partial class ArenaGame
     private void DrawStatus(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        UiFontSet fonts,
         Rectangle screenBounds,
         UiTheme theme)
     {
@@ -303,26 +303,18 @@ public sealed partial class ArenaGame
             Math.Min(StatusBarHeight, screenBounds.Height));
         spriteBatch.Draw(pixel, statusBounds, theme.Colors.StatusSurface);
 
-        spriteBatch.DrawString(
-            font,
+        UiPrimitives.DrawText(
+            spriteBatch,
+            fonts.Get(UiFontRole.Label),
             BuildStatusLine(),
             new Vector2(18, 12),
-            theme.Colors.TextPrimary,
-            0f,
-            Vector2.Zero,
-            0.78f,
-            SpriteEffects.None,
-            0f);
-        spriteBatch.DrawString(
-            font,
+            theme.Colors.TextPrimary);
+        UiPrimitives.DrawText(
+            spriteBatch,
+            fonts.Get(UiFontRole.Body),
             ShortcutHintLine,
             new Vector2(18, 39),
-            theme.Colors.TextSecondary,
-            0f,
-            Vector2.Zero,
-            0.62f,
-            SpriteEffects.None,
-            0f);
+            theme.Colors.TextSecondary);
     }
 
     private string BuildStatusLine()

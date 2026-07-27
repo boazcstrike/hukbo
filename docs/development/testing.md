@@ -202,6 +202,64 @@ The combat preset is untouched: `CombatRuleset.ContentHash` is still
 and no person has watched it in a live window. The rows in the deployment smoke
 checklist below stay `PENDING`.
 
+### Font and text quality gate run — 2026-07-27
+
+`./scripts/verify.ps1 -SkipBootstrap` was run at the repository root on
+2026-07-27 after the font and text quality change (design document
+[docs/plans/2026-07-27-font-text-quality-design.md](../plans/2026-07-27-font-text-quality-design.md),
+plan document
+[docs/plans/2026-07-27-font-text-quality.md](../plans/2026-07-27-font-text-quality.md)).
+It ended with `[PASS] Canonical repository verification completed.` and printed
+exactly:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+`Hukbo.Client.Tests` reported 564 passed and 0 failed; `Hukbo.Core.Tests`
+reported 351 passed and 0 failed. The Core count is unchanged from the 351
+recorded above, because zero files under `src/Hukbo.Core` were touched. The
+Client count rises from the 532 recorded above by the new tests this change
+added — the font ramp, the font set, the whole-pixel text geometry helper, and
+the extended theme catalog coverage for the six-role font map. The Release
+build produced 0 warnings and 0 errors.
+
+The seed-1, 200-agent, 10,000-tick headless workload's `RunReport` recorded
+seed `1`, `agentCount` `200`, `requestedTicks` `10000`, `measuredTicks` `1081`,
+outcome `Faction1Victory`, `faction0Survivors` `0`, `faction1Survivors` `3`,
+state hash `DC7F2E7A107C885A`, event hash `6C641E90DDF0B943`,
+`deterministic: true`, `firstMismatchTick: null`, tick p50 `0.0827` ms, p95
+`1.3886` ms, p99 `2.4117` ms, maximum `6.9264` ms, and `allocatedBytes`
+`69693688`.
+
+**Both hashes are unchanged from the 200-agent acceptance oracle recorded at
+the top of this section** (`DC7F2E7A107C885A` and `6C641E90DDF0B943`,
+respectively). That is the expected result for a presentation-only change: the
+font ramp, the six vendored typeface bakes, the sampler-state switch from
+`PointClamp` to `LinearClamp` in the user interface sprite batch, and the
+whole-pixel text geometry helper all live entirely in `Hukbo.Client`, and the
+scope boundary enforced by the font plan means zero files under
+`src/Hukbo.Core`, `src/Hukbo.Headless`, or `tests/Hukbo.Core.Tests` were
+touched.
+
+The pair `D78F0B527B7F938F` and `AC3BAAEC684854D5`, recorded further down this
+file both under "Superseded oracles" and again under "Superseded: the amended
+collision run" (`:193` in this file as of this writing), is the
+terminal-tick-657 amended-collision baseline. It was superseded by the mirrored
+starting-formation deployment change before this font work began, and it is
+**not** the current baseline; it must not be cited as one, and it is not the
+pair this run reproduced.
+
+These results prove the non-interactive gate only. No visual claim is made by
+this entry. Every row in the new "Typography smoke" subsection below is
+`PENDING`, and the display-scaling measurement task (gated, separate, and
+requiring a human at an interactive Windows desktop) remains untouched by this
+run.
+
 ## Superseded: the amended collision run
 
 Every figure in this section comes from one final verified run of the **amended**
@@ -879,6 +937,42 @@ person watching it, which is the only thing these rows are for.
 | 59. Check the mirror | Pausing at tick 0 and comparing the two halves shows each side as the other's reflection across the centre line: same group positions, same group sizes, same ragged front. | Not run | PENDING |
 | 60. Confirm the groups look irregular | Within a group the spacing looks uneven rather than a snapped parade grid, and a new seed visibly reshuffles that spacing without moving the groups. | Not run | PENDING |
 | 61. Confirm the armies still meet promptly | The two sides close and fight without a long empty march, and the battle reaches a terminal outcome inside its tick limit. | Not run | PENDING |
+
+### Typography smoke
+
+Added by the font and text quality change. **Not performed.** The automated
+gate proves the ramp is internally consistent, the theme catalog resolves
+every role, text positions round to whole pixels, and the compiled em-dash
+byte assertion passes; none of that proves the resulting text reads as crisp,
+correctly sized, or correctly hierarchical to a person watching it, which is
+the only thing these rows are for. Per `CLAUDE.md` section 6, only a human at
+an interactive Windows desktop may flip one of these rows to `PASS`.
+Compilation, unit tests, and a window-opening probe do not.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 62. Glyph crispness at the smallest rung | Event log and sound log rows have solid stems and clean edges, with no grey mush and no ragged stair-stepping. | Not run | PENDING |
+| 63. Glyph crispness at the largest rung | The wordmark is sharp at every edge with no fringing. | Not run | PENDING |
+| 64. Wordmark hierarchy | The wordmark is unmistakably larger and heavier than the subtitle beneath it. | Not run | PENDING |
+| 65. Header face renders as capitals | Every panel header renders fully and unclipped inside its header strip. | Not run | PENDING |
+| 66. Mixed-case strings stay on the body face | Theme names, gore levels, the controls label, the winner line, the distribute action, and every inspector line render with real lowercase letters. | Not run | PENDING |
+| 67. No vertical clipping | No descender is cut off in any panel at any rung. | Not run | PENDING |
+| 68. No horizontal overflow | No label spills past its panel, button, chip, or column, and no ellipsis appears where text previously fit. | Not run | PENDING |
+| 69. Row alignment | Event log columns, sound log rows, and inspector rows sit on consistent baselines with no drift down the list. | Not run | PENDING |
+| 70. Agent inspector evidence note | The longest evidence note wraps fully inside the panel with nothing cut off. | Not run | PENDING |
+| 71. Em-dash regression | Staging an army composition change renders the notice with a real em dash and does not crash. | Not run | PENDING |
+| 72. Theme cycling | All five themes render text at the same sizes with correct contrast, and no theme reveals a clipped or misaligned label the others hide. | Not run | PENDING |
+| 73. Window resize | Resizing between small and maximised keeps text pixel size constant and re-lays out panels without clipping. | Not run | PENDING |
+| 74. Subpixel blur is gone | Panning, zooming, and pausing produce no shimmering or swimming text. | Not run | PENDING |
+| 75. Display scaling | Record the appearance at 100% and at 150% Windows scaling. Feeds the separate, gated display-scaling measurement task; not itself a pass/fail row for the font ramp. | Not run | PENDING |
 
 ## Failure classification
 

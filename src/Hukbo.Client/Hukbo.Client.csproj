@@ -21,5 +21,16 @@
          so naming a file is the only step needed to give a slot a sound. -->
     <None Update="Content/Audio/**"
           CopyToOutputDirectory="PreserveNewest" />
+    <!-- The SIL Open Font License requires its text to travel with any
+         distribution of the fonts, and the fonts travel inside the compiled
+         SpriteFont atlases whether or not the source .ttf files ship. The
+         license texts and the provenance note are therefore copied into the
+         build output so a packaged build is compliant on its own. The .ttf
+         files themselves are deliberately not copied: the content pipeline
+         consumes them at build time and the game never reads them at runtime. -->
+    <None Update="Content/Fonts/OFL-*.txt"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Content/Fonts/README.md"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

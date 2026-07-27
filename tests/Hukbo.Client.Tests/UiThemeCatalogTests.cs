@@ -28,7 +28,16 @@ public sealed class UiThemeCatalogTests
             catalog.Themes,
             theme => theme.Id == catalog.DefaultThemeId);
         Assert.Equal(5, catalog.Standards.RequiredThemeCount);
-        Assert.Equal("Default", catalog.Standards.Shared.FontAssetId);
+        // The former single shared-font assertion was retired alongside the
+        // float-scale path in T21. Every role must still resolve to an
+        // allowed asset ID; the exhaustive per-role mapping is covered
+        // separately by SharedFontsCoverEveryRoleWithAnAllowedAssetId.
+        var allowedFontAssetIds = catalog.Standards.AllowedFontAssetIds;
+        Assert.All(
+            UiFontRamp.AllRoles,
+            role => Assert.Contains(
+                UiFontRamp.GetAssetId(role),
+                allowedFontAssetIds));
         Assert.Equal(44, catalog.Standards.Shared.Selector.MinimumTargetSize);
     }
 
@@ -306,6 +315,133 @@ public sealed class UiThemeCatalogTests
             layout.ArrowWidth >= catalog.Standards.MetricRanges.TargetSize.Minimum &&
             layout.ArrowWidth <= catalog.Standards.MetricRanges.TargetSize.Maximum);
         Assert.True(layout.ArrowWidth <= layout.StepperWidth);
+    }
+
+    [Fact]
+    public void SharedFontsCoverEveryRoleWithAnAllowedAssetId()
+    {
+        var catalog = UiThemeCatalog.Load(BuiltInCatalogPath);
+
+        var fonts = catalog.Standards.Shared.Fonts;
+        var allowedFontAssetIds = catalog.Standards.AllowedFontAssetIds;
+
+        foreach (var role in UiFontRamp.AllRoles)
+        {
+            Assert.Contains(UiFontRamp.GetAssetId(role), allowedFontAssetIds);
+        }
+
+        Assert.Equal(UiFontRamp.GetAssetId(UiFontRole.Caption), fonts.Caption);
+        Assert.Equal(UiFontRamp.GetAssetId(UiFontRole.Body), fonts.Body);
+        Assert.Equal(UiFontRamp.GetAssetId(UiFontRole.Label), fonts.Label);
+        Assert.Equal(UiFontRamp.GetAssetId(UiFontRole.Subtitle), fonts.Subtitle);
+        Assert.Equal(UiFontRamp.GetAssetId(UiFontRole.Title), fonts.Title);
+        Assert.Equal(UiFontRamp.GetAssetId(UiFontRole.Display), fonts.Display);
+    }
+
+    [Fact]
+    public void SharedTextRolesAllParseAsKnownFontRoles()
+    {
+        var catalog = UiThemeCatalog.Load(BuiltInCatalogPath);
+
+        var textRoles = catalog.Standards.Shared.TextRoles;
+
+        Assert.Equal(UiFontRole.Display, textRoles.MenuTitle);
+        Assert.Equal(UiFontRole.Subtitle, textRoles.MenuSubtitle);
+        Assert.Equal(UiFontRole.Label, textRoles.MenuButton);
+        Assert.Equal(UiFontRole.Caption, textRoles.MenuHelper);
+        Assert.Equal(UiFontRole.Subtitle, textRoles.SelectorArrow);
+        Assert.Equal(UiFontRole.Caption, textRoles.SelectorLabel);
+        Assert.Equal(UiFontRole.Label, textRoles.SelectorName);
+        Assert.Equal(UiFontRole.Caption, textRoles.SelectorMarker);
+    }
+
+    [Fact]
+    public void FallbackCatalogCarriesTheSameFontAssignmentsAsTheShippedJson()
+    {
+        var missingPath = Path.Combine(
+            Path.GetTempPath(),
+            $"missing-theme-catalog-{Guid.NewGuid():N}.json");
+
+        var shipped = UiThemeCatalog.Load(BuiltInCatalogPath);
+        var fallback = UiThemeCatalog.LoadOrFallback(missingPath);
+
+        Assert.Equal(
+            shipped.Standards.AllowedFontAssetIds.OrderBy(id => id, StringComparer.Ordinal),
+            fallback.Standards.AllowedFontAssetIds.OrderBy(id => id, StringComparer.Ordinal));
+        Assert.Equal(shipped.Standards.Shared.Fonts, fallback.Standards.Shared.Fonts);
+        Assert.Equal(shipped.Standards.Shared.TextRoles, fallback.Standards.Shared.TextRoles);
+    }
+
+    /// <summary>
+    /// T23 retuned <c>menu.subtitleTopOffset</c>, <c>menu.selectorTopOffset</c>,
+    /// and <c>menu.panelHeight</c> in the shipped JSON to clear the wordmark
+    /// overlap described in <c>docs/plans/2026-07-27-font-text-quality.md</c>.
+    /// The built-in code fallback mirrors those same three fields by hand, so
+    /// this test is the only thing that would catch the two drifting apart.
+    /// It also covers the selector and army composition layouts, which T23
+    /// audited but left unchanged, so a future edit to either side is still
+    /// caught.
+    /// </summary>
+    [Fact]
+    public void FallbackMenuAndSelectorLayoutsMatchTheShippedJson()
+    {
+        var missingPath = Path.Combine(
+            Path.GetTempPath(),
+            $"missing-theme-catalog-{Guid.NewGuid():N}.json");
+
+        var shipped = UiThemeCatalog.Load(BuiltInCatalogPath);
+        var fallback = UiThemeCatalog.LoadOrFallback(missingPath);
+
+        Assert.Equal(shipped.Standards.Shared.Menu, fallback.Standards.Shared.Menu);
+        Assert.Equal(
+            shipped.Standards.Shared.Selector,
+            fallback.Standards.Shared.Selector);
+        Assert.Equal(
+            shipped.Standards.Shared.ArmyComposition,
+            fallback.Standards.Shared.ArmyComposition);
+    }
+
+    [Fact]
+    public void RejectsAMissingFontRole()
+    {
+        var json = ReadCatalog()
+            .Replace(
+                "\"caption\": \"Fonts/UiCaption\",\r\n",
+                string.Empty,
+                StringComparison.Ordinal)
+            .Replace(
+                "\"caption\": \"Fonts/UiCaption\",\n",
+                string.Empty,
+                StringComparison.Ordinal);
+
+        Assert.Throws<InvalidDataException>(
+            () => UiThemeCatalog.LoadFromJson(json));
+    }
+
+    [Fact]
+    public void RejectsAnUnknownFontAssetId()
+    {
+        var json = ReadCatalog()
+            .Replace(
+                "\"caption\": \"Fonts/UiCaption\"",
+                "\"caption\": \"Fonts/DoesNotExist\"",
+                StringComparison.Ordinal);
+
+        Assert.Throws<InvalidDataException>(
+            () => UiThemeCatalog.LoadFromJson(json));
+    }
+
+    [Fact]
+    public void RejectsAnUnknownTextRoleName()
+    {
+        var json = ReadCatalog()
+            .Replace(
+                "\"menuTitle\": \"Display\"",
+                "\"menuTitle\": \"NotARole\"",
+                StringComparison.Ordinal);
+
+        Assert.Throws<InvalidDataException>(
+            () => UiThemeCatalog.LoadFromJson(json));
     }
 
     private static string ReadCatalog() =>

@@ -51,23 +51,44 @@
       "borderThickness": { "minimum": 1, "maximum": 4 },
       "focusThickness": { "minimum": 2, "maximum": 5 },
       "shadowOffset": { "minimum": 0, "maximum": 6 },
-      "targetSize": { "minimum": 44, "maximum": 64 },
-      "textScale": { "minimum": 0.45, "maximum": 1.25 }
+      "targetSize": { "minimum": 44, "maximum": 64 }
     },
     "allowedFontAssetIds": [
-      "Default"
+      "Fonts/UiCaption",
+      "Fonts/UiBody",
+      "Fonts/UiLabel",
+      "Fonts/UiSubtitle",
+      "Fonts/UiTitle",
+      "Fonts/UiDisplay"
     ],
     "shared": {
-      "fontAssetId": "Default",
+      "fonts": {
+        "caption": "Fonts/UiCaption",
+        "body": "Fonts/UiBody",
+        "label": "Fonts/UiLabel",
+        "subtitle": "Fonts/UiSubtitle",
+        "title": "Fonts/UiTitle",
+        "display": "Fonts/UiDisplay"
+      },
+      "textRoles": {
+        "menuTitle": "Display",
+        "menuSubtitle": "Subtitle",
+        "menuButton": "Label",
+        "menuHelper": "Caption",
+        "selectorArrow": "Subtitle",
+        "selectorLabel": "Caption",
+        "selectorName": "Label",
+        "selectorMarker": "Caption"
+      },
       "menu": {
         "panelWidth": 360,
-        "panelHeight": 660,
+        "panelHeight": 688,
         "buttonWidth": 280,
         "buttonHeight": 44,
         "buttonGap": 8,
         "titleTopOffset": 42,
-        "subtitleTopOffset": 72,
-        "selectorTopOffset": 94,
+        "subtitleTopOffset": 100,
+        "selectorTopOffset": 122,
         "selectorGap": 14,
         "helperBottomOffset": 23
       },
@@ -90,16 +111,6 @@
         "rowGap": 8,
         "stepperWidth": 260,
         "arrowWidth": 44
-      },
-      "textScales": {
-        "menuTitle": 1.0,
-        "menuSubtitle": 1.0,
-        "menuButton": 0.78,
-        "menuHelper": 0.58,
-        "selectorArrow": 1.15,
-        "selectorLabel": 0.58,
-        "selectorName": 0.82,
-        "selectorMarker": 0.56
       }
     }
   },

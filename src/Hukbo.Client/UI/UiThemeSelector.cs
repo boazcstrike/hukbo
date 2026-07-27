@@ -13,7 +13,7 @@ internal sealed class UiThemeSelector
 {
     private readonly IReadOnlyList<UiTheme> _themes;
     private readonly UiThemeSelectorLayout _layout;
-    private readonly UiTextScales _textScales;
+    private readonly UiTextRoles _textRoles;
 
     public UiThemeSelector(
         IReadOnlyList<UiTheme> themes,
@@ -28,7 +28,7 @@ internal sealed class UiThemeSelector
 
         _themes = themes;
         _layout = standards.Shared.Selector;
-        _textScales = standards.Shared.TextScales;
+        _textRoles = standards.Shared.TextRoles;
     }
 
     public Rectangle Bounds { get; set; }
@@ -139,7 +139,7 @@ internal sealed class UiThemeSelector
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        UiFontSet fonts,
         UiTheme activeTheme,
         bool isFocused)
     {
@@ -156,41 +156,36 @@ internal sealed class UiThemeSelector
 
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            fonts.Get(_textRoles.SelectorArrow),
             "<",
             PreviousBounds.Center.ToVector2(),
-            colors.TextPrimary,
-            _textScales.SelectorArrow);
+            colors.TextPrimary);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            fonts.Get(_textRoles.SelectorArrow),
             ">",
             NextBounds.Center.ToVector2(),
-            colors.TextPrimary,
-            _textScales.SelectorArrow);
+            colors.TextPrimary);
 
         var centerX = Bounds.Center.X;
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            fonts.Get(_textRoles.SelectorLabel),
             "VISUAL THEME",
             new Vector2(centerX, Bounds.Top + _layout.LabelTopOffset),
-            colors.TextSecondary,
-            _textScales.SelectorLabel);
+            colors.TextSecondary);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            fonts.Get(_textRoles.SelectorName),
             activeTheme.DisplayName,
             new Vector2(centerX, Bounds.Top + _layout.NameTopOffset),
-            colors.TextPrimary,
-            _textScales.SelectorName);
+            colors.TextPrimary);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            fonts.Get(_textRoles.SelectorMarker),
             GetSelectedMarkerText(activeTheme.Id),
             new Vector2(centerX, Bounds.Top + _layout.MarkerTopOffset),
-            colors.Selection,
-            _textScales.SelectorMarker);
+            colors.Selection);
 
         var swatches = new[]
         {

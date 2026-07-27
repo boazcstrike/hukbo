@@ -181,3 +181,33 @@ conformance.
 - Theme switching cannot affect deterministic simulation behavior.
 - Focused tests and `dotnet build Hukbo.slnx` pass.
 - The final diff contains no unrelated changes.
+
+## Amendment — 2026-07-27, font and text quality change
+
+The rationale above, at `:166-167` and `:174`, was correct when it was written
+and is not being rewritten here. At the time, "the existing packaged font and
+shared typography metrics" meant the single machine-installed Arial
+`Default.spritefont` baked at one size and resampled through float scale
+multipliers, and "the current layout, controls, and font asset" meant that
+singular asset.
+
+`docs/plans/2026-07-27-font-text-quality-design.md` and
+`docs/plans/2026-07-27-font-text-quality.md` replaced that one asset with a
+six-rung baked font set built from two vendored typefaces, Rajdhani SemiBold
+and Bebas Neue Regular, and deleted the float-scale resampling path entirely.
+That change is now complete.
+
+The constraint this section protects is unaffected: typography remains shared
+across all five themes. Every theme still resolves the same six roles to the
+same six baked assets: there is no per-theme font, and no theme carries its own
+size ramp or typeface choice. What changed is the identity and the count of the
+shared asset — one Arial bake became six vendored-typeface bakes — not the
+principle that typography is a cross-theme constant rather than a per-theme
+choice. Per-theme typography remains explicitly out of scope for this plan, as
+it was before the font change.
+
+No file owned by this plan changed as part of the font work, and no theme
+catalog schema field introduced by this plan was altered by it beyond the
+additive role-to-asset and slot-to-role maps the font plan introduced
+alongside the existing single-font identifier during its transitional phase,
+before that identifier was deleted once every panel had migrated.

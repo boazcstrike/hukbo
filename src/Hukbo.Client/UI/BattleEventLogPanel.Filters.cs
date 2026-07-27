@@ -14,11 +14,12 @@ internal sealed partial class BattleEventLogPanel
     private void DrawFilters(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        UiFontSet fonts,
         BattleEventFeed feed,
         BattleEventPanelLayout layout,
         UiTheme theme)
     {
+        var font = fonts.Get(UiFontRole.Caption);
         DrawKindFactionActorControls(spriteBatch, pixel, font, feed, layout, theme);
         DrawSearchControl(spriteBatch, pixel, font, feed, layout, theme);
         DrawResetControl(spriteBatch, pixel, font, feed, layout, theme);
@@ -67,7 +68,6 @@ internal sealed partial class BattleEventLogPanel
             feed.ActorFilter.HasValue,
             isFocused: false,
             theme,
-            textScale: 0.50f,
             isEnabled: IsActorFilterControlEnabled(
                 feed.ActorFilter,
                 feed.SelectedEvent));
@@ -118,8 +118,7 @@ internal sealed partial class BattleEventLogPanel
                 "RESET",
                 isActive: false,
                 isFocused: false,
-                theme,
-                textScale: 0.56f);
+                theme);
             return;
         }
 
