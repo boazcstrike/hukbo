@@ -27,7 +27,7 @@
     "code-review@claude-plugins-official": true,
     "codex@openai-codex": true,
     "caveman@caveman": true,
-    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": false,
     "last30days@last30days-skill": true,
     "vercel@claude-plugins-official": false,
     "sentry@claude-plugins-official": false,
