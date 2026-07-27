@@ -15,7 +15,16 @@ internal sealed class AgentState
         int attackRangeRaw,
         int damagePerAttack,
         int attackCooldownTicks,
-        CombatLoadout loadout)
+        CombatLoadout loadout,
+        // Defaulted, not because it is optional in the sense the other
+        // parameters are, but because AgentState has one call site in
+        // production (BattleSimulation.CreateAgent, which always passes
+        // Scenario.PlaceholderFighterLevel explicitly) and several
+        // named-argument call sites in tests that predate levels entirely.
+        // A required parameter would force every one of those unrelated call
+        // sites to be edited just to keep compiling. 1 matches
+        // Scenario.PlaceholderFighterLevel's own default.
+        int level = 1)
     {
         if (entityId == 0)
         {
@@ -40,6 +49,7 @@ internal sealed class AgentState
         AttackCooldownTicks = attackCooldownTicks;
         Loadout = loadout;
         Intent = AgentIntent.Idle;
+        Level = level;
     }
 
     internal ulong EntityId { get; }
@@ -73,6 +83,29 @@ internal sealed class AgentState
     internal AgentIntent Intent { get; set; }
 
     /// <summary>
+    /// This warrior's level, set once at spawn from
+    /// <see cref="Scenario.PlaceholderFighterLevel"/> and never mutated
+    /// afterward — there is no leveling system yet. Bounds an active attack
+    /// combination's maximum length alongside
+    /// <see cref="Combat.WeaponProfile.ComboMaxSteps"/>.
+    /// </summary>
+    internal int Level { get; }
+
+    /// <summary>
+    /// The number of <em>additional</em> blows a currently-active attack
+    /// combination may still land after the blow that most recently set it.
+    /// <c>0</c> whenever no chain is active. Mutated only inside
+    /// <see cref="BattleSimulation.GatherAndCommitAttacks"/>.
+    /// </summary>
+    internal int ComboStepsRemaining { get; set; }
+
+    /// <summary>
+    /// The entity the active chain is bound to. <c>null</c> exactly when
+    /// <see cref="ComboStepsRemaining"/> is <c>0</c>.
+    /// </summary>
+    internal ulong? ComboTargetEntityId { get; set; }
+
+    /// <summary>
     /// Why this agent finished the tick where it did. Written by the collision
     /// stage, authoritative, and included in the state hash.
     /// </summary>
@@ -92,5 +125,6 @@ internal sealed class AgentState
             Intent,
             IsAlive,
             Loadout,
-            MovementResolution);
+            MovementResolution,
+            Level);
 }

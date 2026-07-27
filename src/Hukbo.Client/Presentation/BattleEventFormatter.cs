@@ -67,7 +67,10 @@ internal static class BattleEventFormatter
         {
             AttackResolution.Landed =>
                 $"hit {target}'s {GetBodyPartLabel(hitLocation)} with " +
-                $"{weaponLabel} for {battleEvent.Value}",
+                $"{weaponLabel} for {battleEvent.Value}" +
+                (battleEvent.ComboPosition is { } position
+                    ? $" (combo {position})"
+                    : string.Empty),
             AttackResolution.ShieldBlocked =>
                 $"swung {weaponLabel} at {target} — stopped by the shield",
             AttackResolution.Parried =>

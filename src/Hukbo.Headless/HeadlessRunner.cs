@@ -541,6 +541,20 @@ public static class HeadlessRunner
             battleEvent.Resolution is { } resolution
                 ? unchecked((ulong)(uint)(int)resolution)
                 : ulong.MaxValue);
+
+        // The 12th and final word. A chain position is independently
+        // nullable within an already-present combat context — most attacks
+        // are not part of any chain even though Weapon/HitLocation/
+        // Resolution are always present on an attack event — so a fold that
+        // ignored it would let two otherwise-identical blows share a replay
+        // signature even though one of them landed mid-chain and the other
+        // did not. Same absent-means-maximum sentinel convention as the four
+        // fields above.
+        AddToHash(
+            ref hash,
+            battleEvent.ComboPosition is { } position
+                ? (ulong)(uint)position
+                : ulong.MaxValue);
     }
 
     private static void AddToHash(ref ulong hash, ulong value) =>

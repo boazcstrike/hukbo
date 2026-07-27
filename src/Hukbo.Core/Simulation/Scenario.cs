@@ -58,6 +58,16 @@ public sealed record Scenario(
         CombatPresetId.PrecolonialPhilippinesV2;
 
     /// <summary>
+    /// Every warrior's level, until a leveling system exists. Set once, at
+    /// spawn, onto <see cref="AgentState.Level"/> and never mutated
+    /// afterward. Bounds an active attack combination's maximum length
+    /// alongside <see cref="Combat.WeaponProfile.ComboMaxSteps"/> — see
+    /// <c>BattleSimulation.GatherAndCommitAttacks</c>. Must be at least
+    /// <c>1</c>.
+    /// </summary>
+    public int PlaceholderFighterLevel { get; init; } = 1;
+
+    /// <summary>
     /// Per-battle warrior counts, one entry per roster index in
     /// <see cref="Combat.CombatRuleset.Roster"/>, applied identically to
     /// both factions. Empty (the default) means the existing round-robin
@@ -108,6 +118,7 @@ public sealed record Scenario(
             CollisionPolicy == other.CollisionPolicy &&
             LastStandThresholdAgents == other.LastStandThresholdAgents &&
             CombatPreset == other.CombatPreset &&
+            PlaceholderFighterLevel == other.PlaceholderFighterLevel &&
             RosterCountsSpan.SequenceEqual(other.RosterCountsSpan);
     }
 
@@ -130,6 +141,7 @@ public sealed record Scenario(
         hash.Add(CollisionPolicy);
         hash.Add(LastStandThresholdAgents);
         hash.Add(CombatPreset);
+        hash.Add(PlaceholderFighterLevel);
         foreach (var count in RosterCountsSpan)
         {
             hash.Add(count);
@@ -204,6 +216,12 @@ public sealed record Scenario(
             1,
             MaximumTickLimit,
             nameof(AttackCooldownTicks));
+
+        ValidateInRange(
+            PlaceholderFighterLevel,
+            1,
+            MaximumCombatValue,
+            nameof(PlaceholderFighterLevel));
 
         if (!CombatPresetRegistry.IsRegistered(CombatPreset))
         {
