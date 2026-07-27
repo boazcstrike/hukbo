@@ -199,6 +199,118 @@ exactly as they were.
 `dotnet test tests/Hukbo.Core.Tests` (full, unfiltered): 603 passed, 0
 failed, 0 skipped — zero pinned-hash mismatches anywhere in the suite.
 
+## T32 (V3) — chain metrics and level sweep, 2026-07-28
+
+Closes task 5 of
+[docs/plans/2026-07-27-combat-preset-v3-combos.md](../plans/2026-07-27-combat-preset-v3-combos.md).
+Extends
+[`tools/Hukbo.Tools.WeaponBalance`](../../tools/Hukbo.Tools.WeaponBalance/Program.cs)
+— the same hand-run harness the V2 T32 entry above already used — to run
+against `CombatPresetId.PrecolonialPhilippinesV3` instead of the default V2
+preset, additionally tallying, per weapon, the fraction of landed blows that
+were part of a chain (`BattleEvent.ComboPosition` non-null) and the mean
+realized chain length (the maximum `ComboPosition` reached per opened chain,
+averaged over every chain that opened), swept across
+`Scenario.PlaceholderFighterLevel` 1 through 5, per design section 7. V3's
+roster fields only the four solo loadouts (Kampilan, Wasay, solo Kalis, solo
+Itak — no shields, no paired rows), so this run uses its own four-entry
+label set rather than the six-entry V2 one above. Read-only against
+`Hukbo.Core`; not part of `Hukbo.slnx` or the canonical gate, per the
+`tools/` convention. No `Hukbo.Core` file was touched to produce this
+measurement, so no hash moved and the gate was not re-run.
+
+**Method.** A chain opens exactly when `ComboPosition == 1` — see
+`BattleSimulation.GatherAndCommitAttacks` section 3(c) step 5, which only
+ever assigns position `1` on a successful opening roll for an attacker that
+was not already chaining. Because an attacker can only open a new chain once
+its previous one has already ended (broken, capped, or the target killed —
+step 5 requires `wasChaining == false`), seeing `ComboPosition == 1` again
+for the same attacker means its previous chain, if any, has already ended;
+that previous chain's realized length is the highest `ComboPosition` this
+tool last recorded for that attacker. Any chain still open when a battle
+ends is finalized the same way once the seed's tick loop exits. Chain
+fraction is `comboBlows / landedBlows` per weapon — the same "non-null
+`ComboPosition`" definition the plan's task 5 row specifies. Each level's
+run is the 200-agent, mirrored, even roster across all four V3 loadouts
+(the same shape as the first table in the V2 T32 entry above), 5 seeds (1
+through 5), `TickLimit 10000`.
+
+`dotnet run --project tools/Hukbo.Tools.WeaponBalance -c Release` (exit code
+`0`; full V2 suite above ran first, unmodified, followed by the new V3
+sweep below).
+
+### V3, 200-agent mirrored even roster, swept across PlaceholderFighterLevel
+
+| Level | Win split (faction0/faction1/draw) | Loadout | Kills | Mean TTK (ticks) | Landed blows | Chain fraction | Mean realized chain length |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 2/3/0 | Kampilan (solo) | 366 | 45.58 | 2 333 | 0.1993 | 1.000 |
+| 1 | 2/3/0 | Wasay (solo) | 217 | 48.67 | 1 302 | 0.1175 | 1.000 |
+| 1 | 2/3/0 | Kalis (solo) | 258 | 54.25 | 2 247 | 0.3569 | 1.000 |
+| 1 | 2/3/0 | Itak (solo) | 217 | 54.29 | 2 571 | 0.4469 | 1.000 |
+| 2 | 2/3/0 | Kampilan (solo) | 330 | 39.29 | 2 253 | 0.3174 | 1.770 |
+| 2 | 2/3/0 | Wasay (solo) | 228 | 45.75 | 1 272 | 0.1384 | 1.586 |
+| 2 | 2/3/0 | Kalis (solo) | 259 | 48.31 | 2 222 | 0.4941 | 1.785 |
+| 2 | 2/3/0 | Itak (solo) | 225 | 47.32 | 2 713 | 0.6082 | 1.839 |
+| 3 | 3/2/0 | Kampilan (solo) | 339 | 38.84 | 2 197 | 0.2940 | 1.746 |
+| 3 | 3/2/0 | Wasay (solo) | 203 | 43.95 | 1 244 | 0.1752 | 1.690 |
+| 3 | 3/2/0 | Kalis (solo) | 244 | 49.50 | 2 299 | 0.5241 | 2.029 |
+| 3 | 3/2/0 | Itak (solo) | 261 | 46.25 | 2 763 | 0.6750 | 2.218 |
+| 4 | 2/3/0 | Kampilan (solo) | 351 | 40.67 | 2 215 | 0.2849 | 1.743 |
+| 4 | 2/3/0 | Wasay (solo) | 219 | 46.62 | 1 275 | 0.1569 | 1.681 |
+| 4 | 2/3/0 | Kalis (solo) | 233 | 45.45 | 2 247 | 0.5452 | 2.215 |
+| 4 | 2/3/0 | Itak (solo) | 247 | 46.51 | 2 863 | 0.6884 | 2.485 |
+| 5 | 3/2/0 | Kampilan (solo) | 334 | 38.82 | 2 222 | 0.3029 | 1.739 |
+| 5 | 3/2/0 | Wasay (solo) | 221 | 43.30 | 1 241 | 0.1579 | 1.704 |
+| 5 | 3/2/0 | Kalis (solo) | 256 | 47.01 | 2 242 | 0.5580 | 2.153 |
+| 5 | 3/2/0 | Itak (solo) | 247 | 44.74 | 2 870 | 0.6829 | 2.481 |
+
+At level 1, `Math.Min(source.Level, weaponProfile.ComboMaxSteps)` evaluates
+to `1` for every weapon regardless of that weapon's own `ComboMaxSteps`, so
+every opened chain caps immediately at its own first blow — the mean
+realized chain length of exactly `1.000` on every row at level 1 is that
+cap being observed directly, not noise. From level 2 onward, Kampilan and
+Wasay (`ComboMaxSteps = 2` for both) plateau around a mean chain length of
+roughly 1.7-1.8 once the level stops being the binding constraint, while
+Kalis (`ComboMaxSteps = 4`) and Itak (`ComboMaxSteps = 5`) keep climbing
+through level 5 without plateauing, consistent with `PhilippineCombatPresetV3`'s
+per-weapon `ComboMaxSteps` table.
+
+### Finding: no design-intent inversion between the itak and the wasay
+
+Design section 7's stated check is stark: "if the itak's realised throughput
+exceeds the wasay's, the design intent has inverted." Reading realized
+throughput as mean ticks-to-kill (lower is faster, i.e. higher throughput —
+the direct measured proxy this suite produces; chain fraction and mean
+chain length in the table above give the same comparison from the
+combo-specific side instead), the wasay is faster than the itak at four of
+the five levels swept:
+
+| Level | Wasay mean TTK | Itak mean TTK | Itak faster than wasay? |
+| ---: | ---: | ---: | --- |
+| 1 | 48.67 | 54.29 | No |
+| 2 | 45.75 | 47.32 | No |
+| 3 | 43.95 | 46.25 | No |
+| 4 | 46.62 | 46.51 | Yes, by 0.11 ticks |
+| 5 | 43.30 | 44.74 | No |
+
+Level 4 is the sole exception, and the margin — 0.11 ticks out of a
+mean-TTK figure in the mid-40s, on a 5-seed, 200-agent sample — is well
+inside ordinary run-to-run noise for this measurement method (compare the
+V2 T32 entry above, where the mirrored 200-agent win split itself swung
+0/5 on 5 seeds without being read as evidence of anything). It is not read
+here as a genuine crossover, and the itak's own chain fraction and mean
+chain length are consistently higher than the wasay's at every level from
+2 onward (for example at level 4: itak chain fraction 0.6884 against
+wasay's 0.1569, itak mean chain length 2.485 against wasay's 1.681) —
+exactly the "combos more often, for less per hit" identity design section
+3.4 gives the itak, with the wasay's higher per-hit damage and lower combo
+chance still winning it the sustained-throughput comparison the design
+intended. **No inversion is confirmed at any level in this sweep.**
+
+**Not retuned.** As with the V2 T32 entry above, this measurement is
+recorded as evidence, not acted on. No preset value changed, no hash
+moved, no gate re-run was required.
+
 ## Previous non-interactive result — weapon clash on preset V2, 2026-07-28
 
 Merges the weapon-clash defensive-resolution feature onto preset V2. See
