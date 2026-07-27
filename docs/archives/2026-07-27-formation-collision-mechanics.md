@@ -1,5 +1,7 @@
 # Formation and Collision Mechanics Implementation Plan
 
+> **Archived: reference only.** This document is deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`. The shipped rule lives in `docs/decisions/2026-07-27-collision-policy.md`, amended by [2026-07-27-collision-priority-fairness-design.md](2026-07-27-collision-priority-fairness-design.md). The interactive collision-readability smoke row stays `PENDING` in `docs/development/testing.md`.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use executing-plans to implement this plan task-by-task.
 
 **Goal:** Add deterministic, bounded-cost agent collision mechanics that create emergent frontage and crowding while preserving Hukbo's fixed-point, same-seed simulation contract.
