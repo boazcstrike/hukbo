@@ -31,6 +31,7 @@ public sealed record RunReport(
     bool Deterministic,
     long? FirstMismatchTick,
     CollisionMetrics CollisionMetrics,
-    // Defaulted so the existing construction compiles untouched while the
-    // accumulation is still a stub. Populated once the clash resolves.
+    // Defaulted so that a caller reading an older report, or a test building
+    // one by hand, does not have to supply a block it does not care about. The
+    // runner always populates it.
     CombatMetrics CombatMetrics = default);
