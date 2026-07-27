@@ -166,7 +166,13 @@ public sealed class CombatConfigurationTests
     [Fact]
     public void PhilippinePresetV1_ContentHashMatchesTheApprovedGoldenValue()
     {
-        Assert.Equal(0x59FB4CA563D87A49UL, PhilippineCombatPreset.Rules.ContentHash);
+        // Re-baselined for preset version 2. The clash tables and the version
+        // word are both folded into the content hash, so this value had to
+        // move; it was replaced only after the two content-hash behaviour
+        // tests, ContentHash_ChangesWhenAClashValueChanges and
+        // ContentHash_IsIndependentOfClashDictionaryOrder, were passing. The
+        // superseded value was 0x59FB4CA563D87A49UL.
+        Assert.Equal(0x4EAFE27A42DE87B2UL, PhilippineCombatPreset.Rules.ContentHash);
     }
 
     [Fact]

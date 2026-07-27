@@ -89,7 +89,12 @@ public sealed class DeterminismTests
         var first = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
         var second = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
 
-        Assert.Equal(0x59FB4CA563D87A49UL, first.ContentHash);
+        // Re-baselined for preset version 2, in step with the golden in
+        // CombatConfigurationTests. The superseded value was
+        // 0x59FB4CA563D87A49UL, which survives above as PreClashContentHash
+        // for a different purpose entirely: it is the argument the control run
+        // passes to the state hasher, not a golden.
+        Assert.Equal(0x4EAFE27A42DE87B2UL, first.ContentHash);
         Assert.Equal(first.ContentHash, second.ContentHash);
     }
 
