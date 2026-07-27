@@ -310,6 +310,64 @@ public sealed class BloodEffectSystemTests
             fullMark.LifetimeSeconds > stylizedMark.LifetimeSeconds);
     }
 
+    /// <summary>
+    /// RED. This system keys on <c>BattleEventKind.Attack</c> rather than on
+    /// damage, unlike <see cref="HitEffectSystem"/>, so without the resolution
+    /// check every parried blow sprays blood. A landed blow in the same batch
+    /// is asserted alongside, so a system that stopped spraying entirely would
+    /// not pass this case either.
+    /// </summary>
+    [Fact]
+    public void Ingest_ProducesNothingForANonLandedAttack()
+    {
+        AttackResolution[] nonLanded =
+        [
+            AttackResolution.ShieldBlocked,
+            AttackResolution.Parried,
+            AttackResolution.Deflected,
+            AttackResolution.Evaded,
+        ];
+
+        foreach (var resolution in nonLanded)
+        {
+            var system = new BloodEffectSystem { Intensity = GoreIntensity.Full };
+            AgentView[] agents = [Agent(2, 0, 0), Agent(7, 300, 0)];
+
+            system.Ingest(
+                [
+                    AttackEvent(
+                        1,
+                        source: 2,
+                        target: 7,
+                        damage: 0,
+                        resolution: resolution),
+                ],
+                agents);
+
+            Assert.Empty(system.ActiveBursts.ToArray());
+            Assert.Empty(system.ActiveGroundMarks.ToArray());
+            Assert.Empty(system.ActiveSpurts.ToArray());
+        }
+
+        var mixed = new BloodEffectSystem { Intensity = GoreIntensity.Full };
+        AgentView[] mixedAgents = [Agent(2, 0, 0), Agent(7, 300, 0)];
+
+        mixed.Ingest(
+            [
+                AttackEvent(
+                    1,
+                    source: 2,
+                    target: 7,
+                    damage: 0,
+                    resolution: AttackResolution.Parried),
+                AttackEvent(2, source: 2, target: 7, damage: 25),
+            ],
+            mixedAgents);
+
+        var burst = Assert.Single(mixed.ActiveBursts.ToArray());
+        Assert.Equal(2, burst.Sequence);
+    }
+
     [Fact]
     public void Ingest_IsIdenticalAcrossTwoIndependentlyConstructedSystems()
     {
@@ -373,7 +431,8 @@ public sealed class BloodEffectSystemTests
         ulong target,
         int damage = 10,
         WeaponId weapon = WeaponId.GreatBlade,
-        BodyPart hitLocation = BodyPart.Chest) =>
+        BodyPart hitLocation = BodyPart.Chest,
+        AttackResolution resolution = AttackResolution.Landed) =>
         BattleEvent.Attack(
             sequence,
             tick: 1,
@@ -382,7 +441,8 @@ public sealed class BloodEffectSystemTests
             damage,
             factionId: 0,
             weapon,
-            hitLocation);
+            hitLocation,
+            resolution);
 
     private static BattleEvent DamageEvent(
         long sequence,
