@@ -15,26 +15,56 @@ namespace Hukbo.Client.Rendering;
 /// lookup is the part that lands in the untestable file.
 /// </para>
 /// <para>
-/// <b>No-op stub.</b> It resolves no poses yet.
+/// <see cref="Resolve"/> fills a destination the caller owns rather than
+/// returning a fresh dictionary. It runs once a frame on the draw path, and
+/// the client keeps that path free of heap allocation.
 /// </para>
 /// </remarks>
 internal static class SwingPoseResolver
 {
-    private static readonly Dictionary<ulong, SwingPose> EmptyPoses = [];
-
     /// <summary>
     /// Resolves one pose per agent with a swing in flight. An agent with no
     /// swing gets no entry rather than a neutral one, so a caller cannot
     /// confuse "standing still" with "not drawn".
     /// </summary>
+    /// <param name="swings">The swing store.</param>
+    /// <param name="agents">
+    /// The agent views for the completed tick. A swing whose attacker has left
+    /// the views resolves to no pose, because there is no pawn to put in it.
+    /// </param>
+    /// <param name="destination">
+    /// A caller-owned buffer, cleared before it is filled and returned as the
+    /// result so that the draw loop reads exactly what was written.
+    /// </param>
     public static IReadOnlyDictionary<ulong, SwingPose> Resolve(
         SwingAnimationSystem swings,
-        IReadOnlyList<AgentView> agents)
+        IReadOnlyList<AgentView> agents,
+        Dictionary<ulong, SwingPose> destination)
     {
         ArgumentNullException.ThrowIfNull(swings);
         ArgumentNullException.ThrowIfNull(agents);
+        ArgumentNullException.ThrowIfNull(destination);
 
-        return EmptyPoses;
+        destination.Clear();
+
+        var active = swings.ActiveSwings;
+        if (active.Length == 0)
+        {
+            return destination;
+        }
+
+        for (var index = 0; index < agents.Count; index++)
+        {
+            var entityId = agents[index].EntityId;
+            if (!swings.TryGetSwing(entityId, out var swing))
+            {
+                continue;
+            }
+
+            destination[entityId] = SwingGeometry.ResolvePose(swing);
+        }
+
+        return destination;
     }
 
     /// <summary>
