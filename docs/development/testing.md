@@ -84,6 +84,41 @@ not prove a sound was audible, that it arrived at the right moment, or that it
 sounded right. Smoke rows below still require a human at an interactive desktop;
 see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
+## Canonical gate result — attack combinations on preset V3 integration, 2026-07-28
+
+`./scripts/verify.ps1`, run once by the orchestrator after all five combo
+tasks landed (build, format check, Release Core+Client tests, then the
+default-preset 200-agent/10,000-tick/seed-1 headless workload — the default
+preset is still V2, `verify.ps1` does not take a `-Preset` flag):
+
+```
+Total tests: 663
+     Passed: 663
+[PASS] Release repository tests completed.
+seed 1, agentCount 200, requestedTicks 10000, measuredTicks 1710
+outcome Faction1Victory, faction0Survivors 0, faction1Survivors 2
+eventHash 2A9F2D7054CD1805
+stateHash A883926A3B93792E
+deterministic true, firstMismatchTick null
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+**This supersedes the V2 hash pair recorded below** ("Previous
+non-interactive result — weapon clash on preset V2", state hash
+`71211929A44A16CA`, event hash `A2DC3ECA3F7345ED`, same seed/agents/tick
+count). The outcome and measured-tick count are unchanged — V2's gameplay is
+untouched — but `StateHasher` now folds three new per-agent words
+(`Level`, `ComboStepsRemaining`, `ComboTargetEntityId`) and the event hash
+folds one new word (`ComboPosition`) for **every** `CombatPresetId`, not only
+V3, because both hashers are shared code. Per
+`.claude/skills/hukbo-determinism-change/SKILL.md`, this is the expected
+shape of an authoritative core-simulation change and not a regression; V2's
+own pinned `ContentHash` (`0x10AB1CC226AB3636`) is unaffected because
+`CombatRuleset.ComputeContentHash` never reads the new `WeaponProfile.ComboXxx`
+fields, only `StateHasher`/the event fold read the new per-agent/per-event
+state.
+
 ## Latest non-interactive result — attack combinations on preset V3, 2026-07-28
 
 Adds the section 3 attack-combination state machine (an opening roll on a
