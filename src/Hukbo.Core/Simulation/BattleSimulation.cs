@@ -36,6 +36,7 @@ public sealed class BattleSimulation
     private ReadOnlyCollection<BattleEvent> _lastEvents;
     private long _eventSequence;
     private CollisionTickMetrics _lastTickCollision;
+    private CombatMetrics _lastTickCombat;
 
     private BattleSimulation(
         Scenario scenario,
@@ -92,12 +93,7 @@ public sealed class BattleSimulation
     /// Derived attack-resolution counters for the tick just completed.
     /// Observability only: never hashed, never snapshotted, never persisted.
     /// </summary>
-    /// <remarks>
-    /// A stub reporting an empty tick until the clash resolves inside the
-    /// gather loop. It exists now so that the tests written against it compile
-    /// before the accumulation is wired in.
-    /// </remarks>
-    internal CombatMetrics LastTickCombat => default;
+    internal CombatMetrics LastTickCombat => _lastTickCombat;
 
     /// <summary>
     /// Longest run of consecutive blocked ticks any single agent has reached.
@@ -1082,6 +1078,15 @@ public sealed class BattleSimulation
         Array.Clear(_damageTotals);
         var proposalCount = 0;
 
+        // Derived observability counters for this tick. Locals rather than
+        // state, folded into the reported value once at the end of the loop,
+        // so nothing here can be read by the simulation itself.
+        var landed = 0;
+        var shieldBlocked = 0;
+        var parried = 0;
+        var deflected = 0;
+        var evaded = 0;
+
         for (var sourceIndex = 0;
              sourceIndex < _agentStates.Length;
              sourceIndex++)
@@ -1144,7 +1149,34 @@ public sealed class BattleSimulation
                 _damageTotals[targetIndex] = checked(
                     _damageTotals[targetIndex] + source.DamagePerAttack);
             }
+
+            switch (resolution)
+            {
+                case AttackResolution.Landed:
+                    landed++;
+                    break;
+                case AttackResolution.ShieldBlocked:
+                    shieldBlocked++;
+                    break;
+                case AttackResolution.Parried:
+                    parried++;
+                    break;
+                case AttackResolution.Deflected:
+                    deflected++;
+                    break;
+                default:
+                    evaded++;
+                    break;
+            }
         }
+
+        _lastTickCombat = new CombatMetrics(
+            proposalCount,
+            landed,
+            shieldBlocked,
+            parried,
+            deflected,
+            evaded);
 
         for (var index = 0; index < proposalCount; index++)
         {
