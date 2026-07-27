@@ -7,8 +7,9 @@ belongs in a companion plan document, `docs/plans/YYYY-MM-DD-shields.md`, which
 does not exist yet.
 
 This design depends on two earlier designs being implemented first:
-`docs/plans/2026-07-27-weapon-identity-and-attributes-design.md` (preset V2,
-which gives every weapon its own damage, reach, and cooldown) and
+`docs/archives/2026-07-28/2026-07-27-weapon-identity-and-attributes-design.md`
+(preset V2, archived: implemented and complete — gives every weapon its own
+damage, reach, and cooldown) and
 `docs/plans/2026-07-27-combat-preset-v3-combos-design.md` (preset V3, which adds
 attack combinations and deliberately holds every roster entry at
 `ShieldId.None`). Section 12 explains why this work should land as preset V4
