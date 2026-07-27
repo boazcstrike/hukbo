@@ -181,38 +181,56 @@ seed:
 The battle lengthened from a terminal tick of 1 154 to 1 858 on seed 1, a factor
 of 1.61 against the 1.48 the design predicted at a mean interception of 0.325.
 
-### Two failures Phase 2 did not clear
+### Two pre-existing cases Phase 2 had to amend
 
-Barrier B2 requires the whole suite green and it is not. Two cases fail, neither
-of them a criterion and neither owned by a Phase 2 task. Both are recorded here
-rather than worked around.
+Two cases failed when Phase 2 landed. Neither was a criterion and neither was
+owned by a Phase 2 task, so both were investigated before anything was edited,
+and the owner approved each change on 2026-07-27.
 
-`LastStandFormationTests.AMaximumSizedLastStandNeverLeavesAWarriorBlockedForMoreThanSixtyConsecutiveTicks`
-measures a longest blocked streak of 69 ticks against its 60-tick bound. The
-collision resolver is untouched by this change; battles simply last longer under
-interception, so a maximally packed last-stand cluster stays packed longer. The
-bound was set at 60 when the case measured 45, and the risk it guards, R4 in the
-last-stand design, is a cluster that thrashes permanently and produces a
-no-casualty draw at the tick limit — the failing run decided at tick 735 with a
-clear victory and living counts of 4 against 0. This is the same shape as the
-collision allocation ceiling that was raised earlier in this feature: a budget
-whose input legitimately grew. Raising it is an owner decision and no agent has
-made it.
+**The last-stand blocked-streak bound was stale.** The case, now
+`LastStandFormationTests.AMaximumSizedLastStandNeverLeavesAWarriorBlockedTooLongAcrossSeedsOneThroughTwenty`,
+measured a longest blocked streak of 69 ticks against a 60-tick bound. The
+decisive evidence that collision behaviour itself is unchanged came from the
+ruleset seam: running the same scenario at the same commit with
+`ClashProfile.Neutral` reproduces a streak of 45, which is exactly the figure
+recorded when the 60-tick bound was chosen. Interception means fewer landed
+blows per exchange, so battles last longer and a maximally packed cluster stays
+packed longer; the collision resolver, the last-stand formation, and the
+collision priority amendment are all untouched.
 
-`PhilippineCombatIntegrationTests.ShieldedRosterEntriesSurviveMoreOftenThanShieldlessOnesAcrossSeedsOneThroughTwenty`
-measures 41 shielded survivors of 2 000 against 46 shieldless of 2 000, and
-requires the shielded rate to exceed the shieldless rate by a quarter. The clash
-does give shielded loadouts the advantage the case is named for: their total
-interception is 3 925 basis points against 2 225 and 2 925 for the two shieldless
-rows, and `ShieldedDefenderTakesLessDamageThanUnshieldedAtTheSameSeed` passes.
-The problem is the measurement. These battles run to annihilation, so roughly
-two of two hundred agents survive each seed and the whole twenty-seed sample is
-about forty-five survivors, all of them the winning faction's last few. A
-five-survivor difference on that sample is noise, and no tuning inside the
-defensible interception band would move it reliably. The case needs a
-higher-powered statistic — mean hit points remaining, or mean tick of death,
-across all four thousand agents rather than the survivors alone. Changing what a
-named test measures is not a Phase 2 task and has not been done.
+Seed 1 turned out to be a 25th-percentile seed for this metric, so the case now
+sweeps twenty seeds and asserts on the worst. Across seeds 1 to 20 at the
+maximum threshold the streak runs 59 to 92 with a median of 74, and the bound is
+now 125 — 1.36 times the worst observed, the same headroom the original 60 had
+over its measured 45. Risk R4, which the case guards, is a cluster that thrashes
+permanently and produces a no-casualty draw at the tick limit: across those
+twenty seeds no battle reached the tick limit, none drew, and none ended without
+casualties, and terminal ticks ran 649 to 919 against a limit of 10 000.
+
+**The shield survivability case could never have passed, for arithmetic
+reasons.** It counted end-of-battle survivors and measured 41 shielded of 2 000
+against 46 shieldless of 2 000. Maximum hit points are 100 and damage per attack
+is 10, so exactly ten landed blows kill anyone. Shieldless entries take about
+13.3 swings at an intercepted share of 0.26 and shielded entries about 16.3 at
+0.39, so both absorb about 9.9 landed blows. Landed damage is equal by
+construction, which pins survivorship, hit points remaining, and damage taken at
+saturation regardless of how good the shield is. It is why the pre-clash
+measurement read exactly 31 of 2 000 against 31 of 2 000.
+
+The clash did close the gap, but only on blows absorbed before dying: 1.00
+before, 1.22 after, with a per-seed minimum of 1.17 and a standard deviation of
+0.04. The case was re-pointed at that statistic, given a PROVISIONAL band of
+1.15, and renamed to
+`PhilippineCombatIntegrationTests.ShieldedRosterEntriesAbsorbMoreBlowsBeforeDyingThanShieldlessOnesAcrossSeedsOneThroughTwenty`
+so that it still claims what it measures. The same measurement against
+`ZeroInterceptionRules` pools to 1.00 with a maximum of 1.02, so the bound
+cannot be met without the clash.
+
+One consequence worth carrying into Part B and the smoke rows: mean tick of
+death separates the two groups by only 1.04, and already reads 1.02 with
+interception switched off. A spectator therefore perceives the shield as blows
+turned aside, not as a warrior who visibly lives longer, which is what the
+per-resolution event-log labels in T54 have to convey.
 
 ## Latest non-interactive result — sound gain compensation, 2026-07-27
 

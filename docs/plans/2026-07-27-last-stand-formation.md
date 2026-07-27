@@ -276,7 +276,7 @@ duplicate the normalisation.
   tick limit and records the terminal tick in the failure message.
 - `LivingCountsNeverIncreaseAcrossAWholeBattle` — proves the trigger cannot flap.
 - `RallyAgentDeathPromotesTheNextLowestLivingEntityId`
-- `AMaximumSizedLastStandNeverLeavesAWarriorBlockedForMoreThanSixtyConsecutiveTicks`
+- `AMaximumSizedLastStandNeverLeavesAWarriorBlockedTooLongAcrossSeedsOneThroughTwenty`
   — the threshold set to `FormationRules.MaximumLastStandThresholdAgents`, which
   is 9, in a battle of thirty-two warriors. The assertion message must state that
   a failure means the cluster packs tighter than the resolver permits.

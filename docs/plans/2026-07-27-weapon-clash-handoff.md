@@ -352,12 +352,25 @@ window-opening probe do not count as verification of interactive behaviour.
   names for their tasks, and `BattleSimulationTests.cs` is also declared for T24
   and T30, so splitting either now would contradict the plan. Backlog item, worth
   doing after Phase 2 lands.
-- **The tall-hardwood shield currently confers no survival advantage at all.**
-  `ShieldedRosterEntriesSurviveMoreOftenThanShieldlessOnesAcrossSeedsOneThroughTwenty`
-  measured 31 of 2000 against 31 of 2000 — exactly equal. The shield only
-  reweights hit location while damage per attack is flat, so it changes *where* a
-  warrior is hit and never *whether*. **That gap is precisely what the clash is
-  meant to close**, and this test is the measurement of whether it did.
+- **The tall-hardwood shield conferred no survival advantage at all before the
+  clash, and the original measurement could never have shown one.** The case,
+  then named
+  `ShieldedRosterEntriesSurviveMoreOftenThanShieldlessOnesAcrossSeedsOneThroughTwenty`,
+  measured 31 of 2000 against 31 of 2000 — exactly equal. That was arithmetic
+  rather than sampling: maximum hit points are 100 and damage per attack is 10,
+  so exactly ten landed blows kill anyone, and every statistic downstream of
+  landed damage is pinned at saturation. Measured after Phase 2, shieldless
+  entries take about 13.3 swings at an intercepted share of 0.26 and shielded
+  entries about 16.3 at 0.39, so both absorb about 9.9 landed blows and end-of-
+  battle survivorship still cannot separate them.
+  **The clash did close the gap**, but only on blows absorbed before dying:
+  1.00 before, 1.22 after, per-seed minimum 1.17. The case was therefore
+  re-pointed at that statistic and renamed
+  `ShieldedRosterEntriesAbsorbMoreBlowsBeforeDyingThanShieldlessOnesAcrossSeedsOneThroughTwenty`,
+  with a PROVISIONAL band of 1.15, on the owner's decision of 2026-07-27.
+  Worth carrying forward: mean tick of death separates the groups by only 1.04,
+  so a spectator perceives the shield as *blows turned aside*, not as a warrior
+  who visibly lives longer.
 
 ---
 
