@@ -1,6 +1,8 @@
 # Font and Text Quality — Plan
 
-Design document: `docs/plans/2026-07-27-font-text-quality-design.md`. Read it
+> **Archived: reference only.** This plan is complete and deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
+
+Design document: `docs/archives/2026-07-27-font-text-quality-design.md`. Read it
 first; it carries the root-cause analysis, the typeface rationale, the size
 ramp, the architecture, and the nine standards answers.
 
@@ -43,8 +45,8 @@ corresponding row in `docs/development/testing.md` to `PASS`.
 | T26 | Reconcile the five-themes plan — **complete, no further action** | `docs/archives/2026-07-26-five-ui-themes-design.md`, reference-only; not to be edited again | Already done, before that document was archived: a dated amendment note was appended to it instead of editing the historical rationale. The document has since moved to `docs/archives/`, where it is deprecated and unmaintained, so no future implementer may edit it to satisfy this row. | Satisfied. The "Amendment — 2026-07-27, font and text quality change" section is present and dated in the archived document, and it records that typography remains shared across all five themes while the identity and count of the shared asset changed. Reopening this task is not possible without editing an archived file, which `docs/archives/README.md` and `CLAUDE.md` section 6 forbid. | T21 | review — verified by inspection of the archived document |
 | T27 | Smoke checklist rows | `docs/development/testing.md` | Add a typography smoke subsection with the fourteen rows listed below, all `PENDING`. | Rows present, none flipped to `PASS` by this workstream. | T21 | MANUAL |
 | T28 | Run the canonical gate and record | `docs/development/testing.md` | `./scripts/verify.ps1`. Record the exact five-stage output, the test counts, and the seed-1 hashes verbatim. | Both recorded hashes unchanged. Output pasted, not paraphrased. | T21–T27 | GATE |
-| T29 | Display scaling — measure only | none; the diagnostic is reverted | Draw viewport width against client bounds width, launch at 100% and at 150% Windows scaling, record both integers each time, revert. | Four integers recorded. | T28 | MANUAL |
-| T30 | Display scaling — act, gated on T29 | `src/Hukbo.Client/app.manifest` or `Program.cs`, `docs/development/testing.md` | Executed only if the measurement shows the process is DPI-unaware *and* a chosen remedy measures clean. A remedy that changes nothing is reverted. | Post-fix measurement recorded, or the task is closed as declined with the limitation documented. | T29 | MANUAL |
+| T29 | Display scaling — measure only — **declined, no further action** | none; the diagnostic was reverted | Draw viewport width against client bounds width, launch at 100% and at 150% Windows scaling, record both integers each time, revert. | The 100% reading was taken during implementation: viewport 1280×720, client bounds 1280×720 — equal, as expected. The user declined the 150% reading on 2026-07-28, having no use for the display-scaling remedy; the task is closed without it rather than left open. | T28 | review — declined by the user, not measured to completion |
+| T30 | Display scaling — act, gated on T29 — **declined, no further action** | none | Would have executed only if T29's measurement showed the process DPI-unaware. | Not attempted; closed as declined alongside T29. `docs/development/testing.md` row 75 records the decline honestly rather than leaving it `PENDING`. | T29 | review — declined |
 | T31 | Archive | move both plan documents to `docs/archives/` with the "Archived: reference only" banner | Per `CLAUDE.md` section 6. | Both files moved and bannered. | T30 | review |
 
 ## Execution order
@@ -121,7 +123,8 @@ flip one of these. Compilation, unit tests, and a window-opening probe do not.
 13. Subpixel blur is gone — panning, zooming, and pausing produce no shimmering
     or swimming text.
 14. Display scaling — record the appearance at 100% and at 150% Windows
-    scaling. Feeds T29.
+    scaling. Fed T29, which is now declined; this row is closed rather than
+    fed further.
 
 ## Risk register
 
@@ -135,7 +138,7 @@ flip one of these. Compilation, unit tests, and a window-opening probe do not.
 | R6 | The evidence reserved-line budget becomes wrong | verified untested at the real metric | The existing tests measure at a single hardcoded legacy width, so the suite would stay green while the live interface wraps to an extra line. T16 converts it to a range theory. The panel's bounds guard means the worst case is a dropped line, never an overflow. |
 | R7 | Font name resolution relative to the descriptor directory | assumed | Falsified immediately by the T06 build if wrong; the fallback is an explicit relative path. |
 | R8 | Line-ending normalisation corrupts a vendored font | assumed low | T04 adds an explicit binary attribute rather than relying on the heuristic. |
-| R9 | A DPI-unaware window blurs text regardless | unknown | Explicitly not assumed either way. Measured by T29 before T30 acts. |
+| R9 | A DPI-unaware window blurs text regardless | unknown, declined | Explicitly not assumed either way. The 100% reading (1280×720 viewport, 1280×720 client bounds — equal) gave no evidence either way, since 100% scaling cannot expose DPI-unawareness. The 150% reading that would have settled this was declined by the user on 2026-07-28; T29 and T30 are closed without it rather than left open. |
 | R10 | Six atlases cost frame time or memory | assumed negligible | Ninety-seven characters at thirty-eight pixels or less, well inside the profile's texture limit. Deferred sorting already batches per texture. If the gate's allocation figures or a render workload disagree, merge rungs. |
 | R11 | A magic offset in the event log chip is tuned to Arial metrics | verified present | Included in T17's retune. |
 | R12 | Open Font License compliance | assumed satisfied | The license permits bundling and embedding; baking to a texture atlas is a permitted derivative. The reserved font name clause binds only modified-and-renamed derivatives, which these are not. T03 vendors both license texts and T25 ships them. |

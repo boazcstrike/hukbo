@@ -1,7 +1,9 @@
 # Font and Text Quality — Design
 
+> **Archived: reference only.** This plan is complete and deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`.
+
 Status: design only. This document does not authorize implementation. The
-ordered task list lives in `docs/plans/2026-07-27-font-text-quality.md`.
+ordered task list lives in `docs/archives/2026-07-27-font-text-quality.md`.
 
 Scope: `src/Hukbo.Client` presentation only. `src/Hukbo.Core`,
 `src/Hukbo.Headless`, `tests/Hukbo.Core.Tests`, and `scripts/` are untouched —
@@ -284,6 +286,19 @@ limitation is documented honestly and the task is closed as declined.
 
 The measurement runs *after* the canonical gate, specifically so that a blurry
 scaled display is never mistaken for a failure of the size ramp.
+
+### Closed, 2026-07-28 — declined before the 150% reading
+
+The 100% reading was taken: `GraphicsDevice.Viewport.Width`/`Height` and
+`Window.ClientBounds.Width`/`Height` both read `1280`×`720`, equal, as expected
+at unscaled DPI. That reading alone cannot show whether the process is
+DPI-unaware, because 100% scaling never exercises the bitmap-stretch path this
+section is worried about. The user declined to change Windows display scaling
+to 150% to take the second reading, having no use for the remedy this task
+would gate. The task (T29 in the plan document) is closed as declined rather
+than left `PENDING` indefinitely; the diagnostic added to capture the readings
+was reverted, and no `app.manifest` or `Program.cs` change was made. This is a
+known, documented limitation, not a silently dropped one.
 
 ## 8. Relationship to the archived five-themes plan
 
