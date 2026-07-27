@@ -33,12 +33,23 @@ public sealed class ClashResolverTests
     /// <see cref="MixClash_MatchesEveryPinnedVector"/>, so the edge profiles
     /// below can place a cumulative boundary exactly on it.
     /// </summary>
+    /// <remarks>
+    /// The pinned row is the <see cref="ShieldId.TallHardwood"/> one, because
+    /// <see cref="ResolveAtEdge"/> must resolve with a shield for the first
+    /// interval edge to be reachable at all. Both the helper that folds this
+    /// tuple and the helper that resolves it therefore have to name the same
+    /// shield: an earlier revision folded <see cref="ShieldId.None"/> here
+    /// while resolving with <see cref="ShieldId.TallHardwood"/>, which pinned
+    /// this constant to one row of the theory and the edge walk to another and
+    /// made the two mutually unsatisfiable for any mixer that depends on the
+    /// shield at all.
+    /// </remarks>
     private const ulong EdgeSeed = 0;
 
     private const long EdgeTick = 0;
-    private const ulong EdgeSource = 3;
-    private const ulong EdgeTarget = 4;
-    private const int EdgeRoll = 1_028;
+    private const ulong EdgeSource = 60;
+    private const ulong EdgeTarget = 1;
+    private const int EdgeRoll = 1_261;
 
     /// <summary>
     /// A tuple whose roll is exactly zero, found by walking ticks for a fixed
@@ -48,7 +59,7 @@ public sealed class ClashResolverTests
     /// </summary>
     private const ulong ZeroRollSeed = 1;
 
-    private const long ZeroRollTick = 4_379;
+    private const long ZeroRollTick = 9_779;
     private const ulong ZeroRollSource = 1;
     private const ulong ZeroRollTarget = 2;
 
@@ -74,18 +85,32 @@ public sealed class ClashResolverTests
     // least one row per resolution -- all five. The void interval is roughly
     // 1,000 of 10,000 and is the only interval bounded on both sides, so eight
     // arbitrary tuples could easily never produce an Evaded and would leave the
-    // newest interval unexercised.
+    // newest interval unexercised. Row two is also the one loadout whose total
+    // exceeds the 5,500 ceiling -- 2,200 plus 2,400 plus 1,000 -- so the step
+    // four rescale branch is exercised by a pinned vector and not only by the
+    // synthetic clamp profiles.
+    //
+    // These rolls were re-derived once. The first revision folded every enum as
+    // a zero-based ordinal, that is the declared value minus one, which
+    // contradicts both the sentence above and HitLocationResolver.MixAttack at
+    // line 100, the mixer design section 3.3 says this one copies the shape of.
+    // The resolution column was correct throughout and each row still resolves
+    // as it did; only the encoding moved, and with it the entity identifiers,
+    // which were re-chosen so that every row keeps the resolution it was
+    // selected to demonstrate. The rolls below were produced by a transcription
+    // of section 3.3 validated against all six pre-existing
+    // HitLocationResolverTests vectors, never by running ClashResolver.
     [Theory]
-    [InlineData(0UL, 0L, 3UL, 4UL, WeaponId.GreatBlade, WeaponId.GreatBlade, ShieldId.None, 437, AttackResolution.Parried)]
-    [InlineData(0UL, 0L, 3UL, 4UL, WeaponId.GreatBlade, WeaponId.GreatBlade, ShieldId.TallHardwood, 1_028, AttackResolution.ShieldBlocked)]
-    [InlineData(0UL, 0L, 3UL, 4UL, WeaponId.HeavyChopper, WeaponId.Bolo, ShieldId.TallHardwood, 3_286, AttackResolution.Evaded)]
-    [InlineData(0xFFFFFFFFFFFFFFFFUL, 0x7FFFFFFFFFFFFFFFL, 4UL, 3UL, WeaponId.ThrustingBlade, WeaponId.Bolo, ShieldId.TallHardwood, 485, AttackResolution.ShieldBlocked)]
-    [InlineData(0xFFFFFFFFFFFFFFFFUL, 0x7FFFFFFFFFFFFFFFL, 4UL, 3UL, WeaponId.Bolo, WeaponId.HeavyChopper, ShieldId.None, 9_415, AttackResolution.Landed)]
-    [InlineData(1UL, 1L, 1UL, 2UL, WeaponId.ThrustingBlade, WeaponId.ThrustingBlade, ShieldId.None, 177, AttackResolution.Deflected)]
-    [InlineData(1UL, 1L, 2UL, 1UL, WeaponId.HeavyChopper, WeaponId.ThrustingBlade, ShieldId.None, 34, AttackResolution.Parried)]
-    [InlineData(0xDEADBEEFUL, 99L, 199UL, 200UL, WeaponId.HeavyChopper, WeaponId.HeavyChopper, ShieldId.TallHardwood, 2_825, AttackResolution.Parried)]
-    [InlineData(987654321UL, 1234L, 88UL, 17UL, WeaponId.GreatBlade, WeaponId.HeavyChopper, ShieldId.None, 1_921, AttackResolution.Evaded)]
-    [InlineData(987654321UL, 1234L, 88UL, 17UL, WeaponId.Bolo, WeaponId.Bolo, ShieldId.TallHardwood, 4_657, AttackResolution.Landed)]
+    [InlineData(0UL, 0L, 60UL, 1UL, WeaponId.GreatBlade, WeaponId.GreatBlade, ShieldId.None, 670, AttackResolution.Parried)]
+    [InlineData(0UL, 0L, 60UL, 1UL, WeaponId.GreatBlade, WeaponId.GreatBlade, ShieldId.TallHardwood, 1_261, AttackResolution.ShieldBlocked)]
+    [InlineData(0UL, 0L, 60UL, 1UL, WeaponId.HeavyChopper, WeaponId.Bolo, ShieldId.TallHardwood, 2_811, AttackResolution.Evaded)]
+    [InlineData(0xFFFFFFFFFFFFFFFFUL, 0x7FFFFFFFFFFFFFFFL, 4UL, 2UL, WeaponId.ThrustingBlade, WeaponId.Bolo, ShieldId.TallHardwood, 33, AttackResolution.ShieldBlocked)]
+    [InlineData(0xFFFFFFFFFFFFFFFFUL, 0x7FFFFFFFFFFFFFFFL, 4UL, 2UL, WeaponId.Bolo, WeaponId.HeavyChopper, ShieldId.None, 6_995, AttackResolution.Landed)]
+    [InlineData(1UL, 1L, 10UL, 15UL, WeaponId.ThrustingBlade, WeaponId.ThrustingBlade, ShieldId.None, 566, AttackResolution.Deflected)]
+    [InlineData(1UL, 1L, 15UL, 10UL, WeaponId.HeavyChopper, WeaponId.ThrustingBlade, ShieldId.None, 55, AttackResolution.Parried)]
+    [InlineData(0xDEADBEEFUL, 99L, 198UL, 200UL, WeaponId.HeavyChopper, WeaponId.HeavyChopper, ShieldId.TallHardwood, 2_539, AttackResolution.Parried)]
+    [InlineData(987654321UL, 1234L, 87UL, 18UL, WeaponId.GreatBlade, WeaponId.HeavyChopper, ShieldId.None, 2_046, AttackResolution.Evaded)]
+    [InlineData(987654321UL, 1234L, 87UL, 18UL, WeaponId.Bolo, WeaponId.Bolo, ShieldId.TallHardwood, 9_886, AttackResolution.Landed)]
     public void MixClash_MatchesEveryPinnedVector(
         ulong seed,
         long tick,
@@ -300,8 +325,8 @@ public sealed class ClashResolverTests
                 voidChannel: 500,
                 hardShare: ClashProfile.BasisPointScale)));
 
-        // Edge two, the hard boundary. A hard share of 9,991 against a 1,029
-        // basis point weapon channel truncates to 1,028, leaving a single basis
+        // Edge two, the hard boundary. A hard share of 9,993 against a 1,262
+        // basis point weapon channel truncates to 1,261, leaving a single basis
         // point of soft, so the roll sits exactly on the parry/deflect boundary.
         Assert.Equal(
             AttackResolution.Deflected,
@@ -309,7 +334,7 @@ public sealed class ClashResolverTests
                 shieldIntercept: 0,
                 weaponIntercept: EdgeRoll + 1,
                 voidChannel: 500,
-                hardShare: 9_991)));
+                hardShare: 9_993)));
         Assert.Equal(
             AttackResolution.Parried,
             ResolveAtEdge(BuildEdgeProfile(
@@ -855,6 +880,12 @@ public sealed class ClashResolverTests
             WeaponId.Bolo,
             ShieldId.TallHardwood);
 
+    /// <summary>
+    /// Folds the same shield <see cref="ResolveAtEdge"/> resolves with. The two
+    /// must agree: <see cref="EdgeRoll"/> is the roll the edge profiles place a
+    /// boundary on, so a mixer that depends on the shield produces a different
+    /// roll here than the walk consumes if the two helpers disagree.
+    /// </summary>
     private static int EdgeRollValue() =>
         ClashResolver.MixClash(
             EdgeSeed,
@@ -863,7 +894,7 @@ public sealed class ClashResolverTests
             EdgeTarget,
             WeaponId.GreatBlade,
             WeaponId.GreatBlade,
-            ShieldId.None);
+            ShieldId.TallHardwood);
 
     /// <summary>
     /// Resolved with <see cref="ShieldId.TallHardwood"/> so the shield channel
