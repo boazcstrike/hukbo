@@ -494,6 +494,8 @@ No automated test claims to prove these rows.
   and keep the widening as a recorded possibility.
 - Inherited: **OD-4** (procedural direction confirmation) from the
   requirements document — this design is written to the procedural path.
+  Resolved 2026-07-28: the user confirmed fully procedural rendering, so no
+  hedge remains.
 
 ## Acceptance criteria
 

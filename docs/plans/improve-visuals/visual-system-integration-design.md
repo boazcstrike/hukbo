@@ -14,6 +14,11 @@ cross-cutting R-X rules in particular) and the verified code state in
 `docs/agents/improve-visuals/existing-code-analysis.md`. It authorizes no
 implementation.
 
+On 2026-07-28 the user resolved all ten package open decisions — including
+OD-4, confirming this design's fully procedural direction — and approved the
+23-task first milestone for implementation. The decision record is in the
+package README (`docs/plans/improve-visuals/README.md`).
+
 ## Scope
 
 In scope, as infrastructure the other designs consume:
@@ -212,9 +217,9 @@ and filled from the existing 1x1 texture inside the existing arena batch.
 **Decision: Alternative C.** All six workstreams render procedurally from the
 existing single white pixel, inside the existing arena batch, with all layout
 computed in pure geometry helpers. This is the path the environment research
-recommends, the existing-code analysis strongly supports, and requirement
-OD-4 asks the user to confirm. Every sibling design document is written to
-this decision and must not hedge toward sprites.
+recommends, the existing-code analysis strongly supports, and the user
+confirmed as OD-4, resolved 2026-07-28. Every sibling design document is
+written to this decision and must not hedge toward sprites.
 
 **Re-entry criteria for the atlas alternative.** The sprite/atlas direction
 is rejected *for this pass*, not forever. It becomes worth re-opening only
@@ -565,11 +570,12 @@ chain end to end:
   rolling back on save failure; a menu selector; tests for manager,
   selector, and store round-trip including a version-3-file migration test
   and a corrupt-field test.
-- Whether the setting's scope is grass-only or future ambient motion broadly
-  is open decision OD-8; the enum and plumbing above are identical either
-  way, so the decision gates wording and documentation, not architecture.
-  Gameplay-communicating motion (swings, hit effects) stays exempt in both
-  readings.
+- The setting's scope is decided: per OD-8, resolved 2026-07-28, the
+  MotionIntensity setting governs all ambient presentation motion — grass
+  sway now, with dust (if it ships under OD-9) and any future ambient motion
+  included. The enum and plumbing above are unchanged by that scope; the
+  decision fixes the wording and documentation. Gameplay-communicating
+  motion (swings, hit effects) stays exempt.
 
 **High-contrast behavior (R-W6.9).** Two existing precedents extend,
 test-pinned: every new backdrop and effect shade obeys the 0.22 lerp ceiling
@@ -586,7 +592,8 @@ channel, and no new variant may make garment or ground hues a competing
 faction signal — the warrior-appearance palette rule (faction color stays on
 the ring and outline, never on garments) is the enforcement point, and the
 combination validator carries a check for it. A genuinely shape-redundant
-faction marker beyond the ring is open decision OD-7 and is not designed
+faction marker beyond the ring was open decision OD-7, resolved 2026-07-28
+as deferred (backlog item in `docs/plans/TODO.md`), and is not designed
 here.
 
 ### 10. Testing strategy
@@ -735,8 +742,8 @@ What the sibling designs consume from this document:
 
 What this document depends on:
 
-- User confirmation of OD-4 (procedural direction) before the implementation
-  plan is finalized; the whole package is written to it.
+- User confirmation of OD-4 (procedural direction) — satisfied: confirmed
+  2026-07-28; the whole package is written to it.
 - The requirements document remaining the requirement authority; if a
   requirement changes, this design is re-checked against it.
 - No new packages and no content-pipeline entries — this design is built to
@@ -776,15 +783,19 @@ What this document depends on:
 
 ## Open decisions
 
-Decisions this design defers to the user (full list and defaults in the
-package README):
+Decisions this design deferred to the user — all resolved 2026-07-28 (full
+record in the package README):
 
-- **OD-4 — procedural confirmation.** This design's core decision; a user
-  "yes" removes the last hedge from the package.
-- **OD-7 — shape-redundant faction marker.** This design holds the
-  no-regression floor only; the marker itself is not designed here.
-- **OD-8 — reduced-motion scope.** Plumbing is identical either way;
-  wording and documentation await the decision.
+- **OD-4 — procedural confirmation. Resolved 2026-07-28:** confirmed. Fully
+  procedural rendering stands for this pass; the last hedge is removed from
+  the package.
+- **OD-7 — shape-redundant faction marker. Resolved 2026-07-28:** deferred;
+  recorded as a backlog item in `docs/plans/TODO.md`. This design holds the
+  no-regression floor only.
+- **OD-8 — reduced-motion scope. Resolved 2026-07-28:** the MotionIntensity
+  setting governs all ambient presentation motion — grass sway now, dust and
+  future ambient motion included; gameplay-communicating motion stays
+  exempt. Plumbing is unchanged; the wording follows this scope.
 
 Decisions this design leaves to the planner or the implementation plan,
 recorded so they are not mistaken for settled:
@@ -841,4 +852,6 @@ show, with the canonical gate's real output and the listed artifacts:
    `docs/development/testing.md` with the review protocol's seed and
    stations named; no row was flipped by anything but a human.
 
-This document does not authorize implementation.
+This document does not authorize implementation. Implementation authority
+for the 23 milestone tasks comes from the user's dated approval of
+2026-07-28, recorded in the package README.

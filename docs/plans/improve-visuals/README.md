@@ -1,7 +1,10 @@
 # Visual Improvement Package — Plan Overview
 
-Date: 2026-07-28. Status: **planning only — awaiting user approval. Nothing in
-this package authorizes implementation.**
+Date: 2026-07-28. Status: **planning approved by the user on 2026-07-28. All
+ten open decisions (OD-1 through OD-10) were resolved that day — each to its
+recommended default — and the 23-task first milestone of
+`implementation-plan-draft.md` is authorized for implementation. The
+post-milestone expansion tasks await the milestone review.**
 
 This directory holds the design documents for the Hukbo visual improvement
 pass: better weapon and shield rendering, a warrior appearance preset system,
@@ -18,7 +21,7 @@ the other five build on; read it first.
 
 | Document | Covers | Status |
 | --- | --- | --- |
-| `README.md` | This overview: map, boundaries, open decisions | Written |
+| `README.md` | This overview: map, boundaries, resolved decisions | Written |
 | `visual-system-integration-design.md` | The shared infrastructure: rendering strategy (procedural versus atlas), visual catalogs, deterministic variant selection, fallback chain and diagnostics, pawn layer ordering, animation boundaries, zoom LOD, batching, settings, testing, and the performance measurement plan | Written |
 | `weapon-visuals-design.md` | Presentation-only variants of the four weapons (workstream 1) | Written |
 | `shield-visuals-design.md` | Skins and posture for the tall hardwood shield (workstream 2) | Written |
@@ -89,50 +92,53 @@ and two High findings are resolved in this revision; the Medium findings are
 resolved in this revision or converted into the new open decisions OD-9 and
 OD-10 below.
 
-## Open decisions requiring user approval
+## Decisions (resolved 2026-07-28)
 
-OD-1 through OD-8 are carried verbatim from
+OD-1 through OD-8 were carried verbatim from
 `docs/agents/improve-visuals/requirements.md`; OD-9 and OD-10 arose from the
-independent review. The designs are written to safe defaults where one
-exists; none of these is decided by this package.
+independent review. On 2026-07-28 the user resolved all ten, in every case
+choosing the recommended default. The outcomes, all Resolved 2026-07-28:
 
-1. **OD-1 — Kalasag label promotion.** Ship the shield as plain
-   `Tall Hardwood Shield`, or commission the attestation verification that
-   would allow `Kalasag — Tall Hardwood Shield`.
-2. **OD-2 — Palisay.** Whether the pending buckler name may appear in
-   inspector research notes (default: inspector metadata only, flagged
-   pending).
-3. **OD-3 — Mindanao/Sulu gap.** Accept the Unscoped-generic preset block as
-   the only coverage, or commission further research first.
-4. **OD-4 — Sprite versus procedural direction.** The research and the
-   integration design recommend staying fully procedural; user confirmation
-   closes the question for this pass.
-5. **OD-5 — Earned red putong (C2).** Exclude the earned insignia, or approve
-   bounded client-side kill tracking from `Death` events as new
-   presentation-state.
-6. **OD-6 — Default theme ground tint.** Whether to shift the default theme's
-   ground toward cogon olive-gold (a separate theme-tuning review).
-7. **OD-7 — Shape-redundant faction marker.** Whether to add a non-hue
-   faction channel for color-blind spectators beyond the no-regression floor.
-8. **OD-8 — Reduced-motion scope.** Whether the new setting governs only
-   grass sway or is defined to cover future ambient motion as well.
-9. **OD-9 — Dust scope conflict.** Requirement R-W4.8 marks dust puffs MUST,
-   while the battlefield environment design scopes them MAY. The user must
-   either approve downgrading R-W4.8 or confirm dust as mandatory, which
-   unblocks task VIS-029. Recommended if dust ships: the MotionIntensity
-   setting at Off suppresses dust spawning.
-10. **OD-10 — Shield per-skin proportion deltas.** The shield design's
-    per-skin proportion deltas (S2 at the tall end of the envelope, S5 at
-    the narrowest) exceed the difference channels R-W2.1 authorizes (face
-    tone, rattan-binding accent line, slight outline curvature). The user
-    must either amend R-W2.1 to permit bounded deltas inside one shared
-    aspect-ratio band with the footprint never falling below the current
-    Low-tier block, or drop the deltas so S2 and S5 differentiate by tone
-    and accent only.
+1. **OD-1 — Kalasag label promotion.** The shield ships as plain
+   `Tall Hardwood Shield` this pass. The pair-form promotion `Kalasag — Tall
+   Hardwood Shield` waits for the attestation verification, which remains
+   unscheduled.
+2. **OD-2 — Palisay.** The *palisay* name may appear in inspector research
+   notes as metadata only, explicitly flagged attestation-pending.
+3. **OD-3 — Mindanao/Sulu gap.** The Unscoped-generic preset block is
+   accepted as the sole Mindanao/Sulu coverage this pass.
+4. **OD-4 — Sprite versus procedural direction.** Fully procedural rendering
+   is confirmed for this pass; sprites remain a possible later direction
+   under the integration design's re-entry criteria.
+5. **OD-5 — Earned red putong (C2).** The earned insignia is excluded from
+   this pass; the idea is recorded as a backlog item in
+   `docs/plans/TODO.md`.
+6. **OD-6 — Default theme ground tint.** The default theme's ground shifts
+   toward cogon olive-gold this pass, tagged provisional; exploration of
+   jungle/plains ground treatments is recorded as a backlog item in
+   `docs/plans/TODO.md`.
+7. **OD-7 — Shape-redundant faction marker.** Deferred; recorded as a
+   backlog item in `docs/plans/TODO.md`. This pass holds the R-W6.10
+   no-regression floor only.
+8. **OD-8 — Reduced-motion scope.** The MotionIntensity setting governs all
+   ambient presentation motion — grass sway now, dust and future ambient
+   motion included; gameplay-communicating motion stays exempt.
+9. **OD-9 — Dust scope conflict.** R-W4.8 is downgraded from MUST to MAY by
+   user approval; task VIS-029 is unblocked but optional. If dust ships, the
+   MotionIntensity setting at Off suppresses dust spawning and Reduced
+   leaves dust unchanged.
+10. **OD-10 — Shield per-skin proportion deltas.** R-W2.1 is amended per
+    option (a): a fourth authorized channel — bounded per-skin proportion
+    deltas of a few layout pixels inside one shared aspect-ratio band, with
+    the rendered footprint never falling below the current Low-tier block —
+    guarded by a manual false-cause check row (a narrower skin must never
+    read as less mechanical coverage, R-X.12). The S2/S5 deltas are kept.
 
 ## What happens next
 
-The five sibling design documents complete against the integration design,
-the draft implementation plan orders the tasks, and the whole package waits
-for the user's review. No code changes before that approval, per `CLAUDE.md`
-section 6.
+With the decisions resolved and the 23-task first milestone approved on
+2026-07-28, milestone implementation is the next step, following
+`implementation-plan-draft.md`. The post-milestone expansion tasks await the
+milestone review. Backlog items spun out of the decisions (OD-5 earned red
+putong, OD-6 jungle/plains ground exploration, OD-7 shape-redundant faction
+marker) live in `docs/plans/TODO.md`.

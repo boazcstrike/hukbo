@@ -22,6 +22,12 @@ is defined there, not here.
 Per the workflow in `CLAUDE.md` section 6, a design document authorizes
 nothing; the plan document follows it.
 
+On 2026-07-28 the user resolved all ten package open decisions — including
+OD-10 (option (a): R-W2.1 amended, the S2/S5 proportion deltas kept), OD-1
+(plain label ships this pass), and OD-2 (palisay as flagged inspector
+metadata only) — and approved the 23-task first milestone for
+implementation. The decision record is in the package README.
+
 ## Scope
 
 In scope:
@@ -189,27 +195,24 @@ different equipment class. Within the band, per-skin width/height deltas are
 a few layout pixels at most. No skin's footprint ever drops below the current
 Low-tier footprint (R-W2.2).
 
-**Disclosed deviation from R-W2.1.** The per-skin proportion deltas in the
-table above (`morgaFullBody` at "the tall end of the shared envelope",
-`visayanKalasag` at the "narrowest proportion within the shared envelope")
-exceed the three difference channels R-W2.1 authorizes — face tone, a
-rattan-binding accent line, and slight outline curvature. R-W2.1's list is
-exhaustive by construction ("expressed only as"), so these deltas are a
-requirement deviation, and this document surfaces it explicitly rather than
-shipping it silently, the same way the battlefield design surfaced its dust
-scoping deviation. The deviation is tracked as package-level open decision
-**OD-10** and requires the user's explicit approval before implementation:
-either R-W2.1 is amended to add a fourth authorized channel (bounded per-skin
-proportion deltas of a few layout pixels inside one shared aspect-ratio band,
-footprint never below the current Low-tier block), or the deltas are dropped
-and S2/S5 differentiate by tone and accent only. The reviewer's hazard note
-is adopted here as binding on either outcome: proportion variation is the
+**Resolution of the disclosed deviation from R-W2.1 (OD-10, resolved
+2026-07-28, option (a)).** The per-skin proportion deltas in the table above
+(`morgaFullBody` at "the tall end of the shared envelope", `visayanKalasag`
+at the "narrowest proportion within the shared envelope") exceeded the three
+difference channels the original R-W2.1 authorized — face tone, a
+rattan-binding accent line, and slight outline curvature. This document
+surfaced that deviation explicitly as package-level open decision OD-10
+rather than shipping it silently. On 2026-07-28 the user resolved OD-10 to
+option (a): R-W2.1 is amended with a fourth authorized channel — bounded
+per-skin proportion deltas of a few layout pixels inside one shared
+aspect-ratio band, with the rendered footprint never falling below the
+current Low-tier block — and the S2/S5 deltas are kept. The reviewer's
+hazard note is binding under this outcome: proportion variation is the
 channel closest to the false-cause rule R-X.12 guards — a "narrowest" skin
 must never read as less mechanical coverage than any other skin on the same
-`ShieldId.TallHardwood` loadout — so if the deltas survive, the manual row
-"skins read as variation, not as different equipment" is the check that
-specifically watches for this, and a failure there drops the deltas before it
-drops any skin.
+`ShieldId.TallHardwood` loadout — so the amendment is guarded by the manual
+false-cause check row "skins read as variation, not as different equipment",
+and a failure there drops the deltas before it drops any skin.
 
 Tone constants are named `PROVISIONAL` client constants inside the documented
 material palette (palm wood, hardwood, resin brown, charred wood), gated by
@@ -284,13 +287,16 @@ generic skins.
 
 - The player-facing shield label stays **`Tall Hardwood Shield`** — the
   plain English descriptor, with no Filipino name attached. This is
-  deliberate and is an open decision, not an oversight: *kalasag* is marked
-  **PENDING attestation** (the vocabulary verification behind OD-1 has not
-  run), and the hundred-year rule forbids shipping an unverified name in
-  pair form. *Palisay* is likewise PENDING (OD-2) and its object is not in
-  the game at all. Until OD-1 resolves, the inspector uses plain English for
-  the shield; the pending names may appear only in inspector research notes
-  explicitly flagged as pending verification (R-X.6, R-W2.6).
+  deliberate, and is now decided: per OD-1, resolved 2026-07-28, the plain
+  label ships this pass, and the pair-form promotion waits for the
+  attestation verification, which remains unscheduled. *Kalasag* stays
+  marked **PENDING attestation**, and the hundred-year rule forbids shipping
+  an unverified name in pair form. *Palisay* is likewise PENDING and its
+  object is not in the game at all; per OD-2, resolved 2026-07-28, it may
+  appear in inspector research notes as metadata only, explicitly flagged
+  attestation-pending. The inspector uses plain English for the shield; the
+  pending names appear only in inspector research notes explicitly flagged
+  as pending verification (R-X.6, R-W2.6).
 - Each skin's inspector entry shows: the label, the skin's source anchor and
   inspiration tag (`Mactan — 1521`, `Manila — c.1590`, ...), its evidence
   tier, and its note. The `mactanThin` skin's note may state that Pigafetta
@@ -378,8 +384,10 @@ No automated test claims to prove these rows.
 - Requirements: workstream 2 (R-W2.1–R-W2.8), cross-cutting R-X.*, and the
   workstream 6 infrastructure requirements (R-W6.1–R-W6.5, R-W6.16,
   R-W6.17).
-- Open decision OD-1 (kalasag attestation) is an upstream research/user
-  decision this design is written to be correct under either outcome of.
+- Open decision OD-1 (kalasag attestation) was an upstream research/user
+  decision this design is written to be correct under either outcome of;
+  resolved 2026-07-28 — the plain descriptor ships and the verification
+  remains unscheduled.
 - The canonical gate `./scripts/verify.ps1` after integration; seed-1 hashes
   untouched by design (pure presentation).
 
@@ -408,31 +416,27 @@ No automated test claims to prove these rows.
 
 ## Open decisions
 
-- **OD-1 (inherited, blocking the label only) — Kalasag label promotion.**
-  Commission the vocabulary/Scott verification, or ship with the plain
-  descriptor indefinitely. This design ships the plain descriptor either
-  way; a later positive verification upgrades the label and nothing else.
-- **OD-2 (inherited) — Palisay name in inspector research notes.** Default:
-  inspector-metadata only, flagged pending. No object, no skin.
-- **OD-10 (package-level, blocking the S2/S5 proportion deltas) — Per-skin
-  proportion deltas versus R-W2.1.** The per-skin proportion deltas proposed
-  in the skin table deviate from R-W2.1's exhaustive three-channel list (face
-  tone, rattan-binding accent line, slight outline curvature) and need the
-  user's explicit approval, per the deviation disclosure in the proportion-
-  envelope paragraph above. Option (a): amend R-W2.1 to authorize bounded
-  per-skin proportion deltas of a few layout pixels inside one shared
-  aspect-ratio band, footprint never below the current Low-tier block.
-  Option (b): drop the deltas; S2 and S5 then differentiate by tone and
-  accent only, and their table rows lose the proportion wording. Under either
-  outcome the R-X.12 false-cause hazard stands: no skin — in particular no
-  "narrowest" skin — may read as less mechanical coverage than any other
-  skin on the same loadout.
-- **OD-W2-a — Proportion envelope values.** Contingent on OD-10 resolving to
-  option (a). If the deltas survive, the aspect-ratio band and the per-skin
-  deltas are finalized in the plan under the classification tests; this
-  document fixes only that one shared band exists and that footprint never
-  shrinks below today's Low-tier block. If OD-10 resolves to option (b),
-  this decision collapses to the single shared proportion all skins use.
+- **OD-1 (inherited) — Kalasag label promotion. Resolved 2026-07-28:** ship
+  the plain descriptor `Tall Hardwood Shield` this pass. The pair-form
+  promotion waits for the attestation verification, which remains
+  unscheduled; a later positive verification upgrades the label and nothing
+  else.
+- **OD-2 (inherited) — Palisay name in inspector research notes. Resolved
+  2026-07-28:** inspector-metadata only, flagged attestation-pending. No
+  object, no skin.
+- **OD-10 (package-level) — Per-skin proportion deltas versus R-W2.1.
+  Resolved 2026-07-28, option (a):** R-W2.1 is amended to authorize a fourth
+  channel — bounded per-skin proportion deltas of a few layout pixels inside
+  one shared aspect-ratio band, footprint never below the current Low-tier
+  block. The S2/S5 deltas are kept. The R-X.12 false-cause hazard stands and
+  is guarded by the manual check row: no skin — in particular no "narrowest"
+  skin — may read as less mechanical coverage than any other skin on the
+  same loadout.
+- **OD-W2-a — Proportion envelope values.** With OD-10 resolved to option
+  (a), the aspect-ratio band and the per-skin deltas are finalized in the
+  plan under the classification tests; this document fixes only that one
+  shared band exists and that footprint never shrinks below today's
+  Low-tier block.
 - **OD-W2-b — Posture angle and offset values.** `PROVISIONAL` constants
   finalized in the plan; the requirement fixed here is bounds-neutrality
   and Low-tier non-occlusion, not the numbers.
@@ -477,4 +481,6 @@ Manual (rows in `docs/development/testing.md`, created `PENDING`):
 - Forced-failure run shows the diagnostic placeholder conspicuously (shared
   with the integration design's checklist).
 
-This document does not authorize implementation.
+This document does not authorize implementation. Implementation authority
+for the 23 milestone tasks comes from the user's dated approval of
+2026-07-28, recorded in the package README.

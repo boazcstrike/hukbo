@@ -13,6 +13,13 @@ parallel with `visual-system-integration-design.md`, which owns the shared
 catalog, fallback, settings, diagnostics, and measurement infrastructure this
 design depends on. A plan document must follow before any code changes.
 
+On 2026-07-28 the user resolved all ten package open decisions — including
+OD-5 (the earned red putong stays excluded this pass, recorded as a backlog
+item in `docs/plans/TODO.md`) and OD-3 (the Unscoped-generic block accepted
+as the sole Mindanao/Sulu coverage this pass) — and approved the 23-task
+first milestone for implementation. The decision record is in the package
+README.
+
 ## Scope
 
 In scope:
@@ -36,8 +43,9 @@ Out of scope:
   or AI (R-X.11). Appearance is presentation-only, recomputed per frame from
   immutable identity.
 - Weapon and shield variants (workstreams 1 and 2, designed separately).
-- The earned red putong (component C2) — flagged as an open decision, not
-  designed here (see Open decisions).
+- The earned red putong (component C2) — excluded per OD-5, resolved
+  2026-07-28; recorded as a backlog item in `docs/plans/TODO.md` (see Open
+  decisions).
 - Sprites, textures, atlases, or content-pipeline changes. Everything renders
   through the existing procedural rectangle-and-line pipeline on the 1x1
   white texture.
@@ -468,20 +476,23 @@ meaning is one click away, and nothing is inspector-invisible.
 
 ## Open decisions
 
-- **OD-5 — Earned red putong (C2).** The research documents the red head
-  wrap as an earned Visayan insignia that must never be a random roll, and
-  `AgentView` carries no kill or veteran data. Presenting it would require
-  bounded, client-only presentation-state kill tracking fed by `Death`
-  events. This design deliberately does not design that mechanism; C2 is
-  excluded from the roster until the user decides. If approved, a reserved
+- **OD-5 — Earned red putong (C2). Resolved 2026-07-28:** C2 stays excluded
+  from this pass. The research documents the red head wrap as an earned
+  Visayan insignia that must never be a random roll, and `AgentView` carries
+  no kill or veteran data; presenting it would require bounded, client-only
+  presentation-state kill tracking fed by `Death` events, which this design
+  deliberately does not design. The earned-insignia display is recorded as a
+  backlog item in `docs/plans/TODO.md`. If it is ever approved, a reserved
   preset (VIS-R1: VIS-05 with the wrap in sappan red) is the intended shape.
 - **OD-1/OD-2 — pending term promotions** (*kalasag*, *palisay*, and the
-  inspector-metadata terms): inherited from the requirements; this design
-  ships plain-English labels and flagged inspector metadata either way.
-- **OD-3 — Mindanao/Sulu gap:** this roster deliberately contains no
-  Mindanao- or Sulu-flavored presets; the generic levy block is the only
-  coverage, per the research's scope. Commissioning further research is the
-  user's call.
+  inspector-metadata terms): inherited from the requirements; resolved
+  2026-07-28 — plain-English labels ship this pass and the pending names
+  appear only as flagged inspector metadata, exactly as this design already
+  ships.
+- **OD-3 — Mindanao/Sulu gap. Resolved 2026-07-28:** the Unscoped-generic
+  levy block is accepted as the sole Mindanao/Sulu coverage this pass; this
+  roster deliberately contains no Mindanao- or Sulu-flavored presets, per
+  the research's scope, and no further research is commissioned now.
 - **OD-W3-a — Block-assignment table breadth:** whether both factions in a match may
   draw the same regional block (visually plausible, historically common) or
   must draw distinct blocks (better faction separation). Recommended default:
@@ -523,4 +534,6 @@ only a human at an interactive desktop may flip them):
 Human review task (not a test): line-by-line historical review of the roster
 table against the research document.
 
-This document does not authorize implementation.
+This document does not authorize implementation. Implementation authority
+for the 23 milestone tasks comes from the user's dated approval of
+2026-07-28, recorded in the package README.

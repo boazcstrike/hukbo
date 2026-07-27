@@ -1,7 +1,9 @@
 # Requirements — Hukbo Visual Improvement Pass
 
-Date: 2026-07-28. Status: requirements for planning. This document converts the
-four research inputs into testable requirements. It authorizes no
+Date: 2026-07-28. Status: requirements for planning; all ten open decisions
+were resolved by the user on 2026-07-28 (see "Open decisions" at the end of
+this document), and R-W4.8 and R-W2.1 are amended accordingly. This document
+converts the four research inputs into testable requirements. It authorizes no
 implementation; the design and plan documents required by `CLAUDE.md` section 6
 follow it.
 
@@ -221,12 +223,16 @@ Scope: presentation-only skins and posture for the existing
   anchors — S1 (Mactan thin wood), S2 (Morga full-body), S3 (Boxer Codex
   Cagayan), S5 (Visayan kalasag form) — expressed only as presentation-level
   differences: face tone within the palette, a rattan-binding accent line,
-  and slight outline curvature. All four MUST read as "tall body shield" at
-  every detail tier. DEVIATION FLAGGED — the shield design proposes per-skin
-  proportion deltas beyond this list; tracked as OD-10, user approval
-  required (either amend R-W2.1 with bounded deltas inside one shared
-  aspect-ratio band, footprint never below the Low-tier block, or the design
-  drops the deltas).
+  and slight outline curvature, plus the fourth channel added by the OD-10
+  amendment below. All four MUST read as "tall body shield" at every detail
+  tier. *Amended per OD-10, resolved 2026-07-28, option (a):* a fourth
+  authorized difference channel exists — bounded per-skin proportion deltas
+  of a few layout pixels inside one shared aspect-ratio band, with the
+  rendered footprint never falling below the current Low-tier block
+  (preserving R-W2.2). The amendment is guarded by a manual false-cause check
+  row: a narrower skin must never read as less mechanical coverage than any
+  other skin on the same `TallHardwood` loadout (R-X.12). The shield design's
+  S2/S5 proportion deltas are kept under this channel.
 - **R-W2.2 (MUST)** Shield presence remains drawn at every detail tier
   (existing rule); no skin may reduce the shield block's footprint below the
   current Low-tier legibility.
@@ -326,8 +332,10 @@ three-trait placeholder variation.
   presets, and no invented "slave costume".
 - **R-W3.10 (MUST)** The red head wrap (C2) is an earned insignia and MUST
   NOT be assigned by random roll. Because `AgentView` carries no kill or
-  veteran data, shipping C2 requires the open decision OD-5; until decided,
-  C2 stays out of the preset pool.
+  veteran data, shipping C2 required the open decision OD-5. *Resolved
+  2026-07-28:* C2 is excluded from this pass; the earned-insignia idea is
+  recorded as a backlog item in `docs/plans/TODO.md`. C2 stays out of the
+  preset pool.
 - **R-W3.11 (MUST)** Condition options (K1–K5) are presentation-only, carry
   the "no historical claim" marker, and are never described to the player as
   historical detail.
@@ -383,16 +391,20 @@ dust — all client-side, extending `PlainsBackdropGeometry` /
   via `Color.Lerp(ArenaSurface, ArenaBorder, t)`.
 - **R-W4.2 (MUST)** The backdrop interpolation ceiling 0.22 binds every new
   shade: grass, trample, and dust tones MUST all sit at or below it, pinned
-  by tests in the same style as the current shade pins.
+  by tests in the same style as the current shade pins. (The dust-shade
+  obligation applies only if dust ships — dust is optional per OD-9, resolved
+  2026-07-28.)
 - **R-W4.3 (MUST)** Grass clusters are generated once per scenario (creation
   and reset only, never per tick or frame) by two-level placement — cluster
   centers, then tufts with square-root radial falloff — from `SplitMix64`
   seeded by `Scenario.Seed` XOR a **new** named salt. The existing plains
   salt is not reused, so today's decals do not shift.
 - **R-W4.4 (MUST)** All caps are named constants with tests: grass clusters
-  ≤ 320, quads per cluster ≤ 4, trample marks ≤ 128, live dust puffs ≤ 32,
-  existing grid (48x48) and decal (256) caps unchanged. Density scales only
-  with map area under the caps, never with agent count or frame rate.
+  ≤ 320, quads per cluster ≤ 4, trample marks ≤ 128, live dust puffs ≤ 32
+  (the dust cap applies only if dust ships — dust is optional per OD-9,
+  resolved 2026-07-28), existing grid (48x48) and decal (256) caps unchanged.
+  Density scales only with map area under the caps, never with agent count or
+  frame rate.
 - **R-W4.5 (MUST)** No authored textures, no content-pipeline changes, no new
   packages, no shaders: everything draws from the existing 1x1 white texture
   inside the existing arena `SpriteBatch` Begin/End pair, adding zero GPU
@@ -407,13 +419,15 @@ dust — all client-side, extending `PlainsBackdropGeometry` /
   `Attack` events, throttled), drawn under grass; clusters within a trample
   radius draw reduced with zero sway. Resets with the scenario; never
   persists; never feeds back.
-- **R-W4.8 (MUST)** Dust puffs follow the `HitEffectSystem` lifecycle shape:
-  `Death` spawns a brief puff, `Attack` MAY spawn a throttled kick, `Move`
-  events MUST NOT spawn per-event effects, and `Outcome` SHOULD stop new
-  spawns. Sub-second lifetimes, ground-shade colors. CONTRADICTION FLAGGED —
-  the battlefield design scopes dust as MAY; tracked as open decision OD-9,
-  user approval required; R-W4.4's dust cap and R-W4.2's dust shade
-  obligations are conditional on the same decision.
+- **R-W4.8 (MAY)** *Downgraded from MUST to MAY by user approval, OD-9,
+  resolved 2026-07-28.* Dust puffs are optional scope: task VIS-029 is
+  unblocked but optional. If dust ships, it follows the `HitEffectSystem`
+  lifecycle shape: `Death` spawns a brief puff, `Attack` MAY spawn a
+  throttled kick, `Move` events MUST NOT spawn per-event effects, and
+  `Outcome` SHOULD stop new spawns. Sub-second lifetimes, ground-shade
+  colors. If dust ships, the MotionIntensity setting at Off suppresses dust
+  spawning entirely and Reduced leaves dust unchanged. R-W4.4's dust cap and
+  R-W4.2's dust shade obligations are conditional on dust actually shipping.
 - **R-W4.9 (MUST)** Historical framing: the ground depicts generic open
   ground labelled **Provisional reconstruction** in metadata; no player-facing
   text names the vegetation, region, or land use; rice terraces and paddies
@@ -489,7 +503,11 @@ shaders, no per-sprite effects, no batch breaks.
   reusing that theme's eliminate-visual-noise purpose, matching the zero-sway
   precedent of the 0.22 decal ceiling.
 - **R-W5.8 (MUST)** The reduced-motion setting (R-W6.8) gates sway: off
-  means factor 0; the same factor provides a half-amplitude mode.
+  means factor 0; the same factor provides a half-amplitude mode. Per OD-8
+  (resolved 2026-07-28), the MotionIntensity setting governs all ambient
+  presentation motion — grass sway now, dust (if it ships) and any future
+  ambient motion included; gameplay-communicating motion (swings, hit
+  effects) stays exempt.
 - **R-W5.9 (MUST)** Sway is presentation-only in every direction: it reads
   nothing from the simulation except what the client already renders, and
   trample-suppressed clusters sway at zero amplitude (R-W4.7).
@@ -570,8 +588,10 @@ that everything above budgets against.
   a menu selector UI; and tests covering manager, selector, and store
   round-trip.
 - **R-W6.7 (SHOULD)** The setting SHOULD offer at least Off / Reduced / Full
-  (Reduced maps to the half-amplitude factor). Its exact scope — grass only,
-  or also future ambient motion — is open decision OD-8.
+  (Reduced maps to the half-amplitude factor). Its scope is decided per OD-8
+  (resolved 2026-07-28): the setting governs all ambient presentation motion
+  — grass sway now, with dust (if it ships) and future ambient motion
+  included; gameplay-communicating motion stays exempt.
 - **R-W6.8 (MUST)** Settings failures never lose the saved theme or other
   fields (the independent-validation rule), and every load/save/failure logs
   on the `settings` channel as today.
@@ -680,56 +700,59 @@ events.
 | 1 — Weapon variants | 9 | 6 | 2 | 1 |
 | 2 — Shield variants | 8 | 7 | 1 | 0 |
 | 3 — Appearance presets | 15 | 13 | 1 | 1 |
-| 4 — Ground and vegetation | 12 | 10 | 1 | 1 |
+| 4 — Ground and vegetation | 12 | 9 | 1 | 2 |
 | 5 — Wind and motion | 10 | 9 | 0 | 1 |
 | 6 — Infrastructure | 18 | 16 | 2 | 0 |
-| **Total** | **88** | **76** | **8** | **4** |
+| **Total** | **88** | **75** | **8** | **5** |
 
-## Open decisions requiring user approval
+(The workstream-4 counts reflect the OD-9 amendment of R-W4.8 from MUST to
+MAY, resolved 2026-07-28.)
 
-- **OD-1 — Kalasag label promotion.** Upgrade the shield label to `Kalasag —
-  Tall Hardwood Shield` only if the vocabulary attestation is verified inside
-  the hundred-year window (Scott's *Barangay* warfare chapter or the early
-  vocabularies, both unread at page level). Options: commission that
-  verification as a research task, or ship with the plain descriptor.
-- **OD-2 — Palisay.** The buckler is out of scope mechanically (R-X.12); the
-  only live question is whether its pending name may appear in inspector
-  research notes. Default: inspector-metadata only, flagged pending.
-- **OD-3 — Mindanao/Sulu gap.** The 1500s source set is thin for Mindanao and
-  Sulu lowland warriors and the research deliberately leaves them unmodeled.
-  Options: accept the Unscoped-generic block as the only coverage, or
-  commission further research before any Mindanao-flavored preset exists.
-- **OD-4 — Sprite versus procedural direction.** The environment research
-  recommends, and the existing-code analysis strongly supports, staying fully
-  procedural (no textures, no content-pipeline change, no shader). Sprites
-  remain a possible later direction. This document is written to the
-  procedural path; confirm it so the design doc does not have to hedge.
-- **OD-5 — Earned red putong (C2).** `AgentView` exposes no kill or veteran
-  marker. Options: (a) exclude C2 from this pass; (b) add bounded
-  presentation-state kill tracking from `Death` events in the client (the
-  event's source identity permitting), classified presentation-state and
-  reset with the scenario. (b) is attractive — it is exactly the
-  spectator-discoverable battle-honor display the sources describe — but it
-  is new presentation-state and needs the user's yes.
-- **OD-6 — Default theme ground tint.** Whether to shift the default theme's
-  ground toward cogon olive-gold is a theme-color tuning change reviewed on
-  its own, not part of the renderer work.
-- **OD-7 — Shape-redundant faction marker.** Whether to add a non-hue faction
-  channel (for example a ring shape difference) for color-blind spectators,
-  beyond the no-regression floor in R-W6.10.
-- **OD-8 — Reduced-motion scope.** Whether the new setting governs only
-  grass sway or is defined broadly enough to later cover other ambient
-  motion (swing and hit effects are gameplay-communicating and should stay
-  exempt either way).
-- **OD-9 — Dust MUST versus MAY.** R-W4.8 marks dust as MUST while the
-  battlefield design scopes it as MAY; the two must agree before
-  implementation, and dropping the MUST needs the user's explicit approval.
-  Recommended if dust ships: MotionIntensity Off suppresses dust spawning;
-  Reduced leaves dust unchanged. R-W4.4's dust cap and R-W4.2's dust shade
-  obligations follow the same decision.
-- **OD-10 — Shield per-skin proportion deltas.** The shield design proposes
-  per-skin proportion deltas beyond R-W2.1's authorized channels (face tone,
-  rattan-binding accent, slight outline curvature). Either amend R-W2.1 to
-  allow bounded deltas inside one shared aspect-ratio band with the skin
-  footprint never below the current Low-tier block, or the design drops the
-  deltas. User approval required.
+## Open decisions — all Resolved 2026-07-28
+
+The user resolved all ten decisions on 2026-07-28, in every case choosing the
+recommended default (option A), and approved the 23-task first milestone for
+implementation. The outcomes below are binding:
+
+- **OD-1 — Kalasag label promotion. Resolved 2026-07-28:** ship the plain
+  `Tall Hardwood Shield` label this pass. The pair-form promotion `Kalasag —
+  Tall Hardwood Shield` waits for the attestation verification (Scott's
+  *Barangay* warfare chapter or the early vocabularies), which remains
+  unscheduled.
+- **OD-2 — Palisay. Resolved 2026-07-28:** the *palisay* name may appear in
+  inspector research notes as metadata only, explicitly flagged
+  attestation-pending. The buckler stays out of scope mechanically (R-X.12).
+- **OD-3 — Mindanao/Sulu gap. Resolved 2026-07-28:** the Unscoped-generic
+  preset block is accepted as the sole Mindanao/Sulu coverage this pass; no
+  further research is commissioned now.
+- **OD-4 — Sprite versus procedural direction. Resolved 2026-07-28:** fully
+  procedural rendering is confirmed — no textures, no content-pipeline
+  change, no shader. Sprites remain a possible later direction under the
+  integration design's recorded re-entry criteria.
+- **OD-5 — Earned red putong (C2). Resolved 2026-07-28:** C2 is excluded
+  from this pass. The earned-insignia display (bounded client-side kill
+  tracking from `Death` events) is recorded as a backlog item in
+  `docs/plans/TODO.md`.
+- **OD-6 — Default theme ground tint. Resolved 2026-07-28:** the default
+  theme's ground shifts toward cogon olive-gold this pass, with the tuning
+  values tagged provisional. Exploration of jungle/plains ground treatments
+  is recorded as a backlog item in `docs/plans/TODO.md`.
+- **OD-7 — Shape-redundant faction marker. Resolved 2026-07-28:** deferred;
+  recorded as a backlog item in `docs/plans/TODO.md`. This pass holds the
+  R-W6.10 no-regression floor only.
+- **OD-8 — Reduced-motion scope. Resolved 2026-07-28:** the MotionIntensity
+  setting governs all ambient presentation motion — grass sway now, dust and
+  future ambient motion included. Gameplay-communicating motion (swings, hit
+  effects) stays exempt.
+- **OD-9 — Dust MUST versus MAY. Resolved 2026-07-28:** R-W4.8 is downgraded
+  from MUST to MAY by user approval. Task VIS-029 is unblocked but optional.
+  If dust ships, MotionIntensity Off suppresses dust spawning and Reduced
+  leaves dust unchanged; R-W4.4's dust cap and R-W4.2's dust shade
+  obligations apply only if dust ships.
+- **OD-10 — Shield per-skin proportion deltas. Resolved 2026-07-28, option
+  (a):** R-W2.1 is amended with a fourth authorized channel — bounded
+  per-skin proportion deltas of a few layout pixels inside one shared
+  aspect-ratio band, rendered footprint never below the current Low-tier
+  block — guarded by a manual false-cause check row (a narrower skin must
+  never read as less mechanical coverage, R-X.12). The shield design's S2/S5
+  deltas are kept.

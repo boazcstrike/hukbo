@@ -13,6 +13,13 @@ parallel with `visual-system-integration-design.md`, which owns the shared
 settings, diagnostics, and render-measurement infrastructure this design
 depends on. A plan document must follow before any code changes.
 
+On 2026-07-28 the user resolved all ten package open decisions — including
+OD-9 (dust downgraded to MAY; VIS-029 unblocked but optional), OD-8 (the
+MotionIntensity setting governs all ambient presentation motion), and OD-6
+(the default theme's ground shifts toward cogon olive-gold this pass,
+provisional-tagged) — and approved the 23-task first milestone for
+implementation. The decision record is in the package README.
+
 ## Scope
 
 In scope:
@@ -40,8 +47,11 @@ Out of scope:
 - Terrain, elevation, pathfinding, or any ground feature the simulation could
   read — the ground remains purely decorative.
 - Rice terraces and paddies, which must not be depicted (R-W4.9).
-- Theme color retuning (cogon olive-gold default ground is open decision
-  OD-6, a separate reviewed change).
+- Theme color retuning. Per OD-6, resolved 2026-07-28, the default theme's
+  ground shifts toward cogon olive-gold this pass, provisional-tagged — but
+  it remains a theme-tuning change carried out on its own, not part of this
+  renderer work. Exploration of jungle/plains ground treatments is recorded
+  as a backlog item in `docs/plans/TODO.md`.
 
 ## Current state
 
@@ -94,9 +104,11 @@ Verified against the existing-code analysis and environment research:
 ## Requirements
 
 This design implements R-W4.1 through R-W4.12 and R-W5.1 through R-W5.10, and
-is bound by the R-X cross-cutting requirements, with one deliberate scope
-deviation recorded under Open decisions: dust puffs (R-W4.8) are scoped here
-as optional MAY rather than MUST. The most load-bearing requirements:
+is bound by the R-X cross-cutting requirements. The dust scope deviation this
+design originally recorded (dust puffs scoped MAY where R-W4.8 said MUST) is
+resolved: per OD-9, resolved 2026-07-28, R-W4.8 is amended to MAY, so this
+design's optional scoping is now the requirement's own. The most load-bearing
+requirements:
 
 - R-W4.2: the 0.22 interpolation ceiling binds every new shade.
 - R-W4.4 / R-W6.14: every cap is a named constant with a test, never a
@@ -206,8 +218,10 @@ pinned by test:
 - Costs four hashes per cell instead of one — bounded by the unchanged 48x48
   grid cap.
 - Tropical-lowland palette intent (cogon olive-gold) is expressly *not*
-  hard-coded here; if the default theme's ground should shift, that is
-  OD-6, a theme-tuning change reviewed on its own.
+  hard-coded here. Per OD-6, resolved 2026-07-28, the default theme's ground
+  does shift toward cogon olive-gold this pass, with the tuning values
+  tagged provisional — carried out as a theme-tuning change on its own,
+  through the theme system, never as a renderer palette.
 
 Restrained texture variation means exactly this correlated-shading change
 plus the grass clusters below. No authored ground texture: the archived
@@ -320,14 +334,18 @@ delegate, menu selector, and manager/selector/store round-trip tests — is
 specified in `visual-system-integration-design.md`, which owns the settings
 infrastructure; this design consumes the resulting value). Levels: Off /
 Reduced / Full, where Off maps to amplitude factor 0, Reduced to a
-half-amplitude factor, and Full to 1. Whether the setting's scope later
-covers other ambient motion is OD-8; gameplay-communicating animation (swing,
-hit effects) stays exempt either way.
+half-amplitude factor, and Full to 1. Per OD-8, resolved 2026-07-28, the
+MotionIntensity setting governs all ambient presentation motion — grass sway
+now, dust (if it ships under OD-9) and future ambient motion included;
+gameplay-communicating animation (swing, hit effects) stays exempt.
 
 ### Dust and disturbed vegetation (optional scope — MAY)
 
-Scoped as optional in this design: the pass is complete without it, and a
-planner may include it only if the schedule allows. If included, it follows
+Scoped as optional, and the requirement now agrees: per OD-9, resolved
+2026-07-28, R-W4.8 is amended from MUST to MAY, so the pass is complete
+without dust and task VIS-029 is unblocked but optional. If dust ships, the
+MotionIntensity setting at Off suppresses dust spawning entirely and Reduced
+leaves dust unchanged. If included, it follows
 the established event-driven presentation shape (the `HitEffectSystem` /
 `BloodEffectSystem` precedent) with no new events and no Core changes:
 
@@ -342,10 +360,11 @@ Puffs are sub-second, capped at **32 live** (fixed pool, named constant),
 drawn as one or two expanding fading rectangles within the ground shade
 range and the 0.22 ceiling.
 
-Note: `docs/agents/improve-visuals/requirements.md` lists dust (R-W4.8) as
-MUST. This design deliberately records it as MAY on direction from the
-orchestrator; the discrepancy is surfaced under Open decisions for the
-planner and user to resolve rather than silently absorbed.
+Note: `docs/agents/improve-visuals/requirements.md` originally listed dust
+(R-W4.8) as MUST while this design deliberately recorded it as MAY on
+direction from the orchestrator; the discrepancy was surfaced under Open
+decisions rather than silently absorbed, and the user resolved it on
+2026-07-28 (OD-9) by amending R-W4.8 to MAY.
 
 ### Budgets — ESTIMATES pending the measurement harness
 
@@ -430,25 +449,28 @@ contract, the estimates are not.
 
 ## Open decisions
 
-- **OD-9 — Dust scope (deviation from R-W4.8).** The requirements mark dust
-  puffs MUST; this design scopes them MAY per orchestrator direction. The
-  discrepancy is now tracked as package-level open decision OD-9, which
-  requires the user's approval: either amend R-W4.8 to MAY or restore dust
-  to mandatory scope in the plan. Conditional on OD-9, the recommended
-  relationship to the reduced-motion setting is: `MotionIntensity` Off
-  suppresses dust spawning entirely; Reduced leaves dust unchanged.
-- **OD-6 — Default theme ground tint.** Whether to shift the default theme's
-  ground toward cogon olive-gold; a theme-color tuning change reviewed on
-  its own, not part of this renderer work.
-- **OD-8 — Reduced-motion scope.** Grass-only versus a broader ambient-motion
-  definition; owned by the integration design's settings chain.
+- **OD-9 — Dust scope (deviation from R-W4.8). Resolved 2026-07-28:** R-W4.8
+  is amended from MUST to MAY by user approval; task VIS-029 is unblocked
+  but optional. If dust ships, the decided relationship to the setting is:
+  `MotionIntensity` Off suppresses dust spawning entirely; Reduced leaves
+  dust unchanged.
+- **OD-6 — Default theme ground tint. Resolved 2026-07-28:** the default
+  theme's ground shifts toward cogon olive-gold this pass, tuning values
+  tagged provisional — a theme-color tuning change carried out on its own,
+  not part of this renderer work. Exploration of jungle/plains ground
+  treatments is recorded as a backlog item in `docs/plans/TODO.md`.
+- **OD-8 — Reduced-motion scope. Resolved 2026-07-28:** the MotionIntensity
+  setting governs all ambient presentation motion — grass sway now, dust and
+  future ambient motion included; gameplay-communicating motion stays
+  exempt. Owned by the integration design's settings chain.
 - **OD-W4-a — Trample `Attack` feed.** Whether melee `Attack` events (throttled) also
   create trample marks, or `Death` only. Recommended default: `Death` only
   in the first pass; `Attack` throttling adds tuning surface with little
-  added read.
+  added read. Not blocked on any package decision; decided in the plan.
 - **OD-W4-b — Wave shape.** Sine versus triangle wave for the sway oscillator — a
   pure implementation detail, but the choice must be pinned by test either
-  way so the formula never drifts silently.
+  way so the formula never drifts silently. Not blocked on any package
+  decision; decided at implementation.
 
 ## Acceptance criteria
 
@@ -500,4 +522,6 @@ only a human at an interactive desktop may flip them):
 - No motion visible at minimum zoom.
 - The high-contrast theme shows zero motion.
 
-This document does not authorize implementation.
+This document does not authorize implementation. Implementation authority
+for the 23 milestone tasks comes from the user's dated approval of
+2026-07-28, recorded in the package README.

@@ -5,13 +5,16 @@ Date: 2026-07-28. Part of the visual improvement package
 
 ## Status
 
-**Planning draft. This document does not authorize implementation.** It orders
-the work described by the five design documents in this directory into
-granular tasks, and it now waits for the user's review. No task below may
-start before the user approves the package — including open decision **OD-4**
-(confirmation of the fully procedural direction), which every task assumes.
-Per `CLAUDE.md` section 6, only that approval turns this draft into an
-executable plan.
+**Approved in part: on 2026-07-28 the user resolved all ten package open
+decisions (OD-1 through OD-10, each to its recommended default — see the
+decision record in `docs/plans/improve-visuals/README.md` and the resolved
+outcomes in `docs/agents/improve-visuals/requirements.md`) and approved the
+23-task first milestone, authorizing its implementation.** OD-4
+(confirmation of the fully procedural direction), which every task assumes,
+is confirmed. The non-milestone tasks remain planned but not yet authorized:
+the post-milestone expansion awaits the milestone review. This document
+orders the work described by the five design documents in this directory
+into granular tasks.
 
 Inputs consumed:
 
@@ -83,18 +86,16 @@ VIS-043, VIS-044, VIS-046, VIS-047.
 Surfaced for the user, not silently resolved. Where a task depends on one of
 these, the task names it as a blocking decision.
 
-1. **Dust: MUST versus MAY (known, carried forward — now package-level open
-   decision OD-9).** Requirement R-W4.8 marks dust puffs MUST;
-   `battlefield-environment-design.md` deliberately scopes them MAY "per
-   orchestrator direction" and surfaces the discrepancy itself. This plan
-   carries dust as task VIS-029, **blocked on OD-9**: the user either amends
-   R-W4.8 to MAY or confirms dust as mandatory scope (user approval
-   required either way, because the requirements document is the
-   authority). Recorded alongside OD-9, per the review's RF-11: if dust
-   ships, the recommended setting interaction is that `MotionIntensity` Off
-   suppresses dust spawning while Reduced leaves dust unchanged, and
-   VIS-031's truth table gains the corresponding row. The milestone and the
-   rest of the package do not depend on the answer.
+1. **Dust: MUST versus MAY (package-level open decision OD-9 — resolved
+   2026-07-28).** Requirement R-W4.8 marked dust puffs MUST;
+   `battlefield-environment-design.md` deliberately scoped them MAY "per
+   orchestrator direction" and surfaced the discrepancy itself. The user
+   resolved OD-9 on 2026-07-28 by amending R-W4.8 to MAY: task VIS-029 is
+   unblocked but optional. Per the review's RF-11, if dust ships, the
+   decided setting interaction is that `MotionIntensity` Off suppresses dust
+   spawning while Reduced leaves dust unchanged, and VIS-031's truth table
+   gains the corresponding row. The milestone and the rest of the package do
+   not depend on whether dust ships.
 2. **Catalog identifier grammar.** The integration design (section 2)
    specifies lowercase dotted `<domain>.<family>.<variant>` with examples like
    `shield.tallhardwood.s1`. The weapon design mints four-segment camelCase
@@ -524,8 +525,9 @@ these, the task names it as a blocking decision.
   identical to today for both tints (only color differs).
 - **Rollback:** Remove the tint application; the factory falls back to the
   single current appearance; catalog entries are inert data.
-- **Blocking decisions:** OD-W1-b (final tint hex values — decided here under
-  the envelope tests); inherited OD-4.
+- **Blocking decisions:** None remaining — OD-W1-b (final tint hex values)
+  is decided here under the envelope tests; inherited OD-4 is resolved
+  (procedural confirmed 2026-07-28).
 - **Prohibited scope:** No wavy blade at pawn scale at any tier (R-W1.4); no
   per-variant length or reach delta (false-cause rule); no new `WeaponId`.
 
@@ -659,8 +661,9 @@ these, the task names it as a blocking decision.
   skin, and is unreachable by the stream until VIS-014 grows the modulus.
 - **Rollback:** Drop the tone application; the default entry is today's
   drawing.
-- **Blocking decisions:** Inherited OD-4. OD-1 does **not** block this task
-  (the label stays `Tall Hardwood Shield` regardless).
+- **Blocking decisions:** None remaining — inherited OD-4 is resolved
+  (procedural confirmed 2026-07-28). OD-1 never blocked this task, and its
+  2026-07-28 resolution confirms the label stays `Tall Hardwood Shield`.
 - **Prohibited scope:** No footprint or shape change; no new `ShieldId`; no
   breast-high, round, buckler, pronged, or tufted forms (R-W2.4); no kalasag
   label anywhere player-facing.
@@ -705,17 +708,20 @@ these, the task names it as a blocking decision.
 - **Acceptance criteria:** Classification band tests green; all four skins
   ship; skin count is exactly four plus default (R-W2.1 pin).
 - **Rollback:** Reduce the modulus back to 1; S1-only remains valid.
-- **Blocking decisions:** **OD-10 (from review finding RF-08):** the
-  per-skin proportion deltas (S2 at the tall end of the band, S5 the
-  narrowest) exceed the difference channels R-W2.1 authorizes (face tone,
-  rattan accent line, slight outline curvature) and sit closest to the
-  false-cause hazard R-X.12 guards. They require the user's approval of an
-  R-W2.1 amendment. Until OD-10 is approved, this task ships tone, accent,
-  and curvature only, with every per-skin proportion delta set to zero.
-  Also: OD-W2-a (band values — decided here under the tests, and only
-  meaningful if OD-10 approves the deltas); OD-W2-c (whether `boxerCagayan`
-  keeps the vertical seam — decided here, default keep, revisited against
-  the manual rows).
+- **Blocking decisions:** None remaining — **OD-10 (from review finding
+  RF-08) is resolved 2026-07-28, option (a):** R-W2.1 is amended with a
+  fourth authorized channel, so this task ships the bounded per-skin
+  proportion deltas (S2 at the tall end of the band, S5 the narrowest) as
+  authorized — a few layout pixels inside the one shared aspect-ratio band,
+  footprint never below the current Low-tier block. The amendment is guarded
+  by the manual false-cause check row "skins read as variation, not as
+  different equipment": a narrower skin must never read as less mechanical
+  coverage than any other skin on the same loadout (R-X.12), and a failure
+  there drops the deltas before it drops any skin. Also decided in this
+  task: OD-W2-a (band values — decided here under the tests, now meaningful
+  since the deltas are approved); OD-W2-c (whether `boxerCagayan` keeps the
+  vertical seam — decided here, default keep, revisited against the manual
+  rows).
 - **Prohibited scope:** As VIS-013; additionally no fifth skin (the
   evidence's count is four) and no carved-face decoration.
 
@@ -788,9 +794,11 @@ these, the task names it as a blocking decision.
 - **Expected artifacts:** Diffs, tests, green output.
 - **Acceptance criteria:** Negative suite green; every skin discoverable.
 - **Rollback:** Revert; inspector shows the loadout line only.
-- **Blocking decisions:** OD-1 (label promotion — this task ships the plain
-  label either way; a later positive verification changes one string);
-  OD-2 (palisay note — default inspector-metadata-only, flagged).
+- **Blocking decisions:** None remaining — OD-1 is resolved 2026-07-28 (the
+  plain label ships; the pair-form promotion waits for the attestation
+  verification, unscheduled; a later positive verification changes one
+  string); OD-2 is resolved 2026-07-28 (the palisay note is
+  inspector-metadata only, flagged attestation-pending).
 - **Prohibited scope:** No pair-form shield label; no unverified quotation
   (the Morga "top to toe" passage stays out until verified).
 
@@ -940,7 +948,10 @@ these, the task names it as a blocking decision.
 - **Acceptance criteria:** Full catalog validates; C2 absent; caps pinned.
 - **Rollback:** Revert; the milestone subset remains sufficient for the levy
   block.
-- **Blocking decisions:** OD-5 (C2 stays out until decided); inconsistency 4.
+- **Blocking decisions:** Inconsistency 4 (resolved within this task against
+  the research text). OD-5 is resolved 2026-07-28: C2 stays excluded this
+  pass (backlog item in `docs/plans/TODO.md`), so its absence here is the
+  decided state, not a wait.
 - **Prohibited scope:** No brass/bronze plate, mail, or greaves; no European
   elements; no footwear; no Moro-specific kit; no motif rendering (R-X.8).
 
@@ -982,8 +993,10 @@ these, the task names it as a blocking decision.
 - **Acceptance criteria:** Twenty valid presets; roster-wide suites green.
 - **Rollback:** Remove the block from the assignment table; factions fall
   back to remaining blocks.
-- **Blocking decisions:** OD-3 (this block is Visayas-scoped; the
-  Mindanao/Sulu gap stays open); OD-5 (VIS-R1 reserved, not shipped).
+- **Blocking decisions:** None remaining — OD-3 is resolved 2026-07-28 (the
+  Unscoped-generic block is the accepted sole Mindanao/Sulu coverage this
+  pass); OD-5 is resolved 2026-07-28 (C2 excluded; VIS-R1 reserved, not
+  shipped; backlog item in `docs/plans/TODO.md`).
 - **Prohibited scope:** No red putong (C2); no preset outside the design
   table; no motif tattoos.
 
@@ -1053,8 +1066,10 @@ these, the task names it as a blocking decision.
 - **Rollback:** Remove blocks from the table; levy-only assignment remains a
   working configuration.
 - **Blocking decisions:** The same-block-versus-distinct-block product call
-  (warrior design open decision; recommended default: same block allowed);
-  OD-3.
+  (warrior design open decision; recommended default: same block allowed).
+  OD-3 is resolved 2026-07-28: the Unscoped-generic block is the accepted
+  sole Mindanao/Sulu coverage this pass, so no Mindanao/Sulu preset waits on
+  it.
 - **Prohibited scope:** No Mindanao- or Sulu-flavored preset (OD-3); no
   feathered headdress outside this block.
 
@@ -1126,8 +1141,8 @@ these, the task names it as a blocking decision.
 - **Expected artifacts:** Diffs, tests, green output.
 - **Acceptance criteria:** Every preset discoverable; negatives green.
 - **Rollback:** Revert; appearance renders without inspector detail.
-- **Blocking decisions:** OD-2-class pending-term handling (default:
-  flagged inspector metadata only).
+- **Blocking decisions:** None remaining — OD-2-class pending-term handling
+  is resolved 2026-07-28: flagged inspector metadata only.
 - **Prohibited scope:** No bare Filipino term player-facing; no "ancient
   Philippines" phrasing (R-X.10).
 
@@ -1243,8 +1258,9 @@ these, the task names it as a blocking decision.
   `src/Hukbo.Client/Rendering/PlainsBackdropRenderer.cs` (formula call site
   only), `tests/Hukbo.Client.Tests/PlainsBackdropGeometryTests.cs`.
 - **Historical evidence dependency:** Provisional reconstruction framing
-  only; expressly no hard-coded cogon palette (OD-6 is a separate theme
-  review).
+  only; expressly no hard-coded cogon palette (OD-6, resolved 2026-07-28,
+  approves the cogon olive-gold shift as a separate provisional-tagged
+  theme-tuning change, never a renderer palette).
 - **Determinism classification:** Pure-presentation — pure seeded function;
   camera-independent; zero allocation via the single tested formula.
 - **Implementation steps:**
@@ -1265,8 +1281,10 @@ these, the task names it as a blocking decision.
   cell bounded by the unchanged 48x48 grid cap.
 - **Rollback:** Revert to the per-cell hash; both formulas are pure and the
   ladder is unchanged.
-- **Blocking decisions:** Inconsistency 3 (salt choice); OD-6 explicitly out
-  of scope here.
+- **Blocking decisions:** Inconsistency 3 (salt choice; proposed default a
+  new named salt). OD-6, resolved 2026-07-28, stays explicitly out of scope
+  here — the approved cogon olive-gold shift is a theme-tuning change
+  carried out on its own.
 - **Prohibited scope:** No new theme roles; no authored ground texture; no
   change to the grid cap or cell size.
 
@@ -1313,14 +1331,16 @@ these, the task names it as a blocking decision.
 - **Prohibited scope:** No persistence; no feedback into anything; no
   unbounded growth.
 
-### VIS-029 — Dust puffs *(blocked pending OD-9)*
+### VIS-029 — Dust puffs *(optional per OD-9, resolved 2026-07-28)*
 
 - **Goal:** Event-driven dust in the `HitEffectSystem` shape: `Death` spawns
   a brief puff, `Attack` may spawn a throttled kick, `Move` never spawns,
   `Outcome` stops new spawns; sub-second lifetimes; 32 live puffs (named
-  constant); ground-shade colors under the ceiling (R-W4.8).
-- **Dependencies:** VIS-026. Post-milestone. **Blocked** until the user
-  resolves OD-9 (inconsistency 1: dust MUST versus MAY).
+  constant); ground-shade colors under the ceiling (R-W4.8, now MAY per
+  OD-9).
+- **Dependencies:** VIS-026. Post-milestone. Unblocked by the 2026-07-28
+  resolution of OD-9 (inconsistency 1), and **optional**: R-W4.8 is amended
+  to MAY, so this task ships only if the schedule allows.
 - **Files:** `src/Hukbo.Client/Presentation/DustEffectSystem.cs` *(new)*;
   `src/Hukbo.Client/Rendering/DustGeometry.cs` *(new)*;
   `src/Hukbo.Client/Rendering/GrassRenderer.cs` or a small
@@ -1343,12 +1363,12 @@ these, the task names it as a blocking decision.
 - **Expected artifacts:** New system, geometry, tests; green output.
 - **Acceptance criteria:** All lifecycle tests green; cap pinned.
 - **Rollback:** Unwire ingest; no dust, nothing else affected.
-- **Blocking decisions:** **OD-9 (inconsistency 1) — the user must confirm
-  dust as MUST (implement) or amend R-W4.8 to MAY (defer or drop).** If
-  dust ships, the recorded recommendation applies: `MotionIntensity` Off
-  suppresses dust spawning, Reduced leaves dust unchanged, and VIS-031's
-  amplitude-resolution truth table gains the corresponding dust row in the
-  same diff.
+- **Blocking decisions:** None remaining — **OD-9 (inconsistency 1) is
+  resolved 2026-07-28: R-W4.8 is amended to MAY, so this task is unblocked
+  but optional.** If dust ships, the decided behavior applies:
+  `MotionIntensity` Off suppresses dust spawning, Reduced leaves dust
+  unchanged, and VIS-031's amplitude-resolution truth table gains the
+  corresponding dust row in the same diff.
 - **Prohibited scope:** No per-`Move` effects; no playback-speed scaling on
   the dust clock; no new events in Core.
 
@@ -1424,10 +1444,13 @@ these, the task names it as a blocking decision.
 - **Expected artifacts:** Diffs and tests; green output.
 - **Acceptance criteria:** Truth table green; single consumption point.
 - **Rollback:** Hard-code factor 0; motion disabled everywhere.
-- **Blocking decisions:** OD-8 decides wording and documented scope, not
-  this function's shape (identical either way, per the integration design).
-  OD-9: if dust ships, this task's truth table gains the decided dust row
-  (Off suppresses dust spawning, Reduced leaves dust unchanged) via
+- **Blocking decisions:** None remaining — OD-8 is resolved 2026-07-28: the
+  MotionIntensity setting governs all ambient presentation motion (grass
+  sway now, dust and future ambient motion included; gameplay-communicating
+  motion exempt); the wording and documented scope follow that resolution,
+  and the function's shape is unchanged. OD-9 is resolved 2026-07-28: dust
+  is optional; if it ships, this task's truth table gains the decided dust
+  row (Off suppresses dust spawning, Reduced leaves dust unchanged) via
   VIS-029's diff.
 - **Prohibited scope:** No second amplitude path; no gameplay-communicating
   motion (swings, hit effects) routed through this factor.
@@ -1487,11 +1510,13 @@ these, the task names it as a blocking decision.
   settings are lost once, the player re-selects them, and the next save
   rewrites a version-3 file. There is no migration in the rollback
   direction; this one-time settings loss is the accepted cost of reverting.
-- **Blocking decisions:** OD-8 (scope wording in the selector's caption and
-  docs; plumbing identical either way).
+- **Blocking decisions:** None remaining — OD-8 is resolved 2026-07-28: the
+  MotionIntensity setting governs all ambient presentation motion (grass
+  sway now, dust and future ambient motion included), and the selector's
+  caption and docs are worded to that scope; the plumbing is unchanged.
 - **Prohibited scope:** No effect on swings or hit effects (gameplay
-  communication stays exempt in both OD-8 readings); no second settings
-  file.
+  communication stays exempt under the resolved OD-8 scope); no second
+  settings file.
 
 ### VIS-033 — Color-blind no-regression guard and theme contrast continuity
 
@@ -1527,8 +1552,10 @@ these, the task names it as a blocking decision.
 - **Acceptance criteria:** Sweep green over the full shipped color set.
 - **Rollback:** Tests only; removing them restores no risk mechanically but
   drops the guard — revert not expected.
-- **Blocking decisions:** OD-7 (a genuinely shape-redundant marker is not
-  designed or implemented in this pass; this task holds the floor only).
+- **Blocking decisions:** None remaining — OD-7 is resolved 2026-07-28:
+  the shape-redundant faction marker is deferred (backlog item in
+  `docs/plans/TODO.md`); this task holds the no-regression floor only, as
+  planned.
 - **Prohibited scope:** No change to the fixed faction constants; no new
   theme roles.
 
@@ -1969,15 +1996,34 @@ the cross-cutting suites that bind the package together.
 ### VIS-046 — Documentation updates and decision record
 
 - **Goal:** Bring the package's documentation to its shipped state: update
-  the package README's status and document map; record every open decision's
-  outcome (OD-1 through OD-8; OD-9 — the dust resolution; OD-10 — the
-  R-W2.1 shield-proportion amendment; OD-W1-a/b/c; OD-W2-a/b/c; the decided
-  identifier grammar per RF-05 — camelCase table IDs with the optional
-  `tint.` sub-segment canonical; the ground-shading salt; the
-  block-assignment product call); note the new setting and the review
-  protocol in the appropriate development docs; amend the integration
-  design's identifier paragraph per the RF-05 decision (a post-decision
-  edit, marked as such).
+  the package README's status and document map; confirm the recorded
+  decision outcomes and add the plan-level ones. The ten package decisions
+  are all **Resolved 2026-07-28** and recorded in the README and the
+  requirements document: OD-1 (plain `Tall Hardwood Shield` ships; kalasag
+  pair-form promotion waits for attestation verification, unscheduled);
+  OD-2 (palisay in inspector research notes as metadata only, flagged
+  attestation-pending); OD-3 (Unscoped-generic block accepted as sole
+  Mindanao/Sulu coverage this pass); OD-4 (fully procedural rendering
+  confirmed); OD-5 (earned red putong excluded; backlog in
+  `docs/plans/TODO.md`); OD-6 (default theme ground shifts toward cogon
+  olive-gold this pass, provisional-tagged; jungle/plains ground-treatment
+  exploration backlog in `docs/plans/TODO.md`); OD-7 (shape-redundant
+  faction marker deferred; backlog in `docs/plans/TODO.md`); OD-8
+  (MotionIntensity governs all ambient presentation motion — grass sway
+  now, dust and future ambient motion included); OD-9 (R-W4.8 downgraded
+  MUST to MAY; VIS-029 unblocked but optional; if dust ships,
+  MotionIntensity Off suppresses spawning, Reduced leaves it unchanged);
+  OD-10 (R-W2.1 amended per option (a) — bounded per-skin proportion deltas
+  inside one shared aspect-ratio band, footprint never below the Low-tier
+  block, guarded by the manual false-cause row; S2/S5 deltas kept). This
+  task also records the plan-level outcomes as they are decided (OD-W1-a/b/c;
+  OD-W2-a/b/c; the decided identifier grammar per RF-05 — camelCase table
+  IDs with the optional `tint.` sub-segment canonical; the ground-shading
+  salt; the block-assignment product call); notes the new setting and the
+  review protocol in the appropriate development docs; and amends the
+  integration design's identifier paragraph per the RF-05 decision (a
+  post-decision edit, marked as such). The OD-5 and OD-7 backlog items live
+  in `docs/plans/TODO.md`.
 - **Dependencies:** All feature tasks that close a decision (effectively
   everything except VIS-044/VIS-047). Post-milestone.
 - **Files:** `docs/plans/improve-visuals/README.md`;
@@ -1998,8 +2044,10 @@ the cross-cutting suites that bind the package together.
 - **Acceptance criteria:** No open decision remains unrecorded; no stale
   "being authored" status remains in the package.
 - **Rollback:** Documentation only.
-- **Blocking decisions:** All of them — this task is where their outcomes
-  are written down.
+- **Blocking decisions:** None of the package decisions — OD-1 through
+  OD-10 are resolved 2026-07-28 and already recorded; this task confirms
+  that record and writes down the remaining plan-level outcomes as they are
+  decided.
 - **Prohibited scope:** No prose-compression of repository documentation.
 
 ### VIS-047 — Final integration verification and archival readiness
@@ -2077,7 +2125,7 @@ the cross-cutting suites that bind the package together.
 | VIS-026 [M] | Grass rendering + LOD | `GrassGeometry.cs`, `Rendering/GrassRenderer.cs`, `ArenaGame.Rendering.cs` | Ceiling + band pins green | VIS-025 | xunit + manual rows |
 | VIS-027 | Correlated ground shading | `PlainsBackdropGeometry.cs`, backdrop renderer | Formula pinned, decals unshifted | VIS-001, VIS-026; inconsistency 3 | xunit + manual row |
 | VIS-028 | Trample marks | `Presentation/TrampleMarkSystem.cs`, grass files, coordinator | Lifecycle tests green | VIS-025, 026, 030 | xunit + manual row |
-| VIS-029 | Dust puffs (blocked) | `Presentation/DustEffectSystem.cs`, `Rendering/DustGeometry.cs` | Lifecycle tests green | VIS-026; OD-9 | xunit + manual row |
+| VIS-029 | Dust puffs (optional per OD-9, resolved 2026-07-28) | `Presentation/DustEffectSystem.cs`, `Rendering/DustGeometry.cs` | Lifecycle tests green | VIS-026 | xunit + manual row |
 | VIS-030 [M] | Sway helper + clock | `Rendering/GrassSway.cs`, coordinator | Exact-zero + bound pins green | VIS-025 | xunit + manual rows |
 | VIS-031 [M] | Effective amplitude resolution | `GrassSway.cs`, grass renderer | Truth table green | VIS-030, 032, 026 | xunit + manual row |
 | VIS-032 [M] | Reduced-motion setting chain | `Settings/MotionIntensity*.cs`, store, `UI/MotionIntensitySelector.cs` | Round-trip + migration green | — | xunit + manual row |
@@ -2167,7 +2215,7 @@ MAY requirements are listed only where a task carries them.
 | R-W4.5 | VIS-026 (one batch, one texture), VIS-034, VIS-038 |
 | R-W4.6 | VIS-025, VIS-030 (clip under sway) |
 | R-W4.7 | VIS-028 |
-| R-W4.8 | VIS-029 — **conditionally covered; blocked on OD-9 (inconsistency 1)** |
+| R-W4.8 | VIS-029 — now MAY per OD-9 (resolved 2026-07-28); unblocked, optional |
 | R-W4.9 | VIS-025 (the one-entry backdrop metadata declaration, tier Provisional reconstruction; no player-facing naming), VIS-046 |
 | R-W4.10 | VIS-025, VIS-026 (allocation-free paths), VIS-035 (GC verify) |
 | R-W4.11 (SHOULD) | VIS-025 (clumped placement) |
@@ -2201,23 +2249,26 @@ MAY requirements are listed only where a task carries them.
 | R-W6.17 | VIS-041, VIS-043 (rows created PENDING) |
 | R-W6.18 | VIS-038 (pipeline and package manifest pins) |
 
-**Uncovered MUST requirements: none.** Two carry conditions: **R-W4.8**
-(dust) is covered by VIS-029 but blocked on OD-9 — if the user
-amends it to MAY and defers, that amendment is the user-approved requirement
-change R-W4.8 then needs; **R-W3.10** (earned red putong) is satisfied by
+**Uncovered MUST requirements: none.** Two notes: **R-W4.8** (dust) was
+amended from MUST to MAY by the user's 2026-07-28 resolution of OD-9, so
+VIS-029 is unblocked and optional — the amendment is the user-approved
+requirement change; **R-W3.10** (earned red putong) is satisfied by
 exclusion — C2 ships in no roster and a negative test enforces its absence —
-which is exactly what the requirement demands until OD-5 is decided.
+which is exactly what the requirement demands under the 2026-07-28
+resolution of OD-5 (excluded; backlog in `docs/plans/TODO.md`).
 
 ## Closing statement
 
-This is a planning draft. It authorizes no implementation. It becomes
-executable only when the user approves the package, resolves OD-9 (dust,
-inconsistency 1) and OD-10 (the R-W2.1 shield-proportion amendment),
-accepts or overrides the recorded defaults for inconsistencies 3 and 4
-(inconsistency 2 is decided per RF-05: camelCase table identifiers are
-canonical), and confirms OD-4. The first work
-performed under an approved plan is the milestone; the first evidence
-produced is VIS-035's pre-integration render baseline; and the only
-verification that closes either the milestone or the package is the real,
-pasted output of `./scripts/verify.ps1`, run once, on the integrated tree,
-by the integrating session itself.
+On 2026-07-28 the user resolved every package open decision — OD-1 through
+OD-10, including OD-9 (dust, inconsistency 1), OD-10 (the R-W2.1
+shield-proportion amendment), and OD-4 (the procedural direction) — and
+approved the 23-task first milestone, authorizing its implementation.
+Inconsistency 2 is decided per RF-05 (camelCase table identifiers are
+canonical); the recorded defaults for inconsistencies 3 and 4 stand unless
+the user overrides them during implementation. The post-milestone expansion
+tasks await the milestone review. The first work performed under this
+approval is the milestone; the first evidence produced is VIS-035's
+pre-integration render baseline; and the only verification that closes
+either the milestone or the package is the real, pasted output of
+`./scripts/verify.ps1`, run once, on the integrated tree, by the integrating
+session itself.
