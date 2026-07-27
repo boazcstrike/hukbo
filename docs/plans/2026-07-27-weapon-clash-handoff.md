@@ -115,7 +115,7 @@ project, so run `Hukbo.Client.Tests` directly to see it: 564 passed, 0 failed.
 as the resolver, the preset values, and the attack-stage integration land.
 
 The two guards that matter most already pass:
-`ZeroInterceptionProfile_ReproducesThePreClashDigest` across all 1081 rows, and
+`ZeroInterceptionProfile_ReproducesThePreClashDigest` across all 1154 rows, and
 `ZeroInterceptionProfile_ReproducesTheRecordedStateHash`.
 
 **One deviation, and it was the right call.** T22 asks for the event-hash theory
@@ -195,14 +195,16 @@ merge itself also had to resolve one conflict and left one test failing:
 - **Criterion two was re-derived.** At a mean interception of 0.325 the 1.48
   factor now predicts a terminal tick near 1710 rather than 1600, still inside
   the 5,000 median clause.
-- **`RepeatedCollisionTicksHaveBoundedAllocations` is left failing**, at 988,192
-  bytes against its 900,000 ceiling. The test is named nowhere in the plan or the
-  design, so no task owns it. `main` passes it at roughly 898,000 bytes, within a
-  fifth of a per cent of its own ceiling, and Phase 0's 88-byte `BattleEvent`
-  pushed it over — the same 9.9 per cent that shows up in the whole-workload
-  allocation figure. It is a budget whose input legitimately grew, not a
-  regression in the collision stage, but raising a ceiling is a decision rather
-  than a merge mechanic and it was left visible instead of quietly widened.
+- **`RepeatedCollisionTicksHaveBoundedAllocations` needed its ceiling raised**,
+  from 900,000 to 1,100,000. It measured 988,192 bytes after the merge. The test
+  is named nowhere in the plan or the design, so no task owned it. `main` passes
+  it at roughly 898,000 bytes, within a fifth of a per cent of its own ceiling,
+  and Phase 0's 88-byte `BattleEvent` pushed it over — the same 9.9 per cent that
+  shows up in the whole-workload allocation figure. It is a budget whose input
+  legitimately grew rather than a regression in the collision stage, so the
+  ceiling moved and the reasoning is recorded in the test. The owner approved on
+  2026-07-27. The window-over-window comparison, which is the assertion that
+  actually guards collision storage against unbounded growth, is untouched.
 
 Five deployment changes have now landed on `main` during this feature's planning
 and first two phases. Assume a sixth. The cost each time is one fixture recapture
@@ -254,17 +256,14 @@ eventually wanted.
 
 **Start Phase 2, T24–T34.** Phase 1 is done and B1 is satisfied.
 
-1. Settle `RepeatedCollisionTicksHaveBoundedAllocations` — see the end of
-   section 5. It is a failing guard that no task owns, and the plan's own barrier
-   rule treats a failing guard as a hard block.
-2. T24's nine existing-test dispositions come **before** any attack-stage edit.
+1. T24's nine existing-test dispositions come **before** any attack-stage edit.
    They use the seam; do not hand-pick lucky-roll seeds. No shipped pairing is
    clash-neutral — the minimum total is 2000 basis points.
-3. Then the resolver, the ruleset content-hash fold, the preset values, the
+2. Then the resolver, the ruleset content-hash fold, the preset values, the
    attack-stage integration, metrics accumulation, and the hash re-baseline.
-4. T32 re-baselines the two golden content-hash constants, and **only after T19
+3. T32 re-baselines the two golden content-hash constants, and **only after T19
    is green.**
-5. Then Phase 3a, the swing animation, **plus T54 rescued out of the dropped
+4. Then Phase 3a, the swing animation, **plus T54 rescued out of the dropped
    Phase 3b**. T54 is not audio work: it gives the battle event log a distinct
    action label per resolution, stops a non-landed attack reading as a bare zero
    damage line, and extends the feed's defence-in-depth guard. Without it no
@@ -272,7 +271,7 @@ eventually wanted.
    discoverability question in `CLAUDE.md` §6, and T65's smoke row requiring the
    event log to distinguish all five resolutions is unsatisfiable. The owner
    approved the rescue on 2026-07-27. The rest of 3b and all of 3c stay dropped.
-6. Then Phase 4.
+5. Then Phase 4.
 
 The 81 red Core tests are Phase 2's specification. Watch them go green; any that
 does not is either an incomplete task or a defect worth stopping for.

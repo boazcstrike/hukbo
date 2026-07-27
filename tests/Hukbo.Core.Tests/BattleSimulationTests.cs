@@ -249,7 +249,15 @@ public sealed class BattleSimulationTests
         // Move events are emitted. This ceiling tracks event traffic, which the
         // collision stage does not own. The window comparison below is the
         // assertion that actually guards collision storage.
-        const long maximumAllocatedBytes = 900_000;
+        //
+        // Raised again from 900,000 when BattleEvent widened from 80 to 88 bytes
+        // to carry the nullable attack resolution. The measured figure moved from
+        // about 898,000 to 988,192, the same 9.9 per cent the whole-workload
+        // allocation moved by, and 900,000 had left only a fifth of a per cent of
+        // headroom. The new ceiling restores about eleven per cent so one more
+        // field does not break it, without loosening what the test claims: that
+        // collision ticks allocate a bounded amount rather than growing with time.
+        const long maximumAllocatedBytes = 1_100_000;
         const int agentsPerFaction = 12;
 
         // Crowd two lines into one another so the resolver works every tick:
