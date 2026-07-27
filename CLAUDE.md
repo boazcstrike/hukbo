@@ -237,6 +237,34 @@ Code discovery: use the `tokensave` MCP tools (`tokensave_context`,
 codebase-memory graph before Grep/Glob. Do not spawn Explore agents for code
 research in this repo.
 
+The `codebase-memory-mcp` graph for this repository is the project named
+**`hukbo-main`**. Pass that name to `search_graph`, `query_graph`, `trace_path`,
+`get_code_snippet`, and `get_architecture`. Do not use `hukbo` — that project's
+database is corrupt and locked, and every attempt to re-index over it kills the
+indexing worker. It is scheduled for deletion once no server process holds its
+file handle.
+
+Re-index through the CLI, never through the MCP tool. The MCP-hosted worker
+crashes on this repository; the same operation succeeds as a separate process:
+
+```powershell
+& "$HOME/.local/bin/codebase-memory-mcp.exe" cli index_repository `
+  '{"repo_path":"C:/Users/boazs/webdev/autonomous-arena","name":"hukbo-main","mode":"full"}'
+```
+
+The indexer skips `.claude/`, `.git/`, `artifacts/`, `tools/mix-output/`, and
+every `bin/` and `obj/` on its own, so the four live worktrees under
+`.claude/worktrees/` never pollute the root index. A worktree that needs its own
+graph gets indexed as its own project, keyed by branch. Do not enable
+`persistence`; the `.codebase-memory/graph.db.zst` artifact it writes is a
+stale partial from an earlier crashed run and is not a trustworthy bootstrap.
+
+Two graph servers are installed and both work. `tokensave` stays the default —
+it is the one the user-level rules mandate, it is git-aware, and it carries the
+edit and metrics tools. Reach for `codebase-memory-mcp` when you specifically
+want Cypher through `query_graph`, call-chain tracing through `trace_path`, or
+Leiden cluster detection through `get_architecture`.
+
 Project-local skills in `.claude/skills/` — prefer these over generic advice:
 
 | Skill | Covers |
