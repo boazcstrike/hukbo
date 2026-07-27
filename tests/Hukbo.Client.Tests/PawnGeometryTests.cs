@@ -141,7 +141,8 @@ public sealed class PawnGeometryTests
         var appearance = PawnAppearanceFactory.Create(
             0,
             WeaponId.Kalis,
-            ShieldId.None) with { ShieldRole = PawnShieldRole.None };
+            ShieldId.None) with
+        { ShieldRole = PawnShieldRole.None };
 
         var layout = PawnGeometry.Create(new Vector2(100, 100), 1f, appearance);
 
@@ -165,7 +166,8 @@ public sealed class PawnGeometryTests
         var appearance = PawnAppearanceFactory.Create(
             0,
             WeaponId.Kalis,
-            ShieldId.TallHardwood) with { ShieldRole = PawnShieldRole.TallHardwood };
+            ShieldId.TallHardwood) with
+        { ShieldRole = PawnShieldRole.TallHardwood };
 
         var layout = PawnGeometry.Create(
             new Vector2(100, 100),
