@@ -19,8 +19,8 @@ public sealed class BattleSimulation
     private readonly Dictionary<ulong, int> _agentIndexes;
     private readonly int[] _damageTotals;
     private readonly (int XRaw, int YRaw, ulong TargetId)?[] _movementProposals;
-    private readonly (int SourceIndex, int TargetIndex, BodyPart HitLocation)[]
-        _attackProposals;
+    private readonly (int SourceIndex, int TargetIndex, BodyPart HitLocation,
+        AttackResolution Resolution)[] _attackProposals;
     private readonly AgentView[] _agentViews;
     private readonly ReadOnlyCollection<AgentView> _agents;
     private readonly CollisionScratch _collision;
@@ -50,8 +50,8 @@ public sealed class BattleSimulation
         _movementProposals =
             new (int XRaw, int YRaw, ulong TargetId)?[agents.Length];
         _attackProposals =
-            new (int SourceIndex, int TargetIndex, BodyPart HitLocation)[
-                agents.Length];
+            new (int SourceIndex, int TargetIndex, BodyPart HitLocation,
+                AttackResolution Resolution)[agents.Length];
         _agentViews = new AgentView[agents.Length];
         _agents = Array.AsReadOnly(_agentViews);
         _collision = new CollisionScratch(scenario, agents.Length);
@@ -1116,10 +1116,34 @@ public sealed class BattleSimulation
                 Tick,
                 source.EntityId,
                 target.EntityId);
-            _attackProposals[proposalCount] = (sourceIndex, targetIndex, hitLocation);
+
+            // Resolved inline, immediately after the hit location, in the same
+            // pass. A second pass over the proposals would be a second place
+            // the attack tuple has to stay consistent, and a per-target buffer
+            // would be state whose staleness nothing checks. The clash costs no
+            // draw from any generator, so nothing downstream shifts merely
+            // because this call was added.
+            var resolution = ClashResolver.Resolve(
+                _rules.ClashProfile,
+                Scenario.Seed,
+                Tick,
+                source.EntityId,
+                target.EntityId,
+                source.Loadout.Weapon,
+                target.Loadout.Weapon,
+                target.Loadout.Shield);
+            _attackProposals[proposalCount] =
+                (sourceIndex, targetIndex, hitLocation, resolution);
             proposalCount++;
-            _damageTotals[targetIndex] = checked(
-                _damageTotals[targetIndex] + source.DamagePerAttack);
+
+            // Only a landed blow reaches the damage total. Every other
+            // resolution still emitted its attack event above and still burned
+            // the attacker's cooldown; it simply carries no damage.
+            if (resolution == AttackResolution.Landed)
+            {
+                _damageTotals[targetIndex] = checked(
+                    _damageTotals[targetIndex] + source.DamagePerAttack);
+            }
         }
 
         for (var index = 0; index < proposalCount; index++)
@@ -1131,7 +1155,9 @@ public sealed class BattleSimulation
                 ref events,
                 source.EntityId,
                 target.EntityId,
-                source.DamagePerAttack,
+                proposal.Resolution == AttackResolution.Landed
+                    ? source.DamagePerAttack
+                    : 0,
                 source.FactionId,
                 source.Loadout.Weapon,
                 proposal.HitLocation);

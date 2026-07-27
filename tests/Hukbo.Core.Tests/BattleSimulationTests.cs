@@ -568,13 +568,22 @@ public sealed class BattleSimulationTests
     [Fact]
     public void Create_WithTheInjectedPresetRulesetMatchesTheRegistryPathExactly()
     {
-        // The seam must move no value. A ruleset that is the preset except for
-        // its clash profile produces the same agents, the same events, and the
-        // same state hash as the registry path.
+        // The seam must move no value. A ruleset routed through the injection
+        // overload produces the same agents, the same events, and the same
+        // state hash as the registry path.
+        //
+        // The injected profile is the preset's own. While the preset carried
+        // ClashProfile.Neutral the two were the same object's worth of data and
+        // naming Neutral here read as "the preset's profile"; now that the
+        // preset ships real tables, injecting Neutral would be injecting a
+        // genuinely different configuration and the two paths would rightly
+        // diverge. The property under test is the seam, not the profile, and it
+        // is unchanged. The zero-interception control run keeps its own test:
+        // ZeroInterceptionProfile_ReproducesThePreClashDigest is where a
+        // neutral profile is required to reproduce the pre-clash stream.
         var scenario = Scenario.CreateDefault(seed: 7, totalAgents: 20);
-        var injected = CombatPresetRegistry
-            .Get(scenario.CombatPreset)
-            .WithClashProfile(ClashProfile.Neutral);
+        var registryRules = CombatPresetRegistry.Get(scenario.CombatPreset);
+        var injected = registryRules.WithClashProfile(registryRules.ClashProfile);
 
         var registryPath = BattleSimulation.Create(scenario);
         var injectedPath = BattleSimulation.Create(scenario, injected);
@@ -601,9 +610,10 @@ public sealed class BattleSimulationTests
         {
             AttackRangeRaw = 12 * FixedPoint.Scale,
         };
-        var injected = CombatPresetRegistry
-            .Get(scenario.CombatPreset)
-            .WithClashProfile(ClashProfile.Neutral);
+        // The preset's own profile, for the reason recorded on
+        // Create_WithTheInjectedPresetRulesetMatchesTheRegistryPathExactly.
+        var registryRules = CombatPresetRegistry.Get(scenario.CombatPreset);
+        var injected = registryRules.WithClashProfile(registryRules.ClashProfile);
 
         var registryPath = BattleSimulation.CreateForTesting(
             scenario,
