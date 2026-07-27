@@ -887,9 +887,9 @@ checklist below stay `PENDING`.
 
 `./scripts/verify.ps1 -SkipBootstrap` was run at the repository root on
 2026-07-27 after the font and text quality change (design document
-[docs/plans/2026-07-27-font-text-quality-design.md](../plans/2026-07-27-font-text-quality-design.md),
+[docs/archives/2026-07-27-font-text-quality-design.md](../archives/2026-07-27-font-text-quality-design.md),
 plan document
-[docs/plans/2026-07-27-font-text-quality.md](../plans/2026-07-27-font-text-quality.md)).
+[docs/archives/2026-07-27-font-text-quality.md](../archives/2026-07-27-font-text-quality.md), both since archived).
 It ended with `[PASS] Canonical repository verification completed.` and printed
 exactly:
 
@@ -941,6 +941,42 @@ this entry. The "Typography smoke" subsection in the interactive checklist
 below remains `PENDING`, and the display-scaling measurement task (gated,
 separate, and requiring a human at an interactive Windows desktop) remains
 untouched by this run.
+
+### Font plan closeout — T29–T31, 2026-07-28
+
+T29 (display scaling, measure only) was closed as declined: the 100% reading
+was taken (viewport 1280×720, client bounds 1280×720, equal), then the user
+declined the 150% reading, having no use for the remedy it would have gated.
+T30 is therefore also closed as declined, and row 75 above is marked
+`DECLINED` rather than left `PENDING`. T31 (archive both plan documents) was
+completed: both files now live at
+[docs/archives/2026-07-27-font-text-quality-design.md](../archives/2026-07-27-font-text-quality-design.md)
+and
+[docs/archives/2026-07-27-font-text-quality.md](../archives/2026-07-27-font-text-quality.md),
+each bannered, with every stale `docs/plans/...` cross-reference in the
+repository repointed to the new path.
+
+`./scripts/verify.ps1` could **not** be run for this closeout. `dotnet format`
+fails before reaching this change: `main` at `ff5b73a`, the commit this work
+branched from, already fails to build six test files —
+`tests/Hukbo.Client.Tests/BattleEventFormatterTests.cs`,
+`ClashEffectSystemTests.cs`, `SwingPoseResolverTests.cs`,
+`SwingAnimationSystemTests.cs`, and
+`tests/Hukbo.Core.Tests/BattleEventTests.cs`, `HeadlessRunnerTests.cs` — each
+with `CS1503` errors passing `BodyPart` where `ShieldId` is now expected and
+`AttackResolution` where `BodyPart` is now expected at `BattleEvent.Attack`'s
+call sites. This break is pre-existing on `main`, unrelated to the font work,
+and lands inside `tests/Hukbo.Core.Tests`, which the font plan's scope
+boundary forbids this workstream from touching. As a substitute, `dotnet
+build src/Hukbo.Client/Hukbo.Client.csproj --configuration Release` was run
+directly and succeeded with 0 warnings and 0 errors, confirming the client
+project — the only project this closeout's five changed files
+(`docs/development/testing.md`, `docs/research/FONT_CANDIDATES.md`,
+`src/Hukbo.Client/Content/Fonts/README.md`,
+`src/Hukbo.Client/Theming/UiFontRamp.cs`,
+`tests/Hukbo.Client.Tests/UiThemeCatalogTests.cs`, all doc-comment or prose
+path fixes) can affect — still compiles. The canonical gate must be re-run in
+full once the `BattleEvent.Attack` signature break is fixed.
 
 ## Superseded: the amended collision run
 
@@ -1695,7 +1731,7 @@ window-opening probe do not.
 | 72. Theme cycling | All five themes render text at the same sizes with correct contrast, and no theme reveals a clipped or misaligned label the others hide. | Not run | PENDING |
 | 73. Window resize | Resizing between small and maximised keeps text pixel size constant and re-lays out panels without clipping. | Not run | PENDING |
 | 74. Subpixel blur is gone | Panning, zooming, and pausing produce no shimmering or swimming text. | Not run | PENDING |
-| 75. Display scaling | Record the appearance at 100% and at 150% Windows scaling. Feeds the separate, gated display-scaling measurement task; not itself a pass/fail row for the font ramp. | Not run | PENDING |
+| 75. Display scaling | Record the appearance at 100% and at 150% Windows scaling. Fed the separate, gated display-scaling measurement task. | The 100% reading was taken during implementation (viewport 1280×720, client bounds 1280×720, equal). The user declined the 150% reading on 2026-07-28, having no use for the display-scaling remedy this row was gating. | DECLINED |
 
 ### Last-stand formation smoke
 

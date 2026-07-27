@@ -375,7 +375,7 @@ public sealed class UiThemeCatalogTests
     /// <summary>
     /// T23 retuned <c>menu.subtitleTopOffset</c>, <c>menu.selectorTopOffset</c>,
     /// and <c>menu.panelHeight</c> in the shipped JSON to clear the wordmark
-    /// overlap described in <c>docs/plans/2026-07-27-font-text-quality.md</c>.
+    /// overlap described in <c>docs/archives/2026-07-27-font-text-quality.md</c>.
     /// The built-in code fallback mirrors those same three fields by hand, so
     /// this test is the only thing that would catch the two drifting apart.
     /// It also covers the selector and army composition layouts, which T23

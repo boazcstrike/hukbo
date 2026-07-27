@@ -23,7 +23,7 @@ license text for each family is vendored alongside the font file:
 - `OFL-Rajdhani.txt`
 - `OFL-BebasNeue.txt`
 
-See `docs/plans/2026-07-27-font-text-quality-design.md` §12 (risk register,
+See `docs/archives/2026-07-27-font-text-quality-design.md` §12 (risk register,
 item R12) for the compliance rationale: the license permits bundling and
 embedding, and baking either face into a texture atlas for the content pipeline
 is a permitted use. Neither face is modified or renamed, so the reserved font
@@ -47,4 +47,4 @@ all-capitals literal in the source.
 
 The full rationale for the typeface choice, the SemiBold-over-Regular
 decision, and the size ramp lives in
-`docs/plans/2026-07-27-font-text-quality-design.md`, sections 3 and 4.
+`docs/archives/2026-07-27-font-text-quality-design.md`, sections 3 and 4.
