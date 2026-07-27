@@ -29,8 +29,16 @@ public sealed class DeterminismTests
     /// <c>main</c>; the superseded value was <c>0xDC7F2E7A107C885A</c> at tick
     /// 1081. It is the value the capture harness recorded, not a golden edited
     /// to match output: the per-tick digest guard proves the same run row by row.
+    /// Recaptured again for docs/plans/2026-07-27-combat-preset-v3-combos.md
+    /// task 4: <c>StateHasher.Compute</c> now folds three new per-agent words
+    /// (<c>Level</c>, <c>ComboStepsRemaining</c>, <c>ComboTargetEntityId</c>) for
+    /// every <c>CombatPresetId</c>, including this fixture's
+    /// <c>PrecolonialPhilippinesV1</c> control run, so the wider hash no longer
+    /// matches the pre-combo build's narrower one even though the run itself is
+    /// byte-for-byte the same battle. The superseded value was
+    /// <c>0x5BEBA7A68F69BE0D</c>, still at terminal tick 1154.
     /// </summary>
-    private const ulong PreClashTerminalStateHash = 0x5BEBA7A68F69BE0DUL;
+    private const ulong PreClashTerminalStateHash = 0xFD85207FF329F02DUL;
 
     private const string PreClashDigestFileName =
         "seed-1-200-agents-preclash-digest.json";
@@ -118,6 +126,67 @@ public sealed class DeterminismTests
 
         Assert.Equal(0x10AB1CC226AB3636UL, v2.ContentHash);
         Assert.NotEqual(v1.ContentHash, v2.ContentHash);
+    }
+
+    /// <summary>
+    /// Task 4 of docs/plans/2026-07-27-combat-preset-v3-combos.md. Pinned so
+    /// that an accidental edit to a V3 weapon attribute, grip, roster entry,
+    /// or combo field fails here rather than silently invalidating every V3
+    /// replay. V3 fields only the four solo loadouts V2 already carries
+    /// (Kampilan, Wasay, solo Kalis, solo Itak) with V2's own damage/reach/
+    /// cooldown/target-weight/grip/clash values for those four weapons, plus
+    /// the combo table, so its content hash is expected to differ from both
+    /// V1 (no weapon attributes at all) and V2 (six loadouts, not four).
+    /// </summary>
+    [Fact]
+    public void PresetV3ContentHash_IsPinnedAndDistinctFromV1AndV2()
+    {
+        var v1 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
+        var v2 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV2);
+        var v3 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV3);
+
+        Assert.Equal(0xCD790E489293B304UL, v3.ContentHash);
+        Assert.NotEqual(v1.ContentHash, v3.ContentHash);
+        Assert.NotEqual(v2.ContentHash, v3.ContentHash);
+    }
+
+    /// <summary>
+    /// Task 4 of docs/plans/2026-07-27-combat-preset-v3-combos.md. A small,
+    /// fast seed-1 workload run through the same headless path
+    /// <see cref="CombatMetrics_ReachesNeitherHash"/> uses, pinned against
+    /// preset V3 so an accidental change anywhere in the V3 attack-
+    /// combination state machine, the V3 roster, or the shared StateHasher/
+    /// event-hash fold fails here rather than only in the much slower
+    /// 200-agent/10,000-tick benchmark. Not a substitute for that benchmark
+    /// -- see docs/development/testing.md for the recorded seed-1,
+    /// 200-agent, 10,000-tick V3 result -- but this Fact runs on every
+    /// <c>dotnet test</c> invocation.
+    /// </summary>
+    [Fact]
+    public void PresetV3_SeedOneStateAndEventHashArePinned()
+    {
+        const ulong Seed = 1;
+        const int Agents = 20;
+        const int Ticks = 200;
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+        string[] arguments =
+        [
+            "--agents", Agents.ToString(CultureInfo.InvariantCulture),
+            "--ticks", Ticks.ToString(CultureInfo.InvariantCulture),
+            "--seed", Seed.ToString(CultureInfo.InvariantCulture),
+            "--preset", nameof(CombatPresetId.PrecolonialPhilippinesV3),
+        ];
+        var exitCode = HeadlessRunner.Run(arguments, output, error);
+        Assert.Equal(0, exitCode);
+
+        using var report = JsonDocument.Parse(output.ToString());
+        var stateHash = report.RootElement.GetProperty("stateHash").GetString();
+        var eventHash = report.RootElement.GetProperty("eventHash").GetString();
+
+        Assert.Equal("C2728456AEB9F760", stateHash);
+        Assert.Equal("E30AD003EFDDD267", eventHash);
     }
 
     /// <summary>

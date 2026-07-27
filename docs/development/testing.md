@@ -84,7 +84,122 @@ not prove a sound was audible, that it arrived at the right moment, or that it
 sounded right. Smoke rows below still require a human at an interactive desktop;
 see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
-## Latest non-interactive result — weapon clash on preset V2, 2026-07-28
+## Latest non-interactive result — attack combinations on preset V3, 2026-07-28
+
+Adds the section 3 attack-combination state machine (an opening roll on a
+landed blow, a continuation roll on each following blow, a maximum chain
+length bounded by both the weapon and a placeholder fighter level, and a
+faster cooldown while a chain is active) behind a new
+`CombatPresetId.PrecolonialPhilippinesV3 = 3`, registered alongside V1 and
+V2, not instead of them. V3 fields exactly the four solo loadouts V2 already
+carries — Kampilan, Wasay, solo Kalis, solo Itak — with V2's own
+damage/reach/cooldown/target-weight/grip/clash values for those four
+weapons, plus the new combo attributes. See
+[docs/plans/2026-07-27-combat-preset-v3-combos.md](../plans/2026-07-27-combat-preset-v3-combos.md)
+and its design document. `AgentState` gains `Level`, `ComboStepsRemaining`,
+and `ComboTargetEntityId`; `BattleEvent` gains `ComboPosition`; both are
+folded into `StateHasher.Compute` and `HeadlessRunner.AddEventToHash` for
+every `CombatPresetId`, not only V3 — see "what moved" below.
+
+This entry is task 4 of the plan's section 6 table, and records only
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1 -Preset
+PrecolonialPhilippinesV3`. The canonical gate, `./scripts/verify.ps1`, is run
+once by the orchestrator after every task in the plan has landed, not
+per-task, so its result belongs in a separate entry once that run has
+happened.
+
+`--preset` is new on `HeadlessRunner` and `scripts/benchmark.ps1`, added by
+this task because no earlier task in the plan owned giving the headless
+workload a way to select a non-default `CombatPresetId`. It accepts either a
+`CombatPresetId` member name (for example `PrecolonialPhilippinesV3`) or its
+numeric value, and rejects anything `CombatPresetRegistry.IsRegistered`
+does not recognize.
+
+| Field | Value |
+| --- | --- |
+| `measuredTicks` | 1 473 |
+| `outcome` | `Faction1Victory`, 0 against 2 survivors |
+| `eventHash` | `8C2E3752572E3946` |
+| `stateHash` | `81C6655CFC5F8881` |
+| `deterministic` | `true` |
+| `firstMismatchTick` | `null` |
+| `allocatedBytes` | 80 445 216 |
+| Tick p50 / p95 / p99 / max | 0.0863 / 1.554 / 2.5919 / 13.1881 ms |
+| `defenceAttributableShare` | 0.2685 |
+| `acceptedAttacks` / `landedAttacks` | 2 335 / 1 708 |
+| `parriedAttacks` / `deflectedAttacks` / `evadedAttacks` | 93 / 277 / 257 |
+
+**Every pinned hash literal in `DeterminismTests.cs` moved, not only the new
+V3 ones — expected, per the plan's own "consequence that must not be
+missed."** `StateHasher.Compute` folds three new per-agent words (`Level`,
+`ComboStepsRemaining`, `ComboTargetEntityId ?? 0`) for every
+`CombatPresetId`, so a V1 or V2 scenario's state hash under this build
+differs from the same scenario under the pre-combo build even though neither
+preset's own gameplay changed. Re-recorded, from an actual test run's
+failure output rather than by calculation:
+
+- `DeterminismTests.PreClashTerminalStateHash` — the seed-1, 200-agent,
+  zero-interception preset-V1 control run's terminal state hash — moved from
+  `0x5BEBA7A68F69BE0D` to `0xFD85207FF329F02D`. The terminal tick is
+  unchanged, at 1154.
+- The committed fixture
+  `tests/Hukbo.Core.Tests/Fixtures/seed-1-200-agents-preclash-digest.json`'s
+  per-tick `stateHash` field, across all 1,154 rows, and its
+  `terminalStateHash`, re-captured against the same zero-interception
+  control run with the widened `StateHasher` fold. Its `eventFold` and
+  `eventCount` rows, final agent rows, outcome, and survivor counts are
+  unchanged — only `StateHasher`'s own output moved, because the folded
+  event fields (`Weapon`/`HitLocation`, deliberately excluding
+  `Resolution`) never touch the three new agent-state words.
+- V2's pinned `ContentHash` (`0x10AB1CC226AB3636`) did **not** move.
+  `CombatRuleset.ComputeContentHash`'s `AddProfile` helper only folds
+  `DamagePerAttack`, `AttackRangeRaw`, and `AttackCooldownTicks` from a
+  `WeaponProfile` — not the four new `ComboXxx` fields — so widening V2's
+  `Build()` to supply real no-op combo values (task 1) left V2's content
+  hash exactly where it was. Confirmed by running the pinned
+  `PresetV2ContentHash_IsPinnedAndDistinctFromV1` fact before touching
+  anything else in this task: it already passed against the new build,
+  unedited.
+
+New V3 pinned facts added to `DeterminismTests.cs`:
+
+- `PresetV3ContentHash_IsPinnedAndDistinctFromV1AndV2`: `0xCD790E489293B304`.
+- `PresetV3_SeedOneStateAndEventHashArePinned`: a fast 20-agent, 200-tick,
+  seed-1 workload through the same `HeadlessRunner.Run` path
+  `CombatMetrics_ReachesNeitherHash` already uses, pinned at
+  `stateHash 0xC2728456AEB9F760` and `eventHash 0xE30AD003EFDDD267`. Not a
+  substitute for the 200-agent/10,000-tick benchmark above — it runs on
+  every `dotnet test` invocation, the benchmark does not.
+
+`tests/Hukbo.Core.Tests/ComboChainTests.cs` (new) covers the section 3 state
+machine directly, against constructed `AgentState`/`WeaponProfile` fixtures
+rather than a full battle: one attacker against one inert target
+(`damagePerAttack: 0`, so the target can never harm the attacker back),
+close enough to stay in attack range and never move.
+`ComboOpenChanceBasisPoints` and `ComboContinueChanceBasisPoints` are pinned
+to either `0` or `ClashProfile.BasisPointScale` per fixture, so a roll's
+outcome is certain by construction rather than dependent on predicting
+`ComboResolver.MixCombo`'s hash for a given seed/tick/entity tuple, and
+`ClashProfile.Neutral` (guaranteed `Landed`) or a custom always-`Evaded`
+profile stand in for the clash roll the same way. Covered: the opening roll
+succeeding and failing; the continuation roll succeeding below the cap,
+failing below the cap, and being overridden by the cap on an otherwise
+successful roll; a target switch breaking the chain before any roll is
+evaluated; the bound target dying breaking the chain on the tick the
+attacker discovers it (observed through the "no other candidate" pre-check
+clause, since `SelectTargetsAndIntents` always refreshes `TargetEntityId` to
+a living candidate or `null` before `GatherAndCommitAttacks` ever runs, so a
+stale reference to a literally-dead target is not reachable through
+`AdvanceOneTick`); the target leaving attack range breaking the chain
+through the distinct "target now out of reach" pre-check clause, with
+`TargetEntityId` unchanged so it cannot be mistaken for a retarget; and a
+non-landed follow-up leaving `ComboStepsRemaining` and `ComboTargetEntityId`
+exactly as they were.
+
+`dotnet test tests/Hukbo.Core.Tests` (full, unfiltered): 603 passed, 0
+failed, 0 skipped — zero pinned-hash mismatches anywhere in the suite.
+
+## Previous non-interactive result — weapon clash on preset V2, 2026-07-28
 
 Merges the weapon-clash defensive-resolution feature onto preset V2. See
 [docs/plans/2026-07-27-clash-preset-v2-integration.md](../plans/2026-07-27-clash-preset-v2-integration.md),

@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
 using Hukbo.Core.Simulation;
 using Hukbo.Diagnostics;
@@ -16,7 +17,8 @@ public sealed record HeadlessOptions(
     string? OutputPath,
     LogLevel? LogLevel = null,
     LogChannel? LogChannels = null,
-    string? LogDirectory = null);
+    string? LogDirectory = null,
+    CombatPresetId? Preset = null);
 
 public static class HeadlessRunner
 {
@@ -37,7 +39,8 @@ public static class HeadlessRunner
                 "--seed <unsigned-integer> [--output <json-path>] " +
                 "[--log-level off|err|warn|inf|dbg|trc] " +
                 "[--log-channels all|<comma-separated>] " +
-                "[--log-dir <directory>]");
+                "[--log-dir <directory>] " +
+                "[--preset <CombatPresetId name or number>]");
             return 2;
         }
 
@@ -102,6 +105,7 @@ public static class HeadlessRunner
         LogLevel? logLevel = null;
         LogChannel? logChannels = null;
         string? logDirectory = null;
+        CombatPresetId? preset = null;
         var encounteredArguments = new HashSet<string>(StringComparer.Ordinal);
 
         for (var index = 0; index < arguments.Count; index += 2)
@@ -233,6 +237,19 @@ public static class HeadlessRunner
 
                     logDirectory = value;
                     break;
+
+                case "--preset":
+                    if (!TryParsePreset(value, out var parsedPreset))
+                    {
+                        options = default!;
+                        error =
+                            $"'--preset' does not name a registered " +
+                            $"CombatPresetId: '{value}'.";
+                        return false;
+                    }
+
+                    preset = parsedPreset;
+                    break;
             }
         }
 
@@ -243,9 +260,38 @@ public static class HeadlessRunner
             outputPath,
             logLevel,
             logChannels,
-            logDirectory);
+            logDirectory,
+            preset);
         error = string.Empty;
         return true;
+    }
+
+    /// <summary>
+    /// Parses <c>--preset</c> either as a <see cref="CombatPresetId"/> member
+    /// name (for example <c>PrecolonialPhilippinesV3</c>) or as its
+    /// underlying numeric value, then confirms the result is registered so a
+    /// stray future enum value cannot silently build an unfielded ruleset.
+    /// </summary>
+    private static bool TryParsePreset(string value, out CombatPresetId preset)
+    {
+        if (Enum.TryParse(value, ignoreCase: true, out preset) &&
+            CombatPresetRegistry.IsRegistered(preset))
+        {
+            return true;
+        }
+
+        if (int.TryParse(
+                value,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out var numeric))
+        {
+            preset = (CombatPresetId)numeric;
+            return CombatPresetRegistry.IsRegistered(preset);
+        }
+
+        preset = default;
+        return false;
     }
 
     private static RunReport Execute(HeadlessOptions options, DiagnosticLog log)
@@ -254,6 +300,11 @@ public static class HeadlessRunner
         {
             TickLimit = options.TickCount,
         };
+        if (options.Preset is { } preset)
+        {
+            scenario = scenario with { CombatPreset = preset };
+        }
+
         scenario.Validate();
 
         log.SetTick(DiagnosticLog.NoTick);
@@ -481,7 +532,7 @@ public static class HeadlessRunner
 
     private static bool IsSupportedArgument(string argument) =>
         argument is "--agents" or "--ticks" or "--seed" or "--output" or
-            "--log-level" or "--log-channels" or "--log-dir";
+            "--log-level" or "--log-channels" or "--log-dir" or "--preset";
 
     private static double Percentile(double[] sortedValues, double percentile)
     {
