@@ -1,5 +1,7 @@
 # Spectator Clarity Design
 
+> **Archived: reference only.** This document is deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`. Implemented in commit `a4c52f8`; evidence at `docs/archives/18-spectator-clarity.md`.
+
 **Status:** Approved for planning on 2026-07-26
 
 **Decision owner:** Repository owner

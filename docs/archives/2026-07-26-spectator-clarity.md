@@ -1,5 +1,7 @@
 # Spectator Clarity Implementation Plan
 
+> **Archived: reference only.** This document is deprecated. Do not execute it, and do not treat its steps, versions, or tooling references as current. The live contract is `CLAUDE.md` plus the skills in `.claude/skills/`. Implemented in commit `a4c52f8`; evidence at `docs/archives/18-spectator-clarity.md`.
+
 > **For Claude:** Work this plan task by task. Use the `hukbo-verify-and-record` skill to run the canonical gate and record evidence; use `hukbo-determinism-change` for any `Hukbo.Core` edit and `hukbo-client-ui` for any `Hukbo.Client` edit.
 
 **Goal:** Make battles understandable through persistent agent selection, an
