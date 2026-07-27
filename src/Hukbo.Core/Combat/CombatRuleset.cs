@@ -14,6 +14,13 @@ namespace Hukbo.Core.Combat;
 /// </summary>
 public sealed class CombatRuleset
 {
+    /// <summary>
+    /// The constructor parameter roster validation blames. Spelled out because
+    /// the validation runs in a helper where the parameter itself is out of
+    /// scope, so <c>nameof</c> is unavailable.
+    /// </summary>
+    private const string ClashProfileParameterName = "clashProfile";
+
     private readonly TargetWeightProfile _generalTargets;
     private readonly IReadOnlyDictionary<WeaponId, TargetWeightProfile> _weaponTargets;
     private readonly IReadOnlyList<ArmorId> _armors;
@@ -96,6 +103,7 @@ public sealed class CombatRuleset
 
         _effectiveWeights = BuildEffectiveWeightTables();
         ValidateResolvedTotals();
+        ValidateClashProfileCoversTheRoster();
         ContentHash = ComputeContentHash();
     }
 
@@ -221,6 +229,52 @@ public sealed class CombatRuleset
             "Unknown shield identity for this combat ruleset.");
     }
 
+    /// <summary>
+    /// Fails construction if the clash profile cannot answer for a loadout
+    /// this ruleset actually fields. Validated at the boundary rather than at
+    /// the first attack, because a profile missing one roster weapon would
+    /// otherwise throw part-way through a battle, on a tick that depends on
+    /// which entity IDs happened to come into reach.
+    /// </summary>
+    private void ValidateClashProfileCoversTheRoster()
+    {
+        foreach (var defender in _roster)
+        {
+            foreach (var attacker in _roster)
+            {
+                try
+                {
+                    ClashProfile.ResolveWeaponIntercept(defender.Weapon, attacker.Weapon);
+                    ClashProfile.ResolveHardShareBase(attacker.Weapon);
+                }
+                catch (ArgumentOutOfRangeException exception)
+                {
+                    throw new ArgumentException(
+                        "The clash profile carries no value for roster " +
+                        $"defender weapon {defender.Weapon} against attacker " +
+                        $"weapon {attacker.Weapon}.",
+                        ClashProfileParameterName,
+                        exception);
+                }
+            }
+
+            try
+            {
+                ClashProfile.ResolveVoid(defender.Weapon);
+                ClashProfile.ResolveHardShareMultiplier(defender.Weapon);
+                ClashProfile.ResolveShieldIntercept(defender.Shield);
+            }
+            catch (ArgumentOutOfRangeException exception)
+            {
+                throw new ArgumentException(
+                    "The clash profile carries no row for roster weapon " +
+                    $"{defender.Weapon}.",
+                    ClashProfileParameterName,
+                    exception);
+            }
+        }
+    }
+
     private void ValidateResolvedTotals()
     {
         foreach (var weapon in _weaponTargets.Keys.OrderBy(id => (int)id))
@@ -260,6 +314,41 @@ public sealed class CombatRuleset
         }
 
         return tables;
+    }
+
+    /// <summary>
+    /// Folds all thirty-two clash tuning values into the content hash. Every
+    /// table is read through the profile's ordered accessors, which sort by
+    /// ascending enum value, so two rulesets carrying identical tuning data
+    /// supplied in different dictionary order hash identically. Without that a
+    /// replay would refuse a save that is in fact the same configuration.
+    /// </summary>
+    private void FoldClashProfile(ref ulong hash)
+    {
+        var cells = ClashProfile.OrderedWeaponIntercepts.ToArray();
+        Fnv1a.Add(ref hash, (ulong)cells.Length);
+        foreach (var (key, value) in cells)
+        {
+            Fnv1a.Add(ref hash, (ulong)key.Defender);
+            Fnv1a.Add(ref hash, (ulong)key.Attacker);
+            Fnv1a.Add(ref hash, (ulong)value);
+        }
+
+        Fnv1a.Add(ref hash, (ulong)ClashProfile.ShieldInterceptBasisPoints);
+
+        var rows = ClashProfile.OrderedWeaponRows.ToArray();
+        Fnv1a.Add(ref hash, (ulong)rows.Length);
+        foreach (var (weapon, voidChannel, hardShareBase, hardShareMultiplier) in rows)
+        {
+            Fnv1a.Add(ref hash, (ulong)weapon);
+            Fnv1a.Add(ref hash, (ulong)voidChannel);
+            Fnv1a.Add(ref hash, (ulong)hardShareBase);
+            Fnv1a.Add(ref hash, (ulong)hardShareMultiplier);
+        }
+
+        Fnv1a.Add(ref hash, (ulong)ClashProfile.MinimumHardShareBasisPoints);
+        Fnv1a.Add(ref hash, (ulong)ClashProfile.MaximumHardShareBasisPoints);
+        Fnv1a.Add(ref hash, (ulong)ClashProfile.MaximumInterceptionBasisPoints);
     }
 
     private static IReadOnlyList<ArmorId> NormalizeArmors(IReadOnlyList<ArmorId> armors)
@@ -330,6 +419,8 @@ public sealed class CombatRuleset
             Fnv1a.Add(ref hash, (ulong)loadout.Armor);
             Fnv1a.Add(ref hash, (ulong)loadout.Shield);
         }
+
+        FoldClashProfile(ref hash);
 
         return hash;
     }
