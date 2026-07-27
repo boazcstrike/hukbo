@@ -16,23 +16,6 @@ internal enum GameSoundId
     VictoryRed = 6,
     Draw = 7,
     UiClick = 8,
-
-    /// <summary>
-    /// A weapon-arresting clash: two blades meeting hard enough to stop the
-    /// blow. Carries no hit location, because a clash resolves before any body
-    /// part is struck.
-    /// </summary>
-    ClashBladeHard = 9,
-
-    /// <summary>
-    /// A redirecting clash: the incoming blow brushed aside rather than caught.
-    /// </summary>
-    ClashBladeSoft = 10,
-
-    /// <summary>
-    /// A shield taking the blow.
-    /// </summary>
-    ClashShield = 11,
 }
 
 /// <summary>

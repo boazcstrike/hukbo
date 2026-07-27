@@ -9,26 +9,53 @@ namespace Hukbo.Client.UI;
 
 internal sealed partial class BattleEventLogPanel
 {
+    // List rows draw at the Caption rung (measured 20px real line spacing).
+    // 30 clears it with headroom for the row highlight and the kind stripe.
     internal const int RowHeight = 30;
     internal const int MinimumThumbHeight = 18;
     internal const int DetailLineCount = 6;
 
     private const int Padding = 10;
     private const int Gap = 6;
-    private const int HeaderHeight = 28;
+
+    // Carries the Title rung ("BATTLE EVENTS", measured 35px real line
+    // spacing). Was 28, which clipped the header face; raised to clear it.
+    private const int HeaderHeight = 35;
+
+    // Filter chips draw at the Caption rung (measured 20px). 26 clears it.
     private const int FilterRowHeight = 26;
+
+    // "EVENT STREAM" and the live/inspecting badge draw at the Caption rung
+    // (measured 20px). 25 clears it.
     private const int ListHeaderHeight = 25;
     private const int ScrollbarWidth = 8;
     private const int RowsPerWheelDetent = 3;
     private const int MouseWheelDeltaPerDetent = 120;
     private const int MaximumSearchLength = 28;
+
+    // "SELECTED EVENT" draws at the Caption rung (measured 20px). 26 clears it.
     private const int DetailsHeaderHeight = 26;
-    private const int DetailLineHeight = 18;
+
+    // Carries BOTH the Body rung (the detail head row, measured 24px real
+    // line spacing) and the Caption rung (the remaining detail rows,
+    // measured 20px). Must use the larger of the two: was 20, which clipped
+    // the head row; raised to 24 so both rungs clear.
+    private const int DetailLineHeight = 24;
     private const int DetailsBottomPadding = 6;
     private const int MinimumDetailsHeight =
         DetailsHeaderHeight +
         (DetailLineCount * DetailLineHeight) +
         DetailsBottomPadding;
+
+    // The details pane is capped so it never crowds out the event list on a
+    // tall window. The cap was previously the bare literal 164, which happened
+    // to sit twelve pixels above the minimum at the old line height; when the
+    // minimum grew to clear the Body rung, the literal fell below it and the
+    // cap started truncating the sixth detail line. Expressing the headroom
+    // relative to the minimum keeps the two from inverting again.
+    private const int DetailsHeadroom = 12;
+    private const int MaximumDetailsHeight =
+        MinimumDetailsHeight + DetailsHeadroom;
 
     private readonly List<FormattedEvent> _formattedRows = [];
     private Point _pointerPosition;
@@ -111,7 +138,7 @@ internal sealed partial class BattleEventLogPanel
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        UiFontSet fonts,
         BattleEventFeed feed,
         Rectangle bounds,
         UiTheme theme)
@@ -128,10 +155,10 @@ internal sealed partial class BattleEventLogPanel
             theme.Colors.PanelBorder,
             theme.Metrics.BorderThickness);
 
-        DrawHeader(spriteBatch, pixel, font, feed, layout, theme);
-        DrawFilters(spriteBatch, pixel, font, feed, layout, theme);
-        DrawList(spriteBatch, pixel, font, feed, layout, theme);
-        DrawDetails(spriteBatch, pixel, font, feed, layout, theme);
+        DrawHeader(spriteBatch, pixel, fonts, feed, layout, theme);
+        DrawFilters(spriteBatch, pixel, fonts, feed, layout, theme);
+        DrawList(spriteBatch, pixel, fonts, feed, layout, theme);
+        DrawDetails(spriteBatch, pixel, fonts, feed, layout, theme);
     }
 
     private void HandlePointerClick(
@@ -343,37 +370,31 @@ internal sealed partial class BattleEventLogPanel
     private void DrawHeader(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        UiFontSet fonts,
         BattleEventFeed feed,
         BattleEventPanelLayout layout,
         UiTheme theme)
     {
+        var titleFont = fonts.Get(UiFontRole.Title);
+        var captionFont = fonts.Get(UiFontRole.Caption);
         var countText =
             $"{feed.FilteredEntries.Count}/{feed.Entries.Count}";
-        spriteBatch.DrawString(
-            font,
+        UiPrimitives.DrawText(
+            spriteBatch,
+            titleFont,
             "BATTLE EVENTS",
             new Vector2(layout.HeaderBounds.Left, layout.HeaderBounds.Top + 4),
-            theme.Colors.TextPrimary,
-            0f,
-            Vector2.Zero,
-            0.72f,
-            SpriteEffects.None,
-            0f);
-        spriteBatch.DrawString(
-            font,
+            theme.Colors.TextPrimary);
+        UiPrimitives.DrawText(
+            spriteBatch,
+            captionFont,
             countText,
             new Vector2(
                 Math.Max(
                     layout.HeaderBounds.Left,
                     layout.LatestBounds.Left - 51),
                 layout.HeaderBounds.Top + 5),
-            theme.Colors.TextSecondary,
-            0f,
-            Vector2.Zero,
-            0.60f,
-            SpriteEffects.None,
-            0f);
+            theme.Colors.TextSecondary);
 
         var latestLabel = feed.NewEventCount > 0
             ? $"LATEST +{feed.NewEventCount}"
@@ -381,13 +402,12 @@ internal sealed partial class BattleEventLogPanel
         DrawControl(
             spriteBatch,
             pixel,
-            font,
+            captionFont,
             layout.LatestBounds,
             latestLabel,
             isActive: feed.IsPinnedToBottom,
             isFocused: false,
-            theme,
-            textScale: 0.52f);
+            theme);
     }
 
     private void DrawControl(
@@ -399,7 +419,6 @@ internal sealed partial class BattleEventLogPanel
         bool isActive,
         bool isFocused,
         UiTheme theme,
-        float textScale = 0.55f,
         TextAlignment horizontalAlignment = TextAlignment.Center,
         bool isEnabled = true)
     {
@@ -436,21 +455,20 @@ internal sealed partial class BattleEventLogPanel
                 font,
                 label,
                 bounds.Center.ToVector2(),
-                textColor,
-                textScale);
+                textColor);
             return;
         }
 
-        spriteBatch.DrawString(
+        var maximumCharacters = Math.Max(
+            4,
+            (bounds.Width - 12) /
+                UiFontRamp.GetApproximateAdvancePx(UiFontRole.Caption));
+        UiPrimitives.DrawText(
+            spriteBatch,
             font,
-            ClipLabel(label, Math.Max(4, (bounds.Width - 12) / 7)),
+            ClipLabel(label, maximumCharacters),
             new Vector2(bounds.Left + 7, bounds.Top + 7),
-            textColor,
-            0f,
-            Vector2.Zero,
-            textScale,
-            SpriteEffects.None,
-            0f);
+            textColor);
     }
 
     private static string ClipLabel(string label, int maximumCharacters)

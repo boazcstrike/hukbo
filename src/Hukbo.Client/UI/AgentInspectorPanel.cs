@@ -16,7 +16,6 @@ internal sealed class AgentInspectorPanel
     private const int PortraitSize = AgentInspectorContent.PortraitSize;
     private const int PortraitGap = AgentInspectorContent.PortraitGap;
     private const int LineHeight = AgentInspectorContent.LineHeight;
-    private const float DetailTextScale = 0.64f;
 
     public Rectangle Bounds { get; private set; }
 
@@ -40,7 +39,7 @@ internal sealed class AgentInspectorPanel
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        UiFontSet fonts,
         AgentView? agent,
         Rectangle bounds,
         UiTheme theme)
@@ -60,18 +59,16 @@ internal sealed class AgentInspectorPanel
             theme.Colors.PanelBorder,
             theme.Metrics.BorderThickness);
 
+        var titleFont = fonts.Get(UiFontRole.Title);
+        var bodyFont = fonts.Get(UiFontRole.Body);
         var textX = Bounds.Left + Padding + AccentWidth;
         var textY = Bounds.Top + Padding;
-        spriteBatch.DrawString(
-            font,
+        UiPrimitives.DrawText(
+            spriteBatch,
+            titleFont,
             "AGENT INSPECTOR",
             new Vector2(textX, textY),
-            theme.Colors.TextPrimary,
-            0f,
-            Vector2.Zero,
-            0.78f,
-            SpriteEffects.None,
-            0f);
+            theme.Colors.TextPrimary);
 
         textY += AgentInspectorContent.TitleHeight;
         spriteBatch.Draw(
@@ -164,7 +161,7 @@ internal sealed class AgentInspectorPanel
         var evidenceLines = AgentInspectorContent.WrapText(
             appearance.EvidenceNote,
             contentWidthBudget,
-            candidate => font.MeasureString(candidate).X * DetailTextScale);
+            candidate => bodyFont.MeasureString(candidate).X);
         var maxRowBottom = Bounds.Bottom - Padding;
         for (var i = 0; i < evidenceLines.Count; i++)
         {
@@ -180,18 +177,14 @@ internal sealed class AgentInspectorPanel
 
         void DrawLine(string text, int xPosition, int yPosition, int row)
         {
-            spriteBatch.DrawString(
-                font,
+            UiPrimitives.DrawText(
+                spriteBatch,
+                bodyFont,
                 text,
                 new Vector2(
                     xPosition,
                     yPosition + (row * LineHeight)),
-                theme.Colors.TextPrimary,
-                0f,
-                Vector2.Zero,
-                DetailTextScale,
-                SpriteEffects.None,
-                0f);
+                theme.Colors.TextPrimary);
         }
     }
 

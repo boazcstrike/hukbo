@@ -34,8 +34,23 @@ public sealed partial class ArenaGame : Game
         AgentInspectorContent.ComputeRequiredHeight(
             AgentInspectorContent.EvidenceReservedLineCount);
     private const int EventHistoryCapacity = 200;
-    private const int SoundLogMinimumHeight = 168;
-    private const int SoundLogHeightPercent = 45;
+
+    // Both derived from the sound log's real row math after the font
+    // overhaul grew its row, header, and section heights to clear the
+    // Caption (20px real line spacing) and Title (35px real line spacing)
+    // rungs — see the derivation comment above
+    // `SoundLogPanel.Layout.cs:CaptionLineSpacing`. `SoundLogHeightPercent`
+    // of the default 1280x720 window's 640px column height must clear the
+    // header, the path line, nine binding rows, and the three
+    // minimum-reserved cue rows with zero slack, which needs a real panel
+    // height of 396px; 640 * 62 / 100 == 396 exactly under integer
+    // division. `SoundLogMinimumHeight` is the analogous floor for a
+    // shorter window — header, path, one binding row, and the three
+    // reserved cue rows — which stays comfortably below the percentage
+    // figure at the default window, so the percentage branch keeps
+    // deciding there.
+    private const int SoundLogMinimumHeight = 236;
+    private const int SoundLogHeightPercent = 62;
     private const int MaximumSafeRawCoordinate =
         Scenario.MaximumMapDimension * FixedPoint.Scale;
     private const ulong DefaultSeed = 1;
@@ -58,6 +73,7 @@ public sealed partial class ArenaGame : Game
     private readonly PresentationCoordinator _presentation =
         new(EventHistoryCapacity);
     private readonly AgentSelection _hoverSelection = new();
+    private readonly ArenaAutoPanController _autoPan = new();
     private readonly MatchSeries _matchSeries = new(DefaultSeed);
     private readonly ClientSettingsStore _settingsStore;
     private readonly GoreIntensityManager _goreManager;
@@ -70,7 +86,7 @@ public sealed partial class ArenaGame : Game
     private SpriteBatch? _spriteBatch;
     private RasterizerState? _arenaRasterizerState;
     private Texture2D? _pixel;
-    private SpriteFont? _font;
+    private UiFontSet? _fonts;
     private MonoGameSoundPlayer? _soundPlayer;
     private Settings.ArmyComposition _activeComposition;
     private bool _isSoundLogVisible;
@@ -153,8 +169,7 @@ public sealed partial class ArenaGame : Game
         };
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData([Color.White]);
-        _font = Content.Load<SpriteFont>(
-            _themeManager.Standards.Shared.FontAssetId);
+        _fonts = UiFontSet.Load(Content.Load<SpriteFont>);
         _soundPlayer = MonoGameSoundPlayer.Load(
             SoundLibrary.GetDefaultDirectoryPath());
         _soundDirector.AttachPlayer(_soundPlayer);
@@ -312,11 +327,35 @@ public sealed partial class ArenaGame : Game
 
         HandleArenaSelection(layout.ArenaBounds, pointerConsumed);
 
-        _camera.Update(
+        var manualPanApplied = _camera.Update(
             _input,
             elapsedSeconds,
             allowZoom: !pointerConsumed,
             gate.PanInput);
+
+        UpdateAutoPan(layout.ArenaBounds, manualPanApplied, elapsedSeconds);
+    }
+
+    /// <summary>
+    /// Drifts the camera to the nearest melee once the spectator's screen holds
+    /// no fighting at all. Spectator pan input always wins, and the assistant
+    /// stays out of the way while the match summary is up.
+    /// </summary>
+    private void UpdateAutoPan(
+        Rectangle arenaBounds,
+        bool manualPanApplied,
+        float elapsedSeconds)
+    {
+        var center = _autoPan.Update(
+            _simulation.Agents,
+            _camera.Center,
+            _camera.GetVisibleHalfExtents(arenaBounds),
+            _camera.Zoom,
+            manualPanApplied,
+            isSuppressed: _presentation.Summary is not null,
+            elapsedSeconds);
+
+        _camera.MoveCenterTo(center);
     }
 
     private ClientCommand GetSpectatorKeyboardCommand()
@@ -584,6 +623,7 @@ public sealed partial class ArenaGame : Game
         _hoverSelection.Clear();
         _simulationAccumulator = 0;
         _menu.Close();
+        _autoPan.Reset();
 
         if (resetCommand == ClientCommand.FullReset)
         {

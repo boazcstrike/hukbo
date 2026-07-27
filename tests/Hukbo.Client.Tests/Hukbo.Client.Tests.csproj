@@ -22,5 +22,8 @@
     <None Include="../../src/Hukbo.Client/Content/Themes/ui-theme-standards.json"
           Link="Content/Themes/ui-theme-standards.json"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/Hukbo.Client/Content/Content.mgcb"
+          Link="Content/Content.mgcb"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

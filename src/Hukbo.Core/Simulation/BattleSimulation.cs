@@ -133,12 +133,13 @@ public sealed class BattleSimulation
         var random = new SplitMix64(scenario.Seed);
         var agents = new AgentState[scenario.TotalAgents];
         var mapWidthRaw = checked(scenario.MapWidth * FixedPoint.Scale);
-        var mapHeightRaw = checked(scenario.MapHeight * FixedPoint.Scale);
-        var horizontalBandRaw = Math.Max(1, mapWidthRaw / 10);
-        var verticalMarginRaw = Math.Min(FixedPoint.Scale * 8, mapHeightRaw / 4);
-        var usableHeightRaw = Math.Max(
-            1,
-            mapHeightRaw - (verticalMarginRaw * 2));
+        // One deployment is planned and mirrored across the vertical centre
+        // line, so the two armies open in exactly the same shape. Both are
+        // drawn from the same roster, so any positional difference at tick 0
+        // would be seed noise that the battle then amplifies.
+        var deployment = FormationPlanner.PlanFactionDeployment(
+            scenario,
+            ref random);
         var rosterCountsAreEmpty = scenario.RosterCounts.IsDefaultOrEmpty;
         var expandedRosterIndices = rosterCountsAreEmpty
             ? ImmutableArray<int>.Empty
@@ -146,8 +147,6 @@ public sealed class BattleSimulation
 
         for (var index = 0; index < scenario.AgentsPerFaction; index++)
         {
-            var leftX = (mapWidthRaw / 4) + random.NextInt(horizontalBandRaw);
-            var leftY = verticalMarginRaw + random.NextInt(usableHeightRaw);
             var entityId = checked((ulong)index + 1);
             var loadout = rosterCountsAreEmpty
                 ? rules.ResolveLoadout(entityId)
@@ -155,18 +154,16 @@ public sealed class BattleSimulation
             agents[index] = CreateAgent(
                 entityId,
                 factionId: 0,
-                leftX,
-                leftY,
+                deployment[index].XRaw,
+                deployment[index].YRaw,
                 scenario,
                 loadout);
         }
 
         for (var index = 0; index < scenario.AgentsPerFaction; index++)
         {
-            var rightX = checked(
-                (int)(((long)mapWidthRaw * 3) / 4) -
-                random.NextInt(horizontalBandRaw));
-            var rightY = verticalMarginRaw + random.NextInt(usableHeightRaw);
+            var rightX = checked(mapWidthRaw - deployment[index].XRaw);
+            var rightY = deployment[index].YRaw;
             var stateIndex = scenario.AgentsPerFaction + index;
             var entityId = checked((ulong)stateIndex + 1);
             // Faction-local index, not entityId/stateIndex: RosterCounts
@@ -333,12 +330,23 @@ public sealed class BattleSimulation
     /// Makes the initial placement collision-free before the first tick.
     /// </summary>
     /// <remarks>
-    /// Random spawn bands are allowed to overlap, so overlaps are repaired
-    /// deterministically here: agents are placed in ascending entity ID, and an
-    /// agent that lands on an occupied spot is relocated by scanning rings of
-    /// the eight compass offsets at increasing radius in one fixed order. The
-    /// random stream is never consulted during relocation, so repairing a spawn
-    /// cannot shift the seed sequence for anything that follows.
+    /// <para>
+    /// This is a safety net rather than the primary repair.
+    /// <see cref="FormationPlanner"/> already keeps every planned pair at least
+    /// one raw unit clear of tangency, and the two factions occupy opposite
+    /// halves of the map, so this pass normally finds nothing to move and the
+    /// mirror survives intact. It re-engages only where a crowded map pushes
+    /// the planner's fallback lattice past the edge of its own half, and there
+    /// an approximate mirror is the correct degradation.
+    /// </para>
+    /// <para>
+    /// Overlaps are repaired deterministically: agents are placed in ascending
+    /// entity ID, and an agent that lands on an occupied spot is relocated by
+    /// scanning rings of the eight compass offsets at increasing radius in one
+    /// fixed order. The random stream is never consulted during relocation, so
+    /// repairing a spawn cannot shift the seed sequence for anything that
+    /// follows.
+    /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// An agent could not be placed. Scenario validation rejects impossible

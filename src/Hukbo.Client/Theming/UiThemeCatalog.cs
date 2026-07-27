@@ -320,10 +320,6 @@ internal sealed partial class UiThemeCatalog
                 standards.MetricRanges.TargetSize,
                 "targetSize",
                 errors);
-            ValidateRange(
-                standards.MetricRanges.TextScale,
-                "textScale",
-                errors);
         }
 
         if (standards.AllowedFontAssetIds is null ||
@@ -339,14 +335,6 @@ internal sealed partial class UiThemeCatalog
         {
             errors.Add("Standards require shared UI configuration.");
             return;
-        }
-
-        if (standards.AllowedFontAssetIds is not null &&
-            !standards.AllowedFontAssetIds.Contains(
-                standards.Shared.FontAssetId,
-                StringComparer.Ordinal))
-        {
-            errors.Add("Shared font asset ID is not allowed.");
         }
 
         ValidateSharedStandards(standards, errors);
@@ -366,11 +354,12 @@ internal sealed partial class UiThemeCatalog
         if (shared.Menu is null ||
             shared.Selector is null ||
             shared.ArmyComposition is null ||
-            shared.TextScales is null)
+            shared.Fonts is null ||
+            shared.TextRoles is null)
         {
             errors.Add(
                 "Shared standards require menu, selector, army composition " +
-                "layout, and text scales.");
+                "layout, font assignments, and text roles.");
             return;
         }
 
@@ -414,24 +403,92 @@ internal sealed partial class UiThemeCatalog
                 "standards.");
         }
 
-        foreach (var scale in new[]
-                 {
-                     shared.TextScales.MenuTitle,
-                     shared.TextScales.MenuSubtitle,
-                     shared.TextScales.MenuButton,
-                     shared.TextScales.MenuHelper,
-                     shared.TextScales.SelectorArrow,
-                     shared.TextScales.SelectorLabel,
-                     shared.TextScales.SelectorName,
-                     shared.TextScales.SelectorMarker,
-                 })
+        ValidateFontAssignments(standards, errors);
+    }
+
+    /// <summary>
+    /// Slot names for the eight existing theme text scale slots, mirrored by
+    /// <c>shared.textRoles</c> in the theme catalog JSON and by the
+    /// <see cref="UiTextRoles"/> record's property order.
+    /// </summary>
+    private static readonly string[] RequiredTextRoleSlots =
+    [
+        "menuTitle",
+        "menuSubtitle",
+        "menuButton",
+        "menuHelper",
+        "selectorArrow",
+        "selectorLabel",
+        "selectorName",
+        "selectorMarker",
+    ];
+
+    /// <summary>
+    /// Validates the additive font schema: every <see cref="UiFontRole"/>
+    /// must have an asset assignment drawn from the allowed font asset IDs,
+    /// and every required text-scale slot must name a font role that
+    /// <see cref="UiFontRamp.Parse"/> accepts.
+    /// </summary>
+    private static void ValidateFontAssignments(
+        StandardsDocument standards,
+        List<string> errors)
+    {
+        var shared = standards.Shared;
+        if (shared?.Fonts is null || shared.TextRoles is null)
         {
-            if (!IsWithin(scale, ranges.TextScale))
+            return;
+        }
+
+        var allowedFontAssetIds = standards.AllowedFontAssetIds ?? [];
+        foreach (var role in UiFontRamp.AllRoles)
+        {
+            var key = ToFontKey(role);
+            if (!shared.Fonts.TryGetValue(key, out var assetId))
             {
-                errors.Add("Shared text scale is outside metric standards.");
-                break;
+                errors.Add(
+                    $"Shared font assignments are missing role '{key}'.");
+                continue;
+            }
+
+            if (!allowedFontAssetIds.Contains(assetId, StringComparer.Ordinal))
+            {
+                errors.Add(
+                    $"Shared font assignment for '{key}' references an " +
+                    $"unallowed asset ID '{assetId}'.");
             }
         }
+
+        foreach (var slot in RequiredTextRoleSlots)
+        {
+            if (!shared.TextRoles.TryGetValue(slot, out var roleName))
+            {
+                errors.Add($"Shared text roles are missing slot '{slot}'.");
+                continue;
+            }
+
+            try
+            {
+                UiFontRamp.Parse(roleName);
+            }
+            catch (FormatException)
+            {
+                errors.Add(
+                    $"Shared text role '{slot}' names an unknown font role " +
+                    $"'{roleName}'.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// The <c>shared.fonts</c> map key for a role: the role's enum member
+    /// name with its first character lowercased, matching the convention
+    /// already used by <see cref="RuntimeColorRoles"/> and
+    /// <see cref="RuntimeInteractionStates"/>.
+    /// </summary>
+    private static string ToFontKey(UiFontRole role)
+    {
+        var name = role.ToString();
+        return char.ToLowerInvariant(name[0]) + name[1..];
     }
 
     private static void ValidateContrastPairContract(
@@ -529,15 +586,11 @@ internal sealed partial class UiThemeCatalog
                 ToIntegerRange(standards.MetricRanges!.BorderThickness!),
                 ToIntegerRange(standards.MetricRanges.FocusThickness!),
                 ToIntegerRange(standards.MetricRanges.ShadowOffset!),
-                ToIntegerRange(standards.MetricRanges.TargetSize!),
-                new UiNumberRange(
-                    standards.MetricRanges.TextScale!.Minimum,
-                    standards.MetricRanges.TextScale.Maximum)),
+                ToIntegerRange(standards.MetricRanges.TargetSize!)),
             standards.AllowedFontAssetIds!,
             new UiSharedStandards(
-                standards.Shared!.FontAssetId!,
                 new UiMenuLayout(
-                    standards.Shared.Menu!.PanelWidth,
+                    standards.Shared!.Menu!.PanelWidth,
                     standards.Shared.Menu.PanelHeight,
                     standards.Shared.Menu.ButtonWidth,
                     standards.Shared.Menu.ButtonHeight,
@@ -565,15 +618,30 @@ internal sealed partial class UiThemeCatalog
                     standards.Shared.ArmyComposition.RowGap,
                     standards.Shared.ArmyComposition.StepperWidth,
                     standards.Shared.ArmyComposition.ArrowWidth),
-                new UiTextScales(
-                    standards.Shared.TextScales!.MenuTitle,
-                    standards.Shared.TextScales.MenuSubtitle,
-                    standards.Shared.TextScales.MenuButton,
-                    standards.Shared.TextScales.MenuHelper,
-                    standards.Shared.TextScales.SelectorArrow,
-                    standards.Shared.TextScales.SelectorLabel,
-                    standards.Shared.TextScales.SelectorName,
-                    standards.Shared.TextScales.SelectorMarker)));
+                CreateFontAssignments(standards.Shared.Fonts!),
+                CreateTextRoles(standards.Shared.TextRoles!)));
+
+    private static UiFontAssignments CreateFontAssignments(
+        Dictionary<string, string> fonts) =>
+        new(
+            fonts[ToFontKey(UiFontRole.Caption)],
+            fonts[ToFontKey(UiFontRole.Body)],
+            fonts[ToFontKey(UiFontRole.Label)],
+            fonts[ToFontKey(UiFontRole.Subtitle)],
+            fonts[ToFontKey(UiFontRole.Title)],
+            fonts[ToFontKey(UiFontRole.Display)]);
+
+    private static UiTextRoles CreateTextRoles(
+        Dictionary<string, string> textRoles) =>
+        new(
+            UiFontRamp.Parse(textRoles["menuTitle"]),
+            UiFontRamp.Parse(textRoles["menuSubtitle"]),
+            UiFontRamp.Parse(textRoles["menuButton"]),
+            UiFontRamp.Parse(textRoles["menuHelper"]),
+            UiFontRamp.Parse(textRoles["selectorArrow"]),
+            UiFontRamp.Parse(textRoles["selectorLabel"]),
+            UiFontRamp.Parse(textRoles["selectorName"]),
+            UiFontRamp.Parse(textRoles["selectorMarker"]));
 
     private static void ValidateContrast(
         CatalogDocument document,
@@ -676,11 +744,6 @@ internal sealed partial class UiThemeCatalog
         new((int)range.Minimum, (int)range.Maximum);
 
     private static bool IsWithin(int value, UiIntegerRange range) =>
-        value >= range.Minimum && value <= range.Maximum;
-
-    private static bool IsWithin(
-        double value,
-        UiNumberRange range) =>
         value >= range.Minimum && value <= range.Maximum;
 
     private static bool IsWithin(

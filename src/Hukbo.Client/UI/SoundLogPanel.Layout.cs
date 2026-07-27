@@ -12,23 +12,67 @@ namespace Hukbo.Client.UI;
 /// </summary>
 internal sealed partial class SoundLogPanel
 {
-    // Eleven, not fifteen, so that every slot still fits the expected-files
-    // section at the default 420x288 panel. The section is capped at
-    // `available - Gap - reservedCueHeight`, which is 155 pixels there, and the
-    // twelve-slot catalog wants `SectionHeaderHeight + 12 * BindingRowHeight`.
-    // At fifteen that is 196 and the list silently truncates to nine rows,
-    // hiding the three clash slots in the one panel whose job is to document
-    // what to name a file. At eleven it is 148 and all twelve show, without
-    // taking a row from the cue log's reserved minimum.
-    internal const int BindingRowHeight = 11;
-    internal const int CueRowHeight = 15;
+    // The row, header, and section heights below are sized against the real
+    // baked line spacing of the two rungs this panel draws, not the pixel
+    // size alone. `SpriteFont.LineSpacing` is the font's own answer to "how
+    // tall does one line need to be", computed by the FreeType rasterizer
+    // from the face's ascent, descent, and line gap at the baked size — it is
+    // consistently taller than the naive pixel-size estimate because it
+    // reserves room for descenders and internal leading that a raw glyph
+    // height does not. Both values were measured by baking
+    // `Content/Fonts/UiCaption.spritefont` and `Content/Fonts/UiTitle.spritefont`
+    // through the same `FontDescriptionImporter`/`FontDescriptionProcessor`
+    // pair the real `Content.mgcb` build uses (Reach profile, DesktopGL,
+    // `PremultiplyAlpha=True`, `TextureFormat=Color`) and reading the
+    // resulting `SpriteFontContent.VerticalLineSpacing`:
+    // Rajdhani-SemiBold at 12px (the `Caption` rung) measured 20, and
+    // Bebas Neue at 22px (the `Title` rung) measured 35. Guessing from pixel
+    // size alone (the "12px needs about 15px" rule of thumb) would have
+    // undershot both figures.
+    private const int CaptionLineSpacing = 20;
+    private const int TitleLineSpacing = 35;
+
+    /// <summary>
+    /// Vertical offset of the "SOUND LOG" title's draw position from the
+    /// header's top edge. Small and fixed, independent of the line spacing
+    /// constants above, so the title never touches the panel's own border.
+    /// </summary>
+    private const int HeaderTitleTopOffset = 2;
+
+    /// <summary>
+    /// Clearance between the bottom of the title line and the top of the
+    /// availability caption line stacked beneath it.
+    /// </summary>
+    private const int HeaderLineGap = 2;
+
+    /// <summary>
+    /// Clearance reserved below the availability caption line before the
+    /// header's own bottom edge.
+    /// </summary>
+    private const int HeaderBottomPadding = 3;
+
+    /// <summary>
+    /// Vertical offset of the availability caption's draw position from the
+    /// header's top edge — directly beneath the title's own line box.
+    /// </summary>
+    internal const int HeaderCaptionTopOffset =
+        HeaderTitleTopOffset + TitleLineSpacing + HeaderLineGap;
+
+    internal const int BindingRowHeight = CaptionLineSpacing;
+    internal const int CueRowHeight = CaptionLineSpacing;
     internal const int MinimumThumbHeight = 18;
 
     private const int Padding = 10;
     private const int Gap = 6;
-    private const int HeaderHeight = 24;
-    private const int PathHeight = 14;
-    private const int SectionHeaderHeight = 16;
+
+    // Tall enough to stack the Title-rung title line and the Caption-rung
+    // availability line beneath it without either one clipping into the
+    // panel's own header/path seam. See the derivation note above.
+    private const int HeaderHeight =
+        HeaderCaptionTopOffset + CaptionLineSpacing + HeaderBottomPadding;
+
+    private const int PathHeight = CaptionLineSpacing;
+    private const int SectionHeaderHeight = CaptionLineSpacing;
     private const int MinimumCueRowCount = 3;
     private const int MuteWidth = 54;
     private const int ScrollbarWidth = 8;

@@ -55,19 +55,16 @@ internal sealed record UiMetricRanges(
     UiIntegerRange BorderThickness,
     UiIntegerRange FocusThickness,
     UiIntegerRange ShadowOffset,
-    UiIntegerRange TargetSize,
-    UiNumberRange TextScale);
+    UiIntegerRange TargetSize);
 
 internal sealed record UiIntegerRange(int Minimum, int Maximum);
 
-internal sealed record UiNumberRange(double Minimum, double Maximum);
-
 internal sealed record UiSharedStandards(
-    string FontAssetId,
     UiMenuLayout Menu,
     UiThemeSelectorLayout Selector,
     UiArmyCompositionLayout ArmyComposition,
-    UiTextScales TextScales);
+    UiFontAssignments Fonts,
+    UiTextRoles TextRoles);
 
 internal sealed record UiMenuLayout(
     int PanelWidth,
@@ -101,15 +98,31 @@ internal sealed record UiArmyCompositionLayout(
     int StepperWidth,
     int ArrowWidth);
 
-internal sealed record UiTextScales(
-    float MenuTitle,
-    float MenuSubtitle,
-    float MenuButton,
-    float MenuHelper,
-    float SelectorArrow,
-    float SelectorLabel,
-    float SelectorName,
-    float SelectorMarker);
+/// <summary>
+/// The content-pipeline asset id assigned to each <see cref="UiFontRole"/>,
+/// as read from the theme catalog's <c>shared.fonts</c> map.
+/// </summary>
+internal sealed record UiFontAssignments(
+    string Caption,
+    string Body,
+    string Label,
+    string Subtitle,
+    string Title,
+    string Display);
+
+/// <summary>
+/// The resolved <see cref="UiFontRole"/> for each of the eight theme text
+/// slots, as read from the theme catalog's <c>shared.textRoles</c> map.
+/// </summary>
+internal sealed record UiTextRoles(
+    UiFontRole MenuTitle,
+    UiFontRole MenuSubtitle,
+    UiFontRole MenuButton,
+    UiFontRole MenuHelper,
+    UiFontRole SelectorArrow,
+    UiFontRole SelectorLabel,
+    UiFontRole SelectorName,
+    UiFontRole SelectorMarker);
 
 internal enum UiVisualInteractionState
 {

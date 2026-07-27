@@ -95,14 +95,24 @@ public sealed class AgentInspectorContentTests
             string.Join(' ', lines));
     }
 
-    [Fact]
-    public void WrapText_NoReturnedLineExceedsWidthBudget()
+    // Rajdhani SemiBold's real per-character advance at the Body rung's 14px
+    // bake is narrower than the Default.spritefont Arial-18-at-0.64 legacy
+    // estimate this suite used to hardcode. Testing across 5, 6, 7, and 8
+    // pixels per character brackets the plausible real value instead of
+    // pinning to one now-obsolete measurement.
+    [Theory]
+    [InlineData(5f)]
+    [InlineData(6f)]
+    [InlineData(7f)]
+    [InlineData(8f)]
+    public void WrapText_NoReturnedLineExceedsWidthBudget(
+        float pixelsPerCharacter)
     {
         const string evidenceNote =
             "PROVISIONAL: comparable to Spanish-era accounts of the " +
             "kampilan.";
         const float maxWidthPx = 277f;
-        var measure = FixedWidthMeasure(6f);
+        var measure = FixedWidthMeasure(pixelsPerCharacter);
 
         var lines = AgentInspectorContent.WrapText(
             evidenceNote,
@@ -114,12 +124,17 @@ public sealed class AgentInspectorContentTests
             line => Assert.True(measure(line) <= maxWidthPx));
     }
 
-    [Fact]
-    public void WrapText_OversizedSingleWord_HardSplitsWithinBudget()
+    [Theory]
+    [InlineData(5f)]
+    [InlineData(6f)]
+    [InlineData(7f)]
+    [InlineData(8f)]
+    public void WrapText_OversizedSingleWord_HardSplitsWithinBudget(
+        float pixelsPerCharacter)
     {
         var oversizedWord = new string('x', 80);
         const float maxWidthPx = 60f;
-        var measure = FixedWidthMeasure(6f);
+        var measure = FixedWidthMeasure(pixelsPerCharacter);
 
         var lines = AgentInspectorContent.WrapText(
             oversizedWord,
@@ -132,8 +147,13 @@ public sealed class AgentInspectorContentTests
             line => Assert.True(measure(line) <= maxWidthPx));
     }
 
-    [Fact]
-    public void WrapText_WrappedContentFitsWithinReservedPanelHeight()
+    [Theory]
+    [InlineData(5f)]
+    [InlineData(6f)]
+    [InlineData(7f)]
+    [InlineData(8f)]
+    public void WrapText_WrappedContentFitsWithinReservedPanelHeight(
+        float pixelsPerCharacter)
     {
         const string evidenceNote =
             "PROVISIONAL: comparable to Spanish-era accounts of the " +
@@ -142,7 +162,7 @@ public sealed class AgentInspectorContentTests
         var lines = AgentInspectorContent.WrapText(
             evidenceNote,
             maxWidthPx: 277f,
-            measureWidth: FixedWidthMeasure(6f));
+            measureWidth: FixedWidthMeasure(pixelsPerCharacter));
 
         var requiredHeight = AgentInspectorContent.ComputeRequiredHeight(
             lines.Count);

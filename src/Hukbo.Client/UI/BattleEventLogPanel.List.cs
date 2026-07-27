@@ -21,12 +21,13 @@ internal sealed partial class BattleEventLogPanel
     private void DrawList(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        UiFontSet fonts,
         BattleEventFeed feed,
         BattleEventPanelLayout layout,
         UiTheme theme)
     {
-        DrawListChrome(spriteBatch, pixel, font, feed, layout, theme);
+        var captionFont = fonts.Get(UiFontRole.Caption);
+        DrawListChrome(spriteBatch, pixel, captionFont, feed, layout, theme);
 
         var panelState = GetPanelState(
             feed.Entries.Count,
@@ -35,7 +36,7 @@ internal sealed partial class BattleEventLogPanel
         {
             DrawEmptyListState(
                 spriteBatch,
-                font,
+                fonts,
                 layout,
                 panelState,
                 theme);
@@ -60,7 +61,7 @@ internal sealed partial class BattleEventLogPanel
             DrawRow(
                 spriteBatch,
                 pixel,
-                font,
+                captionFont,
                 feed,
                 layout,
                 theme,
@@ -102,32 +103,24 @@ internal sealed partial class BattleEventLogPanel
             BattleEventKeyboardFocusTarget.List
                 ? theme.Metrics.FocusThickness
                 : 1);
-        spriteBatch.DrawString(
+        UiPrimitives.DrawText(
+            spriteBatch,
             font,
             "EVENT STREAM",
             new Vector2(layout.ListBounds.Left + 8, layout.ListBounds.Top + 6),
-            theme.Colors.TextDisabled,
-            0f,
-            Vector2.Zero,
-            0.53f,
-            SpriteEffects.None,
-            0f);
+            theme.Colors.TextDisabled);
         var statusText = feed.IsPinnedToBottom ? "[LIVE]" : "[INSPECTING]";
         var statusColor = feed.IsPinnedToBottom
             ? theme.Colors.StatusSuccess
             : theme.Colors.NewEvent;
-        spriteBatch.DrawString(
+        UiPrimitives.DrawText(
+            spriteBatch,
             font,
             statusText,
             new Vector2(
                 Math.Max(layout.ListBounds.Left + 100, layout.ListBounds.Right - 82),
                 layout.ListBounds.Top + 6),
-            statusColor,
-            0f,
-            Vector2.Zero,
-            0.52f,
-            SpriteEffects.None,
-            0f);
+            statusColor);
     }
 
     private void DrawRow(
@@ -209,44 +202,32 @@ internal sealed partial class BattleEventLogPanel
         var tickX = rowBounds.Left + 9;
         var actorX = tickX + 54;
         var actionX = actorX + Math.Min(100, Math.Max(65, rowBounds.Width / 3));
-        spriteBatch.DrawString(
+        UiPrimitives.DrawText(
+            spriteBatch,
             font,
             formatted.Tick,
             new Vector2(tickX, rowBounds.Top + 8),
-            foregrounds.Tick,
-            0f,
-            Vector2.Zero,
-            0.50f,
-            SpriteEffects.None,
-            0f);
-        spriteBatch.DrawString(
+            foregrounds.Tick);
+        UiPrimitives.DrawText(
+            spriteBatch,
             font,
             formatted.Actor,
             new Vector2(actorX, rowBounds.Top + 7),
-            foregrounds.Actor,
-            0f,
-            Vector2.Zero,
-            0.55f,
-            SpriteEffects.None,
-            0f);
+            foregrounds.Actor);
         if (actionX < rowBounds.Right)
         {
-            spriteBatch.DrawString(
+            UiPrimitives.DrawText(
+                spriteBatch,
                 font,
                 formatted.Action,
                 new Vector2(actionX, rowBounds.Top + 7),
-                foregrounds.Action,
-                0f,
-                Vector2.Zero,
-                0.55f,
-                SpriteEffects.None,
-                0f);
+                foregrounds.Action);
         }
     }
 
     private static void DrawEmptyListState(
         SpriteBatch spriteBatch,
-        SpriteFont font,
+        UiFontSet fonts,
         BattleEventPanelLayout layout,
         BattleEventPanelState state,
         UiTheme theme)
@@ -257,21 +238,26 @@ internal sealed partial class BattleEventLogPanel
         var hint = state == BattleEventPanelState.NoEvents
             ? "Events appear as the simulation advances."
             : "Adjust a filter or choose RESET.";
+        // MeasureString returns the font's full real line spacing as the
+        // height of any single-line string (Body 24px, Caption 20px), and
+        // DrawCenteredText centers on that measured box. The previous
+        // offsets (8 and 11) were tuned for the old resampled text, which
+        // measured under 11px tall; at the real bakes they put the title's
+        // box bottom (centerY + 4) below the hint's box top (centerY + 1),
+        // a 3px overlap. -10 and 14 clear both boxes with a 2px gap.
         var center = layout.RowsBounds.Center.ToVector2();
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            fonts.Get(UiFontRole.Body),
             title,
-            center - new Vector2(0, 8),
-            theme.Colors.TextPrimary,
-            0.58f);
+            center - new Vector2(0, 10),
+            theme.Colors.TextPrimary);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
-            font,
+            fonts.Get(UiFontRole.Caption),
             hint,
-            center + new Vector2(0, 11),
-            theme.Colors.TextSecondary,
-            0.48f);
+            center + new Vector2(0, 14),
+            theme.Colors.TextSecondary);
     }
 
     private static void DrawScrollbar(
@@ -315,7 +301,10 @@ internal sealed partial class BattleEventLogPanel
         }
 
         var actorCharacters = Math.Max(8, Math.Min(15, rowWidth / 25));
-        var actionCharacters = Math.Max(6, (rowWidth - 165) / 7);
+        var actionCharacters = Math.Max(
+            6,
+            (rowWidth - 165) /
+                UiFontRamp.GetApproximateAdvancePx(UiFontRole.Caption));
         var formatted = new FormattedEvent(
             battleEvent,
             rowWidth,

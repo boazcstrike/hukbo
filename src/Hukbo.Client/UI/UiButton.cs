@@ -61,12 +61,31 @@ internal sealed class UiButton
         IsActive = IsEnabled && isActive;
     }
 
+    /// <summary>
+    /// Draws the button at scale 1.0 against a bake the caller already chose
+    /// for the size it wants to draw. The caller resolves a
+    /// <c>UiFontRole</c> to a <c>SpriteFont</c> through <c>UiFontSet</c>
+    /// before calling this method; there is no scaled overload.
+    /// </summary>
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
         SpriteFont font,
-        UiTheme theme,
-        float textScale = 1f)
+        UiTheme theme)
+    {
+        var textColor = DrawBackgroundAndBorder(spriteBatch, pixel, theme);
+        UiPrimitives.DrawCenteredText(
+            spriteBatch,
+            font,
+            Label,
+            Bounds.Center.ToVector2(),
+            textColor);
+    }
+
+    private Color DrawBackgroundAndBorder(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        UiTheme theme)
     {
         var fillColor = GetFillColor(theme);
         var textColor = IsEnabled
@@ -94,13 +113,7 @@ internal sealed class UiButton
                 theme.Colors.Selection);
         }
 
-        UiPrimitives.DrawCenteredText(
-            spriteBatch,
-            font,
-            Label,
-            Bounds.Center.ToVector2(),
-            textColor,
-            textScale);
+        return textColor;
     }
 
     private Color GetFillColor(UiTheme theme)
@@ -164,16 +177,49 @@ internal static class UiPrimitives
             color);
     }
 
+    /// <summary>
+    /// Draws text at a whole-pixel top-left origin, at scale 1.0 against a
+    /// bake taken at the size the caller intends to draw. There is no float
+    /// resampling here: the caller is expected to have already chosen a
+    /// <see cref="Theming.UiFontRole"/>-sized font for the string it wants to
+    /// draw.
+    /// </summary>
+    public static void DrawText(
+        SpriteBatch spriteBatch,
+        SpriteFont font,
+        string text,
+        Vector2 position,
+        Color color)
+    {
+        var snapped = UiTextGeometry.SnapToPixel(position);
+        spriteBatch.DrawString(
+            font,
+            text,
+            snapped,
+            color,
+            0f,
+            Vector2.Zero,
+            1f,
+            SpriteEffects.None,
+            0f);
+    }
+
+    /// <summary>
+    /// Draws text centred on <paramref name="center"/> at scale 1.0, with the
+    /// top-left origin snapped to a whole pixel by
+    /// <see cref="UiTextGeometry.GetCenteredTopLeft"/>. There is no scaled
+    /// overload; every caller draws against a bake taken at the size it
+    /// intends to show.
+    /// </summary>
     public static void DrawCenteredText(
         SpriteBatch spriteBatch,
         SpriteFont font,
         string text,
         Vector2 center,
-        Color color,
-        float scale = 1f)
+        Color color)
     {
-        var size = font.MeasureString(text) * scale;
-        var position = center - (size / 2f);
+        var measuredSize = font.MeasureString(text);
+        var position = UiTextGeometry.GetCenteredTopLeft(measuredSize, center);
         spriteBatch.DrawString(
             font,
             text,
@@ -181,7 +227,7 @@ internal static class UiPrimitives
             color,
             0f,
             Vector2.Zero,
-            scale,
+            1f,
             SpriteEffects.None,
             0f);
     }

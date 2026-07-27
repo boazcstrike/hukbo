@@ -39,6 +39,229 @@ types. Performance output is evidence, not a universal frame-time guarantee.
 
 ## Latest non-interactive result
 
+Every figure in this section comes from the mirrored starting-formation change
+on 2026-07-27, taken on the `feature/starting-formations` branch. Starting
+positions are now planned once per battle as a set of contingents and mirrored
+across the vertical centre line, so both hashes moved. See
+[docs/archives/2026-07-27-starting-formations-design.md](../archives/2026-07-27-starting-formations-design.md),
+kept for traceability only.
+
+**Everything below the next heading predates this change and is superseded.**
+
+### Canonical gate
+
+`./scripts/verify.ps1` passed at all five stages: prerequisite validation and
+locked restore, format verification, the Release solution build with zero
+warnings, the Release repository tests, and the seed-1 / 200-agent /
+10,000-tick headless determinism workload.
+
+| Suite | Passed | Failed | Skipped |
+| --- | --- | --- | --- |
+| `Hukbo.Core.Tests` | 351 | 0 | 0 |
+| `Hukbo.Client.Tests` | 532 | 0 | 0 |
+
+These are post-merge figures, taken from a clean checkout of the merge commit.
+The Client count is the 532 the camera auto-pan change brought with it; no
+Client test was added or changed here.
+
+The Core count is 25 higher than the 326 recorded on `main`; all 25 are the new
+`FormationPlannerTests`, which cover mirror symmetry, spawn clearance, map
+bounds, half-of-map containment on narrow maps, seed reproducibility, the
+five-contingent structure of a default army, the eight-contingent cap, the
+crowded-map fallback lattice, and the minimum-map, maximum-map, narrow-half and
+single-warrior edge cases. No Client code changed and the Client count is
+unchanged.
+
+### 200-agent acceptance workload
+
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`. This is the current
+recorded oracle.
+
+| Field | Value |
+| --- | --- |
+| Measured ticks | 1081 |
+| Outcome | `Faction1Victory` |
+| Faction 0 survivors | 0 |
+| Faction 1 survivors | 3 |
+| State hash | `DC7F2E7A107C885A` |
+| Event hash | `6C641E90DDF0B943` |
+| Deterministic | `true` |
+| First mismatch tick | `null` |
+| Tick p50 | 0.0827 ms |
+| Tick p95 | 1.2937 ms |
+| Tick p99 | 2.4169 ms |
+| Tick maximum | 7.3589 ms |
+| Allocated | 69,693,688 bytes |
+
+Collision metrics for the same run:
+
+| Metric | Value |
+| --- | --- |
+| `candidatePairs` | 107,634 |
+| `contactPairs` | 5,007 |
+| `acceptedMoves` | 66,416 |
+| `blockedAgentTicks` | 29,040 |
+| `attackCapableAgentTicks` | 9,283 |
+| `longestBlockedStreakTicks` | 48 |
+| `maximumFrontWidthRaw` | 630,752 |
+| `maximumFrontDepthRaw` | 29,114 |
+| `maximumPenetrationRaw` | 0 |
+
+### 500-agent stress workload
+
+The same command with `-Agents 500`. Report only; not gated.
+
+| Field | Value |
+| --- | --- |
+| Measured ticks | 2231 |
+| Outcome | `Faction1Victory` |
+| Faction 0 survivors | 0 |
+| Faction 1 survivors | 3 |
+| State hash | `0C53793DEB700A53` |
+| Event hash | `4F373537096F2551` |
+| Deterministic | `true` |
+| First mismatch tick | `null` |
+| Tick p50 | 0.3425 ms |
+| Tick p95 | 2.6284 ms |
+| Tick p99 | 4.9597 ms |
+| Tick maximum | 11.6425 ms |
+| Allocated | 358,456,096 bytes |
+
+| Metric | Value |
+| --- | --- |
+| `candidatePairs` | 636,262 |
+| `contactPairs` | 12,746 |
+| `acceptedMoves` | 346,688 |
+| `blockedAgentTicks` | 92,070 |
+| `attackCapableAgentTicks` | 23,207 |
+| `longestBlockedStreakTicks` | 48 |
+| `maximumFrontWidthRaw` | 639,480 |
+| `maximumFrontDepthRaw` | 62,961 |
+| `maximumPenetrationRaw` | 0 |
+
+### What the deployment change moved, on the same workload
+
+| Metric | Amended collision run | Mirrored deployment |
+| --- | --- | --- |
+| Terminal tick, 200 agents | 657 | 1081 |
+| Faction 1 survivors, 200 agents | 10 | 3 |
+| `contactPairs`, 200 agents | 5,649 | 5,007 |
+| `blockedAgentTicks`, 200 agents | 14,544 | 29,040 |
+| `maximumFrontDepthRaw`, 200 agents | 51,072 | 29,114 |
+| `maximumPenetrationRaw`, 200 agents | 0 | 0 |
+
+The battles now run considerably longer and end with fewer survivors on the
+winning side. Front depth roughly halved and blocked agent ticks roughly
+doubled, both consistent with armies that arrive as several columns and queue up
+behind their own contingents instead of converging as one cloud. Penetration
+stayed at exactly zero, which is the guard: the deployment change did not weaken
+the solid-disc invariant.
+
+The win distribution went the other way and that must be recorded, not glossed.
+Measured directly, `./scripts/benchmark.ps1 -Agents 200 -Ticks 10000` over seeds
+1 to 20:
+
+| Build | Faction 0 wins | Faction 1 wins |
+| --- | --- | --- |
+| `main` | 4 | 16 |
+| This change | 1 | 19 |
+
+Individual battles are closer; which faction wins is more predictable. The cause
+is not an unfair deployment — both armies now hold identical ground. It is that
+a symmetric deployment leaves the entity-ID ordering rule as the only asymmetry
+in the simulation, and that rule always favours the same faction. Random spawns
+used to hide it behind noise. Planning each faction from its own jitter draws
+was implemented and measured as a mitigation and produced the same 1/19 split,
+so it was reverted. Correcting the underlying bias is a tick-rule change that
+needs its own decision record and was not attempted here.
+`SeedsOneThroughTwentyProduceVictoriesForBothFactions` still passes, on one
+seed.
+
+Allocation rose from 42,568,888 to 69,693,688 bytes on the 200-agent workload.
+That is **not** an efficiency regression claim in either direction: the battle
+also ran 424 ticks longer, and per-tick timing is unchanged or slightly better
+(p50 0.0878 ms to 0.0827 ms). The next meaningful allocation comparison is
+against the 69,693,688-byte figure above, at the same agent count and seed.
+
+### Superseded oracles
+
+Dead values, kept so the transition can be traced. None may be used as a
+regression target.
+
+| Superseded oracle | State hash | Event hash | Note |
+| --- | --- | --- | --- |
+| 200 agents, seed 1, amended collision | `D78F0B527B7F938F` | `AC3BAAEC684854D5` | Terminal tick 657. Superseded by the mirrored deployment. |
+| 500 agents, seed 1, amended collision | `C81B4F48DE54B983` | `D03F1213563DFD49` | Report-only workload. Superseded by the mirrored deployment. |
+
+The combat preset is untouched: `CombatRuleset.ContentHash` is still
+`0x59FB4CA563D87A49`, asserted by two tests in the passing suite.
+
+### Interactive verification
+
+**Not performed.** The opening frame is the whole visible point of this change
+and no person has watched it in a live window. The rows in the deployment smoke
+checklist below stay `PENDING`.
+
+### Font and text quality gate run — 2026-07-27
+
+`./scripts/verify.ps1 -SkipBootstrap` was run at the repository root on
+2026-07-27 after the font and text quality change (design document
+[docs/plans/2026-07-27-font-text-quality-design.md](../plans/2026-07-27-font-text-quality-design.md),
+plan document
+[docs/plans/2026-07-27-font-text-quality.md](../plans/2026-07-27-font-text-quality.md)).
+It ended with `[PASS] Canonical repository verification completed.` and printed
+exactly:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+`Hukbo.Client.Tests` reported 564 passed and 0 failed; `Hukbo.Core.Tests`
+reported 351 passed and 0 failed. The Core count is unchanged from the 351
+recorded above, because zero files under `src/Hukbo.Core` were touched. The
+Client count rises from the 532 recorded above by the new tests this change
+added — the font ramp, the font set, the whole-pixel text geometry helper, and
+the extended theme catalog coverage for the six-role font map. The Release
+build produced 0 warnings and 0 errors.
+
+The seed-1, 200-agent, 10,000-tick headless workload's `RunReport` recorded
+seed `1`, `agentCount` `200`, `requestedTicks` `10000`, `measuredTicks` `1081`,
+outcome `Faction1Victory`, `faction0Survivors` `0`, `faction1Survivors` `3`,
+state hash `DC7F2E7A107C885A`, event hash `6C641E90DDF0B943`,
+`deterministic: true`, `firstMismatchTick: null`, tick p50 `0.0827` ms, p95
+`1.3886` ms, p99 `2.4117` ms, maximum `6.9264` ms, and `allocatedBytes`
+`69693688`.
+
+**Both hashes are unchanged from the 200-agent acceptance oracle recorded at
+the top of this section** (`DC7F2E7A107C885A` and `6C641E90DDF0B943`,
+respectively). That is the expected result for a presentation-only change: the
+font ramp, the six vendored typeface bakes, the sampler-state switch from
+`PointClamp` to `LinearClamp` in the user interface sprite batch, and the
+whole-pixel text geometry helper all live entirely in `Hukbo.Client`, and the
+scope boundary enforced by the font plan means zero files under
+`src/Hukbo.Core`, `src/Hukbo.Headless`, or `tests/Hukbo.Core.Tests` were
+touched.
+
+The pair `D78F0B527B7F938F` and `AC3BAAEC684854D5`, recorded further down this
+file both under "Superseded oracles" and again under "Superseded: the amended
+collision run" (`:193` in this file as of this writing), is the
+terminal-tick-657 amended-collision baseline. It was superseded by the mirrored
+starting-formation deployment change before this font work began, and it is
+**not** the current baseline; it must not be cited as one, and it is not the
+pair this run reproduced.
+
+These results prove the non-interactive gate only. No visual claim is made by
+this entry. Every row in the new "Typography smoke" subsection below is
+`PENDING`, and the display-scaling measurement task (gated, separate, and
+requiring a human at an interactive Windows desktop) remains untouched by this
+run.
+
+## Superseded: the amended collision run
+
 Every figure in this section comes from one final verified run of the **amended**
 collision change on 2026-07-27, taken on the `feature/collision-mechanics`
 branch after the contact-closing amendment recorded in
@@ -523,6 +746,45 @@ its baseline.
 These results prove the non-interactive gate only. The blood-and-gore smoke rows
 below remain `PENDING` a human at an interactive Windows desktop.
 
+## The camera auto-pan run — 2026-07-27
+
+Superseded by the mirrored starting-formation change at the top of this file.
+The gate result and the Client test count below still stand; the two hashes it
+quotes do not, because deployment positions moved after this run. Its point —
+that a Client-only change must not move a hash — was correct when written. This change adds `ArenaAutoPan` and
+`ArenaAutoPanController` to `Hukbo.Client`, plus a `Center` property, a
+`MoveCenterTo` method, a `GetVisibleHalfExtents` helper, and an `Update` return
+value on `SpectatorCamera`. It touches no `Hukbo.Core` file.
+
+`./scripts/verify.ps1` passed at all five stages: prerequisites and locked
+restore, format verification, the Release solution build, the Release repository
+tests, and the seed-1 / 200-agent / 10,000-tick headless determinism workload.
+
+| Suite | Passed | Failed | Skipped |
+| --- | --- | --- | --- |
+| `Hukbo.Core.Tests` | 326 | 0 | 0 |
+| `Hukbo.Client.Tests` | 532 | 0 | 0 |
+
+Core is unchanged from `main`'s 326. Client rises from `main`'s 513 by exactly
+the 19 new `ArenaAutoPanTests` cases.
+
+The gate's headless workload reported state hash `D78F0B527B7F938F` and event
+hash `AC3BAAEC684854D5` at 657 measured ticks, `Faction1Victory`, 0 and 10
+survivors, `deterministic: true`, `firstMismatchTick: null`, and 42,568,888
+allocated bytes. Every one of those values is identical to the recorded 200-agent
+acceptance oracle at the top of this file, which is the required outcome for a
+Client-only change: a moved hash here would have meant the camera work had
+reached simulation state.
+
+These results prove the non-interactive gate only. **The interactive
+`./scripts/run.ps1` spectator check for this change has not been performed.**
+The five camera auto-pan rows in the checklist below are therefore left
+`PENDING`. The unit tests prove that the controller picks the nearest melee,
+engages only on an empty screen, settles inside the inner margin, and yields to
+spectator input. None of them prove that the resulting camera motion reads as
+helpful rather than as the view drifting on its own, which is the only thing
+those rows are for.
+
 ## Interactive smoke checklist
 
 Run `./scripts/run.ps1` on an interactive Windows desktop. This repository uses
@@ -631,6 +893,86 @@ has been observed.
 | 19. Inspect a blocked agent | Selecting an agent in the second rank shows a movement label explaining why it is not advancing, and that label changes as the situation changes. | Not run | PENDING |
 | 20. Inspect the front rank | Selecting a front-rank agent shows it moving or attacking rather than blocked, and an agent that has arrived at an enemy reads as attacking rather than still marching. | Not run | PENDING |
 | 21. Confirm the ranks actually touch | Opposing front ranks close until their pawn bodies meet, rather than settling with a visible gap of open ground between the two lines. This is the amendment's whole visible effect and the pre-amendment behaviour was a persistent gap. | Not run | PENDING |
+
+### Camera auto-pan smoke
+
+Added by the camera auto-pan change. **Not performed.** The unit tests prove the
+targeting and state-machine decisions; only a person watching a live window can
+say whether the resulting camera motion is helpful rather than distracting.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 53. Confirm the camera holds still during a visible fight | Zoom in on an engagement so fighting fills the screen. The camera stays exactly where it was left for the whole engagement; it never creeps, drifts, or re-centres on its own while anyone on screen is fighting. | Not run | PENDING |
+| 54. Watch the camera find a fight it lost | Zoom in, then pan away until no fighting is on screen. Within a moment the camera slides on its own toward the nearest melee, slows as it arrives, and stops with the fighting comfortably inside the view rather than pinned to an edge. | Not run | PENDING |
+| 55. Confirm zoom never changes | Through several auto-pans, the zoom level is exactly what the spectator set. The camera only slides; it never zooms out to find the fight or zooms in on arrival. | Not run | PENDING |
+| 56. Take control back | While the camera is auto-panning, hold a pan key. Motion stops under the spectator's hand immediately, the camera goes exactly where they steer it, and it does not resume on its own for a couple of seconds after the key is released. | Not run | PENDING |
+| 57. Watch the end of a long battle | Let a match run to its final few survivors at a zoom where they leave the screen. The camera follows the fighting to the end instead of leaving the spectator on empty ground, and it stands still once the match summary appears. | Not run | PENDING |
+
+### Starting deployment smoke
+
+Added by the mirrored starting-formation change. **Not performed.** The
+automated evidence proves the arrangement is symmetric, separated and
+overlap-free in numbers; none of it proves the opening frame reads that way to a
+person watching it, which is the only thing these rows are for.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 58. Read the opening frame | Before the armies move, each side reads as several separate groups of warriors rather than one undifferentiated cloud, at the default camera fit and without zooming in. | Not run | PENDING |
+| 59. Check the mirror | Pausing at tick 0 and comparing the two halves shows each side as the other's reflection across the centre line: same group positions, same group sizes, same ragged front. | Not run | PENDING |
+| 60. Confirm the groups look irregular | Within a group the spacing looks uneven rather than a snapped parade grid, and a new seed visibly reshuffles that spacing without moving the groups. | Not run | PENDING |
+| 61. Confirm the armies still meet promptly | The two sides close and fight without a long empty march, and the battle reaches a terminal outcome inside its tick limit. | Not run | PENDING |
+
+### Typography smoke
+
+Added by the font and text quality change. **Not performed.** The automated
+gate proves the ramp is internally consistent, the theme catalog resolves
+every role, text positions round to whole pixels, and the compiled em-dash
+byte assertion passes; none of that proves the resulting text reads as crisp,
+correctly sized, or correctly hierarchical to a person watching it, which is
+the only thing these rows are for. Per `CLAUDE.md` section 6, only a human at
+an interactive Windows desktop may flip one of these rows to `PASS`.
+Compilation, unit tests, and a window-opening probe do not.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 62. Glyph crispness at the smallest rung | Event log and sound log rows have solid stems and clean edges, with no grey mush and no ragged stair-stepping. | Not run | PENDING |
+| 63. Glyph crispness at the largest rung | The wordmark is sharp at every edge with no fringing. | Not run | PENDING |
+| 64. Wordmark hierarchy | The wordmark is unmistakably larger and heavier than the subtitle beneath it. | Not run | PENDING |
+| 65. Header face renders as capitals | Every panel header renders fully and unclipped inside its header strip. | Not run | PENDING |
+| 66. Mixed-case strings stay on the body face | Theme names, gore levels, the controls label, the winner line, the distribute action, and every inspector line render with real lowercase letters. | Not run | PENDING |
+| 67. No vertical clipping | No descender is cut off in any panel at any rung. | Not run | PENDING |
+| 68. No horizontal overflow | No label spills past its panel, button, chip, or column, and no ellipsis appears where text previously fit. | Not run | PENDING |
+| 69. Row alignment | Event log columns, sound log rows, and inspector rows sit on consistent baselines with no drift down the list. | Not run | PENDING |
+| 70. Agent inspector evidence note | The longest evidence note wraps fully inside the panel with nothing cut off. | Not run | PENDING |
+| 71. Em-dash regression | Staging an army composition change renders the notice with a real em dash and does not crash. | Not run | PENDING |
+| 72. Theme cycling | All five themes render text at the same sizes with correct contrast, and no theme reveals a clipped or misaligned label the others hide. | Not run | PENDING |
+| 73. Window resize | Resizing between small and maximised keeps text pixel size constant and re-lays out panels without clipping. | Not run | PENDING |
+| 74. Subpixel blur is gone | Panning, zooming, and pausing produce no shimmering or swimming text. | Not run | PENDING |
+| 75. Display scaling | Record the appearance at 100% and at 150% Windows scaling. Feeds the separate, gated display-scaling measurement task; not itself a pass/fail row for the font ramp. | Not run | PENDING |
 
 ## Failure classification
 

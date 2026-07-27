@@ -12,9 +12,44 @@
 
 #---------------------------------- Content ---------------------------------#
 
-#begin Default.spritefont
+#begin Fonts/UiCaption.spritefont
 /importer:FontDescriptionImporter
 /processor:FontDescriptionProcessor
 /processorParam:PremultiplyAlpha=True
 /processorParam:TextureFormat=Color
-/build:Default.spritefont
+/build:Fonts/UiCaption.spritefont
+
+#begin Fonts/UiBody.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Color
+/build:Fonts/UiBody.spritefont
+
+#begin Fonts/UiLabel.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Color
+/build:Fonts/UiLabel.spritefont
+
+#begin Fonts/UiSubtitle.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Color
+/build:Fonts/UiSubtitle.spritefont
+
+#begin Fonts/UiTitle.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Color
+/build:Fonts/UiTitle.spritefont
+
+#begin Fonts/UiDisplay.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Color
+/build:Fonts/UiDisplay.spritefont

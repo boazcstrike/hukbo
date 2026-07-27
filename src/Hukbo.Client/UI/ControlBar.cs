@@ -12,6 +12,9 @@ internal sealed class ControlBar
     private const int Margin = 10;
     private const int ButtonGap = 8;
     private const int ButtonWidth = 84;
+
+    // Button labels draw at the Label rung (measured 29px real line
+    // spacing); 34 clears it.
     private const int ButtonHeight = 34;
 
     private readonly UiButton[] _buttons =
@@ -52,7 +55,7 @@ internal sealed class ControlBar
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SpriteFont font,
+        UiFontSet fonts,
         Rectangle availableBounds,
         bool isPlaying,
         bool isSoundLogVisible,
@@ -69,9 +72,10 @@ internal sealed class ControlBar
             theme.Colors.PanelBorder,
             theme.Metrics.BorderThickness);
 
+        var labelFont = fonts.Get(UiFontRole.Label);
         foreach (var button in _buttons)
         {
-            button.Draw(spriteBatch, pixel, font, theme, 0.78f);
+            button.Draw(spriteBatch, pixel, labelFont, theme);
         }
     }
 
