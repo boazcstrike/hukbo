@@ -508,6 +508,247 @@ public sealed class PhilippineCombatIntegrationTests
         }
     }
 
+    /// <summary>
+    /// The section 9 invariant that simultaneous lethal attacks resolve together
+    /// and a mutual kill stays possible. The clash gate only removes damage; it
+    /// never reorders it, so with no interception the pre-change behaviour must
+    /// survive exactly.
+    /// </summary>
+    [Fact]
+    public void MutualLethalAttacksStillProduceADrawWhenBothLand()
+    {
+        var scenario = MutualDeathScenario();
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            ZeroInterceptionRules,
+            CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
+            CreateAgent(2, factionId: 1, x: 20, y: 10, scenario));
+
+        simulation.AdvanceOneTick();
+
+        Assert.Equal(BattleOutcome.Draw, simulation.Outcome);
+        Assert.All(simulation.Agents, agent => Assert.False(agent.IsAlive));
+
+        var attacks = simulation.LastEvents
+            .Where(battleEvent => battleEvent.Kind == BattleEventKind.Attack)
+            .ToArray();
+        Assert.Equal(2, attacks.Length);
+        Assert.All(
+            attacks,
+            attack => Assert.Equal(AttackResolution.Landed, attack.Resolution));
+    }
+
+    /// <summary>
+    /// A target driven to zero hit points by the <em>aggregate</em> of several
+    /// attacks in one tick: every contributing attack still emits its own event
+    /// carrying its own resolution. This is the real dead-target case, since no
+    /// reachable state produces a proposal against an already dead target.
+    /// </summary>
+    [Fact]
+    public void TargetDrivenToZeroByTheAggregateStillEmitsEveryContributingAttack()
+    {
+        var scenario = MutualDeathScenario() with
+        {
+            MaximumHitPoints = 30,
+            DamagePerAttack = 10,
+        };
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            ZeroInterceptionRules,
+            CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
+            CreateAgent(2, factionId: 0, x: 10, y: 12, scenario),
+            CreateAgent(3, factionId: 0, x: 10, y: 14, scenario),
+            CreateAgent(4, factionId: 1, x: 20, y: 12, scenario));
+
+        simulation.AdvanceOneTick();
+
+        var attacksOnFour = simulation.LastEvents
+            .Where(
+                battleEvent => battleEvent.Kind == BattleEventKind.Attack &&
+                    battleEvent.TargetEntityId == 4)
+            .ToArray();
+
+        Assert.Equal(
+            [1UL, 2UL, 3UL],
+            attacksOnFour.Select(attack => attack.SourceEntityId).Order());
+        Assert.All(
+            attacksOnFour,
+            attack =>
+            {
+                Assert.Equal(AttackResolution.Landed, attack.Resolution);
+                Assert.Equal(scenario.DamagePerAttack, attack.Value);
+            });
+
+        var damageOnFour = Assert.Single(
+            simulation.LastEvents,
+            battleEvent => battleEvent.Kind == BattleEventKind.Damage &&
+                battleEvent.TargetEntityId == 4);
+        Assert.Equal(3 * scenario.DamagePerAttack, damageOnFour.Value);
+        Assert.Contains(
+            simulation.LastEvents,
+            battleEvent => battleEvent.Kind == BattleEventKind.Death &&
+                battleEvent.SourceEntityId == 4);
+    }
+
+    /// <summary>
+    /// Acceptance criterion one, and the only enforced threshold for it. The
+    /// defence-attributable non-landed share over a whole two-hundred-agent
+    /// battle is shield intercepts plus weapon intercepts plus voids, divided by
+    /// accepted attacks.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The change fails outside 0.25 to 0.45 and nowhere else. The narrower 0.30
+    /// to 0.40 with centre 0.33 is the design target that a re-tune steers
+    /// toward, and it is deliberately not a second gate here.
+    /// </para>
+    /// <para>
+    /// The measured share is expected to sit above the static roster mean of
+    /// 0.325: shielded loadouts intercept more, so they outlive shieldless ones
+    /// and receive a rising share of all attacks as the battle proceeds. A run
+    /// measuring 0.36 is behaving correctly rather than drifting.
+    /// </para>
+    /// <para>
+    /// The accepted-attack guard runs <b>before</b> the band, so a run that
+    /// counted nothing fails on "no attacks were accepted", which is
+    /// diagnostic, rather than passing vacuously on a zero share.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void DefenceAttributableNonLandedShareStaysInsideTheAcceptanceBand()
+    {
+        const double LowerBound = 0.25;
+        const double UpperBound = 0.45;
+
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200);
+        var simulation = BattleSimulation.Create(scenario);
+        long accepted = 0;
+        long landed = 0;
+        long shieldBlocked = 0;
+        long parried = 0;
+        long deflected = 0;
+        long evaded = 0;
+
+        while (simulation.Outcome == BattleOutcome.Ongoing &&
+            simulation.Tick < scenario.TickLimit)
+        {
+            simulation.AdvanceOneTick();
+
+            var tick = simulation.LastTickCombat;
+            accepted += tick.AcceptedAttacks;
+            landed += tick.LandedAttacks;
+            shieldBlocked += tick.ShieldBlockedAttacks;
+            parried += tick.ParriedAttacks;
+            deflected += tick.DeflectedAttacks;
+            evaded += tick.EvadedAttacks;
+        }
+
+        var metrics = new CombatMetrics(
+            accepted,
+            landed,
+            shieldBlocked,
+            parried,
+            deflected,
+            evaded);
+
+        Assert.True(
+            metrics.AcceptedAttacks > 0,
+            "No accepted attacks were counted across a whole battle, so the " +
+            "interception share is not measurable. Combat metrics are not " +
+            "being accumulated.");
+        Assert.Equal(
+            metrics.AcceptedAttacks,
+            landed + shieldBlocked + parried + deflected + evaded);
+
+        var share = metrics.DefenceAttributableShare;
+        Assert.True(
+            share >= LowerBound && share <= UpperBound,
+            $"The defence-attributable non-landed share was {share:F4}, " +
+            $"outside the enforced {LowerBound:F2} to {UpperBound:F2} band. " +
+            $"Counted {shieldBlocked} shield intercepts, {parried} parries, " +
+            $"{deflected} deflections, and {evaded} voids across " +
+            $"{metrics.AcceptedAttacks} accepted attacks.");
+    }
+
+    /// <summary>
+    /// PROVISIONAL gameplay-tuning comparison, not a historical claim. The
+    /// research says the visible gap between a shielded and a shieldless warrior
+    /// is the part to defend hardest, above any absolute interception figure, so
+    /// it is asserted over the shipped roster across twenty seeds.
+    /// </summary>
+    [Fact]
+    public void ShieldedRosterEntriesSurviveMoreOftenThanShieldlessOnesAcrossSeedsOneThroughTwenty()
+    {
+        var shieldedSurvivors = 0;
+        var shieldedTotal = 0;
+        var shieldlessSurvivors = 0;
+        var shieldlessTotal = 0;
+
+        for (ulong seed = 1; seed <= 20; seed++)
+        {
+            var scenario = Scenario.CreateDefault(seed, totalAgents: 200);
+            var simulation = BattleSimulation.Create(scenario);
+
+            while (simulation.Outcome == BattleOutcome.Ongoing &&
+                simulation.Tick < scenario.TickLimit)
+            {
+                simulation.AdvanceOneTick();
+            }
+
+            foreach (var agent in simulation.Agents)
+            {
+                if (agent.Loadout.Shield == ShieldId.None)
+                {
+                    shieldlessTotal++;
+                    shieldlessSurvivors += agent.IsAlive ? 1 : 0;
+                    continue;
+                }
+
+                shieldedTotal++;
+                shieldedSurvivors += agent.IsAlive ? 1 : 0;
+            }
+        }
+
+        Assert.True(shieldedTotal > 0 && shieldlessTotal > 0);
+
+        var shieldedRate = (double)shieldedSurvivors / shieldedTotal;
+        var shieldlessRate = (double)shieldlessSurvivors / shieldlessTotal;
+
+        Assert.True(
+            shieldedRate > shieldlessRate * 1.25,
+            "PROVISIONAL band. Expected shielded roster entries to outlive " +
+            $"shieldless ones by a clear margin, but measured {shieldedRate:P2} " +
+            $"({shieldedSurvivors} of {shieldedTotal}) against " +
+            $"{shieldlessRate:P2} ({shieldlessSurvivors} of {shieldlessTotal}).");
+    }
+
+    /// <summary>
+    /// The registered preset carrying <see cref="ClashProfile.Neutral"/>. Every
+    /// value except the clash profile is the preset's own, and the copy helper
+    /// is what makes that provable rather than reassembled by hand.
+    /// </summary>
+    private static CombatRuleset ZeroInterceptionRules { get; } =
+        CombatPresetRegistry
+            .Get(CombatPresetId.PrecolonialPhilippinesV1)
+            .WithClashProfile(ClashProfile.Neutral);
+
+    private static Scenario MutualDeathScenario() =>
+        new(
+            Seed: 1,
+            MapWidth: 200,
+            MapHeight: 100,
+            AgentsPerFaction: 1,
+            TickRate: 20,
+            TickLimit: 1_000)
+        {
+            MaximumHitPoints = 10,
+            DamagePerAttack = 10,
+            AttackRangeRaw = 20 * FixedPoint.Scale,
+            PerceptionRangeRaw = 200 * FixedPoint.Scale,
+            MovementSpeedRaw = FixedPoint.Scale,
+            AttackCooldownTicks = 1,
+        };
+
     private static AgentState CreateAgent(
         ulong entityId,
         int factionId,
