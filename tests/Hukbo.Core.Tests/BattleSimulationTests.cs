@@ -141,6 +141,70 @@ public sealed class BattleSimulationTests
     }
 
     /// <summary>
+    /// T8: pins the boundary the property doc on <see cref="BattleSimulation.LastEvents"/>
+    /// actually guards. <see cref="LastEventsRemainsACompletedTickSnapshot"/>
+    /// above proves a caller survives holding a reference across one quiet
+    /// tick; this test proves that grace is an implementation detail of the
+    /// double-buffer scheme (see the field comment above <c>_eventBufferA</c>
+    /// in BattleSimulation.cs), not a guarantee, so no caller may assume a
+    /// retained <see cref="BattleSimulation.LastEvents"/> value stays valid
+    /// past the tick that produced it.
+    /// </summary>
+    /// <remarks>
+    /// Two agents in continuous contact with a one-tick cooldown attack every
+    /// tick, so ticks 1 through 3 are all active and the two backing buffers
+    /// alternate: tick 1 exposes buffer A, tick 2 exposes buffer B (A is
+    /// untouched so far -- this is the one-tick grace the sibling test
+    /// checks), and tick 3 clears buffer A as the very first step of
+    /// <c>AdvanceOneTick</c>, before it even knows whether tick 3 itself will
+    /// produce events. That is the moment a caller who captured
+    /// <c>LastEvents</c> at tick 1 and never re-read it gets betrayed: the
+    /// object identity <c>retainedEvents</c> never changes, but its contents
+    /// silently become tick 3's data. A naive "retain the reference once and
+    /// trust it" implementation of any consumer would fail here, because
+    /// <c>retainedEvents</c> no longer equals the tick-1 snapshot it was
+    /// captured from -- it now equals whatever tick 3 produced, with nothing
+    /// to signal the switch happened.
+    /// </remarks>
+    [Fact]
+    public void RetainedLastEventsReferenceIsNotValidPastTheProducingTick()
+    {
+        var scenario = CreateTestScenario() with
+        {
+            MaximumHitPoints = 1_000_000,
+            DamagePerAttack = 1,
+            AttackCooldownTicks = 1,
+            AttackRangeRaw = 12 * FixedPoint.Scale,
+        };
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            PresetWith(ClashProfile.Neutral),
+            CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
+            CreateAgent(2, factionId: 1, x: 11, y: 10, scenario));
+
+        simulation.AdvanceOneTick();
+        var retainedEvents = simulation.LastEvents;
+        var tickOneEvents = retainedEvents.ToArray();
+        Assert.NotEmpty(tickOneEvents);
+
+        // Tick 2 also produces events, so it writes into the OTHER backing
+        // buffer and exposes that one instead. retainedEvents (a view over
+        // the first buffer) is untouched -- this is the one-tick grace
+        // period the sibling test above exercises.
+        simulation.AdvanceOneTick();
+        Assert.Equal(tickOneEvents, retainedEvents);
+
+        // Tick 3 reuses the first buffer -- the very one retainedEvents is a
+        // view over -- clearing and rewriting it. The reference a caller has
+        // been holding since tick 1 now reflects tick 3.
+        simulation.AdvanceOneTick();
+        var tickThreeEvents = simulation.LastEvents.ToArray();
+        Assert.NotEmpty(tickThreeEvents);
+        Assert.NotEqual(tickOneEvents, retainedEvents);
+        Assert.Equal(tickThreeEvents, retainedEvents);
+    }
+
+    /// <summary>
     /// The property under test is simultaneity, not interception: both blows
     /// have to land for the mutual death to be observable at all. Design section
     /// 5 disposition, resolved through the ruleset seam rather than by a lucky
@@ -231,7 +295,15 @@ public sealed class BattleSimulationTests
     public void RepeatedQuietTicksHaveBoundedAllocations()
     {
         const int measuredTicks = 1_000;
-        const long maximumAllocatedBytes = 300_000;
+
+        // Lowered from 300,000 by T7 of the arch-informed performance hardening
+        // workstream. That ceiling was sized when every event-bearing tick
+        // allocated a fresh List<BattleEvent>; the simulation now owns its
+        // event buffers and reuses them, and this window measures exactly
+        // 0 bytes on every run observed. A ceiling 300,000 times larger than
+        // the thing it measures is a guard that can no longer fire, so it is
+        // retuned here to the measured figure with room for runtime noise.
+        const long maximumAllocatedBytes = 8_192;
         var scenario = CreateTestScenario() with
         {
             TickLimit = measuredTicks + 100,
@@ -268,22 +340,57 @@ public sealed class BattleSimulationTests
     {
         const int measuredTicks = 1_000;
 
-        // Raised from 500,000 when agents began closing to body contact instead
-        // of halting at reach: the crowd now jostles every tick, so far more
-        // Move events are emitted. This ceiling tracks event traffic, which the
-        // collision stage does not own. The window comparison below is the
-        // assertion that actually guards collision storage.
+        // History, kept because it explains why this number moved so far.
+        // The ceiling was raised to 500,000 when agents began closing to body
+        // contact instead of halting at reach, and then to 900,000 at T43,
+        // when the merged BattleEvent packed Weapon, Shield, HitLocation, and
+        // Resolution into one _combatContext int. On that tree this window
+        // measured 815,312 bytes, and every one of those bytes was per-tick
+        // event traffic that the collision stage did not own.
         //
-        // Reverted to 900,000 per D5: the merged BattleEvent packs Weapon,
-        // Shield, HitLocation, and Resolution into the same one-int
-        // _combatContext field (ResolutionShift = 24, the fourth spare byte),
-        // so the event never widened to 88 bytes the way the pre-integration
-        // clash branch's raise to 1,100,000 assumed. Measured on this merged
-        // tree (T43) at 815,312 bytes -- comfortably under the 900,000
-        // ceiling, and below the clash branch's own 898,000-ish pre-widening
-        // figure too, because this run's ClashResolver now turns some accepted
-        // attacks aside instead of emitting a Damage event for every one.
-        const long maximumAllocatedBytes = 900_000;
+        // T7 of the arch-informed performance hardening workstream removed
+        // that traffic: the simulation now owns its event buffers and reuses
+        // them across ticks, so no event-bearing tick allocates a list. Both
+        // windows below now measure between 0 and 2,064 bytes over 1,000
+        // ticks, observed across thirteen full-suite runs.
+        //
+        // That change also made the assertion this test used to carry ill
+        // posed. It was "the second window must not exceed the first", which
+        // was a sound guard while both windows were roughly 800,000 bytes of
+        // simulation allocation. With both windows near zero, the comparison
+        // ranks two numbers that are dominated by runtime infrastructure
+        // rather than by the simulation -- the same deterministic work reports
+        // a different byte count from run to run -- and it failed about one
+        // full-suite run in three.
+        //
+        // It is replaced by three assertions rather than one, because no single
+        // assertion covers what the old one did once noise entered the
+        // measurement.
+        //
+        // The first two are an absolute ceiling on each window. The old
+        // relative form would have accepted a first window of 899,999 bytes;
+        // these accept at most 16,384 in either. Reinstating a per-tick event
+        // list in this 24-agent scenario would allocate 24 * 2 * 72 = 3,456
+        // bytes a tick, or 3,456,000 across a window, which is 210 times the
+        // ceiling; even a single boxed enumerator per tick would allocate
+        // roughly 46,000 across a window, nearly three times it.
+        //
+        // The third keeps the relative guard, with a tolerance sized from the
+        // measured noise. It is needed because an absolute ceiling alone is
+        // NOT strictly stronger than the old relative form, and it is worth
+        // being exact about why: a regression that allocated, say, 500 bytes
+        // in the first window and 12,000 in the second would have failed the
+        // old zero-tolerance comparison and would pass a 16,384-byte ceiling.
+        // Growth between two identical windows is a real signal and it is kept.
+        //
+        // The tolerance is not strictness thrown away, but it is a genuine
+        // relaxation of the old assertion and is not pretended otherwise. Zero
+        // tolerance is unachievable here: the same deterministic workload
+        // reports different byte counts run to run. The largest run-to-run
+        // increase observed across thirteen full-suite runs was 1,032 bytes,
+        // and 4,096 is four times that.
+        const long maximumAllocatedBytes = 16_384;
+        const long warmWindowGrowthTolerance = 4_096;
         const int agentsPerFaction = 12;
 
         // Crowd two lines into one another so the resolver works every tick:
@@ -348,24 +455,33 @@ public sealed class BattleSimulationTests
 
         Assert.Equal(BattleOutcome.Ongoing, simulation.Outcome);
 
-        // The ceiling is generous because per-tick event traffic dominates it:
-        // twenty-four agents in sustained contact emit far more events than the
-        // two-agent quiet scenario above, and each tick's event list is an
-        // allocation the collision stage does not control.
         Assert.True(
             firstWindowBytes <= maximumAllocatedBytes,
             $"Collision ticks allocated {firstWindowBytes:N0} bytes; " +
             $"expected at most {maximumAllocatedBytes:N0}.");
 
-        // This is the assertion that actually guards the collision buffers.
-        // Grid cells, pair lists, proposal buffers, and resolver scratch are all
-        // reused, so a second identical window must not cost more than the
-        // first. Any growth means something is reallocating per tick.
+        // This is the assertion that guards the reused storage. Grid cells,
+        // pair lists, proposal buffers, resolver scratch, and now the event
+        // buffers are all reused, so a second identical window must stay
+        // inside the same ceiling. Anything reallocating per tick blows
+        // through it by two orders of magnitude, as the note above works out.
         Assert.True(
-            secondWindowBytes <= firstWindowBytes,
+            secondWindowBytes <= maximumAllocatedBytes,
             $"A warm window allocated {secondWindowBytes:N0} bytes after a " +
-            $"first window of {firstWindowBytes:N0}. Collision storage must " +
-            "be reused, growing only when capacity is insufficient.");
+            $"first window of {firstWindowBytes:N0}; expected at most " +
+            $"{maximumAllocatedBytes:N0}. Collision and event storage must be " +
+            "reused, growing only when capacity is insufficient.");
+
+        // The relative guard, kept because an absolute ceiling alone would let
+        // a window that grew several thousand bytes relative to its
+        // predecessor pass unnoticed.
+        Assert.True(
+            secondWindowBytes <= firstWindowBytes + warmWindowGrowthTolerance,
+            $"A warm window allocated {secondWindowBytes:N0} bytes after a " +
+            $"first window of {firstWindowBytes:N0}, a growth of " +
+            $"{secondWindowBytes - firstWindowBytes:N0} bytes against a " +
+            $"tolerance of {warmWindowGrowthTolerance:N0}. Two identical " +
+            "windows must cost the same to within measurement noise.");
     }
 
     [Fact]

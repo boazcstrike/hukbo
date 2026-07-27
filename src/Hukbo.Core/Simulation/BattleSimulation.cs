@@ -33,6 +33,19 @@ public sealed class BattleSimulation
     // sentinel.
     private readonly int[] _factionLivingCounts;
     private readonly ulong[] _factionRallyEntityIds;
+
+    // Double-buffered event storage: each tick writes into whichever of these
+    // two lists is not currently exposed through _lastEvents, so a caller
+    // that retains one tick's LastEvents value keeps seeing that tick's data,
+    // untouched, until this same buffer comes back around to be reused. The
+    // matching ReadOnlyCollection wrapper for each buffer is built once, here,
+    // never per tick, since List<T>.AsReadOnly would otherwise allocate a new
+    // wrapper every tick even though the pair of backing lists never changes.
+    private readonly List<BattleEvent> _eventBufferA;
+    private readonly List<BattleEvent> _eventBufferB;
+    private readonly ReadOnlyCollection<BattleEvent> _eventViewA;
+    private readonly ReadOnlyCollection<BattleEvent> _eventViewB;
+    private bool _nextEventBufferIsA = true;
     private ReadOnlyCollection<BattleEvent> _lastEvents;
     private long _eventSequence;
     private CollisionTickMetrics _lastTickCollision;
@@ -58,6 +71,10 @@ public sealed class BattleSimulation
         _collision = new CollisionScratch(scenario, agents.Length);
         _factionLivingCounts = new int[2];
         _factionRallyEntityIds = new ulong[2];
+        _eventBufferA = new List<BattleEvent>(agents.Length * 2);
+        _eventBufferB = new List<BattleEvent>(agents.Length * 2);
+        _eventViewA = new ReadOnlyCollection<BattleEvent>(_eventBufferA);
+        _eventViewB = new ReadOnlyCollection<BattleEvent>(_eventBufferB);
 
         for (var index = 0; index < agents.Length; index++)
         {
@@ -81,6 +98,15 @@ public sealed class BattleSimulation
 
     public IReadOnlyList<AgentView> Agents => _agents;
 
+    /// <summary>
+    /// Every event emitted by the tick just completed, in emission order.
+    /// </summary>
+    /// <remarks>
+    /// The returned collection is owned by the simulation and is overwritten
+    /// by a future <see cref="AdvanceOneTick"/> call once its backing buffer
+    /// comes back around for reuse. Callers read it within the tick that
+    /// produced it and never retain it.
+    /// </remarks>
     public IReadOnlyList<BattleEvent> LastEvents => _lastEvents;
 
     /// <summary>
@@ -283,21 +309,33 @@ public sealed class BattleSimulation
         }
 
         Tick = checked(Tick + 1);
-        List<BattleEvent>? events = null;
+
+        // Write into whichever buffer is not currently exposed through
+        // _lastEvents, so a caller still holding a prior tick's LastEvents
+        // value keeps seeing that tick's data unchanged. See the field
+        // comment above _eventBufferA for the full scheme.
+        var events = _nextEventBufferIsA ? _eventBufferA : _eventBufferB;
+        events.Clear();
 
         DecrementCooldowns();
         SelectTargetsAndIntents();
         GatherMovementProposals();
         ResolveCollisions();
-        CommitMovement(ref events);
+        CommitMovement(events);
         MeasureCollision();
-        GatherAndCommitAttacks(ref events);
-        ResolveOutcome(ref events);
+        GatherAndCommitAttacks(events);
+        ResolveOutcome(events);
 
         UpdateViews();
-        _lastEvents = events is null
-            ? EmptyEvents
-            : events.AsReadOnly();
+        if (events.Count == 0)
+        {
+            _lastEvents = EmptyEvents;
+        }
+        else
+        {
+            _lastEvents = _nextEventBufferIsA ? _eventViewA : _eventViewB;
+            _nextEventBufferIsA = !_nextEventBufferIsA;
+        }
     }
 
     public ulong ComputeStateHash() => ComputeStateHash(_rules.ContentHash);
@@ -544,6 +582,28 @@ public sealed class BattleSimulation
             foreach (var candidate in _agentStates)
             {
                 if (!candidate.IsAlive || candidate.FactionId == agent.FactionId)
+                {
+                    continue;
+                }
+
+                // Cheap axis-aligned rejection before the squared-distance
+                // check below: if |dx| already exceeds the (unsquared)
+                // perception range, then dx*dx alone exceeds range*range,
+                // so dx*dx + dy*dy > range*range necessarily (dy*dy is
+                // never negative). Every candidate rejected here would also
+                // have been rejected by the perception test that follows,
+                // so the surviving candidate set and its scan order are
+                // unchanged. Written as two comparisons instead of an
+                // absolute value so no negation of deltaX/deltaY is needed.
+                var perceptionRangeRaw = (long)agent.PerceptionRangeRaw;
+                var deltaX = (long)candidate.XRaw - agent.XRaw;
+                if (deltaX > perceptionRangeRaw || deltaX < -perceptionRangeRaw)
+                {
+                    continue;
+                }
+
+                var deltaY = (long)candidate.YRaw - agent.YRaw;
+                if (deltaY > perceptionRangeRaw || deltaY < -perceptionRangeRaw)
                 {
                     continue;
                 }
@@ -967,7 +1027,7 @@ public sealed class BattleSimulation
     /// match the living agents in ascending entity ID, which is the same order
     /// they were submitted in.
     /// </summary>
-    private void CommitMovement(ref List<BattleEvent>? events)
+    private void CommitMovement(List<BattleEvent> events)
     {
         var results = _collision.Resolver.Results;
         var resultIndex = 0;
@@ -1004,7 +1064,7 @@ public sealed class BattleSimulation
             var movedRaw = checked((int)IntegerSquareRoot(
                 checked((deltaX * deltaX) + (deltaY * deltaY))));
             AddEvent(
-                ref events,
+                events,
                 BattleEventKind.Move,
                 agent.EntityId,
                 _movementProposals[index]?.TargetId,
@@ -1042,7 +1102,7 @@ public sealed class BattleSimulation
         var minimumY = int.MaxValue;
         var maximumY = int.MinValue;
 
-        foreach (var pair in _collision.Grid.Pairs)
+        foreach (var pair in _collision.Grid.PairsList)
         {
             var left = _agentStates[_agentIndexes[pair.LowEntityId]];
             var right = _agentStates[_agentIndexes[pair.HighEntityId]];
@@ -1102,7 +1162,7 @@ public sealed class BattleSimulation
             penetrationRaw);
     }
 
-    private void GatherAndCommitAttacks(ref List<BattleEvent>? events)
+    private void GatherAndCommitAttacks(List<BattleEvent> events)
     {
         Array.Clear(_damageTotals);
         var proposalCount = 0;
@@ -1213,7 +1273,7 @@ public sealed class BattleSimulation
             var source = _agentStates[proposal.SourceIndex];
             var target = _agentStates[proposal.TargetIndex];
             AddAttackEvent(
-                ref events,
+                events,
                 source.EntityId,
                 target.EntityId,
                 proposal.Resolution == AttackResolution.Landed
@@ -1237,7 +1297,7 @@ public sealed class BattleSimulation
             var target = _agentStates[index];
             target.HitPoints = Math.Max(0, target.HitPoints - damage);
             AddEvent(
-                ref events,
+                events,
                 BattleEventKind.Damage,
                 target.EntityId,
                 target.EntityId,
@@ -1256,7 +1316,7 @@ public sealed class BattleSimulation
             agent.TargetEntityId = null;
             agent.Intent = AgentIntent.Dead;
             AddEvent(
-                ref events,
+                events,
                 BattleEventKind.Death,
                 agent.EntityId,
                 null,
@@ -1265,7 +1325,7 @@ public sealed class BattleSimulation
         }
     }
 
-    private void ResolveOutcome(ref List<BattleEvent>? events)
+    private void ResolveOutcome(List<BattleEvent> events)
     {
         var faction0Alive = false;
         var faction1Alive = false;
@@ -1308,7 +1368,7 @@ public sealed class BattleSimulation
             _ => (int?)null,
         };
         AddEvent(
-            ref events,
+            events,
             BattleEventKind.Outcome,
             sourceEntityId: 0,
             targetEntityId: null,
@@ -1452,7 +1512,7 @@ public sealed class BattleSimulation
     }
 
     private void AddEvent(
-        ref List<BattleEvent>? events,
+        List<BattleEvent> events,
         BattleEventKind kind,
         ulong sourceEntityId,
         ulong? targetEntityId,
@@ -1460,7 +1520,6 @@ public sealed class BattleSimulation
         int? factionId)
     {
         _eventSequence = checked(_eventSequence + 1);
-        events ??= new List<BattleEvent>(_agentStates.Length * 2);
         events.Add(
             BattleEvent.NonAttack(
                 _eventSequence,
@@ -1485,7 +1544,7 @@ public sealed class BattleSimulation
     /// would notice.
     /// </remarks>
     private void AddAttackEvent(
-        ref List<BattleEvent>? events,
+        List<BattleEvent> events,
         ulong sourceEntityId,
         ulong targetEntityId,
         int damage,
@@ -1496,7 +1555,6 @@ public sealed class BattleSimulation
         AttackResolution resolution)
     {
         _eventSequence = checked(_eventSequence + 1);
-        events ??= new List<BattleEvent>(_agentStates.Length * 2);
         events.Add(
             BattleEvent.Attack(
                 _eventSequence,

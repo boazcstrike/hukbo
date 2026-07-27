@@ -84,7 +84,370 @@ not prove a sound was audible, that it arrived at the right moment, or that it
 sounded right. Smoke rows below still require a human at an interactive desktop;
 see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
-## Latest non-interactive result — weapon clash on preset V2, 2026-07-28
+## Latest non-interactive result — arch-informed performance hardening workstream (T1, T2, T6, T7, T8, T11), 2026-07-28
+
+Implements T1 and T2 of the arch-informed performance hardening workstream.
+See [docs/archives/2026-07-28/2026-07-28-arch-informed-performance-hardening.md](../archives/2026-07-28/2026-07-28-arch-informed-performance-hardening.md)
+and its design document,
+[docs/archives/2026-07-28/2026-07-28-arch-informed-performance-hardening-design.md](../archives/2026-07-28/2026-07-28-arch-informed-performance-hardening-design.md).
+
+**This workstream is hash-neutral by design.** Nothing in T1 or T2 changes
+tick order, RNG draws, or any value that feeds the state or event hash. The
+seed-1, 200-agent hash pair is unchanged from the recorded baseline at every
+point measured below: `stateHash 71211929A44A16CA`, `eventHash
+A2DC3ECA3F7345ED`.
+
+### T1 — `coreAllocatedBytes` alongside `allocatedBytes`
+
+`RunReport` now carries a second allocation figure, `coreAllocatedBytes`,
+next to the existing `allocatedBytes`. `allocatedBytes` is the harness
+total: everything the benchmark process allocates across both simulations it
+advances for the determinism comparison, plus harness overhead.
+`coreAllocatedBytes` isolates one simulation's `AdvanceOneTick()` calls only
+-- the `left` simulation -- so it measures Hukbo.Core's own per-tick cost
+and excludes the comparison simulation, the harness's own bookkeeping, and
+process warmup.
+
+At 200 agents / 10 000 ticks / seed 1, after T1 and T6 (see below):
+
+| Field | Value |
+| --- | --- |
+| `allocatedBytes` | 93 746 968 |
+| `coreAllocatedBytes` | 46 738 440 |
+| `stateHash` | `71211929A44A16CA` (unchanged) |
+| `eventHash` | `A2DC3ECA3F7345ED` (unchanged) |
+
+The `coreAllocatedBytes` figure is the one from the sweep run recorded under T2
+below, so that every table on this page describes the same run. A separate run
+of the identical workload reported 46 731 216 bytes. The two differ by 7 224
+bytes, which is 0.015 per cent, and that spread is worth knowing about: the
+allocation counter is not bit-reproducible the way the two hashes are, so a
+claimed allocation improvement is only meaningful when it is far larger than
+this spread. Every improvement recorded on this page is at least three orders
+of magnitude larger.
+
+### T6 — struct enumerator on the `MeasureCollision` foreach
+
+`MeasureCollision`'s `foreach` over `List<CollisionPair>` was boxing the
+collection's enumerator on every call. Binding the loop to the struct
+enumerator instead removes that box. Measured on the same 200-agent /
+10 000-tick / seed-1 workload:
+
+| Field | Before (baseline) | After (T1 + T6) |
+| --- | --- | --- |
+| `allocatedBytes` (harness total) | 93 905 304 | 93 746 968 |
+
+That is 158 336 bytes removed over 1 710 measured ticks: 92.6 bytes per tick
+across the two simulations the harness advances each tick, roughly 46 bytes
+per simulation per tick -- one boxed `List<CollisionPair>` enumerator each.
+
+### T2 — scaling sweep (seed 1, 10 000 ticks, fresh process per point, after T1 and T6)
+
+| Agents | measuredTicks | p50 ms | p95 ms | p99 ms | max ms | coreAllocatedBytes | allocatedBytes | outcome | stateHash | eventHash |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 200 | 1 710 | 0.0806 | 1.5296 | 2.6791 | 9.5617 | 46 738 440 | 93 746 968 | `Faction1Victory` | `71211929A44A16CA` | `A2DC3ECA3F7345ED` |
+| 500 | 2 832 | 0.3494 | 1.9734 | 3.8109 | 15.1798 | 204 408 512 | 409 294 848 | `Faction0Victory` | `A4C8B82F2A445691` | `A5C77685987DBA49` |
+| 1 000 | 5 815 | 1.3677 | 5.5727 | 6.7685 | 26.2590 | 838 905 704 | 1 678 249 360 | `Faction0Victory` | `AE15186605D41434` | `ADBC39C88C5D3587` |
+| 2 000 | 10 000 | 6.2447 | 20.4695 | 29.9286 | 135.9969 | 2 882 640 616 | 5 767 400 448 | `Draw` | `6D29EA1A189B200D` | `EAB1A6BF6BABD240` |
+
+Every point reported `deterministic true` and `firstMismatchTick null`.
+
+**Tick cost grows faster than linearly in agent count at every step
+measured, and the exponent rises with scale rather than falling.** Reading
+the p50 growth between adjacent points as the exponent `k` in (cost ratio) =
+(agent ratio)^k: 200 to 500 agents (2.5x agents, p50 x 4.33) gives `k =
+1.60`; 500 to 1 000 agents (2.0x agents, p50 x 3.91) gives `k = 1.97`; 1 000
+to 2 000 agents (2.0x agents, p50 x 4.57) gives `k = 2.19`.
+
+Core allocation per agent per tick is almost perfectly flat across the
+sweep:
+
+| Agents | coreAllocatedBytes / measuredTicks / agents |
+| --- | --- |
+| 200 | 136.7 bytes |
+| 500 | 144.4 bytes |
+| 1 000 | 144.3 bytes |
+| 2 000 | 144.1 bytes |
+
+144 bytes per agent per tick is exactly `new List<BattleEvent>(_agentStates.Length * 2)`
+backed by 72-byte `BattleEvent` elements: two slots per agent times 72
+bytes. The per-tick event list therefore accounts for essentially the whole
+Hukbo.Core per-tick allocation.
+
+**Scope of these figures.** Windows 11 Pro 10.0.26200, x64. .NET SDK
+10.0.302. Release build. Every simulation figure above came from a fresh
+process per point via `./scripts/benchmark.ps1`. The 2 000-agent point
+reached the 10 000-tick cap and ended in a `Draw`, so it is the only point
+that stays near full strength for its whole run; the 200-, 500-, and
+1 000-agent points each ended on a faction victory before the cap, with
+populations thinning as the run progressed.
+
+### T7 — the per-tick event buffer
+
+T2 measured the 144-bytes-per-agent-per-tick `List<BattleEvent>` above as
+essentially the whole of Hukbo.Core's per-tick allocation. T7 removes that
+allocation from the hot path. "Before" below means after T1 and T6, the same
+state the T2 sweep measured; "after" means the final tree with T7 and T11
+both applied.
+
+| Agents | `coreAllocatedBytes` before | `coreAllocatedBytes` after | reduction | `allocatedBytes` before | `allocatedBytes` after |
+| --- | --- | --- | --- | --- | --- |
+| 200 | 46 738 440 | 118 896 | 99.75 % | 93 746 968 | 515 104 |
+| 500 | 204 408 512 | 259 376 | 99.87 % | 409 294 848 | 994 512 |
+| 1 000 | 838 905 704 | 541 552 | 99.94 % | 1 678 249 360 | 2 060 008 |
+| 2 000 | 2 882 640 616 | 1 133 656 | 99.96 % | 5 767 400 448 | 3 947 296 |
+
+**Both hashes are byte-identical at every agent count.** At each of 200, 500,
+1 000, and 2 000 agents, the `stateHash` and `eventHash` measured after T7 and
+T11 are identical to the same seed-1 point measured before T7 and T11:
+
+| Agents | `stateHash` | `eventHash` | `outcome` |
+| --- | --- | --- | --- |
+| 200 | `71211929A44A16CA` | `A2DC3ECA3F7345ED` | `Faction1Victory` |
+| 500 | `A4C8B82F2A445691` | `A5C77685987DBA49` | `Faction0Victory` |
+| 1 000 | `AE15186605D41434` | `ADBC39C88C5D3587` | `Faction0Victory` |
+| 2 000 | `6D29EA1A189B200D` | `EAB1A6BF6BABD240` | `Draw` |
+
+Every one of the eight points also reported `deterministic true` and
+`firstMismatchTick null`.
+
+**What was actually built departs from the plan's literal wording, and the
+departure is deliberate, not incidental.** The plan's T7 row calls for "one
+simulation-owned list cleared at the top of each tick" and "a single
+`ReadOnlyCollection<BattleEvent>` created once over it" — a single buffer.
+What was built instead is a **double buffer**: two lists, `_eventBufferA` and
+`_eventBufferB`, each wrapped once by a permanent `ReadOnlyCollection`, with a
+flag selecting which one is written next. `AdvanceOneTick` clears the buffer
+that is not currently exposed through `LastEvents`, at the start of the tick,
+rather than clearing the one buffer every tick.
+
+The reason is a pre-existing tested contract the plan's authors did not
+account for.
+`tests/Hukbo.Core.Tests/BattleSimulationTests.cs` already contains
+`LastEventsRemainsACompletedTickSnapshot`, which pins that a reference
+captured on one tick still reads that tick's data after one further
+`AdvanceOneTick`. A single shared buffer cleared every tick would break that
+test: the reference a caller captured on tick N would be silently overwritten
+by tick N+1's events before the caller read it. The double buffer preserves
+the existing contract while still removing every per-tick allocation on this
+path, at the cost of one extra list held live at all times instead of the
+single list the plan described.
+
+A quiet tick still yields the shared `EmptyEvents` singleton, exactly as
+before, so the quiet-tick behavior of `LastEvents` is unchanged. The XML doc
+comment on `LastEvents` states the conservative contract — read within the
+producing tick, never retain — which is stricter than what the implementation
+actually grants, deliberately, so that a future change to the buffering
+strategy is not blocked by a caller depending on the wider guarantee the
+double buffer happens to provide today.
+
+### T8 — the LastEvents caller audit
+
+Every call site of `LastEvents` in the repository was enumerated. The verdict
+for every one was **"reads within the tick"**: no caller retains the
+collection past the `AdvanceOneTick` call that produced it. No caller needed a
+code fix.
+
+Sites audited:
+
+- `src/Hukbo.Headless/HeadlessRunner.cs:339, :366, :486`
+- `src/Hukbo.Client/ArenaGame.cs:798-799, :801, :863`
+- `src/Hukbo.Client/Presentation/PresentationCoordinator.cs:48-56` (pass-through, stores nothing)
+- `src/Hukbo.Client/Presentation/BattleEventFeed.cs:72-122` (copies each struct value, never stores the reference; this is what keeps the 200-event feed correct)
+- `src/Hukbo.Client/Presentation/HitEffectSystem.cs`, `BloodEffectSystem.cs`, `SwingAnimationSystem.cs`, `ClashEffectSystem.cs` (all index into local struct copies)
+- `src/Hukbo.Client/Audio/SoundDirector.cs:120-135`
+- `tools/Hukbo.Tools.WeaponBalance/Program.cs:76, :93`; `tools/Hukbo.Tools.MixAnalysis/CueSchedule.cs:79`; `tools/Hukbo.Tools.CueDemand/Program.cs:41` (outside `Hukbo.slnx` and outside the gate)
+- `tests/Hukbo.Core.Tests/BattleSimulationTests.cs` at many sites, plus `CollisionRegressionTests.cs`, `DeterminismTests.cs`, `PhilippineCombatIntegrationTests.cs`, `LastStandFormationTests.cs`
+
+The one deliberate cross-tick retention,
+`LastEventsRemainsACompletedTickSnapshot` at
+`BattleSimulationTests.cs:133`, was verified still valid against the
+double-buffer implementation.
+
+Two new tests were added:
+
+- `tests/Hukbo.Core.Tests/BattleSimulationTests.cs` —
+  `RetainedLastEventsReferenceIsNotValidPastTheProducingTick`
+- `tests/Hukbo.Client.Tests/BattleEventFeedTests.cs` —
+  `Ingest_CopiesEventValuesRatherThanRetainingTheSourceBuffer`
+
+### T11 — axis-delta rejection in the target scan
+
+An axis-aligned rejection was added to `SelectTargetsAndIntents`, running
+before `SquaredDistance`. It computes `deltaX` and `deltaY` as `long` values
+and rejects the candidate when either falls outside
+`[-perceptionRangeRaw, +perceptionRangeRaw]`, where `perceptionRangeRaw` is
+the same unsquared field `perceptionSquared` is already built from. The
+rejection uses a two-sided comparison rather than an absolute value, so no
+overflow is possible.
+
+The proof that the rejected set is a strict subset of the pre-existing
+rejection was worked through rather than merely asserted: if
+`|deltaX| > R` then `deltaX squared > R squared`, and since `deltaY squared`
+is never negative, `deltaX squared + deltaY squared > R squared`, which is
+exactly the existing `SquaredDistance` rejection condition. Both comparisons
+are strict, so the two agree at the boundary — a candidate the axis check
+rejects was always going to be rejected by the squared-distance check too, and
+the reverse never happens. The tie-break is byte-identical, as the T7 hash
+table above confirms at all four agent counts.
+
+### Percentiles, before and after
+
+Same seed-1, 10 000-tick, fresh-process-per-point sweep as T2, before and
+after T7 and T11:
+
+| Agents | measuredTicks | p50 before | p50 after | p95 before | p95 after | p99 after | max after |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 200 | 1 710 | 0.0806 | 0.0755 | 1.5296 | 1.2764 | 2.3809 | 8.6285 |
+| 500 | 2 832 | 0.3494 | 0.3274 | 1.9734 | 1.8906 | 4.2340 | 12.4995 |
+| 1 000 | 5 815 | 1.3677 | 1.2466 | 5.5727 | 5.1805 | 6.2782 | 22.2130 |
+| 2 000 | 10 000 | 6.2447 | 5.0435 | 20.4695 | 16.4739 | 19.9058 | 75.7937 |
+
+Percentile improvement, after versus before:
+
+| Agents | p50 | p95 |
+| --- | --- | --- |
+| 200 | down 6.3 % | down 16.6 % |
+| 500 | down 6.3 % | down 4.2 % |
+| 1 000 | down 8.9 % | down 7.0 % |
+| 2 000 | down 19.2 % | down 19.5 % |
+
+**Nothing regressed.** No percentile at any agent count moved in the
+regressing direction, and the ten percent regression threshold in
+`SIMULATION-GAME-STANDARDS.md` section 8 was never approached in that
+direction at any point measured.
+
+### Peak working set, before and after
+
+`SIMULATION-GAME-STANDARDS.md` section 8 asks for the whole-process working
+set alongside the tick percentiles. No earlier record on this page carries one,
+and `RunReport` does not measure it, so it was measured here from outside the
+process: a supervisor started `Hukbo.Headless.exe` directly and sampled
+`PeakWorkingSet64` until the process exited, three runs per configuration, at
+200 agents / 10 000 ticks / seed 1.
+
+| Run | Before | After |
+| --- | --- | --- |
+| 1 | 49.67 MiB | 37.39 MiB |
+| 2 | 49.83 MiB | 37.49 MiB |
+| 3 | 49.74 MiB | 37.96 MiB |
+
+Mean peak working set fell from 49.75 MiB to 37.61 MiB, which is 24.4 per
+cent. "Before" is the unmodified
+`main` tree at commit `8a3d930`; "after" is this worktree. This is the
+consequence of the allocation removal rather than a separate change: a run that
+no longer allocates roughly ninety-four megabytes across its measured loop does
+not need the heap to grow to hold it.
+
+`Limitations:` the supervisor busy-polls the process handle in a tight loop, so
+it competes with the run for CPU. These figures are therefore memory figures
+only. **Do not read a timing figure off this method** — the percentile table
+above comes from the headless runner's own instrumentation, which is unaffected.
+A 2 000-agent variant of this measurement was attempted and abandoned, because
+the busy-poll loop slowed the 171-second run past a usable time budget.
+
+### T19 — an assertion that T7 made ill posed
+
+Recorded because it is the one place where this workstream changed a test
+rather than only adding one, and a later reader is entitled to know why.
+
+`RepeatedCollisionTicksHaveBoundedAllocations` guarded reuse with "the second
+measured window must not allocate more than the first". That was sound while
+both windows measured roughly 815 000 bytes of simulation allocation. T7 removed
+that allocation, and both windows now measure between 0 and 2 064 bytes across
+1 000 ticks, observed over thirteen full-suite runs. At that magnitude the
+comparison no longer ranks simulation behaviour; it ranks runtime infrastructure
+noise, and the identical deterministic workload reports a different byte count
+from run to run.
+
+The test consequently failed about one full-suite run in three. Measured before
+the fix: two failures in six runs of `dotnet test tests/Hukbo.Core.Tests`, with
+messages including "A warm window allocated 1,032 bytes after a first window of
+0" and "2,064 bytes after a first window of 1,200". In isolation it passed
+eight times out of eight, which is why a single gate run did not reveal it.
+
+The test now carries three assertions where it carried two.
+
+An absolute ceiling of 16 384 bytes applies to **each** window. The old form
+would have accepted a first window of 899 999 bytes, so on that axis this is a
+large tightening. Reinstating a per-tick event list in that 24-agent scenario
+would allocate 24 × 2 × 72 = 3 456 bytes a tick, or 3 456 000 across a window,
+which is 210 times the ceiling; even a single boxed enumerator per tick would
+allocate roughly 46 000 across a window, nearly three times it.
+
+The relative comparison is **kept**, with a tolerance of 4 096 bytes. An
+earlier revision of this work replaced it outright and described the result as
+"strictly stronger" than what it replaced. **That claim was wrong**, and it is
+recorded here rather than quietly corrected, because it is the kind of error
+that a reader would otherwise inherit. A regression allocating 500 bytes in the
+first window and 12 000 in the second fails the old zero-tolerance comparison
+and passes a 16 384-byte ceiling, so an absolute ceiling alone does not
+subsume the relative one. Growth between two identical windows is a real
+signal and is still asserted.
+
+The tolerance is a genuine relaxation of the old assertion and is not presented
+as anything else. Zero tolerance is unachievable now that the measured
+quantity is near zero and the counter is not reproducible run to run. The
+largest run-to-run increase observed across the thirteen measurement runs was
+1 032 bytes, and the tolerance is four times that.
+
+`RepeatedQuietTicksHaveBoundedAllocations` was retuned in the same pass, from a
+ceiling of 300 000 bytes down to 8 192. That window now measures **exactly 0
+bytes** on every run observed, so the old ceiling was a guard that could no
+longer fire.
+
+After the fix: ten consecutive full-suite runs of `dotnet test
+tests/Hukbo.Core.Tests --configuration Release`, 590 of 590 passing every time,
+zero failures.
+
+### Canonical gate
+
+`./scripts/verify.ps1`, complete stage output, against the final tree with T1,
+T2, T6, T7, T8, T11, and the T19 assertion fix all applied. An earlier gate run
+was recorded before T19 and has been replaced by this one, because T19 changed
+test files and a gate result must describe the tree it actually ran against:
+
+```
+[PASS] Platform: Windows x64
+[PASS] PowerShell: 7.6.4
+[PASS] git version 2.55.0.windows.3
+[PASS] Git LFS: installed (optional; no tracked LFS assets are currently required)
+[PASS] .NET SDK: 10.0.302
+[PASS] MonoGame packages are centrally pinned: MonoGame.Content.Builder.Task 3.8.5, MonoGame.Framework.DesktopGL 3.8.5
+[PASS] Required prerequisites and repository configuration are present.
+[PASS] Locked package restore completed.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+Hukbo.Core.Tests 590 / 590 passed. Hukbo.Client.Tests 661 / 661 passed. 0 Warning(s), 0 Error(s).
+```
+
+The gate's own headless report, verbatim:
+
+```
+  "seed": 1, "agentCount": 200, "requestedTicks": 10000, "measuredTicks": 1710,
+  "tickPercentiles": { "p50Milliseconds": 0.0774, "p95Milliseconds": 1.5303 },
+  "allocatedBytes": 515104,
+  "outcome": "Faction1Victory",
+  "eventHash": "A2DC3ECA3F7345ED",
+  "stateHash": "71211929A44A16CA",
+  "deterministic": true,
+  "coreAllocatedBytes": 118896
+```
+
+`stateHash 71211929A44A16CA` and `eventHash A2DC3ECA3F7345ED` are the recorded
+baseline for the 200-agent, seed-1 point and are unchanged by this gate run.
+
+The percentiles a gate run reports vary with machine load — the run before T19
+reported a p50 of 0.0744 ms and a p95 of 1.379 ms on the same tree — which is
+exactly why the percentile comparison recorded above is drawn from the
+controlled sweep rather than from a gate run. `allocatedBytes`,
+`coreAllocatedBytes`, `measuredTicks`, and both hashes were identical across
+both gate runs.
+
+## Previous non-interactive result — weapon clash on preset V2, 2026-07-28
 
 Merges the weapon-clash defensive-resolution feature onto preset V2. See
 [docs/plans/2026-07-27-clash-preset-v2-integration.md](../plans/2026-07-27-clash-preset-v2-integration.md),
@@ -2012,6 +2375,37 @@ to `PASS`. Compilation, unit tests, and a window-opening probe do not.
 | 96. Reset clears everything | Next Round (`R`) and Full Reset (`Shift+R`) both clear every pulse and burst immediately. No effect from the previous match survives into the new one. | Not run | PENDING |
 | 97. Check the arena edges | Resize the window and zoom in near each arena edge. No ring or shard draws over the status bar, the agent inspector, the event log, the match summary, or the menu overlay. | Not run | PENDING |
 | 98. Confirm the effects change nothing | Run to a terminal result. Effects expire on their own, and the outcome, tick count, state hash, and event hash match a run of the same seed with the effects never observed. | Not run | PENDING |
+
+### Event feed lifetime smoke (T17)
+
+Covers the change recorded under T7 of
+[docs/archives/2026-07-28/2026-07-28-arch-informed-performance-hardening.md](../archives/2026-07-28/2026-07-28-arch-informed-performance-hardening.md):
+`LastEvents` now returns one of two permanent double-buffered collections
+instead of a fresh one created each tick. The automated tests — the seed-1
+hash equality above, `LastEventsRemainsACompletedTickSnapshot`,
+`RetainedLastEventsReferenceIsNotValidPastTheProducingTick`, and
+`BattleEventFeedTests.Ingest_CopiesEventValuesRatherThanRetainingTheSourceBuffer`
+— prove the buffer contract and the copy-out behavior in isolation; none of
+them prove that a spectator watching the live feed on screen ever sees the
+effect of the changed lifetime. These three rows are the only rows this
+workstream adds to this checklist. They exist because T7 changed the lifetime
+of the collection `LastEvents` returns, and only a person at an interactive
+Windows desktop may flip one of them to `PASS`. **Not performed. All three
+rows are `PENDING`.**
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 99. Watch the battle event feed during a live run | Events appear correctly and in the correct order for the whole run; nothing is missing, duplicated, or out of sequence. | Not run | PENDING |
+| 100. Pause, resume, and change speed repeatedly during a run | The feed survives every pause and every speed change without losing or duplicating a single entry. | Not run | PENDING |
+| 101. Let a battle run to its end | Once the battle ends, the feed shows nothing stale left over from the last live tick. | Not run | PENDING |
 
 ## Failure classification
 

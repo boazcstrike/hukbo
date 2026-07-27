@@ -690,6 +690,68 @@ public sealed class CollisionResolverTests
     }
 
     /// <summary>
+    /// Guards the no-copy contract on <c>CollisionResolver.Grow</c>: growing a
+    /// per-tick buffer replaces it with a fresh array instead of copying the
+    /// old one, which is only correct because <c>Reset</c> refills every slot
+    /// that array exposes before anything reads it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The first <see cref="CollisionResolver.Resolve"/> call uses 36 requests,
+    /// below the resolver's initial buffer capacity of 64, so its mover buffers
+    /// keep their construction-time array and end the call holding real,
+    /// non-default priority keys and request indices in their mover prefix.
+    /// </para>
+    /// <para>
+    /// The second call uses 72 requests -- every one of them a mover, and past
+    /// the 64-slot capacity -- which forces <c>Grow</c> to replace every
+    /// per-tick buffer with a brand new, larger array. A correct <c>Reset</c>
+    /// then writes every slot of that new array this tick's read loops touch.
+    /// </para>
+    /// <para>
+    /// This is the failure mode the test rules out: if <c>Reset</c>'s refill
+    /// loop were ever shortened, skipped, or bounded incorrectly after a grow,
+    /// the untouched slots of the fresh array would keep the CLR's own zero
+    /// default rather than this tick's data. For the mover-index buffer, a
+    /// zero default means every one of those movers would read back request
+    /// index 0 -- so <c>Commit</c> would only ever be called for request 0,
+    /// and every other request in this all-mover crowd would keep its own
+    /// <c>_results</c> slot at its own array default: entity ID 0 and
+    /// <see cref="MovementResolution.None"/>. Both assertions below would
+    /// immediately catch that: the entity ID would no longer match its own
+    /// request, and a mover -- which always resolves to
+    /// <see cref="MovementResolution.Moved"/>,
+    /// <see cref="MovementResolution.Slid"/>,
+    /// <see cref="MovementResolution.Truncated"/>, or
+    /// <see cref="MovementResolution.Blocked"/> -- would report
+    /// <see cref="MovementResolution.None"/> instead, a resolution only a
+    /// stationary body can legitimately report.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Resolve_RefillsEveryGrownBufferSlotBeforeAnyReadOfIt()
+    {
+        var resolver = NewResolver();
+
+        resolver.Resolve(GenerateCrowd(seed: 5UL, columns: 6, rows: 6));
+
+        var requests = GenerateAllMoverCrowd(seed: 5UL, columns: 9, rows: 8);
+
+        resolver.Resolve(requests);
+
+        Assert.Equal(requests.Length, resolver.Results.Count);
+        AssertNoOverlap(resolver);
+
+        for (var index = 0; index < requests.Length; index++)
+        {
+            var result = resolver.Results[index];
+
+            Assert.Equal(requests[index].EntityId, result.EntityId);
+            Assert.NotEqual(MovementResolution.None, result.Resolution);
+        }
+    }
+
+    /// <summary>
     /// The resolver orders movers by their priority key, not by their entity ID.
     /// Two allies converge on ground only one of them can take; giving the
     /// higher-ID mover the lower key hands it the ground, which the old
@@ -893,6 +955,49 @@ public sealed class CollisionResolverTests
                 // invariant tests must fuzz the shuffled resolution order the
                 // battle actually uses, not the ascending-ID order it retired.
                 // This consumes no draw, so the crowd itself is unchanged.
+                PriorityKey: CollisionPriority.Resolve(
+                    seed: 1,
+                    tick: 1,
+                    entityId: (ulong)((index * 3) + 1)));
+        }
+
+        return requests;
+    }
+
+    /// <summary>
+    /// The same tangent lattice as <see cref="GenerateCrowd"/>, except every
+    /// request is a mover. Used to drive <see cref="CollisionResolver"/> past
+    /// its per-tick buffers' initial capacity while keeping every request's
+    /// resolution meaningfully checkable: a mover always resolves to
+    /// <see cref="MovementResolution.Moved"/>,
+    /// <see cref="MovementResolution.Slid"/>,
+    /// <see cref="MovementResolution.Truncated"/>, or
+    /// <see cref="MovementResolution.Blocked"/>, never
+    /// <see cref="MovementResolution.None"/>, which a stationary body can
+    /// report.
+    /// </summary>
+    private static CollisionMoveRequest[] GenerateAllMoverCrowd(ulong seed, int columns, int rows)
+    {
+        const int SpacingRaw = DiameterRaw;
+        const int OriginRaw = 40_000;
+
+        var random = new SplitMix64(seed);
+        var requests = new CollisionMoveRequest[columns * rows];
+
+        for (var index = 0; index < requests.Length; index++)
+        {
+            var startXRaw = OriginRaw + ((index % columns) * SpacingRaw);
+            var startYRaw = OriginRaw + ((index / columns) * SpacingRaw);
+            var deltaXRaw = random.NextInt((2 * MovementSpeedRaw) + 1) - MovementSpeedRaw;
+            var deltaYRaw = random.NextInt((2 * MovementSpeedRaw) + 1) - MovementSpeedRaw;
+
+            requests[index] = new CollisionMoveRequest(
+                EntityId: (ulong)((index * 3) + 1),
+                StartXRaw: startXRaw,
+                StartYRaw: startYRaw,
+                PreferredXRaw: startXRaw + deltaXRaw,
+                PreferredYRaw: startYRaw + deltaYRaw,
+                HasProposal: true,
                 PriorityKey: CollisionPriority.Resolve(
                     seed: 1,
                     tick: 1,

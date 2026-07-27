@@ -64,6 +64,49 @@ public sealed class BattleEventFeedTests
         Assert.Equal([1L, 2L, 3L, 4L, 5L], feed.Entries.Select(entry => entry.Sequence));
     }
 
+    /// <summary>
+    /// T8: BattleSimulation now hands <c>LastEvents</c> callers a view over a
+    /// buffer it owns and reuses -- see the double-buffer field comment above
+    /// <c>_eventBufferA</c> in BattleSimulation.cs and the lifetime remarks on
+    /// the <c>LastEvents</c> property itself. This test proves
+    /// <see cref="BattleEventFeed.Ingest"/> observes each tick's events
+    /// within the call rather than deferring to the parameter reference, by
+    /// building a <c>List&lt;BattleEvent&gt;</c> the exact way the simulation
+    /// does -- one shared buffer, cleared and refilled between ticks -- and
+    /// ingesting it twice with a mutation in between.
+    /// </summary>
+    /// <remarks>
+    /// A naive "retain and compare" <c>Ingest</c> that stored the
+    /// <c>IReadOnlyList&lt;BattleEvent&gt;</c> parameter itself (or deferred
+    /// reading it past the call, instead of copying each event's value out
+    /// immediately) would fail this test: once <c>sharedBuffer</c> is cleared
+    /// and refilled for "tick 2", any stored reference to it would silently
+    /// stop reflecting tick 1's two events, and <c>feed.Entries</c> would
+    /// come back missing them (or duplicating tick 2's) instead of holding
+    /// all three in order. The real implementation passes because
+    /// <c>Ingest</c> copies each <c>BattleEvent</c> value out of the
+    /// parameter into its own list before returning, so it is unaffected by
+    /// whatever the caller -- or the simulation -- does to that buffer next.
+    /// </remarks>
+    [Fact]
+    public void Ingest_CopiesEventValuesRatherThanRetainingTheSourceBuffer()
+    {
+        var feed = new BattleEventFeed(10);
+        var sharedBuffer = new List<BattleEvent> { CreateEvent(1, 1), CreateEvent(2, 1) };
+
+        feed.Ingest(sharedBuffer);
+
+        // Mimic BattleSimulation.AdvanceOneTick reusing its own backing
+        // buffer for a later tick: clear it, then write fresh data into the
+        // very same list instance.
+        sharedBuffer.Clear();
+        sharedBuffer.Add(CreateEvent(3, 2));
+
+        feed.Ingest(sharedBuffer);
+
+        Assert.Equal([1L, 2L, 3L], feed.Entries.Select(entry => entry.Sequence));
+    }
+
     [Fact]
     public void Filters_CombineKindFactionActorAndTextWithAndSemantics()
     {

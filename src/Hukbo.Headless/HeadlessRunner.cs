@@ -289,14 +289,25 @@ public static class HeadlessRunner
 
         var allocationStart = GC.GetAllocatedBytesForCurrentThread();
 
+        // Accumulated across the loop below: the managed bytes allocated by
+        // left.AdvanceOneTick() alone, summed tick by tick. See RunReport's
+        // CoreAllocatedBytes doc comment for exactly what this does and does
+        // not include.
+        var coreAllocatedBytes = 0L;
+
         for (var requestedTick = 0;
              requestedTick < options.TickCount &&
                 left.Outcome == BattleOutcome.Ongoing;
              requestedTick++)
         {
+            // The allocation reads sit immediately outside the Stopwatch
+            // bracket, not between its two calls, so timing is unaffected by
+            // adding this measurement.
+            var tickAllocationStart = GC.GetAllocatedBytesForCurrentThread();
             var startTimestamp = Stopwatch.GetTimestamp();
             left.AdvanceOneTick();
             var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
+            coreAllocatedBytes += GC.GetAllocatedBytesForCurrentThread() - tickAllocationStart;
             tickDurations.Add(elapsed.TotalMilliseconds);
 
             var tickCollision = left.LastTickCollision;
@@ -414,7 +425,8 @@ public static class HeadlessRunner
             firstMismatchTick is null,
             firstMismatchTick,
             collisionMetrics.ToMetrics(),
-            combatMetrics.ToMetrics());
+            combatMetrics.ToMetrics(),
+            coreAllocatedBytes);
     }
 
     /// <summary>
