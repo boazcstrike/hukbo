@@ -187,6 +187,13 @@ public sealed partial class ArenaGame
             _camera.Zoom,
             spriteBatch,
             pixel);
+        ClashEffectRenderer.Draw(
+            _presentation.ClashEffects.ActiveEffects,
+            _camera,
+            arenaBounds,
+            _camera.Zoom,
+            spriteBatch,
+            pixel);
     }
 
     private void DrawMapSurface(
@@ -252,6 +259,10 @@ public sealed partial class ArenaGame
             var appearance = PawnAppearanceFactory.Create(
                 agent.EntityId,
                 agent.Loadout.Weapon);
+            // Pose-blind on purpose. A pose-aware cull would make the set of
+            // drawn pawns a function of presentation animation phase, so the
+            // same tick would render a different draw list depending on where
+            // each swing clock sat. See PawnRenderer.GetBounds.
             var visualBounds = PawnRenderer.GetBounds(
                 footAnchor,
                 _camera.Zoom,
@@ -275,7 +286,13 @@ public sealed partial class ArenaGame
                     hoveredEntityId),
                 hitPulseStrength:
                     _presentation.HitEffects.GetPulseStrength(
-                        agent.EntityId));
+                        agent.EntityId),
+                swingPose: SwingPoseResolver.TryGetPose(
+                    _swingPoses,
+                    agent.EntityId,
+                    out var swingPose)
+                    ? swingPose
+                    : null);
         }
     }
 

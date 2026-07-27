@@ -30,6 +30,21 @@ internal static class PawnRenderer
     /// </summary>
     private const int SwingTrailSegments = 6;
 
+    /// <summary>
+    /// Neutral, pose-blind bounds, deliberately. This feeds the frustum cull,
+    /// and a pose-aware cull would make the set of drawn pawns a function of
+    /// presentation animation phase, so the same tick would render a different
+    /// draw list depending on where each swing clock happened to sit. That is
+    /// draw-list determinism and it is the whole reason.
+    /// </summary>
+    /// <remarks>
+    /// The cost is real and is not waved away: the arena bounds are the
+    /// scissored arena panel rather than the screen, so a pawn whose body sits
+    /// outside the panel while its weapon would sweep into it is dropped
+    /// entirely, and the tip clips at the panel edge while panning. The
+    /// selection padding does not absorb this, by roughly four times. It is
+    /// accepted and carries an interactive smoke row rather than an assertion.
+    /// </remarks>
     public static Rectangle GetBounds(
         Vector2 footAnchor,
         float cameraZoom,
@@ -41,6 +56,11 @@ internal static class PawnRenderer
             appearance,
             scaleMultiplier).VisualBounds;
 
+    /// <param name="swingPose">
+    /// The pose an in-flight swing puts this pawn in, or <c>null</c> for a
+    /// pawn standing still. Optional so that the inspector portrait, which is
+    /// a still, keeps compiling without passing one.
+    /// </param>
     public static void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
@@ -50,7 +70,8 @@ internal static class PawnRenderer
         Color factionColor,
         PawnVisualState state,
         float scaleMultiplier = 1f,
-        float hitPulseStrength = 0f)
+        float hitPulseStrength = 0f,
+        SwingPose? swingPose = null)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(pixel);
@@ -64,7 +85,8 @@ internal static class PawnRenderer
             footAnchor,
             cameraZoom,
             appearance,
-            scaleMultiplier);
+            scaleMultiplier,
+            swingPose);
         var isDead = state == PawnVisualState.Dead;
         var clothingColor = ApplyHitPulse(
             ApplyState(appearance.ClothingColor, isDead),

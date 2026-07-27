@@ -78,6 +78,14 @@ public sealed partial class ArenaGame : Game
     private readonly ClientSettingsStore _settingsStore;
     private readonly GoreIntensityManager _goreManager;
     private readonly ArmyCompositionPanel _armyCompositionPanel;
+
+    /// <summary>
+    /// Reused each frame so the draw path allocates nothing. The mapping into
+    /// it lives in <see cref="SwingPoseResolver"/> rather than here, because
+    /// this file is banned from tests and anything in it is untestable by
+    /// construction.
+    /// </summary>
+    private readonly Dictionary<ulong, SwingPose> _swingPoses = [];
     private readonly DiagnosticLog _log;
 
     private Scenario _scenario;
@@ -247,7 +255,12 @@ public sealed partial class ArenaGame : Game
         _input.Update();
         _soundDirector.BeginFrame(gameTime.ElapsedGameTime.TotalSeconds);
         _presentation.AdvanceEffects(
-            (float)gameTime.ElapsedGameTime.TotalSeconds);
+            (float)gameTime.ElapsedGameTime.TotalSeconds,
+            _speedMultiplier);
+        SwingPoseResolver.Resolve(
+            _presentation.Swings,
+            _simulation.Agents,
+            _swingPoses);
         var screenBounds = GraphicsDevice.Viewport.Bounds;
         var layout = GetLayout(screenBounds);
         _eventLogPanel.ReleaseKeyboardFocusIfPointerLeaves(
