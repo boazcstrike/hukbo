@@ -186,7 +186,7 @@ all funnel through `ArenaGame.Rendering.cs` and must run one at a time.
 | Task | What | Files | Done when | Depends on | Verified by |
 | --- | --- | --- | --- | --- | --- |
 | GPU-013 | **R1, helper.** Add a single entry point that returns the pose-blind `VisualBounds` alongside the posed `PawnLayout` from one call, so a visible pawn stops paying for two full layout constructions per frame. The pose-blind bounds must be computed by the cheap subset of `PawnGeometry.Create` that actually determines them, not by running the full layout a second time. Keep the existing `GetBounds` and `Create` in place as the reference the equivalence test compares against. | `src/Hukbo.Client/Rendering/PawnRenderer.cs`, `src/Hukbo.Client/Rendering/PawnGeometry.cs`, `tests/Hukbo.Client.Tests/PawnGeometryTests.cs` | The new entry point exists and, over a representative grid of appearance, zoom, and pose inputs, returns bounds bit-identical to `PawnRenderer.GetBounds` and a layout bit-identical to `PawnGeometry.Create` | GPU-012 | `./scripts/test.ps1 -Configuration Release`; the equivalence cases in `PawnGeometryTests.cs` |
-| GPU-014 | **R1, adoption.** Switch `DrawPawns` (`ArenaGame.Rendering.cs` lines 503 to 564) and `RecordPawnQuads` (lines 148 to 198) to the single-call entry point. The cull continues to test the pose-blind bounds exactly as it does today, so the drawn set is unchanged by construction. | `src/Hukbo.Client/ArenaGame.Rendering.cs` | Both call sites use the single call, the `PawnGeometry.Create` invocation count per visible pawn per frame recorded by GPU-005 halves, and `PawnQuadCountTests` still pins 17, 19, 20, and 40 | GPU-013 | `./scripts/test.ps1 -Configuration Release`; `tests/Hukbo.Client.Tests/PawnQuadCountTests.cs`; the invocation counter in a hand-run probe |
+| GPU-014 | **R1, adoption. Amended 2026-07-29 — see the note below this table.** Switch `DrawPawns` (`ArenaGame.Rendering.cs` line 756) and `RecordPawnQuads` (line 385) to a **two-stage** adoption, not to the single combined call. Compute the shared proportions once, take the pose-blind bounds from them and run the cull, then finish the posed layout from those same proportions for the pawns that survive. The cull continues to test the pose-blind bounds exactly as it does today, so the drawn set is unchanged by construction. | `src/Hukbo.Client/ArenaGame.Rendering.cs` | Both call sites use the single call, the `PawnGeometry.Create` invocation count per visible pawn per frame recorded by GPU-005 halves, and `PawnQuadCountTests` still pins 17, 19, 20, and 40 | GPU-013 | `./scripts/test.ps1 -Configuration Release`; `tests/Hukbo.Client.Tests/PawnQuadCountTests.cs`; the invocation counter in a hand-run probe |
 | GPU-015 | **R2a, helper.** Derive a conservative, appearance-blind and pose-blind upper-bound radius around a pawn's foot anchor at a given zoom, as a pure helper, together with a test that proves the radius is an upper bound over **every** appearance the catalogs can produce. Answer design open question 4 as part of this task: report how much the pre-cull actually admits at each camera station, and state plainly whether it is worth adopting. If the provable bound is so generous that the pre-cull admits nearly everything, say so and recommend that GPU-016 be dropped. | `src/Hukbo.Client/Rendering/ConservativePawnCull.cs` (new), `tests/Hukbo.Client.Tests/ConservativePawnCullTests.cs` (new) | The helper exists, the upper-bound test passes over the full catalog cross-product, and the task's completion note states the admitted fraction at each of the three camera stations | GPU-012 | `./scripts/test.ps1 -Configuration Release`; `ConservativePawnCullTests.cs` |
 | GPU-016 | **R2a, adoption.** Move the conservative pre-cull ahead of `PawnAppearanceFactory.Create` at `ArenaGame.Rendering.cs` line 524, so a distant pawn never resolves an appearance. The exact pose-blind test still runs afterward on the pawns that survive, so the final drawn set is unchanged. **Conditional on GPU-015's recommendation** — if GPU-015 reports the pre-cull is not worth having, this task is dropped and that decision is recorded. | `src/Hukbo.Client/ArenaGame.Rendering.cs` | Appearance resolution runs for a number of pawns proportional to visible pawns rather than to total agents, and the drawn set is unchanged at all three camera stations | GPU-014, GPU-015 | `./scripts/test.ps1 -Configuration Release`; a hand-run probe at 1,000 units maximum zoom showing the appearance-resolution count collapse |
 | GPU-017 | **R2b, helper.** Build the bounded appearance cache declared below under *The appearance cache declaration*, as a flat array indexed by the agent's ordinal position with the key stored alongside for verification. `PawnAppearanceFactory.Create` remains the single authority and the cache never computes an appearance itself. Expose hit, miss, and fill counters through `IRenderMetricsRecorder`. Include the cold-cache equivalence test and the size-bound test — both are required, not optional. Include the load-bearing-assumption test that fails if `AgentView.Loadout` ever becomes mutable mid-battle. | `src/Hukbo.Client/Presentation/PawnAppearanceCache.cs` (new), `tests/Hukbo.Client.Tests/PawnAppearanceCacheTests.cs` (new), `src/Hukbo.Client/Rendering/RenderMetrics.cs` | The cache exists with its full declaration recorded in section 3.2, the cold-cache equivalence test passes, the size-bound test pins capacity at `2 * ArmyCompositionStepper.MaximumUnitsPerTeam`, and the counters are reported by a probe run | GPU-012 | `./scripts/test.ps1 -Configuration Release`; `PawnAppearanceCacheTests.cs` |
@@ -196,6 +196,57 @@ all funnel through `ArenaGame.Rendering.cs` and must run one at a time.
 | GPU-021 | **Reduce the `UpdateHoverSelection` cost.** `UpdateHoverSelection` (`src/Hukbo.Client/ArenaGame.cs` lines 1305 to 1335) walks the full agent list every frame the pointer is inside the arena, and `DrawUiLayer` performs a second full-list operation at `ArenaGame.Rendering.cs` line 286. Act on what GPU-003's hover-selection span actually measured: if the span is a material fraction of the frame at 1,000 units, remove the duplicate full-list walk; if it is not, record the measured figure and take no action. **This task is measurement-led and may legitimately end in no code change.** | `src/Hukbo.Client/ArenaGame.cs`, `src/Hukbo.Client/Presentation/AgentSelection.cs`, `tests/Hukbo.Client.Tests/AgentSelectionTests.cs` | Either the duplicate walk is removed with selection behaviour unchanged under `AgentSelectionTests`, or the measured span is recorded and the decision not to act is written down with its number | GPU-012 | `./scripts/test.ps1 -Configuration Release`; the hover-selection span from GPU-012's baseline |
 | GPU-022 | Raise `ArmyCompositionStepper.MaximumUnitsPerTeam` from 250 to 500. `MinimumUnitsPerTeam` stays at 4 and `ClientSettings.DefaultUnitsPerTeam` stays at 250, so the default experience is unchanged and the larger battle is opt-in. Extend the stepper's tests to cover the new maximum and the clamp behaviour at the new boundary. | `src/Hukbo.Client/UI/ArmyCompositionStepper.cs`, `tests/Hukbo.Client.Tests/ArmyCompositionStepperTests.cs` | The stepper accepts 500 per team, clamps above it, still refuses below 4, and the composition panel still fits the window at the new maximum | GPU-012 | `./scripts/test.ps1 -Configuration Release`; `ArmyCompositionStepperTests.cs`, `ArmyCompositionPanelTests.cs`. Window fit is a **manual smoke row**, not a test |
 | GPU-023 | **The go/no-go measurement.** Hand-run the Phase 1 probe at 200, 500, and 1,000 units after all Phase 2 tasks land. Commit the JSON. Record the tables in `docs/development/testing.md`. Evaluate both clauses of the trigger in section 4 and state the verdict in writing, with the two numbers the verdict rests on. | `docs/development/render-baselines/render-matrix-phase2-<date>.json`, `docs/development/testing.md`, `docs/plans/gpu-render/2026-07-28-gpu-render.md` | The re-measurement is recorded and the trigger verdict is written down as GO or NO-GO with both clause figures quoted | GPU-013 through GPU-022 | The hand-run itself. **Not delegable.** No agent report, compilation success, or test pass substitutes for it |
+
+### Amendment, 2026-07-29: GPU-014 is a two-stage adoption, and GPU-016 is no longer load-bearing
+
+GPU-013 and GPU-015 both landed with findings that change how the adoption
+chain has to run. Recorded here rather than silently applied.
+
+**The problem GPU-013 found.** In `DrawPawns` today the two geometry calls serve
+different populations. `PawnRenderer.GetBounds` runs for every living agent,
+because the cull needs its result to decide anything. `PawnGeometry.Create` runs
+only for the pawns that survive the cull. A naive switch to the single combined
+entry point would make every culled agent pay for a full posed layout it never
+draws. At 1,000 units and maximum zoom, where the recorded baseline shows 1,028
+quads against 1,000 agents, most agents are culled, so that swap is a
+regression rather than an optimisation.
+
+**Why this was not visible when the plan was written.** The row was drafted as
+"switch both call sites to the single call", which reads as obviously correct
+until you notice the populations differ. Nothing in the original measurement
+distinguished them.
+
+**The amendment.** GPU-013 did not just add a combined call; it split
+`PawnGeometry.Create` internally into a shared proportions stage, a pose-blind
+bounds stage, and a posed layout stage, and pinned all three against the
+existing entry points over a 73,728-case grid at bit-identity. That structure
+supports a better adoption than either the original plan or a reordering:
+compute the proportions once per agent, derive the pose-blind bounds and cull,
+then finish the posed layout from the same proportions only for survivors.
+Culled agents pay the cheap stage alone, which is strictly less than they pay
+today, and visible pawns pay the shared prefix once instead of twice.
+
+**Consequence for GPU-016.** The conservative pre-cull was going to be the
+mitigation for the regression above. With the two-stage adoption there is no
+regression to mitigate, so GPU-016 reverts to what it was always meant to be: an
+optional optimisation, judged on its own merits.
+
+**GPU-015's recommendation, recorded with the numbers that cut against it.**
+GPU-015 recommends adopting GPU-016. Its bound is tight — four pixels of flat
+slack, not proportional — and it is a proven upper bound over a 435,456-case
+cross-product. But its own measurements show the saving is zero at minimum zoom
+and zero at default fit, because at those stations the whole 1,280 by 720 map
+fits inside the arena panel and no cull of any kind can skip anything. The
+saving is confined to maximum zoom, roughly 35 percent of a 588.8 microsecond
+frame that is already ten times inside budget. Phase 2's exit criterion and the
+Phase 3 trigger are both stated at default fit, and the only station currently
+over 8 milliseconds is minimum zoom. **GPU-016 cannot move either number.** It
+also creates a permanent invariant: the bound mirrors `PawnGeometry`'s private
+constants, so a future change to weapon reach, shield proportion, or stature
+silently invalidates it, caught only by `ConservativePawnCullTests`.
+
+GPU-016 therefore remains authorized but is explicitly not on the critical path,
+and it must not be counted toward the Phase 2 exit criterion or the trigger.
 
 ### The appearance cache declaration
 
