@@ -1,0 +1,562 @@
+using Hukbo.Client.Presentation;
+using Hukbo.Client.Presentation.Catalogs;
+using Hukbo.Client.Rendering;
+using Hukbo.Core.Combat;
+using Microsoft.Xna.Framework;
+
+namespace Hukbo.Client.Tests;
+
+/// <summary>
+/// GPU-015. Proves that <see cref="ConservativePawnCull"/>'s radius is a
+/// genuine upper bound on <c>PawnRenderer.GetBounds</c> over every appearance
+/// the catalogs can produce, and records what the resulting pre-cull actually
+/// admits at each of the three camera stations.
+/// </summary>
+public sealed class ConservativePawnCullTests
+{
+    // Two of the three stations named in docs/development/testing.md's review
+    // protocol: the camera's own clamp values (SpectatorCamera). The third,
+    // default fit, is not a constant — it is whatever SpectatorCamera.Fit
+    // resolves for the panel, so it is obtained by calling Fit rather than
+    // written down.
+    private const float MinimumZoom = 0.05f;
+    private const float MaximumZoom = 12f;
+
+    /// <summary>
+    /// Stands in for the default-fit station in an <c>InlineData</c> row,
+    /// which cannot call <c>SpectatorCamera.Fit</c> itself. Zero is safe as a
+    /// sentinel because it is not a zoom the camera can ever hold: its own
+    /// floor is <see cref="MinimumZoom"/>.
+    /// </summary>
+    private const float FitStationSentinelZoom = 0f;
+
+    // Scenario's own default map, in world units.
+    private const int MapWidth = 1_280;
+    private const int MapHeight = 720;
+
+    // The arena panel at the resolution the tracked Phase 1 render baseline
+    // was captured at (docs/development/render-baselines/
+    // render-matrix-2026-07-29.json, fingerprint 1920x1080). Derived from
+    // ArenaGame.ComputeLayout's own constants, which are private: content top
+    // is the 68-pixel status bar, content height is 1080 - 68 - 12, the event
+    // column is 420 wide with a 12-pixel margin and a 10-pixel gap, and the
+    // arena takes what is left after a 12-pixel left margin. That gives
+    // (12, 68, 1466, 1000). Written out here because this file may not reach
+    // into ArenaGame, and stated as a derivation rather than a measurement.
+    private static readonly Rectangle BaselineArenaBounds =
+        new(12, 68, 1_466, 1_000);
+
+    /// <summary>
+    /// Zooms that between them cover both clamp ends, all three detail-tier
+    /// boundaries, and the three camera stations.
+    /// </summary>
+    private static readonly float[] ZoomSamples =
+    [
+        0f,
+        MinimumZoom,
+        0.4f,
+        0.5333333f,   // apparent scale exactly at the 0.72 clamp floor
+        0.6f,
+        0.7037037f,   // apparent scale 0.95, the Low/Medium boundary
+        0.8f,
+        1.0078751f,   // the default-fit station at 1920x1080
+        1.3333334f,   // apparent scale 1.80, the Medium/High boundary
+        1.6f,
+        1.7777778f,   // apparent scale exactly at the 2.40 clamp ceiling
+        2.5f,
+        MaximumZoom,
+        100f,
+    ];
+
+    /// <summary>
+    /// Foot anchors covering every quarter-pixel phase, plus one far from the
+    /// origin so float precision at real screen coordinates is exercised.
+    /// </summary>
+    private static readonly Vector2[] AnchorSamples =
+    [
+        new(0f, 0f),
+        new(0.5f, 0.5f),
+        new(0.25f, 0.75f),
+        new(960.3f, 540.8f),
+    ];
+
+    /// <summary>
+    /// The optional <c>PawnGeometry.Create</c> layers the render path leaves
+    /// at their no-op defaults today. Covered anyway, at both ends of every
+    /// bound, so the radius stays valid if a later task starts passing them.
+    /// </summary>
+    private static readonly float[] ArmorWidthFactorSamples =
+    [
+        1f,
+        1.09f,
+        AppearanceComponentCatalog.MaxArmorWidthFactor,
+    ];
+
+    private static readonly bool[] SashSamples = [false, true];
+
+    private static readonly int[] AccentMarkCountSamples =
+    [
+        0,
+        1,
+        AppearanceComponentCatalog.MaxAccentMarksPerPawn,
+    ];
+
+    [Fact]
+    public void ApparentScale_MatchesPawnGeometry()
+    {
+        var appearance = PawnAppearanceFactory.Create(
+            0,
+            WeaponId.Kampilan,
+            ShieldId.TallHardwood);
+
+        foreach (var zoom in ZoomSamples)
+        {
+            var expected = PawnGeometry.Create(
+                Vector2.Zero,
+                zoom,
+                appearance).ApparentScale;
+
+            Assert.Equal(
+                (double)expected,
+                (double)ConservativePawnCull.ApparentScale(zoom),
+                5);
+        }
+    }
+
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(-0.001f)]
+    public void ApparentScale_RejectsWhatPawnGeometryRejects(float zoom)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => ConservativePawnCull.ApparentScale(zoom));
+    }
+
+    /// <summary>
+    /// The axis lists this file's cross-product is built from are not assumed.
+    /// This walks a wide span of entity IDs through
+    /// <see cref="PawnAppearanceFactory"/> for every loadout and asserts that
+    /// the distinct geometry-relevant appearances it can produce are exactly
+    /// the ones <see cref="GeometryAppearances"/> enumerates.
+    /// </summary>
+    [Fact]
+    public void GeometryAppearances_CoverEverythingTheFactoryCanProduce()
+    {
+        var produced = new HashSet<(PawnWeaponRole, PawnShieldRole, float, float, string)>();
+
+        foreach (var weapon in Enum.GetValues<WeaponId>())
+        {
+            foreach (var shield in Enum.GetValues<ShieldId>())
+            {
+                for (ulong entityId = 0; entityId < 4_096; entityId++)
+                {
+                    var appearance = PawnAppearanceFactory.Create(
+                        entityId,
+                        weapon,
+                        shield);
+                    produced.Add((
+                        appearance.WeaponRole,
+                        appearance.ShieldRole,
+                        appearance.StatureMultiplier,
+                        appearance.BuildMultiplier,
+                        appearance.ShieldSkinId));
+                }
+            }
+        }
+
+        // Four weapon roles, times three statures, times three builds, times
+        // four tall-hardwood skins for a shielded warrior and the single
+        // model-category default for an unshielded one.
+        Assert.Equal(4 * 3 * 3 * (4 + 1), produced.Count);
+
+        var enumerated = new HashSet<(PawnWeaponRole, PawnShieldRole, float, float, string)>(
+            GeometryAppearances().Select(appearance => (
+                appearance.WeaponRole,
+                appearance.ShieldRole,
+                appearance.StatureMultiplier,
+                appearance.BuildMultiplier,
+                appearance.ShieldSkinId)));
+
+        Assert.Empty(produced.Except(enumerated));
+    }
+
+    /// <summary>
+    /// The upper-bound proof. For every appearance the catalogs can produce,
+    /// every optional layer setting, every zoom sample, and every sub-pixel
+    /// anchor phase, the conservative rectangle contains the exact pose-blind
+    /// visual bounds on all four sides.
+    /// </summary>
+    [Fact]
+    public void Bounds_ContainEveryExactVisualBoundsTheCatalogsCanProduce()
+    {
+        var cases = 0;
+
+        foreach (var appearance in GeometryAppearances())
+        {
+            foreach (var armorWidthFactor in ArmorWidthFactorSamples)
+            {
+                foreach (var hasSash in SashSamples)
+                {
+                    foreach (var accentMarkCount in AccentMarkCountSamples)
+                    {
+                        foreach (var zoom in ZoomSamples)
+                        {
+                            foreach (var anchor in AnchorSamples)
+                            {
+                                var exact = PawnGeometry.Create(
+                                    anchor,
+                                    zoom,
+                                    appearance,
+                                    scaleMultiplier: 1f,
+                                    swingPose: null,
+                                    armorWidthFactor,
+                                    hasSash,
+                                    accentMarkCount).VisualBounds;
+                                var conservative = ConservativePawnCull.Bounds(
+                                    anchor,
+                                    zoom);
+
+                                AssertContains(conservative, exact, appearance, zoom, anchor);
+                                cases++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 432 appearances x 3 armor factors x 2 sash states x 3 accent counts
+        // x 14 zooms x 4 anchors. Asserted so a silently shrunken axis list
+        // cannot pass this test by covering less.
+        Assert.Equal(432 * 3 * 2 * 3 * 14 * 4, cases);
+    }
+
+    /// <summary>
+    /// The cross-product above samples zoom at fourteen points. This sweeps it
+    /// continuously across the whole scale-varying range, on the appearances
+    /// that reach furthest in each direction, so a coefficient that is right
+    /// at the sampled points and wrong between them cannot survive.
+    /// </summary>
+    [Fact]
+    public void Bounds_ContainExactVisualBounds_AcrossAContinuousZoomSweep()
+    {
+        var extremes = GeometryAppearances()
+            .Where(appearance =>
+                appearance.StatureMultiplier > 1.05f &&
+                appearance.BuildMultiplier > 1.15f)
+            .ToArray();
+
+        Assert.NotEmpty(extremes);
+
+        for (var step = 0; step <= 400; step++)
+        {
+            var zoom = step * 0.01f;
+
+            foreach (var appearance in extremes)
+            {
+                foreach (var anchor in AnchorSamples)
+                {
+                    var exact = PawnGeometry.Create(
+                        anchor,
+                        zoom,
+                        appearance,
+                        scaleMultiplier: 1f,
+                        swingPose: null,
+                        AppearanceComponentCatalog.MaxArmorWidthFactor,
+                        hasSash: true,
+                        AppearanceComponentCatalog.MaxAccentMarksPerPawn).VisualBounds;
+
+                    AssertContains(
+                        ConservativePawnCull.Bounds(anchor, zoom),
+                        exact,
+                        appearance,
+                        zoom,
+                        anchor);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The other half of the upper-bound question: the radius is above every
+    /// exact extent, but by how much? This measures the true worst-case
+    /// extent over the whole cross-product at each of the three stations and
+    /// pins the slack, so the bound cannot quietly become generous.
+    /// </summary>
+    [Theory]
+    [InlineData(MinimumZoom)]
+    [InlineData(1.0078751f)]
+    [InlineData(MaximumZoom)]
+    public void Radius_ExceedsTheWorstCaseExtentByAFlatFewPixels(float zoom)
+    {
+        var anchor = new Vector2(0.5f, 0.5f);
+        var worst = 0f;
+
+        foreach (var appearance in GeometryAppearances())
+        {
+            foreach (var armorWidthFactor in ArmorWidthFactorSamples)
+            {
+                var exact = PawnGeometry.Create(
+                    anchor,
+                    zoom,
+                    appearance,
+                    scaleMultiplier: 1f,
+                    swingPose: null,
+                    armorWidthFactor,
+                    hasSash: true,
+                    AppearanceComponentCatalog.MaxAccentMarksPerPawn).VisualBounds;
+
+                worst = MathF.Max(worst, anchor.X - exact.Left);
+                worst = MathF.Max(worst, exact.Right - anchor.X);
+                worst = MathF.Max(worst, anchor.Y - exact.Top);
+                worst = MathF.Max(worst, exact.Bottom - anchor.Y);
+            }
+        }
+
+        var slack = ConservativePawnCull.RadiusPixels(zoom) - worst;
+
+        // Measured: 4.08 pixels at minimum zoom, 3.51 at default fit, 3.78 at
+        // maximum zoom. Flat, not proportional — the radius does not get
+        // looser as the spectator zooms in, which is exactly where a cull has
+        // to be tight.
+        Assert.InRange(slack, 0f, 4.2f);
+    }
+
+    [Fact]
+    public void IsPotentiallyVisible_AgreesWithTheBoundingRectangle()
+    {
+        var arenaBounds = BaselineArenaBounds;
+
+        foreach (var zoom in ZoomSamples)
+        {
+            var radius = ConservativePawnCull.RadiusPixels(zoom);
+
+            for (var x = -200; x <= 1_900; x += 7)
+            {
+                for (var y = -200; y <= 1_300; y += 11)
+                {
+                    var anchor = new Vector2(x + 0.5f, y + 0.25f);
+
+                    Assert.Equal(
+                        ConservativePawnCull.Bounds(anchor, zoom)
+                            .Intersects(arenaBounds),
+                        ConservativePawnCull.IsPotentiallyVisible(
+                            anchor,
+                            radius,
+                            arenaBounds));
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The property the reordering in GPU-016 would depend on, stated the way
+    /// the renderer would use it: no pawn the exact cull draws is ever
+    /// rejected by the pre-cull, so the drawn set cannot change.
+    /// </summary>
+    [Fact]
+    public void PreCull_NeverRejectsAPawnTheExactCullDraws()
+    {
+        var arenaBounds = BaselineArenaBounds;
+        var appearances = GeometryAppearances().ToArray();
+
+        foreach (var zoom in ZoomSamples)
+        {
+            var radius = ConservativePawnCull.RadiusPixels(zoom);
+            var index = 0;
+
+            for (var x = -180; x <= 1_900; x += 9)
+            {
+                for (var y = -180; y <= 1_300; y += 13)
+                {
+                    var anchor = new Vector2(x + 0.5f, y + 0.75f);
+                    var appearance = appearances[index++ % appearances.Length];
+                    var exact = PawnRenderer.GetBounds(anchor, zoom, appearance);
+
+                    if (!arenaBounds.Intersects(exact))
+                    {
+                        continue;
+                    }
+
+                    Assert.True(
+                        ConservativePawnCull.IsPotentiallyVisible(
+                            anchor,
+                            radius,
+                            arenaBounds),
+                        $"Pre-cull rejected a drawn pawn at {anchor} zoom {zoom}.");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Design open question 4, answered with numbers. Records what fraction of
+    /// a uniformly spread army the pre-cull admits at each of the three camera
+    /// stations, against what fraction the exact cull actually draws.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The three rows say the same thing in two different ways. At minimum
+    /// zoom and at default fit the whole map is on the panel, so the exact
+    /// cull already draws every pawn and the pre-cull cannot skip anything —
+    /// both admit all of them, and a pre-cull buys exactly nothing there. At
+    /// maximum zoom the exact cull draws 1.22 percent of the field and the
+    /// pre-cull admits 1.32 percent, so it rejects 98.68 percent of the army
+    /// while overshooting the drawn set by 7.8 percent of itself. The
+    /// conservative bound is therefore not too generous to be useful: where a
+    /// cull can help at all, it is within a tenth of a percentage point of
+    /// the exact answer.
+    /// </para>
+    /// <para>
+    /// This is a model, not a measurement: agents are spread evenly over the
+    /// default 1280x720 map and the camera sits at map centre, which is where
+    /// <see cref="SpectatorCamera"/> puts it before any pan. A real battle
+    /// clusters, so a real maximum-zoom frame aimed at a melee admits more
+    /// than the maximum-zoom row below and a frame aimed anywhere else admits
+    /// less. The tracked Phase 1 render baseline
+    /// (docs/development/render-baselines/render-matrix-2026-07-29.json)
+    /// measured the drawn count directly at 1 000 units and agrees with the
+    /// shape of this model: all 1 000 pawns drawn at minimum zoom and at
+    /// default fit, none at all at maximum zoom.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("minimum zoom", MinimumZoom, 1.0, 1.0)]
+    [InlineData("default fit", FitStationSentinelZoom, 1.0, 1.0)]
+    [InlineData("maximum zoom", MaximumZoom, 0.0122, 0.0132)]
+    public void AdmittedFraction_IsRecordedForEachCameraStation(
+        string stationName,
+        float zoom,
+        double expectedExactFraction,
+        double expectedPreCullFraction)
+    {
+        var camera = new SpectatorCamera(MapWidth, MapHeight);
+        if (zoom == FitStationSentinelZoom)
+        {
+            camera.Fit(BaselineArenaBounds);
+        }
+        else
+        {
+            camera.SetZoom(zoom);
+        }
+
+        var (exactFraction, preCullFraction) = MeasureAdmittedFractions(camera);
+
+        Assert.Equal(expectedExactFraction, exactFraction, 4);
+        Assert.Equal(expectedPreCullFraction, preCullFraction, 4);
+        Assert.True(
+            preCullFraction >= exactFraction,
+            $"{stationName}: the pre-cull must never admit less than the " +
+            "exact cull draws.");
+    }
+
+    private static (double ExactFraction, double PreCullFraction) MeasureAdmittedFractions(
+        SpectatorCamera camera)
+    {
+        var arenaBounds = BaselineArenaBounds;
+        var radius = ConservativePawnCull.RadiusPixels(camera.Zoom);
+        var appearances = GeometryAppearances().ToArray();
+        var index = 0;
+        var sampled = 0;
+        var exactCount = 0;
+        var preCullCount = 0;
+
+        for (var worldX = 0; worldX < MapWidth; worldX += 4)
+        {
+            for (var worldY = 0; worldY < MapHeight; worldY += 4)
+            {
+                var anchor = camera.WorldToScreen(
+                    new Vector2(worldX, worldY),
+                    arenaBounds);
+                var appearance = appearances[index++ % appearances.Length];
+
+                sampled++;
+                if (arenaBounds.Intersects(
+                        PawnRenderer.GetBounds(anchor, camera.Zoom, appearance)))
+                {
+                    exactCount++;
+                }
+
+                if (ConservativePawnCull.IsPotentiallyVisible(
+                        anchor,
+                        radius,
+                        arenaBounds))
+                {
+                    preCullCount++;
+                }
+            }
+        }
+
+        return ((double)exactCount / sampled, (double)preCullCount / sampled);
+    }
+
+    private static void AssertContains(
+        Rectangle conservative,
+        Rectangle exact,
+        PawnAppearance appearance,
+        float zoom,
+        Vector2 anchor)
+    {
+        if (conservative.Left <= exact.Left &&
+            conservative.Top <= exact.Top &&
+            conservative.Right >= exact.Right &&
+            conservative.Bottom >= exact.Bottom)
+        {
+            return;
+        }
+
+        Assert.Fail(
+            $"Conservative bound {conservative} does not contain exact bound " +
+            $"{exact} at zoom {zoom}, anchor {anchor}, weapon " +
+            $"{appearance.WeaponRole}, shield {appearance.ShieldRole}, " +
+            $"skin {appearance.ShieldSkinId}, stature " +
+            $"{appearance.StatureMultiplier}, build {appearance.BuildMultiplier}.");
+    }
+
+    /// <summary>
+    /// Every geometry-relevant appearance: the four weapon roles, both shield
+    /// roles, all three statures, all three builds, and every shield skin the
+    /// catalog declares — the four rolled tall-hardwood skins plus the two
+    /// fallback entries, which
+    /// <c>PawnGeometry.ShieldProportionDelta</c> also has to classify even
+    /// though <c>SelectSkin</c> cannot reach them today.
+    /// </summary>
+    private static IEnumerable<PawnAppearance> GeometryAppearances()
+    {
+        var seed = PawnAppearanceFactory.Create(
+            0,
+            WeaponId.Kampilan,
+            ShieldId.TallHardwood);
+
+        var shieldSkinIds = ShieldVisualCatalog.TallHardwoodSkins
+            .Select(skin => skin.Catalog.Id)
+            .Append(ShieldVisualCatalog.Default.Catalog.Id)
+            .Append(ShieldVisualCatalog.ModelCategoryDefault.Catalog.Id)
+            .ToArray();
+
+        foreach (var weaponRole in Enum.GetValues<PawnWeaponRole>())
+        {
+            foreach (var shieldRole in Enum.GetValues<PawnShieldRole>())
+            {
+                foreach (var stature in new[] { 0.90f, 1.00f, 1.10f })
+                {
+                    foreach (var build in new[] { 0.86f, 1.00f, 1.18f })
+                    {
+                        foreach (var shieldSkinId in shieldSkinIds)
+                        {
+                            yield return seed with
+                            {
+                                WeaponRole = weaponRole,
+                                ShieldRole = shieldRole,
+                                StatureMultiplier = stature,
+                                BuildMultiplier = build,
+                                ShieldSkinId = shieldSkinId,
+                            };
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
