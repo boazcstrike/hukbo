@@ -6,10 +6,14 @@ Baseline commit: `a47219e`.
 Status: T1, T2, T3, T4, T6 and T7 complete. **T5 did not meet its acceptance
 criterion** — thresholds 7 and 8 fell from 5 and 8 stalls to 2 and 3, not to
 zero. Per T5's own instruction nothing was tuned to close the gap; the residual
-was reclassified instead, and the diagnosis is in design section 10.1. The
-trigger that gates both this escape and the rally escape is the cause, and
-whether to attempt a third trigger design — after the two already rejected on
-measurement — is a decision left to the user.
+was reclassified instead, and the diagnosis is in design section 10.1.
+
+That diagnosis was revised once. The escape's consecutive-tick trigger was the
+first suspect and has been ruled out by measurement: seed 49's longest blocked
+streak is 9 823 consecutive ticks, so the escape fires about fifty-one times
+already, and a progress-based trigger built to fire more often changed nothing.
+The residual warriors are enclosed rather than misdirected, which is resolver
+territory and out of scope here. See design section 10.1.1.
 
 Task order matters. T5 is a measurement that can refute the design, and it runs
 before the documentation tasks rather than after, so that a negative result is

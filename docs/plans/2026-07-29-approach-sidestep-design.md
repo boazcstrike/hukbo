@@ -294,20 +294,45 @@ longest *consecutive* run rather than its blocked percentage:
 | 4 | `Regrouping` | 196 | 196 |
 | 17 | `Regrouping` | 194 | 192 |
 
-Entities 1 and 10 are blocked on 96 per cent of ticks and never accumulate the
-192 consecutive blocked ticks the escape requires, because a single free tick
-resets the counter to zero. They move one tick, gain nothing, and start counting
-again. The escape never fires for them, so there is nothing for the sidestep to
-do. Where the trigger does fire the sidestep works, which is what the five
-cleared seeds are.
+Entities 1 and 10 are blocked on 96 per cent of ticks, and their longest
+consecutive run inside the classification window is 191 — one short of the 192
+the escape requires.
 
-This is the same trigger the rally escape uses and this change did not touch it.
-Section 3 records that two alternative triggers have already been tried and
-rejected on measurement — a generation derived from the live streak, which halved
-stalls only, and a leaky-bucket net-pressure trigger, which detected no
-additional stall and moved two recorded hashes while flipping the 1 000-agent
-outcome. A third attempt is not made here. Deciding whether to make one, knowing
-those two results, is the user's call and not the implementer's.
+**That reading was wrong, and the correction matters more than the original
+observation.** The 191 is an artefact of the probe's 200-tick classification
+window truncating a run that continues past its end, not a property of the
+battle. Measured over the whole battle instead, seed 49's longest blocked streak
+is **9 823 consecutive ticks**. The streak is not being reset at all. At one
+generation per 192 unbroken blocked ticks the escape fires roughly fifty-one
+times, and `CollisionScratch._stallGenerations` is monotonic, so those fifty-one
+generations each draw a fresh aim point and none of them is ever given back.
+
+The trigger is therefore not the bottleneck. The escape fires, repeatedly, and
+the warrior does not move.
+
+This was tested rather than argued. A trigger that resets the streak only on
+real progress — displacement of at least one body radius from where the streak
+began accumulating, rather than on any accepted move — was implemented and
+measured. It changed nothing: stalls stayed at 2 and 3 across the same 200
+seeds, and the per-tick blocked pattern of seed 49 came back byte-identical,
+1 841 rows with the same per-entity counts. It was reverted.
+
+### 10.1.1 What the residual actually is
+
+A warrior that is refused on 9 823 consecutive ticks while being offered fifty-one
+different aim points is not failing to find a direction. It is enclosed: every
+candidate the resolver's ladder offers is refused by some body, whichever way the
+aim point points. No intent-layer redirection can free it, because the intent
+layer only chooses where to walk and the refusal is about whether any step at all
+is admissible.
+
+That places the residual squarely in the family of remedies design
+`2026-07-28-follower-trailing-deadlock-design.md` sections 6.2 through 6.5
+describe — a second resolution pass over blocked movers, dependency-ordered
+resolution, rotation and swap detection — every one of which is resolver work,
+and all of which were declined. Reopening that decision is not something this
+document does. It is recorded here so that the next person to look at these five
+seeds does not spend the time this session spent looking at the trigger.
 
 ### 10.2 Hash impact, verified
 

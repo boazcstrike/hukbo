@@ -830,13 +830,15 @@ public sealed class LastStandFormationTests
     /// <c>tools/Hukbo.Tools.DeadlockProbe</c> at a last-stand threshold of 8
     /// found eight stalling seeds; these are the five the sidestep clears. The
     /// remaining three — 5, 49 and 146 — still stall, for a reason recorded in
-    /// section 10 of
+    /// section 10.1 of
     /// <c>docs/plans/2026-07-29-approach-sidestep-design.md</c>: their blocked
-    /// warriors are interrupted by a single free tick often enough that the
-    /// escape's consecutive-tick trigger resets before it ever fires. That is a
-    /// property of the trigger, which this change did not touch, so those three
-    /// are deliberately not listed here. Adding them would make this Fact fail
-    /// for something it does not test.
+    /// warriors are enclosed rather than merely misdirected. Seed 49's longest
+    /// blocked streak is 9 823 consecutive ticks, so the escape fires about
+    /// fifty-one times and offers fifty-one different aim points without the
+    /// warrior moving. Nothing the intent layer can choose frees a body that has
+    /// no admissible step in any direction, so those three are deliberately not
+    /// listed here. Adding them would make this Fact fail for something it does
+    /// not test.
     /// </para>
     /// <para>
     /// A threshold of 8 is not the shipping default of 6, which was clean
