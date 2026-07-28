@@ -110,6 +110,12 @@ public sealed class RenderProbeReportTests
         Assert.False(result.BufferUploadBytesApplicable);
         Assert.Equal(0, result.Gen0CollectionsDelta);
         Assert.Equal(0L, result.AllocatedBytesDelta);
+        Assert.Equal(0, result.AppearanceCacheHitsMaximum);
+        Assert.Equal(0.0, result.AppearanceCacheHitsP50);
+        Assert.Equal(0, result.AppearanceCacheMissesMaximum);
+        Assert.Equal(0.0, result.AppearanceCacheMissesP99);
+        Assert.Equal(0, result.AppearanceCacheFillsMaximum);
+        Assert.Equal(0.0, result.AppearanceCacheFillsP95);
     }
 
     [Fact]
@@ -316,7 +322,17 @@ public sealed class RenderProbeReportTests
                     1, true,
                     1, true,
                     0, false,
-                    2, 1, 0, 3_200),
+                    2, 1, 0, 3_200,
+                    // GPU-018a appearance-cache block, in declaration order
+                    // (maximum, p50, p95, p99) for hits, then misses, then
+                    // fills. Every one of the thirty-six values across the
+                    // three stations below is distinct and non-zero, so a field
+                    // that failed to round-trip would read back as 0, and a
+                    // field wired to its neighbour would read back as the
+                    // neighbour's number — both fail rather than coincide.
+                    404, 401, 402, 403,
+                    414, 411, 412, 413,
+                    424, 421, 422, 423),
                 new RenderProbeStationResult(
                     "default-fit", 300,
                     3.9, 5.8, 7.9,
@@ -335,7 +351,10 @@ public sealed class RenderProbeReportTests
                     1, true,
                     1, true,
                     0, false,
-                    2, 1, 0, 3_050),
+                    2, 1, 0, 3_050,
+                    504, 501, 502, 503,
+                    514, 511, 512, 513,
+                    524, 521, 522, 523),
                 new RenderProbeStationResult(
                     "maximum-zoom", 300,
                     5.0, 7.4, 9.1,
@@ -354,7 +373,10 @@ public sealed class RenderProbeReportTests
                     1, true,
                     1, true,
                     0, false,
-                    2, 1, 0, 3_400),
+                    2, 1, 0, 3_400,
+                    604, 601, 602, 603,
+                    614, 611, 612, 613,
+                    624, 621, 622, 623),
             ]);
 
         var json = JsonSerializer.Serialize(
@@ -392,6 +414,25 @@ public sealed class RenderProbeReportTests
         {
             Assert.Equal(report.Stations[index], roundTripped.Stations[index]);
         }
+
+        // The record equality above already covers every field, including the
+        // twelve GPU-018a added. These name the appearance-cache twelve one by
+        // one anyway, on the first station, so that a regression fails with a
+        // message pointing at the field that broke rather than at a whole
+        // station that differs somewhere.
+        var minimumZoom = roundTripped.Stations[0];
+        Assert.Equal(404, minimumZoom.AppearanceCacheHitsMaximum);
+        Assert.Equal(401.0, minimumZoom.AppearanceCacheHitsP50);
+        Assert.Equal(402.0, minimumZoom.AppearanceCacheHitsP95);
+        Assert.Equal(403.0, minimumZoom.AppearanceCacheHitsP99);
+        Assert.Equal(414, minimumZoom.AppearanceCacheMissesMaximum);
+        Assert.Equal(411.0, minimumZoom.AppearanceCacheMissesP50);
+        Assert.Equal(412.0, minimumZoom.AppearanceCacheMissesP95);
+        Assert.Equal(413.0, minimumZoom.AppearanceCacheMissesP99);
+        Assert.Equal(424, minimumZoom.AppearanceCacheFillsMaximum);
+        Assert.Equal(421.0, minimumZoom.AppearanceCacheFillsP50);
+        Assert.Equal(422.0, minimumZoom.AppearanceCacheFillsP95);
+        Assert.Equal(423.0, minimumZoom.AppearanceCacheFillsP99);
     }
 
     [Fact]
@@ -415,7 +456,10 @@ public sealed class RenderProbeReportTests
                         baseDrawMicroseconds: 10,
                         arenaGeometryMicroseconds: 11,
                         probeOverheadMicroseconds: 12,
-                        pawnGeometryInvocations: 13),
+                        pawnGeometryInvocations: 13,
+                        appearanceCacheHits: 14,
+                        appearanceCacheMisses: 15,
+                        appearanceCacheFills: 16),
                     Gen0Collections: 0,
                     Gen1Collections: 0,
                     Gen2Collections: 0,
@@ -450,5 +494,107 @@ public sealed class RenderProbeReportTests
         Assert.Contains("\"baseDrawMicrosecondsP95\"", json, StringComparison.Ordinal);
         Assert.Contains("\"arenaGeometryMicrosecondsP99\"", json, StringComparison.Ordinal);
         Assert.Contains("\"probeOverheadMicrosecondsP50\"", json, StringComparison.Ordinal);
+
+        // GPU-018a. The twelve appearance-cache names, asserted individually
+        // rather than as a prefix match, because the whole point of the pairing
+        // is that a peak and a percentile are different fields: a schema that
+        // emitted only one shape would still satisfy any "contains
+        // appearanceCache" check.
+        Assert.Contains("\"appearanceCacheHitsMaximum\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"appearanceCacheHitsP50\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"appearanceCacheHitsP95\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"appearanceCacheHitsP99\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"appearanceCacheMissesMaximum\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"appearanceCacheMissesP50\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"appearanceCacheMissesP95\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"appearanceCacheMissesP99\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"appearanceCacheFillsMaximum\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"appearanceCacheFillsP50\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"appearanceCacheFillsP95\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"appearanceCacheFillsP99\"", json, StringComparison.Ordinal);
+
+        // The single sample fed to Summarize above carried 14/15/16, so the
+        // emitted numbers are pinned too, not just the names.
+        Assert.Contains("\"appearanceCacheHitsMaximum\": 14", json, StringComparison.Ordinal);
+        Assert.Contains("\"appearanceCacheMissesMaximum\": 15", json, StringComparison.Ordinal);
+        Assert.Contains("\"appearanceCacheFillsMaximum\": 16", json, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The test GPU-018's completion criterion is actually read from: "a probe
+    /// run reports a hit rate approaching 1 after the first frame".
+    ///
+    /// One hundred frames model a real station — the first is cold (200 misses,
+    /// 200 fills, no hits) and the ninety-nine after it are warm (200 hits, no
+    /// misses, no fills). The cold frame is fed first and the summarizer must
+    /// sort, so nothing here depends on input order.
+    ///
+    /// Nearest-rank with n = 100 puts every percentile at or below P99 inside
+    /// the warm ninety-nine:
+    ///   p50 -> ceil(0.50 * 100) - 1 = 49
+    ///   p95 -> ceil(0.95 * 100) - 1 = 94
+    ///   p99 -> ceil(0.99 * 100) - 1 = 98
+    /// The single cold frame sorts to index 99 for misses and fills (the only
+    /// non-zero) and to index 0 for hits (the only zero), so it lands outside
+    /// every one of those three ranks. That is the whole reason the peak is
+    /// carried as well: without it the report would hold no evidence the cache
+    /// was ever cold.
+    /// </summary>
+    [Fact]
+    public void Summarize_AppearanceCacheReportsWarmPercentilesAndColdFramePeaks()
+    {
+        const int agents = 200;
+        const int frames = 100;
+
+        var samples = new RenderProbeSample[frames];
+        for (var index = 0; index < frames; index++)
+        {
+            var cold = index == 0;
+            samples[index] = new RenderProbeSample(
+                FrameMilliseconds: 1.0,
+                Metrics: CreateMetrics(
+                    quads: 0,
+                    triangles: 0,
+                    geometryBuildMicroseconds: 0,
+                    submitMicroseconds: 0,
+                    managedBytesAllocated: 0,
+                    appearanceCacheHits: cold ? 0 : agents,
+                    appearanceCacheMisses: cold ? agents : 0,
+                    appearanceCacheFills: cold ? agents : 0),
+                Gen0Collections: 0,
+                Gen1Collections: 0,
+                Gen2Collections: 0,
+                AllocatedBytes: 0);
+        }
+
+        var result = RenderProbeStatistics.Summarize("default-fit", samples);
+
+        Assert.Equal(frames, result.FrameCount);
+
+        // Warm-frame shape: every hit percentile is the full agent count and
+        // every miss and fill percentile is zero.
+        Assert.Equal(200.0, result.AppearanceCacheHitsP50);
+        Assert.Equal(200.0, result.AppearanceCacheHitsP95);
+        Assert.Equal(200.0, result.AppearanceCacheHitsP99);
+        Assert.Equal(0.0, result.AppearanceCacheMissesP50);
+        Assert.Equal(0.0, result.AppearanceCacheMissesP95);
+        Assert.Equal(0.0, result.AppearanceCacheMissesP99);
+        Assert.Equal(0.0, result.AppearanceCacheFillsP50);
+        Assert.Equal(0.0, result.AppearanceCacheFillsP95);
+        Assert.Equal(0.0, result.AppearanceCacheFillsP99);
+
+        // Cold-frame shape, visible only in the peaks. Peak misses equalling
+        // peak hits is exactly why a hit rate must never be computed from the
+        // peaks: that ratio would read 0.5 for a cache working perfectly.
+        Assert.Equal(200, result.AppearanceCacheHitsMaximum);
+        Assert.Equal(200, result.AppearanceCacheMissesMaximum);
+        Assert.Equal(200, result.AppearanceCacheFillsMaximum);
+
+        // The criterion itself, computed the way a reader of the report is
+        // meant to compute it: from the median frame, not from the peaks.
+        var medianFrameHitRate =
+            result.AppearanceCacheHitsP50 /
+            (result.AppearanceCacheHitsP50 + result.AppearanceCacheMissesP50);
+        Assert.Equal(1.0, medianFrameHitRate);
     }
 }

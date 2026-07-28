@@ -87,9 +87,12 @@ public sealed record RenderProbeFingerprint(
 /// submit CPU-time percentiles; Tier 2 (backend-specific, diagnostic-only)
 /// submission/batch/texture-bind/buffer-upload peaks, each paired with an
 /// <c>*Applicable</c> flag so a metric the active backend does not produce
-/// stays distinguishable from a genuine zero; and the GC/allocation delta
+/// stays distinguishable from a genuine zero; the GC/allocation delta
 /// across the sampled frames (not cumulative process totals — see
-/// <see cref="RenderProbeStatistics.Summarize"/>).
+/// <see cref="RenderProbeStatistics.Summarize"/>); and the Tier 1
+/// appearance-cache hit/miss/fill counters, which are the only counters here
+/// reported as both a peak and a percentile triple (GPU-018a, see their own
+/// parameter documentation for why).
 /// </summary>
 /// <param name="QuadsMaximum">
 /// Tier 1, budgeted. The peak <see cref="RenderMetricsSnapshot.Quads"/>
@@ -203,6 +206,67 @@ public sealed record RenderProbeFingerprint(
 /// uploads none.
 /// </param>
 /// <param name="BufferUploadBytesApplicable">Whether <see cref="BufferUploadBytesMaximum"/> means anything under the active backend.</param>
+/// <param name="AppearanceCacheHitsMaximum">
+/// Tier 1 (GPU-017, carried through by GPU-018a). The peak
+/// <see cref="RenderMetricsSnapshot.AppearanceCacheHits"/> observed across
+/// this station's sampled frames.
+///
+/// The three appearance-cache counters are the only counters in this schema
+/// reported as a peak AND a percentile triple, and the reason is that
+/// GPU-018's completion criterion is a ratio — "a probe run reports a hit
+/// rate approaching 1 after the first frame" — and a ratio needs both of its
+/// terms drawn from comparable frames. Peaks alone cannot supply that: the
+/// peak hit count comes from a steady-state frame while the peak miss count
+/// comes from the one cold frame, so dividing one by the other mixes two
+/// different frames and yields a number that means nothing. The percentile
+/// triple supplies the ratio, because at any rank at or below P99 both terms
+/// describe a warm frame. The peak is kept alongside it because the converse
+/// is also true: in a station of a few hundred frames the single cold frame
+/// is an outlier that every percentile up to P99 discards, so without a peak
+/// the report would carry no evidence at all that the cache was ever cold,
+/// ever filled, or how large the warm-up was — and "approaching 1 after the
+/// first frame" cannot be judged without being able to see the first frame.
+/// </param>
+/// <param name="AppearanceCacheHitsP50">
+/// Tier 1 (GPU-018a). Median per-frame appearance-cache hit count. Paired
+/// with <see cref="AppearanceCacheMissesP50"/> this is the median frame's hit
+/// rate, which is the figure GPU-018's criterion is read from.
+/// </param>
+/// <param name="AppearanceCacheHitsP95">The 95th percentile of the same distribution.</param>
+/// <param name="AppearanceCacheHitsP99">The 99th percentile of the same distribution.</param>
+/// <param name="AppearanceCacheMissesMaximum">
+/// Tier 1 (GPU-018a). The peak
+/// <see cref="RenderMetricsSnapshot.AppearanceCacheMisses"/> observed. In a
+/// healthy run this is the cold frame's count and is roughly the agent count;
+/// it says the cache started empty, not that it is faulty.
+/// </param>
+/// <param name="AppearanceCacheMissesP50">
+/// Tier 1 (GPU-018a). Median per-frame appearance-cache miss count. Expected
+/// to be 0: a non-zero median means the cache is missing in steady state, which
+/// is the key-or-lifetime fault
+/// <see cref="IRenderMetricsRecorder.AddAppearanceCacheMisses"/> exists to
+/// expose.
+/// </param>
+/// <param name="AppearanceCacheMissesP95">
+/// The 95th percentile of the same distribution. Also expected to be 0 — a
+/// non-zero figure here means more than one frame in twenty missed, which the
+/// median alone would hide.
+/// </param>
+/// <param name="AppearanceCacheMissesP99">The 99th percentile of the same distribution.</param>
+/// <param name="AppearanceCacheFillsMaximum">
+/// Tier 1 (GPU-018a). The peak
+/// <see cref="RenderMetricsSnapshot.AppearanceCacheFills"/> observed — the
+/// size of the warm-up. A 0 here in a station that recorded hits or misses
+/// means no slot went from empty to occupied during the station, which for the
+/// first station of a run would itself be a finding.
+/// </param>
+/// <param name="AppearanceCacheFillsP50">
+/// Tier 1 (GPU-018a). Median per-frame fill count, expected to be 0 once the
+/// cache is warm. A non-zero median means slots are being refilled every
+/// frame, which is an ordinal being reused rather than a cold start.
+/// </param>
+/// <param name="AppearanceCacheFillsP95">The 95th percentile of the same distribution.</param>
+/// <param name="AppearanceCacheFillsP99">The 99th percentile of the same distribution.</param>
 public sealed record RenderProbeStationResult(
     string StationName,
     int FrameCount,
@@ -251,7 +315,19 @@ public sealed record RenderProbeStationResult(
     int Gen0CollectionsDelta,
     int Gen1CollectionsDelta,
     int Gen2CollectionsDelta,
-    long AllocatedBytesDelta);
+    long AllocatedBytesDelta,
+    int AppearanceCacheHitsMaximum,
+    double AppearanceCacheHitsP50,
+    double AppearanceCacheHitsP95,
+    double AppearanceCacheHitsP99,
+    int AppearanceCacheMissesMaximum,
+    double AppearanceCacheMissesP50,
+    double AppearanceCacheMissesP95,
+    double AppearanceCacheMissesP99,
+    int AppearanceCacheFillsMaximum,
+    double AppearanceCacheFillsP50,
+    double AppearanceCacheFillsP95,
+    double AppearanceCacheFillsP99);
 
 /// <summary>
 /// Pure percentile and delta arithmetic over a station's captured
@@ -292,6 +368,11 @@ public static class RenderProbeStatistics
     /// own treatment. GC and allocation figures are the delta between the
     /// first and last sample in the window, so they read as "steady-state
     /// cost of this station" rather than "everything since process start".
+    /// The three appearance-cache counters are the one exception to the
+    /// count-means-peak rule: they are reported both ways (GPU-018a), because
+    /// the hit rate they exist to establish is a ratio the peaks cannot form
+    /// and the warm-up they exist to explain is an outlier the percentiles
+    /// discard.
     /// </summary>
     public static RenderProbeStationResult Summarize(
         string stationName,
@@ -320,6 +401,9 @@ public static class RenderProbeStatistics
                 0, false,
                 0, false,
                 0, false,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
                 0, 0, 0, 0);
         }
 
@@ -364,6 +448,24 @@ public static class RenderProbeStatistics
             .Order()
             .ToArray();
 
+        // GPU-018a. Widened to double on the way in rather than percentiled as
+        // integers, because Percentile is nearest-rank over an ascending
+        // sequence and returns an element of it: every value it can return is
+        // one of these counts exactly, so the widening is lossless and no
+        // interpolated half-a-hit can appear in the report.
+        var sortedAppearanceCacheHits = samples
+            .Select(sample => (double)sample.Metrics.AppearanceCacheHits)
+            .Order()
+            .ToArray();
+        var sortedAppearanceCacheMisses = samples
+            .Select(sample => (double)sample.Metrics.AppearanceCacheMisses)
+            .Order()
+            .ToArray();
+        var sortedAppearanceCacheFills = samples
+            .Select(sample => (double)sample.Metrics.AppearanceCacheFills)
+            .Order()
+            .ToArray();
+
         var first = samples[0];
         var last = samples[^1];
         var lastMetrics = last.Metrics;
@@ -376,6 +478,9 @@ public static class RenderProbeStatistics
         var batchesMaximum = 0;
         var textureBindsMaximum = 0;
         var bufferUploadBytesMaximum = 0L;
+        var appearanceCacheHitsMaximum = 0;
+        var appearanceCacheMissesMaximum = 0;
+        var appearanceCacheFillsMaximum = 0;
 
         foreach (var sample in samples)
         {
@@ -418,6 +523,21 @@ public static class RenderProbeStatistics
             if (metrics.BufferUploadBytes > bufferUploadBytesMaximum)
             {
                 bufferUploadBytesMaximum = metrics.BufferUploadBytes;
+            }
+
+            if (metrics.AppearanceCacheHits > appearanceCacheHitsMaximum)
+            {
+                appearanceCacheHitsMaximum = metrics.AppearanceCacheHits;
+            }
+
+            if (metrics.AppearanceCacheMisses > appearanceCacheMissesMaximum)
+            {
+                appearanceCacheMissesMaximum = metrics.AppearanceCacheMisses;
+            }
+
+            if (metrics.AppearanceCacheFills > appearanceCacheFillsMaximum)
+            {
+                appearanceCacheFillsMaximum = metrics.AppearanceCacheFills;
             }
         }
 
@@ -469,6 +589,18 @@ public static class RenderProbeStatistics
             last.Gen0Collections - first.Gen0Collections,
             last.Gen1Collections - first.Gen1Collections,
             last.Gen2Collections - first.Gen2Collections,
-            last.AllocatedBytes - first.AllocatedBytes);
+            last.AllocatedBytes - first.AllocatedBytes,
+            appearanceCacheHitsMaximum,
+            Percentile(sortedAppearanceCacheHits, 0.50),
+            Percentile(sortedAppearanceCacheHits, 0.95),
+            Percentile(sortedAppearanceCacheHits, 0.99),
+            appearanceCacheMissesMaximum,
+            Percentile(sortedAppearanceCacheMisses, 0.50),
+            Percentile(sortedAppearanceCacheMisses, 0.95),
+            Percentile(sortedAppearanceCacheMisses, 0.99),
+            appearanceCacheFillsMaximum,
+            Percentile(sortedAppearanceCacheFills, 0.50),
+            Percentile(sortedAppearanceCacheFills, 0.95),
+            Percentile(sortedAppearanceCacheFills, 0.99));
     }
 }
