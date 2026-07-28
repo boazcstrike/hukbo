@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Hukbo.Core.Determinism;
+using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 using Hukbo.Headless;
@@ -176,9 +177,29 @@ public sealed class MovementPresetFreezeTests
         // PersistentContingentsV2 control run once
         // docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md flips the default
         // again, to PersistentContingentsV3.
+        // The body radius is pinned here for exactly the reason the preset
+        // above is, and it was missed when that reasoning was first written.
+        // Both fixtures were captured while CollisionRules.DefaultBodyRadiusRaw
+        // was four world units; main had already moved it to 4.25 by the time
+        // this workstream merged. Nothing in either fixture records the radius
+        // -- provenance pins only "Scenario.CreateDefault(1, 200)" -- so the
+        // captured trajectories silently inherited the default of their own
+        // capture commit, and inheriting the current default instead replays a
+        // different battle and diverges at tick 1.
+        //
+        // Four world units is therefore not a value to keep in step with the
+        // shipped default; it is part of the fixture, and it moves only if the
+        // fixture is recaptured. Recapturing is what these files exist to make
+        // unnecessary: the type's remarks are explicit that a fixture is
+        // captured once from its own pre-change build, because comparing the
+        // current build against itself would prove nothing about whether a
+        // later change moved the trajectory.
+        const int CapturedBodyRadiusRaw = 4 * FixedPoint.Scale;
+
         var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
         {
             MovementPreset = movementPreset,
+            BodyRadiusRaw = CapturedBodyRadiusRaw,
         };
         scenario.Validate();
         return BattleSimulation.Create(scenario);

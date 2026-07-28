@@ -249,8 +249,8 @@ public sealed class DeterminismTests
         // "71E7B6746D00C5D1" (event). On the branch, at the four-world-unit
         // radius with the movement fold: "09851F8966D124D9" (state) and
         // "E30AD003EFDDD267" (event).
-        Assert.Equal("RECAPTURE_STATE", stateHash);
-        Assert.Equal("RECAPTURE_EVENT", eventHash);
+        Assert.Equal("BD2E2055DC1E29A9", stateHash);
+        Assert.Equal("71E7B6746D00C5D1", eventHash);
     }
 
     /// <summary>
@@ -290,13 +290,24 @@ public sealed class DeterminismTests
         var stateHash = report.RootElement.GetProperty("stateHash").GetString();
         var eventHash = report.RootElement.GetProperty("eventHash").GetString();
 
-        // Captured for task T15 of docs/plans/2026-07-28-formation-movement-realism.md,
-        // the task that flips Scenario.MovementPreset's shipped default to
-        // PersistentContingentsV2. This is the first pinned pair recorded
-        // for the new default at this fast, 20-agent/200-tick scale --
-        // there is no prior value to record as superseded.
-        Assert.Equal("96D59BDBCDD05293", stateHash);
-        Assert.Equal("12C14F63B4BA1E3B", eventHash);
+        // Originally captured for task T15 of
+        // docs/plans/2026-07-28-formation-movement-realism.md, the task that
+        // flips Scenario.MovementPreset's shipped default to
+        // PersistentContingentsV2.
+        //
+        // Recaptured on the merge of that branch into main, for one reason and
+        // not a regression: the branch was developed while
+        // CollisionRules.DefaultBodyRadiusRaw was four world units, and main had
+        // already moved it to 4.25. This Fact tracks the shipped default, so it
+        // follows the radius rather than pinning it. That is the opposite of
+        // MovementPresetFreezeTests, which pins the captured radius because its
+        // fixtures are frozen oracles of a past build; the difference is
+        // deliberate and each file states its own reason.
+        //
+        // Superseded, captured on the branch at the four-world-unit radius:
+        // "96D59BDBCDD05293" (state) and "12C14F63B4BA1E3B" (event).
+        Assert.Equal("62F0E17B85D5D590", stateHash);
+        Assert.Equal("96A77A6AEEE24BB4", eventHash);
     }
 
     /// <summary>
