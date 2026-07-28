@@ -401,6 +401,22 @@ void PrintStations(IReadOnlyList<RenderProbeStationResult> stations)
 {
     foreach (var station in stations)
     {
+        // GPU-018a. The median frame's hit rate, which is the figure GPU-018's
+        // completion criterion is stated in terms of. Computed from the P50
+        // pair and never from the peaks: the peak hit count comes from a warm
+        // frame and the peak miss count from the cold one, so their ratio
+        // describes no frame that ever happened. Reported as "n/a" rather than
+        // as a 0 or a NaN when the median frame read the cache zero times,
+        // because no rate exists to report in that case and a printed 0 would
+        // read as a cache that never hit.
+        var medianReads =
+            station.AppearanceCacheHitsP50 + station.AppearanceCacheMissesP50;
+        var medianHitRate = medianReads > 0
+            ? (station.AppearanceCacheHitsP50 / medianReads).ToString(
+                "F4",
+                CultureInfo.InvariantCulture)
+            : "n/a";
+
         Console.WriteLine(
             $"{station.StationName,-14} frames={station.FrameCount,4} " +
             $"p50={station.FrameMillisecondsP50,6:F2}ms " +
@@ -422,6 +438,11 @@ void PrintStations(IReadOnlyList<RenderProbeStationResult> stations)
             $"probeOvh(p50/p95)={station.ProbeOverheadMicrosecondsP50,7:F1}/" +
             $"{station.ProbeOverheadMicrosecondsP95,7:F1}us " +
             $"pawnGeomCalls(max)={station.PawnGeometryInvocationsMaximum,6} " +
+            $"apprCache(p50 hit/miss)={station.AppearanceCacheHitsP50,6:F0}/" +
+            $"{station.AppearanceCacheMissesP50,6:F0} " +
+            $"apprCacheHitRate(p50)={medianHitRate} " +
+            $"apprCache(max miss/fill)={station.AppearanceCacheMissesMaximum,6}/" +
+            $"{station.AppearanceCacheFillsMaximum,6} " +
             $"managedBytes(max)={station.ManagedBytesAllocatedMaximum} " +
             $"[Tier2 diagnostic] submissions(max)={station.SubmissionsMaximum,6} " +
             $"batches(max)={station.BatchesMaximum} textureBinds(max)={station.TextureBindsMaximum} " +
