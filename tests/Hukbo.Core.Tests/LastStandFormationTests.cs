@@ -778,6 +778,72 @@ public sealed class LastStandFormationTests
     }
 
     /// <summary>
+    /// Regression lock for the approach sidestep, the pursuit-path counterpart
+    /// of the rally stall escape. Each of these five seeds ran to the 10 000-tick
+    /// limit before that escape existed and resolves normally with it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The seeds are not arbitrary. A 200-seed survey through
+    /// <c>tools/Hukbo.Tools.DeadlockProbe</c> at a last-stand threshold of 8
+    /// found eight stalling seeds; these are the five the sidestep clears. The
+    /// remaining three — 5, 49 and 146 — still stall, for a reason recorded in
+    /// section 10 of
+    /// <c>docs/plans/2026-07-29-approach-sidestep-design.md</c>: their blocked
+    /// warriors are interrupted by a single free tick often enough that the
+    /// escape's consecutive-tick trigger resets before it ever fires. That is a
+    /// property of the trigger, which this change did not touch, so those three
+    /// are deliberately not listed here. Adding them would make this Fact fail
+    /// for something it does not test.
+    /// </para>
+    /// <para>
+    /// A threshold of 8 is not the shipping default of 6, which was clean
+    /// across all 200 seeds both before and after. It is used here because it is
+    /// where the defect is reachable: the failing band sits between the shipping
+    /// threshold and
+    /// <see cref="FormationRules.MaximumLastStandThresholdAgents"/>, and no
+    /// other test in this file exercises it.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(16UL)]
+    [InlineData(44UL)]
+    [InlineData(50UL)]
+    [InlineData(125UL)]
+    [InlineData(189UL)]
+    public void APursuerBlockedByAComradeNoLongerHoldsTheBattleOpen(ulong seed)
+    {
+        const int TotalAgents = 18;
+        const int LastStandThreshold = 8;
+
+        var scenario = Scenario.CreateDefault(seed, totalAgents: TotalAgents) with
+        {
+            LastStandThresholdAgents = LastStandThreshold,
+        };
+        var simulation = BattleSimulation.Create(scenario);
+
+        while (simulation.Outcome == BattleOutcome.Ongoing &&
+            simulation.Tick < scenario.TickLimit)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        var livingFaction0 = simulation.Agents.Count(
+            agent => agent.FactionId == 0 && agent.IsAlive);
+        var livingFaction1 = simulation.Agents.Count(
+            agent => agent.FactionId == 1 && agent.IsAlive);
+
+        Assert.True(
+            simulation.Tick < scenario.TickLimit,
+            $"Seed {seed} stalled at tick {simulation.Tick} of " +
+            $"{scenario.TickLimit}, outcome {simulation.Outcome}, living " +
+            $"counts [{livingFaction0}, {livingFaction1}], longest blocked " +
+            $"streak {simulation.LongestBlockedStreakTicks} ticks. A failure " +
+            "here means a pursuing warrior refused by a comrade's body can " +
+            "again hold a whole battle open to the tick limit.");
+    }
+
+    /// <summary>
     /// Give-way regression coverage. Before this fix, a follower whose
     /// tick-start position happened to sit ahead of its own rally agent, on
     /// the rally agent's line of travel, aimed at a trail point behind the

@@ -1210,7 +1210,22 @@ public sealed class BattleSimulation
                 }
 
                 var target = _agentStates[_agentIndexes[enemyTargetId]];
-                _movementProposals[index] = BuildMovementProposal(agent, target);
+
+                // The pursuit-path stall escape. At generation 0 — every agent
+                // in every battle that is merely crowded — this is the same
+                // call it has always been, reached by the same path, so the aim
+                // point is unchanged rather than recomputed to the same value.
+                var stallGeneration = _collision.StallGeneration(index);
+                if (stallGeneration == 0)
+                {
+                    _movementProposals[index] = BuildMovementProposal(agent, target);
+                    continue;
+                }
+
+                _movementProposals[index] = BuildSidesteppingPursuitProposal(
+                    agent,
+                    target,
+                    stallGeneration);
                 continue;
             }
 
@@ -1390,6 +1405,81 @@ public sealed class BattleSimulation
     /// draws a different aim point. It is 0, and therefore inert, in every
     /// battle that is merely crowded.
     /// </remarks>
+    /// <summary>
+    /// The pursuit-path counterpart of this type's rally stall escape: a
+    /// warrior walking at an enemy that a comrade's body has refused for
+    /// <see cref="FormationRules.StallEscapeStreakTicks"/> consecutive ticks
+    /// aims beside its enemy rather than at its enemy's centre, which puts it
+    /// on a different line of approach and out from behind the body that was
+    /// refusing it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only reached at a non-zero stall generation. The design is in
+    /// <c>docs/plans/2026-07-29-approach-sidestep-design.md</c>, and its section
+    /// 2 records why the rally escape alone was not enough: that escape lives in
+    /// <see cref="BuildRegroupingProposal"/> and a pursuing warrior never
+    /// reaches it, so a locked cluster could contain warriors with a way out and
+    /// warriors without one at the same time.
+    /// </para>
+    /// <para>
+    /// The contingent cohesion branch above this one is deliberately left
+    /// alone. Its aim point sits inside a bias square whose combined
+    /// aim-point density statement movement gate 6 exists to hold, and
+    /// displacing an agent out of that square would invalidate the statement.
+    /// A contingent that cannot make progress resolves to
+    /// <see cref="ContingentState.Advance"/> and its members fall back to this
+    /// path anyway.
+    /// </para>
+    /// </remarks>
+    /// <param name="agent">The blocked pursuer.</param>
+    /// <param name="target">The enemy it is walking at.</param>
+    /// <param name="stallGeneration">
+    /// The pursuer's current stall generation, which the caller has already
+    /// established is non-zero.
+    /// </param>
+    /// <returns>The pursuer's movement proposal against the offset aim point.</returns>
+    private (int XRaw, int YRaw, ulong TargetId) BuildSidesteppingPursuitProposal(
+        AgentState agent,
+        AgentState target,
+        int stallGeneration)
+    {
+        var deltaXRaw = (long)target.XRaw - agent.XRaw;
+        var deltaYRaw = (long)target.YRaw - agent.YRaw;
+        var distanceRaw = IntegerSquareRoot(
+            checked((deltaXRaw * deltaXRaw) + (deltaYRaw * deltaYRaw)));
+
+        var (offsetXRaw, offsetYRaw) = ApproachSidestep.Compute(
+            Scenario.Seed,
+            agent.EntityId,
+            Scenario.BodyRadiusRaw,
+            stallGeneration,
+            deltaXRaw,
+            deltaYRaw,
+            distanceRaw);
+
+        if (offsetXRaw == 0 && offsetYRaw == 0)
+        {
+            return BuildMovementProposal(agent, target);
+        }
+
+        // Saturated and clamped the same way BuildRegroupingProposal handles its
+        // own aim point: the offset is bounded by a few body radii, but the
+        // target may already stand against a map edge.
+        var mapWidthRaw = checked(Scenario.MapWidth * FixedPoint.Scale);
+        var mapHeightRaw = checked(Scenario.MapHeight * FixedPoint.Scale);
+        var aimXRaw = CollisionGeometry.ClampCenterToBounds(
+            SaturateToInt32(checked((long)target.XRaw + offsetXRaw)),
+            mapWidthRaw,
+            Scenario.BodyRadiusRaw);
+        var aimYRaw = CollisionGeometry.ClampCenterToBounds(
+            SaturateToInt32(checked((long)target.YRaw + offsetYRaw)),
+            mapHeightRaw,
+            Scenario.BodyRadiusRaw);
+
+        return BuildMovementProposal(agent, aimXRaw, aimYRaw, target.EntityId);
+    }
+
     private (int XRaw, int YRaw, ulong TargetId)? BuildRegroupingProposal(
         AgentState agent,
         int agentIndex)

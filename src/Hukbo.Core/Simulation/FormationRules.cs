@@ -143,6 +143,34 @@ public static class FormationRules
     public const int StallEscapeStreakTicks = 192;
 
     /// <summary>
+    /// The smallest lateral displacement, in body radii, that a pursuing
+    /// warrior's approach sidestep may draw. **Provisional tuning value, not a
+    /// measurement of anything in the world.**
+    /// </summary>
+    /// <remarks>
+    /// A warrior of radius R walking directly behind a stationary comrade of
+    /// the same radius needs strictly more than 2R of lateral clearance before
+    /// its own body can pass. The span therefore starts at 2R rather than at
+    /// zero: an offset below that redraws the aim point without changing
+    /// whether the approach is blocked, which spends a stall generation for
+    /// nothing. See
+    /// <c>docs/plans/2026-07-29-approach-sidestep-design.md</c> section 4.2.
+    /// </remarks>
+    public const int ApproachSidestepMinimumMultiplier = 2;
+
+    /// <summary>
+    /// The largest lateral displacement, in body radii, that a pursuing
+    /// warrior's approach sidestep may draw. **Provisional tuning value, not a
+    /// measurement of anything in the world.**
+    /// </summary>
+    /// <remarks>
+    /// Far enough to clear a second body standing beside the first, and near
+    /// enough that the warrior is still recognisably walking at its enemy
+    /// rather than leaving the engagement.
+    /// </remarks>
+    public const int ApproachSidestepMaximumMultiplier = 4;
+
+    /// <summary>
     /// The area margin the bias square keeps over the permitted headcount. The
     /// square must be able to hold this many times the agents it is allowed to
     /// gather, so bodies never cover more than <c>1 / RallyPackingMargin</c> of
