@@ -32,7 +32,18 @@ public sealed partial class ArenaGame
         }
 
         var theme = _themeManager.ActiveTheme;
+
+        var clearStartTimestamp =
+            _renderProbeEnabled ? Stopwatch.GetTimestamp() : 0L;
+
         GraphicsDevice.Clear(theme.Colors.CanvasBackground);
+
+        if (_renderProbeEnabled)
+        {
+            _renderMetricsRecorder.AddClearMicroseconds(
+                Stopwatch.GetElapsedTime(clearStartTimestamp)
+                    .TotalMicroseconds);
+        }
 
         if (_spriteBatch is null ||
             _arenaRasterizerState is null ||
@@ -43,9 +54,31 @@ public sealed partial class ArenaGame
         }
 
         var screenBounds = GraphicsDevice.Viewport.Bounds;
+
+        var layoutStartTimestamp =
+            _renderProbeEnabled ? Stopwatch.GetTimestamp() : 0L;
+
         var layout = GetLayout(screenBounds);
         _camera.Fit(layout.ArenaBounds);
+
+        if (_renderProbeEnabled)
+        {
+            _renderMetricsRecorder.AddLayoutMicroseconds(
+                Stopwatch.GetElapsedTime(layoutStartTimestamp)
+                    .TotalMicroseconds);
+        }
+
+        var hoverSelectionStartTimestamp =
+            _renderProbeEnabled ? Stopwatch.GetTimestamp() : 0L;
+
         UpdateHoverSelection(layout.ArenaBounds);
+
+        if (_renderProbeEnabled)
+        {
+            _renderMetricsRecorder.AddHoverSelectionMicroseconds(
+                Stopwatch.GetElapsedTime(hoverSelectionStartTimestamp)
+                    .TotalMicroseconds);
+        }
 
         if (_renderProbeEnabled)
         {
@@ -80,6 +113,9 @@ public sealed partial class ArenaGame
                     .TotalMicroseconds);
         }
 
+        var uiLayerStartTimestamp =
+            _renderProbeEnabled ? Stopwatch.GetTimestamp() : 0L;
+
         DrawUiLayer(
             _spriteBatch,
             _pixel,
@@ -88,7 +124,24 @@ public sealed partial class ArenaGame
             layout,
             theme);
 
+        if (_renderProbeEnabled)
+        {
+            _renderMetricsRecorder.AddUiLayerMicroseconds(
+                Stopwatch.GetElapsedTime(uiLayerStartTimestamp)
+                    .TotalMicroseconds);
+        }
+
+        var baseDrawStartTimestamp =
+            _renderProbeEnabled ? Stopwatch.GetTimestamp() : 0L;
+
         base.Draw(gameTime);
+
+        if (_renderProbeEnabled)
+        {
+            _renderMetricsRecorder.AddBaseDrawMicroseconds(
+                Stopwatch.GetElapsedTime(baseDrawStartTimestamp)
+                    .TotalMicroseconds);
+        }
 
         if (_renderProbeEnabled)
         {
