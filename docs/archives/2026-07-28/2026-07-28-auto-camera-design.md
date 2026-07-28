@@ -1,7 +1,24 @@
 # Auto camera: stop the relentless pan, and let the spectator govern it
 
+**Archived: reference only.** Implemented and verified on 2026-07-28; the
+canonical gate result this document records in section 8 is the one that
+shipped it, with `stateHash A080E28DA7C79C20` and `eventHash
+2B6FB3A9A9C1960D` unchanged as a presentation-only change requires. Do not
+execute this document and do not cite it as justification for a change. Smoke
+rows 149 to 155 in [docs/development/testing.md](../../development/testing.md)
+remain PENDING and still need a human at an interactive desktop.
+
+One detail here is already out of date and is left in place deliberately, as
+the archive rules require: question 6 in section 5 says the settings schema
+rises from 4 to 5, and section 7 lists accepted versions 3 to 5. On 2026-07-28
+the schema went to 6 and every version before it is now discarded whole, so
+that a raised default army size could reach an existing installation. The live
+contract is `src/Hukbo.Client/Settings/ClientSettingsStore.cs`.
+
 Date: 2026-07-28
-Status: design, ready to implement
+Status: implemented. The header on this document read "design, ready to
+implement" until it was archived, which contradicted section 8 of the same
+document; section 8 was correct and the header was stale.
 
 ## 1. The complaint
 

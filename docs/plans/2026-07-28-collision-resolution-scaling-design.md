@@ -1,7 +1,7 @@
 # Collision resolution scaling — design
 
 **Status:** Design complete, no plan document, nothing implemented. Per
-`CLAUDE.md` section 6 and [`docs/plans/README.md`](README.md), a `-design.md`
+`CLAUDE.md` section 6, a `-design.md`
 document does not authorize implementation. No line of `Hukbo.Core` may change
 on the strength of this file alone.
 
@@ -24,8 +24,8 @@ The performance hardening workstream archived earlier today closed with an
 explicit hand-off. Its plan document recorded that the stage profile it
 produced "points at collision resolution as the next candidate for attention;
 that stage is explicitly out of scope for this plan and needs its own design
-document before anyone touches it." The same sentence is repeated in
-[`docs/plans/README.md`](README.md), and
+document before anyone touches it." The plans index carried the same sentence
+until it was deleted on 2026-07-28, and
 [`docs/research/TICK-STAGE-PROFILE.md`](../research/TICK-STAGE-PROFILE.md)
 ends with "This is a finding to record, not work to start."
 
