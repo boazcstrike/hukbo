@@ -8,25 +8,49 @@ using Hukbo.Headless;
 namespace Hukbo.Core.Tests;
 
 /// <summary>
-/// Guards the frozen-behaviour trajectory that
-/// docs/plans/2026-07-28-formation-movement-realism.md task T1 captured from
-/// the completely unmodified <c>src/</c> tree, before a single line of the
-/// movement-preset workstream existed. Every later task in that plan that
-/// could plausibly disturb <c>IndependentPursuitV1</c>'s trajectory -- the
-/// formation planner change, the state-hash move, the shared helper
-/// extraction -- reproduces this fixture byte-identically as part of its own
-/// verification. This file is the oracle those tasks replay against.
+/// Guards two frozen-behaviour trajectories, each captured from the
+/// completely unmodified <c>src/</c> tree at the commit named in its own
+/// fixture's <c>provenance.capturedFromCommit</c> field, before a single line
+/// of the workstream that would go on to change it existed:
+/// <list type="bullet">
+/// <item>
+/// <description>
+/// <c>IndependentPursuitV1</c>, captured by
+/// docs/plans/2026-07-28-formation-movement-realism.md task T1, before a
+/// single line of the movement-preset workstream existed. Every later task
+/// in that plan that could plausibly disturb its trajectory -- the formation
+/// planner change, the state-hash move, the shared helper extraction --
+/// reproduces this fixture byte-identically as part of its own
+/// verification.
+/// </description>
+/// </item>
+/// <item>
+/// <description>
+/// <c>PersistentContingentsV2</c>, captured by
+/// docs/plans/2026-07-28-contingent-close-latch.md task T1, before a single
+/// line of the contingent-close-latch workstream existed. That plan rewrites
+/// the <c>Close</c>-state transition rule that V2 uses, so every later task
+/// in it that could plausibly disturb V2's trajectory reproduces this
+/// fixture byte-identically as part of its own verification.
+/// </description>
+/// </item>
+/// </list>
+/// This file is the oracle those tasks replay against.
 /// </summary>
 /// <remarks>
-/// The comparand is a fixture captured once from the pre-change build, not
-/// another run of this build. Comparing this build against itself would
-/// prove only that the simulation is internally consistent with itself,
-/// which <see cref="DeterminismTests"/> already covers, and nothing whatever
-/// about whether a later change moved the trajectory.
+/// Each comparand is a fixture captured once from its own pre-change build,
+/// not another run of the current build. Comparing the current build against
+/// itself would prove only that the simulation is internally consistent with
+/// itself, which <see cref="DeterminismTests"/> already covers, and nothing
+/// whatever about whether a later change moved the trajectory.
 /// </remarks>
 public sealed class MovementPresetFreezeTests
 {
-    private const string DigestFileName = "seed-1-200-agents-movement-v1-digest.json";
+    private const string IndependentPursuitV1DigestFileName =
+        "seed-1-200-agents-movement-v1-digest.json";
+
+    private const string PersistentContingentsV2DigestFileName =
+        "seed-1-200-agents-movement-v2-digest.json";
 
     /// <summary>
     /// Replays the frozen seed-1, two-hundred-agent trajectory tick by tick
@@ -38,9 +62,47 @@ public sealed class MovementPresetFreezeTests
     [Fact]
     public void IndependentPursuitV1_ReproducesTheFrozenTrajectoryDigest()
     {
-        var digest = LoadDigest();
-        var simulation = CreateControlRun();
+        var digest = LoadDigest(IndependentPursuitV1DigestFileName);
+        var simulation = CreateControlRun(MovementPresetId.IndependentPursuitV1);
 
+        ReplayAndAssertDigest(digest, simulation);
+
+        // Neither column has a real value on this fixture: it was captured
+        // before AgentState.ContingentId and AgentState.ContingentState
+        // existed, so both are reserved as 0 placeholders rather than
+        // compared against the control run's actual values.
+        foreach (var expected in digest.FinalAgents)
+        {
+            Assert.Equal(0, expected.ContingentId);
+            Assert.Equal(0, expected.ContingentState);
+        }
+    }
+
+    /// <summary>
+    /// Replays the frozen seed-1, two-hundred-agent trajectory tick by tick
+    /// under <c>PersistentContingentsV2</c> and asserts every tick row and
+    /// the final per-agent rows -- including the real
+    /// <see cref="AgentView.ContingentId"/> and
+    /// <see cref="AgentView.ContingentState"/> values this preset populates
+    /// -- match the fixture exactly. See
+    /// docs/plans/2026-07-28-contingent-close-latch.md task T1: this fixture
+    /// is the oracle every later task in that plan replays against before it
+    /// is allowed to touch the <c>Close</c>-state transition rule V2 uses.
+    /// </summary>
+    [Fact]
+    public void PersistentContingentsV2_ReproducesTheFrozenTrajectoryDigest()
+    {
+        var digest = LoadDigest(PersistentContingentsV2DigestFileName);
+        var simulation = CreateControlRun(MovementPresetId.PersistentContingentsV2);
+
+        ReplayAndAssertDigest(digest, simulation);
+        AssertFinalContingentFieldsMatch(digest, simulation);
+    }
+
+    private static void ReplayAndAssertDigest(
+        MovementDigest digest,
+        BattleSimulation simulation)
+    {
         foreach (var row in digest.Ticks)
         {
             simulation.AdvanceOneTick();
@@ -99,7 +161,7 @@ public sealed class MovementPresetFreezeTests
         AssertFinalAgentsMatch(digest, simulation);
     }
 
-    private static BattleSimulation CreateControlRun()
+    private static BattleSimulation CreateControlRun(MovementPresetId movementPreset)
     {
         // Named by T15's inventory step
         // (docs/plans/2026-07-28-formation-movement-realism.md) after
@@ -110,10 +172,13 @@ public sealed class MovementPresetFreezeTests
         // it. The preset is named explicitly rather than left to whatever
         // Scenario.CreateDefault happens to select, mirroring
         // DeterminismTests.CreateZeroInterceptionControlRun's identical
-        // rationale for CombatPreset.
+        // rationale for CombatPreset. The same reasoning applies to the
+        // PersistentContingentsV2 control run once
+        // docs/plans/2026-07-28-contingent-close-latch.md flips the default
+        // again, to PersistentContingentsV3.
         var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
         {
-            MovementPreset = MovementPresetId.IndependentPursuitV1,
+            MovementPreset = movementPreset,
         };
         scenario.Validate();
         return BattleSimulation.Create(scenario);
@@ -140,20 +205,29 @@ public sealed class MovementPresetFreezeTests
                 expected.MovementResolution,
                 agent.MovementResolution.ToString());
             Assert.Equal(expected.Loadout, agent.Loadout.ToString());
-
-            // Neither column has a real value yet: AgentState.ContingentId
-            // and AgentState.ContingentState do not exist on this commit.
-            // The fixture reserves both, written as 0, so a later task that
-            // adds them does not have to reshape this file -- only this pair
-            // of assertions, once there is something non-zero to compare.
-            Assert.Equal(0, expected.ContingentId);
-            Assert.Equal(0, expected.ContingentState);
         }
     }
 
-    private static MovementDigest LoadDigest()
+    private static void AssertFinalContingentFieldsMatch(
+        MovementDigest digest,
+        BattleSimulation simulation)
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", DigestFileName);
+        var actual = simulation.Agents;
+        Assert.Equal(digest.FinalAgents.Count, actual.Count);
+
+        for (var index = 0; index < actual.Count; index++)
+        {
+            var expected = digest.FinalAgents[index];
+            var agent = actual[index];
+
+            Assert.Equal(expected.ContingentId, agent.ContingentId);
+            Assert.Equal(expected.ContingentState, (int)agent.ContingentState);
+        }
+    }
+
+    private static MovementDigest LoadDigest(string digestFileName)
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", digestFileName);
 
         Assert.True(
             File.Exists(path),

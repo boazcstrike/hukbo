@@ -13,15 +13,20 @@ namespace Hukbo.Core.Movement;
 /// section 3 for the derivations.
 /// </summary>
 /// <remarks>
-/// The constant set is closed at this type's introduction and stays closed.
-/// <see cref="ContentHash"/> is folded over every field below, and
-/// <c>IndependentPursuitV1</c>'s pinned <see cref="ContentHash"/> literal is
-/// frozen — see design section 6.2. Adding a field here later, when the
-/// persistent-contingent behaviour lands, would move that literal and break
-/// the freeze on the very change that is supposed to leave
-/// <c>IndependentPursuitV1</c> untouched. Every constant the behaviour will
-/// eventually need is therefore declared now, at its frozen-preset value,
-/// even though nothing under <c>IndependentPursuitV1</c> reads any of them.
+/// What stays frozen is each preset's simulated behaviour, proved
+/// byte-identically by its own digest fixture in
+/// <c>MovementPresetFreezeTests</c> — not this type's field list.
+/// <see cref="ContentHash"/> is folded over every field below, but it never
+/// reaches the state hash: <c>BattleSimulation.ComputeStateHash</c> folds
+/// <c>_rules.ContentHash</c>, where <c>_rules</c> is the
+/// <c>CombatRuleset</c> (src/Hukbo.Core/Simulation/BattleSimulation.cs:18-19,
+/// 393), and <c>StateHasher.Compute</c> never receives a
+/// <see cref="MovementRuleset"/> at all. Adding a field here therefore cannot
+/// move any preset's state hash, event hash, outcome, or recorded digest;
+/// what it does move is the pinned <c>ContentHash</c> identity literals in
+/// <c>MovementPresetRegistryTests</c>, which must be recomputed from the
+/// built code whenever a field is added, never calculated by hand. See
+/// docs/plans/2026-07-28-contingent-close-latch-design.md section 3.
 /// </remarks>
 public sealed class MovementRuleset
 {
@@ -30,6 +35,8 @@ public sealed class MovementRuleset
         int version,
         int cohesionRadiusMultiplier,
         int closeRadiusMultiplier,
+        int closeFractionNumerator,
+        int closeFractionDenominator,
         int minimumCohesiveMembers,
         int cohesionCycleTicks,
         int cohesionDutyTicks,
@@ -42,6 +49,8 @@ public sealed class MovementRuleset
         Version = version;
         CohesionRadiusMultiplier = cohesionRadiusMultiplier;
         CloseRadiusMultiplier = closeRadiusMultiplier;
+        CloseFractionNumerator = closeFractionNumerator;
+        CloseFractionDenominator = closeFractionDenominator;
         MinimumCohesiveMembers = minimumCohesiveMembers;
         CohesionCycleTicks = cohesionCycleTicks;
         CohesionDutyTicks = cohesionDutyTicks;
@@ -67,6 +76,22 @@ public sealed class MovementRuleset
     /// cohesion for contact. A game-design choice, not a measurement.
     /// </summary>
     public int CloseRadiusMultiplier { get; }
+
+    /// <summary>
+    /// The numerator of the fraction of a contingent's living members whose
+    /// selected target lies within <c>closeRadiusRaw</c> needed for the
+    /// contingent to enter <c>ContingentState.Close</c>. A game-design
+    /// choice, not a measurement.
+    /// </summary>
+    public int CloseFractionNumerator { get; }
+
+    /// <summary>
+    /// The denominator of the fraction of a contingent's living members
+    /// whose selected target lies within <c>closeRadiusRaw</c> needed for
+    /// the contingent to enter <c>ContingentState.Close</c>. A game-design
+    /// choice, not a measurement.
+    /// </summary>
+    public int CloseFractionDenominator { get; }
 
     /// <summary>
     /// The living-member floor below which a contingent breaks on attrition
@@ -121,6 +146,8 @@ public sealed class MovementRuleset
         Fnv1a.Add(ref hash, (ulong)Version);
         Fnv1a.Add(ref hash, (ulong)CohesionRadiusMultiplier);
         Fnv1a.Add(ref hash, (ulong)CloseRadiusMultiplier);
+        Fnv1a.Add(ref hash, (ulong)CloseFractionNumerator);
+        Fnv1a.Add(ref hash, (ulong)CloseFractionDenominator);
         Fnv1a.Add(ref hash, (ulong)MinimumCohesiveMembers);
         Fnv1a.Add(ref hash, (ulong)CohesionCycleTicks);
         Fnv1a.Add(ref hash, (ulong)CohesionDutyTicks);

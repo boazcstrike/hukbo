@@ -116,6 +116,7 @@ internal static class MovementRules
     /// hand-built inputs.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <paramref name="livingCount"/> equal to zero yields
     /// <see cref="ContingentState.None"/> regardless of every other
     /// argument, ahead of even rule 1 (<see cref="ContingentState.Break"/> is
@@ -124,17 +125,40 @@ internal static class MovementRules
     /// (1) a previous state of <see cref="ContingentState.Break"/> stays
     /// <see cref="ContingentState.Break"/>; (2) attrition —
     /// <c>livingCount * 4 &lt;= initialCount</c> or
-    /// <c>livingCount &lt; minimumCohesiveMembers</c> — breaks; (3) an enemy
-    /// inside <paramref name="closeRadiusRaw"/> closes; (4) a shut duty-cycle
-    /// window, <b>or</b> a denial from either geometric gate, forces
-    /// <see cref="ContingentState.Advance"/> — this is the rule that keeps
-    /// the inspector honest, so a contingent whose members are in fact
-    /// pursuing independently is never labelled
+    /// <c>livingCount &lt; minimumCohesiveMembers</c> — breaks; (3) a
+    /// hysteresis-banded count of members in contact closes — see the
+    /// paragraph below; (4) a shut duty-cycle window, <b>or</b> a denial from
+    /// either geometric gate, forces <see cref="ContingentState.Advance"/> —
+    /// this is the rule that keeps the inspector honest, so a contingent
+    /// whose members are in fact pursuing independently is never labelled
     /// <see cref="ContingentState.Hold"/>; (5) the hysteresis-banded
     /// gathering test enters <see cref="ContingentState.Hold"/> above
     /// <c>cohesionRadiusRaw</c> and remains there down to
     /// <c>3/4 * cohesionRadiusRaw</c>; (6) otherwise
     /// <see cref="ContingentState.Advance"/>.
+    /// </para>
+    /// <para>
+    /// Rule 3 is itself a hysteresis band, the same shape as rule 5's spread
+    /// test but counting living members in contact rather than measuring a
+    /// squared distance. Let <c>entryThreshold = Max(1, CeilDiv(livingCount *
+    /// closeFractionNumerator, closeFractionDenominator))</c> and
+    /// <c>exitThreshold = Max(1, CeilDiv(livingCount * closeFractionNumerator,
+    /// 2 * closeFractionDenominator))</c>, both computed with integer
+    /// ceiling division so a fraction is never rounded down to a weaker
+    /// threshold than intended. A contingent not already
+    /// <see cref="ContingentState.Close"/> enters it once
+    /// <paramref name="contactCount"/> reaches <c>entryThreshold</c>; one
+    /// already <see cref="ContingentState.Close"/> stays there until
+    /// <paramref name="contactCount"/> falls below the strictly lower
+    /// <c>exitThreshold</c>. Halving the entry fraction to obtain the exit
+    /// fraction is a chosen band width, not a derived one — design section 7
+    /// leaves the width open, and T7's state-flip frequency measurement is
+    /// what settles it. The <c>Max(1, ...)</c> floor makes a preset
+    /// registered at <c>closeFractionNumerator = 0</c> collapse both
+    /// thresholds to <c>1</c>, reproducing exactly the single-member
+    /// minimum-distance test this rule used before contact counting replaced
+    /// it.
+    /// </para>
     /// </remarks>
     /// <param name="previousState">
     /// The contingent's <see cref="ContingentState"/> at the start of this
@@ -148,16 +172,24 @@ internal static class MovementRules
     /// The maximum, over living non-leader members, of the squared distance
     /// from that member to the leader. Zero when there are none.
     /// </param>
-    /// <param name="nearestEnemySquared">
-    /// The minimum, over living members that have a selected target, of that
-    /// member's squared distance to its target. <see cref="long.MaxValue"/>
-    /// when no member has a target.
+    /// <param name="contactCount">
+    /// The number of living members whose selected target lies within
+    /// <c>closeRadiusRaw</c> (<c>CloseRadiusMultiplier * BodyRadiusRaw</c>).
+    /// Compared against the entry and exit thresholds derived from
+    /// <paramref name="closeFractionNumerator"/> and
+    /// <paramref name="closeFractionDenominator"/> — see the second
+    /// <see cref="ResolveContingentState"/> remarks paragraph above.
     /// </param>
     /// <param name="cohesionRadiusRaw">
     /// <c>CohesionRadiusMultiplier * BodyRadiusRaw</c>.
     /// </param>
-    /// <param name="closeRadiusRaw">
-    /// <c>CloseRadiusMultiplier * BodyRadiusRaw</c>.
+    /// <param name="closeFractionNumerator">
+    /// The numerator of the fraction of living members that must be in
+    /// contact for rule 3 to close. A game-design choice, not a measurement.
+    /// </param>
+    /// <param name="closeFractionDenominator">
+    /// The denominator of the fraction of living members that must be in
+    /// contact for rule 3 to close. A game-design choice, not a measurement.
     /// </param>
     /// <param name="minimumCohesiveMembers">
     /// The living-member floor below which a contingent breaks regardless of
@@ -182,9 +214,10 @@ internal static class MovementRules
         int livingCount,
         int initialCount,
         long spreadSquared,
-        long nearestEnemySquared,
+        int contactCount,
         long cohesionRadiusRaw,
-        long closeRadiusRaw,
+        int closeFractionNumerator,
+        int closeFractionDenominator,
         int minimumCohesiveMembers,
         bool windowOpen,
         bool geometricGatesPass)
@@ -205,8 +238,16 @@ internal static class MovementRules
             return ContingentState.Break;
         }
 
-        var closeRadiusSquared = checked(closeRadiusRaw * closeRadiusRaw);
-        if (nearestEnemySquared <= closeRadiusSquared)
+        var scaledLivingCount = checked((long)livingCount * closeFractionNumerator);
+        var entryThreshold = Math.Max(1L, CeilDiv(scaledLivingCount, closeFractionDenominator));
+        var exitThreshold = Math.Max(
+            1L,
+            CeilDiv(scaledLivingCount, checked(2L * closeFractionDenominator)));
+        var closeThreshold = previousState == ContingentState.Close
+            ? exitThreshold
+            : entryThreshold;
+
+        if (contactCount >= closeThreshold)
         {
             return ContingentState.Close;
         }
@@ -233,6 +274,22 @@ internal static class MovementRules
             : spreadSquared > cohesionRadiusSquared;
 
         return qualifies ? ContingentState.Hold : ContingentState.Advance;
+    }
+
+    /// <summary>
+    /// Ceiling integer division, <c>(dividend + divisor - 1) / divisor</c>,
+    /// exact for non-negative operands. The only caller is
+    /// <see cref="ResolveContingentState"/>'s rule 3 threshold arithmetic,
+    /// where both operands are always non-negative, so there is no signed
+    /// division and no floating point anywhere in the computation.
+    /// </summary>
+    /// <param name="dividend">The non-negative numerator.</param>
+    /// <param name="divisor">The positive denominator.</param>
+    /// <returns>The smallest integer greater than or equal to the exact
+    /// quotient <paramref name="dividend"/> / <paramref name="divisor"/>.</returns>
+    private static long CeilDiv(long dividend, long divisor)
+    {
+        return checked(dividend + divisor - 1) / divisor;
     }
 
     /// <summary>

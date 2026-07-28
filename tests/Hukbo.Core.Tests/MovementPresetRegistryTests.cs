@@ -13,13 +13,17 @@ namespace Hukbo.Core.Tests;
 public sealed class MovementPresetRegistryTests
 {
     /// <summary>
-    /// Pinned by this task against the frozen preset's constant set. Per the
-    /// freeze recorded in docs/plans/2026-07-28-formation-movement-realism-design.md
-    /// section 6.2, this literal never changes again: a later task that adds
-    /// a field to <see cref="MovementRuleset"/> would move it, which is
-    /// exactly what that freeze forbids for <c>IndependentPursuitV1</c>.
+    /// Pins <c>IndependentPursuitV1</c>'s <see cref="MovementRuleset.ContentHash"/>
+    /// to its current field values. This is an identity assertion over the
+    /// ruleset's own fields, not a behavioural golden — it does not reach
+    /// the state hash, so it moves whenever a task adds a field to
+    /// <see cref="MovementRuleset"/>, most recently T2's
+    /// <c>CloseFractionNumerator</c> and <c>CloseFractionDenominator</c>.
+    /// What stays frozen across such a change is the preset's simulated
+    /// behaviour, proved instead by
+    /// <c>IndependentPursuitV1_ReproducesTheFrozenTrajectoryDigest</c>.
     /// </summary>
-    private const ulong IndependentPursuitV1ContentHash = 0x97EC406EB79F61FAUL;
+    private const ulong IndependentPursuitV1ContentHash = 0x937AB8F6DE2582A3UL;
 
     /// <summary>
     /// Pinned by T9 against <c>PersistentContingentsV2</c>'s constant set,
@@ -28,7 +32,7 @@ public sealed class MovementPresetRegistryTests
     /// literal differs from <see cref="IndependentPursuitV1ContentHash"/>
     /// only through the folded <c>Id</c> field.
     /// </summary>
-    private const ulong PersistentContingentsV2ContentHash = 0xE5AC42AA7FC19301UL;
+    private const ulong PersistentContingentsV2ContentHash = 0xE1AAE33EB35BE440UL;
 
     [Fact]
     public void IndependentPursuitV1IsRegistered()

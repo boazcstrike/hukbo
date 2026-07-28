@@ -28,9 +28,10 @@ public sealed class ContingentStateMachineTests
             livingCount: 0,
             initialCount: 20,
             spreadSquared: long.MaxValue,
-            nearestEnemySquared: 0,
+            contactCount: 1,
             cohesionRadiusRaw: 100,
-            closeRadiusRaw: 50,
+            closeFractionNumerator: 0,
+            closeFractionDenominator: 1,
             minimumCohesiveMembers: 3,
             windowOpen: true,
             geometricGatesPass: true);
@@ -41,18 +42,20 @@ public sealed class ContingentStateMachineTests
     [Fact]
     public void BreakIsTerminalAndBeatsEveryOtherRule()
     {
-        // Healthy ratio (no attrition), an enemy inside closeRadiusRaw (would
-        // otherwise select Close), an open window and a spread far beyond
-        // cohesionRadiusRaw (would otherwise select Hold) — every other rule
-        // is primed to fire, and Break still wins because it is terminal.
+        // Healthy ratio (no attrition), a member in contact under the (0, 1)
+        // fraction (would otherwise select Close), an open window and a
+        // spread far beyond cohesionRadiusRaw (would otherwise select Hold)
+        // — every other rule is primed to fire, and Break still wins because
+        // it is terminal.
         var result = MovementRules.ResolveContingentState(
             previousState: ContingentState.Break,
             livingCount: 20,
             initialCount: 20,
             spreadSquared: 1_000_000,
-            nearestEnemySquared: 1,
+            contactCount: 1,
             cohesionRadiusRaw: 100,
-            closeRadiusRaw: 50,
+            closeFractionNumerator: 0,
+            closeFractionDenominator: 1,
             minimumCohesiveMembers: 3,
             windowOpen: true,
             geometricGatesPass: true);
@@ -63,16 +66,18 @@ public sealed class ContingentStateMachineTests
     [Fact]
     public void AttritionBreakBeatsCloseOnContact()
     {
-        // Case 1: the ratio trigger. livingCount * 4 <= initialCount, with an
-        // enemy inside closeRadiusRaw that would otherwise select Close.
+        // Case 1: the ratio trigger. livingCount * 4 <= initialCount, with a
+        // member in contact under the (0, 1) fraction that would otherwise
+        // select Close.
         var byRatio = MovementRules.ResolveContingentState(
             previousState: ContingentState.Advance,
             livingCount: 5,
             initialCount: 20,
             spreadSquared: 0,
-            nearestEnemySquared: 1,
+            contactCount: 1,
             cohesionRadiusRaw: 100,
-            closeRadiusRaw: 50,
+            closeFractionNumerator: 0,
+            closeFractionDenominator: 1,
             minimumCohesiveMembers: 3,
             windowOpen: true,
             geometricGatesPass: true);
@@ -86,9 +91,10 @@ public sealed class ContingentStateMachineTests
             livingCount: 2,
             initialCount: 5,
             spreadSquared: 0,
-            nearestEnemySquared: 1,
+            contactCount: 1,
             cohesionRadiusRaw: 100,
-            closeRadiusRaw: 50,
+            closeFractionNumerator: 0,
+            closeFractionDenominator: 1,
             minimumCohesiveMembers: 3,
             windowOpen: true,
             geometricGatesPass: true);
@@ -103,14 +109,141 @@ public sealed class ContingentStateMachineTests
             livingCount: 20,
             initialCount: 20,
             spreadSquared: 1_000_000,
-            nearestEnemySquared: 1,
+            contactCount: 1,
             cohesionRadiusRaw: 100,
-            closeRadiusRaw: 50,
+            closeFractionNumerator: 0,
+            closeFractionDenominator: 1,
             minimumCohesiveMembers: 3,
             windowOpen: true,
             geometricGatesPass: true);
 
         Assert.Equal(ContingentState.Close, result);
+    }
+
+    /// <summary>
+    /// The (1, 2) and (0, 1) fractions produce different verdicts for the
+    /// same single member in contact out of forty living: (1, 2) demands
+    /// half the contingent (twenty) before entering Close, so one member is
+    /// nowhere near enough, while (0, 1) — the fraction every registered
+    /// preset carries today — collapses to "at least one member in
+    /// contact" and closes on that same input. This is the provisional
+    /// <c>PersistentContingentsV3</c> game-design choice from a later task,
+    /// not a historical measurement.
+    /// </summary>
+    [Fact]
+    public void OneMemberInContactOutOfFortyDoesNotCloseUnderOneOverTwoButDoesUnderZeroOverOne()
+    {
+        var underOneOverTwo = MovementRules.ResolveContingentState(
+            previousState: ContingentState.Advance,
+            livingCount: 40,
+            initialCount: 40,
+            spreadSquared: 0,
+            contactCount: 1,
+            cohesionRadiusRaw: 100,
+            closeFractionNumerator: 1,
+            closeFractionDenominator: 2,
+            minimumCohesiveMembers: 3,
+            windowOpen: true,
+            geometricGatesPass: true);
+        Assert.NotEqual(ContingentState.Close, underOneOverTwo);
+
+        var underZeroOverOne = MovementRules.ResolveContingentState(
+            previousState: ContingentState.Advance,
+            livingCount: 40,
+            initialCount: 40,
+            spreadSquared: 0,
+            contactCount: 1,
+            cohesionRadiusRaw: 100,
+            closeFractionNumerator: 0,
+            closeFractionDenominator: 1,
+            minimumCohesiveMembers: 3,
+            windowOpen: true,
+            geometricGatesPass: true);
+        Assert.Equal(ContingentState.Close, underZeroOverOne);
+    }
+
+    /// <summary>
+    /// Pins the exact entry-threshold boundary under a (1, 2) fraction and
+    /// forty living members: <c>CeilDiv(40 * 1, 2) = 20</c>. Nineteen members
+    /// in contact does not close; exactly twenty does, because the
+    /// comparison is <c>&gt;=</c>.
+    /// </summary>
+    [Theory]
+    [InlineData(19, false)]
+    [InlineData(20, true)]
+    public void ContactCountExactlyAtTheEntryThresholdCloses(
+        int contactCount,
+        bool expectedClose)
+    {
+        var result = MovementRules.ResolveContingentState(
+            previousState: ContingentState.Advance,
+            livingCount: 40,
+            initialCount: 40,
+            spreadSquared: 0,
+            contactCount,
+            cohesionRadiusRaw: 100,
+            closeFractionNumerator: 1,
+            closeFractionDenominator: 2,
+            minimumCohesiveMembers: 3,
+            windowOpen: true,
+            geometricGatesPass: true);
+
+        Assert.Equal(expectedClose, result == ContingentState.Close);
+    }
+
+    /// <summary>
+    /// The exit threshold under a (1, 2) fraction and forty living members is
+    /// <c>CeilDiv(40 * 1, 4) = 10</c>, strictly below the twenty-member entry
+    /// threshold. A contingent already <see cref="ContingentState.Close"/>
+    /// with fifteen members in contact — below entry but above exit — stays
+    /// <see cref="ContingentState.Close"/>, proving the hysteresis band is
+    /// live rather than the two thresholds having collapsed to one.
+    /// </summary>
+    [Fact]
+    public void AContingentAlreadyCloseAboveTheExitThresholdStaysClose()
+    {
+        var result = MovementRules.ResolveContingentState(
+            previousState: ContingentState.Close,
+            livingCount: 40,
+            initialCount: 40,
+            spreadSquared: 0,
+            contactCount: 15,
+            cohesionRadiusRaw: 100,
+            closeFractionNumerator: 1,
+            closeFractionDenominator: 2,
+            minimumCohesiveMembers: 3,
+            windowOpen: true,
+            geometricGatesPass: true);
+
+        Assert.Equal(ContingentState.Close, result);
+    }
+
+    /// <summary>
+    /// The same exit threshold of ten as the previous fact, but with nine
+    /// members in contact — one below it. A contingent already
+    /// <see cref="ContingentState.Close"/> leaves that state once contact
+    /// falls below the exit threshold, and with an open window, passing
+    /// geometric gates and no spread, rule 6 resolves the vacated slot to
+    /// <see cref="ContingentState.Advance"/>.
+    /// </summary>
+    [Fact]
+    public void AContingentAlreadyCloseBelowTheExitThresholdLeavesClose()
+    {
+        var result = MovementRules.ResolveContingentState(
+            previousState: ContingentState.Close,
+            livingCount: 40,
+            initialCount: 40,
+            spreadSquared: 0,
+            contactCount: 9,
+            cohesionRadiusRaw: 100,
+            closeFractionNumerator: 1,
+            closeFractionDenominator: 2,
+            minimumCohesiveMembers: 3,
+            windowOpen: true,
+            geometricGatesPass: true);
+
+        Assert.NotEqual(ContingentState.Close, result);
+        Assert.Equal(ContingentState.Advance, result);
     }
 
     [Fact]
@@ -121,9 +254,10 @@ public sealed class ContingentStateMachineTests
             livingCount: 20,
             initialCount: 20,
             spreadSquared: 1_000_000,
-            nearestEnemySquared: long.MaxValue,
+            contactCount: 0,
             cohesionRadiusRaw: 100,
-            closeRadiusRaw: 50,
+            closeFractionNumerator: 0,
+            closeFractionDenominator: 1,
             minimumCohesiveMembers: 3,
             windowOpen: false,
             geometricGatesPass: true);
@@ -147,9 +281,10 @@ public sealed class ContingentStateMachineTests
             livingCount: 20,
             initialCount: 20,
             spreadSquared: 1_000_000,
-            nearestEnemySquared: long.MaxValue,
+            contactCount: 0,
             cohesionRadiusRaw: 100,
-            closeRadiusRaw: 50,
+            closeFractionNumerator: 0,
+            closeFractionDenominator: 1,
             minimumCohesiveMembers: 3,
             windowOpen: true,
             geometricGatesPass: false);
@@ -166,7 +301,7 @@ public sealed class ContingentStateMachineTests
     [InlineData(ContingentState.Hold, ContingentState.Hold)]
     [InlineData(ContingentState.Advance, ContingentState.Advance)]
     // Close is reachable here only through rule 3 having lapsed this tick
-    // (nearestEnemySquared no longer inside closeRadiusRaw); it is not a
+    // (contactCount having fallen below its threshold); it is not a
     // "remaining in Hold" state, so it takes the higher entry bar exactly
     // like Advance and None do.
     [InlineData(ContingentState.Close, ContingentState.Advance)]
@@ -182,9 +317,10 @@ public sealed class ContingentStateMachineTests
             livingCount: 20,
             initialCount: 20,
             spreadSquared,
-            nearestEnemySquared: long.MaxValue,
+            contactCount: 0,
             cohesionRadiusRaw,
-            closeRadiusRaw: 50,
+            closeFractionNumerator: 0,
+            closeFractionDenominator: 1,
             minimumCohesiveMembers: 3,
             windowOpen: true,
             geometricGatesPass: true);
@@ -212,9 +348,10 @@ public sealed class ContingentStateMachineTests
             livingCount: 20,
             initialCount: 20,
             spreadSquared: spreadSquaredAtBoundary,
-            nearestEnemySquared: long.MaxValue,
+            contactCount: 0,
             cohesionRadiusRaw,
-            closeRadiusRaw: 50,
+            closeFractionNumerator: 0,
+            closeFractionDenominator: 1,
             minimumCohesiveMembers: 3,
             windowOpen: true,
             geometricGatesPass: true);
@@ -244,9 +381,10 @@ public sealed class ContingentStateMachineTests
             livingCount: 20,
             initialCount: 20,
             spreadSquared: spreadSquaredWellPastOverflow,
-            nearestEnemySquared: long.MaxValue,
+            contactCount: 0,
             cohesionRadiusRaw,
-            closeRadiusRaw: 50,
+            closeFractionNumerator: 0,
+            closeFractionDenominator: 1,
             minimumCohesiveMembers: 3,
             windowOpen: true,
             geometricGatesPass: true);

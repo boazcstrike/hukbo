@@ -41,7 +41,7 @@ public sealed class BattleSimulation
     private readonly ulong[] _contingentLeaderEntityIds;
     private readonly int[] _contingentLivingCounts;
     private readonly long[] _contingentSpreadSquared;
-    private readonly long[] _contingentNearestEnemySquared;
+    private readonly int[] _contingentContactCounts;
     private readonly int[] _contingentJitterRaw;
     private readonly int[] _contingentTrailBaseXRaw;
     private readonly int[] _contingentTrailBaseYRaw;
@@ -105,7 +105,7 @@ public sealed class BattleSimulation
         _contingentLeaderEntityIds = new ulong[ContingentSlotCount];
         _contingentLivingCounts = new int[ContingentSlotCount];
         _contingentSpreadSquared = new long[ContingentSlotCount];
-        _contingentNearestEnemySquared = new long[ContingentSlotCount];
+        _contingentContactCounts = new int[ContingentSlotCount];
         _contingentJitterRaw = new int[ContingentSlotCount];
         _contingentTrailBaseXRaw = new int[ContingentSlotCount];
         _contingentTrailBaseYRaw = new int[ContingentSlotCount];
@@ -811,8 +811,10 @@ public sealed class BattleSimulation
     /// <see cref="MovementRules.ScanContingentLeadersAndLivingCounts"/>,
     /// which every later step needs a leader entity ID from; pass two walks
     /// every living agent once more to accumulate each contingent's
-    /// <c>spreadSquared</c> and <c>nearestEnemySquared</c>, both of which
-    /// need this tick's leader to already be known.
+    /// <c>spreadSquared</c>, which needs this tick's leader to already be
+    /// known, and its <c>contactCount</c> — a plain count of how many living
+    /// members have a selected target within the close radius, not a
+    /// minimum over any distance.
     /// </para>
     /// <para>
     /// The two geometric gates are computed once per contingent per tick,
@@ -860,14 +862,22 @@ public sealed class BattleSimulation
         for (var slot = 0; slot < ContingentSlotCount; slot++)
         {
             _contingentSpreadSquared[slot] = 0;
-            _contingentNearestEnemySquared[slot] = long.MaxValue;
+            _contingentContactCounts[slot] = 0;
         }
+
+        // closeRadiusSquared does not vary by slot, so it is derived once
+        // here rather than per slot, in the same checked long arithmetic the
+        // per-slot cohesionRadiusRaw derivation below already uses.
+        var closeRadiusRaw = checked(
+            (long)_movementRules.CloseRadiusMultiplier * Scenario.BodyRadiusRaw);
+        var closeRadiusSquared = checked(closeRadiusRaw * closeRadiusRaw);
 
         // Pass two: for every living agent, fold its squared distance to its
         // own contingent's leader into that slot's spread (skipping the
         // leader itself, which is always zero and never the farthest
-        // non-leader member), and its squared distance to its own selected
-        // target, if any, into that slot's nearest-enemy minimum.
+        // non-leader member), and increment that slot's contact count when
+        // its squared distance to its own selected target, if any, is at or
+        // under closeRadiusSquared.
         for (var index = 0; index < _agentStates.Length; index++)
         {
             var agent = _agentStates[index];
@@ -896,9 +906,9 @@ public sealed class BattleSimulation
                 _agentIndexes.TryGetValue(targetId, out var targetIndex))
             {
                 var distanceSquared = SquaredDistance(agent, _agentStates[targetIndex]);
-                if (distanceSquared < _contingentNearestEnemySquared[slot])
+                if (distanceSquared <= closeRadiusSquared)
                 {
-                    _contingentNearestEnemySquared[slot] = distanceSquared;
+                    _contingentContactCounts[slot]++;
                 }
             }
         }
@@ -1010,17 +1020,16 @@ public sealed class BattleSimulation
                 _contingentSquareFitsMap[slot] && !_contingentSquareOverlapsAnother[slot];
             var cohesionRadiusRaw = checked(
                 (long)_movementRules.CohesionRadiusMultiplier * Scenario.BodyRadiusRaw);
-            var closeRadiusRaw = checked(
-                (long)_movementRules.CloseRadiusMultiplier * Scenario.BodyRadiusRaw);
 
             _contingentResolvedStates[slot] = MovementRules.ResolveContingentState(
                 previousState,
                 _contingentLivingCounts[slot],
                 _contingentInitialCounts[slot],
                 _contingentSpreadSquared[slot],
-                _contingentNearestEnemySquared[slot],
+                _contingentContactCounts[slot],
                 cohesionRadiusRaw,
-                closeRadiusRaw,
+                _movementRules.CloseFractionNumerator,
+                _movementRules.CloseFractionDenominator,
                 _movementRules.MinimumCohesiveMembers,
                 windowOpen,
                 geometricGatesPass);

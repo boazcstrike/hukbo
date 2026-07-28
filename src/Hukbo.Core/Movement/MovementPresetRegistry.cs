@@ -9,19 +9,30 @@ namespace Hukbo.Core.Movement;
 public static class MovementPresetRegistry
 {
     /// <summary>
-    /// The frozen preset. Every field is the value docs/plans/
-    /// 2026-07-28-formation-movement-realism-design.md section 3 derives for
-    /// the eventual persistent-contingent behaviour; nothing under this
-    /// preset reads any of them, but the constant set is closed as of this
-    /// task and must not gain a field later, or <see cref="MovementRuleset.ContentHash"/>
-    /// would move for this preset too. See
-    /// docs/plans/2026-07-28-formation-movement-realism-design.md section 6.2.
+    /// The frozen preset. What is frozen is this preset's simulated
+    /// behaviour, proved byte-identically by
+    /// tests/Hukbo.Core.Tests/Fixtures/seed-1-200-agents-movement-v1-digest.json,
+    /// not its field list. <see cref="MovementRuleset.ContentHash"/> never
+    /// reaches the state hash, so a task that adds a field to
+    /// <see cref="MovementRuleset"/> moves only the pinned <c>ContentHash</c>
+    /// identity literal in <c>MovementPresetRegistryTests</c> — recomputed
+    /// from the built code, never guessed — and leaves this preset's actual
+    /// behaviour untouched. See
+    /// docs/plans/2026-07-28-contingent-close-latch-design.md section 3.
+    /// <c>CloseFractionNumerator</c> and <c>CloseFractionDenominator</c> are
+    /// registered here at <c>(0, 1)</c>, which collapses both the entry and
+    /// exit thresholds in <c>MovementRules.ResolveContingentState</c> to
+    /// <c>Max(1, ...)</c> — "at least one member in contact" — exactly
+    /// today's minimum-distance rule, so this preset's behaviour does not
+    /// move.
     /// </summary>
     private static readonly MovementRuleset IndependentPursuitV1Ruleset = new(
         id: MovementPresetId.IndependentPursuitV1,
         version: 1,
         cohesionRadiusMultiplier: 24,
         closeRadiusMultiplier: 16,
+        closeFractionNumerator: 0,
+        closeFractionDenominator: 1,
         minimumCohesiveMembers: 3,
         cohesionCycleTicks: 240,
         cohesionDutyTicks: 180,
@@ -30,19 +41,22 @@ public static class MovementPresetRegistry
 
     /// <summary>
     /// The persistent-contingent preset. Every tunable is the same value
-    /// <see cref="IndependentPursuitV1Ruleset"/> already carries — T2 closed
-    /// the constant set at the frozen preset's introduction precisely so
-    /// this task could construct a second ruleset from it without adding a
-    /// field, which would have moved <c>IndependentPursuitV1</c>'s pinned
-    /// <see cref="MovementRuleset.ContentHash"/>. See
-    /// docs/plans/2026-07-28-formation-movement-realism-design.md section 3
-    /// for the derivation of each value.
+    /// <see cref="IndependentPursuitV1Ruleset"/> already carries.
+    /// <c>CloseFractionNumerator</c> and <c>CloseFractionDenominator</c> are
+    /// registered here at <c>(0, 1)</c> for the same reason as above: the
+    /// floor of <c>Max(1, ...)</c> makes the fraction reproduce today's
+    /// minimum-distance rule exactly, so introducing the fields moves no
+    /// behaviour under this preset either. See
+    /// docs/plans/2026-07-28-contingent-close-latch-design.md section 3 for
+    /// the derivation of each value.
     /// </summary>
     private static readonly MovementRuleset PersistentContingentsV2Ruleset = new(
         id: MovementPresetId.PersistentContingentsV2,
         version: 1,
         cohesionRadiusMultiplier: 24,
         closeRadiusMultiplier: 16,
+        closeFractionNumerator: 0,
+        closeFractionDenominator: 1,
         minimumCohesiveMembers: 3,
         cohesionCycleTicks: 240,
         cohesionDutyTicks: 180,
