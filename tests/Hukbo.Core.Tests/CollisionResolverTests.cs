@@ -10,8 +10,8 @@ namespace Hukbo.Core.Tests;
 /// <remarks>
 /// <para>
 /// Every scenario is written against the approved constants of the collision
-/// policy decision record: one common body radius of four world units, a
-/// diameter of eight, and a movement speed of three, so a mover can never cover
+/// policy decision record: one common body radius of 4.25 world units, a
+/// diameter of nine, and a movement speed of three, so a mover can never cover
 /// more than one radius in a tick.
 /// </para>
 /// <para>
@@ -261,15 +261,21 @@ public sealed class CollisionResolverTests
     {
         var resolver = NewResolver();
 
+        // The stationary body sits one diameter plus half a movement step past
+        // the mover's start: clear of the mover's start (precondition), but
+        // inside the mover's full preferred step, leaving exactly the rung-one
+        // truncated candidate as the first legal one.
+        var stationaryXRaw = 50_000 + DiameterRaw + (MovementSpeedRaw / 2);
+
         resolver.Resolve(
         [
             Mover(1UL, 50_000, 50_000, 50_000 + MovementSpeedRaw, 50_000),
-            Stationary(9UL, 58_500, 50_000),
+            Stationary(9UL, stationaryXRaw, 50_000),
         ]);
 
         var mover = ResultOf(resolver, 1UL);
 
-        AssertResult(resolver, 9UL, 58_500, 50_000, MovementResolution.None);
+        AssertResult(resolver, 9UL, stationaryXRaw, 50_000, MovementResolution.None);
         Assert.Equal(MovementResolution.Truncated, mover.Resolution);
         Assert.True(mover.XRaw < 50_000 + MovementSpeedRaw, "The mover was not truncated.");
         Assert.True(mover.XRaw > 50_000, "The mover did not advance at all.");
@@ -286,10 +292,17 @@ public sealed class CollisionResolverTests
     {
         var resolver = NewResolver();
 
+        // The gap between the two starts is one diameter plus one and a half
+        // movement steps: wide enough that the lower entity ID's full preferred
+        // step still clears the higher ID's pending start (so it commits
+        // unchanged), narrow enough that the higher ID's own full step would
+        // then overlap the committed lower body and must truncate.
+        var startXRaw = 50_000 + DiameterRaw + MovementSpeedRaw + (MovementSpeedRaw / 2);
+
         resolver.Resolve(
         [
             Mover(1UL, 50_000, 50_000, 50_000 + MovementSpeedRaw, 50_000),
-            Mover(2UL, 62_000, 50_000, 62_000 - MovementSpeedRaw, 50_000),
+            Mover(2UL, startXRaw, 50_000, startXRaw - MovementSpeedRaw, 50_000),
         ]);
 
         var advanced = ResultOf(resolver, 1UL);
@@ -297,9 +310,9 @@ public sealed class CollisionResolverTests
 
         AssertResult(resolver, 1UL, 50_000 + MovementSpeedRaw, 50_000, MovementResolution.Moved);
         Assert.Equal(MovementResolution.Truncated, truncated.Resolution);
-        Assert.True(truncated.XRaw < 62_000, "The converging mover did not advance.");
+        Assert.True(truncated.XRaw < startXRaw, "The converging mover did not advance.");
         Assert.True(
-            62_000 - truncated.XRaw < advanced.XRaw - 50_000,
+            startXRaw - truncated.XRaw < advanced.XRaw - 50_000,
             "The converging mover was not the one that gave way.");
         AssertNoOverlap(resolver);
     }
@@ -467,8 +480,16 @@ public sealed class CollisionResolverTests
     [Fact]
     public void Resolve_AwardsAContestedDestinationToTheLowerEntityId()
     {
-        var lowerStartYRaw = 90_000;
-        var upperStartYRaw = 106_192;
+        // Each starting point sits exactly one diameter from the *other*
+        // mover's own final destination -- legally touching, not overlapping
+        // -- so the losing mover has no legal candidate at all and is
+        // Blocked outright rather than truncated onto a short legal step.
+        // Widened for task C1 (docs/plans/2026-07-28-collision-report-and-
+        // shell.md), which enlarged the diameter from 8,192 raw to 9,216; the
+        // old literals 90,000 and 106,192 were exactly the other mover's
+        // final destination minus and plus the old diameter.
+        var lowerStartYRaw = (98_000 + 192) - DiameterRaw;
+        var upperStartYRaw = 98_000 + DiameterRaw;
         var contestedYRaw = 98_000;
 
         var lowerWins = NewResolver();
@@ -895,12 +916,14 @@ public sealed class CollisionResolverTests
                 Stationary(2UL, 100_000 + MovementSpeedRaw, 111_000),
             ]);
 
-        // Truncated: a stationary blocker leaves room for a shorter step.
+        // Truncated: a stationary blocker leaves room for a shorter step. Same
+        // geometry as Resolve_KeepsTheGroundOfAStationaryAgentWithAHigherEntityId:
+        // one diameter plus half a movement step past the mover's start.
         yield return (
             NewResolver(),
             [
                 Mover(1UL, 50_000, 50_000, 50_000 + MovementSpeedRaw, 50_000),
-                Stationary(9UL, 58_500, 50_000),
+                Stationary(9UL, 50_000 + DiameterRaw + (MovementSpeedRaw / 2), 50_000),
             ]);
 
         // Blocked: a head-on approach from exact tangency.

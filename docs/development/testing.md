@@ -306,8 +306,18 @@ At 200 agents / 10 000 ticks / seed 1, after T1 and T6 (see below):
 | --- | --- |
 | `allocatedBytes` | 93 746 968 |
 | `coreAllocatedBytes` | 46 738 440 |
-| `stateHash` | `71211929A44A16CA` (unchanged) |
-| `eventHash` | `A2DC3ECA3F7345ED` (unchanged) |
+| `stateHash` | `A080E28DA7C79C20` |
+| `eventHash` | `2B6FB3A9A9C1960D` |
+
+**Both hashes were re-recorded on 2026-07-28** when
+`CollisionRules.DefaultBodyRadiusRaw` moved from 4.0 to 4.25 world units under
+`docs/plans/2026-07-28-collision-report-and-shell.md`. The superseded pair,
+recorded against the four-world-unit radius, was `stateHash 71211929A44A16CA`
+and `eventHash A2DC3ECA3F7345ED`. The run that produced the new pair reported
+`measuredTicks 1677`, `outcome Faction0Victory`, and `maximumPenetrationRaw 0`.
+The `allocatedBytes` and `coreAllocatedBytes` figures above are from the earlier
+sweep run and have **not** been re-measured at the new radius; treat them as
+superseded until someone reruns the sweep.
 
 The `coreAllocatedBytes` figure is the one from the sweep run recorded under T2
 below, so that every table on this page describes the same run. A separate run
@@ -629,8 +639,13 @@ The gate's own headless report, verbatim:
   "coreAllocatedBytes": 118896
 ```
 
-`stateHash 71211929A44A16CA` and `eventHash A2DC3ECA3F7345ED` are the recorded
-baseline for the 200-agent, seed-1 point and are unchanged by this gate run.
+`stateHash 71211929A44A16CA` and `eventHash A2DC3ECA3F7345ED` were the recorded
+baseline for the 200-agent, seed-1 point at the four-world-unit body radius, and
+the JSON block above is that superseded run. **The current baseline, measured on
+2026-07-28 at the 4.25-world-unit radius, is `stateHash A080E28DA7C79C20` and
+`eventHash 2B6FB3A9A9C1960D`, at `measuredTicks 1677` with
+`outcome Faction0Victory`.** The block above is retained as the record of what
+the workload reported before the radius changed, not as a current expectation.
 
 The percentiles a gate run reports vary with machine load — the run before T19
 reported a p50 of 0.0744 ms and a p95 of 1.379 ms on the same tree — which is
@@ -3140,6 +3155,39 @@ disposition of its own "Manual visual verification" section from
 
 Eighteen new rows (116 through 133) were created by this task, all `PENDING`.
 No row born flipped, per VIS-043's own prohibited-scope clause.
+
+### Collision firmness, battle report, and window shell smoke (2026-07-28)
+
+Added by `docs/plans/2026-07-28-collision-report-and-shell.md`. The canonical
+gate passed on 2026-07-28 with `stateHash A080E28DA7C79C20`,
+`eventHash 2B6FB3A9A9C1960D`, `measuredTicks 1677`, `outcome Faction0Victory`,
+`deterministic true`, `maximumPenetrationRaw 0`, and
+`longestBlockedStreakTicks 88`. **A passing gate proves none of the rows below.**
+Every one of them needs a human at an interactive desktop, and no agent may flip
+one to `PASS`.
+
+The minimize row deserves particular suspicion. `SDL_MinimizeWindow` is reached
+through a `[LibraryImport("SDL2")]` P/Invoke that compiles cleanly but has never
+been executed in this repository. A clean build is no evidence at all that the
+native call works; if it fails, the button is dead with no visible error.
+
+| # | Step | Expected | Result | Status |
+| --- | --- | --- | --- | --- |
+| 134. Watch a battle at the enlarged body radius | Crowds pack visibly tighter and the melee front blocks more firmly than at the old four-world-unit radius. No unit is stranded and no line gridlocks. | Not run | PENDING |
+| 135. Run several battles to a terminal outcome | Every battle reaches a decisive result or a legitimate draw. None stalls at the tick limit with both factions alive and unable to move. | Not run | PENDING |
+| 136. Confirm the OS title bar is gone | The window has no title bar and no operating-system exit, minimize, or maximize buttons. | Not run | PENDING |
+| 137. Click the new Min button | The window minimizes to the taskbar. Clicking the taskbar icon restores it. Watch the taskbar — do not infer this from the button reacting. | Not run | PENDING |
+| 138. Click the new Close button | The game exits cleanly. | Not run | PENDING |
+| 139. Press Alt+F4, and use Escape then Exit Game | Both still quit the game. | Not run | PENDING |
+| 140. Confirm the window still resizes | Dragging a window edge resizes the window, and the layout adapts. `AllowUserResizing` was deliberately left true. | Not run | PENDING |
+| 141. Check all six control-bar buttons | Play, Pause, Menu, Sounds, Min, and Close all render fully inside the bar. The Close button is not clipped at the right edge. | Not run | PENDING |
+| 142. Open the unit setup menu | Every label, including `Kalis — Thrusting Blade (shielded)`, renders fully inside its row and does not overrun the stepper controls. | Not run | PENDING |
+| 143. Check the stepper still reads clearly | The unit count, up to its 250 maximum, centres cleanly in the narrowed value column between the two arrows. | Not run | PENDING |
+| 144. Play a battle to the end and open the battle report | The Battle Report button appears on the match summary and opens the report panel. It does not crash. | Not run | PENDING |
+| 145. Read the battle report numbers | Kills, damage dealt and taken, accuracy, faction totals, and the highlight lines are populated and plausible against the battle just watched. | Not run | PENDING |
+| 146. Scroll the kill leaderboard | The leaderboard scrolls and clips correctly inside its section, and the panel stays inside the arena bounds. | Not run | PENDING |
+| 147. Confirm weapon names in the report | Every weapon appears in pair form, for example `Kampilan — Great Blade`, never as a bare cultural name. | Not run | PENDING |
+| 148. Start a second battle after finishing one | Next Round and Full Reset both clear the report. The second battle reports its own statistics with nothing carried over from the first. | Not run | PENDING |
 
 ## Failure classification
 

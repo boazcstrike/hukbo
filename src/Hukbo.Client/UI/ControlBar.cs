@@ -7,7 +7,10 @@ namespace Hukbo.Client.UI;
 
 internal sealed class ControlBar
 {
-    private const int BarWidth = 384;
+    // 10 + 544 + 14: Layout places the first button at Bounds.Left + 10, six
+    // buttons at ButtonWidth 84 plus five gaps at ButtonGap 8 is 544 of
+    // content, and the bar keeps its existing 14 pixels of right padding.
+    private const int BarWidth = 568;
     private const int BarHeight = 48;
     private const int Margin = 10;
     private const int ButtonGap = 8;
@@ -23,9 +26,31 @@ internal sealed class ControlBar
         new("Pause", ClientCommand.Pause),
         new("Menu", ClientCommand.OpenMenu),
         new("Sounds", ClientCommand.ToggleSoundLog),
+        new("Min", ClientCommand.Minimize),
+        new("Close", ClientCommand.Exit),
     ];
 
     public Rectangle Bounds { get; private set; }
+
+    /// <summary>
+    /// Pure hit test over the buttons' already-computed <see cref="UiButton.Bounds"/>.
+    /// Exists so tests can assert which command a pixel maps to without
+    /// constructing a hardware-backed <see cref="InputEdges"/>. <see cref="Update"/>
+    /// is still the runtime input path and does not call this method.
+    /// </summary>
+    internal ClientCommand? GetCommandAt(Point position) =>
+        Array.Find(_buttons, button => button.Bounds.Contains(position))?.Command;
+
+    /// <summary>
+    /// The already-computed bounds of every button, in the same order they
+    /// are laid out. Exists purely for layout tests — asserting each
+    /// button's rectangle sits inside <see cref="Bounds"/> without a
+    /// graphics device. <see cref="Layout"/> must have run at least once
+    /// (via <see cref="Update"/> or <see cref="Draw"/>) before this reflects
+    /// real geometry.
+    /// </summary>
+    internal IReadOnlyList<Rectangle> ButtonBounds =>
+        Array.ConvertAll(_buttons, button => button.Bounds);
 
     public UiInteraction Update(
         InputEdges input,

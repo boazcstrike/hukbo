@@ -8,7 +8,11 @@ namespace Hukbo.Client.UI;
 internal sealed class MatchSummaryPanel
 {
     private const int PreferredWidth = 500;
-    private const int PreferredHeight = 310;
+
+    // 310 plus the full-width battle-report button's own ButtonHeight (44)
+    // and its ButtonGap (14) above the existing two-button row: 310 + 58 =
+    // 368.
+    private const int PreferredHeight = 368;
     private const int MinimumWidth = 360;
     private const int Margin = 20;
     private const int ButtonWidth = 198;
@@ -16,6 +20,13 @@ internal sealed class MatchSummaryPanel
     // Carries the Label rung (measured 29px real line spacing).
     private const int ButtonHeight = 44;
     private const int ButtonGap = 14;
+
+    // _buttons holds the two side-by-side buttons (NextRound, OpenMenu)
+    // followed by the full-width battle-report button. Layout positions the
+    // first PairButtonCount entries with the original paired formula and the
+    // remaining entry separately, so the paired buttons' geometry stays
+    // byte-for-byte what it was before this button was added.
+    private const int PairButtonCount = 2;
 
     // Summary detail lines draw at the Body rung (measured 24px real line
     // spacing); 25 clears it with a 1px margin.
@@ -37,9 +48,20 @@ internal sealed class MatchSummaryPanel
     [
         new("Next Round", ClientCommand.NextRound),
         new("Menu", ClientCommand.OpenMenu),
+        new("Battle Report", ClientCommand.ToggleBattleReport),
     ];
 
     public Rectangle Bounds { get; private set; }
+
+    /// <summary>
+    /// Pure hit test over the buttons' already-computed <see cref="UiButton.Bounds"/>.
+    /// Exists so tests can assert which command a pixel maps to without
+    /// constructing a hardware-backed <see cref="InputEdges"/> or a graphics
+    /// device. <see cref="Update"/> is still the runtime input path and does
+    /// not call this method.
+    /// </summary>
+    internal ClientCommand? GetCommandAt(Point position) =>
+        Array.Find(_buttons, button => button.Bounds.Contains(position))?.Command;
 
     public UiInteraction Update(
         InputEdges input,
@@ -157,7 +179,7 @@ internal sealed class MatchSummaryPanel
         var buttonTop = Bounds.Bottom - ButtonHeight - 18;
         var totalButtonWidth = (ButtonWidth * 2) + ButtonGap;
         var buttonLeft = Bounds.Center.X - (totalButtonWidth / 2);
-        for (var index = 0; index < _buttons.Length; index++)
+        for (var index = 0; index < PairButtonCount; index++)
         {
             _buttons[index].Bounds = new Rectangle(
                 buttonLeft + (index * (ButtonWidth + ButtonGap)),
@@ -165,6 +187,16 @@ internal sealed class MatchSummaryPanel
                 ButtonWidth,
                 ButtonHeight);
         }
+
+        // The full-width battle-report button sits directly above the
+        // NextRound/OpenMenu row, spanning the same left edge and combined
+        // width those two buttons occupy together, separated from the row
+        // by the same ButtonGap used between them.
+        _buttons[PairButtonCount].Bounds = new Rectangle(
+            buttonLeft,
+            buttonTop - ButtonGap - ButtonHeight,
+            totalButtonWidth,
+            ButtonHeight);
     }
 
     private void ResetVisualState()

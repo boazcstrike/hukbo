@@ -119,11 +119,11 @@ internal sealed partial class UiThemeCatalog
                     7,
                     5),
                 new UiArmyCompositionLayout(
-                    420,
+                    640,
                     648,
                     44,
                     8,
-                    260,
+                    148,
                     44),
                 new UiFontAssignments(
                     "Fonts/UiCaption",

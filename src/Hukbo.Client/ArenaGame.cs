@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using Hukbo.Client.Audio;
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Presentation.Catalogs;
@@ -78,6 +79,7 @@ public sealed partial class ArenaGame : Game
     private readonly SoundLogPanel _soundLogPanel = new();
     private readonly SoundDirector _soundDirector;
     private readonly MatchSummaryPanel _summaryPanel = new();
+    private readonly BattleReportPanel _battleReportPanel = new();
     private readonly PresentationCoordinator _presentation =
         new(EventHistoryCapacity);
     private readonly AgentSelection _hoverSelection = new();
@@ -109,6 +111,7 @@ public sealed partial class ArenaGame : Game
     private MonoGameSoundPlayer? _soundPlayer;
     private Settings.ArmyComposition _activeComposition;
     private bool _isSoundLogVisible;
+    private bool _isBattleReportVisible;
     private bool _isArmyCompositionPanelVisible;
     private bool _isCompositionStaged;
     private bool _exitRequested;
@@ -221,6 +224,7 @@ public sealed partial class ArenaGame : Game
         };
 
         Window.AllowUserResizing = true;
+        Window.IsBorderless = true;
         Window.Title = "Hukbo";
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
@@ -507,12 +511,22 @@ public sealed partial class ArenaGame : Game
         }
         else
         {
-            var interaction = _summaryPanel.Update(
+            var interaction = _battleReportPanel.Update(
                 _input,
-                _presentation.Summary,
+                _isBattleReportVisible ? _presentation.Report : null,
                 layout.ArenaBounds);
             pointerConsumed = interaction.PointerConsumed;
-            consumedBy = pointerConsumed ? "matchSummary" : consumedBy;
+            consumedBy = pointerConsumed ? "battleReport" : consumedBy;
+
+            if (!pointerConsumed)
+            {
+                interaction = _summaryPanel.Update(
+                    _input,
+                    _presentation.Summary,
+                    layout.ArenaBounds);
+                pointerConsumed = interaction.PointerConsumed;
+                consumedBy = pointerConsumed ? "matchSummary" : consumedBy;
+            }
 
             if (!pointerConsumed)
             {
@@ -834,6 +848,12 @@ public sealed partial class ArenaGame : Game
             case ClientCommand.ToggleSoundLog:
                 _isSoundLogVisible = !_isSoundLogVisible;
                 return;
+            case ClientCommand.ToggleBattleReport:
+                _isBattleReportVisible = !_isBattleReportVisible;
+                return;
+            case ClientCommand.Minimize:
+                SDL_MinimizeWindow(Window.Handle);
+                return;
             case ClientCommand.Play:
                 if (_simulation.Outcome == BattleOutcome.Ongoing)
                 {
@@ -939,6 +959,15 @@ public sealed partial class ArenaGame : Game
         _exitRequested = true;
         Exit();
     }
+
+    /// <summary>
+    /// Minimizes the window. <paramref name="window"/> must be
+    /// <see cref="GameWindow.Handle"/>, which on the DesktopGL platform is
+    /// the underlying <c>SDL_Window*</c> — the same handle SDL2's own
+    /// window-management functions expect.
+    /// </summary>
+    [LibraryImport("SDL2")]
+    private static partial void SDL_MinimizeWindow(nint window);
 
     private void AdvanceSimulation(double elapsedSeconds)
     {
