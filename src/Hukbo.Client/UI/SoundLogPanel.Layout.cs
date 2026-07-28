@@ -107,6 +107,12 @@ internal sealed partial class SoundLogPanel
         // The expected-files list is what tells the owner how to name a file, so
         // it gets the room it needs first — capped only by the cue rows the log
         // must still be able to show.
+        //
+        // `desiredBindingsHeight` caps the viewport, not the list. That is
+        // deliberate and must stay: the list scrolls, so every row is reachable
+        // whatever the viewport height, while removing the cap would let the
+        // expected-files section keep growing on a tall window until the cue
+        // log was left with nothing but its three reserved rows.
         var desiredBindingsHeight =
             SectionHeaderHeight +
             (SoundCatalog.AllSounds.Count * BindingRowHeight);
@@ -126,7 +132,12 @@ internal sealed partial class SoundLogPanel
         var bindingRows = new Rectangle(
             bindings.Left,
             bindingRowsTop,
-            bindings.Width,
+            Math.Max(0, bindings.Width - ScrollbarWidth - 4),
+            Math.Max(0, bindings.Bottom - bindingRowsTop));
+        var bindingScrollbar = new Rectangle(
+            Math.Max(bindings.Left, bindings.Right - ScrollbarWidth),
+            bindingRowsTop,
+            Math.Min(ScrollbarWidth, bindings.Width),
             Math.Max(0, bindings.Bottom - bindingRowsTop));
 
         var cueTop = Math.Min(inner.Bottom, bindings.Bottom + Gap);
@@ -157,7 +168,8 @@ internal sealed partial class SoundLogPanel
             bindingRows,
             cueList,
             cueRows,
-            scrollbar);
+            scrollbar,
+            bindingScrollbar);
     }
 
     private static Rectangle ComputeInnerBounds(Rectangle bounds)
@@ -307,6 +319,38 @@ internal sealed partial class SoundLogPanel
         var direction = scrollWheelDelta > 0 ? -1 : 1;
         return direction * detents * RowsPerWheelDetent;
     }
+
+    /// <summary>
+    /// Holds a scroll offset for the expected-files list inside the range the
+    /// viewport can actually show: never above the first row, and never past
+    /// the point where the last row sits on the bottom line. The result is zero
+    /// whenever every row already fits, so a short list cannot scroll at all.
+    /// </summary>
+    internal static int ClampBindingScroll(
+        int scrollStart,
+        int totalRowCount,
+        int visibleRowCount)
+    {
+        var maximumStart = Math.Max(0, totalRowCount - visibleRowCount);
+        return Math.Clamp(scrollStart, 0, maximumStart);
+    }
+
+    /// <summary>
+    /// Decides which of the panel's two lists a wheel notch moves: the
+    /// innermost scrollable region under the pointer. Over the expected-files
+    /// area the wheel moves the bindings, and everywhere else inside the panel
+    /// it moves the cue log — which is both the region under the pointer over
+    /// the cue list itself and the fallback over the header, the path line, and
+    /// the mute button. The fallback is what stops a notch being swallowed, and
+    /// the panel consumes the notch either way so it never reaches the arena
+    /// camera behind it.
+    /// </summary>
+    internal static SoundLogScrollTarget GetWheelTarget(
+        SoundLogPanelLayout layout,
+        Point pointer) =>
+        layout.BindingsBounds.Contains(pointer)
+            ? SoundLogScrollTarget.Bindings
+            : SoundLogScrollTarget.Cues;
 
     internal static Rectangle GetScrollbarThumb(
         Rectangle trackBounds,
