@@ -3132,7 +3132,7 @@ window-opening probe do not.
 | --- | --- | --- | --- |
 | 102. Read several distinct groups well past deployment | Each side stays readable as several distinct groups well past the opening frame, at the default camera fit, rather than merging into one crowd within a few seconds. | Each side split into about three readable groups, and those stayed distinct well past the opening frames. They merged into one crowd only late in the battle, once casualties had mounted. | PASS |
 | 103. Watch a strung-out group gather and resume | A group that has strung out visibly gathers on one of its own warriors, then resumes advancing, rather than gathering indefinitely or never gathering at all. | A group that had strung out was seen to fall back briefly, gather, and then carry on advancing with the group, rather than gathering indefinitely. | PASS |
-| 104. Confirm the gathered shape is ragged | The gathered shape is ragged. It is not a ring, a line, an arc, a grid, or any shape that looks placed, and no warrior sits at an obviously exact distance from the one it gathered on. | A mid-battle contingent gather sometimes read as a line rather than as a ragged clump. | FAIL |
+| 104. Confirm the gathered shape is ragged | The gathered shape is ragged. It is not a ring, a line, an arc, a grid, or any shape that looks placed, and no warrior sits at an obviously exact distance from the one it gathered on. | Not run | PENDING |
 | 105. Watch a group arrive and break apart | On reaching the enemy, a group visibly stops holding together and its warriors fight as individuals. The transition reads as arriving, not as the group breaking apart. | The transition read as the group arriving rather than as the group falling apart. | PASS |
 | 106. Confirm warriors ease into contact | Warriors ease into contact rather than travelling at full speed and stopping dead against an enemy body. | Not run | PENDING |
 | 107. Confirm a warrior steps aside for its leader | A warrior standing in front of the warrior its group has gathered on steps aside rather than being walked through or standing there blocking it. | Not run | PENDING |
@@ -3142,7 +3142,21 @@ window-opening probe do not.
 | 111. Confirm the battle still resolves | A full 200-agent battle reaches a terminal outcome. Neither side stands gathered and unmoving until the tick limit. | The battle reached a terminal outcome and a winner was declared. | PASS |
 | 112. Watch a group reach a map edge or corner | A group whose warriors reach a map edge or a corner keeps moving and fighting there rather than piling into the boundary and staying put. This is the visible face of the map-edge open-ground rule in design section 3.5. | Not run | PENDING |
 | 113. Watch two groups collide and separate | Two groups on the same side that walk into each other come apart again and carry on advancing, rather than jamming into one stationary mass. This is the visible face of the cross-contingent rule in design section 3.5. | Not run | PENDING |
-| 114. Watch whether gathering keeps appearing across the whole advance | Groups read as groups for the whole of the advance, not only in the first few seconds after deployment. Watch a full battle at the default camera fit and judge whether gathering behaviour keeps appearing across several different groups as the armies converge, or whether it happens once near the start and then stops. This is the spectator half of the inertness bar in design section 10.3 — the automated half asserts thresholds on how often cohesion is granted, and only a person can say whether the result looks like several groups advancing or like one crowd that briefly twitched. | Gathering was seen only near the start of the advance. It was not seen again once groups were already fighting, and when warriors switched to another group the shape read as a line. | FAIL |
+| 114. Watch whether gathering keeps appearing across the whole advance | Groups read as groups for the whole of the advance, not only in the first few seconds after deployment. Watch a full battle at the default camera fit and judge whether gathering behaviour keeps appearing across several different groups as the armies converge, or whether it happens once near the start and then stops. This is the spectator half of the inertness bar in design section 10.3 — the automated half asserts thresholds on how often cohesion is granted, and only a person can say whether the result looks like several groups advancing or like one crowd that briefly twitched. | Not run | PENDING |
+
+**History.** Rows 104 and 114 both failed at commit `8f4e426`. The cause was
+movement transition rule 3 latching a whole contingent into
+`ContingentState.Close` as soon as a single member of that contingent reached
+contact. Both rows have been reset to `PENDING` and now await re-observation
+under `PersistentContingentsV3`. That re-observation is not expected to be a
+clean pass: the measurement taken after the fix shows `Hold` episodes after a
+contingent's first `Close` going from zero to one across a five-seed,
+fifty-contingent-battle sweep, `Close` occupancy falling from 63.69 % to
+53.11 %, attrition (rule 2) rising to 30.45 % and becoming the new ceiling on
+mid-battle gathering, and the `Hold` aspect-ratio tail getting worse (p99 from
+3.06 to 5.04, maximum from 5.17 to 14.21). See "Measurement behind rows 104 and
+114" and "Re-measurement after the `Close` latch fix (T7), 2026-07-28" below
+for the full after-table; it is not restated here.
 
 Two observations from the 2026-07-28 pass do not map to any row above, and are
 recorded here so that a later change can be judged against them. First, once one
