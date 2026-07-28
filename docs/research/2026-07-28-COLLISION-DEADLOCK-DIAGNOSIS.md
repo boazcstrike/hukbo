@@ -133,6 +133,59 @@ so the obstruction is not only pairwise: it is a small connected structure, and
 any fix framed purely as a two-body swap has to cope with a three-body case on
 the very seed it is meant to fix.
 
+## 5a. The locked pairs are at exact tangency, and that is the whole mechanism
+
+Every mutually locked pair sits at a centre distance of **exactly 9 216 raw
+units — one body diameter at radius 4.5 — with minimum equal to maximum across
+all 269 sampled ticks.** They are not drifting, not oscillating, not settling.
+They are frozen at tangency.
+
+That closes the mechanism. Tangency is a legal resting position by deliberate
+design: the resolver refuses a candidate only on *strict* penetration, which is
+what lets a packed front settle instead of jittering by one raw unit forever. So
+two agents at exact tangency who each want to close further are each asking for
+a position one raw unit inside the other, every rung of the ladder is refused,
+and both correctly hold. **The resolver is behaving exactly as specified. It is
+not the defect.**
+
+The defect is upstream: something keeps asking these agents to walk into ground
+that is permanently occupied.
+
+## 5b. This is not a 4.5 problem. The shipping configuration has it too
+
+The rally jitter target is drawn from a span of `8 * BodyRadiusRaw + 1`, so the
+body radius is the *modulus* of the draw. Changing it does not make the packing
+geometrically tighter or looser — it re-rolls every agent's target. That
+predicts 4.25 is not safer than 4.5, merely differently unlucky, and that seeds
+1 to 20 are too small a sample to establish anything about either.
+
+Surveyed over 200 seeds at every combination of body radius and last-stand
+threshold:
+
+| `LastStandThresholdAgents` | Radius 4.25 (shipping) | Radius 4.5 |
+| --- | --- | --- |
+| 6 — the shipping default | **2 / 200** (seeds 86, 139) | 1 / 200 (seed 65) |
+| 7 | 2 / 200 (seeds 108, 118) | 6 / 200 |
+| 8 | 5 / 200 | 5 / 200 |
+| 9 — `MaximumLastStandThresholdAgents` | 1 / 200 (seed 39) | 2 / 200 (seeds 12, 99) |
+
+**The shipped game deadlocks on roughly one seed in a hundred.** Neither the
+radius nor the threshold changes that in any consistent direction; both merely
+decide which seeds are the unlucky ones.
+
+Three consequences follow, and they matter more than the original question did:
+
+1. **`DefaultBodyRadiusRaw` is pinned at 4.25 by a bug that 4.25 does not
+   avoid.** The remark on that constant is accurate about what was observed and
+   wrong in what it implies. Seed 39 stalls at 4.25 at the same threshold where
+   seed 12 stalls at 4.5.
+2. **"Do nothing and keep 4.25" is not a safe baseline.** The design's option
+   6.1 rests on the stall being confined to a radius the game does not ship. It
+   is not.
+3. **Seeds 1 to 20 cannot detect a one-percent failure.** The last-stand
+   regression test passes at the shipping radius by luck, not by construction.
+   Whatever fix is chosen, that test's seed range is itself a finding.
+
 ## 6. What this means for the options
 
 This section states consequences, not a choice. Choosing is the next plan's job,
@@ -170,6 +223,11 @@ dotnet build tools/Hukbo.Tools.DeadlockProbe/Hukbo.Tools.DeadlockProbe.csproj -c
 
 dotnet run --project tools/Hukbo.Tools.DeadlockProbe/Hukbo.Tools.DeadlockProbe.csproj `
   -c Release --no-build -- --survey
+
+# The 200-seed survey behind section 5b, for one cell of the table.
+dotnet run --project tools/Hukbo.Tools.DeadlockProbe/Hukbo.Tools.DeadlockProbe.csproj `
+  -c Release --no-build -- --survey --first-seed 1 --last-seed 200 `
+  --radius-raw 4352 --threshold 6
 
 dotnet run --project tools/Hukbo.Tools.DeadlockProbe/Hukbo.Tools.DeadlockProbe.csproj `
   -c Release --no-build -- --seed 12 --window 300

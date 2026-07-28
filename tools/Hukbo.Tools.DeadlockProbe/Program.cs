@@ -417,7 +417,7 @@ internal static class Program
     private static Scenario BuildScenario(ProbeOptions options, ulong seed) =>
         Scenario.CreateDefault(seed, options.TotalAgents) with
         {
-            LastStandThresholdAgents = FormationRules.MaximumLastStandThresholdAgents,
+            LastStandThresholdAgents = options.LastStandThresholdAgents,
             BodyRadiusRaw = options.BodyRadiusRaw,
         };
 
@@ -487,6 +487,7 @@ internal static class Program
         ulong Seed,
         int TotalAgents,
         int BodyRadiusRaw,
+        int LastStandThresholdAgents,
         int WindowTicks,
         string OutputPath,
         bool Survey,
@@ -502,6 +503,10 @@ internal static class Program
               --agents <n>        Total agents across both factions. Default 18.
               --radius-raw <n>    Body radius in raw fixed-point units.
                                   Default 4608, which is 4.5 world units.
+              --threshold <n>     LastStandThresholdAgents. Default is
+                                  FormationRules.MaximumLastStandThresholdAgents,
+                                  which is what the last-stand regression test
+                                  runs at. The shipping default is 6.
               --window <n>        Ticks to classify after the last death.
                                   Default 200.
               --out <path>        JSON Lines output path. Default
@@ -517,6 +522,7 @@ internal static class Program
             var seed = 12UL;
             var totalAgents = 18;
             var bodyRadiusRaw = (9 * FixedPoint.Scale) / 2;
+            var lastStandThresholdAgents = FormationRules.MaximumLastStandThresholdAgents;
             var windowTicks = DefaultWindowTicks;
             string? outputPath = null;
             var survey = false;
@@ -537,6 +543,10 @@ internal static class Program
 
                     case "--radius-raw":
                         bodyRadiusRaw = ParseInt32(args, ref index);
+                        break;
+
+                    case "--threshold":
+                        lastStandThresholdAgents = ParseInt32(args, ref index);
                         break;
 
                     case "--window":
@@ -573,6 +583,7 @@ internal static class Program
                 seed,
                 totalAgents,
                 bodyRadiusRaw,
+                lastStandThresholdAgents,
                 windowTicks,
                 outputPath ?? $"artifacts/deadlock-probe-seed{seed}.jsonl",
                 survey,
