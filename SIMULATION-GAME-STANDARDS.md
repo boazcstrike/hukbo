@@ -890,10 +890,19 @@ it is derived observability data only.
 | Impact ring | yes | absent | absent | absent | absent |
 | Clash cross | absent | yes | yes | yes | absent |
 | Swing pose | stops on target | recoil | recoil | recoil | follows through |
+| Sound cue | weapon impact | `clash-shield-<weapon>` | weapon impact | weapon impact | weapon impact |
 
-`Evaded` is the weakest case: distinguished by one positive channel, the event-log line, and three
-absences. The three clash sound slots that would have given it a fourth channel are deferred by owner
+A shield block now has a sound channel of its own. It is carried by four classless slots keyed to the
+attacking weapon — `clash-shield-kampilan`, `clash-shield-wasay`, `clash-shield-kalis`, and
+`clash-shield-itak` — and the matching slot replaces the weapon impact cue that a landed blow would
+have played. `ShieldBlocked` is therefore the only one of the five resolutions with a cue of its
+own; the other four still share the single weapon impact cue, as the `Sound cue` row above records.
+The two remaining clash slots, `clash-blade-hard` and `clash-blade-soft`, are deferred by owner
 decision and are not part of this contract.
+
+`Evaded` is still the weakest case: distinguished by one positive channel, the event-log line, and
+three absences. It has no sound channel of its own, because it plays the same weapon impact cue as
+`Landed`, `Parried`, and `Deflected`, so the reason it is the weakest case is unchanged.
 
 ### Historical boundary
 

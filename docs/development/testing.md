@@ -3261,8 +3261,8 @@ a short follow-up rather than a repeat of the whole pass.
 | 21. Check backdrop reseeding on Next Round and Full Reset | Pressing `R` for a new round changes the backdrop with the new seed; pressing `Shift+R` for a full reset returns the seed-1 backdrop identical to the first launch. | Not run | PENDING |
 | 22. Confirm the sound log is hidden by default | On launch, no sound panel is visible and the battle event log occupies the full height of the right column exactly as before. | Not run | PENDING |
 | 23. Toggle the sound log | The `Sounds` control-bar button and `F9` both open and close the sound panel; the button shows an active state while it is open; the right column splits with battle events above and the sound log below, and nothing else on screen moves. | Not run | PENDING |
-| 24. Check the expected-file list with an empty audio folder | With no files in `Content/Audio/`, the panel lists all nine expected file names, each marked `MISSING`, shows `MISSING 9/9`, and the game stays silent without errors. | Not run | PENDING |
-| 25. Add one sound file | Drop a PCM WAV named `death.wav` into `Content/Audio/`, relaunch, and confirm that slot reads `READY`, the counter drops to `MISSING 8/9`, and a death audibly plays with a `PLAYED` row in the cue log. | Not run | PENDING |
+| 24. Check the expected-file list with an empty audio folder | With no files in `Content/Audio/`, the panel lists all thirteen expected file names, each marked `MISSING`, shows `MISSING 13/13`, and the game stays silent without errors. The list scrolls with the wheel, so all thirteen names are reachable even though only ten rows are shown at once. | Not run | PENDING |
+| 25. Add one sound file | Drop a PCM WAV named `death.wav` into `Content/Audio/`, relaunch, and confirm that slot reads `READY`, the counter drops to `MISSING 12/13`, and a death audibly plays with a `PLAYED` row in the cue log. | Not run | PENDING |
 | 26. Check an unusable file | Replace `death.wav` with a non-PCM file of the same name, relaunch, and confirm the slot reads `FAILED` rather than `MISSING`, and the game still runs silently for that slot. | Not run | PENDING |
 | 27. Exercise mute and rate limiting | With files present, the panel's `MUTE` toggle silences playback while still logging rows; during a busy tick the cue log shows collapsed `LIMITED xN` rows rather than one row per suppressed cue. | Not run | PENDING |
 | 28. Exercise sound-log scrolling and isolation | The wheel scrolls only the panel under the pointer — sound log, battle log, or arena zoom — and clicks inside the sound panel do not click through to the arena or clear the agent selection. | Not run | PENDING |
@@ -3285,7 +3285,7 @@ a short follow-up rather than a repeat of the whole pass.
 | 45. Check blood clears on Next Round and Full Reset | With sprays and ground marks visible on screen, trigger Next Round (`R`, modal, or summary); all blood clears immediately alongside the event log, inspector, and summary. Repeat separately with Full Reset (`Shift+R` and the modal command) and confirm the same. | Not run | PENDING |
 | 46. Check blood readability across every theme | Cycle all five visual themes while blood is on screen. In every theme, including `high-contrast`, blood stays clearly distinguishable from the Blue faction pawns, from the Red faction pawns, and from the arena ground surface; no theme makes a spray or a ground mark disappear into a pawn or the backdrop. | Not run | PENDING |
 | 47. Check speed and gore independence | At 1x, 2x, and 4x speed, switch gore between Off and Full and confirm the tick counter in the window title advances at the same visible rate for both settings at each speed. The gore setting never slows, pauses, or reorders simulation advancement. | Not run | PENDING |
-| 48. Confirm variants resolve | Press `F9`. Every attack slot reports `READY` with a per-class breakdown, and the counts match the files in `Content/Audio/`: 10 for each of the four attack slots, 10 for `death`. A class with no take of its own shows its real count rather than a fallback-inflated one. | Not run | PENDING |
+| 48. Confirm variants resolve | Press `F9`. Every attack slot reports `READY` with a per-class breakdown, and the counts match the files in `Content/Audio/`: 10 for each of the four attack slots, 10 for `death`. A class with no take of its own shows its real count rather than a fallback-inflated one. Scroll the expected-files list to the bottom: each of the four clash slots reports `READY` with four takes, sixteen takes across the four. Each weapon is its own slot, so a clash slot with no take shows its real count and no other weapon's takes are substituted for it. | Not run | PENDING |
 | 49. Hear the variation | Watch an unpaused battle for a full minute. Blows do not sound like one repeating sample: cuts to different parts of the body are audibly different, and the same weapon striking the same class does not always play the identical take. | Not run | PENDING |
 | 50. Confirm no human voice | Listen through a full battle including many deaths. No cue contains a scream, grunt, groan, or breath. Pay particular attention to `death-02`, `death-06`, and `death-07`, whose prompt wording carries the highest risk of an accidental vocalisation. Any file that vocalises must be regenerated before release. | Not run | PENDING |
 | 51. Check level consistency | No cue is obviously louder or quieter than its neighbours. The known-quiet takes — `attack-kampilan-ribcage-01`, `attack-kampilan-gut-01`, `attack-wasay-neck-01`, `death-02` — are audible under a busy battle rather than disappearing. Any that vanish need a re-roll. | Not run | PENDING |
@@ -4141,6 +4141,51 @@ that does occur reads worse in the tail (p99 and max) than the approach-phase
 gathers the before-table measured. Whether that is nonetheless visible to a
 human at the default camera fit is exactly what T10's reset of rows 104 and
 114 exists to find out, and no agent may answer that question.
+
+### Shield-clash audio smoke
+
+Added by `docs/plans/2026-07-30-shield-clash-audio.md`. **No interactive run was
+performed, so every row below is unrun and its verdict is still pending.** Each
+one needs a human at an interactive Windows desktop with working audio, and no
+agent may flip one to a passing verdict.
+
+Automated tests do exist for the parts of this change that can be tested without
+a window or a speaker. `SoundCatalogTests.EveryDefinedWeapon_HasAShieldClashSlot`
+proves that every defined weapon has a clash slot to route to.
+`SoundCueMapperTests.Map_RoutesAShieldBlockToTheMatchingClashSlot` and
+`Map_KeepsTheWeaponSlotForEveryOtherResolution` prove that a `ShieldBlocked`
+attack maps to the clash slot for its weapon while `Landed`, `Parried`,
+`Deflected`, and `Evaded` keep the weapon impact slot.
+`SoundDirectorTests.Ingest_UsesANullHitClassForAShieldBlockDespiteTheHitLocation`
+proves the director derives the hit class from the mapped slot rather than from
+the event, which is what keeps a clash cue from resolving `Missing` forever.
+`SoundLogPanelTests.ClampBindingScroll_ReachesTheLastRow`,
+`ClampBindingScroll_RefusesToScrollPastEitherEnd`,
+`ClampBindingScroll_ReturnsZeroWhenEveryRowFits`,
+`GetWheelTarget_RoutesTheWheelToTheListUnderThePointer`, and
+`GetWheelTarget_FallsBackToTheCueListOutsideBothLists` prove the scroll
+arithmetic and the wheel routing as pure functions.
+`CalculateLayout_FitsExactlyTenBindingRowsAtFourHundredAndSixteen` and
+`CalculateLayout_CapsTheBindingViewportAtTheSlotCountRegardlessOfHeight` pin the
+layout numbers.
+
+None of that proves what these rows are for. No test hears a sound, so no test
+can say whether a shield block reads as wood rather than as flesh, whether the
+four weapons are audibly distinct, or whether the cue becomes a wall of noise in
+a full battle. No test drives a real mouse wheel over a real panel, so none
+proves that the wheel reaches the right list on screen or that it does not leak
+into the arena camera. No test renders anything, so none proves that the battle
+event log below the taller sound log is still readable. The sixteen clash takes
+do not exist yet either — they are generated by hand in a later step — so every
+row that expects `READY (4)` is blocked until that generation happens.
+
+| # | Step | Expected | Result | Status |
+| --- | --- | --- | --- | --- |
+| 172. Listen to a shield-blocked blow | It sounds like a weapon striking a light wooden board, and it is plainly different from a landed cut. The difference is audible on its own, without reading the event log to find out which resolution occurred. | Not run | PENDING |
+| 173. Compare the four clash slots by ear | The War Axe reads heavier and blunter than the Work Blade against the same shield, and the Work Blade is the quietest of the four. | Not run | PENDING |
+| 174. Scroll the expected-files list | Open the sound log, put the pointer over the expected-files list, and scroll. The list moves through all thirty-seven rows, reaches the four clash slots at the bottom with each one reading `READY (4)`, refuses to scroll past either end, and shows no `+N more` line anywhere. Scrolling with the pointer over the cue log below still scrolls only the cue log, and neither scroll zooms the arena camera. A run with `-LogLevel dbg` whose `assets.sound.scanned` line reports thirteen slots and thirteen ready is a secondary confirmation of the same fact. | Not run | PENDING |
+| 175. Run a full 200-agent battle with the shield cue audible | The shield cue does not become a wall of noise, and the cue log shows no `LIMITED` or `REFUSED` row for any clash slot. | Not run | PENDING |
+| 176. Read the battle event log with the sound log open | At the sound log's new height the battle event log still reads: the selected-event pane shows its header and both detail lines, and nothing is clipped. **This row is the only check on the event-log cost of the 65 percent change.** `BattleEventLogPanel`'s layout constants are private and `ArenaGame` is banned from tests, so no automated test covers it. | Not run | PENDING |
 
 ## Failure classification
 
