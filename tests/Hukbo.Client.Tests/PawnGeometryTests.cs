@@ -1551,4 +1551,308 @@ public sealed class PawnGeometryTests
             }
         }
     }
+
+    /// <summary>
+    /// GPU-013. <c>PawnGeometry.CreateWithPoseBlindBounds</c> exists so that a
+    /// visible pawn stops building two complete layouts every frame: one
+    /// through <c>PawnRenderer.GetBounds</c> for the cull, and one for the
+    /// pixels. It is only allowed to replace that pair while it returns
+    /// exactly what the pair returned, so this walks a grid of every input
+    /// either call reads — foot anchor, entity (and therefore appearance and
+    /// shield skin), weapon, shield, camera zoom, scale multiplier, swing
+    /// pose, armor width, sash, and accent count — and pins both halves
+    /// against the two originals, which stay in place precisely to be that
+    /// reference.
+    /// </summary>
+    /// <remarks>
+    /// Layout equality is asserted twice over: once on the whole record,
+    /// which covers all twenty-four fields, and once bit-for-bit on every
+    /// float the record carries, because <c>float.Equals</c> reads positive
+    /// and negative zero as equal and "bit-identical" is the acceptance
+    /// criterion this task was given. The grid's own size, the detail tiers
+    /// it reaches, and the shield skins it resolves are asserted at the end,
+    /// so a later edit that quietly narrows the grid fails here rather than
+    /// passing vacuously.
+    /// </remarks>
+    [Fact]
+    public void CreateWithPoseBlindBounds_MatchesCreateAndGetBoundsAcrossTheInputGrid()
+    {
+        var footAnchors = new[]
+        {
+            Vector2.Zero,
+            new Vector2(137.25f, 241.75f),
+        };
+        var entityIds = new ulong[] { 0, 1, 2, 3, 5, 8, 13, 21 };
+
+        // The clamp floor, both detail-tier boundaries from either side, and
+        // the clamp ceiling.
+        var cameraZooms = new[] { 0.05f, 0.7f, 0.71f, 1.33f, 1.34f, 12f };
+        var scaleMultipliers = new[] { 1f, 0.65f };
+        var swingPoses = new SwingPose?[]
+        {
+            null,
+            default(SwingPose),
+            new SwingPose(
+                SwingPhase.Anticipation,
+                PhaseProgress: 0.25f,
+                WeaponAngleRadians: -0.9f,
+                TorsoLeanX: -1.4f,
+                TorsoLeanY: 0.7f,
+                ExtensionRatio: 0.2f,
+                TrailStrength: 0f),
+            new SwingPose(
+                SwingPhase.ImpactHold,
+                PhaseProgress: 0.5f,
+                WeaponAngleRadians: 0.8f,
+                TorsoLeanX: 1.6f,
+                TorsoLeanY: -0.3f,
+                ExtensionRatio: 1f,
+                TrailStrength: 1f),
+        };
+        var armorWidthFactors = new[]
+        {
+            1f,
+            AppearanceComponentCatalog.MaxArmorWidthFactor,
+        };
+        var sashChoices = new[] { false, true };
+        var accentCounts = new[]
+        {
+            0,
+            1,
+            AppearanceComponentCatalog.MaxAccentMarksPerPawn,
+        };
+
+        var cases = 0;
+        var detailTiers = new HashSet<PawnDetailTier>();
+        var shieldSkinIds = new HashSet<string>();
+
+        foreach (var footAnchor in footAnchors)
+        {
+            foreach (var entityId in entityIds)
+            {
+                foreach (var weapon in Enum.GetValues<WeaponId>())
+                {
+                    foreach (var shield in Enum.GetValues<ShieldId>())
+                    {
+                        var appearance = PawnAppearanceFactory.Create(
+                            entityId,
+                            weapon,
+                            shield);
+                        if (shield == ShieldId.TallHardwood)
+                        {
+                            shieldSkinIds.Add(appearance.ShieldSkinId);
+                        }
+
+                        foreach (var cameraZoom in cameraZooms)
+                        {
+                            foreach (var scaleMultiplier in scaleMultipliers)
+                            {
+                                foreach (var swingPose in swingPoses)
+                                {
+                                    foreach (var armorWidthFactor in armorWidthFactors)
+                                    {
+                                        foreach (var hasSash in sashChoices)
+                                        {
+                                            foreach (var accentCount in accentCounts)
+                                            {
+                                                var expectedLayout = PawnGeometry.Create(
+                                                    footAnchor,
+                                                    cameraZoom,
+                                                    appearance,
+                                                    scaleMultiplier,
+                                                    swingPose,
+                                                    armorWidthFactor,
+                                                    hasSash,
+                                                    accentCount);
+                                                var expectedBounds = PawnRenderer.GetBounds(
+                                                    footAnchor,
+                                                    cameraZoom,
+                                                    appearance,
+                                                    scaleMultiplier,
+                                                    armorWidthFactor,
+                                                    hasSash,
+                                                    accentCount);
+
+                                                var combined =
+                                                    PawnGeometry.CreateWithPoseBlindBounds(
+                                                        footAnchor,
+                                                        cameraZoom,
+                                                        appearance,
+                                                        scaleMultiplier,
+                                                        swingPose,
+                                                        armorWidthFactor,
+                                                        hasSash,
+                                                        accentCount);
+
+                                                AssertLayoutsAreBitIdentical(
+                                                    expectedLayout,
+                                                    combined.Layout);
+                                                Assert.Equal(
+                                                    expectedBounds,
+                                                    combined.PoseBlindVisualBounds);
+
+                                                detailTiers.Add(expectedLayout.DetailTier);
+                                                cases++;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Assert.Equal(
+            footAnchors.Length *
+            entityIds.Length *
+            Enum.GetValues<WeaponId>().Length *
+            Enum.GetValues<ShieldId>().Length *
+            cameraZooms.Length *
+            scaleMultipliers.Length *
+            swingPoses.Length *
+            armorWidthFactors.Length *
+            sashChoices.Length *
+            accentCounts.Length,
+            cases);
+        Assert.Equal(3, detailTiers.Count);
+        Assert.Equal(
+            ShieldVisualCatalog.TallHardwoodSkins.Count,
+            shieldSkinIds.Count);
+    }
+
+    /// <summary>
+    /// GPU-013. Guards the equivalence test above against passing for the
+    /// wrong reason. If the combined call ever returned the posed
+    /// <c>VisualBounds</c> as its pose-blind rectangle, every assertion above
+    /// would still hold for the neutral poses in the grid and would quietly
+    /// stop meaning anything for the posed ones. A mid-swing pawn's drawn
+    /// bounds and its cull rectangle are genuinely different rectangles, and
+    /// this says so out loud.
+    /// </summary>
+    [Fact]
+    public void CreateWithPoseBlindBounds_KeepsTheCullRectangleBlindToTheSwing()
+    {
+        var footAnchor = new Vector2(137f, 241f);
+        var appearance = PawnAppearanceFactory.Create(
+            7,
+            WeaponId.Kampilan,
+            ShieldId.TallHardwood);
+        var pose = new SwingPose(
+            SwingPhase.ImpactHold,
+            PhaseProgress: 0.5f,
+            WeaponAngleRadians: 1.2f,
+            TorsoLeanX: 2.4f,
+            TorsoLeanY: -1.1f,
+            ExtensionRatio: 1f,
+            TrailStrength: 1f);
+
+        var combined = PawnGeometry.CreateWithPoseBlindBounds(
+            footAnchor,
+            2f,
+            appearance,
+            swingPose: pose);
+
+        Assert.NotEqual(combined.Layout.VisualBounds, combined.PoseBlindVisualBounds);
+        Assert.Equal(
+            PawnGeometry.Create(footAnchor, 2f, appearance).VisualBounds,
+            combined.PoseBlindVisualBounds);
+    }
+
+    /// <summary>
+    /// GPU-013. The combined call checks its arguments the same way
+    /// <c>PawnGeometry.Create</c> does, and reports the same parameter name,
+    /// so adopting it at a call site cannot turn a rejected input into an
+    /// accepted one.
+    /// </summary>
+    [Theory]
+    [InlineData(float.NaN, 1f, 1f, 0, "cameraZoom")]
+    [InlineData(-0.5f, 1f, 1f, 0, "cameraZoom")]
+    [InlineData(1f, 0f, 1f, 0, "scaleMultiplier")]
+    [InlineData(1f, float.PositiveInfinity, 1f, 0, "scaleMultiplier")]
+    [InlineData(1f, 1f, 0.99f, 0, "armorWidthFactor")]
+    [InlineData(1f, 1f, 2f, 0, "armorWidthFactor")]
+    [InlineData(1f, 1f, 1f, -1, "adornmentAccentMarkCount")]
+    [InlineData(1f, 1f, 1f, 3, "adornmentAccentMarkCount")]
+    public void CreateWithPoseBlindBounds_RejectsWhateverCreateRejects(
+        float cameraZoom,
+        float scaleMultiplier,
+        float armorWidthFactor,
+        int adornmentAccentMarkCount,
+        string expectedParameterName)
+    {
+        var appearance = PawnAppearanceFactory.Create(
+            0,
+            WeaponId.Kampilan,
+            ShieldId.None);
+
+        var fromCreate = Assert.Throws<ArgumentOutOfRangeException>(
+            () => PawnGeometry.Create(
+                Vector2.Zero,
+                cameraZoom,
+                appearance,
+                scaleMultiplier,
+                swingPose: null,
+                armorWidthFactor,
+                hasSash: false,
+                adornmentAccentMarkCount));
+        var fromCombined = Assert.Throws<ArgumentOutOfRangeException>(
+            () => PawnGeometry.CreateWithPoseBlindBounds(
+                Vector2.Zero,
+                cameraZoom,
+                appearance,
+                scaleMultiplier,
+                swingPose: null,
+                armorWidthFactor,
+                hasSash: false,
+                adornmentAccentMarkCount));
+
+        Assert.Equal(expectedParameterName, fromCreate.ParamName);
+        Assert.Equal(expectedParameterName, fromCombined.ParamName);
+    }
+
+    /// <summary>
+    /// Record equality on <c>PawnLayout</c> compares its floats with
+    /// <c>float.Equals</c>, which reads positive and negative zero as the
+    /// same value. GPU-013's acceptance criterion is bit-identity, so every
+    /// float the record carries is compared by its raw bits as well.
+    /// </summary>
+    private static void AssertLayoutsAreBitIdentical(
+        PawnLayout expected,
+        PawnLayout actual)
+    {
+        Assert.Equal(expected, actual);
+        AssertSameBits(expected.FootAnchor, actual.FootAnchor);
+        AssertSameBits(expected.ApparentScale, actual.ApparentScale);
+        AssertSameBits(expected.WeaponStart, actual.WeaponStart);
+        AssertSameBits(expected.WeaponEnd, actual.WeaponEnd);
+        AssertSameBits(expected.WeaponThickness, actual.WeaponThickness);
+        AssertSameBits(expected.WeaponGripAnchor, actual.WeaponGripAnchor);
+        AssertSameBits(expected.ShieldAnchor, actual.ShieldAnchor);
+        AssertSameBits(
+            expected.ShieldPostureRotationRadians,
+            actual.ShieldPostureRotationRadians);
+        AssertSameBits(expected.SwingTrail.Pivot, actual.SwingTrail.Pivot);
+        AssertSameBits(expected.SwingTrail.Radius, actual.SwingTrail.Radius);
+        AssertSameBits(
+            expected.SwingTrail.StartAngleRadians,
+            actual.SwingTrail.StartAngleRadians);
+        AssertSameBits(
+            expected.SwingTrail.EndAngleRadians,
+            actual.SwingTrail.EndAngleRadians);
+        AssertSameBits(expected.SwingTrail.Strength, actual.SwingTrail.Strength);
+        AssertSameBits(expected.SwingTrail.Thickness, actual.SwingTrail.Thickness);
+    }
+
+    private static void AssertSameBits(Vector2 expected, Vector2 actual)
+    {
+        AssertSameBits(expected.X, actual.X);
+        AssertSameBits(expected.Y, actual.Y);
+    }
+
+    private static void AssertSameBits(float expected, float actual) =>
+        Assert.Equal(
+            BitConverter.SingleToInt32Bits(expected),
+            BitConverter.SingleToInt32Bits(actual));
 }
