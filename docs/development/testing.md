@@ -172,6 +172,121 @@ follow-up work. The `RenderBudgetEstimate` constants have not been revised
 against the measurements above; that revision is the remaining part of VIS-036
 and is deliberately left undone rather than done hastily.
 
+### Phase 1 render baseline, 2026-07-29
+
+Produced by `tools/Hukbo.Tools.RenderProbe` in `--matrix` mode, seed 1, 120
+frames sampled per camera station after warm-up, Release configuration, backend
+`spritebatch-1x1`, **vertical retrace disabled**. Artifact:
+`docs/development/render-baselines/render-matrix-2026-07-29.json`. That file is
+tracked in the repository, so a fresh clone can open it.
+
+This baseline supersedes the 2026-07-28 one above for every purpose except
+historical comparison. The two are not comparable: the earlier run was captured
+with vertical retrace enabled, and its `submitMicroseconds` column conflated
+geometry construction with submission. Both defects are corrected here.
+
+Probe-only duplication factor: **2.000**, derived from the recorded
+`PawnGeometry.Create` invocation count rather than assumed. The probe evaluates
+pawn geometry exactly as many times as the renderer does, so a probe frame runs
+four evaluations per drawn pawn where a normal game frame runs two.
+
+All figures below are microseconds unless stated. `geometryBuild` has had no
+producer since GPU-005 and reports a measured zero; it is omitted from the
+tables rather than printed as a column of zeroes.
+
+**200 units**
+
+All spans are p50 except the two frame columns, which are given at both
+percentiles.
+
+| Station | frame p50 | frame p95 | clear | layout | hover | uiLayer | baseDraw | arenaGeom | submit | probeOvh | pawnGeomCalls |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| minimum zoom | 2 903.6 | 3 574.5 | 7.2 | 0.3 | 0.2 | 387.4 | 0.9 | 632.6 | 949.8 | 808.7 | 800 |
+| default fit | 2 198.5 | 2 855.7 | 6.3 | 0.3 | 0.1 | 265.7 | 0.7 | 542.5 | 674.8 | 645.2 | 800 |
+| maximum zoom | 992.7 | 1 222.5 | 3.8 | 0.2 | 0.1 | 212.9 | 0.2 | 335.4 | 72.4 | 359.1 | 400 |
+
+**500 units**
+
+| Station | frame p50 | frame p95 | arenaGeom p50 | submit p50 | probeOvh p50 | quads (max) | pawnGeomCalls |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| minimum zoom | 3 519.5 | 4 193.6 | 1 008.3 | 998.7 | 1 262.6 | 9 326 | 2 000 |
+| default fit | 1 957.5 | 2 962.2 | 299.1 | 793.7 | 299.8 | 9 326 | 2 000 |
+| maximum zoom | 431.5 | 567.4 | 104.3 | 35.6 | 107.7 | 1 028 | 1 000 |
+
+**1 000 units**
+
+| Station | frame p50 | frame p95 | arenaGeom p50 | submit p50 | probeOvh p50 | quads (max) | pawnGeomCalls |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| minimum zoom | 6 861.1 | 8 430.0 | 2 168.1 | 1 770.3 | 2 645.9 | 18 084 | 4 000 |
+| default fit | 1 454.1 | 6 339.0 | 331.2 | 605.9 | 332.8 | 18 076 | 4 000 |
+| maximum zoom | 588.8 | 795.6 | 209.6 | 24.2 | 214.2 | 1 028 | 2 000 |
+
+#### Attribution and the largest unattributed residual
+
+Summing every named span against the frame figure at p50, the unattributed
+residual is 4.01, 2.86 and 0.87 percent at 200 units, 0.37, 16.02 and 1.34
+percent at 500 units, and 1.02, 1.95 and 1.39 percent at 1 000 units, in station
+order. **The largest unattributed residual at 1 000 units is 1.95 percent**, at
+the default-fit station.
+
+One methodological caveat has to be stated rather than hidden. Percentiles are
+not additive: each span's p95 is drawn from whichever frame was worst for that
+span, and those are generally different frames, so summing the span p95 values
+can and does exceed the frame p95. Several p95 residuals below are therefore
+negative, which is an artefact of the arithmetic and not evidence of
+double-counting. The p50 residuals quoted above are the meaningful figures, and
+even they are an approximation for the same reason. A strictly correct
+attribution would need per-frame span records, which the report does not retain.
+
+#### Phase 1 exit criteria
+
+Assessed against section 5.1 of `docs/plans/gpu-render/2026-07-28-gpu-render.md`.
+
+1. Matrix run at 200, 500 and 1 000 units, seed 1, 120 frames per station,
+   Release, retrace disabled, fingerprint stating the retrace setting — **met**.
+   The fingerprint records `verticalRetraceSynchronized: false`.
+2. Every millisecond of `Draw` attributable to a named span, largest
+   unattributed span under ten percent of the frame at 1 000 units — **met**, at
+   1.95 percent, subject to the percentile caveat above.
+3. Baseline artifacts in a tracked, committed location with a path a fresh clone
+   can open — **met**.
+4. A stated probe-only duplication factor derived from the recorded invocation
+   count rather than assumed — **met**, at 2.000.
+5. `submitMicroseconds` disaggregated by GPU-004 into separate geometry and
+   submission components — **met**.
+
+`./scripts/verify.ps1` passes, and the seed-1 headless determinism workload
+reports state hash `A080E28DA7C79C20`, event hash `2B6FB3A9A9C1960D`,
+`measuredTicks` 1677 and `coreAllocatedBytes` 118896, unchanged.
+
+#### What this baseline says about the Phase 3 trigger
+
+The go/no-go trigger is evaluated on the **Phase 2 re-measurement**, not on this
+one, so nothing here decides anything. It is recorded because the direction is
+already clear and it would be dishonest to leave it unstated until GPU-023.
+
+At the 1 000-unit default-fit station, the station the trigger names, frame p95
+is 6 339.0 us and `submitMicroseconds` p95 is 1 599.1 us.
+
+- Clause 1 asks whether frame p95 exceeds 8.0 ms. It is 6.34 ms, so on today's
+  numbers clause 1 does not hold.
+- Clause 2 asks whether submission is at least 50 percent of that frame. It is
+  25.2 percent, or 40.2 percent if probe overhead is excluded from the
+  denominator on the grounds that a real game frame never runs the counting
+  pass. Either reading is short of 50 percent.
+
+Both clauses currently fail, and Phase 2 is expected to push clause 1 further
+out of reach, because removing per-agent CPU cost makes the frame faster rather
+than slower. The one figure pointing the other way is that at 1 000 units and
+minimum zoom the frame p95 is 8 430.0 us, which does exceed 8.0 ms — but the
+trigger is stated at default fit, and minimum zoom is not the shipping camera.
+
+The other result worth recording is that at 1 000 units and minimum zoom,
+`arenaGeometry` p50 of 2 168.1 us now exceeds `submit` p50 of 1 770.3 us. Per-
+agent geometry construction, which is what Phase 2 targets, is the larger cost
+at the heaviest station. That is the design's thesis, and this is the first
+measurement in this repository that actually tests it.
+
 ### Original blocked assessment, preserved
 
 Implementation-plan-draft.md's VIS-036 calls
