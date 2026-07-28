@@ -1490,4 +1490,65 @@ public sealed class PawnGeometryTests
         Assert.True(layout.ArmorBounds.Width > layout.TorsoBounds.Width);
         Assert.True(layout.VisualBounds.Contains(layout.ArmorBounds));
     }
+
+    /// <summary>
+    /// GPU-004 hoisted the pawn layout out of <c>PawnRenderer.Draw</c> and
+    /// into <c>ArenaGame.DrawPawns</c>, so that layout construction can be
+    /// timed apart from submission. That hoist is only safe while the
+    /// abbreviated call the render loop now makes produces exactly the layout
+    /// the renderer used to build for itself, from its own parameter
+    /// defaults, for the same pawn. This pins that equality across every
+    /// weapon and shield the roster can produce, still and mid-swing, so a
+    /// later change to any default in <see cref="PawnGeometry.Create"/> fails
+    /// here rather than silently moving pixels in the arena.
+    /// </summary>
+    [Fact]
+    public void Create_RenderLoopCallMatchesThePawnRendererParameterDefaults()
+    {
+        var footAnchor = new Vector2(137f, 241f);
+        var pose = new SwingPose(
+            SwingPhase.ImpactHold,
+            PhaseProgress: 0.5f,
+            WeaponAngleRadians: 0.8f,
+            TorsoLeanX: 1.6f,
+            TorsoLeanY: 0f,
+            ExtensionRatio: 1f,
+            TrailStrength: 1f);
+        var poses = new SwingPose?[] { null, pose };
+
+        foreach (var weapon in Enum.GetValues<WeaponId>())
+        {
+            foreach (var shield in Enum.GetValues<ShieldId>())
+            {
+                foreach (var swingPose in poses)
+                {
+                    var appearance = PawnAppearanceFactory.Create(
+                        7,
+                        weapon,
+                        shield);
+
+                    // The call ArenaGame.DrawPawns makes.
+                    var renderLoop = PawnGeometry.Create(
+                        footAnchor,
+                        2f,
+                        appearance,
+                        swingPose: swingPose);
+
+                    // The call PawnRenderer.Draw forwards when every optional
+                    // parameter is left where the arena call site left it.
+                    var rendererDefaults = PawnGeometry.Create(
+                        footAnchor,
+                        2f,
+                        appearance,
+                        scaleMultiplier: 1f,
+                        swingPose: swingPose,
+                        armorWidthFactor: 1f,
+                        hasSash: false,
+                        adornmentAccentMarkCount: 0);
+
+                    Assert.Equal(rendererDefaults, renderLoop);
+                }
+            }
+        }
+    }
 }

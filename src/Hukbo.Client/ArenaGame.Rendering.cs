@@ -23,6 +23,75 @@ public sealed partial class ArenaGame
         "R: next round  |  Shift+R: full reset  |  " +
         "F9: sound log  |  Esc: menu";
 
+    /// <summary>
+    /// GPU-004. Converts a raw <see cref="Stopwatch"/> tick count to
+    /// microseconds. The arena spans accumulate raw ticks across a frame and
+    /// convert once, so a per-pawn boundary costs one timestamp read and one
+    /// integer subtraction rather than a <c>TimeSpan</c> construction and a
+    /// recorder call.
+    /// </summary>
+    private static readonly double MicrosecondsPerStopwatchTick =
+        1_000_000.0 / Stopwatch.Frequency;
+
+    /// <summary>
+    /// GPU-004. The instant the current arena span opened, moved forward by
+    /// every boundary crossing inside <see cref="DrawArenaLayer"/>. Meaningful
+    /// only while the render probe is enabled and only for the duration of one
+    /// <see cref="DrawArenaLayer"/> call.
+    /// </summary>
+    private long _arenaSpanBoundaryTimestamp;
+
+    /// <summary>
+    /// GPU-004. Ticks charged this frame to real per-pawn geometry
+    /// construction: the appearance resolution, the pose-blind bounds, the
+    /// cull test, and the <c>PawnGeometry.Create</c> call the renderer
+    /// actually draws from.
+    /// </summary>
+    private long _arenaGeometryTicks;
+
+    /// <summary>
+    /// GPU-004. Ticks charged this frame to arena submission: every
+    /// <c>SpriteBatch.Draw</c> call and the batch's own
+    /// <c>Begin</c>/<c>End</c>, with the per-pawn geometry above fenced out.
+    /// </summary>
+    private long _arenaSubmitTicks;
+
+    /// <summary>
+    /// GPU-004. Closes the open submission span and opens a geometry span.
+    /// Probe-only: a normal run reads no timestamp here, exactly as the
+    /// surrounding <c>_renderProbeEnabled</c> guards in <see cref="Draw"/>
+    /// intend.
+    /// </summary>
+    private void OpenArenaGeometrySpan()
+    {
+        if (!_renderProbeEnabled)
+        {
+            return;
+        }
+
+        var boundary = Stopwatch.GetTimestamp();
+        _arenaSubmitTicks += boundary - _arenaSpanBoundaryTimestamp;
+        _arenaSpanBoundaryTimestamp = boundary;
+    }
+
+    /// <summary>
+    /// GPU-004. Closes the open geometry span and reopens the submission
+    /// span. The mirror of <see cref="OpenArenaGeometrySpan"/>: between them
+    /// the two accumulators partition the whole
+    /// <see cref="DrawArenaLayer"/> call.
+    /// </summary>
+    private void CloseArenaGeometrySpan()
+    {
+        if (!_renderProbeEnabled)
+        {
+            return;
+        }
+
+        var boundary = Stopwatch.GetTimestamp();
+        _arenaGeometryTicks += boundary - _arenaSpanBoundaryTimestamp;
+        _arenaSpanBoundaryTimestamp = boundary;
+    }
+
     protected override void Draw(GameTime gameTime)
     {
         if (_renderProbeEnabled)
@@ -96,8 +165,18 @@ public sealed partial class ArenaGame
                     .TotalMicroseconds);
         }
 
-        var arenaSubmitStartTimestamp =
-            _renderProbeEnabled ? Stopwatch.GetTimestamp() : 0L;
+        if (_renderProbeEnabled)
+        {
+            // GPU-004. The arena layer is measured as two disjoint spans
+            // rather than one. A rolling boundary timestamp walks the whole
+            // DrawArenaLayer call, and every tick between two boundaries is
+            // charged to exactly one of the two accumulators below, so the
+            // spans can neither overlap nor leave a gap and their sum is the
+            // single figure this call used to report on its own.
+            _arenaGeometryTicks = 0L;
+            _arenaSubmitTicks = 0L;
+            _arenaSpanBoundaryTimestamp = Stopwatch.GetTimestamp();
+        }
 
         DrawArenaLayer(
             _spriteBatch,
@@ -108,9 +187,12 @@ public sealed partial class ArenaGame
 
         if (_renderProbeEnabled)
         {
+            _arenaSubmitTicks +=
+                Stopwatch.GetTimestamp() - _arenaSpanBoundaryTimestamp;
+            _renderMetricsRecorder.AddArenaGeometryMicroseconds(
+                _arenaGeometryTicks * MicrosecondsPerStopwatchTick);
             _renderMetricsRecorder.AddSubmitMicroseconds(
-                Stopwatch.GetElapsedTime(arenaSubmitStartTimestamp)
-                    .TotalMicroseconds);
+                _arenaSubmitTicks * MicrosecondsPerStopwatchTick);
         }
 
         var uiLayerStartTimestamp =
@@ -561,6 +643,19 @@ public sealed partial class ArenaGame
         var selectedEntityId = _presentation.Selection.SelectedEntityId;
         var hoveredEntityId = _hoverSelection.SelectedEntityId;
 
+        // GPU-004. Everything in this loop other than the PawnRenderer call
+        // itself is per-agent CPU work: walking the agent list, projecting to
+        // screen space, resolving appearance, building the pose-blind bounds,
+        // testing the cull, and building the layout the renderer draws from.
+        // So the geometry span opens once for the whole loop and closes only
+        // around each drawn pawn's submission, rather than opening and closing
+        // per agent. That choice is what keeps the instrumentation affordable
+        // at a thousand units — see the boundary-count note on
+        // OpenArenaGeometrySpan's callers below — and it errs toward charging
+        // ambiguous work to geometry rather than to submission, which is the
+        // conservative direction for the Phase 3 go/no-go trigger.
+        OpenArenaGeometrySpan();
+
         foreach (var agent in _simulation.Agents)
         {
             if (!agent.IsAlive)
@@ -593,27 +688,50 @@ public sealed partial class ArenaGame
                 continue;
             }
 
-            PawnRenderer.Draw(
-                spriteBatch,
-                pixel,
+            // The four values below were argument expressions on the
+            // PawnRenderer.Draw call this replaces, evaluated left to right in
+            // exactly this order. Each is a side-effect-free read, so naming
+            // them as locals changes nothing about what is drawn; it only puts
+            // them on the geometry side of the boundary, where per-agent CPU
+            // work belongs.
+            var factionColor = FactionColorPalette.GetPawnColor(agent.FactionId);
+            var state = GetPawnVisualState(
+                agent.EntityId,
+                selectedEntityId,
+                hoveredEntityId);
+            var hitPulseStrength =
+                _presentation.HitEffects.GetPulseStrength(agent.EntityId);
+            var swingPose = SwingPoseResolver.TryGetPose(
+                _swingPoses,
+                agent.EntityId,
+                out var pose)
+                ? pose
+                : (SwingPose?)null;
+
+            // Hoisted out of PawnRenderer.Draw, which used to make this exact
+            // call itself with these exact defaults. Same inputs, same layout,
+            // same pixels — only now on the geometry side of the boundary.
+            var pawnLayout = PawnGeometry.Create(
                 footAnchor,
                 _camera.Zoom,
                 appearance,
-                FactionColorPalette.GetPawnColor(agent.FactionId),
-                GetPawnVisualState(
-                    agent.EntityId,
-                    selectedEntityId,
-                    hoveredEntityId),
-                hitPulseStrength:
-                    _presentation.HitEffects.GetPulseStrength(
-                        agent.EntityId),
-                swingPose: SwingPoseResolver.TryGetPose(
-                    _swingPoses,
-                    agent.EntityId,
-                    out var swingPose)
-                    ? swingPose
-                    : null);
+                swingPose: swingPose);
+
+            CloseArenaGeometrySpan();
+
+            PawnRenderer.DrawLayout(
+                spriteBatch,
+                pixel,
+                pawnLayout,
+                appearance,
+                factionColor,
+                state,
+                hitPulseStrength);
+
+            OpenArenaGeometrySpan();
         }
+
+        CloseArenaGeometrySpan();
     }
 
     private static PawnVisualState GetPawnVisualState(
