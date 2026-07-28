@@ -352,28 +352,161 @@ internal static class PawnGeometry
         bool hasSash = false,
         int adornmentAccentMarkCount = 0)
     {
-        var proportions = CreateProportions(
+        var prefix = PoseBlindPrefix.Create(
             footAnchor,
             cameraZoom,
             appearance,
             scaleMultiplier,
             armorWidthFactor,
+            hasSash,
             adornmentAccentMarkCount);
 
         return new PosedPawnGeometry(
-            CreateLayout(
+            prefix.CompletePosedLayout(swingPose),
+            prefix.PoseBlindVisualBounds);
+    }
+
+    /// <summary>
+    /// GPU-014. The two-stage form of <see cref="CreateWithPoseBlindBounds"/>:
+    /// everything about a pawn's geometry that no swing pose can change,
+    /// carrying the pose-blind cull rectangle a caller tests and enough state
+    /// to finish the posed layout for a pawn that survives that test.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The combined call above assumes both of its results are wanted. A
+    /// renderer's two geometry calls do not serve the same population: the
+    /// cull rectangle is needed for every living agent, while the posed layout
+    /// is needed only for the pawns the cull keeps. Handing every agent the
+    /// combined call would make a culled agent pay for a posed layout it never
+    /// draws, which at a thousand units and maximum zoom — where most agents
+    /// are culled — costs more than the duplication it removes.
+    /// </para>
+    /// <para>
+    /// So the two stages are split rather than duplicated.
+    /// <see cref="Create"/> checks its arguments, computes the pose-invariant
+    /// proportions, builds the posed layout, and derives the pose-blind
+    /// rectangle; stage one stops after the rectangle, and
+    /// <see cref="CompletePosedLayout"/> resumes from the same proportions.
+    /// One <see cref="Create"/> call, one <see cref="CompletePosedLayout"/>
+    /// call on its result, and one <see cref="PawnGeometry.Create"/> call cost
+    /// the same and return the same layout; stopping after stage one costs
+    /// strictly less than any of them.
+    /// </para>
+    /// <para>
+    /// The value is opaque on purpose. A caller reads
+    /// <see cref="PoseBlindVisualBounds"/> and hands the value back, which is
+    /// what makes it impossible for the two stages to disagree about the
+    /// inputs they were given. A <see langword="default"/> value is not a
+    /// prefix of anything and describes no pawn; only <see cref="Create"/>
+    /// produces a valid one.
+    /// </para>
+    /// </remarks>
+    internal readonly struct PoseBlindPrefix
+    {
+        private readonly PawnProportions _proportions;
+        private readonly Vector2 _footAnchor;
+        private readonly PawnAppearance _appearance;
+        private readonly float _armorWidthFactor;
+        private readonly bool _hasSash;
+        private readonly int _adornmentAccentMarkCount;
+
+        private PoseBlindPrefix(
+            in PawnProportions proportions,
+            Vector2 footAnchor,
+            PawnAppearance appearance,
+            float armorWidthFactor,
+            bool hasSash,
+            int adornmentAccentMarkCount,
+            Rectangle poseBlindVisualBounds)
+        {
+            _proportions = proportions;
+            _footAnchor = footAnchor;
+            _appearance = appearance;
+            _armorWidthFactor = armorWidthFactor;
+            _hasSash = hasSash;
+            _adornmentAccentMarkCount = adornmentAccentMarkCount;
+            PoseBlindVisualBounds = poseBlindVisualBounds;
+        }
+
+        /// <summary>
+        /// The neutral-pose visual bounds, identical to what
+        /// <c>PawnRenderer.GetBounds</c> returns for the same arguments.
+        /// Pose-blind on purpose: a pose-aware cull would make the drawn set a
+        /// function of presentation animation phase. See
+        /// <c>PawnRenderer.GetBounds</c>.
+        /// </summary>
+        public Rectangle PoseBlindVisualBounds { get; }
+
+        /// <summary>
+        /// Stage one. Checks the arguments exactly as <see cref="Create"/>
+        /// does, computes the pose-invariant proportions once, and derives the
+        /// pose-blind cull rectangle from the cheap subset of the layout that
+        /// can actually reach it. The posed layout is not built.
+        /// </summary>
+        /// <remarks>
+        /// Every parameter means exactly what the same parameter on
+        /// <see cref="PawnGeometry.Create"/> means. There is no
+        /// <c>swingPose</c>, because a pose is precisely what this stage does
+        /// not need and does not read.
+        /// </remarks>
+        public static PoseBlindPrefix Create(
+            Vector2 footAnchor,
+            float cameraZoom,
+            PawnAppearance appearance,
+            float scaleMultiplier = 1f,
+            float armorWidthFactor = 1f,
+            bool hasSash = false,
+            int adornmentAccentMarkCount = 0)
+        {
+            var proportions = CreateProportions(
+                footAnchor,
+                cameraZoom,
+                appearance,
+                scaleMultiplier,
+                armorWidthFactor,
+                adornmentAccentMarkCount);
+
+            return new PoseBlindPrefix(
                 proportions,
                 footAnchor,
                 appearance,
-                swingPose ?? default,
                 armorWidthFactor,
                 hasSash,
-                adornmentAccentMarkCount),
-            CreatePoseBlindVisualBounds(
-                proportions,
-                footAnchor,
-                appearance,
-                armorWidthFactor));
+                adornmentAccentMarkCount,
+                CreatePoseBlindVisualBounds(
+                    proportions,
+                    footAnchor,
+                    appearance,
+                    armorWidthFactor));
+        }
+
+        /// <summary>
+        /// Stage two. Finishes the posed layout from the proportions stage one
+        /// already paid for, returning exactly what
+        /// <see cref="PawnGeometry.Create"/> returns for the arguments stage
+        /// one was given together with <paramref name="swingPose"/>.
+        /// </summary>
+        /// <param name="swingPose">
+        /// The pose one in-flight swing puts this pawn in, or <c>null</c> for
+        /// a pawn standing still, exactly as on
+        /// <see cref="PawnGeometry.Create"/>. A neutral pose produces the same
+        /// layout as no pose at all, so a caller may pass either.
+        /// </param>
+        /// <remarks>
+        /// Nothing stops a caller finishing the same prefix more than once
+        /// with different poses: the prefix is a value, the stage is pure, and
+        /// the proportions a pose cannot change are shared by every result.
+        /// </remarks>
+        public PawnLayout CompletePosedLayout(SwingPose? swingPose = null) =>
+            CreateLayout(
+                _proportions,
+                _footAnchor,
+                _appearance,
+                swingPose ?? default,
+                _armorWidthFactor,
+                _hasSash,
+                _adornmentAccentMarkCount);
     }
 
     /// <summary>
