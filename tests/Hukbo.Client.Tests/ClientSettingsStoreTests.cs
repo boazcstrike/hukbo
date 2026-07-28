@@ -42,12 +42,14 @@ public sealed class ClientSettingsStoreTests
                 "signal",
                 ArmyComposition.Default,
                 GoreIntensity.Stylized,
-                MotionIntensity.Full));
+                MotionIntensity.Full,
+                AutoCameraMode.Assisted));
             Assert.True(store.TrySave(
                 "broadcast",
                 ArmyComposition.Default,
                 GoreIntensity.Stylized,
-                MotionIntensity.Full));
+                MotionIntensity.Full,
+                AutoCameraMode.Assisted));
 
             var settings = store.Load("command");
 
@@ -118,7 +120,8 @@ public sealed class ClientSettingsStoreTests
                 "signal",
                 SampleComposition,
                 GoreIntensity.Stylized,
-                MotionIntensity.Full));
+                MotionIntensity.Full,
+                AutoCameraMode.Assisted));
 
             var settings = store.Load("command");
 
@@ -135,7 +138,8 @@ public sealed class ClientSettingsStoreTests
                 "command",
                 SampleComposition,
                 GoreIntensity.Full,
-                MotionIntensity.Full));
+                MotionIntensity.Full,
+                AutoCameraMode.Assisted));
 
             var settings = store.Load("signal");
 
@@ -154,7 +158,8 @@ public sealed class ClientSettingsStoreTests
                 "command",
                 SampleComposition,
                 GoreIntensity.Stylized,
-                MotionIntensity.Off));
+                MotionIntensity.Off,
+                AutoCameraMode.Assisted));
 
             var settings = store.Load("signal");
 
@@ -255,6 +260,78 @@ public sealed class ClientSettingsStoreTests
     }
 
     [Fact]
+    public void AVersionFourFileLoadsCleanlyAndDefaultsTheCameraToAssisted()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":4,\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0}");
+
+            var settings = store.Load("command");
+
+            // Version 4 predates AutoCameraMode, so this is what a real
+            // pre-upgrade file looks like: valid on every field it has, and
+            // missing the one it does not.
+            Assert.Equal(4, settings.SchemaVersion);
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(80, settings.Composition.UnitsPerTeam);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Off, settings.MotionIntensity);
+            Assert.Equal(AutoCameraMode.Assisted, settings.AutoCameraMode);
+        });
+    }
+
+    [Fact]
+    public void AnOutOfRangeAutoCameraModeResetsOnlyThatField()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":99}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(80, settings.Composition.UnitsPerTeam);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Off, settings.MotionIntensity);
+            Assert.Equal(AutoCameraMode.Assisted, settings.AutoCameraMode);
+        });
+    }
+
+    [Fact]
+    public void ASavedAutoCameraModeSurvivesARoundTrip()
+    {
+        WithTemporarySettings((store, _) =>
+        {
+            Assert.True(store.TrySave(
+                "signal",
+                SampleComposition,
+                GoreIntensity.Stylized,
+                MotionIntensity.Full,
+                AutoCameraMode.Follow));
+
+            var settings = store.Load("command");
+
+            Assert.Equal(AutoCameraMode.Follow, settings.AutoCameraMode);
+            Assert.Equal(
+                ClientSettingsStore.SupportedSchemaVersion,
+                settings.SchemaVersion);
+        });
+    }
+
+    [Fact]
     public void AnInvalidCompositionStillResetsTheWholeFileIncludingGore()
     {
         WithTemporarySettings((store, settingsPath) =>
@@ -307,7 +384,8 @@ public sealed class ClientSettingsStoreTests
                 "command",
                 SampleComposition,
                 GoreIntensity.Full,
-                MotionIntensity.Full));
+                MotionIntensity.Full,
+                AutoCameraMode.Assisted));
             using var locked = new FileStream(
                 settingsPath,
                 FileMode.Open,
@@ -318,7 +396,8 @@ public sealed class ClientSettingsStoreTests
                 "signal",
                 ArmyComposition.Default,
                 GoreIntensity.Off,
-                MotionIntensity.Off));
+                MotionIntensity.Off,
+                AutoCameraMode.Assisted));
             Assert.Empty(
                 Directory.GetFiles(
                     Path.GetDirectoryName(settingsPath)!,

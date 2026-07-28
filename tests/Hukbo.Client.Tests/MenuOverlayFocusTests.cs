@@ -46,29 +46,34 @@ public sealed class MenuOverlayFocusTests
     }
 
     /// <summary>
-    /// The motion selector was appended beside the gore selector (VIS-032):
-    /// it now takes the terminal index, one past the gore selector, and
-    /// <see cref="MenuOverlay.ControlCount"/> grew by one to match.
+    /// The settings selectors stack below the button band in the order they
+    /// were added: gore, then motion (VIS-032), then auto camera. Each new one
+    /// takes the terminal index and grows
+    /// <see cref="MenuOverlay.ControlCount"/> by one, which leaves every
+    /// existing index unchanged.
     /// </summary>
     [Fact]
-    public void TheMotionSelectorTakesTheNewTerminalIndexAfterGore()
+    public void TheSettingsSelectorsStackInTheOrderTheyWereAdded()
     {
         Assert.Equal(
             MenuOverlay.GoreSelectorControlIndex + 1,
             MenuOverlay.MotionSelectorControlIndex);
         Assert.Equal(
             MenuOverlay.MotionSelectorControlIndex + 1,
+            MenuOverlay.AutoCameraSelectorControlIndex);
+        Assert.Equal(
+            MenuOverlay.AutoCameraSelectorControlIndex + 1,
             MenuOverlay.ControlCount);
     }
 
     [Fact]
-    public void KeyboardFocusWrapsThroughTheTerminalMotionSelectorIndex()
+    public void KeyboardFocusWrapsThroughTheTerminalAutoCameraSelectorIndex()
     {
         var controlCount = MenuOverlay.ControlCount;
-        var motionIndex = MenuOverlay.MotionSelectorControlIndex;
+        var autoCameraIndex = MenuOverlay.AutoCameraSelectorControlIndex;
 
         Assert.Equal(
-            motionIndex,
+            autoCameraIndex,
             MenuOverlay.ResolveFocusedControlIndex(
                 currentIndex: 0,
                 keyboardDirection: -1,
@@ -77,14 +82,14 @@ public sealed class MenuOverlayFocusTests
         Assert.Equal(
             0,
             MenuOverlay.ResolveFocusedControlIndex(
-                currentIndex: motionIndex,
+                currentIndex: autoCameraIndex,
                 keyboardDirection: 1,
                 hoveredIndex: -1,
                 controlCount: controlCount));
         Assert.Equal(
-            motionIndex,
+            autoCameraIndex,
             MenuOverlay.ResolveFocusedControlIndex(
-                currentIndex: motionIndex - 1,
+                currentIndex: autoCameraIndex - 1,
                 keyboardDirection: 1,
                 hoveredIndex: -1,
                 controlCount: controlCount));

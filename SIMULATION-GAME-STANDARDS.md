@@ -428,7 +428,7 @@ held on the immutable `Scenario` rather than duplicated per agent.
 | Item | Raw value | World units |
 |---|---|---|
 | `BodyRadiusRaw` (common to all agents) | `4352` | 4.25 |
-| Body diameter, `2 * BodyRadiusRaw` | `9216` | 9 |
+| Body diameter, `2 * BodyRadiusRaw` | `8704` | 8.5 |
 | `AttackRangeRaw` (default) | `12288` | 12 |
 | `MovementSpeedRaw` (default) | `3072` | 3 |
 
@@ -472,12 +472,13 @@ approach target below.
 
 An advancing agent closes until its body meets its target's body, not merely until its weapon can
 reach. `BuildMovementProposal` subtracts `2 * BodyRadiusRaw` from the centre-to-centre distance, so
-the movement target is **body contact at eight world units**, not attack range at twelve. An agent
-already inside reach keeps walking in.
+the movement target is **body contact at one body diameter**, currently 8.5 world units, not attack
+range at twelve. An agent already inside reach keeps walking in.
 
 This is what makes opposing front ranks touch. An earlier rule stopped an agent as soon as its
-target was inside `AttackRangeRaw`, which left four world units of permanent air between the two
-front ranks for the whole engagement, so cross-faction bodies never met and the collision stage only
+target was inside `AttackRangeRaw`, which left the whole difference between attack range and body
+diameter as permanent air between the two front ranks for the whole engagement — four world units at
+the four-world-unit body radius in force when that rule was replaced, 3.5 at today's radius — so cross-faction bodies never met and the collision stage only
 ever observed allies queueing behind their own line. Attack resolution was not changed by this and
 is still centre-to-centre at `AttackRangeRaw`.
 

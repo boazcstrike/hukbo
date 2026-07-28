@@ -13,10 +13,11 @@ internal readonly record struct MenuInteraction(
     string? SelectedThemeId,
     GoreIntensity? SelectedGoreIntensity,
     MotionIntensity? SelectedMotionIntensity,
+    AutoCameraMode? SelectedAutoCameraMode,
     bool PointerConsumed)
 {
     public static MenuInteraction None =>
-        new(ClientCommand.None, null, null, null, false);
+        new(ClientCommand.None, null, null, null, null, false);
 }
 
 internal sealed class MenuOverlay
@@ -39,6 +40,7 @@ internal sealed class MenuOverlay
     private readonly UiThemeSelector _themeSelector;
     private readonly GoreIntensitySelector _goreSelector;
     private readonly MotionIntensitySelector _motionSelector;
+    private readonly AutoCameraModeSelector _autoCameraSelector;
     private readonly UiMenuLayout _layout;
     private readonly UiThemeSelectorLayout _selectorLayout;
     private readonly UiTextRoles _textRoles;
@@ -51,6 +53,7 @@ internal sealed class MenuOverlay
         _themeSelector = new UiThemeSelector(themes, standards);
         _goreSelector = new GoreIntensitySelector(standards);
         _motionSelector = new MotionIntensitySelector(standards);
+        _autoCameraSelector = new AutoCameraModeSelector(standards);
         _layout = standards.Shared.Menu;
         _selectorLayout = standards.Shared.Selector;
         _textRoles = standards.Shared.TextRoles;
@@ -73,7 +76,15 @@ internal sealed class MenuOverlay
     internal static int MotionSelectorControlIndex =>
         GoreSelectorControlIndex + 1;
 
-    internal static int ControlCount => MotionSelectorControlIndex + 1;
+    /// <summary>
+    /// The auto-camera selector is appended below the motion selector and
+    /// takes the new terminal index, one past
+    /// <see cref="MotionSelectorControlIndex"/>.
+    /// </summary>
+    internal static int AutoCameraSelectorControlIndex =>
+        MotionSelectorControlIndex + 1;
+
+    internal static int ControlCount => AutoCameraSelectorControlIndex + 1;
 
     internal static bool IsButtonControlIndex(int controlIndex) =>
         controlIndex > 0 && controlIndex <= ButtonDefinitions.Length;
@@ -87,7 +98,10 @@ internal sealed class MenuOverlay
         UiMenuLayout layout,
         UiThemeSelectorLayout selectorLayout,
         int buttonCount) =>
-        CalculateMotionSelectorTopOffset(layout, selectorLayout, buttonCount) +
+        CalculateAutoCameraSelectorTopOffset(
+            layout,
+            selectorLayout,
+            buttonCount) +
         selectorLayout.Height;
 
     public void Open()
@@ -107,7 +121,8 @@ internal sealed class MenuOverlay
         Rectangle screenBounds,
         string activeThemeId,
         GoreIntensity activeGoreIntensity,
-        MotionIntensity activeMotionIntensity)
+        MotionIntensity activeMotionIntensity,
+        AutoCameraMode activeAutoCameraMode)
     {
         if (!IsVisible)
         {
@@ -144,8 +159,9 @@ internal sealed class MenuOverlay
         }
 
         // Evaluated after the button loop so a hovered button is never
-        // clobbered by either terminal control. The motion selector is
-        // checked last so it wins when both selectors somehow overlap.
+        // clobbered by a terminal control. The settings selectors are checked
+        // in stacking order, lowest last, so the lowest wins when two of them
+        // somehow overlap.
         if (_goreSelector.Bounds.Contains(input.MousePosition))
         {
             hoveredControlIndex = GoreSelectorControlIndex;
@@ -154,6 +170,11 @@ internal sealed class MenuOverlay
         if (_motionSelector.Bounds.Contains(input.MousePosition))
         {
             hoveredControlIndex = MotionSelectorControlIndex;
+        }
+
+        if (_autoCameraSelector.Bounds.Contains(input.MousePosition))
+        {
+            hoveredControlIndex = AutoCameraSelectorControlIndex;
         }
 
         var resolvedFocus = ResolveFocusedControlIndex(
@@ -184,6 +205,7 @@ internal sealed class MenuOverlay
                 themeInteraction.SelectedThemeId,
                 null,
                 null,
+                null,
                 true);
         }
 
@@ -197,6 +219,7 @@ internal sealed class MenuOverlay
                 ClientCommand.None,
                 null,
                 selectedGoreIntensity,
+                null,
                 null,
                 true);
         }
@@ -213,6 +236,23 @@ internal sealed class MenuOverlay
                 null,
                 null,
                 selectedMotionIntensity,
+                null,
+                true);
+        }
+
+        var autoCameraInteraction = _autoCameraSelector.Update(
+            input,
+            _focusedControlIndex == AutoCameraSelectorControlIndex,
+            activeAutoCameraMode);
+        if (autoCameraInteraction.SelectedAutoCameraMode is
+            { } selectedAutoCameraMode)
+        {
+            return new MenuInteraction(
+                ClientCommand.None,
+                null,
+                null,
+                null,
+                selectedAutoCameraMode,
                 true);
         }
 
@@ -221,6 +261,7 @@ internal sealed class MenuOverlay
         {
             return new MenuInteraction(
                 _buttons[hoveredControlIndex - 1].Command,
+                null,
                 null,
                 null,
                 null,
@@ -239,10 +280,17 @@ internal sealed class MenuOverlay
                 null,
                 null,
                 null,
+                null,
                 true);
         }
 
-        return new MenuInteraction(ClientCommand.None, null, null, null, true);
+        return new MenuInteraction(
+            ClientCommand.None,
+            null,
+            null,
+            null,
+            null,
+            true);
     }
 
     public void Draw(
@@ -252,7 +300,8 @@ internal sealed class MenuOverlay
         Rectangle screenBounds,
         UiTheme theme,
         GoreIntensity activeGoreIntensity,
-        MotionIntensity activeMotionIntensity)
+        MotionIntensity activeMotionIntensity,
+        AutoCameraMode activeAutoCameraMode)
     {
         if (!IsVisible)
         {
@@ -333,6 +382,14 @@ internal sealed class MenuOverlay
             activeMotionIntensity,
             _focusedControlIndex == MotionSelectorControlIndex);
 
+        _autoCameraSelector.Draw(
+            spriteBatch,
+            pixel,
+            fonts,
+            theme,
+            activeAutoCameraMode,
+            _focusedControlIndex == AutoCameraSelectorControlIndex);
+
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(_textRoles.MenuHelper),
@@ -375,9 +432,18 @@ internal sealed class MenuOverlay
             _layout.ButtonWidth,
             _selectorLayout.Height);
 
+        var motionSelectorTopOffset = goreSelectorTopOffset +
+            _selectorLayout.Height +
+            _layout.SelectorGap;
         _motionSelector.Bounds = new Rectangle(
             buttonLeft,
-            panel.Top + goreSelectorTopOffset +
+            panel.Top + motionSelectorTopOffset,
+            _layout.ButtonWidth,
+            _selectorLayout.Height);
+
+        _autoCameraSelector.Bounds = new Rectangle(
+            buttonLeft,
+            panel.Top + motionSelectorTopOffset +
                 _selectorLayout.Height +
                 _layout.SelectorGap,
             _layout.ButtonWidth,
@@ -410,6 +476,18 @@ internal sealed class MenuOverlay
         UiThemeSelectorLayout selectorLayout,
         int buttonCount) =>
         CalculateGoreSelectorTopOffset(layout, selectorLayout, buttonCount) +
+        selectorLayout.Height +
+        layout.SelectorGap;
+
+    /// <summary>
+    /// The auto-camera selector stacks directly below the motion selector,
+    /// under the same one-gap rule the settings selectors already follow.
+    /// </summary>
+    private static int CalculateAutoCameraSelectorTopOffset(
+        UiMenuLayout layout,
+        UiThemeSelectorLayout selectorLayout,
+        int buttonCount) =>
+        CalculateMotionSelectorTopOffset(layout, selectorLayout, buttonCount) +
         selectorLayout.Height +
         layout.SelectorGap;
 

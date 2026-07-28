@@ -348,7 +348,8 @@ public sealed partial class ArenaGame
             screenBounds,
             theme,
             _goreManager.Value,
-            _motionManager.Value);
+            _motionManager.Value,
+            _autoCameraManager.Value);
         if (_isArmyCompositionPanelVisible)
         {
             _armyCompositionPanel.Draw(

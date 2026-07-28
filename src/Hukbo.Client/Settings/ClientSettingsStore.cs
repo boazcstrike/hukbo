@@ -16,22 +16,28 @@ internal sealed class ClientSettingsStore
     /// the new field defaulting, because the shape did not change — only a
     /// field was added. This is the version <see cref="TrySave"/> always
     /// writes.
+    /// Raised again from 4 to 5 by the <see cref="AutoCameraMode"/> setting,
+    /// backward compatible on the same terms as the 3-to-4 bump.
     /// </summary>
-    public const int SupportedSchemaVersion = 4;
+    public const int SupportedSchemaVersion = 5;
 
     /// <summary>
     /// Schema versions <see cref="Load"/> accepts without discarding the
-    /// whole file. Version 3 predates <see cref="MotionIntensity"/> and is
-    /// accepted because the field-defaulting path already handles an absent
-    /// value the same way it handles an absent <see cref="GoreIntensity"/>.
+    /// whole file. Version 3 predates <see cref="MotionIntensity"/> and
+    /// version 4 predates <see cref="AutoCameraMode"/>; both are accepted
+    /// because the field-defaulting path already handles an absent value the
+    /// same way it handles an absent <see cref="GoreIntensity"/>.
     /// Versions before 3 remain discarded per the deliberate reset recorded
     /// on <see cref="ArmyComposition"/>.
     /// </summary>
     private static readonly int[] AcceptedSchemaVersions =
-        [3, SupportedSchemaVersion];
+        [3, 4, SupportedSchemaVersion];
 
     private const GoreIntensity DefaultGoreIntensity = GoreIntensity.Stylized;
     private const MotionIntensity DefaultMotionIntensity = MotionIntensity.Full;
+
+    private const AutoCameraMode DefaultAutoCameraMode =
+        AutoCameraMode.Assisted;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -116,7 +122,8 @@ internal sealed class ClientSettingsStore
                 raw.SelectedThemeId,
                 raw.Composition,
                 ResolveGoreIntensity(raw.GoreIntensity),
-                ResolveMotionIntensity(raw.MotionIntensity));
+                ResolveMotionIntensity(raw.MotionIntensity),
+                ResolveAutoCameraMode(raw.AutoCameraMode));
             _log.Write(
                 LogLevel.Debug,
                 LogChannel.Settings,
@@ -131,6 +138,8 @@ internal sealed class ClientSettingsStore
                 settings.GoreIntensity.ToString(),
                 "motion",
                 settings.MotionIntensity.ToString(),
+                "autoCamera",
+                settings.AutoCameraMode.ToString(),
                 "defaulted",
                 false);
             return settings;
@@ -158,7 +167,8 @@ internal sealed class ClientSettingsStore
         string selectedThemeId,
         ArmyComposition composition,
         GoreIntensity goreIntensity,
-        MotionIntensity motionIntensity)
+        MotionIntensity motionIntensity,
+        AutoCameraMode autoCameraMode)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(selectedThemeId);
         ArgumentNullException.ThrowIfNull(composition);
@@ -180,7 +190,8 @@ internal sealed class ClientSettingsStore
                 selectedThemeId,
                 composition,
                 ResolveGoreIntensity(goreIntensity),
-                ResolveMotionIntensity(motionIntensity));
+                ResolveMotionIntensity(motionIntensity),
+                ResolveAutoCameraMode(autoCameraMode));
             using (var stream = new FileStream(
                 temporaryPath,
                 FileMode.CreateNew,
@@ -215,7 +226,9 @@ internal sealed class ClientSettingsStore
                 "gore",
                 goreIntensity.ToString(),
                 "motion",
-                motionIntensity.ToString());
+                motionIntensity.ToString(),
+                "autoCamera",
+                autoCameraMode.ToString());
             return true;
         }
         catch (Exception exception) when (
@@ -257,7 +270,8 @@ internal sealed class ClientSettingsStore
             defaultThemeId,
             ArmyComposition.Default,
             DefaultGoreIntensity,
-            DefaultMotionIntensity);
+            DefaultMotionIntensity,
+            DefaultAutoCameraMode);
 
     /// <summary>
     /// A missing or out-of-range gore level resolves to the default without
@@ -279,6 +293,17 @@ internal sealed class ClientSettingsStore
         persisted is { } value && Enum.IsDefined(value)
             ? value
             : DefaultMotionIntensity;
+
+    /// <summary>
+    /// A missing or out-of-range camera mode resolves to the default without
+    /// invalidating any sibling field. Missing is also what a version 3 or 4
+    /// file - written before this field existed - looks like.
+    /// </summary>
+    private static AutoCameraMode ResolveAutoCameraMode(
+        AutoCameraMode? persisted) =>
+        persisted is { } value && Enum.IsDefined(value)
+            ? value
+            : DefaultAutoCameraMode;
 
     private static void TryDelete(string path)
     {
@@ -305,5 +330,6 @@ internal sealed class ClientSettingsStore
         string? SelectedThemeId,
         ArmyComposition? Composition,
         GoreIntensity? GoreIntensity,
-        MotionIntensity? MotionIntensity);
+        MotionIntensity? MotionIntensity,
+        AutoCameraMode? AutoCameraMode);
 }

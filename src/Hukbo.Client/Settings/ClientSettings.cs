@@ -5,7 +5,8 @@ internal sealed record ClientSettings(
     string SelectedThemeId,
     ArmyComposition Composition,
     GoreIntensity GoreIntensity,
-    MotionIntensity MotionIntensity);
+    MotionIntensity MotionIntensity,
+    AutoCameraMode AutoCameraMode);
 
 /// <summary>
 /// A spectator-chosen army composition for both factions: the total units per

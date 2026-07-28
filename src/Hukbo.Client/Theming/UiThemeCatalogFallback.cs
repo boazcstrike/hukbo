@@ -80,14 +80,15 @@ internal sealed partial class UiThemeCatalog
             ],
             new UiSharedStandards(
                 new UiMenuLayout(
-                    // menu.panelHeight: 660 -> 688 -> 800. The 688 -> 800
-                    // step (VIS-032) makes room for the motion selector
-                    // stacked directly below the gore selector: one more
-                    // selector height (96) plus one more selector gap (14)
-                    // than the panel needed before, plus a small margin. See
-                    // ui-theme-standards.json for the full derivation.
+                    // menu.panelHeight: 660 -> 688 -> 800 -> 912. Each step
+                    // after 688 makes room for one more settings selector
+                    // stacked below the gore selector: one selector height
+                    // (96) plus one selector gap (14) apiece, plus a small
+                    // margin. The 800 -> 912 step is the auto-camera mode
+                    // selector. See ui-theme-standards.json for the full
+                    // derivation.
                     360,
-                    800,
+                    912,
                     280,
                     44,
                     8,

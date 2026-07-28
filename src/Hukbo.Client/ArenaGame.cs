@@ -88,6 +88,7 @@ public sealed partial class ArenaGame : Game
     private readonly ClientSettingsStore _settingsStore;
     private readonly GoreIntensityManager _goreManager;
     private readonly MotionIntensityManager _motionManager;
+    private readonly AutoCameraModeManager _autoCameraManager;
     private readonly ArmyCompositionPanel _armyCompositionPanel;
 
     /// <summary>
@@ -202,6 +203,9 @@ public sealed partial class ArenaGame : Game
         _motionManager = new MotionIntensityManager(
             _settingsStore.Load(catalog.DefaultThemeId).MotionIntensity,
             value => TryPersistMotionIntensity(catalog.DefaultThemeId, value));
+        _autoCameraManager = new AutoCameraModeManager(
+            _settingsStore.Load(catalog.DefaultThemeId).AutoCameraMode,
+            value => TryPersistAutoCameraMode(catalog.DefaultThemeId, value));
 
         // A restored preference takes effect from tick zero, so the spectator
         // never has to reopen the menu after a relaunch.
@@ -280,7 +284,8 @@ public sealed partial class ArenaGame : Game
             _themeManager.ActiveTheme.Id,
             current.Composition,
             value,
-            current.MotionIntensity);
+            current.MotionIntensity,
+            current.AutoCameraMode);
     }
 
     /// <summary>
@@ -297,6 +302,25 @@ public sealed partial class ArenaGame : Game
             _themeManager.ActiveTheme.Id,
             current.Composition,
             current.GoreIntensity,
+            value,
+            current.AutoCameraMode);
+    }
+
+    /// <summary>
+    /// Mirrors <see cref="TryPersistGoreIntensity"/> for the camera-assistant
+    /// setting: re-reads the whole settings file at save time so a mode write
+    /// carries forward every sibling field unchanged.
+    /// </summary>
+    private bool TryPersistAutoCameraMode(
+        string defaultThemeId,
+        AutoCameraMode value)
+    {
+        var current = _settingsStore.Load(defaultThemeId);
+        return _settingsStore.TrySave(
+            _themeManager.ActiveTheme.Id,
+            current.Composition,
+            current.GoreIntensity,
+            current.MotionIntensity,
             value);
     }
 
@@ -464,7 +488,8 @@ public sealed partial class ArenaGame : Game
                 screenBounds,
                 _themeManager.ActiveTheme.Id,
                 _goreManager.Value,
-                _motionManager.Value);
+                _motionManager.Value,
+                _autoCameraManager.Value);
             pointerConsumed = menuInteraction.PointerConsumed;
             consumedBy = pointerConsumed ? "menu" : consumedBy;
             if (menuInteraction.SelectedThemeId is { } selectedThemeId)
@@ -504,6 +529,23 @@ public sealed partial class ArenaGame : Game
                         "motion",
                         previousMotion.ToString(),
                         _motionManager.Value.ToString());
+                }
+            }
+
+            if (menuInteraction.SelectedAutoCameraMode is { } selectedCamera)
+            {
+                var previousCamera = _autoCameraManager.Value;
+                _autoCameraManager.TrySelect(selectedCamera);
+                if (_autoCameraManager.Value != previousCamera)
+                {
+                    // The assistant keeps no state that survives a mode
+                    // change: a pan in flight under the old mode has no
+                    // meaning under the new one.
+                    _autoPan.Reset();
+                    LogSettingChanged(
+                        "autoCamera",
+                        previousCamera.ToString(),
+                        _autoCameraManager.Value.ToString());
                 }
             }
 
@@ -701,6 +743,7 @@ public sealed partial class ArenaGame : Game
             _camera.Center,
             _camera.GetVisibleHalfExtents(arenaBounds),
             _camera.Zoom,
+            _autoCameraManager.Value,
             manualPanApplied,
             isSuppressed: _presentation.Summary is not null,
             elapsedSeconds);
@@ -913,7 +956,8 @@ public sealed partial class ArenaGame : Game
                     _themeManager.ActiveTheme.Id,
                     ToSettingsComposition(_armyCompositionPanel.Saved),
                     savedForComposition.GoreIntensity,
-                    savedForComposition.MotionIntensity);
+                    savedForComposition.MotionIntensity,
+                    savedForComposition.AutoCameraMode);
                 _isCompositionStaged = true;
                 _isArmyCompositionPanelVisible = false;
                 return;

@@ -46,7 +46,8 @@ internal sealed class UiThemeManager
             themeId,
             current.Composition,
             current.GoreIntensity,
-            current.MotionIntensity);
+            current.MotionIntensity,
+            current.AutoCameraMode);
     }
 
     public UiTheme ActiveTheme { get; private set; }
