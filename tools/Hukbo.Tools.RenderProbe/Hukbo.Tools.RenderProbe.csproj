@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <RootNamespace>Hukbo.Tools.RenderProbe</RootNamespace>
+    <AssemblyName>Hukbo.Tools.RenderProbe</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Hukbo.Client\Hukbo.Client.csproj" />
+  </ItemGroup>
+
+</Project>

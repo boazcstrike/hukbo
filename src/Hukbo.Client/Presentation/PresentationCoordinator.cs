@@ -9,13 +9,17 @@ internal sealed class PresentationCoordinator
         int hitEffectCapacity = 256,
         int bloodBurstCapacity = 256,
         int swingCapacity = 256,
-        int clashEffectCapacity = 256)
+        int clashEffectCapacity = 256,
+        int trampleMarkCapacity = TrampleMarkSystem.Capacity,
+        int dustPuffCapacity = DustEffectSystem.Capacity)
     {
         EventFeed = new BattleEventFeed(eventCapacity);
         HitEffects = new HitEffectSystem(hitEffectCapacity);
         Blood = new BloodEffectSystem(bloodBurstCapacity);
         Swings = new SwingAnimationSystem(swingCapacity);
         ClashEffects = new ClashEffectSystem(clashEffectCapacity);
+        Trample = new TrampleMarkSystem(trampleMarkCapacity);
+        Dust = new DustEffectSystem(dustPuffCapacity);
     }
 
     public PlaybackController Playback { get; } = new();
@@ -43,7 +47,36 @@ internal sealed class PresentationCoordinator
     /// </summary>
     public ClashEffectSystem ClashEffects { get; }
 
+    /// <summary>
+    /// The fixed-capacity, oldest-replaced list of trample marks fed by
+    /// <c>Death</c> events (battlefield-environment-design.md, "Trampled and
+    /// sparse areas"). Unlike every other system here, its marks never age
+    /// out in <see cref="AdvanceEffects"/> — they persist as visible battle
+    /// wear until <see cref="ResetFor"/> clears the scenario.
+    /// </summary>
+    public TrampleMarkSystem Trample { get; }
+
+    /// <summary>
+    /// The fixed-capacity, event-driven dust puffs (battlefield-environment-
+    /// design.md, "Dust and disturbed vegetation", VIS-029). Unlike
+    /// <see cref="Trample"/>, its puffs age out on the same unscaled
+    /// presentation clock as <see cref="HitEffects"/> and <see cref="Blood"/>.
+    /// </summary>
+    public DustEffectSystem Dust { get; }
+
     public MatchSummary? Summary { get; private set; }
+
+    /// <summary>
+    /// The client-side clock
+    /// <see cref="Hukbo.Client.Rendering.GrassSway.GrassSwayOffset"/> reads
+    /// (battlefield-environment-design.md, "Wind and motion", R-W5.4).
+    /// Advanced in <see cref="AdvanceEffects"/> on unscaled frame seconds —
+    /// ambient grass motion is not gameplay communication, so it never scales
+    /// with the playback speed, unlike <see cref="Swings"/>. It never touches
+    /// the simulation, no simulation value depends on it, and nothing it
+    /// computes is ever stored, hashed, or snapshotted.
+    /// </summary>
+    public float GrassSwayClockSeconds { get; private set; }
 
     public void IngestTick(
         IReadOnlyList<BattleEvent> events,
@@ -54,6 +87,8 @@ internal sealed class PresentationCoordinator
         Blood.Ingest(events, agents);
         Swings.Ingest(events, agents);
         ClashEffects.Ingest(events, agents);
+        Trample.Ingest(events, agents);
+        Dust.Ingest(events, agents);
     }
 
     /// <param name="speedMultiplier">
@@ -74,7 +109,9 @@ internal sealed class PresentationCoordinator
         HitEffects.Advance(elapsedSeconds);
         Blood.Advance(elapsedSeconds);
         ClashEffects.Advance(elapsedSeconds);
+        Dust.Advance(elapsedSeconds);
         Swings.Advance(elapsedSeconds * speedMultiplier);
+        GrassSwayClockSeconds += elapsedSeconds;
     }
 
     public MatchSummary ProcessTerminal(
@@ -119,6 +156,9 @@ internal sealed class PresentationCoordinator
         Blood.Clear();
         Swings.Clear();
         ClashEffects.Clear();
+        Trample.Clear();
+        Dust.Clear();
+        GrassSwayClockSeconds = 0f;
         Summary = null;
     }
 }

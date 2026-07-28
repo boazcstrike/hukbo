@@ -33,6 +33,9 @@ public static class LogEvents
     public const string AssetsSoundScanned = "assets.sound.scanned";
     public const string AssetsThemeFallback = "assets.theme.fallback";
     public const string AssetsThemeLoaded = "assets.theme.loaded";
+    public const string AssetsVisualCatalogInvalid = "assets.visual.catalogInvalid";
+    public const string AssetsVisualFallback = "assets.visual.fallback";
+    public const string AssetsVisualVariantMissing = "assets.visual.variantMissing";
 
     // Settings channel.
     public const string SettingsChanged = "settings.changed";

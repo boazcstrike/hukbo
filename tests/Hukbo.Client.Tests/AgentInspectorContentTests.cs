@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Presentation.Catalogs;
 using Hukbo.Client.UI;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
@@ -363,6 +364,775 @@ public sealed class AgentInspectorContentTests
         Assert.DoesNotContain(
             lines,
             line => line.StartsWith("Grip:", StringComparison.Ordinal));
+    }
+
+    // ===== VIS-012: weapon-variant inspector lines =====
+
+    // The tint's identifier, not the internal WeaponTintEntry record itself,
+    // crosses the [Theory]/[MemberData] boundary: WeaponTintEntry is
+    // internal, and a public test method's parameter (or a public
+    // TheoryData<T>'s T) may never be less accessible than the method itself
+    // (CS0051/CS0050) while xunit's own analyzer (xUnit1000) requires the
+    // test class, and therefore its test methods, to stay public — the same
+    // discipline AppearanceComponentCatalogTests.ArmorEntriesWithAWidthFactor
+    // already records for its own internal record type.
+    public static TheoryData<PawnWeaponRole, string> AllWeaponTintIds()
+    {
+        var data = new TheoryData<PawnWeaponRole, string>();
+        foreach (var weapon in Enum.GetValues<PawnWeaponRole>())
+        {
+            foreach (var tint in WeaponVisualCatalog.GetTints(weapon))
+            {
+                data.Add(weapon, tint.Catalog.Id);
+            }
+        }
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(AllWeaponTintIds))]
+    public void BuildWeaponVariantLines_ForEveryShippedTint_ShowsItsOwnTierAndNote(
+        PawnWeaponRole weapon,
+        string tintId)
+    {
+        var tint = WeaponVisualCatalog.GetTints(weapon)
+            .Single(entry => entry.Catalog.Id == tintId);
+
+        var lines = AgentInspectorContent.BuildWeaponVariantLines(
+            weapon,
+            tintId);
+
+        Assert.Contains(
+            AgentInspectorContent.FormatVariantTierLine(tint.Catalog.EvidenceTier),
+            lines);
+        Assert.Contains(
+            AgentInspectorContent.FormatVariantNoteLine(tint.Catalog.Notes),
+            lines);
+    }
+
+    [Theory]
+    [InlineData(
+        VisualEvidenceTier.Documented,
+        "Documented")]
+    [InlineData(
+        VisualEvidenceTier.DocumentedFormUncertain,
+        "Documented, form uncertain")]
+    [InlineData(
+        VisualEvidenceTier.ProvisionalReconstruction,
+        "Provisional reconstruction")]
+    [InlineData(
+        VisualEvidenceTier.PresentationOnly,
+        "presentation-only, no historical claim")]
+    public void FormatVisualEvidenceTierLabel_RendersEveryDefinedTier(
+        VisualEvidenceTier tier,
+        string expected)
+    {
+        var label = AgentInspectorContent.FormatVisualEvidenceTierLabel(tier);
+
+        Assert.Equal(expected, label);
+    }
+
+    [Fact]
+    public void BuildWeaponVariantLines_ForKampilan_CarriesK2AsALaterOrProvisionalForm()
+    {
+        var lines = AgentInspectorContent.BuildWeaponVariantLines(
+            PawnWeaponRole.Kampilan,
+            WeaponVisualCatalog.KampilanTintFreshIron.Catalog.Id);
+
+        Assert.Contains(
+            AgentInspectorContent.FormatLaterFormLine(
+                WeaponVisualCatalog.KampilanK2.Catalog),
+            lines);
+        Assert.Contains(
+            lines,
+            line => line.Contains(
+                "later or provisional form",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void BuildWeaponVariantLines_ForKalis_CarriesBothL2AndL3AsLaterOrProvisionalForms()
+    {
+        var lines = AgentInspectorContent.BuildWeaponVariantLines(
+            PawnWeaponRole.Kalis,
+            WeaponVisualCatalog.KalisTintFreshIron.Catalog.Id);
+
+        Assert.Contains(
+            AgentInspectorContent.FormatLaterFormLine(
+                WeaponVisualCatalog.KalisL2.Catalog),
+            lines);
+        Assert.Contains(
+            AgentInspectorContent.FormatLaterFormLine(
+                WeaponVisualCatalog.KalisL3.Catalog),
+            lines);
+    }
+
+    [Theory]
+    [InlineData(PawnWeaponRole.Kampilan, 3)]
+    [InlineData(PawnWeaponRole.Wasay, 2)]
+    [InlineData(PawnWeaponRole.Kalis, 4)]
+    [InlineData(PawnWeaponRole.Itak, 2)]
+    public void BuildWeaponVariantLines_LineCountMatchesTierNoteAndLaterFormCount(
+        PawnWeaponRole weapon,
+        int expectedCount)
+    {
+        var tintId = WeaponVisualCatalog.GetTints(weapon)[0].Catalog.Id;
+
+        var lines = AgentInspectorContent.BuildWeaponVariantLines(
+            weapon,
+            tintId);
+
+        Assert.Equal(expectedCount, lines.Count);
+    }
+
+    [Theory]
+    [InlineData(PawnWeaponRole.Wasay)]
+    [InlineData(PawnWeaponRole.Itak)]
+    public void BuildWeaponVariantLines_ForWasayAndItak_NeverCarriesALaterOrProvisionalForm(
+        PawnWeaponRole weapon)
+    {
+        var tintId = WeaponVisualCatalog.GetTints(weapon)[0].Catalog.Id;
+
+        var lines = AgentInspectorContent.BuildWeaponVariantLines(
+            weapon,
+            tintId);
+
+        Assert.DoesNotContain(
+            lines,
+            line => line.Contains(
+                "later or provisional form",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void BuildWeaponVariantLines_UnresolvedTintId_OmitsVariantLinesButKeepsLaterForms()
+    {
+        var lines = AgentInspectorContent.BuildWeaponVariantLines(
+            PawnWeaponRole.Kampilan,
+            "weapon.kampilan.tint.doesNotExist");
+
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith(
+                "        Variant evidence:",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            AgentInspectorContent.FormatLaterFormLine(
+                WeaponVisualCatalog.KampilanK2.Catalog),
+            lines);
+    }
+
+    [Fact]
+    public void BuildWeaponVariantLines_UnresolvedTintIdAndNoLaterForms_ReturnsEmpty()
+    {
+        var lines = AgentInspectorContent.BuildWeaponVariantLines(
+            PawnWeaponRole.Wasay,
+            "weapon.wasay.tint.doesNotExist");
+
+        Assert.Empty(lines);
+    }
+
+    [Theory]
+    [InlineData(
+        PawnWeaponRole.Kampilan,
+        "Kampilan",
+        "Kampilan — Great Blade")]
+    [InlineData(
+        PawnWeaponRole.Wasay,
+        "Wasay",
+        "Wasay — War Axe")]
+    [InlineData(
+        PawnWeaponRole.Kalis,
+        "Kalis",
+        "Kalis — Thrusting Blade")]
+    [InlineData(
+        PawnWeaponRole.Itak,
+        "Itak",
+        "Itak — Work Blade")]
+    public void BuildWeaponVariantLines_NeverShowsABareFilipinoTermWithoutItsDescriptor(
+        PawnWeaponRole weapon,
+        string bareTerm,
+        string pairForm)
+    {
+        var tintId = WeaponVisualCatalog.GetTints(weapon)[0].Catalog.Id;
+
+        var lines = AgentInspectorContent.BuildWeaponVariantLines(
+            weapon,
+            tintId);
+
+        Assert.All(
+            lines.Where(line => line.Contains(
+                bareTerm,
+                StringComparison.Ordinal)),
+            line => Assert.Contains(
+                pairForm,
+                line,
+                StringComparison.Ordinal));
+    }
+
+    // ===== VIS-016: shield-variant inspector lines =====
+
+    public static TheoryData<string> AllShieldSkinIds()
+    {
+        var data = new TheoryData<string>();
+        foreach (var skin in ShieldVisualCatalog.TallHardwoodSkins)
+        {
+            data.Add(skin.Catalog.Id);
+        }
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(AllShieldSkinIds))]
+    public void BuildShieldVariantLines_ForEveryShippedSkin_ShowsItsOwnLabelTierAndNote(
+        string skinId)
+    {
+        var skin = ShieldVisualCatalog.TallHardwoodSkins
+            .Single(entry => entry.Catalog.Id == skinId);
+
+        var lines = AgentInspectorContent.BuildShieldVariantLines(
+            PawnShieldRole.TallHardwood,
+            skinId);
+
+        Assert.Contains(
+            AgentInspectorContent.FormatShieldSkinLabelLine(skin.Catalog.DisplayLabel),
+            lines);
+        Assert.Contains(
+            AgentInspectorContent.FormatShieldVariantTierLine(skin.Catalog.EvidenceTier),
+            lines);
+        Assert.Contains(
+            AgentInspectorContent.FormatShieldVariantNoteLine(skin.Catalog.Notes),
+            lines);
+    }
+
+    [Theory]
+    [MemberData(nameof(AllShieldSkinIds))]
+    public void BuildShieldVariantLines_ForEveryShippedSkin_AlwaysAppendsThePalisayResearchNote(
+        string skinId)
+    {
+        var lines = AgentInspectorContent.BuildShieldVariantLines(
+            PawnShieldRole.TallHardwood,
+            skinId);
+
+        Assert.Contains(
+            AgentInspectorContent.FormatShieldResearchNoteLine(
+                AgentInspectorContent.PalisayResearchNote),
+            lines);
+    }
+
+    [Theory]
+    [MemberData(nameof(AllShieldSkinIds))]
+    public void BuildShieldVariantLines_LineCountIsLabelTierNotePlusResearchNote(
+        string skinId)
+    {
+        var lines = AgentInspectorContent.BuildShieldVariantLines(
+            PawnShieldRole.TallHardwood,
+            skinId);
+
+        Assert.Equal(4, lines.Count);
+    }
+
+    [Fact]
+    public void BuildShieldVariantLines_ForAnUnshieldedPawn_ReturnsEmpty()
+    {
+        var lines = AgentInspectorContent.BuildShieldVariantLines(
+            PawnShieldRole.None,
+            ShieldVisualCatalog.MactanThin.Catalog.Id);
+
+        Assert.Empty(lines);
+    }
+
+    [Fact]
+    public void BuildShieldVariantLines_UnresolvedSkinId_OmitsSkinLinesButKeepsTheResearchNote()
+    {
+        var lines = AgentInspectorContent.BuildShieldVariantLines(
+            PawnShieldRole.TallHardwood,
+            "shield.tallHardwood.doesNotExist");
+
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith(
+                "        Shield skin:",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith(
+                "        Shield evidence:",
+                StringComparison.Ordinal));
+        var onlyLine = Assert.Single(lines);
+        Assert.Equal(
+            AgentInspectorContent.FormatShieldResearchNoteLine(
+                AgentInspectorContent.PalisayResearchNote),
+            onlyLine);
+    }
+
+    // ===== VIS-016: shield name negative tests (the point of this task) =====
+
+    private static readonly string[] ForbiddenShieldNames =
+    [
+        "Kalasag",
+        "Palisay",
+        "Taming",
+        "Salakot",
+        "Panabas",
+    ];
+
+    private static IEnumerable<string> AllShieldPlayerFacingLabels()
+    {
+        foreach (var shieldId in Enum.GetValues<ShieldId>())
+        {
+            yield return AgentInspectorContent.GetShieldLabel(shieldId);
+            yield return AgentInspectorContent.FormatShieldLine(shieldId);
+
+            var appearance = PawnAppearanceFactory.Create(
+                1UL,
+                WeaponId.Kalis,
+                shieldId);
+            yield return appearance.ShieldLabel;
+        }
+
+        foreach (var skin in ShieldVisualCatalog.TallHardwoodSkins)
+        {
+            yield return skin.Catalog.DisplayLabel;
+
+            var labelLine = AgentInspectorContent.BuildShieldVariantLines(
+                    PawnShieldRole.TallHardwood,
+                    skin.Catalog.Id)
+                .First(line => line.StartsWith(
+                    "        Shield skin:",
+                    StringComparison.Ordinal));
+            yield return labelLine;
+        }
+
+        yield return ShieldVisualCatalog.Default.Catalog.DisplayLabel;
+        yield return ShieldVisualCatalog.ModelCategoryDefault.Catalog.DisplayLabel;
+    }
+
+    private static IEnumerable<string> AllShieldInspectorText()
+    {
+        foreach (var label in AllShieldPlayerFacingLabels())
+        {
+            yield return label;
+        }
+
+        foreach (var skin in ShieldVisualCatalog.TallHardwoodSkins)
+        {
+            yield return skin.Catalog.Id;
+            yield return skin.Catalog.Notes;
+
+            foreach (var line in AgentInspectorContent.BuildShieldVariantLines(
+                PawnShieldRole.TallHardwood,
+                skin.Catalog.Id))
+            {
+                yield return line;
+            }
+        }
+
+        yield return ShieldVisualCatalog.Default.Catalog.Id;
+        yield return ShieldVisualCatalog.Default.Catalog.Notes;
+        yield return ShieldVisualCatalog.ModelCategoryDefault.Catalog.Id;
+        yield return ShieldVisualCatalog.ModelCategoryDefault.Catalog.Notes;
+        yield return AgentInspectorContent.PalisayResearchNote;
+    }
+
+    [Fact]
+    public void NoShieldPlayerFacingLabelContainsAnUnverifiedOrExcludedShieldName()
+    {
+        foreach (var label in AllShieldPlayerFacingLabels())
+        {
+            foreach (var forbidden in ForbiddenShieldNames)
+            {
+                Assert.DoesNotContain(
+                    forbidden,
+                    label,
+                    StringComparison.OrdinalIgnoreCase);
+            }
+        }
+    }
+
+    [Fact]
+    public void KalasagNameAppearsOnlyInsideTheVisayanKalasagSkinsFlaggedPendingNote()
+    {
+        Assert.Contains(
+            "kalasag",
+            ShieldVisualCatalog.VisayanKalasag.Catalog.Notes,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "pending",
+            ShieldVisualCatalog.VisayanKalasag.Catalog.Notes,
+            StringComparison.OrdinalIgnoreCase);
+
+        foreach (var skin in ShieldVisualCatalog.TallHardwoodSkins.Where(
+            entry => entry.Catalog.Id !=
+                ShieldVisualCatalog.VisayanKalasag.Catalog.Id))
+        {
+            Assert.DoesNotContain(
+                "kalasag",
+                skin.Catalog.Notes,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        Assert.DoesNotContain(
+            "kalasag",
+            AgentInspectorContent.PalisayResearchNote,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            "kalasag",
+            ShieldVisualCatalog.Default.Catalog.Notes,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            "kalasag",
+            ShieldVisualCatalog.ModelCategoryDefault.Catalog.Notes,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void PalisayNameAppearsOnlyInsideTheFlaggedPendingResearchNote()
+    {
+        Assert.Contains(
+            "palisay",
+            AgentInspectorContent.PalisayResearchNote,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "attestation-pending",
+            AgentInspectorContent.PalisayResearchNote,
+            StringComparison.OrdinalIgnoreCase);
+
+        foreach (var skin in ShieldVisualCatalog.TallHardwoodSkins)
+        {
+            Assert.DoesNotContain(
+                "palisay",
+                skin.Catalog.Notes,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        Assert.DoesNotContain(
+            "palisay",
+            ShieldVisualCatalog.Default.Catalog.Notes,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            "palisay",
+            ShieldVisualCatalog.ModelCategoryDefault.Catalog.Notes,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("Taming")]
+    [InlineData("Salakot")]
+    [InlineData("Panabas")]
+    public void ExcludedShieldNamesNeverAppearAnywhereInShieldInspectorText(
+        string excludedName)
+    {
+        foreach (var text in AllShieldInspectorText())
+        {
+            Assert.DoesNotContain(
+                excludedName,
+                text,
+                StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    // ===== VIS-024: appearance-preset inspector lines =====
+
+    [Fact]
+    public void BuildAppearancePresetLines_ForLev01_ShowsNameScopeTierAndComponents()
+    {
+        var lines = AgentInspectorContent.BuildAppearancePresetLines(
+            "appearance.presetLevy.lev01");
+
+        Assert.Contains(
+            AgentInspectorContent.FormatAppearancePresetNameLine("Levy Warrior"),
+            lines);
+        Assert.Contains(
+            AgentInspectorContent.FormatAppearanceScopeLine(VisualScopeTag.UnscopedGeneric),
+            lines);
+        Assert.Contains(
+            AgentInspectorContent.FormatAppearancePresetTierLine(
+                VisualEvidenceTier.DocumentedFormUncertain),
+            lines);
+        Assert.Contains(
+            AgentInspectorContent.FormatAppearanceComponentLine(
+                AppearanceComponentCategory.Hair,
+                AppearanceComponentCatalog.HairB1LongHairKnotted.Catalog),
+            lines);
+        Assert.Contains(
+            AgentInspectorContent.FormatAppearanceComponentNoteLine(
+                AppearanceComponentCatalog.HairB1LongHairKnotted.Catalog.Notes),
+            lines);
+        Assert.Contains(
+            AgentInspectorContent.FormatAppearanceComponentLine(
+                AppearanceComponentCategory.Condition,
+                AppearanceComponentCatalog.ConditionK1Clean.Catalog),
+            lines);
+        Assert.Equal(
+            AgentInspectorContent.FormatAppearanceFlavorNoteLine(
+                AgentInspectorContent.AppearanceNonRenderableFlavorNote),
+            lines[^1]);
+    }
+
+    public static TheoryData<string> AllAppearancePresetIds()
+    {
+        var data = new TheoryData<string>();
+        foreach (var preset in AppearancePresets.All)
+        {
+            data.Add(preset.Catalog.Id);
+        }
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(AllAppearancePresetIds))]
+    public void BuildAppearancePresetLines_ForEveryShippedPreset_ShowsItsOwnNameScopeAndTier(
+        string presetId)
+    {
+        var preset = Assert.Single(AppearancePresets.All, p => p.Catalog.Id == presetId);
+
+        var lines = AgentInspectorContent.BuildAppearancePresetLines(presetId);
+
+        Assert.Contains(
+            AgentInspectorContent.FormatAppearancePresetNameLine(preset.Catalog.DisplayLabel),
+            lines);
+        Assert.Contains(
+            AgentInspectorContent.FormatAppearanceScopeLine(preset.Block),
+            lines);
+        Assert.Contains(
+            AgentInspectorContent.FormatAppearancePresetTierLine(preset.Catalog.EvidenceTier),
+            lines);
+        Assert.Equal(
+            AgentInspectorContent.FormatAppearanceFlavorNoteLine(
+                AgentInspectorContent.AppearanceNonRenderableFlavorNote),
+            lines[^1]);
+    }
+
+    [Theory]
+    [MemberData(nameof(AllAppearancePresetIds))]
+    public void BuildAppearancePresetLines_ForEveryShippedPreset_ScopeTagIsNeverNotApplicable(
+        string presetId)
+    {
+        var preset = Assert.Single(AppearancePresets.All, p => p.Catalog.Id == presetId);
+
+        Assert.NotEqual(VisualScopeTag.NotApplicable, preset.Block);
+        Assert.Contains(
+            AgentInspectorContent.FormatAppearanceScopeLine(preset.Block),
+            AgentInspectorContent.BuildAppearancePresetLines(presetId));
+    }
+
+    [Fact]
+    public void BuildAppearancePresetLines_ForVis12_ShowsBaroteKanditAndBatukPendingLines()
+    {
+        var lines = AgentInspectorContent.BuildAppearancePresetLines(
+            AppearancePresetsVisayan.Vis12.Catalog.Id);
+
+        Assert.Contains(
+            lines,
+            line => line.Contains("barote", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            lines,
+            line => line.Contains("kandit", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            lines,
+            line => line.Contains("batuk", StringComparison.OrdinalIgnoreCase));
+        Assert.All(
+            lines.Where(line => line.Contains("barote", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("kandit", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("batuk", StringComparison.OrdinalIgnoreCase)),
+            line => Assert.Contains(
+                "pending",
+                line,
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void BuildAppearancePresetLines_ForVis14_ShowsPanikaAndKamagiPendingLines()
+    {
+        var lines = AgentInspectorContent.BuildAppearancePresetLines(
+            AppearancePresetsVisayan.Vis14.Catalog.Id);
+
+        Assert.Contains(
+            lines,
+            line => line.Contains("panika", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            lines,
+            line => line.Contains("kamagi", StringComparison.OrdinalIgnoreCase));
+        Assert.All(
+            lines.Where(line => line.Contains("panika", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("kamagi", StringComparison.OrdinalIgnoreCase)),
+            line => Assert.Contains(
+                "pending",
+                line,
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void BuildAppearancePresetLines_AlwaysAppendsTheNonRenderableFlavorNoteContainingKolombiga()
+    {
+        var lines = AgentInspectorContent.BuildAppearancePresetLines(
+            "appearance.presetLevy.lev01");
+
+        Assert.Contains(
+            AgentInspectorContent.FormatAppearanceFlavorNoteLine(
+                AgentInspectorContent.AppearanceNonRenderableFlavorNote),
+            lines);
+        Assert.Contains("kolombiga", AgentInspectorContent.AppearanceNonRenderableFlavorNote,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("pending", AgentInspectorContent.AppearanceNonRenderableFlavorNote,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BuildAppearancePresetLines_UnresolvedPresetId_OmitsPresetLinesButKeepsTheFlavorNote()
+    {
+        var lines = AgentInspectorContent.BuildAppearancePresetLines(
+            "appearance.presetLevy.doesNotExist");
+
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("Appearance preset:", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("        Scope:", StringComparison.Ordinal));
+        var onlyLine = Assert.Single(lines);
+        Assert.Equal(
+            AgentInspectorContent.FormatAppearanceFlavorNoteLine(
+                AgentInspectorContent.AppearanceNonRenderableFlavorNote),
+            onlyLine);
+    }
+
+    [Theory]
+    [InlineData(
+        nameof(VisualScopeTag.NotApplicable),
+        "Not applicable")]
+    [InlineData(
+        nameof(VisualScopeTag.Visayan),
+        "Visayan")]
+    [InlineData(
+        nameof(VisualScopeTag.Tagalog),
+        "Tagalog")]
+    [InlineData(
+        nameof(VisualScopeTag.Cagayan),
+        "Cagayan")]
+    [InlineData(
+        nameof(VisualScopeTag.UnscopedGeneric),
+        "Unscoped-generic")]
+    public void FormatVisualScopeTagLabel_RendersEveryDefinedScope(
+        string scopeName,
+        string expected)
+    {
+        var scope = Enum.Parse<VisualScopeTag>(scopeName);
+        var label = AgentInspectorContent.FormatVisualScopeTagLabel(scope);
+
+        Assert.Equal(expected, label);
+    }
+
+    // ===== VIS-024: appearance pending/forbidden-term negative tests =====
+
+    private static readonly string[] ForbiddenAppearanceTerms =
+    [
+        "barote",
+        "kandit",
+        "panika",
+        "kamagi",
+        "batuk",
+        "kolombiga",
+    ];
+
+    private static IEnumerable<string> AllAppearancePlayerFacingLabels()
+    {
+        foreach (var component in AppearanceComponentCatalog.All)
+        {
+            yield return component.Catalog.DisplayLabel;
+        }
+
+        foreach (var preset in AppearancePresets.All)
+        {
+            yield return preset.Catalog.DisplayLabel;
+        }
+    }
+
+    private static IEnumerable<string> AllAppearanceInspectorText()
+    {
+        foreach (var label in AllAppearancePlayerFacingLabels())
+        {
+            yield return label;
+        }
+
+        foreach (var component in AppearanceComponentCatalog.All)
+        {
+            yield return component.Catalog.Id;
+            yield return component.Catalog.Notes;
+        }
+
+        foreach (var preset in AppearancePresets.All)
+        {
+            yield return preset.Catalog.Id;
+            yield return preset.Catalog.Notes;
+
+            foreach (var line in AgentInspectorContent.BuildAppearancePresetLines(
+                preset.Catalog.Id))
+            {
+                yield return line;
+            }
+        }
+
+        yield return AgentInspectorContent.AppearanceNonRenderableFlavorNote;
+    }
+
+    [Fact]
+    public void NoAppearancePlayerFacingLabelContainsAPendingOrExcludedAppearanceTerm()
+    {
+        foreach (var label in AllAppearancePlayerFacingLabels())
+        {
+            foreach (var forbidden in ForbiddenAppearanceTerms)
+            {
+                Assert.DoesNotContain(
+                    forbidden,
+                    label,
+                    StringComparison.OrdinalIgnoreCase);
+            }
+
+            Assert.DoesNotContain(
+                "salakot",
+                label,
+                StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Theory]
+    [InlineData("barote")]
+    [InlineData("kandit")]
+    [InlineData("panika")]
+    [InlineData("kamagi")]
+    [InlineData("batuk")]
+    [InlineData("kolombiga")]
+    public void PendingAppearanceTermsAppearOnlyInsideFlaggedPendingInspectorText(
+        string pendingTerm)
+    {
+        var matchingLines = AllAppearanceInspectorText()
+            .Where(text => text.Contains(pendingTerm, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        Assert.NotEmpty(matchingLines);
+        Assert.All(
+            matchingLines,
+            line => Assert.Contains(
+                "pending",
+                line,
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void SalakotNeverAppearsAnywhereInAppearanceInspectorText()
+    {
+        foreach (var text in AllAppearanceInspectorText())
+        {
+            Assert.DoesNotContain(
+                "salakot",
+                text,
+                StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     private static int BuildLowerLineCount(WeaponId weapon, ShieldId shield) =>

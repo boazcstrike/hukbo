@@ -84,6 +84,156 @@ not prove a sound was audible, that it arrived at the right moment, or that it
 sounded right. Smoke rows below still require a human at an interactive desktop;
 see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
+## Render performance measurement — full matrix (VIS-036), 2026-07-28
+
+**Status: partially measured. The agent-count and camera-station axes were
+run; the grass and motion axes were not.** The section immediately below
+records the real numbers. The rest of this section is preserved as the
+implementing agents left it, and its "no number below is a measurement"
+framing applies only to the `RenderBudgetEstimate` constants, which have not
+yet been revised against these measurements.
+
+**Correction to the blocked claim.** The implementing agents recorded this
+work as fully BLOCKED on the grounds that the environment has neither a
+display nor a GPU. That was an assumption, and it was wrong: the probe runs on
+this machine. It was re-run directly and the results are below. The genuine
+remaining gap is narrower than "no measurement exists" — it is that two of the
+matrix's four axes have no independent override, which is a tooling gap rather
+than an environment one.
+
+### Recorded render baseline, 2026-07-28
+
+Produced by `dotnet run --project tools/Hukbo.Tools.RenderProbe -c Release --
+<agents> 1 120 <output>`, seed 1, 120 frames sampled per camera station after
+warm-up, backend `spritebatch-1x1`. Artifacts:
+`artifacts/render-baseline-2026-07-28.json` and
+`artifacts/render-baseline-500-2026-07-28.json`.
+
+200 visible units:
+
+| Station | p50 | p95 | p99 | Quads (max) | Triangles (max) | Geometry build p50/p95 | Submit p50/p95 | Managed bytes (max) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| minimum zoom | 2.30 ms | 5.92 ms | 6.63 ms | 4 076 | 8 152 | 546.3 / 1 091.7 us | 1 354.5 / 4 666.2 us | 33 184 |
+| default fit | 0.77 ms | 2.56 ms | 3.15 ms | 4 076 | 8 152 | 130.2 / 750.0 us | 466.9 / 1 526.2 us | 33 208 |
+| maximum zoom | 0.22 ms | 0.26 ms | 0.30 ms | 1 028 | 2 056 | 42.4 / 51.8 us | 75.8 / 93.9 us | 736 |
+
+500 visible units:
+
+| Station | p50 | p95 | p99 | Quads (max) | Triangles (max) | Geometry build p50/p95 | Submit p50/p95 | Managed bytes (max) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| minimum zoom | 5.27 ms | 5.73 ms | 6.46 ms | 9 326 | 18 652 | 1 372.7 / 1 928.4 us | 3 526.6 / 3 977.6 us | 81 384 |
+| default fit | 5.30 ms | 5.48 ms | 5.62 ms | 9 326 | 18 652 | 207.1 / 1 663.4 us | 4 853.2 / 5 187.2 us | 81 208 |
+| maximum zoom | 5.33 ms | 5.50 ms | 5.55 ms | 1 028 | 2 056 | 90.3 / 123.3 us | 104.9 / 271.3 us | 87 584 bytes allocated over the station; 736 per frame |
+
+Tier 2 diagnostics, every cell of both runs: `batches` 1, `textureBinds` 1.
+**R-W4.5 — one batch, one texture — is measured, not assumed.** `submissions`
+equals `quads` in every cell, which is the expected identity under the current
+backend where one quad is one `SpriteBatch.Draw`.
+
+Three observations that the budget revision has to account for:
+
+1. **The pessimistic worst case was too pessimistic.** VIS-034 recorded that
+   multiplying its combinatorial worst-case per-pawn quad count by 500 units
+   overran the 500-unit ESTIMATE budget, and it fell back to a High-tier
+   baseline pawn for the budget arithmetic. The measured whole-frame maximum at
+   500 units is 9 326 quads including grass and backdrop, comfortably under
+   that worst case. The fallback was reasonable and the measurement vindicates
+   it.
+2. **The per-frame path is not allocation-free, and R-W4.10 says it must be.**
+   Managed bytes per frame are 33 KB at 200 units and 81 KB at 500 — the figure
+   scales with agent count, which is the signature of a per-pawn allocation on
+   the frame path rather than a fixed overhead. The 500-unit minimum-zoom
+   station also triggered one gen-0 collection across its 120 frames. This is
+   an open finding, not a resolved one: it has not yet been established whether
+   the allocation is in the live render path or in the probe's own recording
+   pass, which evaluates the same pure geometry functions in order to count
+   quads. Whoever revises the budgets must separate those two before treating
+   the figure as a defect in the renderer.
+3. **The 500-unit run is floor-bound at about 5.3 ms across all three
+   stations,** including maximum zoom where only 1 028 quads are drawn. A
+   station drawing a ninth of the geometry costing the same frame time means
+   something other than rendering dominates at that agent count. That is worth
+   attributing before any rendering optimization is justified by these numbers.
+
+**Axes not measured.** Grass visibility and motion intensity were not driven
+independently, because neither has a probe-only override — grass visibility is
+governed entirely by the zoom-derived detail tier, and motion intensity is read
+from the persisted spectator settings. Adding either override is recorded as
+follow-up work. The `RenderBudgetEstimate` constants have not been revised
+against the measurements above; that revision is the remaining part of VIS-036
+and is deliberately left undone rather than done hastily.
+
+### Original blocked assessment, preserved
+
+Implementation-plan-draft.md's VIS-036 calls
+for running the full measurement matrix from the integration design's section
+11 — {200, 500 visible units} x {minimum zoom 0.05, default fit, maximum zoom
+12} x {grass on, off} x {motion on, off} at 1080p on named hardware — and
+either confirming or revising every `RenderBudgetEstimate` figure through a
+recorded, reviewed decision (R-W6.13, R-W6.14). `./scripts/verify.ps1`'s
+worktree agent has neither a display nor a GPU, and `HUKBO_RENDER_PROBE`
+requires both (VIS-035's own doc comment: "Requires a real window and GPU —
+there is no headless mode for this one"), so no cell of the matrix was run and
+no number below is a measurement. Every figure stays labeled **ESTIMATE**,
+exactly as VIS-034 and VIS-035R left it, per this file's and R-W6.13's binding
+rule: never present an estimate as a measurement.
+
+### What VIS-036 built, unrun
+
+`tools/Hukbo.Tools.RenderProbe` gained a `--matrix` mode
+(`Hukbo.Tools.RenderProbe.exe --matrix [seed] [framesPerStation]
+[outputPath]`) that re-invokes its own already-relied-upon
+single-configuration path once per agent count (200, 500 — the design's first
+matrix axis), driving the three camera stations inside each re-invocation
+exactly as the single-configuration mode already does, and merges the results
+into one `render-matrix-<date>.json` under `artifacts/`. That covers two of
+the design's four axes — agent count and camera-zoom station — without adding
+a second, unverified in-process `ArenaGame` lifecycle to the tool.
+
+**Two axes are not driven by this seam yet: grass on/off and motion on/off.**
+Grass visibility is governed entirely by `DetailTierGate`'s own zoom-derived
+detail tier inside `GrassRenderer`/`GrassGeometry`; there is no independent
+override, spectator-facing or probe-only, that suppresses grass at a fixed
+camera station. Motion intensity is a real, spectator-facing setting
+(`MotionIntensityManager`), but `ArenaGame` exposes no probe-only override for
+it the way `SetProbeCameraZoom` exists for the camera — the only lever is the
+persisted settings file, and driving it from the hand-run tool would mean
+silently overwriting whoever's real settings file the tool runs against, which
+this task declined to do without a reviewed seam decision. A `--matrix` run
+therefore captures each station's *natural* grass and motion state (grass at
+whatever tier that station's zoom classifies to; motion at the persisted
+`MotionIntensity`, default `Full`) rather than four independent on/off cells.
+`RenderMatrixReport.AxesNote` records this same disclosure inside the JSON
+itself, so a report file read in isolation is not misread as the full
+twenty-four-cell matrix. Extending the seam with a probe-only grass and motion
+override, so a future run can drive all four axes and evaluate the "grass-off
+and motion-off measure less than or equal to their on-counterparts" sanity
+rule (integration design section 11), is a follow-up, not attempted here.
+
+### The budgets, still ESTIMATE
+
+Unchanged from `src/Hukbo.Client/Rendering/SubmissionCount.cs`'s
+`RenderBudgetEstimate` (integration design section 8/11, amendment A-1's Tier
+1 quad redenomination): arena-batch quads ≤ 12,000 at 200 units, ≤ 20,000 at
+500 units. Frame-time budgets from the design (200 units: p50 ≤ 6 ms, p95 ≤ 10
+ms, p99 ≤ 14 ms; 500 units: p50 ≤ 8 ms, p95 ≤ 13 ms, p99 ≤ 16 ms) have no
+corresponding named constant yet because nothing has measured against them.
+`tests/Hukbo.Client.Tests/RenderBudgetEstimateTests.cs` (the file
+implementation-plan-draft.md's VIS-036 entry names `SubmissionCountTests.cs`,
+renamed by VIS-034/amendment A-1) continues to pass unmodified: its worst-case
+arithmetic check needed no revision, because there is no measurement to
+reconcile it against.
+
+### What would unblock this
+
+A person at an interactive Windows desktop with a GPU, running the built
+`Hukbo.Tools.RenderProbe.exe --matrix` (after the grass/motion override
+follow-up above lands) on named hardware, recording
+`artifacts/render-matrix-<date>.json`, and — only then — either confirming
+each `RenderBudgetEstimate`/frame-time figure or revising it through a
+recorded, reviewed diff. Until that happens, no automated test may encode a
+number from this section as an enforced ceiling.
+
 ## Latest non-interactive result — perf hardening merged with attack combinations on preset V3, 2026-07-28
 
 `./scripts/verify.ps1` on `main` after merging branch `combat-preset-v3-combos`
@@ -1065,11 +1215,23 @@ below.
 
 ### The Phase 2 reference pair
 
+> **Superseded for current comparisons — see "The preset V3 reference pair"
+> below.** The pair recorded in this section remains accurate for the commit
+> and the ruleset it was measured against, and it is kept as the historical
+> record of that measurement. It is no longer the value a present-day run of
+> the seed-1 workload reproduces, because the V3 combat-preset work
+> (`6ffd214`, `d82487c`, merged at `473b12d`) changed the ruleset after this
+> pair was recorded. Under `CLAUDE.md` section 5 a new preset version requires
+> new golden expectations, and those expectations were not written at the time
+> of that merge. They are recorded below.
+
 Measured at commit `cffbb6c`, the end of Phase 2, by
 `./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`. Phase 3 is
 presentation-only, so a Phase 4 run of the same workload must reproduce both
 hashes byte for byte; any difference means presentation work leaked into the
-simulation.
+simulation. That reasoning still holds, but it holds *within a preset
+version* — the comparison is only meaningful against a pair measured on the
+same ruleset.
 
 | Field | Value |
 | --- | --- |
@@ -1094,6 +1256,46 @@ Combat metrics from the same run:
 | `deflectedAttacks` | 237 |
 | `evadedAttacks` | 285 |
 | `defenceAttributableShare` | 0.3414 |
+
+### The preset V3 reference pair
+
+This is the pair a present-day run of the seed-1 workload reproduces, and the
+one the visual improvement package was verified against.
+
+The Phase 2 pair above stopped being reproducible when the V3 combat-preset
+work landed. That change was legitimate and deliberate — it altered the
+ruleset, which is exactly the case `CLAUDE.md` section 5 covers when it says a
+new preset version requires new golden expectations. What was missing is only
+the record: the expectations were never rewritten when the preset version
+moved. This section supplies them.
+
+Measured by `./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1` at
+commit `dc9d1c7`, the tip of `main` before any visual-package work:
+
+| Field | Value |
+| --- | --- |
+| `measuredTicks` | 1 710 |
+| `outcome` | `Faction1Victory`, 0 against 2 survivors |
+| `eventHash` | `2A9F2D7054CD1805` |
+| `stateHash` | `A883926A3B93792E` |
+| `deterministic` | `true` |
+| `firstMismatchTick` | `null` |
+| `allocatedBytes` | 521 296 |
+| `coreAllocatedBytes` | 118 896 |
+| Tick p50 / p95 / p99 / max | 0.0794 / 1.4472 / 2.5125 / 9.9492 ms |
+
+**How the visual package was proved neutral against it.** The identical
+workload was run twice: once on untouched `dc9d1c7`, and once on the
+integrated visual-package tree through the canonical gate
+`./scripts/verify.ps1`. Both runs returned `measuredTicks` 1 710, `outcome`
+`Faction1Victory`, `eventHash 2A9F2D7054CD1805`, `stateHash A883926A3B93792E`,
+`deterministic true`, and `firstMismatchTick null`. The two runs agree byte for
+byte, so no presentation work leaked into the simulation.
+
+Recording the pair this way — as a *new* pair rather than an edit to the Phase
+2 table — is deliberate. The Phase 2 numbers were correct for their commit and
+their ruleset, and overwriting them would destroy the evidence that the change
+between the two was a preset version bump rather than a determinism defect.
 
 Both Phase 2 acceptance criteria are met with no re-tuning of the shipped
 tables.
@@ -2710,6 +2912,234 @@ rows are `PENDING`.**
 | 99. Watch the battle event feed during a live run | Events appear correctly and in the correct order for the whole run; nothing is missing, duplicated, or out of sequence. | Not run | PENDING |
 | 100. Pause, resume, and change speed repeatedly during a run | The feed survives every pause and every speed change without losing or duplicating a single entry. | Not run | PENDING |
 | 101. Let a battle run to its end | Once the battle ends, the feed shows nothing stale left over from the last live tick. | Not run | PENDING |
+
+### Visual improvement milestone smoke (VIS-041)
+
+Covers the first milestone of
+[docs/archives/2026-07-28/improve-visuals/implementation-plan-draft.md](../archives/2026-07-28/improve-visuals/implementation-plan-draft.md)
+(tasks VIS-001 through VIS-038, milestone-scoped subset), closing that plan's
+own VIS-041 task. **Not performed. Every row below is `PENDING`.** The
+automated suites landed alongside these tasks prove the catalog validation
+passes, the detail-tier and contrast-envelope thresholds fire at their exact
+pinned values, the missing-visual diagnostics dedupe and cap correctly, the
+reduced-motion truth table is exhaustive, and the MotionIntensity-Off sway
+path is bit-identical to a static backdrop by construction. None of that
+proves how the milestone's actual content — the Kalis tint family, the S1
+shield skin, the five levy presets, the grass ground and its sway, the
+diagnostic placeholder — reads to a person watching the screen, which is the
+only thing the rows below are for. Per `CLAUDE.md` section 6 item 4 and
+R-W6.17, only a human at an interactive Windows desktop may flip one of these
+rows to `PASS`, `FAIL`, or `BLOCKED`; compilation, unit tests, and a
+window-opening probe do not count, and no agent may perform this session.
+
+**Review protocol.**
+
+- **Launch and seed.** Start from a fresh `./scripts/run.ps1` session, or
+  press `Shift+R` (Full Reset) if a session is already open. Either path
+  returns the seed to `1`, matching the milestone's recorded reference pair
+  (stateHash `A883926A3B93792E`, eventHash `2A9F2D7054CD1805` — see "The
+  preset V3 reference pair" above, the same pair VIS-045's canonical gate run
+  reproduced byte for byte). The package's planning documents cite the older
+  Phase 2 pair `27DC94C6E9A01E35` / `372C9217E5CB8BE9`; that pair was already
+  stale when the package began, because the V3 combat-preset merge changed the
+  ruleset after it was recorded. The neutrality claim is unaffected — it is a
+  before-and-after comparison on the same commit lineage, and both sides agree.
+  Every row below is observed against this seed-1 scenario unless the row says
+  otherwise.
+- **Camera stations.** Three fixed stations, named per row: minimum zoom
+  (zoomed fully out, the whole field visible at once), default fit (the
+  camera position the game opens in, before any zoom or pan input), and
+  maximum zoom (zoomed fully in, a close-up on one or two pawns). A row that
+  names more than one station must be observed at each one named before it
+  can be marked `PASS`.
+- **Themes.** Default and high-contrast, cycled through the in-game theme
+  selector. A row that names both themes must be observed under each before
+  it can be marked `PASS`.
+- **Settings permutations.** Gore Intensity and MotionIntensity are both
+  spectator-facing settings this milestone's rows can depend on; exercise
+  only the permutation a given row actually names. No row in this batch
+  depends on the Gore Intensity setting. The MotionIntensity setting (`Off`,
+  `Reduced`, `Full`) is exercised by the three sway rows and by the
+  operability row, each of which names the value or values it needs.
+- **Evidence.** Fill in the evidence-field table below once for the session
+  (date, machine/platform, source commit, launch path, and any screenshot
+  paths). Record what was actually seen in each row's `Actual` column, even
+  for a row that ends up `PASS` — "Not run" is only correct for a row that
+  was never attempted. Attach a screenshot under `artifacts/` for any row
+  where a picture is useful evidence; capture one for the forced-failure
+  placeholder row and for any row disposed `FAIL`, since those are the ones
+  a second reader is most likely to need to see rather than take on faith.
+- **Disposition.** Only a human at an interactive desktop may write `PASS`,
+  `FAIL`, or `BLOCKED` into a row's `Status` column; nothing in the plan, no
+  test, and no agent may. `PASS` requires the row's whole expected
+  observation to have actually been seen, exactly as stated — a row that was
+  only partly exercised stays `PENDING`, following the precedent set by rows
+  2, 4, 5, and 15 above, and the still-missing half is named in `Actual`
+  rather than left silent. `FAIL` records what was actually seen instead of
+  the expected observation. `BLOCKED` records the obstacle that prevented the
+  row from being exercised at all. A row untouched by this session stays
+  `PENDING`.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+Rows marked with a dagger (†) instantiate a requirement traced elsewhere in
+the plan and carry more weight than an ordinary readability check; the note
+below the table explains each one.
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 102. Kalis tints at minimum zoom | At the minimum-zoom station, default theme, MotionIntensity Full, Kalis-armed pawns remain classifiable as Kalis-wielders; the `freshIron`/`wellOiled` tint difference is invisible or below the threshold of notice at this distance. | Not run | PENDING |
+| 103. Kalis tints at default fit | At the default-fit station, default theme, compare a `freshIron` and a `wellOiled` Kalis pawn side by side. The tint reads as material variation on the same weapon, never as a different weapon. | Not run | PENDING |
+| 104. Kalis tints at maximum zoom | At the maximum-zoom station, default theme, close in on a single Kalis pawn. The tint is visible without breaking weapon-role recognition — it still reads unmistakably as a Kalis. | Not run | PENDING |
+| 105. S1 shield distinguishable at minimum zoom | At the minimum-zoom station, default theme, compare a shield-bearing pawn (S1 `mactanThin`) against an unshielded pawn of the same weapon. Shield bearers are distinguishable from solo warriors without zooming in or clicking either. | Not run | PENDING |
+| 106. S1 shield reads as the same equipment † | At the default-fit station, default theme, examine an S1 `mactanThin` shield bearer. The skin reads as ordinary shield equipment, not as a different or a visibly reduced piece of equipment compared to an unshielded pawn's absence of one. | Not run | PENDING |
+| 107. Levy presets read as varied but coherent | At the default-fit station, default theme, observe the five levy clothing presets across the roster. The five read as visibly varied from one another while still reading as clothing belonging to the same army, not as unrelated or mismatched equipment. | Not run | PENDING |
+| 108. Levy presets do not misread faction or equipment | At the default-fit station, default theme, compare warriors wearing different levy presets across both factions. No preset reads as belonging to the other faction, and no preset reads as a different weapon or equipment identity than the pawn actually carries. | Not run | PENDING |
+| 109. Grass reads as grassland, not a checkerboard | Cycle through the minimum-zoom, default-fit, and maximum-zoom stations, default theme, observing the battlefield ground at each. At every station the ground reads as living grassland with grass clusters scattered across it, not as a flat repeating checkerboard tile pattern. | Not run | PENDING |
+| 110. Arena border still reads as the strongest line | At the default-fit station, default theme, compare the arena border against the new grass ground. The border remains the visually strongest line on the field; the grass rendering does not compete with it or make it harder to find. | Not run | PENDING |
+| 111. Sway reads as alive, not as noise | At the default-fit station, default theme, MotionIntensity Full, watch the grass during a busy engagement (multiple pawns fighting on screen at once). The sway reads as gentle, organic motion — alive — rather than as flicker or visual noise. | Not run | PENDING |
+| 112. No sway motion visible at minimum zoom | At the minimum-zoom station, default theme, MotionIntensity Full. No grass motion is visible at this distance — the detail-tier gate suppresses sway at minimum zoom regardless of the motion setting. | Not run | PENDING |
+| 113. High-contrast theme shows zero grass motion | At the default-fit station, high-contrast theme, MotionIntensity Full. The high-contrast theme shows zero grass motion, independent of the MotionIntensity setting. | Not run | PENDING |
+| 114. Motion setting is operable and gates sway exactly † | Open Menu, locate the Motion Intensity control, and cycle it through `Off`, `Reduced`, and `Full` while watching the grass at the default-fit station, default theme. The control is reachable and operable from the menu. `Off` shows exactly zero grass motion — the off switch is exact, not merely reduced. `Reduced` shows visibly damped motion. `Full` shows the full sway amplitude. | Not run | PENDING |
+| 115. Forced-failure placeholder is conspicuous | Run the forced-failure debug configuration that exercises the visual-catalog resolver's fallback path (see the resolver and its tests landed under VIS-003/VIS-004/VIS-008 for the specific trigger, as this document does not fix one that was not verified against the running build). Observe the affected element's position, then inspect the session's debug log on the `assets` channel. The diagnostic placeholder is conspicuously visible at the affected element's position — not blended in, not easy to miss — and the `assets` channel logs the fallback event exactly once for that identifier. | Not run | PENDING |
+
+**Row 106** instantiates R-X.12's false-cause guard (no equipment reading as
+less mechanical coverage than another) for the milestone's single shipped
+shield skin. The full multi-skin comparison the guard was written for —
+whether a narrower S2/S5 skin reads as less coverage than S1, S3, or S4 —
+only becomes meaningful once VIS-014 ships the other three skins, which is
+post-milestone; that comparison gets its own row under VIS-043 when VIS-014
+lands, per OD-10's resolution (see the implementation plan around VIS-014 and
+the requirements-traceability table entry for R-X.12).
+
+**Row 114** is the milestone completion condition the plan's milestone
+section calls "sway off-switch exact" (implementation plan, First milestone
+section): the row requires observing that `MotionIntensity Off` produces
+literally zero grass motion, not merely a damped or reduced one, in addition
+to confirming the control is reachable from the menu.
+
+### Visual improvement full-package smoke (VIS-043)
+
+Covers every post-milestone task in
+[docs/archives/2026-07-28/improve-visuals/implementation-plan-draft.md](../archives/2026-07-28/improve-visuals/implementation-plan-draft.md)
+whose own "Manual visual verification" section calls for a row that the
+milestone checklist above (VIS-041) did not already create: VIS-009, VIS-011,
+VIS-012, VIS-014, VIS-015, VIS-016, VIS-020, VIS-022, VIS-023, VIS-024,
+VIS-028, VIS-029, and VIS-033. Three further post-milestone tasks in that same
+list — VIS-006, VIS-019, VIS-021 — name no new row of their own; the audit
+table below explains why. VIS-027's row is a re-judgment of an existing
+milestone row rather than a new one, and VIS-036 is a hand-run measurement
+procedure, not a screen-look row, already recorded in its own section above.
+**Not performed. Every row below is `PENDING`.** As with VIS-041, only a
+human at an interactive Windows desktop may flip one of these rows to `PASS`,
+`FAIL`, or `BLOCKED`; compilation, unit tests, and a window-opening probe do
+not count, and no agent may perform this session, per `CLAUDE.md` section 6
+item 4 and R-W6.17.
+
+**Review protocol.** The launch-and-seed instructions, the three named camera
+stations (minimum zoom, default fit, maximum zoom), the default and
+high-contrast theme cycle, and the disposition rules (`PASS` requires the
+whole expected observation to have actually been seen; a partly-exercised row
+stays `PENDING`; `FAIL` records what was actually seen; `BLOCKED` records the
+obstacle) are the same protocol recorded under the VIS-041 section above and
+are not repeated here. The MotionIntensity and Gore Intensity settings are
+not exercised by any row in this batch.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+Rows marked with a dagger (†) instantiate a requirement traced elsewhere in
+the plan and carry more weight than an ordinary readability check; the note
+below the table explains each one.
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 116. Weapon variants at minimum zoom, all four weapons | At the minimum-zoom station, default theme, with 200+ pawns: each of the four weapon roles (Kampilan, Wasay, Kalis, Itak) remains classifiable, and tint variation across all four is invisible or below the threshold of notice at this distance. | Not run | PENDING |
+| 117. Weapon variants at default fit, all four weapons | At the default-fit station, default theme: each pawn's weapon role is identifiable at a glance across all four weapons, and every tint reads as material variation on the same weapon, never as a different weapon. | Not run | PENDING |
+| 118. Weapon variants at maximum zoom, including the Wasay lashing band | At the maximum-zoom station, default theme, close in on pawns carrying each of the four weapons in turn. Tint and wear variation is visible without breaking role recognition for any of the four; the Wasay's rattan lashing band at the head-haft junction reads as a lashed band, not as damage or a new weapon part. | Not run | PENDING |
+| 119. Weapon inspector shows label, tier, and note | Select a pawn carrying each of the four weapons in turn. The inspector shows the unchanged pair-form weapon label, the selected variant's evidence tier, and its note; for a weapon with inspector-only entries (Kampilan k2, Kalis l2/l3), those appear labelled as later-or-provisional forms, never as anything the selected pawn is shown wearing. | Not run | PENDING |
+| 120. Pawns render identically to the pre-package build at all three zoom stations | Compare a pawn's rendered appearance today against the pre-package build at the minimum-zoom, default-fit, and maximum-zoom stations. Weapon grip position, shield position, and layer draw order all look unchanged — this task only added anchor fields and empty layer slots, it drew nothing new. | Not run | PENDING |
+| 121. Shield skins at default fit: four skins read as variation, S5 accent reads as binding † | At the default-fit station, default theme, compare shield-bearing pawns across all four shipped skins (S1 `mactanThin`, S2 `morgaFullBody`, S3 `boxerCagayan`, S5 `visayanKalasag`). All four read as variation of one shield, not as different pieces of equipment; on an S5-skinned pawn, the horizontal rattan accent reads as a binding detail, not as damage. | Not run | PENDING |
+| 122. Shield skins at maximum zoom: face tones, curvature, edge step, and angled posture | At the maximum-zoom station, default theme, close in on shield-bearing pawns across all four skins. Face tones, the S3 curvature, and the High-tier edge-tone step are all visible; the shield's angled forward posture (S12) reads as an active stance, not as a layout bug, for every skin. | Not run | PENDING |
+| 123. Shield skins under the high-contrast theme remain unambiguous | Switch to the high-contrast theme at the default-fit station. The shield block remains unambiguous against both torso and ground for all four skins — no skin blends into its background or becomes hard to identify as a shield. | Not run | PENDING |
+| 124. Shield inspector shows label, anchor tag, tier, note, and pending flags | Select a shield-bearing pawn for each of the four skins in turn. The inspector shows the plain label `Tall Hardwood Shield`, the skin's anchor tag, its evidence tier, and its note, including the pending-verification flags on the *kalasag* (S5) and, if OD-2's default stands, any *palisay* reference — with neither name appearing as a bare player-facing label anywhere in the panel. | Not run | PENDING |
+| 125. Fifty-plus presets read as varied but coherent at normal zoom | At the default-fit station, default theme, observe the full roster (levy plus Visayan, Tagalog, and Northern Luzon blocks) across both factions. The fifty-plus presets read as visibly varied from one another while still reading as clothing belonging to the same two armies, not as unrelated or mismatched equipment. | Not run | PENDING |
+| 126. Elite figures read as denser in gold and dye, not larger | At the default-fit station, default theme, compare an elite- or datu-marked preset (gold accents, richer dye) against an ordinary preset from the same block. The elite figure reads as denser in gold and dye detail; it never reads as a physically larger pawn. | Not run | PENDING |
+| 127. At minimum zoom, faction and weapon role remain the dominant reads | At the minimum-zoom station, default theme, with 200+ pawns drawn from the full roster across all blocks. Faction (by ground-ring color) and weapon role remain the dominant, most legible reads on the field; no preset's clothing or color competes with either for attention at this distance. | Not run | PENDING |
+| 128. Armored figures read as bulkier, not as shielded | At the default-fit or maximum-zoom station, default theme, compare a pawn wearing an armor-layer component (F2 through F5) against an unarmored pawn and against a shield-bearing pawn. The armored pawn reads as visibly bulkier through the torso, and does not read as if it were carrying a shield. | Not run | PENDING |
+| 129. Adornment accents visible at maximum zoom without breaking any read | At the maximum-zoom station, default theme, close in on a pawn wearing adornment accents (gold accents I4/I5, or the C3 gold-edged putong). The accents are visible without breaking weapon-role, faction, or equipment recognition. | Not run | PENDING |
+| 130. Appearance inspector shows preset name, scope tag, tier, and component notes | Select any pawn from the full roster. The inspector shows the preset's plain-English name, its scope tag, its evidence tier, a per-component tier list with must-not-generalize notes, pending-verification flags where applicable, and any non-renderable flavor lines — with no bare Filipino term appearing unpaired anywhere in the panel. | Not run | PENDING |
+| 131. Trampled areas visibly thin where fighting happened | During or after a battle with visible casualties, observe the grass around a cluster of `Death` events. The grass there reads as visibly thinned or trampled compared to untouched ground elsewhere on the field. | Not run | PENDING |
+| 132. Dust reads as impact punctuation, not weather (ships only if VIS-029 shipped) | If VIS-029 shipped this pass: during a busy engagement, observe the brief dust puffs spawned on `Death` (and, if implemented, a throttled `Attack`) events. The dust reads as a short, localized punctuation of an individual impact, not as ambient weather or a persistent haze across the field. If VIS-029 was not shipped this pass, record this row `BLOCKED` with that reason rather than leaving it silently unresolved. | Not run | PENDING |
+| 133. With 200+ pawns, faction remains readable by ring shape and position, hue disregarded † | At the default-fit station, default theme, with 200+ pawns on the field. A human with typical color vision judges the faction ring's shape-and-position channel alone, disregarding hue, and finds faction still distinguishable by that channel. | Not run | PENDING |
+
+**Row 121** instantiates R-X.12's false-cause guard for the full four-skin
+shield roster, completing the comparison that row 106 in the VIS-041 section
+above explicitly deferred to this task ("that comparison gets its own row
+under VIS-043 when VIS-014 lands, per OD-10's resolution"). Row 106 itself is
+left as recorded — it covered only the single milestone skin, S1, and is not
+edited or duplicated here.
+
+**Row 133** is an honest partial check, worded exactly as VIS-033's own task
+text requires: it holds only the no-regression floor that no new garment,
+tint, skin tone, or ground shade introduced by this package has become a
+competing faction signal. It is not color-blind verification. OD-7 defers the
+stronger shape-redundant faction marker to a backlog item in
+`docs/plans/TODO.md`; this row does not stand in for that marker.
+
+**Human review task, not a checklist row.** Both `implementation-plan-draft.md`
+(VIS-043's own goal) and `warrior-appearance-design.md` call for a line-by-line
+historical review of the full preset roster table against
+`docs/research/improve-visuals/warrior-appearance-historical-research.md`.
+That review is a human read-through of a document against another document,
+not an observation of the running game, so it does not belong in the table
+above as a `PASS`/`FAIL`/`BLOCKED` row. It is recorded here as an outstanding
+task: the review has not been performed, and per
+`implementation-plan-draft.md`'s VIS-044 entry, a failure found during that
+review routes to a content-correction task, not to a change in this testing
+document. It is due at VIS-044, the full-package manual review session,
+alongside the rows above.
+
+#### Criterion-to-row audit
+
+Every post-milestone task named in this section's opening paragraph, and the
+disposition of its own "Manual visual verification" section from
+`implementation-plan-draft.md`:
+
+| Task | Manual criterion (as stated in the task) | Disposition |
+| --- | --- | --- |
+| VIS-006 | None stated; runtime effect is observable only in a forced-failure build. | Already covered by row 115, created under VIS-041 for VIS-008's forced-failure placeholder path — the same observable effect VIS-006's catalog validator falls back through. No new row. |
+| VIS-009 | "Pawns render identically to the pre-package build at all three zoom stations." | Row 120. |
+| VIS-011 | "The three zoom rows across all four weapons; the Wasay lashing band reads as a band, not damage or a new weapon part." | Rows 116, 117, 118 (the maximum-zoom row, 118, carries the Wasay lashing-band clause, matching the single bundled row `weapon-visuals-design.md`'s own "Readability confirmation" section defines for maximum zoom). |
+| VIS-012 | "Inspector shows, for a selected pawn, the pair-form weapon label, the variant's evidence tier, and its note." | Row 119. |
+| VIS-014 | "The four skins read as variation of one shield, not different equipment"; "the S5 accent reads as binding, not damage"; "the maximum-zoom and high-contrast rows per the shield design." | Row 121 (first two clauses, bundled per `shield-visuals-design.md`'s own normal-zoom row), row 122 (maximum zoom, shared with VIS-015), row 123 (high-contrast). |
+| VIS-015 | "The angled posture reads as an active stance, not a layout bug (maximum zoom)." | Row 122, shared with VIS-014 — `shield-visuals-design.md`'s own maximum-zoom row bundles face tones/curvature/edge steps together with the angled-posture observation as one check performed at one station under one set of conditions. |
+| VIS-016 | "Inspector shows, for a selected shielded pawn, the plain shield label, the skin's anchor tag, tier, and note including pending flags." | Row 124. |
+| VIS-019 | None directly; "judged through the roster rows in VIS-043." | Covered by rows 125, 126, 127 below and by the existing rows 107/108 under VIS-041. No new row. |
+| VIS-020 | "Fifty-plus presets read as varied but coherent at normal zoom"; "elite figures read as denser in gold and dye, not larger." | Rows 125, 126. |
+| VIS-021 | "Shared roster rows in VIS-043." | Covered by rows 125, 126 and the existing row 108. No new row. |
+| VIS-022 | "Shared roster rows in VIS-043; at minimum zoom, faction and weapon role remain the dominant reads." | Row 127 (the new clause); the shared portion is covered by rows 125, 126, and 108 as with VIS-021. |
+| VIS-023 | "Armored figures read as bulkier, not as shielded"; "accents visible at maximum zoom without breaking any read." | Rows 128, 129. |
+| VIS-024 | "Inspector shows preset name, scope tag, tier, and component notes for any selected pawn." | Row 130. |
+| VIS-027 | "Ground reads as living grassland, not checkerboard, at all zooms (re-judged after this task)." | Reuses existing row 109 under VIS-041 — the identical criterion, re-observed against the new correlated-shading formula rather than the independent per-cell hash it replaces. No new row; row 109 is not edited. |
+| VIS-028 | "Trampled areas visibly thin where fighting happened." | Row 131. |
+| VIS-029 | "Dust reads as impact punctuation, not weather (wording finalized when unblocked)." | Row 132, worded to account for the task's optional-per-OD-9 status. |
+| VIS-033 | "With 200+ pawns, faction remains readable by ring shape and position when hue is disregarded" (honest wording). | Row 133. |
+| VIS-036 | None; "the run itself is the hand procedure," BLOCKED-honest if no desktop. | Not a screen-look row. Already recorded, and already disposed `BLOCKED, honestly`, in the "Render performance measurement — full matrix (VIS-036)" section earlier in this document. No new row. |
+
+Eighteen new rows (116 through 133) were created by this task, all `PENDING`.
+No row born flipped, per VIS-043's own prohibited-scope clause.
 
 ## Failure classification
 

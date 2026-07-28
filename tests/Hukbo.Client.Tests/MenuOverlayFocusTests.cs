@@ -38,24 +38,37 @@ public sealed class MenuOverlayFocusTests
     }
 
     [Fact]
-    public void TheGoreSelectorTakesTheTerminalIndexAfterEveryButton()
+    public void TheGoreSelectorTakesTheIndexAfterEveryButton()
     {
-        Assert.Equal(
-            MenuOverlay.ButtonDefinitions.Length + 2,
-            MenuOverlay.ControlCount);
         Assert.Equal(
             MenuOverlay.ButtonDefinitions.Length + 1,
             MenuOverlay.GoreSelectorControlIndex);
     }
 
+    /// <summary>
+    /// The motion selector was appended beside the gore selector (VIS-032):
+    /// it now takes the terminal index, one past the gore selector, and
+    /// <see cref="MenuOverlay.ControlCount"/> grew by one to match.
+    /// </summary>
     [Fact]
-    public void KeyboardFocusWrapsThroughTheTerminalGoreSelectorIndex()
+    public void TheMotionSelectorTakesTheNewTerminalIndexAfterGore()
+    {
+        Assert.Equal(
+            MenuOverlay.GoreSelectorControlIndex + 1,
+            MenuOverlay.MotionSelectorControlIndex);
+        Assert.Equal(
+            MenuOverlay.MotionSelectorControlIndex + 1,
+            MenuOverlay.ControlCount);
+    }
+
+    [Fact]
+    public void KeyboardFocusWrapsThroughTheTerminalMotionSelectorIndex()
     {
         var controlCount = MenuOverlay.ControlCount;
-        var goreIndex = MenuOverlay.GoreSelectorControlIndex;
+        var motionIndex = MenuOverlay.MotionSelectorControlIndex;
 
         Assert.Equal(
-            goreIndex,
+            motionIndex,
             MenuOverlay.ResolveFocusedControlIndex(
                 currentIndex: 0,
                 keyboardDirection: -1,
@@ -64,21 +77,33 @@ public sealed class MenuOverlayFocusTests
         Assert.Equal(
             0,
             MenuOverlay.ResolveFocusedControlIndex(
-                currentIndex: goreIndex,
+                currentIndex: motionIndex,
                 keyboardDirection: 1,
                 hoveredIndex: -1,
                 controlCount: controlCount));
         Assert.Equal(
-            goreIndex,
+            motionIndex,
             MenuOverlay.ResolveFocusedControlIndex(
-                currentIndex: goreIndex - 1,
+                currentIndex: motionIndex - 1,
                 keyboardDirection: 1,
                 hoveredIndex: -1,
                 controlCount: controlCount));
     }
 
     [Fact]
-    public void HoveringTheGoreSelectorMovesFocusToItsTerminalIndex()
+    public void KeyboardFocusMovesFromGoreToMotionGoingForward()
+    {
+        Assert.Equal(
+            MenuOverlay.MotionSelectorControlIndex,
+            MenuOverlay.ResolveFocusedControlIndex(
+                currentIndex: MenuOverlay.GoreSelectorControlIndex,
+                keyboardDirection: 1,
+                hoveredIndex: -1,
+                controlCount: MenuOverlay.ControlCount));
+    }
+
+    [Fact]
+    public void HoveringTheGoreSelectorMovesFocusToItsIndex()
     {
         var resolved = MenuOverlay.ResolveFocusedControlIndex(
             currentIndex: 0,
@@ -87,6 +112,18 @@ public sealed class MenuOverlayFocusTests
             controlCount: MenuOverlay.ControlCount);
 
         Assert.Equal(MenuOverlay.GoreSelectorControlIndex, resolved);
+    }
+
+    [Fact]
+    public void HoveringTheMotionSelectorMovesFocusToItsTerminalIndex()
+    {
+        var resolved = MenuOverlay.ResolveFocusedControlIndex(
+            currentIndex: 0,
+            keyboardDirection: 0,
+            hoveredIndex: MenuOverlay.MotionSelectorControlIndex,
+            controlCount: MenuOverlay.ControlCount);
+
+        Assert.Equal(MenuOverlay.MotionSelectorControlIndex, resolved);
     }
 
     [Theory]

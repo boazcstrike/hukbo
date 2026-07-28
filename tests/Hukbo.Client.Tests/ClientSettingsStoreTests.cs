@@ -29,6 +29,7 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal("command", settings.SelectedThemeId);
             Assert.Equal(ArmyComposition.Default, settings.Composition);
             Assert.Equal(GoreIntensity.Stylized, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Full, settings.MotionIntensity);
         });
     }
 
@@ -40,11 +41,13 @@ public sealed class ClientSettingsStoreTests
             Assert.True(store.TrySave(
                 "signal",
                 ArmyComposition.Default,
-                GoreIntensity.Stylized));
+                GoreIntensity.Stylized,
+                MotionIntensity.Full));
             Assert.True(store.TrySave(
                 "broadcast",
                 ArmyComposition.Default,
-                GoreIntensity.Stylized));
+                GoreIntensity.Stylized,
+                MotionIntensity.Full));
 
             var settings = store.Load("command");
 
@@ -114,7 +117,8 @@ public sealed class ClientSettingsStoreTests
             Assert.True(store.TrySave(
                 "signal",
                 SampleComposition,
-                GoreIntensity.Stylized));
+                GoreIntensity.Stylized,
+                MotionIntensity.Full));
 
             var settings = store.Load("command");
 
@@ -130,11 +134,31 @@ public sealed class ClientSettingsStoreTests
             Assert.True(store.TrySave(
                 "command",
                 SampleComposition,
-                GoreIntensity.Full));
+                GoreIntensity.Full,
+                MotionIntensity.Full));
 
             var settings = store.Load("signal");
 
             Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal("command", settings.SelectedThemeId);
+            Assert.Equal(SampleComposition, settings.Composition);
+        });
+    }
+
+    [Fact]
+    public void SavedMotionIntensityRoundTripsThroughTheStore()
+    {
+        WithTemporarySettings((store, _) =>
+        {
+            Assert.True(store.TrySave(
+                "command",
+                SampleComposition,
+                GoreIntensity.Stylized,
+                MotionIntensity.Off));
+
+            var settings = store.Load("signal");
+
+            Assert.Equal(MotionIntensity.Off, settings.MotionIntensity);
             Assert.Equal("command", settings.SelectedThemeId);
             Assert.Equal(SampleComposition, settings.Composition);
         });
@@ -157,6 +181,7 @@ public sealed class ClientSettingsStoreTests
 
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(GoreIntensity.Stylized, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Full, settings.MotionIntensity);
         });
     }
 
@@ -178,6 +203,54 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(80, settings.Composition.UnitsPerTeam);
             Assert.Equal(GoreIntensity.Stylized, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Full, settings.MotionIntensity);
+        });
+    }
+
+    [Fact]
+    public void AVersionThreeFileLoadsCleanlyAndDefaultsMotionToFull()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":3,\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson + ",\"goreIntensity\":2}");
+
+            var settings = store.Load("command");
+
+            // Version 3 predates MotionIntensity, so this is what a real
+            // pre-upgrade file looks like: valid on every field it has, and
+            // missing the one it does not.
+            Assert.Equal(3, settings.SchemaVersion);
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(80, settings.Composition.UnitsPerTeam);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Full, settings.MotionIntensity);
+        });
+    }
+
+    [Fact]
+    public void AnOutOfRangeMotionIntensityResetsOnlyThatField()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":99}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(80, settings.Composition.UnitsPerTeam);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Full, settings.MotionIntensity);
         });
     }
 
@@ -194,13 +267,14 @@ public sealed class ClientSettingsStoreTests
                 ",\"selectedThemeId\":\"signal\"," +
                 "\"composition\":{\"unitsPerTeam\":100,\"greatBladeCount\":1," +
                 "\"heavyChopperCount\":1,\"thrustingBladeCount\":1," +
-                "\"workBladeCount\":1},\"goreIntensity\":2}");
+                "\"workBladeCount\":1},\"goreIntensity\":2,\"motionIntensity\":0}");
 
             var settings = store.Load("command");
 
             Assert.Equal("command", settings.SelectedThemeId);
             Assert.Equal(ArmyComposition.Default, settings.Composition);
             Assert.Equal(GoreIntensity.Stylized, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Full, settings.MotionIntensity);
         });
     }
 
@@ -232,7 +306,8 @@ public sealed class ClientSettingsStoreTests
             Assert.True(store.TrySave(
                 "command",
                 SampleComposition,
-                GoreIntensity.Full));
+                GoreIntensity.Full,
+                MotionIntensity.Full));
             using var locked = new FileStream(
                 settingsPath,
                 FileMode.Open,
@@ -242,7 +317,8 @@ public sealed class ClientSettingsStoreTests
             Assert.False(store.TrySave(
                 "signal",
                 ArmyComposition.Default,
-                GoreIntensity.Off));
+                GoreIntensity.Off,
+                MotionIntensity.Off));
             Assert.Empty(
                 Directory.GetFiles(
                     Path.GetDirectoryName(settingsPath)!,

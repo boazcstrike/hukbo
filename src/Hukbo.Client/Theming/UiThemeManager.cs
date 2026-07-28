@@ -31,9 +31,10 @@ internal sealed class UiThemeManager
 
     /// <summary>
     /// Re-reads the whole settings file at save time so that persisting a
-    /// theme change carries forward the army composition and gore intensity a
-    /// panel may have written since this manager was constructed, rather than
-    /// overwriting them with values captured at startup.
+    /// theme change carries forward the army composition, gore intensity, and
+    /// motion intensity a panel may have written since this manager was
+    /// constructed, rather than overwriting them with values captured at
+    /// startup.
     /// </summary>
     private static bool TryPersistTheme(
         ClientSettingsStore settingsStore,
@@ -44,7 +45,8 @@ internal sealed class UiThemeManager
         return settingsStore.TrySave(
             themeId,
             current.Composition,
-            current.GoreIntensity);
+            current.GoreIntensity,
+            current.MotionIntensity);
     }
 
     public UiTheme ActiveTheme { get; private set; }

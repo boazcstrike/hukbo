@@ -12,10 +12,11 @@ internal readonly record struct MenuInteraction(
     ClientCommand Command,
     string? SelectedThemeId,
     GoreIntensity? SelectedGoreIntensity,
+    MotionIntensity? SelectedMotionIntensity,
     bool PointerConsumed)
 {
     public static MenuInteraction None =>
-        new(ClientCommand.None, null, null, false);
+        new(ClientCommand.None, null, null, null, false);
 }
 
 internal sealed class MenuOverlay
@@ -37,6 +38,7 @@ internal sealed class MenuOverlay
 
     private readonly UiThemeSelector _themeSelector;
     private readonly GoreIntensitySelector _goreSelector;
+    private readonly MotionIntensitySelector _motionSelector;
     private readonly UiMenuLayout _layout;
     private readonly UiThemeSelectorLayout _selectorLayout;
     private readonly UiTextRoles _textRoles;
@@ -48,6 +50,7 @@ internal sealed class MenuOverlay
     {
         _themeSelector = new UiThemeSelector(themes, standards);
         _goreSelector = new GoreIntensitySelector(standards);
+        _motionSelector = new MotionIntensitySelector(standards);
         _layout = standards.Shared.Menu;
         _selectorLayout = standards.Shared.Selector;
         _textRoles = standards.Shared.TextRoles;
@@ -56,14 +59,21 @@ internal sealed class MenuOverlay
     public bool IsVisible { get; private set; }
 
     /// <summary>
-    /// Focus index 0 is the theme selector, indices 1..N are the N buttons, and
-    /// the gore selector takes the terminal index N+1. Appending rather than
+    /// Focus index 0 is the theme selector, indices 1..N are the N buttons,
+    /// and the gore selector takes index N+1. Appending rather than
     /// interleaving leaves every existing button index unchanged.
     /// </summary>
     internal static int GoreSelectorControlIndex =>
         ButtonDefinitions.Length + 1;
 
-    internal static int ControlCount => ButtonDefinitions.Length + 2;
+    /// <summary>
+    /// The motion selector is appended beside the gore selector and takes
+    /// the new terminal index, one past <see cref="GoreSelectorControlIndex"/>.
+    /// </summary>
+    internal static int MotionSelectorControlIndex =>
+        GoreSelectorControlIndex + 1;
+
+    internal static int ControlCount => MotionSelectorControlIndex + 1;
 
     internal static bool IsButtonControlIndex(int controlIndex) =>
         controlIndex > 0 && controlIndex <= ButtonDefinitions.Length;
@@ -77,7 +87,7 @@ internal sealed class MenuOverlay
         UiMenuLayout layout,
         UiThemeSelectorLayout selectorLayout,
         int buttonCount) =>
-        CalculateGoreSelectorTopOffset(layout, selectorLayout, buttonCount) +
+        CalculateMotionSelectorTopOffset(layout, selectorLayout, buttonCount) +
         selectorLayout.Height;
 
     public void Open()
@@ -96,7 +106,8 @@ internal sealed class MenuOverlay
         InputEdges input,
         Rectangle screenBounds,
         string activeThemeId,
-        GoreIntensity activeGoreIntensity)
+        GoreIntensity activeGoreIntensity,
+        MotionIntensity activeMotionIntensity)
     {
         if (!IsVisible)
         {
@@ -133,10 +144,16 @@ internal sealed class MenuOverlay
         }
 
         // Evaluated after the button loop so a hovered button is never
-        // clobbered by the terminal control.
+        // clobbered by either terminal control. The motion selector is
+        // checked last so it wins when both selectors somehow overlap.
         if (_goreSelector.Bounds.Contains(input.MousePosition))
         {
             hoveredControlIndex = GoreSelectorControlIndex;
+        }
+
+        if (_motionSelector.Bounds.Contains(input.MousePosition))
+        {
+            hoveredControlIndex = MotionSelectorControlIndex;
         }
 
         var resolvedFocus = ResolveFocusedControlIndex(
@@ -166,6 +183,7 @@ internal sealed class MenuOverlay
                 ClientCommand.None,
                 themeInteraction.SelectedThemeId,
                 null,
+                null,
                 true);
         }
 
@@ -179,6 +197,22 @@ internal sealed class MenuOverlay
                 ClientCommand.None,
                 null,
                 selectedGoreIntensity,
+                null,
+                true);
+        }
+
+        var motionInteraction = _motionSelector.Update(
+            input,
+            _focusedControlIndex == MotionSelectorControlIndex,
+            activeMotionIntensity);
+        if (motionInteraction.SelectedMotionIntensity is
+            { } selectedMotionIntensity)
+        {
+            return new MenuInteraction(
+                ClientCommand.None,
+                null,
+                null,
+                selectedMotionIntensity,
                 true);
         }
 
@@ -187,6 +221,7 @@ internal sealed class MenuOverlay
         {
             return new MenuInteraction(
                 _buttons[hoveredControlIndex - 1].Command,
+                null,
                 null,
                 null,
                 true);
@@ -203,10 +238,11 @@ internal sealed class MenuOverlay
                     : ClientCommand.None,
                 null,
                 null,
+                null,
                 true);
         }
 
-        return new MenuInteraction(ClientCommand.None, null, null, true);
+        return new MenuInteraction(ClientCommand.None, null, null, null, true);
     }
 
     public void Draw(
@@ -215,7 +251,8 @@ internal sealed class MenuOverlay
         UiFontSet fonts,
         Rectangle screenBounds,
         UiTheme theme,
-        GoreIntensity activeGoreIntensity)
+        GoreIntensity activeGoreIntensity,
+        MotionIntensity activeMotionIntensity)
     {
         if (!IsVisible)
         {
@@ -288,6 +325,14 @@ internal sealed class MenuOverlay
             activeGoreIntensity,
             _focusedControlIndex == GoreSelectorControlIndex);
 
+        _motionSelector.Draw(
+            spriteBatch,
+            pixel,
+            fonts,
+            theme,
+            activeMotionIntensity,
+            _focusedControlIndex == MotionSelectorControlIndex);
+
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(_textRoles.MenuHelper),
@@ -320,12 +365,21 @@ internal sealed class MenuOverlay
                 _layout.ButtonHeight);
         }
 
+        var goreSelectorTopOffset = CalculateGoreSelectorTopOffset(
+            _layout,
+            _selectorLayout,
+            _buttons.Length);
         _goreSelector.Bounds = new Rectangle(
             buttonLeft,
-            panel.Top + CalculateGoreSelectorTopOffset(
-                _layout,
-                _selectorLayout,
-                _buttons.Length),
+            panel.Top + goreSelectorTopOffset,
+            _layout.ButtonWidth,
+            _selectorLayout.Height);
+
+        _motionSelector.Bounds = new Rectangle(
+            buttonLeft,
+            panel.Top + goreSelectorTopOffset +
+                _selectorLayout.Height +
+                _layout.SelectorGap,
             _layout.ButtonWidth,
             _selectorLayout.Height);
     }
@@ -345,6 +399,19 @@ internal sealed class MenuOverlay
               ((buttonCount - 1) * layout.ButtonGap);
         return buttonTopOffset + buttonBandHeight + layout.SelectorGap;
     }
+
+    /// <summary>
+    /// The motion selector stacks directly below the gore selector, with one
+    /// selector gap between them, mirroring the gap already used between the
+    /// theme selector and the button band.
+    /// </summary>
+    private static int CalculateMotionSelectorTopOffset(
+        UiMenuLayout layout,
+        UiThemeSelectorLayout selectorLayout,
+        int buttonCount) =>
+        CalculateGoreSelectorTopOffset(layout, selectorLayout, buttonCount) +
+        selectorLayout.Height +
+        layout.SelectorGap;
 
     internal static int ResolveFocusedControlIndex(
         int currentIndex,

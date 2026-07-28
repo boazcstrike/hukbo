@@ -10,10 +10,28 @@ internal sealed class ClientSettingsStore
     /// categories into six roster-entry categories and renamed all of them.
     /// A version 2 file is discarded rather than migrated — a deliberate
     /// reset recorded in <see cref="ArmyComposition"/>, not an oversight.
+    /// Raised again from 3 to 4 by the <see cref="MotionIntensity"/> setting.
+    /// Unlike the 2-to-3 bump, this one is backward compatible: a version 3
+    /// file loads cleanly through <see cref="AcceptedSchemaVersions"/> with
+    /// the new field defaulting, because the shape did not change — only a
+    /// field was added. This is the version <see cref="TrySave"/> always
+    /// writes.
     /// </summary>
-    public const int SupportedSchemaVersion = 3;
+    public const int SupportedSchemaVersion = 4;
+
+    /// <summary>
+    /// Schema versions <see cref="Load"/> accepts without discarding the
+    /// whole file. Version 3 predates <see cref="MotionIntensity"/> and is
+    /// accepted because the field-defaulting path already handles an absent
+    /// value the same way it handles an absent <see cref="GoreIntensity"/>.
+    /// Versions before 3 remain discarded per the deliberate reset recorded
+    /// on <see cref="ArmyComposition"/>.
+    /// </summary>
+    private static readonly int[] AcceptedSchemaVersions =
+        [3, SupportedSchemaVersion];
 
     private const GoreIntensity DefaultGoreIntensity = GoreIntensity.Stylized;
+    private const MotionIntensity DefaultMotionIntensity = MotionIntensity.Full;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -58,15 +76,16 @@ internal sealed class ClientSettingsStore
 
             // Schema, theme, and composition validate together: a mismatch in
             // any of them means the file cannot be trusted as a whole. Gore
-            // intensity validates independently below so that a settings file
-            // written before the field existed - or with a corrupt value in
-            // that one field - still keeps the spectator's saved theme.
+            // intensity and motion intensity validate independently below so
+            // that a settings file written before either field existed - or
+            // with a corrupt value in one of those fields - still keeps the
+            // spectator's saved theme.
             if (raw is not
                 {
-                    SchemaVersion: SupportedSchemaVersion,
                     SelectedThemeId.Length: > 0,
                     Composition: not null,
                 } ||
+                !AcceptedSchemaVersions.Contains(raw.SchemaVersion) ||
                 !raw.Composition.IsValid())
             {
                 // A rejected file is replaced by defaults in memory, which
@@ -96,7 +115,8 @@ internal sealed class ClientSettingsStore
                 raw.SchemaVersion,
                 raw.SelectedThemeId,
                 raw.Composition,
-                ResolveGoreIntensity(raw.GoreIntensity));
+                ResolveGoreIntensity(raw.GoreIntensity),
+                ResolveMotionIntensity(raw.MotionIntensity));
             _log.Write(
                 LogLevel.Debug,
                 LogChannel.Settings,
@@ -109,6 +129,8 @@ internal sealed class ClientSettingsStore
                 settings.SelectedThemeId,
                 "gore",
                 settings.GoreIntensity.ToString(),
+                "motion",
+                settings.MotionIntensity.ToString(),
                 "defaulted",
                 false);
             return settings;
@@ -135,7 +157,8 @@ internal sealed class ClientSettingsStore
     public bool TrySave(
         string selectedThemeId,
         ArmyComposition composition,
-        GoreIntensity goreIntensity)
+        GoreIntensity goreIntensity,
+        MotionIntensity motionIntensity)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(selectedThemeId);
         ArgumentNullException.ThrowIfNull(composition);
@@ -156,7 +179,8 @@ internal sealed class ClientSettingsStore
                 SupportedSchemaVersion,
                 selectedThemeId,
                 composition,
-                ResolveGoreIntensity(goreIntensity));
+                ResolveGoreIntensity(goreIntensity),
+                ResolveMotionIntensity(motionIntensity));
             using (var stream = new FileStream(
                 temporaryPath,
                 FileMode.CreateNew,
@@ -189,7 +213,9 @@ internal sealed class ClientSettingsStore
                 "themeId",
                 selectedThemeId,
                 "gore",
-                goreIntensity.ToString());
+                goreIntensity.ToString(),
+                "motion",
+                motionIntensity.ToString());
             return true;
         }
         catch (Exception exception) when (
@@ -230,7 +256,8 @@ internal sealed class ClientSettingsStore
             SupportedSchemaVersion,
             defaultThemeId,
             ArmyComposition.Default,
-            DefaultGoreIntensity);
+            DefaultGoreIntensity,
+            DefaultMotionIntensity);
 
     /// <summary>
     /// A missing or out-of-range gore level resolves to the default without
@@ -241,6 +268,17 @@ internal sealed class ClientSettingsStore
         persisted is { } value && Enum.IsDefined(value)
             ? value
             : DefaultGoreIntensity;
+
+    /// <summary>
+    /// A missing or out-of-range motion level resolves to the default
+    /// without invalidating any sibling field. Missing is also what a
+    /// version 3 file - written before this field existed - looks like.
+    /// </summary>
+    private static MotionIntensity ResolveMotionIntensity(
+        MotionIntensity? persisted) =>
+        persisted is { } value && Enum.IsDefined(value)
+            ? value
+            : DefaultMotionIntensity;
 
     private static void TryDelete(string path)
     {
@@ -266,5 +304,6 @@ internal sealed class ClientSettingsStore
         int SchemaVersion,
         string? SelectedThemeId,
         ArmyComposition? Composition,
-        GoreIntensity? GoreIntensity);
+        GoreIntensity? GoreIntensity,
+        MotionIntensity? MotionIntensity);
 }

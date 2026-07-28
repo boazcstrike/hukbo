@@ -1,11 +1,14 @@
 # Measurement tools
 
-Four console programs that measure things about Hukbo which are otherwise
+Five console programs that measure things about Hukbo which are otherwise
 argued about rather than known. Three exist to produce the evidence in
 [`docs/research/SOUND-CAPACITY-MEASUREMENTS.md`](../docs/research/SOUND-CAPACITY-MEASUREMENTS.md);
 the fourth, `Hukbo.Tools.WeaponBalance`, produces the per-weapon evidence in
 [`docs/development/testing.md`](../docs/development/testing.md) under "T32 —
-weapon balance measurement". All four let those numbers be reproduced later.
+weapon balance measurement"; the fifth, `Hukbo.Tools.RenderProbe`, produces
+the render-performance evidence named in R-W6.12 through R-W6.14 of the
+visual-system integration design. All five let those numbers be reproduced
+later.
 
 ## They are not part of the build
 
@@ -117,3 +120,43 @@ Argument: tick limit per battle (optional, defaults to 10 000).
 > stacked toward one loadout, mirrored on both sides. A genuine per-faction
 > asymmetric matchup needs `Scenario` extended to carry a roster per faction,
 > which is a separate, non-trivial change with its own design document.
+
+### `Hukbo.Tools.RenderProbe`
+
+How fast the client actually draws, at the camera stations and unit counts
+the visual-system integration design's measurement matrix names.
+
+Launches the real `ArenaGame` — a real window, a real `GraphicsDevice` — against
+a scripted scenario, drives the three camera stations (minimum zoom, default
+fit, maximum zoom) via `ArenaGame`'s render-probe opt-in
+(`HUKBO_RENDER_PROBE=1`, set by this tool before construction), and records
+frame-time p50/p95/p99, the peak arena sprite submission count, GC collection
+deltas, and allocated-bytes deltas per station. Writes a JSON report under
+`artifacts/`.
+
+```powershell
+dotnet run --project tools/Hukbo.Tools.RenderProbe -c Release -- 200 1 300 artifacts/render-baseline-2026-07-28.json
+```
+
+Arguments: agents, seed, frames sampled per station, output path. All optional.
+
+> **Needs an interactive desktop and a GPU.** Unlike every other tool in this
+> folder, `RenderProbe` opens a real window — there is no headless mode. A
+> run from an automated agent session without a desktop session is BLOCKED,
+> not faked.
+>
+> **The arena submission count is always `0` today.** VIS-034's counting
+> seam (`src/Hukbo.Client/Rendering/SubmissionCount.cs`) is a pure,
+> GPU-independent function over already-built layout values, exercised only
+> by xunit — it is deliberately never called from the live render loop. To
+> make this field meaningful, a later task calls that function from inside
+> `ArenaGame.DrawArena` with the same layout values the renderer already
+> computes, and threads the total through the
+> `RenderProbeSample.ArenaSubmissionCount` field this tool already reads.
+>
+> **`packages.lock.json` is not checked in for this project yet.** Unlike its
+> siblings, this tool was authored without running `dotnet restore` in this
+> worktree (concurrent builds from other in-flight tasks share it). The first
+> `dotnet build`/`dotnet restore` here will generate one, per the standard
+> `RestorePackagesWithLockFile` behavior — that generation is expected, not
+> an error, and the resulting file should be committed once produced.

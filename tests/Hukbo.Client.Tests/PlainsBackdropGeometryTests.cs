@@ -388,4 +388,121 @@ public sealed class PlainsBackdropGeometryTests
                 PlainsBackdropGeometry.MaximumBackdropInterpolation);
         }
     }
+
+    // --- VIS-027: correlated (corner-lattice) ground shading ---
+
+    [Theory]
+    [InlineData(0, 0, 1u)]
+    [InlineData(5, 3, 1u)]
+    [InlineData(10, 10, 1u)]
+    [InlineData(10, 10, 2u)]
+    [InlineData(11, 10, 1u)]
+    [InlineData(47, 47, 12_345u)]
+    public void GetCellShadeIndex_IsDeterministicForTheSameColumnRowAndSeed(
+        int column,
+        int row,
+        ulong seed)
+    {
+        var first = PlainsBackdropGeometry.GetCellShadeIndex(column, row, seed);
+        var second = PlainsBackdropGeometry.GetCellShadeIndex(column, row, seed);
+
+        Assert.Equal(first, second);
+    }
+
+    [Theory]
+    [InlineData(0, 0, 1u)]
+    [InlineData(5, 3, 1u)]
+    [InlineData(10, 10, 1u)]
+    [InlineData(10, 10, 2u)]
+    [InlineData(11, 10, 1u)]
+    [InlineData(47, 47, 12_345u)]
+    [InlineData(0, 0, 999u)]
+    [InlineData(1, 0, 999u)]
+    [InlineData(0, 1, 999u)]
+    public void GetCellShadeIndex_StaysWithinTheGroundShadeIndexRange(
+        int column,
+        int row,
+        ulong seed)
+    {
+        var shadeIndex = PlainsBackdropGeometry.GetCellShadeIndex(column, row, seed);
+
+        Assert.InRange(shadeIndex, 0, PlainsBackdropGeometry.GroundShadeCount - 1);
+    }
+
+    // Corner-averaging formula pinned on known values. Each expected index is
+    // independently computed from the documented formula — hash the four
+    // lattice corners (column, row), (column + 1, row), (column, row + 1),
+    // (column + 1, row + 1) under GroundCornerLatticeSalt via SplitMix64,
+    // average the four unit-interval results, then floor-and-clamp against
+    // GroundShadeCount — so a change to the mixing constants, the corner
+    // selection, or the averaging step will move at least one of these
+    // pinned indices.
+    [Theory]
+    [InlineData(0, 0, 1u, 0)]
+    [InlineData(5, 3, 1u, 1)]
+    [InlineData(47, 47, 12_345u, 1)]
+    [InlineData(10, 10, 1u, 0)]
+    [InlineData(10, 10, 2u, 1)]
+    [InlineData(11, 10, 1u, 0)]
+    [InlineData(0, 0, 999u, 0)]
+    [InlineData(1, 0, 999u, 1)]
+    [InlineData(0, 1, 999u, 0)]
+    public void GetCellShadeIndex_CornerAveragingFormulaMatchesPinnedValues(
+        int column,
+        int row,
+        ulong seed,
+        int expectedShadeIndex)
+    {
+        var shadeIndex = PlainsBackdropGeometry.GetCellShadeIndex(column, row, seed);
+
+        Assert.Equal(expectedShadeIndex, shadeIndex);
+    }
+
+    [Fact]
+    public void GetCellShadeIndex_HorizontallyAdjacentCellsShareTwoLatticeCorners()
+    {
+        // Cell (0, row) and cell (1, row) share the lattice corners at
+        // column 1 (the first cell's right edge is the second cell's left
+        // edge), so feeding column 1's corner values into both cells must
+        // reproduce the same shade the shared-corner formula pins above:
+        // GetCellShadeIndex(1, 0, 999) folds in exactly the two corner
+        // values — (1, 0) and (1, 1) — that GetCellShadeIndex(0, 0, 999)
+        // already computed as its right-hand corners. Re-deriving cell (1,
+        // 0)'s index independently and comparing to the pinned value is the
+        // regression guard that the shared-corner correlation, not an
+        // independent per-cell hash, is what actually executes.
+        var leftCell = PlainsBackdropGeometry.GetCellShadeIndex(0, 0, 999);
+        var rightCell = PlainsBackdropGeometry.GetCellShadeIndex(1, 0, 999);
+
+        Assert.Equal(0, leftCell);
+        Assert.Equal(1, rightCell);
+    }
+
+    [Fact]
+    public void GenerateDecals_PlacementIsUnchangedUnderTheOldPlainsBackdropSalt()
+    {
+        // Regression pin: introducing GroundCornerLatticeSalt for ground
+        // shading must not shift the existing decal stream, which stays on
+        // the original PlainsBackdropSalt-equivalent salt. Values computed
+        // independently from the documented SplitMix64 formula and the
+        // existing decal-generation constants (seed 1, 1280x720 map).
+        var decals = PlainsBackdropGeometry.GenerateDecals(
+            DefaultSeed,
+            DefaultMapWidth,
+            DefaultMapHeight);
+
+        Assert.Equal(153, decals.Length);
+
+        var first = decals[0];
+        Assert.Equal(1192.169f, first.WorldPosition.X, 1);
+        Assert.Equal(120.156f, first.WorldPosition.Y, 1);
+        Assert.Equal(1.00471f, first.ScaleFactor, 3);
+        Assert.Equal(PlainsDecalKind.Rock, first.Kind);
+
+        var last = decals[decals.Length - 1];
+        Assert.Equal(699.595f, last.WorldPosition.X, 1);
+        Assert.Equal(670.573f, last.WorldPosition.Y, 1);
+        Assert.Equal(0.95057f, last.ScaleFactor, 3);
+        Assert.Equal(PlainsDecalKind.GrassTuft, last.Kind);
+    }
 }
