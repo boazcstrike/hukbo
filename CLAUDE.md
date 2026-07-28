@@ -305,7 +305,9 @@ presentation-only), `game-ui-ux` (HUD anchoring, controller focus),
 - Introduce rigid-body physics; distance checks and hitscan are the model.
 - Cache targets, or add any unbounded cache.
 - Save derived caches, render data, or metrics into a snapshot.
-- Add a general-purpose ECS framework before a profiler demands it.
+- Import Arch or another general-purpose ECS without a new profile and design
+  decision. Arch 2.1.0 is a reference implementation only; reuse compatible,
+  measured techniques under `SIMULATION-GAME-STANDARDS.md` section 15.
 - Commit credentials, absolute local paths, `bin/`, `obj/`, or package output.
 - Start terrain, pathfinding, morale, projectile ammunition, persistence
   migrations, multiplayer, or mod APIs before the gate that authorizes them.

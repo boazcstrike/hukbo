@@ -12,10 +12,19 @@ All packages are centrally pinned and project lock files are committed.
 
 ## Explicitly omitted
 
-Physics, ECS, dependency injection, logging frameworks, telemetry, networking,
+Physics, dependency injection, logging frameworks, telemetry, networking,
 serialization libraries, mocking libraries, fluent assertions, and benchmark
-frameworks are omitted because the first milestone has no measured need for
-them. Core remains package-free.
+frameworks remain omitted because there is no measured need for them. Core
+remains package-free.
+
+Arch is deliberately a reference implementation, not a dependency. The
+2026-07-28 stage profile found that Hukbo's fixed-schema arrays and reusable
+scratch storage remain appropriate and that collision resolution, rather than
+entity lookup or layout, dominates the measured workload. Compatible Arch
+techniques may be reproduced locally only under the gates in
+[`SIMULATION-GAME-STANDARDS.md` section 15](../SIMULATION-GAME-STANDARDS.md#15-performance-technique-inventory).
+Adding Arch, its extensions, or another general-purpose ECS requires a new
+profile and dependency decision.
 
 ## Compatibility boundary
 

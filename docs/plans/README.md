@@ -97,8 +97,10 @@ This workstream is hash-neutral by construction: every task in the plan is
 required to leave the seed-1 200-agent pair unchanged, and it is unchanged —
 `stateHash 71211929A44A16CA`, `eventHash A2DC3ECA3F7345ED`. **No ECS, archetype
 system, or chunk system was adopted, and no package was added.** `CLAUDE.md`
-section 9's prohibition on a general-purpose ECS before a profiler demands one
-stands exactly as it did before this workstream started.
+section 9 still requires a new profile and design decision before importing a
+general-purpose ECS. Arch remains a reference implementation: section 15
+records which practices the custom Hukbo engine follows, which remain
+measurement-gated, and which are incompatible with its deterministic schedule.
 
 What it delivered:
 
@@ -115,9 +117,9 @@ What it delivered:
   `CollisionResolver.Grow<T>`, written down at the symbol and pinned by a
   test.
 - A performance technique inventory added to `SIMULATION-GAME-STANDARDS.md`
-  section 15, recording which of the techniques an external research pass
-  found in the Arch library are usable in Hukbo as-is, which need a named
-  discipline, and which are forbidden outright.
+  section 15, recording the custom entity/memory practices Hukbo follows,
+  which Arch-derived techniques are compatible only behind a measurement
+  gate, and which are forbidden outright.
 
 The plan's Gate A closed three of the four structural candidates it gated —
 spatial acceleration for target selection, a dense identifier-to-index map in

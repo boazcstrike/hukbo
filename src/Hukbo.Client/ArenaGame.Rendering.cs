@@ -350,6 +350,16 @@ public sealed partial class ArenaGame
             _goreManager.Value,
             _motionManager.Value,
             _autoCameraManager.Value);
+
+        // Last, and above the menu: the prompt is modal, so nothing may paint
+        // over it. It scrims the whole area itself, which is what makes the
+        // modality visible rather than only enforced in the input chain.
+        _quitPrompt.Draw(
+            spriteBatch,
+            pixel,
+            fonts,
+            layout.ArenaBounds,
+            theme);
         if (_isArmyCompositionPanelVisible)
         {
             _armyCompositionPanel.Draw(

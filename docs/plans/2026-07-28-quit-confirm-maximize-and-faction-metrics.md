@@ -23,13 +23,13 @@ leak, do not regenerate a golden.
 
 ### Goal C — Core faction metrics (do this first; it is the risk)
 
-- [ ] **C1.** Give the per-tick combat metrics a faction dimension. In
+- [x] **C1.** Give the per-tick combat metrics a faction dimension. In
   `src/Hukbo.Core/Simulation/CombatMetrics.cs`, add per-faction counts alongside
   the existing undivided totals. Two factions only, so a fixed pair rather than a
   collection — the record must stay a struct with no heap allocation per tick.
   *Verification:* builds; C5 asserts the sums agree.
 
-- [ ] **C2.** Populate them in `BattleSimulation.GatherAndCommitAttacks`, where
+- [x] **C2.** Populate them in `BattleSimulation.GatherAndCommitAttacks`, where
   `_lastTickCombat` is assigned (`src/Hukbo.Core/Simulation/BattleSimulation.cs`,
   around line 1332). The attacker is already in scope as `source` and
   `AgentState.FactionId` is already available, so split the existing local
@@ -37,67 +37,67 @@ leak, do not regenerate a golden.
   the tick.
   *Verification:* C5, C6.
 
-- [ ] **C3.** Promote `BattleSimulation.LastTickCombat` from `internal` to
+- [x] **C3.** Promote `BattleSimulation.LastTickCombat` from `internal` to
   `public`. Promote `LastTickCollision` only if the report actually reads it; if
   it does not, leave it `internal` and say so.
   *Verification:* the Client compiles against it without an
   `InternalsVisibleTo`.
 
-- [ ] **C4.** Check whether widening `CombatMetrics` breaks the headless
+- [x] **C4.** Check whether widening `CombatMetrics` breaks the headless
   `RunReport` JSON shape or any digest fixture under
   `tests/Hukbo.Core.Tests/Fixtures/`. The record is serialized into the report
   the gate prints. Fix what breaks; report what changed about the report shape.
   *Verification:* full Core suite green.
 
-- [ ] **C5.** New test: for a seeded run, each per-faction count summed across
+- [x] **C5.** New test: for a seeded run, each per-faction count summed across
   factions equals the corresponding undivided total, every tick. This is the
   invariant that makes the split trustworthy.
   *Verification:* new test passes.
 
-- [ ] **C6.** Confirm `CombatMetrics_ReachesNeitherHash` passes **unmodified**.
+- [x] **C6.** Confirm `CombatMetrics_ReachesNeitherHash` passes **unmodified**.
   It may not be edited. If it fails, a metric reached authoritative state.
   *Verification:* existing test passes with no diff.
 
-- [ ] **C7.** Confirm the recorded hashes are unchanged by running the canonical
+- [x] **C7.** Confirm the recorded hashes are unchanged by running the canonical
   200-agent seed-1 workload and comparing against `A080E28DA7C79C20` /
   `2B6FB3A9A9C1960D`. **Any movement stops the work.**
   *Verification:* real captured output pasted.
 
-- [ ] **C8.** `BattleReportAccumulator` stops deriving faction totals from
+- [x] **C8.** `BattleReportAccumulator` stops deriving faction totals from
   `Attack` events and sums Core's per-faction counts instead. Per-unit rows keep
   their existing client-side derivation. Update the accumulator's doc comment so
   the two classes of number are distinguished at the symbol.
   *Verification:* C9.
 
-- [ ] **C9.** Update `tests/Hukbo.Client.Tests/BattleReportAccumulatorTests.cs`:
+- [x] **C9.** Update `tests/Hukbo.Client.Tests/BattleReportAccumulatorTests.cs`:
   faction totals now come from injected Core metrics, not from synthesised
   events. Keep every existing per-unit test — those paths are unchanged.
   *Verification:* Client suite green.
 
-- [ ] **C10.** `BattleReportPanel` must not present a derived per-unit figure as
+- [x] **C10.** `BattleReportPanel` must not present a derived per-unit figure as
   carrying the same authority as a Core faction total. Label the faction totals
   section so the distinction is visible without reading source.
   *Verification:* layout test plus manual smoke.
 
 ### Goal A — quit confirmation
 
-- [ ] **A1.** New `src/Hukbo.Client/UI/ConfirmationPrompt.cs`. Parameterised by
+- [x] **A1.** New `src/Hukbo.Client/UI/ConfirmationPrompt.cs`. Parameterised by
   message and the command issued on confirm, so it is reusable rather than
   quit-specific. Layout in a pure static helper following the established
   pattern — no `GraphicsDevice` in the geometry.
   *Verification:* A5.
 
-- [ ] **A2.** `ClientCommand`: append `RequestExit` (shows the prompt) and keep
+- [x] **A2.** `ClientCommand`: append `RequestExit` (shows the prompt) and keep
   `Exit` as the action that actually quits. Append, never insert, so no existing
   ordinal moves.
   *Verification:* builds.
 
-- [ ] **A3.** Re-point both in-application quit paths at the prompt: the control
+- [x] **A3.** Re-point both in-application quit paths at the prompt: the control
   bar's `Close` button and `MenuOverlay`'s `Exit Game` button now issue
   `RequestExit`. Only the prompt's confirm issues `Exit`.
   *Verification:* A5, plus manual smoke that neither path quits directly.
 
-- [ ] **A4.** Wire it in `ArenaGame`. The prompt takes the **top** of the pointer
+- [x] **A4.** Wire it in `ArenaGame`. The prompt takes the **top** of the pointer
   priority chain, above the menu overlay — the menu check currently sits around
   line 475, so the prompt is tested before it. While open it consumes every
   click, so a miss cannot fall through to the control bar, the arena, or agent
@@ -105,35 +105,35 @@ leak, do not regenerate a golden.
   `Enter` confirms, `Escape` cancels, **cancel has default focus**.
   *Verification:* A5, plus manual smoke.
 
-- [ ] **A5.** New `tests/Hukbo.Client.Tests/ConfirmationPromptTests.cs`: layout
+- [x] **A5.** New `tests/Hukbo.Client.Tests/ConfirmationPromptTests.cs`: layout
   containment, confirm issues the carried command, cancel issues none, cancel is
   the initially focused control.
   *Verification:* all pass.
 
 ### Goal B — maximize replacement
 
-- [ ] **B1.** `ClientCommand`: append `ToggleMaximize`.
+- [x] **B1.** `ClientCommand`: append `ToggleMaximize`.
   *Verification:* builds.
 
-- [ ] **B2.** `ArenaGame`: add `SDL_MaximizeWindow`, `SDL_RestoreWindow`, and
+- [x] **B2.** `ArenaGame`: add `SDL_MaximizeWindow`, `SDL_RestoreWindow`, and
   `SDL_GetWindowFlags` via `[LibraryImport("SDL2")]` on `private static partial`
   methods, alongside the existing `SDL_MinimizeWindow`. **Never `[DllImport]`** —
   SYSLIB1054 is an error here and suppressing it is forbidden.
   *Verification:* builds with zero warnings.
 
-- [ ] **B3.** Handle `ToggleMaximize` by testing `SDL_GetWindowFlags` against
+- [x] **B3.** Handle `ToggleMaximize` by testing `SDL_GetWindowFlags` against
   `SDL_WINDOW_MAXIMIZED` (`0x00000080`) and calling maximize or restore
   accordingly. **Do not track a local boolean** — the user can maximize or
   restore outside the application and a tracked flag would invert the button.
   *Verification:* manual smoke.
 
-- [ ] **B4.** `ControlBar`: append a `Max` button and set `BarWidth` to **660**.
+- [x] **B4.** `ControlBar`: append a `Max` button and set `BarWidth` to **660**.
   Arithmetic: seven buttons at `ButtonWidth` 84 is 588, six gaps at `ButtonGap` 8
   is 48, first button at `Bounds.Left + 10`, 14 pixels of right padding —
   `10 + 636 + 14 = 660`. Every other metric unchanged.
   *Verification:* B5.
 
-- [ ] **B5.** Extend `tests/Hukbo.Client.Tests/ControlBarTests.cs`: all seven
+- [x] **B5.** Extend `tests/Hukbo.Client.Tests/ControlBarTests.cs`: all seven
   buttons' bounds lie inside the bar and none is clipped. This must fail at the
   old 568 width.
   *Verification:* fails at 568, passes at 660; report both observations.
@@ -155,7 +155,7 @@ integration and its real pasted output is the evidence.
   is the evidence.
 - Core and Client suites fully green, zero warnings.
 
-**Manual smoke rows to append to `docs/development/testing.md`, all PENDING.** No
+**Manual smoke rows 156 to 171 in `docs/development/testing.md`, all PENDING.** No
 agent may flip one to `PASS`. The maximize and restore rows in particular cannot
 be proven by a build: like `SDL_MinimizeWindow` before them, these are P/Invokes
 that compile cleanly and have never executed.
