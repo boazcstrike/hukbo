@@ -422,6 +422,23 @@ public sealed partial class ArenaGame
             var footAnchor = _camera.WorldToScreen(
                 worldPosition,
                 arenaBounds);
+
+            // GPU-018, deliberately not routed through the appearance cache
+            // that DrawPawns now reads. Two reasons, and the first is the one
+            // that matters. Draw calls RecordArenaRenderMetrics, and so this
+            // pass, before it calls DrawArenaLayer and so DrawPawns, so if this
+            // read the cache it would warm every slot before the render path
+            // ever looked, and appearanceCacheHits/Misses/Fills would describe the
+            // probe rather than the renderer — the very frame the criterion
+            // asks about, a battle's first, would report a full set of hits on
+            // the draw path and no visible cold start at all. Keeping this call
+            // on the factory leaves those three counters meaning exactly one
+            // read per living agent per frame, taken by the render path alone.
+            // Second, GPU-005 put this pass's cost in probeOverheadMicroseconds,
+            // and letting it consume a cache paid for by the renderer would
+            // move cost across that boundary in the wrong direction. The value
+            // is identical either way, so the two passes still cull the same
+            // agents and count the same quads.
             var appearance = PawnAppearanceFactory.Create(
                 agent.EntityId,
                 agent.Loadout.Weapon,
@@ -792,8 +809,25 @@ public sealed partial class ArenaGame
         // its field once after the loop rather than per agent.
         var pawnGeometryInvocations = 0;
 
-        foreach (var agent in _simulation.Agents)
+        // GPU-018. Indexed rather than enumerated, because the appearance cache
+        // addresses its slots by the agent's ordinal position in this roster
+        // and the ordinal has to be the position in the whole list, not a count
+        // of the living. BattleSimulation.Agents is a ReadOnlyCollection over
+        // an AgentView[] sized once at scenario creation
+        // (BattleSimulation.cs lines 77 to 78) and refilled element for element
+        // by UpdateViews (line 1866), so index i names the same warrior for the
+        // whole battle: death clears IsAlive in place and never removes,
+        // compacts, or reorders an entry. A loop counter that skipped the dead
+        // would shift every later agent's ordinal the moment somebody fell,
+        // which the stored-key check would catch as a miss rather than as a
+        // wrong appearance — correct, but with the hit rate destroyed and this
+        // task pointless.
+        var agents = _simulation.Agents;
+
+        for (var ordinal = 0; ordinal < agents.Count; ordinal++)
         {
+            var agent = agents[ordinal];
+
             if (!agent.IsAlive)
             {
                 continue;
@@ -805,7 +839,15 @@ public sealed partial class ArenaGame
             var footAnchor = _camera.WorldToScreen(
                 worldPosition,
                 arenaBounds);
-            var appearance = PawnAppearanceFactory.Create(
+
+            // GPU-018. Same value PawnAppearanceFactory.Create returns for
+            // these three arguments — the cache never computes an appearance
+            // itself, it only remembers one the factory produced, and it
+            // compares the stored (entity, weapon, shield) key before returning
+            // anything — so the layout, the cull, and the drawn set below are
+            // unchanged.
+            var appearance = _presentation.PawnAppearances.Resolve(
+                ordinal,
                 agent.EntityId,
                 agent.Loadout.Weapon,
                 agent.Loadout.Shield);
