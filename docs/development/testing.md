@@ -259,6 +259,39 @@ Assessed against section 5.1 of `docs/plans/gpu-render/2026-07-28-gpu-render.md`
 reports state hash `A080E28DA7C79C20`, event hash `2B6FB3A9A9C1960D`,
 `measuredTicks` 1677 and `coreAllocatedBytes` 118896, unchanged.
 
+#### GPU-021: the hover-selection span, measured, and the decision not to act
+
+GPU-021 is measurement-led. It asks whether `UpdateHoverSelection`'s full-agent
+walk, plus the second full-list operation in `DrawUiLayer`, is a material
+fraction of the frame at 1 000 units. If it is, the duplicate walk gets removed;
+if it is not, the figure is recorded and nothing is done. This section is that
+record.
+
+The measured `hoverSelectionMicroseconds` p50 at 1 000 units is 23.7 us at
+minimum zoom, 21.0 us at default fit and 20.7 us at maximum zoom. Against the
+frame that is 0.345, 1.444 and 3.516 percent. Against the 8.0 millisecond
+budget the Phase 3 trigger is stated at, it is roughly a quarter of one percent.
+The worst p99 recorded anywhere in the matrix is 99.5 us, which is 1.2 percent
+of that budget.
+
+**Decision: no code change.** Removing the duplicate walk would recover about
+twenty microseconds at the station that decides the plan's outcome. That is not
+worth touching selection behaviour for, and `AgentSelection` is on the pointer
+path where a regression is user-visible and awkward to test.
+
+One measurement caveat has to be recorded with the number, because it looks like
+an inconsistency and is not. The span reads 0.1 to 0.2 us at 200 units but 10 to
+24 us at 500 and 1 000. That is not superlinear scaling. `UpdateHoverSelection`
+returns early unless the pointer is inside the arena rectangle, and the probe
+does not drive the mouse, so whether the walk runs at all depends on where the
+physical pointer happened to rest during that run. The 200-unit cell was
+captured with the pointer outside the arena and the 500- and 1 000-unit cells
+with it inside. The figures quoted above are therefore the cost **when the walk
+actually runs**, which is the conservative reading and the right one for this
+decision. A probe seam that drives pointer position would remove the confound;
+that is follow-up work, not a blocker, because the decision does not change
+under either reading.
+
 #### What this baseline says about the Phase 3 trigger
 
 The go/no-go trigger is evaluated on the **Phase 2 re-measurement**, not on this
