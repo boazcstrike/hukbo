@@ -407,12 +407,14 @@ public sealed class PersistentContingentTests
             failures.Count == 0,
             "Inertness bar failures — these are game-design thresholds, not " +
             "measurements; per design section 10.3 the cause must be " +
-            "established before any threshold moves. Chain denial was the " +
-            "first suspect and has been ruled out: narrowing the " +
-            "cross-contingent scan (PersistentContingentsV4) left the latest " +
-            "cohering tick unmoved and lengthened the windows instead. See " +
-            "docs/plans/2026-07-28-cohesion-scan-narrowing-design.md; the " +
-            "open question is design section 13 question 7, not question 8:\n" +
+            "established before any threshold moves. Two causes have already " +
+            "been found and neither was a threshold: chain denial, removed by " +
+            "narrowing the cross-contingent scan under " +
+            "PersistentContingentsV4, and an observer that scanned every " +
+            "living contingent for gate 6 while measuring the preset whose " +
+            "one distinguishing rule is that it does not. Check this " +
+            "observer against BattleSimulation before suspecting the bar. " +
+            "See docs/plans/2026-07-28-cohesion-scan-narrowing-design.md:\n" +
             string.Join('\n', failures));
     }
 
@@ -1512,6 +1514,7 @@ public sealed class PersistentContingentTests
     /// tick. This is <b>not</b> a reimplementation of the six gates' logic:
     /// <see cref="MovementRules.IsCohesionEligible"/>,
     /// <see cref="MovementRules.IsCohesionWindowOpen"/>,
+    /// <see cref="MovementRules.ParticipatesInCrossContingentScan"/>,
     /// <see cref="FormationRules.IsCohesionSquareWithinBounds"/> and
     /// <see cref="FormationRules.DoCohesionSquaresOverlap"/> are the exact
     /// production statics, called here with inputs reconstructed from two
@@ -1560,6 +1563,7 @@ public sealed class PersistentContingentTests
             var margin = new int[slotCount];
             var squareFitsMap = new bool[slotCount];
             var squareOverlapsAnother = new bool[slotCount];
+            var takesPartInScan = new bool[slotCount];
 
             for (var slot = 0; slot < slotCount; slot++)
             {
@@ -1571,6 +1575,20 @@ public sealed class PersistentContingentTests
                 var leaderId = leaderEntityId[slot];
                 var leaderPre = preTick[leaderId];
                 var leaderPost = postTick[leaderId];
+
+                // Gate 6 is not one rule but two, and which one applies is the
+                // preset's decision, so the observer has to read the preset the
+                // same way BattleSimulation.TakesPartInCrossContingentScan
+                // does. The state that decides it is the leader's at the START
+                // of the tick, which is why it is read from preTick: consulting
+                // the state this tick resolves to would make gate 6 and the
+                // transition rules mutually dependent, and design section 3.1
+                // of the cohesion-scan-narrowing design breaks that circularity
+                // in this direction only.
+                takesPartInScan[slot] =
+                    !rules.NarrowsCohesionScanToCohesionCapableContingents ||
+                    MovementRules.ParticipatesInCrossContingentScan(
+                        leaderPre.ContingentState);
 
                 var jitterRaw = FormationRules.ComputeContingentJitterRaw(
                     bodyRadiusRaw, livingCount[slot]);
@@ -1619,10 +1637,22 @@ public sealed class PersistentContingentTests
                         continue;
                     }
 
+                    // Exclusion from the scan and denial of the grant are one
+                    // decision, never two: a contingent the narrowed scan skips
+                    // has its overlap flag forced true, because it was skipped
+                    // on the strength of a tick-start state it may no longer
+                    // hold, and granting it cohesion would park aim points in a
+                    // square no pair ever measured.
+                    if (!takesPartInScan[outerSlot])
+                    {
+                        squareOverlapsAnother[outerSlot] = true;
+                        continue;
+                    }
+
                     for (var inner = outer + 1; inner < FormationPlanner.MaximumContingents; inner++)
                     {
                         var innerSlot = baseSlot + inner;
-                        if (livingCount[innerSlot] == 0)
+                        if (livingCount[innerSlot] == 0 || !takesPartInScan[innerSlot])
                         {
                             continue;
                         }

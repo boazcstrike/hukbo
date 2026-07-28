@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Hukbo.Tools.CohesionTrace</RootNamespace>
+    <AssemblyName>Hukbo.Tools.CohesionTrace</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Hukbo.Core\Hukbo.Core.csproj" />
+  </ItemGroup>
+
+</Project>

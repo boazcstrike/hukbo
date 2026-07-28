@@ -1,6 +1,6 @@
 # Measurement tools
 
-Seven console programs that measure things about Hukbo which are otherwise
+Eight console programs that measure things about Hukbo which are otherwise
 argued about rather than known. Three exist to produce the evidence in
 [`docs/research/SOUND-CAPACITY-MEASUREMENTS.md`](../docs/research/SOUND-CAPACITY-MEASUREMENTS.md);
 `Hukbo.Tools.WeaponBalance` produces the per-weapon evidence in
@@ -11,14 +11,23 @@ visual-system integration design; the sixth,
 `Hukbo.Tools.DeadlockProbe`, produces the collision-stall evidence in
 [`docs/research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md`](../docs/research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md);
 and the seventh, `Hukbo.Tools.ContingentShape`, produces the evidence behind
-the two failed rows of the persistent-contingent smoke pass in that same file.
-All seven let those numbers be reproduced later.
+the two failed rows of the persistent-contingent smoke pass in that same file;
+and the eighth, `Hukbo.Tools.CohesionTrace`, produces the gate-by-gate evidence
+in section 9 of
+[`docs/plans/2026-07-28-cohesion-scan-narrowing-design.md`](../docs/plans/2026-07-28-cohesion-scan-narrowing-design.md),
+which is what established why contingent cohesion appeared to stop firing
+partway through an advance. All eight let those numbers be reproduced later.
 
-`Hukbo.Tools.DeadlockProbe` is the only one that reads `internal` members of
-`Hukbo.Core`. It needs exactly one — `CollisionPriority.Resolve`, the pure
-function that produces the collision resolver's per-tick resolution order — and
-`src/Hukbo.Core/Properties/AssemblyInfo.cs` grants it for that reason. The probe
-observes the simulation from outside and changes nothing in it.
+Two of them read `internal` members of `Hukbo.Core`.
+`Hukbo.Tools.DeadlockProbe` needs exactly one — `CollisionPriority.Resolve`, the
+pure function that produces the collision resolver's per-tick resolution order.
+`Hukbo.Tools.CohesionTrace` needs three: `MovementRules.IsCohesionEligible`,
+`MovementRules.IsCohesionWindowOpen` and
+`MovementRules.ParticipatesInCrossContingentScan`, the pure predicates that
+decide the six movement gates, plus `FormationPlanner.MaximumContingents` for
+the slot arithmetic. `src/Hukbo.Core/Properties/AssemblyInfo.cs` grants both for
+those reasons. Each observes the simulation from outside and changes nothing in
+it.
 
 ## They are not part of the build
 

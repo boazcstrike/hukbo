@@ -9,3 +9,15 @@ using System.Runtime.CompilerServices;
 // gate, and it observes the simulation rather than participating in it. This
 // grant adds no behaviour and no hashed state.
 [assembly: InternalsVisibleTo("Hukbo.Tools.DeadlockProbe")]
+
+// The cohesion trace under tools/ answers design section 7 of
+// docs/plans/2026-07-28-cohesion-scan-narrowing-design.md: why cohesion stops
+// firing partway through a faction's advance. It reconstructs the six movement
+// gates from two consecutive agent snapshots, which needs the two internal pure
+// predicates that decide them, MovementRules.IsCohesionEligible and
+// MovementRules.IsCohesionWindowOpen, plus FormationPlanner.MaximumContingents
+// for the slot arithmetic. Like the deadlock probe it is a hand-run measurement
+// harness: not in Hukbo.slnx, not in the canonical gate, and it observes the
+// simulation rather than taking part in it. This grant adds no behaviour and no
+// hashed state.
+[assembly: InternalsVisibleTo("Hukbo.Tools.CohesionTrace")]
