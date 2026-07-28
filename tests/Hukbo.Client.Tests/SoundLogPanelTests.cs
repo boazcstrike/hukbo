@@ -317,32 +317,38 @@ public sealed class SoundLogPanelTests
             () => SoundLogPanel.BuildBindingRows(null!));
 
     [Fact]
-    public void CalculateLayout_ShowsEveryExpectedFileNameAtTheDefaultSize()
+    public void CalculateLayout_CapsTheBindingViewportAtTheSlotCountRegardlessOfHeight()
     {
-        // The panel is the documentation of what to name a file, so at the
-        // layout the client actually uses it must be able to list every slot.
+        // The expected-files section is a viewport onto the first
+        // `SoundCatalog.AllSounds.Count` rows of the bindings list. It is
+        // never a view of the whole list: `BuildBindingRows` emits one row
+        // per slot plus one indented row per hit class for each of the four
+        // location-driven weapon slots, which is thirty-three rows at nine
+        // slots, while `CalculateLayout` caps the section at one section
+        // header plus `SoundCatalog.AllSounds.Count` binding rows. The panel
+        // has therefore never been able to list every row, and no window
+        // height can make it.
         //
-        // 420x396 is the real `SoundLogBounds` `ArenaGame.ComputeLayout`
-        // produces at the default 1280x720 window with the sound log
-        // visible, traced through `RightColumnSplit.Split`: the right
-        // column is 420 wide (`EventPanelWidth`, under the
-        // `screenBounds.Width / 3` cap) and 640 tall
-        // (`720 - StatusBarHeight(68) - LayoutMargin(12)`), and
-        // `SoundLogHeightPercent` (62) of that column height is
-        // `640 * 62 / 100 == 396` under integer division — above
-        // `SoundLogMinimumHeight` (236), so the percentage branch decides.
-        // 396 is also the exact height the panel's own row math needs at
-        // zero slack once the font overhaul grew `HeaderHeight`,
-        // `PathHeight`, `SectionHeaderHeight`, `BindingRowHeight`, and
-        // `CueRowHeight` to clear the new Caption/Title bakes: header (62)
-        // + path (20) + two 6px gaps + two 20px section headers + nine
-        // 20px binding rows + three 20px reserved cue rows + 20px of
-        // panel padding.
-        var layout = SoundLogPanel.CalculateLayout(new Rectangle(0, 0, 420, 396));
+        // That cap is deliberate. Without it the expected-files section would
+        // grow on a tall window until the cue log was left with only its
+        // three reserved rows. Reaching the rows past the cap is what
+        // scrolling the list is for, not enlarging the window.
+        //
+        // The other cap on the section is the space actually available, which
+        // leaves `H - 216` of row height in a panel of height `H`. The slot
+        // count is the binding cap only once the window is tall enough that
+        // the available space is not the smaller of the two, that is
+        // `H >= 216 + 20 * SoundCatalog.AllSounds.Count`, which comes to 476
+        // at thirteen slots and twenty less for every slot fewer. A height of
+        // 2000 clears it by a wide margin at any slot count this panel will
+        // carry, which is why this test uses it. Below the threshold the
+        // layout decides the row count rather than the slot count, and the
+        // assertion would be comparing the wrong two numbers.
+        var layout = SoundLogPanel.CalculateLayout(new Rectangle(0, 0, 420, 2000));
 
-        Assert.True(
-            SoundLogPanel.GetVisibleBindingRowCount(layout) >=
-            SoundCatalog.AllSounds.Count);
+        Assert.Equal(
+            SoundCatalog.AllSounds.Count,
+            SoundLogPanel.GetVisibleBindingRowCount(layout));
     }
 
     private static IEnumerable<Rectangle> Regions(SoundLogPanelLayout layout)
