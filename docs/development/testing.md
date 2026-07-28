@@ -3026,7 +3026,10 @@ rows are `PENDING`.**
 Added by the formation and movement realism change (T18 of
 [2026-07-28-formation-movement-realism.md](../plans/2026-07-28-formation-movement-realism.md)),
 which flips the default `Scenario.MovementPreset` to `PersistentContingentsV2`.
-**Not performed.** The automated suite —
+**Partially performed on 2026-07-28.** Rows 102, 103, 104, 105, 111 and 114 were
+observed in one hands-off pass at the default camera fit. Rows 106, 107, 108,
+109, 110, 112 and 113 remain unobserved. Rows 104 and 114 failed. The automated
+suite —
 `MovementPresetRegistryTests`, `FormationRulesTests`,
 `ContingentOffsetTests`, `ContingentStateMachineTests`, `ArrivalTaperTests`,
 `PersistentContingentTests` and `ContingentDeadlockTests` — proves the state
@@ -3056,27 +3059,84 @@ window-opening probe do not.
 
 | Evidence field | Recorded value |
 | --- | --- |
-| Date | Not recorded |
-| Machine/platform | Not recorded |
-| Source commit | Not recorded |
-| Launch path (`source` or package path) | Not recorded |
+| Date | 2026-07-28 |
+| Machine/platform | Windows 11 Pro 10.0.26200, win-x64 |
+| Source commit | 8f4e426, worktree `formation-movement-realism` |
+| Launch path (`source` or package path) | `source` — `./scripts/run.ps1 -Configuration Release` |
 | Optional screenshot paths | None recorded |
 
 | Check | Expected observation | Actual | Status |
 | --- | --- | --- | --- |
-| 102. Read several distinct groups well past deployment | Each side stays readable as several distinct groups well past the opening frame, at the default camera fit, rather than merging into one crowd within a few seconds. | Not run | PENDING |
-| 103. Watch a strung-out group gather and resume | A group that has strung out visibly gathers on one of its own warriors, then resumes advancing, rather than gathering indefinitely or never gathering at all. | Not run | PENDING |
-| 104. Confirm the gathered shape is ragged | The gathered shape is ragged. It is not a ring, a line, an arc, a grid, or any shape that looks placed, and no warrior sits at an obviously exact distance from the one it gathered on. | Not run | PENDING |
-| 105. Watch a group arrive and break apart | On reaching the enemy, a group visibly stops holding together and its warriors fight as individuals. The transition reads as arriving, not as the group breaking apart. | Not run | PENDING |
+| 102. Read several distinct groups well past deployment | Each side stays readable as several distinct groups well past the opening frame, at the default camera fit, rather than merging into one crowd within a few seconds. | Each side split into about three readable groups, and those stayed distinct well past the opening frames. They merged into one crowd only late in the battle, once casualties had mounted. | PASS |
+| 103. Watch a strung-out group gather and resume | A group that has strung out visibly gathers on one of its own warriors, then resumes advancing, rather than gathering indefinitely or never gathering at all. | A group that had strung out was seen to fall back briefly, gather, and then carry on advancing with the group, rather than gathering indefinitely. | PASS |
+| 104. Confirm the gathered shape is ragged | The gathered shape is ragged. It is not a ring, a line, an arc, a grid, or any shape that looks placed, and no warrior sits at an obviously exact distance from the one it gathered on. | A mid-battle contingent gather sometimes read as a line rather than as a ragged clump. | FAIL |
+| 105. Watch a group arrive and break apart | On reaching the enemy, a group visibly stops holding together and its warriors fight as individuals. The transition reads as arriving, not as the group breaking apart. | The transition read as the group arriving rather than as the group falling apart. | PASS |
 | 106. Confirm warriors ease into contact | Warriors ease into contact rather than travelling at full speed and stopping dead against an enemy body. | Not run | PENDING |
 | 107. Confirm a warrior steps aside for its leader | A warrior standing in front of the warrior its group has gathered on steps aside rather than being walked through or standing there blocking it. | Not run | PENDING |
 | 108. Inspect the contingent row | Selecting any warrior shows a `Contingent: <n> — <state>` row in the inspector, and that state changes over the course of the battle rather than reading the same value throughout. | Not run | PENDING |
 | 109. Confirm the contingent ground tints are distinguishable | The eight contingent ground tints within one faction are distinguishable from each other at the default camera fit, and no tint is mistakable for the opposing faction's colour, at all five themes. | Not run | PENDING |
 | 110. Confirm the frozen preset is unaffected | Running the same seed under `IndependentPursuitV1` looks exactly as the game looks today: no gathering, no per-contingent tint, and no contingent row in the inspector. | Not run | PENDING |
-| 111. Confirm the battle still resolves | A full 200-agent battle reaches a terminal outcome. Neither side stands gathered and unmoving until the tick limit. | Not run | PENDING |
+| 111. Confirm the battle still resolves | A full 200-agent battle reaches a terminal outcome. Neither side stands gathered and unmoving until the tick limit. | The battle reached a terminal outcome and a winner was declared. | PASS |
 | 112. Watch a group reach a map edge or corner | A group whose warriors reach a map edge or a corner keeps moving and fighting there rather than piling into the boundary and staying put. This is the visible face of the map-edge open-ground rule in design section 3.5. | Not run | PENDING |
 | 113. Watch two groups collide and separate | Two groups on the same side that walk into each other come apart again and carry on advancing, rather than jamming into one stationary mass. This is the visible face of the cross-contingent rule in design section 3.5. | Not run | PENDING |
-| 114. Watch whether gathering keeps appearing across the whole advance | Groups read as groups for the whole of the advance, not only in the first few seconds after deployment. Watch a full battle at the default camera fit and judge whether gathering behaviour keeps appearing across several different groups as the armies converge, or whether it happens once near the start and then stops. This is the spectator half of the inertness bar in design section 10.3 — the automated half asserts thresholds on how often cohesion is granted, and only a person can say whether the result looks like several groups advancing or like one crowd that briefly twitched. | Not run | PENDING |
+| 114. Watch whether gathering keeps appearing across the whole advance | Groups read as groups for the whole of the advance, not only in the first few seconds after deployment. Watch a full battle at the default camera fit and judge whether gathering behaviour keeps appearing across several different groups as the armies converge, or whether it happens once near the start and then stops. This is the spectator half of the inertness bar in design section 10.3 — the automated half asserts thresholds on how often cohesion is granted, and only a person can say whether the result looks like several groups advancing or like one crowd that briefly twitched. | Gathering was seen only near the start of the advance. It was not seen again once groups were already fighting, and when warriors switched to another group the shape read as a line. | FAIL |
+
+Two observations from the 2026-07-28 pass do not map to any row above, and are
+recorded here so that a later change can be judged against them. First, once one
+side was reduced to roughly twenty warriors, the survivors fought in the centre
+of the map in what the observer described as a line, taking each other on one at
+a time. Second, when two bodies of warriors met, only the front rank appeared to
+be fighting, and the contact edge read as a shallow concave curve. Neither
+observation has been traced to a cause yet, and both concern shapes that
+[03-deep-past-formations-and-tactics.md](../research/battles/03-deep-past-formations-and-tactics.md)
+lists among the formations Hukbo should not present as historical.
+
+### Measurement behind rows 104 and 114
+
+Both failures above were judgements by eye. `Hukbo.Tools.ContingentShape`
+(see [tools/README.md](../../tools/README.md)) attaches numbers to them. The
+figures below are from a five-seed sweep, 200 agents, 10 000-tick limit, run at
+commit `8f4e426`:
+
+```powershell
+dotnet build src/Hukbo.Core/Hukbo.Core.csproj -c Release
+dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5
+dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5 IndependentPursuitV1
+```
+
+**Row 114 is confirmed, and one rule causes it.** Of the fifty
+contingent-battles observed, all fifty reached `ContingentState.Close`, and
+none of the fifty ever returned to `ContingentState.Hold` afterward. Hold ticks
+after a contingent's first `Close`: zero. Hold episodes after a contingent's
+first `Close`: zero. Contingents spend 63.69 % of their living ticks in `Close`
+and a further 23.51 % in `Break`, against 3.09 % in `Hold`. The denial
+attribution puts 63.69 % of all contingent-ticks on transition rule 3 — an
+enemy within the close radius — while the two geometric gates account for
+1.81 % and 1.07 %, and a shut duty-cycle window for 1.12 %. Rule 3 tests the
+minimum distance over *every* member of the contingent, so one warrior of forty
+reaching contact puts the whole contingent into `Close`, and in a converged
+melee that condition never lifts again.
+
+**Row 104 is not reproduced by the shape metric, and points at the same
+cause.** Across 1 671 `Hold` samples the principal-axis aspect ratio has a
+median of 1.56, a 99th percentile of 3.06, and a maximum of 5.17; 79.29 % of
+gathers sit below 2.0. That is a clump, not a line. The two hypotheses that
+would have produced a line are both refuted for `Hold`: the gathered cloud
+aligns more with the contingent's own direction of advance (mean 12.21°) than
+with a world axis (mean 22.09°), which is the opposite of what an
+axis-aligned bias square would produce; and no `Hold` or `Advance` sample in
+the whole sweep fell within sixty ticks of a leader change, because leader
+changes require deaths and deaths only begin once a contingent has already
+latched into `Close`. What the observer saw mid-battle was therefore almost
+certainly not a `Hold` at all — `Close` contingents have a median aspect of
+3.60 and a 90th percentile of 7.73 — which makes rows 104 and 114 two faces of
+one defect rather than two.
+
+**Control.** The same sweep under the frozen `IndependentPursuitV1` preset
+leaves every contingent in `ContingentState.None` for 100 % of its ticks, and
+the same nominal groups then show a median aspect of 5.09 with both angles at
+44.1°, which is the uniform-random value. The cohesion that `Hold` applies is
+doing real work when it is allowed to run; it is almost never allowed to run.
 
 ## Failure classification
 

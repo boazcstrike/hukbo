@@ -1,11 +1,13 @@
 # Measurement tools
 
-Four console programs that measure things about Hukbo which are otherwise
+Five console programs that measure things about Hukbo which are otherwise
 argued about rather than known. Three exist to produce the evidence in
 [`docs/research/SOUND-CAPACITY-MEASUREMENTS.md`](../docs/research/SOUND-CAPACITY-MEASUREMENTS.md);
-the fourth, `Hukbo.Tools.WeaponBalance`, produces the per-weapon evidence in
+`Hukbo.Tools.WeaponBalance` produces the per-weapon evidence in
 [`docs/development/testing.md`](../docs/development/testing.md) under "T32 —
-weapon balance measurement". All four let those numbers be reproduced later.
+weapon balance measurement"; and `Hukbo.Tools.ContingentShape` produces the
+evidence behind the two failed rows of the persistent-contingent smoke pass in
+that same file. All five let those numbers be reproduced later.
 
 ## They are not part of the build
 
@@ -117,3 +119,62 @@ Argument: tick limit per battle (optional, defaults to 10 000).
 > stacked toward one loadout, mirrored on both sides. A genuine per-faction
 > asymmetric matchup needs `Scenario` extended to carry a roster per faction,
 > which is a separate, non-trivial change with its own design document.
+
+### `Hukbo.Tools.ContingentShape`
+
+What shape a contingent actually holds, and how often it is allowed to gather
+at all.
+
+This exists to settle the two rows that failed the 2026-07-28 manual smoke pass
+on persistent contingents. Row 104 reported that a mid-battle gather sometimes
+read as a line rather than a ragged clump; row 114 reported that gathering was
+seen only near the start of the advance and never again once groups were
+fighting. Both were judgements by eye, and neither had a number attached.
+
+For every tick of every battle it runs, and for each of the sixteen contingent
+slots, the tool records the contingent's `ContingentState`, the principal-axis
+aspect ratio of its living members, the angle that major axis makes with the
+world axes and with the contingent's own direction of advance, and — for every
+tick a contingent spent in `Advance` — which of the four possible causes denied
+it a cohesion destination that tick.
+
+```powershell
+dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5
+dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5 IndependentPursuitV1
+dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5 PersistentContingentsV2 shape.csv
+```
+
+Arguments, all optional and positional: tick limit per battle (defaults to
+10 000), agent count (200), how many seeds to sweep starting from 1 (5), the
+`MovementPresetId` to run (`PersistentContingentsV2`), and a path to write the
+per-tick, per-contingent rows to as CSV (none, in which case only the console
+summary is produced). Running it under `IndependentPursuitV1` gives the
+uncohered control: every contingent stays in `ContingentState.None`, and the
+shape figures describe the same nominal groups with no cohesion acting on them
+at all.
+
+> **The aspect ratio is only meaningful for a contingent that is actually
+> cohering.** It is the ratio of the standard deviations along the two
+> principal axes of the members' positions, so a single member left far behind
+> a settled cluster moves it by more than the cluster's own shape does. Under
+> `Hold` that is what makes it a fair reading of the gathered shape; under
+> `Advance`, `Close`, and `None`, where members pursue independently, the
+> figure is dominated by outliers and should be read as dispersion rather than
+> as shape.
+
+> **This harness reconstructs three things `Hukbo.Core` keeps internal.** The
+> contingent leader, the cohesion trail base, and the hysteresis-banded
+> gathering test of transition rule 5 are all recomputed here from public
+> `AgentView` data, because the members that hold them are `internal`. The
+> jitter radius, the trail distance, the map-edge gate, and the
+> cross-contingent overlap gate are called directly on the public
+> `FormationRules` and so cannot drift. **If the leader rule, the trail base,
+> or rule 5 changes in `Hukbo.Core`, `Program.cs` has to change with it**, or
+> its denial attribution becomes fiction. The file names the exact source
+> lines it mirrors.
+
+> **This is the only tool here that uses floating point**, in the eigenvalue
+> and angle arithmetic of the shape metric. It never feeds the simulation, so
+> the determinism contract in `SIMULATION-GAME-STANDARDS.md` section 4 does not
+> reach it; every accumulation that could overflow is done in `long` or
+> `Int128` first, and only the final ratio is taken in `double`.
