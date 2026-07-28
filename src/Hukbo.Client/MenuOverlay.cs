@@ -30,7 +30,9 @@ internal sealed class MenuOverlay
             ("Next Round", ClientCommand.NextRound),
             ("Army Composition", ClientCommand.OpenArmyComposition),
             ("Full Reset", ClientCommand.FullReset),
-            ("Exit Game", ClientCommand.Exit),
+            // RequestExit, not Exit: both in-application quit paths get the
+            // same confirmation, so the menu is not the less safe route.
+            ("Exit Game", ClientCommand.RequestExit),
         ];
 
     private readonly UiButton[] _buttons = ButtonDefinitions

@@ -80,6 +80,16 @@ public sealed partial class ArenaGame : Game
     private readonly SoundDirector _soundDirector;
     private readonly MatchSummaryPanel _summaryPanel = new();
     private readonly BattleReportPanel _battleReportPanel = new();
+
+    /// <summary>
+    /// Guards the unrecoverable action. There is no save, so a stray click on
+    /// the control bar — which the spectator uses constantly — must not end a
+    /// battle outright. Cancel is the focused control when it opens.
+    /// </summary>
+    private readonly ConfirmationPrompt _quitPrompt = new(
+        "Quit Hukbo? The battle in progress will be lost.",
+        "Quit",
+        ClientCommand.Exit);
     private readonly PresentationCoordinator _presentation =
         new(EventHistoryCapacity);
     private readonly AgentSelection _hoverSelection = new();
@@ -472,6 +482,23 @@ public sealed partial class ArenaGame : Game
         // invisible from outside the debugger, and a click that "did nothing"
         // is almost always a click a surface above the intended one swallowed.
         var consumedBy = "none";
+
+        // The prompt is modal, so it takes the whole chain before anything else
+        // is consulted and reports every click consumed while it is open. It
+        // also owns Escape for that frame, which is why it returns immediately
+        // rather than falling through to the menu handling below.
+        if (_quitPrompt.IsVisible)
+        {
+            var promptInteraction = _quitPrompt.Update(_input, screenBounds);
+            LogPointer("quitPrompt");
+            if (promptInteraction.Command != ClientCommand.None)
+            {
+                ApplyClientCommand(promptInteraction.Command);
+            }
+
+            return;
+        }
+
         if (_menu.IsVisible && _isArmyCompositionPanelVisible)
         {
             var panelInteraction = _armyCompositionPanel.Update(
@@ -897,6 +924,14 @@ public sealed partial class ArenaGame : Game
             case ClientCommand.Minimize:
                 SDL_MinimizeWindow(Window.Handle);
                 return;
+            case ClientCommand.ToggleMaximize:
+                ToggleMaximizeWindow();
+                return;
+            case ClientCommand.RequestExit:
+                // Asks rather than acts. Only the prompt's confirm button
+                // issues ClientCommand.Exit.
+                _quitPrompt.Open();
+                return;
             case ClientCommand.Play:
                 if (_simulation.Outcome == BattleOutcome.Ongoing)
                 {
@@ -1013,6 +1048,55 @@ public sealed partial class ArenaGame : Game
     [LibraryImport("SDL2")]
     private static partial void SDL_MinimizeWindow(nint window);
 
+    /// <summary>
+    /// Maximizes the window. Same handle contract as
+    /// <see cref="SDL_MinimizeWindow"/>.
+    /// </summary>
+    [LibraryImport("SDL2")]
+    private static partial void SDL_MaximizeWindow(nint window);
+
+    /// <summary>
+    /// Restores a maximized window to its previous size. Same handle contract
+    /// as <see cref="SDL_MinimizeWindow"/>.
+    /// </summary>
+    [LibraryImport("SDL2")]
+    private static partial void SDL_RestoreWindow(nint window);
+
+    /// <summary>
+    /// Reads SDL's own window state flags. This is what makes the Max button
+    /// correct rather than merely plausible: the spectator can maximize or
+    /// restore the window outside the application, through a Windows snap
+    /// shortcut or the taskbar, and a boolean tracked on this class would
+    /// desynchronize and invert the button. Asking SDL every time cannot go
+    /// out of step with reality.
+    /// </summary>
+    [LibraryImport("SDL2")]
+    private static partial uint SDL_GetWindowFlags(nint window);
+
+    /// <summary>
+    /// <c>SDL_WINDOW_MAXIMIZED</c> from SDL2's own <c>SDL_WindowFlags</c>
+    /// enumeration. Declared here rather than imported because it is a single
+    /// stable constant of SDL2's public ABI.
+    /// </summary>
+    private const uint SdlWindowMaximized = 0x00000080;
+
+    /// <summary>
+    /// Toggles the window between maximized and its previous size, reading the
+    /// current state from SDL rather than from a tracked flag.
+    /// </summary>
+    private void ToggleMaximizeWindow()
+    {
+        var handle = Window.Handle;
+        if ((SDL_GetWindowFlags(handle) & SdlWindowMaximized) != 0)
+        {
+            SDL_RestoreWindow(handle);
+        }
+        else
+        {
+            SDL_MaximizeWindow(handle);
+        }
+    }
+
     private void AdvanceSimulation(double elapsedSeconds)
     {
         if (!_presentation.Playback.IsPlaying)
@@ -1038,7 +1122,8 @@ public sealed partial class ArenaGame : Game
             _log.SetTick(_simulation.Tick);
             _presentation.IngestTick(
                 _simulation.LastEvents,
-                _simulation.Agents);
+                _simulation.Agents,
+                _simulation.LastTickCombatByFaction);
             _soundDirector.Ingest(_simulation.LastEvents);
             LogTick();
             _simulationAccumulator -= secondsPerTick;

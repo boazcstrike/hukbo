@@ -22,14 +22,17 @@ internal sealed class BattleReportPanel
     private const int RowsPerWheelDetent = 3;
     private const int MouseWheelDeltaPerDetent = 120;
 
-    // Kill-credit is a presentation heuristic, not a Core guarantee — see
-    // BattleReportAccumulator's own remarks. This line always draws,
+    // Two classes of number appear in this panel and the difference matters.
+    // Attack counts and accuracy are the simulation's own per-faction
+    // counters, summed tick by tick, and cannot disagree with what happened.
+    // Kills, damage, survivors, and every per-warrior row rest on a
+    // kill-credit heuristic, because Hukbo.Core tracks no per-entity counters
+    // — see BattleReportAccumulator's own remarks. This line always draws,
     // regardless of which optional highlight lines are present, so a
-    // spectator reading kill attribution never mistakes it for authoritative
-    // simulation output.
+    // spectator never mistakes the second group for the first.
     private const string KillCreditDisclosure =
-        "Kill credit: last landed blow in the death's tick — a reporting " +
-        "estimate, not a simulation guarantee.";
+        "Attacks and accuracy are simulation-reported. Kills, damage and " +
+        "warrior rows are estimated from the last landed blow.";
 
     private int _scrollStart;
     private Point _pointerPosition;
@@ -209,12 +212,19 @@ internal sealed class BattleReportPanel
                 theme,
                 theme.Colors.TextPrimary);
             var topKiller = faction.TopKillerEntityId is { } topKillerId
-                ? $", top killer #{topKillerId} ({faction.TopKillerKills})"
+                ? $" ~top #{topKillerId} ({faction.TopKillerKills})"
                 : string.Empty;
+            // Authoritative figures first, then the estimated ones. The
+            // ordering is deliberate: it puts the numbers the simulation
+            // vouches for ahead of the numbers this panel inferred, and the
+            // disclosure line below names which is which.
             var line =
                 $"{BattleEventFormatter.GetFactionLabel(faction.FactionId)} " +
-                $"— Kills {faction.TotalKills}  Dmg {faction.TotalDamageDealt}  " +
-                $"Acc {faction.Accuracy:P0}  Survivors {faction.Survivors}" +
+                $"— Atk {faction.Combat.AcceptedAttacks} " +
+                $"Hit {faction.Combat.LandedAttacks} " +
+                $"Acc {faction.Accuracy:P0}  ~Kills {faction.TotalKills} " +
+                $"~Dmg {faction.TotalDamageDealt} " +
+                $"Alive {faction.Survivors}" +
                 topKiller;
             UiPrimitives.DrawText(
                 spriteBatch,

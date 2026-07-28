@@ -890,30 +890,81 @@ so that a future contributor who reaches for a fast ECS does not have to re-read
 to know what already got decided, and does not re-derive the same argument from scratch — possibly
 wrong.
 
-### The library was read, not adopted
+### Arch is a reference implementation, not a dependency
 
-An external research pass read the Arch library end to end — its chunk layout, its entity-location
-storage, its query enumerators, its command buffer, its build configuration, and its benchmark
-harness — looking for techniques usable inside a deterministic, single-threaded, fixed-schema battle
+The upstream reference baseline for this inventory is
+[Arch 2.1.0](https://www.nuget.org/packages/Arch/2.1.0), reviewed on 2026-07-28
+against its [official documentation](https://github.com/genaray/arch.docs) and
+[tagged source](https://github.com/genaray/Arch/tree/v2.1.0). Revalidate claims
+about Arch before changing this inventory to follow a later release.
+
+The research pass read Arch's chunk layout, entity-location storage, query enumerators, command
+buffer, lifecycle and capacity controls, build configuration, and benchmark harness. The objective
+was to identify practices usable inside a deterministic, single-threaded, fixed-schema battle
 simulation without adopting an ECS. **This repository does not adopt Arch, does not add an archetype
-or chunk system, and takes no package dependency on Arch or on any part of it.** `CLAUDE.md` section 9
-already lists "Add a general-purpose ECS framework before a profiler demands it" among the things this
-repository does not do, and nothing in this section is an argument for relaxing that rule: every
-technique below is either already legal under the standards stated elsewhere in this document, or is
-explicitly gated behind a profile that does not exist yet. What was taken is a set of techniques, not
-a library. A dense integer array in place of a dictionary is not an ECS. A `ref` return in place of an
-indexer is not an ECS. Splitting a record by access pattern is not an ECS. **"We looked at Arch" must
-never later be read as "we are moving toward an ECS."** A future proposal that cites this section as
-grounds for adopting Arch, an archetype system, a chunk system, or any general-purpose ECS has misread
-it: the profiler evidence CLAUDE.md section 9 requires does not exist today, and authorizing that
-adoption would need its own design document, written after that evidence exists.
+or chunk system, and takes no package dependency on Arch or any extension package.**
 
-### Techniques judged portable
+Hukbo copies a practice only when it solves a measured local problem and preserves the stronger
+determinism rules in this document. It does not copy Arch's public API, dynamic component model,
+runtime type registry, scheduler, or persistence format. A dense integer lookup, a `ref` accessor, or
+a split data layout is a local implementation technique, not evidence that Hukbo is migrating toward
+an ECS.
 
-| Technique | Portable? | Discipline required |
+The required profiler evidence now exists in
+[docs/research/TICK-STAGE-PROFILE.md](docs/research/TICK-STAGE-PROFILE.md). That profile found collision
+resolution to be the dominant stage and closed the then-proposed dense identifier map, `AgentState`
+layout change, and target-selection spatial acceleration. It did **not** justify Arch, archetypes, or
+chunks. Formation and collision changes can alter that profile, so those stages must be remeasured
+before reopening a closed layout decision. Importing Arch or another ECS would still require its own
+current profile, design document, compatibility review, and deterministic-oracle benchmark.
+
+### Custom entity and memory handling contract
+
+These rules are the Arch-informed practices Hukbo actually follows:
+
+- `BattleSimulation` owns authoritative entity state. A stable `EntityId` identifies an agent;
+  an array index or physical storage slot is only an internal location and never breaks a gameplay
+  tie.
+- Authoritative iteration uses arrays or explicitly ordered collections. Hash containers are lookup
+  aids only and never define update, resolution, event, snapshot, or hash order.
+- Capacity is established from scenario size where possible. Hot-path scratch storage is reused,
+  bounded by the active simulation, and reset by logical count rather than reallocated every tick.
+  Growth must be explicit, overflow-safe, and covered by allocation tests.
+- References, spans, and storage indexes are short-lived views. They may not escape the operation
+  that obtained them or survive a resize, reset, removal, or slot move.
+- Gameplay data may be updated in place during its pinned stage. Entity creation, destruction, or
+  shape changes must be gathered and committed later in one deterministic phase. The current fixed
+  roster has no recurring structural changes, so a general command buffer would add machinery without
+  solving a present problem.
+- Scratch buffers, lookup tables, grids, render projections, and metrics are derived state. They are
+  rebuilt or cleared on reset and are excluded from snapshots and authoritative hashes.
+- Specialised memory layouts, unsafe access, pooling, parallel proposal phases, and new lookup
+  structures require measurements against the existing implementation plus the deterministic oracle.
+
+Status as of 2026-07-28:
+
+| Practice | Hukbo status | Evidence or remaining gate |
 | --- | --- | --- |
-| Structure-of-arrays with a cache-sized block | Yes | Block size chosen from measured cache size; integer arithmetic only, never a float |
-| Dense `int[]` index in place of a dictionary | Yes | None; strictly safer than a dictionary here |
+| Stable identity separate from physical storage | Implemented | `EntityId` is the gameplay identity; ordered passes use stable identifiers for ties |
+| Reused, capacity-aware transient storage | Implemented | Simulation scratch/event storage and collision buffers are reused; allocation regression tests guard steady-state ticks |
+| Ordered iteration with lookup-only hashing | Implemented in behavior; one documentation gap remains | `_agentIndexes` is lookup-only and `AgentState[]` is iterated, but the pairing still needs the symbol-level XML comment required below |
+| Deferred structural mutation | Satisfied by the fixed-roster model | No general entity-shape mutation occurs inside authoritative passes; add a deterministic gather/commit phase before introducing any |
+| Data-oriented access patterns | Partially implemented | Stable ordered slots and preallocated stage/scratch buffers are present; `AgentState` remains a reference type, so packed component or structure-of-arrays locality is not implemented and remains measurement-gated |
+| Dense identifier map, `AgentState` layout split, target spatial index | Measured and closed | Gate A found no qualifying bottleneck; reprofile after material formation or collision changes |
+| Collision-stage optimisation | Separate active concern | The existing profile identifies collision as the dominant stage; that finding does not imply an ECS requirement |
+| Parallel authoritative queries | Deliberately omitted | Machine-dependent partitioning and completion order conflict with the pinned single-threaded schedule |
+| Arch package, archetypes, chunks, runtime component registry | Deliberately omitted | No measured need; fixed-schema Hukbo would assume new complexity and determinism risk |
+
+### Portable techniques (allowlist, not an implementation plan)
+
+The table below says whether a technique can be compatible with Hukbo. It does not say the technique is
+implemented, currently beneficial, or authorized. A closed measurement gate takes precedence over an
+entry in this allowlist.
+
+| Technique | Compatible? | Gate or discipline required |
+| --- | --- | --- |
+| Structure-of-arrays with a cache-sized block | Yes | A profile must justify the layout change; block size comes from measured cache size; integer arithmetic only, never a float |
+| Dense `int[]` index in place of a dictionary | Yes | A profile must justify the retained-memory trade; Gate A did not justify it |
 | `ref` returns instead of indexers | Yes, once a value-type agent layout exists | Not authorized by this section; depends on the `AgentState` layout change the design document assesses separately and does not authorize |
 | `MemoryMarshal.CreateSpan` / `Unsafe.Add` | Yes, once a value-type agent layout exists | Requires `AllowUnsafeBlocks`, which is absent from `Directory.Build.props` and needs its own justification, in addition to the same layout change |
 | `[SkipLocalsInit]` on hot accessors | Yes, once a value-type agent layout exists | Same dependency as the two rows above |
@@ -946,16 +997,15 @@ violation after the fact — it asks that the lookup-only structure and the orde
 to be built as a declared pair from the start.
 
 The repository already practices this in two places, one of which documents it and one of which does
-not yet. `CollisionUniformGrid` (`src/Hukbo.Core/Simulation/CollisionUniformGrid.cs:74-76`) keys its
-cell lookup by a packed integer while the pairs it produces come from a separately maintained, ordered
-list, and the ownership and iteration contract is written down at the symbol. `BattleSimulation`'s
-`_agentIndexes` (`src/Hukbo.Core/Simulation/BattleSimulation.cs:19`) is a `Dictionary<ulong, int>` used
-for identifier-to-slot lookup only and is never enumerated; the `AgentState[]` array it indexes into is
-the thing actually iterated, in storage order. Both are legal today because neither is enumerated by
-its hash structure, but only the grid says so at the symbol. Any future lookup-only hash container —
-including a dense identifier-to-index map built to replace `_agentIndexes` — must state and preserve
-the same separation, and must say so at the symbol rather than leaving it as an implicit accident of
-how the code happens to be called today.
+not yet. `CollisionUniformGrid` keys its cell lookup by a packed integer while the pairs it produces
+come from a separately maintained, ordered list, and the ownership and iteration contract is written
+down at the symbol. `BattleSimulation._agentIndexes` is a `Dictionary<ulong, int>` used for
+identifier-to-slot lookup only and is never enumerated; the `AgentState[]` array it indexes into is the
+thing actually iterated, in storage order. Both are legal because neither hash structure is
+enumerated, but only the grid currently states the pairing at the symbol. This is a documentation
+conformance gap, not a reason to replace the dictionary. Any future lookup-only hash container must
+state and preserve the same separation rather than leaving it as an implicit accident of current call
+sites.
 
 ### Techniques deliberately not ported
 

@@ -10,7 +10,12 @@ internal sealed class ControlBar
     // 10 + 544 + 14: Layout places the first button at Bounds.Left + 10, six
     // buttons at ButtonWidth 84 plus five gaps at ButtonGap 8 is 544 of
     // content, and the bar keeps its existing 14 pixels of right padding.
-    private const int BarWidth = 568;
+    // Seven buttons at ButtonWidth 84 is 588, six gaps at ButtonGap 8 is 48,
+    // so the content is 636 wide. Layout places the first button at
+    // Bounds.Left + 10 and the bar keeps 14 pixels of right padding, giving
+    // 10 + 636 + 14. Getting this wrong clips the rightmost button, which is
+    // why ControlBarTests asserts every button lies inside the bar.
+    private const int BarWidth = 660;
     private const int BarHeight = 48;
     private const int Margin = 10;
     private const int ButtonGap = 8;
@@ -27,7 +32,12 @@ internal sealed class ControlBar
         new("Menu", ClientCommand.OpenMenu),
         new("Sounds", ClientCommand.ToggleSoundLog),
         new("Min", ClientCommand.Minimize),
-        new("Close", ClientCommand.Exit),
+        new("Max", ClientCommand.ToggleMaximize),
+
+        // RequestExit, not Exit: quitting is unrecoverable and this bar is
+        // clicked constantly, so it raises the confirmation prompt rather than
+        // destroying the battle on one stray click.
+        new("Close", ClientCommand.RequestExit),
     ];
 
     public Rectangle Bounds { get; private set; }

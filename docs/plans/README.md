@@ -97,8 +97,10 @@ This workstream is hash-neutral by construction: every task in the plan is
 required to leave the seed-1 200-agent pair unchanged, and it is unchanged —
 `stateHash 71211929A44A16CA`, `eventHash A2DC3ECA3F7345ED`. **No ECS, archetype
 system, or chunk system was adopted, and no package was added.** `CLAUDE.md`
-section 9's prohibition on a general-purpose ECS before a profiler demands one
-stands exactly as it did before this workstream started.
+section 9 still requires a new profile and design decision before importing a
+general-purpose ECS. Arch remains a reference implementation: section 15
+records which practices the custom Hukbo engine follows, which remain
+measurement-gated, and which are incompatible with its deterministic schedule.
 
 What it delivered:
 
@@ -115,9 +117,9 @@ What it delivered:
   `CollisionResolver.Grow<T>`, written down at the symbol and pinned by a
   test.
 - A performance technique inventory added to `SIMULATION-GAME-STANDARDS.md`
-  section 15, recording which of the techniques an external research pass
-  found in the Arch library are usable in Hukbo as-is, which need a named
-  discipline, and which are forbidden outright.
+  section 15, recording the custom entity/memory practices Hukbo follows,
+  which Arch-derived techniques are compatible only behind a measurement
+  gate, and which are forbidden outright.
 
 The plan's Gate A closed three of the four structural candidates it gated —
 spatial acceleration for target selection, a dense identifier-to-index map in
@@ -189,30 +191,43 @@ Note that this workstream and the collision *performance* design above touch the
 same files with opposite hash requirements. This one deliberately moved every
 committed position; that one must not move any. Do not conflate them.
 
-## Quit confirmation, maximize, and Core faction metrics — planned, not started
+## Quit confirmation, maximize, and Core faction metrics — complete and archived
 
-[`2026-07-28-quit-confirm-maximize-and-faction-metrics-design.md`](2026-07-28-quit-confirm-maximize-and-faction-metrics-design.md)
-and its plan
-[`2026-07-28-quit-confirm-maximize-and-faction-metrics.md`](2026-07-28-quit-confirm-maximize-and-faction-metrics.md).
-The plan authorizes the work; no code has been written for it yet.
+Both documents were archived on 2026-07-28, the day the work completed:
+[`docs/archives/2026-07-28/2026-07-28-quit-confirm-maximize-and-faction-metrics-design.md`](../archives/2026-07-28/2026-07-28-quit-confirm-maximize-and-faction-metrics-design.md)
+and
+[`docs/archives/2026-07-28/2026-07-28-quit-confirm-maximize-and-faction-metrics.md`](../archives/2026-07-28/2026-07-28-quit-confirm-maximize-and-faction-metrics.md).
+Reference only; do not execute either.
 
-These are the three questions the collision/battle-report/window workstream left
-open, all answered by the user on 2026-07-28: the Close button confirms before
-quitting, the OS maximize button gets an in-game replacement, and the battle
-report's faction totals come from Core's own counters instead of being re-derived
-from the event stream.
+These were the three questions the collision, battle report, and window shell
+workstream left open, all answered by the user. The Close button and the menu
+Exit Game now raise a confirmation prompt; a Max button replaces the OS maximize
+button; and the battle report reads its faction attack totals from the
+simulation instead of re-deriving them.
 
-**One correction worth reading before starting.** The third item was asked as
-"make `CombatMetrics` and `CollisionMetrics` public". Both records are already
-`public`. What is missing is the data: neither type carries any faction
-dimension at all. The real work is adding that dimension to the per-tick metrics
-and promoting `BattleSimulation.LastTickCombat`, not flipping a visibility
-keyword.
+**Three results worth carrying forward.**
 
-**This workstream must move no hash.** Unlike the collision change above, it is
-required to leave `stateHash A080E28DA7C79C20` and `eventHash 2B6FB3A9A9C1960D`
-byte-identical. Metrics are observability; one that reaches a hash is a defect,
-and `CombatMetrics_ReachesNeitherHash` is the guard that may not be edited.
+The metrics request was phrased as making `CombatMetrics` and
+`CollisionMetrics` public. Both records already were. What was missing was the
+data: neither carried a faction dimension. The fix is a new per-tick
+`FactionCombatMetrics`, deliberately shaped so `CombatMetrics` itself was not
+widened — widening it would have changed the headless `RunReport` JSON and put
+the digest fixtures at risk for no gain.
+
+**No running total lives in the simulation.** A per-tick value the caller sums is
+not simulation state; a cumulative observability counter held inside
+`BattleSimulation` would be, and `CLAUDE.md` section 9 forbids metrics in a
+snapshot. The undivided total is now computed from the faction split rather than
+counted separately, so the two cannot disagree.
+
+**The report now carries two classes of number and says so.** Attack counts and
+accuracy are authoritative. Kills, damage, survivors, and every per-warrior row
+are still derived and still rest on a kill-credit heuristic, because
+`Hukbo.Core` tracks no per-entity counters. `FactionReportTotals` documents the
+split at the symbol and the panel marks the estimated figures with a tilde.
+
+Alt+F4 remains immediate and unconfirmed on purpose: with no title bar it is the
+guaranteed escape hatch if the in-game chrome ever misbehaves.
 
 ## Where the live contract lives
 

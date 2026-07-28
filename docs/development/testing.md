@@ -3247,6 +3247,36 @@ native call works; if it fails, the button is dead with no visible error.
 | 147. Confirm weapon names in the report | Every weapon appears in pair form, for example `Kampilan — Great Blade`, never as a bare cultural name. | Not run | PENDING |
 | 148. Start a second battle after finishing one | Next Round and Full Reset both clear the report. The second battle reports its own statistics with nothing carried over from the first. | Not run | PENDING |
 
+### Quit confirmation, maximize, and Core faction metrics smoke (2026-07-28)
+
+Added by `docs/plans/2026-07-28-quit-confirm-maximize-and-faction-metrics.md`.
+**A passing gate proves none of the rows below.** Every one needs a human at an
+interactive desktop, and no agent may flip one to `PASS`.
+
+The maximize and restore rows deserve the same suspicion as the minimize row
+above them: `SDL_MaximizeWindow`, `SDL_RestoreWindow`, and `SDL_GetWindowFlags`
+are P/Invokes that compile cleanly and have never been executed in this
+repository. A clean build is no evidence that any of them works.
+
+| # | Step | Expected | Result | Status |
+| --- | --- | --- | --- | --- |
+| 156. Click `Close` on the control bar | A confirmation prompt appears. The game does not quit. The battle behind it is dimmed. | Not run | PENDING |
+| 157. Cancel the prompt | The prompt closes and the battle continues untouched. | Not run | PENDING |
+| 158. Confirm the prompt | The game exits. | Not run | PENDING |
+| 159. Open the prompt and press `Enter` immediately | Cancel holds focus, so `Enter` cancels rather than quitting. | Not run | PENDING |
+| 160. Open the prompt and press `Escape` | The prompt cancels. If the menu was open behind it, the menu stays open — `Escape` belonged to the prompt alone. | Not run | PENDING |
+| 161. Open the prompt, press Tab or an arrow key, then `Enter` | Focus moves to Quit and `Enter` then quits. | Not run | PENDING |
+| 162. Open the prompt and click well away from both buttons | Nothing happens. The click does not reach the control bar, the arena, or agent selection underneath. | Not run | PENDING |
+| 163. Menu, then `Exit Game` | The same prompt appears. The menu path does not quit directly. | Not run | PENDING |
+| 164. Press Alt+F4 | Quits immediately with no prompt, by design — it is the guaranteed escape hatch on a borderless window. | Not run | PENDING |
+| 165. Click `Max` | The window maximizes. | Not run | PENDING |
+| 166. Click `Max` again | The window restores to its previous size. | Not run | PENDING |
+| 167. Maximize outside the app (Windows snap or taskbar), then click `Max` | It restores rather than re-maximizing — the button read the real window state instead of a tracked flag. | Not run | PENDING |
+| 168. Check all seven control-bar buttons | Play, Pause, Menu, Sounds, Min, Max, and Close all render fully inside the bar. Close is not clipped at the right edge. | Not run | PENDING |
+| 169. Open the battle report and read a faction line | Attack, hit, and accuracy figures are present, and the estimated figures are marked with a tilde. | Not run | PENDING |
+| 170. Read the battle report disclosure line | It states that attacks and accuracy are simulation-reported while kills, damage, and warrior rows are estimated. | Not run | PENDING |
+| 171. Compare the reported faction accuracy against a headless run of the same seed | It matches the simulation own counters rather than an event-derived approximation. | Not run | PENDING |
+
 ## Failure classification
 
 Classify failures as implementation, test, environment/dependency, pre-existing,

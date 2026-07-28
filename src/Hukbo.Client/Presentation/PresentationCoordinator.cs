@@ -97,10 +97,11 @@ internal sealed class PresentationCoordinator
 
     public void IngestTick(
         IReadOnlyList<BattleEvent> events,
-        IReadOnlyList<AgentView> agents)
+        IReadOnlyList<AgentView> agents,
+        FactionCombatMetrics tickCombatByFaction)
     {
         EventFeed.Ingest(events);
-        BattleReportAccumulator.Ingest(events);
+        BattleReportAccumulator.Ingest(events, tickCombatByFaction);
         HitEffects.Ingest(events, agents);
         Blood.Ingest(events, agents);
         Swings.Ingest(events, agents);

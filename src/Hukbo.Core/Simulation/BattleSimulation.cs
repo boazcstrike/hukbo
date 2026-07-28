@@ -14,6 +14,13 @@ public sealed class BattleSimulation
     private static readonly ReadOnlyCollection<BattleEvent> EmptyEvents =
         Array.AsReadOnly<BattleEvent>([]);
 
+    /// <summary>
+    /// The number of factions a battle has. Two, everywhere: faction 0 and
+    /// faction 1. Named so the per-faction observability buffers in
+    /// <see cref="GatherAndCommitAttacks"/> do not carry a bare literal.
+    /// </summary>
+    private const int FactionCount = 2;
+
     private readonly CombatRuleset _rules;
     private readonly AgentState[] _agentStates;
     private readonly Dictionary<ulong, int> _agentIndexes;
@@ -50,6 +57,7 @@ public sealed class BattleSimulation
     private long _eventSequence;
     private CollisionTickMetrics _lastTickCollision;
     private CombatMetrics _lastTickCombat;
+    private FactionCombatMetrics _lastTickCombatByFaction;
 
     private BattleSimulation(
         Scenario scenario,
@@ -119,7 +127,29 @@ public sealed class BattleSimulation
     /// Derived attack-resolution counters for the tick just completed.
     /// Observability only: never hashed, never snapshotted, never persisted.
     /// </summary>
-    internal CombatMetrics LastTickCombat => _lastTickCombat;
+    /// <remarks>
+    /// Public so a presentation layer can report authoritative counts rather
+    /// than re-deriving them from the event stream. Reading this cannot affect
+    /// the simulation: it is assigned once at the end of
+    /// <see cref="GatherAndCommitAttacks"/> and never read back by any
+    /// simulation stage.
+    /// </remarks>
+    public CombatMetrics LastTickCombat => _lastTickCombat;
+
+    /// <summary>
+    /// The same counters as <see cref="LastTickCombat"/>, split by the faction
+    /// of the attacker. <see cref="FactionCombatMetrics.Total"/> equals
+    /// <see cref="LastTickCombat"/> by construction — the undivided value is
+    /// computed from this one, not counted separately.
+    /// </summary>
+    /// <remarks>
+    /// This is one tick. A caller wanting battle totals sums it across ticks;
+    /// the simulation deliberately holds no running total, because that would
+    /// be mutable run-scoped state existing only for observability. See
+    /// <see cref="FactionCombatMetrics"/>.
+    /// </remarks>
+    public FactionCombatMetrics LastTickCombatByFaction =>
+        _lastTickCombatByFaction;
 
     /// <summary>
     /// Longest run of consecutive blocked ticks any single agent has reached.
@@ -1218,11 +1248,19 @@ public sealed class BattleSimulation
         // Derived observability counters for this tick. Locals rather than
         // state, folded into the reported value once at the end of the loop,
         // so nothing here can be read by the simulation itself.
-        var landed = 0;
-        var shieldBlocked = 0;
-        var parried = 0;
-        var deflected = 0;
-        var evaded = 0;
+        //
+        // Each counter is indexed by the attacking agent's faction so the same
+        // loop yields both the undivided total and the per-faction split, with
+        // no second pass and no new query. Two factions exist, so these are
+        // fixed-size stack arrays; the totals are summed at the end rather than
+        // tracked separately, which makes the split a partition by
+        // construction rather than by assertion.
+        Span<int> accepted = stackalloc int[FactionCount];
+        Span<int> landed = stackalloc int[FactionCount];
+        Span<int> shieldBlocked = stackalloc int[FactionCount];
+        Span<int> parried = stackalloc int[FactionCount];
+        Span<int> deflected = stackalloc int[FactionCount];
+        Span<int> evaded = stackalloc int[FactionCount];
 
         for (var sourceIndex = 0;
              sourceIndex < _agentStates.Length;
@@ -1309,33 +1347,62 @@ public sealed class BattleSimulation
                     _damageTotals[targetIndex] + source.DamagePerAttack);
             }
 
+            // Credited to the attacker's faction. Every accepted attack has
+            // exactly one attacker, so this is a partition of proposalCount.
+            var attackerFaction = source.FactionId;
+            accepted[attackerFaction]++;
+
             switch (resolution)
             {
                 case AttackResolution.Landed:
-                    landed++;
+                    landed[attackerFaction]++;
                     break;
                 case AttackResolution.ShieldBlocked:
-                    shieldBlocked++;
+                    shieldBlocked[attackerFaction]++;
                     break;
                 case AttackResolution.Parried:
-                    parried++;
+                    parried[attackerFaction]++;
                     break;
                 case AttackResolution.Deflected:
-                    deflected++;
+                    deflected[attackerFaction]++;
                     break;
                 default:
-                    evaded++;
+                    evaded[attackerFaction]++;
                     break;
             }
         }
 
-        _lastTickCombat = new CombatMetrics(
-            proposalCount,
-            landed,
-            shieldBlocked,
-            parried,
-            deflected,
-            evaded);
+        _lastTickCombatByFaction = new FactionCombatMetrics(
+            new CombatMetrics(
+                accepted[0],
+                landed[0],
+                shieldBlocked[0],
+                parried[0],
+                deflected[0],
+                evaded[0]),
+            new CombatMetrics(
+                accepted[1],
+                landed[1],
+                shieldBlocked[1],
+                parried[1],
+                deflected[1],
+                evaded[1]));
+
+        // Derived from the split rather than counted separately, so the two can
+        // never disagree. proposalCount is asserted equal to the summed
+        // accepted count below: it is maintained by the loop for indexing
+        // _attackProposals, so it is an independent witness that the per-faction
+        // credit above missed nothing.
+        _lastTickCombat = _lastTickCombatByFaction.Total;
+
+        if (_lastTickCombat.AcceptedAttacks != proposalCount)
+        {
+            throw new InvalidOperationException(
+                "Per-faction attack accounting lost or duplicated an accepted " +
+                "attack: the faction split sums to " +
+                $"{_lastTickCombat.AcceptedAttacks} but {proposalCount} " +
+                "attacks were resolved this tick.");
+        }
 
         for (var index = 0; index < proposalCount; index++)
         {

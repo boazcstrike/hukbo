@@ -154,4 +154,67 @@ public sealed class CombatMetricsTests
 
         Assert.Equal(before, accumulator.ToMetrics());
     }
+    /// <summary>
+    /// The per-faction split must be a partition of the undivided total on
+    /// every tick, not merely on average or at the end. Every accepted attack
+    /// has exactly one attacker and therefore exactly one attacking faction, so
+    /// any drift means a resolution was credited twice or not at all.
+    /// </summary>
+    /// <remarks>
+    /// This runs a real battle rather than a synthetic pair so the assertion
+    /// covers ticks where one faction attacks and the other cannot, where both
+    /// attack, and where neither does. A test over hand-built counters would
+    /// pass while the simulation credited the wrong faction.
+    /// </remarks>
+    [Fact]
+    public void PerFactionAttackCountsPartitionTheUndividedTotalOnEveryTick()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 40);
+        var simulation = BattleSimulation.Create(scenario);
+
+        var sawAnyAttack = false;
+
+        for (var tick = 0; tick < 400; tick++)
+        {
+            simulation.AdvanceOneTick();
+
+            var split = simulation.LastTickCombatByFaction;
+            Assert.Equal(simulation.LastTickCombat, split.Total);
+            Assert.Equal(split.Faction0, split.ForFaction(0));
+            Assert.Equal(split.Faction1, split.ForFaction(1));
+
+            // Each side's own five outcome counters must also be exhaustive,
+            // which is the property that makes a per-faction
+            // DefenceAttributableShare meaningful.
+            foreach (var side in (CombatMetrics[])[split.Faction0, split.Faction1])
+            {
+                Assert.Equal(
+                    side.AcceptedAttacks,
+                    side.LandedAttacks +
+                        side.ShieldBlockedAttacks +
+                        side.ParriedAttacks +
+                        side.DeflectedAttacks +
+                        side.EvadedAttacks);
+            }
+
+            if (simulation.LastTickCombat.AcceptedAttacks > 0)
+            {
+                sawAnyAttack = true;
+            }
+        }
+
+        // Guards against the assertions above passing vacuously on a run where
+        // nothing ever attacked.
+        Assert.True(sawAnyAttack, "No attack was resolved, so nothing was verified.");
+    }
+
+    [Fact]
+    public void ForFactionRejectsAFactionThatDoesNotExist()
+    {
+        var split = new FactionCombatMetrics(default, default);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => split.ForFaction(2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => split.ForFaction(-1));
+    }
+
 }
