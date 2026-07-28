@@ -315,6 +315,16 @@ RenderProbeReport CaptureReport(int agents, ulong seed, int framesPerStation)
             1080,
             buildConfiguration,
             backend,
+            // The shipped client sets SynchronizeWithVerticalRetrace = true and
+            // this probe does not override it yet, so every frame-time
+            // percentile below is a refresh-interval floor rather than a
+            // measurement. GPU-006 adds the probe-only override that flips
+            // this to false.
+            VerticalRetraceSynchronized: true,
+            // 0 means "this probe build did not measure duplication", which is
+            // the only honest value until GPU-005 derives the factor from the
+            // recorded PawnGeometryInvocations count.
+            ProbeDuplicationFactor: 0,
             DateTime.UtcNow),
         agents,
         seed,

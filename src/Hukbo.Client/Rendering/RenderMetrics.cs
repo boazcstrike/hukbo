@@ -258,12 +258,12 @@ public interface IRenderMetricsRecorder
 /// the probe's duplication factor is derived rather than assumed (GPU-005).
 /// </param>
 /// <remarks>
-/// The eight fields added by GPU-001 are declared last and default to zero so
-/// that a construction site written against the earlier shape still names
-/// every field it intends to set. A zero on any of them means "not recorded
-/// by this caller", which for a Tier 1 timing span is indistinguishable from
-/// a genuine zero — unlike Tier 2, these spans carry no <c>*Applicable</c>
-/// flag, because a CPU span applies under every backend.
+/// The eight fields added by GPU-001 are declared last but carry no default,
+/// so every construction site names them explicitly (GPU-002). That matters
+/// because, unlike Tier 2, these spans carry no <c>*Applicable</c> flag — a
+/// CPU span applies under every backend — so a zero arriving from an omitted
+/// argument would be indistinguishable from a genuine measured zero. Making
+/// them required means a zero is always something a caller chose to record.
 /// </remarks>
 public readonly record struct RenderMetricsSnapshot(
     int Quads,
@@ -279,14 +279,14 @@ public readonly record struct RenderMetricsSnapshot(
     bool TextureBindsApplicable,
     long BufferUploadBytes,
     bool BufferUploadBytesApplicable,
-    double ClearMicroseconds = 0,
-    double LayoutMicroseconds = 0,
-    double HoverSelectionMicroseconds = 0,
-    double UiLayerMicroseconds = 0,
-    double BaseDrawMicroseconds = 0,
-    double ArenaGeometryMicroseconds = 0,
-    double ProbeOverheadMicroseconds = 0,
-    int PawnGeometryInvocations = 0);
+    double ClearMicroseconds,
+    double LayoutMicroseconds,
+    double HoverSelectionMicroseconds,
+    double UiLayerMicroseconds,
+    double BaseDrawMicroseconds,
+    double ArenaGeometryMicroseconds,
+    double ProbeOverheadMicroseconds,
+    int PawnGeometryInvocations);
 
 /// <summary>
 /// The disabled, allocation-free no-op <see cref="IRenderMetricsRecorder"/>.
