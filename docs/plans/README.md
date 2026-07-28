@@ -202,6 +202,68 @@ What is still outstanding:
   sub-agent. Whoever integrates this branch still owes that one run and its
   literal pasted output.
 
+## The contingent Close latch workstream — in progress
+
+Design:
+[`docs/plans/2026-07-28-contingent-close-latch-design.md`](2026-07-28-contingent-close-latch-design.md).
+Plan: [`docs/plans/2026-07-28-contingent-close-latch.md`](2026-07-28-contingent-close-latch.md).
+Neither document is archived yet — the workstream still has a human step
+outstanding, so both stay live in this folder rather than moving to
+`docs/archives/`.
+
+The formation and movement realism workstream above shipped a defect along
+with its feature: transition rule 3 put a whole contingent into
+`ContingentState.Close` the moment a single member reached contact, and the
+state never lifted. That is the cause recorded behind smoke rows 104 and 114
+in `docs/development/testing.md`. This plan's eleven tasks fix it.
+
+T1 through T8 are committed. In order: T1 froze `PersistentContingentsV2`'s
+simulated trajectory in a digest fixture before touching any production code;
+T2 added two inert fraction fields to `MovementRuleset`; T3 and T4 rewrote rule
+3 to count members in contact rather than take a minimum distance, still
+behaviour-inert because every registered preset kept the fraction that
+reproduces the old rule exactly; T5 registered a third preset,
+`PersistentContingentsV3`, carrying a non-zero close fraction; T6 flipped
+`Scenario`'s shipped default to it, the one task at which the seed-1
+200-agent pair actually moved; T7 re-measured the contingent shape harness
+under the new default; T8 recorded performance and allocation.
+
+Registered movement presets are now three: `IndependentPursuitV1 = 1`,
+`PersistentContingentsV2 = 2`, `PersistentContingentsV3 = 3`. Seed 1, 200
+agents, 10,000 requested ticks, shipped default, old and new side by side:
+
+| Field | `PersistentContingentsV2` (was) | `PersistentContingentsV3` (now) |
+| --- | --- | --- |
+| `measuredTicks` | 1064 | 1334 |
+| outcome | `Faction0Victory` | `Faction1Victory` |
+| survivors (faction0/faction1) | 8 / 0 | 0 / 1 |
+| `eventHash` | `8E819FF7B378FEFD` | `C0379769F4483553` |
+| `stateHash` | `C79B76AE81C300CB` | `0682C6BCED57224D` |
+
+Both `IndependentPursuitV1` and `PersistentContingentsV2` now carry a per-tick
+trajectory digest fixture under `tests/Hukbo.Core.Tests/Fixtures/`, replayed
+byte-identically by `MovementPresetFreezeTests` — the mechanism that makes a
+preset's *simulated behaviour* freezable, as distinct from the pinned
+`ContentHash` literals in `MovementPresetRegistryTests`, which only prove a
+preset's declared fields have not moved.
+
+**The fix works at its narrowest stated purpose and no further, and that is
+recorded honestly rather than oversold.** T7's re-measurement found Hold
+episodes beginning after a contingent's first `Close` went from zero to one
+across fifty contingent-battles, and `Close` occupancy fell from 63.69 % to
+53.11 % of contingent-ticks. Rule 2 (attrition) rose to 30.45 % and is now the
+ceiling on mid-battle gathering. The `Hold` aspect-ratio tail got **worse**
+rather than better — p99 from 3.06 to 5.04, maximum from 5.17 to 14.21 —
+which misses the plan's own acceptance criterion that the distribution be no
+worse than before. T8 found no measurable performance or allocation movement
+beyond run-to-run noise at 200 or 500 agents.
+
+Smoke rows 104 and 114 remain unresolved and await a human. T9 (this
+documentation pass) is done; T10 will reset those two rows to `PENDING` for
+re-observation under `PersistentContingentsV3` and record the historical
+cause; T11 archives both documents once T10's human pass has actually
+happened, and not before.
+
 ## Where the live contract lives
 
 | Question | Source |

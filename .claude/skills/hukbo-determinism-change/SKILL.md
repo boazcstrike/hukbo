@@ -70,30 +70,47 @@ Related rules from `CLAUDE.md` §5 that cause most real failures:
 re-records it and this skill file is a periodic snapshot copied from it; if the two ever disagree,
 believe `docs/development/testing.md`, not the table below.
 
-From `docs/development/testing.md`'s "movement preset default flips to `PersistentContingentsV2`
-(T15)" section, seed 1, 200 agents, `./scripts/verify.ps1 -SkipBootstrap` run after T15 flipped
-`Scenario.MovementPreset`'s shipped default from `IndependentPursuitV1` to
-`PersistentContingentsV2`:
+From `docs/development/testing.md`'s record of T6 in
+`docs/plans/2026-07-28-contingent-close-latch.md`, seed 1, 200 agents, run after T6 flipped
+`Scenario.MovementPreset`'s shipped default from `PersistentContingentsV2` to
+`PersistentContingentsV3`:
 
 | Field | Value |
 | --- | --- |
-| Outcome | `Faction0Victory` at tick 1064 (`faction0Survivors 8`, `faction1Survivors 0`) |
-| State hash | `C79B76AE81C300CB` |
-| Event hash | `8E819FF7B378FEFD` |
-| Allocated | 422,720 bytes (`coreAllocatedBytes 125088`) |
+| Outcome | `Faction1Victory` at tick 1334 (`faction0Survivors 0`, `faction1Survivors 1`) |
+| State hash | `0682C6BCED57224D` |
+| Event hash | `C0379769F4483553` |
+| Allocated | 461,888 bytes (`coreAllocatedBytes 118896`) |
 
-**This supersedes the earlier `71211929A44A16CA` / `A2DC3ECA3F7345ED` pair recorded from the
-weapon-clash-on-preset-V2 integration**, which was the seed-1, 200-agent baseline before this
-workstream flipped the shipped default. The hashes, outcome, and survivor counts all moved because
-persistent-contingent cohesion movement changes which agents converge on which enemies and when — a
-real behaviour change, not a representational one. A replay run with `-MovementPreset
-IndependentPursuitV1` named explicitly still reproduces the older, frozen pair; see
-`docs/development/testing.md` for that separate, unmoved record.
+**This supersedes the `PersistentContingentsV2` pair — `Faction0Victory` at tick 1064
+(`faction0Survivors 8`, `faction1Survivors 0`), state hash `C79B76AE81C300CB`, event hash
+`8E819FF7B378FEFD`**, which was the seed-1, 200-agent baseline before this workstream (T1 through
+T9 of `docs/plans/2026-07-28-contingent-close-latch.md`) flipped the shipped default. The hashes,
+outcome, and survivor counts all moved because transition rule 3 of the contingent state machine
+now counts members in contact instead of taking a minimum distance, and `PersistentContingentsV3`
+is the first registered preset to carry a non-zero close fraction (`1, 2`) rather than the `(0, 1)`
+every other preset still carries — a real behaviour change, not a representational one. A replay
+run with `-MovementPreset PersistentContingentsV2` named explicitly still reproduces the older,
+frozen pair, and `-MovementPreset IndependentPursuitV1` still reproduces its own frozen pair
+unchanged; see `docs/development/testing.md` for those separate, unmoved records.
+
+Both frozen presets are held down by a per-tick trajectory digest fixture under
+`tests/Hukbo.Core.Tests/Fixtures/` — `seed-1-200-agents-movement-v1-digest.json` for
+`IndependentPursuitV1`, `seed-1-200-agents-movement-v2-digest.json` for
+`PersistentContingentsV2` — replayed byte-identically by `MovementPresetFreezeTests`. That fixture,
+not the pinned `ContentHash` literal in `MovementPresetRegistryTests`, is what makes a preset's
+*simulated behaviour* freezable: `MovementRuleset.ContentHash` never reaches the state hash at all,
+so a matching literal only proves a preset's declared fields have not moved, not that a tick-by-tick
+replay would still match. `PersistentContingentsV3` has no digest fixture of its own — it is the
+preset currently receiving new behaviour, not one being held frozen.
+
+Registered movement presets are now three: `IndependentPursuitV1 = 1`, `PersistentContingentsV2 =
+2`, `PersistentContingentsV3 = 3`.
 
 The 500-agent stress workload below, report only, is from the earlier
 weapon-clash-on-preset-V2 build the superseded pair above came from, not
-re-measured against the T15 default flip: `Faction0Victory` with 11 faction-0
-and 0 faction-1 survivors, state hash `A4C8B82F2A445691`, event hash
+re-measured against either movement-preset default flip (T15, then T6): `Faction0Victory` with 11
+faction-0 and 0 faction-1 survivors, state hash `A4C8B82F2A445691`, event hash
 `A5C77685987DBA49`, deterministic with no mismatch tick.
 
 Pinned content hashes, asserted in `DeterminismTests`: preset V1

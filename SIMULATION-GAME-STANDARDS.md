@@ -523,13 +523,14 @@ ResolveOutcome
 
 `ResolveContingentStates` returns on its first line under
 `MovementPresetId.IndependentPursuitV1`, so that preset's tick pipeline is
-unchanged in effect even though the stage now always runs. Under
-`MovementPresetId.PersistentContingentsV2` it reads each living agent's
+unchanged in effect even though the stage now always runs. Under every
+persistent-contingent preset it reads each living agent's
 position, `FactionId`, `ContingentId`, and selected `TargetEntityId`, plus
 `Scenario`'s map dimensions and body radius, to compute — once per contingent
 per tick, into preallocated per-slot arrays sized at construction — each
 living contingent's leader, living member count, member spread around that
-leader, nearest-enemy distance, trail-base geometry, and the two geometric
+leader, count of members whose selected target lies inside the close radius,
+trail-base geometry, and the two geometric
 gates (map-edge fit and same-faction square overlap) design section 3.5 of
 `docs/plans/2026-07-28-formation-movement-realism-design.md` names gates 5 and
 6. It then resolves each living contingent's `ContingentState` through the
