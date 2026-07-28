@@ -205,6 +205,14 @@ these terms must be scoped to a region, exactly as the appearance research
 already scopes costume presets, or the game will assert a uniformity the
 sources deny.
 
+[`ARMY-COMPOSITION.md`](ARMY-COMPOSITION.md) §4.3 names this the **"timawa
+trap"**: the Visayan *timagua* of Loarca's account (a sworn fighting client)
+and the Tagalog and Pampangan cognate, which by Rizal's time had drifted to
+mean simply "free, at peace, tranquil," are not one rank. Do not treat
+Visayan *timagua* and Tagalog *timawa* as interchangeable, and do not build a
+single archipelago-wide ladder out of them — the same do-not-conflate
+instruction that section gives.
+
 Two passages in Morga carry more design weight than anything else in this
 document.
 

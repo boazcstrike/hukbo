@@ -25,12 +25,21 @@ Navigate:
 [HISTORICAL_1500s_RANKS.md](HISTORICAL_1500s_RANKS.md) covers the same rank
 vocabulary as section 4 below and is the evidence base already cited by
 `docs/plans/2026-07-29-warrior-standing-design.md`. The two documents were
-written independently and have **not yet been reconciled term by term.** Where
-they assign different confidence tiers to the same claim, that disagreement is
-unresolved and must be settled in writing before either is used to justify a
-code change. This document's contribution is force size, coalition structure,
-contingent shape, and the maritime organization of a force — not the rank
-ladder, which the other file treats in more depth.
+written independently. **They were reconciled term by term on 2026-07-29**
+(see §9.1 below for the full record): three label and tier disagreements were
+resolved in RANKS's favour, the `aliping namamahay` UI-clearance question was
+settled with a stated reason, §11.4's "no rank enum" wording was corrected so
+it no longer contradicts the `RankId` enum RANKS's evidence supports, and
+cross-references were added in both directions so a reader of either document
+reaches the same conclusion. What deliberately remains open: Mindanao and
+Sulu rank vocabulary (§4.5, and item 1 of §12's open-questions list below),
+the Alcina, Colin, and Boxer Codex material neither document has read (§12,
+items 2-3), and whether a household dependent was ever actually fielded in a
+battle line, which is recorded as an inference either way rather than a
+settled fact. This document's contribution
+is force size, coalition structure, contingent shape, and the maritime
+organization of a force — not the rank ladder, which the other file treats in
+more depth.
 
 This file is the early-contact counterpart to
 [Depth 2: Forces and command](battles/02-deep-past-forces-and-command.md).
@@ -192,6 +201,17 @@ Plasencia also notes that the *aliping namamahay* and their children could not
 be made *sa guiguilir* and could not be sold, and that captives taken in war
 were a principal source of the sellable class. Warfare fed the dependency
 system, which is a campaign-layer concern and must not enter `Hukbo.Core`.
+
+**The maharlika misconception.** In modern Philippine usage *maharlika* is
+frequently read as "nobility" or "royalty". Plasencia's own text does not
+support that: his maharlica are the free-born who owe war service to the dato
+and are distinct from the chiefly class above them. The popularized
+"nobility" reading is a twentieth-century development and must not be used in
+this project, per
+[`HISTORICAL_1500s_RANKS.md`](HISTORICAL_1500s_RANKS.md), "Terms deliberately
+excluded". This is a naming trap of exactly the kind the weapons document
+warns about, and it is the single most likely error for anyone adding rank
+content from general knowledge.
 
 ### 4.2 Visayan, from Loarca (1582)
 
@@ -361,6 +381,19 @@ proceeds.** It did not buy obedience, a title, or authority over the other
 chiefs' followers — only the larger share. A coalition therefore had a
 recognizable sponsor and an agreed split, and nothing else.
 
+**Documented.** Morga records that following itself was earned by war record,
+not fixed by birth alone:
+
+> When any of these chiefs was more courageous than others in war and upon
+> other occasions, such a one enjoyed more followers and men; and the others
+> were under his leadership, even if they were chiefs.
+
+This is the direct evidentiary basis for §11.1 and §11.2's argument that
+contingent sizes should be unequal and leader-earned rather than derived by
+lattice-packing, and it is the design's stated basis for rank-aware leader
+selection: a leading chief did not become a stronger fighter, he became one
+whom more people stood with.
+
 **Documented.** Loarca also records that a captive taken alive was worth more
 than one killed: whoever slew a captive after his surrender "must pay for him
 with his own money; and if he were unable to do so he was held as a slave", and
@@ -422,17 +455,62 @@ English descriptor.
 | --- | --- | --- | --- | --- |
 | *barangay* | Plasencia 1589; Morga | A chief's following of thirty to a hundred houses; also a vessel type | **Barangay — Chief's Following** | **Documented** |
 | *dato* | Plasencia 1589; Loarca 1582 | Chief; "captains in their wars" | **Dato — War Chief** | **Documented** |
-| *maharlica* | Plasencia 1589 | Tagalog free-born who serves in war at his own expense | **Maharlika — Free Warrior** | **Documented** (Tagalog only) |
-| *timagua* | Loarca 1582 | Visayan freeman bound to a chief by mutual service and defense | **Timawa — Sworn Follower** | **Documented** (Visayan sense only; see §4.3) |
-| *aliping namamahay* | Plasencia 1589 | Dependent with his own house; rows and travels with the dato | not recommended for UI | **Documented** |
+| *maharlica* | Plasencia 1589 | Tagalog free-born who serves in war at his own expense | **Maharlika — Sworn Freeman** | **Documented** (Tagalog only) |
+| *timagua* | Loarca 1582 | Visayan freeman bound to a chief by mutual service and defense | **Timawa — Bound Freeman** | **Documented** (Visayan sense only; see §4.3) |
+| *aliping namamahay* | Plasencia 1589 | Dependent with his own house; rows and travels with the dato | **Aliping Namamahay — Householder** | **Documented** |
 | *aliping sa guiguilir* | Plasencia 1589 | Household dependent; salable | not recommended for UI | **Documented** |
-| *ayuey*, *tumaranpoc*, *tomataban* | Loarca 1582 | Three graded Visayan dependent statuses | not recommended for UI | **Documented** |
+| *ayuey*, *tumaranpoc*, *tomataban* | Loarca 1582 | Three graded Visayan dependent statuses, with recorded prices: ayuey two gold *taes* (about twelve pesos), tumaranpoc the same twelve pesos in rice-equivalent, tomataban one *tae* (six pesos) — see [`HISTORICAL_1500s_RANKS.md`](HISTORICAL_1500s_RANKS.md), Visayas dependency-grade table | not recommended for UI | **Documented, form uncertain** |
 | *mangubas* | Morga 1609 | "to go out for plunder"; the raid itself | **Mangubat — Raid** | **Documented, form uncertain** — Morga prints *mangubas*, Rizal's note gives *mangubat* |
 | *magaanito* | Loarca 1582 | The sacrifice whose sponsor takes half the booty | **Magaanito — Sponsor's Sacrifice** | **Documented, form uncertain** |
 | *balanguai* | Pigafetta 1521 | The boats Humabon brought to Mactan | **Balangay — War Boat** | **Documented** |
 | *caracoa* | Morga 1609 | Large oared vessel, up to 100 rowers a side plus about 30 fighters | **Karakoa — Great War Boat** | **Documented, form uncertain** |
 | *virey* | 1570s relations; Morga | Smaller, quicker oared craft | not recommended for UI | **Documented, form uncertain** |
 | *gat*, *lakan*, *dayang*, *maginoo* | Rizal's notes to Morga, citing Colin | Chiefly titles and address forms | **Lakan — Paramount Chief** if used at all | **Provisional reconstruction** — later attestation, see §4.4 |
+
+### 9.1 Reconciliation with `HISTORICAL_1500s_RANKS.md` (2026-07-29)
+
+The table above was amended on 2026-07-29 to match
+[`HISTORICAL_1500s_RANKS.md`](HISTORICAL_1500s_RANKS.md), which the design
+document for `RankId` treats as the controlling rank vocabulary. Each change
+and its reason:
+
+- **`Maharlika — Free Warrior` became `Maharlika — Sworn Freeman`.** "Free
+  Warrior" names only the combat role. Plasencia's passage (§4.1 above) is
+  explicit that the obligation runs both ways — a feast before, a share of
+  spoils after — and RANKS's descriptor keeps that reciprocity in the label
+  itself rather than leaving it implicit.
+- **`Timawa — Sworn Follower` became `Timawa — Bound Freeman`.** Loarca's
+  timagua is not merely sworn; the chief owes defense in return, and the
+  freeman is free to leave a chief who fails to provide it (§4.2 above).
+  "Bound" names the standing relationship — a durable, transferable bond to
+  a named chief — that "Sworn" alone does not capture.
+- **The `ayuey`, `tumaranpoc`, `tomataban` row moved from Documented to
+  Documented, form uncertain.** This document's own §1 defines that tier as
+  "the institution or obligation is attested, but its local form, its
+  extent, or the exact term for it is uncertain." That is a precise
+  description of this row: Loarca attests three graded dependent statuses
+  and gives prices for them, but the spelling rests on a single Spanish
+  transliteration with unsettled modern orthography, which is exactly the
+  uncertainty the lower tier exists to flag.
+- **`aliping namamahay` moved from "not recommended for UI" to a cleared
+  pair-form label.** The cell previously carried no written rationale. The
+  user decided on 2026-07-29 that the class is fielded, with the
+  player-facing label `Aliping Namamahay — Householder` — Plasencia's
+  attested full form, chosen because it names the documented fact that this
+  class held its own houses, land, and gold, rather than translating
+  "commoner" or another Spanish gloss.
+
+  That labeling decision is independent of a separate, unresolved question:
+  whether a household dependent was ever actually put in a battle line.
+  Plasencia gives the *aliping namamahay* maritime and agricultural service
+  and states the armed war obligation explicitly only for the maharlika
+  (§4.1 above); nothing in the corpus rules a battle role in or out for this
+  class. `HISTORICAL_1500s_RANKS.md`, "Gaps and unknowns" (lines 314-319),
+  records the same caution and requires that a roster fielding this class
+  say in the inspector that doing so is a reconstruction, not an attested
+  fact. That inspector note is implementation scope, tracked in the
+  `2026-07-29-warrior-rank.md` plan's C1 and C2 tasks, not something this
+  research document can satisfy on its own.
 
 Terms **not** to use: any rank word implying a delegated military office
 (general, captain, sergeant, lieutenant, corporal), any term for a standing unit
@@ -532,8 +610,15 @@ is no evidentiary pressure to make battles larger.
 
 ### 11.4 Things to keep out
 
-- **No rank enum.** There is no attested rank below "chief", and inventing one
-  would violate §7 of `AGENTS.md` on the same grounds that excluded *panabas*.
+- **No graded military-office hierarchy.** There is no attested captain,
+  sergeant, lieutenant, or corporal, and no named unit below a chief's
+  personal following; inventing one would violate §7 of `AGENTS.md` on the
+  same grounds that excluded *panabas*. This is a different claim from the
+  social and legal standing catalogued in §4 above — dato, maharlika,
+  timagua, and the dependent grades — which is documented, not invented.
+  `Hukbo.Core`'s `RankId` enum carries that social and legal standing only;
+  it is not a delegated military office and does not contradict this
+  section.
 - **No signal, order, or command-radius system** presented as historical. Any
   such mechanic is a game-design hypothesis and must be commented as one, in the
   same style as the provisional shield multiplier already in the code.
