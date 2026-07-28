@@ -89,7 +89,9 @@ void RunSingleConfiguration(string[] singleArgs)
 
     Console.WriteLine(
         $"agents={agents} seed={seed} framesPerStation={framesPerStation} " +
-        $"backend={report.Fingerprint.Backend}");
+        $"backend={report.Fingerprint.Backend} " +
+        $"retraceSynchronized={report.Fingerprint.VerticalRetraceSynchronized} " +
+        $"probeDuplicationFactor={report.Fingerprint.ProbeDuplicationFactor:F3}");
     Console.WriteLine($"wrote {outputPath}");
     PrintStations(report.Stations);
 }
@@ -219,6 +221,15 @@ void RunMatrix(string[] matrixArgs)
         JsonSerializer.Serialize(matrixReport, RenderProbeReport.SerializerOptions));
 
     Console.WriteLine($"wrote {outputPath}");
+
+    // GPU-005. The matrix keeps one shared fingerprint, taken from the first
+    // cell, so this is the first cell's measured factor rather than every
+    // cell's. Stated on its own line so nobody reads it as a per-cell figure.
+    Console.WriteLine(
+        $"fingerprint (from the first cell): backend={sharedFingerprint.Backend} " +
+        $"retraceSynchronized={sharedFingerprint.VerticalRetraceSynchronized} " +
+        $"probeDuplicationFactor={sharedFingerprint.ProbeDuplicationFactor:F3}");
+
     foreach (var cell in cells)
     {
         Console.WriteLine($"agents={cell.AgentCount} seed={cell.Seed}");
@@ -309,6 +320,14 @@ RenderProbeReport CaptureReport(int agents, ulong seed, int framesPerStation)
     // retrace still enabled is never mistaken for one captured without it.
     var verticalRetraceSynchronized = game.IsVerticalRetraceSynchronized;
 
+    // GPU-005. Read back the same way and for the same reason: the factor is
+    // the ratio of the pawn-geometry invocations this run actually counted to
+    // the ones its draw path alone made, accumulated frame by frame while the
+    // run was happening. Nothing here asserts what that ratio ought to be, so
+    // when GPU-013 and GPU-014 remove the draw path's duplicate construction
+    // this number moves on its own.
+    var probeDuplicationFactor = game.ProbePawnGeometryDuplicationFactor;
+
     var stationResults = new RenderProbeStationResult[stations.Length];
     for (var index = 0; index < stations.Length; index++)
     {
@@ -343,10 +362,11 @@ RenderProbeReport CaptureReport(int agents, ulong seed, int framesPerStation)
             // frame-time percentiles below are a refresh-interval floor rather
             // than a measurement, and it must be able to say so.
             VerticalRetraceSynchronized: verticalRetraceSynchronized,
-            // 0 means "this probe build did not measure duplication", which is
-            // the only honest value until GPU-005 derives the factor from the
-            // recorded PawnGeometryInvocations count.
-            ProbeDuplicationFactor: 0,
+            // GPU-005. Derived from the invocations the run recorded, never
+            // hardcoded. A 0 here now means the draw path counted nothing at
+            // all, which for a probe run that produced stations would itself
+            // be a finding.
+            ProbeDuplicationFactor: probeDuplicationFactor,
             DateTime.UtcNow),
         agents,
         seed,
@@ -364,10 +384,20 @@ void PrintStations(IReadOnlyList<RenderProbeStationResult> stations)
             $"p99={station.FrameMillisecondsP99,6:F2}ms " +
             $"quads(max)={station.QuadsMaximum,6} " +
             $"tris(max)={station.TrianglesMaximum,6} " +
-            $"geomBuild(p50/p95)={station.GeometryBuildMicrosecondsP50,7:F1}/" +
-            $"{station.GeometryBuildMicrosecondsP95,7:F1}us " +
+            // GPU-005. geometryBuildMicroseconds is deliberately absent from
+            // this line. Nothing writes it any more: the pass it used to time
+            // is the probe's own and is now reported as probeOvh, while the
+            // renderer's real per-pawn geometry cost is arenaGeom (GPU-004).
+            // Printing a field no producer writes would read as a measured
+            // zero. It stays in the JSON schema, which is versioned, rather
+            // than on a console line, which is read at a glance.
+            $"arenaGeom(p50/p95)={station.ArenaGeometryMicrosecondsP50,7:F1}/" +
+            $"{station.ArenaGeometryMicrosecondsP95,7:F1}us " +
             $"submit(p50/p95)={station.SubmitMicrosecondsP50,7:F1}/" +
             $"{station.SubmitMicrosecondsP95,7:F1}us " +
+            $"probeOvh(p50/p95)={station.ProbeOverheadMicrosecondsP50,7:F1}/" +
+            $"{station.ProbeOverheadMicrosecondsP95,7:F1}us " +
+            $"pawnGeomCalls(max)={station.PawnGeometryInvocationsMaximum,6} " +
             $"managedBytes(max)={station.ManagedBytesAllocatedMaximum} " +
             $"[Tier2 diagnostic] submissions(max)={station.SubmissionsMaximum,6} " +
             $"batches(max)={station.BatchesMaximum} textureBinds(max)={station.TextureBindsMaximum} " +

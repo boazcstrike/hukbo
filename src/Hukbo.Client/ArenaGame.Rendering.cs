@@ -57,6 +57,69 @@ public sealed partial class ArenaGame
     private long _arenaSubmitTicks;
 
     /// <summary>
+    /// GPU-005. Calls into <c>PawnGeometry.Create</c> made by the probe's own
+    /// duplicate counting pass this frame — the two call sites inside
+    /// <see cref="RecordPawnQuads"/>. Written once per frame by that method
+    /// rather than incremented per agent. Meaningful only while the render
+    /// probe is enabled, because nothing else ever runs that pass.
+    /// </summary>
+    private int _frameProbePassPawnGeometryInvocations;
+
+    /// <summary>
+    /// GPU-005. Calls into <c>PawnGeometry.Create</c> made by the renderer's
+    /// own draw path this frame — the two call sites inside
+    /// <see cref="DrawPawns"/>, which a normal unprobed run also makes.
+    /// Written once per frame rather than incremented per agent.
+    /// </summary>
+    /// <remarks>
+    /// One further <c>PawnGeometry.Create</c> call exists outside this file,
+    /// the inspector portrait's, reached through <c>AgentInspectorPanel</c>'s
+    /// <c>PawnRenderer.Draw</c> call, and it is deliberately not counted by
+    /// either field. It is a single still rather than per-agent work, it runs
+    /// only while an agent is selected, and it is already timed inside
+    /// <c>uiLayerMicroseconds</c> rather than inside either arena span. The
+    /// duplication factor these counts feed is a statement about the arena
+    /// render path, so folding a user-interface still into it would misstate
+    /// that path.
+    /// </remarks>
+    private int _frameDrawPathPawnGeometryInvocations;
+
+    /// <summary>
+    /// GPU-005. Run total of <see cref="_frameProbePassPawnGeometryInvocations"/>
+    /// across every probe-enabled frame, accumulated rather than sampled
+    /// because <see cref="ProbePawnGeometryDuplicationFactor"/> describes the
+    /// run as a whole rather than any one frame.
+    /// </summary>
+    private long _probePassPawnGeometryInvocations;
+
+    /// <summary>
+    /// GPU-005. Run total of <see cref="_frameDrawPathPawnGeometryInvocations"/>
+    /// across every probe-enabled frame: the invocations a normal, unprobed
+    /// run would also have made, and the denominator of
+    /// <see cref="ProbePawnGeometryDuplicationFactor"/>.
+    /// </summary>
+    private long _drawPathPawnGeometryInvocations;
+
+    /// <summary>
+    /// GPU-005. How many times this run evaluated the pure pawn-geometry
+    /// helper for each one time the draw path alone needed it: the ratio of
+    /// every counted invocation to the draw path's own. Derived from the two
+    /// recorded run totals rather than asserted, so removing a duplicate
+    /// construction moves it instead of leaving a stale constant behind. A
+    /// value near 2 means the probe's counting pass rebuilt every visible
+    /// pawn's geometry a second time; a value of 1 would mean the probe added
+    /// no duplicate work at all. Zero when the draw path recorded nothing,
+    /// which is the honest reading of "this run measured no duplication" and
+    /// is what an unprobed run reports.
+    /// </summary>
+    public double ProbePawnGeometryDuplicationFactor =>
+        _drawPathPawnGeometryInvocations == 0L
+            ? 0d
+            : (double)(_probePassPawnGeometryInvocations +
+                _drawPathPawnGeometryInvocations) /
+                _drawPathPawnGeometryInvocations;
+
+    /// <summary>
     /// GPU-004. Closes the open submission span and opens a geometry span.
     /// Probe-only: a normal run reads no timestamp here, exactly as the
     /// surrounding <c>_renderProbeEnabled</c> guards in <see cref="Draw"/>
@@ -98,6 +161,13 @@ public sealed partial class ArenaGame
         {
             _renderProbeFrameStartTimestamp = Stopwatch.GetTimestamp();
             _renderMetricsRecorder.Reset();
+
+            // GPU-005. Cleared rather than left to be overwritten, because
+            // DrawArenaLayer returns without reaching DrawPawns whenever the
+            // arena rectangle is degenerate. Without this, such a frame would
+            // report the previous frame's draw-path count as its own.
+            _frameProbePassPawnGeometryInvocations = 0;
+            _frameDrawPathPawnGeometryInvocations = 0;
         }
 
         var theme = _themeManager.ActiveTheme;
@@ -155,13 +225,30 @@ public sealed partial class ArenaGame
             // appearance/layout/cull inputs DrawArenaLayer's own draw calls
             // resolve this frame, via the pure counting functions the
             // design's quad budgets are pinned against — never inside a
-            // renderer's own per-frame path (VIS-034/VIS-035R). Timed
-            // separately from arena submission itself, matching
-            // RenderMetricsSnapshot's own Tier 1 field split.
-            var geometryBuildStartTimestamp = Stopwatch.GetTimestamp();
+            // renderer's own per-frame path (VIS-034/VIS-035R).
+            //
+            // GPU-005. This pass belongs to the probe and to nothing else: a
+            // normal run never evaluates it, and under the probe it walks the
+            // agent list a second time to rebuild appearance, bounds, and
+            // layout that DrawPawns rebuilds again moments later. Its cost is
+            // therefore reported as probeOverheadMicroseconds rather than as
+            // geometryBuildMicroseconds, which is the field it used to be
+            // written to and the reason every figure recorded against that
+            // field before GPU-005 was the instrument timing itself. The
+            // renderer's real per-pawn geometry cost is
+            // arenaGeometryMicroseconds (GPU-004). Nothing writes
+            // geometryBuildMicroseconds now, so its zero is that absence
+            // rather than a measured zero, and the two spans a Phase 3
+            // go/no-go trigger divides by no longer include the instrument.
+            //
+            // Neither boundary read is charged to the span it bounds: the
+            // span closes on the timestamp GetElapsedTime takes on entry, so
+            // the microsecond conversion and the recorder call below both
+            // land after it.
+            var probeOverheadStartTimestamp = Stopwatch.GetTimestamp();
             RecordArenaRenderMetrics(layout.ArenaBounds);
-            _renderMetricsRecorder.AddGeometryBuildMicroseconds(
-                Stopwatch.GetElapsedTime(geometryBuildStartTimestamp)
+            _renderMetricsRecorder.AddProbeOverheadMicroseconds(
+                Stopwatch.GetElapsedTime(probeOverheadStartTimestamp)
                     .TotalMicroseconds);
         }
 
@@ -193,6 +280,21 @@ public sealed partial class ArenaGame
                 _arenaGeometryTicks * MicrosecondsPerStopwatchTick);
             _renderMetricsRecorder.AddSubmitMicroseconds(
                 _arenaSubmitTicks * MicrosecondsPerStopwatchTick);
+
+            // GPU-005. Every span that could be inflated by this work has
+            // already closed — the submission span on the timestamp read at
+            // the top of this block, the probe-overhead span further up — so
+            // the accumulation and the recorder call here are charged to
+            // nothing they describe. Only the two per-frame field writes that
+            // feed them sit inside a measured span, and each is a single
+            // integer store rather than a per-agent one.
+            _probePassPawnGeometryInvocations +=
+                _frameProbePassPawnGeometryInvocations;
+            _drawPathPawnGeometryInvocations +=
+                _frameDrawPathPawnGeometryInvocations;
+            _renderMetricsRecorder.AddPawnGeometryInvocations(
+                _frameProbePassPawnGeometryInvocations +
+                _frameDrawPathPawnGeometryInvocations);
         }
 
         var uiLayerStartTimestamp =
@@ -285,6 +387,12 @@ public sealed partial class ArenaGame
         var selectedEntityId = _presentation.Selection.SelectedEntityId;
         var hoveredEntityId = _hoverSelection.SelectedEntityId;
 
+        // GPU-005. Counted in a local and stored once below rather than
+        // incremented through a field per agent. This method is probe-only, so
+        // no gate is needed here and the counting is charged to probe
+        // overhead, which is exactly where it belongs.
+        var pawnGeometryInvocations = 0;
+
         foreach (var agent in _simulation.Agents)
         {
             if (!agent.IsAlive)
@@ -306,6 +414,7 @@ public sealed partial class ArenaGame
                 footAnchor,
                 _camera.Zoom,
                 appearance);
+            pawnGeometryInvocations++;
 
             if (!arenaBounds.Intersects(visualBounds))
             {
@@ -323,6 +432,7 @@ public sealed partial class ArenaGame
                 _camera.Zoom,
                 appearance,
                 swingPose: swingPose);
+            pawnGeometryInvocations++;
             var state = GetPawnVisualState(
                 agent.EntityId,
                 selectedEntityId,
@@ -330,6 +440,14 @@ public sealed partial class ArenaGame
 
             RecordQuads(PawnQuadCount.Count(layout, appearance, state));
         }
+
+        // GPU-005. One helper call per living agent through
+        // PawnRenderer.GetBounds, which forwards straight to
+        // PawnGeometry.Create and keeps only VisualBounds, plus one more for
+        // each agent that survived the cull. Counted at the call sites rather
+        // than inside the helper so that this file's own duplication stays
+        // visible in the file that causes it.
+        _frameProbePassPawnGeometryInvocations = pawnGeometryInvocations;
     }
 
     /// <summary>
@@ -656,6 +774,13 @@ public sealed partial class ArenaGame
         // conservative direction for the Phase 3 go/no-go trigger.
         OpenArenaGeometrySpan();
 
+        // GPU-005. The renderer's own pawn-geometry invocation count for this
+        // frame. A local, incremented only inside the _renderProbeEnabled
+        // gates below, so a normal run executes a predicted-not-taken branch
+        // per agent and performs no increment and no store at all. Stored to
+        // its field once after the loop rather than per agent.
+        var pawnGeometryInvocations = 0;
+
         foreach (var agent in _simulation.Agents)
         {
             if (!agent.IsAlive)
@@ -682,6 +807,18 @@ public sealed partial class ArenaGame
                 footAnchor,
                 _camera.Zoom,
                 appearance);
+
+            if (_renderProbeEnabled)
+            {
+                // GPU-005. GetBounds is a PawnGeometry.Create call wearing a
+                // different name: it forwards every argument straight through
+                // and keeps only VisualBounds off the result. This is the
+                // first half of redundancy R1, and counting it at the call
+                // site rather than inside the helper is what will let GPU-013
+                // and GPU-014 be judged by this number halving rather than by
+                // assertion.
+                pawnGeometryInvocations++;
+            }
 
             if (!arenaBounds.Intersects(visualBounds))
             {
@@ -717,6 +854,16 @@ public sealed partial class ArenaGame
                 appearance,
                 swingPose: swingPose);
 
+            if (_renderProbeEnabled)
+            {
+                // GPU-005. The second half of R1: the same pure helper, the
+                // same footAnchor and zoom and appearance, run a second time
+                // for this pawn because the first result kept only its
+                // bounds. Left in place — removing it is GPU-013/GPU-014's
+                // job, and this task's job is to make it countable.
+                pawnGeometryInvocations++;
+            }
+
             CloseArenaGeometrySpan();
 
             PawnRenderer.DrawLayout(
@@ -732,6 +879,20 @@ public sealed partial class ArenaGame
         }
 
         CloseArenaGeometrySpan();
+
+        if (_renderProbeEnabled)
+        {
+            // GPU-005. One integer store per frame. The geometry span has
+            // already closed on the line above, so this store lands in the
+            // submission span, and the two local increments above land in the
+            // geometry span — a register increment and a single store against
+            // spans reported in hundreds of microseconds. Both are stated here
+            // rather than left for a reader to discover. Everything costlier
+            // — the run-total accumulation and the recorder call — happens in
+            // Draw, after both spans have closed, so nothing that could
+            // meaningfully move a figure is charged to the figure it explains.
+            _frameDrawPathPawnGeometryInvocations = pawnGeometryInvocations;
+        }
     }
 
     private static PawnVisualState GetPawnVisualState(

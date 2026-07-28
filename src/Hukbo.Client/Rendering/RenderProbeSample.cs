@@ -26,9 +26,15 @@ namespace Hukbo.Client.Rendering;
 /// quad budgets (<c>RenderBudgetEstimate</c>) are pinned against, over the
 /// exact appearance/layout/cull inputs the live renderers use this frame,
 /// and times that work separately as
-/// <see cref="RenderMetricsSnapshot.GeometryBuildMicroseconds"/>; it times
-/// the arena <c>SpriteBatch</c> submission itself as
-/// <see cref="RenderMetricsSnapshot.SubmitMicroseconds"/>. Tier 2
+/// <see cref="RenderMetricsSnapshot.ProbeOverheadMicroseconds"/>, because
+/// that counting pass exists only for the probe and never runs in a normal
+/// game frame (GPU-005). The renderer's own per-pawn geometry construction
+/// is timed as
+/// <see cref="RenderMetricsSnapshot.ArenaGeometryMicroseconds"/>, and the
+/// arena <c>SpriteBatch</c> submission itself as
+/// <see cref="RenderMetricsSnapshot.SubmitMicroseconds"/> (GPU-004).
+/// <see cref="RenderMetricsSnapshot.GeometryBuildMicroseconds"/> has had no
+/// producer since GPU-005 and reports a measured zero. Tier 2
 /// submissions/batches/texture binds are the current
 /// <c>spritebatch-1x1</c> backend's own derived facts — one
 /// <c>SpriteBatch.Draw</c> call and two triangles per quad, one arena
