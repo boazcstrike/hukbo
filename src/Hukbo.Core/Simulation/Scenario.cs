@@ -62,9 +62,15 @@ public sealed record Scenario(
     /// The movement preset this battle is fought under. Defaults to the
     /// newest preset; earlier ones stay registered and unmodified so a
     /// replay recorded against one remains reproducible by naming it here.
+    /// Task T6 of <c>docs/plans/2026-07-28-contingent-close-latch.md</c>
+    /// flipped the shipped default from <see cref="MovementPresetId.PersistentContingentsV2"/>
+    /// to <see cref="MovementPresetId.PersistentContingentsV3"/> -- the
+    /// rule-3 close latch and the contact-count denominator that plan
+    /// landed. <c>PersistentContingentsV2</c> stays registered and
+    /// byte-identical for a replay that names it explicitly.
     /// </summary>
     public MovementPresetId MovementPreset { get; init; } =
-        MovementPresetId.PersistentContingentsV2;
+        MovementPresetId.PersistentContingentsV3;
 
     /// <summary>
     /// Every warrior's level, until a leveling system exists. Set once, at

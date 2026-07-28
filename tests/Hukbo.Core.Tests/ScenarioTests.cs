@@ -214,16 +214,17 @@ public sealed class ScenarioTests
     }
 
     [Fact]
-    public void CreateDefaultSelectsPersistentContingentsV2MovementPreset()
+    public void CreateDefaultSelectsPersistentContingentsV3MovementPreset()
     {
-        // T15 flips the shipped default from IndependentPursuitV1 to
-        // PersistentContingentsV2. IndependentPursuitV1 stays registered and
-        // unmodified for a replay that names it explicitly; only the value a
-        // caller gets without naming a preset has moved.
+        // T6 of docs/plans/2026-07-28-contingent-close-latch.md flips the
+        // shipped default from PersistentContingentsV2 to
+        // PersistentContingentsV3. PersistentContingentsV2 stays registered
+        // and unmodified for a replay that names it explicitly; only the
+        // value a caller gets without naming a preset has moved.
         var scenario = Scenario.CreateDefault();
 
         Assert.Equal(
-            MovementPresetId.PersistentContingentsV2,
+            MovementPresetId.PersistentContingentsV3,
             scenario.MovementPreset);
     }
 

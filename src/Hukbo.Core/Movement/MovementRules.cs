@@ -378,8 +378,9 @@ internal static class MovementRules
 
     /// <summary>
     /// The arrival-slowdown taper of design section 3.6: the raw step an
-    /// agent takes this tick toward its destination, active only under
-    /// <see cref="MovementPresetId.PersistentContingentsV2"/>. Everywhere
+    /// agent takes this tick toward its destination, active under every
+    /// persistent-contingent preset and inactive only under the frozen
+    /// <see cref="MovementPresetId.IndependentPursuitV1"/>. Everywhere
     /// outside the final <paramref name="taperRaw"/> of remaining distance
     /// the result is exactly the untapered step,
     /// <c>Min(movementSpeedRaw, remainingRaw)</c>; inside it, the step scales

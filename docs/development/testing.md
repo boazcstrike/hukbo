@@ -84,7 +84,70 @@ not prove a sound was audible, that it arrived at the right moment, or that it
 sounded right. Smoke rows below still require a human at an interactive desktop;
 see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
-## Latest non-interactive result — movement preset default flips to PersistentContingentsV2 (T15), 2026-07-28
+## Latest non-interactive result — movement preset default flips to PersistentContingentsV3 (T6), 2026-07-28
+
+Task T6 of `docs/plans/2026-07-28-contingent-close-latch.md` changes
+`Scenario.MovementPreset`'s shipped default from `PersistentContingentsV2` to
+`PersistentContingentsV3`. `Scenario.MovementPreset` is folded into the state
+hash, so the seed-1 pair moves with the default, and this is the one task in
+that plan at which it moves. Both earlier presets stay registered and
+byte-reproducible for a replay that names one explicitly, each guarded by its
+own trajectory digest fixture in `MovementPresetFreezeTests`; only the value a
+caller gets without naming a preset has changed.
+
+`./scripts/verify.ps1`, run once after the flip:
+
+```
+Total tests: 700
+     Passed: 700
+Total tests: 697
+     Passed: 697
+[PASS] Release repository tests completed.
+seed 1, agentCount 200, requestedTicks 10000, measuredTicks 1334
+outcome Faction1Victory, faction0Survivors 0, faction1Survivors 1
+eventHash C0379769F4483553
+stateHash 0682C6BCED57224D
+deterministic true, firstMismatchTick null
+allocatedBytes 461888, coreAllocatedBytes 118896
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+Old and new, side by side:
+
+| | `PersistentContingentsV2` (was) | `PersistentContingentsV3` (now) |
+| --- | --- | --- |
+| `measuredTicks` | 1064 | 1334 |
+| outcome | `Faction0Victory` | `Faction1Victory` |
+| survivors, faction 0 / 1 | 8 / 0 | 0 / 1 |
+| `eventHash` | `8E819FF7B378FEFD` | `C0379769F4483553` |
+| `stateHash` | `C79B76AE81C300CB` | `0682C6BCED57224D` |
+
+The run reaches a terminal outcome at tick 1334 rather than stopping at the
+ten-thousand-tick limit, and `deterministic` is `true`.
+
+Two changes are folded into this pair, and both are deliberate. The first is
+the intended one: transition rule 3 now closes a contingent only once at least
+half its living members have a selected target inside the close radius, so
+contingents keep gathering mid-battle instead of latching into
+`ContingentState.Close` on the first member to reach contact.
+
+The second was found while flipping the default, and it is worth recording
+because it would have made the first change meaningless. `GatherMovementProposals`
+and the arrival-taper step both gated on
+`MovementPreset == PersistentContingentsV2` exactly, so registering
+`PersistentContingentsV3` silently switched cohesion and the arrival taper
+*off* under the new preset. Both tests now read
+`MovementPreset != IndependentPursuitV1` instead, matching the condition
+`ResolveContingentStates` already used, so a newly registered
+persistent-contingent preset cannot lose the behaviour by not being named.
+`PersistentContingentsV2`'s own trajectory is unaffected by that repair, which
+is what its digest fixture proves.
+
+**This supersedes the `C79B76AE81C300CB` pair recorded below** as the seed-1,
+200-agent, 10,000-tick baseline for the shipped default.
+
+## Previous non-interactive result — movement preset default flips to PersistentContingentsV2 (T15), 2026-07-28
 
 Task T15 of `docs/plans/2026-07-28-formation-movement-realism.md` changes
 `Scenario.MovementPreset`'s shipped default from `IndependentPursuitV1` to

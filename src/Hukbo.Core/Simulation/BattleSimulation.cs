@@ -793,8 +793,8 @@ public sealed class BattleSimulation
 
     /// <summary>
     /// The ninth tick stage: resolves every living contingent's
-    /// <see cref="AgentState.ContingentState"/> for this tick under
-    /// <see cref="MovementPresetId.PersistentContingentsV2"/>, and the two
+    /// <see cref="AgentState.ContingentState"/> for this tick under every
+    /// persistent-contingent preset, and the two
     /// geometric gates <see cref="GatherMovementProposals"/>'s cohesion
     /// branch reads as array lookups rather than recomputing. Under
     /// <see cref="MovementPresetId.IndependentPursuitV1"/> this returns on
@@ -1057,7 +1057,7 @@ public sealed class BattleSimulation
     /// see another agent's move while proposals are still being formed.
     /// </summary>
     /// <remarks>
-    /// Under <see cref="MovementPresetId.PersistentContingentsV2"/>, a
+    /// Under every persistent-contingent preset, a
     /// <see cref="AgentIntent.Moving"/> agent that passes all six movement
     /// gates of design section 3.5
     /// (docs/plans/2026-07-28-formation-movement-realism-design.md) takes a
@@ -1074,8 +1074,14 @@ public sealed class BattleSimulation
     {
         Array.Clear(_movementProposals);
 
+        // Every persistent-contingent preset takes the cohesion branch. The
+        // test is written against IndependentPursuitV1, the one preset that
+        // has no contingent behaviour, rather than against a list of the
+        // presets that do: ResolveContingentStates returns on its first line
+        // under exactly the same condition, and a new persistent-contingent
+        // preset must not silently lose cohesion by not being named here.
         var cohesionActive =
-            Scenario.MovementPreset == MovementPresetId.PersistentContingentsV2;
+            Scenario.MovementPreset != MovementPresetId.IndependentPursuitV1;
         var tick = checked((int)Tick);
 
         for (var index = 0; index < _agentStates.Length; index++)
@@ -1133,8 +1139,8 @@ public sealed class BattleSimulation
 
     /// <summary>
     /// Evaluates the six movement gates of design section 3.5 for one
-    /// <see cref="AgentIntent.Moving"/> agent under
-    /// <see cref="MovementPresetId.PersistentContingentsV2"/> and, when every
+    /// <see cref="AgentIntent.Moving"/> agent under every
+    /// persistent-contingent preset and, when every
     /// gate permits, computes its cohesion aim point — the give-way escape
     /// when the agent stands in its own leader's forward corridor, otherwise
     /// the trail base plus this member's personal offset from
@@ -2165,7 +2171,12 @@ public sealed class BattleSimulation
         var distance = IntegerSquareRoot(distanceSquared);
 
         var desiredMovement = Math.Max(1, distance - stopShortRaw);
-        var movement = Scenario.MovementPreset == MovementPresetId.PersistentContingentsV2
+        // The arrival taper is on under every persistent-contingent preset,
+        // and off only under IndependentPursuitV1, whose trajectory is frozen.
+        // Testing against the frozen preset rather than naming each preset
+        // that has the taper keeps a newly registered preset from silently
+        // losing it.
+        var movement = Scenario.MovementPreset != MovementPresetId.IndependentPursuitV1
             ? MovementRules.ComputeArrivalStepRaw(
                 desiredMovement,
                 agent.MovementSpeedRaw,
