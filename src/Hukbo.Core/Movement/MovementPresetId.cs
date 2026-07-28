@@ -29,4 +29,22 @@ public enum MovementPresetId
     /// 3.4 through 3.6.
     /// </summary>
     PersistentContingentsV2 = 2,
+
+    /// <summary>
+    /// Contingent membership survives past deployment. Every living member
+    /// carries <see cref="Simulation.ContingentState"/>, resolved
+    /// tick by six priority-ordered transition rules design section
+    /// 3.4; member fallen behind contingent, whole
+    /// contingent while gathering, may be given cohesion destination
+    /// instead independent pursuit, subject six movement gates
+    /// cohesion duty cycle design section 3.5. Identical to
+    /// <see cref="PersistentContingentsV2"/> in every respect except transition
+    /// rule 3, which now closes the contingent once at least half its living
+    /// members have a selected target inside the close radius, and re-opens it
+    /// once that fraction drops below a quarter, instead of the single-member
+    /// minimum <see cref="PersistentContingentsV2"/> uses. See
+    /// docs/plans/2026-07-28-contingent-close-latch-design.md section 3 for
+    /// the derivation.
+    /// </summary>
+    PersistentContingentsV3 = 3,
 }

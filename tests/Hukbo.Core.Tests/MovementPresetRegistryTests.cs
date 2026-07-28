@@ -34,6 +34,15 @@ public sealed class MovementPresetRegistryTests
     /// </summary>
     private const ulong PersistentContingentsV2ContentHash = 0xE1AAE33EB35BE440UL;
 
+    /// <summary>
+    /// Pinned by T5 against <c>PersistentContingentsV3</c>'s constant set,
+    /// which differs from <c>PersistentContingentsV2</c>'s only in
+    /// <c>CloseFractionNumerator</c> and <c>CloseFractionDenominator</c>
+    /// (<c>1, 2</c> instead of <c>0, 1</c>), so this literal differs from
+    /// both existing literals.
+    /// </summary>
+    private const ulong PersistentContingentsV3ContentHash = 0x4605119141580D43UL;
+
     [Fact]
     public void IndependentPursuitV1IsRegistered()
     {
@@ -44,6 +53,12 @@ public sealed class MovementPresetRegistryTests
     public void PersistentContingentsV2IsRegistered()
     {
         Assert.True(MovementPresetRegistry.IsRegistered(MovementPresetId.PersistentContingentsV2));
+    }
+
+    [Fact]
+    public void PersistentContingentsV3IsRegistered()
+    {
+        Assert.True(MovementPresetRegistry.IsRegistered(MovementPresetId.PersistentContingentsV3));
     }
 
     [Fact]
@@ -93,5 +108,21 @@ public sealed class MovementPresetRegistryTests
 
         Assert.Equal(PersistentContingentsV2ContentHash, ruleset.ContentHash);
         Assert.NotEqual(IndependentPursuitV1ContentHash, ruleset.ContentHash);
+    }
+
+    /// <summary>
+    /// Pins <c>PersistentContingentsV3</c>'s content hash to a literal
+    /// distinct from both existing literals, satisfying T5's own
+    /// verification criterion: introducing the third preset must move
+    /// nothing about the first two.
+    /// </summary>
+    [Fact]
+    public void PersistentContingentsV3ContentHashMatchesThePinnedLiteral()
+    {
+        var ruleset = MovementPresetRegistry.Get(MovementPresetId.PersistentContingentsV3);
+
+        Assert.Equal(PersistentContingentsV3ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(IndependentPursuitV1ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(PersistentContingentsV2ContentHash, ruleset.ContentHash);
     }
 }

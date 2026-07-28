@@ -63,11 +63,47 @@ public static class MovementPresetRegistry
         arrivalTaperMultiplier: 4,
         offsetUnit: 1024);
 
+    /// <summary>
+    /// The contact-fraction preset. Every tunable is the same value
+    /// <see cref="PersistentContingentsV2Ruleset"/> already carries except
+    /// <c>CloseFractionNumerator</c> and <c>CloseFractionDenominator</c>,
+    /// registered here at <c>(1, 2)</c>: transition rule 3 closes the
+    /// contingent once at least half its living members have a selected
+    /// target inside the close radius, instead of the single-member minimum
+    /// the <c>(0, 1)</c> floor reproduces. Not the shipped default — reachable
+    /// only through <c>--movement-preset</c> until
+    /// docs/plans/2026-07-28-contingent-close-latch.md T6 flips it. See
+    /// docs/plans/2026-07-28-contingent-close-latch-design.md section 3 for
+    /// the derivation.
+    /// </summary>
+    /// <remarks>
+    /// The pair <c>(1, 2)</c> is a provisional game-design choice, not a
+    /// historical measurement. No source describes a unit's contact
+    /// threshold, and half-to-close with a quarter-to-re-open is a starting
+    /// point chosen for the shape it produces, not a quantity derived from
+    /// anything. It is re-measured by <c>Hukbo.Tools.ContingentShape</c> in
+    /// plan task T7, and the exit band in particular — half the entry
+    /// fraction — is the open question design section 7 records.
+    /// </remarks>
+    private static readonly MovementRuleset PersistentContingentsV3Ruleset = new(
+        id: MovementPresetId.PersistentContingentsV3,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024);
+
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
         {
             MovementPresetId.IndependentPursuitV1 => true,
             MovementPresetId.PersistentContingentsV2 => true,
+            MovementPresetId.PersistentContingentsV3 => true,
             _ => false,
         };
 
@@ -76,6 +112,7 @@ public static class MovementPresetRegistry
         {
             MovementPresetId.IndependentPursuitV1 => IndependentPursuitV1Ruleset,
             MovementPresetId.PersistentContingentsV2 => PersistentContingentsV2Ruleset,
+            MovementPresetId.PersistentContingentsV3 => PersistentContingentsV3Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,
