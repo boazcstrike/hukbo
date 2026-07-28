@@ -824,6 +824,32 @@ public sealed partial class ArenaGame
         // task pointless.
         var agents = _simulation.Agents;
 
+        // GPU-020. One pass over the at-most-256 live effects for the whole
+        // frame, in place of the full scan of that same buffer that ran once
+        // per drawn pawn below. The values are identical: HitEffectSystemTests
+        // pins the lookup against GetPulseStrength, which stays in place as the
+        // reference, over both edge behaviours — lethal exclusion and
+        // maximum-over-effects — and over a full 256-effect buffer.
+        //
+        // This is a snapshot, not a cache. It is a ref struct so the compiler
+        // forbids storing it in a field or capturing it, and BuildPulseLookup
+        // clears its backing storage before every pass, so nothing survives the
+        // frame and there is no invalidation rule to get wrong. Correctness
+        // therefore rests entirely on nothing mutating the effect buffer
+        // between this line and the last read of the lookup in the loop, which
+        // holds: the only two mutators, PresentationCoordinator.IngestTick
+        // (line 126) and AdvanceEffects (line 149), are both driven from
+        // Update — ArenaGame.cs lines 1212 and 536 — which MonoGame runs to
+        // completion before Draw, and nothing on the Draw path between here and
+        // the loop's end touches HitEffects. HitEffectRenderer reads
+        // ActiveEffects after DrawPawns has returned (line 682) and only reads.
+        //
+        // Built inside the geometry span deliberately. The per-pawn scan it
+        // replaces was charged to geometry, so charging its replacement
+        // anywhere else would make the span's improvement look larger than the
+        // work actually saved.
+        var hitPulses = _presentation.HitEffects.BuildPulseLookup();
+
         for (var ordinal = 0; ordinal < agents.Count; ordinal++)
         {
             var agent = agents[ordinal];
@@ -894,8 +920,10 @@ public sealed partial class ArenaGame
                 agent.EntityId,
                 selectedEntityId,
                 hoveredEntityId);
-            var hitPulseStrength =
-                _presentation.HitEffects.GetPulseStrength(agent.EntityId);
+            // GPU-020. One hashed read against the frame's snapshot, in place
+            // of a full scan of the live-effect buffer per pawn. Same value,
+            // same position in the same left-to-right argument order.
+            var hitPulseStrength = hitPulses.GetPulseStrength(agent.EntityId);
             var swingPose = SwingPoseResolver.TryGetPose(
                 _swingPoses,
                 agent.EntityId,
