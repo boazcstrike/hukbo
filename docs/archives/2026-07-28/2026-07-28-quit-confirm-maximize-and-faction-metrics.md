@@ -1,5 +1,12 @@
 # Quit confirmation, maximize replacement, and Core faction metrics — plan
 
+**Archived: reference only.** Implemented and verified on 2026-07-28; the
+canonical gate passed with `stateHash A080E28DA7C79C20` and `eventHash
+2B6FB3A9A9C1960D`, both unchanged as this workstream required. Do not execute
+this document and do not cite it as justification for a change. Smoke rows 156
+to 171 in [docs/development/testing.md](../../development/testing.md) remain
+PENDING and still need a human at an interactive desktop.
+
 **Design:** [`2026-07-28-quit-confirm-maximize-and-faction-metrics-design.md`](2026-07-28-quit-confirm-maximize-and-faction-metrics-design.md).
 Read it first. This document carries only the ordered task list and the
 verification criteria.
