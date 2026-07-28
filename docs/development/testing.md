@@ -234,6 +234,145 @@ each `RenderBudgetEstimate`/frame-time figure or revising it through a
 recorded, reviewed diff. Until that happens, no automated test may encode a
 number from this section as an enforced ceiling.
 
+## Agent-count scaling sweep re-measured at the 4.25 body radius, 2026-07-28
+
+The T2 and T7 sweep tables further down this file were measured while
+`CollisionRules.DefaultBodyRadiusRaw` was 4.0 world units. That constant moved
+to 4.25 under
+[docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md](../archives/2026-07-28/2026-07-28-collision-report-and-shell.md),
+and every figure in those tables became superseded at that moment. This section
+is the re-measurement. It supersedes the T2 sweep table, the T7
+`coreAllocatedBytes` before-and-after table, and the T7/T11 percentile table for
+all four agent counts. Those tables are left in place unedited, because they
+remain the correct record of what the 4.0 radius did.
+
+Measured on `main` at commit `730ba28`, one fresh process per point:
+
+```powershell
+./scripts/benchmark.ps1 -Agents 200  -Ticks 10000 -Seed 1
+./scripts/benchmark.ps1 -Agents 500  -Ticks 10000 -Seed 1 -NoBuild
+./scripts/benchmark.ps1 -Agents 1000 -Ticks 10000 -Seed 1 -NoBuild
+./scripts/benchmark.ps1 -Agents 2000 -Ticks 10000 -Seed 1 -NoBuild
+```
+
+| Agents | measuredTicks | p50 ms | p95 ms | p99 ms | max ms | coreAllocatedBytes | allocatedBytes | outcome | stateHash | eventHash |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 200 | 1 677 | 0.0887 | 1.6860 | 2.5418 | 11.0047 | 118 896 | 516 376 | `Faction0Victory` | `A080E28DA7C79C20` | `2B6FB3A9A9C1960D` |
+| 500 | 2 859 | 0.2391 | 1.9310 | 3.5241 | 16.9044 | 259 376 | 994 352 | `Faction0Victory` | `F9267D5B9DFB50E1` | `BD3E753BEB76CD33` |
+| 1 000 | 9 294 | 0.8481 | 6.2364 | 10.7760 | 43.2692 | 541 552 | 2 627 408 | `Faction1Victory` | `6D35D701D9423C27` | `8B22790BAC7940EB` |
+| 2 000 | 10 000 | 17.3454 | 51.5116 | 63.1044 | 274.8558 | 1 141 912 | 3 956 584 | `Draw` | `AF9E348B016FF09F` | `5EA9027348AE764F` |
+
+Every point reported `deterministic true`, `firstMismatchTick null`, and
+`maximumPenetrationRaw 0`.
+
+The 200-agent point reproduces the recorded seed-1 baseline exactly —
+`stateHash A080E28DA7C79C20`, `eventHash 2B6FB3A9A9C1960D`, `measuredTicks 1677`,
+`coreAllocatedBytes 118896`. That is the check that this sweep measured the tree
+it claims to have measured. The hashes at 500, 1 000, and 2 000 agents differ
+from the 4.0-radius sweep, which is expected: the radius change moves the
+simulation, and no golden expectation covers those three points.
+
+### Timing, against the same points at the 4.0 radius
+
+"Before" is the T7/T11 percentile table further down this file, which is the
+last figure recorded for each point at the 4.0 radius. "After" is this sweep.
+
+| Agents | p50 before | p50 after | p95 before | p95 after | p99 before | p99 after | max before | max after |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 200 | 0.0755 | 0.0887 | 1.2764 | 1.6860 | 2.3809 | 2.5418 | 8.6285 | 11.0047 |
+| 500 | 0.3274 | 0.2391 | 1.8906 | 1.9310 | 4.2340 | 3.5241 | 12.4995 | 16.9044 |
+| 1 000 | 1.2466 | 0.8481 | 5.1805 | 6.2364 | 6.2782 | 10.7760 | 22.2130 | 43.2692 |
+| 2 000 | 5.0435 | 17.3454 | 16.4739 | 51.5116 | 19.9058 | 63.1044 | 75.7937 | 274.8558 |
+
+**Only the 2 000-agent row is a clean comparison, and it is the one that got
+much worse.** Both the before and after runs at 2 000 agents hit the
+10 000-tick cap, so the two measure the same number of ticks of the same
+scenario shape. p50 rose from 5.0435 ms to 17.3454 ms, a factor of 3.44; p95
+rose by a factor of 3.13; the worst single tick rose from 75.79 ms to 274.86 ms.
+That is far outside the ten per cent regression threshold in
+`SIMULATION-GAME-STANDARDS.md` section 8.
+
+The other three rows ended on a faction victory rather than the cap, and the
+tick count each one reached changed with the radius — most sharply at
+1 000 agents, from 5 815 ticks to 9 294. A p50 taken over a different number of
+ticks of a differently shaped battle is not a like-for-like measurement, so the
+apparent improvements at 500 and 1 000 agents should not be read as the collision
+change making the simulation faster. They are most likely a different mix of
+early crowded ticks and late thinned-out ticks.
+
+The 2 000-agent collision counters say plainly what the extra 0.25 world units
+of body radius bought at that density:
+
+| Counter | 2 000 agents, this run |
+| --- | --- |
+| `candidatePairs` | 41 296 913 |
+| `contactPairs` | 26 686 |
+| `acceptedMoves` | 13 326 655 |
+| `blockedAgentTicks` | 1 943 319 |
+| `longestBlockedStreakTicks` | 108 |
+| `maximumFrontWidthRaw` | 104 460 |
+| `faction0Survivors` / `faction1Survivors` | 674 / 678 |
+
+Nearly two million blocked agent-ticks, a front that never widened past
+104 460 raw units — against 621 539 at 200 agents — and 1 352 of 2 000 agents
+still alive at the cap. The 2 000-agent battle at this radius is a jam, not a
+battle. This is the same mutual-blocking behaviour that produces the deadlock
+cliff recorded on `CollisionRules.DefaultBodyRadiusRaw`, showing up as a cost
+rather than as a hang because 2 000 agents in the same arena were already dense
+before the radius grew.
+
+**No action is taken here.** 2 000 agents is a stress point, not a shipping
+configuration, and the shipping 200-agent point is within noise of where it was.
+Recording the regression is the deliverable; deciding whether to spend anything
+on it is not this sweep's call.
+
+### Core allocation no longer scales with tick count
+
+| Agents | `coreAllocatedBytes` at 4.0 | `coreAllocatedBytes` at 4.25 | measuredTicks at 4.0 | measuredTicks at 4.25 |
+| --- | --- | --- | --- | --- |
+| 200 | 118 896 | 118 896 | 1 710 | 1 677 |
+| 500 | 259 376 | 259 376 | 2 832 | 2 859 |
+| 1 000 | 541 552 | 541 552 | 5 815 | 9 294 |
+| 2 000 | 1 133 656 | 1 141 912 | 10 000 | 10 000 |
+
+Three of the four figures are byte-identical across the two radii even though
+the tick counts moved, and the 1 000-agent point makes that vivid: the run grew
+by 3 479 ticks and allocated exactly the same 541 552 bytes. After T7 removed
+the per-tick event list, what `coreAllocatedBytes` measures is essentially the
+one-time cost of standing a simulation up, which scales with agent count and not
+with how long the battle lasts. The 2 000-agent point is the exception, 8 256
+bytes higher, which is 0.73 per cent — comfortably inside the roughly 0.015 per
+cent run-to-run spread noted under T1 multiplied by nothing, so it is a real
+difference rather than counter noise, but a small one.
+
+Read against agent count instead of tick count:
+
+| Agents | `coreAllocatedBytes` per agent |
+| --- | --- |
+| 200 | 594.5 bytes |
+| 500 | 518.8 bytes |
+| 1 000 | 541.6 bytes |
+| 2 000 | 571.0 bytes |
+
+The 144-bytes-per-agent-per-tick figure recorded under T2 no longer describes
+anything. It described the `List<BattleEvent>` that T7 deleted, and it was
+already dead before this sweep ran.
+
+`allocatedBytes` — the harness total, which does still grow with tick count —
+came in at 516 376, 994 352, 2 627 408, and 3 956 584 bytes. The 200-agent
+figure differs from the 515 104 bytes recorded under T7 by 1 272 bytes, which is
+0.25 per cent and is the counter's own run-to-run spread.
+
+### Scope
+
+Windows 11 Pro 10.0.26200, x64. .NET SDK 10.0.302. Release build. One fresh
+process per point through `./scripts/benchmark.ps1`, `-Ticks 10000 -Seed 1`.
+Raw `RunReport` JSON for all four points was written to
+`artifacts/sweep-2026-07-28b/`, which is untracked. These are timing and
+allocation figures from the headless runner's own instrumentation; no peak
+working set was measured, so the working-set table under T7 stands unrefreshed
+and superseded.
+
 ## Latest non-interactive result — auto-camera hysteresis and mode setting, 2026-07-28
 
 `./scripts/verify.ps1 -SkipBootstrap` on `main` after the auto-camera change:
@@ -348,8 +487,11 @@ recorded against the four-world-unit radius, was `stateHash 71211929A44A16CA`
 and `eventHash A2DC3ECA3F7345ED`. The run that produced the new pair reported
 `measuredTicks 1677`, `outcome Faction0Victory`, and `maximumPenetrationRaw 0`.
 The `allocatedBytes` and `coreAllocatedBytes` figures above are from the earlier
-sweep run and have **not** been re-measured at the new radius; treat them as
-superseded until someone reruns the sweep.
+sweep run at the 4.0 radius. **The sweep has since been rerun at 4.25** — see
+"Agent-count scaling sweep re-measured at the 4.25 body radius" near the top of
+this file, which carries the current figures for all four agent counts. Every
+number in the rest of this T1/T2/T6/T7/T11 section describes the 4.0 radius and
+is kept only as the record of what that radius did.
 
 The `coreAllocatedBytes` figure is the one from the sweep run recorded under T2
 below, so that every table on this page describes the same run. A separate run
