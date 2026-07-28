@@ -274,26 +274,40 @@ array shaped to V2's roster, and `ArmyCompositionPanelTests.cs:33` pins the
 panel to `PrecolonialPhilippinesV2`. The panel does not become rank-aware
 for free.
 
-**Decision:** retarget the panel in this pass. The design names three
-independent discoverability surfaces — the inspector line, the composition
-panel categories, and the observable leader change — and dropping one leaves
-`SIMULATION-GAME-STANDARDS.md` §10 question 8 answered by two. Two is still
-a true answer, but the composition panel is the only surface a spectator
-reads *before* the battle starts, which is where a roster claim belongs.
+**Original decision:** retarget the panel in this pass, so that the roster
+claim is legible before the battle starts.
 
-Category labels name the rank alongside the weapon, so the pre-battle roster
-is legible without opening the inspector.
+**Status: BLOCKED. Not implemented on 2026-07-29.** The retarget cascades
+well past the single file this task scoped, and the cascade was only visible
+once the work started:
 
-**Depends on:** C1, R5.
+- `CategoryLabels` is a fixed six-slot array that drives
+  `ArmyCompositionStepper`.
+- `ClientSettings.ArmyComposition` is a six-field shape **persisted through
+  the settings store**, so changing the slot count is a saved-data change,
+  not a display change.
+- `ArenaGame` hardcodes the six-slot mapping into `Scenario.RosterCounts`.
+- Preset V4's roster has four entries, not six. V4 and the V2-shaped
+  composition UI do not line up one-to-one, so any relabelling either
+  collapses the slot count or leaves a slot corresponding to no real rank.
 
-**Done when:** categories carry rank labels and the panel resolves against
-V4.
+Retargeting therefore needs `ClientSettings.cs`, `ArmyCompositionStepper.cs`,
+`ArenaGame.cs`, and `ArmyCompositionPanel.cs` together, plus a decision about
+what happens to a persisted six-slot composition when the roster has four
+ranks. That is its own design with its own migration question, not a task in
+this plan.
 
-**Verified by:** `ArmyCompositionPanelTests` and
-`MenuOverlayArmyCompositionTests` pass, with an assertion pinning the text of
-each category. Note that retargeting the panel's pinned preset is itself a
-behavior change to an existing test — update it deliberately, do not weaken
-it.
+**Consequence for discoverability.** `SIMULATION-GAME-STANDARDS.md` §10
+question 8 is answered by two surfaces rather than three: the inspector rank
+line, which ships here, and the observable leader change, which ships with
+[`2026-07-29-leader-rank.md`](2026-07-29-leader-rank.md). Both are real and
+neither requires reading source code, so the feature is discoverable. What
+is lost is the only *pre-battle* surface — a spectator cannot see the rank
+composition of a force until the battle has started and they click a
+warrior. That is a genuine gap and it is recorded here rather than glossed.
+
+**Follow-up owed:** a composition-panel design covering the slot-count
+mismatch and the persisted-settings migration.
 
 ## Group D — research document reconciliation
 
