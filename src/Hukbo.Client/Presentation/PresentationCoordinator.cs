@@ -1,9 +1,17 @@
+using Hukbo.Client.Rendering;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.Presentation;
 
 internal sealed class PresentationCoordinator
 {
+    /// <param name="renderMetricsRecorder">
+    /// Where <see cref="PawnAppearances"/> reports its hit, miss, and fill
+    /// counts. Defaulted to <see cref="NullRenderMetricsRecorder.Instance"/>
+    /// so the many presentation tests that build a coordinator without caring
+    /// about measurement keep their existing call, and so a normal run — where
+    /// the render probe is off — pays only no-op calls.
+    /// </param>
     public PresentationCoordinator(
         int eventCapacity,
         int hitEffectCapacity = 256,
@@ -11,8 +19,11 @@ internal sealed class PresentationCoordinator
         int swingCapacity = 256,
         int clashEffectCapacity = 256,
         int trampleMarkCapacity = TrampleMarkSystem.Capacity,
-        int dustPuffCapacity = DustEffectSystem.Capacity)
+        int dustPuffCapacity = DustEffectSystem.Capacity,
+        IRenderMetricsRecorder? renderMetricsRecorder = null)
     {
+        PawnAppearances = new PawnAppearanceCache(
+            renderMetricsRecorder ?? NullRenderMetricsRecorder.Instance);
         EventFeed = new BattleEventFeed(eventCapacity);
         HitEffects = new HitEffectSystem(hitEffectCapacity);
         Blood = new BloodEffectSystem(bloodBurstCapacity);
@@ -28,6 +39,16 @@ internal sealed class PresentationCoordinator
     public AgentSelection Selection { get; } = new();
 
     public BattleEventFeed EventFeed { get; }
+
+    /// <summary>
+    /// The bounded per-battle appearance cache (GPU-017) the pawn loop reads
+    /// through (GPU-018). It lives here rather than on the game class because
+    /// its declared lifetime is one battle, and this is the type that already
+    /// owns every other piece of state with that lifetime: <see cref="Clear"/>
+    /// is called from <see cref="ResetFor"/> alongside the effect systems, so
+    /// there is no second place a future reset path could forget.
+    /// </summary>
+    public PawnAppearanceCache PawnAppearances { get; }
 
     public HitEffectSystem HitEffects { get; }
 
@@ -171,6 +192,20 @@ internal sealed class PresentationCoordinator
 
         Playback.Pause();
         Selection.Clear();
+
+        // GPU-018. The appearance cache's declared lifetime is one battle, and
+        // this is the only method on disk that ends one: ArenaGame's
+        // ResetSimulation rebuilds the scenario and the simulation and then
+        // calls straight through to here, for both NextRound and FullReset.
+        // The startup scenario is the third point the declaration names, and it
+        // needs no call — the cache is constructed empty with the coordinator.
+        //
+        // Clearing is a lifetime obligation, not a correctness one. A stale
+        // slot could never be returned as a wrong appearance: the stored key is
+        // compared on every read, so an ordinal that has come to mean a
+        // different agent misses and recomputes. What the clear buys is that a
+        // new battle's Fill and its hit rate describe that battle alone.
+        PawnAppearances.Clear();
         EventFeed.Clear();
         BattleReportAccumulator.Clear();
         HitEffects.Clear();

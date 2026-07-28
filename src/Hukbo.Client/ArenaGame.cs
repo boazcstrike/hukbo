@@ -90,8 +90,13 @@ public sealed partial class ArenaGame : Game
         "Quit Hukbo? The battle in progress will be lost.",
         "Quit",
         ClientCommand.Exit);
-    private readonly PresentationCoordinator _presentation =
-        new(EventHistoryCapacity);
+    /// <summary>
+    /// Assigned in the constructor rather than here because it now needs
+    /// <see cref="_renderMetricsRecorder"/>: its appearance cache (GPU-017,
+    /// adopted by GPU-018) reports hits, misses, and fills through that seam,
+    /// and a field initializer cannot read another instance field.
+    /// </summary>
+    private readonly PresentationCoordinator _presentation;
     private readonly AgentSelection _hoverSelection = new();
     private readonly ArenaAutoPanController _autoPan = new();
     private readonly MatchSeries _matchSeries = new(DefaultSeed);
@@ -217,6 +222,19 @@ public sealed partial class ArenaGame : Game
             _settingsStore.Load(catalog.DefaultThemeId).AutoCameraMode,
             value => TryPersistAutoCameraMode(catalog.DefaultThemeId, value));
 
+        // Resolved here, ahead of the coordinator below, because the
+        // coordinator's appearance cache reports through it. _renderProbeEnabled
+        // is a field initializer, so it is already settled by this point, and
+        // moving this assignment earlier in the same constructor changes
+        // nothing about what a normal run gets: NullRenderMetricsRecorder,
+        // whose every call is a no-op.
+        _renderMetricsRecorder = _renderProbeEnabled
+            ? new SpriteBatchRenderMetricsRecorder()
+            : NullRenderMetricsRecorder.Instance;
+        _presentation = new PresentationCoordinator(
+            EventHistoryCapacity,
+            renderMetricsRecorder: _renderMetricsRecorder);
+
         // A restored preference takes effect from tick zero, so the spectator
         // never has to reopen the menu after a relaunch.
         _presentation.Blood.Intensity = _goreManager.Value;
@@ -256,9 +274,6 @@ public sealed partial class ArenaGame : Game
             _scenario.Seed,
             _scenario.MapWidth,
             _scenario.MapHeight);
-        _renderMetricsRecorder = _renderProbeEnabled
-            ? new SpriteBatchRenderMetricsRecorder()
-            : NullRenderMetricsRecorder.Instance;
 
         LogScenarioBuilt("startup");
     }
