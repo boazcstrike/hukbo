@@ -1,5 +1,12 @@
 # Warrior standing — implementation plan
 
+> **Superseded on 2026-07-29 by
+> [`2026-07-29-warrior-rank.md`](2026-07-29-warrior-rank.md).** This document
+> was written before the naming decision and still says `StandingId` and
+> `Standing` throughout, which is the wrong type name. It also predates the
+> composition-panel and research-document decisions. Do not execute it. It is
+> kept only so the earlier reasoning can be traced.
+
 Date: 2026-07-29
 Design: [`2026-07-29-warrior-standing-design.md`](2026-07-29-warrior-standing-design.md)
 Evidence: [`docs/research/HISTORICAL_1500s_RANKS.md`](../research/HISTORICAL_1500s_RANKS.md)
