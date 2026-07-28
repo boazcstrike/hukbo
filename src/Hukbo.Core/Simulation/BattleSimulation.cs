@@ -985,8 +985,28 @@ public sealed class BattleSimulation
                 mapHeightRaw);
         }
 
+        // A slot the narrowed scan excludes is also denied outright. It is
+        // never tested against anyone, so granting it a cohesion destination
+        // would park aim points inside a square no pair ever measured, which
+        // is exactly the combined-density statement gate 6 exists to hold. The
+        // denial resolves it to Advance through transition rule 4 -- rules 1
+        // and 3 still win first, so a Break stays Break and a latched Close
+        // stays Close -- and an Advance takes part in the scan normally on the
+        // next tick. Under a preset that does not narrow the scan this loop
+        // marks nothing.
+        for (var slot = 0; slot < ContingentSlotCount; slot++)
+        {
+            if (_contingentLivingCounts[slot] != 0 &&
+                !TakesPartInCrossContingentScan(slot))
+            {
+                _contingentSquareOverlapsAnother[slot] = true;
+            }
+        }
+
         // Gate 6: pairwise same-faction overlap, restricted to living slots,
         // outer index ascending and inner index ascending from outer + 1.
+        // Under a preset that narrows the scan, a living slot whose tick-start
+        // state is Close or Break takes no part on either side of the pair.
         for (var faction = 0; faction < 2; faction++)
         {
             var baseSlot = faction * FormationPlanner.MaximumContingents;
@@ -994,7 +1014,8 @@ public sealed class BattleSimulation
             for (var outer = 0; outer < FormationPlanner.MaximumContingents; outer++)
             {
                 var outerSlot = baseSlot + outer;
-                if (_contingentLivingCounts[outerSlot] == 0)
+                if (_contingentLivingCounts[outerSlot] == 0 ||
+                    !TakesPartInCrossContingentScan(outerSlot))
                 {
                     continue;
                 }
@@ -1004,7 +1025,8 @@ public sealed class BattleSimulation
                     inner++)
                 {
                     var innerSlot = baseSlot + inner;
-                    if (_contingentLivingCounts[innerSlot] == 0)
+                    if (_contingentLivingCounts[innerSlot] == 0 ||
+                        !TakesPartInCrossContingentScan(innerSlot))
                     {
                         continue;
                     }
@@ -1080,6 +1102,38 @@ public sealed class BattleSimulation
                 agent.ContingentId);
             agent.ContingentState = _contingentResolvedStates[slot];
         }
+    }
+
+    /// <summary>
+    /// Whether the living contingent in <paramref name="slot"/> takes part in
+    /// movement gate 6's cross-contingent scan this tick. Always true under a
+    /// preset that does not narrow the scan, so the two frozen
+    /// persistent-contingent presets keep the behaviour their own recorded
+    /// expectations pin; under a narrowing preset, a contingent whose
+    /// tick-start state is Close or Break is skipped, because it can park no
+    /// cohesion aim point.
+    /// </summary>
+    /// <remarks>
+    /// The caller has already established that this slot has a living member,
+    /// so <c>_contingentLeaderEntityIds[slot]</c> is a real entity id and the
+    /// two lookups below cannot miss. The state read is the leader's, which
+    /// still carries the previous tick's value: the loop that overwrites every
+    /// living member's <c>ContingentState</c> runs after the gate that calls
+    /// this.
+    /// </remarks>
+    /// <param name="slot"><c>FactionId * MaximumContingents + ContingentId</c>.</param>
+    /// <returns>
+    /// <see langword="true"/> when this contingent's bias square participates.
+    /// </returns>
+    private bool TakesPartInCrossContingentScan(int slot)
+    {
+        if (!_movementRules.NarrowsCohesionScanToCohesionCapableContingents)
+        {
+            return true;
+        }
+
+        var leader = _agentStates[_agentIndexes[_contingentLeaderEntityIds[slot]]];
+        return MovementRules.ParticipatesInCrossContingentScan(leader.ContingentState);
     }
 
     /// <summary>
