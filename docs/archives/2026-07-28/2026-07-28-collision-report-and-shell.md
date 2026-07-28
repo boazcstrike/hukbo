@@ -1,5 +1,12 @@
 # Collision firmness, battle report, and window shell — plan
 
+**Archived: reference only.** Implemented and verified on 2026-07-28; the
+canonical gate passed with `stateHash A080E28DA7C79C20` and `eventHash
+2B6FB3A9A9C1960D`. Do not execute this document and do not cite it as
+justification for a change. Smoke rows 102 to 116 in
+[docs/development/testing.md](../../development/testing.md) remain PENDING and
+still need a human at an interactive desktop.
+
 **Design:** [`2026-07-28-collision-report-and-shell-design.md`](2026-07-28-collision-report-and-shell-design.md).
 Read it first. This document carries only the ordered task list and the
 verification criteria; every decision and its reasoning lives in the design.

@@ -1,5 +1,12 @@
 # Collision firmness, the per-unit battle report, and the window shell — design
 
+**Archived: reference only.** Implemented and verified on 2026-07-28; the
+canonical gate passed with `stateHash A080E28DA7C79C20` and `eventHash
+2B6FB3A9A9C1960D`. Do not execute this document and do not cite it as
+justification for a change. Smoke rows 102 to 116 in
+[docs/development/testing.md](../../development/testing.md) remain PENDING and
+still need a human at an interactive desktop.
+
 **Status:** Design complete. Per `CLAUDE.md` section 6 and
 [`docs/plans/README.md`](README.md), a `-design.md` document does not authorize
 implementation on its own. **However, the user explicitly asked in this session

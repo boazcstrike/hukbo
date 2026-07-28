@@ -149,6 +149,46 @@ budget; the 2,000-agent point is a stress report, not a contract. What should
 decide the work is whether a larger supported battle size, the 4x speed target,
 or the campaign layer is close enough to matter.
 
+## Collision firmness, battle report, and window shell — complete and archived
+
+Both documents were archived on 2026-07-28, the day the work completed:
+[`docs/archives/2026-07-28/2026-07-28-collision-report-and-shell-design.md`](../archives/2026-07-28/2026-07-28-collision-report-and-shell-design.md)
+and
+[`docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md`](../archives/2026-07-28/2026-07-28-collision-report-and-shell.md).
+They are reference only; do not execute either.
+
+Four requested changes shipped together: a larger collision body, a per-unit
+battle report, a borderless window with replacement Min and Close controls, and
+a wider unit setup menu. The canonical gate passed with
+`stateHash A080E28DA7C79C20` and `eventHash 2B6FB3A9A9C1960D`. Smoke rows 102
+to 116 in [`docs/development/testing.md`](../development/testing.md) are
+`PENDING` and still need a human.
+
+**Two results from that workstream are live and worth carrying forward.**
+
+The first is a deadlock finding. `CollisionRules.DefaultBodyRadiusRaw` now sits
+at 4.25 world units, and the reason it is not higher is not a validation guard.
+A radius of 4.5 clears every static guard arithmetically and still reintroduces
+a follower-trailing mutual-block stall, hanging seed 12 of the 18-agent
+last-stand sweep at the tick limit with nine agents alive on each side. The
+measured cliff is between 4.25 and 4.5, which is a much narrower margin than the
+guard table suggests, and no static check catches it. **Any future increase to
+that constant must rerun `LastStandFormationTests` across every seed**, not just
+re-check the guards. The constant carries a remark saying so.
+
+The second is an amendment to `SIMULATION-GAME-STANDARDS.md`. Its collision
+contract previously said that changing `BodyRadiusRaw`, `CollisionPolicy`, or
+`MovementResolution` "requires a new preset version and new golden
+expectations". That is now corrected to require a deliberate, recorded golden
+rebaseline, with an explicit note that combat preset versioning does not and
+cannot cover scenario collision defaults — a preset version protects combat
+content identified by `CombatRuleset.ContentHash`, which `BodyRadiusRaw` does
+not feed.
+
+Note that this workstream and the collision *performance* design above touch the
+same files with opposite hash requirements. This one deliberately moved every
+committed position; that one must not move any. Do not conflate them.
+
 ## Where the live contract lives
 
 | Question | Source |
