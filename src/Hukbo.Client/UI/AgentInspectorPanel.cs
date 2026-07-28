@@ -154,8 +154,54 @@ internal sealed class AgentInspectorPanel
             appearance.EvidenceNote,
             contentWidthBudget,
             candidate => bodyFont.MeasureString(candidate).X);
+
+        // VIS-012: the weapon-variant lines (resolved tint evidence tier and
+        // note, plus any later-or-provisional-form entries the weapon
+        // catalogs) follow the same wrapped evidence text immediately below
+        // — each raw line word-wrapped exactly like the evidence note above,
+        // through the same measure delegate and content-width budget.
+        var variantLines = AgentInspectorContent.BuildWeaponVariantLines(
+            appearance.WeaponRole,
+            appearance.WeaponTintId);
+        var wrappedVariantLines = variantLines.SelectMany(
+            line => AgentInspectorContent.WrapText(
+                line,
+                contentWidthBudget,
+                candidate => bodyFont.MeasureString(candidate).X));
+
+        // VIS-016: the shield-variant lines (the resolved skin's own label,
+        // evidence tier, and note, plus the standalone palisay research
+        // note) follow the weapon-variant lines immediately below, wrapped
+        // through the same measure delegate and content-width budget.
+        var shieldVariantLines = AgentInspectorContent.BuildShieldVariantLines(
+            appearance.ShieldRole,
+            appearance.ShieldSkinId);
+        var wrappedShieldVariantLines = shieldVariantLines.SelectMany(
+            line => AgentInspectorContent.WrapText(
+                line,
+                contentWidthBudget,
+                candidate => bodyFont.MeasureString(candidate).X));
+
+        // VIS-024: the appearance-preset lines (the preset's own name, scope
+        // tag, evidence tier, per-component tier/note lines, any pending-
+        // term flags, and the standalone non-renderable-adornment research
+        // note) follow the shield-variant lines immediately below, wrapped
+        // through the same measure delegate and content-width budget.
+        var appearancePresetLines = AgentInspectorContent.BuildAppearancePresetLines(
+            appearance.AppearancePresetId);
+        var wrappedAppearancePresetLines = appearancePresetLines.SelectMany(
+            line => AgentInspectorContent.WrapText(
+                line,
+                contentWidthBudget,
+                candidate => bodyFont.MeasureString(candidate).X));
+        var extraLines = evidenceLines
+            .Concat(wrappedVariantLines)
+            .Concat(wrappedShieldVariantLines)
+            .Concat(wrappedAppearancePresetLines)
+            .ToArray();
+
         var maxRowBottom = Bounds.Bottom - Padding;
-        for (var i = 0; i < evidenceLines.Count; i++)
+        for (var i = 0; i < extraLines.Length; i++)
         {
             var row = lowerLines.Count + i;
             var rowBottom = lowerTextY + (row * LineHeight) + LineHeight;
@@ -164,7 +210,7 @@ internal sealed class AgentInspectorPanel
                 break;
             }
 
-            DrawLine(evidenceLines[i], textX, lowerTextY, row);
+            DrawLine(extraLines[i], textX, lowerTextY, row);
         }
 
         void DrawLine(string text, int xPosition, int yPosition, int row)

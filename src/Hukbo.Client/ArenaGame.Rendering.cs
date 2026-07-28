@@ -28,6 +28,7 @@ public sealed partial class ArenaGame
         if (_renderProbeEnabled)
         {
             _renderProbeFrameStartTimestamp = Stopwatch.GetTimestamp();
+            _renderMetricsRecorder.Reset();
         }
 
         var theme = _themeManager.ActiveTheme;
@@ -46,12 +47,39 @@ public sealed partial class ArenaGame
         _camera.Fit(layout.ArenaBounds);
         UpdateHoverSelection(layout.ArenaBounds);
 
+        if (_renderProbeEnabled)
+        {
+            // Tier 1 quads/triangles: evaluated over the exact same
+            // appearance/layout/cull inputs DrawArenaLayer's own draw calls
+            // resolve this frame, via the pure counting functions the
+            // design's quad budgets are pinned against — never inside a
+            // renderer's own per-frame path (VIS-034/VIS-035R). Timed
+            // separately from arena submission itself, matching
+            // RenderMetricsSnapshot's own Tier 1 field split.
+            var geometryBuildStartTimestamp = Stopwatch.GetTimestamp();
+            RecordArenaRenderMetrics(layout.ArenaBounds);
+            _renderMetricsRecorder.AddGeometryBuildMicroseconds(
+                Stopwatch.GetElapsedTime(geometryBuildStartTimestamp)
+                    .TotalMicroseconds);
+        }
+
+        var arenaSubmitStartTimestamp =
+            _renderProbeEnabled ? Stopwatch.GetTimestamp() : 0L;
+
         DrawArenaLayer(
             _spriteBatch,
             _pixel,
             _arenaRasterizerState,
             layout.ArenaBounds,
             theme);
+
+        if (_renderProbeEnabled)
+        {
+            _renderMetricsRecorder.AddSubmitMicroseconds(
+                Stopwatch.GetElapsedTime(arenaSubmitStartTimestamp)
+                    .TotalMicroseconds);
+        }
+
         DrawUiLayer(
             _spriteBatch,
             _pixel,
@@ -65,17 +93,161 @@ public sealed partial class ArenaGame
         if (_renderProbeEnabled)
         {
             var elapsed = Stopwatch.GetElapsedTime(_renderProbeFrameStartTimestamp);
+            var allocatedBytes = GC.GetAllocatedBytesForCurrentThread();
+            var frameAllocatedBytes = Math.Max(
+                0L,
+                allocatedBytes - _renderProbePreviousAllocatedBytes);
+            _renderProbePreviousAllocatedBytes = allocatedBytes;
+            _renderMetricsRecorder.SetManagedBytesAllocated(frameAllocatedBytes);
 
-            // ArenaSubmissionCount is always 0 today — see the field's XML
-            // doc on RenderProbeSample for the exact VIS-034 hookup point
-            // that would make it meaningful.
             RenderProbeSampled?.Invoke(new RenderProbeSample(
                 elapsed.TotalMilliseconds,
-                0,
+                _renderMetricsRecorder.Snapshot(),
                 GC.CollectionCount(0),
                 GC.CollectionCount(1),
                 GC.CollectionCount(2),
-                GC.GetAllocatedBytesForCurrentThread()));
+                allocatedBytes));
+        }
+    }
+
+    /// <summary>
+    /// Records this frame's arena-batch Tier 1 quad/triangle counts (and
+    /// their backend-derived Tier 2 diagnostic submissions) into
+    /// <see cref="_renderMetricsRecorder"/>. Only called from the
+    /// render-probe opt-in branch of <see cref="Draw"/>, so a normal run
+    /// never evaluates this. Mirrors <see cref="DrawPawns"/> and
+    /// <see cref="DrawArena"/>'s own draw-order and cull decisions
+    /// element-for-element rather than reusing worst-case estimates, except
+    /// for the ground grid, decals, and trample marks, which — like
+    /// <c>BackdropQuadCount</c>'s own documented semantics — report the
+    /// full unculled count rather than replicating
+    /// <c>PlainsBackdropRenderer</c>'s per-cell/per-decal arena-bounds
+    /// intersection test, an upper bound rather than an exact live figure
+    /// for those three categories only.
+    /// </summary>
+    private void RecordArenaRenderMetrics(Rectangle arenaBounds)
+    {
+        RecordPawnQuads(arenaBounds);
+        RecordBackdropQuads(arenaBounds);
+
+        // One arena Begin/End pair, one shared 1x1 pixel texture — the
+        // current backend's own invariant (R-W4.5, demoted to a Tier 2
+        // diagnostic assertion scoped to this backend by amendment A-1).
+        _renderMetricsRecorder.AddBatch();
+        _renderMetricsRecorder.AddTextureBind();
+    }
+
+    /// <summary>
+    /// Recomputes each visible pawn's <see cref="PawnLayout"/> with the same
+    /// inputs <see cref="DrawPawns"/> resolves — footAnchor, camera zoom,
+    /// appearance, swing pose, and every other <c>PawnGeometry.Create</c>
+    /// parameter left at <see cref="DrawPawns"/>'s own implicit defaults —
+    /// so <c>PawnQuadCount.Count</c>'s result matches what
+    /// <c>PawnRenderer.Draw</c> actually emits for that pawn this frame.
+    /// </summary>
+    private void RecordPawnQuads(Rectangle arenaBounds)
+    {
+        var selectedEntityId = _presentation.Selection.SelectedEntityId;
+        var hoveredEntityId = _hoverSelection.SelectedEntityId;
+
+        foreach (var agent in _simulation.Agents)
+        {
+            if (!agent.IsAlive)
+            {
+                continue;
+            }
+
+            var worldPosition = new Vector2(
+                agent.XRaw / (float)FixedPoint.Scale,
+                agent.YRaw / (float)FixedPoint.Scale);
+            var footAnchor = _camera.WorldToScreen(
+                worldPosition,
+                arenaBounds);
+            var appearance = PawnAppearanceFactory.Create(
+                agent.EntityId,
+                agent.Loadout.Weapon,
+                agent.Loadout.Shield);
+            var visualBounds = PawnRenderer.GetBounds(
+                footAnchor,
+                _camera.Zoom,
+                appearance);
+
+            if (!arenaBounds.Intersects(visualBounds))
+            {
+                continue;
+            }
+
+            var swingPose = SwingPoseResolver.TryGetPose(
+                _swingPoses,
+                agent.EntityId,
+                out var pose)
+                ? pose
+                : (SwingPose?)null;
+            var layout = PawnGeometry.Create(
+                footAnchor,
+                _camera.Zoom,
+                appearance,
+                swingPose: swingPose);
+            var state = GetPawnVisualState(
+                agent.EntityId,
+                selectedEntityId,
+                hoveredEntityId);
+
+            RecordQuads(PawnQuadCount.Count(layout, appearance, state));
+        }
+    }
+
+    /// <summary>
+    /// Records the battlefield backdrop's Tier 1 quads: the ground grid and
+    /// scatter decals at their full (unculled) counts, the live trample
+    /// marks at their full count, the grass clusters at the camera's current
+    /// zoom band, and the live dust puffs at the camera's current zoom — the
+    /// same fields <see cref="DrawMapSurface"/> and <see cref="DrawGrass"/>
+    /// already read this frame.
+    /// </summary>
+    private void RecordBackdropQuads(Rectangle arenaBounds)
+    {
+        var mapBounds = GetMapBounds(arenaBounds);
+        if (mapBounds.Width > 0 && mapBounds.Height > 0)
+        {
+            var (columns, rows) = PlainsBackdropGeometry.GetGridDimensions(
+                _scenario.MapWidth,
+                _scenario.MapHeight);
+            RecordQuads(BackdropQuadCount.GroundGrid(columns, rows));
+        }
+
+        RecordQuads(BackdropQuadCount.Decals(_plainsDecals.Length));
+        RecordQuads(
+            BackdropQuadCount.TrampleMarks(_presentation.Trample.ActiveMarks.Length));
+
+        var zoomBand = GrassGeometry.GetZoomBand(_camera.Zoom);
+        RecordQuads(BackdropQuadCount.GrassClusters(_grassClusters, zoomBand));
+
+        RecordQuads(
+            BackdropQuadCount.DustPuffs(_presentation.Dust.ActivePuffs, _camera.Zoom));
+    }
+
+    /// <summary>
+    /// Records <paramref name="quadCount"/> Tier 1 quads into
+    /// <see cref="_renderMetricsRecorder"/>, plus the Tier 2 diagnostic
+    /// counters that follow from it as a fact of today's backend: every draw
+    /// call <c>PawnRenderer</c>/<c>PlainsBackdropRenderer</c>/
+    /// <c>GrassRenderer</c>/<c>DustRenderer</c> issues is exactly one
+    /// <c>SpriteBatch.Draw</c> submission rendering exactly one quad — two
+    /// triangles — per <c>PawnQuadCount</c>'s own remarks.
+    /// </summary>
+    private void RecordQuads(int quadCount)
+    {
+        if (quadCount <= 0)
+        {
+            return;
+        }
+
+        _renderMetricsRecorder.AddQuads(quadCount);
+        _renderMetricsRecorder.AddTriangles(quadCount * 2);
+        for (var index = 0; index < quadCount; index++)
+        {
+            _renderMetricsRecorder.AddSubmission();
         }
     }
 

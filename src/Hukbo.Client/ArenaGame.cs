@@ -134,7 +134,27 @@ public sealed partial class ArenaGame : Game
     private readonly bool _renderProbeEnabled =
         Environment.GetEnvironmentVariable("HUKBO_RENDER_PROBE") == "1";
 
+    /// <summary>
+    /// The arena batch's Tier 1/Tier 2 measurement seam (VIS-034/VIS-035R,
+    /// amendment A-1): <see cref="SpriteBatchRenderMetricsRecorder"/> when
+    /// the render-probe opt-in is active, <see cref="NullRenderMetricsRecorder"/>
+    /// otherwise, so a normal run's every call through this field is the
+    /// disabled no-op the debug-logging standard requires of a disabled
+    /// call. Assigned once in the constructor, never reassigned.
+    /// </summary>
+    private readonly IRenderMetricsRecorder _renderMetricsRecorder;
+
     private long _renderProbeFrameStartTimestamp;
+
+    /// <summary>
+    /// <see cref="System.GC.GetAllocatedBytesForCurrentThread"/> as of the
+    /// previous probe-enabled <see cref="Draw"/> call, so this frame's
+    /// <see cref="RenderMetricsSnapshot.ManagedBytesAllocated"/> (R-W4.10)
+    /// can be set from a genuine frame-to-frame delta rather than the
+    /// cumulative-since-process-start counter. Unused, and never read, when
+    /// the render-probe opt-in is off.
+    /// </summary>
+    private long _renderProbePreviousAllocatedBytes;
 
     /// <summary>
     /// Fires once per <see cref="Draw"/> call while the render-probe opt-in
@@ -218,6 +238,9 @@ public sealed partial class ArenaGame : Game
             _scenario.Seed,
             _scenario.MapWidth,
             _scenario.MapHeight);
+        _renderMetricsRecorder = _renderProbeEnabled
+            ? new SpriteBatchRenderMetricsRecorder()
+            : NullRenderMetricsRecorder.Instance;
 
         LogScenarioBuilt("startup");
     }

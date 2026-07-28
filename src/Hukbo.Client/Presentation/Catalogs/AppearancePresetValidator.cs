@@ -1,11 +1,13 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.UI;
+using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Presentation.Catalogs;
 
 /// <summary>
 /// The warrior-appearance preset validator (warrior-appearance-design.md,
 /// "Minimum differentiation criterion"; implementation-plan-draft.md VIS-018
-/// step 3: "the validator skeleton"). Four checks, each a standalone pure
+/// step 3: "the validator skeleton"). Five checks, each a standalone pure
 /// function over an explicit <see cref="AppearancePresetEntry"/> list so a
 /// test can exercise every one — including a synthetic, deliberately illegal
 /// recipe — without touching the shipped catalog:
@@ -25,6 +27,12 @@ namespace Hukbo.Client.Presentation.Catalogs;
 /// differentiation criterion, scoped within one regional block.</item>
 /// <item><see cref="HasLoadoutPoolTotality"/> — every (block, weapon) pair
 /// resolves at least one compatible preset.</item>
+/// <item><see cref="KeepsFactionSignalDistance"/> — the color-blind
+/// no-regression floor (R-W6.10, VIS-033): no garment, tint, skin tone, or
+/// ground/grass/trample/dust shade may sit within
+/// <see cref="ContrastEnvelope.MinimumFactionDyeDistance"/> of a fixed
+/// faction constant, so the ground ring stays the only faction signal.
+/// </item>
 /// </list>
 /// Plus the one combination rule expressible at this milestone:
 /// <see cref="ValidateStructure"/> wires a <see cref="VisualCatalogCombinationRule"/>
@@ -329,4 +337,61 @@ internal static class AppearancePresetValidator
 
         return true;
     }
+
+    // Backing array for FactionSignalConstants below — kept private so the
+    // exposed surface is the mutation-safe IReadOnlyList<Color> view, while
+    // this array is also what KeepsFactionSignalDistance passes straight to
+    // ContrastEnvelope.IsWithinEnvelope's ReadOnlySpan<Color> parameter.
+    private static readonly Color[] FactionConstantsArray =
+    [
+        FactionColorPalette.GetPawnColor(0),
+        FactionColorPalette.GetPawnColor(1),
+        FactionColorPalette.GetPawnColor(2),
+    ];
+
+    /// <summary>
+    /// The fixed faction constants a presentation color must keep
+    /// <see cref="ContrastEnvelope.MinimumFactionDyeDistance"/> away from
+    /// (R-W6.10; visual-system-integration-design.md, "Color-blind shape
+    /// redundancy": "no new variant may make garment or ground hues a
+    /// competing faction signal"). Read through
+    /// <see cref="FactionColorPalette.GetPawnColor"/> — factions 0 and 1 (the
+    /// two battle factions) plus the "other faction" fallback color — rather
+    /// than duplicated here, so this set can never drift from the one color
+    /// <see cref="Hukbo.Client.Rendering.PawnRenderer"/> actually paints on
+    /// the ground ring. Not itself a change to
+    /// <see cref="FactionColorPalette"/> (VIS-005's prohibited scope; this
+    /// task's own prohibited scope: "no change to the fixed faction
+    /// constants") — a read-only projection of it.
+    /// </summary>
+    public static IReadOnlyList<Color> FactionSignalConstants { get; } =
+        FactionConstantsArray;
+
+    /// <summary>
+    /// True when <paramref name="candidate"/> keeps at least
+    /// <see cref="ContrastEnvelope.MinimumFactionDyeDistance"/> of channel
+    /// distance from every color in <see cref="FactionSignalConstants"/> —
+    /// the R-W6.10 no-regression floor this task (VIS-033) enforces. Pure
+    /// and allocation free (delegates straight to
+    /// <see cref="ContrastEnvelope.IsWithinEnvelope"/> over the cached
+    /// constant array).
+    ///
+    /// This helper does not special-case
+    /// <see cref="DyePalette.GoldAccent"/> or
+    /// <see cref="DyePalette.TurmericYellow"/>, the one documented, accepted
+    /// exception (<see cref="DyePalette"/> remarks): both are historically
+    /// pinned gold/yellow tones that structurally cannot clear the distance
+    /// from the third ("other faction") gold constant, and
+    /// <c>AppearanceComponentCatalogTests</c> already records that honestly.
+    /// Checking either of those two colors against the full
+    /// <see cref="FactionSignalConstants"/> set through this helper
+    /// therefore correctly reports <see langword="false"/>; a caller that
+    /// needs to allow the documented exception checks against the two
+    /// battle-faction constants only, exactly as that existing test does.
+    /// </summary>
+    public static bool KeepsFactionSignalDistance(Color candidate) =>
+        ContrastEnvelope.IsWithinEnvelope(
+            candidate,
+            FactionConstantsArray,
+            ContrastEnvelope.MinimumFactionDyeDistance);
 }

@@ -602,16 +602,19 @@ public sealed class PawnAppearanceFactoryTests
     }
 
     [Fact]
-    public void Create_AppearancePresetIdIsAlwaysOneOfTheFiveShippedLevyPresets()
+    public void Create_AppearancePresetIdIsAlwaysAShippedPresetCompatibleWithTheAssignedBlockAndWeapon()
     {
-        string[] allowedIds =
-        [
-            AppearancePresets.Lev01.Catalog.Id,
-            AppearancePresets.Lev02.Catalog.Id,
-            AppearancePresets.Lev03.Catalog.Id,
-            AppearancePresets.Lev04.Catalog.Id,
-            AppearancePresets.Lev09.Catalog.Id,
-        ];
+        // VIS-018 pinned this as "always one of the five shipped levy
+        // presets" back when the block-assignment table had a single
+        // (Unscoped-generic) entry. VIS-022 grew that table to four
+        // entries, and factionId=0/scenarioSeed=0 (this overload's own
+        // defaults) now resolve the Visayan block — see
+        // AppearancePresets.SelectBlock. Kalis is never Wasay, so the pool
+        // excludes VIS-14, the Visayan block's own Wasay-only row.
+        var allowedIds = AppearancePresetsVisayan.All
+            .Where(preset => preset.LoadoutCompatibility != AppearancePresetLoadoutCompatibility.WasayOnly)
+            .Select(preset => preset.Catalog.Id)
+            .ToArray();
 
         for (ulong entityId = 0; entityId < 200; entityId++)
         {
@@ -637,29 +640,57 @@ public sealed class PawnAppearanceFactoryTests
     }
 
     [Fact]
-    public void Create_AppearancePresetSelectionIsStableAcrossDifferentWeaponsAndShields()
+    public void Create_AppearancePresetSelectionIsStableAcrossNonWasayWeaponsAndShields()
     {
-        // Every preset shipped this milestone is loadout-compatible "Any",
-        // so the loadout-filtered pool never shrinks across weapons or
-        // shields for a fixed entity ID — the same preset resolves either
-        // way. This is the "no loadout filter edge case" the plan records
-        // for the milestone's own five presets, made concrete.
+        // GetCompatiblePresets filters its pool only on whether the weapon
+        // is Wasay, so every non-Wasay weapon role (Kampilan, Kalis, Itak)
+        // shares one pool for a fixed block and must resolve the same
+        // preset for a fixed entity ID; shield never enters the filter at
+        // all. VIS-018 additionally asserted a Wasay-armed pawn resolves
+        // the very same preset — true only while every shipped preset was
+        // loadout "Any". VIS-022's Visayan block ships VIS-14
+        // (Wasay-only), so a Wasay pool can differ from the shared
+        // non-Wasay pool; see the dedicated Wasay test below.
         const ulong entityId = 91;
 
         var kalisNoShield = PawnAppearanceFactory.Create(entityId, WeaponId.Kalis, ShieldId.None);
-        var wasayWithShield = PawnAppearanceFactory.Create(entityId, WeaponId.Wasay, ShieldId.TallHardwood);
         var itakNoShield = PawnAppearanceFactory.Create(entityId, WeaponId.Itak, ShieldId.None);
+        var kampilanWithShield = PawnAppearanceFactory.Create(entityId, WeaponId.Kampilan, ShieldId.TallHardwood);
 
-        Assert.Equal(kalisNoShield.AppearancePresetId, wasayWithShield.AppearancePresetId);
         Assert.Equal(kalisNoShield.AppearancePresetId, itakNoShield.AppearancePresetId);
+        Assert.Equal(kalisNoShield.AppearancePresetId, kampilanWithShield.AppearancePresetId);
     }
 
     [Fact]
-    public void Create_GarmentBaseToneAlwaysEqualsSkinColorForEveryShippedLevyPreset()
+    public void Create_WasayArmedAppearancePresetSelectionResolvesAPresetFromTheAssignedBlock()
     {
-        // Every shipped preset recipes D1 (Bare-Chested), which renders as
-        // the base skin-tone torso fill — see PawnAppearanceFactory's own
-        // remarks at the ResolveGarmentBaseTone call site.
+        // A Wasay-armed pawn's preset pool can differ from the shared
+        // non-Wasay pool (see the test above) once a block ships a
+        // Wasay-only row, as the Visayan block does with VIS-14. This pins
+        // only that the resolved preset still belongs to the assigned
+        // block (Visayan, for this overload's default factionId/scenarioSeed),
+        // not that it matches the non-Wasay selection.
+        const ulong entityId = 91;
+
+        var wasayWithShield = PawnAppearanceFactory.Create(entityId, WeaponId.Wasay, ShieldId.TallHardwood);
+
+        Assert.Contains(
+            wasayWithShield.AppearancePresetId,
+            AppearancePresetsVisayan.All.Select(preset => preset.Catalog.Id));
+    }
+
+    [Fact]
+    public void Create_GarmentBaseToneAlwaysEqualsSkinColorUntilDyedTorsoGarmentsAreWiredIntoRendering()
+    {
+        // PawnAppearanceFactory.Create still hard-codes garmentBaseTone to
+        // the pawn's own skin tone unconditionally (see its own remarks at
+        // the call site) — VIS-020/021 shipped presets with dyed torso
+        // garments (D2/D3/D4) in their catalogs, but wiring the render
+        // pipeline to resolve an actual dye tone for those is a later,
+        // separate integration task's scope, not VIS-018's or VIS-022's.
+        // This still holds for every entity ID today, regardless of which
+        // preset or block resolves, precisely because the resolution is
+        // unconditional rather than preset-driven.
         for (ulong entityId = 0; entityId < 100; entityId++)
         {
             var appearance = PawnAppearanceFactory.Create(entityId, WeaponId.Kalis, ShieldId.None);
@@ -713,12 +744,16 @@ public sealed class PawnAppearanceFactoryTests
     }
 
     [Fact]
-    public void Create_AppearanceBlockAssignmentIsAlwaysUnscopedGenericThisMilestone()
+    public void Create_AppearancePresetIdAlwaysResolvesToAShippedPresetAcrossEveryFactionAndSeed()
     {
-        // The block-assignment table has exactly one entry this milestone
-        // (VIS-018) — degenerate but real, per warrior-appearance-design.md.
-        // Every shipped preset's own Block/Catalog.ScopeTag therefore reads
-        // Unscoped-generic no matter which faction or seed is supplied.
+        // VIS-018 pinned this as "always Unscoped-generic" back when the
+        // block-assignment table had a single entry. VIS-022 grew the
+        // table to four entries (Visayan, Tagalog, Cagayan, Unscoped-
+        // generic), so the resolved block now genuinely varies by faction
+        // and seed — this walks a broad faction/seed sample and pins only
+        // that whatever block-and-preset stream resolves, it always lands
+        // on one of the 53 shipped presets across all four blocks, never
+        // an undeclared or malformed identifier.
         for (var factionId = 0; factionId < 4; factionId++)
         {
             for (ulong seed = 0; seed < 20; seed++)

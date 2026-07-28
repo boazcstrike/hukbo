@@ -4,25 +4,66 @@ using Hukbo.Client.Presentation.Catalogs;
 namespace Hukbo.Client.Tests;
 
 /// <summary>
-/// Pins <see cref="AppearancePresets"/> (the milestone's five generic-levy
-/// presets, LEV-01/02/03/04/09, plus its two selection streams) and
-/// <see cref="AppearancePresetValidator"/> (implementation-plan-draft.md
-/// VIS-018). Sibling regional blocks (VIS-020/021/022) get their own
-/// per-block test files, per this milestone task's own remarks in
-/// <see cref="AppearancePresets"/>'s class doc comment.
+/// Pins <see cref="AppearancePresets"/> — originally the VIS-018 milestone's
+/// five generic-levy presets (LEV-01/02/03/04/09) and its two selection
+/// streams, extended by VIS-022 to the complete generic-levy block
+/// (LEV-01..10) plus the full cross-block <see cref="AppearancePresets.All"/>
+/// union and the four-entry <see cref="AppearancePresets.BlockAssignmentTable"/>
+/// — and re-runs <see cref="AppearancePresetValidator"/> over the shipped
+/// data (implementation-plan-draft.md VIS-018, VIS-022). Sibling regional
+/// blocks (VIS-020/021/022) get their own per-block test files, per
+/// <see cref="AppearancePresets"/>'s own class doc comment; tests here that
+/// assert something about the whole roster or about the generic-levy block's
+/// own ten presets stay in this file since both live in
+/// <c>AppearancePresets.Levy.cs</c>.
 /// </summary>
 public sealed class AppearancePresetTests
 {
+    /// <summary>
+    /// The ten generic-levy presets, LEV-01 through LEV-10, in the design
+    /// table's own order — the same list production's own private
+    /// <c>AppearancePresets.LevyPresets</c> field holds, reconstructed here
+    /// from the ten public <c>Lev0N</c>/<c>Lev10</c> fields since tests
+    /// cannot see a private production field.
+    /// </summary>
+    private static readonly IReadOnlyList<AppearancePresetEntry> LevyPresetsInOrder =
+    [
+        AppearancePresets.Lev01,
+        AppearancePresets.Lev02,
+        AppearancePresets.Lev03,
+        AppearancePresets.Lev04,
+        AppearancePresets.Lev05,
+        AppearancePresets.Lev06,
+        AppearancePresets.Lev07,
+        AppearancePresets.Lev08,
+        AppearancePresets.Lev09,
+        AppearancePresets.Lev10,
+    ];
+
     // --- Roster shape ---
 
     [Fact]
-    public void All_HasExactlyFiveEntriesThisMilestone()
+    public void All_HasExactlyFiftyThreePresetsAcrossEveryRegionalBlock()
     {
-        Assert.Equal(5, AppearancePresets.All.Count);
+        // 20 Visayan + 15 Tagalog + 8 Northern Luzon + 10 generic levy = 53
+        // (R-W3.2 pin, warrior-appearance-design.md "Preset roster").
+        Assert.Equal(53, AppearancePresets.All.Count);
     }
 
     [Fact]
-    public void All_MatchesTheDesignTableOrder()
+    public void All_ConcatenatesEveryRegionalBlockInDesignDocumentOrder()
+    {
+        var expected = AppearancePresetsVisayan.All
+            .Concat(AppearancePresetsTagalog.All)
+            .Concat(AppearancePresetsNorthernLuzon.All)
+            .Concat(LevyPresetsInOrder)
+            .Select(preset => preset.Catalog.Id);
+
+        Assert.Equal(expected, AppearancePresets.All.Select(preset => preset.Catalog.Id));
+    }
+
+    [Fact]
+    public void LevyPresets_MatchTheDesignTableOrder()
     {
         Assert.Equal(
             [
@@ -30,9 +71,14 @@ public sealed class AppearancePresetTests
                 AppearancePresets.Lev02.Catalog.Id,
                 AppearancePresets.Lev03.Catalog.Id,
                 AppearancePresets.Lev04.Catalog.Id,
+                AppearancePresets.Lev05.Catalog.Id,
+                AppearancePresets.Lev06.Catalog.Id,
+                AppearancePresets.Lev07.Catalog.Id,
+                AppearancePresets.Lev08.Catalog.Id,
                 AppearancePresets.Lev09.Catalog.Id,
+                AppearancePresets.Lev10.Catalog.Id,
             ],
-            AppearancePresets.All.Select(preset => preset.Catalog.Id));
+            LevyPresetsInOrder.Select(preset => preset.Catalog.Id));
     }
 
     [Theory]
@@ -40,7 +86,12 @@ public sealed class AppearancePresetTests
     [InlineData("appearance.presetLevy.lev02", 1)]
     [InlineData("appearance.presetLevy.lev03", 2)]
     [InlineData("appearance.presetLevy.lev04", 3)]
+    [InlineData("appearance.presetLevy.lev05", 4)]
+    [InlineData("appearance.presetLevy.lev06", 5)]
+    [InlineData("appearance.presetLevy.lev07", 6)]
+    [InlineData("appearance.presetLevy.lev08", 7)]
     [InlineData("appearance.presetLevy.lev09", 8)]
+    [InlineData("appearance.presetLevy.lev10", 9)]
     public void All_PinsTheExactShippedIdentifierAndIndex(string expectedId, int expectedIndex)
     {
         var preset = Assert.Single(AppearancePresets.All, p => p.Catalog.Id == expectedId);
@@ -49,9 +100,9 @@ public sealed class AppearancePresetTests
     }
 
     [Fact]
-    public void All_EveryPresetCarriesTheUnscopedGenericBlockAndScopeTag()
+    public void LevyPresets_EveryPresetCarriesTheUnscopedGenericBlockAndScopeTag()
     {
-        foreach (var preset in AppearancePresets.All)
+        foreach (var preset in LevyPresetsInOrder)
         {
             Assert.Equal(VisualScopeTag.UnscopedGeneric, preset.Block);
             Assert.Equal(VisualScopeTag.UnscopedGeneric, preset.Catalog.ScopeTag);
@@ -59,23 +110,38 @@ public sealed class AppearancePresetTests
     }
 
     [Fact]
-    public void All_EveryPresetIsLoadoutCompatibleAny()
+    public void LevyPresets_OnlyLev05Through08And10AreWasayOnly()
     {
-        // The five presets this milestone ships are exactly the five the
-        // design table marks Any rather than Wasay-only ("chosen
-        // deliberately so the milestone needs no loadout filter edge case").
-        foreach (var preset in AppearancePresets.All)
+        // VIS-022 fills in the five Wasay-only rows the design table marks
+        // "Wasay only" (all carrying H1); LEV-01/02/03/04/09 stay Any, as
+        // VIS-018 shipped them.
+        var wasayOnlyIds = new HashSet<string>(StringComparer.Ordinal)
         {
-            Assert.Equal(AppearancePresetLoadoutCompatibility.Any, preset.LoadoutCompatibility);
+            "appearance.presetLevy.lev05",
+            "appearance.presetLevy.lev06",
+            "appearance.presetLevy.lev07",
+            "appearance.presetLevy.lev08",
+            "appearance.presetLevy.lev10",
+        };
+
+        foreach (var preset in LevyPresetsInOrder)
+        {
+            var expected = wasayOnlyIds.Contains(preset.Catalog.Id)
+                ? AppearancePresetLoadoutCompatibility.WasayOnly
+                : AppearancePresetLoadoutCompatibility.Any;
+
+            Assert.Equal(expected, preset.LoadoutCompatibility);
         }
     }
 
     [Fact]
-    public void All_EveryPresetRecipeSharesTheLevyBlockConstants()
+    public void LevyPresets_EveryRecipeSharesTheLevyBlockConstants()
     {
         // "All rows are D1 bare chest, E1 cream bahag" (design, generic levy
-        // block preamble).
-        foreach (var preset in AppearancePresets.All)
+        // block preamble); no armor and no adornments anywhere in the block,
+        // but LEV-05..08/10 do carry the H1 accessory, so that field is not
+        // asserted null here.
+        foreach (var preset in LevyPresetsInOrder)
         {
             Assert.Equal(
                 AppearanceComponentCatalog.TorsoD1BareChested.Catalog.Id,
@@ -84,7 +150,6 @@ public sealed class AppearancePresetTests
                 AppearanceComponentCatalog.LowerGarmentE1Bahag.Catalog.Id,
                 preset.Recipe.LowerGarment.Catalog.Id);
             Assert.Null(preset.Recipe.Armor);
-            Assert.Null(preset.Recipe.Accessory);
             Assert.Empty(preset.Recipe.Adornments);
         }
     }
@@ -99,7 +164,12 @@ public sealed class AppearancePresetTests
     [InlineData("appearance.presetLevy.lev02")]
     [InlineData("appearance.presetLevy.lev03")]
     [InlineData("appearance.presetLevy.lev04")]
+    [InlineData("appearance.presetLevy.lev05")]
+    [InlineData("appearance.presetLevy.lev06")]
+    [InlineData("appearance.presetLevy.lev07")]
+    [InlineData("appearance.presetLevy.lev08")]
     [InlineData("appearance.presetLevy.lev09")]
+    [InlineData("appearance.presetLevy.lev10")]
     public void EveryOtherLevyPreset_FallsBackToLev01(string presetId)
     {
         var preset = Assert.Single(AppearancePresets.All, p => p.Catalog.Id == presetId);
@@ -107,13 +177,13 @@ public sealed class AppearancePresetTests
         Assert.Equal(AppearancePresets.Lev01.Catalog.Id, preset.FallbackId);
     }
 
-    // --- Structural + combination-rule validation (VIS-018 step 3) ---
+    // --- Structural + combination-rule validation (VIS-018 step 3; re-run over the full VIS-022 roster) ---
 
     [Fact]
-    public void ValidateStructure_TheShippedLevyRosterPassesEveryCheck()
+    public void ValidateStructure_TheFullShippedRosterPassesEveryCheck()
     {
         var result = AppearancePresetValidator.ValidateStructure(
-            "appearance.presetLevy", AppearancePresets.All);
+            "appearance.preset", AppearancePresets.All);
 
         Assert.True(result.IsValid);
         Assert.Empty(result.Failures);
@@ -146,8 +216,8 @@ public sealed class AppearancePresetTests
     public void ValidateStructure_ASyntheticH1RecipeCorrectlyRestrictedToWasayPasses()
     {
         // The legal counterpart to the illegal case above: H1 present, and
-        // LoadoutCompatibility.WasayOnly set, as every real LEV-05..08/10
-        // preset (VIS-022, not shipped this milestone) will be authored.
+        // LoadoutCompatibility.WasayOnly set, exactly as every real
+        // LEV-05..08/10 preset (VIS-022) is authored below.
         var legal = BuildSyntheticPreset(
             id: "appearance.presetLevy.synthLegalH1",
             index: 201,
@@ -167,7 +237,12 @@ public sealed class AppearancePresetTests
     [InlineData("appearance.presetLevy.lev02", VisualEvidenceTier.ProvisionalReconstruction)]
     [InlineData("appearance.presetLevy.lev03", VisualEvidenceTier.ProvisionalReconstruction)]
     [InlineData("appearance.presetLevy.lev04", VisualEvidenceTier.ProvisionalReconstruction)]
+    [InlineData("appearance.presetLevy.lev05", VisualEvidenceTier.ProvisionalReconstruction)]
+    [InlineData("appearance.presetLevy.lev06", VisualEvidenceTier.DocumentedFormUncertain)]
+    [InlineData("appearance.presetLevy.lev07", VisualEvidenceTier.ProvisionalReconstruction)]
+    [InlineData("appearance.presetLevy.lev08", VisualEvidenceTier.ProvisionalReconstruction)]
     [InlineData("appearance.presetLevy.lev09", VisualEvidenceTier.DocumentedFormUncertain)]
+    [InlineData("appearance.presetLevy.lev10", VisualEvidenceTier.ProvisionalReconstruction)]
     public void ComputeWeakestLinkTier_MatchesTheDesignTablePerRow(
         string presetId,
         VisualEvidenceTier expectedTier)
@@ -193,12 +268,12 @@ public sealed class AppearancePresetTests
             AppearancePresets.Lev09.Recipe.Condition.Catalog.EvidenceTier);
     }
 
-    // --- Pairwise differentiation, within the Levy block (VIS-018 step 3) ---
+    // --- Pairwise differentiation, within the Levy block (VIS-018 step 3, extended by VIS-022) ---
 
     [Fact]
     public void SatisfiesDifferentiation_HoldsForEveryPairInTheShippedLevyRoster()
     {
-        var presets = AppearancePresets.All;
+        var presets = LevyPresetsInOrder;
         for (var i = 0; i < presets.Count; i++)
         {
             for (var j = i + 1; j < presets.Count; j++)
@@ -287,7 +362,7 @@ public sealed class AppearancePresetTests
                 AppearancePresets.Lev01, conditionOnlyDiff));
     }
 
-    // --- Loadout-pool totality and the H1 filter machinery (VIS-018 step 3) ---
+    // --- Loadout-pool totality and the H1 filter machinery (VIS-018 step 3; full roster as of VIS-022) ---
 
     [Fact]
     public void HasLoadoutPoolTotality_HoldsForTheShippedRosterAcrossEveryWeapon()
@@ -296,33 +371,55 @@ public sealed class AppearancePresetTests
     }
 
     [Fact]
-    public void GetCompatiblePresets_IncludesEveryShippedPresetForEveryWeapon()
+    public void GetCompatiblePresets_ForUnscopedGenericIncludesAllTenPresetsForWasayAndFiveOtherwise()
     {
-        // All five shipped presets are loadout Any, so the filtered pool
-        // never shrinks by weapon this milestone.
+        // The generic-levy block's own ten presets: five are loadout Any
+        // (LEV-01/02/03/04/09) and five are Wasay-only (LEV-05..08, LEV-10),
+        // so the filtered pool is 5 for a non-Wasay weapon and 10 for Wasay.
         foreach (var weapon in Enum.GetValues<PawnWeaponRole>())
         {
             var pool = AppearancePresets.GetCompatiblePresets(VisualScopeTag.UnscopedGeneric, weapon);
+            var expectedCount = weapon == PawnWeaponRole.Wasay ? 10 : 5;
 
-            Assert.Equal(AppearancePresets.All.Count, pool.Count);
+            Assert.Equal(expectedCount, pool.Count);
         }
     }
 
     [Fact]
-    public void GetCompatiblePresets_IsEmptyForABlockWithNoShippedPresets()
+    public void GetCompatiblePresets_EveryRegionalBlockNowHasAtLeastOneCompatiblePresetPerWeapon()
     {
-        var pool = AppearancePresets.GetCompatiblePresets(VisualScopeTag.Visayan, PawnWeaponRole.Kalis);
+        // Before VIS-022 landed the Visayan/Tagalog/Cagayan blocks had no
+        // shipped presets at all, so this pool used to be empty for every
+        // weapon. Now that all four blocks are complete, every (block,
+        // weapon) combination that a real preset can declare resolves at
+        // least one compatible entry (R-W3.2 loadout-pool totality); only
+        // VisualScopeTag.NotApplicable — never a real preset's own Block —
+        // stays empty.
+        foreach (var block in Enum.GetValues<VisualScopeTag>())
+        {
+            foreach (var weapon in Enum.GetValues<PawnWeaponRole>())
+            {
+                var pool = AppearancePresets.GetCompatiblePresets(block, weapon);
 
-        Assert.Empty(pool);
+                if (block == VisualScopeTag.NotApplicable)
+                {
+                    Assert.Empty(pool);
+                }
+                else
+                {
+                    Assert.NotEmpty(pool);
+                }
+            }
+        }
     }
 
     [Fact]
     public void FilterMachinery_ASyntheticWasayOnlyH1PresetIsExcludedForNonWasayWeaponsAndIncludedForWasay()
     {
         // The filter machinery the plan calls for, tested with a synthetic
-        // H1 recipe rather than a shipped one (none of the milestone's five
-        // presets carries H1). Proves the loadout filter — not just the
-        // validator's combination rule — behaves for a Wasay-only entry.
+        // H1 recipe layered on top of the shipped roster. Proves the
+        // loadout filter — not just the validator's combination rule —
+        // behaves for a Wasay-only entry.
         var synthetic = BuildSyntheticPreset(
             id: "appearance.presetLevy.synthWasayOnlyFilter",
             index: 202,
@@ -353,15 +450,43 @@ public sealed class AppearancePresetTests
     }
 
     [Fact]
-    public void SelectBlock_AlwaysResolvesToUnscopedGenericThisMilestone()
+    public void SelectBlock_AlwaysResolvesToOneOfTheFourShippedRegionalBlocks()
     {
+        var shippedBlocks = new HashSet<VisualScopeTag>
+        {
+            VisualScopeTag.Visayan,
+            VisualScopeTag.Tagalog,
+            VisualScopeTag.Cagayan,
+            VisualScopeTag.UnscopedGeneric,
+        };
+
         for (var factionId = 0; factionId < 4; factionId++)
         {
             for (ulong seed = 0; seed < 50; seed++)
             {
-                Assert.Equal(VisualScopeTag.UnscopedGeneric, AppearancePresets.SelectBlock(seed, factionId));
+                Assert.Contains(AppearancePresets.SelectBlock(seed, factionId), shippedBlocks);
             }
         }
+    }
+
+    [Fact]
+    public void SelectBlock_CanAssignTwoDifferentFactionsTheSameBlockInTheSameMatch()
+    {
+        // The design's own recommended "same block allowed" default: nothing
+        // in SelectBlock excludes two factions from resolving to the same
+        // table index for one Scenario.Seed. This does not assert that every
+        // seed produces a collision — only that at least one probed seed
+        // does, proving no hidden distinctness constraint exists.
+        var sawSameBlockForTwoFactions = false;
+        for (ulong seed = 0; seed < 10_000 && !sawSameBlockForTwoFactions; seed++)
+        {
+            if (AppearancePresets.SelectBlock(seed, 0) == AppearancePresets.SelectBlock(seed, 1))
+            {
+                sawSameBlockForTwoFactions = true;
+            }
+        }
+
+        Assert.True(sawSameBlockForTwoFactions, "Expected at least one probed seed to assign the same block to factions 0 and 1.");
     }
 
     [Fact]
@@ -376,18 +501,35 @@ public sealed class AppearancePresetTests
     [Fact]
     public void SelectPreset_FallsBackToLev01WhenThePoolIsEmpty()
     {
-        var resolved = AppearancePresets.SelectPreset(1, VisualScopeTag.Visayan, PawnWeaponRole.Kalis);
+        // VisualScopeTag.NotApplicable is not a real preset block — no
+        // preset in the shipped roster, across all four regional blocks,
+        // ever declares it as its own Block — so the pool is guaranteed
+        // empty regardless of how many presets the roster ships.
+        var resolved = AppearancePresets.SelectPreset(1, VisualScopeTag.NotApplicable, PawnWeaponRole.Kalis);
 
         Assert.Equal(AppearancePresets.Lev01.Catalog.Id, resolved.Catalog.Id);
     }
 
     [Fact]
+    public void SelectPreset_ForAPopulatedRegionalBlockResolvesAPresetFromThatSameBlock()
+    {
+        // Now that VIS-022 has populated every regional block, selecting
+        // against a real block (Visayan here) must resolve one of that
+        // block's own presets rather than falling back to Lev01.
+        var resolved = AppearancePresets.SelectPreset(1, VisualScopeTag.Visayan, PawnWeaponRole.Kalis);
+
+        Assert.Equal(VisualScopeTag.Visayan, resolved.Block);
+    }
+
+    [Fact]
     public void SelectPreset_UniformWeightsBehaveAsPlainModuloOverThePoolCount()
     {
-        // Every shipped preset carries the default RarityWeight of 1, so the
-        // weighted walk must reduce to the same outcome plain modulo
-        // selection over the pool would give for a fair, uniform table.
-        foreach (var preset in AppearancePresets.All)
+        // Every generic-levy preset carries the default RarityWeight of 1
+        // (the block has no elite/leader row, unlike Visayan and Tagalog),
+        // so the weighted walk over this block's own pool must reduce to
+        // the same outcome plain modulo selection over the pool would give
+        // for a fair, uniform table.
+        foreach (var preset in LevyPresetsInOrder)
         {
             Assert.Equal(1, preset.RarityWeight);
         }

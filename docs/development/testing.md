@@ -84,6 +84,77 @@ not prove a sound was audible, that it arrived at the right moment, or that it
 sounded right. Smoke rows below still require a human at an interactive desktop;
 see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
+## Render performance measurement — full matrix (VIS-036), 2026-07-28
+
+**Status: BLOCKED, honestly.** Implementation-plan-draft.md's VIS-036 calls
+for running the full measurement matrix from the integration design's section
+11 — {200, 500 visible units} x {minimum zoom 0.05, default fit, maximum zoom
+12} x {grass on, off} x {motion on, off} at 1080p on named hardware — and
+either confirming or revising every `RenderBudgetEstimate` figure through a
+recorded, reviewed decision (R-W6.13, R-W6.14). `./scripts/verify.ps1`'s
+worktree agent has neither a display nor a GPU, and `HUKBO_RENDER_PROBE`
+requires both (VIS-035's own doc comment: "Requires a real window and GPU —
+there is no headless mode for this one"), so no cell of the matrix was run and
+no number below is a measurement. Every figure stays labeled **ESTIMATE**,
+exactly as VIS-034 and VIS-035R left it, per this file's and R-W6.13's binding
+rule: never present an estimate as a measurement.
+
+### What VIS-036 built, unrun
+
+`tools/Hukbo.Tools.RenderProbe` gained a `--matrix` mode
+(`Hukbo.Tools.RenderProbe.exe --matrix [seed] [framesPerStation]
+[outputPath]`) that re-invokes its own already-relied-upon
+single-configuration path once per agent count (200, 500 — the design's first
+matrix axis), driving the three camera stations inside each re-invocation
+exactly as the single-configuration mode already does, and merges the results
+into one `render-matrix-<date>.json` under `artifacts/`. That covers two of
+the design's four axes — agent count and camera-zoom station — without adding
+a second, unverified in-process `ArenaGame` lifecycle to the tool.
+
+**Two axes are not driven by this seam yet: grass on/off and motion on/off.**
+Grass visibility is governed entirely by `DetailTierGate`'s own zoom-derived
+detail tier inside `GrassRenderer`/`GrassGeometry`; there is no independent
+override, spectator-facing or probe-only, that suppresses grass at a fixed
+camera station. Motion intensity is a real, spectator-facing setting
+(`MotionIntensityManager`), but `ArenaGame` exposes no probe-only override for
+it the way `SetProbeCameraZoom` exists for the camera — the only lever is the
+persisted settings file, and driving it from the hand-run tool would mean
+silently overwriting whoever's real settings file the tool runs against, which
+this task declined to do without a reviewed seam decision. A `--matrix` run
+therefore captures each station's *natural* grass and motion state (grass at
+whatever tier that station's zoom classifies to; motion at the persisted
+`MotionIntensity`, default `Full`) rather than four independent on/off cells.
+`RenderMatrixReport.AxesNote` records this same disclosure inside the JSON
+itself, so a report file read in isolation is not misread as the full
+twenty-four-cell matrix. Extending the seam with a probe-only grass and motion
+override, so a future run can drive all four axes and evaluate the "grass-off
+and motion-off measure less than or equal to their on-counterparts" sanity
+rule (integration design section 11), is a follow-up, not attempted here.
+
+### The budgets, still ESTIMATE
+
+Unchanged from `src/Hukbo.Client/Rendering/SubmissionCount.cs`'s
+`RenderBudgetEstimate` (integration design section 8/11, amendment A-1's Tier
+1 quad redenomination): arena-batch quads ≤ 12,000 at 200 units, ≤ 20,000 at
+500 units. Frame-time budgets from the design (200 units: p50 ≤ 6 ms, p95 ≤ 10
+ms, p99 ≤ 14 ms; 500 units: p50 ≤ 8 ms, p95 ≤ 13 ms, p99 ≤ 16 ms) have no
+corresponding named constant yet because nothing has measured against them.
+`tests/Hukbo.Client.Tests/RenderBudgetEstimateTests.cs` (the file
+implementation-plan-draft.md's VIS-036 entry names `SubmissionCountTests.cs`,
+renamed by VIS-034/amendment A-1) continues to pass unmodified: its worst-case
+arithmetic check needed no revision, because there is no measurement to
+reconcile it against.
+
+### What would unblock this
+
+A person at an interactive Windows desktop with a GPU, running the built
+`Hukbo.Tools.RenderProbe.exe --matrix` (after the grass/motion override
+follow-up above lands) on named hardware, recording
+`artifacts/render-matrix-<date>.json`, and — only then — either confirming
+each `RenderBudgetEstimate`/frame-time figure or revising it through a
+recorded, reviewed diff. Until that happens, no automated test may encode a
+number from this section as an enforced ceiling.
+
 ## Latest non-interactive result — perf hardening merged with attack combinations on preset V3, 2026-07-28
 
 `./scripts/verify.ps1` on `main` after merging branch `combat-preset-v3-combos`
