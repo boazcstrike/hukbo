@@ -655,7 +655,7 @@ public sealed class LastStandFormationTests
     /// <para>
     /// Seed 1 turned out to be a 25th-percentile seed for this metric, so the
     /// assertion now sweeps twenty seeds and takes the worst, following
-    /// <see cref="NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwenty"/>
+    /// <see cref="NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwoHundred"/>
     /// in this file. Across seeds 1 to 20 the streak runs 59 to 92 with a
     /// median of 74; 125 is 1.36 times the worst observed, the same headroom
     /// the original 60 had over its measured 45.
@@ -665,6 +665,25 @@ public sealed class LastStandFormationTests
     /// no detection power: a genuinely permanent block runs into the thousands
     /// as it approaches the tick limit. Across the same twenty seeds no battle
     /// reached the tick limit, none drew, and none ended without casualties.
+    /// </para>
+    /// <para>
+    /// This sweep stayed at twenty seeds when
+    /// <see cref="NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwoHundred"/>
+    /// beside it was widened to two hundred, and the reason is measured rather
+    /// than assumed. Widening this one to two hundred fails: the worst blocked
+    /// streak across 200 seeds is 272 ticks on seed 196, well over the 125-tick
+    /// bound. That is not a stall — seed 196 ends in a normal victory at tick
+    /// 1073 with living counts [2, 0] — it is a long transient block in a battle
+    /// that resolves perfectly well. The 125-tick bound was fitted to the worst
+    /// of twenty seeds (92) and is simply too tight for a larger sample.
+    /// </para>
+    /// <para>
+    /// Widening this sweep therefore means re-deriving a PROVISIONAL
+    /// game-design bound from a 200-seed sample, which is a tuning decision with
+    /// a real cost: raising the bound toward 272 spends some of the two orders
+    /// of magnitude of headroom that give it its detection power. That decision
+    /// has not been taken, so the sweep is left at twenty deliberately, with the
+    /// limitation recorded here rather than hidden.
     /// </para>
     /// </remarks>
     [Fact]
@@ -676,9 +695,11 @@ public sealed class LastStandFormationTests
 
         for (ulong seed = 1; seed <= 20; seed++)
         {
-            // Sixteen agents per faction is FormationRules.MaximumLastStandThresholdAgents,
-            // the square-packing bound, so both factions are the most tightly
-            // clustered configuration the design permits from tick zero.
+            // Sixteen agents per faction, every one of them inside
+            // FormationRules.MaximumLastStandThresholdAgents — the
+            // square-packing bound, which is 9 — so both factions are in last
+            // stand from tick zero and are the most tightly clustered
+            // configuration the design permits.
             var scenario = Scenario.CreateDefault(seed, totalAgents: 32) with
             {
                 LastStandThresholdAgents = FormationRules.MaximumLastStandThresholdAgents,
@@ -729,13 +750,34 @@ public sealed class LastStandFormationTests
     /// the tightest formation the design permits, so this is the worst case
     /// for the deadlock this test guards against.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This swept twenty seeds until 2026-07-30 and was widened to two hundred
+    /// because twenty cannot see what it was built to catch. The deadlock this
+    /// guards against occurs on a low single-digit percentage of seeds: a
+    /// 200-seed survey of the same configuration at neighbouring last-stand
+    /// thresholds found 5 stalls in 200 at a threshold of 7 and 8 in 200 at a
+    /// threshold of 8. A twenty-seed sweep has better-than-even odds of missing
+    /// a defect at that rate entirely, so a pass proved close to nothing and the
+    /// test was passing partly on luck.
+    /// </para>
+    /// <para>
+    /// Two hundred is chosen because it is what the surveys behind
+    /// <c>docs/plans/2026-07-29-approach-sidestep-design.md</c> ran at, so the
+    /// bar this test holds and the evidence gathered against it are the same
+    /// sample. Widening it is not free of information either: the residual
+    /// stalls recorded in section 10 of that design are all at thresholds 7 and
+    /// 8, and this test runs at the maximum, where 200 seeds are clean.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public void NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwenty()
+    public void NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwoHundred()
     {
         const int TotalAgents = 18;
+        const ulong LastSeed = 200;
         var stalledSeeds = new List<string>();
 
-        for (ulong seed = 1; seed <= 20; seed++)
+        for (ulong seed = 1; seed <= LastSeed; seed++)
         {
             var scenario = Scenario.CreateDefault(seed, totalAgents: TotalAgents) with
             {
@@ -773,8 +815,8 @@ public sealed class LastStandFormationTests
 
         Assert.True(
             stalledSeeds.Count == 0,
-            "The following seeds never reached a terminal outcome before " +
-            $"the tick limit:\n{string.Join('\n', stalledSeeds)}");
+            $"The following seeds of 1 to {LastSeed} never reached a terminal " +
+            $"outcome before the tick limit:\n{string.Join('\n', stalledSeeds)}");
     }
 
     /// <summary>

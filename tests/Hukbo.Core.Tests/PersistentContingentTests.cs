@@ -28,7 +28,7 @@ public sealed class PersistentContingentTests
 
     /// <summary>
     /// Mirrors
-    /// <see cref="LastStandFormationTests.NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwenty"/>
+    /// <see cref="LastStandFormationTests.NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwoHundred"/>
     /// under the new preset. This sweep is <b>not</b> the liveness proof for
     /// the two engineered failure geometries of design section 10.2, or for
     /// the crossing-traffic residual of section 3.5 — a sweep that passes

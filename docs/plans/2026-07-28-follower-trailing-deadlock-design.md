@@ -22,7 +22,7 @@ the 4.5 they asked for, and the reason was not a design decision. It was that
 `CollisionRules.DefaultBodyRadiusRaw` is `(17 * FixedPoint.Scale) / 4`, which is
 4.25 world units. The remark on that constant records what happened when 4.5 was
 tried: it clears every one of the static validation guards arithmetically, and
-`LastStandFormationTests.NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwenty`
+`LastStandFormationTests.NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwoHundred`
 still stalls at seed 12 with living counts of nine and nine for 9,976 ticks.
 4.25 and 4.125 do not stall. Measured 2026-07-28.
 
@@ -330,7 +330,7 @@ In order.
    scenario runs.
 5. Verify termination is still bounded, with an explicit worst-case candidate
    count per mover per tick.
-6. Rerun `LastStandFormationTests.NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwenty`
+6. Rerun `LastStandFormationTests.NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwoHundred`
    at 4.5 across every seed, not a sample. That test is the regression lock for
    this whole class of bug.
 7. Rerun the full agent-count sweep at 200, 500, 1,000, and 2,000 and compare

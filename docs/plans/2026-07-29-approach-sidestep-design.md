@@ -36,7 +36,7 @@ Battles reaching the 10 000-tick limit out of 200 seeds:
 
 Nothing that ships is broken: the shipping threshold is clean, and so is the
 maximum, which is what
-`LastStandFormationTests.NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwenty`
+`LastStandFormationTests.NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwoHundred`
 runs at. The failing band sits between the two, in thresholds no test exercises.
 
 The shape of that band is itself the first piece of evidence. A stall does not

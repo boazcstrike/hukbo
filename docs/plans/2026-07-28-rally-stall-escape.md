@@ -140,7 +140,7 @@ went red. New goldens are recorded with the change that produced them.
 ### Task 8 — widen the last-stand seed range
 `tests/Hukbo.Core.Tests/LastStandFormationTests.cs`. Twenty seeds cannot detect
 a one-percent failure; the test passed by luck. Widen
-`NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwenty` to 200 seeds
+`NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwoHundred` to 200 seeds
 and rename it accordingly. Report the runtime cost; if it is unacceptable for
 the gate, say so and propose a split rather than quietly keeping 20.
 

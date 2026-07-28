@@ -191,6 +191,6 @@ whether to flip the default is the user's call.
 ## Out of scope
 
 Everything design section 9 lists. In particular this plan does not widen
-`NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwenty` to 200 seeds;
+`NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwoHundred` to 200 seeds;
 that is separate agreed work and mixing it in would make T5's before-and-after
 unreadable.

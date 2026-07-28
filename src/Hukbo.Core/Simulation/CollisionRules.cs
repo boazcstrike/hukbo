@@ -63,7 +63,7 @@ public static class CollisionRules
     /// static validation guards. A radius of 4.5 world units clears every guard
     /// arithmetically and still reintroduces a follower-trailing mutual-block
     /// deadlock: seed 12 of
-    /// <c>LastStandFormationTests.NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwenty</c>
+    /// <c>LastStandFormationTests.NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwoHundred</c>
     /// stalls at the tick limit with living counts [9, 9]. That test is the
     /// regression lock for exactly this class of bug. Measured on 2026-07-28:
     /// 4.5 deadlocks, 4.25 and 4.125 do not. Do not raise this constant without
