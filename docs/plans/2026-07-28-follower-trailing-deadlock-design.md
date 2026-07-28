@@ -1,10 +1,15 @@
 # Follower-trailing mutual block in the collision resolver — design
 
 Status: design only. This document does not authorize implementation. It states
-a problem, offers a hypothesis about its cause, and lays out the options. The
-hypothesis in section 4 is reasoned from the source and from two recorded
-measurements; it has not been proven by instrumenting the failing seed, and the
-first task of any plan document that follows must be to prove or refute it.
+a problem, explains its cause, and lays out the options.
+
+**Updated 2026-07-28.** Section 4 was originally a hypothesis reasoned from the
+source, and section 9 made proving or refuting it the first task of any plan
+that followed. That measurement has since been taken and is recorded in
+[`docs/research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md`](../research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md).
+Section 4 now states what was measured. Sections 6 and 9 are unchanged and still
+describe unchosen options and unperformed work; the findings document's section
+6 says which way the evidence points and why that is still not a decision.
 
 Date: 2026-07-28. Written against `main` at `ce298fa`.
 
@@ -153,11 +158,31 @@ proportionally less room to resolve out of it. Nine agents against nine, packed
 into whatever formation seed 12 produces, is apparently enough to reach it at
 9.0 and not at 8.5.
 
-**This is a hypothesis.** It is consistent with the source, with the priority
-reshuffle, with `blockedAgentTicks` at 1.9 million, with a front that will not
-widen, and with a radius threshold between 8.5 and 9.0 diameters. It has not
-been confirmed by instrumenting seed 12 at 4.5 and reading which agents block on
-which. Section 9 makes that the first task.
+**This was a hypothesis, and it has now been measured.** Steps 1 and 2 of
+section 9 were carried out on 2026-07-28 and are recorded in
+[`docs/research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md`](../research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md).
+The result splits this section in two.
+
+**The mutual-lock mechanism above is confirmed.** In the seed-12 stall, 99.8 %
+of blocked agent-ticks have every blocker standing exactly still, each blocked
+agent's blocker set never changes across the window, and the blocker records
+split 1 348 to 1 348 between "the blocker was pending" and "the blocker was
+already committed" — the same pairs counted from both sides, with the priority
+draw landing on each side about half the time and changing nothing. Order is
+measurably not the binding constraint, exactly as this section predicts for that
+case.
+
+**The half-rate column is refuted as the cause of this stall.** It predicts
+roughly 50 % blocked and a blocker that vacates; measured blocked rates are 89 %
+to 92 %, and a blocker that vacated appears in 5 records out of 2 977. The
+mechanism is real but it is a rounding error here.
+
+Two things the reasoning above did not anticipate. Every locked pair is
+**intra-faction** — allies, not enemies — so neither faction ever reaches the
+other, and there are no deaths in the entire run rather than a fight that ground
+down to nine each. And two agents are each locked against two different allies
+at once, so the obstruction is a small connected component and not only a set of
+independent pairs.
 
 ## 5. What any fix must not break
 

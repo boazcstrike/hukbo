@@ -1,14 +1,22 @@
 # Measurement tools
 
-Five console programs that measure things about Hukbo which are otherwise
+Six console programs that measure things about Hukbo which are otherwise
 argued about rather than known. Three exist to produce the evidence in
 [`docs/research/SOUND-CAPACITY-MEASUREMENTS.md`](../docs/research/SOUND-CAPACITY-MEASUREMENTS.md);
 the fourth, `Hukbo.Tools.WeaponBalance`, produces the per-weapon evidence in
 [`docs/development/testing.md`](../docs/development/testing.md) under "T32 —
 weapon balance measurement"; the fifth, `Hukbo.Tools.RenderProbe`, produces
 the render-performance evidence named in R-W6.12 through R-W6.14 of the
-visual-system integration design. All five let those numbers be reproduced
-later.
+visual-system integration design; the sixth,
+`Hukbo.Tools.DeadlockProbe`, produces the collision-stall evidence in
+[`docs/research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md`](../docs/research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md).
+All six let those numbers be reproduced later.
+
+`Hukbo.Tools.DeadlockProbe` is the only one that reads `internal` members of
+`Hukbo.Core`. It needs exactly one — `CollisionPriority.Resolve`, the pure
+function that produces the collision resolver's per-tick resolution order — and
+`src/Hukbo.Core/Properties/AssemblyInfo.cs` grants it for that reason. The probe
+observes the simulation from outside and changes nothing in it.
 
 ## They are not part of the build
 
