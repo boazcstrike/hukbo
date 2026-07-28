@@ -189,6 +189,31 @@ Note that this workstream and the collision *performance* design above touch the
 same files with opposite hash requirements. This one deliberately moved every
 committed position; that one must not move any. Do not conflate them.
 
+## Quit confirmation, maximize, and Core faction metrics — planned, not started
+
+[`2026-07-28-quit-confirm-maximize-and-faction-metrics-design.md`](2026-07-28-quit-confirm-maximize-and-faction-metrics-design.md)
+and its plan
+[`2026-07-28-quit-confirm-maximize-and-faction-metrics.md`](2026-07-28-quit-confirm-maximize-and-faction-metrics.md).
+The plan authorizes the work; no code has been written for it yet.
+
+These are the three questions the collision/battle-report/window workstream left
+open, all answered by the user on 2026-07-28: the Close button confirms before
+quitting, the OS maximize button gets an in-game replacement, and the battle
+report's faction totals come from Core's own counters instead of being re-derived
+from the event stream.
+
+**One correction worth reading before starting.** The third item was asked as
+"make `CombatMetrics` and `CollisionMetrics` public". Both records are already
+`public`. What is missing is the data: neither type carries any faction
+dimension at all. The real work is adding that dimension to the per-tick metrics
+and promoting `BattleSimulation.LastTickCombat`, not flipping a visibility
+keyword.
+
+**This workstream must move no hash.** Unlike the collision change above, it is
+required to leave `stateHash A080E28DA7C79C20` and `eventHash 2B6FB3A9A9C1960D`
+byte-identical. Metrics are observability; one that reaches a hash is a defect,
+and `CombatMetrics_ReachesNeitherHash` is the guard that may not be edited.
+
 ## Where the live contract lives
 
 | Question | Source |

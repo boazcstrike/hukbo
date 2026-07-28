@@ -234,7 +234,39 @@ each `RenderBudgetEstimate`/frame-time figure or revising it through a
 recorded, reviewed diff. Until that happens, no automated test may encode a
 number from this section as an enforced ceiling.
 
-## Latest non-interactive result — perf hardening merged with attack combinations on preset V3, 2026-07-28
+## Latest non-interactive result — auto-camera hysteresis and mode setting, 2026-07-28
+
+`./scripts/verify.ps1 -SkipBootstrap` on `main` after the auto-camera change:
+idle grace, post-pan dwell, periodic re-targeting, a pan-duration ceiling, and
+an `AutoCameraMode` setting persisted at settings schema 5.
+
+```
+     Passed: 608
+     Passed: 2383
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+seed 1, agentCount 200, requestedTicks 10000, measuredTicks 1677
+outcome Faction0Victory, faction0Survivors 2, faction1Survivors 0
+eventHash 2B6FB3A9A9C1960D
+stateHash A080E28DA7C79C20
+deterministic true, firstMismatchTick null
+allocatedBytes 516376, coreAllocatedBytes 118896
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+Both hashes are byte-identical to the recorded seed-1 baseline re-recorded at
+the 4.25-world-unit body radius (the table further down this file), which is
+the expected result: the change is entirely inside
+`Hukbo.Client` and `Hukbo.Diagnostics` and nothing it touches reaches a state
+hash.
+
+**This proves the non-interactive gate only.** Whether the camera now feels
+calm is a question about motion on a screen, and every row in the "Auto camera
+modes smoke" checklist below is `PENDING`.
+
+## Previous non-interactive result — perf hardening merged with attack combinations on preset V3, 2026-07-28
 
 `./scripts/verify.ps1` on `main` after merging branch `combat-preset-v3-combos`
 (attack combinations, section below) with the arch-informed performance
@@ -2735,6 +2767,32 @@ say whether the resulting camera motion is helpful rather than distracting.
 | 55. Confirm zoom never changes | Through several auto-pans, the zoom level is exactly what the spectator set. The camera only slides; it never zooms out to find the fight or zooms in on arrival. | Not run | PENDING |
 | 56. Take control back | While the camera is auto-panning, hold a pan key. Motion stops under the spectator's hand immediately, the camera goes exactly where they steer it, and it does not resume on its own for a couple of seconds after the key is released. | Not run | PENDING |
 | 57. Watch the end of a long battle | Let a match run to its final few survivors at a zoom where they leave the screen. The camera follows the fighting to the end instead of leaving the spectator on empty ground, and it stands still once the match summary appears. | Not run | PENDING |
+
+### Auto camera modes smoke
+
+Added by the auto-camera hysteresis and mode setting, 2026-07-28. **Not
+performed.** The unit tests prove the grace, dwell, re-target, and ceiling
+decisions against synthetic agent lists; only a person watching a live window
+can say whether the camera now feels calm rather than restless. Rows 53 to 57
+above remain the baseline behaviour rows and are still `PENDING` too.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 149. Watch a small skirmish without being dragged away | Zoom in on two or three warriors fighting each other, well away from the main battle. The camera stays put for the whole exchange. It does not lurch toward the main battle between blows, which is the defect this change exists to fix. | Not run | PENDING |
+| 150. Confirm the camera rests between pans | Pan away from all fighting and let the assistant take over. After it settles on a melee it stays still for a couple of seconds at minimum before any further motion, rather than immediately setting off again. | Not run | PENDING |
+| 151. Watch it track a fight that moves | Pan far from a running battle so the assistant starts travelling, and pick a moment when the front is shifting. The camera adjusts its heading mid-journey and arrives at where the fighting is now, not at empty ground the fighting has left. | Not run | PENDING |
+| 152. Find the setting in the menu | Open the menu. An `AUTO CAMERA` selector sits below `MOTION INTENSITY`, reads `Assisted` on a fresh install, and cycles `Off`, `Assisted`, `Follow` with the arrows, the mouse, and Left/Right while focused. Every menu control is still fully inside the panel, above the helper line. | Not run | PENDING |
+| 153. Confirm `Off` means off | Set the mode to `Off`, close the menu, and pan away from every fight. The camera never moves on its own, for the rest of the match. | Not run | PENDING |
+| 154. Confirm `Follow` keeps up | Set the mode to `Follow` and watch a battle. The camera re-centres on fighting noticeably sooner than in `Assisted`, and keeps the melee near the middle of the screen rather than letting it drift to an edge. | Not run | PENDING |
+| 155. Confirm the choice survives a relaunch | Set the mode to `Follow`, exit, and relaunch. The menu still reads `Follow` and the camera behaves accordingly from the first tick, without the menu being reopened. | Not run | PENDING |
 
 ### Starting deployment smoke
 

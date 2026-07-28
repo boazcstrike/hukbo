@@ -122,4 +122,20 @@ MinimumTravelFraction    = 0.5
 | `src/Hukbo.Client/Content/Themes/ui-theme-standards.json` | Taller menu panel |
 | `src/Hukbo.Client/Theming/UiThemeManager.cs` | `TrySave` call site |
 | `src/Hukbo.Client/ArenaGame.cs` | Manager, persist path, menu wiring, pass mode |
+| `src/Hukbo.Client/ArenaGame.Rendering.cs` | Menu draw call site |
+| `src/Hukbo.Client/Theming/UiThemeCatalogFallback.cs` | Fallback panel height, kept equal to the shipped JSON |
+| `src/Hukbo.Diagnostics/DiagnosticLog.cs` | A seven-field `Write` overload; the settings-loaded line now carries seven fields |
 | `tests/Hukbo.Client.Tests/*` | Updated and new tests |
+
+## 8. Result
+
+`./scripts/verify.ps1 -SkipBootstrap` passed on 2026-07-28: formatting, Release
+build, 608 Core tests, 2383 Client tests, and the seed-1 200-agent / 10 000-tick
+headless workload reporting `deterministic true` with `stateHash
+A080E28DA7C79C20` and `eventHash 2B6FB3A9A9C1960D` — byte-identical to the
+recorded baseline, as a presentation-only change must be. The full output is
+recorded in `docs/development/testing.md`.
+
+Seven new rows in that file's "Auto camera modes smoke" checklist are
+`PENDING`. Whether the camera now feels calm is a question about motion on a
+screen and no automated check can answer it.
