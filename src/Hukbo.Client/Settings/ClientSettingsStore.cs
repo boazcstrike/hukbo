@@ -18,20 +18,25 @@ internal sealed class ClientSettingsStore
     /// writes.
     /// Raised again from 4 to 5 by the <see cref="AutoCameraMode"/> setting,
     /// backward compatible on the same terms as the 3-to-4 bump.
+    /// Raised again from 5 to 6 by the 500-unit default composition. This one
+    /// behaves like the 2-to-3 bump rather than the field-adding bumps: the
+    /// shape is unchanged and an older file would still parse, but a saved
+    /// composition always overrides <see cref="ArmyComposition.Default"/>, so
+    /// accepting the old file would silently keep the old army size. A second
+    /// deliberate reset, recorded on <see cref="ArmyComposition"/>.
     /// </summary>
-    public const int SupportedSchemaVersion = 5;
+    public const int SupportedSchemaVersion = 6;
 
     /// <summary>
     /// Schema versions <see cref="Load"/> accepts without discarding the
-    /// whole file. Version 3 predates <see cref="MotionIntensity"/> and
-    /// version 4 predates <see cref="AutoCameraMode"/>; both are accepted
-    /// because the field-defaulting path already handles an absent value the
-    /// same way it handles an absent <see cref="GoreIntensity"/>.
-    /// Versions before 3 remain discarded per the deliberate reset recorded
-    /// on <see cref="ArmyComposition"/>.
+    /// whole file. Only the current version qualifies. Versions 3, 4, and 5
+    /// were accepted while the field-defaulting path was enough to read them
+    /// forward; the 5-to-6 default-composition change is not a field addition
+    /// and cannot be read forward, so every earlier version is now discarded
+    /// per the deliberate reset recorded on <see cref="ArmyComposition"/>.
     /// </summary>
     private static readonly int[] AcceptedSchemaVersions =
-        [3, 4, SupportedSchemaVersion];
+        [SupportedSchemaVersion];
 
     private const GoreIntensity DefaultGoreIntensity = GoreIntensity.Stylized;
     private const MotionIntensity DefaultMotionIntensity = MotionIntensity.Full;
