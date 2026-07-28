@@ -110,6 +110,39 @@ public static class FormationRules
     public const int RallyJitterRadiusMultiplier = 6;
 
     /// <summary>
+    /// How many consecutive blocked ticks prove a follower's rally aim point
+    /// unreachable, after which it draws a different one. **Provisional tuning
+    /// value, not a measurement of anything in the world.**
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Sized to sit above every blocked run a healthy battle produces, so that
+    /// the escape cannot fire merely because a front is crowded. The longest
+    /// runs recorded in <c>docs/development/testing.md</c> are 88 at 200
+    /// agents, 87 at 500, 108 at 2 000, and 111 at 1 000; the last-stand
+    /// regression test asserts a provisional bound of 125 across seeds 1 to 20.
+    /// This value is 1.73 times the largest observed run and 1.54 times that
+    /// asserted bound.
+    /// </para>
+    /// <para>
+    /// A net-pressure form of this trigger was tried and reverted: a leaky
+    /// bucket that rose on a blocked tick and drained on a moving one detected
+    /// no additional stall over 200 seeds, and it fired in healthy battles at
+    /// 500 and 1 000 agents, moving two recorded hashes and flipping the
+    /// 1 000-agent outcome. The margin argument above is derived from
+    /// consecutive runs and does not transfer to a net measure. If this trigger
+    /// is ever replaced by one, the threshold has to be re-derived rather than
+    /// carried across.
+    /// </para>
+    /// <para>
+    /// Against a stall that otherwise runs to the 10 000-tick limit, waiting
+    /// this long costs nothing. The margin is what matters: too low and the
+    /// escape perturbs battles that were going to resolve on their own.
+    /// </para>
+    /// </remarks>
+    public const int StallEscapeStreakTicks = 192;
+
+    /// <summary>
     /// The area margin the bias square keeps over the permitted headcount. The
     /// square must be able to hold this many times the agents it is allowed to
     /// gather, so bodies never cover more than <c>1 / RallyPackingMargin</c> of

@@ -378,6 +378,7 @@ internal static class Program
             writer.WriteString("ev", "collision.blocked");
             writer.WriteNumber("entityId", agent.EntityId);
             writer.WriteNumber("factionId", agent.FactionId);
+            writer.WriteString("intent", agent.Intent.ToString());
             writer.WriteNumber("startXRaw", start.XRaw);
             writer.WriteNumber("startYRaw", start.YRaw);
             writer.WriteNumber("blockerCount", blockers.Count);

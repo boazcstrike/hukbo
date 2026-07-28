@@ -793,7 +793,7 @@ public sealed class BattleSimulation
 
             if (agent.Intent == AgentIntent.Regrouping)
             {
-                _movementProposals[index] = BuildRegroupingProposal(agent);
+                _movementProposals[index] = BuildRegroupingProposal(agent, index);
             }
         }
     }
@@ -831,8 +831,18 @@ public sealed class BattleSimulation
     /// <see cref="TryComputeGiveWayAimPoint"/> for the sideways escape this
     /// method checks first.
     /// </remarks>
+    /// <remarks>
+    /// A follower whose aim point lies beyond an ally walks to exact tangency
+    /// and then pushes against it forever, because tangency is a legal resting
+    /// position and closing further is strict penetration. The stall generation
+    /// is the escape: once this agent has been blocked for
+    /// <see cref="FormationRules.StallEscapeStreakTicks"/> consecutive ticks it
+    /// draws a different aim point. It is 0, and therefore inert, in every
+    /// battle that is merely crowded.
+    /// </remarks>
     private (int XRaw, int YRaw, ulong TargetId)? BuildRegroupingProposal(
-        AgentState agent)
+        AgentState agent,
+        int agentIndex)
     {
         var rallyEntityId = _factionRallyEntityIds[agent.FactionId];
         if (rallyEntityId == 0 ||
@@ -867,7 +877,8 @@ public sealed class BattleSimulation
         var (offsetXRaw, offsetYRaw) = RallyOffset.Compute(
             Scenario.Seed,
             agent.EntityId,
-            Scenario.BodyRadiusRaw);
+            Scenario.BodyRadiusRaw,
+            _collision.StallGeneration(agentIndex));
 
         // The aim point is computed in long and saturated into int the same
         // way CollisionResolver.ToCoordinate saturates a candidate coordinate
