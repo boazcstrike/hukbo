@@ -24,7 +24,14 @@ internal sealed class AgentState
         // A required parameter would force every one of those unrelated call
         // sites to be edited just to keep compiling. 1 matches
         // Scenario.PlaceholderFighterLevel's own default.
-        int level = 1)
+        int level = 1,
+        // Defaulted for the same reason level is above: BattleSimulation.Create
+        // is the only production call site and always passes this explicitly,
+        // from FormationPlanner's returned membership, while several
+        // named-argument test call sites predate contingent membership
+        // entirely. 0 is a valid contingent index, not a sentinel, so those
+        // tests simply never observe a ContingentId beyond it.
+        int contingentId = 0)
     {
         if (entityId == 0)
         {
@@ -50,6 +57,8 @@ internal sealed class AgentState
         Loadout = loadout;
         Intent = AgentIntent.Idle;
         Level = level;
+        ContingentId = contingentId;
+        ContingentState = ContingentState.None;
     }
 
     internal ulong EntityId { get; }
@@ -92,6 +101,25 @@ internal sealed class AgentState
     internal int Level { get; }
 
     /// <summary>
+    /// The contingent this warrior was dealt into by
+    /// <see cref="FormationPlanner.PlanFactionDeployment"/>, in
+    /// <c>[0, FormationPlanner.MaximumContingents)</c>. Written once, at
+    /// spawn, from <see cref="BattleSimulation.Create"/> and never mutated
+    /// afterward — a dead agent keeps its <see cref="ContingentId"/>, which
+    /// is why the leader scan a movement preset performs must skip agents
+    /// that are not alive rather than relying on membership to change.
+    /// </summary>
+    internal int ContingentId { get; }
+
+    /// <summary>
+    /// This contingent's behavioural mode, written on every living member by
+    /// the tick stage that resolves it. <see cref="ContingentState.None"/>
+    /// under a preset that does not assign contingent states, and for any
+    /// agent this task's preset never touches.
+    /// </summary>
+    internal ContingentState ContingentState { get; set; }
+
+    /// <summary>
     /// The number of <em>additional</em> blows a currently-active attack
     /// combination may still land after the blow that most recently set it.
     /// <c>0</c> whenever no chain is active. Mutated only inside
@@ -126,5 +154,7 @@ internal sealed class AgentState
             IsAlive,
             Loadout,
             MovementResolution,
-            Level);
+            Level,
+            ContingentId,
+            ContingentState);
 }

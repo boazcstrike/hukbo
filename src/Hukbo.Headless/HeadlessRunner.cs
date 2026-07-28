@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 using Hukbo.Diagnostics;
 
@@ -18,7 +19,8 @@ public sealed record HeadlessOptions(
     LogLevel? LogLevel = null,
     LogChannel? LogChannels = null,
     string? LogDirectory = null,
-    CombatPresetId? Preset = null);
+    CombatPresetId? Preset = null,
+    MovementPresetId? MovementPreset = null);
 
 public static class HeadlessRunner
 {
@@ -40,7 +42,8 @@ public static class HeadlessRunner
                 "[--log-level off|err|warn|inf|dbg|trc] " +
                 "[--log-channels all|<comma-separated>] " +
                 "[--log-dir <directory>] " +
-                "[--preset <CombatPresetId name or number>]");
+                "[--preset <CombatPresetId name or number>] " +
+                "[--movement-preset <MovementPresetId name or number>]");
             return 2;
         }
 
@@ -106,6 +109,7 @@ public static class HeadlessRunner
         LogChannel? logChannels = null;
         string? logDirectory = null;
         CombatPresetId? preset = null;
+        MovementPresetId? movementPreset = null;
         var encounteredArguments = new HashSet<string>(StringComparer.Ordinal);
 
         for (var index = 0; index < arguments.Count; index += 2)
@@ -250,6 +254,19 @@ public static class HeadlessRunner
 
                     preset = parsedPreset;
                     break;
+
+                case "--movement-preset":
+                    if (!TryParseMovementPreset(value, out var parsedMovementPreset))
+                    {
+                        options = default!;
+                        error =
+                            $"'--movement-preset' does not name a registered " +
+                            $"MovementPresetId: '{value}'.";
+                        return false;
+                    }
+
+                    movementPreset = parsedMovementPreset;
+                    break;
             }
         }
 
@@ -261,7 +278,8 @@ public static class HeadlessRunner
             logLevel,
             logChannels,
             logDirectory,
-            preset);
+            preset,
+            movementPreset);
         error = string.Empty;
         return true;
     }
@@ -294,6 +312,36 @@ public static class HeadlessRunner
         return false;
     }
 
+    /// <summary>
+    /// Parses <c>--movement-preset</c> either as a <see cref="MovementPresetId"/>
+    /// member name (for example <c>IndependentPursuitV1</c>) or as its
+    /// underlying numeric value, then confirms the result is registered so a
+    /// stray future enum value cannot silently build an unfielded ruleset.
+    /// </summary>
+    private static bool TryParseMovementPreset(
+        string value,
+        out MovementPresetId movementPreset)
+    {
+        if (Enum.TryParse(value, ignoreCase: true, out movementPreset) &&
+            MovementPresetRegistry.IsRegistered(movementPreset))
+        {
+            return true;
+        }
+
+        if (int.TryParse(
+                value,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out var numeric))
+        {
+            movementPreset = (MovementPresetId)numeric;
+            return MovementPresetRegistry.IsRegistered(movementPreset);
+        }
+
+        movementPreset = default;
+        return false;
+    }
+
     private static RunReport Execute(HeadlessOptions options, DiagnosticLog log)
     {
         var scenario = Scenario.CreateDefault(options.Seed, options.AgentCount) with
@@ -303,6 +351,11 @@ public static class HeadlessRunner
         if (options.Preset is { } preset)
         {
             scenario = scenario with { CombatPreset = preset };
+        }
+
+        if (options.MovementPreset is { } movementPreset)
+        {
+            scenario = scenario with { MovementPreset = movementPreset };
         }
 
         scenario.Validate();
@@ -544,7 +597,8 @@ public static class HeadlessRunner
 
     private static bool IsSupportedArgument(string argument) =>
         argument is "--agents" or "--ticks" or "--seed" or "--output" or
-            "--log-level" or "--log-channels" or "--log-dir" or "--preset";
+            "--log-level" or "--log-channels" or "--log-dir" or "--preset" or
+            "--movement-preset";
 
     private static double Percentile(double[] sortedValues, double percentile)
     {

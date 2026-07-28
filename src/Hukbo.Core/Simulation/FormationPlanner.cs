@@ -24,9 +24,11 @@ namespace Hukbo.Core.Simulation;
 /// <para>
 /// The lattice below is an engineering device for guaranteeing that no two
 /// bodies overlap before the first tick. It is not a reconstruction of how
-/// anyone stood, and it survives only until tick 1, when ordinary target
-/// selection and collision resolution dissolve the groups. Nothing outside this
-/// file should treat a contingent as a persistent unit.
+/// anyone stood, and it is not itself carried forward. Contingent
+/// <em>membership</em> is: <see cref="PlanFactionDeployment"/> returns each
+/// warrior's <c>ContingentId</c> alongside its spawn position, and that
+/// membership is written once onto <c>AgentState</c> and consumed by the
+/// movement preset for as long as the warrior is alive.
 /// </para>
 /// <para>
 /// Determinism. Up to two draws per warrior, taken from the caller's stream in
@@ -42,7 +44,16 @@ internal static class FormationPlanner
     /// contingent bigger rather than adding more of them, which keeps the
     /// opening frame readable at any population.
     /// </summary>
-    private const int MaximumContingents = 8;
+    /// <remarks>
+    /// Widened from <see langword="private"/> to <see langword="internal"/>
+    /// by the persistent-contingent movement preset
+    /// (docs/plans/2026-07-28-formation-movement-realism-design.md section
+    /// 3.4), which uses this same constant for its
+    /// <c>FactionId * MaximumContingents + ContingentId</c> slot arithmetic
+    /// and its cross-contingent pair-scan bound rather than declaring a
+    /// second <c>8</c> that could drift from this one.
+    /// </remarks>
+    internal const int MaximumContingents = 8;
 
     /// <summary>
     /// Preferred lattice spacing as a multiple of the body radius. Three body
@@ -64,7 +75,7 @@ internal static class FormationPlanner
     /// bodies stood where without changing which faction won, so it bought
     /// nothing and cost the exact symmetry.
     /// </remarks>
-    internal static (int XRaw, int YRaw)[] PlanFactionDeployment(
+    internal static (int XRaw, int YRaw, int ContingentId)[] PlanFactionDeployment(
         Scenario scenario,
         ref SplitMix64 random)
     {
@@ -80,10 +91,10 @@ internal static class FormationPlanner
 
         if (!lattice.Fits(laneSpan, region))
         {
-            return PlanDenseBlock(warriorCount, lattice.Spacing, region);
+            return PlanDenseBlock(warriorCount, contingentSizes.Length, lattice.Spacing, region);
         }
 
-        var positions = new (int XRaw, int YRaw)[warriorCount];
+        var positions = new (int XRaw, int YRaw, int ContingentId)[warriorCount];
         var placedPerContingent = new int[contingentSizes.Length];
 
         // Warriors are dealt round-robin rather than in contiguous runs.
@@ -95,7 +106,7 @@ internal static class FormationPlanner
             var contingent = localIndex % contingentSizes.Length;
             var memberIndex = placedPerContingent[contingent]++;
 
-            positions[localIndex] = PlaceMember(
+            var (xRaw, yRaw) = PlaceMember(
                 contingent,
                 memberIndex,
                 contingentSizes[contingent],
@@ -104,6 +115,7 @@ internal static class FormationPlanner
                 region,
                 mapWidthRaw,
                 ref random);
+            positions[localIndex] = (xRaw, yRaw, contingent);
         }
 
         return positions;
@@ -207,6 +219,9 @@ internal static class FormationPlanner
     /// a body in a dull arrangement. Spacing is at
     /// <see cref="MinimumSeparation"/> whenever this path runs, so the jitter
     /// would be zero regardless and the random stream is left untouched.
+    /// Membership still deals round-robin the same way the lattice path does,
+    /// because a contingent is a fact about who a warrior fights alongside, not
+    /// about which placement path the map forced.
     /// </summary>
     /// <remarks>
     /// The block is shaped to the region: columns come from the available
@@ -215,8 +230,9 @@ internal static class FormationPlanner
     /// is denser than any arrangement can hold, and the caller's repair pass
     /// owns that case.
     /// </remarks>
-    private static (int XRaw, int YRaw)[] PlanDenseBlock(
+    private static (int XRaw, int YRaw, int ContingentId)[] PlanDenseBlock(
         int warriorCount,
+        int contingentCount,
         long spacing,
         DeploymentRegion region)
     {
@@ -240,13 +256,14 @@ internal static class FormationPlanner
             (((columns - 1) * spacing) / 2);
         var originY = ((region.MinY + region.MaxY) / 2) -
             (((rows - 1) * spacing) / 2);
-        var positions = new (int XRaw, int YRaw)[warriorCount];
+        var positions = new (int XRaw, int YRaw, int ContingentId)[warriorCount];
 
         for (var index = 0; index < warriorCount; index++)
         {
             positions[index] = (
                 checked((int)(originX + ((index % columns) * spacing))),
-                checked((int)(originY + ((index / columns) * spacing))));
+                checked((int)(originY + ((index / columns) * spacing))),
+                index % contingentCount);
         }
 
         return positions;

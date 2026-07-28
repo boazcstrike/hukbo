@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Hukbo.Core.Combat;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 using Hukbo.Headless;
 
@@ -502,5 +503,92 @@ public sealed class HeadlessRunnerTests
             deserialized.CoreAllocatedBytes <= deserialized.AllocatedBytes,
             $"Core allocation {deserialized.CoreAllocatedBytes} exceeded the " +
             $"harness total {deserialized.AllocatedBytes}.");
+    }
+
+    [Fact]
+    public void MovementPresetArgument_NameAndNumericValueParseToTheSameValue()
+    {
+        var byNameSuccess = HeadlessRunner.TryParseArguments(
+            ["--movement-preset", "IndependentPursuitV1"],
+            out var byNameOptions,
+            out var byNameError);
+        var byNumberSuccess = HeadlessRunner.TryParseArguments(
+            ["--movement-preset", "1"],
+            out var byNumberOptions,
+            out var byNumberError);
+
+        Assert.True(byNameSuccess, byNameError);
+        Assert.True(byNumberSuccess, byNumberError);
+        Assert.Equal(MovementPresetId.IndependentPursuitV1, byNameOptions.MovementPreset);
+        Assert.Equal(byNameOptions.MovementPreset, byNumberOptions.MovementPreset);
+    }
+
+    /// <summary>
+    /// An unregistered enum value and a value that is not an enum member at
+    /// all both fail parsing, and both surface through <see cref="HeadlessRunner.Run"/>
+    /// as the same exit code as every other malformed argument.
+    /// </summary>
+    [Theory]
+    [InlineData("99")]
+    [InlineData("nonsense")]
+    public void Run_RejectsAnUnregisteredMovementPresetWithExitCode2(string value)
+    {
+        var output = new StringWriter();
+        var errorOutput = new StringWriter();
+
+        var exitCode = HeadlessRunner.Run(
+            ["--movement-preset", value],
+            output,
+            errorOutput);
+
+        Assert.Equal(2, exitCode);
+        Assert.Contains("--movement-preset", errorOutput.ToString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Omitting the switch leaves <see cref="HeadlessOptions.MovementPreset"/>
+    /// null, and a run without it must be byte-identical -- both hashes -- to
+    /// the same run with the switch supplied explicitly as
+    /// <see cref="MovementPresetId.PersistentContingentsV2"/>, which is
+    /// <see cref="Scenario"/>'s own default. That default was
+    /// <see cref="MovementPresetId.IndependentPursuitV1"/> until task T15 of
+    /// docs/plans/2026-07-28-formation-movement-realism.md flipped it; the
+    /// comparison itself, and the fact that implicit and explicit runs must
+    /// agree, is unchanged -- only which preset name the "explicit" run
+    /// names has moved.
+    /// </summary>
+    [Fact]
+    public void OmittingMovementPresetSelectsTheScenarioDefault()
+    {
+        var success = HeadlessRunner.TryParseArguments(
+            [],
+            out var options,
+            out var error);
+
+        Assert.True(success, error);
+        Assert.Null(options.MovementPreset);
+
+        var implicitOutput = new StringWriter();
+        var explicitOutput = new StringWriter();
+        var errorOutput = new StringWriter();
+        string[] baseArguments = ["--agents", "20", "--ticks", "200", "--seed", "1234"];
+
+        var implicitExitCode = HeadlessRunner.Run(baseArguments, implicitOutput, errorOutput);
+        var explicitExitCode = HeadlessRunner.Run(
+            [.. baseArguments, "--movement-preset", "PersistentContingentsV2"],
+            explicitOutput,
+            errorOutput);
+
+        Assert.Equal(0, implicitExitCode);
+        Assert.Equal(0, explicitExitCode);
+        using var implicitReport = JsonDocument.Parse(implicitOutput.ToString());
+        using var explicitReport = JsonDocument.Parse(explicitOutput.ToString());
+
+        Assert.Equal(
+            implicitReport.RootElement.GetProperty("eventHash").GetString(),
+            explicitReport.RootElement.GetProperty("eventHash").GetString());
+        Assert.Equal(
+            implicitReport.RootElement.GetProperty("stateHash").GetString(),
+            explicitReport.RootElement.GetProperty("stateHash").GetString());
     }
 }

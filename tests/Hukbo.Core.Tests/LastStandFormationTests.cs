@@ -814,6 +814,22 @@ public sealed class LastStandFormationTests
 
         simulation.AdvanceOneTick();
 
+        // Under the shipped default, PersistentContingentsV2, the give-way
+        // aim point sits at a fixed distance of
+        // corridorHalfWidthRaw + BodyRadiusRaw = 1536 raw units from the
+        // follower's current position (see TryComputeGiveWayAimPoint), which
+        // is inside the arrival taper band
+        // (ArrivalTaperMultiplier * BodyRadiusRaw = 2048 raw units). The
+        // very first give-way step is therefore deterministically capped at
+        // Min(MovementSpeedRaw, 1536) * 1536 / 2048 = 384 raw units rather
+        // than the full 512-unit step the comment above assumed when this
+        // test predated the taper, so one tick alone no longer clears the
+        // 1024-unit corridor. A second tick, whose aim point is again 1536
+        // raw units from the follower's new position, reliably finishes the
+        // escape, so the run advances twice before the corridor-clearance
+        // check below.
+        simulation.AdvanceOneTick();
+
         var after = AgentByEntityId(simulation, 5);
         Assert.Equal(AgentIntent.Regrouping, after.Intent);
         Assert.NotEqual(MovementResolution.Blocked, after.MovementResolution);

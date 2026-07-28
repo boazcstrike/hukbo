@@ -294,7 +294,9 @@ public sealed partial class ArenaGame
                     agent.EntityId,
                     out var swingPose)
                     ? swingPose
-                    : null);
+                    : null,
+                contingentId: agent.ContingentId,
+                contingentState: agent.ContingentState);
         }
     }
 

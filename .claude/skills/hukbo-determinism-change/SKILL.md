@@ -66,20 +66,35 @@ Related rules from `CLAUDE.md` §5 that cause most real failures:
 
 ## Recorded baseline
 
-From `docs/development/testing.md`, seed 1, 200 agents, one final verified run of
-the weapon-clash-on-preset-V2 integration:
+`docs/development/testing.md` is the source of truth for this baseline. It moves every time a task
+re-records it and this skill file is a periodic snapshot copied from it; if the two ever disagree,
+believe `docs/development/testing.md`, not the table below.
+
+From `docs/development/testing.md`'s "movement preset default flips to `PersistentContingentsV2`
+(T15)" section, seed 1, 200 agents, `./scripts/verify.ps1 -SkipBootstrap` run after T15 flipped
+`Scenario.MovementPreset`'s shipped default from `IndependentPursuitV1` to
+`PersistentContingentsV2`:
 
 | Field | Value |
 | --- | --- |
-| Outcome | `Faction1Victory` at tick 1710 |
-| State hash | `71211929A44A16CA` |
-| Event hash | `A2DC3ECA3F7345ED` |
-| Allocated | 93,905,304 bytes |
+| Outcome | `Faction0Victory` at tick 1064 (`faction0Survivors 8`, `faction1Survivors 0`) |
+| State hash | `C79B76AE81C300CB` |
+| Event hash | `8E819FF7B378FEFD` |
+| Allocated | 422,720 bytes (`coreAllocatedBytes 125088`) |
 
-The 500-agent stress workload, report only, from the same build:
-`Faction0Victory` with 11 faction-0 and 0 faction-1 survivors, state hash
-`A4C8B82F2A445691`, event hash `A5C77685987DBA49`, deterministic with no
-mismatch tick.
+**This supersedes the earlier `71211929A44A16CA` / `A2DC3ECA3F7345ED` pair recorded from the
+weapon-clash-on-preset-V2 integration**, which was the seed-1, 200-agent baseline before this
+workstream flipped the shipped default. The hashes, outcome, and survivor counts all moved because
+persistent-contingent cohesion movement changes which agents converge on which enemies and when — a
+real behaviour change, not a representational one. A replay run with `-MovementPreset
+IndependentPursuitV1` named explicitly still reproduces the older, frozen pair; see
+`docs/development/testing.md` for that separate, unmoved record.
+
+The 500-agent stress workload below, report only, is from the earlier
+weapon-clash-on-preset-V2 build the superseded pair above came from, not
+re-measured against the T15 default flip: `Faction0Victory` with 11 faction-0
+and 0 faction-1 survivors, state hash `A4C8B82F2A445691`, event hash
+`A5C77685987DBA49`, deterministic with no mismatch tick.
 
 Pinned content hashes, asserted in `DeterminismTests`: preset V1
 `0x59FB4CA563D87A49`, preset V2 `0x10AB1CC226AB3636`. V1 stays registered and
@@ -98,6 +113,7 @@ history instead of mistaken for a live baseline.
 
 | Dead baseline | State hash | Event hash |
 | --- | --- | --- |
+| 200 agents, weapon-clash-on-preset-V2 integration (pre-T15 default), tick 1710 | `71211929A44A16CA` | `A2DC3ECA3F7345ED` |
 | 200 agents, weapon identity and attributes run (preset V2), tick 1209 | `C669281B67CF8871` | `CF8C3EDBC59C3319` |
 | 500 agents, weapon identity and attributes run (preset V2) | `DA4AA823020FAB3C` | `B6FA93AB66696485` |
 | 200 agents, collision priority fairness run (preset V1), tick 1154 | `5BEBA7A68F69BE0D` | `D379B60B2E30FFFC` |

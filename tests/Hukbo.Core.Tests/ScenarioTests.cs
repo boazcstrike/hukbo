@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Core.Tests;
@@ -188,6 +189,55 @@ public sealed class ScenarioTests
         };
 
         Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateAcceptsIndependentPursuitV1MovementPreset()
+    {
+        var scenario = Scenario.CreateDefault() with
+        {
+            MovementPreset = MovementPresetId.IndependentPursuitV1,
+        };
+
+        scenario.Validate();
+    }
+
+    [Fact]
+    public void ValidateRejectsUnregisteredMovementPreset()
+    {
+        var scenario = Scenario.CreateDefault() with
+        {
+            MovementPreset = (MovementPresetId)99,
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void CreateDefaultSelectsPersistentContingentsV2MovementPreset()
+    {
+        // T15 flips the shipped default from IndependentPursuitV1 to
+        // PersistentContingentsV2. IndependentPursuitV1 stays registered and
+        // unmodified for a replay that names it explicitly; only the value a
+        // caller gets without naming a preset has moved.
+        var scenario = Scenario.CreateDefault();
+
+        Assert.Equal(
+            MovementPresetId.PersistentContingentsV2,
+            scenario.MovementPreset);
+    }
+
+    [Fact]
+    public void ScenariosDifferingOnlyInMovementPresetAreNotEqual()
+    {
+        var first = Scenario.CreateDefault() with
+        {
+            MovementPreset = MovementPresetId.IndependentPursuitV1,
+        };
+        var second = first with { MovementPreset = (MovementPresetId)99 };
+
+        Assert.NotEqual(first, second);
+        Assert.NotEqual(first.GetHashCode(), second.GetHashCode());
     }
 
     [Fact]
@@ -467,6 +517,36 @@ public sealed class ScenarioTests
         };
 
         Assert.Throws<ArgumentOutOfRangeException>(withLastStandEnabled.Validate);
+    }
+
+    [Fact]
+    public void ValidateRejectsABodyRadiusWhoseContingentTrailOverflowsAndAcceptsTheDefault()
+    {
+        // The default scenario's small body radius leaves both the
+        // contingent jitter and the contingent trail comfortably inside
+        // Int32, exactly as it does for the last-stand jitter guard above.
+        Scenario.CreateDefault().Validate();
+
+        // With AgentsPerFaction = 1 (totalAgents: 2), the worst-case living
+        // count is 1, so the jitter multiplier
+        // (IntegerSquareRoot(4 * 1) + 1) is the smallest possible value, 3.
+        // At BodyRadiusRaw = 360,000,000 the jitter (1,080,000,000) still
+        // fits an Int32, but the trail
+        // (((3 * 1,080,000,000 + 1) / 2) + (3 * 360,000,000) =
+        // 2,700,000,000) does not. This isolates the trail guard: the
+        // jitter guard alone would not catch this body radius.
+        var oversizedBody = Scenario.CreateDefault(totalAgents: 2) with
+        {
+            BodyRadiusRaw = 360_000_000,
+            AttackRangeRaw = 720_000_000,
+            PerceptionRangeRaw = 720_000_000,
+            MovementSpeedRaw = FixedPoint.Scale,
+            MapWidth = Scenario.MaximumMapDimension,
+            MapHeight = Scenario.MaximumMapDimension,
+            LastStandThresholdAgents = 0,
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(oversizedBody.Validate);
     }
 
     [Fact]

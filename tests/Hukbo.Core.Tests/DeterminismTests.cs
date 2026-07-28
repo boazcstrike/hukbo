@@ -3,6 +3,7 @@ using System.Text.Json;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 using Hukbo.Headless;
 
@@ -37,8 +38,21 @@ public sealed class DeterminismTests
     /// matches the pre-combo build's narrower one even though the run itself is
     /// byte-for-byte the same battle. The superseded value was
     /// <c>0x5BEBA7A68F69BE0D</c>, still at terminal tick 1154.
+    /// Recaptured a third time for task T5b of
+    /// docs/plans/2026-07-28-formation-movement-realism.md: T4 folded
+    /// <c>Scenario.MovementPreset</c> and the two new per-agent contingent
+    /// words into <c>StateHasher.Compute</c> for every <c>CombatPresetId</c>,
+    /// including this fixture's <c>PrecolonialPhilippinesV1</c> control run,
+    /// which this fixture's own scenario runs at its default
+    /// <c>MovementPreset</c> and default (zero) <c>ContingentId</c> /
+    /// <c>ContingentState</c> for every agent -- so the hash moves even though
+    /// nothing about this control run's behaviour does. The per-tick event
+    /// fold, event count, and final per-agent rows were reconfirmed
+    /// unchanged before the fixture's <c>stateHash</c> column was rewritten;
+    /// see that task for the confirmation method. The superseded value was
+    /// <c>0xFD85207FF329F02D</c>, still at terminal tick 1154.
     /// </summary>
-    private const ulong PreClashTerminalStateHash = 0xFD85207FF329F02DUL;
+    private const ulong PreClashTerminalStateHash = 0xAE3BEC9EE7BCEDFCUL;
 
     private const string PreClashDigestFileName =
         "seed-1-200-agents-preclash-digest.json";
@@ -51,7 +65,17 @@ public sealed class DeterminismTests
         var right = BattleSimulation.Create(scenario);
         var sawAttackEvent = false;
 
-        for (var tick = 0; tick < 2_000 && left.Outcome == BattleOutcome.Ongoing; tick++)
+        // The loop bound tracks the scenario's own TickLimit rather than a
+        // second hardcoded figure. It was 2,000 -- comfortably above the
+        // frozen IndependentPursuitV1 preset's own pinned seed-1 tick count
+        // of 1,710 -- until T15 of
+        // docs/plans/2026-07-28-formation-movement-realism.md flipped the
+        // shipped default to PersistentContingentsV2, whose contingent
+        // cohesion cycle (up to 240 ticks per duty window) legitimately
+        // extends how long an arbitrary seed can take to reach a terminal
+        // outcome, well inside the 10,000-tick TickLimit the design's own
+        // twenty-seed liveness sweep is measured against.
+        for (var tick = 0; tick < scenario.TickLimit && left.Outcome == BattleOutcome.Ongoing; tick++)
         {
             left.AdvanceOneTick();
             right.AdvanceOneTick();
@@ -177,6 +201,17 @@ public sealed class DeterminismTests
             "--ticks", Ticks.ToString(CultureInfo.InvariantCulture),
             "--seed", Seed.ToString(CultureInfo.InvariantCulture),
             "--preset", nameof(CombatPresetId.PrecolonialPhilippinesV3),
+            // Named explicitly rather than left to whatever
+            // Scenario.MovementPreset defaults to. This Fact exists to isolate
+            // the V3 attack-combination axis -- see the type-level remarks --
+            // and task T15 of docs/plans/2026-07-28-formation-movement-realism.md
+            // makes the shipped default PersistentContingentsV2, which changes
+            // real movement behaviour rather than merely moving a
+            // representational hash. Following the default here would let a
+            // future movement-axis regression move this Fact's pinned values
+            // for a reason that has nothing to do with what it exists to
+            // guard.
+            "--movement-preset", nameof(MovementPresetId.IndependentPursuitV1),
         ];
         var exitCode = HeadlessRunner.Run(arguments, output, error);
         Assert.Equal(0, exitCode);
@@ -185,8 +220,61 @@ public sealed class DeterminismTests
         var stateHash = report.RootElement.GetProperty("stateHash").GetString();
         var eventHash = report.RootElement.GetProperty("eventHash").GetString();
 
-        Assert.Equal("C2728456AEB9F760", stateHash);
+        // Recaptured for docs/plans/2026-07-28-formation-movement-realism.md
+        // task T5: StateHasher.Compute now folds Scenario.MovementPreset and
+        // two new per-agent words (ContingentId, ContingentState) for every
+        // scenario, including this preset-V3 control run, so the state hash
+        // moved even though nothing about the V3 attack-combination behaviour
+        // did. eventHash is unaffected -- the event fold never read either new
+        // field. The superseded stateHash was "C2728456AEB9F760".
+        Assert.Equal("09851F8966D124D9", stateHash);
         Assert.Equal("E30AD003EFDDD267", eventHash);
+    }
+
+    /// <summary>
+    /// Task T15 of docs/plans/2026-07-28-formation-movement-realism.md. A
+    /// small, fast seed-1 workload run through the same headless path
+    /// <see cref="PresetV3_SeedOneStateAndEventHashArePinned"/> uses, pinned
+    /// against <see cref="MovementPresetId.PersistentContingentsV2"/> -- the
+    /// preset T15 makes the shipped default -- so an accidental change
+    /// anywhere in the contingent state machine, the cohesion movement
+    /// branch, the arrival taper, or the shared StateHasher/event-hash fold
+    /// fails here rather than only in the much slower 200-agent/10,000-tick
+    /// benchmark. Not a substitute for that benchmark -- see
+    /// docs/development/testing.md for the recorded seed-1, 200-agent,
+    /// 10,000-tick result -- but this Fact runs on every
+    /// <c>dotnet test</c> invocation.
+    /// </summary>
+    [Fact]
+    public void PersistentContingentsV2_SeedOneStateAndEventHashArePinned()
+    {
+        const ulong Seed = 1;
+        const int Agents = 20;
+        const int Ticks = 200;
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+        string[] arguments =
+        [
+            "--agents", Agents.ToString(CultureInfo.InvariantCulture),
+            "--ticks", Ticks.ToString(CultureInfo.InvariantCulture),
+            "--seed", Seed.ToString(CultureInfo.InvariantCulture),
+            "--movement-preset", nameof(MovementPresetId.PersistentContingentsV2),
+        ];
+        var exitCode = HeadlessRunner.Run(arguments, output, error);
+        Assert.Equal(0, exitCode);
+
+        using var report = JsonDocument.Parse(output.ToString());
+        var stateHash = report.RootElement.GetProperty("stateHash").GetString();
+        var eventHash = report.RootElement.GetProperty("eventHash").GetString();
+
+        // Captured for task T15 of docs/plans/2026-07-28-formation-movement-realism.md,
+        // the task that flips Scenario.MovementPreset's shipped default to
+        // PersistentContingentsV2. This is the first pinned pair recorded
+        // for the new default at this fast, 20-agent/200-tick scale --
+        // there is no prior value to record as superseded.
+        Assert.Equal("96D59BDBCDD05293", stateHash);
+        Assert.Equal("12C14F63B4BA1E3B", eventHash);
     }
 
     /// <summary>
@@ -803,6 +891,14 @@ public sealed class DeterminismTests
             // different preset's six-loadout roster and per-weapon attributes
             // than the one the fixture actually recorded.
             CombatPreset = CombatPresetId.PrecolonialPhilippinesV1,
+            // Likewise for the movement axis: the fixture was captured under
+            // IndependentPursuitV1, before Scenario.MovementPreset defaulted
+            // to PersistentContingentsV2 in T15 of
+            // docs/plans/2026-07-28-formation-movement-realism.md. The
+            // control run has to name V1 explicitly, or it silently
+            // replays the frozen digest against a preset that moves every
+            // agent's trajectory.
+            MovementPreset = MovementPresetId.IndependentPursuitV1,
         };
         scenario.Validate();
 

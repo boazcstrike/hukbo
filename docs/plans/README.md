@@ -30,8 +30,9 @@ implemented and the game runs it. Stages 2 and 3 are design only.**
 | --- | --- | --- |
 | 1 | [`docs/archives/2026-07-28/2026-07-27-weapon-identity-and-attributes-design.md`](../archives/2026-07-28/2026-07-27-weapon-identity-and-attributes-design.md) — preset V2 | Archived: implemented and complete |
 | 1 | [`docs/archives/2026-07-28/2026-07-27-weapon-identity-and-attributes.md`](../archives/2026-07-28/2026-07-27-weapon-identity-and-attributes.md) — preset V2 task list | Archived: implemented and complete |
-| 2 | [`2026-07-27-combat-preset-v3-combos-design.md`](2026-07-27-combat-preset-v3-combos-design.md) — preset V3 | Design complete, no plan document |
-| 3 | [`SHIELDS.md`](SHIELDS.md) — shields as a stat-variant layer | Design complete, no plan document |
+| 2 | [`docs/archives/2026-07-28/2026-07-27-combat-preset-v3-combos-design.md`](../archives/2026-07-28/2026-07-27-combat-preset-v3-combos-design.md) — preset V3 | Archived: implemented and complete — `src/Hukbo.Core/Combat/CombatPresetRegistry.cs:16,61` registers `PrecolonialPhilippinesV3`, documented at `src/Hukbo.Core/Combat/CombatIdentity.cs:105-113` |
+| 2 | [`docs/archives/2026-07-28/2026-07-27-combat-preset-v3-combos.md`](../archives/2026-07-28/2026-07-27-combat-preset-v3-combos.md) — preset V3 task list | Archived: implemented and complete |
+| 3 | [`docs/archives/2026-07-27/SHIELDS.md`](../archives/2026-07-27/SHIELDS.md) — shields as a stat-variant layer | Design complete, no plan document |
 
 What each stage does:
 
@@ -127,6 +128,79 @@ squared-distance check in target selection. The same stage profile that decided
 those four verdicts points at collision resolution as the next candidate for
 attention; that stage is explicitly out of scope for this plan and needs its own
 design document before anyone touches it.
+
+## The formation and movement realism workstream — complete and archived
+
+Both documents were archived on 2026-07-28, the day the last task (T19) closed
+out the ordered list. They are reference only; do not execute either. The
+evidence this workstream produced is live and stays where it is, in
+[docs/development/testing.md](../development/testing.md) and
+`SIMULATION-GAME-STANDARDS.md`.
+
+| Document | Status |
+| --- | --- |
+| [`docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md`](../archives/2026-07-28/2026-07-28-formation-movement-realism-design.md) | Archived. Design only; it never authorized implementation. |
+| [`docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md`](../archives/2026-07-28/2026-07-28-formation-movement-realism.md) | Archived. Carries the ordered task list (T1 through T19) and the verification criteria. |
+
+What it delivered:
+
+- A new `MovementPresetId.PersistentContingentsV2 = 2`, registered alongside
+  the frozen `IndependentPursuitV1 = 1`, both reachable through
+  `--movement-preset` on the headless runner and `-MovementPreset` on
+  `scripts/benchmark.ps1`. `PersistentContingentsV2` carries its own pinned
+  `ContentHash` literal (`0xE5AC42AA7FC19301`), distinct from V1's, and its own
+  pinned seed-1 state and event hashes.
+- `Scenario.MovementPreset` now defaults to `PersistentContingentsV2` (T15),
+  so every battle the game runs without an explicit preset selection uses
+  persistent, cycling contingents rather than pure independent pursuit.
+  `IndependentPursuitV1` stays registered, frozen, and byte-identical: the
+  seed-1/200-agent/10,000-tick trajectory captured before this workstream
+  began (`eventHash 2A9F2D7054CD1805`, `stateHash AFEBC0431554BCBB`,
+  `Faction1Victory`, survivors 0 and 2, `measuredTicks 1710`) still reproduces
+  exactly when that preset is selected explicitly.
+- A ninth tick stage, `ResolveContingentStates`, between
+  `SelectTargetsAndIntents` and `GatherMovementProposals`, cycling each
+  faction's up to eight contingents between gathering on their own leader and
+  advancing independently for the whole battle — not only during the
+  last-stand rally that already existed. The state machine, the duty cycle,
+  the leader scan, the straggler gate, the arrival-slowdown taper, and the two
+  geometric cohesion gates (the map-edge test and the cross-contingent overlap
+  test) are all covered by dedicated unit-level test files
+  (`ContingentStateMachineTests`, `ArrivalTaperTests`,
+  `PersistentContingentTests`) plus three deliberately engineered deadlock
+  geometries (`ContingentDeadlockTests`) that the twenty-seed liveness sweep
+  alone cannot guarantee it will ever construct.
+- An inspector row (`Contingent: <n> — <state>`) and a per-contingent ground
+  tint helper, so the mechanism is discoverable by a spectator without reading
+  source, per `SIMULATION-GAME-STANDARDS.md` section 10's ninth question.
+  Wiring the tint into actual pawn rendering was identified during the work
+  but is not itself covered by any task in the archived plan; a future task
+  would need to thread the active theme and the agent's contingent fields down
+  to `PawnRenderer.Draw`.
+- Updated documentation: `SIMULATION-GAME-STANDARDS.md`'s tick-stage order and
+  `docs/research/TICK-STAGE-PROFILE.md` both now show nine stages, and
+  `docs/development/testing.md` carries the new baseline, the T16
+  before/after performance tables, and a new "Persistent contingent smoke"
+  section (rows 102 through 114).
+
+What is still outstanding:
+
+- **Every new smoke-checklist row is `PENDING`.** The automated suite proves
+  the state machine, the two geometric gates, and the three engineered
+  deadlock geometries all resolve correctly, both standalone and inside a
+  running simulation, but none of it proves the resulting movement reads as a
+  group of warriors gathering and advancing together to a person watching it.
+  Only a human running `./scripts/run.ps1` on an interactive desktop may flip
+  one of those rows to `PASS`, per `docs/development/testing.md`'s own rule,
+  and no task in this workstream did.
+- **The canonical gate, `./scripts/verify.ps1`, has not yet been run as a
+  single pass over the fully integrated tree.** Each task verified against
+  the scope its own instructions named — `./scripts/test.ps1`, a targeted
+  `./scripts/benchmark.ps1` run, or `./scripts/verify.ps1 -SkipBootstrap` at
+  specific checkpoints (T5, T5b) — consistent with the plan's own rule that
+  the full gate "runs once, after integration" and is never delegated to a
+  sub-agent. Whoever integrates this branch still owes that one run and its
+  literal pasted output.
 
 ## Where the live contract lives
 

@@ -512,6 +512,7 @@ The battle simulation executes these stages, in this order, on every tick:
 ```text
 DecrementCooldowns
 SelectTargetsAndIntents
+ResolveContingentStates      // no-op under IndependentPursuitV1
 GatherMovementProposals      // reads tick-start positions only
 ResolveCollisions            // rebuilds the grid, validates candidates
 CommitMovement               // single commit, emits Move events
@@ -519,6 +520,23 @@ MeasureCollision             // pure observation, writes no agent state
 GatherAndCommitAttacks       // reads resolved positions
 ResolveOutcome
 ```
+
+`ResolveContingentStates` returns on its first line under
+`MovementPresetId.IndependentPursuitV1`, so that preset's tick pipeline is
+unchanged in effect even though the stage now always runs. Under
+`MovementPresetId.PersistentContingentsV2` it reads each living agent's
+position, `FactionId`, `ContingentId`, and selected `TargetEntityId`, plus
+`Scenario`'s map dimensions and body radius, to compute — once per contingent
+per tick, into preallocated per-slot arrays sized at construction — each
+living contingent's leader, living member count, member spread around that
+leader, nearest-enemy distance, trail-base geometry, and the two geometric
+gates (map-edge fit and same-faction square overlap) design section 3.5 of
+`docs/plans/2026-07-28-formation-movement-realism-design.md` names gates 5 and
+6. It then resolves each living contingent's `ContingentState` through the
+six-priority-ordered transition table and writes that state onto every one of
+the contingent's living members. The per-slot arrays are working buffers
+recomputed from scratch every tick; only the per-agent `ContingentState` write
+is authoritative state, and it is what `StateHasher.Compute` observes.
 
 `MeasureCollision` derives this tick's counters from committed positions. It writes no agent state
 and nothing it produces is hashed.
@@ -792,6 +810,15 @@ rather than correlated draws off the same stream. Neither draws from `SplitMix64
 shared generator, so adding this stage shifts no pre-existing deterministic behaviour — proven by the
 zero-interception control run, which reproduces the pre-change event stream and state hash tick for
 tick when every clash channel is held at zero.
+
+Every domain tag in the simulation is a fresh, distinct 64-bit ASCII constant folded first into its
+own keyed roll, precisely so that unrelated draws never correlate: `HKBO_CLS` above, `HKBO_HIT` for
+`HitLocationResolver`, the last-stand jitter's `LastStandTag` (`0x484B424F5F4C5354`), the
+collision-priority key's own tag, and — newest — `HKBO_CTG` (`0x484B424F5F435447`), which
+`ContingentOffset.Compute` folds with the seed and entity ID, excluding the tick, to draw each
+persistent contingent's per-member cohesion-square jitter offset. Reusing an existing tag for a new
+roll would correlate the two draws off the same stream; this paragraph is the inventory a new domain
+tag is checked against before it is minted.
 
 ### The composition rule
 
