@@ -32,8 +32,32 @@ public sealed class ScenarioTests
         scenario.Validate();
 
         Assert.Equal(CollisionRules.DefaultBodyRadiusRaw, scenario.BodyRadiusRaw);
-        Assert.Equal(4 * FixedPoint.Scale, scenario.BodyRadiusRaw);
+        Assert.Equal((17 * FixedPoint.Scale) / 4, scenario.BodyRadiusRaw);
         Assert.Equal(CollisionPolicy.Solid, scenario.CollisionPolicy);
+    }
+
+    [Fact]
+    public void TheCanonicalTwoHundredAgentScenarioClearsEveryCollisionGuardAtTheEnlargedRadius()
+    {
+        // Task C3 (docs/plans/2026-07-28-collision-report-and-shell.md):
+        // re-verifies, in one place, every guard tabulated in design section
+        // 1.4 that could have rejected the 4.25-world-unit body radius --
+        // attack-range clearance and movement-speed clearance
+        // (ValidateCollisionConfiguration), map-dimension bounds, and
+        // body-density placeability (ValidateBodyDensity) -- against the
+        // exact scenario the canonical 200-agent / 10,000-tick / seed-1
+        // workload runs. Scenario.CreateDefault already calls Validate()
+        // once during construction; this Fact calls it again explicitly so
+        // the guard coverage is asserted by name rather than only as a
+        // side effect of construction succeeding.
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200);
+
+        Assert.Equal(1_280, scenario.MapWidth);
+        Assert.Equal(720, scenario.MapHeight);
+        Assert.Equal(200, scenario.TotalAgents);
+        Assert.Equal((17 * FixedPoint.Scale) / 4, scenario.BodyRadiusRaw);
+
+        scenario.Validate();
     }
 
     [Theory]

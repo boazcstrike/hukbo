@@ -16,6 +16,7 @@ internal sealed class PresentationCoordinator
         Blood = new BloodEffectSystem(bloodBurstCapacity);
         Swings = new SwingAnimationSystem(swingCapacity);
         ClashEffects = new ClashEffectSystem(clashEffectCapacity);
+        BattleReportAccumulator = new BattleReportAccumulator();
     }
 
     public PlaybackController Playback { get; } = new();
@@ -43,13 +44,30 @@ internal sealed class PresentationCoordinator
     /// </summary>
     public ClashEffectSystem ClashEffects { get; }
 
+    /// <summary>
+    /// Accumulates the per-unit, per-faction, and battle-wide statistics
+    /// behind the post-battle battle report. Fed here from the raw per-tick
+    /// event list, never through <see cref="EventFeed"/> — that feed
+    /// truncates to its last 200 entries, which would silently corrupt every
+    /// statistic derived from it.
+    /// </summary>
+    public BattleReportAccumulator BattleReportAccumulator { get; }
+
     public MatchSummary? Summary { get; private set; }
+
+    /// <summary>
+    /// The immutable battle report snapshot, set once a battle reaches a
+    /// terminal outcome by <see cref="ProcessTerminal"/>, alongside
+    /// <see cref="Summary"/>.
+    /// </summary>
+    public BattleReport? Report { get; private set; }
 
     public void IngestTick(
         IReadOnlyList<BattleEvent> events,
         IReadOnlyList<AgentView> agents)
     {
         EventFeed.Ingest(events);
+        BattleReportAccumulator.Ingest(events);
         HitEffects.Ingest(events, agents);
         Blood.Ingest(events, agents);
         Swings.Ingest(events, agents);
@@ -98,6 +116,7 @@ internal sealed class PresentationCoordinator
             tick,
             tickRate,
             seed);
+        Report ??= BattleReportAccumulator.Snapshot(tick);
         return Summary;
     }
 
@@ -115,10 +134,12 @@ internal sealed class PresentationCoordinator
         Playback.Pause();
         Selection.Clear();
         EventFeed.Clear();
+        BattleReportAccumulator.Clear();
         HitEffects.Clear();
         Blood.Clear();
         Swings.Clear();
         ClashEffects.Clear();
         Summary = null;
+        Report = null;
     }
 }

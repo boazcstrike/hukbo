@@ -2,6 +2,16 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Required by the [LibraryImport] source generator used for the
+         SDL_MinimizeWindow P/Invoke in ArenaGame.cs (window-chrome's
+         Minimize command) — its generated stub uses an unmanaged function
+         pointer even for this simple, fully blittable signature, which the
+         compiler only allows in an unsafe context. This is the SDK's own
+         requirement for LibraryImportAttribute, not hand-written unsafe
+         code; the alternative, a plain [DllImport], raises SYSLIB1054 under
+         this repository's TreatWarningsAsErrors, which CLAUDE.md forbids
+         suppressing. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Hukbo.Core/Hukbo.Core.csproj" />

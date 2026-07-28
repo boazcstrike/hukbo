@@ -56,6 +56,53 @@ public sealed class PresentationCoordinatorTests
         Assert.Empty(coordinator.Blood.ActiveGroundMarks.ToArray());
         Assert.Empty(coordinator.Blood.ActiveSpurts.ToArray());
         Assert.Null(coordinator.Summary);
+        Assert.Null(coordinator.Report);
+        Assert.Empty(coordinator.BattleReportAccumulator.Snapshot(1).Leaderboard);
+    }
+
+    /// <summary>
+    /// Mirrors <see cref="IngestTick_ForwardsEveryBatchToFeedAndHitEffects"/>,
+    /// but for the battle-report accumulator, and asserts it received the raw
+    /// per-tick events directly — not a truncated view through
+    /// <see cref="PresentationCoordinator.EventFeed"/>, which retains only its
+    /// last 200 entries.
+    /// </summary>
+    [Fact]
+    public void IngestTick_ForwardsEveryBatchToBattleReportAccumulator()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
+
+        coordinator.IngestTick([AttackEvent(1, 1, 2)], agents);
+        coordinator.IngestTick([AttackEvent(2, 1, 2)], agents);
+
+        var snapshot = coordinator.BattleReportAccumulator.Snapshot(
+            terminalTick: 2);
+        var attacker = Assert.Single(
+            snapshot.Leaderboard,
+            row => row.EntityId == 1);
+        Assert.Equal(2, attacker.AttacksMade);
+        Assert.Equal(2, attacker.AttacksLanded);
+    }
+
+    /// <summary>
+    /// Mirrors <see cref="ResetFor_ClearsSwingsAndClashEffects"/> for the
+    /// battle-report accumulator.
+    /// </summary>
+    [Fact]
+    public void ResetFor_ClearsTheBattleReportAccumulator()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
+        coordinator.IngestTick([AttackEvent(1, 1, 2)], agents);
+
+        Assert.NotEmpty(
+            coordinator.BattleReportAccumulator.Snapshot(1).Leaderboard);
+
+        coordinator.ResetFor(ClientCommand.NextRound);
+
+        Assert.Empty(
+            coordinator.BattleReportAccumulator.Snapshot(1).Leaderboard);
     }
 
     [Fact]
@@ -196,6 +243,44 @@ public sealed class PresentationCoordinatorTests
         Assert.Same(first, second);
         Assert.Same(first, coordinator.Summary);
         Assert.Single(coordinator.EventFeed.Entries);
+    }
+
+    /// <summary>
+    /// <see cref="PresentationCoordinator.ProcessTerminal"/> exposes the
+    /// battle report snapshot alongside the match summary, and is idempotent
+    /// about it in the same way — a later call with the same terminal
+    /// arguments does not replace the already-materialized snapshot.
+    /// </summary>
+    [Fact]
+    public void ProcessTerminal_SetsTheReportAlongsideTheSummary()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
+        coordinator.IngestTick([AttackEvent(1, 1, 2)], agents);
+
+        Assert.Null(coordinator.Report);
+
+        var summary = coordinator.ProcessTerminal(
+            BattleOutcome.Faction0Victory,
+            agents,
+            tick: 1,
+            tickRate: 20,
+            seed: 1);
+
+        Assert.NotNull(coordinator.Report);
+        Assert.Equal(1, coordinator.Report!.TerminalTick);
+        Assert.NotEmpty(coordinator.Report.Leaderboard);
+
+        var firstReport = coordinator.Report;
+        coordinator.ProcessTerminal(
+            BattleOutcome.Faction0Victory,
+            agents,
+            tick: 1,
+            tickRate: 20,
+            seed: 1);
+
+        Assert.Same(firstReport, coordinator.Report);
+        Assert.Same(summary, coordinator.Summary);
     }
 
     private static AgentView CreateAgent(ulong entityId) =>

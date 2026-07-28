@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Hukbo.Core.Combat;
 using Microsoft.Xna.Framework;
@@ -21,11 +22,11 @@ public sealed class ArmyCompositionPanelTests
     private static Hukbo.Client.Theming.UiArmyCompositionLayout
         TestArmyCompositionLayout =>
         new(
-            PanelWidth: 420,
+            PanelWidth: 640,
             PanelHeight: 648,
             RowHeight: 44,
             RowGap: 8,
-            StepperWidth: 260,
+            StepperWidth: 148,
             ArrowWidth: 44);
 
     [Fact]
@@ -107,6 +108,39 @@ public sealed class ArmyCompositionPanelTests
                 $"A row ending at {bounds.Bottom} falls past the panel's " +
                 $"bottom margin at {layout.PanelBounds.Bottom - margin}.");
         }
+    }
+
+    [Fact]
+    public void EveryRowLabelFitsItsLabelBoundsUnderTheConservativeAdvanceEstimate()
+    {
+        // EveryLaidOutRowFitsInsideThePanel only checks vertical extents, so a
+        // label that overruns its own box horizontally was invisible to the
+        // suite: at the shipped 420/260 metrics the longest category label,
+        // "Kalis — Thrusting Blade (shielded)", needed roughly 408px of a
+        // 128px label box. This test measures every row's label against its
+        // box directly so that overflow fails here instead of shipping.
+        var layout = ArmyCompositionPanel.CalculateLayout(
+            new Rectangle(0, 0, 1280, 720),
+            TestArmyCompositionLayout);
+        var advancePx = UiFontRamp.GetApproximateAdvancePx(UiFontRole.Label);
+
+        for (var index = 0; index < layout.CategoryRows.Length; index++)
+        {
+            var label = ArmyCompositionPanel.CategoryLabels[index];
+            var row = layout.CategoryRows[index];
+            Assert.True(
+                label.Length * advancePx <= row.LabelBounds.Width,
+                $"\"{label}\" needs {label.Length * advancePx}px but its " +
+                $"label box is only {row.LabelBounds.Width}px wide.");
+        }
+
+        const string unitsPerTeamLabel = "Units Per Team";
+        Assert.True(
+            unitsPerTeamLabel.Length * advancePx
+                <= layout.UnitsPerTeamRow.LabelBounds.Width,
+            $"\"{unitsPerTeamLabel}\" needs " +
+            $"{unitsPerTeamLabel.Length * advancePx}px but its label box is " +
+            $"only {layout.UnitsPerTeamRow.LabelBounds.Width}px wide.");
     }
 
     private static IEnumerable<Rectangle> AllRowBounds(

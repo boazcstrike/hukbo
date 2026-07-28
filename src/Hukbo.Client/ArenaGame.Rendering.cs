@@ -136,6 +136,17 @@ public sealed partial class ArenaGame
             _presentation.Summary,
             layout.ArenaBounds,
             theme);
+        if (_isBattleReportVisible && _presentation.Report is not null)
+        {
+            _battleReportPanel.Draw(
+                spriteBatch,
+                pixel,
+                fonts,
+                _presentation.Report,
+                layout.ArenaBounds,
+                theme);
+        }
+
         _menu.Draw(
             spriteBatch,
             pixel,

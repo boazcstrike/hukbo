@@ -40,12 +40,12 @@ public sealed class FormationRulesTests
     }
 
     [Fact]
-    public void RallyJitterRadiusForTheDefaultBodyIsTwentyFourWorldUnits()
+    public void RallyJitterRadiusForTheDefaultBodyIsTwentyFiveAndAHalfWorldUnits()
     {
         var jitterRaw = FormationRules.ComputeRallyJitterRaw(
             CollisionRules.DefaultBodyRadiusRaw);
 
-        Assert.Equal(24 * FixedPoint.Scale, jitterRaw);
+        Assert.Equal((51 * FixedPoint.Scale) / 2, jitterRaw);
     }
 
     [Fact]

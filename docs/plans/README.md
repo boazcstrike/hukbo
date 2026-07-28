@@ -128,6 +128,27 @@ those four verdicts points at collision resolution as the next candidate for
 attention; that stage is explicitly out of scope for this plan and needs its own
 design document before anyone touches it.
 
+## Collision resolution scaling — design only
+
+That design document now exists:
+[`2026-07-28-collision-resolution-scaling-design.md`](2026-07-28-collision-resolution-scaling-design.md).
+It is design only, there is no plan document behind it, and no line of
+`Hukbo.Core` has changed on its account.
+
+It proposes indexing the pending movers in a second uniform grid and giving the
+grid a strict-overlap query, so that `CollisionResolver.IsFree` stops walking
+two linear lists and instead tests a neighbourhood bounded at thirty-six bodies
+independently of agent count. The change is hash-neutral by construction: the
+set of obstacles and the overlap predicate are identical, only the traversal
+changes, so every recorded state hash and event hash must come back
+byte-identical and no preset version is cut.
+
+The document also argues the case for doing nothing, and that case is real. The
+canonical gate runs 200 agents, where the p50 tick is 0.0806 ms against a 50 ms
+budget; the 2,000-agent point is a stress report, not a contract. What should
+decide the work is whether a larger supported battle size, the 4x speed target,
+or the campaign layer is close enough to matter.
+
 ## Where the live contract lives
 
 | Question | Source |

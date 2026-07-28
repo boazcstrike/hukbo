@@ -185,8 +185,23 @@ public sealed class DeterminismTests
         var stateHash = report.RootElement.GetProperty("stateHash").GetString();
         var eventHash = report.RootElement.GetProperty("eventHash").GetString();
 
-        Assert.Equal("C2728456AEB9F760", stateHash);
-        Assert.Equal("E30AD003EFDDD267", eventHash);
+        // Regenerated for task C5 (docs/plans/2026-07-28-collision-report-and-
+        // shell.md) after CollisionRules.DefaultBodyRadiusRaw moved from four
+        // world units to 4.25 (design doc 2026-07-28-collision-report-and-
+        // shell-design.md section 1.3). Captured from a real run of this
+        // exact command: `dotnet run --project src/Hukbo.Headless -c Release
+        // --no-build -- --agents 20 --ticks 200 --seed 1 --preset
+        // PrecolonialPhilippinesV3`, which reported measuredTicks 200 and
+        // outcome Draw alongside these two hashes.
+        //
+        // Two generations of superseded values, both recorded here because the
+        // radius was retuned twice. Against the original four-world-unit
+        // radius: "C2728456AEB9F760" (state) and "E30AD003EFDDD267" (event).
+        // Against the 4.5-world-unit radius, which was abandoned when it
+        // reintroduced the last-stand deadlock: "3633AE94D42A49D6" (state) and
+        // "DA8A604E5FC575BA" (event).
+        Assert.Equal("9F82DB470782B330", stateHash);
+        Assert.Equal("71E7B6746D00C5D1", eventHash);
     }
 
     /// <summary>
@@ -582,7 +597,17 @@ public sealed class DeterminismTests
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
             CreateAgent(lowerRowEntityId, 0, 60 * FixedPoint.Scale, 46 * FixedPoint.Scale, scenario),
-            CreateAgent(upperRowEntityId, 0, 60 * FixedPoint.Scale, 54 * FixedPoint.Scale, scenario),
+            // 54.5, not 54: exactly one body diameter (8.5 world units at the
+            // enlarged 4.25-world-unit collision radius, task C1,
+            // docs/plans/2026-07-28-collision-report-and-shell.md) above the
+            // lower row. CreateForTesting does not validate initial
+            // placement, so an unwidened eight-unit gap here would start the
+            // two allies illegally overlapped and poison the contest this
+            // test exists to check. The gap must be exactly one diameter and
+            // no more: the two bodies have to start legally tangent for the
+            // contest to happen at all, and any slack lets both allies move
+            // freely instead of competing for the same ground.
+            CreateAgent(upperRowEntityId, 0, 60 * FixedPoint.Scale, (109 * FixedPoint.Scale) / 2, scenario),
             CreateAgent(3, 1, 100 * FixedPoint.Scale, 50 * FixedPoint.Scale, scenario));
 
         simulation.AdvanceOneTick();
@@ -803,6 +828,14 @@ public sealed class DeterminismTests
             // different preset's six-loadout roster and per-weapon attributes
             // than the one the fixture actually recorded.
             CombatPreset = CombatPresetId.PrecolonialPhilippinesV1,
+            // The fixture was also captured before CollisionRules
+            // .DefaultBodyRadiusRaw moved from four world units to 4.5
+            // (design doc 2026-07-28-collision-report-and-shell-design.md
+            // section 1.3). Pinning the old radius explicitly here, rather
+            // than reading the current default, keeps this control run
+            // holding every quantity but the clash profile constant, which
+            // is the whole point of the comparison it makes.
+            BodyRadiusRaw = 4 * FixedPoint.Scale,
         };
         scenario.Validate();
 

@@ -44,8 +44,11 @@ public sealed class CollisionRegressionTests
     /// <summary>
     /// Rows of a hand-built line are spaced exactly one body diameter apart, so
     /// neighbours rest in tangent contact. Tangency is clearance, not collision.
+    /// Nine world units at the enlarged 4.25-world-unit collision radius (task
+    /// C1, docs/plans/2026-07-28-collision-report-and-shell.md); it was eight
+    /// before that change.
     /// </summary>
-    private const int RowSpacingWorld = 8;
+    private const int RowSpacingWorld = 9;
 
     /// <summary>
     /// Acceptance row <c>Head-on</c> / the authoritative post-tick invariant of
@@ -138,7 +141,7 @@ public sealed class CollisionRegressionTests
         var scenario = LineScenario(rows) with { AttackCooldownTicks = 1 };
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
-            BuildOpposingLines(scenario, leftXWorld: 60, rightXWorld: 68, rows));
+            BuildOpposingLines(scenario, leftXWorld: 60, rightXWorld: 69, rows));
         var matchedAttackers = 0;
 
         for (var tick = 0; tick < 5; tick++)
@@ -195,10 +198,12 @@ public sealed class CollisionRegressionTests
 
     /// <summary>
     /// Acceptance row <c>Packed front</c> / decision record section 3. Two bodies
-    /// pressed into contact sit exactly one diameter apart — eight world units —
-    /// against a twelve-world-unit reach, so a packed front must deal damage
-    /// rather than deadlock. This is the row that proves solid contact did not
-    /// strangle combat.
+    /// pressed into contact sit exactly one diameter apart — nine world units at
+    /// the enlarged 4.25-world-unit collision radius (task C1,
+    /// docs/plans/2026-07-28-collision-report-and-shell.md); it was eight
+    /// before that change — against a twelve-world-unit reach, so a packed
+    /// front must deal damage rather than deadlock. This is the row that
+    /// proves solid contact did not strangle combat.
     /// </summary>
     [Fact]
     public void PackedFront_OpposingBodiesInContactStayInsideReachAndDealDamage()
@@ -207,7 +212,7 @@ public sealed class CollisionRegressionTests
         var scenario = LineScenario(rows);
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
-            BuildOpposingLines(scenario, leftXWorld: 60, rightXWorld: 68, rows));
+            BuildOpposingLines(scenario, leftXWorld: 60, rightXWorld: 69, rows));
         var contactTicksWithDamage = 0;
 
         for (var tick = 0; tick < 12; tick++)

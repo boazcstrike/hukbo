@@ -105,11 +105,11 @@
         "swatchGap": 5
       },
       "armyComposition": {
-        "panelWidth": 420,
+        "panelWidth": 640,
         "panelHeight": 648,
         "rowHeight": 44,
         "rowGap": 8,
-        "stepperWidth": 260,
+        "stepperWidth": 148,
         "arrowWidth": 44
       }
     }

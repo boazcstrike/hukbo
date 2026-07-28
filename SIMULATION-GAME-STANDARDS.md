@@ -427,8 +427,8 @@ held on the immutable `Scenario` rather than duplicated per agent.
 
 | Item | Raw value | World units |
 |---|---|---|
-| `BodyRadiusRaw` (common to all agents) | `4096` | 4 |
-| Body diameter, `2 * BodyRadiusRaw` | `8192` | 8 |
+| `BodyRadiusRaw` (common to all agents) | `4352` | 4.25 |
+| Body diameter, `2 * BodyRadiusRaw` | `9216` | 9 |
 | `AttackRangeRaw` (default) | `12288` | 12 |
 | `MovementSpeedRaw` (default) | `3072` | 3 |
 
@@ -599,8 +599,8 @@ is why the first gated run reported zero contact pairs.
 
 Contact metrics therefore use a proximity band of `BodyRadiusRaw + (MovementSpeedRaw / 2)` per body:
 a pair counts as in contact when the two bodies are within one movement step of touching. At the
-default values that is `5632` raw units per body, so the broad phase pairs bodies whose centres are
-within `11264` raw units. This is the honest reading of "pressed together" for a spectator, and it is
+default values that is `6144` raw units per body, so the broad phase pairs bodies whose centres are
+within `12288` raw units. This is the honest reading of "pressed together" for a spectator, and it is
 stable against the one-raw-unit rounding that truncating integer division produces.
 
 The band is **derived observability only**. No rule consults it: the resolver's own legality tests
@@ -650,7 +650,17 @@ completed-tick render snapshot; collision configuration remains reachable throug
 Because `BodyRadiusRaw`, `CollisionPolicy`, and `MovementResolution` all reach the state hash, and
 because constraining movement changes where agents stand, both the state hash and the event hash
 moved for every seed when this contract shipped. Changing any of those three fields in future
-requires a new preset version and new golden expectations.
+invalidates every recorded golden expectation and requires a deliberate rebaseline, recorded in the
+same commit as the change.
+
+Combat preset versioning does not and cannot cover this. A preset version identifies combat
+content — the weapon roster, the attribute profiles, the target weight tables, the clash tables —
+through `CombatRuleset.ContentHash`, and none of `BodyRadiusRaw`, `CollisionPolicy`, or
+`MovementResolution` feeds that hash: they are `Scenario` fields with defaults supplied by
+`CollisionRules`, not preset fields. Cutting a new preset version whose combat content is
+unchanged would create the appearance of protection while providing none, because an old replay
+naming the unchanged preset would still be replayed under the new collision defaults. The
+obligation this section imposes is the rebaseline above, not a preset bump.
 
 Both hashes moved a second time when the approach target changed from attack range to body contact,
 because that changes where agents stand. Introducing the contact-metric proximity band moved neither,
@@ -659,19 +669,26 @@ because it is derived. The current recorded oracle is in
 
 ### What the rule actually produces
 
-Opposing bodies meet. On the 200-agent, seed-1 acceptance workload the run recorded **5,649
-cross-faction contact pairs** against 57,295 candidate pairs, and the 500-agent report-only workload
-recorded 14,270 against 280,675. The two front ranks close all the way rather than halting with air
-in front of them.
+Opposing bodies meet. The two front ranks close all the way rather than halting with air in front
+of them.
 
 Alongside that, allies still **queue behind their own front line**: a rear agent trying to advance
 into space its own front rank already occupies is refused, holds position, and reports `Blocked`.
-That queueing is what constrains frontage and produces a visible line, and it roughly doubled once
-agents began closing to contact — 14,544 blocked agent-ticks at 200 agents, up from 7,154 under the
-earlier stop-at-reach rule. Both effects are real and both are worth watching; neither is a defect.
+That queueing is what constrains frontage and produces a visible line.
+
+**Superseded, pending re-measurement.** The contact-pair and blocked-agent-tick figures below were
+recorded against the four-world-unit `BodyRadiusRaw` (`CollisionRules.DefaultBodyRadiusRaw`), before
+it moved to 4.25 world units (task C1, `docs/plans/2026-07-28-collision-report-and-shell.md`). The
+larger body changes which candidates are legal and how often contact and blocking fire, so these
+counts no longer describe the shipped default and must be re-measured against a real run before they
+are restated as fact: on the 200-agent, seed-1 acceptance workload the run recorded **5,649
+cross-faction contact pairs** against 57,295 candidate pairs, and the 500-agent report-only workload
+recorded 14,270 against 280,675; queueing roughly doubled once agents began closing to contact —
+14,544 blocked agent-ticks at 200 agents, up from 7,154 under the earlier stop-at-reach rule.
 
 Deepest living-body penetration remained exactly `0` on both workloads, before and after the change
-to the approach target. The solid-disc invariant is not affected by where agents choose to stop.
+to the approach target. The solid-disc invariant is not affected by where agents choose to stop, and
+this property is independent of the superseded figures above.
 
 The recorded figures for both workloads are in
 [docs/development/testing.md](docs/development/testing.md). Anyone tuning the contact model later

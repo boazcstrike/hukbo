@@ -221,6 +221,33 @@ public sealed class WeaponProfileTests
     }
 
     [Fact]
+    public void EnlargedCollisionBodyRaisesTheReachFloorButTheItakPairedProfileStillClearsItByOneAndAHalfWorldUnits()
+    {
+        // Task C1 (docs/plans/2026-07-28-collision-report-and-shell.md) moved
+        // CollisionRules.DefaultBodyRadiusRaw from four world units to 4.25,
+        // which raises MinimumProfileReachRawExclusive (twice the body
+        // radius) from eight world units to 8.5. Design section 1.2 rejected
+        // a 5.0-unit radius specifically because it would have pushed the
+        // floor to ten world units and rejected the Itak's shield-paired
+        // profile outright, and the deadlock finding recorded against
+        // LastStandFormationTests then ruled out 4.5 as well. This test pins
+        // both sides of that arithmetic so a future retune of either the
+        // radius or the Itak's paired reach fails here instead of silently
+        // eroding the margin.
+        Assert.Equal(
+            (17 * FixedPoint.Scale) / 2,
+            CombatRuleset.MinimumProfileReachRawExclusive);
+
+        var v3 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV3);
+        var itakPaired = v3.ResolveWeaponProfile(WeaponId.Itak, ShieldId.TallHardwood);
+
+        Assert.Equal(10 * FixedPoint.Scale, itakPaired.AttackRangeRaw);
+        Assert.Equal(
+            (3 * FixedPoint.Scale) / 2,
+            itakPaired.AttackRangeRaw - CombatRuleset.MinimumProfileReachRawExclusive);
+    }
+
+    [Fact]
     public void TwoHandedWeaponPairedWithAShieldInTheRosterThrows()
     {
         var exception = Assert.Throws<ArgumentException>(() => BuildRuleset(
