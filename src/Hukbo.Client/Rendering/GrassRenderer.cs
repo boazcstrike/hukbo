@@ -11,7 +11,7 @@ namespace Hukbo.Client.Rendering;
 /// <summary>
 /// Draw sink for battlefield grass clusters: quad submission only, every
 /// decision already made by <see cref="GrassGeometry"/>. Presentation only —
-/// see docs/plans/improve-visuals/battlefield-environment-design.md, "Grass
+/// see docs/archives/2026-07-28/improve-visuals/battlefield-environment-design.md, "Grass
 /// clusters". Not unit tested, matching <see cref="PlainsBackdropRenderer"/>
 /// and <see cref="PawnRenderer"/>. Draws inside the caller's existing
 /// arena Begin/End pair from the shared 1x1 texture: zero additional

@@ -1,20 +1,37 @@
 # Implementation Plan Draft — Hukbo Visual Improvement Package
 
+> **Archived: reference only.** This document is historical. Its task
+> lists, commands, versions, and acceptance criteria are not instructions and
+> are not maintained. The live contract is `CLAUDE.md`,
+> `SIMULATION-GAME-STANDARDS.md`, and `docs/development/testing.md`. Note in
+> particular that every document in this package quotes the seed-1 reference
+> pair as stateHash `27DC94C6E9A01E35` / eventHash `372C9217E5CB8BE9`; that
+> pair was already stale before implementation began. The current pair is
+> stateHash `A883926A3B93792E` / eventHash `2A9F2D7054CD1805`, recorded in
+> `docs/development/testing.md` under "The preset V3 reference pair".
+
 Date: 2026-07-28. Part of the visual improvement package
 (`docs/plans/improve-visuals/README.md`).
 
 ## Status
 
-**Approved in part: on 2026-07-28 the user resolved all ten package open
-decisions (OD-1 through OD-10, each to its recommended default — see the
-decision record in `docs/plans/improve-visuals/README.md` and the resolved
-outcomes in `docs/agents/improve-visuals/requirements.md`) and approved the
-23-task first milestone, authorizing its implementation.** OD-4
-(confirmation of the fully procedural direction), which every task assumes,
-is confirmed. The non-milestone tasks remain planned but not yet authorized:
-the post-milestone expansion awaits the milestone review. This document
-orders the work described by the five design documents in this directory
-into granular tasks.
+**Approved: on 2026-07-28 the user resolved all ten package open decisions
+(OD-1 through OD-10, each to its recommended default — see the decision
+record in `docs/plans/improve-visuals/README.md` and the resolved outcomes in
+`docs/agents/improve-visuals/requirements.md`) and approved the 23-task first
+milestone, authorizing its implementation.** OD-4 (confirmation of the fully
+procedural direction), which every task assumes, is confirmed. The
+post-milestone expansion was subsequently authorized as well, and 44 of this
+plan's 47 tasks have landed and are committed as of this update. Three
+planner-detected inconsistencies below (items 2 through 4) are resolved, and
+one further decision — amendment A-1, a user-approved re-specification of the
+renderer-agnostic measurement approach for VIS-034 through VIS-036 — was made
+during implementation; both are recorded in full in
+`docs/plans/improve-visuals/README.md`'s "Post-decision resolutions recorded
+during implementation" section. VIS-042, VIS-044 (human-only manual review
+sessions), and VIS-047 (final integration verification) remain outstanding.
+This document orders the work described by the five design documents in this
+directory into granular tasks.
 
 Inputs consumed:
 
@@ -111,9 +128,14 @@ these, the task names it as a blocking decision.
    while the integration design's salt rule (section 3) and R-W6.2 say new
    trait streams take new named salts and never reuse the plains salt.
    Corner-averaged shading changes the ground shades regardless (the formula
-   changes), so reuse buys nothing and breaks the uniform rule. **Proposed
-   default:** a new named salt for the corner lattice (task VIS-027), with the
-   existing decal placement pinned unchanged under the old salt either way.
+   changes), so reuse buys nothing and breaks the uniform rule. **Resolved to
+   the recorded default:** the corner lattice takes a new named salt,
+   `GroundCornerLatticeSalt` (task VIS-027,
+   `src/Hukbo.Client/Presentation/PresentationSalts.cs`), rather than reusing
+   the plains salt. The existing decal placement stays pinned unchanged under
+   `PlainsBackdropSalt` either way, proved by
+   `tests/Hukbo.Client.Tests/PresentationSaltsTests.cs`. VIS-046 records the
+   decision.
 4. **Adornment renderable count.** R-W3.1 says category I (adornment) has
    "8, three renderable"; the warrior-appearance design renders four entries
    (I1 full tattoo, I2 partial tattoo, I4 earring, I5 collar). The counts

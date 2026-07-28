@@ -1,5 +1,15 @@
 # Visual System Integration Design
 
+> **Archived: reference only.** This document is historical. Its task
+> lists, commands, versions, and acceptance criteria are not instructions and
+> are not maintained. The live contract is `CLAUDE.md`,
+> `SIMULATION-GAME-STANDARDS.md`, and `docs/development/testing.md`. Note in
+> particular that every document in this package quotes the seed-1 reference
+> pair as stateHash `27DC94C6E9A01E35` / eventHash `372C9217E5CB8BE9`; that
+> pair was already stale before implementation began. The current pair is
+> stateHash `A883926A3B93792E` / eventHash `2A9F2D7054CD1805`, recorded in
+> `docs/development/testing.md` under "The preset V3 reference pair".
+
 Date: 2026-07-28. Part of the visual improvement package
 (`docs/plans/improve-visuals/README.md`).
 
