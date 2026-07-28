@@ -277,6 +277,58 @@ internal static class MovementRules
     }
 
     /// <summary>
+    /// Whether a contingent carrying <paramref name="tickStartState"/> takes
+    /// part in movement gate 6, the cross-contingent bias-square overlap test
+    /// of design section 3.5, under a preset that registers
+    /// <c>NarrowsCohesionScanToCohesionCapableContingents</c>. A contingent in
+    /// <see cref="ContingentState.Close"/> or <see cref="ContingentState.Break"/>
+    /// does not: gate 1 of <see cref="IsCohesionEligible"/> already sends every
+    /// one of its members to independent pursuit, so it parks no cohesion aim
+    /// point anywhere and its square cannot contribute to the combined aim-point
+    /// density the gate exists to bound. Every other value — including
+    /// <see cref="ContingentState.None"/>, which is what a contingent carries on
+    /// the first tick before its state has ever been resolved — takes part.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The state read is the contingent's state at the <em>start</em> of the
+    /// tick, not the state this tick resolves to, and it has to be: gate 6 is
+    /// an input to <see cref="ResolveContingentState"/> through its
+    /// <c>geometricGatesPass</c> argument, so consulting the resolved state
+    /// here would make the two mutually dependent. Reading the previous tick's
+    /// state breaks that circularity in the only direction available, and
+    /// costs at most one tick of latency before a contingent that has just
+    /// entered <see cref="ContingentState.Close"/> stops denying its
+    /// neighbours.
+    /// </para>
+    /// <para>
+    /// The one tick of latency runs the other way too, and the caller has to
+    /// answer for it: a contingent that leaves <see cref="ContingentState.Close"/>
+    /// on this tick was skipped by the scan on the strength of a state it no
+    /// longer holds, so granting it cohesion would park aim points in a square
+    /// no pair ever measured. <c>BattleSimulation</c> therefore denies every
+    /// slot this predicate excludes, which resolves it to
+    /// <see cref="ContingentState.Advance"/> and lets it rejoin the scan on the
+    /// following tick. Exclusion from the scan and denial of the grant are one
+    /// decision, never two.
+    /// </para>
+    /// </remarks>
+    /// <param name="tickStartState">
+    /// The contingent's <see cref="ContingentState"/> at the start of this
+    /// tick, read from its current leader.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when this contingent's bias square takes part in
+    /// the cross-contingent scan.
+    /// </returns>
+    internal static bool ParticipatesInCrossContingentScan(
+        ContingentState tickStartState)
+    {
+        return tickStartState != ContingentState.Close &&
+            tickStartState != ContingentState.Break;
+    }
+
+    /// <summary>
     /// Ceiling integer division, <c>(dividend + divisor - 1) / divisor</c>,
     /// exact for non-negative operands. The only caller is
     /// <see cref="ResolveContingentState"/>'s rule 3 threshold arithmetic,

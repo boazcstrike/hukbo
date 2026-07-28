@@ -37,7 +37,8 @@ public static class MovementPresetRegistry
         cohesionCycleTicks: 240,
         cohesionDutyTicks: 180,
         arrivalTaperMultiplier: 4,
-        offsetUnit: 1024);
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: false);
 
     /// <summary>
     /// The persistent-contingent preset. Every tunable is the same value
@@ -61,7 +62,8 @@ public static class MovementPresetRegistry
         cohesionCycleTicks: 240,
         cohesionDutyTicks: 180,
         arrivalTaperMultiplier: 4,
-        offsetUnit: 1024);
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: false);
 
     /// <summary>
     /// The contact-fraction preset. Every tunable is the same value
@@ -96,7 +98,47 @@ public static class MovementPresetRegistry
         cohesionCycleTicks: 240,
         cohesionDutyTicks: 180,
         arrivalTaperMultiplier: 4,
-        offsetUnit: 1024);
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: false);
+
+    /// <summary>
+    /// The narrowed-cohesion-scan preset, and the shipped default. Every
+    /// tunable is the same value <see cref="PersistentContingentsV3Ruleset"/>
+    /// already carries; the single difference is
+    /// <c>NarrowsCohesionScanToCohesionCapableContingents</c>, registered here
+    /// at <see langword="true"/>, which restricts movement gate 6 to
+    /// contingents that could actually be granted cohesion this tick.
+    /// </summary>
+    /// <remarks>
+    /// The narrowing is the remedy design section 3.5 pre-analysed, declined,
+    /// and named as "the first remedy if the inertness bar in section 10.3
+    /// fails"; section 13 question 8 reserved the ordering for the user. The
+    /// bar did fail — <c>CohesionCoverageIsNotPracticallyInertAcrossSeedsOneThroughTwenty</c>
+    /// reported seed 11, faction 1 with no cohering tick in the later half of
+    /// a 138-tick pre-<c>Close</c> window — and the user answered question 8
+    /// in favour of narrowing. Adopting it did not clear the bar; see
+    /// docs/plans/2026-07-28-cohesion-scan-narrowing-design.md for what the
+    /// measurement found instead. It lands as a
+    /// new preset rather than as an edit to
+    /// <see cref="PersistentContingentsV3Ruleset"/> because V3 has already
+    /// shipped as a default: CLAUDE.md section 5 requires a new preset version
+    /// plus new golden expectations for any change that moves simulated
+    /// behaviour, and <c>PersistentContingentsV2</c> and V3 both keep the
+    /// behaviour their own recorded expectations pin.
+    /// </remarks>
+    private static readonly MovementRuleset PersistentContingentsV4Ruleset = new(
+        id: MovementPresetId.PersistentContingentsV4,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true);
 
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
@@ -104,6 +146,7 @@ public static class MovementPresetRegistry
             MovementPresetId.IndependentPursuitV1 => true,
             MovementPresetId.PersistentContingentsV2 => true,
             MovementPresetId.PersistentContingentsV3 => true,
+            MovementPresetId.PersistentContingentsV4 => true,
             _ => false,
         };
 
@@ -113,6 +156,7 @@ public static class MovementPresetRegistry
             MovementPresetId.IndependentPursuitV1 => IndependentPursuitV1Ruleset,
             MovementPresetId.PersistentContingentsV2 => PersistentContingentsV2Ruleset,
             MovementPresetId.PersistentContingentsV3 => PersistentContingentsV3Ruleset,
+            MovementPresetId.PersistentContingentsV4 => PersistentContingentsV4Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,

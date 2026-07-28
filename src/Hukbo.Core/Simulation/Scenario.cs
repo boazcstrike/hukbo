@@ -66,11 +66,18 @@ public sealed record Scenario(
     /// flipped the shipped default from <see cref="MovementPresetId.PersistentContingentsV2"/>
     /// to <see cref="MovementPresetId.PersistentContingentsV3"/> -- the
     /// rule-3 close latch and the contact-count denominator that plan
-    /// landed. <c>PersistentContingentsV2</c> stays registered and
-    /// byte-identical for a replay that names it explicitly.
+    /// landed. The shipped default has since moved on again, to
+    /// <see cref="MovementPresetId.PersistentContingentsV4"/>, which narrows
+    /// movement gate 6's cross-contingent scan to contingents that could
+    /// actually be granted cohesion -- the remedy design section 3.5
+    /// pre-analysed and section 13 question 8 reserved for the user, adopted
+    /// after section 10.3's inertness bar failed on seed 11 with chain denial
+    /// established as the cause. <c>PersistentContingentsV2</c> and
+    /// <c>PersistentContingentsV3</c> both stay registered and byte-identical
+    /// for a replay that names one of them explicitly.
     /// </summary>
     public MovementPresetId MovementPreset { get; init; } =
-        MovementPresetId.PersistentContingentsV3;
+        MovementPresetId.PersistentContingentsV4;
 
     /// <summary>
     /// Every warrior's level, until a leveling system exists. Set once, at

@@ -69,7 +69,7 @@ public sealed class PersistentContingentTests
         Assert.True(
             stalledSeeds.Count == 0,
             "The following seeds never reached a terminal outcome before " +
-            $"the tick limit under PersistentContingentsV2:\n" +
+            $"the tick limit under PersistentContingentsV4:\n" +
             string.Join('\n', stalledSeeds));
     }
 
@@ -95,7 +95,7 @@ public sealed class PersistentContingentTests
     [Fact]
     public void CohesionNeverOutlivesItsDutyCycleBudgetAcrossSeedsOneThroughTwenty()
     {
-        var rules = MovementPresetRegistry.Get(MovementPresetId.PersistentContingentsV2);
+        var rules = MovementPresetRegistry.Get(MovementPresetId.PersistentContingentsV4);
         var failures = new List<string>();
 
         for (ulong seed = 1; seed <= 20; seed++)
@@ -230,7 +230,7 @@ public sealed class PersistentContingentTests
         const double PersistenceThreshold = 0.10;
         const int MinimumCoveredContingents = 2;
 
-        var rules = MovementPresetRegistry.Get(MovementPresetId.PersistentContingentsV2);
+        var rules = MovementPresetRegistry.Get(MovementPresetId.PersistentContingentsV4);
         var failures = new List<string>();
 
         for (ulong seed = 1; seed <= 20; seed++)
@@ -382,11 +382,23 @@ public sealed class PersistentContingentTests
                     relativeTick >= laterHalfThreshold);
                 if (!spreadSatisfied)
                 {
+                    // The latest cohering tick actually observed is reported
+                    // alongside the threshold it missed. Without it the
+                    // message cannot distinguish cohesion that genuinely
+                    // stopped at deployment from cohesion that ran well into
+                    // the advance but was outrun by a window this faction's
+                    // longest-lived contingent stretched — two failures with
+                    // the same text and opposite causes.
+                    var bestRelativeTick = contingents.Max(
+                        contingent => lastCoheringRelativeTick.GetValueOrDefault(
+                            (faction, contingent),
+                            0));
                     failures.Add(
                         $"seed {seed} faction {faction}: no cohering tick " +
                         "fell in the later half of the faction's pre-Close " +
-                        $"window (length {longestWindow}) — coverage looks " +
-                        "like a burst confined to deployment.");
+                        $"window (length {longestWindow}) — latest cohering " +
+                        $"tick was {bestRelativeTick}, needed at least " +
+                        $"{laterHalfThreshold}.");
                 }
             }
         }
@@ -395,8 +407,13 @@ public sealed class PersistentContingentTests
             failures.Count == 0,
             "Inertness bar failures — these are game-design thresholds, not " +
             "measurements; per design section 10.3 the cause must be " +
-            "established (chain denial is the first suspect) before any " +
-            "threshold moves:\n" + string.Join('\n', failures));
+            "established before any threshold moves. Chain denial was the " +
+            "first suspect and has been ruled out: narrowing the " +
+            "cross-contingent scan (PersistentContingentsV4) left the latest " +
+            "cohering tick unmoved and lengthened the windows instead. See " +
+            "docs/plans/2026-07-28-cohesion-scan-narrowing-design.md; the " +
+            "open question is design section 13 question 7, not question 8:\n" +
+            string.Join('\n', failures));
     }
 
     // ------------------------------------------------------------------
@@ -510,6 +527,127 @@ public sealed class PersistentContingentTests
                     scenario, contingentId));
             // A filler, kept close to the leader, purely to reach the
             // three-member floor so attrition never fires.
+            agents.Add(
+                CreateAgentAtRawPosition(
+                    checked(leaderId + 2), 0, checked(leaderX + 10), checked(y + 10),
+                    scenario, contingentId));
+            agents.Add(
+                CreateAgentAtRawPosition(
+                    checked(leaderId + 100), 1, checked(leaderX + bigDx), y, scenario));
+        }
+    }
+
+    /// <summary>
+    /// The same three-contingent geometry as
+    /// <see cref="ChainDenialArisesFromGenuinePairwiseOverlapNotFromPropagation"/>
+    /// -- A overlaps B, B overlaps C, A disjoint from C -- run under
+    /// <see cref="MovementPresetId.PersistentContingentsV4"/> with the middle
+    /// contingent B carrying <see cref="ContingentState.Close"/> at tick start.
+    /// This is the narrowing of design section 3.5, and this Fact is what
+    /// separates it from the frozen presets: under
+    /// <see cref="MovementPresetId.PersistentContingentsV2"/> the identical
+    /// arrangement denies all three, because B's square is scanned and denies
+    /// both its neighbours; under V4 B is excluded from the scan, A and C are
+    /// measured only against each other, find themselves disjoint, and are
+    /// granted cohesion.
+    /// </summary>
+    /// <remarks>
+    /// B itself resolves to <see cref="ContingentState.Advance"/>, not to
+    /// <see cref="ContingentState.Hold"/>, and that is the point rather than an
+    /// incidental detail. Excluding a contingent from the scan and denying it
+    /// the grant are one decision: B's square was never measured against
+    /// anyone this tick, so granting it a destination would park aim points in
+    /// an unmeasured square. B rejoins the scan on the next tick carrying
+    /// <see cref="ContingentState.Advance"/>.
+    /// </remarks>
+    [Fact]
+    public void UnderTheNarrowedScanACloseContingentStopsDenyingItsNeighbours()
+    {
+        var scenario = ContingentUnitScenario() with
+        {
+            MovementPreset = MovementPresetId.PersistentContingentsV4,
+        };
+        var bodyRadiusRaw = scenario.BodyRadiusRaw;
+
+        var jitterRaw = FormationRules.ComputeContingentJitterRaw(bodyRadiusRaw, 3);
+        var trailRaw = FormationRules.ComputeContingentTrailRaw(bodyRadiusRaw, jitterRaw);
+        var marginRaw = checked(jitterRaw + bodyRadiusRaw);
+
+        const int LeaderXRaw = 500_000;
+        const int BigDx = 400_000;
+
+        // Unlike the chain-denial Fact, which expects every contingent denied
+        // and so does not care which gate does the denying, this one expects
+        // two grants. Every bias square therefore has to clear gate 5 as well,
+        // so the whole arrangement sits a comfortable distance in from the map
+        // edge rather than starting at y = 0.
+        const int BaseYRaw = 1_000_000;
+
+        var yA = BaseYRaw;
+        var yB = checked(BaseYRaw + (int)(1.5 * marginRaw));
+        var yC = checked(BaseYRaw + (3 * marginRaw));
+
+        var trailBaseXRaw = checked(LeaderXRaw - trailRaw);
+        Assert.False(
+            FormationRules.DoCohesionSquaresOverlap(
+                trailBaseXRaw, yA, marginRaw,
+                trailBaseXRaw, yC, marginRaw),
+            "Construction error: A and C's bias squares must be disjoint.");
+        Assert.True(
+            FormationRules.DoCohesionSquaresOverlap(
+                trailBaseXRaw, yA, marginRaw,
+                trailBaseXRaw, yB, marginRaw),
+            "Construction error: A and B's bias squares must overlap.");
+        Assert.True(
+            FormationRules.DoCohesionSquaresOverlap(
+                trailBaseXRaw, yB, marginRaw,
+                trailBaseXRaw, yC, marginRaw),
+            "Construction error: B and C's bias squares must overlap.");
+
+        var agents = new List<AgentState>();
+        AddContingent(agents, contingentId: 0, leaderId: 2, yA, LeaderXRaw, BigDx, scenario);
+        AddContingent(agents, contingentId: 1, leaderId: 12, yB, LeaderXRaw, BigDx, scenario);
+        AddContingent(agents, contingentId: 2, leaderId: 22, yC, LeaderXRaw, BigDx, scenario);
+
+        // B alone starts the tick in Close. The state is set directly rather
+        // than driven to Close through a running battle so that exactly one
+        // thing differs from the chain-denial Fact above: which contingents
+        // the scan walks.
+        foreach (var agent in agents.Where(agent => agent.ContingentId == 1 && agent.FactionId == 0))
+        {
+            agent.ContingentState = ContingentState.Close;
+        }
+
+        var simulation = BattleSimulation.CreateForTesting(scenario, [.. agents]);
+
+        var rules = MovementPresetRegistry.Get(MovementPresetId.PersistentContingentsV4);
+        Assert.True(
+            MovementRules.IsCohesionWindowOpen(1, 0, rules.CohesionCycleTicks, rules.CohesionDutyTicks));
+        Assert.True(
+            MovementRules.IsCohesionWindowOpen(1, 1, rules.CohesionCycleTicks, rules.CohesionDutyTicks));
+        Assert.True(
+            MovementRules.IsCohesionWindowOpen(1, 2, rules.CohesionCycleTicks, rules.CohesionDutyTicks));
+
+        simulation.AdvanceOneTick();
+
+        Assert.Equal(ContingentState.Hold, AgentByEntityId(simulation, 2).ContingentState);
+        Assert.Equal(ContingentState.Advance, AgentByEntityId(simulation, 12).ContingentState);
+        Assert.Equal(ContingentState.Hold, AgentByEntityId(simulation, 22).ContingentState);
+
+        static void AddContingent(
+            List<AgentState> agents,
+            int contingentId,
+            ulong leaderId,
+            int y,
+            int leaderX,
+            int bigDx,
+            Scenario scenario)
+        {
+            agents.Add(CreateAgentAtRawPosition(leaderId, 0, leaderX, y, scenario, contingentId));
+            agents.Add(
+                CreateAgentAtRawPosition(
+                    checked(leaderId + 1), 0, leaderX, checked(y + (40 * scenario.BodyRadiusRaw)),
+                    scenario, contingentId));
             agents.Add(
                 CreateAgentAtRawPosition(
                     checked(leaderId + 2), 0, checked(leaderX + 10), checked(y + 10),
@@ -1275,10 +1413,20 @@ public sealed class PersistentContingentTests
     // Shared scenario, agent and snapshot helpers.
     // ------------------------------------------------------------------
 
+    /// <summary>
+    /// The scenario every multi-seed section 10.3 measurement in this file
+    /// runs on. It names <see cref="MovementPresetId.PersistentContingentsV4"/>
+    /// rather than following <c>Scenario.CreateDefault</c>'s own default, for
+    /// the same reason <c>DeterminismTests</c> names its presets explicitly:
+    /// these Facts measure one stated preset's behaviour, and a later default
+    /// flip should not silently move what they measure. V4 is the preset that
+    /// narrows movement gate 6's cross-contingent scan, and it is what these
+    /// bars exist to guard because it is what ships.
+    /// </summary>
     private static Scenario PersistentContingentsScenario(ulong seed) =>
         Scenario.CreateDefault(seed, totalAgents: 200) with
         {
-            MovementPreset = MovementPresetId.PersistentContingentsV2,
+            MovementPreset = MovementPresetId.PersistentContingentsV4,
         };
 
     /// <summary>

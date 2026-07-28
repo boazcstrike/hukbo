@@ -41,7 +41,8 @@ public sealed class MovementRuleset
         int cohesionCycleTicks,
         int cohesionDutyTicks,
         int arrivalTaperMultiplier,
-        int offsetUnit)
+        int offsetUnit,
+        bool narrowsCohesionScanToCohesionCapableContingents)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);
 
@@ -56,6 +57,8 @@ public sealed class MovementRuleset
         CohesionDutyTicks = cohesionDutyTicks;
         ArrivalTaperMultiplier = arrivalTaperMultiplier;
         OffsetUnit = offsetUnit;
+        NarrowsCohesionScanToCohesionCapableContingents =
+            narrowsCohesionScanToCohesionCapableContingents;
         ContentHash = ComputeContentHash();
     }
 
@@ -132,6 +135,22 @@ public sealed class MovementRuleset
     public int OffsetUnit { get; }
 
     /// <summary>
+    /// Whether movement gate 6, the cross-contingent bias-square overlap test
+    /// of design section 3.5, walks only those same-faction contingents that
+    /// could actually be granted cohesion this tick — skipping any whose
+    /// tick-start <see cref="Simulation.ContingentState"/> is
+    /// <see cref="Simulation.ContingentState.Close"/> or
+    /// <see cref="Simulation.ContingentState.Break"/> — rather than every
+    /// living contingent. A game-design choice, not a measurement. Registered
+    /// <see langword="false"/> for every preset up to and including
+    /// <see cref="MovementPresetId.PersistentContingentsV3"/>, so introducing
+    /// this field moves no existing preset's behaviour; only
+    /// <see cref="MovementPresetId.PersistentContingentsV4"/> registers it
+    /// <see langword="true"/>.
+    /// </summary>
+    public bool NarrowsCohesionScanToCohesionCapableContingents { get; }
+
+    /// <summary>
     /// Content hash over every field above, folded in declaration order with
     /// the same FNV-1a primitive <see cref="Combat.CombatRuleset.ContentHash"/>
     /// uses. Two rulesets with identical fields hash identically regardless of
@@ -153,6 +172,9 @@ public sealed class MovementRuleset
         Fnv1a.Add(ref hash, (ulong)CohesionDutyTicks);
         Fnv1a.Add(ref hash, (ulong)ArrivalTaperMultiplier);
         Fnv1a.Add(ref hash, (ulong)OffsetUnit);
+        Fnv1a.Add(
+            ref hash,
+            NarrowsCohesionScanToCohesionCapableContingents ? 1UL : 0UL);
         return hash;
     }
 }

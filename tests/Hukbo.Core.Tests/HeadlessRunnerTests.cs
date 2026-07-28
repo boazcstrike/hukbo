@@ -549,12 +549,14 @@ public sealed class HeadlessRunnerTests
     /// Omitting the switch leaves <see cref="HeadlessOptions.MovementPreset"/>
     /// null, and a run without it must be byte-identical -- both hashes -- to
     /// the same run with the switch supplied explicitly as
-    /// <see cref="MovementPresetId.PersistentContingentsV3"/>, which is
+    /// <see cref="MovementPresetId.PersistentContingentsV4"/>, which is
     /// <see cref="Scenario"/>'s own default. That default was
     /// <see cref="MovementPresetId.PersistentContingentsV2"/> until task T6 of
     /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md flipped it (itself a
     /// flip from <see cref="MovementPresetId.IndependentPursuitV1"/> by task
-    /// T15 of docs/plans/2026-07-28-formation-movement-realism.md); the
+    /// T15 of docs/plans/2026-07-28-formation-movement-realism.md), and
+    /// <see cref="MovementPresetId.PersistentContingentsV3"/> until the
+    /// cross-contingent scan narrowing flipped it again; the
     /// comparison itself, and the fact that implicit and explicit runs must
     /// agree, is unchanged -- only which preset name the "explicit" run
     /// names has moved.
@@ -577,7 +579,7 @@ public sealed class HeadlessRunnerTests
 
         var implicitExitCode = HeadlessRunner.Run(baseArguments, implicitOutput, errorOutput);
         var explicitExitCode = HeadlessRunner.Run(
-            [.. baseArguments, "--movement-preset", "PersistentContingentsV3"],
+            [.. baseArguments, "--movement-preset", "PersistentContingentsV4"],
             explicitOutput,
             errorOutput);
 
