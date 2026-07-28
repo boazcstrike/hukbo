@@ -10,6 +10,13 @@ rows respectively, and the owner chose **four ordinary classless slots**. This
 document is rewritten to that shape. It also carries two new findings that
 change the panel decision, in section 5.
 
+## Outcome
+
+The result of this design, the commits that carried it, the canonical gate
+output, and an explicit list of what remains unverified are recorded in the
+`## Outcome` and `## What is not verified` sections of the task list,
+[2026-07-30-shield-clash-audio.md](2026-07-30-shield-clash-audio.md).
+
 ## 1. What this fixes
 
 `SoundCueMapper.Map` (`src/Hukbo.Client/Audio/SoundCueMapper.cs:24-31`) switches
