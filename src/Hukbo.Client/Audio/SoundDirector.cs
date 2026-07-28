@@ -126,8 +126,20 @@ internal sealed class SoundDirector
             var battleEvent = events[index];
             if (SoundCueMapper.Map(battleEvent) is { } sound)
             {
-                var hitClass = battleEvent.HitLocation is { } bodyPart
-                    ? HitClassCatalog.FromBodyPart(bodyPart)
+                // Derive the hit class from the slot that was mapped, never
+                // from the event. Do not revert this to reading
+                // battleEvent.HitLocation: a shield-blocked attack still
+                // carries a hit location, so an event-derived hit class would
+                // look a classless clash slot up as (slot, HitClass.Skull),
+                // which is registered nowhere. That resolves Missing forever —
+                // no crash, no failing test, and no complaint in the panel,
+                // because the slot's own binding still reads Ready. One
+                // predicate now decides both how SoundLibrary registers a slot
+                // and how the director asks for it.
+                // Ingest_UsesANullHitClassForAShieldBlockDespiteTheHitLocation
+                // is the guard.
+                var hitClass = SoundCatalog.IsHitLocationDriven(sound)
+                    ? HitClassCatalog.FromBodyPart(battleEvent.HitLocation!.Value)
                     : (HitClass?)null;
                 Resolve(sound, hitClass, battleEvent.Tick, battleEvent.SourceEntityId);
             }

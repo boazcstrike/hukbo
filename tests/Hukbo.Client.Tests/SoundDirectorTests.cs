@@ -38,6 +38,40 @@ public sealed class SoundDirectorTests
     }
 
     [Fact]
+    public void Ingest_UsesANullHitClassForAShieldBlockDespiteTheHitLocation()
+    {
+        // The guard for a regression that is silent by nature. A shield-blocked
+        // attack still carries a real hit location, so a director that derives
+        // the hit class from the event rather than from the mapped slot would
+        // ask for (ClashShieldKampilan, HitClass.Skull) — a key a classless
+        // slot is never registered under — and the cue would resolve Missing
+        // forever with nothing else going red. If this test is deleted or
+        // relaxed, that regression becomes invisible again.
+        var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
+        var director = new SoundDirector(logCapacity: 64, player);
+
+        director.BeginFrame(elapsedSeconds: 1.0);
+        director.Ingest(
+        [
+            BattleEvent.Attack(
+                sequence: 1,
+                tick: 5,
+                sourceEntityId: 1,
+                targetEntityId: 2,
+                damage: 0,
+                factionId: 0,
+                WeaponId.Kampilan,
+                ShieldId.None,
+                BodyPart.Head,
+                AttackResolution.ShieldBlocked),
+        ]);
+
+        var played = Assert.Single(player.Played);
+        Assert.Null(played.HitClass);
+        Assert.Equal(GameSoundId.ClashShieldKampilan, played.Sound);
+    }
+
+    [Fact]
     public void Ingest_UsesANullHitClassForAnEventWithNoHitLocation()
     {
         var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);

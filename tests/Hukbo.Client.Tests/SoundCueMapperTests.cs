@@ -32,6 +32,30 @@ public sealed class SoundCueMapperTests
                     ShieldId.None,
                     BodyPart.Chest)));
 
+    [Theory]
+    [InlineData(WeaponId.Kampilan, (int)GameSoundId.ClashShieldKampilan)]
+    [InlineData(WeaponId.Wasay, (int)GameSoundId.ClashShieldWasay)]
+    [InlineData(WeaponId.Kalis, (int)GameSoundId.ClashShieldKalis)]
+    [InlineData(WeaponId.Itak, (int)GameSoundId.ClashShieldItak)]
+    public void Map_RoutesAShieldBlockToTheMatchingClashSlot(
+        WeaponId weapon,
+        int expected) =>
+        Assert.Equal(
+            (GameSoundId)expected,
+            SoundCueMapper.Map(
+                AttackWith(weapon, AttackResolution.ShieldBlocked)));
+
+    [Theory]
+    [InlineData(AttackResolution.Landed)]
+    [InlineData(AttackResolution.Parried)]
+    [InlineData(AttackResolution.Deflected)]
+    [InlineData(AttackResolution.Evaded)]
+    public void Map_KeepsTheWeaponSlotForEveryOtherResolution(
+        AttackResolution resolution) =>
+        Assert.Equal(
+            GameSoundId.AttackKampilan,
+            SoundCueMapper.Map(AttackWith(WeaponId.Kampilan, resolution)));
+
     [Fact]
     public void Map_ReturnsTheDeathSlotForADeath() =>
         Assert.Equal(
@@ -57,6 +81,21 @@ public sealed class SoundCueMapperTests
     [InlineData(BattleEventKind.Damage)]
     public void Map_LeavesMovementAndDamageSilent(BattleEventKind kind) =>
         Assert.Null(SoundCueMapper.Map(NonAttack(kind, factionId: 0)));
+
+    private static BattleEvent AttackWith(
+        WeaponId weapon,
+        AttackResolution resolution) =>
+        BattleEvent.Attack(
+            sequence: 1,
+            tick: 12,
+            sourceEntityId: 3,
+            targetEntityId: 4,
+            damage: 7,
+            factionId: 0,
+            weapon,
+            ShieldId.None,
+            BodyPart.Chest,
+            resolution);
 
     private static BattleEvent NonAttack(
         BattleEventKind kind,
