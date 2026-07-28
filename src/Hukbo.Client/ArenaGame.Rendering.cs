@@ -44,8 +44,7 @@ public sealed partial class ArenaGame
     /// <summary>
     /// GPU-004. Ticks charged this frame to real per-pawn geometry
     /// construction: the appearance resolution, the pose-blind bounds, the
-    /// cull test, and the <c>PawnGeometry.Create</c> call the renderer
-    /// actually draws from.
+    /// cull test, and the posed layout the renderer actually draws from.
     /// </summary>
     private long _arenaGeometryTicks;
 
@@ -57,8 +56,8 @@ public sealed partial class ArenaGame
     private long _arenaSubmitTicks;
 
     /// <summary>
-    /// GPU-005. Calls into <c>PawnGeometry.Create</c> made by the probe's own
-    /// duplicate counting pass this frame — the two call sites inside
+    /// GPU-005. Pawn-layout constructions made by the probe's own duplicate
+    /// counting pass this frame — the call site inside
     /// <see cref="RecordPawnQuads"/>. Written once per frame by that method
     /// rather than incremented per agent. Meaningful only while the render
     /// probe is enabled, because nothing else ever runs that pass.
@@ -66,12 +65,26 @@ public sealed partial class ArenaGame
     private int _frameProbePassPawnGeometryInvocations;
 
     /// <summary>
-    /// GPU-005. Calls into <c>PawnGeometry.Create</c> made by the renderer's
-    /// own draw path this frame — the two call sites inside
-    /// <see cref="DrawPawns"/>, which a normal unprobed run also makes.
-    /// Written once per frame rather than incremented per agent.
+    /// GPU-005. Pawn-layout constructions made by the renderer's own draw path
+    /// this frame — the call site inside <see cref="DrawPawns"/>, which a
+    /// normal unprobed run also reaches. Written once per frame rather than
+    /// incremented per agent.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// GPU-014 changed what one counted construction is worth without changing
+    /// how many are counted for a culled agent. Before it, both counts were
+    /// literal <c>PawnGeometry.Create</c> calls: one per living agent for the
+    /// cull rectangle, plus one more for each agent that survived the cull.
+    /// Since it, a living agent begins exactly one construction, stopping
+    /// after the pose-invariant stage if the cull rejects it and finishing the
+    /// same construction if it does not. So a visible pawn's count halves from
+    /// two to one alongside its work, while a culled agent's count stays at
+    /// one although its work shrank to the cheap stage. The count therefore
+    /// understates the saving rather than overstating it, which is the
+    /// conservative direction for a go/no-go figure.
+    /// </para>
+    /// <para>
     /// One further <c>PawnGeometry.Create</c> call exists outside this file,
     /// the inspector portrait's, reached through <c>AgentInspectorPanel</c>'s
     /// <c>PawnRenderer.Draw</c> call, and it is deliberately not counted by
@@ -81,6 +94,7 @@ public sealed partial class ArenaGame
     /// duplication factor these counts feed is a statement about the arena
     /// render path, so folding a user-interface still into it would misstate
     /// that path.
+    /// </para>
     /// </remarks>
     private int _frameDrawPathPawnGeometryInvocations;
 
@@ -106,8 +120,8 @@ public sealed partial class ArenaGame
     /// every counted invocation to the draw path's own. Derived from the two
     /// recorded run totals rather than asserted, so removing a duplicate
     /// construction moves it instead of leaving a stale constant behind. A
-    /// value near 2 means the probe's counting pass rebuilt every visible
-    /// pawn's geometry a second time; a value of 1 would mean the probe added
+    /// value near 2 means the probe's counting pass rebuilt every living
+    /// agent's geometry a second time; a value of 1 would mean the probe added
     /// no duplicate work at all. Zero when the draw path recorded nothing,
     /// which is the honest reading of "this run measured no duplication" and
     /// is what an unprobed run reports.
@@ -377,10 +391,12 @@ public sealed partial class ArenaGame
     /// <summary>
     /// Recomputes each visible pawn's <see cref="PawnLayout"/> with the same
     /// inputs <see cref="DrawPawns"/> resolves — footAnchor, camera zoom,
-    /// appearance, swing pose, and every other <c>PawnGeometry.Create</c>
-    /// parameter left at <see cref="DrawPawns"/>'s own implicit defaults —
-    /// so <c>PawnQuadCount.Count</c>'s result matches what
+    /// appearance, swing pose, and every other pawn-geometry parameter left at
+    /// <see cref="DrawPawns"/>'s own implicit defaults — so
+    /// <c>PawnQuadCount.Count</c>'s result matches what
     /// <c>PawnRenderer.Draw</c> actually emits for that pawn this frame.
+    /// Mirrors <see cref="DrawPawns"/>'s two-stage geometry path element for
+    /// element, so the two passes cull the same agents.
     /// </summary>
     private void RecordPawnQuads(Rectangle arenaBounds)
     {
@@ -410,13 +426,13 @@ public sealed partial class ArenaGame
                 agent.EntityId,
                 agent.Loadout.Weapon,
                 agent.Loadout.Shield);
-            var visualBounds = PawnRenderer.GetBounds(
+            var pawnPrefix = PawnGeometry.PoseBlindPrefix.Create(
                 footAnchor,
                 _camera.Zoom,
                 appearance);
             pawnGeometryInvocations++;
 
-            if (!arenaBounds.Intersects(visualBounds))
+            if (!arenaBounds.Intersects(pawnPrefix.PoseBlindVisualBounds))
             {
                 continue;
             }
@@ -427,12 +443,7 @@ public sealed partial class ArenaGame
                 out var pose)
                 ? pose
                 : (SwingPose?)null;
-            var layout = PawnGeometry.Create(
-                footAnchor,
-                _camera.Zoom,
-                appearance,
-                swingPose: swingPose);
-            pawnGeometryInvocations++;
+            var layout = pawnPrefix.CompletePosedLayout(swingPose);
             var state = GetPawnVisualState(
                 agent.EntityId,
                 selectedEntityId,
@@ -441,11 +452,11 @@ public sealed partial class ArenaGame
             RecordQuads(PawnQuadCount.Count(layout, appearance, state));
         }
 
-        // GPU-005. One helper call per living agent through
-        // PawnRenderer.GetBounds, which forwards straight to
-        // PawnGeometry.Create and keeps only VisualBounds, plus one more for
-        // each agent that survived the cull. Counted at the call sites rather
-        // than inside the helper so that this file's own duplication stays
+        // GPU-005, as amended by GPU-014. One pawn-layout construction begun
+        // per living agent, and no second one for the agents that survived the
+        // cull: since GPU-014 those finish the construction stage one started
+        // rather than starting another. Counted at the call site rather than
+        // inside the helper so that this file's own per-agent work stays
         // visible in the file that causes it.
         _frameProbePassPawnGeometryInvocations = pawnGeometryInvocations;
     }
@@ -799,28 +810,33 @@ public sealed partial class ArenaGame
                 agent.Loadout.Weapon,
                 agent.Loadout.Shield);
 
-            // Pose-blind on purpose. A pose-aware cull would make the set of
-            // drawn pawns a function of presentation animation phase, so the
-            // same tick would render a different draw list depending on where
-            // each swing clock sat. See PawnRenderer.GetBounds.
-            var visualBounds = PawnRenderer.GetBounds(
+            // GPU-014, stage one. The cull rectangle without the posed layout
+            // behind it. Pose-blind on purpose: a pose-aware cull would make
+            // the set of drawn pawns a function of presentation animation
+            // phase, so the same tick would render a different draw list
+            // depending on where each swing clock sat. The rectangle is the
+            // same one PawnRenderer.GetBounds returns for these arguments —
+            // PawnGeometryTests pins that over the full input grid — so the
+            // drawn set below is unchanged by construction.
+            var pawnPrefix = PawnGeometry.PoseBlindPrefix.Create(
                 footAnchor,
                 _camera.Zoom,
                 appearance);
 
             if (_renderProbeEnabled)
             {
-                // GPU-005. GetBounds is a PawnGeometry.Create call wearing a
-                // different name: it forwards every argument straight through
-                // and keeps only VisualBounds off the result. This is the
-                // first half of redundancy R1, and counting it at the call
-                // site rather than inside the helper is what will let GPU-013
-                // and GPU-014 be judged by this number halving rather than by
-                // assertion.
+                // GPU-005, as amended by GPU-014. One pawn-layout construction
+                // begun for this agent. An agent the cull rejects stops here,
+                // having paid only the pose-invariant stage, which is strictly
+                // less than the full GetBounds construction it used to pay and
+                // is why this count now understates rather than overstates the
+                // saving. An agent that survives finishes that same
+                // construction below and is not counted a second time, because
+                // the two stages together do the work of one, not two.
                 pawnGeometryInvocations++;
             }
 
-            if (!arenaBounds.Intersects(visualBounds))
+            if (!arenaBounds.Intersects(pawnPrefix.PoseBlindVisualBounds))
             {
                 continue;
             }
@@ -845,24 +861,13 @@ public sealed partial class ArenaGame
                 ? pose
                 : (SwingPose?)null;
 
-            // Hoisted out of PawnRenderer.Draw, which used to make this exact
-            // call itself with these exact defaults. Same inputs, same layout,
-            // same pixels — only now on the geometry side of the boundary.
-            var pawnLayout = PawnGeometry.Create(
-                footAnchor,
-                _camera.Zoom,
-                appearance,
-                swingPose: swingPose);
-
-            if (_renderProbeEnabled)
-            {
-                // GPU-005. The second half of R1: the same pure helper, the
-                // same footAnchor and zoom and appearance, run a second time
-                // for this pawn because the first result kept only its
-                // bounds. Left in place — removing it is GPU-013/GPU-014's
-                // job, and this task's job is to make it countable.
-                pawnGeometryInvocations++;
-            }
+            // GPU-014, stage two. Redundancy R1 is gone: this finishes the
+            // construction stage one began, reading the proportions no swing
+            // pose can change rather than deriving them a second time. Same
+            // inputs, same layout, same pixels as the PawnGeometry.Create call
+            // this replaces — PawnGeometryTests pins that too. Deliberately
+            // not counted as a second invocation; see the note at stage one.
+            var pawnLayout = pawnPrefix.CompletePosedLayout(swingPose);
 
             CloseArenaGeometrySpan();
 

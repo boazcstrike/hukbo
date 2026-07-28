@@ -1813,6 +1813,280 @@ public sealed class PawnGeometryTests
     }
 
     /// <summary>
+    /// GPU-014. The renderer culls on the pose-blind rectangle and builds the
+    /// posed layout only for the pawns that survive, so it adopts the two
+    /// stages separately rather than the combined call. That split is only
+    /// allowed while stage one returns exactly what <c>PawnRenderer.GetBounds</c>
+    /// returns and the two stages together return exactly what
+    /// <c>PawnGeometry.Create</c> returns, so this walks a grid of every input
+    /// either original reads and pins both halves against them directly, not
+    /// by way of <c>CreateWithPoseBlindBounds</c>.
+    /// </summary>
+    /// <remarks>
+    /// Layout equality is asserted twice over, exactly as GPU-013's own grid
+    /// test asserts it: once on the whole record, and once bit-for-bit on
+    /// every float the record carries, because <c>float.Equals</c> reads
+    /// positive and negative zero as equal. The grid's own size and the detail
+    /// tiers it reaches are asserted at the end, so a later edit that quietly
+    /// narrows it fails here rather than passing vacuously.
+    /// </remarks>
+    [Fact]
+    public void PoseBlindPrefix_MatchesCreateAndGetBoundsAcrossTheInputGrid()
+    {
+        var footAnchors = new[]
+        {
+            Vector2.Zero,
+            new Vector2(137.25f, 241.75f),
+        };
+        var entityIds = new ulong[] { 0, 1, 2, 3 };
+
+        // The clamp floor, both detail-tier boundaries from either side, and
+        // the clamp ceiling.
+        var cameraZooms = new[] { 0.05f, 0.7f, 0.71f, 1.33f, 1.34f, 12f };
+        var scaleMultipliers = new[] { 1f, 0.65f };
+        var swingPoses = new SwingPose?[]
+        {
+            null,
+            default(SwingPose),
+            new SwingPose(
+                SwingPhase.Anticipation,
+                PhaseProgress: 0.25f,
+                WeaponAngleRadians: -0.9f,
+                TorsoLeanX: -1.4f,
+                TorsoLeanY: 0.7f,
+                ExtensionRatio: 0.2f,
+                TrailStrength: 0f),
+            new SwingPose(
+                SwingPhase.ImpactHold,
+                PhaseProgress: 0.5f,
+                WeaponAngleRadians: 0.8f,
+                TorsoLeanX: 1.6f,
+                TorsoLeanY: -0.3f,
+                ExtensionRatio: 1f,
+                TrailStrength: 1f),
+        };
+        var armorWidthFactors = new[]
+        {
+            1f,
+            AppearanceComponentCatalog.MaxArmorWidthFactor,
+        };
+        var sashChoices = new[] { false, true };
+        var accentCounts = new[]
+        {
+            0,
+            AppearanceComponentCatalog.MaxAccentMarksPerPawn,
+        };
+
+        var cases = 0;
+        var detailTiers = new HashSet<PawnDetailTier>();
+
+        foreach (var footAnchor in footAnchors)
+        {
+            foreach (var entityId in entityIds)
+            {
+                foreach (var weapon in Enum.GetValues<WeaponId>())
+                {
+                    foreach (var shield in Enum.GetValues<ShieldId>())
+                    {
+                        var appearance = PawnAppearanceFactory.Create(
+                            entityId,
+                            weapon,
+                            shield);
+
+                        foreach (var cameraZoom in cameraZooms)
+                        {
+                            foreach (var scaleMultiplier in scaleMultipliers)
+                            {
+                                foreach (var armorWidthFactor in armorWidthFactors)
+                                {
+                                    foreach (var hasSash in sashChoices)
+                                    {
+                                        foreach (var accentCount in accentCounts)
+                                        {
+                                            var prefix =
+                                                PawnGeometry.PoseBlindPrefix.Create(
+                                                    footAnchor,
+                                                    cameraZoom,
+                                                    appearance,
+                                                    scaleMultiplier,
+                                                    armorWidthFactor,
+                                                    hasSash,
+                                                    accentCount);
+
+                                            Assert.Equal(
+                                                PawnRenderer.GetBounds(
+                                                    footAnchor,
+                                                    cameraZoom,
+                                                    appearance,
+                                                    scaleMultiplier,
+                                                    armorWidthFactor,
+                                                    hasSash,
+                                                    accentCount),
+                                                prefix.PoseBlindVisualBounds);
+
+                                            foreach (var swingPose in swingPoses)
+                                            {
+                                                var expectedLayout =
+                                                    PawnGeometry.Create(
+                                                        footAnchor,
+                                                        cameraZoom,
+                                                        appearance,
+                                                        scaleMultiplier,
+                                                        swingPose,
+                                                        armorWidthFactor,
+                                                        hasSash,
+                                                        accentCount);
+
+                                                AssertLayoutsAreBitIdentical(
+                                                    expectedLayout,
+                                                    prefix.CompletePosedLayout(
+                                                        swingPose));
+
+                                                detailTiers.Add(
+                                                    expectedLayout.DetailTier);
+                                                cases++;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Assert.Equal(
+            footAnchors.Length *
+            entityIds.Length *
+            Enum.GetValues<WeaponId>().Length *
+            Enum.GetValues<ShieldId>().Length *
+            cameraZooms.Length *
+            scaleMultipliers.Length *
+            armorWidthFactors.Length *
+            sashChoices.Length *
+            accentCounts.Length *
+            swingPoses.Length,
+            cases);
+        Assert.Equal(3, detailTiers.Count);
+    }
+
+    /// <summary>
+    /// GPU-014. The saving is only real if one prefix serves both the cull and
+    /// whatever pose the surviving pawn turns out to be in, so the prefix must
+    /// carry nothing a pose can change. Finishing one prefix under four
+    /// different poses has to produce four layouts identical to four separate
+    /// <c>PawnGeometry.Create</c> calls, while the cull rectangle the prefix
+    /// was already tested on stays the neutral one — which for a mid-swing
+    /// pawn is a genuinely different rectangle from the layout's own.
+    /// </summary>
+    [Fact]
+    public void PoseBlindPrefix_CompletesOneCullRectangleUnderEveryPose()
+    {
+        var footAnchor = new Vector2(137f, 241f);
+        var appearance = PawnAppearanceFactory.Create(
+            7,
+            WeaponId.Kampilan,
+            ShieldId.TallHardwood);
+        var poses = new SwingPose?[]
+        {
+            null,
+            default(SwingPose),
+            new SwingPose(
+                SwingPhase.Anticipation,
+                PhaseProgress: 0.25f,
+                WeaponAngleRadians: -0.9f,
+                TorsoLeanX: -1.4f,
+                TorsoLeanY: 0.7f,
+                ExtensionRatio: 0.2f,
+                TrailStrength: 0f),
+            new SwingPose(
+                SwingPhase.ImpactHold,
+                PhaseProgress: 0.5f,
+                WeaponAngleRadians: 1.2f,
+                TorsoLeanX: 2.4f,
+                TorsoLeanY: -1.1f,
+                ExtensionRatio: 1f,
+                TrailStrength: 1f),
+        };
+
+        var prefix = PawnGeometry.PoseBlindPrefix.Create(
+            footAnchor,
+            2f,
+            appearance);
+
+        Assert.Equal(
+            PawnRenderer.GetBounds(footAnchor, 2f, appearance),
+            prefix.PoseBlindVisualBounds);
+
+        foreach (var pose in poses)
+        {
+            AssertLayoutsAreBitIdentical(
+                PawnGeometry.Create(footAnchor, 2f, appearance, swingPose: pose),
+                prefix.CompletePosedLayout(pose));
+        }
+
+        // Guards the assertions above against passing for the wrong reason: if
+        // the prefix ever carried the posed rectangle, everything above would
+        // still hold for the neutral poses and would quietly stop meaning
+        // anything for the posed ones.
+        Assert.NotEqual(
+            prefix.CompletePosedLayout(poses[^1]).VisualBounds,
+            prefix.PoseBlindVisualBounds);
+    }
+
+    /// <summary>
+    /// GPU-014. Every argument check lives in stage one, so adopting the two
+    /// stages at a call site cannot turn a rejected input into an accepted
+    /// one, and cannot defer a rejection to the far side of a cull test where
+    /// it would fire for some agents and not others.
+    /// </summary>
+    [Theory]
+    [InlineData(float.NaN, 1f, 1f, 0, "cameraZoom")]
+    [InlineData(-0.5f, 1f, 1f, 0, "cameraZoom")]
+    [InlineData(1f, 0f, 1f, 0, "scaleMultiplier")]
+    [InlineData(1f, float.PositiveInfinity, 1f, 0, "scaleMultiplier")]
+    [InlineData(1f, 1f, 0.99f, 0, "armorWidthFactor")]
+    [InlineData(1f, 1f, 2f, 0, "armorWidthFactor")]
+    [InlineData(1f, 1f, 1f, -1, "adornmentAccentMarkCount")]
+    [InlineData(1f, 1f, 1f, 3, "adornmentAccentMarkCount")]
+    public void PoseBlindPrefix_Create_RejectsWhateverCreateRejects(
+        float cameraZoom,
+        float scaleMultiplier,
+        float armorWidthFactor,
+        int adornmentAccentMarkCount,
+        string expectedParameterName)
+    {
+        var appearance = PawnAppearanceFactory.Create(
+            0,
+            WeaponId.Kampilan,
+            ShieldId.None);
+
+        var fromCreate = Assert.Throws<ArgumentOutOfRangeException>(
+            () => PawnGeometry.Create(
+                Vector2.Zero,
+                cameraZoom,
+                appearance,
+                scaleMultiplier,
+                swingPose: null,
+                armorWidthFactor,
+                hasSash: false,
+                adornmentAccentMarkCount));
+        var fromPrefix = Assert.Throws<ArgumentOutOfRangeException>(
+            () => PawnGeometry.PoseBlindPrefix.Create(
+                Vector2.Zero,
+                cameraZoom,
+                appearance,
+                scaleMultiplier,
+                armorWidthFactor,
+                hasSash: false,
+                adornmentAccentMarkCount));
+
+        Assert.Equal(expectedParameterName, fromCreate.ParamName);
+        Assert.Equal(expectedParameterName, fromPrefix.ParamName);
+    }
+
+    /// <summary>
     /// Record equality on <c>PawnLayout</c> compares its floats with
     /// <c>float.Equals</c>, which reads positive and negative zero as the
     /// same value. GPU-013's acceptance criterion is bit-identity, so every
