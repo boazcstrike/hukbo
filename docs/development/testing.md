@@ -3201,6 +3201,140 @@ the same nominal groups then show a median aspect of 5.09 with both angles at
 44.1°, which is the uniform-random value. The cohesion that `Hold` applies is
 doing real work when it is allowed to run; it is almost never allowed to run.
 
+### Re-measurement after the `Close` latch fix (T7), 2026-07-28
+
+The measurement above is the "before" picture, taken at commit `8f4e426`,
+before any rule change from this workstream landed. This is the "after"
+picture, taken once T1 through T6 of
+[2026-07-28-contingent-close-latch.md](../plans/2026-07-28-contingent-close-latch.md)
+had landed (commits `bde702f` through `855c797`): `MovementRuleset` now
+carries `CloseFractionNumerator` and `CloseFractionDenominator`; transition
+rule 3 counts members in contact against those fractions instead of taking a
+minimum distance; `PersistentContingentsV3` is registered with `(1, 2)` —
+close at half the living members in contact, re-open below a quarter; and
+`Scenario`'s shipped default has moved from `PersistentContingentsV2` to
+`PersistentContingentsV3`.
+
+Both runs use the same workload the before-table used — a five-seed sweep,
+200 agents, a 10 000-tick limit, read from this file rather than assumed:
+
+```powershell
+dotnet build src/Hukbo.Core/Hukbo.Core.csproj -c Release
+dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5 PersistentContingentsV3
+dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5 PersistentContingentsV2
+```
+
+**A note on the command line actually run.** The plan's T7 section writes the
+first command with no fourth argument, relying on the tool's default. That
+default is a literal hardcoded in `tools/Hukbo.Tools.ContingentShape/Program.cs`
+(`MovementPresetId.PersistentContingentsV2`), independent of `Scenario`'s
+shipped default — T5 and T6 did not touch it, and this task's file ownership
+does not extend to changing it either. Running the tool with no fourth
+argument today therefore still measures V2, not the new shipped default, so
+both runs below pass the preset explicitly instead. The second run
+(`PersistentContingentsV2`) is the control the plan asks for either way.
+
+**Occupancy and denial attribution.**
+
+| State / denial reason | V2 (control) share | V3 share |
+| --- | --- | --- |
+| `Close` / `close-enemy-within-close-radius` (rule 3) | 63.69 % | 53.11 % |
+| `Break` / `break-attrition` (rule 2) | 23.51 % | 30.45 % |
+| `Advance`, cohesion not needed / `already-gathered` | 5.71 % | 6.77 % |
+| `gate6-square-overlap` | 1.81 % | 3.89 % |
+| `Hold` / `none-cohesion-granted` | 3.09 % | 3.39 % |
+| `window-shut` (duty cycle) | 1.12 % | 1.22 % |
+| `gate5-map-edge` | 1.07 % | 1.17 % |
+
+Design section 5 predicted the geometric gates and rule 2 (attrition) might
+become the new ceiling once rule 3 stopped locking every contingent into
+`Close` on a single member's contact. That prediction held: `break-attrition`
+rose from 23.51 % to 30.45 %, and `gate6-square-overlap` roughly doubled, from
+1.81 % to 3.89 %. `close-enemy-within-close-radius` fell from 63.69 % to
+53.11 %, which is the fix doing what it was built to do — contingents spend
+markedly less of the battle latched into `Close`.
+
+**1. Hold episodes after first `Close` — must be non-zero.** V3: 1 episode,
+14 ticks, across 50 contingent-battles, all 50 of which reached `Close`. V2
+control: 0 episodes, 0 ticks, matching the frozen before-table exactly. The
+count is non-zero, so the change did not fail at its stated purpose, but the
+margin is thin: one `Hold` episode across the whole five-seed sweep is a long
+way from "several small contingents repeatedly gathering and re-forming during
+the advance," which is the spectator-visible behaviour rows 104 and 114
+actually describe. That gap is recorded here as a finding rather than rounded
+up.
+
+**2. `Hold` aspect-ratio distribution.**
+
+| Metric | V2 (today's baseline) | V3 |
+| --- | --- | --- |
+| Median | 1.56 | 1.59 |
+| p99 | 3.06 | 5.04 |
+| Max | 5.17 | 14.21 |
+| Share below 2.0 | 79.29 % | 75.74 % |
+
+The median barely moves. The tail does: p99 rises from 3.06 to 5.04 and the
+observed maximum from 5.17 to 14.21, and the share of gathers reading as a
+tight clump (aspect below 2.0) drops from 79.29 % to 75.74 %. That is a
+materially worse tail, not a materially worse typical case, and the plan is
+explicit that a worse distribution is new information rather than a thing to
+quietly tune away. It is recorded here as a finding: whatever `Hold` episodes
+now occur mid-battle (after a contingent has already passed through `Close` at
+least once) evidently include some shaped less like a clump than the
+approach-phase gathers the before-table measured. With only 1 mid-battle
+`Hold` episode observed for V3 in this sweep, that is the most likely driver,
+but the tool does not yet split `Hold` samples by before/after first `Close`
+the way it splits ticks and episodes — the numbers above are the aggregate
+across all `Hold` samples, exactly as the before-table reported them, and
+that split is not built.
+
+**3. Denial attribution**, repeated in one line per rule or gate for the
+report contract: `close-enemy-within-close-radius` (rule 3) 53.11 % V3 vs
+63.69 % V2; `break-attrition` (rule 2) 30.45 % V3 vs 23.51 % V2;
+`already-gathered` 6.77 % V3 vs 5.71 % V2; `gate6-square-overlap` 3.89 % V3 vs
+1.81 % V2; `none-cohesion-granted` (`Hold`) 3.39 % V3 vs 3.09 % V2;
+`window-shut` 1.22 % V3 vs 1.12 % V2; `gate5-map-edge` 1.17 % V3 vs 1.07 % V2.
+
+**4. `Close` state-flip frequency.** `Hukbo.Tools.ContingentShape` gained one
+new counter for this task, `closeReentries`, printed as `Close re-entries
+(state-flip)`. It counts a transition into `Close` that is not the
+contingent's first entry into `Close` in that battle — the first entry is
+excluded so the counter measures only re-entry after the contingent left for
+some other state. Across the same five-seed, 200-agent sweep: V3 reports 10
+re-entries, V2 reports 12. Both are non-zero: V2's rule 3 is symmetric at the
+`(0, 1)` fraction (entry and exit threshold both collapse to `Max(1, ...)`),
+so a contingent can in principle leave `Close` whenever the very last member
+in contact drops out and re-enter once contact resumes, and the measurement
+confirms that happens — twelve times across fifty contingent-battles, even
+though no `Hold` episode ever followed any of those twelve. The V3 count (10)
+is marginally lower than the V2 count (12), not higher: halving the entry
+fraction to build the exit threshold did not produce a materially different
+amount of state churn either way. That is the answer design section 7 asked
+for — the two bands produce a similar order of magnitude of `Close` flipping,
+and in both cases the flip essentially never routes back through `Hold`
+before contact is re-established, on this five-seed sample.
+
+**Outcome and battle length.** V2 and V3 simulate different behaviour, so the
+five seeds do not produce the same terminal ticks or winners under the two
+presets — that is expected and is not a determinism concern; determinism
+within one preset is what `DeterminismTests` and the canonical gate check, not
+agreement between two different presets. V2 control: 1064, 1712, 858, 1635,
+2234 ticks (matching commit `8f4e426`'s frozen values exactly — seed 1
+reproduces `Faction0Victory` at tick 1064). V3: 1334, 1909, 917, 1437, 2285
+ticks.
+
+**Verdict on the fix.** The fix works at the narrowest reading of its stated
+purpose: `Hold` episodes after first `Close` are non-zero where they were
+zero, and contingents spend materially less of the battle latched in `Close`
+(53.11 % against 63.69 %). It does not yet produce the richer "repeatedly
+gathering and re-forming during the advance" picture the design document and
+rows 104 and 114 describe — one `Hold` episode in fifty contingent-battles is
+a rare event on this sample, not a repeated behaviour, and the `Hold` shape
+that does occur reads worse in the tail (p99 and max) than the approach-phase
+gathers the before-table measured. Whether that is nonetheless visible to a
+human at the default camera fit is exactly what T10's reset of rows 104 and
+114 exists to find out, and no agent may answer that question.
+
 ## Failure classification
 
 Classify failures as implementation, test, environment/dependency, pre-existing,

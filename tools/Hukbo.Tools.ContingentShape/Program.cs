@@ -176,6 +176,14 @@ long holdTicksBeforeFirstClose = 0;
 long holdTicksAfterFirstClose = 0;
 var holdEpisodesBeforeFirstClose = 0;
 var holdEpisodesAfterFirstClose = 0;
+
+// Item 4 of T7 in docs/plans/2026-07-28-contingent-close-latch.md: how often
+// a contingent leaves ContingentState.Close and later re-enters it. The very
+// first entry into Close never counts; only a later re-entry, after the
+// contingent has held some other state in between, is a "flip". This is the
+// measurement design section 7's open question calls for, to judge whether
+// halving the entry fraction for the exit threshold is a wide enough band.
+var closeReentries = 0;
 var contingentBattlesObserved = 0;
 var contingentBattlesReachingClose = 0;
 var contingentBattlesHoldingAfterClose = 0;
@@ -445,9 +453,18 @@ for (var seedIndex = 0; seedIndex < seedCount; seedIndex++)
                 lastLeaderChangeTick[slot] = tick;
             }
 
-            if (state == ContingentState.Close && firstCloseTick[slot] < 0)
+            var enteringClose = state == ContingentState.Close &&
+                previousStates[slot] != ContingentState.Close;
+            if (enteringClose)
             {
-                firstCloseTick[slot] = tick;
+                if (firstCloseTick[slot] < 0)
+                {
+                    firstCloseTick[slot] = tick;
+                }
+                else
+                {
+                    closeReentries++;
+                }
             }
 
             var afterFirstClose = firstCloseTick[slot] >= 0;
@@ -674,6 +691,8 @@ Console.WriteLine(
     $"Hold episodes before first Close     : {holdEpisodesBeforeFirstClose}");
 Console.WriteLine(
     $"Hold episodes after first Close      : {holdEpisodesAfterFirstClose}");
+Console.WriteLine(
+    $"Close re-entries (state-flip)        : {closeReentries}");
 Console.WriteLine();
 
 Console.WriteLine("--- Gathered shape (row 104) ---");
