@@ -1,0 +1,590 @@
+using Hukbo.Client.Presentation;
+
+namespace Hukbo.Client.Presentation.Catalogs;
+
+/// <summary>
+/// Whether a preset's recipe is safe to draw regardless of the pawn's
+/// equipped weapon, or restricted to a specific loadout
+/// (warrior-appearance-design.md preset roster: "Presets containing H1 (a
+/// sheathed side blade) are restricted to Wasay-armed pawns, because the
+/// research scopes H1 to figures whose main weapon is not a blade").
+/// </summary>
+internal enum AppearancePresetLoadoutCompatibility
+{
+    /// <summary>Draws for a pawn carrying any of the four weapons.</summary>
+    Any,
+
+    /// <summary>
+    /// Draws only for a pawn whose <c>PawnWeaponRole</c> is
+    /// <see cref="PawnWeaponRole.Wasay"/>. Every preset that renders the H1
+    /// sheathed-side-blade accessory must carry this value —
+    /// <see cref="AppearancePresetValidator"/> enforces the pairing.
+    /// </summary>
+    WasayOnly,
+}
+
+/// <summary>
+/// One preset's authored component recipe: exactly the categories the
+/// warrior-appearance research and catalog define (category A stature/build
+/// and category J palette are not recipe fields — A stays the independent
+/// roll <c>PawnAppearanceFactory</c> already has, and J is folded into
+/// whichever component a recipe names, not chosen separately). Six fields are
+/// mandatory — every shipped preset renders hair, a head covering, a torso
+/// garment, a lower garment, a sash/belt, and a condition — and three are
+/// optional, matching the research: armor (F) and the accessory slot (H) are
+/// absent from most presets, and adornment (I) is capped at
+/// <see cref="AppearanceComponentCatalog.MaxAccentMarksPerPawn"/> entries and
+/// empty on every non-elite preset. The constructor rejects a component
+/// placed in the wrong field (an <see cref="AppearanceComponentEntry"/> whose
+/// own <see cref="AppearanceComponentEntry.Category"/> does not match the
+/// field it is assigned to) so a recipe can never silently mix up categories.
+/// </summary>
+internal sealed record AppearancePresetRecipe(
+    AppearanceComponentEntry Hair,
+    AppearanceComponentEntry HeadCovering,
+    AppearanceComponentEntry TorsoGarment,
+    AppearanceComponentEntry LowerGarment,
+    AppearanceComponentEntry SashBelt,
+    AppearanceComponentEntry Condition,
+    AppearanceComponentEntry? Armor = null,
+    AppearanceComponentEntry? Accessory = null,
+    IReadOnlyList<AppearanceComponentEntry>? Adornments = null)
+{
+    // Positional-record property re-declarations, mirroring
+    // AppearanceComponentEntry's own pattern: each initializer runs once,
+    // against the primary constructor parameter of the same name.
+    public AppearanceComponentEntry Hair { get; init; } =
+        ValidateCategory(Hair, AppearanceComponentCategory.Hair, nameof(Hair));
+
+    public AppearanceComponentEntry HeadCovering { get; init; } =
+        ValidateCategory(HeadCovering, AppearanceComponentCategory.HeadCovering, nameof(HeadCovering));
+
+    public AppearanceComponentEntry TorsoGarment { get; init; } =
+        ValidateCategory(TorsoGarment, AppearanceComponentCategory.TorsoGarment, nameof(TorsoGarment));
+
+    public AppearanceComponentEntry LowerGarment { get; init; } =
+        ValidateCategory(LowerGarment, AppearanceComponentCategory.LowerGarment, nameof(LowerGarment));
+
+    public AppearanceComponentEntry SashBelt { get; init; } =
+        ValidateCategory(SashBelt, AppearanceComponentCategory.SashBelt, nameof(SashBelt));
+
+    public AppearanceComponentEntry Condition { get; init; } =
+        ValidateCategory(Condition, AppearanceComponentCategory.Condition, nameof(Condition));
+
+    public AppearanceComponentEntry? Armor { get; init; } =
+        Armor is null ? null : ValidateCategory(Armor, AppearanceComponentCategory.Armor, nameof(Armor));
+
+    public AppearanceComponentEntry? Accessory { get; init; } =
+        Accessory is null ? null : ValidateCategory(Accessory, AppearanceComponentCategory.Accessory, nameof(Accessory));
+
+    public IReadOnlyList<AppearanceComponentEntry> Adornments { get; init; } =
+        ValidateAdornments(Adornments);
+
+    private static AppearanceComponentEntry ValidateCategory(
+        AppearanceComponentEntry? entry,
+        AppearanceComponentCategory expected,
+        string paramName)
+    {
+        ArgumentNullException.ThrowIfNull(entry, paramName);
+        if (entry.Category != expected)
+        {
+            throw new ArgumentException(
+                $"'{entry.Catalog.Id}' belongs to category {entry.Category}, not the " +
+                $"expected {expected} for recipe field '{paramName}'.",
+                paramName);
+        }
+
+        return entry;
+    }
+
+    private static IReadOnlyList<AppearanceComponentEntry> ValidateAdornments(
+        IReadOnlyList<AppearanceComponentEntry>? adornments)
+    {
+        if (adornments is null)
+        {
+            return [];
+        }
+
+        foreach (var adornment in adornments)
+        {
+            ValidateCategory(adornment, AppearanceComponentCategory.Adornment, nameof(adornments));
+        }
+
+        return adornments;
+    }
+}
+
+/// <summary>
+/// One warrior-appearance preset: the shared <see cref="VisualCatalogEntry"/>
+/// shape plus which regional block it belongs to, its authored component
+/// recipe, its loadout restriction, its roster fallback, and its selection
+/// rarity weight (warrior-appearance-design.md, "Preset roster"; R-W3.2,
+/// R-W3.5). <see cref="Catalog"/>'s own <c>ScopeTag</c> is always exactly
+/// <see cref="Block"/> — a preset's scope tag *is* the block it belongs to —
+/// and the constructor enforces the two never drift apart.
+/// </summary>
+internal sealed record AppearancePresetEntry(
+    VisualCatalogEntry Catalog,
+    VisualScopeTag Block,
+    AppearancePresetRecipe Recipe,
+    AppearancePresetLoadoutCompatibility LoadoutCompatibility,
+    string? FallbackId = null,
+    int RarityWeight = 1)
+{
+    public VisualCatalogEntry Catalog { get; init; } =
+        Catalog ?? throw new ArgumentNullException(nameof(Catalog));
+
+    public VisualScopeTag Block { get; init; } = ValidateBlock(Block, Catalog);
+
+    public AppearancePresetRecipe Recipe { get; init; } =
+        Recipe ?? throw new ArgumentNullException(nameof(Recipe));
+
+    public AppearancePresetLoadoutCompatibility LoadoutCompatibility { get; init; } =
+        ValidateLoadoutCompatibility(LoadoutCompatibility);
+
+    /// <summary>
+    /// The catalog identifier of the preset this entry falls back to when it
+    /// cannot be resolved, or <see langword="null"/> for a preset — LEV-01
+    /// in this milestone's roster — that instead falls back through the
+    /// generic chain (<see cref="VisualFallbackStep.ModelCategoryDefault"/>,
+    /// then <see cref="VisualFallbackStep.DiagnosticPlaceholder"/>) rather
+    /// than to another named preset (warrior-appearance-design.md: "block
+    /// bases fall back to LEV-01, and LEV-01 falls back through the full
+    /// resolution chain").
+    /// </summary>
+    public string? FallbackId { get; init; } = ValidateFallbackId(FallbackId);
+
+    /// <summary>
+    /// The selection weight this preset carries in
+    /// <see cref="AppearancePresets.SelectPreset"/>'s weighted pool walk.
+    /// Every preset in the VIS-018 milestone roster is uniform at the
+    /// default of 1; the field exists now so VIS-020's elite and leader rows
+    /// can carry a small <c>PROVISIONAL</c> rarity weight (target at most
+    /// roughly 2% each, R-W3.14) without a breaking change to this record.
+    /// </summary>
+    public int RarityWeight { get; init; } = ValidateRarityWeight(RarityWeight);
+
+    private static VisualScopeTag ValidateBlock(VisualScopeTag block, VisualCatalogEntry catalog)
+    {
+        if (!Enum.IsDefined(block))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(block),
+                block,
+                "Block must be a defined VisualScopeTag member.");
+        }
+
+        if (catalog.ScopeTag != block)
+        {
+            throw new ArgumentException(
+                $"Preset '{catalog.Id}' declares Block={block} but its own " +
+                $"Catalog.ScopeTag is {catalog.ScopeTag}; the two must agree " +
+                "— a preset's scope tag is its block.",
+                nameof(block));
+        }
+
+        return block;
+    }
+
+    private static AppearancePresetLoadoutCompatibility ValidateLoadoutCompatibility(
+        AppearancePresetLoadoutCompatibility loadoutCompatibility)
+    {
+        if (!Enum.IsDefined(loadoutCompatibility))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(loadoutCompatibility),
+                loadoutCompatibility,
+                "Loadout compatibility must be a defined AppearancePresetLoadoutCompatibility member.");
+        }
+
+        return loadoutCompatibility;
+    }
+
+    private static string? ValidateFallbackId(string? fallbackId)
+    {
+        if (fallbackId is not null && string.IsNullOrWhiteSpace(fallbackId))
+        {
+            throw new ArgumentException(
+                "FallbackId must be null or a non-blank catalog identifier.",
+                nameof(fallbackId));
+        }
+
+        return fallbackId;
+    }
+
+    private static int ValidateRarityWeight(int rarityWeight)
+    {
+        if (rarityWeight < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(rarityWeight),
+                rarityWeight,
+                "RarityWeight must be at least 1.");
+        }
+
+        return rarityWeight;
+    }
+}
+
+/// <summary>
+/// The <c>appearance.preset*</c> roster (warrior-appearance-design.md,
+/// "Preset roster"; implementation-plan-draft.md VIS-018 milestone,
+/// VIS-020/021/022 post-milestone) and its two selection streams — block
+/// assignment and preset selection (design section "Deterministic
+/// selection", R-W3.5).
+///
+/// <b>VIS-018 ships exactly five of the ten generic-levy presets — LEV-01,
+/// LEV-02, LEV-03, LEV-04, and LEV-09 — the five the design table marks
+/// loadout <c>Any</c> rather than <c>Wasay only</c>, chosen deliberately so
+/// the milestone needs no loadout-filter edge case in its own shipped data.
+/// LEV-05 through LEV-08 and LEV-10 (all <c>Wasay only</c>, all carrying H1)
+/// are reserved index slots below, shipped later by VIS-022. The filter and
+/// validator machinery that a <c>Wasay only</c> preset needs is still real
+/// and still tested this milestone, exercised with a synthetic H1 recipe in
+/// <c>AppearancePresetTests.cs</c> rather than with a shipped one.</b>
+///
+/// <b>Registration mechanism, for VIS-020/021/022:</b> each sibling regional
+/// block (Visayan, Tagalog, Northern Luzon) ships as its own file —
+/// <c>AppearancePresets.Visayan.cs</c>, <c>AppearancePresets.Tagalog.cs</c>,
+/// <c>AppearancePresets.NorthernLuzon.cs</c> — each exposing its own roster
+/// as an independent <c>internal static class AppearancePresetsXxx</c> with
+/// its own <c>public static IReadOnlyList&lt;AppearancePresetEntry&gt;
+/// All</c>. That independence is what makes the three tasks parallel-safe:
+/// each block's own roster validates, differentiates, and pins its own
+/// identifiers against its own <c>.All</c> list in its own test file, with
+/// no shared file to conflict over. Neither <see cref="All"/> nor
+/// <see cref="BlockAssignmentTable"/> below need to change for a sibling
+/// block's own tests to pass. VIS-022 ("Northern Luzon block, remaining levy
+/// presets, and faction block assignment") is the single, later, sequenced
+/// task that unions every block's <c>.All</c> into <see cref="All"/> here,
+/// adds LEV-05 through LEV-08 and LEV-10 to <em>this</em> file at their
+/// already-reserved indices, and grows <see cref="BlockAssignmentTable"/>
+/// from today's single-entry table to the real per-faction, per-match
+/// assignment the design describes — coordinated as VIS-022's own edit to
+/// this file, per its own Files list ("coordinated with no other concurrent
+/// writer").
+/// </summary>
+internal static class AppearancePresets
+{
+    // ================= Generic levy block (VIS-018: 5 of 10 shipped) =================
+
+    /// <summary>
+    /// LEV-01. B1 knotted hair, C5 bare head, G2 cloth belt, K1 clean.
+    /// Weakest-link tier: Documented, form uncertain (G2). The block's own
+    /// family default and fallback target — see
+    /// <see cref="AppearancePresetEntry.FallbackId"/>'s remarks — so it
+    /// falls back through the generic chain rather than to another preset.
+    /// </summary>
+    public static readonly AppearancePresetEntry Lev01 = new(
+        new VisualCatalogEntry(
+            "appearance.presetLevy.lev01",
+            0,
+            "Levy Warrior",
+            VisualEvidenceTier.DocumentedFormUncertain,
+            VisualScopeTag.UnscopedGeneric,
+            "LEV-01: B1 (Long Hair, Knotted), C5 (Bare Head), D1 (Bare-" +
+            "Chested), E1 (Bahag — Loincloth), G2 (Cloth Belt), K1 (Clean). " +
+            "Minimal kit, undyed cloth, no tattoos, no gold, no putong, no " +
+            "regional markers — Unscoped-generic scope. Weakest-link tier " +
+            "Documented, form uncertain (G2).",
+            VisualDetailTier.Low),
+        VisualScopeTag.UnscopedGeneric,
+        new AppearancePresetRecipe(
+            Hair: AppearanceComponentCatalog.HairB1LongHairKnotted,
+            HeadCovering: AppearanceComponentCatalog.HeadCoveringC5BareHead,
+            TorsoGarment: AppearanceComponentCatalog.TorsoD1BareChested,
+            LowerGarment: AppearanceComponentCatalog.LowerGarmentE1Bahag,
+            SashBelt: AppearanceComponentCatalog.SashBeltG2ClothBelt,
+            Condition: AppearanceComponentCatalog.ConditionK1Clean),
+        AppearancePresetLoadoutCompatibility.Any);
+
+    /// <summary>
+    /// LEV-02. B3 cropped hair, C5 bare head, G3 cord belt, K1 clean.
+    /// Weakest-link tier: Provisional reconstruction (G3).
+    /// </summary>
+    public static readonly AppearancePresetEntry Lev02 = new(
+        new VisualCatalogEntry(
+            "appearance.presetLevy.lev02",
+            1,
+            "Levy Warrior, Cropped Hair",
+            VisualEvidenceTier.ProvisionalReconstruction,
+            VisualScopeTag.UnscopedGeneric,
+            "LEV-02: B3 (Cropped Hair), C5 (Bare Head), D1 (Bare-Chested), " +
+            "E1 (Bahag — Loincloth), G3 (Cord Belt), K1 (Clean). Minimal " +
+            "kit, undyed cloth, no tattoos, no gold, no putong — Unscoped-" +
+            "generic scope. Weakest-link tier Provisional reconstruction " +
+            "(G3).",
+            VisualDetailTier.Low),
+        VisualScopeTag.UnscopedGeneric,
+        new AppearancePresetRecipe(
+            Hair: AppearanceComponentCatalog.HairB3Cropped,
+            HeadCovering: AppearanceComponentCatalog.HeadCoveringC5BareHead,
+            TorsoGarment: AppearanceComponentCatalog.TorsoD1BareChested,
+            LowerGarment: AppearanceComponentCatalog.LowerGarmentE1Bahag,
+            SashBelt: AppearanceComponentCatalog.SashBeltG3CordBelt,
+            Condition: AppearanceComponentCatalog.ConditionK1Clean),
+        AppearancePresetLoadoutCompatibility.Any,
+        FallbackId: "appearance.presetLevy.lev01");
+
+    /// <summary>
+    /// LEV-03. B1 knotted hair, C4 woven sun hat, G3 cord belt, K2 dusty.
+    /// Weakest-link tier: Provisional reconstruction (C4, battle-wear use;
+    /// G3).
+    /// </summary>
+    public static readonly AppearancePresetEntry Lev03 = new(
+        new VisualCatalogEntry(
+            "appearance.presetLevy.lev03",
+            2,
+            "Levy Warrior, Sun Hat",
+            VisualEvidenceTier.ProvisionalReconstruction,
+            VisualScopeTag.UnscopedGeneric,
+            "LEV-03: B1 (Long Hair, Knotted), C4 (Woven Sun Hat), D1 (Bare-" +
+            "Chested), E1 (Bahag — Loincloth), G3 (Cord Belt), K2 (Dusty / " +
+            "Muddy). Levy flavor only — C4's battlefield use is a " +
+            "Provisional reconstruction. Weakest-link tier Provisional " +
+            "reconstruction (C4, G3).",
+            VisualDetailTier.Low),
+        VisualScopeTag.UnscopedGeneric,
+        new AppearancePresetRecipe(
+            Hair: AppearanceComponentCatalog.HairB1LongHairKnotted,
+            HeadCovering: AppearanceComponentCatalog.HeadCoveringC4WovenSunHat,
+            TorsoGarment: AppearanceComponentCatalog.TorsoD1BareChested,
+            LowerGarment: AppearanceComponentCatalog.LowerGarmentE1Bahag,
+            SashBelt: AppearanceComponentCatalog.SashBeltG3CordBelt,
+            Condition: AppearanceComponentCatalog.ConditionK2DustyMuddy),
+        AppearancePresetLoadoutCompatibility.Any,
+        FallbackId: "appearance.presetLevy.lev01");
+
+    /// <summary>
+    /// LEV-04. B3 cropped hair, C4 woven sun hat, G2 cloth belt, K2 dusty.
+    /// Weakest-link tier: Provisional reconstruction (C4).
+    /// </summary>
+    public static readonly AppearancePresetEntry Lev04 = new(
+        new VisualCatalogEntry(
+            "appearance.presetLevy.lev04",
+            3,
+            "Levy Warrior, Cropped Hair and Sun Hat",
+            VisualEvidenceTier.ProvisionalReconstruction,
+            VisualScopeTag.UnscopedGeneric,
+            "LEV-04: B3 (Cropped Hair), C4 (Woven Sun Hat), D1 (Bare-" +
+            "Chested), E1 (Bahag — Loincloth), G2 (Cloth Belt), K2 (Dusty " +
+            "/ Muddy). Levy flavor only. Weakest-link tier Provisional " +
+            "reconstruction (C4).",
+            VisualDetailTier.Low),
+        VisualScopeTag.UnscopedGeneric,
+        new AppearancePresetRecipe(
+            Hair: AppearanceComponentCatalog.HairB3Cropped,
+            HeadCovering: AppearanceComponentCatalog.HeadCoveringC4WovenSunHat,
+            TorsoGarment: AppearanceComponentCatalog.TorsoD1BareChested,
+            LowerGarment: AppearanceComponentCatalog.LowerGarmentE1Bahag,
+            SashBelt: AppearanceComponentCatalog.SashBeltG2ClothBelt,
+            Condition: AppearanceComponentCatalog.ConditionK2DustyMuddy),
+        AppearancePresetLoadoutCompatibility.Any,
+        FallbackId: "appearance.presetLevy.lev01");
+
+    // Indices 4-7 are reserved for LEV-05 through LEV-08 (design table
+    // order), all Wasay-only and not shipped this milestone. VIS-022 fills
+    // them in; the gap is deliberate, matching AppearanceComponentCatalog's
+    // own reserved-index convention for an unshipped research option
+    // (VisualCatalogValidator.ReasonIndexGap only fires on a genuine
+    // collision, never a skipped value).
+
+    /// <summary>
+    /// LEV-09. B3 cropped hair, C5 bare head, G2 cloth belt, K5 battle-worn.
+    /// Weakest-link tier: Documented, form uncertain (G2).
+    /// </summary>
+    public static readonly AppearancePresetEntry Lev09 = new(
+        new VisualCatalogEntry(
+            "appearance.presetLevy.lev09",
+            8,
+            "Levy Warrior, Battle-Worn",
+            VisualEvidenceTier.DocumentedFormUncertain,
+            VisualScopeTag.UnscopedGeneric,
+            "LEV-09: B3 (Cropped Hair), C5 (Bare Head), D1 (Bare-Chested), " +
+            "E1 (Bahag — Loincloth), G2 (Cloth Belt), K5 (Battle-Worn). " +
+            "Minimal kit, undyed cloth, no tattoos, no gold, no putong — " +
+            "Unscoped-generic scope. Weakest-link tier Documented, form " +
+            "uncertain (G2).",
+            VisualDetailTier.Low),
+        VisualScopeTag.UnscopedGeneric,
+        new AppearancePresetRecipe(
+            Hair: AppearanceComponentCatalog.HairB3Cropped,
+            HeadCovering: AppearanceComponentCatalog.HeadCoveringC5BareHead,
+            TorsoGarment: AppearanceComponentCatalog.TorsoD1BareChested,
+            LowerGarment: AppearanceComponentCatalog.LowerGarmentE1Bahag,
+            SashBelt: AppearanceComponentCatalog.SashBeltG2ClothBelt,
+            Condition: AppearanceComponentCatalog.ConditionK5BattleWorn),
+        AppearancePresetLoadoutCompatibility.Any,
+        FallbackId: "appearance.presetLevy.lev01");
+
+    // Index 9 is reserved for LEV-10 (Wasay-only, not shipped this
+    // milestone); see the indices-4-7 remark above.
+
+    /// <summary>
+    /// Every preset shipped so far, across every block. VIS-018 ships only
+    /// the generic-levy subset above; see the class remarks for how
+    /// VIS-020/021/022 extend this property.
+    /// </summary>
+    public static IReadOnlyList<AppearancePresetEntry> All { get; } =
+    [
+        Lev01,
+        Lev02,
+        Lev03,
+        Lev04,
+        Lev09,
+    ];
+
+    // ================= Block assignment (per faction, per scenario) =================
+
+    /// <summary>
+    /// The allowed block-assignment table (warrior-appearance-design.md,
+    /// "Deterministic selection", step 1): every faction draws from exactly
+    /// one entry per match. A single-entry table this milestone — the
+    /// generic-levy block is the only one with shipped presets — so
+    /// <see cref="SelectBlock"/> is degenerate but real: it genuinely mixes
+    /// <paramref name="scenarioSeed"/> and <paramref name="factionId"/>
+    /// through <see cref="PresentationSalts.AppearanceBlockAssignmentSalt"/>
+    /// and reduces modulo the table's count, exactly as it will once VIS-022
+    /// grows the table to four entries.
+    /// </summary>
+    private static readonly IReadOnlyList<VisualScopeTag> BlockAssignmentTable =
+    [
+        VisualScopeTag.UnscopedGeneric,
+    ];
+
+    /// <summary>
+    /// The deterministic block-assignment stream (R-W3.5, R-W6.2): a pure,
+    /// salted, allocation-free function of <paramref name="scenarioSeed"/>
+    /// and <paramref name="factionId"/>, stable across frames and replays of
+    /// the same seed. Mixes <c>scenarioSeed XOR
+    /// PresentationSalts.AppearanceBlockAssignmentSalt XOR (ulong)factionId</c>
+    /// through the SplitMix64 finalizer and reduces modulo
+    /// <see cref="BlockAssignmentTable"/>'s count.
+    /// </summary>
+    public static VisualScopeTag SelectBlock(ulong scenarioSeed, int factionId)
+    {
+        var mixed = Mix(scenarioSeed ^
+            PresentationSalts.AppearanceBlockAssignmentSalt ^
+            unchecked((ulong)factionId));
+        var index = (int)(mixed % (ulong)BlockAssignmentTable.Count);
+        return BlockAssignmentTable[index];
+    }
+
+    // ================= Preset selection (per pawn) =================
+
+    /// <summary>
+    /// Every declared preset for <paramref name="block"/> whose
+    /// <see cref="AppearancePresetEntry.LoadoutCompatibility"/> allows
+    /// <paramref name="weapon"/> (design step 2, "filtered by loadout
+    /// compatibility"). Pre-built once per (block, is-the-weapon-Wasay) pair
+    /// at type initialization — never allocates on the per-frame call path —
+    /// mirroring <see cref="ShieldVisualCatalog.GetSkins"/>'s own
+    /// pre-built-array discipline.
+    /// </summary>
+    public static IReadOnlyList<AppearancePresetEntry> GetCompatiblePresets(
+        VisualScopeTag block,
+        PawnWeaponRole weapon) =>
+        CompatiblePoolsByBlockAndWasay[(block, weapon == PawnWeaponRole.Wasay)];
+
+    private static readonly IReadOnlyDictionary<(VisualScopeTag Block, bool IsWasay), IReadOnlyList<AppearancePresetEntry>>
+        CompatiblePoolsByBlockAndWasay = BuildCompatiblePools();
+
+    private static IReadOnlyDictionary<(VisualScopeTag, bool), IReadOnlyList<AppearancePresetEntry>>
+        BuildCompatiblePools()
+    {
+        var result = new Dictionary<(VisualScopeTag, bool), IReadOnlyList<AppearancePresetEntry>>();
+        foreach (var block in Enum.GetValues<VisualScopeTag>())
+        {
+            foreach (var isWasay in new[] { false, true })
+            {
+                var pool = new List<AppearancePresetEntry>();
+                foreach (var preset in All)
+                {
+                    if (preset.Block != block)
+                    {
+                        continue;
+                    }
+
+                    if (preset.LoadoutCompatibility ==
+                        AppearancePresetLoadoutCompatibility.WasayOnly && !isWasay)
+                    {
+                        continue;
+                    }
+
+                    pool.Add(preset);
+                }
+
+                result[(block, isWasay)] = pool;
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// The deterministic preset-selection stream (R-W3.5, R-W6.2): a pure,
+    /// salted, allocation-free function of <paramref name="entityId"/>,
+    /// <paramref name="block"/>, and <paramref name="weapon"/>, stable
+    /// across frames and replays of the same seed. Mixes
+    /// <c>entityId XOR PresentationSalts.AppearancePresetSelectionSalt</c>
+    /// through the SplitMix64 finalizer and walks the loadout-filtered pool's
+    /// cumulative <see cref="AppearancePresetEntry.RarityWeight"/> — a strict
+    /// generalization of plain modulo selection that behaves identically to
+    /// it whenever every candidate's weight is the uniform default of 1, as
+    /// every preset in this milestone's roster is. Falls back to
+    /// <see cref="Lev01"/> — the family default — whenever the filtered pool
+    /// is empty; unreachable for this milestone's roster (every shipped
+    /// preset is <see cref="AppearancePresetLoadoutCompatibility.Any"/>, so
+    /// the pool always has all five), but total rather than partial for
+    /// whichever future roster first ships a block/loadout pair with no
+    /// compatible preset.
+    /// </summary>
+    public static AppearancePresetEntry SelectPreset(
+        ulong entityId,
+        VisualScopeTag block,
+        PawnWeaponRole weapon)
+    {
+        var pool = GetCompatiblePresets(block, weapon);
+        if (pool.Count == 0)
+        {
+            return Lev01;
+        }
+
+        var totalWeight = 0;
+        foreach (var preset in pool)
+        {
+            totalWeight += preset.RarityWeight;
+        }
+
+        var mixed = Mix(entityId ^ PresentationSalts.AppearancePresetSelectionSalt);
+        var roll = (int)(mixed % (ulong)totalWeight);
+
+        var cumulative = 0;
+        foreach (var preset in pool)
+        {
+            cumulative += preset.RarityWeight;
+            if (roll < cumulative)
+            {
+                return preset;
+            }
+        }
+
+        // Unreachable: roll is always < totalWeight by construction (modulo
+        // above), and cumulative reaches totalWeight on the pool's last
+        // entry, so the loop always returns before falling through. Kept as
+        // a total, non-throwing fallback rather than an unreachable throw,
+        // matching this codebase's fallback-chain discipline.
+        return pool[^1];
+    }
+
+    private static ulong Mix(ulong value)
+    {
+        unchecked
+        {
+            value += 0x9E3779B97F4A7C15UL;
+            value = (value ^ (value >> 30)) * 0xBF58476D1CE4E5B9UL;
+            value = (value ^ (value >> 27)) * 0x94D049BB133111EBUL;
+            return value ^ (value >> 31);
+        }
+    }
+}

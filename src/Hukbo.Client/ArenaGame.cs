@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using Hukbo.Client.Audio;
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Presentation.Catalogs;
 using Hukbo.Client.Rendering;
 using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
@@ -19,6 +20,13 @@ public sealed partial class ArenaGame : Game
 {
     private const int InitialWindowWidth = 1280;
     private const int InitialWindowHeight = 720;
+
+    // The integration design's measurement matrix (VIS-035, section 11) is
+    // fixed at 1080p; the render probe forces the window to this size
+    // instead of the normal client's smaller default so a captured report
+    // is comparable across runs and hardware.
+    private const int RenderProbeWindowWidth = 1920;
+    private const int RenderProbeWindowHeight = 1080;
     private const int StatusBarHeight = 68;
     private const int EventPanelWidth = 420;
     private const int LayoutMargin = 12;
@@ -77,6 +85,7 @@ public sealed partial class ArenaGame : Game
     private readonly MatchSeries _matchSeries = new(DefaultSeed);
     private readonly ClientSettingsStore _settingsStore;
     private readonly GoreIntensityManager _goreManager;
+    private readonly MotionIntensityManager _motionManager;
     private readonly ArmyCompositionPanel _armyCompositionPanel;
 
     /// <summary>
@@ -92,6 +101,7 @@ public sealed partial class ArenaGame : Game
     private BattleSimulation _simulation;
     private SpectatorCamera _camera;
     private ImmutableArray<PlainsDecal> _plainsDecals;
+    private ImmutableArray<GrassCluster> _grassClusters;
     private SpriteBatch? _spriteBatch;
     private RasterizerState? _arenaRasterizerState;
     private Texture2D? _pixel;
@@ -111,12 +121,42 @@ public sealed partial class ArenaGame : Game
     private long _loggedOutcomeTick = -1;
     private string _lastFocusTarget = string.Empty;
 
+    /// <summary>
+    /// Debug-time opt-in for <c>tools/Hukbo.Tools.RenderProbe</c> (VIS-035):
+    /// when the <c>HUKBO_RENDER_PROBE</c> environment variable is exactly
+    /// <c>"1"</c>, every <see cref="Draw"/> call publishes a
+    /// <see cref="RenderProbeSample"/> through <see cref="RenderProbeSampled"/>
+    /// and <see cref="SetProbeCameraZoom"/> becomes live. Read once here,
+    /// never per frame, so a default run (the variable unset, which is every
+    /// Release run) pays a single cached bool check and nothing else — the
+    /// render path's cost is unaffected.
+    /// </summary>
+    private readonly bool _renderProbeEnabled =
+        Environment.GetEnvironmentVariable("HUKBO_RENDER_PROBE") == "1";
+
+    private long _renderProbeFrameStartTimestamp;
+
+    /// <summary>
+    /// Fires once per <see cref="Draw"/> call while the render-probe opt-in
+    /// is active; never raised otherwise. <c>Hukbo.Tools.RenderProbe</c> is
+    /// the only subscriber today (VIS-035).
+    /// </summary>
+    public event Action<RenderProbeSample>? RenderProbeSampled;
+
     /// <param name="log">
     /// The debug log every subsystem in the client writes through. Optional so
     /// nothing outside <c>Program</c> has to supply one; defaults to the
     /// no-op log, which is also what a <c>Release</c> build resolves to.
     /// </param>
-    public ArenaGame(DiagnosticLog? log = null)
+    /// <param name="scenarioOverride">
+    /// Replaces the startup scenario that <c>BuildScenario</c> would
+    /// otherwise construct from the persisted army composition. Null in
+    /// every normal run; <c>Hukbo.Tools.RenderProbe</c> (VIS-035) is the
+    /// only caller that supplies one, so it can launch the real client
+    /// against a scripted seed and unit count instead of a spectator's
+    /// saved settings.
+    /// </param>
+    public ArenaGame(DiagnosticLog? log = null, Scenario? scenarioOverride = null)
     {
         _log = log ?? DiagnosticLog.Disabled;
         _soundDirector = new SoundDirector(
@@ -136,10 +176,14 @@ public sealed partial class ArenaGame : Game
         _goreManager = new GoreIntensityManager(
             _settingsStore.Load(catalog.DefaultThemeId).GoreIntensity,
             value => TryPersistGoreIntensity(catalog.DefaultThemeId, value));
+        _motionManager = new MotionIntensityManager(
+            _settingsStore.Load(catalog.DefaultThemeId).MotionIntensity,
+            value => TryPersistMotionIntensity(catalog.DefaultThemeId, value));
 
         // A restored preference takes effect from tick zero, so the spectator
         // never has to reopen the menu after a relaunch.
         _presentation.Blood.Intensity = _goreManager.Value;
+        _presentation.Dust.MotionIntensity = _motionManager.Value;
         _menu = new MenuOverlay(catalog.Themes, catalog.Standards);
         _activeComposition =
             _settingsStore.Load(catalog.DefaultThemeId).Composition;
@@ -149,8 +193,10 @@ public sealed partial class ArenaGame : Game
 
         _graphics = new GraphicsDeviceManager(this)
         {
-            PreferredBackBufferWidth = InitialWindowWidth,
-            PreferredBackBufferHeight = InitialWindowHeight,
+            PreferredBackBufferWidth =
+                _renderProbeEnabled ? RenderProbeWindowWidth : InitialWindowWidth,
+            PreferredBackBufferHeight =
+                _renderProbeEnabled ? RenderProbeWindowHeight : InitialWindowHeight,
             SynchronizeWithVerticalRetrace = true,
         };
 
@@ -160,15 +206,36 @@ public sealed partial class ArenaGame : Game
         IsMouseVisible = true;
         IsFixedTimeStep = false;
 
-        _scenario = BuildScenario(_matchSeries.CurrentSeed, _activeComposition);
+        _scenario = scenarioOverride ??
+            BuildScenario(_matchSeries.CurrentSeed, _activeComposition);
         _simulation = BattleSimulation.Create(_scenario);
         _camera = new SpectatorCamera(_scenario.MapWidth, _scenario.MapHeight);
         _plainsDecals = PlainsBackdropGeometry.GenerateDecals(
             _scenario.Seed,
             _scenario.MapWidth,
             _scenario.MapHeight);
+        _grassClusters = GrassGeometry.GenerateClusters(
+            _scenario.Seed,
+            _scenario.MapWidth,
+            _scenario.MapHeight);
 
         LogScenarioBuilt("startup");
+    }
+
+    /// <summary>
+    /// Overrides the spectator camera's zoom directly, bypassing wheel-input
+    /// scaling. No-op unless the render-probe opt-in is active, so a
+    /// spectator's own zoom is the only path in a normal run — this exists
+    /// for <c>Hukbo.Tools.RenderProbe</c> (VIS-035) to drive the three
+    /// scripted camera stations (minimum zoom, default fit, maximum zoom)
+    /// named in the integration design's measurement matrix.
+    /// </summary>
+    public void SetProbeCameraZoom(float zoom)
+    {
+        if (_renderProbeEnabled)
+        {
+            _camera.SetZoom(zoom);
+        }
     }
 
     /// <summary>
@@ -185,6 +252,24 @@ public sealed partial class ArenaGame : Game
         return _settingsStore.TrySave(
             _themeManager.ActiveTheme.Id,
             current.Composition,
+            value,
+            current.MotionIntensity);
+    }
+
+    /// <summary>
+    /// Mirrors <see cref="TryPersistGoreIntensity"/> for the motion setting:
+    /// re-reads the whole settings file at save time so a motion-level write
+    /// carries forward the theme, composition, and gore level unchanged.
+    /// </summary>
+    private bool TryPersistMotionIntensity(
+        string defaultThemeId,
+        MotionIntensity value)
+    {
+        var current = _settingsStore.Load(defaultThemeId);
+        return _settingsStore.TrySave(
+            _themeManager.ActiveTheme.Id,
+            current.Composition,
+            current.GoreIntensity,
             value);
     }
 
@@ -238,7 +323,51 @@ public sealed partial class ArenaGame : Game
             "height",
             GraphicsDevice.Viewport.Height);
 
+        ValidateVisualCatalogs();
+
         _camera.Fit(GetLayout(GraphicsDevice.Viewport.Bounds).ArenaBounds);
+    }
+
+    /// <summary>
+    /// The once-at-load visual catalog validation pass (VIS-006;
+    /// visual-system-integration-design.md section 2), run once here for
+    /// every catalog implementing the shared <see cref="VisualCatalogEntry"/>
+    /// shape. A failure never crashes the game: it is logged on the
+    /// <c>assets</c> channel via <see cref="VisualDiagnostics.ReportCatalogInvalid"/>
+    /// and the fallback chain (section 4) already treats any entry a future
+    /// resolver marks invalid the same way it treats a missing one. All
+    /// wiring, no validation logic — the checks themselves live in the
+    /// testable <see cref="VisualCatalogValidator"/>.
+    /// </summary>
+    private void ValidateVisualCatalogs()
+    {
+        var diagnostics = new VisualDiagnostics();
+        LogVisualCatalogFailures(
+            diagnostics,
+            VisualCatalogValidator.Validate(
+                "appearance",
+                AppearanceComponentCatalog.All
+                    .Select(entry => entry.Catalog)
+                    .ToArray()));
+        LogVisualCatalogFailures(
+            diagnostics,
+            VisualCatalogValidator.Validate("backdrop", BackdropVisualCatalog.All));
+    }
+
+    private void LogVisualCatalogFailures(
+        VisualDiagnostics diagnostics,
+        VisualCatalogValidationResult result)
+    {
+        foreach (var failure in result.Failures)
+        {
+            diagnostics.ReportCatalogInvalid(
+                _log,
+                result.CatalogId,
+                failure.Reason,
+                failure.Message is null
+                    ? $"entry '{failure.EntryId}'"
+                    : $"entry '{failure.EntryId}': {failure.Message}");
+        }
     }
 
     protected override void UnloadContent()
@@ -307,7 +436,8 @@ public sealed partial class ArenaGame : Game
                 _input,
                 screenBounds,
                 _themeManager.ActiveTheme.Id,
-                _goreManager.Value);
+                _goreManager.Value,
+                _motionManager.Value);
             pointerConsumed = menuInteraction.PointerConsumed;
             consumedBy = pointerConsumed ? "menu" : consumedBy;
             if (menuInteraction.SelectedThemeId is { } selectedThemeId)
@@ -333,6 +463,20 @@ public sealed partial class ArenaGame : Game
                         "gore",
                         previousGore.ToString(),
                         _goreManager.Value.ToString());
+                }
+            }
+
+            if (menuInteraction.SelectedMotionIntensity is { } selectedMotion)
+            {
+                var previousMotion = _motionManager.Value;
+                _motionManager.TrySelect(selectedMotion);
+                _presentation.Dust.MotionIntensity = _motionManager.Value;
+                if (_motionManager.Value != previousMotion)
+                {
+                    LogSettingChanged(
+                        "motion",
+                        previousMotion.ToString(),
+                        _motionManager.Value.ToString());
                 }
             }
 
@@ -720,12 +864,13 @@ public sealed partial class ArenaGame : Game
                 _isArmyCompositionPanelVisible = false;
                 return;
             case ArmyCompositionPanelResult.Applied:
+                var savedForComposition = _settingsStore.Load(
+                    _themeManager.ActiveTheme.Id);
                 _settingsStore.TrySave(
                     _themeManager.ActiveTheme.Id,
                     ToSettingsComposition(_armyCompositionPanel.Saved),
-                    _settingsStore
-                        .Load(_themeManager.ActiveTheme.Id)
-                        .GoreIntensity);
+                    savedForComposition.GoreIntensity,
+                    savedForComposition.MotionIntensity);
                 _isCompositionStaged = true;
                 _isArmyCompositionPanelVisible = false;
                 return;
@@ -880,6 +1025,8 @@ public sealed partial class ArenaGame : Game
             _scenario.MapWidth,
             "mapHeight",
             _scenario.MapHeight,
+            "grassClusters",
+            _grassClusters.Length,
             "reason",
             reason);
 
@@ -948,11 +1095,15 @@ public sealed partial class ArenaGame : Game
             resetCommand.ToString(),
             "seed",
             _matchSeries.CurrentSeed);
-        LogScenarioBuilt(resetCommand.ToString());
         _plainsDecals = PlainsBackdropGeometry.GenerateDecals(
             _scenario.Seed,
             _scenario.MapWidth,
             _scenario.MapHeight);
+        _grassClusters = GrassGeometry.GenerateClusters(
+            _scenario.Seed,
+            _scenario.MapWidth,
+            _scenario.MapHeight);
+        LogScenarioBuilt(resetCommand.ToString());
         _presentation.ResetFor(resetCommand);
         _soundDirector.Clear();
         _hoverSelection.Clear();

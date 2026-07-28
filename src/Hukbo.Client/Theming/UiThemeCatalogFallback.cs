@@ -80,13 +80,14 @@ internal sealed partial class UiThemeCatalog
             ],
             new UiSharedStandards(
                 new UiMenuLayout(
-                    // menu.panelHeight: 660 -> 688. Grows by the same 28px
-                    // delta as subtitleTopOffset below, so the gore selector
-                    // and the helper line keep their original clearance from
-                    // the panel bottom. See ui-theme-standards.json for the
-                    // full derivation.
+                    // menu.panelHeight: 660 -> 688 -> 800. The 688 -> 800
+                    // step (VIS-032) makes room for the motion selector
+                    // stacked directly below the gore selector: one more
+                    // selector height (96) plus one more selector gap (14)
+                    // than the panel needed before, plus a small margin. See
+                    // ui-theme-standards.json for the full derivation.
                     360,
-                    688,
+                    800,
                     280,
                     44,
                     8,

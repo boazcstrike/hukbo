@@ -139,6 +139,34 @@ public sealed class PresentationCoordinatorTests
             () => coordinator.AdvanceEffects(0.02f, speedMultiplier: -1f));
     }
 
+    /// <summary>
+    /// Ambient grass motion is not gameplay communication, so the sway clock
+    /// advances on raw frame seconds even when the swing clock is scaled by
+    /// the playback speed (battlefield-environment-design.md, "Wind and
+    /// motion").
+    /// </summary>
+    [Fact]
+    public void AdvanceEffects_AdvancesTheGrassSwayClockUnscaledByTheSpeedMultiplier()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+
+        coordinator.AdvanceEffects(0.02f, speedMultiplier: 4f);
+        coordinator.AdvanceEffects(0.5f, speedMultiplier: 1f);
+
+        Assert.Equal(0.52f, coordinator.GrassSwayClockSeconds, precision: 5);
+    }
+
+    [Fact]
+    public void ResetFor_ClearsTheGrassSwayClock()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        coordinator.AdvanceEffects(1.5f);
+
+        coordinator.ResetFor(ClientCommand.NextRound);
+
+        Assert.Equal(0f, coordinator.GrassSwayClockSeconds);
+    }
+
     [Fact]
     public void ResetFor_ClearsSwingsAndClashEffects()
     {

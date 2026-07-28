@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Rendering;
 using Hukbo.Client.Theming;
@@ -24,6 +25,11 @@ public sealed partial class ArenaGame
 
     protected override void Draw(GameTime gameTime)
     {
+        if (_renderProbeEnabled)
+        {
+            _renderProbeFrameStartTimestamp = Stopwatch.GetTimestamp();
+        }
+
         var theme = _themeManager.ActiveTheme;
         GraphicsDevice.Clear(theme.Colors.CanvasBackground);
 
@@ -55,6 +61,22 @@ public sealed partial class ArenaGame
             theme);
 
         base.Draw(gameTime);
+
+        if (_renderProbeEnabled)
+        {
+            var elapsed = Stopwatch.GetElapsedTime(_renderProbeFrameStartTimestamp);
+
+            // ArenaSubmissionCount is always 0 today — see the field's XML
+            // doc on RenderProbeSample for the exact VIS-034 hookup point
+            // that would make it meaningful.
+            RenderProbeSampled?.Invoke(new RenderProbeSample(
+                elapsed.TotalMilliseconds,
+                0,
+                GC.CollectionCount(0),
+                GC.CollectionCount(1),
+                GC.CollectionCount(2),
+                GC.GetAllocatedBytesForCurrentThread()));
+        }
     }
 
     private void DrawArenaLayer(
@@ -142,7 +164,8 @@ public sealed partial class ArenaGame
             fonts,
             screenBounds,
             theme,
-            _goreManager.Value);
+            _goreManager.Value,
+            _motionManager.Value);
         if (_isArmyCompositionPanelVisible)
         {
             _armyCompositionPanel.Draw(
@@ -163,6 +186,7 @@ public sealed partial class ArenaGame
         UiTheme theme)
     {
         DrawMapSurface(spriteBatch, pixel, arenaBounds, theme);
+        DrawGrass(spriteBatch, pixel, arenaBounds, theme);
         BloodRenderer.DrawGroundMarks(
             _presentation.Blood.ActiveGroundMarks,
             _camera,
@@ -194,6 +218,14 @@ public sealed partial class ArenaGame
             _camera.Zoom,
             spriteBatch,
             pixel);
+        DustRenderer.Draw(
+            _presentation.Dust.ActivePuffs,
+            _camera,
+            arenaBounds,
+            _camera.Zoom,
+            spriteBatch,
+            pixel,
+            theme);
     }
 
     private void DrawMapSurface(
@@ -202,11 +234,7 @@ public sealed partial class ArenaGame
         Rectangle arenaBounds,
         UiTheme theme)
     {
-        var topLeft = _camera.WorldToScreen(Vector2.Zero, arenaBounds);
-        var bottomRight = _camera.WorldToScreen(
-            new Vector2(_scenario.MapWidth, _scenario.MapHeight),
-            arenaBounds);
-        var mapBounds = RectangleFromPoints(topLeft, bottomRight);
+        var mapBounds = GetMapBounds(arenaBounds);
         var visibleMapBounds = Rectangle.Intersect(mapBounds, arenaBounds);
 
         if (visibleMapBounds.Width <= 0 || visibleMapBounds.Height <= 0)
@@ -233,6 +261,49 @@ public sealed partial class ArenaGame
             visibleMapBounds,
             theme.Colors.ArenaBorder,
             theme.Metrics.BorderThickness);
+    }
+
+    /// <summary>
+    /// Draws grass clusters between the ground grid and pawns
+    /// (battlefield-environment-design.md, "Grass clusters"). Recomputes the
+    /// projected map rectangle rather than threading it out of
+    /// <see cref="DrawMapSurface"/>: both calls are two allocation-free
+    /// <c>SpectatorCamera.WorldToScreen</c> lookups, cheaper than adding a
+    /// return value or a field to carry one frame's rectangle across calls.
+    /// </summary>
+    private void DrawGrass(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        Rectangle arenaBounds,
+        UiTheme theme)
+    {
+        var mapBounds = GetMapBounds(arenaBounds);
+        GrassRenderer.Draw(
+            spriteBatch,
+            pixel,
+            _grassClusters,
+            _presentation.Trample.ActiveMarks,
+            _camera,
+            mapBounds,
+            arenaBounds,
+            theme,
+            _motionManager.Value,
+            _presentation.GrassSwayClockSeconds);
+    }
+
+    /// <summary>
+    /// The projected map rectangle in screen space for the current camera
+    /// state, shared by <see cref="DrawMapSurface"/> and
+    /// <see cref="DrawGrass"/> so the two draw calls agree on exactly the
+    /// same rectangle every frame.
+    /// </summary>
+    private Rectangle GetMapBounds(Rectangle arenaBounds)
+    {
+        var topLeft = _camera.WorldToScreen(Vector2.Zero, arenaBounds);
+        var bottomRight = _camera.WorldToScreen(
+            new Vector2(_scenario.MapWidth, _scenario.MapHeight),
+            arenaBounds);
+        return RectangleFromPoints(topLeft, bottomRight);
     }
 
     private void DrawPawns(

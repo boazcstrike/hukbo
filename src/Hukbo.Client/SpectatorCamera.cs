@@ -110,6 +110,17 @@ internal sealed class SpectatorCamera
         return manualPanApplied;
     }
 
+    /// <summary>
+    /// Sets zoom directly, bypassing the wheel-input scaling
+    /// <see cref="Update"/> applies, and clamped to the same
+    /// [<see cref="MinimumZoom"/>, <see cref="MaximumZoom"/>] range. Used
+    /// only by <see cref="ArenaGame.SetProbeCameraZoom"/> for the render
+    /// probe's scripted camera stations (VIS-035); a spectator never reaches
+    /// this because ordinary zoom always flows through <see cref="Update"/>.
+    /// </summary>
+    public void SetZoom(float zoom) =>
+        _zoom = Math.Clamp(zoom, MinimumZoom, MaximumZoom);
+
     public void Fit(Viewport viewport) => Fit(viewport.Bounds);
 
     public void Fit(Rectangle contentBounds)

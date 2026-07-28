@@ -4,7 +4,8 @@ internal sealed record ClientSettings(
     int SchemaVersion,
     string SelectedThemeId,
     ArmyComposition Composition,
-    GoreIntensity GoreIntensity);
+    GoreIntensity GoreIntensity,
+    MotionIntensity MotionIntensity);
 
 /// <summary>
 /// A spectator-chosen army composition for both factions: the total units per
