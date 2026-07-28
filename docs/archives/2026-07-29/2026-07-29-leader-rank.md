@@ -1,5 +1,10 @@
 # Leader rank — implementation plan
 
+> **Archived: reference only.** Completed on 2026-07-29. Tasks L1 through L6
+> all landed and the canonical gate passed. Do not execute this plan; its task
+> list and verification steps are historical. The live design is
+> `docs/plans/2026-07-29-leader-rank-design.md`.
+
 Date: 2026-07-29
 Design: [`2026-07-29-leader-rank-design.md`](2026-07-29-leader-rank-design.md)
 Parent design: [`2026-07-29-warrior-standing-design.md`](2026-07-29-warrior-standing-design.md)

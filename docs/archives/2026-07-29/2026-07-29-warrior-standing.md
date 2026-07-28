@@ -1,5 +1,9 @@
 # Warrior standing — implementation plan
 
+> **Archived: reference only.** Never executed. Superseded before any task ran,
+> because the naming decision landed after it was written. Kept so the earlier
+> reasoning can be traced.
+
 > **Superseded on 2026-07-29 by
 > [`2026-07-29-warrior-rank.md`](2026-07-29-warrior-rank.md).** This document
 > was written before the naming decision and still says `StandingId` and

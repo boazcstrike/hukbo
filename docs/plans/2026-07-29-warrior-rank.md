@@ -5,7 +5,7 @@ Design: [`2026-07-29-warrior-standing-design.md`](2026-07-29-warrior-standing-de
 Evidence: [`docs/research/HISTORICAL_1500s_RANKS.md`](../research/HISTORICAL_1500s_RANKS.md),
 [`docs/research/ARMY-COMPOSITION.md`](../research/ARMY-COMPOSITION.md)
 
-This document supersedes [`2026-07-29-warrior-standing.md`](2026-07-29-warrior-standing.md),
+This document supersedes [`2026-07-29-warrior-standing.md`](../archives/2026-07-29/2026-07-29-warrior-standing.md),
 which was written before the naming decision and still says `StandingId`
 throughout. Read this one; that one is kept only so the earlier reasoning
 can be traced.
@@ -13,7 +13,7 @@ can be traced.
 Phase A makes rank exist, makes it authoritative, and makes it visible.
 Leadership — the rank-aware leader scan and the client leader marker — is a
 separate, separately gated plan in
-[`2026-07-29-leader-rank.md`](2026-07-29-leader-rank.md), and it does not
+[`2026-07-29-leader-rank.md`](../archives/2026-07-29/2026-07-29-leader-rank.md), and it does not
 begin until Phase A has been through the canonical gate.
 
 ## Decisions this plan assumes
@@ -300,7 +300,7 @@ this plan.
 **Consequence for discoverability.** `SIMULATION-GAME-STANDARDS.md` §10
 question 8 is answered by two surfaces rather than three: the inspector rank
 line, which ships here, and the observable leader change, which ships with
-[`2026-07-29-leader-rank.md`](2026-07-29-leader-rank.md). Both are real and
+[`2026-07-29-leader-rank.md`](../archives/2026-07-29/2026-07-29-leader-rank.md). Both are real and
 neither requires reading source code, so the feature is discoverable. What
 is lost is the only *pre-battle* surface — a spectator cannot see the rank
 composition of a force until the battle has started and they click a
@@ -447,7 +447,7 @@ tasks are strictly sequential and are executed by a single implementer.
 ## What this plan deliberately does not do
 
 - **No rank-aware leader selection.** That is
-  [`2026-07-29-leader-rank.md`](2026-07-29-leader-rank.md), gated behind
+  [`2026-07-29-leader-rank.md`](../archives/2026-07-29/2026-07-29-leader-rank.md), gated behind
   Phase A's own gate run so that the state hash moves for one reason at a
   time.
 - **No per-rank damage, hit-point, hit-rate, or endurance number.** No
