@@ -111,14 +111,103 @@ public enum CombatPresetId
     /// registered and unmodified so their replays remain reproducible.
     /// </summary>
     PrecolonialPhilippinesV3 = 3,
+
+    /// <summary>
+    /// V3 with a <see cref="RankId"/> assigned to each of the four solo
+    /// roster entries and a per-rank fighter level replacing the placeholder
+    /// level V3 uses uniformly. The weapon, attribute, and clash-profile
+    /// tables are otherwise unchanged. V1, V2, and V3 stay registered and
+    /// unmodified so their replays remain reproducible.
+    /// </summary>
+    PrecolonialPhilippinesV4 = 4,
 }
 
 /// <summary>
-/// Authoritative weapon, armor, and shield identity assigned to one
+/// Social and legal standing in a sixteenth-century Philippine society, as
+/// documented in <c>docs/research/HISTORICAL_1500s_RANKS.md</c>. This is
+/// never a delegated military office — no source attests a graded rank
+/// structure below a chief's personal following (see
+/// <c>docs/research/ARMY-COMPOSITION.md</c> §11.4) — and it carries no
+/// combat-strength value of its own; the research document is explicit that
+/// no sixteenth-century source grades fighting ability by social class.
+/// Numeric values are part of the deterministic replay and content-hash
+/// contract; do not renumber or reorder.
+/// </summary>
+public enum RankId
+{
+    /// <summary>
+    /// Documented. Datu — Chief. Tagalog and Visayan. The best-attested
+    /// term, recorded by Plasencia in 1589, verbatim, including the war
+    /// obligation owed to a chief by those below him. The descriptor
+    /// deliberately avoids "noble", which carries Plasencia's Spanish gloss
+    /// rather than its content, and avoids the modern "royalty" misreading
+    /// entirely.
+    /// </summary>
+    Datu = 1,
+
+    /// <summary>
+    /// Documented. Maharlika — Sworn Freeman. Tagalog. Plasencia, 1589:
+    /// free-born, exempt from tribute, but obligated to accompany the datu
+    /// in war at their own expense, in exchange for a feast beforehand and a
+    /// share of the spoils afterward. The modern popularised reading of
+    /// "maharlika" as nobility or royalty is a twentieth-century development
+    /// that Plasencia's own text does not support and this project does not
+    /// use.
+    /// </summary>
+    Maharlika = 2,
+
+    /// <summary>
+    /// Documented. Timawa — Bound Freeman. Visayan. Loarca, 1582, spelled
+    /// <c>timagua</c>: a freeman sworn to a chosen chief, obligated to carry
+    /// weapons and accompany him, in exchange for the chief's reciprocal
+    /// obligation to defend him. The bond was transferable — a timawa was
+    /// free to leave one chief's service for another's. Must not be used for
+    /// the Tagalog region: Morga's <c>timagua</c> means plebeian commoner, a
+    /// different sense from Loarca's sworn fighting client, and the two are
+    /// not interchangeable.
+    /// </summary>
+    Timawa = 3,
+
+    /// <summary>
+    /// Documented. Aliping Namamahay — Householder. Tagalog. Plasencia,
+    /// 1589: married dependents who held their own houses, land, and gold,
+    /// and could not be sold or moved from their village. Plasencia gives
+    /// this class maritime and agricultural service and no armed obligation
+    /// of its own; whether a householder was ever put in a battle line is an
+    /// inference either way, not an attested fact, and any roster that
+    /// fields this class must say so wherever the class is shown.
+    /// </summary>
+    AlipingNamamahay = 4,
+
+    /// <summary>
+    /// Documented, form uncertain. Ayuey — Household Dependent. Visayan.
+    /// Loarca, 1582: the most dependent of his three recorded grades — fed
+    /// and clothed by the master, working three days in four for him. The
+    /// institution is attested; the spelling is Loarca's own transcription
+    /// and its modern orthography is unsettled. Declared here but not
+    /// rostered by any preset, on the same principle preset V3 already uses
+    /// for its unreachable paired weapon profiles.
+    /// </summary>
+    Ayuey = 5,
+}
+
+/// <summary>
+/// Authoritative weapon, armor, shield, and rank identity assigned to one
 /// warrior. This value is part of authoritative simulation state and the
 /// state hash.
 /// </summary>
+/// <remarks>
+/// <paramref name="Rank"/> defaults to <see cref="RankId.Timawa"/> so every
+/// one of the many existing three-argument construction sites keeps
+/// resolving to a single, uniform rank. That uniformity is also the reason
+/// presets that do not declare rank levels (V1 through V3) can fold nothing
+/// rank-related into their content or state hash: every warrior they field
+/// already carries the same rank value, so a rank fold would be a constant,
+/// and gating on preset declaration rather than on this default is what
+/// keeps their pinned hashes unchanged.
+/// </remarks>
 public readonly record struct CombatLoadout(
     WeaponId Weapon,
     ArmorId Armor,
-    ShieldId Shield);
+    ShieldId Shield,
+    RankId Rank = RankId.Timawa);

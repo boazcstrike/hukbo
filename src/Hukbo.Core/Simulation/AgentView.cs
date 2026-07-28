@@ -27,6 +27,14 @@ namespace Hukbo.Core.Simulation;
 /// captured. Defaulted to <see cref="ContingentState.None"/> for the same
 /// reason <see cref="ContingentId"/> above is defaulted.
 /// </param>
+/// <param name="Rank">
+/// This warrior's social and legal standing, resolved once at spawn from its
+/// roster entry's <see cref="Combat.CombatLoadout.Rank"/>. Defaulted, matching
+/// <see cref="MovementResolution"/>, <see cref="Level"/>, and
+/// <see cref="ContingentId"/> above, so presentation tests written before
+/// rank existed can build a view without naming it; the default matches
+/// <see cref="Combat.CombatLoadout.Rank"/>'s own default.
+/// </param>
 public readonly record struct AgentView(
     ulong EntityId,
     int FactionId,
@@ -41,4 +49,5 @@ public readonly record struct AgentView(
     MovementResolution MovementResolution = MovementResolution.None,
     int Level = 1,
     int ContingentId = 0,
-    ContingentState ContingentState = ContingentState.None);
+    ContingentState ContingentState = ContingentState.None,
+    RankId Rank = RankId.Timawa);

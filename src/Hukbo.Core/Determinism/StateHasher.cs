@@ -19,13 +19,24 @@ internal static class StateHasher
     /// the registered one, and so that a recorded hash can be reproduced
     /// exactly after the registered value has moved on.
     /// </param>
+    /// <param name="hasRankLevels">
+    /// Whether the ruleset the simulation is running on declares per-rank
+    /// fighter levels, mirroring <see cref="Combat.CombatRuleset.HasRankLevels"/>.
+    /// Passed by value for the same reason <paramref name="contentHash"/> is:
+    /// a preset that declares none (V1 through V3) folds nothing for
+    /// <see cref="AgentState.Rank"/> — not even a constant — which is what
+    /// keeps its state hash exactly where it was. Every warrior such a
+    /// preset fields resolves to the same <c>RankId.Timawa</c> default in any
+    /// case, so folding it unconditionally would only ever hash a constant.
+    /// </param>
     internal static ulong Compute(
         Scenario scenario,
         long tick,
         BattleOutcome outcome,
         long eventSequence,
         IReadOnlyList<AgentState> agents,
-        ulong contentHash)
+        ulong contentHash,
+        bool hasRankLevels)
     {
         var hash = Fnv1a.OffsetBasis;
         Add(ref hash, scenario.Seed);
@@ -76,6 +87,11 @@ internal static class StateHasher
             Add(ref hash, agent.ComboTargetEntityId ?? 0);
             Add(ref hash, agent.ContingentId);
             Add(ref hash, (int)agent.ContingentState);
+
+            if (hasRankLevels)
+            {
+                Add(ref hash, (int)agent.Rank);
+            }
         }
 
         return hash;

@@ -441,7 +441,8 @@ public sealed class BattleSimulation
             Outcome,
             _eventSequence,
             _agentStates,
-            contentHash);
+            contentHash,
+            _rules.HasRankLevels);
 
     public BattleSnapshot CreateSnapshot()
     {
@@ -619,6 +620,10 @@ public sealed class BattleSimulation
                 scenario.AttackRangeRaw,
                 scenario.AttackCooldownTicks);
 
+        var level = rules.HasRankLevels
+            ? rules.ResolveLevel(loadout.Rank)
+            : scenario.PlaceholderFighterLevel;
+
         return new AgentState(
             entityId,
             factionId,
@@ -631,7 +636,7 @@ public sealed class BattleSimulation
             profile.DamagePerAttack,
             profile.AttackCooldownTicks,
             loadout,
-            scenario.PlaceholderFighterLevel,
+            level,
             contingentId);
     }
 

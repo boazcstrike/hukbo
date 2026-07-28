@@ -1475,6 +1475,23 @@ public sealed class BattleSimulationTests
     }
 
     [Fact]
+    public void EveryAgentsRankMatchesItsResolvedRosterEntrysRank()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 12) with
+        {
+            RosterCounts = ImmutableArray.Create(2, 2, 1, 1, 0, 0),
+        };
+        var simulation = BattleSimulation.Create(scenario);
+        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
+
+        Assert.All(
+            simulation.Agents,
+            agent => Assert.Equal(
+                rules.ResolveLoadout(agent.EntityId).Rank,
+                agent.Rank));
+    }
+
+    [Fact]
     public void RosterCountsDoNotChangeTheRandomDrawSequenceForSpawnPositions()
     {
         var baseline = Scenario.CreateDefault(seed: 3, totalAgents: 8);

@@ -10290,7 +10290,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10301,7 +10301,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10312,7 +10312,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10323,7 +10323,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10334,7 +10334,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10345,7 +10345,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10356,7 +10356,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10367,7 +10367,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10378,7 +10378,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10389,7 +10389,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10400,7 +10400,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10411,7 +10411,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10422,7 +10422,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10433,7 +10433,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10444,7 +10444,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10455,7 +10455,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10466,7 +10466,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10477,7 +10477,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10488,7 +10488,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10499,7 +10499,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10510,7 +10510,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10521,7 +10521,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10532,7 +10532,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10543,7 +10543,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10554,7 +10554,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10565,7 +10565,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10576,7 +10576,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10587,7 +10587,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10598,7 +10598,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10609,7 +10609,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10620,7 +10620,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10631,7 +10631,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10642,7 +10642,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10653,7 +10653,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10664,7 +10664,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10675,7 +10675,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10686,7 +10686,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10697,7 +10697,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10708,7 +10708,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10719,7 +10719,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10730,7 +10730,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10741,7 +10741,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10752,7 +10752,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10763,7 +10763,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10774,7 +10774,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10785,7 +10785,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10796,7 +10796,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10807,7 +10807,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10818,7 +10818,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10829,7 +10829,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10840,7 +10840,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10851,7 +10851,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10862,7 +10862,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10873,7 +10873,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10884,7 +10884,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10895,7 +10895,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10906,7 +10906,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10917,7 +10917,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10928,7 +10928,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10939,7 +10939,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10950,7 +10950,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10961,7 +10961,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10972,7 +10972,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10983,7 +10983,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -10994,7 +10994,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11005,7 +11005,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11016,7 +11016,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11027,7 +11027,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11038,7 +11038,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11049,7 +11049,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11060,7 +11060,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11071,7 +11071,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11082,7 +11082,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11093,7 +11093,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11104,7 +11104,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11115,7 +11115,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "Moved",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11126,7 +11126,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11137,7 +11137,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11148,7 +11148,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11159,7 +11159,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11170,7 +11170,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11181,7 +11181,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11192,7 +11192,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11203,7 +11203,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11214,7 +11214,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11225,7 +11225,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11236,7 +11236,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11247,7 +11247,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11258,7 +11258,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11269,7 +11269,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11280,7 +11280,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11291,7 +11291,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11302,7 +11302,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11313,7 +11313,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11324,7 +11324,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11335,7 +11335,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11346,7 +11346,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11357,7 +11357,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11368,7 +11368,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11379,7 +11379,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11390,7 +11390,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11401,7 +11401,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11412,7 +11412,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11423,7 +11423,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11434,7 +11434,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11445,7 +11445,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11456,7 +11456,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11467,7 +11467,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11478,7 +11478,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11489,7 +11489,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11500,7 +11500,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11511,7 +11511,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11522,7 +11522,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11533,7 +11533,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11544,7 +11544,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11555,7 +11555,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11566,7 +11566,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11577,7 +11577,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11588,7 +11588,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11599,7 +11599,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11610,7 +11610,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11621,7 +11621,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11632,7 +11632,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11643,7 +11643,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11654,7 +11654,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11665,7 +11665,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11676,7 +11676,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11687,7 +11687,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11698,7 +11698,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11709,7 +11709,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11720,7 +11720,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11731,7 +11731,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11742,7 +11742,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11753,7 +11753,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11764,7 +11764,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11775,7 +11775,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11786,7 +11786,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11797,7 +11797,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11808,7 +11808,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11819,7 +11819,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11830,7 +11830,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11841,7 +11841,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11852,7 +11852,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11863,7 +11863,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11874,7 +11874,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11885,7 +11885,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11896,7 +11896,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11907,7 +11907,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11918,7 +11918,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11929,7 +11929,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11940,7 +11940,7 @@
       "hitPoints": 100,
       "intent": "Attacking",
       "movementResolution": "Moved",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11951,7 +11951,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11962,7 +11962,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11973,7 +11973,7 @@
       "hitPoints": 28,
       "intent": "Regrouping",
       "movementResolution": "Moved",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11984,7 +11984,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -11995,7 +11995,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12006,7 +12006,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12017,7 +12017,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12028,7 +12028,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12039,7 +12039,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12050,7 +12050,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12061,7 +12061,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12072,7 +12072,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12083,7 +12083,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12094,7 +12094,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12105,7 +12105,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12116,7 +12116,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12127,7 +12127,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12138,7 +12138,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12149,7 +12149,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12160,7 +12160,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12171,7 +12171,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12182,7 +12182,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12193,7 +12193,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12204,7 +12204,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12215,7 +12215,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12226,7 +12226,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12237,7 +12237,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12248,7 +12248,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12259,7 +12259,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12270,7 +12270,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12281,7 +12281,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12292,7 +12292,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12303,7 +12303,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12314,7 +12314,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12325,7 +12325,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12336,7 +12336,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12347,7 +12347,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12358,7 +12358,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12369,7 +12369,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12380,7 +12380,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12391,7 +12391,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12402,7 +12402,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12413,7 +12413,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12424,7 +12424,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12435,7 +12435,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Kalis, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12446,7 +12446,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12457,7 +12457,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood }",
+      "loadout": "CombatLoadout { Weapon = Itak, Armor = LightOrganic, Shield = TallHardwood, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12468,7 +12468,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Kampilan, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     },
@@ -12479,7 +12479,7 @@
       "hitPoints": 0,
       "intent": "Dead",
       "movementResolution": "None",
-      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None }",
+      "loadout": "CombatLoadout { Weapon = Wasay, Armor = LightOrganic, Shield = None, Rank = Timawa }",
       "contingentId": 0,
       "contingentState": 0
     }

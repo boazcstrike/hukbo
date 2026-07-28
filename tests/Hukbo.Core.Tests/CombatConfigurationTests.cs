@@ -517,6 +517,44 @@ public sealed class CombatConfigurationTests
     }
 
     [Fact]
+    public void RankLevels_RejectsALevelBelowOne()
+    {
+        Assert.Throws<ArgumentException>(
+            () => BuildRulesetWithRankLevels(
+                new Dictionary<RankId, int> { [RankId.Timawa] = 0 }));
+    }
+
+    [Fact]
+    public void RankLevels_RejectsARosterRankWithNoDeclaredLevel()
+    {
+        Assert.Throws<ArgumentException>(
+            () => BuildRulesetWithRankLevels(
+                new Dictionary<RankId, int> { [RankId.Datu] = 3 },
+                rosterRank: RankId.Timawa));
+    }
+
+    [Fact]
+    public void ContentHash_IsIndependentOfRankLevelDictionaryOrder()
+    {
+        // R4's load-bearing determinism check: identical rank-level data
+        // supplied in opposite key order must hash identically, exactly as
+        // the clash-profile and weapon-attribute dictionaries above already
+        // require.
+        var ascending = BuildRulesetWithRankLevels(new Dictionary<RankId, int>
+        {
+            [RankId.Datu] = 3,
+            [RankId.Timawa] = 2,
+        });
+        var descending = BuildRulesetWithRankLevels(new Dictionary<RankId, int>
+        {
+            [RankId.Timawa] = 2,
+            [RankId.Datu] = 3,
+        });
+
+        Assert.Equal(ascending.ContentHash, descending.ContentHash);
+    }
+
+    [Fact]
     public void CombatPresetRegistry_ResolvesThePhilippinePreset()
     {
         var rules = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
@@ -709,6 +747,51 @@ public sealed class CombatConfigurationTests
             [
                 new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None),
             ]);
+    }
+
+    /// <summary>
+    /// A single-weapon ruleset like <see cref="BuildMinimalRuleset"/> above,
+    /// but declaring <paramref name="rankLevels"/> and fielding
+    /// <paramref name="rosterRank"/> on its one roster entry, for the
+    /// rank-level validation and content-hash tests.
+    /// </summary>
+    private static CombatRuleset BuildRulesetWithRankLevels(
+        IReadOnlyDictionary<RankId, int> rankLevels,
+        RankId rosterRank = RankId.Timawa)
+    {
+        var uniformEntries = Enum.GetValues<BodyPart>()
+            .Select(part => (part, 5))
+            .ToArray();
+        var uniformMultiplierEntries = Enum.GetValues<BodyPart>()
+            .Select(part => (part, 1_000))
+            .ToArray();
+
+        var general = new TargetWeightProfile(uniformEntries);
+        var weaponProfile = new TargetWeightProfile(uniformEntries);
+        var shieldProfile = new TargetWeightProfile(uniformMultiplierEntries);
+
+        return new CombatRuleset(
+            CombatPresetId.PrecolonialPhilippinesV1,
+            version: 1,
+            generalTargets: general,
+            weaponTargets: new Dictionary<WeaponId, TargetWeightProfile>
+            {
+                [WeaponId.Kampilan] = weaponProfile,
+            },
+            armors: [ArmorId.LightOrganic],
+            shieldMultipliers: new Dictionary<ShieldId, TargetWeightProfile>
+            {
+                [ShieldId.None] = shieldProfile,
+            },
+            roster:
+            [
+                new CombatLoadout(
+                    WeaponId.Kampilan,
+                    ArmorId.LightOrganic,
+                    ShieldId.None,
+                    rosterRank),
+            ],
+            rankLevels: rankLevels);
     }
 
     /// <summary>

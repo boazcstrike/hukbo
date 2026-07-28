@@ -59,6 +59,7 @@ internal sealed class AgentState
         Level = level;
         ContingentId = contingentId;
         ContingentState = ContingentState.None;
+        Rank = loadout.Rank;
     }
 
     internal ulong EntityId { get; }
@@ -120,6 +121,14 @@ internal sealed class AgentState
     internal ContingentState ContingentState { get; set; }
 
     /// <summary>
+    /// This warrior's social and legal standing, resolved once at spawn from
+    /// its roster entry's <see cref="Combat.CombatLoadout.Rank"/> and never
+    /// mutated afterward. It is not a separate constructor parameter — the
+    /// loadout already carries it.
+    /// </summary>
+    internal RankId Rank { get; }
+
+    /// <summary>
     /// The number of <em>additional</em> blows a currently-active attack
     /// combination may still land after the blow that most recently set it.
     /// <c>0</c> whenever no chain is active. Mutated only inside
@@ -156,5 +165,6 @@ internal sealed class AgentState
             MovementResolution,
             Level,
             ContingentId,
-            ContingentState);
+            ContingentState,
+            Rank);
 }

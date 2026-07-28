@@ -175,6 +175,68 @@ public sealed class DeterminismTests
     }
 
     /// <summary>
+    /// Group R, task R5 of docs/plans/2026-07-29-warrior-rank.md. Preset V4
+    /// assigns a <see cref="RankId"/> to each of V3's four solo roster
+    /// entries and declares a per-rank fighter level table, which is folded
+    /// into <c>ComputeContentHash</c> only because V4 is the first preset to
+    /// pass a non-null <c>rankLevels</c> argument. Pinned so an accidental
+    /// change to the roster, the rank levels, or the fold order fails here.
+    /// </summary>
+    [Fact]
+    public void PresetV4ContentHash_IsPinnedAndDistinctFromV1V2AndV3()
+    {
+        var v1 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
+        var v2 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV2);
+        var v3 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV3);
+        var v4 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV4);
+
+        Assert.Equal(0x4E3E4F8C0A3822E0UL, v4.ContentHash);
+        Assert.NotEqual(v1.ContentHash, v4.ContentHash);
+        Assert.NotEqual(v2.ContentHash, v4.ContentHash);
+        Assert.NotEqual(v3.ContentHash, v4.ContentHash);
+    }
+
+    /// <summary>
+    /// Group R, task R5 of docs/plans/2026-07-29-warrior-rank.md. A small,
+    /// fast seed-1 workload run through the same headless path
+    /// <see cref="PresetV3_SeedOneStateAndEventHashArePinned"/> uses, pinned
+    /// against preset V4 so an accidental change to the rank fold in
+    /// <c>StateHasher.Compute</c>, the V4 roster, or the V4 rank levels
+    /// fails here rather than only in the much slower benchmark.
+    /// </summary>
+    [Fact]
+    public void PresetV4_SeedOneStateAndEventHashArePinned()
+    {
+        const ulong Seed = 1;
+        const int Agents = 20;
+        const int Ticks = 200;
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+        string[] arguments =
+        [
+            "--agents", Agents.ToString(CultureInfo.InvariantCulture),
+            "--ticks", Ticks.ToString(CultureInfo.InvariantCulture),
+            "--seed", Seed.ToString(CultureInfo.InvariantCulture),
+            "--preset", nameof(CombatPresetId.PrecolonialPhilippinesV4),
+            "--movement-preset", nameof(MovementPresetId.IndependentPursuitV1),
+        ];
+        var exitCode = HeadlessRunner.Run(arguments, output, error);
+        Assert.Equal(0, exitCode);
+
+        using var report = JsonDocument.Parse(output.ToString());
+        var stateHash = report.RootElement.GetProperty("stateHash").GetString();
+        var eventHash = report.RootElement.GetProperty("eventHash").GetString();
+
+        // Captured from a real run of this exact command against this build:
+        // `dotnet run --project src/Hukbo.Headless -c Release --no-build --
+        // --agents 20 --ticks 200 --seed 1 --preset PrecolonialPhilippinesV4
+        // --movement-preset IndependentPursuitV1`.
+        Assert.Equal("2BBEDD668CC38FD6", stateHash);
+        Assert.Equal("228818712E5AE6C6", eventHash);
+    }
+
+    /// <summary>
     /// Task 4 of docs/plans/2026-07-27-combat-preset-v3-combos.md. A small,
     /// fast seed-1 workload run through the same headless path
     /// <see cref="CombatMetrics_ReachesNeitherHash"/> uses, pinned against
@@ -486,13 +548,16 @@ public sealed class DeterminismTests
             attackCooldownTicks: scenario.AttackCooldownTicks,
             loadout: loadout);
 
+        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
+
         return StateHasher.Compute(
             scenario,
             tick: 1,
             BattleOutcome.Ongoing,
             eventSequence: 0,
             agents: [agent],
-            contentHash: CombatPresetRegistry.Get(scenario.CombatPreset).ContentHash);
+            contentHash: rules.ContentHash,
+            hasRankLevels: rules.HasRankLevels);
     }
 
     /// <summary>
