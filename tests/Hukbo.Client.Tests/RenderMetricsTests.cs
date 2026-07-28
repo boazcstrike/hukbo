@@ -302,7 +302,10 @@ public sealed class RenderMetricsTests
             BaseDrawMicroseconds: 0,
             ArenaGeometryMicroseconds: 0,
             ProbeOverheadMicroseconds: 0,
-            PawnGeometryInvocations: 0);
+            PawnGeometryInvocations: 0,
+            AppearanceCacheHits: 0,
+            AppearanceCacheMisses: 0,
+            AppearanceCacheFills: 0);
         Assert.Equal(expected, recorder.Snapshot());
     }
 
