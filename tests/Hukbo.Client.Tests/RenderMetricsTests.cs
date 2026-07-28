@@ -34,7 +34,53 @@ public sealed class RenderMetricsTests
         recorder.AddBatch();
         recorder.AddTextureBind();
         recorder.AddBufferUploadBytes(512);
+        recorder.AddClearMicroseconds(1.5);
+        recorder.AddLayoutMicroseconds(2.5);
+        recorder.AddHoverSelectionMicroseconds(3.5);
+        recorder.AddUiLayerMicroseconds(4.5);
+        recorder.AddBaseDrawMicroseconds(5.5);
+        recorder.AddArenaGeometryMicroseconds(6.5);
+        recorder.AddProbeOverheadMicroseconds(7.5);
+        recorder.AddPawnGeometryInvocations(9);
 
+        Assert.Equal(default, recorder.Snapshot());
+    }
+
+    /// <summary>
+    /// GPU-001. The disabled recorder must stay a no-op on every span added
+    /// for the Phase 1 frame breakdown, individually rather than only in
+    /// aggregate: a snapshot that is <c>default</c> after all of them are
+    /// called together would still pass if one span were wired to a field the
+    /// others zeroed. Each call is checked on its own recorder-and-snapshot
+    /// pair so a single mis-wired member cannot hide behind the rest.
+    /// </summary>
+    [Fact]
+    public void NullRecorder_EveryNewFrameSpanIsIndividuallyANoOp()
+    {
+        var recorder = NullRenderMetricsRecorder.Instance;
+
+        recorder.AddClearMicroseconds(11.0);
+        Assert.Equal(default, recorder.Snapshot());
+
+        recorder.AddLayoutMicroseconds(12.0);
+        Assert.Equal(default, recorder.Snapshot());
+
+        recorder.AddHoverSelectionMicroseconds(13.0);
+        Assert.Equal(default, recorder.Snapshot());
+
+        recorder.AddUiLayerMicroseconds(14.0);
+        Assert.Equal(default, recorder.Snapshot());
+
+        recorder.AddBaseDrawMicroseconds(15.0);
+        Assert.Equal(default, recorder.Snapshot());
+
+        recorder.AddArenaGeometryMicroseconds(16.0);
+        Assert.Equal(default, recorder.Snapshot());
+
+        recorder.AddProbeOverheadMicroseconds(17.0);
+        Assert.Equal(default, recorder.Snapshot());
+
+        recorder.AddPawnGeometryInvocations(18);
         Assert.Equal(default, recorder.Snapshot());
     }
 
@@ -71,6 +117,89 @@ public sealed class RenderMetricsTests
         Assert.Equal(12.0, snapshot.GeometryBuildMicroseconds);
         Assert.Equal(6.0, snapshot.SubmitMicroseconds);
         Assert.Equal(2_048, snapshot.ManagedBytesAllocated);
+    }
+
+    /// <summary>
+    /// GPU-001. Every span added for the Phase 1 frame breakdown accumulates
+    /// across calls and lands on its own snapshot field. Each span is given a
+    /// distinct value and each is called twice, so a member wired to the wrong
+    /// field, or one that assigns instead of accumulating, fails here rather
+    /// than surviving into a recorded baseline.
+    /// </summary>
+    [Fact]
+    public void SpriteBatchRecorder_AccumulatesEveryNewFrameSpanOntoItsOwnField()
+    {
+        var recorder = new SpriteBatchRenderMetricsRecorder();
+
+        recorder.AddClearMicroseconds(1.0);
+        recorder.AddClearMicroseconds(0.5);
+        recorder.AddLayoutMicroseconds(2.0);
+        recorder.AddLayoutMicroseconds(0.5);
+        recorder.AddHoverSelectionMicroseconds(3.0);
+        recorder.AddHoverSelectionMicroseconds(0.5);
+        recorder.AddUiLayerMicroseconds(4.0);
+        recorder.AddUiLayerMicroseconds(0.5);
+        recorder.AddBaseDrawMicroseconds(5.0);
+        recorder.AddBaseDrawMicroseconds(0.5);
+        recorder.AddArenaGeometryMicroseconds(6.0);
+        recorder.AddArenaGeometryMicroseconds(0.5);
+        recorder.AddProbeOverheadMicroseconds(7.0);
+        recorder.AddProbeOverheadMicroseconds(0.5);
+        recorder.AddPawnGeometryInvocations(8);
+        recorder.AddPawnGeometryInvocations(4);
+
+        var snapshot = recorder.Snapshot();
+
+        Assert.Equal(1.5, snapshot.ClearMicroseconds);
+        Assert.Equal(2.5, snapshot.LayoutMicroseconds);
+        Assert.Equal(3.5, snapshot.HoverSelectionMicroseconds);
+        Assert.Equal(4.5, snapshot.UiLayerMicroseconds);
+        Assert.Equal(5.5, snapshot.BaseDrawMicroseconds);
+        Assert.Equal(6.5, snapshot.ArenaGeometryMicroseconds);
+        Assert.Equal(7.5, snapshot.ProbeOverheadMicroseconds);
+        Assert.Equal(12, snapshot.PawnGeometryInvocations);
+    }
+
+    /// <summary>
+    /// GPU-004 splits today's single Submit span into arena geometry
+    /// construction and submission proper. The two are independent
+    /// accumulations on this seam — recording one must leave the other
+    /// untouched — because the go/no-go trigger in the plan's section 4 turns
+    /// on being able to tell them apart.
+    /// </summary>
+    [Fact]
+    public void SpriteBatchRecorder_ArenaGeometryAndSubmitSpansAccumulateIndependently()
+    {
+        var recorder = new SpriteBatchRenderMetricsRecorder();
+
+        recorder.AddArenaGeometryMicroseconds(30.0);
+        recorder.AddSubmitMicroseconds(70.0);
+
+        var snapshot = recorder.Snapshot();
+
+        Assert.Equal(30.0, snapshot.ArenaGeometryMicroseconds);
+        Assert.Equal(70.0, snapshot.SubmitMicroseconds);
+        Assert.Equal(0, snapshot.GeometryBuildMicroseconds);
+    }
+
+    /// <summary>
+    /// GPU-005 moves the probe's own duplicate counting pass out of
+    /// <c>geometryBuildMicroseconds</c>. The probe-overhead span is therefore
+    /// its own accumulation and must never leak into the renderer's geometry
+    /// figure, which a budget is written against.
+    /// </summary>
+    [Fact]
+    public void SpriteBatchRecorder_ProbeOverheadDoesNotContributeToGeometryBuild()
+    {
+        var recorder = new SpriteBatchRenderMetricsRecorder();
+
+        recorder.AddProbeOverheadMicroseconds(25.0);
+        recorder.AddGeometryBuildMicroseconds(5.0);
+
+        var snapshot = recorder.Snapshot();
+
+        Assert.Equal(25.0, snapshot.ProbeOverheadMicroseconds);
+        Assert.Equal(5.0, snapshot.GeometryBuildMicroseconds);
     }
 
     [Fact]
@@ -135,6 +264,14 @@ public sealed class RenderMetricsTests
         recorder.AddSubmission();
         recorder.AddBatch();
         recorder.AddTextureBind();
+        recorder.AddClearMicroseconds(1.0);
+        recorder.AddLayoutMicroseconds(2.0);
+        recorder.AddHoverSelectionMicroseconds(3.0);
+        recorder.AddUiLayerMicroseconds(4.0);
+        recorder.AddBaseDrawMicroseconds(5.0);
+        recorder.AddArenaGeometryMicroseconds(6.0);
+        recorder.AddProbeOverheadMicroseconds(7.0);
+        recorder.AddPawnGeometryInvocations(8);
 
         recorder.Reset();
 
@@ -157,7 +294,15 @@ public sealed class RenderMetricsTests
             TextureBinds: 0,
             TextureBindsApplicable: true,
             BufferUploadBytes: 0,
-            BufferUploadBytesApplicable: false);
+            BufferUploadBytesApplicable: false,
+            ClearMicroseconds: 0,
+            LayoutMicroseconds: 0,
+            HoverSelectionMicroseconds: 0,
+            UiLayerMicroseconds: 0,
+            BaseDrawMicroseconds: 0,
+            ArenaGeometryMicroseconds: 0,
+            ProbeOverheadMicroseconds: 0,
+            PawnGeometryInvocations: 0);
         Assert.Equal(expected, recorder.Snapshot());
     }
 
