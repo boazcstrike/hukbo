@@ -1,5 +1,7 @@
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Presentation.Catalogs;
+using Hukbo.Client.UI;
+using Hukbo.Core.Simulation;
 using Hukbo.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -121,6 +123,19 @@ internal static class PawnRenderer
     /// (the default) suppresses the report; every existing caller passes
     /// nothing, so no per-frame diagnostic emission is possible today.
     /// </param>
+    /// <param name="contingentId">
+    /// The pawn's <see cref="AgentView.ContingentId"/>, used only to derive
+    /// the ground-base tint. Defaulted, matching <paramref name="swingPose"/>
+    /// above, so the two existing call sites keep compiling without naming
+    /// it.
+    /// </param>
+    /// <param name="contingentState">
+    /// The pawn's <see cref="AgentView.ContingentState"/>, used only to gate
+    /// the ground-base tint. Defaulted to <see cref="ContingentState.None"/>,
+    /// under which the tint is <paramref name="factionColor"/> unmodified, so
+    /// a run under the frozen preset — where every agent carries
+    /// <see cref="ContingentState.None"/> — looks exactly as it looks today.
+    /// </param>
     public static void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
@@ -136,7 +151,9 @@ internal static class PawnRenderer
         bool hasSash = false,
         int adornmentAccentMarkCount = 0,
         VisualFallbackStep torsoResolutionStep = VisualFallbackStep.ModelCategoryDefault,
-        DiagnosticLog? log = null)
+        DiagnosticLog? log = null,
+        int contingentId = 0,
+        ContingentState contingentState = ContingentState.None)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(pixel);
@@ -175,8 +192,12 @@ internal static class PawnRenderer
         var headTreatmentColor = ApplyHitPulse(
             ApplyState(appearance.HeadTreatmentColor, isDead),
             hitPulseStrength);
+        var groundBaseColor = FactionColorPalette.GetContingentGroundTint(
+            factionColor,
+            contingentId,
+            contingentState);
         var displayedFactionColor = ApplyHitPulse(
-            ApplyState(factionColor, isDead),
+            ApplyState(groundBaseColor, isDead),
             hitPulseStrength);
         // VIS-023: layers 4/5/9 draw from the closed dye palette (R-W3.8),
         // the same catalog DrawShield already reads a fixed accent color

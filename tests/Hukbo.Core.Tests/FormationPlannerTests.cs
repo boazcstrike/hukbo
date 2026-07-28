@@ -1,3 +1,4 @@
+using Hukbo.Core.Determinism;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Simulation;
 
@@ -317,6 +318,43 @@ public sealed class FormationPlannerTests
                 gap % stepRaw == 0,
                 $"Row gap {gap} is not a multiple of the dense-block step " +
                 $"{stepRaw}, so the fallback lattice was not used.");
+        }
+    }
+
+    /// <summary>
+    /// Membership is dealt round-robin across contingents regardless of which
+    /// placement path ran. The contingent count is not asserted against a
+    /// duplicated copy of <c>FormationPlanner</c>'s internal arithmetic; it is
+    /// read back from the result itself, as one more than the highest
+    /// <c>ContingentId</c> dealt, which the round-robin rule guarantees appears
+    /// at least once whenever the faction is at least as large as the
+    /// contingent count it produces.
+    /// </summary>
+    [Theory]
+    [InlineData(1UL, 200, 1280, 720)]
+    [InlineData(6UL, 100, 100, 100)]
+    public void MembershipDealsRoundRobinAcrossContingentsOnBothPlacementPaths(
+        ulong seed,
+        int totalAgents,
+        int mapWidth,
+        int mapHeight)
+    {
+        var scenario = Scenario.CreateDefault(seed, totalAgents) with
+        {
+            MapWidth = mapWidth,
+            MapHeight = mapHeight,
+        };
+        scenario.Validate();
+        var random = new SplitMix64(scenario.Seed);
+
+        var deployment = FormationPlanner.PlanFactionDeployment(scenario, ref random);
+
+        var contingentCount = deployment.Max(member => member.ContingentId) + 1;
+        for (var localIndex = 0; localIndex < deployment.Length; localIndex++)
+        {
+            Assert.Equal(
+                localIndex % contingentCount,
+                deployment[localIndex].ContingentId);
         }
     }
 

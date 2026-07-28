@@ -44,6 +44,7 @@ internal static class StateHasher
         Add(ref hash, (int)scenario.CollisionPolicy);
         Add(ref hash, scenario.LastStandThresholdAgents);
         Add(ref hash, (int)scenario.CombatPreset);
+        Add(ref hash, (int)scenario.MovementPreset);
         Add(ref hash, contentHash);
         Add(ref hash, tick);
         Add(ref hash, (int)outcome);
@@ -73,6 +74,8 @@ internal static class StateHasher
             Add(ref hash, agent.Level);
             Add(ref hash, agent.ComboStepsRemaining);
             Add(ref hash, agent.ComboTargetEntityId ?? 0);
+            Add(ref hash, agent.ContingentId);
+            Add(ref hash, (int)agent.ContingentState);
         }
 
         return hash;

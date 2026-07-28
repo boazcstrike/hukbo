@@ -107,6 +107,13 @@ internal sealed class AgentInspectorPanel
         // The third PawnRenderer.Draw call site, and the one that deliberately
         // passes no swing pose: a portrait is a still. It compiles unchanged
         // only because the pose parameter is optional.
+        //
+        // Also deliberately omits contingentId/contingentState: this is a
+        // fixed, close-up portrait of one agent, not a battlefield read, so
+        // it has no ground plane for an ambient formation tint to sit on and
+        // no neighboring pawns for the tint to distinguish it from. Leaving
+        // the parameters at their default (0, ContingentState.None) keeps
+        // the portrait exactly as it already reads today.
         PawnRenderer.Draw(
             spriteBatch,
             pixel,
