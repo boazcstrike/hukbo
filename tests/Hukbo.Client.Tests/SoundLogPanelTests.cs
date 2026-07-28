@@ -352,6 +352,43 @@ public sealed class SoundLogPanelTests
     }
 
     [Fact]
+    public void CalculateLayout_FitsExactlyTenBindingRowsAtFourHundredAndSixteen()
+    {
+        // `ArenaGame.SoundLogHeightPercent` is 65 because that is the
+        // smallest percentage buying a ten-row viewport, not because ten
+        // rows happen to look comfortable there. This test pins both sides
+        // of the boundary so a later nudge downwards cannot pass unnoticed.
+        //
+        // The derivation, for a panel `H` pixels tall:
+        //
+        //     available      = H - 110
+        //     bindingsHeight = min(20 + 13 * 20, available - 6 - 80)
+        //                    = min(280, H - 196)
+        //     visibleRows    = (bindingsHeight - 20) / 20
+        //
+        // The 110 is the panel's top chrome plus its bottom padding, the 6
+        // is the gap between the two sections, and the 80 is the cue log's
+        // section header plus its three minimum-reserved rows. At thirteen
+        // slots the slot cap of 280 never binds at these heights, so the
+        // available space decides:
+        //
+        //     H = 415:  min(280, 219) = 219,  (219 - 20) / 20 = 9
+        //     H = 416:  min(280, 220) = 220,  (220 - 20) / 20 = 10
+        //
+        // The panel really is that tall at the shipped percentage: the
+        // right column at the default 1280x720 window is
+        // 720 - 68 - 12 = 640 pixels, and 640 * 65 / 100 = 416.
+        Assert.Equal(
+            9,
+            SoundLogPanel.GetVisibleBindingRowCount(
+                SoundLogPanel.CalculateLayout(new Rectangle(0, 0, 420, 415))));
+        Assert.Equal(
+            10,
+            SoundLogPanel.GetVisibleBindingRowCount(
+                SoundLogPanel.CalculateLayout(new Rectangle(0, 0, 420, 416))));
+    }
+
+    [Fact]
     public void ClampBindingScroll_ReachesTheLastRow()
     {
         // A thirty-seven row list seen through a thirteen row viewport. The

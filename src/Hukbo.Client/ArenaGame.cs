@@ -50,18 +50,37 @@ public sealed partial class ArenaGame : Game
     // overhaul grew its row, header, and section heights to clear the
     // Caption (20px real line spacing) and Title (35px real line spacing)
     // rungs — see the derivation comment above
-    // `SoundLogPanel.Layout.cs:CaptionLineSpacing`. `SoundLogHeightPercent`
-    // of the default 1280x720 window's 640px column height must clear the
-    // header, the path line, nine binding rows, and the three
-    // minimum-reserved cue rows with zero slack, which needs a real panel
-    // height of 396px; 640 * 62 / 100 == 396 exactly under integer
-    // division. `SoundLogMinimumHeight` is the analogous floor for a
-    // shorter window — header, path, one binding row, and the three
-    // reserved cue rows — which stays comfortably below the percentage
-    // figure at the default window, so the percentage branch keeps
-    // deciding there.
+    // `SoundLogPanel.Layout.cs:CaptionLineSpacing`.
+    //
+    // `SoundLogHeightPercent` buys a ten-row viewport onto the sound log's
+    // expected-files list. It does not buy a view of the whole list, and
+    // no percentage could: the list runs to thirty-seven rows at the
+    // thirteen slots the catalog now carries, being one row per slot plus
+    // one indented hit-class row for each of the four location-driven
+    // weapon slots, while `SoundLogPanel.CalculateLayout` deliberately caps
+    // the section at one section header plus `SoundCatalog.AllSounds.Count`
+    // binding rows. The rows past that cap are reached by scrolling the
+    // section with the mouse wheel, which the panel implements.
+    //
+    // Ten of those rows need a real panel height of 416px. The panel spends
+    // 196px of any height on its vertical padding, its header, its path
+    // line, the gap between its two sections, and the cue log's own section
+    // header plus the three minimum-reserved cue rows; the remaining 220px
+    // is exactly one 20px section header and ten 20px binding rows, with
+    // zero slack. At the default 1280x720 window the right column is
+    // 720 - 68 - 12 == 640px tall, that being the window height less the
+    // status bar and the layout margin, and 640 * 65 / 100 == 416 exactly
+    // under integer division.
+    //
+    // `SoundLogMinimumHeight` is the analogous floor for a shorter window —
+    // header, path, one binding row, and the three reserved cue rows — and
+    // the slot count does not move it, because reserving a single binding
+    // row is independent of how many slots exist. It therefore stays at 236
+    // across this change, and it stays comfortably below the percentage
+    // figure at the default window, so the percentage branch keeps deciding
+    // there.
     private const int SoundLogMinimumHeight = 236;
-    private const int SoundLogHeightPercent = 62;
+    private const int SoundLogHeightPercent = 65;
     private const int MaximumSafeRawCoordinate =
         Scenario.MaximumMapDimension * FixedPoint.Scale;
     private const ulong DefaultSeed = 1;
