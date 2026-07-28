@@ -26,7 +26,7 @@ namespace Hukbo.Core.Movement;
 /// what it does move is the pinned <c>ContentHash</c> identity literals in
 /// <c>MovementPresetRegistryTests</c>, which must be recomputed from the
 /// built code whenever a field is added, never calculated by hand. See
-/// docs/plans/2026-07-28-contingent-close-latch-design.md section 3.
+/// docs/archives/2026-07-28/2026-07-28-contingent-close-latch-design.md section 3.
 /// </remarks>
 public sealed class MovementRuleset
 {

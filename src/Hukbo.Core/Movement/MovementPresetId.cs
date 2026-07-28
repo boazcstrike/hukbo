@@ -43,7 +43,7 @@ public enum MovementPresetId
     /// members have a selected target inside the close radius, and re-opens it
     /// once that fraction drops below a quarter, instead of the single-member
     /// minimum <see cref="PersistentContingentsV2"/> uses. See
-    /// docs/plans/2026-07-28-contingent-close-latch-design.md section 3 for
+    /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch-design.md section 3 for
     /// the derivation.
     /// </summary>
     PersistentContingentsV3 = 3,

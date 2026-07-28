@@ -216,7 +216,7 @@ public sealed class ScenarioTests
     [Fact]
     public void CreateDefaultSelectsPersistentContingentsV3MovementPreset()
     {
-        // T6 of docs/plans/2026-07-28-contingent-close-latch.md flips the
+        // T6 of docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md flips the
         // shipped default from PersistentContingentsV2 to
         // PersistentContingentsV3. PersistentContingentsV2 stays registered
         // and unmodified for a replay that names it explicitly; only the

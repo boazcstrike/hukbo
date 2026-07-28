@@ -202,14 +202,17 @@ What is still outstanding:
   sub-agent. Whoever integrates this branch still owes that one run and its
   literal pasted output.
 
-## The contingent Close latch workstream — in progress
+## The contingent Close latch workstream — complete and archived
 
-Design:
-[`docs/plans/2026-07-28-contingent-close-latch-design.md`](2026-07-28-contingent-close-latch-design.md).
-Plan: [`docs/plans/2026-07-28-contingent-close-latch.md`](2026-07-28-contingent-close-latch.md).
-Neither document is archived yet — the workstream still has a human step
-outstanding, so both stay live in this folder rather than moving to
-`docs/archives/`.
+| Document | Status |
+| --- | --- |
+| [`docs/archives/2026-07-28/2026-07-28-contingent-close-latch-design.md`](../archives/2026-07-28/2026-07-28-contingent-close-latch-design.md) | Archived. Design only; it never authorized implementation. |
+| [`docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md`](../archives/2026-07-28/2026-07-28-contingent-close-latch.md) | Archived. Carries the ordered task list (T1 through T11) and the verification criteria. |
+
+All eleven tasks were executed. The outcome was partial, and the honest
+after-table is in `docs/development/testing.md`, not in either archived
+document. Smoke rows 104 and 114 were reset to `PENDING` and still await a
+human at an interactive desktop; no agent may flip them.
 
 The formation and movement realism workstream above shipped a defect along
 with its feature: transition rule 3 put a whole contingent into

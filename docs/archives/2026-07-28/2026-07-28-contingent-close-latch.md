@@ -1,5 +1,32 @@
 # The contingent `Close` latch — ordered task list
 
+> **Archived: reference only.** All eleven tasks were executed and the work is
+> merged. Do not execute this plan, and do not treat its steps, versions, file
+> paths, or line-number citations as current. The live contract is `CLAUDE.md`,
+> `SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, and the skills
+> in `.claude/skills/`.
+>
+> **The outcome was partial, and the numbers below are the plan's predictions,
+> not its results.** What shipped: transition rule 3 now counts members in
+> contact instead of latching on the first one, `PersistentContingentsV3` is
+> the shipped default, and the seed-1 baseline moved to 1334 ticks /
+> `Faction1Victory` / event hash `C0379769F4483553` / state hash
+> `0682C6BCED57224D`. What the measurement then showed: `Hold` episodes after
+> a contingent's first `Close` rose from zero to **one** across a five-seed,
+> fifty-contingent-battle sweep, `Close` occupancy fell from 63.69 % to
+> 53.11 %, attrition (rule 2) rose to 30.45 % and is now the ceiling on
+> mid-battle gathering, and the `Hold` aspect-ratio tail got **worse** (p99
+> 3.06 to 5.04, maximum 5.17 to 14.21), missing this plan's own acceptance
+> criterion 5. Smoke rows 104 and 114 were reset to `PENDING` and still await
+> a human at an interactive desktop. The real after-table lives in
+> `docs/development/testing.md`; read that, not this document.
+>
+> A second defect was found while executing T6 and is worth carrying forward:
+> `GatherMovementProposals` and the arrival-taper step both gated on
+> `MovementPreset == PersistentContingentsV2` exactly, so registering a new
+> preset silently switched cohesion and the taper off. Both now test
+> `MovementPreset != IndependentPursuitV1`.
+
 Date: 2026-07-28
 Design: [2026-07-28-contingent-close-latch-design.md](2026-07-28-contingent-close-latch-design.md)
 

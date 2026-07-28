@@ -1,5 +1,20 @@
 # Design — the contingent `Close` latch, and a `PersistentContingentsV3` preset
 
+> **Archived: reference only.** This design was implemented, by the plan filed
+> alongside it. Do not execute it, and do not treat its versions, file paths,
+> or line-number citations as current.
+>
+> Its central diagnosis held up: rule 3 was the defect, and the two geometric
+> gates were noise beside it. Its prediction in section 5 also held up —
+> attrition became the new ceiling once rule 3 stopped dominating, rising from
+> 23.51 % to 30.45 % of contingent-ticks. What it did not anticipate is how
+> little headroom that left: after the fix, only **one** `Hold` episode
+> followed a first `Close` across a five-seed sweep, and the `Hold`
+> aspect-ratio tail got worse rather than staying flat. Section 7's open
+> question about the exit-band width was measured and came back inconclusive
+> — 10 re-entries into `Close` under V3 against 12 under V2. See
+> `docs/development/testing.md` for the measurements.
+
 Date: 2026-07-28
 Status: design. This document does not authorize implementation. A plan
 document under `docs/plans/2026-07-28-contingent-close-latch.md` follows and

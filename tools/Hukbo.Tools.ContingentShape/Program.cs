@@ -177,7 +177,7 @@ long holdTicksAfterFirstClose = 0;
 var holdEpisodesBeforeFirstClose = 0;
 var holdEpisodesAfterFirstClose = 0;
 
-// Item 4 of T7 in docs/plans/2026-07-28-contingent-close-latch.md: how often
+// Item 4 of T7 in docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md: how often
 // a contingent leaves ContingentState.Close and later re-enters it. The very
 // first entry into Close never counts; only a later re-entry, after the
 // contingent has held some other state in between, is a "flip". This is the

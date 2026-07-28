@@ -288,7 +288,7 @@ aim-point branch T9 added, on top of the arrival taper T10 added to every
 ## Performance and allocation: the rule-3 rewrite (T8, 2026-07-28)
 
 Task T8 of
-[`docs/plans/2026-07-28-contingent-close-latch.md`](../plans/2026-07-28-contingent-close-latch.md)
+[`docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md`](../archives/2026-07-28/2026-07-28-contingent-close-latch.md)
 measures whether replacing the per-slot minimum-squared-distance fold in
 `ResolveContingentStates` with a per-slot contact-count increment moved the
 tick rate or the allocation figures. This section is that measurement. It

@@ -86,7 +86,7 @@ see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
 ## Latest non-interactive result — movement preset default flips to PersistentContingentsV3 (T6), 2026-07-28
 
-Task T6 of `docs/plans/2026-07-28-contingent-close-latch.md` changes
+Task T6 of `docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md` changes
 `Scenario.MovementPreset`'s shipped default from `PersistentContingentsV2` to
 `PersistentContingentsV3`. `Scenario.MovementPreset` is folded into the state
 hash, so the seed-1 pair moves with the default, and this is the one task in
@@ -3220,7 +3220,7 @@ doing real work when it is allowed to run; it is almost never allowed to run.
 The measurement above is the "before" picture, taken at commit `8f4e426`,
 before any rule change from this workstream landed. This is the "after"
 picture, taken once T1 through T6 of
-[2026-07-28-contingent-close-latch.md](../plans/2026-07-28-contingent-close-latch.md)
+[2026-07-28-contingent-close-latch.md](../archives/2026-07-28/2026-07-28-contingent-close-latch.md)
 had landed (commits `bde702f` through `855c797`): `MovementRuleset` now
 carries `CloseFractionNumerator` and `CloseFractionDenominator`; transition
 rule 3 counts members in contact against those fractions instead of taking a

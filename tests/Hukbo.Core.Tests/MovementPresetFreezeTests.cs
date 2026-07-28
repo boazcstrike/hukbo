@@ -27,7 +27,7 @@ namespace Hukbo.Core.Tests;
 /// <item>
 /// <description>
 /// <c>PersistentContingentsV2</c>, captured by
-/// docs/plans/2026-07-28-contingent-close-latch.md task T1, before a single
+/// docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md task T1, before a single
 /// line of the contingent-close-latch workstream existed. That plan rewrites
 /// the <c>Close</c>-state transition rule that V2 uses, so every later task
 /// in it that could plausibly disturb V2's trajectory reproduces this
@@ -85,7 +85,7 @@ public sealed class MovementPresetFreezeTests
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
     /// -- match the fixture exactly. See
-    /// docs/plans/2026-07-28-contingent-close-latch.md task T1: this fixture
+    /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md task T1: this fixture
     /// is the oracle every later task in that plan replays against before it
     /// is allowed to touch the <c>Close</c>-state transition rule V2 uses.
     /// </summary>
@@ -174,7 +174,7 @@ public sealed class MovementPresetFreezeTests
         // DeterminismTests.CreateZeroInterceptionControlRun's identical
         // rationale for CombatPreset. The same reasoning applies to the
         // PersistentContingentsV2 control run once
-        // docs/plans/2026-07-28-contingent-close-latch.md flips the default
+        // docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md flips the default
         // again, to PersistentContingentsV3.
         var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
         {
