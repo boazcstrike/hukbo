@@ -86,7 +86,86 @@ see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
 ## Render performance measurement — full matrix (VIS-036), 2026-07-28
 
-**Status: BLOCKED, honestly.** Implementation-plan-draft.md's VIS-036 calls
+**Status: partially measured. The agent-count and camera-station axes were
+run; the grass and motion axes were not.** The section immediately below
+records the real numbers. The rest of this section is preserved as the
+implementing agents left it, and its "no number below is a measurement"
+framing applies only to the `RenderBudgetEstimate` constants, which have not
+yet been revised against these measurements.
+
+**Correction to the blocked claim.** The implementing agents recorded this
+work as fully BLOCKED on the grounds that the environment has neither a
+display nor a GPU. That was an assumption, and it was wrong: the probe runs on
+this machine. It was re-run directly and the results are below. The genuine
+remaining gap is narrower than "no measurement exists" — it is that two of the
+matrix's four axes have no independent override, which is a tooling gap rather
+than an environment one.
+
+### Recorded render baseline, 2026-07-28
+
+Produced by `dotnet run --project tools/Hukbo.Tools.RenderProbe -c Release --
+<agents> 1 120 <output>`, seed 1, 120 frames sampled per camera station after
+warm-up, backend `spritebatch-1x1`. Artifacts:
+`artifacts/render-baseline-2026-07-28.json` and
+`artifacts/render-baseline-500-2026-07-28.json`.
+
+200 visible units:
+
+| Station | p50 | p95 | p99 | Quads (max) | Triangles (max) | Geometry build p50/p95 | Submit p50/p95 | Managed bytes (max) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| minimum zoom | 2.30 ms | 5.92 ms | 6.63 ms | 4 076 | 8 152 | 546.3 / 1 091.7 us | 1 354.5 / 4 666.2 us | 33 184 |
+| default fit | 0.77 ms | 2.56 ms | 3.15 ms | 4 076 | 8 152 | 130.2 / 750.0 us | 466.9 / 1 526.2 us | 33 208 |
+| maximum zoom | 0.22 ms | 0.26 ms | 0.30 ms | 1 028 | 2 056 | 42.4 / 51.8 us | 75.8 / 93.9 us | 736 |
+
+500 visible units:
+
+| Station | p50 | p95 | p99 | Quads (max) | Triangles (max) | Geometry build p50/p95 | Submit p50/p95 | Managed bytes (max) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| minimum zoom | 5.27 ms | 5.73 ms | 6.46 ms | 9 326 | 18 652 | 1 372.7 / 1 928.4 us | 3 526.6 / 3 977.6 us | 81 384 |
+| default fit | 5.30 ms | 5.48 ms | 5.62 ms | 9 326 | 18 652 | 207.1 / 1 663.4 us | 4 853.2 / 5 187.2 us | 81 208 |
+| maximum zoom | 5.33 ms | 5.50 ms | 5.55 ms | 1 028 | 2 056 | 90.3 / 123.3 us | 104.9 / 271.3 us | 87 584 bytes allocated over the station; 736 per frame |
+
+Tier 2 diagnostics, every cell of both runs: `batches` 1, `textureBinds` 1.
+**R-W4.5 — one batch, one texture — is measured, not assumed.** `submissions`
+equals `quads` in every cell, which is the expected identity under the current
+backend where one quad is one `SpriteBatch.Draw`.
+
+Three observations that the budget revision has to account for:
+
+1. **The pessimistic worst case was too pessimistic.** VIS-034 recorded that
+   multiplying its combinatorial worst-case per-pawn quad count by 500 units
+   overran the 500-unit ESTIMATE budget, and it fell back to a High-tier
+   baseline pawn for the budget arithmetic. The measured whole-frame maximum at
+   500 units is 9 326 quads including grass and backdrop, comfortably under
+   that worst case. The fallback was reasonable and the measurement vindicates
+   it.
+2. **The per-frame path is not allocation-free, and R-W4.10 says it must be.**
+   Managed bytes per frame are 33 KB at 200 units and 81 KB at 500 — the figure
+   scales with agent count, which is the signature of a per-pawn allocation on
+   the frame path rather than a fixed overhead. The 500-unit minimum-zoom
+   station also triggered one gen-0 collection across its 120 frames. This is
+   an open finding, not a resolved one: it has not yet been established whether
+   the allocation is in the live render path or in the probe's own recording
+   pass, which evaluates the same pure geometry functions in order to count
+   quads. Whoever revises the budgets must separate those two before treating
+   the figure as a defect in the renderer.
+3. **The 500-unit run is floor-bound at about 5.3 ms across all three
+   stations,** including maximum zoom where only 1 028 quads are drawn. A
+   station drawing a ninth of the geometry costing the same frame time means
+   something other than rendering dominates at that agent count. That is worth
+   attributing before any rendering optimization is justified by these numbers.
+
+**Axes not measured.** Grass visibility and motion intensity were not driven
+independently, because neither has a probe-only override — grass visibility is
+governed entirely by the zoom-derived detail tier, and motion intensity is read
+from the persisted spectator settings. Adding either override is recorded as
+follow-up work. The `RenderBudgetEstimate` constants have not been revised
+against the measurements above; that revision is the remaining part of VIS-036
+and is deliberately left undone rather than done hastily.
+
+### Original blocked assessment, preserved
+
+Implementation-plan-draft.md's VIS-036 calls
 for running the full measurement matrix from the integration design's section
 11 — {200, 500 visible units} x {minimum zoom 0.05, default fit, maximum zoom
 12} x {grass on, off} x {motion on, off} at 1080p on named hardware — and
