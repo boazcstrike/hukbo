@@ -60,15 +60,29 @@ public sealed class ClientSettingsStoreTests
         });
     }
 
-    [Theory]
-    [InlineData("{")]
-    [InlineData("{\"schemaVersion\":3,\"selectedThemeId\":\"signal\"}")]
-    public void InvalidSettingsReturnDefault(string contents)
+    [Fact]
+    public void UnparseableSettingsReturnDefault()
     {
         WithTemporarySettings((store, settingsPath) =>
         {
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
-            File.WriteAllText(settingsPath, contents);
+            File.WriteAllText(settingsPath, "{");
+
+            Assert.Equal("command", store.Load("command").SelectedThemeId);
+        });
+    }
+
+    [Fact]
+    public void ACurrentVersionFileWithNoCompositionReturnsDefault()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"}");
 
             Assert.Equal("command", store.Load("command").SelectedThemeId);
         });
@@ -99,7 +113,9 @@ public sealed class ClientSettingsStoreTests
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
             File.WriteAllText(
                 settingsPath,
-                "{\"schemaVersion\":3,\"selectedThemeId\":\"signal\"," +
+                "{\"schemaVersion\":" +
+                (ClientSettingsStore.SupportedSchemaVersion + 1) +
+                ",\"selectedThemeId\":\"signal\"," +
                 "\"composition\":{\"unitsPerTeam\":80,\"greatBladeCount\":20," +
                 "\"heavyChopperCount\":20,\"thrustingBladeCount\":20," +
                 "\"workBladeCount\":20}}");
@@ -213,22 +229,22 @@ public sealed class ClientSettingsStoreTests
     }
 
     [Fact]
-    public void AVersionThreeFileLoadsCleanlyAndDefaultsMotionToFull()
+    public void AFileMissingMotionIntensityLoadsCleanlyAndDefaultsItToFull()
     {
         WithTemporarySettings((store, settingsPath) =>
         {
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
             File.WriteAllText(
                 settingsPath,
-                "{\"schemaVersion\":3,\"selectedThemeId\":\"signal\"," +
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
                 ValidCompositionJson + ",\"goreIntensity\":2}");
 
             var settings = store.Load("command");
 
-            // Version 3 predates MotionIntensity, so this is what a real
-            // pre-upgrade file looks like: valid on every field it has, and
-            // missing the one it does not.
-            Assert.Equal(3, settings.SchemaVersion);
+            // An absent field defaults rather than rejecting the file, so a
+            // future field addition can be a backward-compatible bump again.
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(80, settings.Composition.UnitsPerTeam);
             Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
@@ -260,27 +276,59 @@ public sealed class ClientSettingsStoreTests
     }
 
     [Fact]
-    public void AVersionFourFileLoadsCleanlyAndDefaultsTheCameraToAssisted()
+    public void AFileMissingAutoCameraModeDefaultsItToAssisted()
     {
         WithTemporarySettings((store, settingsPath) =>
         {
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
             File.WriteAllText(
                 settingsPath,
-                "{\"schemaVersion\":4,\"selectedThemeId\":\"signal\"," +
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
                 ValidCompositionJson +
                 ",\"goreIntensity\":2,\"motionIntensity\":0}");
 
             var settings = store.Load("command");
 
-            // Version 4 predates AutoCameraMode, so this is what a real
-            // pre-upgrade file looks like: valid on every field it has, and
-            // missing the one it does not.
-            Assert.Equal(4, settings.SchemaVersion);
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(80, settings.Composition.UnitsPerTeam);
             Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
             Assert.Equal(MotionIntensity.Off, settings.MotionIntensity);
+            Assert.Equal(AutoCameraMode.Assisted, settings.AutoCameraMode);
+        });
+    }
+
+    /// <summary>
+    /// Versions 3, 4, and 5 were accepted while the store could read them
+    /// forward by defaulting absent fields. The 500-unit default composition
+    /// cannot be read forward that way — a saved composition always overrides
+    /// the default — so every earlier version is discarded whole.
+    /// </summary>
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    public void EverySchemaVersionBeforeSixIsDiscardedWhole(int schemaVersion)
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" + schemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":1}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal("command", settings.SelectedThemeId);
+            Assert.Equal(ArmyComposition.Default, settings.Composition);
+            Assert.Equal(GoreIntensity.Stylized, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Full, settings.MotionIntensity);
             Assert.Equal(AutoCameraMode.Assisted, settings.AutoCameraMode);
         });
     }

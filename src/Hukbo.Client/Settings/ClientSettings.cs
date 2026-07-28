@@ -27,6 +27,16 @@ internal sealed record ClientSettings(
 /// spectator re-enters in seconds, there are no shipped installs, and the
 /// shape changes again when the shield system arrives.
 /// </para>
+/// <para>
+/// A second deliberate reset followed when the default rose to 250 per team.
+/// The shape did not change that time and an old file would still parse, but a
+/// saved composition always wins over <see cref="Default"/>, so any existing
+/// file would have pinned the army at its old size forever. The schema version
+/// bump discards it. The cost is that the theme, gore, motion, and camera
+/// choices saved alongside it reset too — accepted on the same grounds as the
+/// first reset: a handful of settings re-entered in seconds, and no shipped
+/// installs.
+/// </para>
 /// </remarks>
 internal sealed record ArmyComposition(
     int UnitsPerTeam,
@@ -43,17 +53,31 @@ internal sealed record ArmyComposition(
     /// </summary>
     public const int CategoryCount = 6;
 
-    private const int DefaultUnitsPerTeam = 102;
-    private const int DefaultCategoryCount = 17;
+    /// <summary>
+    /// 250 per team is 500 units on the field in total, which is the ceiling
+    /// <see cref="UI.ArmyCompositionStepper.MaximumUnitsPerTeam"/> allows and
+    /// the largest total <c>benchmark.ps1 -Agents 500</c> has measured.
+    /// </summary>
+    private const int DefaultUnitsPerTeam = 250;
+
+    /// <summary>
+    /// 250 does not divide by <see cref="CategoryCount"/>, so the first four
+    /// roster entries carry one extra unit each. This matches the
+    /// remainder-to-lowest-index rule in
+    /// <see cref="UI.ArmyCompositionStepper.DistributeEvenly"/>, so Reset to
+    /// Default and Distribute Evenly agree on the same total.
+    /// </summary>
+    private const int DefaultLargerCategoryCount = 42;
+    private const int DefaultSmallerCategoryCount = 41;
 
     public static ArmyComposition Default { get; } = new(
         DefaultUnitsPerTeam,
-        DefaultCategoryCount,
-        DefaultCategoryCount,
-        DefaultCategoryCount,
-        DefaultCategoryCount,
-        DefaultCategoryCount,
-        DefaultCategoryCount);
+        DefaultLargerCategoryCount,
+        DefaultLargerCategoryCount,
+        DefaultLargerCategoryCount,
+        DefaultLargerCategoryCount,
+        DefaultSmallerCategoryCount,
+        DefaultSmallerCategoryCount);
 
     /// <summary>
     /// True when every count is non-negative and the six category counts sum
