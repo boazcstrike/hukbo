@@ -34,17 +34,21 @@ internal static class AgentInspectorContent
 
     /// <summary>
     /// The most lower detail rows <see cref="BuildLowerLines"/> can produce:
-    /// intent, contingent, target, position, weapon, attributes, level,
-    /// combo attributes, evidence tier, grip, armor, shield, and movement.
-    /// The contingent row is present exactly when the agent's
-    /// <see cref="AgentView.ContingentState"/> is not
-    /// <see cref="ContingentState.None"/>. The combo attributes row is
-    /// present exactly when the attributes row is (both come from the same
-    /// resolved <see cref="WeaponProfile"/>), and the grip row is absent for
-    /// a two-handed weapon, so a real panel draws this many or fewer — the
-    /// panel is sized for the maximum so the taller case never clips.
+    /// intent, contingent, target, position, rank, rank reconstruction note,
+    /// weapon, attributes, level, combo attributes, evidence tier, grip,
+    /// armor, shield, and movement. The contingent row is present exactly
+    /// when the agent's <see cref="AgentView.ContingentState"/> is not
+    /// <see cref="ContingentState.None"/>. The rank reconstruction note row
+    /// is present exactly when the agent's <see cref="AgentView.Rank"/>
+    /// carries a <see cref="RankLabelEntry.ReconstructionNote"/> — today,
+    /// only <see cref="RankId.AlipingNamamahay"/>. The combo attributes row
+    /// is present exactly when the attributes row is (both come from the
+    /// same resolved <see cref="WeaponProfile"/>), and the grip row is
+    /// absent for a two-handed weapon, so a real panel draws this many or
+    /// fewer — the panel is sized for the maximum so the taller case never
+    /// clips.
     /// </summary>
-    internal const int MaximumLowerRowCount = 13;
+    internal const int MaximumLowerRowCount = 15;
     internal const int PortraitBottomGap = 5;
     internal const int TopDetailBottomGap = 2;
 
@@ -148,6 +152,13 @@ internal static class AgentInspectorContent
 
         lines.Add($"Target: {agent.TargetEntityId?.ToString() ?? "none"}");
         lines.Add(FormatPositionLine(agent));
+        lines.Add(FormatRankLine(agent.Rank));
+
+        if (RankLabelCatalog.Get(agent.Rank).ReconstructionNote is { } rankNote)
+        {
+            lines.Add(FormatRankReconstructionNoteLine(rankNote));
+        }
+
         lines.Add(FormatWeaponLine(weaponLabel));
 
         var profile = TryResolveProfile(loadout);
@@ -254,6 +265,27 @@ internal static class AgentInspectorContent
 
     internal static string FormatWeaponLine(string weaponLabel) =>
         $"Weapon: {weaponLabel}";
+
+    /// <summary>
+    /// This warrior's social and legal standing, in pair form
+    /// (CLAUDE.md section 7) — read straight from
+    /// <see cref="RankLabelCatalog"/>, never re-derived or hand-duplicated.
+    /// <see cref="RankId"/> is never a delegated military office; this row
+    /// shows standing only, the same distinction
+    /// <c>docs/research/ARMY-COMPOSITION.md</c> §11.4 draws.
+    /// </summary>
+    internal static string FormatRankLine(RankId rank) =>
+        $"Rank: {RankLabelCatalog.Get(rank).Label}";
+
+    /// <summary>
+    /// The reconstruction caveat <see cref="RankLabelEntry.ReconstructionNote"/>
+    /// carries for <see cref="RankId.AlipingNamamahay"/> — shown immediately
+    /// below the rank row whenever the catalog entry declares one, per
+    /// <c>docs/research/HISTORICAL_1500s_RANKS.md</c>'s requirement that any
+    /// roster fielding this class say so wherever the class is shown.
+    /// </summary>
+    internal static string FormatRankReconstructionNoteLine(string note) =>
+        $"        {note}";
 
     /// <summary>
     /// The three attributes the weapon and shield resolve to, in the units a

@@ -1226,6 +1226,86 @@ public sealed class AgentInspectorContentTests
             $"{AgentInspectorContent.MaximumLowerRowCount}.");
     }
 
+    [Theory]
+    [InlineData(RankId.Datu, "Rank: Datu — Chief")]
+    [InlineData(RankId.Maharlika, "Rank: Maharlika — Sworn Freeman")]
+    [InlineData(RankId.Timawa, "Rank: Timawa — Bound Freeman")]
+    [InlineData(RankId.AlipingNamamahay, "Rank: Aliping Namamahay — Householder")]
+    [InlineData(RankId.Ayuey, "Rank: Ayuey — Household Dependent")]
+    public void FormatRankLine_RendersEveryRankAsAPairFormLabel(
+        RankId rank,
+        string expected)
+    {
+        var line = AgentInspectorContent.FormatRankLine(rank);
+
+        Assert.Equal(expected, line);
+    }
+
+    [Theory]
+    [InlineData(RankId.Datu)]
+    [InlineData(RankId.Maharlika)]
+    [InlineData(RankId.Timawa)]
+    [InlineData(RankId.Ayuey)]
+    public void LowerLinesOmitTheRankReconstructionNoteRowForEveryRankExceptAlipingNamamahay(
+        RankId rank)
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(WeaponId.Kalis, ShieldId.TallHardwood, rank: rank),
+            "Kalis — Thrusting Blade",
+            "Documented");
+
+        Assert.Contains(AgentInspectorContent.FormatRankLine(rank), lines);
+        Assert.DoesNotContain(
+            lines,
+            line => line.Contains("Reconstruction:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LowerLinesShowTheRankReconstructionNoteRowOnlyForAlipingNamamahay()
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Itak,
+                ShieldId.None,
+                rank: RankId.AlipingNamamahay),
+            "Itak — Work Blade",
+            "Provisional reconstruction");
+
+        var rankLine = AgentInspectorContent.FormatRankLine(RankId.AlipingNamamahay);
+        var reconstructionNote =
+            RankLabelCatalog.Get(RankId.AlipingNamamahay).ReconstructionNote;
+        Assert.NotNull(reconstructionNote);
+        var expectedNoteLine =
+            AgentInspectorContent.FormatRankReconstructionNoteLine(reconstructionNote!);
+
+        var list = lines.ToList();
+        var rankIndex = list.FindIndex(line => line == rankLine);
+        var noteIndex = list.FindIndex(line => line == expectedNoteLine);
+
+        Assert.True(rankIndex >= 0);
+        Assert.Equal(rankIndex + 1, noteIndex);
+    }
+
+    [Fact]
+    public void LowerLinesWithAContingentRowAndTheRankReconstructionNoteNeverExceedTheRowBudget()
+    {
+        var count = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                contingentId: 3,
+                contingentState: ContingentState.Hold,
+                rank: RankId.AlipingNamamahay),
+            "Kalis — Thrusting Blade",
+            "Documented").Count;
+
+        Assert.True(
+            count <= AgentInspectorContent.MaximumLowerRowCount,
+            $"A shielded warrior with a contingent row and the rank " +
+            $"reconstruction note produced {count} lower rows against a " +
+            $"budget of {AgentInspectorContent.MaximumLowerRowCount}.");
+    }
+
     private static int BuildLowerLineCount(WeaponId weapon, ShieldId shield) =>
         AgentInspectorContent.BuildLowerLines(
             CreateAgentView(weapon, shield),
@@ -1237,7 +1317,8 @@ public sealed class AgentInspectorContentTests
         ShieldId shield,
         int level = 1,
         int contingentId = 0,
-        ContingentState contingentState = ContingentState.None) =>
+        ContingentState contingentState = ContingentState.None,
+        RankId rank = RankId.Timawa) =>
         new(
             EntityId: 1,
             FactionId: 0,
@@ -1248,11 +1329,12 @@ public sealed class AgentInspectorContentTests
             TargetEntityId: null,
             Intent: AgentIntent.Idle,
             IsAlive: true,
-            Loadout: new CombatLoadout(weapon, ArmorId.LightOrganic, shield),
+            Loadout: new CombatLoadout(weapon, ArmorId.LightOrganic, shield, rank),
             MovementResolution: MovementResolution.Moved,
             Level: level,
             ContingentId: contingentId,
-            ContingentState: contingentState);
+            ContingentState: contingentState,
+            Rank: rank);
 
     private static Func<string, float> FixedWidthMeasure(
         float pixelsPerCharacter) =>
