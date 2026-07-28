@@ -284,3 +284,133 @@ as the headline finding above states for the pre-workstream build;
 `IndependentPursuitV1` trace would show, because it now carries the cohesion
 aim-point branch T9 added, on top of the arrival taper T10 added to every
 `BuildMovementProposal` call.
+
+## Performance and allocation: the rule-3 rewrite (T8, 2026-07-28)
+
+Task T8 of
+[`docs/plans/2026-07-28-contingent-close-latch.md`](../plans/2026-07-28-contingent-close-latch.md)
+measures whether replacing the per-slot minimum-squared-distance fold in
+`ResolveContingentStates` with a per-slot contact-count increment moved the
+tick rate or the allocation figures. This section is that measurement. It
+does not revise any figure recorded elsewhere in this document, including the
+ninth-stage section immediately above, whose trace predates this rewrite.
+
+### What changed
+
+`ResolveContingentStates` used to fold a per-slot minimum squared distance
+into a `long[]` sized to the contingent-slot count. It now increments a
+per-slot `int[]` contact count in the same single pass over living agents.
+Both are `O(N)` in agent count, and neither adds an allocation on a warm
+tick — the arrays involved are preallocated at construction, exactly as they
+were before. The expectation stated in the plan going into this measurement
+was no measurable movement in tick rate or allocation. What follows is what
+was actually measured, not that expectation.
+
+### Methodology
+
+Tool: `scripts/benchmark.ps1`, the canonical benchmark harness, run in
+Release configuration with `-NoBuild` after one warm build, so no run below
+paid a restore or compile cost. Each of the four workloads below is a single
+process invocation of the headless runner; no run was repeated to build a
+distribution across processes, so a single run's reported percentiles are
+the full evidence here — the same precedent every other benchmark figure in
+this document and in `docs/development/testing.md` already sets.
+
+Hardware: Intel Core i5-14600K (14 cores / 20 logical processors), 32,485 MB
+RAM, Windows 11 Pro 10.0.26200, x64, .NET SDK 10.0.302 — the same machine
+recorded for the ninth-stage measurement above, same day, 2026-07-28.
+
+Workload: seed 1, 10,000 requested ticks, at 200 agents and 500 agents — the
+two acceptance workloads named by both the standards' section 10 performance
+checklist and the companion design's section 8.1 — under
+`PersistentContingentsV3` (today's shipped default, invoked with no
+`-MovementPreset` flag) and under `PersistentContingentsV2` (invoked with
+`-MovementPreset PersistentContingentsV2`) as the control.
+
+A run under a different preset plays a different battle. `PersistentContingentsV3`'s
+contact-count threshold changes when a contingent enters and leaves `Close`,
+which changes how the two factions close and disengage, which changes when
+one side's survivors reach zero. The two presets therefore do not run the
+same number of ticks even at the same agent count and seed, and the table
+below says so explicitly rather than let a shared "10,000 ticks" column imply
+otherwise. **Total duration and total tick count are not comparable across
+presets for this reason. The mean-ms-per-tick, tick-rate, and percentile
+columns are comparable, and are the basis for every claim below.**
+
+### Results
+
+| Workload | Preset | Measured ticks | Duration (ms) | Mean ms/tick | Tick rate (ticks/s) | p50 (ms) | p95 (ms) | p99 (ms) | Max (ms) | allocatedBytes | coreAllocatedBytes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 200 agents | V3 (default) | 1,334 | 405.50 | 0.3040 | 3,290 | 0.0745 | 1.4553 | 2.2121 | 11.6949 | 461,888 | 118,896 |
+| 200 agents | V2 (control) | 1,064 | 399.82 | 0.3758 | 2,661 | 0.1379 | 1.4664 | 2.1596 | 11.9889 | 422,720 | 125,088 |
+| 500 agents | V3 (default) | 2,664 | 1,666.14 | 0.6254 | 1,599 | 0.4529 | 1.5533 | 3.7820 | 14.6116 | 966,288 | 259,376 |
+| 500 agents | V2 (control) | 3,391 | 2,298.84 | 0.6779 | 1,475 | 0.5810 | 1.6671 | 3.7067 | 14.6898 | 1,088,448 | 259,376 |
+
+"Mean ms/tick" is duration divided by measured ticks — the figure that is
+actually comparable across the two presets' different tick counts. "Tick
+rate" is its reciprocal. `allocatedBytes` is the whole run's managed
+allocation for the whole process, as `RunReport` defines it;
+`coreAllocatedBytes` is summed strictly across `BattleSimulation.AdvanceOneTick()`
+calls inside the tick loop (`src/Hukbo.Headless/HeadlessRunner.cs`), so it is
+the figure that isolates the simulation core from the harness around it.
+
+The V2 200-agent row reproduces T1's frozen `PersistentContingentsV2`
+trajectory fixture exactly: 1,064 measured ticks, `Faction0Victory` outcome,
+`eventHash 8E819FF7B378FEFD`, `stateHash C79B76AE81C300CB`, all confirmed
+against the real JSON this run produced. That is independent confirmation
+this measurement ran against the same V2 behaviour the rest of the
+workstream has been comparing against.
+
+### What moved
+
+Tick rate and percentiles did not move materially between presets at either
+agent count. At 200 agents, mean tick duration is 0.3040 ms under V3 against
+0.3758 ms under V2 — V3 is faster per tick here, not slower — and p95/p99/max
+sit within a few hundredths of a millisecond of each other (1.4553 ms vs
+1.4664 ms at p95; 2.2121 ms vs 2.1596 ms at p99, where V2 is instead very
+slightly faster). At 500 agents the same pattern holds: 0.6254 ms/tick under
+V3 against 0.6779 ms/tick under V2, with p95 1.5533 ms vs 1.6671 ms and p99
+3.7820 ms vs 3.7067 ms, again with the sign flipping between the two
+percentile columns. None of these differences is large enough, or
+consistently signed across the two agent counts and four percentile columns,
+to read as the rule-3 rewrite changing simulation cost. It reads as
+run-to-run noise from a single-process measurement — the same caveat every
+other single-run figure in this document already carries.
+
+Allocation shows the same picture, with one especially clean data point. At
+500 agents, `coreAllocatedBytes` is **byte-identical between the two
+presets: 259,376 bytes**, despite the V3 run measuring 2,664 ticks and the V2
+run measuring 3,391 ticks — 727 more ticks for zero additional bytes. That is
+direct evidence the tick loop's own allocation does not scale with the
+number of ticks executed, which is exactly what "no allocation added on a
+warm tick" predicts: whatever the `coreAllocatedBytes` total is attributable
+to is warm-up and one-time cost, not per-tick growth, in either preset.
+
+At 200 agents the two `coreAllocatedBytes` totals are close but not
+identical — 118,896 bytes over 1,334 V3 ticks against 125,088 bytes over
+1,064 V2 ticks. Notably, the run with *more* ticks (V3) allocated *fewer*
+total core bytes than the run with fewer ticks (V2), the opposite of what a
+real per-tick allocation cost would produce, and this reinforces the point
+the 500-agent identical totals make more starkly: the difference is not
+tick-count-driven. Read as a per-tick rate it is 89.1 bytes/tick under V3
+against 117.6 bytes/tick under V2 at 200 agents, and 97.4 bytes/tick under V3
+against 76.5 bytes/tick under V2 at 500 agents — the direction of that
+per-tick comparison flips between the two agent counts, which is further
+evidence these are measurement-granularity artifacts (GC accounting
+resolution and one-time JIT cost folded into a single-process sum) rather
+than a real cost difference attributable to the rule-3 rewrite.
+
+### Verdict
+
+**No measurable movement beyond run-to-run noise.** The
+`ResolveContingentStates` figures recorded in the ninth-stage section above
+("The ninth stage: `ResolveContingentStates` (T16)") were traced under
+`PersistentContingentsV2` before this rewrite landed, and nothing in this
+section supersedes them: this task's methodology (a whole-tick timer and a
+per-tick allocation counter, both from a single benchmark run) is different
+from the ninth stage's methodology (a `dotnet-trace` stack-sampling share),
+and this task did not re-trace `ResolveContingentStates` with `dotnet-trace`.
+It only re-ran the tick-rate and allocation benchmark the plan asked for. The
+results above are consistent with the rewrite being a change with no
+observable cost, matching the plan's stated expectation of one fewer `long`
+array and no allocation added on a warm tick.
