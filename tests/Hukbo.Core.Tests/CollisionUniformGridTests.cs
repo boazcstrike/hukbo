@@ -480,6 +480,403 @@ public sealed class CollisionUniformGridTests
         return expected;
     }
 
+    [Fact]
+    public void AnyOverlap_AgreesWithANaiveScanAcrossManySeededWorlds()
+    {
+        const int ExtentRaw = 6 * DiameterRaw;
+
+        for (ulong seed = 1UL; seed <= 40UL; seed++)
+        {
+            var world = GenerateWorld(seed, bodyCount: 40, extentRaw: ExtentRaw);
+            var grid = new CollisionUniformGrid(DiameterRaw);
+
+            foreach (var body in world)
+            {
+                grid.Insert(body);
+            }
+
+            var probes = new SplitMix64(seed + 1_000UL);
+
+            for (var probe = 0; probe < 200; probe++)
+            {
+                var xRaw = probes.NextInt(ExtentRaw);
+                var yRaw = probes.NextInt(ExtentRaw);
+                var excludeEntityId = world[probes.NextInt(world.Length)].EntityId;
+
+                Assert.Equal(
+                    NaiveAnyOverlap(world, xRaw, yRaw, excludeEntityId),
+                    grid.AnyOverlap(xRaw, yRaw, BodyRadiusRaw, excludeEntityId));
+            }
+        }
+    }
+
+    [Fact]
+    public void AnyOverlap_TreatsExactTangencyAsFree()
+    {
+        var grid = new CollisionUniformGrid(DiameterRaw);
+
+        grid.Insert(Living(1UL, 4 * DiameterRaw, 4 * DiameterRaw));
+
+        // Tangency is a legal resting position. This is the single behavioural
+        // difference from AnyContact and the resolver depends on it: a packed
+        // front settles at tangency instead of jittering forever.
+        Assert.False(grid.AnyOverlap(
+            (4 * DiameterRaw) + DiameterRaw,
+            4 * DiameterRaw,
+            BodyRadiusRaw,
+            excludeEntityId: 2UL));
+        Assert.True(grid.AnyOverlap(
+            (4 * DiameterRaw) + DiameterRaw - 1,
+            4 * DiameterRaw,
+            BodyRadiusRaw,
+            excludeEntityId: 2UL));
+    }
+
+    [Fact]
+    public void AnyOverlap_HandlesTheDegenerateGrids()
+    {
+        var empty = new CollisionUniformGrid(DiameterRaw);
+        var single = new CollisionUniformGrid(DiameterRaw);
+        var corner = new CollisionUniformGrid(DiameterRaw);
+
+        Assert.False(empty.AnyOverlap(0, 0, BodyRadiusRaw, excludeEntityId: 0UL));
+        Assert.False(empty.AnyOverlap(
+            MaximumCoordinateRaw,
+            MaximumCoordinateRaw,
+            BodyRadiusRaw,
+            excludeEntityId: 0UL));
+
+        single.Insert(Living(1UL, 0, 0));
+        Assert.True(single.AnyOverlap(0, 0, BodyRadiusRaw, excludeEntityId: 2UL));
+        Assert.False(single.AnyOverlap(0, 0, BodyRadiusRaw, excludeEntityId: 1UL));
+
+        // Both map corners, where the neighbourhood runs off the indexed
+        // quadrant on two sides at once.
+        corner.Insert(Living(1UL, 0, 0));
+        corner.Insert(Living(2UL, MaximumCoordinateRaw, MaximumCoordinateRaw));
+        Assert.True(corner.AnyOverlap(1, 1, BodyRadiusRaw, excludeEntityId: 9UL));
+        Assert.True(corner.AnyOverlap(
+            MaximumCoordinateRaw - 1,
+            MaximumCoordinateRaw - 1,
+            BodyRadiusRaw,
+            excludeEntityId: 9UL));
+    }
+
+    [Fact]
+    public void AnyOverlap_FindsAnOverlapFromEveryNeighbouringCell()
+    {
+        var probeXRaw = 4 * DiameterRaw;
+        var probeYRaw = 4 * DiameterRaw;
+
+        for (var offsetY = -1; offsetY <= 1; offsetY++)
+        {
+            for (var offsetX = -1; offsetX <= 1; offsetX++)
+            {
+                var grid = new CollisionUniformGrid(DiameterRaw);
+
+                grid.Insert(Living(
+                    1UL,
+                    probeXRaw + (offsetX * BodyRadiusRaw),
+                    probeYRaw + (offsetY * BodyRadiusRaw)));
+
+                Assert.True(grid.AnyOverlap(
+                    probeXRaw,
+                    probeYRaw,
+                    BodyRadiusRaw,
+                    excludeEntityId: 2UL));
+            }
+        }
+    }
+
+    [Fact]
+    public void AnyOverlap_FindsAnOverlapAcrossACellBoundary()
+    {
+        var grid = new CollisionUniformGrid(DiameterRaw);
+
+        grid.Insert(Living(1UL, DiameterRaw - 1, DiameterRaw - 1));
+
+        Assert.True(grid.AnyOverlap(
+            DiameterRaw,
+            DiameterRaw,
+            BodyRadiusRaw,
+            excludeEntityId: 2UL));
+    }
+
+    [Fact]
+    public void AnyOverlap_IgnoresDeadBodies()
+    {
+        var grid = new CollisionUniformGrid(DiameterRaw);
+
+        grid.Insert(Dead(1UL, 0, 0));
+
+        Assert.False(grid.AnyOverlap(0, 0, BodyRadiusRaw, excludeEntityId: 2UL));
+    }
+
+    [Fact]
+    public void AnyOverlap_RejectsInvalidArguments()
+    {
+        var grid = new CollisionUniformGrid(DiameterRaw);
+        var narrowGrid = new CollisionUniformGrid(DiameterRaw - 1);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => { _ = grid.AnyOverlap(-1, 0, BodyRadiusRaw, excludeEntityId: 0UL); });
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => { _ = grid.AnyOverlap(0, -1, BodyRadiusRaw, excludeEntityId: 0UL); });
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => { _ = grid.AnyOverlap(0, 0, -1, excludeEntityId: 0UL); });
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => { _ = narrowGrid.AnyOverlap(0, 0, BodyRadiusRaw, excludeEntityId: 0UL); });
+    }
+
+    [Fact]
+    public void AnyCoincident_AgreesWithANaiveScanAcrossManySeededWorlds()
+    {
+        // A tight extent so that exact coincidences actually occur; a sparse
+        // world would make every probe a trivial false.
+        const int ExtentRaw = 2 * DiameterRaw;
+
+        for (ulong seed = 1UL; seed <= 40UL; seed++)
+        {
+            var world = GenerateWorld(seed, bodyCount: 40, extentRaw: ExtentRaw);
+            var grid = new CollisionUniformGrid(DiameterRaw);
+
+            foreach (var body in world)
+            {
+                grid.Insert(body);
+            }
+
+            foreach (var body in world)
+            {
+                Assert.Equal(
+                    NaiveAnyCoincident(world, body.XRaw, body.YRaw, body.EntityId),
+                    grid.AnyCoincident(body.XRaw, body.YRaw, body.EntityId));
+            }
+
+            var probes = new SplitMix64(seed + 2_000UL);
+
+            for (var probe = 0; probe < 200; probe++)
+            {
+                var xRaw = probes.NextInt(ExtentRaw);
+                var yRaw = probes.NextInt(ExtentRaw);
+                var excludeEntityId = world[probes.NextInt(world.Length)].EntityId;
+
+                Assert.Equal(
+                    NaiveAnyCoincident(world, xRaw, yRaw, excludeEntityId),
+                    grid.AnyCoincident(xRaw, yRaw, excludeEntityId));
+            }
+        }
+    }
+
+    [Fact]
+    public void AnyCoincident_IsTrueOnlyAtTheExactCentre()
+    {
+        var grid = new CollisionUniformGrid(DiameterRaw);
+
+        grid.Insert(Living(1UL, 4 * DiameterRaw, 4 * DiameterRaw));
+
+        Assert.True(grid.AnyCoincident(
+            4 * DiameterRaw,
+            4 * DiameterRaw,
+            excludeEntityId: 2UL));
+        Assert.False(grid.AnyCoincident(
+            (4 * DiameterRaw) + 1,
+            4 * DiameterRaw,
+            excludeEntityId: 2UL));
+        Assert.False(grid.AnyCoincident(
+            4 * DiameterRaw,
+            4 * DiameterRaw,
+            excludeEntityId: 1UL));
+    }
+
+    [Fact]
+    public void AnyCoincident_IgnoresDeadBodiesAndRejectsNegativeCoordinates()
+    {
+        var grid = new CollisionUniformGrid(DiameterRaw);
+
+        grid.Insert(Dead(1UL, 0, 0));
+
+        Assert.False(grid.AnyCoincident(0, 0, excludeEntityId: 2UL));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => { _ = grid.AnyCoincident(-1, 0, excludeEntityId: 0UL); });
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => { _ = grid.AnyCoincident(0, -1, excludeEntityId: 0UL); });
+    }
+
+    [Fact]
+    public void Remove_MakesABodyInvisibleToEveryQuery()
+    {
+        var grid = new CollisionUniformGrid(DiameterRaw);
+        var body = Living(1UL, 4 * DiameterRaw, 4 * DiameterRaw);
+
+        grid.Insert(body);
+        grid.Remove(body);
+
+        Assert.False(grid.AnyOverlap(
+            body.XRaw,
+            body.YRaw,
+            BodyRadiusRaw,
+            excludeEntityId: 2UL));
+        Assert.False(grid.AnyContact(
+            body.XRaw,
+            body.YRaw,
+            BodyRadiusRaw,
+            excludeEntityId: 2UL));
+        Assert.False(grid.AnyCoincident(body.XRaw, body.YRaw, excludeEntityId: 2UL));
+    }
+
+    [Fact]
+    public void Remove_LeavesTheOtherBodiesOfTheSameCellReachable()
+    {
+        // Four bodies in one cell is the packing bound, so this exercises an
+        // unlink at the head, in the middle, and at the tail of a full chain.
+        var originXRaw = 4 * DiameterRaw;
+        var originYRaw = 4 * DiameterRaw;
+
+        for (var removedIndex = 0; removedIndex < 4; removedIndex++)
+        {
+            var grid = new CollisionUniformGrid(DiameterRaw);
+            var bodies = new List<CollisionBody>();
+
+            for (var index = 0; index < 4; index++)
+            {
+                var body = Living(
+                    (ulong)index + 1UL,
+                    originXRaw + (index % 2),
+                    originYRaw + (index / 2));
+
+                bodies.Add(body);
+                grid.Insert(body);
+            }
+
+            grid.Remove(bodies[removedIndex]);
+
+            for (var index = 0; index < 4; index++)
+            {
+                Assert.Equal(
+                    index != removedIndex,
+                    grid.AnyCoincident(
+                        bodies[index].XRaw,
+                        bodies[index].YRaw,
+                        excludeEntityId: 99UL));
+            }
+        }
+    }
+
+    [Fact]
+    public void Remove_EmptiesTheGridWhenEveryBodyIsRemoved()
+    {
+        var world = GenerateWorld(seed: 11UL, bodyCount: 40, extentRaw: 6 * DiameterRaw);
+        var grid = new CollisionUniformGrid(DiameterRaw);
+
+        foreach (var body in world)
+        {
+            grid.Insert(body);
+        }
+
+        foreach (var body in world)
+        {
+            grid.Remove(body);
+        }
+
+        foreach (var body in world)
+        {
+            Assert.False(grid.AnyOverlap(
+                body.XRaw,
+                body.YRaw,
+                BodyRadiusRaw,
+                excludeEntityId: 99UL));
+        }
+    }
+
+    [Fact]
+    public void Remove_ThenInsert_MakesTheBodyVisibleAgain()
+    {
+        var grid = new CollisionUniformGrid(DiameterRaw);
+        var body = Living(1UL, 4 * DiameterRaw, 4 * DiameterRaw);
+
+        grid.Insert(body);
+        grid.Remove(body);
+        grid.Insert(body);
+
+        Assert.True(grid.AnyOverlap(
+            body.XRaw,
+            body.YRaw,
+            BodyRadiusRaw,
+            excludeEntityId: 2UL));
+    }
+
+    /// <summary>
+    /// Removing something that was never inserted is a documented no-op rather
+    /// than a throw, and a dead body is ignored on removal exactly as it is on
+    /// insertion. Both are pinned here so a later change cannot quietly turn
+    /// either into an exception.
+    /// </summary>
+    [Fact]
+    public void Remove_IsANoOpForAnAbsentOrDeadBody()
+    {
+        var grid = new CollisionUniformGrid(DiameterRaw);
+        var present = Living(1UL, 4 * DiameterRaw, 4 * DiameterRaw);
+
+        grid.Insert(present);
+
+        grid.Remove(Living(2UL, 4 * DiameterRaw, 4 * DiameterRaw));
+        grid.Remove(Living(3UL, 40 * DiameterRaw, 40 * DiameterRaw));
+        grid.Remove(Dead(1UL, present.XRaw, present.YRaw));
+
+        Assert.True(grid.AnyOverlap(
+            present.XRaw,
+            present.YRaw,
+            BodyRadiusRaw,
+            excludeEntityId: 9UL));
+    }
+
+    private static bool NaiveAnyOverlap(
+        IReadOnlyList<CollisionBody> bodies,
+        int xRaw,
+        int yRaw,
+        ulong excludeEntityId)
+    {
+        for (var index = 0; index < bodies.Count; index++)
+        {
+            var body = bodies[index];
+
+            if (body.IsAlive &&
+                body.EntityId != excludeEntityId &&
+                CollisionGeometry.Overlaps(
+                    xRaw,
+                    yRaw,
+                    body.XRaw,
+                    body.YRaw,
+                    BodyRadiusRaw))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool NaiveAnyCoincident(
+        IReadOnlyList<CollisionBody> bodies,
+        int xRaw,
+        int yRaw,
+        ulong excludeEntityId)
+    {
+        for (var index = 0; index < bodies.Count; index++)
+        {
+            var body = bodies[index];
+
+            if (body.IsAlive &&
+                body.EntityId != excludeEntityId &&
+                CollisionGeometry.IsCoincident(xRaw, yRaw, body.XRaw, body.YRaw))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static CollisionBody BodyOf(
         IReadOnlyList<CollisionBody> bodies,
         ulong entityId) =>

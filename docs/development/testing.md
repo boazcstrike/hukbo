@@ -234,6 +234,91 @@ each `RenderBudgetEstimate`/frame-time figure or revising it through a
 recorded, reviewed diff. Until that happens, no automated test may encode a
 number from this section as an enforced ceiling.
 
+## Agent-count scaling sweep after the collision scaling work, 2026-07-28
+
+This supersedes the timing columns of the 4.25-radius sweep in the next section
+below, and nothing else. The hashes are the point: they did not move.
+
+The collision resolver now answers both of its obstacle queries through bounded
+uniform-grid lookups instead of two linear scans, under
+[docs/plans/2026-07-28-collision-resolution-scaling.md](../plans/2026-07-28-collision-resolution-scaling.md).
+That change is hash-neutral by construction, so this sweep is simultaneously the
+performance measurement and the correctness evidence: had any committed position
+changed, a hash would have moved.
+
+Measured with one fresh process per point:
+
+```powershell
+./scripts/benchmark.ps1 -Agents 200  -Ticks 10000 -Seed 1
+./scripts/benchmark.ps1 -Agents 500  -Ticks 10000 -Seed 1
+./scripts/benchmark.ps1 -Agents 1000 -Ticks 10000 -Seed 1
+./scripts/benchmark.ps1 -Agents 2000 -Ticks 10000 -Seed 1
+```
+
+| Agents | measuredTicks | p50 ms | p95 ms | p99 ms | max ms | coreAllocatedBytes | outcome | stateHash | eventHash |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 200 | 1 677 | 0.0916 | 0.8952 | 1.3683 | 11.6005 | 154 976 | `Faction0Victory` | `A080E28DA7C79C20` | `2B6FB3A9A9C1960D` |
+| 500 | 2 859 | 0.1969 | 1.3553 | 2.7234 | 12.8902 | 338 736 | `Faction0Victory` | `F9267D5B9DFB50E1` | `BD3E753BEB76CD33` |
+| 1 000 | 9 294 | 0.6989 | 3.5361 | 4.5569 | 22.5612 | 712 304 | `Faction1Victory` | `6D35D701D9423C27` | `8B22790BAC7940EB` |
+| 2 000 | 10 000 | 6.7007 | 11.4528 | 14.4526 | 43.9161 | 1 492 256 | `Draw` | `AF9E348B016FF09F` | `5EA9027348AE764F` |
+
+Every point reported `deterministic true`, `firstMismatchTick null`, and
+`maximumPenetrationRaw 0`.
+
+**Every state hash, every event hash, every tick count, and every outcome is
+byte-identical to the 4.25-radius sweep below.** At 200 agents every collision
+counter matches as well, including `candidatePairs 172643`,
+`acceptedMoves 91766`, and `blockedAgentTicks 45265`. This is what the plan
+required and it is the whole acceptance criterion for that workstream.
+
+### Timing, against the same points before the change
+
+"Before" is the 4.25-radius sweep in the next section.
+
+| Agents | p50 before | p50 after | p95 before | p95 after | max before | max after |
+| --- | --- | --- | --- | --- | --- | --- |
+| 200 | 0.0887 | 0.0916 | 1.6860 | 0.8952 | 11.0047 | 11.6005 |
+| 500 | 0.2391 | 0.1969 | 1.9310 | 1.3553 | 16.9044 | 12.8902 |
+| 1 000 | 0.8481 | 0.6989 | 6.2364 | 3.5361 | 43.2692 | 22.5612 |
+| 2 000 | 17.3454 | 6.7007 | 51.5116 | 11.4528 | 274.8558 | 43.9161 |
+
+Every point here is a clean comparison, because the tick count at each agent
+count is identical before and after — which follows from the hashes being
+identical.
+
+The 2 000-agent point improves by 61 % at p50, 78 % at p95, and 84 % at the worst
+tick. The 3.44x regression that the radius move from 4.0 to 4.25 introduced at
+that point is now a 1.33x difference against the 4.0 figure of 5.0435 ms. The
+200-agent p50 is unchanged within run-to-run noise, which is expected: at that
+density the linear scans were already short, and the p95 improvement from
+1.6860 ms to 0.8952 ms is where the change shows at that size.
+
+### The scaling exponent, and a prediction that failed
+
+The plan predicted the p50 scaling exponent between 1 000 and 2 000 agents would
+fall below 1.5. It did not.
+
+| Comparison | p50 ratio | exponent `k` |
+| --- | --- | --- |
+| 1 000 to 2 000, before | 20.45 | 4.35 |
+| 1 000 to 2 000, after | 9.59 | 3.26 |
+
+The exponent fell, substantially, and the curve is still strongly super-linear.
+The design document had already said why: `SelectTargetsAndIntents` is itself an
+all-pairs scan, and removing collision's quadratic term leaves target selection
+as the dominant one. The `k < 1.5` bar was the plan's own error and it is
+recorded here rather than quietly restated. `k = 3.26` is the number for any
+future target-selection work to beat.
+
+### Allocation
+
+`coreAllocatedBytes` rose by roughly 31 % at every point, from 118 896 to
+154 976 at 200 agents and from 1 141 912 to 1 492 256 at 2 000. That figure
+measures simulation startup rather than per-tick behaviour, and the increase is
+the second index's buffers being allocated once. The warm-tick contract is
+unaffected: both windows in `BattleSimulationTests` stay inside their existing
+8 192-byte and 16 384-byte ceilings.
+
 ## Agent-count scaling sweep re-measured at the 4.25 body radius, 2026-07-28
 
 The T2 and T7 sweep tables further down this file were measured while

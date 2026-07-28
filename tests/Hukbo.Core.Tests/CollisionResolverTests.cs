@@ -816,6 +816,151 @@ public sealed class CollisionResolverTests
 
     // ------------------------------------------------------------- helpers
 
+    /// <summary>
+    /// The acceptance test for the collision scaling work. The resolver answers
+    /// its obstacle queries through two bounded uniform-grid lookups rather than
+    /// two linear scans, on the argument that an existential question over a
+    /// finite set cannot depend on how the set is enumerated. If that argument
+    /// holds, the entire result list is unchanged — positions and
+    /// <see cref="MovementResolution"/> values alike, in request order — and this
+    /// asserts exactly that against <see cref="NaiveCollisionResolution"/>.
+    /// </summary>
+    /// <remarks>
+    /// This is deliberately stronger than the recorded state hashes and localizes
+    /// a failure to the resolver rather than to the tick as a whole. Both layouts
+    /// are exercised: a jittered lattice where most movers have room, and a
+    /// tangent-packed lattice where most do not and the truncation ladder and the
+    /// hold-position fallback carry the work.
+    /// </remarks>
+    [Fact]
+    public void Resolve_MatchesTheUnacceleratedAlgorithmOnEverySeededLayout()
+    {
+        for (ulong seed = 1UL; seed <= 24UL; seed++)
+        {
+            foreach (var packed in new[] { false, true })
+            {
+                var requests = GenerateLayout(seed, columns: 8, packed);
+                var resolver = NewResolver();
+
+                resolver.Resolve(requests);
+
+                var expected = NaiveCollisionResolution.Resolve(
+                    requests,
+                    BodyRadiusRaw,
+                    MapDimensionRaw,
+                    MapDimensionRaw);
+
+                Assert.Equal(expected.Length, resolver.Results.Count);
+
+                for (var index = 0; index < expected.Length; index++)
+                {
+                    Assert.Equal(expected[index], resolver.Results[index]);
+                }
+
+                AssertNoOverlap(resolver);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Pins the boundary of the pending index, which is the one place the
+    /// scaling work can hide a bug: a mover is removed from the index at the top
+    /// of its own iteration, so the index holds exactly the movers that have not
+    /// resolved yet.
+    /// </summary>
+    /// <remarks>
+    /// Both failure directions are observable and both are asserted. Remove a
+    /// mover too late and it is an obstacle to itself, so a mover alone on an
+    /// empty field cannot move at all. Remove it too early — taking the next
+    /// mover with it — and a mover can claim ground that a later mover has not
+    /// vacated, which the later mover's hold-position fallback then overlaps.
+    /// </remarks>
+    [Fact]
+    public void Resolve_KeepsThePendingSetExactlyAtTheMoversThatHaveNotResolved()
+    {
+        // Too late: a lone mover with the whole map to itself must move. It is
+        // pending at its own start position, and if that were still visible to
+        // its own candidate test every rung would be refused.
+        var lone = NewResolver();
+
+        lone.Resolve([Mover(1UL, 50 * FixedPoint.Scale, 50 * FixedPoint.Scale,
+            (50 * FixedPoint.Scale) + MovementSpeedRaw, 50 * FixedPoint.Scale)]);
+
+        AssertResult(
+            lone,
+            1UL,
+            (50 * FixedPoint.Scale) + MovementSpeedRaw,
+            50 * FixedPoint.Scale,
+            MovementResolution.Moved);
+
+        // Too early: two movers approaching head-on from exact tangency. The
+        // first resolved must not take ground the second has not left, and the
+        // second's fallback is to hold its start position, so an over-eager
+        // removal shows up as a strict overlap between the two committed bodies.
+        var headOn = NewResolver();
+        var leftXRaw = 50 * FixedPoint.Scale;
+        var rightXRaw = leftXRaw + DiameterRaw;
+
+        headOn.Resolve(
+        [
+            Mover(1UL, leftXRaw, 50 * FixedPoint.Scale,
+                leftXRaw + MovementSpeedRaw, 50 * FixedPoint.Scale),
+            Mover(2UL, rightXRaw, 50 * FixedPoint.Scale,
+                rightXRaw - MovementSpeedRaw, 50 * FixedPoint.Scale),
+        ]);
+
+        AssertNoOverlap(headOn);
+    }
+
+    /// <summary>
+    /// Builds a legal request list on a lattice. The resolver's precondition is
+    /// that no two start positions strictly overlap, so the spacing and the
+    /// jitter are chosen to guarantee it rather than to be checked afterwards:
+    /// at a lattice pitch of <c>2 * D</c> and a per-axis jitter bounded by
+    /// <c>D / 2 - 1</c>, two neighbours are at least <c>D + 2</c> apart, and the
+    /// packed variant places bodies at exactly one diameter, which is tangency
+    /// and therefore legal.
+    /// </summary>
+    private static CollisionMoveRequest[] GenerateLayout(
+        ulong seed,
+        int columns,
+        bool packed)
+    {
+        var random = new SplitMix64(seed);
+        var pitchRaw = packed ? DiameterRaw : 2 * DiameterRaw;
+        var jitterRaw = packed ? 0 : (DiameterRaw / 2) - 1;
+        var requests = new CollisionMoveRequest[columns * columns];
+
+        for (var index = 0; index < requests.Length; index++)
+        {
+            var column = index % columns;
+            var row = index / columns;
+            var startXRaw = DiameterRaw + (column * pitchRaw) +
+                (jitterRaw == 0 ? 0 : random.NextInt((2 * jitterRaw) + 1) - jitterRaw);
+            var startYRaw = DiameterRaw + (row * pitchRaw) +
+                (jitterRaw == 0 ? 0 : random.NextInt((2 * jitterRaw) + 1) - jitterRaw);
+
+            // One agent in five stands still, so both resolver passes run.
+            var hasProposal = random.NextInt(5) != 0;
+            var stepXRaw = random.NextInt((2 * MovementSpeedRaw) + 1) - MovementSpeedRaw;
+            var stepYRaw = random.NextInt((2 * MovementSpeedRaw) + 1) - MovementSpeedRaw;
+
+            requests[index] = new CollisionMoveRequest(
+                EntityId: (ulong)index + 1UL,
+                StartXRaw: startXRaw,
+                StartYRaw: startYRaw,
+                PreferredXRaw: hasProposal ? startXRaw + stepXRaw : startXRaw,
+                PreferredYRaw: hasProposal ? startYRaw + stepYRaw : startYRaw,
+                HasProposal: hasProposal,
+
+                // A high half that does not track the entity ID, so the
+                // resolution order is a genuine shuffle rather than ascending ID.
+                PriorityKey: (ulong)random.NextInt(int.MaxValue) << 32);
+        }
+
+        return requests;
+    }
+
     private static CollisionResolver NewResolver() =>
         new(BodyRadiusRaw, MapDimensionRaw, MapDimensionRaw);
 

@@ -224,6 +224,75 @@ internal sealed class CollisionUniformGrid
     }
 
     /// <summary>
+    /// Removes one body from the index so that later queries no longer see it.
+    /// This is what lets the resolver's pending index shrink as movers resolve,
+    /// one mover at a time, without rebuilding.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A dead body is ignored on the way in by <see cref="Insert"/>, so removing
+    /// one is a no-op. Removing a body that was never inserted is also a no-op
+    /// rather than a throw: a caller that owns a body's lifetime already knows
+    /// whether it inserted that body, and turning a harmless double removal into
+    /// an exception would buy nothing.
+    /// </para>
+    /// <para>
+    /// Removal unlinks the body's slot from its cell chain. That chain holds at
+    /// most four bodies, by the same packing argument that bounds every query
+    /// here: centres pairwise at least one diameter apart cannot fit more than
+    /// four into a square cell of edge one diameter. So an unlink walks at most
+    /// four slots.
+    /// </para>
+    /// <para>
+    /// Removal does not update <see cref="Pairs"/>, exactly as <see cref="Insert"/>
+    /// does not. An index mutated by removal is not one <see cref="Rebuild"/>
+    /// produced and its <see cref="Pairs"/> list is not meaningful.
+    /// </para>
+    /// <para>
+    /// The removed slot stays allocated and stays counted by the body count. That
+    /// count drives capacity growth, not traversal, and no traversal can reach a
+    /// slot that is no longer on a chain.
+    /// </para>
+    /// </remarks>
+    internal void Remove(in CollisionBody body)
+    {
+        if (!body.IsAlive)
+        {
+            return;
+        }
+
+        var key = PackCellKey(CellCoordinate(body.XRaw), CellCoordinate(body.YRaw));
+
+        if (!_cellIndexByKey.TryGetValue(key, out var cellIndex))
+        {
+            return;
+        }
+
+        var slot = _cellHeadSlots[cellIndex];
+        var previousSlot = NoSlot;
+
+        while (slot != NoSlot)
+        {
+            if (_bodies[slot].EntityId == body.EntityId)
+            {
+                if (previousSlot == NoSlot)
+                {
+                    _cellHeadSlots[cellIndex] = _nextSlotInCell[slot];
+                }
+                else
+                {
+                    _nextSlotInCell[previousSlot] = _nextSlotInCell[slot];
+                }
+
+                return;
+            }
+
+            previousSlot = slot;
+            slot = _nextSlotInCell[slot];
+        }
+    }
+
+    /// <summary>
     /// True when a body of <paramref name="bodyRadiusRaw"/> centred at
     /// (<paramref name="xRaw"/>, <paramref name="yRaw"/>) would touch or
     /// penetrate any indexed body other than
@@ -279,6 +348,155 @@ internal sealed class CollisionUniformGrid
 
         return false;
     }
+
+    /// <summary>
+    /// True when a body of <paramref name="bodyRadiusRaw"/> centred at
+    /// (<paramref name="xRaw"/>, <paramref name="yRaw"/>) would strictly
+    /// penetrate any indexed body other than
+    /// <paramref name="excludeEntityId"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The predicate is the strict <see cref="CollisionGeometry.Overlaps"/>, so
+    /// exact tangency answers <see langword="false"/>. Tangency is a legal
+    /// resting position and the resolver depends on that, which is why this
+    /// query exists alongside the inclusive <see cref="AnyContact"/> rather than
+    /// replacing it.
+    /// </para>
+    /// <para>
+    /// The three-by-three neighbourhood is sufficient here for the same reason it
+    /// is sufficient for contact, and a fortiori: strict overlap is a subset of
+    /// contact, so any pair this predicate reports is a pair the inclusive
+    /// predicate would also report. The cell-size guard in
+    /// <see cref="ValidateBodyRadius"/> is what establishes the contact case, and
+    /// it therefore covers this one.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// A coordinate is negative, or <paramref name="bodyRadiusRaw"/> is negative
+    /// or so large that a body diameter exceeds <see cref="CellSizeRaw"/>.
+    /// </exception>
+    internal bool AnyOverlap(
+        int xRaw,
+        int yRaw,
+        int bodyRadiusRaw,
+        ulong excludeEntityId)
+    {
+        ValidateBodyRadius(bodyRadiusRaw);
+        ValidateCoordinates(xRaw, yRaw);
+
+        return AnyOverlapUnchecked(xRaw, yRaw, bodyRadiusRaw, excludeEntityId);
+    }
+
+    /// <summary>
+    /// <see cref="AnyOverlap"/> without the per-call argument validation, for the
+    /// resolver's inner loop, which runs this query tens of millions of times a
+    /// tick on arguments that are invariant or provably in range.
+    /// </summary>
+    /// <remarks>
+    /// The caller takes on what <see cref="AnyOverlap"/> would have checked: the
+    /// radius must satisfy <see cref="ValidateBodyRadius"/> and both coordinates
+    /// must be non-negative. Passing arguments that do not is a caller defect and
+    /// produces a wrong answer rather than an exception.
+    /// </remarks>
+    internal bool AnyOverlapUnchecked(
+        int xRaw,
+        int yRaw,
+        int bodyRadiusRaw,
+        ulong excludeEntityId)
+    {
+        var cellX = CellCoordinate(xRaw);
+        var cellY = CellCoordinate(yRaw);
+
+        foreach (var offset in NeighbourOffsets)
+        {
+            var slot = FirstSlotInCell(cellX + offset.X, cellY + offset.Y);
+
+            while (slot != NoSlot)
+            {
+                var other = _bodies[slot];
+
+                if (other.EntityId != excludeEntityId &&
+                    CollisionGeometry.Overlaps(
+                        xRaw,
+                        yRaw,
+                        other.XRaw,
+                        other.YRaw,
+                        bodyRadiusRaw))
+                {
+                    return true;
+                }
+
+                slot = _nextSlotInCell[slot];
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// True when an indexed body other than <paramref name="excludeEntityId"/>
+    /// sits at exactly (<paramref name="xRaw"/>, <paramref name="yRaw"/>).
+    /// </summary>
+    /// <remarks>
+    /// Exact coincidence is a subset of contact, so the neighbourhood argument in
+    /// <see cref="AnyOverlap"/> carries here too. It is in fact stronger than
+    /// needed — a coincident body maps to the same cell, so the centre cell alone
+    /// would answer — but the full neighbourhood is walked so that every query on
+    /// this type shares one traversal shape and cannot drift apart from the
+    /// others.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// A coordinate is negative.
+    /// </exception>
+    internal bool AnyCoincident(int xRaw, int yRaw, ulong excludeEntityId)
+    {
+        ValidateCoordinates(xRaw, yRaw);
+
+        return AnyCoincidentUnchecked(xRaw, yRaw, excludeEntityId);
+    }
+
+    /// <summary>
+    /// <see cref="AnyCoincident"/> without the per-call coordinate validation.
+    /// The caller guarantees both coordinates are non-negative.
+    /// </summary>
+    internal bool AnyCoincidentUnchecked(int xRaw, int yRaw, ulong excludeEntityId)
+    {
+        var cellX = CellCoordinate(xRaw);
+        var cellY = CellCoordinate(yRaw);
+
+        foreach (var offset in NeighbourOffsets)
+        {
+            var slot = FirstSlotInCell(cellX + offset.X, cellY + offset.Y);
+
+            while (slot != NoSlot)
+            {
+                var other = _bodies[slot];
+
+                if (other.EntityId != excludeEntityId &&
+                    CollisionGeometry.IsCoincident(xRaw, yRaw, other.XRaw, other.YRaw))
+                {
+                    return true;
+                }
+
+                slot = _nextSlotInCell[slot];
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Rejects a radius this index cannot serve, once, on behalf of a caller that
+    /// will then use the unchecked queries. The resolver holds a radius fixed for
+    /// its whole lifetime, so it validates at construction rather than per query.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="bodyRadiusRaw"/> is negative or so large that a body
+    /// diameter exceeds <see cref="CellSizeRaw"/>.
+    /// </exception>
+    internal void ValidateRadiusForQueries(int bodyRadiusRaw) =>
+        ValidateBodyRadius(bodyRadiusRaw);
 
     /// <summary>
     /// Packs a cell coordinate pair into one sortable key. Cell coordinates are
