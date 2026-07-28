@@ -20,6 +20,13 @@ using Hukbo.Tools.RenderProbe;
 // real window and GPU — there is no headless mode for either usage below.
 // Not in Hukbo.slnx, not in the gate (R-W6.12).
 //
+// A measurement run disables vertical retrace (GPU-006, integration design
+// section 4.3), because a blocking wait for the display is not CPU cost. That
+// override is the probe's alone: the shipped client keeps retrace enabled, and
+// the setting the run actually got is recorded on the report fingerprint as
+// VerticalRetraceSynchronized so no two reports taken under different settings
+// can be compared by accident.
+//
 // Single-configuration usage: dotnet run -- [agents] [seed] [framesPerStation] [outputPath]
 //   agents           total units, both factions combined (default 200)
 //   seed             scenario seed (default 1)
@@ -253,6 +260,15 @@ RenderProbeReport CaptureReport(int agents, ulong seed, int framesPerStation)
 
     using var game = new ArenaGame(scenarioOverride: scenario);
 
+    // GPU-006, integration design section 4.3. Driver back-pressure from a
+    // retrace-synchronized device blocks inside the measured window, at the
+    // GraphicsDevice.Clear that opens the next frame, so a synchronized run
+    // reports a display-imposed floor instead of CPU cost — three stations
+    // drawing 9,326 and 1,028 quads landing within 0.06 ms of one another is
+    // that floor, not that work. Set before Run() because
+    // GraphicsDeviceManager reads the flag when it creates the device.
+    game.SetProbeVerticalRetrace(synchronize: false);
+
     game.RenderProbeSampled += sample =>
     {
         if (warmupFramesRemaining > 0)
@@ -287,6 +303,12 @@ RenderProbeReport CaptureReport(int agents, ulong seed, int framesPerStation)
 
     game.Run();
 
+    // Read back from the game that produced the samples above, after its run
+    // has finished, rather than restated as a literal here: the fingerprint has
+    // to describe what the run actually did, so that a report captured with
+    // retrace still enabled is never mistaken for one captured without it.
+    var verticalRetraceSynchronized = game.IsVerticalRetraceSynchronized;
+
     var stationResults = new RenderProbeStationResult[stations.Length];
     for (var index = 0; index < stations.Length; index++)
     {
@@ -315,12 +337,12 @@ RenderProbeReport CaptureReport(int agents, ulong seed, int framesPerStation)
             1080,
             buildConfiguration,
             backend,
-            // The shipped client sets SynchronizeWithVerticalRetrace = true and
-            // this probe does not override it yet, so every frame-time
-            // percentile below is a refresh-interval floor rather than a
-            // measurement. GPU-006 adds the probe-only override that flips
-            // this to false.
-            VerticalRetraceSynchronized: true,
+            // GPU-006. Derived from the run above, never asserted: the probe
+            // asks for retrace off, and this states whether the device it got
+            // was in fact presenting unsynchronized. A true here means the
+            // frame-time percentiles below are a refresh-interval floor rather
+            // than a measurement, and it must be able to say so.
+            VerticalRetraceSynchronized: verticalRetraceSynchronized,
             // 0 means "this probe build did not measure duplication", which is
             // the only honest value until GPU-005 derives the factor from the
             // recorded PawnGeometryInvocations count.

@@ -341,6 +341,43 @@ public sealed class SourceHygieneTests
         Assert.Empty(missing);
     }
 
+    /// <summary>
+    /// The shipped client still asks for a retrace-synchronized device, and no
+    /// file under <c>src/</c> hardcodes the opposite.
+    /// </summary>
+    /// <remarks>
+    /// GPU-006 gave <c>Hukbo.Tools.RenderProbe</c> a way to run with vertical
+    /// retrace disabled, because a blocking wait for the display is not the CPU
+    /// cost the probe exists to measure. That override belongs to the probe
+    /// alone: the spectator's game must keep presenting on the retrace, or it
+    /// spends a whole core spinning out frames nobody sees. The override is a
+    /// method parameter, so the literal <c>false</c> never appears in
+    /// <c>src/</c>, and this test is what keeps it that way — a later change
+    /// that switched the shipped default off, or that pinned the flag off in
+    /// some other file, would fail here rather than ship silently.
+    /// </remarks>
+    [Fact]
+    public void TheShippedClientStillSynchronizesWithTheVerticalRetrace()
+    {
+        var root = GetRepositoryRoot();
+        var arenaGamePath = Path.Combine(
+            root, "src", "Hukbo.Client", "ArenaGame.cs");
+
+        Assert.Contains(
+            "SynchronizeWithVerticalRetrace = true,",
+            File.ReadAllText(arenaGamePath),
+            StringComparison.Ordinal);
+
+        var offenders = FindOffendingCodeLines(
+            root,
+            EnumerateSourceFiles(Path.Combine(root, "src")),
+            line => line.Contains(
+                "SynchronizeWithVerticalRetrace = false",
+                StringComparison.Ordinal));
+
+        Assert.Empty(offenders);
+    }
+
     private static IEnumerable<string> EnumeratePresentationVariationFiles(
         string root)
     {
