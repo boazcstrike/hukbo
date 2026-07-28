@@ -351,6 +351,98 @@ public sealed class SoundLogPanelTests
             SoundLogPanel.GetVisibleBindingRowCount(layout));
     }
 
+    [Fact]
+    public void ClampBindingScroll_ReachesTheLastRow()
+    {
+        // A thirty-seven row list seen through a thirteen row viewport. The
+        // furthest the list can travel is a start of 24, because 24 + 13 == 37
+        // puts the final row on the viewport's bottom line. The two figures are
+        // written out here rather than read from the catalog on purpose: this
+        // is a statement about the clamp, not about how many slots exist.
+        Assert.Equal(
+            24,
+            SoundLogPanel.ClampBindingScroll(
+                scrollStart: 24,
+                totalRowCount: 37,
+                visibleRowCount: 13));
+        Assert.Equal(
+            24,
+            SoundLogPanel.ClampBindingScroll(
+                scrollStart: 25,
+                totalRowCount: 37,
+                visibleRowCount: 13));
+    }
+
+    [Fact]
+    public void ClampBindingScroll_RefusesToScrollPastEitherEnd()
+    {
+        Assert.Equal(
+            0,
+            SoundLogPanel.ClampBindingScroll(
+                scrollStart: -5,
+                totalRowCount: 37,
+                visibleRowCount: 13));
+        Assert.Equal(
+            24,
+            SoundLogPanel.ClampBindingScroll(
+                scrollStart: 999,
+                totalRowCount: 37,
+                visibleRowCount: 13));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(7)]
+    [InlineData(-7)]
+    [InlineData(999)]
+    public void ClampBindingScroll_ReturnsZeroWhenEveryRowFits(int scrollStart)
+    {
+        Assert.Equal(
+            0,
+            SoundLogPanel.ClampBindingScroll(
+                scrollStart,
+                totalRowCount: 9,
+                visibleRowCount: 13));
+        Assert.Equal(
+            0,
+            SoundLogPanel.ClampBindingScroll(
+                scrollStart,
+                totalRowCount: 13,
+                visibleRowCount: 13));
+    }
+
+    [Fact]
+    public void GetWheelTarget_RoutesTheWheelToTheListUnderThePointer()
+    {
+        var layout = SoundLogPanel.CalculateLayout(PanelBounds);
+
+        Assert.Equal(
+            SoundLogScrollTarget.Bindings,
+            SoundLogPanel.GetWheelTarget(
+                layout,
+                layout.BindingsBounds.Center));
+        Assert.Equal(
+            SoundLogScrollTarget.Cues,
+            SoundLogPanel.GetWheelTarget(
+                layout,
+                layout.CueListBounds.Center));
+    }
+
+    [Fact]
+    public void GetWheelTarget_FallsBackToTheCueListOutsideBothLists()
+    {
+        // The header is neither list, and a wheel notch over it must still go
+        // somewhere rather than being swallowed, so it keeps the behaviour the
+        // panel had before the expected-files list could scroll.
+        var layout = SoundLogPanel.CalculateLayout(PanelBounds);
+
+        Assert.Equal(
+            SoundLogScrollTarget.Cues,
+            SoundLogPanel.GetWheelTarget(
+                layout,
+                layout.HeaderBounds.Center));
+    }
+
     private static IEnumerable<Rectangle> Regions(SoundLogPanelLayout layout)
     {
         yield return layout.HeaderBounds;
@@ -361,6 +453,7 @@ public sealed class SoundLogPanelTests
         yield return layout.CueListBounds;
         yield return layout.CueRowsBounds;
         yield return layout.ScrollbarTrackBounds;
+        yield return layout.BindingScrollbarTrackBounds;
     }
 
     private static UiTheme LoadTheme()
