@@ -21,7 +21,10 @@ namespace Hukbo.Client.Rendering;
 /// <see cref="AddUiLayerMicroseconds"/>, <see cref="AddBaseDrawMicroseconds"/>,
 /// <see cref="AddArenaGeometryMicroseconds"/>,
 /// <see cref="AddProbeOverheadMicroseconds"/>,
-/// <see cref="AddPawnGeometryInvocations"/>)
+/// <see cref="AddPawnGeometryInvocations"/>, and the appearance-cache
+/// counters <see cref="AddAppearanceCacheHits"/>,
+/// <see cref="AddAppearanceCacheMisses"/>,
+/// <see cref="AddAppearanceCacheFills"/>)
 /// is renderer-invariant — identical under an immediate-mode or an
 /// instanced backend. It is the ONLY tier a budget constant is ever written
 /// against (<see cref="RenderBudgetEstimate"/>).
@@ -151,6 +154,32 @@ public interface IRenderMetricsRecorder
     void AddPawnGeometryInvocations(int count);
 
     /// <summary>
+    /// Tier 1 (GPU-017). Records <paramref name="count"/> appearance-cache
+    /// reads this frame that were answered from a slot whose stored key
+    /// matched, without the appearance factory being called at all.
+    /// </summary>
+    void AddAppearanceCacheHits(int count);
+
+    /// <summary>
+    /// Tier 1 (GPU-017). Records <paramref name="count"/> appearance-cache
+    /// reads this frame that had to call
+    /// <c>PawnAppearanceFactory.Create</c> because no slot held the key. The
+    /// first frame of a battle is all misses and every frame after it should
+    /// be all hits, so a non-zero figure in a steady-state frame is the
+    /// signal that the cache's key or its lifetime assumption is wrong.
+    /// </summary>
+    void AddAppearanceCacheMisses(int count);
+
+    /// <summary>
+    /// Tier 1 (GPU-017). Records <paramref name="count"/> cache slots that
+    /// went from empty to occupied this frame. Counted apart from
+    /// <see cref="AddAppearanceCacheMisses"/> because a miss that overwrites
+    /// an already-occupied slot is an ordinal reused by a different agent,
+    /// which is a different fault from a slot simply not being warm yet.
+    /// </summary>
+    void AddAppearanceCacheFills(int count);
+
+    /// <summary>
     /// Tier 2, diagnostic only. One <c>SpriteBatch.Draw</c> call under the
     /// current backend; zero and not applicable under a future instanced
     /// backend.
@@ -257,13 +286,28 @@ public interface IRenderMetricsRecorder
 /// Tier 1. Calls into the pure pawn-geometry helper this frame, from which
 /// the probe's duplication factor is derived rather than assumed (GPU-005).
 /// </param>
+/// <param name="AppearanceCacheHits">
+/// Tier 1. Appearance-cache reads this frame answered from a slot whose
+/// stored key matched, without calling the appearance factory (GPU-017).
+/// </param>
+/// <param name="AppearanceCacheMisses">
+/// Tier 1. Appearance-cache reads this frame that had to call
+/// <c>PawnAppearanceFactory.Create</c> because no slot held the key
+/// (GPU-017).
+/// </param>
+/// <param name="AppearanceCacheFills">
+/// Tier 1. Cache slots that went from empty to occupied this frame
+/// (GPU-017).
+/// </param>
 /// <remarks>
-/// The eight fields added by GPU-001 are declared last but carry no default,
-/// so every construction site names them explicitly (GPU-002). That matters
-/// because, unlike Tier 2, these spans carry no <c>*Applicable</c> flag — a
-/// CPU span applies under every backend — so a zero arriving from an omitted
-/// argument would be indistinguishable from a genuine measured zero. Making
-/// them required means a zero is always something a caller chose to record.
+/// The eight fields added by GPU-001, and the three appearance-cache fields
+/// added by GPU-017, are declared last but carry no default, so every
+/// construction site names them explicitly (GPU-002). That matters because,
+/// unlike Tier 2, none of them carries an <c>*Applicable</c> flag — a CPU
+/// span and a cache counter both apply under every backend — so a zero
+/// arriving from an omitted argument would be indistinguishable from a
+/// genuine measured zero. Making them required means a zero is always
+/// something a caller chose to record.
 /// </remarks>
 public readonly record struct RenderMetricsSnapshot(
     int Quads,
@@ -286,7 +330,10 @@ public readonly record struct RenderMetricsSnapshot(
     double BaseDrawMicroseconds,
     double ArenaGeometryMicroseconds,
     double ProbeOverheadMicroseconds,
-    int PawnGeometryInvocations);
+    int PawnGeometryInvocations,
+    int AppearanceCacheHits,
+    int AppearanceCacheMisses,
+    int AppearanceCacheFills);
 
 /// <summary>
 /// The disabled, allocation-free no-op <see cref="IRenderMetricsRecorder"/>.
@@ -378,6 +425,21 @@ public sealed class NullRenderMetricsRecorder : IRenderMetricsRecorder
     }
 
     /// <inheritdoc />
+    public void AddAppearanceCacheHits(int count)
+    {
+    }
+
+    /// <inheritdoc />
+    public void AddAppearanceCacheMisses(int count)
+    {
+    }
+
+    /// <inheritdoc />
+    public void AddAppearanceCacheFills(int count)
+    {
+    }
+
+    /// <inheritdoc />
     public void AddSubmission()
     {
     }
@@ -434,6 +496,9 @@ public sealed class SpriteBatchRenderMetricsRecorder : IRenderMetricsRecorder
     private double _arenaGeometryMicroseconds;
     private double _probeOverheadMicroseconds;
     private int _pawnGeometryInvocations;
+    private int _appearanceCacheHits;
+    private int _appearanceCacheMisses;
+    private int _appearanceCacheFills;
 
     /// <inheritdoc />
     public bool IsEnabled => true;
@@ -490,6 +555,15 @@ public sealed class SpriteBatchRenderMetricsRecorder : IRenderMetricsRecorder
     public void AddPawnGeometryInvocations(int count) => _pawnGeometryInvocations += count;
 
     /// <inheritdoc />
+    public void AddAppearanceCacheHits(int count) => _appearanceCacheHits += count;
+
+    /// <inheritdoc />
+    public void AddAppearanceCacheMisses(int count) => _appearanceCacheMisses += count;
+
+    /// <inheritdoc />
+    public void AddAppearanceCacheFills(int count) => _appearanceCacheFills += count;
+
+    /// <inheritdoc />
     public void AddSubmission() => _submissions++;
 
     /// <inheritdoc />
@@ -532,7 +606,10 @@ public sealed class SpriteBatchRenderMetricsRecorder : IRenderMetricsRecorder
             _baseDrawMicroseconds,
             _arenaGeometryMicroseconds,
             _probeOverheadMicroseconds,
-            _pawnGeometryInvocations);
+            _pawnGeometryInvocations,
+            _appearanceCacheHits,
+            _appearanceCacheMisses,
+            _appearanceCacheFills);
 
     /// <inheritdoc />
     public void Reset()
@@ -553,5 +630,8 @@ public sealed class SpriteBatchRenderMetricsRecorder : IRenderMetricsRecorder
         _arenaGeometryMicroseconds = 0;
         _probeOverheadMicroseconds = 0;
         _pawnGeometryInvocations = 0;
+        _appearanceCacheHits = 0;
+        _appearanceCacheMisses = 0;
+        _appearanceCacheFills = 0;
     }
 }

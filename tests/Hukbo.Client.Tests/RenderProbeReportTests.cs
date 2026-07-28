@@ -21,7 +21,10 @@ public sealed class RenderProbeReportTests
         double baseDrawMicroseconds = 0,
         double arenaGeometryMicroseconds = 0,
         double probeOverheadMicroseconds = 0,
-        int pawnGeometryInvocations = 0) =>
+        int pawnGeometryInvocations = 0,
+        int appearanceCacheHits = 0,
+        int appearanceCacheMisses = 0,
+        int appearanceCacheFills = 0) =>
         new(
             quads,
             triangles,
@@ -43,7 +46,10 @@ public sealed class RenderProbeReportTests
             baseDrawMicroseconds,
             arenaGeometryMicroseconds,
             probeOverheadMicroseconds,
-            pawnGeometryInvocations);
+            pawnGeometryInvocations,
+            appearanceCacheHits,
+            appearanceCacheMisses,
+            appearanceCacheFills);
 
     [Fact]
     public void Percentile_EmptySequenceReturnsZero()
