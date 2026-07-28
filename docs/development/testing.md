@@ -4484,6 +4484,28 @@ row that expects `READY (4)` is blocked until that generation happens.
 | 175. Run a full 200-agent battle with the shield cue audible | The shield cue does not become a wall of noise, and the cue log shows no `LIMITED` or `REFUSED` row for any clash slot. | Not run | PENDING |
 | 176. Read the battle event log with the sound log open | At the sound log's new height the battle event log still reads: the selected-event pane shows its header and both detail lines, and nothing is clipped. **This row is the only check on the event-log cost of the 65 percent change.** `BattleEventLogPanel`'s layout constants are private and `ArenaGame` is banned from tests, so no automated test covers it. | Not run | PENDING |
 
+### Leader marker and inspector annotation smoke (leader rank plan L4/L5)
+
+**No interactive run was performed for this change.** Every row below is
+`PENDING`. `ExactlyOneLivingLeaderPerNonEmptyContingentAcrossEveryRegisteredMovementPreset`
+in `BattleSimulationTests` and the `AgentInspectorContentTests` assertions
+prove that `AgentView.IsLeader` is wired correctly and that the inspector's
+contingent line carries the `(leading)` suffix exactly when it should; neither
+proves that the pawn marker reads as intended on a real battlefield at
+default zoom, that it does not clash visually with the selection ring or the
+adornment accent, or that it visibly changes pawn the tick a contingent's
+ranking member dies.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| L-1 | Look at the battlefield at default zoom under a contingent-aware movement preset (`PersistentContingentsV2` through `V5`) | Exactly one warrior per visible, non-empty contingent shows the leader mark above its head | | PENDING |
+| L-2 | Watch a contingent whose leader is killed | The leader mark visibly moves to a different warrior once the next scan reassigns leadership | | PENDING |
+| L-3 | Select the current leader | The selection ring and the leader mark are both visible at once, not fighting for the same screen space | | PENDING |
+| L-4 | Watch the leader die in the event feed, before the next scan | The dead mark (crossed lines) and the leader mark are both visible on that one warrior for that one tick | | PENDING |
+| L-5 | Click the current leader to open the inspector | The contingent line reads `Contingent: {id} — {label} (leading)` | | PENDING |
+| L-6 | Click a non-leader member of the same contingent | The contingent line carries no `(leading)` suffix | | PENDING |
+| L-7 | Launch under `IndependentPursuitV1` | No warrior ever shows the leader mark, and no inspector contingent line ever carries `(leading)` | | PENDING |
+
 ## Failure classification
 
 Classify failures as implementation, test, environment/dependency, pre-existing,

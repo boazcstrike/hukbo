@@ -18,15 +18,17 @@ public sealed class MovementPresetRegistryTests
     /// ruleset's own fields, not a behavioural golden — it does not reach
     /// the state hash, so it moves whenever a task adds a field to
     /// <see cref="MovementRuleset"/>, most recently
+    /// <c>SelectsLeaderByRank</c>, and before that
     /// <c>NarrowsCohesionScanToCohesionCapableContingents</c>, and before that
     /// T2's <c>CloseFractionNumerator</c> and <c>CloseFractionDenominator</c>.
-    /// All four literals below were recomputed from the built code when that
-    /// field landed, never calculated by hand.
+    /// All four V1-through-V4 literals below were recomputed from the built
+    /// code when <c>SelectsLeaderByRank</c> landed, never calculated by
+    /// hand.
     /// What stays frozen across such a change is the preset's simulated
     /// behaviour, proved instead by
     /// <c>IndependentPursuitV1_ReproducesTheFrozenTrajectoryDigest</c>.
     /// </summary>
-    private const ulong IndependentPursuitV1ContentHash = 0x747C5CE3CEC5F503UL;
+    private const ulong IndependentPursuitV1ContentHash = 0x5AFC8B9FBC247363UL;
 
     /// <summary>
     /// Pinned by T9 against <c>PersistentContingentsV2</c>'s constant set,
@@ -35,7 +37,7 @@ public sealed class MovementPresetRegistryTests
     /// literal differs from <see cref="IndependentPursuitV1ContentHash"/>
     /// only through the folded <c>Id</c> field.
     /// </summary>
-    private const ulong PersistentContingentsV2ContentHash = 0x3A6B3AE24692EC40UL;
+    private const ulong PersistentContingentsV2ContentHash = 0x3E29AE36A0FAF440UL;
 
     /// <summary>
     /// Pinned by T5 against <c>PersistentContingentsV3</c>'s constant set,
@@ -44,7 +46,7 @@ public sealed class MovementPresetRegistryTests
     /// (<c>1, 2</c> instead of <c>0, 1</c>), so this literal differs from
     /// both existing literals.
     /// </summary>
-    private const ulong PersistentContingentsV3ContentHash = 0x1CBA3EB0DFBC13A3UL;
+    private const ulong PersistentContingentsV3ContentHash = 0x520DD48EE818A603UL;
 
     /// <summary>
     /// Pinned against <c>PersistentContingentsV4</c>'s constant set, which
@@ -53,7 +55,16 @@ public sealed class MovementPresetRegistryTests
     /// (<see langword="true"/> instead of <see langword="false"/>), so this
     /// literal differs from all three existing literals.
     /// </summary>
-    private const ulong PersistentContingentsV4ContentHash = 0xD05614EFEDD9C315UL;
+    private const ulong PersistentContingentsV4ContentHash = 0x443ECC578E1137B5UL;
+
+    /// <summary>
+    /// Pinned against <c>PersistentContingentsV5</c>'s constant set, which
+    /// differs from <c>PersistentContingentsV4</c>'s only in
+    /// <c>SelectsLeaderByRank</c> (<see langword="true"/> instead of
+    /// <see langword="false"/>), so this literal differs from all four
+    /// existing literals.
+    /// </summary>
+    private const ulong PersistentContingentsV5ContentHash = 0x1D27722140CB87F5UL;
 
     [Fact]
     public void IndependentPursuitV1IsRegistered()
@@ -77,6 +88,12 @@ public sealed class MovementPresetRegistryTests
     public void PersistentContingentsV4IsRegistered()
     {
         Assert.True(MovementPresetRegistry.IsRegistered(MovementPresetId.PersistentContingentsV4));
+    }
+
+    [Fact]
+    public void PersistentContingentsV5IsRegistered()
+    {
+        Assert.True(MovementPresetRegistry.IsRegistered(MovementPresetId.PersistentContingentsV5));
     }
 
     [Fact]
@@ -161,6 +178,23 @@ public sealed class MovementPresetRegistryTests
     }
 
     /// <summary>
+    /// Pins <c>PersistentContingentsV5</c>'s content hash to a literal
+    /// distinct from all four existing literals: introducing the fifth
+    /// preset must move nothing about the first four.
+    /// </summary>
+    [Fact]
+    public void PersistentContingentsV5ContentHashMatchesThePinnedLiteral()
+    {
+        var ruleset = MovementPresetRegistry.Get(MovementPresetId.PersistentContingentsV5);
+
+        Assert.Equal(PersistentContingentsV5ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(IndependentPursuitV1ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(PersistentContingentsV2ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(PersistentContingentsV3ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(PersistentContingentsV4ContentHash, ruleset.ContentHash);
+    }
+
+    /// <summary>
     /// The narrowing flag is what separates <c>PersistentContingentsV4</c>
     /// from <c>PersistentContingentsV3</c>, and no earlier preset carries it,
     /// so a preset added later cannot quietly turn it on for a frozen
@@ -181,5 +215,31 @@ public sealed class MovementPresetRegistryTests
         Assert.True(MovementPresetRegistry
             .Get(MovementPresetId.PersistentContingentsV4)
             .NarrowsCohesionScanToCohesionCapableContingents);
+    }
+
+    /// <summary>
+    /// The rank-selection flag is what separates
+    /// <c>PersistentContingentsV5</c> from every earlier preset; no earlier
+    /// preset carries it, so a preset added later cannot quietly turn it on
+    /// for a frozen trajectory without this Fact failing.
+    /// </summary>
+    [Fact]
+    public void OnlyPersistentContingentsV5SelectsLeaderByRank()
+    {
+        Assert.False(MovementPresetRegistry
+            .Get(MovementPresetId.IndependentPursuitV1)
+            .SelectsLeaderByRank);
+        Assert.False(MovementPresetRegistry
+            .Get(MovementPresetId.PersistentContingentsV2)
+            .SelectsLeaderByRank);
+        Assert.False(MovementPresetRegistry
+            .Get(MovementPresetId.PersistentContingentsV3)
+            .SelectsLeaderByRank);
+        Assert.False(MovementPresetRegistry
+            .Get(MovementPresetId.PersistentContingentsV4)
+            .SelectsLeaderByRank);
+        Assert.True(MovementPresetRegistry
+            .Get(MovementPresetId.PersistentContingentsV5)
+            .SelectsLeaderByRank);
     }
 }

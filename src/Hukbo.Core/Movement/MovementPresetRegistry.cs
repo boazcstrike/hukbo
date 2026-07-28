@@ -38,7 +38,8 @@ public static class MovementPresetRegistry
         cohesionDutyTicks: 180,
         arrivalTaperMultiplier: 4,
         offsetUnit: 1024,
-        narrowsCohesionScanToCohesionCapableContingents: false);
+        narrowsCohesionScanToCohesionCapableContingents: false,
+        selectsLeaderByRank: false);
 
     /// <summary>
     /// The persistent-contingent preset. Every tunable is the same value
@@ -63,7 +64,8 @@ public static class MovementPresetRegistry
         cohesionDutyTicks: 180,
         arrivalTaperMultiplier: 4,
         offsetUnit: 1024,
-        narrowsCohesionScanToCohesionCapableContingents: false);
+        narrowsCohesionScanToCohesionCapableContingents: false,
+        selectsLeaderByRank: false);
 
     /// <summary>
     /// The contact-fraction preset. Every tunable is the same value
@@ -99,7 +101,8 @@ public static class MovementPresetRegistry
         cohesionDutyTicks: 180,
         arrivalTaperMultiplier: 4,
         offsetUnit: 1024,
-        narrowsCohesionScanToCohesionCapableContingents: false);
+        narrowsCohesionScanToCohesionCapableContingents: false,
+        selectsLeaderByRank: false);
 
     /// <summary>
     /// The narrowed-cohesion-scan preset, and the shipped default. Every
@@ -138,7 +141,44 @@ public static class MovementPresetRegistry
         cohesionDutyTicks: 180,
         arrivalTaperMultiplier: 4,
         offsetUnit: 1024,
-        narrowsCohesionScanToCohesionCapableContingents: true);
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: false);
+
+    /// <summary>
+    /// The rank-aware leader-scan preset. Every tunable is the same value
+    /// <see cref="PersistentContingentsV4Ruleset"/> already carries,
+    /// restated verbatim rather than referenced, following the
+    /// "restate, do not reference" convention V4 already uses against V3;
+    /// the single difference is <see cref="MovementRuleset.SelectsLeaderByRank"/>,
+    /// registered here at <see langword="true"/>, which orders the leader
+    /// scan's candidates by <c>(RankId ascending, EntityId ascending)</c>
+    /// instead of <c>EntityId</c> alone.
+    /// </summary>
+    /// <remarks>
+    /// It lands as a new preset rather than as an edit to
+    /// <see cref="PersistentContingentsV4Ruleset"/> because V4 has already
+    /// shipped as a default: CLAUDE.md section 5 requires a new preset
+    /// version plus new golden expectations for any change that moves
+    /// simulated behaviour, and V1 through V4 all keep the behaviour their
+    /// own recorded expectations pin. See
+    /// docs/plans/2026-07-29-leader-rank-design.md section 2 for why this
+    /// comparator swap reaches further into the simulation than the leader
+    /// scan itself.
+    /// </remarks>
+    private static readonly MovementRuleset PersistentContingentsV5Ruleset = new(
+        id: MovementPresetId.PersistentContingentsV5,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: true);
 
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
@@ -147,6 +187,7 @@ public static class MovementPresetRegistry
             MovementPresetId.PersistentContingentsV2 => true,
             MovementPresetId.PersistentContingentsV3 => true,
             MovementPresetId.PersistentContingentsV4 => true,
+            MovementPresetId.PersistentContingentsV5 => true,
             _ => false,
         };
 
@@ -157,6 +198,7 @@ public static class MovementPresetRegistry
             MovementPresetId.PersistentContingentsV2 => PersistentContingentsV2Ruleset,
             MovementPresetId.PersistentContingentsV3 => PersistentContingentsV3Ruleset,
             MovementPresetId.PersistentContingentsV4 => PersistentContingentsV4Ruleset,
+            MovementPresetId.PersistentContingentsV5 => PersistentContingentsV5Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,

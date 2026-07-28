@@ -1144,7 +1144,7 @@ public sealed class AgentInspectorContentTests
         ContingentState state,
         string expected)
     {
-        var line = AgentInspectorContent.FormatContingentLine(2, state);
+        var line = AgentInspectorContent.FormatContingentLine(2, state, isLeader: false);
 
         Assert.Equal(expected, line);
     }
@@ -1154,9 +1154,102 @@ public sealed class AgentInspectorContentTests
     {
         var line = AgentInspectorContent.FormatContingentLine(
             2,
-            ContingentState.None);
+            ContingentState.None,
+            isLeader: false);
 
         Assert.Null(line);
+    }
+
+    /// <summary>
+    /// Leader rank plan L5: the leadership suffix is appended to the
+    /// existing contingent line, never as a separate row, and reads
+    /// "leading" — never "chief" or "commander" (<c>CLAUDE.md</c> section 7)
+    /// — because the succession rule it reflects is a Provisional
+    /// reconstruction, not a documented historical fact.
+    /// </summary>
+    [Theory]
+    [InlineData(ContingentState.Hold, "Contingent: 2 — Holding (leading)")]
+    [InlineData(ContingentState.Advance, "Contingent: 2 — Advancing (leading)")]
+    public void FormatContingentLineAppendsTheLeadingSuffixWhenIsLeaderIsTrue(
+        ContingentState state,
+        string expected)
+    {
+        var line = AgentInspectorContent.FormatContingentLine(2, state, isLeader: true);
+
+        Assert.Equal(expected, line);
+    }
+
+    [Theory]
+    [InlineData(ContingentState.Hold)]
+    [InlineData(ContingentState.Advance)]
+    public void FormatContingentLineCarriesNoLeadingSuffixWhenIsLeaderIsFalse(
+        ContingentState state)
+    {
+        var line = AgentInspectorContent.FormatContingentLine(2, state, isLeader: false);
+
+        Assert.DoesNotContain("(leading)", line);
+    }
+
+    /// <summary>
+    /// The line stays <c>null</c> — omitted entirely — exactly when it
+    /// already does today: <see cref="ContingentState.None"/> with
+    /// <c>IsLeader</c> at its default <see langword="false"/>. Whether
+    /// <c>isLeader</c> is true never overrides that, matching the design's
+    /// verification requirement.
+    /// </summary>
+    [Fact]
+    public void FormatContingentLineIsNullWhenStateIsNoneEvenIfIsLeaderIsTrue()
+    {
+        var line = AgentInspectorContent.FormatContingentLine(
+            2,
+            ContingentState.None,
+            isLeader: true);
+
+        Assert.Null(line);
+    }
+
+    [Theory]
+    [InlineData(ContingentState.Hold)]
+    [InlineData(ContingentState.Advance)]
+    public void LowerLinesCarryTheLeadingSuffixWhenAgentIsLeader(
+        ContingentState state)
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                contingentId: 3,
+                contingentState: state,
+                isLeader: true),
+            "Kalis — Thrusting Blade",
+            "Documented");
+
+        var contingentLine = lines.Single(
+            line => line.StartsWith("Contingent:", StringComparison.Ordinal));
+
+        Assert.EndsWith("(leading)", contingentLine, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(ContingentState.Hold)]
+    [InlineData(ContingentState.Advance)]
+    public void LowerLinesCarryNoLeadingSuffixWhenAgentIsNotLeader(
+        ContingentState state)
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                contingentId: 3,
+                contingentState: state,
+                isLeader: false),
+            "Kalis — Thrusting Blade",
+            "Documented");
+
+        var contingentLine = lines.Single(
+            line => line.StartsWith("Contingent:", StringComparison.Ordinal));
+
+        Assert.DoesNotContain("(leading)", contingentLine);
     }
 
     [Theory]
@@ -1318,7 +1411,8 @@ public sealed class AgentInspectorContentTests
         int level = 1,
         int contingentId = 0,
         ContingentState contingentState = ContingentState.None,
-        RankId rank = RankId.Timawa) =>
+        RankId rank = RankId.Timawa,
+        bool isLeader = false) =>
         new(
             EntityId: 1,
             FactionId: 0,
@@ -1334,7 +1428,8 @@ public sealed class AgentInspectorContentTests
             Level: level,
             ContingentId: contingentId,
             ContingentState: contingentState,
-            Rank: rank);
+            Rank: rank,
+            IsLeader: isLeader);
 
     private static Func<string, float> FixedWidthMeasure(
         float pixelsPerCharacter) =>

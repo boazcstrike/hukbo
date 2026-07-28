@@ -150,7 +150,7 @@ internal sealed class AgentState
 
     internal bool IsAlive => HitPoints > 0;
 
-    internal AgentView ToView() =>
+    internal AgentView ToView(bool isLeader) =>
         new(
             EntityId,
             FactionId,
@@ -166,5 +166,6 @@ internal sealed class AgentState
             Level,
             ContingentId,
             ContingentState,
-            Rank);
+            Rank,
+            isLeader);
 }

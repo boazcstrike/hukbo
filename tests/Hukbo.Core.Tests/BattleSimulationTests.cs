@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Core.Tests;
@@ -1684,5 +1685,129 @@ public sealed class BattleSimulationTests
                 Assert.NotNull(battleEvent.Weapon);
                 Assert.NotNull(battleEvent.HitLocation);
             });
+    }
+
+    /// <summary>
+    /// Leadership plan L3: <see cref="AgentView.IsLeader"/> is a per-tick,
+    /// recomputed-from-scratch fact wired from
+    /// <see cref="Movement.MovementRules.ScanContingentLeadersAndLivingCounts"/>
+    /// through <c>BattleSimulation.UpdateViews</c>. Every registered
+    /// <see cref="MovementPresetId"/> is exercised, including
+    /// <see cref="MovementPresetId.IndependentPursuitV1"/>, whose contingent
+    /// state machine never runs at all — that preset must show every agent
+    /// with <see cref="AgentView.IsLeader"/> false for the whole battle, not
+    /// merely absent from the per-contingent count, per the design's
+    /// verified-not-assumed note that <c>_contingentLeaderEntityIds</c> stays
+    /// at its all-zero constructor value under V1 and 0 is never a valid
+    /// entity id.
+    /// </summary>
+    /// <remarks>
+    /// Two separate assertions, not one, because the tick pipeline runs
+    /// <c>ResolveContingentStates</c> (the leader scan) before
+    /// <c>GatherAndCommitAttacks</c> (combat): a leader designated at the
+    /// start of a tick can die to combat that same tick, and the view a test
+    /// observes is captured after both, at <c>UpdateViews</c>. That tick's
+    /// view can therefore show zero living leaders in a still-non-empty
+    /// contingent — the fallen leader's own (dead) view still carries
+    /// <see cref="AgentView.IsLeader"/> true until the next tick's scan
+    /// reassigns it, exactly as this plan's L4 task names for the pawn
+    /// marker. What must never happen, on any tick, is <em>two</em> living
+    /// members of the same contingent both reading as leader — that would be
+    /// a genuine double-selection defect, not a same-tick timing artifact —
+    /// so that check runs at every sampled tick. The weaker,
+    /// timing-tolerant check — every contingent that is ever non-empty
+    /// eventually reads exactly one living leader at some sampled tick —
+    /// runs once, over the union of all samples, so a same-tick succession
+    /// gap does not fail the test.
+    /// </remarks>
+    [Fact]
+    public void ExactlyOneLivingLeaderPerNonEmptyContingentAcrossEveryRegisteredMovementPreset()
+    {
+        foreach (var preset in Enum.GetValues<MovementPresetId>())
+        {
+            Assert.True(MovementPresetRegistry.IsRegistered(preset));
+
+            var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+            {
+                MovementPreset = preset,
+                CombatPreset = CombatPresetId.PrecolonialPhilippinesV4,
+            };
+            scenario.Validate();
+            var simulation = BattleSimulation.Create(scenario);
+
+            var everNonEmptyContingents = new HashSet<(int FactionId, int ContingentId)>();
+            var everHadExactlyOneLivingLeaderContingents =
+                new HashSet<(int FactionId, int ContingentId)>();
+
+            // No sample before the first AdvanceOneTick(): the leader scan is
+            // part of the tick pipeline, so before any tick has run,
+            // _contingentLeaderEntityIds still holds its all-zero
+            // constructor value under every preset, contingent-aware or not.
+            for (var tick = 0;
+                tick < 400 && simulation.Outcome == BattleOutcome.Ongoing;
+                tick++)
+            {
+                simulation.AdvanceOneTick();
+
+                if (tick % 25 != 0)
+                {
+                    continue;
+                }
+
+                if (preset == MovementPresetId.IndependentPursuitV1)
+                {
+                    Assert.All(simulation.Agents, agent => Assert.False(agent.IsLeader));
+                    continue;
+                }
+
+                SampleLeadershipCounts(
+                    simulation.Agents,
+                    everNonEmptyContingents,
+                    everHadExactlyOneLivingLeaderContingents);
+            }
+
+            if (preset != MovementPresetId.IndependentPursuitV1)
+            {
+                Assert.NotEmpty(everNonEmptyContingents);
+                Assert.Equal(everNonEmptyContingents, everHadExactlyOneLivingLeaderContingents);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Asserts the hard, always-true invariant (never two living leaders in
+    /// one contingent, on any sampled tick) and records into the two
+    /// caller-owned sets the softer, whole-run invariant described on
+    /// <see cref="ExactlyOneLivingLeaderPerNonEmptyContingentAcrossEveryRegisteredMovementPreset"/>.
+    /// </summary>
+    private static void SampleLeadershipCounts(
+        IReadOnlyList<AgentView> agents,
+        HashSet<(int FactionId, int ContingentId)> everNonEmptyContingents,
+        HashSet<(int FactionId, int ContingentId)> everHadExactlyOneLivingLeaderContingents)
+    {
+        var leaderCountsByContingent = new Dictionary<(int FactionId, int ContingentId), int>();
+        foreach (var agent in agents)
+        {
+            if (!agent.IsAlive)
+            {
+                continue;
+            }
+
+            var key = (agent.FactionId, agent.ContingentId);
+            leaderCountsByContingent.TryGetValue(key, out var count);
+            leaderCountsByContingent[key] = count + (agent.IsLeader ? 1 : 0);
+        }
+
+        foreach (var (key, count) in leaderCountsByContingent)
+        {
+            Assert.True(
+                count <= 1,
+                $"Contingent {key} had {count} simultaneous living leaders.");
+            everNonEmptyContingents.Add(key);
+            if (count == 1)
+            {
+                everHadExactlyOneLivingLeaderContingents.Add(key);
+            }
+        }
     }
 }

@@ -35,6 +35,16 @@ namespace Hukbo.Core.Simulation;
 /// rank existed can build a view without naming it; the default matches
 /// <see cref="Combat.CombatLoadout.Rank"/>'s own default.
 /// </param>
+/// <param name="IsLeader">
+/// Whether this warrior is its contingent's current leader, as of the tick
+/// this view was captured — a derived, per-tick fact, not stored state,
+/// recomputed from scratch every tick by
+/// <see cref="Movement.MovementRules.ScanContingentLeadersAndLivingCounts"/>,
+/// exactly as <see cref="ContingentState"/> above is. Defaulted to
+/// <see langword="false"/> for the same reason <see cref="ContingentId"/>
+/// above is defaulted, so presentation tests written before leadership
+/// existed can build a view without naming it.
+/// </param>
 public readonly record struct AgentView(
     ulong EntityId,
     int FactionId,
@@ -50,4 +60,5 @@ public readonly record struct AgentView(
     int Level = 1,
     int ContingentId = 0,
     ContingentState ContingentState = ContingentState.None,
-    RankId Rank = RankId.Timawa);
+    RankId Rank = RankId.Timawa,
+    bool IsLeader = false);

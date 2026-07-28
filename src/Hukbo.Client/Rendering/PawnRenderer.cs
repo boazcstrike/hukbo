@@ -25,6 +25,18 @@ internal static class PawnRenderer
     private static readonly Color IronHighlight = new(130, 142, 145);
     private static readonly Color HoverColor = new(231, 199, 84);
     private static readonly Color DeadColor = new(91, 98, 105);
+
+    /// <summary>
+    /// The leader mark's dedicated color. Deliberately not
+    /// <see cref="DyePalette.GoldAccent"/> — that warm tone already draws the
+    /// adornment accent on the same pawn (and sits close to
+    /// <see cref="HoverColor"/>'s own warm yellow), so reusing it here would
+    /// make the leader mark indistinguishable from existing detail at
+    /// typical camera zoom. A cool, saturated tone absent from the rest of
+    /// this file's warm dye-derived palette keeps it legible as a UI marker
+    /// rather than a garment or ornament color.
+    /// </summary>
+    private static readonly Color LeaderColor = new(92, 200, 214);
     private static readonly Color HitPulseColor = new(255, 244, 214);
     private static readonly Color SwingTrailColor = new(206, 214, 220);
 
@@ -164,7 +176,8 @@ internal static class PawnRenderer
         VisualFallbackStep torsoResolutionStep = VisualFallbackStep.ModelCategoryDefault,
         DiagnosticLog? log = null,
         int contingentId = 0,
-        ContingentState contingentState = ContingentState.None)
+        ContingentState contingentState = ContingentState.None,
+        bool isLeader = false)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(pixel);
@@ -374,6 +387,22 @@ internal static class PawnRenderer
                 Rectangle.Union(
                     layout.TorsoBounds,
                     layout.HeadBounds));
+        }
+
+        // Coexistence decision, made explicitly rather than left to
+        // if/else-if fallthrough nobody chose on purpose: the leader mark
+        // draws whenever isLeader is true, independent of the
+        // selection/hover/dead branch above. A spectator can select the
+        // leader (selection ring is a screen-space ring around the whole
+        // pawn; the leader mark sits above the head, so the two never
+        // overlap), and the tick a leader falls, its view may still carry
+        // IsLeader true until the next scan reassigns leadership — the dead
+        // mark and the leader mark drawing together on that one tick is the
+        // correct read: this warrior was leading and is now dead, not an
+        // either/or.
+        if (isLeader)
+        {
+            DrawLeaderMark(spriteBatch, pixel, layout.HeadBounds);
         }
     }
 
@@ -1238,6 +1267,32 @@ internal static class PawnRenderer
                     cornerLength),
                 color);
         }
+    }
+
+    /// <summary>
+    /// A small horizontal band hovering above the pawn's head, in
+    /// <see cref="LeaderColor"/> — the client-visible leader marker (leader
+    /// rank plan L4). Modeled directly on <see cref="DrawSelectionMark"/> and
+    /// <see cref="DrawDeadMark"/>: a hand-drawn primitive over
+    /// <paramref name="headBounds"/>, an existing <c>PawnLayout</c> bounds
+    /// value, using the shared <paramref name="pixel"/> texture. No new
+    /// <c>PawnGeometry</c> entry, matching both of those.
+    /// </summary>
+    private static void DrawLeaderMark(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        Rectangle headBounds)
+    {
+        var markWidth = Math.Max(2, headBounds.Width / 2);
+        var markHeight = Math.Max(1, headBounds.Height / 6);
+        var gap = Math.Max(1, headBounds.Height / 8);
+        var bounds = new Rectangle(
+            headBounds.Center.X - (markWidth / 2),
+            headBounds.Top - gap - markHeight,
+            markWidth,
+            markHeight);
+
+        spriteBatch.Draw(pixel, bounds, LeaderColor);
     }
 
     private static void DrawDeadMark(

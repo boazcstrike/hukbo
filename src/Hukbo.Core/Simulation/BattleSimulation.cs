@@ -892,7 +892,8 @@ public sealed class BattleSimulation
         MovementRules.ScanContingentLeadersAndLivingCounts(
             _agentStates,
             _contingentLeaderEntityIds,
-            _contingentLivingCounts);
+            _contingentLivingCounts,
+            _movementRules.SelectsLeaderByRank);
 
         for (var slot = 0; slot < ContingentSlotCount; slot++)
         {
@@ -2545,11 +2546,31 @@ public sealed class BattleSimulation
                 comboPosition));
     }
 
+    /// <summary>
+    /// Projects every <see cref="AgentState"/> onto its presentation-facing
+    /// <see cref="AgentView"/>, including <see cref="AgentView.IsLeader"/>,
+    /// derived here rather than stored: an agent leads exactly when its
+    /// <see cref="AgentState.EntityId"/> equals the leader entity id this
+    /// tick's <see cref="ResolveContingentStates"/> already recorded for its
+    /// <c>(FactionId, ContingentId)</c> slot. Under
+    /// <see cref="MovementPresetId.IndependentPursuitV1"/>,
+    /// <see cref="ResolveContingentStates"/> returns before the leader scan
+    /// ever runs, so every slot in <see cref="_contingentLeaderEntityIds"/>
+    /// stays at its constructor-time value of <c>0</c> — never a valid
+    /// <see cref="AgentState.EntityId"/> — for the whole battle, and every
+    /// real agent's comparison below is therefore <see langword="false"/>
+    /// with no extra preset check needed.
+    /// </summary>
     private void UpdateViews()
     {
         for (var index = 0; index < _agentStates.Length; index++)
         {
-            _agentViews[index] = _agentStates[index].ToView();
+            var agent = _agentStates[index];
+            var slot = checked(
+                (agent.FactionId * FormationPlanner.MaximumContingents) +
+                agent.ContingentId);
+            var isLeader = agent.EntityId == _contingentLeaderEntityIds[slot];
+            _agentViews[index] = agent.ToView(isLeader);
         }
     }
 }

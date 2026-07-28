@@ -42,7 +42,8 @@ public sealed class MovementRuleset
         int cohesionDutyTicks,
         int arrivalTaperMultiplier,
         int offsetUnit,
-        bool narrowsCohesionScanToCohesionCapableContingents)
+        bool narrowsCohesionScanToCohesionCapableContingents,
+        bool selectsLeaderByRank)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);
 
@@ -59,6 +60,7 @@ public sealed class MovementRuleset
         OffsetUnit = offsetUnit;
         NarrowsCohesionScanToCohesionCapableContingents =
             narrowsCohesionScanToCohesionCapableContingents;
+        SelectsLeaderByRank = selectsLeaderByRank;
         ContentHash = ComputeContentHash();
     }
 
@@ -151,6 +153,19 @@ public sealed class MovementRuleset
     public bool NarrowsCohesionScanToCohesionCapableContingents { get; }
 
     /// <summary>
+    /// Whether <c>MovementRules.ScanContingentLeadersAndLivingCounts</c>
+    /// orders leader candidates by <c>(RankId ascending, EntityId
+    /// ascending)</c> instead of <c>EntityId</c> alone. A game-design
+    /// choice about which comparator decides a contingent's leader, not a
+    /// measurement. Registered <see langword="false"/> for every preset up
+    /// to and including <see cref="MovementPresetId.PersistentContingentsV4"/>,
+    /// so introducing this field moves no existing preset's leader
+    /// selection; only <see cref="MovementPresetId.PersistentContingentsV5"/>
+    /// registers it <see langword="true"/>.
+    /// </summary>
+    public bool SelectsLeaderByRank { get; }
+
+    /// <summary>
     /// Content hash over every field above, folded in declaration order with
     /// the same FNV-1a primitive <see cref="Combat.CombatRuleset.ContentHash"/>
     /// uses. Two rulesets with identical fields hash identically regardless of
@@ -175,6 +190,7 @@ public sealed class MovementRuleset
         Fnv1a.Add(
             ref hash,
             NarrowsCohesionScanToCohesionCapableContingents ? 1UL : 0UL);
+        Fnv1a.Add(ref hash, SelectsLeaderByRank ? 1UL : 0UL);
         return hash;
     }
 }

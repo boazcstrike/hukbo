@@ -458,7 +458,7 @@ public sealed class ContingentStateMachineTests
         var leaderEntityIdsBySlot = new ulong[16];
         var livingCountsBySlot = new int[16];
         MovementRules.ScanContingentLeadersAndLivingCounts(
-            agents, leaderEntityIdsBySlot, livingCountsBySlot);
+            agents, leaderEntityIdsBySlot, livingCountsBySlot, selectByRank: false);
 
         Assert.Equal(2UL, leaderEntityIdsBySlot[0]);
         Assert.Equal(2, livingCountsBySlot[0]);
@@ -488,15 +488,18 @@ public sealed class ContingentStateMachineTests
 
         var leadersA = new ulong[16];
         var livingA = new int[16];
-        MovementRules.ScanContingentLeadersAndLivingCounts(orderingA, leadersA, livingA);
+        MovementRules.ScanContingentLeadersAndLivingCounts(
+            orderingA, leadersA, livingA, selectByRank: false);
 
         var leadersB = new ulong[16];
         var livingB = new int[16];
-        MovementRules.ScanContingentLeadersAndLivingCounts(orderingB, leadersB, livingB);
+        MovementRules.ScanContingentLeadersAndLivingCounts(
+            orderingB, leadersB, livingB, selectByRank: false);
 
         var leadersC = new ulong[16];
         var livingC = new int[16];
-        MovementRules.ScanContingentLeadersAndLivingCounts(orderingC, leadersC, livingC);
+        MovementRules.ScanContingentLeadersAndLivingCounts(
+            orderingC, leadersC, livingC, selectByRank: false);
 
         Assert.Equal(leadersA, leadersB);
         Assert.Equal(leadersA, leadersC);
@@ -515,22 +518,143 @@ public sealed class ContingentStateMachineTests
         var leaderEntityIdsBySlot = new ulong[16];
         var livingCountsBySlot = new int[16];
         MovementRules.ScanContingentLeadersAndLivingCounts(
-            agents, leaderEntityIdsBySlot, livingCountsBySlot);
+            agents, leaderEntityIdsBySlot, livingCountsBySlot, selectByRank: false);
         Assert.Equal(2UL, leaderEntityIdsBySlot[0]);
         Assert.Equal(3, livingCountsBySlot[0]);
 
         a2.HitPoints = 0;
         MovementRules.ScanContingentLeadersAndLivingCounts(
-            agents, leaderEntityIdsBySlot, livingCountsBySlot);
+            agents, leaderEntityIdsBySlot, livingCountsBySlot, selectByRank: false);
         Assert.Equal(5UL, leaderEntityIdsBySlot[0]);
         Assert.Equal(2, livingCountsBySlot[0]);
 
         a5.HitPoints = 0;
         a9.HitPoints = 0;
         MovementRules.ScanContingentLeadersAndLivingCounts(
-            agents, leaderEntityIdsBySlot, livingCountsBySlot);
+            agents, leaderEntityIdsBySlot, livingCountsBySlot, selectByRank: false);
         Assert.Equal(0UL, leaderEntityIdsBySlot[0]);
         Assert.Equal(0, livingCountsBySlot[0]);
+    }
+
+    /// <summary>
+    /// <c>selectByRank: true</c>, a single chief present: the chief leads
+    /// even though a non-chief member of the same contingent carries a
+    /// lower <see cref="AgentState.EntityId"/>.
+    /// </summary>
+    [Fact]
+    public void WithSelectByRankASingleChiefLeadsRegardlessOfEntityId()
+    {
+        var agents = new[]
+        {
+            CreateAgent(entityId: 2, factionId: 0, contingentId: 0, rank: RankId.Timawa),
+            CreateAgent(entityId: 9, factionId: 0, contingentId: 0, rank: RankId.Datu),
+            CreateAgent(entityId: 5, factionId: 0, contingentId: 0, rank: RankId.Maharlika),
+        };
+
+        var leaderEntityIdsBySlot = new ulong[16];
+        var livingCountsBySlot = new int[16];
+        MovementRules.ScanContingentLeadersAndLivingCounts(
+            agents, leaderEntityIdsBySlot, livingCountsBySlot, selectByRank: true);
+
+        Assert.Equal(9UL, leaderEntityIdsBySlot[0]);
+    }
+
+    /// <summary>
+    /// <c>selectByRank: true</c>, several chiefs present: the tie on
+    /// <see cref="RankId.Datu"/> breaks on the lowest
+    /// <see cref="AgentState.EntityId"/> among the tied chiefs.
+    /// </summary>
+    [Fact]
+    public void WithSelectByRankTiedChiefsBreakOnTheLowestEntityId()
+    {
+        var agents = new[]
+        {
+            CreateAgent(entityId: 9, factionId: 0, contingentId: 0, rank: RankId.Datu),
+            CreateAgent(entityId: 2, factionId: 0, contingentId: 0, rank: RankId.Datu),
+            CreateAgent(entityId: 5, factionId: 0, contingentId: 0, rank: RankId.Timawa),
+        };
+
+        var leaderEntityIdsBySlot = new ulong[16];
+        var livingCountsBySlot = new int[16];
+        MovementRules.ScanContingentLeadersAndLivingCounts(
+            agents, leaderEntityIdsBySlot, livingCountsBySlot, selectByRank: true);
+
+        Assert.Equal(2UL, leaderEntityIdsBySlot[0]);
+    }
+
+    /// <summary>
+    /// <c>selectByRank: true</c>, no chief present: the highest-ranking
+    /// (lowest-numbered <see cref="RankId"/>) survivor wins, not the lowest
+    /// <see cref="AgentState.EntityId"/>.
+    /// </summary>
+    [Fact]
+    public void WithSelectByRankNoChiefPresentTheHighestRankingSurvivorWins()
+    {
+        var agents = new[]
+        {
+            CreateAgent(entityId: 2, factionId: 0, contingentId: 0, rank: RankId.Timawa),
+            CreateAgent(entityId: 9, factionId: 0, contingentId: 0, rank: RankId.Maharlika),
+            CreateAgent(entityId: 5, factionId: 0, contingentId: 0, rank: RankId.AlipingNamamahay),
+        };
+
+        var leaderEntityIdsBySlot = new ulong[16];
+        var livingCountsBySlot = new int[16];
+        MovementRules.ScanContingentLeadersAndLivingCounts(
+            agents, leaderEntityIdsBySlot, livingCountsBySlot, selectByRank: true);
+
+        Assert.Equal(9UL, leaderEntityIdsBySlot[0]);
+    }
+
+    /// <summary>
+    /// <c>selectByRank: true</c>, the chief dies mid-battle: leadership
+    /// passes to the next-ranking survivor on the following scan, because
+    /// leadership is recomputed from scratch every tick rather than stored.
+    /// </summary>
+    [Fact]
+    public void WithSelectByRankLeadershipPassesToTheNextRankingSurvivorOnTheChiefsDeath()
+    {
+        var chief = CreateAgent(entityId: 9, factionId: 0, contingentId: 0, rank: RankId.Datu);
+        var heir = CreateAgent(entityId: 2, factionId: 0, contingentId: 0, rank: RankId.Maharlika);
+        var agents = new[] { chief, heir };
+
+        var leaderEntityIdsBySlot = new ulong[16];
+        var livingCountsBySlot = new int[16];
+        MovementRules.ScanContingentLeadersAndLivingCounts(
+            agents, leaderEntityIdsBySlot, livingCountsBySlot, selectByRank: true);
+        Assert.Equal(9UL, leaderEntityIdsBySlot[0]);
+
+        chief.HitPoints = 0;
+        MovementRules.ScanContingentLeadersAndLivingCounts(
+            agents, leaderEntityIdsBySlot, livingCountsBySlot, selectByRank: true);
+        Assert.Equal(2UL, leaderEntityIdsBySlot[0]);
+    }
+
+    /// <summary>
+    /// <c>selectByRank: false</c> ignores hand-placed <see cref="RankId"/>
+    /// data entirely and reproduces the <see cref="AgentState.EntityId"/>-only
+    /// result — the proof that <c>PersistentContingentsV1</c> through
+    /// <c>PersistentContingentsV4</c> produce an unmoved leader selection
+    /// under hand-placed rank data, since <see cref="MovementRuleset.SelectsLeaderByRank"/>
+    /// is <see langword="false"/> for all four.
+    /// </summary>
+    [Fact]
+    public void SelectByRankFalseIgnoresHandPlacedRankDataEntirely()
+    {
+        var agents = new[]
+        {
+            CreateAgent(entityId: 9, factionId: 0, contingentId: 0, rank: RankId.Datu),
+            CreateAgent(entityId: 2, factionId: 0, contingentId: 0, rank: RankId.Ayuey),
+            CreateAgent(entityId: 5, factionId: 0, contingentId: 0, rank: RankId.Timawa),
+        };
+
+        var leaderEntityIdsBySlot = new ulong[16];
+        var livingCountsBySlot = new int[16];
+        MovementRules.ScanContingentLeadersAndLivingCounts(
+            agents, leaderEntityIdsBySlot, livingCountsBySlot, selectByRank: false);
+
+        // The Datu carries the highest rank but not the lowest entity id;
+        // with selectByRank: false the lowest entity id wins regardless.
+        Assert.Equal(2UL, leaderEntityIdsBySlot[0]);
     }
 
     /// <summary>
@@ -584,7 +708,8 @@ public sealed class ContingentStateMachineTests
     private static AgentState CreateAgent(
         ulong entityId,
         int factionId,
-        int contingentId)
+        int contingentId,
+        RankId rank = RankId.Timawa)
     {
         return new AgentState(
             entityId,
@@ -600,7 +725,8 @@ public sealed class ContingentStateMachineTests
             loadout: new CombatLoadout(
                 WeaponId.Kampilan,
                 ArmorId.LightOrganic,
-                ShieldId.None),
+                ShieldId.None,
+                rank),
             contingentId: contingentId);
     }
 }

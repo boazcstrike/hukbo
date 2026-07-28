@@ -144,7 +144,7 @@ internal static class AgentInspectorContent
             $"Intent: {agent.Intent}",
         };
 
-        if (FormatContingentLine(agent.ContingentId, agent.ContingentState)
+        if (FormatContingentLine(agent.ContingentId, agent.ContingentState, agent.IsLeader)
             is { } contingentLine)
         {
             lines.Add(contingentLine);
@@ -189,22 +189,41 @@ internal static class AgentInspectorContent
     }
 
     /// <summary>
-    /// The contingent row: which contingent this warrior was dealt into and
-    /// its current behavioural mode, or <c>null</c> when its
-    /// <see cref="ContingentState"/> is
-    /// <see cref="ContingentState.None"/> — the frozen
-    /// <c>IndependentPursuitV1</c> preset, and every agent under
+    /// The contingent row: which contingent this warrior was dealt into, its
+    /// current behavioural mode, and — appended to the same line rather than
+    /// as a separate row, so no unconditional fourteenth row is added and
+    /// <see cref="MaximumLowerRowCount"/> stays untouched (leader rank plan
+    /// L5) — whether this warrior currently leads it. <c>null</c> when its
+    /// <see cref="ContingentState"/> is <see cref="ContingentState.None"/> —
+    /// the frozen <c>IndependentPursuitV1</c> preset, and every agent under
     /// <c>PersistentContingentsV2</c> before its contingent stage first
-    /// resolves. The label names no culture or historical arrangement; it
-    /// is a spectator-facing description of the current preset's own
-    /// mechanic.
+    /// resolves — regardless of <paramref name="isLeader"/>, which is always
+    /// <see langword="false"/> under those same conditions in practice
+    /// (<c>BattleSimulation</c> never marks a leader while the contingent
+    /// scan has not run) but is not itself what decides whether the line is
+    /// shown. The label names no culture or historical arrangement; it is a
+    /// spectator-facing description of the current preset's own mechanic.
     /// </summary>
+    /// <remarks>
+    /// The leadership suffix reads "leading", never "chief" or "commander"
+    /// (<c>CLAUDE.md</c> section 7): the succession rule it reflects is a
+    /// <b>Provisional reconstruction</b>, not a documented historical fact,
+    /// and either of those words would present an unearned rank claim the
+    /// historical accuracy policy does not license here.
+    /// </remarks>
     internal static string? FormatContingentLine(
         int contingentId,
-        ContingentState state) =>
-        state == ContingentState.None
-            ? null
-            : $"Contingent: {contingentId} — {GetContingentStateLabel(state)}";
+        ContingentState state,
+        bool isLeader)
+    {
+        if (state == ContingentState.None)
+        {
+            return null;
+        }
+
+        var line = $"Contingent: {contingentId} — {GetContingentStateLabel(state)}";
+        return isLeader ? $"{line} (leading)" : line;
+    }
 
     internal static string GetContingentStateLabel(ContingentState state) =>
         state switch

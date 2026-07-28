@@ -121,6 +121,13 @@ internal sealed class AgentInspectorPanel
         // no neighboring pawns for the tint to distinguish it from. Leaving
         // the parameters at their default (0, ContingentState.None) keeps
         // the portrait exactly as it already reads today.
+        //
+        // The same reasoning applies to isLeader (leader rank plan L4): the
+        // portrait is one agent in isolation, with no contingent-mates
+        // beside it for a leader mark to distinguish this agent from, so the
+        // parameter is left at its default (false) here too. The inspector's
+        // lower text lines carry the leadership fact instead — see
+        // AgentInspectorContent.FormatContingentLine's "(leading)" suffix.
         PawnRenderer.Draw(
             spriteBatch,
             pixel,

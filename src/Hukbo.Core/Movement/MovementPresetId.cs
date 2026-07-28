@@ -83,4 +83,17 @@ public enum MovementPresetId
     /// this preset as a fix for section 10.3.
     /// </remarks>
     PersistentContingentsV4 = 4,
+
+    /// <summary>
+    /// The rank-aware leader-scan preset. Identical to
+    /// <see cref="PersistentContingentsV4"/> in every cohesion tunable; the
+    /// single difference is that the leader scan orders candidates by
+    /// <c>(RankId ascending, EntityId ascending)</c> instead of
+    /// <c>EntityId</c> alone, so a contingent's highest-ranking living
+    /// member leads it rather than its lowest-entity-id living member. See
+    /// docs/plans/2026-07-29-leader-rank-design.md for the reasoning and
+    /// docs/plans/2026-07-29-leader-rank.md task L1 for this preset's
+    /// derivation.
+    /// </summary>
+    PersistentContingentsV5 = 5,
 }

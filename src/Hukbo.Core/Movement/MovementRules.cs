@@ -1,3 +1,4 @@
+using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Core.Movement;
@@ -58,20 +59,24 @@ internal static class MovementRules
 
     /// <summary>
     /// One forward scan over <paramref name="agents"/>, writing each living
-    /// contingent's leader (the lowest living <see cref="AgentState.EntityId"/>
-    /// among its members) and living headcount into the caller's preallocated
-    /// sixteen-slot arrays. A slot with no living member is written as
-    /// <c>0</c> in both arrays — <c>0</c> is never a valid
+    /// contingent's leader and living headcount into the caller's
+    /// preallocated sixteen-slot arrays. A slot with no living member is
+    /// written as <c>0</c> in both arrays — <c>0</c> is never a valid
     /// <see cref="AgentState.EntityId"/>, so it is a safe empty sentinel,
     /// matching <see cref="Simulation.BattleSimulation"/>'s existing
     /// per-faction rally scan.
     /// </summary>
     /// <remarks>
-    /// The comparison is against <see cref="AgentState.EntityId"/> explicitly,
-    /// never against array position, so the result does not depend on the
+    /// The comparison depends on <paramref name="selectByRank"/>: when
+    /// <see langword="false"/> it is against
+    /// <see cref="AgentState.EntityId"/> explicitly, and when
+    /// <see langword="true"/> it is against <see cref="AgentState.Rank"/>
+    /// first, with <see cref="AgentState.EntityId"/> breaking a tie — never
+    /// against array position, so the result does not depend on the
     /// incidental order of <paramref name="agents"/>. Both output arrays are
-    /// the caller's own, sized once at construction, so this allocates
-    /// nothing.
+    /// the caller's own, sized once at construction; the rank comparator's
+    /// own scratch array is stack-allocated per call, so this still
+    /// allocates nothing on the heap.
     /// </remarks>
     /// <param name="agents">Every agent in the battle, in any order.</param>
     /// <param name="leaderEntityIdsBySlot">
@@ -80,13 +85,29 @@ internal static class MovementRules
     /// <param name="livingCountsBySlot">
     /// The caller's preallocated sixteen-slot living-headcount output array.
     /// </param>
+    /// <param name="selectByRank">
+    /// Whether a living member replaces the stored leader by outranking it
+    /// (a strictly lower-numbered <see cref="AgentState.Rank"/>, or a tie on
+    /// <see cref="AgentState.Rank"/> broken by a lower
+    /// <see cref="AgentState.EntityId"/>) rather than by having a lower
+    /// <see cref="AgentState.EntityId"/> alone. Sourced from
+    /// <see cref="MovementRuleset.SelectsLeaderByRank"/> by every caller.
+    /// </param>
     internal static void ScanContingentLeadersAndLivingCounts(
         AgentState[] agents,
         ulong[] leaderEntityIdsBySlot,
-        int[] livingCountsBySlot)
+        int[] livingCountsBySlot,
+        bool selectByRank)
     {
         Array.Clear(leaderEntityIdsBySlot);
         Array.Clear(livingCountsBySlot);
+
+        // Tracks the current leader's Rank per slot so a rank comparison
+        // never has to re-scan agents to find the stored leader's own
+        // AgentState. Always allocated, whether or not selectByRank is
+        // true, so this remains a single unconditional stack allocation
+        // rather than a branch on which arrays are live.
+        Span<RankId> leaderRanksBySlot = stackalloc RankId[leaderEntityIdsBySlot.Length];
 
         foreach (var agent in agents)
         {
@@ -100,10 +121,20 @@ internal static class MovementRules
                 agent.ContingentId);
             livingCountsBySlot[slot]++;
 
-            if (leaderEntityIdsBySlot[slot] == 0 ||
-                agent.EntityId < leaderEntityIdsBySlot[slot])
+            var slotIsEmpty = leaderEntityIdsBySlot[slot] == 0;
+            var outranksStoredLeader = selectByRank &&
+                !slotIsEmpty &&
+                (agent.Rank < leaderRanksBySlot[slot] ||
+                    (agent.Rank == leaderRanksBySlot[slot] &&
+                        agent.EntityId < leaderEntityIdsBySlot[slot]));
+            var hasLowerEntityId = !selectByRank &&
+                !slotIsEmpty &&
+                agent.EntityId < leaderEntityIdsBySlot[slot];
+
+            if (slotIsEmpty || outranksStoredLeader || hasLowerEntityId)
             {
                 leaderEntityIdsBySlot[slot] = agent.EntityId;
+                leaderRanksBySlot[slot] = agent.Rank;
             }
         }
     }
