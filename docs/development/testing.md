@@ -106,8 +106,9 @@ than an environment one.
 Produced by `dotnet run --project tools/Hukbo.Tools.RenderProbe -c Release --
 <agents> 1 120 <output>`, seed 1, 120 frames sampled per camera station after
 warm-up, backend `spritebatch-1x1`. Artifacts:
-`artifacts/render-baseline-2026-07-28.json` and
-`artifacts/render-baseline-500-2026-07-28.json`.
+`docs/development/render-baselines/render-baseline-2026-07-28.json` and
+`docs/development/render-baselines/render-baseline-500-2026-07-28.json`. Both
+files are tracked in the repository, so a fresh clone can open either one.
 
 200 visible units:
 
@@ -126,9 +127,17 @@ warm-up, backend `spritebatch-1x1`. Artifacts:
 | maximum zoom | 5.33 ms | 5.50 ms | 5.55 ms | 1 028 | 2 056 | 90.3 / 123.3 us | 104.9 / 271.3 us | 87 584 bytes allocated over the station; 736 per frame |
 
 Tier 2 diagnostics, every cell of both runs: `batches` 1, `textureBinds` 1.
-**R-W4.5 — one batch, one texture — is measured, not assumed.** `submissions`
-equals `quads` in every cell, which is the expected identity under the current
-backend where one quad is one `SpriteBatch.Draw`.
+**Neither figure is a measurement.** `RecordArenaRenderMetrics` calls
+`AddBatch()` and `AddTextureBind()` exactly once each, unconditionally, at
+`src/Hukbo.Client/ArenaGame.Rendering.cs` lines 136 and 137, so the recorded
+value of 1 is what those two lines write rather than a count the graphics
+device reported back. `submissions` equals `quads` in every cell for the same
+kind of reason: `RecordQuads` calls `AddSubmission()` once per quad in the
+loop at lines 248 to 251, which makes that identity definitional rather than
+observed. R-W4.5 — one batch, one texture — therefore rests on source
+inspection of those call sites, not on instrumentation. Checking it against
+the graphics device rather than against the source would need an instrument
+this repository does not currently have.
 
 Three observations that the budget revision has to account for:
 

@@ -293,6 +293,54 @@ public sealed class SourceHygieneTests
             names);
     }
 
+    /// <summary>
+    /// Every recorded render-baseline artifact that
+    /// <c>docs/development/testing.md</c> cites resolves to a file the
+    /// repository actually carries.
+    /// </summary>
+    /// <remarks>
+    /// The measurement tables in that document are only as trustworthy as the
+    /// JSON they were read from. The first baselines were written under
+    /// <c>artifacts/</c>, which <c>.gitignore</c> excludes, so the citation
+    /// named a path that existed on one machine and nowhere else; a fresh
+    /// clone could read the tables but could not open the evidence behind
+    /// them. Scanning the citations here means a baseline can never again be
+    /// quoted from a file the repository does not hold.
+    /// </remarks>
+    [Fact]
+    public void EveryCitedRenderBaselineArtifactExistsInTheRepository()
+    {
+        var root = GetRepositoryRoot();
+        var testingDocumentPath = Path.Combine(
+            root, "docs", "development", "testing.md");
+        var content = File.ReadAllText(testingDocumentPath);
+
+        // A cited path is a backtick-quoted token naming a render-baseline
+        // JSON file. Matching on the file name rather than on the directory
+        // keeps the scan honest about a citation that points somewhere
+        // untracked, which is the failure this test was written for.
+        var citedPaths = System.Text.RegularExpressions.Regex
+            .Matches(content, "`([^`\\s]*render-baseline[^`\\s]*\\.json)`")
+            .Select(match => match.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        // Deleting the citation rather than repairing it would leave this
+        // test passing while asserting nothing, so the recorded baselines are
+        // required to still be cited at all.
+        Assert.NotEmpty(citedPaths);
+
+        var missing = citedPaths
+            .Where(cited => !File.Exists(Path.Combine(
+                root,
+                cited.Replace('/', Path.DirectorySeparatorChar))))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Empty(missing);
+    }
+
     private static IEnumerable<string> EnumeratePresentationVariationFiles(
         string root)
     {
