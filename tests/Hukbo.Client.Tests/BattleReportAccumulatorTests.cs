@@ -21,7 +21,7 @@ public sealed class BattleReportAccumulatorTests
             Death(seq: 3, tick: 1, source: 500, factionId: 1),
         };
 
-        accumulator.Ingest(events);
+        accumulator.Ingest(events, default);
         var report = accumulator.Snapshot(terminalTick: 1);
 
         var killer = Assert.Single(report.Leaderboard, row => row.Kills == 1);
@@ -39,7 +39,7 @@ public sealed class BattleReportAccumulatorTests
             Death(seq: 3, tick: 1, source: 500, factionId: 1),
         };
 
-        accumulator.Ingest(events);
+        accumulator.Ingest(events, default);
         var report = accumulator.Snapshot(terminalTick: 1);
 
         var killer = Assert.Single(report.Leaderboard, row => row.Kills == 1);
@@ -54,11 +54,11 @@ public sealed class BattleReportAccumulatorTests
         accumulator.Ingest(new[]
         {
             Attack(seq: 1, tick: 1, source: 1, target: 100, damage: 5, factionId: 0),
-        });
+        }, default);
         accumulator.Ingest(new[]
         {
             Attack(seq: 2, tick: 2, source: 2, target: 101, damage: 20, factionId: 0),
-        });
+        }, default);
 
         var report = accumulator.Snapshot(terminalTick: 2);
 
@@ -77,12 +77,12 @@ public sealed class BattleReportAccumulatorTests
         {
             Attack(seq: 1, tick: 1, source: 1, target: 100, damage: 10, factionId: 0),
             Death(seq: 2, tick: 1, source: 100, factionId: 1),
-        });
+        }, default);
         accumulator.Ingest(new[]
         {
             Attack(seq: 3, tick: 2, source: 2, target: 101, damage: 5, factionId: 0),
             Death(seq: 4, tick: 2, source: 101, factionId: 1),
-        });
+        }, default);
 
         var report = accumulator.Snapshot(terminalTick: 2);
 
@@ -101,7 +101,7 @@ public sealed class BattleReportAccumulatorTests
             accumulator.Ingest(new[]
             {
                 Death(seq: 1, tick: 1, source: 100, factionId: 1),
-            }));
+            }, default));
 
         Assert.Null(exception);
 
@@ -121,26 +121,43 @@ public sealed class BattleReportAccumulatorTests
     {
         var accumulator = new BattleReportAccumulator();
 
-        accumulator.Ingest(new[]
-        {
-            Attack(seq: 1, tick: 1, source: 1, target: 100, damage: 10, factionId: 0),
-            Death(seq: 2, tick: 1, source: 100, factionId: 1),
-        });
-        accumulator.Ingest(new[]
-        {
-            Attack(
-                seq: 3,
-                tick: 2,
-                source: 1,
-                target: 100,
-                damage: 0,
-                factionId: 0,
-                resolution: AttackResolution.Evaded),
-        });
-        accumulator.Ingest(new[]
-        {
-            Attack(seq: 4, tick: 3, source: 2, target: 1, damage: 5, factionId: 1),
-        });
+        // Kills, damage, survivors, and the top killer stay derived from the
+        // events. The attack counts and accuracy do not: they are the
+        // simulation's own per-tick counters, injected here to match what the
+        // events describe — faction 0 lands one of two attacks, faction 1
+        // lands its only one.
+        accumulator.Ingest(
+            new[]
+            {
+                Attack(seq: 1, tick: 1, source: 1, target: 100, damage: 10, factionId: 0),
+                Death(seq: 2, tick: 1, source: 100, factionId: 1),
+            },
+            new FactionCombatMetrics(
+                new CombatMetrics(1, 1, 0, 0, 0, 0),
+                default));
+        accumulator.Ingest(
+            new[]
+            {
+                Attack(
+                    seq: 3,
+                    tick: 2,
+                    source: 1,
+                    target: 100,
+                    damage: 0,
+                    factionId: 0,
+                    resolution: AttackResolution.Evaded),
+            },
+            new FactionCombatMetrics(
+                new CombatMetrics(1, 0, 0, 0, 0, 1),
+                default));
+        accumulator.Ingest(
+            new[]
+            {
+                Attack(seq: 4, tick: 3, source: 2, target: 1, damage: 5, factionId: 1),
+            },
+            new FactionCombatMetrics(
+                default,
+                new CombatMetrics(1, 1, 0, 0, 0, 0)));
 
         var report = accumulator.Snapshot(terminalTick: 3);
 
@@ -149,6 +166,9 @@ public sealed class BattleReportAccumulatorTests
         Assert.Equal(1, factionZero.TotalKills);
         Assert.Equal(10, factionZero.TotalDamageDealt);
         Assert.Equal(0.5, factionZero.Accuracy);
+        Assert.Equal(2, factionZero.Combat.AcceptedAttacks);
+        Assert.Equal(1, factionZero.Combat.LandedAttacks);
+        Assert.Equal(1, factionZero.Combat.EvadedAttacks);
         Assert.Equal(1, factionZero.Survivors);
         Assert.Equal(1UL, factionZero.TopKillerEntityId);
         Assert.Equal(1, factionZero.TopKillerKills);
@@ -174,7 +194,7 @@ public sealed class BattleReportAccumulatorTests
         {
             Attack(seq: 1, tick: 1, source: 1, target: 100, damage: 10, factionId: 0),
             Death(seq: 2, tick: 1, source: 100, factionId: 1),
-        });
+        }, default);
 
         accumulator.Clear();
         var report = accumulator.Snapshot(terminalTick: 0);
@@ -199,16 +219,16 @@ public sealed class BattleReportAccumulatorTests
         {
             Attack(seq: 1, tick: 1, source: 5, target: 201, damage: 5, factionId: 0),
             Death(seq: 2, tick: 1, source: 201, factionId: 1),
-        });
+        }, default);
         accumulator.Ingest(new[]
         {
             Attack(seq: 3, tick: 2, source: 3, target: 202, damage: 5, factionId: 0),
             Death(seq: 4, tick: 2, source: 202, factionId: 1),
-        });
+        }, default);
         accumulator.Ingest(new[]
         {
             Attack(seq: 5, tick: 3, source: 1, target: 203, damage: 100, factionId: 0),
-        });
+        }, default);
 
         var report = accumulator.Snapshot(terminalTick: 3);
 
@@ -233,7 +253,7 @@ public sealed class BattleReportAccumulatorTests
                 factionId: 0));
         }
 
-        accumulator.Ingest(events);
+        accumulator.Ingest(events, default);
         var report = accumulator.Snapshot(terminalTick: 1);
 
         Assert.Equal(10, report.Leaderboard.Count);
@@ -250,7 +270,7 @@ public sealed class BattleReportAccumulatorTests
             Death(seq: 1, tick: 5, source: 100, factionId: 1),
             Death(seq: 2, tick: 9, source: 200, factionId: 0),
             Death(seq: 3, tick: 9, source: 150, factionId: 1),
-        });
+        }, default);
 
         var report = accumulator.Snapshot(terminalTick: 9);
 
@@ -291,4 +311,87 @@ public sealed class BattleReportAccumulatorTests
             targetEntityId: null,
             value: 0,
             factionId);
+    /// <summary>
+    /// Faction attack totals and accuracy must come from the simulation's own
+    /// counters, not from summing the derived per-unit rows.
+    /// </summary>
+    /// <remarks>
+    /// The events below deliberately disagree with the injected metrics: one
+    /// landed attack is present in the event stream, while the simulation
+    /// reports four accepted and three landed for faction 0. A report that
+    /// still re-derived its faction totals from events would show one and one
+    /// and an accuracy of 1.0, so this test fails against the previous
+    /// implementation and can only pass once Core is the source.
+    /// </remarks>
+    [Fact]
+    public void FactionTotals_ComeFromCoreMetricsRatherThanFromTheEventStream()
+    {
+        var accumulator = new BattleReportAccumulator();
+        var events = new[]
+        {
+            Attack(seq: 1, tick: 1, source: 20, target: 500, damage: 9, factionId: 0),
+        };
+
+        var coreMetrics = new FactionCombatMetrics(
+            new CombatMetrics(
+                AcceptedAttacks: 4,
+                LandedAttacks: 3,
+                ShieldBlockedAttacks: 1,
+                ParriedAttacks: 0,
+                DeflectedAttacks: 0,
+                EvadedAttacks: 0),
+            new CombatMetrics(
+                AcceptedAttacks: 2,
+                LandedAttacks: 1,
+                ShieldBlockedAttacks: 0,
+                ParriedAttacks: 1,
+                DeflectedAttacks: 0,
+                EvadedAttacks: 0));
+
+        accumulator.Ingest(events, coreMetrics);
+        var report = accumulator.Snapshot(terminalTick: 1);
+
+        var faction0 = Assert.Single(report.Factions, f => f.FactionId == 0);
+        Assert.Equal(4, faction0.Combat.AcceptedAttacks);
+        Assert.Equal(3, faction0.Combat.LandedAttacks);
+        Assert.Equal(1, faction0.Combat.ShieldBlockedAttacks);
+        Assert.Equal(3d / 4d, faction0.Accuracy);
+    }
+
+    /// <summary>
+    /// The authoritative counters accumulate across ticks and are cleared by
+    /// <c>Clear</c>, so a second battle cannot inherit the first one's totals.
+    /// </summary>
+    [Fact]
+    public void FactionTotals_SumAcrossTicksAndResetOnClear()
+    {
+        var accumulator = new BattleReportAccumulator();
+        var tick = new FactionCombatMetrics(
+            new CombatMetrics(2, 1, 1, 0, 0, 0),
+            default);
+        var events = new[]
+        {
+            Attack(seq: 1, tick: 1, source: 20, target: 500, damage: 9, factionId: 0),
+        };
+
+        accumulator.Ingest(events, tick);
+        accumulator.Ingest(events, tick);
+        accumulator.Ingest(events, tick);
+
+        var summed = Assert.Single(
+            accumulator.Snapshot(terminalTick: 3).Factions,
+            f => f.FactionId == 0);
+        Assert.Equal(6, summed.Combat.AcceptedAttacks);
+        Assert.Equal(3, summed.Combat.LandedAttacks);
+
+        accumulator.Clear();
+        accumulator.Ingest(events, default);
+
+        var afterClear = Assert.Single(
+            accumulator.Snapshot(terminalTick: 1).Factions,
+            f => f.FactionId == 0);
+        Assert.Equal(0, afterClear.Combat.AcceptedAttacks);
+        Assert.Equal(0, afterClear.Accuracy);
+    }
+
 }

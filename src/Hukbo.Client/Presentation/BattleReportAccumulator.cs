@@ -52,15 +52,30 @@ internal sealed class BattleReportAccumulator
     private BattleAttackHighlight? _firstBlood;
     private BattleAttackHighlight? _decisiveKill;
 
+    // Authoritative per-faction attack-resolution counts, summed straight from
+    // the simulation's own per-tick counters rather than re-derived from
+    // events. Index 0 is faction 0, index 1 is faction 1. These are the only
+    // numbers in this class that are not inferred; see the class remarks.
+    private readonly CombatMetrics[] _factionCombat = new CombatMetrics[2];
+
     /// <summary>
     /// Folds one tick's events into the running counters. Never retains
     /// <paramref name="events"/> beyond this call: the simulation
     /// double-buffers that list, so holding a reference to it across ticks
     /// would be a correctness bug, not merely a style concern.
     /// </summary>
-    public void Ingest(IReadOnlyList<BattleEvent> events)
+    public void Ingest(
+        IReadOnlyList<BattleEvent> events,
+        FactionCombatMetrics tickCombatByFaction)
     {
         ArgumentNullException.ThrowIfNull(events);
+
+        // Authoritative counts, added rather than inferred. The simulation has
+        // already partitioned this tick's accepted attacks by attacker
+        // faction, and FactionCombatMetrics.Total is computed from that split,
+        // so summing here cannot disagree with the simulation.
+        AddFactionCombat(0, tickCombatByFaction.Faction0);
+        AddFactionCombat(1, tickCombatByFaction.Faction1);
 
         foreach (var battleEvent in events)
         {
@@ -85,6 +100,28 @@ internal sealed class BattleReportAccumulator
         _units.Clear();
         _firstBlood = null;
         _decisiveKill = null;
+        Array.Clear(_factionCombat);
+    }
+
+    /// <summary>
+    /// Adds one tick's authoritative counts for one faction into that
+    /// faction's running total.
+    /// </summary>
+    /// <remarks>
+    /// Plain addition of counts the simulation already computed. There is no
+    /// inference here and deliberately so: this is the difference between the
+    /// faction totals and every per-unit figure in this class.
+    /// </remarks>
+    private void AddFactionCombat(int factionId, CombatMetrics tick)
+    {
+        var running = _factionCombat[factionId];
+        _factionCombat[factionId] = new CombatMetrics(
+            running.AcceptedAttacks + tick.AcceptedAttacks,
+            running.LandedAttacks + tick.LandedAttacks,
+            running.ShieldBlockedAttacks + tick.ShieldBlockedAttacks,
+            running.ParriedAttacks + tick.ParriedAttacks,
+            running.DeflectedAttacks + tick.DeflectedAttacks,
+            running.EvadedAttacks + tick.EvadedAttacks);
     }
 
     /// <summary>
@@ -262,8 +299,6 @@ internal sealed class BattleReportAccumulator
         {
             var totalKills = 0;
             var totalDamageDealt = 0;
-            var attacksMade = 0;
-            var attacksLanded = 0;
             var survivors = 0;
             ulong? topKillerEntityId = null;
             var topKillerKills = -1;
@@ -277,8 +312,6 @@ internal sealed class BattleReportAccumulator
 
                 totalKills += unit.Kills;
                 totalDamageDealt += unit.DamageDealt;
-                attacksMade += unit.AttacksMade;
-                attacksLanded += unit.AttacksLanded;
                 if (unit.DeathTick is null)
                 {
                     survivors++;
@@ -294,14 +327,24 @@ internal sealed class BattleReportAccumulator
                 }
             }
 
+            // Attack counts and accuracy come from the simulation's own
+            // counters, not from summing the per-unit rows. Kills, damage, and
+            // survivors have no Core equivalent and stay derived.
+            var combat = factionId >= 0 && factionId < _factionCombat.Length
+                ? _factionCombat[factionId]
+                : default;
+
             factions.Add(new FactionReportTotals(
                 factionId,
                 totalKills,
                 totalDamageDealt,
-                ComputeAccuracy(attacksLanded, attacksMade),
+                combat.AcceptedAttacks == 0
+                    ? 0
+                    : (double)combat.LandedAttacks / combat.AcceptedAttacks,
                 survivors,
                 topKillerEntityId,
-                Math.Max(0, topKillerKills)));
+                Math.Max(0, topKillerKills),
+                combat));
         }
 
         return factions;

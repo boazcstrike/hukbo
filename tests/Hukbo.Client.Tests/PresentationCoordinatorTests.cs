@@ -37,7 +37,7 @@ public sealed class PresentationCoordinatorTests
             pointerYRaw: 0,
             maximumDistanceSquared: 0);
         coordinator.EventFeed.Ingest([CreateEvent(1)]);
-        coordinator.IngestTick([DamageEvent(2, 1), AttackEvent(3, 1, 1)], agents);
+        coordinator.IngestTick([DamageEvent(2, 1), AttackEvent(3, 1, 1)], agents, default);
         coordinator.ProcessTerminal(
             BattleOutcome.Faction0Victory,
             agents,
@@ -73,8 +73,8 @@ public sealed class PresentationCoordinatorTests
         var coordinator = new PresentationCoordinator(eventCapacity: 5);
         AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
 
-        coordinator.IngestTick([AttackEvent(1, 1, 2)], agents);
-        coordinator.IngestTick([AttackEvent(2, 1, 2)], agents);
+        coordinator.IngestTick([AttackEvent(1, 1, 2)], agents, default);
+        coordinator.IngestTick([AttackEvent(2, 1, 2)], agents, default);
 
         var snapshot = coordinator.BattleReportAccumulator.Snapshot(
             terminalTick: 2);
@@ -94,7 +94,7 @@ public sealed class PresentationCoordinatorTests
     {
         var coordinator = new PresentationCoordinator(eventCapacity: 5);
         AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
-        coordinator.IngestTick([AttackEvent(1, 1, 2)], agents);
+        coordinator.IngestTick([AttackEvent(1, 1, 2)], agents, default);
 
         Assert.NotEmpty(
             coordinator.BattleReportAccumulator.Snapshot(1).Leaderboard);
@@ -113,8 +113,8 @@ public sealed class PresentationCoordinatorTests
             hitEffectCapacity: 5);
         AgentView[] agents = [CreateAgent(1)];
 
-        coordinator.IngestTick([DamageEvent(1, 1)], agents);
-        coordinator.IngestTick([DamageEvent(2, 1)], agents);
+        coordinator.IngestTick([DamageEvent(1, 1)], agents, default);
+        coordinator.IngestTick([DamageEvent(2, 1)], agents, default);
 
         Assert.Equal(2, coordinator.EventFeed.Entries.Count);
         Assert.Equal(2, coordinator.HitEffects.ActiveEffects.Length);
@@ -129,8 +129,8 @@ public sealed class PresentationCoordinatorTests
             bloodBurstCapacity: 5);
         AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
 
-        coordinator.IngestTick([AttackEvent(1, 2, 1)], agents);
-        coordinator.IngestTick([AttackEvent(2, 2, 1)], agents);
+        coordinator.IngestTick([AttackEvent(1, 2, 1)], agents, default);
+        coordinator.IngestTick([AttackEvent(2, 2, 1)], agents, default);
 
         Assert.Equal(2, coordinator.Blood.ActiveBursts.Length);
         Assert.Equal(2, coordinator.Blood.ActiveGroundMarks.Length);
@@ -143,7 +143,7 @@ public sealed class PresentationCoordinatorTests
         AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
         coordinator.IngestTick(
             [DamageEvent(1, 1), AttackEvent(2, 2, 1)],
-            agents);
+            agents, default);
 
         coordinator.AdvanceEffects(0.5f);
 
@@ -167,7 +167,7 @@ public sealed class PresentationCoordinatorTests
                 AttackEvent(2, 2, 1),
                 AttackEvent(3, 2, 1, AttackResolution.Parried),
             ],
-            agents);
+            agents, default);
 
         coordinator.AdvanceEffects(0.02f, speedMultiplier: 4f);
 
@@ -224,7 +224,7 @@ public sealed class PresentationCoordinatorTests
                 AttackEvent(1, 2, 1),
                 AttackEvent(2, 1, 2, AttackResolution.ShieldBlocked),
             ],
-            agents);
+            agents, default);
 
         Assert.NotEmpty(coordinator.Swings.ActiveSwings.ToArray());
         Assert.NotEmpty(coordinator.ClashEffects.ActiveEffects.ToArray());
@@ -284,7 +284,7 @@ public sealed class PresentationCoordinatorTests
     {
         var coordinator = new PresentationCoordinator(eventCapacity: 5);
         AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
-        coordinator.IngestTick([AttackEvent(1, 1, 2)], agents);
+        coordinator.IngestTick([AttackEvent(1, 1, 2)], agents, default);
 
         Assert.Null(coordinator.Report);
 

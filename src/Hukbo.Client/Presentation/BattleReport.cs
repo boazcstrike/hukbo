@@ -1,4 +1,5 @@
 using Hukbo.Core.Combat;
+using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.Presentation;
 
@@ -28,6 +29,18 @@ internal readonly record struct UnitReportRow(
 /// once per faction observed in the battle, ordered by ascending
 /// <see cref="FactionId"/> in <see cref="BattleReport.Factions"/>.
 /// </summary>
+/// <remarks>
+/// <b>Two classes of number live in this record, and the distinction is
+/// load-bearing.</b> <see cref="Combat"/>, and the <see cref="Accuracy"/>
+/// derived from it, are the simulation's own authoritative per-tick counters
+/// summed across the battle — they cannot disagree with what happened.
+/// <see cref="TotalKills"/>, <see cref="TotalDamageDealt"/>,
+/// <see cref="Survivors"/>, <see cref="TopKillerEntityId"/>, and
+/// <see cref="TopKillerKills"/> are derived presentation-side from the event
+/// stream and rest on a kill-attribution heuristic, because
+/// <c>Hukbo.Core</c> tracks no per-entity counters. A renderer must not present
+/// the second group as carrying the authority of the first.
+/// </remarks>
 internal readonly record struct FactionReportTotals(
     int FactionId,
     int TotalKills,
@@ -35,7 +48,8 @@ internal readonly record struct FactionReportTotals(
     double Accuracy,
     int Survivors,
     ulong? TopKillerEntityId,
-    int TopKillerKills);
+    int TopKillerKills,
+    CombatMetrics Combat);
 
 /// <summary>
 /// One landed attack singled out as a battle highlight — either the first
