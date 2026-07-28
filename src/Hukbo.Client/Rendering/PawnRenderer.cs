@@ -67,6 +67,17 @@ internal static class PawnRenderer
     /// entirely, and the tip clips at the panel edge while panning. The
     /// selection padding does not absorb this, by roughly four times. It is
     /// accepted and carries an interactive smoke row rather than an assertion.
+    /// <para>
+    /// GPU-013. A caller that also needs the posed
+    /// <see cref="PawnLayout"/> for the same pawn — which the arena render
+    /// loop always does, for every pawn that survives the cull — should reach
+    /// for <see cref="PawnGeometry.CreateWithPoseBlindBounds"/> instead, which
+    /// returns both from one call and builds the pose-blind rectangle from
+    /// only the layers that can reach it. This method is a whole
+    /// <see cref="PawnGeometry.Create"/> that keeps one field, and it stays
+    /// exactly that on purpose: it is the reference the equivalence test in
+    /// <c>PawnGeometryTests</c> compares the combined call against.
+    /// </para>
     /// </remarks>
     public static Rectangle GetBounds(
         Vector2 footAnchor,

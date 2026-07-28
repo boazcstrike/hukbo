@@ -97,6 +97,40 @@ internal readonly record struct PawnLayout(
     Rectangle VisualBounds,
     SwingTrail SwingTrail);
 
+/// <summary>
+/// GPU-013. Both answers the arena render loop needs about one pawn, from
+/// one call: the posed layout it draws from, and the pose-blind rectangle it
+/// culls against.
+/// </summary>
+/// <remarks>
+/// Before this existed, a visible pawn paid for two complete
+/// <see cref="PawnGeometry.Create"/> constructions every frame — one through
+/// <c>PawnRenderer.GetBounds</c>, which threw away everything except
+/// <see cref="PawnLayout.VisualBounds"/>, and one for the layout itself
+/// (redundancy R1 in <c>docs/plans/gpu-render/2026-07-28-gpu-render.md</c>).
+/// <see cref="PawnGeometry.CreateWithPoseBlindBounds"/> keeps both results
+/// but builds the second one from only the subset of the layout that
+/// actually reaches the union: the ground ring, torso, head, head treatment,
+/// weapon line, shield block, and armor capsule. The sash, the adornment
+/// accents, the diagnostic placeholder, the swing trail, and the weapon
+/// thickness are all skipped, because none of them can move the rectangle,
+/// and the scale, detail tier, ground ring, and every whole-pixel size are
+/// computed once and shared by both results.
+/// </remarks>
+/// <param name="Layout">
+/// The posed layout, identical in every field to what
+/// <see cref="PawnGeometry.Create"/> returns for the same arguments.
+/// </param>
+/// <param name="PoseBlindVisualBounds">
+/// The neutral-pose visual bounds, identical to what
+/// <c>PawnRenderer.GetBounds</c> returns for the same arguments. Pose-blind
+/// on purpose: a pose-aware cull would make the drawn set a function of
+/// presentation animation phase. See <c>PawnRenderer.GetBounds</c>.
+/// </param>
+internal readonly record struct PosedPawnGeometry(
+    PawnLayout Layout,
+    Rectangle PoseBlindVisualBounds);
+
 internal static class PawnGeometry
 {
     private const float MinimumApparentScale = 0.72f;
@@ -268,6 +302,97 @@ internal static class PawnGeometry
         bool hasSash = false,
         int adornmentAccentMarkCount = 0)
     {
+        var proportions = CreateProportions(
+            footAnchor,
+            cameraZoom,
+            appearance,
+            scaleMultiplier,
+            armorWidthFactor,
+            adornmentAccentMarkCount);
+
+        return CreateLayout(
+            proportions,
+            footAnchor,
+            appearance,
+            swingPose ?? default,
+            armorWidthFactor,
+            hasSash,
+            adornmentAccentMarkCount);
+    }
+
+    /// <summary>
+    /// GPU-013. The posed layout and the pose-blind cull rectangle from one
+    /// call, so a visible pawn stops building two complete layouts per frame.
+    /// Every parameter means exactly what the same parameter on
+    /// <see cref="Create"/> means, and the returned
+    /// <see cref="PosedPawnGeometry.Layout"/> is what <see cref="Create"/>
+    /// returns for those arguments.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="PosedPawnGeometry.PoseBlindVisualBounds"/> is not a second
+    /// <see cref="Create"/> call with the pose dropped — that would defeat
+    /// the point. It is built from the subset of the layout that can actually
+    /// reach the bounding union: the ground ring, the torso, the head, the
+    /// head treatment, the weapon line, the shield block, and the armor
+    /// capsule. The sash and the adornment accents are inscribed inside the
+    /// torso and head footprints by construction, the diagnostic placeholder
+    /// is inscribed inside the torso, and neither the swing trail nor the
+    /// weapon thickness is a rectangle at all, so all five are skipped. The
+    /// argument checks, the apparent scale, the detail tier, the ground ring,
+    /// and every whole-pixel size in <see cref="PawnProportions"/> are
+    /// computed once and read by both results.
+    /// </remarks>
+    public static PosedPawnGeometry CreateWithPoseBlindBounds(
+        Vector2 footAnchor,
+        float cameraZoom,
+        PawnAppearance appearance,
+        float scaleMultiplier = 1f,
+        SwingPose? swingPose = null,
+        float armorWidthFactor = 1f,
+        bool hasSash = false,
+        int adornmentAccentMarkCount = 0)
+    {
+        var proportions = CreateProportions(
+            footAnchor,
+            cameraZoom,
+            appearance,
+            scaleMultiplier,
+            armorWidthFactor,
+            adornmentAccentMarkCount);
+
+        return new PosedPawnGeometry(
+            CreateLayout(
+                proportions,
+                footAnchor,
+                appearance,
+                swingPose ?? default,
+                armorWidthFactor,
+                hasSash,
+                adornmentAccentMarkCount),
+            CreatePoseBlindVisualBounds(
+                proportions,
+                footAnchor,
+                appearance,
+                armorWidthFactor));
+    }
+
+    /// <summary>
+    /// Checks the arguments and computes everything about a pawn's layout
+    /// that no swing pose can move: the apparent scale, the detail tier, the
+    /// ground ring the planted feet keep, and every whole-pixel size the
+    /// composed layers are built from. A pose translates and rotates what is
+    /// drawn; it never resizes it, which is why these values are shared
+    /// between the posed layout and the pose-blind bounds rather than derived
+    /// twice.
+    /// </summary>
+    private static PawnProportions CreateProportions(
+        Vector2 footAnchor,
+        float cameraZoom,
+        PawnAppearance appearance,
+        float scaleMultiplier,
+        float armorWidthFactor,
+        int adornmentAccentMarkCount)
+    {
         if (!float.IsFinite(cameraZoom) || cameraZoom < 0f)
         {
             throw new ArgumentOutOfRangeException(nameof(cameraZoom));
@@ -310,38 +435,52 @@ internal static class PawnGeometry
             ringWidth,
             ringHeight);
 
-        // The feet stay planted, so the ground ring keeps the foot anchor
-        // while everything the warrior can lean moves with the torso.
-        var pose = swingPose ?? default;
-        var bodyAnchor = footAnchor + new Vector2(
-            pose.TorsoLeanX * apparentScale,
-            pose.TorsoLeanY * apparentScale);
-
         var torsoHeight = ToSize(
             12f * appearance.StatureMultiplier * apparentScale);
         var torsoWidth = ToSize(
             7f * appearance.BuildMultiplier * apparentScale);
-        var torsoBottom = (int)MathF.Round(
-            bodyAnchor.Y - MathF.Max(1f, apparentScale));
-        var torsoBounds = new Rectangle(
-            (int)MathF.Round(bodyAnchor.X - (torsoWidth / 2f)),
-            torsoBottom - torsoHeight,
-            torsoWidth,
-            torsoHeight);
-
         var headSize = ToSize(7f * apparentScale);
         var headGap = ToSize(apparentScale);
-        var headBounds = new Rectangle(
-            (int)MathF.Round(bodyAnchor.X - (headSize / 2f)),
-            torsoBounds.Top - headGap - headSize,
-            headSize,
-            headSize);
         var headTreatmentHeight = Math.Max(1, ToSize(2.6f * apparentScale));
-        var headTreatmentBounds = new Rectangle(
-            headBounds.Left,
-            headBounds.Top,
-            headBounds.Width,
-            headTreatmentHeight);
+
+        return new PawnProportions(
+            apparentScale,
+            detailTier,
+            groundRingBounds,
+            torsoWidth,
+            torsoHeight,
+            headSize,
+            headGap,
+            headTreatmentHeight,
+            CreateShieldBlock(
+                footAnchor,
+                apparentScale,
+                appearance.ShieldSkinId,
+                detailTier));
+    }
+
+    /// <summary>
+    /// The whole posed layout, built from the pose-invariant
+    /// <paramref name="proportions"/> and the one pose that positions it.
+    /// </summary>
+    private static PawnLayout CreateLayout(
+        in PawnProportions proportions,
+        Vector2 footAnchor,
+        PawnAppearance appearance,
+        SwingPose pose,
+        float armorWidthFactor,
+        bool hasSash,
+        int adornmentAccentMarkCount)
+    {
+        var apparentScale = proportions.ApparentScale;
+        var detailTier = proportions.DetailTier;
+
+        // The feet stay planted, so the ground ring keeps the foot anchor
+        // while everything the warrior can lean moves with the torso.
+        var bodyAnchor = CreateBodyAnchor(footAnchor, apparentScale, pose);
+        var torsoBounds = CreateTorso(bodyAnchor, apparentScale, proportions);
+        var headBounds = CreateHead(bodyAnchor, torsoBounds, proportions);
+        var headTreatmentBounds = CreateHeadTreatment(headBounds, proportions);
 
         // The step-4 diagnostic placeholder (visual-system-integration-
         // design.md section 4, R-W6.4) occupies the torso's footprint — the
@@ -370,12 +509,9 @@ internal static class PawnGeometry
         // still tell a shielded warrior from a solo one at the moment of
         // impact, which is exactly when the weapon line is least readable.
         var shield = CreateShield(
-            footAnchor,
-            apparentScale,
-            appearance.ShieldRole,
-            appearance.ShieldSkinId,
+            proportions,
             torsoBounds,
-            detailTier);
+            appearance.ShieldRole);
 
         // VIS-023, layers 4/5/9 (integration design section 5). None of
         // these read swingPose — they are pure functions of the torso/head
@@ -390,49 +526,29 @@ internal static class PawnGeometry
             detailTier,
             adornmentAccentMarkCount);
 
-        var renderedBounds = Rectangle.Union(groundRingBounds, torsoBounds);
-        renderedBounds = Rectangle.Union(renderedBounds, headBounds);
-        renderedBounds = Rectangle.Union(renderedBounds, headTreatmentBounds);
-        renderedBounds = Rectangle.Union(renderedBounds, weapon.Bounds);
-
-        if (!weapon.SecondaryBounds.IsEmpty)
-        {
-            renderedBounds = Rectangle.Union(
-                renderedBounds,
-                weapon.SecondaryBounds);
-        }
-
-        if (!shield.Bounds.IsEmpty)
-        {
-            renderedBounds = Rectangle.Union(renderedBounds, shield.Bounds);
-        }
-
-        // ArmorBounds is the only new layer that can extend past the torso
-        // it widens (sash and accents are inscribed inside the torso/head
-        // footprint by construction — see each helper's own remarks), so it
-        // is the only one that needs folding into the pose-blind bound.
-        if (!armorBounds.IsEmpty)
-        {
-            renderedBounds = Rectangle.Union(renderedBounds, armorBounds);
-        }
-
-        var selectionPadding = Math.Max(
-            3,
-            (int)MathF.Ceiling(3f * apparentScale));
-        var selectionBounds = Inflate(renderedBounds, selectionPadding);
+        var renderedBounds = CreateRenderedBounds(
+            proportions.GroundRingBounds,
+            torsoBounds,
+            headBounds,
+            headTreatmentBounds,
+            weapon.Bounds,
+            weapon.SecondaryBounds,
+            shield.Bounds,
+            armorBounds);
+        var selectionBounds = CreateSelectionBounds(renderedBounds, apparentScale);
         var visualBounds = Rectangle.Union(renderedBounds, selectionBounds);
 
         return new PawnLayout(
             footAnchor,
             apparentScale,
             detailTier,
-            groundRingBounds,
+            proportions.GroundRingBounds,
             torsoBounds,
             headBounds,
             headTreatmentBounds,
             weapon.Start,
             weapon.End,
-            weapon.Thickness,
+            CreateWeaponThickness(appearance.WeaponRole, apparentScale),
             weapon.Bounds,
             weapon.Start,
             weapon.SecondaryBounds,
@@ -448,6 +564,168 @@ internal static class PawnGeometry
             visualBounds,
             CreateSwingTrail(weapon, apparentScale, detailTier, pose));
     }
+
+    /// <summary>
+    /// GPU-013. <see cref="PawnLayout.VisualBounds"/> as it comes out of a
+    /// neutral pose, computed from only the layers that can reach the
+    /// bounding union. This is the cheap subset of <see cref="CreateLayout"/>,
+    /// not a second run of it: the sash, the adornment accents, the
+    /// diagnostic placeholder, the swing trail, and the weapon thickness are
+    /// never built, and <paramref name="proportions"/> carries the argument
+    /// checks, the scale, the tier, the ground ring, and every size already
+    /// paid for by the posed layout.
+    /// </summary>
+    /// <remarks>
+    /// The pose is passed as <see langword="default"/> through the same
+    /// <see cref="CreateBodyAnchor"/> and <see cref="CreateWeaponLayout"/>
+    /// the posed path uses, rather than by omitting the pose terms, so the
+    /// result is identical to <c>PawnRenderer.GetBounds</c> by construction
+    /// rather than by argument. A neutral pose leans by nothing and rotates
+    /// by nothing, which is exactly what <c>swingPose: null</c> means to
+    /// <see cref="Create"/>.
+    /// </remarks>
+    private static Rectangle CreatePoseBlindVisualBounds(
+        in PawnProportions proportions,
+        Vector2 footAnchor,
+        PawnAppearance appearance,
+        float armorWidthFactor)
+    {
+        var apparentScale = proportions.ApparentScale;
+        var detailTier = proportions.DetailTier;
+
+        var bodyAnchor = CreateBodyAnchor(footAnchor, apparentScale, default);
+        var torsoBounds = CreateTorso(bodyAnchor, apparentScale, proportions);
+        var headBounds = CreateHead(bodyAnchor, torsoBounds, proportions);
+        var headTreatmentBounds = CreateHeadTreatment(headBounds, proportions);
+        var weapon = CreateWeaponLayout(
+            bodyAnchor,
+            apparentScale,
+            appearance.WeaponRole,
+            detailTier,
+            default);
+        var shieldBounds = CreateShieldBounds(
+            proportions,
+            torsoBounds,
+            appearance.ShieldRole);
+        var armorBounds = CreateArmor(torsoBounds, detailTier, armorWidthFactor);
+
+        var renderedBounds = CreateRenderedBounds(
+            proportions.GroundRingBounds,
+            torsoBounds,
+            headBounds,
+            headTreatmentBounds,
+            weapon.Bounds,
+            weapon.SecondaryBounds,
+            shieldBounds,
+            armorBounds);
+
+        return Rectangle.Union(
+            renderedBounds,
+            CreateSelectionBounds(renderedBounds, apparentScale));
+    }
+
+    /// <summary>
+    /// Where the torso, and everything that leans with it, is centred. The
+    /// lean is the only way a pose moves the body; a neutral pose leaves the
+    /// body on the foot anchor exactly.
+    /// </summary>
+    private static Vector2 CreateBodyAnchor(
+        Vector2 footAnchor,
+        float apparentScale,
+        SwingPose pose) =>
+        footAnchor + new Vector2(
+            pose.TorsoLeanX * apparentScale,
+            pose.TorsoLeanY * apparentScale);
+
+    private static Rectangle CreateTorso(
+        Vector2 bodyAnchor,
+        float apparentScale,
+        in PawnProportions proportions)
+    {
+        var torsoBottom = (int)MathF.Round(
+            bodyAnchor.Y - MathF.Max(1f, apparentScale));
+
+        return new Rectangle(
+            (int)MathF.Round(bodyAnchor.X - (proportions.TorsoWidth / 2f)),
+            torsoBottom - proportions.TorsoHeight,
+            proportions.TorsoWidth,
+            proportions.TorsoHeight);
+    }
+
+    private static Rectangle CreateHead(
+        Vector2 bodyAnchor,
+        Rectangle torsoBounds,
+        in PawnProportions proportions) =>
+        new(
+            (int)MathF.Round(bodyAnchor.X - (proportions.HeadSize / 2f)),
+            torsoBounds.Top - proportions.HeadGap - proportions.HeadSize,
+            proportions.HeadSize,
+            proportions.HeadSize);
+
+    private static Rectangle CreateHeadTreatment(
+        Rectangle headBounds,
+        in PawnProportions proportions) =>
+        new(
+            headBounds.Left,
+            headBounds.Top,
+            headBounds.Width,
+            proportions.HeadTreatmentHeight);
+
+    /// <summary>
+    /// The union every drawn layer sits inside, in the one order both the
+    /// posed layout and the pose-blind bounds walk it. Sole authority for
+    /// which layers contribute, so the two callers can never drift apart on
+    /// that question.
+    /// </summary>
+    /// <remarks>
+    /// The sash, the adornment accents, and the diagnostic placeholder are
+    /// absent deliberately: each is inscribed inside the torso or head
+    /// footprint by construction — see each helper's own remarks — so none of
+    /// them can grow this rectangle. <paramref name="armorBounds"/> is the
+    /// one composed layer that can extend past the torso it widens, so it is
+    /// the one that has to be folded in.
+    /// </remarks>
+    private static Rectangle CreateRenderedBounds(
+        Rectangle groundRingBounds,
+        Rectangle torsoBounds,
+        Rectangle headBounds,
+        Rectangle headTreatmentBounds,
+        Rectangle weaponBounds,
+        Rectangle weaponSecondaryBounds,
+        Rectangle shieldBounds,
+        Rectangle armorBounds)
+    {
+        var renderedBounds = Rectangle.Union(groundRingBounds, torsoBounds);
+        renderedBounds = Rectangle.Union(renderedBounds, headBounds);
+        renderedBounds = Rectangle.Union(renderedBounds, headTreatmentBounds);
+        renderedBounds = Rectangle.Union(renderedBounds, weaponBounds);
+
+        if (!weaponSecondaryBounds.IsEmpty)
+        {
+            renderedBounds = Rectangle.Union(
+                renderedBounds,
+                weaponSecondaryBounds);
+        }
+
+        if (!shieldBounds.IsEmpty)
+        {
+            renderedBounds = Rectangle.Union(renderedBounds, shieldBounds);
+        }
+
+        if (!armorBounds.IsEmpty)
+        {
+            renderedBounds = Rectangle.Union(renderedBounds, armorBounds);
+        }
+
+        return renderedBounds;
+    }
+
+    private static Rectangle CreateSelectionBounds(
+        Rectangle renderedBounds,
+        float apparentScale) =>
+        Inflate(
+            renderedBounds,
+            Math.Max(3, (int)MathF.Ceiling(3f * apparentScale)));
 
     /// <summary>
     /// The arc the weapon tip has just swept, derived from the pose alone. It
@@ -489,13 +767,13 @@ internal static class PawnGeometry
     }
 
     /// <summary>
-    /// The block a shield bearer draws beside the torso, on the side opposite
-    /// the weapon, together with the point future shield-skin work anchors
-    /// to. <see cref="ShieldLayout.Bounds"/> is <see cref="Rectangle.Empty"/>
-    /// for a warrior carrying no shield; <see cref="ShieldLayout.Anchor"/> is
-    /// computed unconditionally, because it is a pure layout output the
-    /// composed-layer design (integration design section 5) reserves as an
-    /// attachment point regardless of loadout.
+    /// Everything about the block a shield bearer draws beside the torso that
+    /// the torso's own position does not decide: its width, its height, its
+    /// left edge, and the gap between the torso's top and its own. All four
+    /// are pose-invariant — the shield is deliberately not posed, and its
+    /// left edge is measured from the planted foot anchor rather than from
+    /// the leaning body — so they are computed once per pawn and reused by
+    /// both the posed layout and the pose-blind bounds.
     /// </summary>
     /// <param name="shieldSkinId">
     /// The resolved skin's stable catalog identifier
@@ -506,26 +784,10 @@ internal static class PawnGeometry
     /// base S1 proportions unchanged, so an unrecognized or fallback
     /// identifier degrades to the plain block rather than throwing.
     /// </param>
-    /// <remarks>
-    /// This is the surface that makes grip discoverable on the battlefield
-    /// rather than only in the inspector: preset V2 is the first to field a
-    /// solo and a shielded warrior of the same weapon at once, and they deal
-    /// different damage, so without it the two are indistinguishable.
-    /// <para>
-    /// Drawn at every detail tier including <see cref="PawnDetailTier.Low"/>,
-    /// unlike secondary equipment. A shield changes what the warrior is, not
-    /// how ornamented they are, and dropping it at distance would remove the
-    /// distinction exactly when a spectator is watching whole formations
-    /// rather than individuals. It is a solid block, which survives being a
-    /// few pixels tall in a way a drawn line does not.
-    /// </para>
-    /// </remarks>
-    private static ShieldLayout CreateShield(
+    private static ShieldBlock CreateShieldBlock(
         Vector2 footAnchor,
         float scale,
-        PawnShieldRole role,
         string shieldSkinId,
-        Rectangle torsoBounds,
         PawnDetailTier detailTier)
     {
         var (widthDelta, heightDelta) = ShieldProportionDelta(shieldSkinId);
@@ -566,13 +828,70 @@ internal static class PawnGeometry
             ? 0
             : (int)MathF.Round(ShieldPostureOffsetUnits * scale);
         var left = (int)MathF.Round(footAnchor.X - (7f * scale)) - width + postureOffset;
-        var top = torsoBounds.Top + ToSize(scale);
-        var rectangle = new Rectangle(left, top, width, height);
-        var anchor = new Vector2(rectangle.Center.X, rectangle.Center.Y);
+
+        return new ShieldBlock(left, width, height, ToSize(scale));
+    }
+
+    /// <summary>
+    /// Where <see cref="CreateShieldBlock"/>'s block lands once the torso is
+    /// placed. The torso's top is the only thing the pose contributes here.
+    /// </summary>
+    private static Rectangle CreateShieldRectangle(
+        in PawnProportions proportions,
+        Rectangle torsoBounds) =>
+        new(
+            proportions.Shield.Left,
+            torsoBounds.Top + proportions.Shield.TopOffset,
+            proportions.Shield.Width,
+            proportions.Shield.Height);
+
+    /// <summary>
+    /// The drawn shield block alone, <see cref="Rectangle.Empty"/> for a
+    /// warrior carrying no shield. What the bounding union reads; the
+    /// pose-blind path needs nothing else from the shield, so it never builds
+    /// the anchor.
+    /// </summary>
+    private static Rectangle CreateShieldBounds(
+        in PawnProportions proportions,
+        Rectangle torsoBounds,
+        PawnShieldRole role) =>
+        role == PawnShieldRole.None
+            ? Rectangle.Empty
+            : CreateShieldRectangle(proportions, torsoBounds);
+
+    /// <summary>
+    /// The block a shield bearer draws beside the torso, on the side opposite
+    /// the weapon, together with the point future shield-skin work anchors
+    /// to. <see cref="ShieldLayout.Bounds"/> is <see cref="Rectangle.Empty"/>
+    /// for a warrior carrying no shield; <see cref="ShieldLayout.Anchor"/> is
+    /// computed unconditionally, because it is a pure layout output the
+    /// composed-layer design (integration design section 5) reserves as an
+    /// attachment point regardless of loadout.
+    /// </summary>
+    /// <remarks>
+    /// This is the surface that makes grip discoverable on the battlefield
+    /// rather than only in the inspector: preset V2 is the first to field a
+    /// solo and a shielded warrior of the same weapon at once, and they deal
+    /// different damage, so without it the two are indistinguishable.
+    /// <para>
+    /// Drawn at every detail tier including <see cref="PawnDetailTier.Low"/>,
+    /// unlike secondary equipment. A shield changes what the warrior is, not
+    /// how ornamented they are, and dropping it at distance would remove the
+    /// distinction exactly when a spectator is watching whole formations
+    /// rather than individuals. It is a solid block, which survives being a
+    /// few pixels tall in a way a drawn line does not.
+    /// </para>
+    /// </remarks>
+    private static ShieldLayout CreateShield(
+        in PawnProportions proportions,
+        Rectangle torsoBounds,
+        PawnShieldRole role)
+    {
+        var rectangle = CreateShieldRectangle(proportions, torsoBounds);
 
         return new ShieldLayout(
             role == PawnShieldRole.None ? Rectangle.Empty : rectangle,
-            anchor);
+            new Vector2(rectangle.Center.X, rectangle.Center.Y));
     }
 
     /// <summary>
@@ -772,19 +1091,6 @@ internal static class PawnGeometry
                 Offset(footAnchor, 14f, -21f, scale),
             _ => throw new ArgumentOutOfRangeException(nameof(role), role, null),
         };
-        var thickness = MathF.Max(
-            1f,
-            role switch
-            {
-                PawnWeaponRole.Itak => 2.2f * scale,
-                PawnWeaponRole.Kampilan => 2.8f * scale,
-                PawnWeaponRole.Wasay => 1.9f * scale,
-                PawnWeaponRole.Kalis => 1.6f * scale,
-                _ => throw new ArgumentOutOfRangeException(
-                    nameof(role),
-                    role,
-                    null),
-            });
         var weaponPadding = role switch
         {
             PawnWeaponRole.Itak => 2.8f * scale,
@@ -807,10 +1113,32 @@ internal static class PawnGeometry
         return new WeaponLayout(
             start,
             end,
-            thickness,
             bounds,
             secondaryBounds);
     }
+
+    /// <summary>
+    /// The stroke width the weapon line is drawn at. Split out of
+    /// <see cref="CreateWeaponLayout"/> because it is the one weapon value
+    /// that is not a rectangle and therefore cannot reach a bounding union:
+    /// <see cref="CreatePoseBlindVisualBounds"/> never asks for it.
+    /// </summary>
+    private static float CreateWeaponThickness(
+        PawnWeaponRole role,
+        float scale) =>
+        MathF.Max(
+            1f,
+            role switch
+            {
+                PawnWeaponRole.Itak => 2.2f * scale,
+                PawnWeaponRole.Kampilan => 2.8f * scale,
+                PawnWeaponRole.Wasay => 1.9f * scale,
+                PawnWeaponRole.Kalis => 1.6f * scale,
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(role),
+                    role,
+                    null),
+            });
 
     /// <summary>
     /// Rotates the weapon line about the grip and lengthens it along the
@@ -905,9 +1233,45 @@ internal static class PawnGeometry
     private readonly record struct WeaponLayout(
         Vector2 Start,
         Vector2 End,
-        float Thickness,
         Rectangle Bounds,
         Rectangle SecondaryBounds);
+
+    /// <summary>
+    /// GPU-013. The pose-invariant half of a pawn's layout: the values a
+    /// swing can never change, computed once per call and read by both the
+    /// posed layout and the pose-blind bounds. A pose leans the body and
+    /// rotates the weapon line, so it moves rectangles; it never resizes
+    /// them, and it never touches the ground ring, which stays on the planted
+    /// feet.
+    /// </summary>
+    /// <param name="ShieldTopOffset">
+    /// How far below the torso's own top the shield block starts. Part of the
+    /// block rather than of <see cref="CreateShieldRectangle"/> because the
+    /// distance is a function of apparent scale alone.
+    /// </param>
+    private readonly record struct PawnProportions(
+        float ApparentScale,
+        PawnDetailTier DetailTier,
+        Rectangle GroundRingBounds,
+        int TorsoWidth,
+        int TorsoHeight,
+        int HeadSize,
+        int HeadGap,
+        int HeadTreatmentHeight,
+        ShieldBlock Shield);
+
+    /// <param name="Left">
+    /// The block's left edge, measured from the planted foot anchor rather
+    /// than from the leaning body, so no pose moves it.
+    /// </param>
+    /// <param name="TopOffset">
+    /// The gap between the torso's top and the block's own top.
+    /// </param>
+    private readonly record struct ShieldBlock(
+        int Left,
+        int Width,
+        int Height,
+        int TopOffset);
 
     /// <param name="Bounds">
     /// The drawn shield block, or <see cref="Rectangle.Empty"/> for an
