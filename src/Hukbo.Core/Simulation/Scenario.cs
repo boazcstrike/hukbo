@@ -54,9 +54,18 @@ public sealed record Scenario(
     /// The combat ruleset this battle is fought under. Defaults to the
     /// newest preset; earlier ones stay registered and unmodified so a
     /// replay recorded against one remains reproducible by naming it here.
+    /// The shipped default has moved on from
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV2"/> to
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV4"/>, the preset that
+    /// assigns each roster entry a <see cref="RankId"/> and a per-rank
+    /// fighter level, so a spectator's default battle now carries the
+    /// visible rank the composition panel and agent inspector present.
+    /// <c>PrecolonialPhilippinesV1</c>, <c>V2</c>, and <c>V3</c> all stay
+    /// registered and byte-identical for a replay that names one of them
+    /// explicitly.
     /// </summary>
     public CombatPresetId CombatPreset { get; init; } =
-        CombatPresetId.PrecolonialPhilippinesV2;
+        CombatPresetId.PrecolonialPhilippinesV4;
 
     /// <summary>
     /// The movement preset this battle is fought under. Defaults to the

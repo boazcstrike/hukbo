@@ -515,7 +515,19 @@ public sealed class PhilippineCombatIntegrationTests
     [Fact]
     public void Regression_AttackCooldownGapsRemainAtLeastTheConfiguredCooldownTicksAcrossAFullBattle()
     {
-        var scenario = Scenario.CreateDefault(seed: 55, totalAgents: 20);
+        // Pinned to V2 explicitly rather than left to Scenario.CreateDefault:
+        // this case checks that a gap between one warrior's attacks never
+        // falls below WeaponProfile.AttackCooldownTicks, and from preset V3
+        // onward an active attack combination legitimately uses the shorter
+        // WeaponProfile.ComboCooldownTicks instead -- see ComboChainTests,
+        // which covers that behaviour explicitly against V3. Following the
+        // shipped default here (now PrecolonialPhilippinesV4, task P1 of
+        // docs/plans/2026-07-29-rank-composition-panel.md) would fail this
+        // case on real combo attacks rather than on a cooldown regression.
+        var scenario = Scenario.CreateDefault(seed: 55, totalAgents: 20) with
+        {
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+        };
         var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
         var simulation = BattleSimulation.Create(scenario);
         var attackTicksBySource = new Dictionary<ulong, List<long>>();
@@ -679,7 +691,21 @@ public sealed class PhilippineCombatIntegrationTests
 
         for (ulong seed = 1; seed <= Seeds; seed++)
         {
-            var scenario = Scenario.CreateDefault(seed, totalAgents: 200);
+            // Pinned to V2 explicitly: the measured range documented above
+            // (0.2920 to 0.3301) is V2's own clash profile, retuned by T60 of
+            // the clash / preset V2 integration plan. Task P1 of
+            // docs/plans/2026-07-29-rank-composition-panel.md moves
+            // Scenario.CombatPreset's shipped default to
+            // PrecolonialPhilippinesV4, whose clash profile was never tuned
+            // against this band -- seed 6 measures 0.2490 under V4, just
+            // under the enforced floor. Following the shipped default would
+            // make this Fact a V4 regression gate it was never designed to
+            // be; V2 stays registered and frozen, so naming it here keeps
+            // testing the property T60 actually tuned.
+            var scenario = Scenario.CreateDefault(seed, totalAgents: 200) with
+            {
+                CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+            };
             var simulation = BattleSimulation.Create(scenario);
             long accepted = 0;
             long landed = 0;
@@ -776,7 +802,21 @@ public sealed class PhilippineCombatIntegrationTests
 
         for (ulong seed = 1; seed <= 20; seed++)
         {
-            var scenario = Scenario.CreateDefault(seed, totalAgents: 200);
+            // Pinned to V2 explicitly: the pooled ratios documented above
+            // (1.22 shipped, 1.00 with interception off) are measured against
+            // V2's shielded/shieldless roster split. Task P1 of
+            // docs/plans/2026-07-29-rank-composition-panel.md moves
+            // Scenario.CombatPreset's shipped default to
+            // PrecolonialPhilippinesV4, whose four ranks all carry
+            // ShieldId.None -- there is no shielded group left to compare
+            // once the default moves, so the case would fail on
+            // shieldedTotal == 0 rather than on a real interception
+            // regression. V2 stays registered and frozen, so naming it here
+            // keeps testing the property this case exists to guard.
+            var scenario = Scenario.CreateDefault(seed, totalAgents: 200) with
+            {
+                CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+            };
             var simulation = BattleSimulation.Create(scenario);
             var attacksByTarget = new Dictionary<ulong, int>();
 

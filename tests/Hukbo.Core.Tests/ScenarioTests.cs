@@ -21,7 +21,7 @@ public sealed class ScenarioTests
         Assert.Equal(20, scenario.TickRate);
         Assert.Equal(10_000, scenario.TickLimit);
         Assert.Equal(
-            CombatPresetId.PrecolonialPhilippinesV2,
+            CombatPresetId.PrecolonialPhilippinesV4,
             scenario.CombatPreset);
     }
 
@@ -429,7 +429,7 @@ public sealed class ScenarioTests
     {
         var scenario = Scenario.CreateDefault(totalAgents: 200) with
         {
-            RosterCounts = ImmutableArray.Create(-1, 26, 25, 50, 0, 0),
+            RosterCounts = ImmutableArray.Create(-1, 26, 25, 50),
         };
 
         Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
@@ -440,7 +440,7 @@ public sealed class ScenarioTests
     {
         var scenario = Scenario.CreateDefault(totalAgents: 200) with
         {
-            RosterCounts = ImmutableArray.Create(25, 25, 25, 24, 0, 0),
+            RosterCounts = ImmutableArray.Create(25, 25, 25, 24),
         };
 
         Assert.Throws<ArgumentException>(scenario.Validate);

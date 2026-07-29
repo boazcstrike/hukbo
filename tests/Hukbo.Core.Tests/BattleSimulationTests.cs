@@ -1430,7 +1430,7 @@ public sealed class BattleSimulationTests
         // branch, not a coincidence of the numbers chosen.
         var scenario = Scenario.CreateDefault(totalAgents: 12) with
         {
-            RosterCounts = ImmutableArray.Create(2, 2, 1, 1, 0, 0),
+            RosterCounts = ImmutableArray.Create(2, 2, 1, 1),
         };
         var simulation = BattleSimulation.Create(scenario);
         var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
@@ -1457,7 +1457,7 @@ public sealed class BattleSimulationTests
         // 0's, so it would give the two factions different armies here.
         var scenario = Scenario.CreateDefault(totalAgents: 12) with
         {
-            RosterCounts = ImmutableArray.Create(2, 2, 1, 1, 0, 0),
+            RosterCounts = ImmutableArray.Create(2, 2, 1, 1),
         };
         var simulation = BattleSimulation.Create(scenario);
 
@@ -1478,10 +1478,16 @@ public sealed class BattleSimulationTests
     [Fact]
     public void EveryAgentsRankMatchesItsResolvedRosterEntrysRank()
     {
-        var scenario = Scenario.CreateDefault(totalAgents: 12) with
-        {
-            RosterCounts = ImmutableArray.Create(2, 2, 1, 1, 0, 0),
-        };
+        // No RosterCounts override, deliberately: with one supplied,
+        // BattleSimulation.Create assigns loadouts by the faction-local
+        // roster-index expansion (see the RosterCountExpansion branch a few
+        // lines above CreateAssignsLoadoutsByFactionLocalIndexWhenRosterCountsAreProvided),
+        // not by CombatRuleset.ResolveLoadout's entityId round-robin this
+        // case checks against. Under V2's roster, where every entry shared
+        // the same default Rank, that mismatch was invisible; V4's roster
+        // gives each entry a distinct RankId, so an omitted RosterCounts
+        // here is load-bearing for the comparison to mean anything.
+        var scenario = Scenario.CreateDefault(totalAgents: 12);
         var simulation = BattleSimulation.Create(scenario);
         var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
 
@@ -1498,7 +1504,7 @@ public sealed class BattleSimulationTests
         var baseline = Scenario.CreateDefault(seed: 3, totalAgents: 8);
         var withComposition = baseline with
         {
-            RosterCounts = ImmutableArray.Create(1, 1, 1, 1, 0, 0),
+            RosterCounts = ImmutableArray.Create(1, 1, 1, 1),
         };
 
         var baselineSimulation = BattleSimulation.Create(baseline);

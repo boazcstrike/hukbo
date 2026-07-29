@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
@@ -196,10 +197,21 @@ public sealed class MovementPresetFreezeTests
         // later change moved the trajectory.
         const int CapturedBodyRadiusRaw = 4 * FixedPoint.Scale;
 
+        // Both fixtures' provenance.construction.combatPreset records
+        // "PrecolonialPhilippinesV2" -- the shipped default at capture time.
+        // The rank-in-composition-panel plan
+        // (docs/plans/2026-07-29-rank-composition-panel.md, task P1) moves
+        // Scenario.CombatPreset's own default to
+        // CombatPresetId.PrecolonialPhilippinesV4, which changes every
+        // agent's roster loadout and therefore the state hash from tick 1
+        // onward. Pinning V2 explicitly here, exactly as MovementPreset and
+        // BodyRadiusRaw already are, keeps this control run reproducing the
+        // frozen fixture regardless of where the shipped default moves next.
         var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
         {
             MovementPreset = movementPreset,
             BodyRadiusRaw = CapturedBodyRadiusRaw,
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
         };
         scenario.Validate();
         return BattleSimulation.Create(scenario);

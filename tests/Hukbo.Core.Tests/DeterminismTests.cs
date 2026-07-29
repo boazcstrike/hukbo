@@ -366,10 +366,26 @@ public sealed class DeterminismTests
         // fixtures are frozen oracles of a past build; the difference is
         // deliberate and each file states its own reason.
         //
-        // Superseded, captured on the branch at the four-world-unit radius:
-        // "96D59BDBCDD05293" (state) and "12C14F63B4BA1E3B" (event).
-        Assert.Equal("62F0E17B85D5D590", stateHash);
-        Assert.Equal("96A77A6AEEE24BB4", eventHash);
+        // Recaptured again by task P1 of
+        // docs/plans/2026-07-29-rank-composition-panel.md, which flips
+        // Scenario.CombatPreset's own shipped default from
+        // PrecolonialPhilippinesV2 to PrecolonialPhilippinesV4. This Fact
+        // leaves --preset unnamed on the arguments above precisely so it
+        // tracks that default too, matching the "follows rather than pins"
+        // rationale already stated for the body radius.
+        //
+        // Captured from a real run of this exact command against this build:
+        // `dotnet run --project src/Hukbo.Headless -c Release --no-build --
+        // --agents 20 --ticks 200 --seed 1 --movement-preset
+        // PersistentContingentsV2`.
+        //
+        // Superseded values, in the order they were superseded. Against the
+        // PrecolonialPhilippinesV2 combat default: "62F0E17B85D5D590" (state)
+        // and "96A77A6AEEE24BB4" (event). Against the four-world-unit radius
+        // before that: "96D59BDBCDD05293" (state) and "12C14F63B4BA1E3B"
+        // (event).
+        Assert.Equal("41201454CCBADC75", stateHash);
+        Assert.Equal("514D986A2BD633E8", eventHash);
     }
 
     /// <summary>
