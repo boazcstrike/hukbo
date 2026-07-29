@@ -29,6 +29,26 @@ internal static class StateHasher
     /// preset fields resolves to the same <c>RankId.Timawa</c> default in any
     /// case, so folding it unconditionally would only ever hash a constant.
     /// </param>
+    /// <param name="movementContentHash">
+    /// The <see cref="Movement.MovementRuleset.ContentHash"/> of the movement
+    /// preset the simulation is running on, or <see langword="null"/> for
+    /// every preset whose
+    /// <see cref="Movement.MovementRuleset.UsesEquipmentRelativeFootwork"/>
+    /// is <see langword="false"/> (V1 through V5). When <see langword="null"/>
+    /// the fold is byte-for-byte the legacy layout — nothing new is written
+    /// anywhere, following the <paramref name="hasRankLevels"/> precedent.
+    /// When non-null, two additions apply: the movement content hash folds
+    /// immediately after <paramref name="contentHash"/> in the scenario
+    /// section, and the five equipment-relative footwork fields fold at the
+    /// tail of each per-agent fold, after the conditional
+    /// <see cref="AgentState.Rank"/> fold, in their <see cref="AgentState"/>
+    /// declaration order: <see cref="AgentState.Facing"/> (whose
+    /// <see cref="Movement.Facing16.None"/> folds as its numeric 255),
+    /// <see cref="AgentState.MovementPaceRaw"/>,
+    /// <see cref="AgentState.TacticalPosture"/>,
+    /// <see cref="AgentState.FootworkPhase"/>, and
+    /// <see cref="AgentState.FootworkTicksRemaining"/>.
+    /// </param>
     internal static ulong Compute(
         Scenario scenario,
         long tick,
@@ -36,7 +56,8 @@ internal static class StateHasher
         long eventSequence,
         IReadOnlyList<AgentState> agents,
         ulong contentHash,
-        bool hasRankLevels)
+        bool hasRankLevels,
+        ulong? movementContentHash = null)
     {
         var hash = Fnv1a.OffsetBasis;
         Add(ref hash, scenario.Seed);
@@ -57,6 +78,11 @@ internal static class StateHasher
         Add(ref hash, (int)scenario.CombatPreset);
         Add(ref hash, (int)scenario.MovementPreset);
         Add(ref hash, contentHash);
+        if (movementContentHash is { } movementHash)
+        {
+            Add(ref hash, movementHash);
+        }
+
         Add(ref hash, tick);
         Add(ref hash, (int)outcome);
         Add(ref hash, eventSequence);
@@ -91,6 +117,15 @@ internal static class StateHasher
             if (hasRankLevels)
             {
                 Add(ref hash, (int)agent.Rank);
+            }
+
+            if (movementContentHash is not null)
+            {
+                Add(ref hash, (int)agent.Facing);
+                Add(ref hash, agent.MovementPaceRaw);
+                Add(ref hash, (int)agent.TacticalPosture);
+                Add(ref hash, (int)agent.FootworkPhase);
+                Add(ref hash, agent.FootworkTicksRemaining);
             }
         }
 

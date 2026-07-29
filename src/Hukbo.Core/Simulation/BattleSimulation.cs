@@ -532,7 +532,13 @@ public sealed class BattleSimulation
             _eventSequence,
             _agentStates,
             contentHash,
-            _rules.HasRankLevels);
+            _rules.HasRankLevels,
+            // V1 through V5 pass null so the fold stays byte-for-byte the
+            // legacy layout; only an equipment-relative-footwork preset (V6)
+            // folds its movement content hash and the five footwork fields.
+            _movementRules.UsesEquipmentRelativeFootwork
+                ? _movementRules.ContentHash
+                : null);
 
     public BattleSnapshot CreateSnapshot()
     {
