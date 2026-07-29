@@ -1,7 +1,9 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using Hukbo.Client.Audio;
+using Hukbo.Client.Diagnostics;
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Presentation.Catalogs;
 using Hukbo.Client.Rendering;
@@ -134,6 +136,38 @@ public sealed partial class ArenaGame : Game
     private readonly Dictionary<ulong, SwingPose> _swingPoses = [];
     private readonly DiagnosticLog _log;
 
+    /// <summary>
+    /// Reduces the per-frame timings to one line per second of wall time. Held
+    /// unconditionally — it is eight doubles and costs nothing when nothing
+    /// feeds it — but only fed when <see cref="_isFrameTimingLogged"/> says a
+    /// window would actually be written.
+    /// </summary>
+    private readonly FrameTimingAggregator _frameTiming = new();
+
+    /// <summary>
+    /// Whether frames are measured at all, resolved once from the log rather
+    /// than tested per frame. The frame loop reads this before taking a single
+    /// timestamp, so a run with the render channel filtered out — and every
+    /// <c>Release</c> run, where the log is off entirely — pays one bool test
+    /// per frame and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// Resolved against <see cref="LogLevel.Warning"/>, not
+    /// <see cref="LogLevel.Debug"/>, because a window that starved reports at
+    /// warn: a run filtered down to warnings must still get the finding, and
+    /// finding it requires having measured. The routine summary is written at
+    /// debug and filters itself out on such a run.
+    /// </remarks>
+    private readonly bool _isFrameTimingMeasured;
+
+    /// <summary>
+    /// Whether the per-frame <c>render.frame</c> line is enabled. Separate from
+    /// <see cref="_isFrameTimingLogged"/> because it is a <c>trc</c> line: an
+    /// ordinary <c>dbg</c> run gets the one-a-second summary, and only a run
+    /// asked for trace pays a line per frame.
+    /// </summary>
+    private readonly bool _isFrameTraceLogged;
+
     private Scenario _scenario;
     private BattleSimulation _simulation;
     private SpectatorCamera _camera;
@@ -152,6 +186,13 @@ public sealed partial class ArenaGame : Game
     private bool _exitRequested;
     private int _speedMultiplier = 1;
     private double _simulationAccumulator;
+
+    // The frame's own measurements, written by Update and AdvanceSimulation
+    // and read at the end of Update. Fields rather than arguments because the
+    // producer and the consumer are separated by the whole input chain.
+    private double _frameDrawMilliseconds;
+    private int _frameSimulationTicks;
+    private bool _frameSimulationStarved;
 
     // CompleteMatch runs on every frame that follows a decided match, so the
     // outcome line needs its own guard or the log fills with one identical row
@@ -217,6 +258,10 @@ public sealed partial class ArenaGame : Game
     public ArenaGame(DiagnosticLog? log = null, Scenario? scenarioOverride = null)
     {
         _log = log ?? DiagnosticLog.Disabled;
+        _isFrameTimingMeasured =
+            _log.IsEnabledFor(LogLevel.Warning, LogChannel.Render);
+        _isFrameTraceLogged =
+            _log.IsEnabledFor(LogLevel.Trace, LogChannel.Render);
         _soundDirector = new SoundDirector(
             EventHistoryCapacity,
             new SilentSoundPlayer(SoundLibrary.GetDefaultDirectoryPath()),
@@ -551,6 +596,12 @@ public sealed partial class ArenaGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        var isFrameMeasured = _isFrameTimingMeasured || _isFrameTraceLogged;
+        var updateStartTimestamp =
+            isFrameMeasured ? Stopwatch.GetTimestamp() : 0L;
+        _frameSimulationTicks = 0;
+        _frameSimulationStarved = false;
+
         _input.Update();
         _soundDirector.BeginFrame(gameTime.ElapsedGameTime.TotalSeconds);
         _presentation.AdvanceEffects(
@@ -764,6 +815,14 @@ public sealed partial class ArenaGame : Game
         LogFocusChange();
         AdvanceSimulation(gameTime.ElapsedGameTime.TotalSeconds);
         UpdateWindowTitle();
+
+        if (isFrameMeasured)
+        {
+            LogFrameTiming(
+                gameTime.ElapsedGameTime.TotalMilliseconds,
+                Stopwatch.GetElapsedTime(updateStartTimestamp)
+                    .TotalMilliseconds);
+        }
 
         // One flush per frame rather than one per line: a crash still keeps
         // everything up to the previous frame, and warnings and errors flush
@@ -1240,14 +1299,24 @@ public sealed partial class ArenaGame : Game
         }
 
         var secondsPerTick = 1d / _scenario.TickRate;
+        var requestedSeconds =
+            _simulationAccumulator + (elapsedSeconds * _speedMultiplier);
         _simulationAccumulator = Math.Min(
-            _simulationAccumulator + (elapsedSeconds * _speedMultiplier),
+            requestedSeconds,
             MaximumAccumulatedSeconds);
+
+        // The clamp above is the moment the simulation stops keeping pace with
+        // the wall clock: whole ticks are dropped rather than run late, so the
+        // battle jumps instead of playing. Recorded rather than merely
+        // performed, because from a spectator's chair a dropped tick and a slow
+        // frame look identical and only the log can tell them apart.
+        _frameSimulationStarved = requestedSeconds > MaximumAccumulatedSeconds;
 
         while (_simulationAccumulator >= secondsPerTick &&
                _simulation.Outcome == BattleOutcome.Ongoing)
         {
             _simulation.AdvanceOneTick();
+            _frameSimulationTicks++;
             _log.SetTick(_simulation.Tick);
             _presentation.IngestTick(
                 _simulation.LastEvents,
@@ -1275,6 +1344,110 @@ public sealed partial class ArenaGame : Game
     /// pays for it every tick in a build nobody is debugging is a client that
     /// drops frames for no reason.
     /// </remarks>
+    /// <summary>
+    /// Records what this frame cost: the per-frame line when trace is on, and
+    /// the one-a-second summary the aggregator closes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The two questions a laggy session raises are how long a frame took and
+    /// whether the simulation kept up, and they have different answers: the
+    /// catch-up loop hides a slow frame by running several ticks in it, so a
+    /// battle can hold its tick rate exactly while the picture updates twice a
+    /// second. <c>starvedFrames</c> separates the two — zero means the ticks
+    /// arrived on time whatever the frame rate was.
+    /// </para>
+    /// <para>
+    /// <paramref name="updateMilliseconds"/> closes before <c>_log.Flush</c>
+    /// and <c>base.Update</c>, so it measures this class's own update work and
+    /// not the frame's every last microsecond. <paramref name="frameMilliseconds"/>
+    /// is the whole frame — it is the elapsed time MonoGame reports, which with
+    /// a variable time step is real wall time since the previous frame.
+    /// </para>
+    /// </remarks>
+    private void LogFrameTiming(
+        double frameMilliseconds,
+        double updateMilliseconds)
+    {
+        if (_isFrameTraceLogged)
+        {
+            _log.Write(
+                LogLevel.Trace,
+                LogChannel.Render,
+                LogEvents.RenderFrame,
+                "frameMs",
+                frameMilliseconds,
+                "updateMs",
+                updateMilliseconds,
+                "drawMs",
+                _frameDrawMilliseconds,
+                "simTicks",
+                _frameSimulationTicks,
+                "starved",
+                _frameSimulationStarved);
+        }
+
+        if (!_isFrameTimingMeasured)
+        {
+            return;
+        }
+
+        _frameTiming.Add(
+            frameMilliseconds,
+            updateMilliseconds,
+            _frameDrawMilliseconds,
+            _frameSimulationTicks,
+            _frameSimulationStarved);
+
+        if (!_frameTiming.TryTakeWindow(out var window))
+        {
+            return;
+        }
+
+        _log.Write(
+            LogLevel.Debug,
+            LogChannel.Render,
+            LogEvents.RenderWindow,
+            "frames",
+            window.Frames,
+            "elapsedMs",
+            window.ElapsedMilliseconds,
+            "meanMs",
+            window.MeanMilliseconds,
+            "worstMs",
+            window.WorstMilliseconds,
+            "worstUpdateMs",
+            window.WorstUpdateMilliseconds,
+            "worstDrawMs",
+            window.WorstDrawMilliseconds,
+            "simTicks",
+            window.SimulationTicks);
+
+        // Its own identifier rather than a field on the summary: the summary is
+        // the routine reading and this is the finding, and a reader filtering
+        // for trouble should not have to know which field of a healthy line to
+        // test. At warn, because the simulation missing the wall clock is a
+        // defect report rather than an observation, and it must survive a level
+        // filter that drops the summary.
+        if (window.StarvedFrames > 0)
+        {
+            _log.Write(
+                LogLevel.Warning,
+                LogChannel.Render,
+                LogEvents.RenderStarved,
+                "frames",
+                window.Frames,
+                "starvedFrames",
+                window.StarvedFrames,
+                "worstMs",
+                window.WorstMilliseconds,
+                "simTicks",
+                window.SimulationTicks,
+                "msg",
+                "Simulation fell behind the wall clock; ticks were dropped.");
+        }
+    }
+
     private void LogTick()
     {
         var level = LogSampling.IsSampledTick(_simulation.Tick)
@@ -1396,6 +1569,11 @@ public sealed partial class ArenaGame : Game
         _scenario = BuildScenario(_matchSeries.CurrentSeed, _activeComposition);
         _simulation = BattleSimulation.Create(_scenario);
         _loggedOutcomeTick = -1;
+
+        // A round boundary is not one continuous run of frames: the frames that
+        // build a scenario would otherwise be averaged into the new round's
+        // first window and hide its real opening cost.
+        _frameTiming.Reset();
         _log.SetTick(DiagnosticLog.NoTick);
         _log.Write(
             LogLevel.Information,

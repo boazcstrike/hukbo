@@ -64,4 +64,9 @@ public static class LogEvents
     public const string InputFocusChanged = "input.focus.changed";
     public const string InputKey = "input.key";
     public const string InputPointer = "input.pointer";
+
+    // Render channel.
+    public const string RenderFrame = "render.frame";
+    public const string RenderStarved = "render.starved";
+    public const string RenderWindow = "render.window";
 }

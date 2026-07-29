@@ -37,8 +37,16 @@ public enum LogChannel
     /// </summary>
     Ui = 1 << 6,
 
+    /// <summary>
+    /// The frame loop itself: how long a frame took, how much of it was
+    /// update and how much was draw, and whether the simulation kept pace
+    /// with the wall clock. Nothing here describes what was drawn, only what
+    /// it cost.
+    /// </summary>
+    Render = 1 << 7,
+
     /// <summary>Every declared channel.</summary>
-    All = Boot | Assets | Settings | Simulation | Audio | Input | Ui,
+    All = Boot | Assets | Settings | Simulation | Audio | Input | Ui | Render,
 }
 
 /// <summary>
@@ -60,6 +68,7 @@ public static class LogChannels
         LogChannel.Audio => "audio",
         LogChannel.Input => "input",
         LogChannel.Ui => "ui",
+        LogChannel.Render => "render",
         _ => "none",
     };
 
@@ -91,6 +100,9 @@ public static class LogChannels
                 return true;
             case "ui":
                 channel = LogChannel.Ui;
+                return true;
+            case "render" or "frame":
+                channel = LogChannel.Render;
                 return true;
             case "all":
                 channel = LogChannel.All;

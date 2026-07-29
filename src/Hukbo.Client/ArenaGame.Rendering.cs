@@ -171,6 +171,16 @@ public sealed partial class ArenaGame
 
     protected override void Draw(GameTime gameTime)
     {
+        // Read by the next Update, which owns the frame-timing line. Zeroed on
+        // entry rather than left from last frame so a frame that returns early
+        // below — which only happens before content has loaded — reports the
+        // nothing it drew instead of the previous frame's cost.
+        var drawStartTimestamp =
+            _isFrameTimingMeasured || _isFrameTraceLogged
+                ? Stopwatch.GetTimestamp()
+                : 0L;
+        _frameDrawMilliseconds = 0d;
+
         if (_renderProbeEnabled)
         {
             _renderProbeFrameStartTimestamp = Stopwatch.GetTimestamp();
@@ -358,6 +368,12 @@ public sealed partial class ArenaGame
                 GC.CollectionCount(1),
                 GC.CollectionCount(2),
                 allocatedBytes));
+        }
+
+        if (_isFrameTimingMeasured || _isFrameTraceLogged)
+        {
+            _frameDrawMilliseconds =
+                Stopwatch.GetElapsedTime(drawStartTimestamp).TotalMilliseconds;
         }
     }
 
