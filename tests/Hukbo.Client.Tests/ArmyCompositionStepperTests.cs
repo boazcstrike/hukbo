@@ -55,8 +55,10 @@ public sealed class ArmyCompositionStepperTests
     {
         var result = ArmyCompositionStepper.DistributeEvenly(202);
 
+        // 202 / 4 = 50 with a remainder of 2, so the first two of the four
+        // rank categories carry the extra unit.
         Assert.Equal(
-            new[] { 34, 34, 34, 34, 33, 33 },
+            new[] { 51, 51, 50, 50 },
             result.ToArray());
     }
 

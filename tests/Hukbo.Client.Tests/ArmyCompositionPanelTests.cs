@@ -33,12 +33,12 @@ public sealed class ArmyCompositionPanelTests
     [Fact]
     public void EveryCategoryIsOneRosterEntryOfTheActivePreset()
     {
-        // A category is a roster entry, not a weapon: preset V2 fields a solo
-        // and a shielded loadout for each one-handed weapon. Scenario
-        // validation requires RosterCounts to match the roster length exactly,
-        // so a mismatch here is a battle that refuses to start.
+        // A category is a roster entry: preset V4 fields exactly one loadout
+        // per rank, so a category and a rank coincide. Scenario validation
+        // requires RosterCounts to match the roster length exactly, so a
+        // mismatch here is a battle that refuses to start.
         var rosterLength = CombatPresetRegistry
-            .Get(CombatPresetId.PrecolonialPhilippinesV2)
+            .Get(CombatPresetId.PrecolonialPhilippinesV4)
             .Roster
             .Count;
 
@@ -50,31 +50,25 @@ public sealed class ArmyCompositionPanelTests
     }
 
     [Fact]
-    public void EveryCategoryLabelNamesItsWeaponAndItsGrip()
+    public void EveryCategoryLabelIsPairFormWithNoBareCulturalName()
     {
         var labels = ArmyCompositionPanel.CategoryLabels;
 
-        // Pair form throughout, so no label is a bare cultural name.
+        // Pair form throughout, so no label is a bare cultural name — CLAUDE.md
+        // section 7. An em dash separating a non-empty Filipino term from a
+        // non-empty English descriptor is what "pair form" means here; a bare
+        // name (no " — " at all, or nothing on either side of it) fails this.
         foreach (var label in labels)
         {
             Assert.Contains(" — ", label, StringComparison.Ordinal);
-        }
-
-        // A weapon that appears twice must say which of the two it is, or the
-        // spectator cannot tell the rows apart.
-        foreach (var group in labels.GroupBy(
-            label => label.Split(" (")[0],
-            StringComparer.Ordinal))
-        {
-            if (group.Count() == 1)
-            {
-                continue;
-            }
-
-            Assert.Contains(group, label => label.EndsWith("(solo)", StringComparison.Ordinal));
-            Assert.Contains(
-                group,
-                label => label.EndsWith("(shielded)", StringComparison.Ordinal));
+            var parts = label.Split(" — ", 2, StringSplitOptions.None);
+            Assert.Equal(2, parts.Length);
+            Assert.False(
+                string.IsNullOrWhiteSpace(parts[0]),
+                $"\"{label}\" has no cultural name before the em dash.");
+            Assert.False(
+                string.IsNullOrWhiteSpace(parts[1]),
+                $"\"{label}\" has no English descriptor after the em dash.");
         }
 
         Assert.Equal(
@@ -116,10 +110,13 @@ public sealed class ArmyCompositionPanelTests
     {
         // EveryLaidOutRowFitsInsideThePanel only checks vertical extents, so a
         // label that overruns its own box horizontally was invisible to the
-        // suite: at the shipped 420/260 metrics the longest category label,
-        // "Kalis — Thrusting Blade (shielded)", needed roughly 408px of a
-        // 128px label box. This test measures every row's label against its
-        // box directly so that overflow fails here instead of shipping.
+        // suite. The combined rank+weapon pair form was measured against the
+        // shipped 640px panel and only fit the Datu row; the other three rank
+        // labels fall back to the rank pair alone (see the remarks on
+        // ArmyCompositionPanel.CategoryLabels for the measured widths). This
+        // test measures every row's label against its box directly so any
+        // future label change that overruns its box fails here instead of
+        // shipping.
         var layout = ArmyCompositionPanel.CalculateLayout(
             new Rectangle(0, 0, 1280, 720),
             TestArmyCompositionLayout);

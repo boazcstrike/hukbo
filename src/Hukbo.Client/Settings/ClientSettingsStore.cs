@@ -24,16 +24,24 @@ internal sealed class ClientSettingsStore
     /// composition always overrides <see cref="ArmyComposition.Default"/>, so
     /// accepting the old file would silently keep the old army size. A second
     /// deliberate reset, recorded on <see cref="ArmyComposition"/>.
+    /// Raised again from 6 to 7 when the shipped default combat preset moved
+    /// to V4 and the composition's six roster-entry categories became four
+    /// rank categories. This behaves like the 2-to-3 and 5-to-6 bumps rather
+    /// than a field-adding bump: the shape changed and every field was
+    /// renamed, so an older file cannot be read forward under any
+    /// interpretation. A third deliberate reset, recorded on
+    /// <see cref="ArmyComposition"/>.
     /// </summary>
-    public const int SupportedSchemaVersion = 6;
+    public const int SupportedSchemaVersion = 7;
 
     /// <summary>
     /// Schema versions <see cref="Load"/> accepts without discarding the
     /// whole file. Only the current version qualifies. Versions 3, 4, and 5
     /// were accepted while the field-defaulting path was enough to read them
-    /// forward; the 5-to-6 default-composition change is not a field addition
-    /// and cannot be read forward, so every earlier version is now discarded
-    /// per the deliberate reset recorded on <see cref="ArmyComposition"/>.
+    /// forward; the 5-to-6 default-composition change and the 6-to-7
+    /// rank-category change are not field additions and cannot be read
+    /// forward, so every earlier version is discarded per the deliberate
+    /// resets recorded on <see cref="ArmyComposition"/>.
     /// </summary>
     private static readonly int[] AcceptedSchemaVersions =
         [SupportedSchemaVersion];

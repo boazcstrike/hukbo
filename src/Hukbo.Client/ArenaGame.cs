@@ -1118,16 +1118,36 @@ public sealed partial class ArenaGame : Game
         Settings.ArmyComposition composition) =>
         new(ToRosterCounts(composition), composition.UnitsPerTeam);
 
+    /// <summary>
+    /// Rebuilds the persisted, named-field <see cref="Settings.ArmyComposition"/>
+    /// from the panel's positional one. The panel's array is the source of
+    /// truth for the count; the four indices below exist only because the
+    /// settings record's fields are named per rank rather than array-shaped,
+    /// so the constructor call itself cannot be a loop. The guard is what
+    /// catches a roster-count change here loudly, in every configuration
+    /// including Release, instead of silently truncating or throwing an
+    /// index-out-of-range deep in a settings round-trip.
+    /// </summary>
     private static Settings.ArmyComposition ToSettingsComposition(
-        UI.ArmyComposition composition) =>
-        new(
+        UI.ArmyComposition composition)
+    {
+        if (composition.CategoryCounts.Length !=
+            Settings.ArmyComposition.CategoryCount)
+        {
+            throw new InvalidOperationException(
+                $"Panel composition has " +
+                $"{composition.CategoryCounts.Length} categories but " +
+                $"{nameof(Settings.ArmyComposition)} expects " +
+                $"{Settings.ArmyComposition.CategoryCount}.");
+        }
+
+        return new Settings.ArmyComposition(
             composition.UnitsPerTeam,
             composition.CategoryCounts[0],
             composition.CategoryCounts[1],
             composition.CategoryCounts[2],
-            composition.CategoryCounts[3],
-            composition.CategoryCounts[4],
-            composition.CategoryCounts[5]);
+            composition.CategoryCounts[3]);
+    }
 
     private static Scenario BuildScenario(
         ulong seed,

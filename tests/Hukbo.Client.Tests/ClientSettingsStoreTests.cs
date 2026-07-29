@@ -6,18 +6,15 @@ public sealed class ClientSettingsStoreTests
 {
     private static readonly ArmyComposition SampleComposition = new(
         UnitsPerTeam: 80,
-        KampilanCount: 30,
-        WasayCount: 10,
-        KalisSoloCount: 10,
-        KalisShieldedCount: 10,
-        ItakSoloCount: 10,
-        ItakShieldedCount: 10);
+        DatuCount: 30,
+        MaharlikaCount: 20,
+        TimawaCount: 20,
+        AlipingNamamahayCount: 10);
 
     private const string ValidCompositionJson =
-        "\"composition\":{\"unitsPerTeam\":80,\"kampilanCount\":20," +
-        "\"wasayCount\":20,\"kalisSoloCount\":20," +
-        "\"kalisShieldedCount\":20,\"itakSoloCount\":0," +
-        "\"itakShieldedCount\":0}";
+        "\"composition\":{\"unitsPerTeam\":80,\"datuCount\":20," +
+        "\"maharlikaCount\":20,\"timawaCount\":20," +
+        "\"alipingNamamahayCount\":20}";
 
     [Fact]
     public void MissingFileReturnsProvidedDefault()
@@ -116,9 +113,9 @@ public sealed class ClientSettingsStoreTests
                 "{\"schemaVersion\":" +
                 (ClientSettingsStore.SupportedSchemaVersion + 1) +
                 ",\"selectedThemeId\":\"signal\"," +
-                "\"composition\":{\"unitsPerTeam\":80,\"greatBladeCount\":20," +
-                "\"heavyChopperCount\":20,\"thrustingBladeCount\":20," +
-                "\"workBladeCount\":20}}");
+                "\"composition\":{\"unitsPerTeam\":80,\"datuCount\":20," +
+                "\"maharlikaCount\":20,\"timawaCount\":20," +
+                "\"alipingNamamahayCount\":20}}");
 
             var settings = store.Load("command");
 
@@ -302,15 +299,18 @@ public sealed class ClientSettingsStoreTests
     /// <summary>
     /// Versions 3, 4, and 5 were accepted while the store could read them
     /// forward by defaulting absent fields. The 500-unit default composition
-    /// cannot be read forward that way — a saved composition always overrides
-    /// the default — so every earlier version is discarded whole.
+    /// (version 6) and the four-rank composition shape (version 7) cannot be
+    /// read forward that way — a saved composition always overrides the
+    /// default, and version 6's field names do not even exist on the version
+    /// 7 record — so every earlier version is discarded whole.
     /// </summary>
     [Theory]
     [InlineData(2)]
     [InlineData(3)]
     [InlineData(4)]
     [InlineData(5)]
-    public void EverySchemaVersionBeforeSixIsDiscardedWhole(int schemaVersion)
+    [InlineData(6)]
+    public void EverySchemaVersionBeforeSevenIsDiscardedWhole(int schemaVersion)
     {
         WithTemporarySettings((store, settingsPath) =>
         {
@@ -390,9 +390,9 @@ public sealed class ClientSettingsStoreTests
                 "{\"schemaVersion\":" +
                 ClientSettingsStore.SupportedSchemaVersion +
                 ",\"selectedThemeId\":\"signal\"," +
-                "\"composition\":{\"unitsPerTeam\":100,\"greatBladeCount\":1," +
-                "\"heavyChopperCount\":1,\"thrustingBladeCount\":1," +
-                "\"workBladeCount\":1},\"goreIntensity\":2,\"motionIntensity\":0}");
+                "\"composition\":{\"unitsPerTeam\":100,\"datuCount\":1," +
+                "\"maharlikaCount\":1,\"timawaCount\":1," +
+                "\"alipingNamamahayCount\":1},\"goreIntensity\":2,\"motionIntensity\":0}");
 
             var settings = store.Load("command");
 
@@ -412,9 +412,9 @@ public sealed class ClientSettingsStoreTests
             File.WriteAllText(
                 settingsPath,
                 "{\"schemaVersion\":2,\"selectedThemeId\":\"signal\"," +
-                "\"composition\":{\"unitsPerTeam\":100,\"greatBladeCount\":10," +
-                "\"heavyChopperCount\":10,\"thrustingBladeCount\":10," +
-                "\"workBladeCount\":10}}");
+                "\"composition\":{\"unitsPerTeam\":100,\"datuCount\":10," +
+                "\"maharlikaCount\":10,\"timawaCount\":10," +
+                "\"alipingNamamahayCount\":10}}");
 
             var settings = store.Load("command");
 
