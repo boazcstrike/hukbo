@@ -202,12 +202,12 @@ $defaultPrompts = @{
     # -PromptInfluence 0.5 rather than the 0.4 default, because the negative
     # is the whole point of the slot.
     'clash-shield-kampilan' = @{
-        Prompt   = 'one heavy two-handed blade slamming flat into a large light wooden shield, deep hollow board thud with a shallow woody bite in front of it, dry rattan-bound plank, dry packed earth, open air, very short, no ring, no metal, no reverb, no music, no voice'
+        Prompt   = 'one heavy two-handed blade slamming hard into a large light wooden shield, loud close impact, deep board thud with a sharp woody bite in front of it, dry rattan-bound plank, dry packed earth, open air, very short, no ring, no metal, no reverb, no music, no voice'
         Duration = 0.5
         Trim     = $true
     }
     'clash-shield-wasay'    = @{
-        Prompt   = 'one heavy axe head crashing into a large light wooden shield, blunt low crack with splitting wood fibres, dull dry plank break, dry packed earth, open air, very short, no ring, no metal, no reverb, no music, no voice'
+        Prompt   = 'one heavy axe head slamming hard into a large light wooden shield, loud close impact, sharp blunt crack with splitting wood fibres, dry plank break, dry packed earth, open air, very short, no ring, no metal, no reverb, no music, no voice'
         Duration = 0.5
         Trim     = $true
     }
