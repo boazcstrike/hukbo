@@ -248,8 +248,13 @@ public sealed class ArmyCompositionStepperTests
     {
         var result = ArmyCompositionStepper.DistributeEvenly(500);
 
+        // Four rank categories, not the six weapon-and-grip categories this
+        // test was written against: 500 divides by four exactly, so there is
+        // no remainder to hand to the earliest categories and every rank
+        // fields the same count. The sum, which is what this test is named
+        // for, is unchanged.
         Assert.Equal(
-            new[] { 84, 84, 83, 83, 83, 83 },
+            new[] { 125, 125, 125, 125 },
             result.ToArray());
         Assert.Equal(500, result.Sum());
     }

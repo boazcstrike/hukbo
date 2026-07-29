@@ -206,7 +206,8 @@ internal static class PawnRenderer
             torsoResolutionStep,
             log,
             contingentId,
-            contingentState);
+            contingentState,
+            isLeader);
     }
 
     /// <summary>
@@ -243,7 +244,8 @@ internal static class PawnRenderer
         VisualFallbackStep torsoResolutionStep = VisualFallbackStep.ModelCategoryDefault,
         DiagnosticLog? log = null,
         int contingentId = 0,
-        ContingentState contingentState = ContingentState.None)
+        ContingentState contingentState = ContingentState.None,
+        bool isLeader = false)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(pixel);
