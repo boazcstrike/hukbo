@@ -385,6 +385,32 @@ almost certainly read as a false GO, because the conflated span is large at
 every 500-unit station. The trigger may only be evaluated against a measurement
 taken after GPU-004 lands.
 
+### 4.1a VERDICT, 2026-07-29: NO-GO. Phase 3 is not built.
+
+GPU-023 ran the trigger at 1 000 units, default fit, seed 1, Release, retrace
+disabled, after every Phase 2 task landed. Artifact:
+`docs/development/render-baselines/render-matrix-phase2-2026-07-29.json`. Full
+tables and reasoning in `docs/development/testing.md`.
+
+- **Clause 1 — budget missed?** Frame `Draw` p95 is **3 276.6 us (3.28 ms)**
+  against a threshold of 8.0 ms. The budget is met with 4.7 ms to spare.
+  **FAILS.**
+- **Clause 2 — overrun in submission?** `submitMicroseconds` p95 is **766.7 us,
+  23.4 percent** of frame p95, against a threshold of 50 percent. **FAILS** as
+  reported. Recorded against the verdict: excluding the probe's own counting
+  pass, which never runs in a real game frame, submission is 56.8 percent of a
+  1 349.3 us net frame, which would satisfy clause 2. Clause 1 fails under both
+  readings, and more decisively under the probe-free one.
+
+Both clauses are required. **The verdict is NO-GO.** GPU-024 through GPU-038 are
+not started, and section 4.2 below governs from here.
+
+Three earlier states of the instrument would each have returned a false GO: the
+conflated span read submission at 65.4 percent, retrace contamination pinned
+frames near 5.3 ms with 7x run-to-run variance, and probe overhead inflated the
+denominator. Refusing to evaluate the trigger before GPU-004 landed is what
+prevented the wrong answer.
+
 ### 4.2 What happens on a no-go
 
 If either clause fails, **Phase 3 is not built**, and GPU-024 through GPU-038

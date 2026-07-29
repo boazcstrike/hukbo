@@ -366,6 +366,100 @@ agent geometry construction, which is what Phase 2 targets, is the larger cost
 at the heaviest station. That is the design's thesis, and this is the first
 measurement in this repository that actually tests it.
 
+### Phase 2 re-measurement and the go/no-go verdict, 2026-07-29
+
+GPU-023. Hand-run, not delegated. Produced by `tools/Hukbo.Tools.RenderProbe`
+in `--matrix` mode, seed 1, 120 frames per station after warm-up, Release,
+vertical retrace disabled, after every Phase 2 task landed and after
+`origin/main` was merged. Artifact:
+`docs/development/render-baselines/render-matrix-phase2-2026-07-29.json`,
+tracked so a fresh clone can open it.
+
+All figures in microseconds unless stated.
+
+| Agents | Station | frame p50 | frame p95 | arenaGeom p50 | submit p50 | submit p95 | probeOvh p50 | pawnGeomCalls |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 200 | minimum zoom | 1 566.6 | 1 856.6 | 221.5 | 517.4 | 662.3 | 598.2 | 400 |
+| 200 | default fit | 1 505.7 | 1 749.7 | 216.2 | 477.2 | 571.4 | 581.0 | 400 |
+| 200 | maximum zoom | 747.4 | 882.8 | 80.5 | 62.1 | 77.3 | 379.4 | 400 |
+| 500 | minimum zoom | 3 182.4 | 3 595.4 | 509.0 | 1 044.6 | 1 206.0 | 1 387.0 | 1 000 |
+| 500 | default fit | 2 662.6 | 2 978.0 | 444.4 | 782.4 | 920.8 | 1 210.9 | 1 000 |
+| 500 | maximum zoom | 1 286.0 | 1 458.6 | 191.1 | 59.1 | 77.1 | 794.5 | 1 000 |
+| 1 000 | minimum zoom | 4 119.2 | 4 511.5 | 691.8 | 1 024.8 | 1 194.5 | 2 096.9 | 2 000 |
+| 1 000 | default fit | 2 835.6 | 3 276.6 | 234.9 | 635.8 | 766.7 | 1 731.5 | 2 000 |
+| 1 000 | maximum zoom | 1 518.9 | 1 748.1 | 97.8 | 29.6 | 45.8 | 1 148.7 | 2 000 |
+
+#### The verdict: NO-GO
+
+The trigger is evaluated at 1 000 units, default fit, the station it names.
+
+**Clause 1 — the budget is missed.** Requires frame `Draw` p95 above 8.0 ms.
+Measured: **3 276.6 us, or 3.28 ms**. The budget is not missed; it is met with
+4.7 milliseconds to spare. **Clause 1 fails.**
+
+**Clause 2 — the overrun is in the submission path.** Requires
+`submitMicroseconds` p95 to be at least 50 percent of frame p95. Measured:
+**766.7 us against 3 276.6 us, or 23.4 percent. Clause 2 fails** on the figure
+as reported.
+
+Clause 2 deserves one honest qualification, recorded because it cuts against the
+verdict rather than for it. Frame p95 still contains the probe's own counting
+pass, which is 1 927.3 us at p95 and never runs in a real game frame. Excluding
+it gives a net frame of 1 349.3 us, against which submission is **56.8 percent**
+— which would satisfy clause 2. So clause 2's outcome depends on whether the
+denominator includes the instrument. Clause 1's does not: on the probe-free
+reading the frame is 1.35 ms, further below the 8.0 ms threshold, not closer to
+it.
+
+**Phase 3 is authorized if and only if both clauses hold. Clause 1 fails under
+every reading. The verdict is NO-GO.** Per section 4.2 of the task list, Phase 3
+is not built and GPU-024 through GPU-038 are never started.
+
+#### Why this is the right answer rather than a disappointing one
+
+The renderer is comfortably inside budget at the target army size. A 1 000-unit
+battle at the shipping camera draws in 3.28 ms at p95 against a 16.67 ms frame,
+leaving room for the simulation alongside it. Building an instanced backend
+would have been a large, risky rewrite of the submission path to fix an overrun
+that does not exist.
+
+It is worth recording what the answer would have been at each earlier stage of
+this work, because every one of them pointed the other way:
+
+- Against the original conflated `submitMicroseconds` span, measured with
+  vertical retrace enabled, submission read as 65.4 percent of frame at 500
+  units. Clause 2 would have fired.
+- After GPU-004 disaggregated that span but before GPU-006 disabled retrace,
+  frame times were pinned near 5.3 ms regardless of load and varied 7x between
+  identical runs, so any threshold comparison was meaningless.
+- After GPU-005 removed probe overhead from the geometry figure, submission at
+  200 units read 41.8 percent — closer to the truth and still not the number the
+  trigger asks for, because it was taken at the wrong army size.
+
+Three independent instrument defects each pointed toward authorizing the
+rewrite. The phased structure, and specifically the refusal to evaluate the
+trigger before GPU-004 landed, is what prevented a false GO.
+
+#### What Phase 2 changed, and what cannot be attributed to it
+
+`pawnGeometryInvocationsMaximum` at 1 000 units fell from 4 000 to 2 000 at every
+station. Redundancy R1 is gone: each visible pawn now pays one layout
+construction per pass instead of two. The appearance cache reports a p50 hit rate
+of 1.000 with zero misses at every cell, so `PawnAppearanceFactory.Create` no
+longer runs per agent per frame.
+
+Those two are structural facts and hold regardless of timing noise. The timing
+improvement, however, **cannot be attributed to Phase 2**. `origin/main` was
+merged before this measurement, changing collision resolution and movement, which
+moved the seed-1 determinism baseline and therefore agent positions, death timing
+and drawn quad counts. The Phase 1 baseline was captured on the earlier
+behaviour. Comparing the two tables would measure Phase 2 and main's simulation
+work together, with no way to separate them. That comparison is not made here,
+and anybody tempted to make it later should read this paragraph first.
+
+The verdict does not depend on that comparison. Both clauses are absolute
+thresholds evaluated against the tree as it stands.
+
 ### Original blocked assessment, preserved
 
 Implementation-plan-draft.md's VIS-036 calls
