@@ -66,6 +66,20 @@ public sealed class BattleSimulation
     private readonly int[] _factionLivingCounts;
     private readonly ulong[] _factionRallyEntityIds;
 
+    // Equipment-relative local-context scratch (weapon-relative movement
+    // design, section 7). One row per scenario agent, allocated once here,
+    // cleared and overwritten every tick by SelectTargetsAndIntents, and
+    // never hashed, never snapshotted, never grown. Sized zero under every
+    // legacy preset so a V1-through-V5 battle carries no per-agent context
+    // storage at all. The per-faction surviving compositions are the two
+    // fixed faction slots of design section 7.5, derived in the same
+    // pre-movement stage and equally scratch. The derivation counter is
+    // observability only — the test seam proving legacy presets never invoke
+    // context accumulation — and is never read by any simulation stage.
+    private readonly LocalMovementContext[] _localMovementContexts;
+    private readonly LoadoutCompositionCounts[] _factionSurvivingCompositions;
+    private long _localMovementContextDerivations;
+
     // Double-buffered event storage: each tick writes into whichever of these
     // two lists is not currently exposed through _lastEvents, so a caller
     // that retains one tick's LastEvents value keeps seeing that tick's data,
@@ -105,6 +119,10 @@ public sealed class BattleSimulation
         _collision = new CollisionScratch(scenario, agents.Length);
         _factionLivingCounts = new int[2];
         _factionRallyEntityIds = new ulong[2];
+        _localMovementContexts = _movementRules.UsesEquipmentRelativeFootwork
+            ? new LocalMovementContext[agents.Length]
+            : [];
+        _factionSurvivingCompositions = new LoadoutCompositionCounts[2];
         _eventBufferA = new List<BattleEvent>(agents.Length * 2);
         _eventBufferB = new List<BattleEvent>(agents.Length * 2);
         _eventViewA = new ReadOnlyCollection<BattleEvent>(_eventBufferA);
@@ -166,6 +184,44 @@ public sealed class BattleSimulation
     /// only: never hashed, never snapshotted, never persisted.
     /// </summary>
     internal CollisionTickMetrics LastTickCollision => _lastTickCollision;
+
+    /// <summary>
+    /// The number of per-agent local-context derivations performed since the
+    /// battle started. Observability only — the test seam proving legacy
+    /// presets never invoke the V6 context accumulation — and never read by
+    /// any simulation stage.
+    /// </summary>
+    internal long LocalMovementContextDerivationsForTesting =>
+        _localMovementContextDerivations;
+
+    /// <summary>
+    /// The local movement context derived for one agent by the tick just
+    /// completed, for tests comparing the production observation against the
+    /// naive oracle. Derived scratch: never hashed, never snapshotted, never
+    /// persisted. Throws under a preset without equipment-relative footwork,
+    /// which derives no context at all.
+    /// </summary>
+    internal LocalMovementContext LocalMovementContextForTesting(
+        ulong entityId)
+    {
+        if (!_movementRules.UsesEquipmentRelativeFootwork)
+        {
+            throw new InvalidOperationException(
+                "No local movement context is derived under movement preset " +
+                $"{_movementRules.Id}.");
+        }
+
+        return _localMovementContexts[_agentIndexes[entityId]];
+    }
+
+    /// <summary>
+    /// The global surviving composition of one faction as derived by the
+    /// tick just completed (weapon-relative movement design, section 7.5).
+    /// Derived scratch: never hashed, never snapshotted, never persisted,
+    /// and all-zero under a preset without equipment-relative footwork.
+    /// </summary>
+    internal LoadoutCompositionCounts SurvivingCompositionForTesting(
+        int factionId) => _factionSurvivingCompositions[factionId];
 
     /// <summary>
     /// Derived attack-resolution counters for the tick just completed.
@@ -702,13 +758,56 @@ public sealed class BattleSimulation
     {
         ComputeRallyAgents();
 
-        foreach (var agent in _agentStates)
+        // Equipment-relative local context (weapon-relative movement design,
+        // section 7) is derived inside this same observation, fused into the
+        // candidate loop below, only under a preset that opts in. Both radii
+        // are materialized once per call through the section 4.4 arithmetic;
+        // the body radius is scenario-wide, so they are identical for every
+        // actor.
+        var derivesLocalContext = _movementRules.UsesEquipmentRelativeFootwork;
+        Int128 immediateRadiusSquared = 0;
+        Int128 supportRadiusSquared = 0;
+        if (derivesLocalContext)
         {
+            immediateRadiusSquared = MovementContextQuery.SquaredContextRadius(
+                MovementContextQuery.ContextRadiusRaw(
+                    Scenario.BodyRadiusRaw,
+                    _movementRules.ImmediateRadiusBodyDiametersBasisPoints));
+            supportRadiusSquared = MovementContextQuery.SquaredContextRadius(
+                MovementContextQuery.ContextRadiusRaw(
+                    Scenario.BodyRadiusRaw,
+                    _movementRules.SupportRadiusBodyDiametersBasisPoints));
+            _factionSurvivingCompositions[0] = default;
+            _factionSurvivingCompositions[1] = default;
+        }
+
+        for (var agentIndex = 0; agentIndex < _agentStates.Length; agentIndex++)
+        {
+            var agent = _agentStates[agentIndex];
             if (!agent.IsAlive)
             {
                 agent.TargetEntityId = null;
                 agent.Intent = AgentIntent.Dead;
+                if (derivesLocalContext)
+                {
+                    // Dead agents count nowhere and carry no context; clear
+                    // the row so a stale value from the tick this agent died
+                    // on can never be read back.
+                    _localMovementContexts[agentIndex] = default;
+                }
+
                 continue;
+            }
+
+            var contextAccumulator = derivesLocalContext
+                ? new MovementContextAccumulator(
+                    agent.Loadout, immediateRadiusSquared, supportRadiusSquared)
+                : default;
+            if (derivesLocalContext)
+            {
+                _factionSurvivingCompositions[agent.FactionId] =
+                    _factionSurvivingCompositions[agent.FactionId]
+                        .Add(agent.Loadout);
             }
 
             AgentState? selectedTarget = null;
@@ -720,6 +819,27 @@ public sealed class BattleSimulation
             {
                 if (!candidate.IsAlive || candidate.FactionId == agent.FactionId)
                 {
+                    // A living candidate can only land here as a same-faction
+                    // one, so this V6-only branch observes exactly the living
+                    // allies. Allies never reach the perception test below —
+                    // the observation never perceives them at all — so their
+                    // deltas are computed here, on the actor's own dime, and
+                    // target selection reads nothing this accumulation
+                    // writes.
+                    if (derivesLocalContext &&
+                        candidate.IsAlive &&
+                        candidate.EntityId != agent.EntityId)
+                    {
+                        var allyDeltaX = (long)candidate.XRaw - agent.XRaw;
+                        var allyDeltaY = (long)candidate.YRaw - agent.YRaw;
+                        contextAccumulator.ObserveAlly(
+                            candidate.EntityId,
+                            candidate.Loadout,
+                            checked(
+                                (allyDeltaX * allyDeltaX) +
+                                (allyDeltaY * allyDeltaY)));
+                    }
+
                     continue;
                 }
 
@@ -751,6 +871,19 @@ public sealed class BattleSimulation
                     continue;
                 }
 
+                // The V6 context hook of design section 7.3: after the
+                // perception test passes, before the comparison block, so
+                // the already-computed squared distance is reused and only
+                // perceivable enemies are ever observed. The comparison
+                // block below reads only distance, selectedDistance, and
+                // candidate.EntityId, so nothing written here can affect
+                // tie-breaking, and target selection stays byte-identical.
+                if (derivesLocalContext)
+                {
+                    contextAccumulator.ObserveEnemy(
+                        candidate.EntityId, candidate.Loadout, distance);
+                }
+
                 if (distance < selectedDistance ||
                     (distance == selectedDistance &&
                         (selectedTarget is null ||
@@ -762,6 +895,14 @@ public sealed class BattleSimulation
             }
 
             agent.TargetEntityId = selectedTarget?.EntityId;
+            if (derivesLocalContext)
+            {
+                _localMovementContexts[agentIndex] =
+                    contextAccumulator.Complete(selectedTarget?.EntityId);
+                _localMovementContextDerivations = checked(
+                    _localMovementContextDerivations + 1);
+            }
+
             if (selectedTarget is null)
             {
                 agent.Intent = AgentIntent.Idle;
