@@ -508,7 +508,16 @@ public sealed class MovementContextObservationTests
     [Fact]
     public void TargetSelectionOnTickOneIsIdenticalUnderV4AndV6()
     {
-        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 40);
+        // A uniform roster: the design section 12 deployment assignment is
+        // the exact identity when every warrior resolves the same ally
+        // clearance, so both presets open on byte-identical spawns and any
+        // targeting difference could only come from the context hook this
+        // test polices. A mixed roster would move V6 warriors to different
+        // slots on purpose and prove nothing about targeting.
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 40) with
+        {
+            RosterCounts = [0, 20, 0, 0],
+        };
         var legacy = BattleSimulation.Create(scenario with
         {
             MovementPreset = MovementPresetId.PersistentContingentsV4,

@@ -308,13 +308,49 @@ public sealed class BattleSimulation
             ? ImmutableArray<int>.Empty
             : RosterCountExpansion.Expand(scenario.RosterCounts);
 
+        // One resolution rule serves the spawn loops and the V6 deployment
+        // assignment below, so the assignment can never rank a warrior by
+        // one loadout and spawn it with another.
+        CombatLoadout ResolveSpawnLoadout(ulong entityId, int localIndex) =>
+            rosterCountsAreEmpty
+                ? rules.ResolveLoadout(entityId)
+                : rules.Roster[expandedRosterIndices[localIndex]];
+
+        // V6 alone reassigns warriors across the slots already planned
+        // above (weapon-relative movement design, section 12). The
+        // permutation is a pure function of the deployment and the resolved
+        // loadouts — `random` is not consulted, so the SplitMix64 stream is
+        // exactly what the planner left it — and it ranks the canonical,
+        // unmirrored slots before the faction-1 mirror below, each faction
+        // pairing its own loadouts against that same canonical ranking, so
+        // equal faction-local loadout multisets keep the exact mirror.
+        var faction0Deployment = deployment;
+        var faction1Deployment = deployment;
+        var movement = MovementPresetRegistry.Get(scenario.MovementPreset);
+        if (movement.UsesEquipmentRelativeFootwork)
+        {
+            var faction0Loadouts = new CombatLoadout[scenario.AgentsPerFaction];
+            var faction1Loadouts = new CombatLoadout[scenario.AgentsPerFaction];
+            for (var index = 0; index < scenario.AgentsPerFaction; index++)
+            {
+                faction0Loadouts[index] = ResolveSpawnLoadout(
+                    checked((ulong)index + 1), index);
+                faction1Loadouts[index] = ResolveSpawnLoadout(
+                    checked((ulong)(scenario.AgentsPerFaction + index) + 1),
+                    index);
+            }
+
+            faction0Deployment = EquipmentDeploymentAssignment.AssignForFaction(
+                deployment, faction0Loadouts, movement);
+            faction1Deployment = EquipmentDeploymentAssignment.AssignForFaction(
+                deployment, faction1Loadouts, movement);
+        }
+
         for (var index = 0; index < scenario.AgentsPerFaction; index++)
         {
             var entityId = checked((ulong)index + 1);
-            var loadout = rosterCountsAreEmpty
-                ? rules.ResolveLoadout(entityId)
-                : rules.Roster[expandedRosterIndices[index]];
-            var (xRaw, yRaw, contingentId) = deployment[index];
+            var loadout = ResolveSpawnLoadout(entityId, index);
+            var (xRaw, yRaw, contingentId) = faction0Deployment[index];
             agents[index] = CreateAgent(
                 entityId,
                 factionId: 0,
@@ -328,7 +364,7 @@ public sealed class BattleSimulation
 
         for (var index = 0; index < scenario.AgentsPerFaction; index++)
         {
-            var (leftXRaw, leftYRaw, contingentId) = deployment[index];
+            var (leftXRaw, leftYRaw, contingentId) = faction1Deployment[index];
             var rightX = checked(mapWidthRaw - leftXRaw);
             var rightY = leftYRaw;
             var stateIndex = scenario.AgentsPerFaction + index;
@@ -340,9 +376,7 @@ public sealed class BattleSimulation
             // The same reasoning applies to contingentId, mirrored from the
             // one deployment plan alongside the position: it is the
             // faction-local dealing index, not a value tied to faction 0.
-            var loadout = rosterCountsAreEmpty
-                ? rules.ResolveLoadout(entityId)
-                : rules.Roster[expandedRosterIndices[index]];
+            var loadout = ResolveSpawnLoadout(entityId, index);
             agents[stateIndex] = CreateAgent(
                 entityId,
                 factionId: 1,
