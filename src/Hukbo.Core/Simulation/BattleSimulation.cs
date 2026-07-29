@@ -2457,34 +2457,8 @@ public sealed class BattleSimulation
         return checked((deltaX * deltaX) + (deltaY * deltaY));
     }
 
-    private static long IntegerSquareRoot(long value)
-    {
-        var remainder = checked((ulong)value);
-        ulong root = 0;
-        var bit = 1UL << 62;
-
-        while (bit > remainder)
-        {
-            bit >>= 2;
-        }
-
-        while (bit != 0)
-        {
-            if (remainder >= root + bit)
-            {
-                remainder -= root + bit;
-                root = (root >> 1) + bit;
-            }
-            else
-            {
-                root >>= 1;
-            }
-
-            bit >>= 2;
-        }
-
-        return checked((long)root);
-    }
+    private static long IntegerSquareRoot(long value) =>
+        FixedPoint.IntegerSquareRoot(value);
 
     private void AddEvent(
         List<BattleEvent> events,
