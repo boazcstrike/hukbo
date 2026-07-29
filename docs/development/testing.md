@@ -259,6 +259,52 @@ Assessed against section 5.1 of `docs/plans/gpu-render/2026-07-28-gpu-render.md`
 reports state hash `A080E28DA7C79C20`, event hash `2B6FB3A9A9C1960D`,
 `measuredTicks` 1677 and `coreAllocatedBytes` 118896, unchanged.
 
+#### The seed-1 determinism baseline moved on 2026-07-29
+
+Merging `origin/main` into `gpu-render` changed the seed-1 headless result. This
+is recorded here because many rows above quote the previous figures, and those
+rows remain accurate as history of what was measured when they were written.
+They are not the current contract.
+
+| | before the merge | after the merge |
+| --- | --- | --- |
+| `stateHash` | `A080E28DA7C79C20` | `2410DD94F26C82E2` |
+| `eventHash` | `2B6FB3A9A9C1960D` | `56F66BBC10E69F0E` |
+| `measuredTicks` | 1 677 | 1 279 |
+| `coreAllocatedBytes` | 118 896 | 154 976 |
+
+`deterministic` remains `true` and `firstMismatchTick` remains `null`. The
+simulation is not less deterministic; it behaves differently, because `main`
+landed collision-resolver, movement-preset, and contingent work.
+
+The change was confirmed to originate entirely in `main` rather than in the
+merge resolution. A pristine worktree checked out at `origin/main`, with no
+`gpu-render` commits present at all, runs the same seed-1 workload and reports
+exactly `2410DD94F26C82E2`, `56F66BBC10E69F0E`, 1 279 and 154 976. The merge
+resolution touched only `ArenaGame.Rendering.cs` and `PawnRenderer.cs`, neither
+of which `Hukbo.Headless` references, so it could not have moved a hash — and
+this measurement confirms it did not.
+
+**One defect this surfaced in `main`'s own records.** The table at the 200-agent
+row above, and the paragraph beneath it, still state that the recorded seed-1
+baseline is `A080E28DA7C79C20` at 1 677 ticks. `main`'s current code does not
+produce that. Those statements were true when written and are stale now; they
+belong to whoever owns the movement workstream to refresh, and are called out
+here rather than silently rewritten, because rewriting another workstream's
+recorded measurements would destroy the evidence trail they were written to
+provide.
+
+**Consequence for this plan.** The Phase 1 render baseline recorded earlier in
+this document was captured before the merge, on different simulation behaviour.
+Agent positions, death timing and therefore drawn quad counts all differ now, so
+the before-and-after comparison Phase 2 was going to be judged on is confounded
+and cannot be recovered. What is *not* affected is the Phase 3 go/no-go trigger
+itself: both of its clauses are absolute thresholds — frame p95 against 8.0
+milliseconds, and submission against 50 percent of that frame — so they are
+evaluated against the tree as it stands and need no baseline to compare with.
+GPU-023 can therefore still return a valid verdict. What it can no longer do is
+demonstrate how much of the improvement Phase 2 is responsible for.
+
 #### GPU-021: the hover-selection span, measured, and the decision not to act
 
 GPU-021 is measurement-led. It asks whether `UpdateHoverSelection`'s full-agent
