@@ -1,4 +1,5 @@
 using Hukbo.Core.Combat;
+using Hukbo.Core.Movement;
 
 namespace Hukbo.Core.Simulation;
 
@@ -147,6 +148,59 @@ internal sealed class AgentState
     /// stage, authoritative, and included in the state hash.
     /// </summary>
     internal MovementResolution MovementResolution { get; set; }
+
+    /// <summary>
+    /// This warrior's 16-sector facing under a movement preset whose
+    /// <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/> is
+    /// <see langword="true"/>: initialised at spawn — <see cref="Facing16.East"/>
+    /// for faction 0, <see cref="Facing16.West"/> for faction 1 — then
+    /// turned per the weapon-relative movement design, section 6. Every
+    /// other preset leaves it at <see cref="Facing16.None"/> forever, and
+    /// the explicit initializer is load-bearing because
+    /// <see cref="Facing16"/>'s default numeric value is
+    /// <see cref="Facing16.East"/>, not <see cref="Facing16.None"/>. A
+    /// corpse retains its final facing as readable spectator information.
+    /// The five properties from here to
+    /// <see cref="FootworkTicksRemaining"/> are declared in the V6
+    /// state-hash fold order (design section 14.1), frozen once the V6
+    /// digest ships.
+    /// </summary>
+    internal Facing16 Facing { get; set; } = Facing16.None;
+
+    /// <summary>
+    /// The retained scalar pace of the weapon-relative movement design,
+    /// section 6.5, in raw distance per tick. <c>0</c> forever under every
+    /// preset that does not use equipment-relative footwork, and cleared to
+    /// <c>0</c> by death cleanup.
+    /// </summary>
+    internal int MovementPaceRaw { get; set; }
+
+    /// <summary>
+    /// The contingent-level stance written on every living member each tick
+    /// by the posture stage of the weapon-relative movement design, section
+    /// 8. <see cref="Movement.TacticalPosture.None"/> forever under every
+    /// preset that does not use equipment-relative footwork, and cleared by
+    /// death cleanup.
+    /// </summary>
+    internal TacticalPosture TacticalPosture { get; set; }
+
+    /// <summary>
+    /// The footwork lifecycle phase written exactly once per tick, after
+    /// the two-step finalisation of the weapon-relative movement design,
+    /// section 9.4. <see cref="Movement.FootworkPhase.None"/> forever under
+    /// every preset that does not use equipment-relative footwork, and
+    /// cleared by death cleanup.
+    /// </summary>
+    internal FootworkPhase FootworkPhase { get; set; }
+
+    /// <summary>
+    /// The <see cref="Movement.FootworkPhase.Commit"/> /
+    /// <see cref="Movement.FootworkPhase.Recover"/> timer, counting the
+    /// current tick per design section 9.5. <c>0</c> outside those phases,
+    /// <c>0</c> forever under every preset that does not use
+    /// equipment-relative footwork, and cleared by death cleanup.
+    /// </summary>
+    internal int FootworkTicksRemaining { get; set; }
 
     internal bool IsAlive => HitPoints > 0;
 
