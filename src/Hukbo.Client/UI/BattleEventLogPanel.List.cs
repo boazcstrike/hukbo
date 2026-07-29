@@ -11,9 +11,13 @@ namespace Hukbo.Client.UI;
 /// </summary>
 internal sealed partial class BattleEventLogPanel
 {
+    // ScenarioSeed joins the cache key because the actor label now carries a
+    // warrior name derived from it: a new match reuses this cache's rows only
+    // when the seed behind those names is still the same one.
     private readonly record struct FormattedEvent(
         BattleEvent BattleEvent,
         int RowWidth,
+        ulong ScenarioSeed,
         string Tick,
         string Actor,
         string Action);
@@ -179,7 +183,8 @@ internal sealed partial class BattleEventLogPanel
             battleEvent,
             rowBounds,
             isSelected,
-            index == hoveredIndex);
+            index == hoveredIndex,
+            feed.ScenarioSeed);
     }
 
     private void DrawRowText(
@@ -189,11 +194,13 @@ internal sealed partial class BattleEventLogPanel
         BattleEvent battleEvent,
         Rectangle rowBounds,
         bool isSelected,
-        bool isHovered)
+        bool isHovered,
+        ulong scenarioSeed)
     {
         var formatted = GetFormattedRow(
             battleEvent,
-            Math.Max(8, rowBounds.Width));
+            Math.Max(8, rowBounds.Width),
+            scenarioSeed);
         var foregrounds = GetRowForegrounds(
             theme,
             isSelected,
@@ -282,13 +289,15 @@ internal sealed partial class BattleEventLogPanel
 
     private FormattedEvent GetFormattedRow(
         BattleEvent battleEvent,
-        int rowWidth)
+        int rowWidth,
+        ulong scenarioSeed)
     {
         for (var index = 0; index < _formattedRows.Count; index++)
         {
             var formattedRow = _formattedRows[index];
             if (formattedRow.BattleEvent == battleEvent &&
-                formattedRow.RowWidth == rowWidth)
+                formattedRow.RowWidth == rowWidth &&
+                formattedRow.ScenarioSeed == scenarioSeed)
             {
                 return formattedRow;
             }
@@ -308,9 +317,10 @@ internal sealed partial class BattleEventLogPanel
         var formatted = new FormattedEvent(
             battleEvent,
             rowWidth,
+            scenarioSeed,
             $"T{battleEvent.Tick:00000}",
             ClipLabel(
-                BattleEventFormatter.GetActorLabel(battleEvent),
+                BattleEventFormatter.GetRowActorLabel(battleEvent, scenarioSeed),
                 actorCharacters),
             ClipLabel(
                 BattleEventFormatter.GetActionLabel(battleEvent),

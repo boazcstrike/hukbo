@@ -23,6 +23,17 @@ internal sealed class BattleEventFeed
         _readOnlyFilteredEntries = _filteredEntries.AsReadOnly();
     }
 
+    /// <summary>
+    /// The current match's <c>Scenario.Seed</c>, which the feed holds only so
+    /// that its text filter searches the same warrior names the panel draws.
+    /// Zero until the first <see cref="SetScenarioSeed"/> call, which
+    /// <c>ArenaGame</c> makes whenever it builds a scenario.
+    /// </summary>
+    public ulong ScenarioSeed { get; private set; }
+
+    public void SetScenarioSeed(ulong scenarioSeed) =>
+        ScenarioSeed = scenarioSeed;
+
     public IReadOnlyList<BattleEvent> Entries => _readOnlyEntries;
 
     public IReadOnlyList<BattleEvent> FilteredEntries =>
@@ -411,11 +422,22 @@ internal sealed class BattleEventFeed
         // guarantee all three are always set for an Attack event, so TryFormat
         // returning false here is defense-in-depth against that invariant, not
         // a reachable path with today's Core.
-        return TryFormat(battleEvent, out var formatted) &&
-            formatted.Contains(searchTerm, StringComparison.OrdinalIgnoreCase);
+        return TryBuildSearchText(battleEvent, ScenarioSeed, out var searchText) &&
+            searchText.Contains(searchTerm, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool TryFormat(BattleEvent battleEvent, out string formatted)
+    /// <summary>
+    /// The text one event is matched against: the line the panel draws, then
+    /// the faction-and-identifier form of the same actor. The second half
+    /// exists because the drawn line now reads <c>Blue Salonga #7</c>, so a
+    /// spectator typing the older <c>blue #7</c> would otherwise match
+    /// nothing — the two tokens are no longer adjacent. Searching both keeps
+    /// name queries and identifier queries working at once.
+    /// </summary>
+    private static bool TryBuildSearchText(
+        BattleEvent battleEvent,
+        ulong scenarioSeed,
+        out string formatted)
     {
         // The resolution joins the guard because the formatter now
         // dereferences it too. A record struct always exposes an implicit
@@ -430,7 +452,11 @@ internal sealed class BattleEventFeed
             return false;
         }
 
-        formatted = BattleEventFormatter.Format(battleEvent);
+        formatted = BattleEventFormatter.Format(battleEvent, scenarioSeed) +
+            "  " +
+            BattleEventFormatter.GetFactionLabel(battleEvent.FactionId) +
+            " #" +
+            battleEvent.SourceEntityId;
         return true;
     }
 }

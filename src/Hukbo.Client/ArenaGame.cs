@@ -274,6 +274,7 @@ public sealed partial class ArenaGame : Game
             _scenario.Seed,
             _scenario.MapWidth,
             _scenario.MapHeight);
+        _presentation.EventFeed.SetScenarioSeed(_scenario.Seed);
 
         LogScenarioBuilt("startup");
     }
@@ -1375,6 +1376,7 @@ public sealed partial class ArenaGame : Game
             _scenario.MapHeight);
         LogScenarioBuilt(resetCommand.ToString());
         _presentation.ResetFor(resetCommand);
+        _presentation.EventFeed.SetScenarioSeed(_scenario.Seed);
         _soundDirector.Clear();
         _hoverSelection.Clear();
         _simulationAccumulator = 0;
