@@ -4144,7 +4144,7 @@ human at the default camera fit is exactly what T10's reset of rows 104 and
 
 ### Shield-clash audio smoke
 
-Added by `docs/plans/2026-07-30-shield-clash-audio.md`. **No interactive run was
+Added by `docs/archives/2026-07-29/2026-07-29-shield-clash-audio.md`. **No interactive run was
 performed, so every row below is unrun and its verdict is still pending.** Each
 one needs a human at an interactive Windows desktop with working audio, and no
 agent may flip one to a passing verdict.

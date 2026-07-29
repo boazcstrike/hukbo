@@ -1,8 +1,15 @@
 # Shield-clash audio — design
 
+> **Archived: reference only.** This plan is finished and is kept so the
+> decision can be traced to its reasoning. Do not execute it, do not treat its
+> versions or file paths as current, and do not cite it as justification for a
+> change. The live contract is `CLAUDE.md`, `SIMULATION-GAME-STANDARDS.md`, and
+> `docs/development/testing.md`.
+
+
 Date: 2026-07-30
 Branch: `shield-clash-audio`
-Task list: [2026-07-30-shield-clash-audio.md](2026-07-30-shield-clash-audio.md)
+Task list: [2026-07-29-shield-clash-audio.md](2026-07-29-shield-clash-audio.md)
 
 Revision 2. The owner's original choice of a single weapon-keyed slot rested on
 a row count that was wrong; corrected, the two shapes cost 38 and 37 rendered
@@ -15,7 +22,7 @@ change the panel decision, in section 5.
 The result of this design, the commits that carried it, the canonical gate
 output, and an explicit list of what remains unverified are recorded in the
 `## Outcome` and `## What is not verified` sections of the task list,
-[2026-07-30-shield-clash-audio.md](2026-07-30-shield-clash-audio.md).
+[2026-07-29-shield-clash-audio.md](2026-07-29-shield-clash-audio.md).
 
 ## 1. What this fixes
 
