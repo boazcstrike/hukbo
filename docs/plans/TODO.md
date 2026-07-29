@@ -26,3 +26,14 @@ is not authorized work; it is a reminder that the question was decided
   package's boundary 4 (no textures, no content-pipeline additions) unless a
   future design revisits that boundary. Context:
   `docs/archives/2026-07-28/improve-visuals/battlefield-environment-design.md`.
+
+## From the second-round lag report (2026-07-30)
+
+- **Formation blocking at 500 agents.** Warriors spend long stretches unable to
+  move in the crush: 33 330 blocked agent-ticks against 27 882 attack-capable
+  ones in the reported round, with a longest unbroken blocked streak of 168
+  ticks — 8.4 seconds of a warrior standing still. Parked by user decision on
+  2026-07-30 after the same session's lag report was traced to this rather than
+  to the frame loop. The full measured baseline, both seeds, and what a future
+  change has to beat are in
+  [`2026-07-30-formation-blocking-baseline.md`](2026-07-30-formation-blocking-baseline.md).
