@@ -96,4 +96,22 @@ public enum MovementPresetId
     /// derivation.
     /// </summary>
     PersistentContingentsV5 = 5,
+
+    /// <summary>
+    /// The opt-in equipment-relative footwork preset. Identical to
+    /// <see cref="PersistentContingentsV5"/> in every cohesion tunable; the
+    /// difference is that it registers
+    /// <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/>
+    /// <see langword="true"/> together with the two local-context radii and
+    /// the six per-loadout movement profiles of the weapon-relative movement
+    /// design, resolved rank-independently through
+    /// <see cref="MovementRuleset.ResolveLoadoutProfile"/>. It is reachable
+    /// only through explicit selection — the shipped default stays
+    /// <see cref="PersistentContingentsV4"/> — and every profile value it
+    /// carries is a provisional reconstruction for gameplay tuning, not a
+    /// historical measurement. See
+    /// docs/plans/2026-07-30-weapon-movement-foundation-design.md sections 3,
+    /// 5, and 13.
+    /// </summary>
+    EquipmentRelativeFootworkV6 = 6,
 }

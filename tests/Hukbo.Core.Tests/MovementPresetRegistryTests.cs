@@ -17,18 +17,20 @@ public sealed class MovementPresetRegistryTests
     /// to its current field values. This is an identity assertion over the
     /// ruleset's own fields, not a behavioural golden — it does not reach
     /// the state hash, so it moves whenever a task adds a field to
-    /// <see cref="MovementRuleset"/>, most recently
-    /// <c>SelectsLeaderByRank</c>, and before that
+    /// <see cref="MovementRuleset"/>, most recently the four
+    /// equipment-relative footwork members (<c>UsesEquipmentRelativeFootwork</c>,
+    /// the two context radii, and <c>LoadoutMovementProfiles</c>), and before
+    /// that <c>SelectsLeaderByRank</c>, and before that
     /// <c>NarrowsCohesionScanToCohesionCapableContingents</c>, and before that
     /// T2's <c>CloseFractionNumerator</c> and <c>CloseFractionDenominator</c>.
-    /// All four V1-through-V4 literals below were recomputed from the built
-    /// code when <c>SelectsLeaderByRank</c> landed, never calculated by
-    /// hand.
+    /// All five V1-through-V5 literals below were recomputed from the built
+    /// code when the equipment-relative footwork members landed, never
+    /// calculated by hand.
     /// What stays frozen across such a change is the preset's simulated
     /// behaviour, proved instead by
     /// <c>IndependentPursuitV1_ReproducesTheFrozenTrajectoryDigest</c>.
     /// </summary>
-    private const ulong IndependentPursuitV1ContentHash = 0x5AFC8B9FBC247363UL;
+    private const ulong IndependentPursuitV1ContentHash = 0x36BAA7847258E4E3UL;
 
     /// <summary>
     /// Pinned by T9 against <c>PersistentContingentsV2</c>'s constant set,
@@ -37,7 +39,7 @@ public sealed class MovementPresetRegistryTests
     /// literal differs from <see cref="IndependentPursuitV1ContentHash"/>
     /// only through the folded <c>Id</c> field.
     /// </summary>
-    private const ulong PersistentContingentsV2ContentHash = 0x3E29AE36A0FAF440UL;
+    private const ulong PersistentContingentsV2ContentHash = 0x0E37E2FD11051440UL;
 
     /// <summary>
     /// Pinned by T5 against <c>PersistentContingentsV3</c>'s constant set,
@@ -46,7 +48,7 @@ public sealed class MovementPresetRegistryTests
     /// (<c>1, 2</c> instead of <c>0, 1</c>), so this literal differs from
     /// both existing literals.
     /// </summary>
-    private const ulong PersistentContingentsV3ContentHash = 0x520DD48EE818A603UL;
+    private const ulong PersistentContingentsV3ContentHash = 0x47E9B3788ACE6783UL;
 
     /// <summary>
     /// Pinned against <c>PersistentContingentsV4</c>'s constant set, which
@@ -55,7 +57,7 @@ public sealed class MovementPresetRegistryTests
     /// (<see langword="true"/> instead of <see langword="false"/>), so this
     /// literal differs from all three existing literals.
     /// </summary>
-    private const ulong PersistentContingentsV4ContentHash = 0x443ECC578E1137B5UL;
+    private const ulong PersistentContingentsV4ContentHash = 0x26302C0CF6885235UL;
 
     /// <summary>
     /// Pinned against <c>PersistentContingentsV5</c>'s constant set, which
@@ -64,7 +66,17 @@ public sealed class MovementPresetRegistryTests
     /// <see langword="false"/>), so this literal differs from all four
     /// existing literals.
     /// </summary>
-    private const ulong PersistentContingentsV5ContentHash = 0x1D27722140CB87F5UL;
+    private const ulong PersistentContingentsV5ContentHash = 0x84FA62B037FAC275UL;
+
+    /// <summary>
+    /// Pinned against <c>EquipmentRelativeFootworkV6</c>'s constant set,
+    /// which differs from <c>PersistentContingentsV5</c>'s in
+    /// <c>UsesEquipmentRelativeFootwork</c> (<see langword="true"/>), both
+    /// context radii, and the six loadout movement profile rows folded per
+    /// design section 5.1, so this literal differs from all five existing
+    /// literals.
+    /// </summary>
+    private const ulong EquipmentRelativeFootworkV6ContentHash = 0x0FFE5D202B324D25UL;
 
     [Fact]
     public void IndependentPursuitV1IsRegistered()
@@ -94,6 +106,12 @@ public sealed class MovementPresetRegistryTests
     public void PersistentContingentsV5IsRegistered()
     {
         Assert.True(MovementPresetRegistry.IsRegistered(MovementPresetId.PersistentContingentsV5));
+    }
+
+    [Fact]
+    public void EquipmentRelativeFootworkV6IsRegistered()
+    {
+        Assert.True(MovementPresetRegistry.IsRegistered(MovementPresetId.EquipmentRelativeFootworkV6));
     }
 
     [Fact]
@@ -195,10 +213,32 @@ public sealed class MovementPresetRegistryTests
     }
 
     /// <summary>
+    /// Pins <c>EquipmentRelativeFootworkV6</c>'s content hash to a literal
+    /// distinct from all five existing literals: introducing the sixth
+    /// preset must move nothing about the first five.
+    /// </summary>
+    [Fact]
+    public void EquipmentRelativeFootworkV6ContentHashMatchesThePinnedLiteral()
+    {
+        var ruleset = MovementPresetRegistry.Get(MovementPresetId.EquipmentRelativeFootworkV6);
+
+        Assert.Equal(EquipmentRelativeFootworkV6ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(IndependentPursuitV1ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(PersistentContingentsV2ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(PersistentContingentsV3ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(PersistentContingentsV4ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(PersistentContingentsV5ContentHash, ruleset.ContentHash);
+    }
+
+    /// <summary>
     /// The narrowing flag is what separates <c>PersistentContingentsV4</c>
     /// from <c>PersistentContingentsV3</c>, and no earlier preset carries it,
     /// so a preset added later cannot quietly turn it on for a frozen
-    /// trajectory without this Fact failing.
+    /// trajectory without this Fact failing. <c>PersistentContingentsV5</c>
+    /// and <c>EquipmentRelativeFootworkV6</c> both carry the flag forward
+    /// deliberately — V5 layers rank-aware leader selection on V4's
+    /// narrowed scan, and V6 carries V5's cohesion tunables unchanged — and
+    /// this Fact states both so neither value can drift silently.
     /// </summary>
     [Fact]
     public void OnlyPersistentContingentsV4NarrowsTheCrossContingentScan()
@@ -215,6 +255,12 @@ public sealed class MovementPresetRegistryTests
         Assert.True(MovementPresetRegistry
             .Get(MovementPresetId.PersistentContingentsV4)
             .NarrowsCohesionScanToCohesionCapableContingents);
+        Assert.True(MovementPresetRegistry
+            .Get(MovementPresetId.PersistentContingentsV5)
+            .NarrowsCohesionScanToCohesionCapableContingents);
+        Assert.True(MovementPresetRegistry
+            .Get(MovementPresetId.EquipmentRelativeFootworkV6)
+            .NarrowsCohesionScanToCohesionCapableContingents);
     }
 
     /// <summary>
@@ -222,6 +268,9 @@ public sealed class MovementPresetRegistryTests
     /// <c>PersistentContingentsV5</c> from every earlier preset; no earlier
     /// preset carries it, so a preset added later cannot quietly turn it on
     /// for a frozen trajectory without this Fact failing.
+    /// <c>EquipmentRelativeFootworkV6</c> carries the flag forward
+    /// deliberately — it carries V5's cohesion tunables unchanged — and this
+    /// Fact states that value so it cannot drift silently.
     /// </summary>
     [Fact]
     public void OnlyPersistentContingentsV5SelectsLeaderByRank()
@@ -241,5 +290,37 @@ public sealed class MovementPresetRegistryTests
         Assert.True(MovementPresetRegistry
             .Get(MovementPresetId.PersistentContingentsV5)
             .SelectsLeaderByRank);
+        Assert.True(MovementPresetRegistry
+            .Get(MovementPresetId.EquipmentRelativeFootworkV6)
+            .SelectsLeaderByRank);
+    }
+
+    /// <summary>
+    /// The equipment-relative footwork flag is what separates
+    /// <c>EquipmentRelativeFootworkV6</c> from every earlier preset; no
+    /// earlier preset carries it, so a preset added later cannot quietly
+    /// turn it on for a frozen trajectory without this Fact failing.
+    /// </summary>
+    [Fact]
+    public void OnlyEquipmentRelativeFootworkV6UsesEquipmentRelativeFootwork()
+    {
+        Assert.False(MovementPresetRegistry
+            .Get(MovementPresetId.IndependentPursuitV1)
+            .UsesEquipmentRelativeFootwork);
+        Assert.False(MovementPresetRegistry
+            .Get(MovementPresetId.PersistentContingentsV2)
+            .UsesEquipmentRelativeFootwork);
+        Assert.False(MovementPresetRegistry
+            .Get(MovementPresetId.PersistentContingentsV3)
+            .UsesEquipmentRelativeFootwork);
+        Assert.False(MovementPresetRegistry
+            .Get(MovementPresetId.PersistentContingentsV4)
+            .UsesEquipmentRelativeFootwork);
+        Assert.False(MovementPresetRegistry
+            .Get(MovementPresetId.PersistentContingentsV5)
+            .UsesEquipmentRelativeFootwork);
+        Assert.True(MovementPresetRegistry
+            .Get(MovementPresetId.EquipmentRelativeFootworkV6)
+            .UsesEquipmentRelativeFootwork);
     }
 }

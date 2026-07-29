@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
 
 namespace Hukbo.Core.Movement;
@@ -30,6 +32,16 @@ namespace Hukbo.Core.Movement;
 /// </remarks>
 public sealed class MovementRuleset
 {
+    /// <summary>
+    /// The number of canonical loadouts — <c>KP, WA, KA, IT, KS, IS</c> — a
+    /// preset with equipment-relative footwork must carry one profile row
+    /// for. Equal in value to
+    /// <see cref="LoadoutMovementProfile.OpponentDistanceOffsetCount"/>
+    /// because every row also carries one offset cell per canonical
+    /// opponent, but the two constants name different shapes.
+    /// </summary>
+    public const int CanonicalLoadoutCount = 6;
+
     public MovementRuleset(
         MovementPresetId id,
         int version,
@@ -43,9 +55,18 @@ public sealed class MovementRuleset
         int arrivalTaperMultiplier,
         int offsetUnit,
         bool narrowsCohesionScanToCohesionCapableContingents,
-        bool selectsLeaderByRank)
+        bool selectsLeaderByRank,
+        bool usesEquipmentRelativeFootwork,
+        int immediateRadiusBodyDiametersBasisPoints,
+        int supportRadiusBodyDiametersBasisPoints,
+        ImmutableArray<LoadoutMovementProfile> loadoutMovementProfiles)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);
+        ValidateEquipmentRelativeFootworkCoupling(
+            usesEquipmentRelativeFootwork,
+            immediateRadiusBodyDiametersBasisPoints,
+            supportRadiusBodyDiametersBasisPoints,
+            loadoutMovementProfiles);
 
         Id = id;
         Version = version;
@@ -61,6 +82,12 @@ public sealed class MovementRuleset
         NarrowsCohesionScanToCohesionCapableContingents =
             narrowsCohesionScanToCohesionCapableContingents;
         SelectsLeaderByRank = selectsLeaderByRank;
+        UsesEquipmentRelativeFootwork = usesEquipmentRelativeFootwork;
+        ImmediateRadiusBodyDiametersBasisPoints =
+            immediateRadiusBodyDiametersBasisPoints;
+        SupportRadiusBodyDiametersBasisPoints =
+            supportRadiusBodyDiametersBasisPoints;
+        LoadoutMovementProfiles = loadoutMovementProfiles;
         ContentHash = ComputeContentHash();
     }
 
@@ -166,12 +193,185 @@ public sealed class MovementRuleset
     public bool SelectsLeaderByRank { get; }
 
     /// <summary>
+    /// Whether this preset resolves an equipment-relative movement profile
+    /// per loadout and runs the weapon-relative footwork pipeline. Registered
+    /// <see langword="false"/> with zero context radii and an empty profile
+    /// collection for every preset up to and including
+    /// <see cref="MovementPresetId.PersistentContingentsV5"/>, so introducing
+    /// this field moves no existing preset's behaviour; only
+    /// <see cref="MovementPresetId.EquipmentRelativeFootworkV6"/> registers it
+    /// <see langword="true"/>. A game-design choice, not a measurement.
+    /// </summary>
+    public bool UsesEquipmentRelativeFootwork { get; }
+
+    /// <summary>
+    /// Basis points of body diameter giving the immediate local-context
+    /// radius — the scan inside which allies and enemies count as immediate
+    /// neighbours. Zero for every preset whose
+    /// <see cref="UsesEquipmentRelativeFootwork"/> is <see langword="false"/>.
+    /// A game-design choice, not a measurement.
+    /// </summary>
+    public int ImmediateRadiusBodyDiametersBasisPoints { get; }
+
+    /// <summary>
+    /// Basis points of body diameter giving the support local-context
+    /// radius — the wider scan feeding the disengage ratio counts. Zero for
+    /// every preset whose <see cref="UsesEquipmentRelativeFootwork"/> is
+    /// <see langword="false"/>. A game-design choice, not a measurement.
+    /// </summary>
+    public int SupportRadiusBodyDiametersBasisPoints { get; }
+
+    /// <summary>
+    /// The per-loadout movement profile rows, exactly six and in canonical
+    /// <c>KP, WA, KA, IT, KS, IS</c> order when
+    /// <see cref="UsesEquipmentRelativeFootwork"/> is <see langword="true"/>,
+    /// otherwise empty. The stored order doubles as the fixed-size lookup
+    /// <see cref="ResolveLoadoutProfile"/> indexes into, so it is validated
+    /// at construction and never sorted again.
+    /// </summary>
+    public ImmutableArray<LoadoutMovementProfile> LoadoutMovementProfiles { get; }
+
+    /// <summary>
     /// Content hash over every field above, folded in declaration order with
     /// the same FNV-1a primitive <see cref="Combat.CombatRuleset.ContentHash"/>
     /// uses. Two rulesets with identical fields hash identically regardless of
     /// which values were supplied by name at construction.
     /// </summary>
     public ulong ContentHash { get; }
+
+    /// <summary>
+    /// Resolves the movement profile for one warrior's equipment. The key is
+    /// <c>(WeaponId, ArmorId, ShieldId)</c> and is rank-independent: rank is
+    /// social standing with no movement meaning, so
+    /// <paramref name="loadout"/>'s <see cref="CombatLoadout.Rank"/> is never
+    /// read and two loadouts differing only in rank resolve to the same
+    /// profile row. Throws for an unmapped key — including every key under a
+    /// preset whose <see cref="UsesEquipmentRelativeFootwork"/> is
+    /// <see langword="false"/> — rather than returning a default, so a future
+    /// armor or shield fails loudly instead of silently inheriting another
+    /// row's footwork.
+    /// </summary>
+    public LoadoutMovementProfile ResolveLoadoutProfile(CombatLoadout loadout)
+    {
+        var index = CanonicalLoadoutIndex(
+            loadout.Weapon, loadout.Armor, loadout.Shield);
+        if (index < 0 || index >= LoadoutMovementProfiles.Length)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(loadout),
+                loadout,
+                "No movement profile is registered for this loadout under " +
+                $"movement preset {Id}.");
+        }
+
+        return LoadoutMovementProfiles[index];
+    }
+
+    /// <summary>
+    /// Maps an equipment key to its canonical loadout index — <c>KP</c> 0,
+    /// <c>WA</c> 1, <c>KA</c> 2, <c>IT</c> 3, <c>KS</c> 4, <c>IS</c> 5 — or
+    /// -1 for a key no profile row may carry. The canonical order is binding
+    /// on the stored profile collection and on the content-hash fold.
+    /// </summary>
+    private static int CanonicalLoadoutIndex(
+        WeaponId weapon, ArmorId armor, ShieldId shield) =>
+        (weapon, armor, shield) switch
+        {
+            (WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None) => 0,
+            (WeaponId.Wasay, ArmorId.LightOrganic, ShieldId.None) => 1,
+            (WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.None) => 2,
+            (WeaponId.Itak, ArmorId.LightOrganic, ShieldId.None) => 3,
+            (WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.TallHardwood) => 4,
+            (WeaponId.Itak, ArmorId.LightOrganic, ShieldId.TallHardwood) => 5,
+            _ => -1,
+        };
+
+    /// <summary>
+    /// The coupled validation of design section 5: a preset without
+    /// equipment-relative footwork carries zero radii and no profile rows,
+    /// and a preset with it carries strictly positive radii and exactly the
+    /// six canonical rows, each appearing once, in canonical order. A
+    /// duplicate key, a missing canonical row, an unsupported shield, or an
+    /// unsupported armor fails construction here.
+    /// </summary>
+    private static void ValidateEquipmentRelativeFootworkCoupling(
+        bool usesEquipmentRelativeFootwork,
+        int immediateRadiusBodyDiametersBasisPoints,
+        int supportRadiusBodyDiametersBasisPoints,
+        ImmutableArray<LoadoutMovementProfile> loadoutMovementProfiles)
+    {
+        if (loadoutMovementProfiles.IsDefault)
+        {
+            throw new ArgumentException(
+                "The profile collection must be supplied; pass " +
+                "ImmutableArray<LoadoutMovementProfile>.Empty for a preset " +
+                "without equipment-relative footwork.",
+                nameof(loadoutMovementProfiles));
+        }
+
+        if (!usesEquipmentRelativeFootwork)
+        {
+            if (immediateRadiusBodyDiametersBasisPoints != 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(immediateRadiusBodyDiametersBasisPoints),
+                    immediateRadiusBodyDiametersBasisPoints,
+                    "A preset without equipment-relative footwork must " +
+                    "register a zero immediate radius.");
+            }
+
+            if (supportRadiusBodyDiametersBasisPoints != 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(supportRadiusBodyDiametersBasisPoints),
+                    supportRadiusBodyDiametersBasisPoints,
+                    "A preset without equipment-relative footwork must " +
+                    "register a zero support radius.");
+            }
+
+            if (!loadoutMovementProfiles.IsEmpty)
+            {
+                throw new ArgumentException(
+                    "A preset without equipment-relative footwork must " +
+                    "register an empty profile collection.",
+                    nameof(loadoutMovementProfiles));
+            }
+
+            return;
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(
+            immediateRadiusBodyDiametersBasisPoints,
+            nameof(immediateRadiusBodyDiametersBasisPoints));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(
+            supportRadiusBodyDiametersBasisPoints,
+            nameof(supportRadiusBodyDiametersBasisPoints));
+
+        if (loadoutMovementProfiles.Length != CanonicalLoadoutCount)
+        {
+            throw new ArgumentException(
+                "A preset with equipment-relative footwork must register " +
+                $"exactly {CanonicalLoadoutCount} profile rows, one per " +
+                "canonical loadout.",
+                nameof(loadoutMovementProfiles));
+        }
+
+        for (var position = 0; position < loadoutMovementProfiles.Length; position++)
+        {
+            var key = loadoutMovementProfiles[position].Loadout;
+            if (CanonicalLoadoutIndex(key.Weapon, key.Armor, key.Shield) !=
+                position)
+            {
+                throw new ArgumentException(
+                    $"The profile row at position {position} does not carry " +
+                    "that position's canonical loadout key; rows must appear " +
+                    "once each in canonical KP, WA, KA, IT, KS, IS order and " +
+                    $"({key.Weapon}, {key.Armor}, {key.Shield}) is not that " +
+                    "position's key.",
+                    nameof(loadoutMovementProfiles));
+            }
+        }
+    }
 
     private ulong ComputeContentHash()
     {
@@ -191,6 +391,47 @@ public sealed class MovementRuleset
             ref hash,
             NarrowsCohesionScanToCohesionCapableContingents ? 1UL : 0UL);
         Fnv1a.Add(ref hash, SelectsLeaderByRank ? 1UL : 0UL);
+        Fnv1a.Add(ref hash, UsesEquipmentRelativeFootwork ? 1UL : 0UL);
+        Fnv1a.Add(ref hash, (ulong)ImmediateRadiusBodyDiametersBasisPoints);
+        Fnv1a.Add(ref hash, (ulong)SupportRadiusBodyDiametersBasisPoints);
+        Fnv1a.Add(ref hash, (ulong)LoadoutMovementProfiles.Length);
+        foreach (var profile in LoadoutMovementProfiles)
+        {
+            // Design section 5.1: the equipment key only — the rank field is
+            // not part of the key, so it is not folded.
+            Fnv1a.Add(ref hash, (ulong)(int)profile.Loadout.Weapon);
+            Fnv1a.Add(ref hash, (ulong)(int)profile.Loadout.Armor);
+            Fnv1a.Add(ref hash, (ulong)(int)profile.Loadout.Shield);
+            Fnv1a.Add(ref hash, (ulong)profile.ForwardPaceBasisPoints);
+            Fnv1a.Add(ref hash, (ulong)profile.LateralPaceBasisPoints);
+            Fnv1a.Add(ref hash, (ulong)profile.BackwardPaceBasisPoints);
+            Fnv1a.Add(ref hash, (ulong)profile.CommittedPaceBasisPoints);
+            Fnv1a.Add(ref hash, (ulong)profile.PreferredDistanceBasisPoints);
+            Fnv1a.Add(
+                ref hash,
+                (ulong)profile.OpponentDistanceOffsetBasisPoints.Length);
+            foreach (var cell in profile.OpponentDistanceOffsetBasisPoints)
+            {
+                // A signed offset folds as its two's-complement value.
+                Fnv1a.Add(ref hash, unchecked((ulong)(long)cell));
+            }
+
+            Fnv1a.Add(ref hash, (ulong)profile.MaximumFacingStepsPerTick);
+            Fnv1a.Add(ref hash, (ulong)profile.CommittedFacingStepsPerTick);
+            Fnv1a.Add(ref hash, (ulong)profile.AccelerationBasisPointsPerTick);
+            Fnv1a.Add(ref hash, (ulong)profile.DecelerationBasisPointsPerTick);
+            Fnv1a.Add(ref hash, (ulong)profile.CommitmentTicks);
+            Fnv1a.Add(ref hash, (ulong)profile.RecoveryTicks);
+            Fnv1a.Add(
+                ref hash,
+                (ulong)profile.AllyClearanceBodyDiametersBasisPoints);
+            Fnv1a.Add(ref hash, (ulong)profile.DisengageEnemyToAllyBasisPoints);
+            Fnv1a.Add(ref hash, (ulong)profile.ReengageEnemyToAllyBasisPoints);
+            Fnv1a.Add(
+                ref hash,
+                (ulong)profile.PursuitSupportBodyDiametersBasisPoints);
+        }
+
         return hash;
     }
 }

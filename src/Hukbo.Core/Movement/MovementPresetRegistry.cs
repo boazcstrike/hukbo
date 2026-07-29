@@ -1,3 +1,6 @@
+using System.Collections.Immutable;
+using Hukbo.Core.Movement.Profiles;
+
 namespace Hukbo.Core.Movement;
 
 /// <summary>
@@ -39,7 +42,11 @@ public static class MovementPresetRegistry
         arrivalTaperMultiplier: 4,
         offsetUnit: 1024,
         narrowsCohesionScanToCohesionCapableContingents: false,
-        selectsLeaderByRank: false);
+        selectsLeaderByRank: false,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty);
 
     /// <summary>
     /// The persistent-contingent preset. Every tunable is the same value
@@ -65,7 +72,11 @@ public static class MovementPresetRegistry
         arrivalTaperMultiplier: 4,
         offsetUnit: 1024,
         narrowsCohesionScanToCohesionCapableContingents: false,
-        selectsLeaderByRank: false);
+        selectsLeaderByRank: false,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty);
 
     /// <summary>
     /// The contact-fraction preset. Every tunable is the same value
@@ -102,7 +113,11 @@ public static class MovementPresetRegistry
         arrivalTaperMultiplier: 4,
         offsetUnit: 1024,
         narrowsCohesionScanToCohesionCapableContingents: false,
-        selectsLeaderByRank: false);
+        selectsLeaderByRank: false,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty);
 
     /// <summary>
     /// The narrowed-cohesion-scan preset, and the shipped default. Every
@@ -142,7 +157,11 @@ public static class MovementPresetRegistry
         arrivalTaperMultiplier: 4,
         offsetUnit: 1024,
         narrowsCohesionScanToCohesionCapableContingents: true,
-        selectsLeaderByRank: false);
+        selectsLeaderByRank: false,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty);
 
     /// <summary>
     /// The rank-aware leader-scan preset. Every tunable is the same value
@@ -178,7 +197,55 @@ public static class MovementPresetRegistry
         arrivalTaperMultiplier: 4,
         offsetUnit: 1024,
         narrowsCohesionScanToCohesionCapableContingents: true,
-        selectsLeaderByRank: true);
+        selectsLeaderByRank: true,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty);
+
+    /// <summary>
+    /// The opt-in equipment-relative footwork preset. It carries
+    /// <see cref="PersistentContingentsV5Ruleset"/>'s cohesion tunables
+    /// unchanged and registers
+    /// <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/>
+    /// <see langword="true"/>, the two local-context radii — 2.5 body
+    /// diameters immediate, 6 body diameters support — and the six
+    /// per-loadout movement profile rows in canonical
+    /// <c>KP, WA, KA, IT, KS, IS</c> order. Both radii and every profile
+    /// value are provisional reconstructions: gameplay tuning; no historical
+    /// measurement. This entry is registration only: no
+    /// <c>BattleSimulation</c> code path consults the flag yet, the shipped
+    /// default stays <see cref="MovementPresetId.PersistentContingentsV4"/>,
+    /// and the preset is reachable only through explicit selection. See
+    /// docs/plans/2026-07-30-weapon-movement-foundation-design.md sections 3,
+    /// 5, and 13.
+    /// </summary>
+    private static readonly MovementRuleset EquipmentRelativeFootworkV6Ruleset = new(
+        id: MovementPresetId.EquipmentRelativeFootworkV6,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: true,
+        usesEquipmentRelativeFootwork: true,
+        immediateRadiusBodyDiametersBasisPoints: 25_000,
+        supportRadiusBodyDiametersBasisPoints: 60_000,
+        loadoutMovementProfiles:
+        [
+            KampilanMovementProfile.Row,
+            WasayMovementProfile.Row,
+            KalisMovementProfile.Row,
+            ItakMovementProfile.Row,
+            TallHardwoodMovementProfiles.KalisRow,
+            TallHardwoodMovementProfiles.ItakRow,
+        ]);
 
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
@@ -188,6 +255,7 @@ public static class MovementPresetRegistry
             MovementPresetId.PersistentContingentsV3 => true,
             MovementPresetId.PersistentContingentsV4 => true,
             MovementPresetId.PersistentContingentsV5 => true,
+            MovementPresetId.EquipmentRelativeFootworkV6 => true,
             _ => false,
         };
 
@@ -199,6 +267,7 @@ public static class MovementPresetRegistry
             MovementPresetId.PersistentContingentsV3 => PersistentContingentsV3Ruleset,
             MovementPresetId.PersistentContingentsV4 => PersistentContingentsV4Ruleset,
             MovementPresetId.PersistentContingentsV5 => PersistentContingentsV5Ruleset,
+            MovementPresetId.EquipmentRelativeFootworkV6 => EquipmentRelativeFootworkV6Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,
