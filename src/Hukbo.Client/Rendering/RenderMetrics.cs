@@ -14,7 +14,17 @@ namespace Hukbo.Client.Rendering;
 /// <description>
 /// Tier 1 (<see cref="AddQuad"/>, <see cref="AddQuads"/>,
 /// <see cref="AddTriangles"/>, <see cref="AddGeometryBuildMicroseconds"/>,
-/// <see cref="AddSubmitMicroseconds"/>, <see cref="SetManagedBytesAllocated"/>)
+/// <see cref="AddSubmitMicroseconds"/>, <see cref="SetManagedBytesAllocated"/>,
+/// and the frame-span breakdown <see cref="AddClearMicroseconds"/>,
+/// <see cref="AddLayoutMicroseconds"/>,
+/// <see cref="AddHoverSelectionMicroseconds"/>,
+/// <see cref="AddUiLayerMicroseconds"/>, <see cref="AddBaseDrawMicroseconds"/>,
+/// <see cref="AddArenaGeometryMicroseconds"/>,
+/// <see cref="AddProbeOverheadMicroseconds"/>,
+/// <see cref="AddPawnGeometryInvocations"/>, and the appearance-cache
+/// counters <see cref="AddAppearanceCacheHits"/>,
+/// <see cref="AddAppearanceCacheMisses"/>,
+/// <see cref="AddAppearanceCacheFills"/>)
 /// is renderer-invariant — identical under an immediate-mode or an
 /// instanced backend. It is the ONLY tier a budget constant is ever written
 /// against (<see cref="RenderBudgetEstimate"/>).
@@ -85,6 +95,89 @@ public interface IRenderMetricsRecorder
     /// summing per-draw contributions.
     /// </summary>
     void SetManagedBytesAllocated(long bytes);
+
+    /// <summary>
+    /// Tier 1 (GPU-001, GPU-003). Accumulates CPU time spent inside the
+    /// frame's <c>GraphicsDevice.Clear</c> call.
+    /// </summary>
+    void AddClearMicroseconds(double microseconds);
+
+    /// <summary>
+    /// Tier 1 (GPU-001, GPU-003). Accumulates CPU time spent resolving this
+    /// frame's screen layout, before anything is drawn.
+    /// </summary>
+    void AddLayoutMicroseconds(double microseconds);
+
+    /// <summary>
+    /// Tier 1 (GPU-001, GPU-003). Accumulates CPU time spent resolving the
+    /// pointer's hovered agent and the resulting selection state.
+    /// </summary>
+    void AddHoverSelectionMicroseconds(double microseconds);
+
+    /// <summary>
+    /// Tier 1 (GPU-001, GPU-003). Accumulates CPU time spent drawing the user
+    /// interface layer, which is separate from the arena layer the budget is
+    /// written against.
+    /// </summary>
+    void AddUiLayerMicroseconds(double microseconds);
+
+    /// <summary>
+    /// Tier 1 (GPU-001, GPU-003). Accumulates CPU time spent inside the base
+    /// draw call, so the portion of the frame this seam does not otherwise
+    /// name stays attributable rather than becoming residual.
+    /// </summary>
+    void AddBaseDrawMicroseconds(double microseconds);
+
+    /// <summary>
+    /// Tier 1 (GPU-001, GPU-004). Accumulates CPU time spent constructing the
+    /// arena's real per-pawn geometry — the geometry the renderer actually
+    /// draws from — so it stays separate from
+    /// <see cref="AddSubmitMicroseconds"/>, which after GPU-004 narrows to
+    /// submission work alone. The two spans are recorded independently rather
+    /// than one being derived from the other.
+    /// </summary>
+    void AddArenaGeometryMicroseconds(double microseconds);
+
+    /// <summary>
+    /// Tier 1 (GPU-001, GPU-005). Accumulates CPU time the measurement probe
+    /// spends on its own duplicate counting pass. Reported separately so the
+    /// probe's overhead is never silently folded into a figure a budget is
+    /// written against.
+    /// </summary>
+    void AddProbeOverheadMicroseconds(double microseconds);
+
+    /// <summary>
+    /// Tier 1 (GPU-001, GPU-005). Records <paramref name="count"/> calls into
+    /// the pure pawn-geometry helper this frame, so the probe's duplication
+    /// factor is derived from a recorded invocation count rather than assumed.
+    /// </summary>
+    void AddPawnGeometryInvocations(int count);
+
+    /// <summary>
+    /// Tier 1 (GPU-017). Records <paramref name="count"/> appearance-cache
+    /// reads this frame that were answered from a slot whose stored key
+    /// matched, without the appearance factory being called at all.
+    /// </summary>
+    void AddAppearanceCacheHits(int count);
+
+    /// <summary>
+    /// Tier 1 (GPU-017). Records <paramref name="count"/> appearance-cache
+    /// reads this frame that had to call
+    /// <c>PawnAppearanceFactory.Create</c> because no slot held the key. The
+    /// first frame of a battle is all misses and every frame after it should
+    /// be all hits, so a non-zero figure in a steady-state frame is the
+    /// signal that the cache's key or its lifetime assumption is wrong.
+    /// </summary>
+    void AddAppearanceCacheMisses(int count);
+
+    /// <summary>
+    /// Tier 1 (GPU-017). Records <paramref name="count"/> cache slots that
+    /// went from empty to occupied this frame. Counted apart from
+    /// <see cref="AddAppearanceCacheMisses"/> because a miss that overwrites
+    /// an already-occupied slot is an ordinal reused by a different agent,
+    /// which is a different fault from a slot simply not being warm yet.
+    /// </summary>
+    void AddAppearanceCacheFills(int count);
 
     /// <summary>
     /// Tier 2, diagnostic only. One <c>SpriteBatch.Draw</c> call under the
@@ -166,6 +259,56 @@ public interface IRenderMetricsRecorder
 /// Whether <see cref="BufferUploadBytes"/> means anything under the active
 /// backend.
 /// </param>
+/// <param name="ClearMicroseconds">
+/// Tier 1. CPU time inside this frame's <c>GraphicsDevice.Clear</c> call.
+/// </param>
+/// <param name="LayoutMicroseconds">
+/// Tier 1. CPU time spent resolving this frame's screen layout.
+/// </param>
+/// <param name="HoverSelectionMicroseconds">
+/// Tier 1. CPU time spent resolving the hovered agent and selection state.
+/// </param>
+/// <param name="UiLayerMicroseconds">
+/// Tier 1. CPU time spent drawing the user interface layer.
+/// </param>
+/// <param name="BaseDrawMicroseconds">
+/// Tier 1. CPU time inside the base draw call.
+/// </param>
+/// <param name="ArenaGeometryMicroseconds">
+/// Tier 1. CPU time spent constructing the arena's real per-pawn geometry,
+/// held separate from <see cref="SubmitMicroseconds"/> (GPU-004).
+/// </param>
+/// <param name="ProbeOverheadMicroseconds">
+/// Tier 1. CPU time the measurement probe spends on its own duplicate
+/// counting pass, reported separately from renderer cost (GPU-005).
+/// </param>
+/// <param name="PawnGeometryInvocations">
+/// Tier 1. Calls into the pure pawn-geometry helper this frame, from which
+/// the probe's duplication factor is derived rather than assumed (GPU-005).
+/// </param>
+/// <param name="AppearanceCacheHits">
+/// Tier 1. Appearance-cache reads this frame answered from a slot whose
+/// stored key matched, without calling the appearance factory (GPU-017).
+/// </param>
+/// <param name="AppearanceCacheMisses">
+/// Tier 1. Appearance-cache reads this frame that had to call
+/// <c>PawnAppearanceFactory.Create</c> because no slot held the key
+/// (GPU-017).
+/// </param>
+/// <param name="AppearanceCacheFills">
+/// Tier 1. Cache slots that went from empty to occupied this frame
+/// (GPU-017).
+/// </param>
+/// <remarks>
+/// The eight fields added by GPU-001, and the three appearance-cache fields
+/// added by GPU-017, are declared last but carry no default, so every
+/// construction site names them explicitly (GPU-002). That matters because,
+/// unlike Tier 2, none of them carries an <c>*Applicable</c> flag — a CPU
+/// span and a cache counter both apply under every backend — so a zero
+/// arriving from an omitted argument would be indistinguishable from a
+/// genuine measured zero. Making them required means a zero is always
+/// something a caller chose to record.
+/// </remarks>
 public readonly record struct RenderMetricsSnapshot(
     int Quads,
     int Triangles,
@@ -179,7 +322,18 @@ public readonly record struct RenderMetricsSnapshot(
     int TextureBinds,
     bool TextureBindsApplicable,
     long BufferUploadBytes,
-    bool BufferUploadBytesApplicable);
+    bool BufferUploadBytesApplicable,
+    double ClearMicroseconds,
+    double LayoutMicroseconds,
+    double HoverSelectionMicroseconds,
+    double UiLayerMicroseconds,
+    double BaseDrawMicroseconds,
+    double ArenaGeometryMicroseconds,
+    double ProbeOverheadMicroseconds,
+    int PawnGeometryInvocations,
+    int AppearanceCacheHits,
+    int AppearanceCacheMisses,
+    int AppearanceCacheFills);
 
 /// <summary>
 /// The disabled, allocation-free no-op <see cref="IRenderMetricsRecorder"/>.
@@ -227,6 +381,61 @@ public sealed class NullRenderMetricsRecorder : IRenderMetricsRecorder
 
     /// <inheritdoc />
     public void SetManagedBytesAllocated(long bytes)
+    {
+    }
+
+    /// <inheritdoc />
+    public void AddClearMicroseconds(double microseconds)
+    {
+    }
+
+    /// <inheritdoc />
+    public void AddLayoutMicroseconds(double microseconds)
+    {
+    }
+
+    /// <inheritdoc />
+    public void AddHoverSelectionMicroseconds(double microseconds)
+    {
+    }
+
+    /// <inheritdoc />
+    public void AddUiLayerMicroseconds(double microseconds)
+    {
+    }
+
+    /// <inheritdoc />
+    public void AddBaseDrawMicroseconds(double microseconds)
+    {
+    }
+
+    /// <inheritdoc />
+    public void AddArenaGeometryMicroseconds(double microseconds)
+    {
+    }
+
+    /// <inheritdoc />
+    public void AddProbeOverheadMicroseconds(double microseconds)
+    {
+    }
+
+    /// <inheritdoc />
+    public void AddPawnGeometryInvocations(int count)
+    {
+    }
+
+    /// <inheritdoc />
+    public void AddAppearanceCacheHits(int count)
+    {
+    }
+
+    /// <inheritdoc />
+    public void AddAppearanceCacheMisses(int count)
+    {
+    }
+
+    /// <inheritdoc />
+    public void AddAppearanceCacheFills(int count)
     {
     }
 
@@ -279,6 +488,17 @@ public sealed class SpriteBatchRenderMetricsRecorder : IRenderMetricsRecorder
     private int _submissions;
     private int _batches;
     private int _textureBinds;
+    private double _clearMicroseconds;
+    private double _layoutMicroseconds;
+    private double _hoverSelectionMicroseconds;
+    private double _uiLayerMicroseconds;
+    private double _baseDrawMicroseconds;
+    private double _arenaGeometryMicroseconds;
+    private double _probeOverheadMicroseconds;
+    private int _pawnGeometryInvocations;
+    private int _appearanceCacheHits;
+    private int _appearanceCacheMisses;
+    private int _appearanceCacheFills;
 
     /// <inheritdoc />
     public bool IsEnabled => true;
@@ -302,6 +522,46 @@ public sealed class SpriteBatchRenderMetricsRecorder : IRenderMetricsRecorder
 
     /// <inheritdoc />
     public void SetManagedBytesAllocated(long bytes) => _managedBytesAllocated = bytes;
+
+    /// <inheritdoc />
+    public void AddClearMicroseconds(double microseconds) =>
+        _clearMicroseconds += microseconds;
+
+    /// <inheritdoc />
+    public void AddLayoutMicroseconds(double microseconds) =>
+        _layoutMicroseconds += microseconds;
+
+    /// <inheritdoc />
+    public void AddHoverSelectionMicroseconds(double microseconds) =>
+        _hoverSelectionMicroseconds += microseconds;
+
+    /// <inheritdoc />
+    public void AddUiLayerMicroseconds(double microseconds) =>
+        _uiLayerMicroseconds += microseconds;
+
+    /// <inheritdoc />
+    public void AddBaseDrawMicroseconds(double microseconds) =>
+        _baseDrawMicroseconds += microseconds;
+
+    /// <inheritdoc />
+    public void AddArenaGeometryMicroseconds(double microseconds) =>
+        _arenaGeometryMicroseconds += microseconds;
+
+    /// <inheritdoc />
+    public void AddProbeOverheadMicroseconds(double microseconds) =>
+        _probeOverheadMicroseconds += microseconds;
+
+    /// <inheritdoc />
+    public void AddPawnGeometryInvocations(int count) => _pawnGeometryInvocations += count;
+
+    /// <inheritdoc />
+    public void AddAppearanceCacheHits(int count) => _appearanceCacheHits += count;
+
+    /// <inheritdoc />
+    public void AddAppearanceCacheMisses(int count) => _appearanceCacheMisses += count;
+
+    /// <inheritdoc />
+    public void AddAppearanceCacheFills(int count) => _appearanceCacheFills += count;
 
     /// <inheritdoc />
     public void AddSubmission() => _submissions++;
@@ -338,7 +598,18 @@ public sealed class SpriteBatchRenderMetricsRecorder : IRenderMetricsRecorder
             _textureBinds,
             TextureBindsApplicable: true,
             BufferUploadBytes: 0,
-            BufferUploadBytesApplicable: false);
+            BufferUploadBytesApplicable: false,
+            _clearMicroseconds,
+            _layoutMicroseconds,
+            _hoverSelectionMicroseconds,
+            _uiLayerMicroseconds,
+            _baseDrawMicroseconds,
+            _arenaGeometryMicroseconds,
+            _probeOverheadMicroseconds,
+            _pawnGeometryInvocations,
+            _appearanceCacheHits,
+            _appearanceCacheMisses,
+            _appearanceCacheFills);
 
     /// <inheritdoc />
     public void Reset()
@@ -351,5 +622,16 @@ public sealed class SpriteBatchRenderMetricsRecorder : IRenderMetricsRecorder
         _submissions = 0;
         _batches = 0;
         _textureBinds = 0;
+        _clearMicroseconds = 0;
+        _layoutMicroseconds = 0;
+        _hoverSelectionMicroseconds = 0;
+        _uiLayerMicroseconds = 0;
+        _baseDrawMicroseconds = 0;
+        _arenaGeometryMicroseconds = 0;
+        _probeOverheadMicroseconds = 0;
+        _pawnGeometryInvocations = 0;
+        _appearanceCacheHits = 0;
+        _appearanceCacheMisses = 0;
+        _appearanceCacheFills = 0;
     }
 }

@@ -182,6 +182,32 @@ public sealed class BattleEventFeedTests
         Assert.False(feed.HasActiveFilters);
     }
 
+    /// <summary>
+    /// A spectator who reads a warrior's name in the log or the battle report
+    /// can type that name into the filter and see only that warrior's line.
+    /// </summary>
+    [Fact]
+    public void TextFilter_MatchesAWarriorName()
+    {
+        var feed = new BattleEventFeed(10);
+        feed.SetScenarioSeed(1);
+        feed.Ingest(
+        [
+            CreateEvent(
+                1,
+                1,
+                BattleEventKind.Attack,
+                sourceEntityId: 7,
+                targetEntityId: 9,
+                value: 3,
+                factionId: 0),
+        ]);
+
+        feed.SetTextFilter(WarriorNames.Resolve(7, 0, 1).DisplayForm);
+
+        Assert.Equal([1L], feed.FilteredEntries.Select(entry => entry.Sequence));
+    }
+
     [Fact]
     public void ClearFilters_RestoresAllEntriesInSequenceOrder()
     {

@@ -61,6 +61,7 @@ internal sealed partial class BattleEventLogPanel
     private Point _pointerPosition;
     private long? _cachedDetailsSequence;
     private int _cachedDetailsWidth;
+    private ulong _cachedDetailsScenarioSeed;
     private string[] _cachedDetails = [];
 
     public Rectangle Bounds { get; private set; }

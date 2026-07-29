@@ -1257,4 +1257,149 @@ public sealed class AgentInspectorContentTests
     private static Func<string, float> FixedWidthMeasure(
         float pixelsPerCharacter) =>
         text => text.Length * pixelsPerCharacter;
+
+    // ===== Warrior personal-name inspector lines =====
+
+    // Same accessibility discipline as the weapon-tint theories above:
+    // WarriorNameEntry is internal, so the identifier crosses the
+    // [Theory]/[MemberData] boundary and the entry is looked up inside the
+    // test body.
+    public static TheoryData<string> AllWarriorNameIds()
+    {
+        var data = new TheoryData<string>();
+        foreach (var name in WarriorNameCatalog.All)
+        {
+            data.Add(name.Id);
+        }
+
+        return data;
+    }
+
+    [Fact]
+    public void FormatWarriorNameLine_ShowsTheNameAndTheEntityIdentifier()
+    {
+        var name = WarriorNameCatalog.Tagalog1589[0];
+
+        Assert.Equal(
+            $"Name: {name.DisplayForm} #42",
+            AgentInspectorContent.FormatWarriorNameLine(name, 42));
+    }
+
+    [Theory]
+    [MemberData(nameof(AllWarriorNameIds))]
+    public void BuildWarriorNameLines_ForEveryShippedName_ShowsItsOwnProvenance(
+        string nameId)
+    {
+        var name = WarriorNameCatalog.All.Single(entry => entry.Id == nameId);
+
+        var lines = AgentInspectorContent.BuildWarriorNameLines(name);
+
+        Assert.Contains(
+            lines,
+            line => line.Contains(
+                AgentInspectorContent.FormatVisualEvidenceTierLabel(
+                    name.EvidenceTier),
+                StringComparison.Ordinal));
+        Assert.Contains(
+            lines,
+            line => line.Contains(name.SourceCitation, StringComparison.Ordinal));
+        Assert.Contains(
+            lines,
+            line => line.Contains(
+                WarriorNameCatalog.GetRegionLabel(name.Region),
+                StringComparison.Ordinal));
+        Assert.Contains(
+            lines,
+            line => line.Contains(name.ReuseNote, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [MemberData(nameof(AllWarriorNameIds))]
+    public void BuildWarriorNameLines_AlwaysAppendsBothStandaloneResearchNotes(
+        string nameId)
+    {
+        var name = WarriorNameCatalog.All.Single(entry => entry.Id == nameId);
+
+        var lines = AgentInspectorContent.BuildWarriorNameLines(name);
+
+        Assert.Contains(
+            lines,
+            line => line.Contains(
+                WarriorNameCatalog.ParenthoodResearchNote,
+                StringComparison.Ordinal));
+        Assert.Contains(
+            lines,
+            line => line.Contains(
+                WarriorNameCatalog.WomensNamesResearchNote,
+                StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The recorded spelling is shown only where it differs from the
+    /// displayed one, so a row that would merely repeat the name above it
+    /// never takes up a line in a panel this tight.
+    /// </summary>
+    [Fact]
+    public void BuildWarriorNameLines_ShowsTheRecordedSpellingOnlyWhenItDiffers()
+    {
+        var differing = WarriorNameCatalog.All.First(
+            entry => !string.Equals(
+                entry.RecordedForm,
+                entry.DisplayForm,
+                StringComparison.Ordinal));
+        var identical = WarriorNameCatalog.All.First(
+            entry => string.Equals(
+                entry.RecordedForm,
+                entry.DisplayForm,
+                StringComparison.Ordinal));
+
+        Assert.Contains(
+            AgentInspectorContent.BuildWarriorNameLines(differing),
+            line => line.Contains("Recorded as:", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            AgentInspectorContent.BuildWarriorNameLines(identical),
+            line => line.Contains("Recorded as:", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The gender row reports what the source records, never what the warrior
+    /// on screen is: the catalog holds no evidence of a restriction, and the
+    /// line must not imply one.
+    /// </summary>
+    [Fact]
+    public void FormatWarriorNameGenderLine_ReportsTheSourceNotTheWarrior()
+    {
+        Assert.Equal(
+            "        Recorded gender in the source: a man",
+            AgentInspectorContent.FormatWarriorNameGenderLine(
+                WarriorNameGenderEvidence.RecordedMan));
+        Assert.Equal(
+            "        Recorded gender in the source: a woman",
+            AgentInspectorContent.FormatWarriorNameGenderLine(
+                WarriorNameGenderEvidence.RecordedWoman));
+        Assert.Equal(
+            "        Recorded gender in the source: not specified",
+            AgentInspectorContent.FormatWarriorNameGenderLine(
+                WarriorNameGenderEvidence.Unspecified));
+    }
+
+    /// <summary>
+    /// The panel's own height budget must actually cover the rows
+    /// <see cref="AgentInspectorContent.BuildWarriorNameLines"/> always
+    /// produces before the long standalone notes begin.
+    /// </summary>
+    [Fact]
+    public void WarriorNameReservedLineCount_CoversTheShortProvenanceRows()
+    {
+        foreach (var name in WarriorNameCatalog.All)
+        {
+            var shortRowCount = AgentInspectorContent.BuildWarriorNameLines(name)
+                .Count - 2;
+
+            Assert.True(
+                shortRowCount <= AgentInspectorContent.WarriorNameReservedLineCount,
+                $"{name.Id} needs {shortRowCount} provenance rows, budget is " +
+                $"{AgentInspectorContent.WarriorNameReservedLineCount}.");
+        }
+    }
 }

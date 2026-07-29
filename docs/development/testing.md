@@ -106,8 +106,9 @@ than an environment one.
 Produced by `dotnet run --project tools/Hukbo.Tools.RenderProbe -c Release --
 <agents> 1 120 <output>`, seed 1, 120 frames sampled per camera station after
 warm-up, backend `spritebatch-1x1`. Artifacts:
-`artifacts/render-baseline-2026-07-28.json` and
-`artifacts/render-baseline-500-2026-07-28.json`.
+`docs/development/render-baselines/render-baseline-2026-07-28.json` and
+`docs/development/render-baselines/render-baseline-500-2026-07-28.json`. Both
+files are tracked in the repository, so a fresh clone can open either one.
 
 200 visible units:
 
@@ -126,9 +127,17 @@ warm-up, backend `spritebatch-1x1`. Artifacts:
 | maximum zoom | 5.33 ms | 5.50 ms | 5.55 ms | 1 028 | 2 056 | 90.3 / 123.3 us | 104.9 / 271.3 us | 87 584 bytes allocated over the station; 736 per frame |
 
 Tier 2 diagnostics, every cell of both runs: `batches` 1, `textureBinds` 1.
-**R-W4.5 — one batch, one texture — is measured, not assumed.** `submissions`
-equals `quads` in every cell, which is the expected identity under the current
-backend where one quad is one `SpriteBatch.Draw`.
+**Neither figure is a measurement.** `RecordArenaRenderMetrics` calls
+`AddBatch()` and `AddTextureBind()` exactly once each, unconditionally, at
+`src/Hukbo.Client/ArenaGame.Rendering.cs` lines 136 and 137, so the recorded
+value of 1 is what those two lines write rather than a count the graphics
+device reported back. `submissions` equals `quads` in every cell for the same
+kind of reason: `RecordQuads` calls `AddSubmission()` once per quad in the
+loop at lines 248 to 251, which makes that identity definitional rather than
+observed. R-W4.5 — one batch, one texture — therefore rests on source
+inspection of those call sites, not on instrumentation. Checking it against
+the graphics device rather than against the source would need an instrument
+this repository does not currently have.
 
 Three observations that the budget revision has to account for:
 
@@ -162,6 +171,294 @@ from the persisted spectator settings. Adding either override is recorded as
 follow-up work. The `RenderBudgetEstimate` constants have not been revised
 against the measurements above; that revision is the remaining part of VIS-036
 and is deliberately left undone rather than done hastily.
+
+### Phase 1 render baseline, 2026-07-29
+
+Produced by `tools/Hukbo.Tools.RenderProbe` in `--matrix` mode, seed 1, 120
+frames sampled per camera station after warm-up, Release configuration, backend
+`spritebatch-1x1`, **vertical retrace disabled**. Artifact:
+`docs/development/render-baselines/render-matrix-2026-07-29.json`. That file is
+tracked in the repository, so a fresh clone can open it.
+
+This baseline supersedes the 2026-07-28 one above for every purpose except
+historical comparison. The two are not comparable: the earlier run was captured
+with vertical retrace enabled, and its `submitMicroseconds` column conflated
+geometry construction with submission. Both defects are corrected here.
+
+Probe-only duplication factor: **2.000**, derived from the recorded
+`PawnGeometry.Create` invocation count rather than assumed. The probe evaluates
+pawn geometry exactly as many times as the renderer does, so a probe frame runs
+four evaluations per drawn pawn where a normal game frame runs two.
+
+All figures below are microseconds unless stated. `geometryBuild` has had no
+producer since GPU-005 and reports a measured zero; it is omitted from the
+tables rather than printed as a column of zeroes.
+
+**200 units**
+
+All spans are p50 except the two frame columns, which are given at both
+percentiles.
+
+| Station | frame p50 | frame p95 | clear | layout | hover | uiLayer | baseDraw | arenaGeom | submit | probeOvh | pawnGeomCalls |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| minimum zoom | 2 903.6 | 3 574.5 | 7.2 | 0.3 | 0.2 | 387.4 | 0.9 | 632.6 | 949.8 | 808.7 | 800 |
+| default fit | 2 198.5 | 2 855.7 | 6.3 | 0.3 | 0.1 | 265.7 | 0.7 | 542.5 | 674.8 | 645.2 | 800 |
+| maximum zoom | 992.7 | 1 222.5 | 3.8 | 0.2 | 0.1 | 212.9 | 0.2 | 335.4 | 72.4 | 359.1 | 400 |
+
+**500 units**
+
+| Station | frame p50 | frame p95 | arenaGeom p50 | submit p50 | probeOvh p50 | quads (max) | pawnGeomCalls |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| minimum zoom | 3 519.5 | 4 193.6 | 1 008.3 | 998.7 | 1 262.6 | 9 326 | 2 000 |
+| default fit | 1 957.5 | 2 962.2 | 299.1 | 793.7 | 299.8 | 9 326 | 2 000 |
+| maximum zoom | 431.5 | 567.4 | 104.3 | 35.6 | 107.7 | 1 028 | 1 000 |
+
+**1 000 units**
+
+| Station | frame p50 | frame p95 | arenaGeom p50 | submit p50 | probeOvh p50 | quads (max) | pawnGeomCalls |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| minimum zoom | 6 861.1 | 8 430.0 | 2 168.1 | 1 770.3 | 2 645.9 | 18 084 | 4 000 |
+| default fit | 1 454.1 | 6 339.0 | 331.2 | 605.9 | 332.8 | 18 076 | 4 000 |
+| maximum zoom | 588.8 | 795.6 | 209.6 | 24.2 | 214.2 | 1 028 | 2 000 |
+
+#### Attribution and the largest unattributed residual
+
+Summing every named span against the frame figure at p50, the unattributed
+residual is 4.01, 2.86 and 0.87 percent at 200 units, 0.37, 16.02 and 1.34
+percent at 500 units, and 1.02, 1.95 and 1.39 percent at 1 000 units, in station
+order. **The largest unattributed residual at 1 000 units is 1.95 percent**, at
+the default-fit station.
+
+One methodological caveat has to be stated rather than hidden. Percentiles are
+not additive: each span's p95 is drawn from whichever frame was worst for that
+span, and those are generally different frames, so summing the span p95 values
+can and does exceed the frame p95. Several p95 residuals below are therefore
+negative, which is an artefact of the arithmetic and not evidence of
+double-counting. The p50 residuals quoted above are the meaningful figures, and
+even they are an approximation for the same reason. A strictly correct
+attribution would need per-frame span records, which the report does not retain.
+
+#### Phase 1 exit criteria
+
+Assessed against section 5.1 of `docs/plans/gpu-render/2026-07-28-gpu-render.md`.
+
+1. Matrix run at 200, 500 and 1 000 units, seed 1, 120 frames per station,
+   Release, retrace disabled, fingerprint stating the retrace setting — **met**.
+   The fingerprint records `verticalRetraceSynchronized: false`.
+2. Every millisecond of `Draw` attributable to a named span, largest
+   unattributed span under ten percent of the frame at 1 000 units — **met**, at
+   1.95 percent, subject to the percentile caveat above.
+3. Baseline artifacts in a tracked, committed location with a path a fresh clone
+   can open — **met**.
+4. A stated probe-only duplication factor derived from the recorded invocation
+   count rather than assumed — **met**, at 2.000.
+5. `submitMicroseconds` disaggregated by GPU-004 into separate geometry and
+   submission components — **met**.
+
+`./scripts/verify.ps1` passes, and the seed-1 headless determinism workload
+reports state hash `A080E28DA7C79C20`, event hash `2B6FB3A9A9C1960D`,
+`measuredTicks` 1677 and `coreAllocatedBytes` 118896, unchanged.
+
+#### The seed-1 determinism baseline moved on 2026-07-29
+
+Merging `origin/main` into `gpu-render` changed the seed-1 headless result. This
+is recorded here because many rows above quote the previous figures, and those
+rows remain accurate as history of what was measured when they were written.
+They are not the current contract.
+
+| | before the merge | after the merge |
+| --- | --- | --- |
+| `stateHash` | `A080E28DA7C79C20` | `2410DD94F26C82E2` |
+| `eventHash` | `2B6FB3A9A9C1960D` | `56F66BBC10E69F0E` |
+| `measuredTicks` | 1 677 | 1 279 |
+| `coreAllocatedBytes` | 118 896 | 154 976 |
+
+`deterministic` remains `true` and `firstMismatchTick` remains `null`. The
+simulation is not less deterministic; it behaves differently, because `main`
+landed collision-resolver, movement-preset, and contingent work.
+
+The change was confirmed to originate entirely in `main` rather than in the
+merge resolution. A pristine worktree checked out at `origin/main`, with no
+`gpu-render` commits present at all, runs the same seed-1 workload and reports
+exactly `2410DD94F26C82E2`, `56F66BBC10E69F0E`, 1 279 and 154 976. The merge
+resolution touched only `ArenaGame.Rendering.cs` and `PawnRenderer.cs`, neither
+of which `Hukbo.Headless` references, so it could not have moved a hash — and
+this measurement confirms it did not.
+
+**One defect this surfaced in `main`'s own records.** The table at the 200-agent
+row above, and the paragraph beneath it, still state that the recorded seed-1
+baseline is `A080E28DA7C79C20` at 1 677 ticks. `main`'s current code does not
+produce that. Those statements were true when written and are stale now; they
+belong to whoever owns the movement workstream to refresh, and are called out
+here rather than silently rewritten, because rewriting another workstream's
+recorded measurements would destroy the evidence trail they were written to
+provide.
+
+**Consequence for this plan.** The Phase 1 render baseline recorded earlier in
+this document was captured before the merge, on different simulation behaviour.
+Agent positions, death timing and therefore drawn quad counts all differ now, so
+the before-and-after comparison Phase 2 was going to be judged on is confounded
+and cannot be recovered. What is *not* affected is the Phase 3 go/no-go trigger
+itself: both of its clauses are absolute thresholds — frame p95 against 8.0
+milliseconds, and submission against 50 percent of that frame — so they are
+evaluated against the tree as it stands and need no baseline to compare with.
+GPU-023 can therefore still return a valid verdict. What it can no longer do is
+demonstrate how much of the improvement Phase 2 is responsible for.
+
+#### GPU-021: the hover-selection span, measured, and the decision not to act
+
+GPU-021 is measurement-led. It asks whether `UpdateHoverSelection`'s full-agent
+walk, plus the second full-list operation in `DrawUiLayer`, is a material
+fraction of the frame at 1 000 units. If it is, the duplicate walk gets removed;
+if it is not, the figure is recorded and nothing is done. This section is that
+record.
+
+The measured `hoverSelectionMicroseconds` p50 at 1 000 units is 23.7 us at
+minimum zoom, 21.0 us at default fit and 20.7 us at maximum zoom. Against the
+frame that is 0.345, 1.444 and 3.516 percent. Against the 8.0 millisecond
+budget the Phase 3 trigger is stated at, it is roughly a quarter of one percent.
+The worst p99 recorded anywhere in the matrix is 99.5 us, which is 1.2 percent
+of that budget.
+
+**Decision: no code change.** Removing the duplicate walk would recover about
+twenty microseconds at the station that decides the plan's outcome. That is not
+worth touching selection behaviour for, and `AgentSelection` is on the pointer
+path where a regression is user-visible and awkward to test.
+
+One measurement caveat has to be recorded with the number, because it looks like
+an inconsistency and is not. The span reads 0.1 to 0.2 us at 200 units but 10 to
+24 us at 500 and 1 000. That is not superlinear scaling. `UpdateHoverSelection`
+returns early unless the pointer is inside the arena rectangle, and the probe
+does not drive the mouse, so whether the walk runs at all depends on where the
+physical pointer happened to rest during that run. The 200-unit cell was
+captured with the pointer outside the arena and the 500- and 1 000-unit cells
+with it inside. The figures quoted above are therefore the cost **when the walk
+actually runs**, which is the conservative reading and the right one for this
+decision. A probe seam that drives pointer position would remove the confound;
+that is follow-up work, not a blocker, because the decision does not change
+under either reading.
+
+#### What this baseline says about the Phase 3 trigger
+
+The go/no-go trigger is evaluated on the **Phase 2 re-measurement**, not on this
+one, so nothing here decides anything. It is recorded because the direction is
+already clear and it would be dishonest to leave it unstated until GPU-023.
+
+At the 1 000-unit default-fit station, the station the trigger names, frame p95
+is 6 339.0 us and `submitMicroseconds` p95 is 1 599.1 us.
+
+- Clause 1 asks whether frame p95 exceeds 8.0 ms. It is 6.34 ms, so on today's
+  numbers clause 1 does not hold.
+- Clause 2 asks whether submission is at least 50 percent of that frame. It is
+  25.2 percent, or 40.2 percent if probe overhead is excluded from the
+  denominator on the grounds that a real game frame never runs the counting
+  pass. Either reading is short of 50 percent.
+
+Both clauses currently fail, and Phase 2 is expected to push clause 1 further
+out of reach, because removing per-agent CPU cost makes the frame faster rather
+than slower. The one figure pointing the other way is that at 1 000 units and
+minimum zoom the frame p95 is 8 430.0 us, which does exceed 8.0 ms — but the
+trigger is stated at default fit, and minimum zoom is not the shipping camera.
+
+The other result worth recording is that at 1 000 units and minimum zoom,
+`arenaGeometry` p50 of 2 168.1 us now exceeds `submit` p50 of 1 770.3 us. Per-
+agent geometry construction, which is what Phase 2 targets, is the larger cost
+at the heaviest station. That is the design's thesis, and this is the first
+measurement in this repository that actually tests it.
+
+### Phase 2 re-measurement and the go/no-go verdict, 2026-07-29
+
+GPU-023. Hand-run, not delegated. Produced by `tools/Hukbo.Tools.RenderProbe`
+in `--matrix` mode, seed 1, 120 frames per station after warm-up, Release,
+vertical retrace disabled, after every Phase 2 task landed and after
+`origin/main` was merged. Artifact:
+`docs/development/render-baselines/render-matrix-phase2-2026-07-29.json`,
+tracked so a fresh clone can open it.
+
+All figures in microseconds unless stated.
+
+| Agents | Station | frame p50 | frame p95 | arenaGeom p50 | submit p50 | submit p95 | probeOvh p50 | pawnGeomCalls |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 200 | minimum zoom | 1 566.6 | 1 856.6 | 221.5 | 517.4 | 662.3 | 598.2 | 400 |
+| 200 | default fit | 1 505.7 | 1 749.7 | 216.2 | 477.2 | 571.4 | 581.0 | 400 |
+| 200 | maximum zoom | 747.4 | 882.8 | 80.5 | 62.1 | 77.3 | 379.4 | 400 |
+| 500 | minimum zoom | 3 182.4 | 3 595.4 | 509.0 | 1 044.6 | 1 206.0 | 1 387.0 | 1 000 |
+| 500 | default fit | 2 662.6 | 2 978.0 | 444.4 | 782.4 | 920.8 | 1 210.9 | 1 000 |
+| 500 | maximum zoom | 1 286.0 | 1 458.6 | 191.1 | 59.1 | 77.1 | 794.5 | 1 000 |
+| 1 000 | minimum zoom | 4 119.2 | 4 511.5 | 691.8 | 1 024.8 | 1 194.5 | 2 096.9 | 2 000 |
+| 1 000 | default fit | 2 835.6 | 3 276.6 | 234.9 | 635.8 | 766.7 | 1 731.5 | 2 000 |
+| 1 000 | maximum zoom | 1 518.9 | 1 748.1 | 97.8 | 29.6 | 45.8 | 1 148.7 | 2 000 |
+
+#### The verdict: NO-GO
+
+The trigger is evaluated at 1 000 units, default fit, the station it names.
+
+**Clause 1 — the budget is missed.** Requires frame `Draw` p95 above 8.0 ms.
+Measured: **3 276.6 us, or 3.28 ms**. The budget is not missed; it is met with
+4.7 milliseconds to spare. **Clause 1 fails.**
+
+**Clause 2 — the overrun is in the submission path.** Requires
+`submitMicroseconds` p95 to be at least 50 percent of frame p95. Measured:
+**766.7 us against 3 276.6 us, or 23.4 percent. Clause 2 fails** on the figure
+as reported.
+
+Clause 2 deserves one honest qualification, recorded because it cuts against the
+verdict rather than for it. Frame p95 still contains the probe's own counting
+pass, which is 1 927.3 us at p95 and never runs in a real game frame. Excluding
+it gives a net frame of 1 349.3 us, against which submission is **56.8 percent**
+— which would satisfy clause 2. So clause 2's outcome depends on whether the
+denominator includes the instrument. Clause 1's does not: on the probe-free
+reading the frame is 1.35 ms, further below the 8.0 ms threshold, not closer to
+it.
+
+**Phase 3 is authorized if and only if both clauses hold. Clause 1 fails under
+every reading. The verdict is NO-GO.** Per section 4.2 of the task list, Phase 3
+is not built and GPU-024 through GPU-038 are never started.
+
+#### Why this is the right answer rather than a disappointing one
+
+The renderer is comfortably inside budget at the target army size. A 1 000-unit
+battle at the shipping camera draws in 3.28 ms at p95 against a 16.67 ms frame,
+leaving room for the simulation alongside it. Building an instanced backend
+would have been a large, risky rewrite of the submission path to fix an overrun
+that does not exist.
+
+It is worth recording what the answer would have been at each earlier stage of
+this work, because every one of them pointed the other way:
+
+- Against the original conflated `submitMicroseconds` span, measured with
+  vertical retrace enabled, submission read as 65.4 percent of frame at 500
+  units. Clause 2 would have fired.
+- After GPU-004 disaggregated that span but before GPU-006 disabled retrace,
+  frame times were pinned near 5.3 ms regardless of load and varied 7x between
+  identical runs, so any threshold comparison was meaningless.
+- After GPU-005 removed probe overhead from the geometry figure, submission at
+  200 units read 41.8 percent — closer to the truth and still not the number the
+  trigger asks for, because it was taken at the wrong army size.
+
+Three independent instrument defects each pointed toward authorizing the
+rewrite. The phased structure, and specifically the refusal to evaluate the
+trigger before GPU-004 landed, is what prevented a false GO.
+
+#### What Phase 2 changed, and what cannot be attributed to it
+
+`pawnGeometryInvocationsMaximum` at 1 000 units fell from 4 000 to 2 000 at every
+station. Redundancy R1 is gone: each visible pawn now pays one layout
+construction per pass instead of two. The appearance cache reports a p50 hit rate
+of 1.000 with zero misses at every cell, so `PawnAppearanceFactory.Create` no
+longer runs per agent per frame.
+
+Those two are structural facts and hold regardless of timing noise. The timing
+improvement, however, **cannot be attributed to Phase 2**. `origin/main` was
+merged before this measurement, changing collision resolution and movement, which
+moved the seed-1 determinism baseline and therefore agent positions, death timing
+and drawn quad counts. The Phase 1 baseline was captured on the earlier
+behaviour. Comparing the two tables would measure Phase 2 and main's simulation
+work together, with no way to separate them. That comparison is not made here,
+and anybody tempted to make it later should read this paragraph first.
+
+The verdict does not depend on that comparison. Both clauses are absolute
+thresholds evaluated against the tree as it stands.
 
 ### Original blocked assessment, preserved
 

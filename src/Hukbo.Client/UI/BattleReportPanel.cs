@@ -93,12 +93,20 @@ internal sealed class BattleReportPanel
         return new UiInteraction(ClientCommand.None, pointerInside);
     }
 
+    /// <param name="scenarioSeed">
+    /// The match's <c>Scenario.Seed</c>, one of the three inputs
+    /// <see cref="WarriorNames.Resolve"/> derives each named warrior's
+    /// personal name from. Presentation-only: names are derived from the
+    /// identity the simulation published, and no name reaches the report's
+    /// own numbers.
+    /// </param>
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
         UiFontSet fonts,
         BattleReport? report,
         Rectangle arenaContentBounds,
+        ulong scenarioSeed,
         UiTheme theme)
     {
         if (report is null)
@@ -121,8 +129,8 @@ internal sealed class BattleReportPanel
             Math.Max(3, theme.Metrics.BorderThickness));
 
         DrawHeader(spriteBatch, pixel, fonts, layout, theme);
-        DrawFactionTotals(spriteBatch, fonts, report, layout, theme);
-        DrawHighlights(spriteBatch, fonts, report, layout, theme);
+        DrawFactionTotals(spriteBatch, fonts, report, layout, scenarioSeed, theme);
+        DrawHighlights(spriteBatch, fonts, report, layout, scenarioSeed, theme);
         DrawLeaderboardHeader(spriteBatch, fonts, layout, theme);
         DrawLeaderboardRows(
             spriteBatch,
@@ -131,6 +139,7 @@ internal sealed class BattleReportPanel
             report,
             layout,
             visibleRowCount,
+            scenarioSeed,
             theme);
         DrawScrollbar(
             spriteBatch,
@@ -199,6 +208,7 @@ internal sealed class BattleReportPanel
         UiFontSet fonts,
         BattleReport report,
         BattleReportPanelLayout layout,
+        ulong scenarioSeed,
         UiTheme theme)
     {
         var bodyFont = fonts.Get(UiFontRole.Body);
@@ -212,7 +222,12 @@ internal sealed class BattleReportPanel
                 theme,
                 theme.Colors.TextPrimary);
             var topKiller = faction.TopKillerEntityId is { } topKillerId
-                ? $" ~top #{topKillerId} ({faction.TopKillerKills})"
+                ? " ~top " +
+                    WarriorNames.FormatWarrior(
+                        topKillerId,
+                        faction.FactionId,
+                        scenarioSeed) +
+                    $" ({faction.TopKillerKills})"
                 : string.Empty;
             // Authoritative figures first, then the estimated ones. The
             // ordering is deliberate: it puts the numbers the simulation
@@ -242,6 +257,7 @@ internal sealed class BattleReportPanel
         UiFontSet fonts,
         BattleReport report,
         BattleReportPanelLayout layout,
+        ulong scenarioSeed,
         UiTheme theme)
     {
         var captionFont = fonts.Get(UiFontRole.Caption);
@@ -249,12 +265,14 @@ internal sealed class BattleReportPanel
 
         if (report.FirstBlood is { } firstBlood)
         {
-            lines.Add($"First blood — {FormatHighlight(firstBlood)}");
+            lines.Add(
+                $"First blood — {FormatHighlight(firstBlood, scenarioSeed)}");
         }
 
         if (report.DecisiveKill is { } decisiveKill)
         {
-            lines.Add($"Decisive kill — {FormatHighlight(decisiveKill)}");
+            lines.Add(
+                $"Decisive kill — {FormatHighlight(decisiveKill, scenarioSeed)}");
         }
 
         if (report.LongestSurvivor is { } longestSurvivor)
@@ -262,8 +280,11 @@ internal sealed class BattleReportPanel
             lines.Add(
                 "Longest survivor — " +
                 $"{BattleEventFormatter.GetFactionLabel(longestSurvivor.FactionId)} " +
-                $"#{longestSurvivor.EntityId} held out until tick " +
-                $"{longestSurvivor.DeathTick:N0}.");
+                WarriorNames.FormatWarrior(
+                    longestSurvivor.EntityId,
+                    longestSurvivor.FactionId,
+                    scenarioSeed) +
+                $" held out until tick {longestSurvivor.DeathTick:N0}.");
         }
 
         lines.Add(KillCreditDisclosure);
@@ -283,11 +304,21 @@ internal sealed class BattleReportPanel
         }
     }
 
-    private static string FormatHighlight(BattleAttackHighlight highlight) =>
+    private static string FormatHighlight(
+        BattleAttackHighlight highlight,
+        ulong scenarioSeed) =>
         $"{BattleEventFormatter.GetFactionLabel(highlight.AttackerFactionId)} " +
-        $"#{highlight.AttackerEntityId} struck " +
+        WarriorNames.FormatWarrior(
+            highlight.AttackerEntityId,
+            highlight.AttackerFactionId,
+            scenarioSeed) +
+        " struck " +
         $"{BattleEventFormatter.GetFactionLabel(highlight.VictimFactionId)} " +
-        $"#{highlight.VictimEntityId} for {highlight.Value} with " +
+        WarriorNames.FormatWarrior(
+            highlight.VictimEntityId,
+            highlight.VictimFactionId,
+            scenarioSeed) +
+        $" for {highlight.Value} with " +
         $"{BattleEventFormatter.GetWeaponLabel(highlight.Weapon, highlight.Shield)} " +
         $"(tick {highlight.Tick:N0}).";
 
@@ -314,6 +345,7 @@ internal sealed class BattleReportPanel
         BattleReport report,
         BattleReportPanelLayout layout,
         int visibleRowCount,
+        ulong scenarioSeed,
         UiTheme theme)
     {
         var captionFont = fonts.Get(UiFontRole.Caption);
@@ -358,21 +390,25 @@ internal sealed class BattleReportPanel
             UiPrimitives.DrawText(
                 spriteBatch,
                 captionFont,
-                ClipRow(FormatRow(row), maximumCharacters),
+                ClipRow(FormatRow(row, scenarioSeed), maximumCharacters),
                 new Vector2(rowBounds.Left + 10, rowBounds.Top + 6),
                 theme.Colors.TextPrimary);
         }
     }
 
-    private static string FormatRow(UnitReportRow row)
+    private static string FormatRow(UnitReportRow row, ulong scenarioSeed)
     {
         var weaponLabel = row.Weapon is { } weapon && row.Shield is { } shield
             ? $"  {BattleEventFormatter.GetWeaponLabel(weapon, shield)}"
             : string.Empty;
 
         return $"{row.Rank}. " +
-            $"{BattleEventFormatter.GetFactionLabel(row.FactionId)} #{row.EntityId}  " +
-            $"K{row.Kills} Dmg {row.DamageDealt}/{row.DamageTaken}  " +
+            $"{BattleEventFormatter.GetFactionLabel(row.FactionId)} " +
+            WarriorNames.FormatWarrior(
+                row.EntityId,
+                row.FactionId,
+                scenarioSeed) +
+            $"  K{row.Kills} Dmg {row.DamageDealt}/{row.DamageTaken}  " +
             $"Acc {row.Accuracy:P0}" +
             weaponLabel;
     }

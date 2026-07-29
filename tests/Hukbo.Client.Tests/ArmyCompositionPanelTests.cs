@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Hukbo.Core.Combat;
@@ -141,6 +142,41 @@ public sealed class ArmyCompositionPanelTests
             $"\"{unitsPerTeamLabel}\" needs " +
             $"{unitsPerTeamLabel.Length * advancePx}px but its label box is " +
             $"only {layout.UnitsPerTeamRow.LabelBounds.Width}px wide.");
+    }
+
+    [Fact]
+    public void EveryValueBoxFitsTheLargestNumberTheStepperCanShow()
+    {
+        // Raising the units-per-team ceiling from 250 to 500 changes what these
+        // boxes have to display. It happens not to change how wide that is,
+        // because 500 is still three digits, and this test is what says so
+        // rather than leaving it to be noticed on screen. It does not replace
+        // the manual window-fit check: the panel's own size is theme data and
+        // is verified by EveryLaidOutRowFitsInsideThePanel and by a human
+        // looking at a real window.
+        var widest = ArmyCompositionStepper.MaximumUnitsPerTeam.ToString(
+            CultureInfo.InvariantCulture);
+        Assert.Equal(3, widest.Length);
+
+        var layout = ArmyCompositionPanel.CalculateLayout(
+            new Rectangle(0, 0, 1280, 720),
+            TestArmyCompositionLayout);
+        var advancePx = UiFontRamp.GetApproximateAdvancePx(UiFontRole.Label);
+        var requiredPx = widest.Length * advancePx;
+
+        foreach (var row in layout.CategoryRows)
+        {
+            Assert.True(
+                requiredPx <= row.ValueBounds.Width,
+                $"A category value of \"{widest}\" needs {requiredPx}px but " +
+                $"its value box is only {row.ValueBounds.Width}px wide.");
+        }
+
+        Assert.True(
+            requiredPx <= layout.UnitsPerTeamRow.ValueBounds.Width,
+            $"A units-per-team value of \"{widest}\" needs {requiredPx}px " +
+            "but its value box is only " +
+            $"{layout.UnitsPerTeamRow.ValueBounds.Width}px wide.");
     }
 
     private static IEnumerable<Rectangle> AllRowBounds(

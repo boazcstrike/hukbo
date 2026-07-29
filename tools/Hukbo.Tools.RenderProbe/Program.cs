@@ -20,6 +20,13 @@ using Hukbo.Tools.RenderProbe;
 // real window and GPU — there is no headless mode for either usage below.
 // Not in Hukbo.slnx, not in the gate (R-W6.12).
 //
+// A measurement run disables vertical retrace (GPU-006, integration design
+// section 4.3), because a blocking wait for the display is not CPU cost. That
+// override is the probe's alone: the shipped client keeps retrace enabled, and
+// the setting the run actually got is recorded on the report fingerprint as
+// VerticalRetraceSynchronized so no two reports taken under different settings
+// can be compared by accident.
+//
 // Single-configuration usage: dotnet run -- [agents] [seed] [framesPerStation] [outputPath]
 //   agents           total units, both factions combined (default 200)
 //   seed             scenario seed (default 1)
@@ -28,7 +35,8 @@ using Hukbo.Tools.RenderProbe;
 //
 // Full-matrix usage (VIS-036): Hukbo.Tools.RenderProbe.exe --matrix [seed] [framesPerStation] [outputPath]
 //   Re-invokes this same executable once per agent count in the integration
-//   design's measurement matrix (200, 500 visible units), reusing the exact
+//   design's measurement matrix (200, 500, and 1,000 visible units; the
+//   1,000-unit cell added by GPU-007), reusing the exact
 //   single-configuration path above for each cell rather than adding a
 //   second, unverified in-process ArenaGame lifecycle. Must be launched from
 //   the built apphost executable (not "dotnet run"), because it re-invokes
@@ -82,7 +90,9 @@ void RunSingleConfiguration(string[] singleArgs)
 
     Console.WriteLine(
         $"agents={agents} seed={seed} framesPerStation={framesPerStation} " +
-        $"backend={report.Fingerprint.Backend}");
+        $"backend={report.Fingerprint.Backend} " +
+        $"retraceSynchronized={report.Fingerprint.VerticalRetraceSynchronized} " +
+        $"probeDuplicationFactor={report.Fingerprint.ProbeDuplicationFactor:F3}");
     Console.WriteLine($"wrote {outputPath}");
     PrintStations(report.Stations);
 }
@@ -101,10 +111,23 @@ void RunMatrix(string[] matrixArgs)
             "artifacts",
             $"render-matrix-{DateTime.UtcNow:yyyy-MM-dd}.json");
 
-    // The integration design's measurement matrix (section 11): 200 and 500
-    // visible units. Camera-zoom station is driven inside each re-invoked
-    // single-configuration run below, so it does not repeat here.
-    var unitCounts = new[] { 200, 500 };
+    // The integration design's measurement matrix (section 11), extended by
+    // GPU-007 (integration design section 4.5) with the 1,000-unit cell the
+    // Phase 3 go/no-go trigger is actually stated against: 200, 500, and
+    // 1,000 visible units. Camera-zoom station is driven inside each
+    // re-invoked single-configuration run below, so it does not repeat here.
+    //
+    // Nothing had to be raised to make the 1,000-unit cell legal. Each cell
+    // reaches ArenaGame through the scenarioOverride constructor parameter,
+    // which replaces the persisted army composition outright, so
+    // ArmyCompositionStepper.MaximumUnitsPerTeam — the shipped client's
+    // opt-in ceiling, still 250 per team, and GPU-022's business, not this
+    // task's — is not on this path at all. The bound that does apply is
+    // Scenario.MaximumAgentsPerFaction (10,000 per faction, so 20,000 total)
+    // together with Scenario's body-density check, which on the default
+    // 1,280x720 map at the default body radius admits 12,755 total bodies.
+    // 1,000 clears both by a wide margin.
+    var unitCounts = new[] { 200, 500, 1_000 };
 
     var executablePath = Environment.ProcessPath;
     if (string.IsNullOrEmpty(executablePath))
@@ -188,7 +211,7 @@ void RunMatrix(string[] matrixArgs)
     }
 
     const string axesNote =
-        "This run drove agent count (200, 500) and camera-zoom station " +
+        "This run drove agent count (200, 500, 1000) and camera-zoom station " +
         "(minimum zoom, default fit, maximum zoom) independently, per the " +
         "existing render-probe seam (VIS-034/VIS-035/VIS-035R). It did NOT " +
         "independently drive grass-visibility or motion-intensity: the " +
@@ -197,7 +220,17 @@ void RunMatrix(string[] matrixArgs)
         "ran at the spectator's persisted MotionIntensity (default Full). " +
         "The integration design's grass-on/off and motion-on/off matrix " +
         "axes are not represented in this report; extending the seam with " +
-        "those two overrides is a follow-up, not fabricated here (R-W6.13).";
+        "those two overrides is a follow-up, not fabricated here (R-W6.13). " +
+        "Every cell was captured with vertical retrace disabled (GPU-006, " +
+        "integration design section 4.3), because a blocking wait for the " +
+        "display is not CPU cost; the setting each run actually got is on " +
+        "the fingerprint as VerticalRetraceSynchronized, and a report whose " +
+        "fingerprint says true is a refresh-interval floor rather than a " +
+        "measurement and must not be compared against one that says false. " +
+        "The shipped client is unchanged and keeps retrace enabled. The " +
+        "1,000-unit cell is the size the Phase 3 go/no-go trigger is stated " +
+        "against (GPU-007, integration design section 4.5); it is reached " +
+        "through the probe's scenario override and raises no shipped cap.";
 
     var matrixReport = new RenderMatrixReport(sharedFingerprint, cells, axesNote);
 
@@ -212,6 +245,15 @@ void RunMatrix(string[] matrixArgs)
         JsonSerializer.Serialize(matrixReport, RenderProbeReport.SerializerOptions));
 
     Console.WriteLine($"wrote {outputPath}");
+
+    // GPU-005. The matrix keeps one shared fingerprint, taken from the first
+    // cell, so this is the first cell's measured factor rather than every
+    // cell's. Stated on its own line so nobody reads it as a per-cell figure.
+    Console.WriteLine(
+        $"fingerprint (from the first cell): backend={sharedFingerprint.Backend} " +
+        $"retraceSynchronized={sharedFingerprint.VerticalRetraceSynchronized} " +
+        $"probeDuplicationFactor={sharedFingerprint.ProbeDuplicationFactor:F3}");
+
     foreach (var cell in cells)
     {
         Console.WriteLine($"agents={cell.AgentCount} seed={cell.Seed}");
@@ -253,6 +295,15 @@ RenderProbeReport CaptureReport(int agents, ulong seed, int framesPerStation)
 
     using var game = new ArenaGame(scenarioOverride: scenario);
 
+    // GPU-006, integration design section 4.3. Driver back-pressure from a
+    // retrace-synchronized device blocks inside the measured window, at the
+    // GraphicsDevice.Clear that opens the next frame, so a synchronized run
+    // reports a display-imposed floor instead of CPU cost — three stations
+    // drawing 9,326 and 1,028 quads landing within 0.06 ms of one another is
+    // that floor, not that work. Set before Run() because
+    // GraphicsDeviceManager reads the flag when it creates the device.
+    game.SetProbeVerticalRetrace(synchronize: false);
+
     game.RenderProbeSampled += sample =>
     {
         if (warmupFramesRemaining > 0)
@@ -287,6 +338,20 @@ RenderProbeReport CaptureReport(int agents, ulong seed, int framesPerStation)
 
     game.Run();
 
+    // Read back from the game that produced the samples above, after its run
+    // has finished, rather than restated as a literal here: the fingerprint has
+    // to describe what the run actually did, so that a report captured with
+    // retrace still enabled is never mistaken for one captured without it.
+    var verticalRetraceSynchronized = game.IsVerticalRetraceSynchronized;
+
+    // GPU-005. Read back the same way and for the same reason: the factor is
+    // the ratio of the pawn-geometry invocations this run actually counted to
+    // the ones its draw path alone made, accumulated frame by frame while the
+    // run was happening. Nothing here asserts what that ratio ought to be, so
+    // when GPU-013 and GPU-014 remove the draw path's duplicate construction
+    // this number moves on its own.
+    var probeDuplicationFactor = game.ProbePawnGeometryDuplicationFactor;
+
     var stationResults = new RenderProbeStationResult[stations.Length];
     for (var index = 0; index < stations.Length; index++)
     {
@@ -315,6 +380,17 @@ RenderProbeReport CaptureReport(int agents, ulong seed, int framesPerStation)
             1080,
             buildConfiguration,
             backend,
+            // GPU-006. Derived from the run above, never asserted: the probe
+            // asks for retrace off, and this states whether the device it got
+            // was in fact presenting unsynchronized. A true here means the
+            // frame-time percentiles below are a refresh-interval floor rather
+            // than a measurement, and it must be able to say so.
+            VerticalRetraceSynchronized: verticalRetraceSynchronized,
+            // GPU-005. Derived from the invocations the run recorded, never
+            // hardcoded. A 0 here now means the draw path counted nothing at
+            // all, which for a probe run that produced stations would itself
+            // be a finding.
+            ProbeDuplicationFactor: probeDuplicationFactor,
             DateTime.UtcNow),
         agents,
         seed,
@@ -325,6 +401,22 @@ void PrintStations(IReadOnlyList<RenderProbeStationResult> stations)
 {
     foreach (var station in stations)
     {
+        // GPU-018a. The median frame's hit rate, which is the figure GPU-018's
+        // completion criterion is stated in terms of. Computed from the P50
+        // pair and never from the peaks: the peak hit count comes from a warm
+        // frame and the peak miss count from the cold one, so their ratio
+        // describes no frame that ever happened. Reported as "n/a" rather than
+        // as a 0 or a NaN when the median frame read the cache zero times,
+        // because no rate exists to report in that case and a printed 0 would
+        // read as a cache that never hit.
+        var medianReads =
+            station.AppearanceCacheHitsP50 + station.AppearanceCacheMissesP50;
+        var medianHitRate = medianReads > 0
+            ? (station.AppearanceCacheHitsP50 / medianReads).ToString(
+                "F4",
+                CultureInfo.InvariantCulture)
+            : "n/a";
+
         Console.WriteLine(
             $"{station.StationName,-14} frames={station.FrameCount,4} " +
             $"p50={station.FrameMillisecondsP50,6:F2}ms " +
@@ -332,10 +424,25 @@ void PrintStations(IReadOnlyList<RenderProbeStationResult> stations)
             $"p99={station.FrameMillisecondsP99,6:F2}ms " +
             $"quads(max)={station.QuadsMaximum,6} " +
             $"tris(max)={station.TrianglesMaximum,6} " +
-            $"geomBuild(p50/p95)={station.GeometryBuildMicrosecondsP50,7:F1}/" +
-            $"{station.GeometryBuildMicrosecondsP95,7:F1}us " +
+            // GPU-005. geometryBuildMicroseconds is deliberately absent from
+            // this line. Nothing writes it any more: the pass it used to time
+            // is the probe's own and is now reported as probeOvh, while the
+            // renderer's real per-pawn geometry cost is arenaGeom (GPU-004).
+            // Printing a field no producer writes would read as a measured
+            // zero. It stays in the JSON schema, which is versioned, rather
+            // than on a console line, which is read at a glance.
+            $"arenaGeom(p50/p95)={station.ArenaGeometryMicrosecondsP50,7:F1}/" +
+            $"{station.ArenaGeometryMicrosecondsP95,7:F1}us " +
             $"submit(p50/p95)={station.SubmitMicrosecondsP50,7:F1}/" +
             $"{station.SubmitMicrosecondsP95,7:F1}us " +
+            $"probeOvh(p50/p95)={station.ProbeOverheadMicrosecondsP50,7:F1}/" +
+            $"{station.ProbeOverheadMicrosecondsP95,7:F1}us " +
+            $"pawnGeomCalls(max)={station.PawnGeometryInvocationsMaximum,6} " +
+            $"apprCache(p50 hit/miss)={station.AppearanceCacheHitsP50,6:F0}/" +
+            $"{station.AppearanceCacheMissesP50,6:F0} " +
+            $"apprCacheHitRate(p50)={medianHitRate} " +
+            $"apprCache(max miss/fill)={station.AppearanceCacheMissesMaximum,6}/" +
+            $"{station.AppearanceCacheFillsMaximum,6} " +
             $"managedBytes(max)={station.ManagedBytesAllocatedMaximum} " +
             $"[Tier2 diagnostic] submissions(max)={station.SubmissionsMaximum,6} " +
             $"batches(max)={station.BatchesMaximum} textureBinds(max)={station.TextureBindsMaximum} " +

@@ -16,11 +16,14 @@ internal static class ArmyCompositionStepper
     internal const int MinimumUnitsPerTeam = 4;
 
     /// <summary>
-    /// Evidence-backed ceiling: <c>benchmark.ps1 -Agents 500</c> routes
-    /// through <c>Scenario.CreateDefault</c>, which halves to
-    /// <c>AgentsPerFaction = 250</c>. 500 per team was never measured.
+    /// Opt-in ceiling. 500 per team is 1,000 units on the field, which is the
+    /// largest battle the Phase 2 rendering work targets and the size the
+    /// go/no-go measurement is taken at. Raising this ceiling widens only what
+    /// a spectator may deliberately ask for: the default is unchanged, because
+    /// <c>ClientSettings</c>' own <c>DefaultUnitsPerTeam</c> still starts every
+    /// battle at 250 per team.
     /// </summary>
-    internal const int MaximumUnitsPerTeam = 250;
+    internal const int MaximumUnitsPerTeam = 500;
 
     internal const int CategoryStep = 1;
 

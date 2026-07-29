@@ -109,8 +109,13 @@ public sealed partial class ArenaGame : Game
         "Quit Hukbo? The battle in progress will be lost.",
         "Quit",
         ClientCommand.Exit);
-    private readonly PresentationCoordinator _presentation =
-        new(EventHistoryCapacity);
+    /// <summary>
+    /// Assigned in the constructor rather than here because it now needs
+    /// <see cref="_renderMetricsRecorder"/>: its appearance cache (GPU-017,
+    /// adopted by GPU-018) reports hits, misses, and fills through that seam,
+    /// and a field initializer cannot read another instance field.
+    /// </summary>
+    private readonly PresentationCoordinator _presentation;
     private readonly AgentSelection _hoverSelection = new();
     private readonly ArenaAutoPanController _autoPan = new();
     private readonly MatchSeries _matchSeries = new(DefaultSeed);
@@ -236,6 +241,19 @@ public sealed partial class ArenaGame : Game
             _settingsStore.Load(catalog.DefaultThemeId).AutoCameraMode,
             value => TryPersistAutoCameraMode(catalog.DefaultThemeId, value));
 
+        // Resolved here, ahead of the coordinator below, because the
+        // coordinator's appearance cache reports through it. _renderProbeEnabled
+        // is a field initializer, so it is already settled by this point, and
+        // moving this assignment earlier in the same constructor changes
+        // nothing about what a normal run gets: NullRenderMetricsRecorder,
+        // whose every call is a no-op.
+        _renderMetricsRecorder = _renderProbeEnabled
+            ? new SpriteBatchRenderMetricsRecorder()
+            : NullRenderMetricsRecorder.Instance;
+        _presentation = new PresentationCoordinator(
+            EventHistoryCapacity,
+            renderMetricsRecorder: _renderMetricsRecorder);
+
         // A restored preference takes effect from tick zero, so the spectator
         // never has to reopen the menu after a relaunch.
         _presentation.Blood.Intensity = _goreManager.Value;
@@ -275,9 +293,7 @@ public sealed partial class ArenaGame : Game
             _scenario.Seed,
             _scenario.MapWidth,
             _scenario.MapHeight);
-        _renderMetricsRecorder = _renderProbeEnabled
-            ? new SpriteBatchRenderMetricsRecorder()
-            : NullRenderMetricsRecorder.Instance;
+        _presentation.EventFeed.SetScenarioSeed(_scenario.Seed);
 
         LogScenarioBuilt("startup");
     }
@@ -297,6 +313,80 @@ public sealed partial class ArenaGame : Game
             _camera.SetZoom(zoom);
         }
     }
+
+    /// <summary>
+    /// Turns the graphics device's wait for the display's vertical retrace on
+    /// or off for the rest of this game's life. No-op unless the render-probe
+    /// opt-in is active, so a normal run keeps the constructor's
+    /// <c>SynchronizeWithVerticalRetrace = true</c> and never executes a
+    /// statement in here — the same shape as <see cref="SetProbeCameraZoom"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// GPU-006, integration design section 4.3. Presentation itself happens in
+    /// <c>Game.EndDraw</c>, outside the probe's measured window, but driver
+    /// back-pressure is not: once the driver has buffered its maximum number
+    /// of in-flight frames the next graphics call blocks, and the first
+    /// graphics call of the next frame is the <c>GraphicsDevice.Clear</c> at
+    /// the top of <c>Draw</c> — inside the window. A blocking wait for the
+    /// display is not CPU cost, so a probe whose whole purpose is to measure
+    /// CPU cost per frame has to disable the wait or every percentile it
+    /// reports is a floor imposed by the display rather than a measurement.
+    /// </para>
+    /// <para>
+    /// Call this before <see cref="Microsoft.Xna.Framework.Game.Run"/>.
+    /// <c>GraphicsDeviceManager</c> reads the flag when it builds the device's
+    /// <c>PresentationParameters</c>, which happens during device creation, so
+    /// a call made before the device exists needs no <c>ApplyChanges</c> — and
+    /// must not make one, because <c>ApplyChanges</c> creates the device
+    /// itself when none exists yet, which would drag device creation out of
+    /// the normal startup order. The guarded call below therefore exists only
+    /// for the case where the device is already live.
+    /// </para>
+    /// </remarks>
+    public void SetProbeVerticalRetrace(bool synchronize)
+    {
+        if (!_renderProbeEnabled)
+        {
+            return;
+        }
+
+        _graphics.SynchronizeWithVerticalRetrace = synchronize;
+
+        // A fixed-step loop would re-impose a cadence cap of its own on top of
+        // the one this method just lifted, so the probe states its requirement
+        // here rather than leaving it resting on a constructor line no part of
+        // the probe owns. Already false for every run today; this keeps it
+        // false for a probe run regardless of what the constructor decides
+        // later.
+        IsFixedTimeStep = false;
+
+        if (_graphics.GraphicsDevice is not null)
+        {
+            _graphics.ApplyChanges();
+        }
+    }
+
+    /// <summary>
+    /// Whether this game is presenting synchronized to the display's vertical
+    /// retrace, read from the device that actually ran rather than from the
+    /// value anybody asked for.
+    /// </summary>
+    /// <remarks>
+    /// GPU-006. <c>Hukbo.Tools.RenderProbe</c> reads this after
+    /// <see cref="Microsoft.Xna.Framework.Game.Run"/> returns and records it on
+    /// the report fingerprint, so a report always states the retrace setting of
+    /// the run that produced it and can never be silently compared against a
+    /// report captured under the other setting. The device's own
+    /// <c>PresentationInterval</c> is preferred because it is what
+    /// <c>GraphicsDeviceManager</c> actually resolved the flag to at device
+    /// creation; the manager's flag is the fallback for the window before any
+    /// device exists.
+    /// </remarks>
+    public bool IsVerticalRetraceSynchronized =>
+        _graphics.GraphicsDevice?.PresentationParameters is { } parameters
+            ? parameters.PresentationInterval != PresentInterval.Immediate
+            : _graphics.SynchronizeWithVerticalRetrace;
 
     /// <summary>
     /// Re-reads the whole settings file at save time, mirroring
@@ -1305,6 +1395,7 @@ public sealed partial class ArenaGame : Game
             _scenario.MapHeight);
         LogScenarioBuilt(resetCommand.ToString());
         _presentation.ResetFor(resetCommand);
+        _presentation.EventFeed.SetScenarioSeed(_scenario.Seed);
         _soundDirector.Clear();
         _hoverSelection.Clear();
         _simulationAccumulator = 0;

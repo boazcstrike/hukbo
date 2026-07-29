@@ -443,9 +443,11 @@ public sealed class VisualCatalogContractTests
         Assert.Equal(names.Length, names.Distinct(StringComparer.Ordinal).Count());
     }
 
+    // Eleven from the visual improvement package, plus the two warrior
+    // personal-name streams (region assignment and name selection).
     [Fact]
-    public void PresentationSalts_RegistryHasElevenEntries() =>
-        Assert.Equal(11, PresentationSalts.All.Count);
+    public void PresentationSalts_RegistryHasThirteenEntries() =>
+        Assert.Equal(13, PresentationSalts.All.Count);
 
     [Fact]
     public void PresentationSalts_RegistryIncludesEveryNewVisualImprovementPackageSalt()

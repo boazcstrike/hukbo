@@ -81,6 +81,21 @@ internal static class AgentInspectorContent
     /// still fits above the bottom padding. Mirrors the exact row
     /// arithmetic <see cref="AgentInspectorPanel.Draw"/> uses.
     /// </summary>
+    /// <summary>
+    /// Row budget reserved for a selected warrior's name provenance when
+    /// sizing the panel: the six short rows
+    /// <see cref="BuildWarriorNameLines"/> can produce before its two
+    /// standalone research notes — evidence tier, recorded spelling where it
+    /// differs, name corpus, source document, recorded gender, and the reuse
+    /// note's first wrapped line. The two long research notes that follow are
+    /// not budgeted for: like the weapon, shield, and appearance variant lines
+    /// already appended after them, they are drawn only while rows still fit,
+    /// and <see cref="AgentInspectorPanel.Draw"/> refuses to draw any row that
+    /// would fall past the panel bounds. This is a sizing estimate, so an
+    /// under-estimate can only drop a line, never overflow the panel.
+    /// </summary>
+    internal const int WarriorNameReservedLineCount = 6;
+
     internal static int ComputeRequiredHeight(int evidenceLineCount)
     {
         var textY = Padding + TitleHeight;
@@ -89,7 +104,9 @@ internal static class AgentInspectorContent
             portraitBottom + PortraitBottomGap,
             textY + (TopDetailRowCount * LineHeight) + TopDetailBottomGap);
         var lowerRowCount =
-            MaximumLowerRowCount + Math.Max(0, evidenceLineCount);
+            MaximumLowerRowCount
+            + WarriorNameReservedLineCount
+            + Math.Max(0, evidenceLineCount);
         var lastRowY = lowerTextY + ((lowerRowCount - 1) * LineHeight);
         var lastRowBottom = lastRowY + LineHeight;
         return lastRowBottom + Padding;
@@ -768,6 +785,102 @@ internal static class AgentInspectorContent
                 category,
                 null),
         };
+
+    // ===== Warrior personal-name inspector lines =====
+
+    /// <summary>
+    /// The inspector's top identity row: this warrior's personal name and its
+    /// entity identifier together. The identifier stays because the name pools
+    /// are smaller than a roster and two warriors may share a name; it is also
+    /// what the event-log filter matches on.
+    /// </summary>
+    internal static string FormatWarriorNameLine(
+        WarriorNameEntry name,
+        ulong entityId)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return $"Name: {name.DisplayForm} #{entityId}";
+    }
+
+    /// <summary>
+    /// The provenance behind the name in the identity row: the form's own
+    /// evidence tier, the recorded spelling where it differs from the
+    /// displayed one, the regional corpus the faction was assigned, the source
+    /// document, what the source records about the bearer's or example's
+    /// gender, and what is and is not being claimed by reusing the form. The
+    /// two standalone research notes — the structures this catalog does not
+    /// generate, and the documentary gap in women's names — are appended last,
+    /// mirroring <see cref="PalisayResearchNote"/>'s own "standalone note,
+    /// independent of what resolved" shape.
+    /// </summary>
+    /// <remarks>
+    /// Pure: reads only the passed <see cref="WarriorNameEntry"/> and the
+    /// static <see cref="WarriorNameCatalog"/> label tables, touches no
+    /// <c>SpriteBatch</c>, <c>GraphicsDevice</c>, or window.
+    /// </remarks>
+    internal static IReadOnlyList<string> BuildWarriorNameLines(WarriorNameEntry name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        var lines = new List<string>
+        {
+            FormatWarriorNameTierLine(name.EvidenceTier),
+        };
+
+        if (!string.Equals(name.RecordedForm, name.DisplayForm, StringComparison.Ordinal))
+        {
+            lines.Add(FormatWarriorNameRecordedFormLine(name.RecordedForm));
+        }
+
+        lines.Add(FormatWarriorNameRegionLine(name.Region));
+        lines.Add(FormatWarriorNameSourceLine(name.SourceCitation));
+        lines.Add(FormatWarriorNameGenderLine(name.RecordedGender));
+        lines.Add(FormatWarriorNameNoteLine(name.ReuseNote));
+        lines.Add(FormatWarriorNameNoteLine(
+            WarriorNameCatalog.ParenthoodResearchNote));
+        lines.Add(FormatWarriorNameNoteLine(
+            WarriorNameCatalog.WomensNamesResearchNote));
+
+        return lines;
+    }
+
+    internal static string FormatWarriorNameTierLine(VisualEvidenceTier tier) =>
+        $"        Name evidence: {FormatVisualEvidenceTierLabel(tier)}";
+
+    internal static string FormatWarriorNameRecordedFormLine(string recordedForm) =>
+        $"        Recorded as: {recordedForm}";
+
+    internal static string FormatWarriorNameRegionLine(WarriorNameRegion region) =>
+        $"        Name corpus: {WarriorNameCatalog.GetRegionLabel(region)}";
+
+    internal static string FormatWarriorNameSourceLine(string sourceCitation) =>
+        $"        Source: {sourceCitation}";
+
+    /// <summary>
+    /// What the source says about the gender of the bearer or example, and
+    /// nothing more. The catalog records evidence, never a restriction, so
+    /// this line says "recorded" rather than naming the warrior's own gender.
+    /// </summary>
+    internal static string FormatWarriorNameGenderLine(
+        WarriorNameGenderEvidence gender) =>
+        $"        Recorded gender in the source: " +
+        $"{GetWarriorNameGenderLabel(gender)}";
+
+    internal static string GetWarriorNameGenderLabel(
+        WarriorNameGenderEvidence gender) =>
+        gender switch
+        {
+            WarriorNameGenderEvidence.RecordedMan => "a man",
+            WarriorNameGenderEvidence.RecordedWoman => "a woman",
+            WarriorNameGenderEvidence.Unspecified => "not specified",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(gender),
+                gender,
+                null),
+        };
+
+    internal static string FormatWarriorNameNoteLine(string note) =>
+        $"        {note}";
 
     internal static string FormatArmorLine(ArmorId armor) =>
         $"Armor: {GetArmorLabel(armor)}";

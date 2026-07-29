@@ -36,12 +36,19 @@ internal sealed class AgentInspectorPanel
             Bounds.Contains(input.MousePosition));
     }
 
+    /// <param name="scenarioSeed">
+    /// The match's <c>Scenario.Seed</c>, one of the three inputs
+    /// <see cref="WarriorNames.Resolve"/> derives the selected warrior's
+    /// personal name from. Presentation-only: the name is read out of the
+    /// simulation's published identity, never written back into it.
+    /// </param>
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
         UiFontSet fonts,
         AgentView? agent,
         Rectangle bounds,
+        ulong scenarioSeed,
         UiTheme theme)
     {
         if (agent is not { } selected)
@@ -129,7 +136,17 @@ internal sealed class AgentInspectorPanel
             scaleMultiplier: 1f);
 
         var detailX = portraitBounds.Right + PortraitGap;
-        DrawLine($"ID: {selected.EntityId}", detailX, textY, 0);
+        var warriorName = WarriorNames.Resolve(
+            selected.EntityId,
+            selected.FactionId,
+            scenarioSeed);
+        DrawLine(
+            AgentInspectorContent.FormatWarriorNameLine(
+                warriorName,
+                selected.EntityId),
+            detailX,
+            textY,
+            0);
         DrawLine($"Faction: {factionLabel}", detailX, textY, 1);
         DrawLine($"State: {stateLabel}", detailX, textY, 2);
         DrawLine(
@@ -201,7 +218,23 @@ internal sealed class AgentInspectorPanel
                 line,
                 contentWidthBudget,
                 candidate => bodyFont.MeasureString(candidate).X));
+        // The selected warrior's name provenance: its evidence tier, recorded
+        // spelling, regional corpus, source document, recorded gender, reuse
+        // note, and the two standalone research notes. Placed directly after
+        // the weapon's own evidence lines and ahead of the variant blocks
+        // because the panel is sized for these rows
+        // (AgentInspectorContent.WarriorNameReservedLineCount) and only draws
+        // the blocks below them while rows still fit.
+        var warriorNameLines = AgentInspectorContent.BuildWarriorNameLines(
+            warriorName);
+        var wrappedWarriorNameLines = warriorNameLines.SelectMany(
+            line => AgentInspectorContent.WrapText(
+                line,
+                contentWidthBudget,
+                candidate => bodyFont.MeasureString(candidate).X));
+
         var extraLines = evidenceLines
+            .Concat(wrappedWarriorNameLines)
             .Concat(wrappedVariantLines)
             .Concat(wrappedShieldVariantLines)
             .Concat(wrappedAppearancePresetLines)

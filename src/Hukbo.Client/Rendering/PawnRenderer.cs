@@ -69,6 +69,17 @@ internal static class PawnRenderer
     /// entirely, and the tip clips at the panel edge while panning. The
     /// selection padding does not absorb this, by roughly four times. It is
     /// accepted and carries an interactive smoke row rather than an assertion.
+    /// <para>
+    /// GPU-013. A caller that also needs the posed
+    /// <see cref="PawnLayout"/> for the same pawn — which the arena render
+    /// loop always does, for every pawn that survives the cull — should reach
+    /// for <see cref="PawnGeometry.CreateWithPoseBlindBounds"/> instead, which
+    /// returns both from one call and builds the pose-blind rectangle from
+    /// only the layers that can reach it. This method is a whole
+    /// <see cref="PawnGeometry.Create"/> that keeps one field, and it stays
+    /// exactly that on purpose: it is the reference the equivalence test in
+    /// <c>PawnGeometryTests</c> compares the combined call against.
+    /// </para>
     /// </remarks>
     public static Rectangle GetBounds(
         Vector2 footAnchor,
@@ -163,15 +174,72 @@ internal static class PawnRenderer
             throw new ArgumentOutOfRangeException(nameof(hitPulseStrength));
         }
 
-        var layout = PawnGeometry.Create(
-            footAnchor,
-            cameraZoom,
+        DrawLayout(
+            spriteBatch,
+            pixel,
+            PawnGeometry.Create(
+                footAnchor,
+                cameraZoom,
+                appearance,
+                scaleMultiplier,
+                swingPose,
+                armorWidthFactor,
+                hasSash,
+                adornmentAccentMarkCount),
             appearance,
-            scaleMultiplier,
-            swingPose,
-            armorWidthFactor,
-            hasSash,
-            adornmentAccentMarkCount);
+            factionColor,
+            state,
+            hitPulseStrength,
+            torsoResolutionStep,
+            log,
+            contingentId,
+            contingentState);
+    }
+
+    /// <summary>
+    /// Submits one composed pawn from a <see cref="PawnLayout"/> the caller
+    /// already built, instead of building it here.
+    /// </summary>
+    /// <remarks>
+    /// GPU-004. This method and <see cref="Draw"/> draw the identical
+    /// sequence of quads: <see cref="Draw"/> is now nothing but the
+    /// <see cref="PawnGeometry.Create"/> call followed by a delegation to
+    /// this one, so no call site changes what it puts on screen. The split
+    /// exists so the arena render path can fence layout construction — which
+    /// is per-agent CPU work, and therefore Phase 2's concern — out of the
+    /// span that measures submission, which is Phase 3's concern. Against the
+    /// old combined method the two kinds of work were inseparable, because
+    /// every pawn's <c>PawnGeometry.Create</c> ran inside the same call that
+    /// issued its <c>SpriteBatch.Draw</c> calls.
+    ///
+    /// The colour resolution below (the hit-pulse and dead-state blends) is
+    /// deliberately left here rather than hoisted with the layout. It is
+    /// interleaved with the draw calls it feeds, and moving it would
+    /// restructure the draw sequence, which this task may not do. It is
+    /// therefore measured as part of submission, and that attribution is a
+    /// known, stated approximation rather than an exact boundary.
+    /// </remarks>
+    public static void DrawLayout(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        PawnLayout layout,
+        PawnAppearance appearance,
+        Color factionColor,
+        PawnVisualState state,
+        float hitPulseStrength = 0f,
+        VisualFallbackStep torsoResolutionStep = VisualFallbackStep.ModelCategoryDefault,
+        DiagnosticLog? log = null,
+        int contingentId = 0,
+        ContingentState contingentState = ContingentState.None)
+    {
+        ArgumentNullException.ThrowIfNull(spriteBatch);
+        ArgumentNullException.ThrowIfNull(pixel);
+        if (!float.IsFinite(hitPulseStrength) ||
+            hitPulseStrength is < 0f or > 1f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(hitPulseStrength));
+        }
+
         var isDead = state == PawnVisualState.Dead;
         // VIS-018: the torso fill now draws the resolved warrior-appearance
         // preset's garment base tone (Presentation.PawnAppearance.

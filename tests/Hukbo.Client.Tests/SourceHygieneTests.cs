@@ -293,6 +293,91 @@ public sealed class SourceHygieneTests
             names);
     }
 
+    /// <summary>
+    /// Every recorded render-baseline artifact that
+    /// <c>docs/development/testing.md</c> cites resolves to a file the
+    /// repository actually carries.
+    /// </summary>
+    /// <remarks>
+    /// The measurement tables in that document are only as trustworthy as the
+    /// JSON they were read from. The first baselines were written under
+    /// <c>artifacts/</c>, which <c>.gitignore</c> excludes, so the citation
+    /// named a path that existed on one machine and nowhere else; a fresh
+    /// clone could read the tables but could not open the evidence behind
+    /// them. Scanning the citations here means a baseline can never again be
+    /// quoted from a file the repository does not hold.
+    /// </remarks>
+    [Fact]
+    public void EveryCitedRenderBaselineArtifactExistsInTheRepository()
+    {
+        var root = GetRepositoryRoot();
+        var testingDocumentPath = Path.Combine(
+            root, "docs", "development", "testing.md");
+        var content = File.ReadAllText(testingDocumentPath);
+
+        // A cited path is a backtick-quoted token naming a render-baseline
+        // JSON file. Matching on the file name rather than on the directory
+        // keeps the scan honest about a citation that points somewhere
+        // untracked, which is the failure this test was written for.
+        var citedPaths = System.Text.RegularExpressions.Regex
+            .Matches(content, "`([^`\\s]*render-baseline[^`\\s]*\\.json)`")
+            .Select(match => match.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        // Deleting the citation rather than repairing it would leave this
+        // test passing while asserting nothing, so the recorded baselines are
+        // required to still be cited at all.
+        Assert.NotEmpty(citedPaths);
+
+        var missing = citedPaths
+            .Where(cited => !File.Exists(Path.Combine(
+                root,
+                cited.Replace('/', Path.DirectorySeparatorChar))))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Empty(missing);
+    }
+
+    /// <summary>
+    /// The shipped client still asks for a retrace-synchronized device, and no
+    /// file under <c>src/</c> hardcodes the opposite.
+    /// </summary>
+    /// <remarks>
+    /// GPU-006 gave <c>Hukbo.Tools.RenderProbe</c> a way to run with vertical
+    /// retrace disabled, because a blocking wait for the display is not the CPU
+    /// cost the probe exists to measure. That override belongs to the probe
+    /// alone: the spectator's game must keep presenting on the retrace, or it
+    /// spends a whole core spinning out frames nobody sees. The override is a
+    /// method parameter, so the literal <c>false</c> never appears in
+    /// <c>src/</c>, and this test is what keeps it that way — a later change
+    /// that switched the shipped default off, or that pinned the flag off in
+    /// some other file, would fail here rather than ship silently.
+    /// </remarks>
+    [Fact]
+    public void TheShippedClientStillSynchronizesWithTheVerticalRetrace()
+    {
+        var root = GetRepositoryRoot();
+        var arenaGamePath = Path.Combine(
+            root, "src", "Hukbo.Client", "ArenaGame.cs");
+
+        Assert.Contains(
+            "SynchronizeWithVerticalRetrace = true,",
+            File.ReadAllText(arenaGamePath),
+            StringComparison.Ordinal);
+
+        var offenders = FindOffendingCodeLines(
+            root,
+            EnumerateSourceFiles(Path.Combine(root, "src")),
+            line => line.Contains(
+                "SynchronizeWithVerticalRetrace = false",
+                StringComparison.Ordinal));
+
+        Assert.Empty(offenders);
+    }
+
     private static IEnumerable<string> EnumeratePresentationVariationFiles(
         string root)
     {

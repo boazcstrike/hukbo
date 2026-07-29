@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Rendering;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
 
@@ -233,6 +234,136 @@ public sealed class PresentationCoordinatorTests
 
         Assert.Empty(coordinator.Swings.ActiveSwings.ToArray());
         Assert.Empty(coordinator.ClashEffects.ActiveEffects.ToArray());
+    }
+
+    /// <summary>
+    /// GPU-018. The appearance cache's declared lifetime is one battle, and
+    /// <see cref="PresentationCoordinator.ResetFor"/> is the single point on
+    /// disk where a battle ends — <c>ArenaGame.ResetSimulation</c> rebuilds the
+    /// scenario and the simulation and then calls straight through to it, for
+    /// both reset commands. So both commands must empty it, exactly as they
+    /// empty every other per-battle system beside it.
+    /// </summary>
+    [Theory]
+    [InlineData((int)ClientCommand.NextRound)]
+    [InlineData((int)ClientCommand.FullReset)]
+    public void ResetFor_ClearsThePawnAppearanceCache(int commandValue)
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+
+        for (var ordinal = 0; ordinal < 4; ordinal++)
+        {
+            coordinator.PawnAppearances.Resolve(
+                ordinal,
+                entityId: (ulong)ordinal + 1,
+                WeaponId.Kampilan,
+                ShieldId.TallHardwood);
+        }
+
+        Assert.Equal(4, coordinator.PawnAppearances.Fill);
+
+        coordinator.ResetFor((ClientCommand)commandValue);
+
+        Assert.Equal(0, coordinator.PawnAppearances.Fill);
+    }
+
+    /// <summary>
+    /// The third point the cache declaration names — the startup scenario —
+    /// needs no clear call, and this pins why: a coordinator is born holding an
+    /// empty cache, so the first battle of a session starts cold for the same
+    /// reason every later one does.
+    /// </summary>
+    [Fact]
+    public void ANewCoordinatorStartsWithAnEmptyPawnAppearanceCache()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+
+        Assert.Equal(0, coordinator.PawnAppearances.Fill);
+    }
+
+    /// <summary>
+    /// The cache's hit, miss, and fill counters only reach a probe run if the
+    /// coordinator actually hands its recorder down to the cache it builds. A
+    /// silent default here would leave a probe reporting three permanent zeros
+    /// and no way to tell that from a cache that never ran.
+    /// </summary>
+    [Fact]
+    public void TheCoordinatorReportsPawnAppearanceCacheCountsThroughItsRecorder()
+    {
+        var recorder = new SpriteBatchRenderMetricsRecorder();
+        var coordinator = new PresentationCoordinator(
+            eventCapacity: 5,
+            renderMetricsRecorder: recorder);
+
+        coordinator.PawnAppearances.Resolve(
+            ordinal: 0,
+            entityId: 7,
+            WeaponId.Kampilan,
+            ShieldId.None);
+        coordinator.PawnAppearances.Resolve(
+            ordinal: 0,
+            entityId: 7,
+            WeaponId.Kampilan,
+            ShieldId.None);
+
+        var snapshot = recorder.Snapshot();
+
+        Assert.Equal(1, snapshot.AppearanceCacheHits);
+        Assert.Equal(1, snapshot.AppearanceCacheMisses);
+        Assert.Equal(1, snapshot.AppearanceCacheFills);
+    }
+
+    /// <summary>
+    /// GPU-018's load-bearing assumption, pinned against the simulation itself
+    /// rather than against a comment. The pawn loop addresses a cache slot by
+    /// the agent's index in <see cref="BattleSimulation.Agents"/>, which is
+    /// only worth doing if that index names the same warrior for a whole
+    /// battle. It does: the view array is sized once at scenario creation and
+    /// refilled element for element every tick, so a death clears
+    /// <c>IsAlive</c> in place and never removes, compacts, or reorders an
+    /// entry. If that ever changes, every ordinal after the first casualty
+    /// shifts, the stored-key check turns every read into a miss, and this
+    /// cache stops buying anything — so this test failing is the signal to
+    /// re-derive the ordinal, not to relax the assertion.
+    /// </summary>
+    [Fact]
+    public void TheAgentRosterKeepsEveryOrdinalStableAcrossAWholeBattle()
+    {
+        var simulation = BattleSimulation.Create(
+            Scenario.CreateDefault(seed: 1, totalAgents: 40));
+        var count = simulation.Agents.Count;
+        var identitiesByOrdinal = new ulong[count];
+
+        for (var ordinal = 0; ordinal < count; ordinal++)
+        {
+            identitiesByOrdinal[ordinal] = simulation.Agents[ordinal].EntityId;
+        }
+
+        var deathsSeen = false;
+
+        for (var tick = 0; tick < 2_000; tick++)
+        {
+            simulation.AdvanceOneTick();
+
+            Assert.Equal(count, simulation.Agents.Count);
+
+            for (var ordinal = 0; ordinal < count; ordinal++)
+            {
+                var agent = simulation.Agents[ordinal];
+
+                Assert.Equal(identitiesByOrdinal[ordinal], agent.EntityId);
+                deathsSeen |= !agent.IsAlive;
+            }
+
+            if (simulation.Outcome != BattleOutcome.Ongoing)
+            {
+                break;
+            }
+        }
+
+        // Without a casualty the assertions above would hold trivially, and the
+        // shift this test exists to catch is the one a death would cause.
+        Assert.True(deathsSeen);
     }
 
     [Fact]

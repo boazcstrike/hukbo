@@ -47,6 +47,10 @@ public sealed record RenderMatrixCell(
 /// default <c>Full</c>) rather than driving them as independent on/off
 /// cells. Extending the seam with those two overrides is recorded as a
 /// follow-up here, never silently assumed or fabricated.
+/// GPU-007 extends the same disclosure to the vertical-retrace override
+/// GPU-006 added: the note states that every cell was captured with
+/// retrace disabled, so a reader never compares a run taken under a
+/// display-imposed refresh floor against one taken without it.
 /// </param>
 public sealed record RenderMatrixReport(
     RenderProbeFingerprint Fingerprint,
