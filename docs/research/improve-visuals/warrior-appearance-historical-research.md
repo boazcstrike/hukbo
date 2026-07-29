@@ -974,9 +974,11 @@ sources actually make.
   ethically loaded fabrication. Whether bonded dependents fought at all, and
   how equipped, is uncertain; if the roster includes them as porters or
   levies, the inspector must say the depiction is a reconstruction.
-- **Women.** Early accounts document women's dress and adornment richly, but
-  this document scopes to the battle roster and makes no claim about women
-  in combat; nothing here should be read as evidence either way.
+- **Women.** Early accounts document women's dress and adornment richly.
+  Combat composition is evaluated separately in
+  [Gender and Warrior Composition in the Late-Sixteenth-Century
+  Philippines](../HISTORICAL_1500s_WARRIOR_GENDER.md); this appearance study
+  makes no independent claim about female combat dress.
 
 The stratification display rule in one sentence: **status is shown by adding
 documented wealth markers to a common base, never by inventing class

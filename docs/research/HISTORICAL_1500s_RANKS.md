@@ -317,10 +317,13 @@ apply to weapon names.
   defence of the vessel. Whether a household dependent was ever put in a
   battle line is an inference either way, and a roster that fields them must
   say in the inspector that this is a reconstruction.
-- **Women in combat.** The sources describe women's status, dress, and
-  inheritance rights in detail and make no claim about women fighting. The
-  appearance research already scopes this the same way. Nothing here should
-  be read as evidence in either direction.
+- **Women in combat.** This rank-focused source set does not resolve combat
+  composition. A later focused review finds organized war service to be
+  normatively male, while direct defensive participation by women remains
+  documented but uncertain in form. See
+  [Gender and Warrior Composition in the Late-Sixteenth-Century
+  Philippines](HISTORICAL_1500s_WARRIOR_GENDER.md). Do not infer combat duty
+  from female membership in a social grade.
 - **Regional coverage is uneven.** The Visayas and the Tagalog region
   dominate. Mindanao, Sulu, and the Cordillera are thin or absent in this
   source set and are deliberately unmodelled.
