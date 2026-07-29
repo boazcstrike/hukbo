@@ -34,15 +34,17 @@ internal static class AgentInspectorContent
 
     /// <summary>
     /// The most lower detail rows <see cref="BuildLowerLines"/> can produce:
-    /// intent, target, position, weapon, attributes, level, combo
-    /// attributes, evidence tier, grip, armor, shield, and movement. The
-    /// combo attributes row is present exactly when the attributes row is
-    /// (both come from the same resolved <see cref="WeaponProfile"/>), and
-    /// the grip row is absent for a two-handed weapon, so a real panel draws
-    /// this many or fewer — the panel is sized for the maximum so the
-    /// taller case never clips.
+    /// intent, contingent, target, position, weapon, attributes, level,
+    /// combo attributes, evidence tier, grip, armor, shield, and movement.
+    /// The contingent row is present exactly when the agent's
+    /// <see cref="AgentView.ContingentState"/> is not
+    /// <see cref="ContingentState.None"/>. The combo attributes row is
+    /// present exactly when the attributes row is (both come from the same
+    /// resolved <see cref="WeaponProfile"/>), and the grip row is absent for
+    /// a two-handed weapon, so a real panel draws this many or fewer — the
+    /// panel is sized for the maximum so the taller case never clips.
     /// </summary>
-    internal const int MaximumLowerRowCount = 12;
+    internal const int MaximumLowerRowCount = 13;
     internal const int PortraitBottomGap = 5;
     internal const int TopDetailBottomGap = 2;
 
@@ -119,10 +121,17 @@ internal static class AgentInspectorContent
         var lines = new List<string>(MaximumLowerRowCount)
         {
             $"Intent: {agent.Intent}",
-            $"Target: {agent.TargetEntityId?.ToString() ?? "none"}",
-            FormatPositionLine(agent),
-            FormatWeaponLine(weaponLabel),
         };
+
+        if (FormatContingentLine(agent.ContingentId, agent.ContingentState)
+            is { } contingentLine)
+        {
+            lines.Add(contingentLine);
+        }
+
+        lines.Add($"Target: {agent.TargetEntityId?.ToString() ?? "none"}");
+        lines.Add(FormatPositionLine(agent));
+        lines.Add(FormatWeaponLine(weaponLabel));
 
         var profile = TryResolveProfile(loadout);
         if (profile is { } resolvedProfile)
@@ -150,6 +159,37 @@ internal static class AgentInspectorContent
 
         return lines;
     }
+
+    /// <summary>
+    /// The contingent row: which contingent this warrior was dealt into and
+    /// its current behavioural mode, or <c>null</c> when its
+    /// <see cref="ContingentState"/> is
+    /// <see cref="ContingentState.None"/> — the frozen
+    /// <c>IndependentPursuitV1</c> preset, and every agent under
+    /// <c>PersistentContingentsV2</c> before its contingent stage first
+    /// resolves. The label names no culture or historical arrangement; it
+    /// is a spectator-facing description of the current preset's own
+    /// mechanic.
+    /// </summary>
+    internal static string? FormatContingentLine(
+        int contingentId,
+        ContingentState state) =>
+        state == ContingentState.None
+            ? null
+            : $"Contingent: {contingentId} — {GetContingentStateLabel(state)}";
+
+    internal static string GetContingentStateLabel(ContingentState state) =>
+        state switch
+        {
+            ContingentState.Advance => "Advancing",
+            ContingentState.Hold => "Holding",
+            ContingentState.Close => "Closing",
+            ContingentState.Break => "Broken",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(state),
+                state,
+                null),
+        };
 
     internal static string FormatPositionLine(AgentView agent) =>
         $"Position: {agent.XRaw / (double)FixedPoint.Scale:0.00}, " +

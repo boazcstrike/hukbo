@@ -1135,6 +1135,97 @@ public sealed class AgentInspectorContentTests
         }
     }
 
+    [Theory]
+    [InlineData(ContingentState.Advance, "Contingent: 2 — Advancing")]
+    [InlineData(ContingentState.Hold, "Contingent: 2 — Holding")]
+    [InlineData(ContingentState.Close, "Contingent: 2 — Closing")]
+    [InlineData(ContingentState.Break, "Contingent: 2 — Broken")]
+    public void FormatContingentLineLabelsEveryNonNoneState(
+        ContingentState state,
+        string expected)
+    {
+        var line = AgentInspectorContent.FormatContingentLine(2, state);
+
+        Assert.Equal(expected, line);
+    }
+
+    [Fact]
+    public void FormatContingentLineIsNullWhenStateIsNone()
+    {
+        var line = AgentInspectorContent.FormatContingentLine(
+            2,
+            ContingentState.None);
+
+        Assert.Null(line);
+    }
+
+    [Theory]
+    [InlineData(ContingentState.Advance)]
+    [InlineData(ContingentState.Hold)]
+    [InlineData(ContingentState.Close)]
+    [InlineData(ContingentState.Break)]
+    public void LowerLinesIncludeTheContingentRowImmediatelyAfterIntent(
+        ContingentState state)
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                contingentId: 3,
+                contingentState: state),
+            "Kalis — Thrusting Blade",
+            "Documented");
+
+        var list = lines.ToList();
+        var intentIndex = list.FindIndex(
+            line => line.StartsWith("Intent:", StringComparison.Ordinal));
+        var contingentIndex = list.FindIndex(
+            line => line.StartsWith("Contingent:", StringComparison.Ordinal));
+
+        Assert.True(intentIndex >= 0);
+        Assert.Equal(intentIndex + 1, contingentIndex);
+        Assert.Equal(
+            $"Contingent: 3 — " +
+            AgentInspectorContent.GetContingentStateLabel(state),
+            list[contingentIndex]);
+    }
+
+    [Fact]
+    public void LowerLinesOmitTheContingentRowWhenStateIsNone()
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                contingentId: 3,
+                contingentState: ContingentState.None),
+            "Kalis — Thrusting Blade",
+            "Documented");
+
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("Contingent:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LowerLinesWithAContingentRowNeverExceedTheRowBudget()
+    {
+        var count = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                contingentId: 3,
+                contingentState: ContingentState.Hold),
+            "Kalis — Thrusting Blade",
+            "Documented").Count;
+
+        Assert.True(
+            count <= AgentInspectorContent.MaximumLowerRowCount,
+            $"A shielded warrior with a contingent row produced {count} " +
+            $"lower rows against a budget of " +
+            $"{AgentInspectorContent.MaximumLowerRowCount}.");
+    }
+
     private static int BuildLowerLineCount(WeaponId weapon, ShieldId shield) =>
         AgentInspectorContent.BuildLowerLines(
             CreateAgentView(weapon, shield),
@@ -1144,7 +1235,9 @@ public sealed class AgentInspectorContentTests
     private static AgentView CreateAgentView(
         WeaponId weapon,
         ShieldId shield,
-        int level = 1) =>
+        int level = 1,
+        int contingentId = 0,
+        ContingentState contingentState = ContingentState.None) =>
         new(
             EntityId: 1,
             FactionId: 0,
@@ -1157,7 +1250,9 @@ public sealed class AgentInspectorContentTests
             IsAlive: true,
             Loadout: new CombatLoadout(weapon, ArmorId.LightOrganic, shield),
             MovementResolution: MovementResolution.Moved,
-            Level: level);
+            Level: level,
+            ContingentId: contingentId,
+            ContingentState: contingentState);
 
     private static Func<string, float> FixedWidthMeasure(
         float pixelsPerCharacter) =>

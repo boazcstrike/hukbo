@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 
 namespace Hukbo.Core.Simulation;
 
@@ -22,6 +23,7 @@ public sealed class BattleSimulation
     private const int FactionCount = 2;
 
     private readonly CombatRuleset _rules;
+    private readonly MovementRuleset _movementRules;
     private readonly AgentState[] _agentStates;
     private readonly Dictionary<ulong, int> _agentIndexes;
     private readonly int[] _damageTotals;
@@ -31,6 +33,29 @@ public sealed class BattleSimulation
     private readonly AgentView[] _agentViews;
     private readonly ReadOnlyCollection<AgentView> _agents;
     private readonly CollisionScratch _collision;
+
+    // Persistent-contingent movement state, resolved once per tick by
+    // ResolveContingentStates and consumed later the same tick by
+    // GatherMovementProposals's cohesion branch. Every array is sized once
+    // here, to FormationPlanner.MaximumContingents * 2 (one slot per
+    // faction-and-contingent pair), so a warm tick allocates nothing. Slot
+    // index is always FactionId * FormationPlanner.MaximumContingents +
+    // ContingentId, matching design section 3.4. Under
+    // MovementPresetId.IndependentPursuitV1, ResolveContingentStates returns
+    // on its first line and none of these arrays is ever written or read.
+    private const int ContingentSlotCount = FormationPlanner.MaximumContingents * 2;
+    private readonly int[] _contingentInitialCounts;
+    private readonly ulong[] _contingentLeaderEntityIds;
+    private readonly int[] _contingentLivingCounts;
+    private readonly long[] _contingentSpreadSquared;
+    private readonly int[] _contingentContactCounts;
+    private readonly int[] _contingentJitterRaw;
+    private readonly int[] _contingentTrailBaseXRaw;
+    private readonly int[] _contingentTrailBaseYRaw;
+    private readonly int[] _contingentMarginRaw;
+    private readonly bool[] _contingentSquareFitsMap;
+    private readonly bool[] _contingentSquareOverlapsAnother;
+    private readonly ContingentState[] _contingentResolvedStates;
 
     // Per-faction last-stand state, recomputed by one forward scan at the top
     // of every SelectTargetsAndIntents call. Allocated once here so the scan
@@ -66,6 +91,7 @@ public sealed class BattleSimulation
     {
         Scenario = scenario;
         _rules = rules;
+        _movementRules = MovementPresetRegistry.Get(scenario.MovementPreset);
         _agentStates = agents;
         _agentIndexes = new Dictionary<ulong, int>(agents.Length);
         _damageTotals = new int[agents.Length];
@@ -83,6 +109,18 @@ public sealed class BattleSimulation
         _eventBufferB = new List<BattleEvent>(agents.Length * 2);
         _eventViewA = new ReadOnlyCollection<BattleEvent>(_eventBufferA);
         _eventViewB = new ReadOnlyCollection<BattleEvent>(_eventBufferB);
+        _contingentInitialCounts = new int[ContingentSlotCount];
+        _contingentLeaderEntityIds = new ulong[ContingentSlotCount];
+        _contingentLivingCounts = new int[ContingentSlotCount];
+        _contingentSpreadSquared = new long[ContingentSlotCount];
+        _contingentContactCounts = new int[ContingentSlotCount];
+        _contingentJitterRaw = new int[ContingentSlotCount];
+        _contingentTrailBaseXRaw = new int[ContingentSlotCount];
+        _contingentTrailBaseYRaw = new int[ContingentSlotCount];
+        _contingentMarginRaw = new int[ContingentSlotCount];
+        _contingentSquareFitsMap = new bool[ContingentSlotCount];
+        _contingentSquareOverlapsAnother = new bool[ContingentSlotCount];
+        _contingentResolvedStates = new ContingentState[ContingentSlotCount];
 
         for (var index = 0; index < agents.Length; index++)
         {
@@ -92,6 +130,12 @@ public sealed class BattleSimulation
                     $"Duplicate entity ID {agents[index].EntityId}.",
                     nameof(agents));
             }
+
+            var agent = agents[index];
+            var slot = checked(
+                (agent.FactionId * FormationPlanner.MaximumContingents) +
+                agent.ContingentId);
+            _contingentInitialCounts[slot]++;
         }
 
         UpdateViews();
@@ -214,26 +258,32 @@ public sealed class BattleSimulation
             var loadout = rosterCountsAreEmpty
                 ? rules.ResolveLoadout(entityId)
                 : rules.Roster[expandedRosterIndices[index]];
+            var (xRaw, yRaw, contingentId) = deployment[index];
             agents[index] = CreateAgent(
                 entityId,
                 factionId: 0,
-                deployment[index].XRaw,
-                deployment[index].YRaw,
+                xRaw,
+                yRaw,
                 scenario,
                 rules,
-                loadout);
+                loadout,
+                contingentId);
         }
 
         for (var index = 0; index < scenario.AgentsPerFaction; index++)
         {
-            var rightX = checked(mapWidthRaw - deployment[index].XRaw);
-            var rightY = deployment[index].YRaw;
+            var (leftXRaw, leftYRaw, contingentId) = deployment[index];
+            var rightX = checked(mapWidthRaw - leftXRaw);
+            var rightY = leftYRaw;
             var stateIndex = scenario.AgentsPerFaction + index;
             var entityId = checked((ulong)stateIndex + 1);
             // Faction-local index, not entityId/stateIndex: RosterCounts
             // describes one faction, and reusing the global index would
             // continue faction 1's category offset from wherever faction 0
             // stopped, silently giving the two factions different armies.
+            // The same reasoning applies to contingentId, mirrored from the
+            // one deployment plan alongside the position: it is the
+            // faction-local dealing index, not a value tied to faction 0.
             var loadout = rosterCountsAreEmpty
                 ? rules.ResolveLoadout(entityId)
                 : rules.Roster[expandedRosterIndices[index]];
@@ -244,7 +294,8 @@ public sealed class BattleSimulation
                 rightY,
                 scenario,
                 rules,
-                loadout);
+                loadout,
+                contingentId);
         }
 
         ResolveSpawnPlacement(agents, scenario);
@@ -349,6 +400,7 @@ public sealed class BattleSimulation
 
         DecrementCooldowns();
         SelectTargetsAndIntents();
+        ResolveContingentStates();
         GatherMovementProposals();
         ResolveCollisions();
         CommitMovement(events);
@@ -557,7 +609,8 @@ public sealed class BattleSimulation
         int yRaw,
         Scenario scenario,
         CombatRuleset rules,
-        CombatLoadout loadout)
+        CombatLoadout loadout,
+        int contingentId)
     {
         var profile = rules.HasWeaponProfiles
             ? rules.ResolveWeaponProfile(loadout.Weapon, loadout.Shield)
@@ -578,7 +631,8 @@ public sealed class BattleSimulation
             profile.DamagePerAttack,
             profile.AttackCooldownTicks,
             loadout,
-            scenario.PlaceholderFighterLevel);
+            scenario.PlaceholderFighterLevel,
+            contingentId);
     }
 
     /// <summary>
@@ -768,12 +822,351 @@ public sealed class BattleSimulation
     }
 
     /// <summary>
+    /// The ninth tick stage: resolves every living contingent's
+    /// <see cref="AgentState.ContingentState"/> for this tick under every
+    /// persistent-contingent preset, and the two
+    /// geometric gates <see cref="GatherMovementProposals"/>'s cohesion
+    /// branch reads as array lookups rather than recomputing. Under
+    /// <see cref="MovementPresetId.IndependentPursuitV1"/> this returns on
+    /// its first line and touches no contingent array at all, which is why
+    /// the frozen preset's trajectory is untouched by this stage's
+    /// existence. See
+    /// docs/plans/2026-07-28-formation-movement-realism-design.md sections
+    /// 3.4 and 3.5.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two forward passes, in that order, because the second cannot start
+    /// until the first has finished: pass one is
+    /// <see cref="MovementRules.ScanContingentLeadersAndLivingCounts"/>,
+    /// which every later step needs a leader entity ID from; pass two walks
+    /// every living agent once more to accumulate each contingent's
+    /// <c>spreadSquared</c>, which needs this tick's leader to already be
+    /// known, and its <c>contactCount</c> — a plain count of how many living
+    /// members have a selected target within the close radius, not a
+    /// minimum over any distance.
+    /// </para>
+    /// <para>
+    /// The two geometric gates are computed once per contingent per tick,
+    /// never once per agent: gate 5 (the map-edge open-ground test) in a
+    /// single pass over the sixteen slots, and gate 6 (the cross-contingent
+    /// overlap test) in a pairwise scan restricted to living same-faction
+    /// slots, outer index ascending and inner index ascending from
+    /// <c>outer + 1</c>, at most <c>C(8, 2) = 28</c> pairs per faction and 56
+    /// in total. A slot with no living member is excluded from the pairwise
+    /// scan entirely — its leader, trail base and margin are stale values
+    /// from whichever tick it last had a living member, and comparing
+    /// against them would deny cohesion on the strength of a square that no
+    /// longer exists. Because
+    /// <see cref="FormationRules.DoCohesionSquaresOverlap"/> is symmetric,
+    /// both contingents of an overlapping pair are flagged together; there is
+    /// no tie-break and none is needed.
+    /// </para>
+    /// <para>
+    /// Either geometric denial forces <see cref="ContingentState.Advance"/>
+    /// rather than <see cref="ContingentState.Hold"/>, the same way a shut
+    /// duty-cycle window does, so the inspector never reports a contingent as
+    /// <see cref="ContingentState.Hold"/> while its members are in fact
+    /// pursuing independently. Gates 5 and 6 can therefore only ever remove a
+    /// cohesion destination from a contingent that would otherwise have
+    /// received one; they can never grant one.
+    /// </para>
+    /// <para>
+    /// Every array this method writes is preallocated at construction and
+    /// sized to <see cref="ContingentSlotCount"/>, so a warm tick allocates
+    /// nothing.
+    /// </para>
+    /// </remarks>
+    private void ResolveContingentStates()
+    {
+        if (Scenario.MovementPreset == MovementPresetId.IndependentPursuitV1)
+        {
+            return;
+        }
+
+        MovementRules.ScanContingentLeadersAndLivingCounts(
+            _agentStates,
+            _contingentLeaderEntityIds,
+            _contingentLivingCounts);
+
+        for (var slot = 0; slot < ContingentSlotCount; slot++)
+        {
+            _contingentSpreadSquared[slot] = 0;
+            _contingentContactCounts[slot] = 0;
+        }
+
+        // closeRadiusSquared does not vary by slot, so it is derived once
+        // here rather than per slot, in the same checked long arithmetic the
+        // per-slot cohesionRadiusRaw derivation below already uses.
+        var closeRadiusRaw = checked(
+            (long)_movementRules.CloseRadiusMultiplier * Scenario.BodyRadiusRaw);
+        var closeRadiusSquared = checked(closeRadiusRaw * closeRadiusRaw);
+
+        // Pass two: for every living agent, fold its squared distance to its
+        // own contingent's leader into that slot's spread (skipping the
+        // leader itself, which is always zero and never the farthest
+        // non-leader member), and increment that slot's contact count when
+        // its squared distance to its own selected target, if any, is at or
+        // under closeRadiusSquared.
+        for (var index = 0; index < _agentStates.Length; index++)
+        {
+            var agent = _agentStates[index];
+            if (!agent.IsAlive)
+            {
+                continue;
+            }
+
+            var slot = checked(
+                (agent.FactionId * FormationPlanner.MaximumContingents) +
+                agent.ContingentId);
+            var leaderEntityId = _contingentLeaderEntityIds[slot];
+
+            if (leaderEntityId != 0 &&
+                agent.EntityId != leaderEntityId &&
+                _agentIndexes.TryGetValue(leaderEntityId, out var leaderIndex))
+            {
+                var memberSquared = SquaredDistance(agent, _agentStates[leaderIndex]);
+                if (memberSquared > _contingentSpreadSquared[slot])
+                {
+                    _contingentSpreadSquared[slot] = memberSquared;
+                }
+            }
+
+            if (agent.TargetEntityId is { } targetId &&
+                _agentIndexes.TryGetValue(targetId, out var targetIndex))
+            {
+                var distanceSquared = SquaredDistance(agent, _agentStates[targetIndex]);
+                if (distanceSquared <= closeRadiusSquared)
+                {
+                    _contingentContactCounts[slot]++;
+                }
+            }
+        }
+
+        // Gate 5 (map-edge) and the trail-base/jitter/margin geometry gate 6
+        // needs, once per living contingent.
+        var mapWidthRaw = checked(Scenario.MapWidth * FixedPoint.Scale);
+        var mapHeightRaw = checked(Scenario.MapHeight * FixedPoint.Scale);
+
+        for (var slot = 0; slot < ContingentSlotCount; slot++)
+        {
+            _contingentSquareOverlapsAnother[slot] = false;
+
+            if (_contingentLivingCounts[slot] == 0)
+            {
+                _contingentSquareFitsMap[slot] = false;
+                continue;
+            }
+
+            var leader = _agentStates[_agentIndexes[_contingentLeaderEntityIds[slot]]];
+            var jitterRaw = FormationRules.ComputeContingentJitterRaw(
+                Scenario.BodyRadiusRaw,
+                _contingentLivingCounts[slot]);
+            var trailRaw = FormationRules.ComputeContingentTrailRaw(
+                Scenario.BodyRadiusRaw,
+                jitterRaw);
+            var direction = ComputeRallyDirection(leader);
+            var (trailBaseXRaw, trailBaseYRaw) = ComputeRallyTrailBase(
+                leader,
+                direction,
+                trailRaw);
+
+            _contingentJitterRaw[slot] = jitterRaw;
+            _contingentTrailBaseXRaw[slot] = trailBaseXRaw;
+            _contingentTrailBaseYRaw[slot] = trailBaseYRaw;
+            _contingentMarginRaw[slot] = checked(jitterRaw + Scenario.BodyRadiusRaw);
+
+            _contingentSquareFitsMap[slot] = FormationRules.IsCohesionSquareWithinBounds(
+                trailBaseXRaw,
+                trailBaseYRaw,
+                jitterRaw,
+                Scenario.BodyRadiusRaw,
+                mapWidthRaw,
+                mapHeightRaw);
+        }
+
+        // A slot the narrowed scan excludes is also denied outright. It is
+        // never tested against anyone, so granting it a cohesion destination
+        // would park aim points inside a square no pair ever measured, which
+        // is exactly the combined-density statement gate 6 exists to hold. The
+        // denial resolves it to Advance through transition rule 4 -- rules 1
+        // and 3 still win first, so a Break stays Break and a latched Close
+        // stays Close -- and an Advance takes part in the scan normally on the
+        // next tick. Under a preset that does not narrow the scan this loop
+        // marks nothing.
+        for (var slot = 0; slot < ContingentSlotCount; slot++)
+        {
+            if (_contingentLivingCounts[slot] != 0 &&
+                !TakesPartInCrossContingentScan(slot))
+            {
+                _contingentSquareOverlapsAnother[slot] = true;
+            }
+        }
+
+        // Gate 6: pairwise same-faction overlap, restricted to living slots,
+        // outer index ascending and inner index ascending from outer + 1.
+        // Under a preset that narrows the scan, a living slot whose tick-start
+        // state is Close or Break takes no part on either side of the pair.
+        for (var faction = 0; faction < 2; faction++)
+        {
+            var baseSlot = faction * FormationPlanner.MaximumContingents;
+
+            for (var outer = 0; outer < FormationPlanner.MaximumContingents; outer++)
+            {
+                var outerSlot = baseSlot + outer;
+                if (_contingentLivingCounts[outerSlot] == 0 ||
+                    !TakesPartInCrossContingentScan(outerSlot))
+                {
+                    continue;
+                }
+
+                for (var inner = outer + 1;
+                    inner < FormationPlanner.MaximumContingents;
+                    inner++)
+                {
+                    var innerSlot = baseSlot + inner;
+                    if (_contingentLivingCounts[innerSlot] == 0 ||
+                        !TakesPartInCrossContingentScan(innerSlot))
+                    {
+                        continue;
+                    }
+
+                    if (!FormationRules.DoCohesionSquaresOverlap(
+                        _contingentTrailBaseXRaw[outerSlot],
+                        _contingentTrailBaseYRaw[outerSlot],
+                        _contingentMarginRaw[outerSlot],
+                        _contingentTrailBaseXRaw[innerSlot],
+                        _contingentTrailBaseYRaw[innerSlot],
+                        _contingentMarginRaw[innerSlot]))
+                    {
+                        continue;
+                    }
+
+                    _contingentSquareOverlapsAnother[outerSlot] = true;
+                    _contingentSquareOverlapsAnother[innerSlot] = true;
+                }
+            }
+        }
+
+        // The six priority-ordered transition rules, per living slot. The
+        // previous state is read from this slot's own current leader before
+        // this loop overwrites it, because the leader is, by construction, a
+        // living member and therefore carries the value forward.
+        var tick = checked((int)Tick);
+
+        for (var slot = 0; slot < ContingentSlotCount; slot++)
+        {
+            if (_contingentLivingCounts[slot] == 0)
+            {
+                continue;
+            }
+
+            var leader = _agentStates[_agentIndexes[_contingentLeaderEntityIds[slot]]];
+            var previousState = leader.ContingentState;
+            var windowOpen = MovementRules.IsCohesionWindowOpen(
+                tick,
+                slot,
+                _movementRules.CohesionCycleTicks,
+                _movementRules.CohesionDutyTicks);
+            var geometricGatesPass =
+                _contingentSquareFitsMap[slot] && !_contingentSquareOverlapsAnother[slot];
+            var cohesionRadiusRaw = checked(
+                (long)_movementRules.CohesionRadiusMultiplier * Scenario.BodyRadiusRaw);
+
+            _contingentResolvedStates[slot] = MovementRules.ResolveContingentState(
+                previousState,
+                _contingentLivingCounts[slot],
+                _contingentInitialCounts[slot],
+                _contingentSpreadSquared[slot],
+                _contingentContactCounts[slot],
+                cohesionRadiusRaw,
+                _movementRules.CloseFractionNumerator,
+                _movementRules.CloseFractionDenominator,
+                _movementRules.MinimumCohesiveMembers,
+                windowOpen,
+                geometricGatesPass);
+        }
+
+        // Write each slot's resolved state onto every one of its living
+        // members. The authoritative store is per agent; there is no
+        // parallel per-contingent array the state hash cannot see.
+        foreach (var agent in _agentStates)
+        {
+            if (!agent.IsAlive)
+            {
+                continue;
+            }
+
+            var slot = checked(
+                (agent.FactionId * FormationPlanner.MaximumContingents) +
+                agent.ContingentId);
+            agent.ContingentState = _contingentResolvedStates[slot];
+        }
+    }
+
+    /// <summary>
+    /// Whether the living contingent in <paramref name="slot"/> takes part in
+    /// movement gate 6's cross-contingent scan this tick. Always true under a
+    /// preset that does not narrow the scan, so the two frozen
+    /// persistent-contingent presets keep the behaviour their own recorded
+    /// expectations pin; under a narrowing preset, a contingent whose
+    /// tick-start state is Close or Break is skipped, because it can park no
+    /// cohesion aim point.
+    /// </summary>
+    /// <remarks>
+    /// The caller has already established that this slot has a living member,
+    /// so <c>_contingentLeaderEntityIds[slot]</c> is a real entity id and the
+    /// two lookups below cannot miss. The state read is the leader's, which
+    /// still carries the previous tick's value: the loop that overwrites every
+    /// living member's <c>ContingentState</c> runs after the gate that calls
+    /// this.
+    /// </remarks>
+    /// <param name="slot"><c>FactionId * MaximumContingents + ContingentId</c>.</param>
+    /// <returns>
+    /// <see langword="true"/> when this contingent's bias square participates.
+    /// </returns>
+    private bool TakesPartInCrossContingentScan(int slot)
+    {
+        if (!_movementRules.NarrowsCohesionScanToCohesionCapableContingents)
+        {
+            return true;
+        }
+
+        var leader = _agentStates[_agentIndexes[_contingentLeaderEntityIds[slot]]];
+        return MovementRules.ParticipatesInCrossContingentScan(leader.ContingentState);
+    }
+
+    /// <summary>
     /// Reads tick-start state only. Nothing is committed here, so no agent can
     /// see another agent's move while proposals are still being formed.
     /// </summary>
+    /// <remarks>
+    /// Under every persistent-contingent preset, a
+    /// <see cref="AgentIntent.Moving"/> agent that passes all six movement
+    /// gates of design section 3.5
+    /// (docs/plans/2026-07-28-formation-movement-realism-design.md) takes a
+    /// contingent cohesion destination instead of its ordinary nearest-enemy
+    /// pursuit; every agent that fails even one of the six gates takes
+    /// ordinary pursuit exactly as it does under
+    /// <see cref="MovementPresetId.IndependentPursuitV1"/>. The same-tick
+    /// conflict order is unchanged: <c>Dead &gt; Attacking &gt; Regrouping
+    /// &gt; contingent cohesion &gt; ordinary pursuit</c>, so this branch is
+    /// only ever reached for an agent whose <see cref="AgentIntent"/> is
+    /// already <see cref="AgentIntent.Moving"/>.
+    /// </remarks>
     private void GatherMovementProposals()
     {
         Array.Clear(_movementProposals);
+
+        // Every persistent-contingent preset takes the cohesion branch. The
+        // test is written against IndependentPursuitV1, the one preset that
+        // has no contingent behaviour, rather than against a list of the
+        // presets that do: ResolveContingentStates returns on its first line
+        // under exactly the same condition, and a new persistent-contingent
+        // preset must not silently lose cohesion by not being named here.
+        var cohesionActive =
+            Scenario.MovementPreset != MovementPresetId.IndependentPursuitV1;
+        var tick = checked((int)Tick);
 
         for (var index = 0; index < _agentStates.Length; index++)
         {
@@ -786,16 +1179,188 @@ public sealed class BattleSimulation
             if (agent.Intent == AgentIntent.Moving &&
                 agent.TargetEntityId is { } enemyTargetId)
             {
+                if (cohesionActive &&
+                    TryResolveContingentCohesionAimPoint(
+                        agent,
+                        tick,
+                        out var aimXRaw,
+                        out var aimYRaw,
+                        out var leaderEntityId))
+                {
+                    var squaredDistanceToAim = CollisionGeometry.SquaredDistance(
+                        agent.XRaw,
+                        agent.YRaw,
+                        aimXRaw,
+                        aimYRaw);
+                    if (squaredDistanceToAim <=
+                        CollisionGeometry.ContactSquaredDistance(Scenario.BodyRadiusRaw))
+                    {
+                        // The arrived-guard: the same one BuildRegroupingProposal
+                        // applies. _movementProposals[index] is already null from
+                        // the Array.Clear above.
+                        continue;
+                    }
+
+                    _movementProposals[index] = BuildMovementProposal(
+                        agent,
+                        aimXRaw,
+                        aimYRaw,
+                        leaderEntityId);
+                    continue;
+                }
+
                 var target = _agentStates[_agentIndexes[enemyTargetId]];
-                _movementProposals[index] = BuildMovementProposal(agent, target);
+
+                // The pursuit-path stall escape. At generation 0 — every agent
+                // in every battle that is merely crowded — this is the same
+                // call it has always been, reached by the same path, so the aim
+                // point is unchanged rather than recomputed to the same value.
+                var stallGeneration = _collision.StallGeneration(index);
+                if (stallGeneration == 0)
+                {
+                    _movementProposals[index] = BuildMovementProposal(agent, target);
+                    continue;
+                }
+
+                _movementProposals[index] = BuildSidesteppingPursuitProposal(
+                    agent,
+                    target,
+                    stallGeneration);
                 continue;
             }
 
             if (agent.Intent == AgentIntent.Regrouping)
             {
-                _movementProposals[index] = BuildRegroupingProposal(agent);
+                _movementProposals[index] = BuildRegroupingProposal(agent, index);
             }
         }
+    }
+
+    /// <summary>
+    /// Evaluates the six movement gates of design section 3.5 for one
+    /// <see cref="AgentIntent.Moving"/> agent under every
+    /// persistent-contingent preset and, when every
+    /// gate permits, computes its cohesion aim point — the give-way escape
+    /// when the agent stands in its own leader's forward corridor, otherwise
+    /// the trail base plus this member's personal offset from
+    /// <see cref="ContingentOffset.Compute"/> — matching
+    /// <see cref="BuildRegroupingProposal"/>'s own trail-then-offset shape.
+    /// </summary>
+    /// <remarks>
+    /// Gates 5 and 6 are read here as the array values
+    /// <see cref="ResolveContingentStates"/> already computed this tick, not
+    /// recomputed: gate 6 in particular cannot be evaluated correctly inside
+    /// a per-agent loop, because the loop reaches one contingent's members
+    /// before it has reached every other contingent whose squares decide the
+    /// answer.
+    /// </remarks>
+    /// <param name="agent">The moving agent to evaluate.</param>
+    /// <param name="tick">The current tick, truncated to <see cref="int"/>.</param>
+    /// <param name="aimXRaw">
+    /// The computed aim point's X, valid only when this method returns
+    /// <see langword="true"/>.
+    /// </param>
+    /// <param name="aimYRaw">
+    /// The computed aim point's Y, valid only when this method returns
+    /// <see langword="true"/>.
+    /// </param>
+    /// <param name="leaderEntityId">
+    /// This agent's contingent leader's <see cref="AgentState.EntityId"/>,
+    /// valid only when this method returns <see langword="true"/>.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when all six gates permit a cohesion
+    /// destination for this agent this tick.
+    /// </returns>
+    private bool TryResolveContingentCohesionAimPoint(
+        AgentState agent,
+        int tick,
+        out int aimXRaw,
+        out int aimYRaw,
+        out ulong leaderEntityId)
+    {
+        aimXRaw = 0;
+        aimYRaw = 0;
+
+        var slot = checked(
+            (agent.FactionId * FormationPlanner.MaximumContingents) +
+            agent.ContingentId);
+        leaderEntityId = _contingentLeaderEntityIds[slot];
+
+        if (leaderEntityId == 0 ||
+            !_agentIndexes.TryGetValue(leaderEntityId, out var leaderIndex))
+        {
+            return false;
+        }
+
+        var state = agent.ContingentState;
+        var isLeader = agent.EntityId == leaderEntityId;
+        var windowOpen = MovementRules.IsCohesionWindowOpen(
+            tick,
+            slot,
+            _movementRules.CohesionCycleTicks,
+            _movementRules.CohesionDutyTicks);
+
+        var leader = _agentStates[leaderIndex];
+        var straggling = false;
+        if (state == ContingentState.Advance)
+        {
+            var memberSquared = SquaredDistance(agent, leader);
+            var cohesionRadiusRaw = checked(
+                (long)_movementRules.CohesionRadiusMultiplier * Scenario.BodyRadiusRaw);
+
+            // memberSquared is an unscaled squared world distance bounded
+            // only by Scenario.MaximumMapDimension, so 16 * memberSquared can
+            // exceed long.MaxValue on a wide map. Widening to Int128 makes
+            // the comparison exact and total: it reproduces the checked long
+            // comparison bit-for-bit whenever that comparison would not have
+            // overflowed, and for the inputs that would have overflowed it
+            // returns the answer implied by unbounded integer arithmetic — a
+            // member that far from its leader is unambiguously straggling.
+            straggling = (Int128)16 * memberSquared >
+                (Int128)9 * cohesionRadiusRaw * cohesionRadiusRaw;
+        }
+
+        if (!MovementRules.IsCohesionEligible(
+            state,
+            isLeader,
+            windowOpen,
+            straggling,
+            _contingentSquareFitsMap[slot],
+            _contingentSquareOverlapsAnother[slot]))
+        {
+            return false;
+        }
+
+        var direction = ComputeRallyDirection(leader);
+        if (direction.DistanceRaw > 0 &&
+            TryComputeGiveWayAimPoint(agent, leader, direction) is
+            { XRaw: var giveWayXRaw, YRaw: var giveWayYRaw })
+        {
+            aimXRaw = giveWayXRaw;
+            aimYRaw = giveWayYRaw;
+            return true;
+        }
+
+        var (offsetXRaw, offsetYRaw) = ContingentOffset.Compute(
+            Scenario.Seed,
+            agent.EntityId,
+            _contingentJitterRaw[slot]);
+
+        var mapWidthRaw = checked(Scenario.MapWidth * FixedPoint.Scale);
+        var mapHeightRaw = checked(Scenario.MapHeight * FixedPoint.Scale);
+        aimXRaw = CollisionGeometry.ClampCenterToBounds(
+            SaturateToInt32(checked(
+                (long)_contingentTrailBaseXRaw[slot] + offsetXRaw)),
+            mapWidthRaw,
+            Scenario.BodyRadiusRaw);
+        aimYRaw = CollisionGeometry.ClampCenterToBounds(
+            SaturateToInt32(checked(
+                (long)_contingentTrailBaseYRaw[slot] + offsetYRaw)),
+            mapHeightRaw,
+            Scenario.BodyRadiusRaw);
+
+        return true;
     }
 
     /// <summary>
@@ -831,8 +1396,93 @@ public sealed class BattleSimulation
     /// <see cref="TryComputeGiveWayAimPoint"/> for the sideways escape this
     /// method checks first.
     /// </remarks>
+    /// <remarks>
+    /// A follower whose aim point lies beyond an ally walks to exact tangency
+    /// and then pushes against it forever, because tangency is a legal resting
+    /// position and closing further is strict penetration. The stall generation
+    /// is the escape: once this agent has been blocked for
+    /// <see cref="FormationRules.StallEscapeStreakTicks"/> consecutive ticks it
+    /// draws a different aim point. It is 0, and therefore inert, in every
+    /// battle that is merely crowded.
+    /// </remarks>
+    /// <summary>
+    /// The pursuit-path counterpart of this type's rally stall escape: a
+    /// warrior walking at an enemy that a comrade's body has refused for
+    /// <see cref="FormationRules.StallEscapeStreakTicks"/> consecutive ticks
+    /// aims beside its enemy rather than at its enemy's centre, which puts it
+    /// on a different line of approach and out from behind the body that was
+    /// refusing it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only reached at a non-zero stall generation. The design is in
+    /// <c>docs/plans/2026-07-29-approach-sidestep-design.md</c>, and its section
+    /// 2 records why the rally escape alone was not enough: that escape lives in
+    /// <see cref="BuildRegroupingProposal"/> and a pursuing warrior never
+    /// reaches it, so a locked cluster could contain warriors with a way out and
+    /// warriors without one at the same time.
+    /// </para>
+    /// <para>
+    /// The contingent cohesion branch above this one is deliberately left
+    /// alone. Its aim point sits inside a bias square whose combined
+    /// aim-point density statement movement gate 6 exists to hold, and
+    /// displacing an agent out of that square would invalidate the statement.
+    /// A contingent that cannot make progress resolves to
+    /// <see cref="ContingentState.Advance"/> and its members fall back to this
+    /// path anyway.
+    /// </para>
+    /// </remarks>
+    /// <param name="agent">The blocked pursuer.</param>
+    /// <param name="target">The enemy it is walking at.</param>
+    /// <param name="stallGeneration">
+    /// The pursuer's current stall generation, which the caller has already
+    /// established is non-zero.
+    /// </param>
+    /// <returns>The pursuer's movement proposal against the offset aim point.</returns>
+    private (int XRaw, int YRaw, ulong TargetId) BuildSidesteppingPursuitProposal(
+        AgentState agent,
+        AgentState target,
+        int stallGeneration)
+    {
+        var deltaXRaw = (long)target.XRaw - agent.XRaw;
+        var deltaYRaw = (long)target.YRaw - agent.YRaw;
+        var distanceRaw = IntegerSquareRoot(
+            checked((deltaXRaw * deltaXRaw) + (deltaYRaw * deltaYRaw)));
+
+        var (offsetXRaw, offsetYRaw) = ApproachSidestep.Compute(
+            Scenario.Seed,
+            agent.EntityId,
+            Scenario.BodyRadiusRaw,
+            stallGeneration,
+            deltaXRaw,
+            deltaYRaw,
+            distanceRaw);
+
+        if (offsetXRaw == 0 && offsetYRaw == 0)
+        {
+            return BuildMovementProposal(agent, target);
+        }
+
+        // Saturated and clamped the same way BuildRegroupingProposal handles its
+        // own aim point: the offset is bounded by a few body radii, but the
+        // target may already stand against a map edge.
+        var mapWidthRaw = checked(Scenario.MapWidth * FixedPoint.Scale);
+        var mapHeightRaw = checked(Scenario.MapHeight * FixedPoint.Scale);
+        var aimXRaw = CollisionGeometry.ClampCenterToBounds(
+            SaturateToInt32(checked((long)target.XRaw + offsetXRaw)),
+            mapWidthRaw,
+            Scenario.BodyRadiusRaw);
+        var aimYRaw = CollisionGeometry.ClampCenterToBounds(
+            SaturateToInt32(checked((long)target.YRaw + offsetYRaw)),
+            mapHeightRaw,
+            Scenario.BodyRadiusRaw);
+
+        return BuildMovementProposal(agent, aimXRaw, aimYRaw, target.EntityId);
+    }
+
     private (int XRaw, int YRaw, ulong TargetId)? BuildRegroupingProposal(
-        AgentState agent)
+        AgentState agent,
+        int agentIndex)
     {
         var rallyEntityId = _factionRallyEntityIds[agent.FactionId];
         if (rallyEntityId == 0 ||
@@ -860,14 +1510,17 @@ public sealed class BattleSimulation
                 rallyAgent.EntityId);
         }
 
+        var trailRaw = FormationRules.ComputeRallyTrailRaw(Scenario.BodyRadiusRaw);
         var (trailBaseXRaw, trailBaseYRaw) = ComputeRallyTrailBase(
             rallyAgent,
-            direction);
+            direction,
+            trailRaw);
 
         var (offsetXRaw, offsetYRaw) = RallyOffset.Compute(
             Scenario.Seed,
             agent.EntityId,
-            Scenario.BodyRadiusRaw);
+            Scenario.BodyRadiusRaw,
+            _collision.StallGeneration(agentIndex));
 
         // The aim point is computed in long and saturated into int the same
         // way CollisionResolver.ToCoordinate saturates a candidate coordinate
@@ -906,27 +1559,34 @@ public sealed class BattleSimulation
     }
 
     /// <summary>
-    /// Computes the rally agent's direction of travel — the vector from the
-    /// rally agent to its own enemy target, plus the integer distance between
-    /// them — used both by <see cref="ComputeRallyTrailBase"/> and by
+    /// Computes a leader's direction of travel — the vector from the leader
+    /// to its own enemy target, plus the integer distance between them —
+    /// used both by <see cref="ComputeRallyTrailBase"/> and by
     /// <see cref="TryComputeGiveWayAimPoint"/> for the corridor test. Returns
     /// a zero <c>DistanceRaw</c> sentinel, meaning "no direction", when the
-    /// rally agent has no target, when the target cannot be resolved to a
-    /// living agent, or when the rally agent is already exactly at its
-    /// target's position.
+    /// leader has no target, when the target cannot be resolved to a living
+    /// agent, or when the leader is already exactly at its target's
+    /// position.
     /// </summary>
+    /// <remarks>
+    /// Generalised from the last-stand rally agent to any leader: the rally
+    /// path calls this with the faction's rally agent, and the
+    /// persistent-contingent cohesion path (design section 3.5) calls it
+    /// with a contingent's own leader. Neither this method nor the two below
+    /// it read the faction rally state directly.
+    /// </remarks>
     private (long DeltaXRaw, long DeltaYRaw, long DistanceRaw) ComputeRallyDirection(
-        AgentState rallyAgent)
+        AgentState leader)
     {
-        if (rallyAgent.TargetEntityId is not { } rallyTargetId ||
-            !_agentIndexes.TryGetValue(rallyTargetId, out var rallyTargetIndex))
+        if (leader.TargetEntityId is not { } targetId ||
+            !_agentIndexes.TryGetValue(targetId, out var targetIndex))
         {
             return (0, 0, 0);
         }
 
-        var rallyTarget = _agentStates[rallyTargetIndex];
-        var deltaXRaw = (long)rallyTarget.XRaw - rallyAgent.XRaw;
-        var deltaYRaw = (long)rallyTarget.YRaw - rallyAgent.YRaw;
+        var target = _agentStates[targetIndex];
+        var deltaXRaw = (long)target.XRaw - leader.XRaw;
+        var deltaYRaw = (long)target.YRaw - leader.YRaw;
         var distanceRaw = IntegerSquareRoot(
             checked((deltaXRaw * deltaXRaw) + (deltaYRaw * deltaYRaw)));
 
@@ -934,51 +1594,58 @@ public sealed class BattleSimulation
     }
 
     /// <summary>
-    /// Computes the point <see cref="FormationRules.RallyTrailRadiusMultiplier"/>
-    /// body radii behind the rally agent, opposite the rally agent's own
-    /// direction of travel — the point a follower's jitter offset is added
-    /// to. Falls back to the rally agent's raw position (no trail) when
-    /// <paramref name="direction"/> carries the "no direction" sentinel
-    /// (<c>DistanceRaw == 0</c>), since there is no direction of travel to
-    /// trail behind. That fallback preserves the pre-fix behaviour in that
-    /// corner, which is otherwise untouched by this method's own logic.
+    /// Computes the point <paramref name="trailRaw"/> raw units behind the
+    /// leader, opposite the leader's own direction of travel — the point a
+    /// follower's jitter offset is added to. Falls back to the leader's raw
+    /// position (no trail) when <paramref name="direction"/> carries the "no
+    /// direction" sentinel (<c>DistanceRaw == 0</c>), since there is no
+    /// direction of travel to trail behind. That fallback preserves the
+    /// pre-fix behaviour in that corner, which is otherwise untouched by
+    /// this method's own logic.
     /// </summary>
+    /// <remarks>
+    /// The trail distance is a parameter rather than computed here so this
+    /// method has no opinion on which formula produced it: the last-stand
+    /// rally caller passes <see cref="FormationRules.ComputeRallyTrailRaw"/>
+    /// and the persistent-contingent cohesion caller (design section 3.5)
+    /// passes <see cref="FormationRules.ComputeContingentTrailRaw"/>.
+    /// </remarks>
     private (int XRaw, int YRaw) ComputeRallyTrailBase(
-        AgentState rallyAgent,
-        (long DeltaXRaw, long DeltaYRaw, long DistanceRaw) direction)
+        AgentState leader,
+        (long DeltaXRaw, long DeltaYRaw, long DistanceRaw) direction,
+        int trailRaw)
     {
         if (direction.DistanceRaw == 0)
         {
-            return (rallyAgent.XRaw, rallyAgent.YRaw);
+            return (leader.XRaw, leader.YRaw);
         }
 
-        var trailRaw = FormationRules.ComputeRallyTrailRaw(Scenario.BodyRadiusRaw);
         var trailXRaw = SaturateToInt32(checked(
-            rallyAgent.XRaw - (direction.DeltaXRaw * trailRaw / direction.DistanceRaw)));
+            leader.XRaw - (direction.DeltaXRaw * trailRaw / direction.DistanceRaw)));
         var trailYRaw = SaturateToInt32(checked(
-            rallyAgent.YRaw - (direction.DeltaYRaw * trailRaw / direction.DistanceRaw)));
+            leader.YRaw - (direction.DeltaYRaw * trailRaw / direction.DistanceRaw)));
 
         return (trailXRaw, trailYRaw);
     }
 
     /// <summary>
     /// Checks whether a regrouping follower's tick-start position falls
-    /// inside its own rally agent's forward give-way corridor and, if so,
-    /// returns a pure-sideways aim point that clears it. Returns
+    /// inside its own leader's forward give-way corridor and, if so, returns
+    /// a pure-sideways aim point that clears it. Returns
     /// <see langword="null"/> when the follower is not in the corridor, in
     /// which case <see cref="BuildRegroupingProposal"/> falls back to the
     /// ordinary trail-plus-jitter aim point.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Let <c>L</c> be the rally agent's tick-start position, <c>d</c> the
-    /// unit direction from <c>L</c> toward the rally agent's own target (the
-    /// same direction <see cref="ComputeRallyTrailBase"/> trails behind),
-    /// <c>F</c> the follower's tick-start position, and <c>r = F - L</c>.
+    /// Let <c>L</c> be the leader's tick-start position, <c>d</c> the unit
+    /// direction from <c>L</c> toward the leader's own target (the same
+    /// direction <see cref="ComputeRallyTrailBase"/> trails behind), <c>F</c>
+    /// the follower's tick-start position, and <c>r = F - L</c>.
     /// <c>forward</c> is the scalar projection of <c>r</c> onto <c>d</c>;
     /// <c>lateral</c> is the scalar projection of <c>r</c> onto the
     /// perpendicular of <c>d</c>. The follower is in the corridor when
-    /// <c>forward &gt; 0</c> (ahead of the rally agent) and
+    /// <c>forward &gt; 0</c> (ahead of the leader) and
     /// <c>|lateral| &lt; corridor half-width</c>.
     /// </para>
     /// <para>
@@ -995,11 +1662,11 @@ public sealed class BattleSimulation
     /// </remarks>
     private (int XRaw, int YRaw)? TryComputeGiveWayAimPoint(
         AgentState agent,
-        AgentState rallyAgent,
+        AgentState leader,
         (long DeltaXRaw, long DeltaYRaw, long DistanceRaw) direction)
     {
-        var relativeXRaw = (long)agent.XRaw - rallyAgent.XRaw;
-        var relativeYRaw = (long)agent.YRaw - rallyAgent.YRaw;
+        var relativeXRaw = (long)agent.XRaw - leader.XRaw;
+        var relativeYRaw = (long)agent.YRaw - leader.YRaw;
 
         var forwardRaw = checked(
             (relativeXRaw * direction.DeltaXRaw) +
@@ -1726,7 +2393,17 @@ public sealed class BattleSimulation
         var distance = IntegerSquareRoot(distanceSquared);
 
         var desiredMovement = Math.Max(1, distance - stopShortRaw);
-        var movement = Math.Min(agent.MovementSpeedRaw, desiredMovement);
+        // The arrival taper is on under every persistent-contingent preset,
+        // and off only under IndependentPursuitV1, whose trajectory is frozen.
+        // Testing against the frozen preset rather than naming each preset
+        // that has the taper keeps a newly registered preset from silently
+        // losing it.
+        var movement = Scenario.MovementPreset != MovementPresetId.IndependentPursuitV1
+            ? MovementRules.ComputeArrivalStepRaw(
+                desiredMovement,
+                agent.MovementSpeedRaw,
+                checked((long)_movementRules.ArrivalTaperMultiplier * Scenario.BodyRadiusRaw))
+            : Math.Min(agent.MovementSpeedRaw, desiredMovement);
         var moveX = checked(deltaX * movement / Math.Max(1, distance));
         var moveY = checked(deltaY * movement / Math.Max(1, distance));
 

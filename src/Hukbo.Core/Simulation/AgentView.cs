@@ -16,6 +16,17 @@ namespace Hukbo.Core.Simulation;
 /// naming it; the default matches
 /// <see cref="Scenario.PlaceholderFighterLevel"/>'s own default.
 /// </param>
+/// <param name="ContingentId">
+/// The contingent this warrior was dealt into at spawn. Defaulted, matching
+/// <see cref="MovementResolution"/> and <see cref="Level"/> above, so
+/// presentation tests written before contingents existed can build a view
+/// without naming it.
+/// </param>
+/// <param name="ContingentState">
+/// This warrior's contingent's behavioural mode, as of the tick this view was
+/// captured. Defaulted to <see cref="ContingentState.None"/> for the same
+/// reason <see cref="ContingentId"/> above is defaulted.
+/// </param>
 public readonly record struct AgentView(
     ulong EntityId,
     int FactionId,
@@ -28,4 +39,6 @@ public readonly record struct AgentView(
     bool IsAlive,
     CombatLoadout Loadout,
     MovementResolution MovementResolution = MovementResolution.None,
-    int Level = 1);
+    int Level = 1,
+    int ContingentId = 0,
+    ContingentState ContingentState = ContingentState.None);

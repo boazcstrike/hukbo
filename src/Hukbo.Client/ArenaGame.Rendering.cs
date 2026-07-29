@@ -948,7 +948,9 @@ public sealed partial class ArenaGame
                 appearance,
                 factionColor,
                 state,
-                hitPulseStrength);
+                hitPulseStrength,
+                contingentId: agent.ContingentId,
+                contingentState: agent.ContingentState);
 
             OpenArenaGeometrySpan();
         }

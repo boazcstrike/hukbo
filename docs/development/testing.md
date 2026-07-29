@@ -391,6 +391,91 @@ each `RenderBudgetEstimate`/frame-time figure or revising it through a
 recorded, reviewed diff. Until that happens, no automated test may encode a
 number from this section as an enforced ceiling.
 
+## Agent-count scaling sweep after the collision scaling work, 2026-07-28
+
+This supersedes the timing columns of the 4.25-radius sweep in the next section
+below, and nothing else. The hashes are the point: they did not move.
+
+The collision resolver now answers both of its obstacle queries through bounded
+uniform-grid lookups instead of two linear scans, under
+[docs/plans/2026-07-28-collision-resolution-scaling.md](../plans/2026-07-28-collision-resolution-scaling.md).
+That change is hash-neutral by construction, so this sweep is simultaneously the
+performance measurement and the correctness evidence: had any committed position
+changed, a hash would have moved.
+
+Measured with one fresh process per point:
+
+```powershell
+./scripts/benchmark.ps1 -Agents 200  -Ticks 10000 -Seed 1
+./scripts/benchmark.ps1 -Agents 500  -Ticks 10000 -Seed 1
+./scripts/benchmark.ps1 -Agents 1000 -Ticks 10000 -Seed 1
+./scripts/benchmark.ps1 -Agents 2000 -Ticks 10000 -Seed 1
+```
+
+| Agents | measuredTicks | p50 ms | p95 ms | p99 ms | max ms | coreAllocatedBytes | outcome | stateHash | eventHash |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 200 | 1 677 | 0.0916 | 0.8952 | 1.3683 | 11.6005 | 154 976 | `Faction0Victory` | `A080E28DA7C79C20` | `2B6FB3A9A9C1960D` |
+| 500 | 2 859 | 0.1969 | 1.3553 | 2.7234 | 12.8902 | 338 736 | `Faction0Victory` | `F9267D5B9DFB50E1` | `BD3E753BEB76CD33` |
+| 1 000 | 9 294 | 0.6989 | 3.5361 | 4.5569 | 22.5612 | 712 304 | `Faction1Victory` | `6D35D701D9423C27` | `8B22790BAC7940EB` |
+| 2 000 | 10 000 | 6.7007 | 11.4528 | 14.4526 | 43.9161 | 1 492 256 | `Draw` | `AF9E348B016FF09F` | `5EA9027348AE764F` |
+
+Every point reported `deterministic true`, `firstMismatchTick null`, and
+`maximumPenetrationRaw 0`.
+
+**Every state hash, every event hash, every tick count, and every outcome is
+byte-identical to the 4.25-radius sweep below.** At 200 agents every collision
+counter matches as well, including `candidatePairs 172643`,
+`acceptedMoves 91766`, and `blockedAgentTicks 45265`. This is what the plan
+required and it is the whole acceptance criterion for that workstream.
+
+### Timing, against the same points before the change
+
+"Before" is the 4.25-radius sweep in the next section.
+
+| Agents | p50 before | p50 after | p95 before | p95 after | max before | max after |
+| --- | --- | --- | --- | --- | --- | --- |
+| 200 | 0.0887 | 0.0916 | 1.6860 | 0.8952 | 11.0047 | 11.6005 |
+| 500 | 0.2391 | 0.1969 | 1.9310 | 1.3553 | 16.9044 | 12.8902 |
+| 1 000 | 0.8481 | 0.6989 | 6.2364 | 3.5361 | 43.2692 | 22.5612 |
+| 2 000 | 17.3454 | 6.7007 | 51.5116 | 11.4528 | 274.8558 | 43.9161 |
+
+Every point here is a clean comparison, because the tick count at each agent
+count is identical before and after — which follows from the hashes being
+identical.
+
+The 2 000-agent point improves by 61 % at p50, 78 % at p95, and 84 % at the worst
+tick. The 3.44x regression that the radius move from 4.0 to 4.25 introduced at
+that point is now a 1.33x difference against the 4.0 figure of 5.0435 ms. The
+200-agent p50 is unchanged within run-to-run noise, which is expected: at that
+density the linear scans were already short, and the p95 improvement from
+1.6860 ms to 0.8952 ms is where the change shows at that size.
+
+### The scaling exponent, and a prediction that failed
+
+The plan predicted the p50 scaling exponent between 1 000 and 2 000 agents would
+fall below 1.5. It did not.
+
+| Comparison | p50 ratio | exponent `k` |
+| --- | --- | --- |
+| 1 000 to 2 000, before | 20.45 | 4.35 |
+| 1 000 to 2 000, after | 9.59 | 3.26 |
+
+The exponent fell, substantially, and the curve is still strongly super-linear.
+The design document had already said why: `SelectTargetsAndIntents` is itself an
+all-pairs scan, and removing collision's quadratic term leaves target selection
+as the dominant one. The `k < 1.5` bar was the plan's own error and it is
+recorded here rather than quietly restated. `k = 3.26` is the number for any
+future target-selection work to beat.
+
+### Allocation
+
+`coreAllocatedBytes` rose by roughly 31 % at every point, from 118 896 to
+154 976 at 200 agents and from 1 141 912 to 1 492 256 at 2 000. That figure
+measures simulation startup rather than per-tick behaviour, and the increase is
+the second index's buffers being allocated once. The warm-tick contract is
+unaffected: both windows in `BattleSimulationTests` stay inside their existing
+8 192-byte and 16 384-byte ceilings.
+
 ## Agent-count scaling sweep re-measured at the 4.25 body radius, 2026-07-28
 
 The T2 and T7 sweep tables further down this file were measured while
@@ -562,6 +647,331 @@ hash.
 calm is a question about motion on a screen, and every row in the "Auto camera
 modes smoke" checklist below is `PENDING`.
 
+## Latest non-interactive result — movement preset default flips to PersistentContingentsV3 (T6), 2026-07-28
+
+Task T6 of `docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md` changes
+`Scenario.MovementPreset`'s shipped default from `PersistentContingentsV2` to
+`PersistentContingentsV3`. `Scenario.MovementPreset` is folded into the state
+hash, so the seed-1 pair moves with the default, and this is the one task in
+that plan at which it moves. Both earlier presets stay registered and
+byte-reproducible for a replay that names one explicitly, each guarded by its
+own trajectory digest fixture in `MovementPresetFreezeTests`; only the value a
+caller gets without naming a preset has changed.
+
+`./scripts/verify.ps1`, run once after the flip:
+
+```
+Total tests: 700
+     Passed: 700
+Total tests: 697
+     Passed: 697
+[PASS] Release repository tests completed.
+seed 1, agentCount 200, requestedTicks 10000, measuredTicks 1334
+outcome Faction1Victory, faction0Survivors 0, faction1Survivors 1
+eventHash C0379769F4483553
+stateHash 0682C6BCED57224D
+deterministic true, firstMismatchTick null
+allocatedBytes 461888, coreAllocatedBytes 118896
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+Old and new, side by side:
+
+| | `PersistentContingentsV2` (was) | `PersistentContingentsV3` (now) |
+| --- | --- | --- |
+| `measuredTicks` | 1064 | 1334 |
+| outcome | `Faction0Victory` | `Faction1Victory` |
+| survivors, faction 0 / 1 | 8 / 0 | 0 / 1 |
+| `eventHash` | `8E819FF7B378FEFD` | `C0379769F4483553` |
+| `stateHash` | `C79B76AE81C300CB` | `0682C6BCED57224D` |
+
+The run reaches a terminal outcome at tick 1334 rather than stopping at the
+ten-thousand-tick limit, and `deterministic` is `true`.
+
+Two changes are folded into this pair, and both are deliberate. The first is
+the intended one: transition rule 3 now closes a contingent only once at least
+half its living members have a selected target inside the close radius, so
+contingents keep gathering mid-battle instead of latching into
+`ContingentState.Close` on the first member to reach contact.
+
+The second was found while flipping the default, and it is worth recording
+because it would have made the first change meaningless. `GatherMovementProposals`
+and the arrival-taper step both gated on
+`MovementPreset == PersistentContingentsV2` exactly, so registering
+`PersistentContingentsV3` silently switched cohesion and the arrival taper
+*off* under the new preset. Both tests now read
+`MovementPreset != IndependentPursuitV1` instead, matching the condition
+`ResolveContingentStates` already used, so a newly registered
+persistent-contingent preset cannot lose the behaviour by not being named.
+`PersistentContingentsV2`'s own trajectory is unaffected by that repair, which
+is what its digest fixture proves.
+
+**This supersedes the `C79B76AE81C300CB` pair recorded below** as the seed-1,
+200-agent, 10,000-tick baseline for the shipped default.
+
+## Previous non-interactive result — movement preset default flips to PersistentContingentsV2 (T15), 2026-07-28
+
+Task T15 of `docs/plans/2026-07-28-formation-movement-realism.md` changes
+`Scenario.MovementPreset`'s shipped default from `IndependentPursuitV1` to
+`PersistentContingentsV2` — the persistent-contingent cohesion movement this
+workstream built in T7 through T14. `IndependentPursuitV1` stays registered
+and byte-identical for a replay that names it explicitly; only the value a
+caller gets without naming a preset has moved. `./scripts/verify.ps1
+-SkipBootstrap`, run once after the flip and after the inventory step below
+repaired every pre-existing test the flip broke:
+
+```
+Total tests: 690
+     Passed: 690
+Total tests: 697
+     Passed: 697
+[PASS] Release repository tests completed.
+seed 1, agentCount 200, requestedTicks 10000, measuredTicks 1064
+outcome Faction0Victory, faction0Survivors 8, faction1Survivors 0
+eventHash 8E819FF7B378FEFD
+stateHash C79B76AE81C300CB
+deterministic true, firstMismatchTick null
+allocatedBytes 422720, coreAllocatedBytes 125088
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+**This supersedes the `AFEBC0431554BCBB` pair recorded below** ("Previous
+non-interactive result — perf hardening merged with attack combinations on
+preset V3", state hash `AFEBC0431554BCBB`, event hash `2A9F2D7054CD1805`,
+outcome `Faction1Victory`, survivors 0/2, measured ticks 1710) as the seed-1,
+200-agent, 10,000-tick baseline **for the shipped default**. The outcome,
+survivor counts, measured-tick count, and both hashes all move here, and
+that move is a real behaviour change, not a representational one: the
+persistent-contingent cohesion movement changes which agents converge on
+which enemies and when, which changes who lands the killing blow. This is
+the expected shape of flipping the default to a preset that actually moves
+bodies differently, not a regression.
+
+**`IndependentPursuitV1`'s own pinned pair does not move.**
+`./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1 -MovementPreset
+IndependentPursuitV1`, run immediately after the default flip, reproduces the
+frozen preset's recorded pair exactly:
+
+```
+seed 1, agentCount 200, requestedTicks 10000, measuredTicks 1710
+outcome Faction1Victory, faction0Survivors 0, faction1Survivors 2
+eventHash 2A9F2D7054CD1805
+stateHash AFEBC0431554BCBB
+deterministic true, firstMismatchTick null
+allocatedBytes 521296, coreAllocatedBytes 125088
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+```
+
+`eventHash` and `stateHash` are byte-identical to the frozen-preset contract
+recorded when T5b returned the tree to green, which is the final proof that
+`IndependentPursuitV1` survived the whole workstream unchanged when named
+explicitly. `coreAllocatedBytes` reads `125088` here against the
+previously-recorded `118896` -- a construction-time-only difference (T9's
+per-contingent sixteen-slot arrays are sized once at
+`BattleSimulation.Create`, unconditionally, before either preset's first tick
+runs) that does not touch `eventHash`, `stateHash`, the outcome, the survivor
+counts, or the measured-tick count, and is not part of what this task's own
+verification names. `docs/research/TICK-STAGE-PROFILE.md`'s per-stage budget
+verdict, not this record, is where a construction-time allocation change gets
+measured and judged.
+
+### The inventory: what the default flip broke, and why each fix is legitimate
+
+Flipping the default made `PersistentContingentsV2` the behaviour every
+pre-existing test in the repository exercises for the first time, including
+tests written long before this workstream. Running `./scripts/test.ps1
+-Configuration Release` once with the flip already made and nothing else
+touched surfaced eight newly-failing facts. Every one of them is classified
+below as a re-recording question; none is a production defect or a design
+failure.
+
+1. **`MovementPresetFreezeTests.IndependentPursuitV1_ReproducesTheFrozenTrajectoryDigest`**
+   (T1's own frozen-trajectory oracle) and
+   **`DeterminismTests.ZeroInterceptionProfile_ReproducesThePreClashDigest`** /
+   **`ZeroInterceptionProfile_ReproducesTheRecordedStateHash`** each built
+   their control run from `Scenario.CreateDefault(...)` without naming a
+   `MovementPreset`, so each one silently started running under the new
+   default instead of the preset its own fixture was captured against.
+   `DeterminismTests.CreateZeroInterceptionControlRun` already had precedent
+   for exactly this shape -- it names `CombatPreset =
+   CombatPresetId.PrecolonialPhilippinesV1` explicitly, with a comment
+   explaining why a fixture-backed control run cannot ride the default. Both
+   call sites now name `MovementPreset = MovementPresetId.IndependentPursuitV1`
+   explicitly for the same reason. No fixture, no digest, and no assertion
+   changed; the fix is confined to how each control run is constructed.
+2. **`ScenarioTests.CreateDefaultSelectsIndependentPursuitV1MovementPreset`**
+   asserted the fact this task exists to change. Renamed to
+   `CreateDefaultSelectsPersistentContingentsV2MovementPreset` and its expected
+   value updated to match; the assertion's shape (`Assert.Equal` against
+   `scenario.MovementPreset`) is untouched.
+3. **`LastStandFormationTests.AFollowerStandingInItsLeadersPathStepsAsideRatherThanThroughIt`**
+   is not one of the last-stand facts the plan's own inspection ruled
+   exempt -- that inspection reasoned only about contingent cohesion
+   (`Regrouping` beats it in the conflict order, which is still true and
+   still holds), not about T10's arrival taper, which applies to every
+   `BuildMovementProposal` call under `PersistentContingentsV2` regardless of
+   movement kind, give-way included. The give-way aim point sits at a fixed
+   `corridorHalfWidthRaw + BodyRadiusRaw = 1536` raw units from the follower's
+   current position, inside the taper band
+   (`ArrivalTaperMultiplier * BodyRadiusRaw = 2048` raw units), so the first
+   give-way step is now deterministically capped at `384` raw units rather
+   than the full `512`-unit step the test's original comment assumed --
+   working exactly as T10's own completion note flagged it would. One tick no
+   longer clears the corridor; a second, whose aim point recomputes at the
+   same fixed distance, reliably does. The fix advances a second tick before
+   the unchanged corridor-clearance assertions run, with a comment recording
+   the arithmetic above.
+4. **`HeadlessRunnerTests.OmittingMovementPresetSelectsTheScenarioDefault`**
+   compared an implicit run (no `--movement-preset`) against an explicit run
+   pinned to `IndependentPursuitV1`, asserting the two must match because
+   that preset was `Scenario`'s own default. The comparison itself is
+   unchanged; only which preset name the "explicit" side supplies moves, to
+   `PersistentContingentsV2`.
+5. **`DeterminismTests.PresetV3_SeedOneStateAndEventHashArePinned`** omitted
+   `--movement-preset` and so silently started running its V3 combat-axis
+   regression net under the new default, which would let a future
+   movement-axis change move this fact's pinned values for a reason that has
+   nothing to do with the V3 attack-combination behaviour it exists to guard.
+   Pinned `--movement-preset IndependentPursuitV1` explicitly instead of
+   re-recording, isolating the axis the same way `CreateZeroInterceptionControlRun`
+   already does; both hashes are therefore unchanged from their T5 values.
+6. **`DeterminismTests.IndependentSameSeedRunsProduceIdenticalEventsAndStateHashes`**
+   ran two independent same-seed simulations for a hardcoded `2_000` ticks --
+   comfortably above the frozen preset's own seed-1 tick count of `1,710` --
+   and asserted a terminal outcome. Under the new default this particular
+   seed (`0xDEADBEEF`) needs more than 2,000 ticks, well inside the
+   `10,000`-tick `TickLimit` the design's own twenty-seed liveness sweep is
+   measured against. The loop bound now reads `scenario.TickLimit` instead of
+   a second hardcoded figure; the assertions are unchanged.
+
+A new pinned pair,
+`DeterminismTests.PersistentContingentsV2_SeedOneStateAndEventHashArePinned`,
+was added alongside the existing V3 one, at the same 20-agent/200-tick scale,
+so an accidental change to the contingent state machine, the cohesion
+movement branch, or the arrival taper fails fast on every `dotnet test`
+invocation rather than only in the slower canonical benchmark above.
+
+## Performance measurement — persistent contingent movement (T16), 2026-07-28
+
+Task T16 of `docs/plans/2026-07-28-formation-movement-realism.md` measures
+the ninth tick stage T9 added, `ResolveContingentStates`, against the two
+acceptance figures in design section 8.1 of the companion design document:
+the new stage's p95 inclusive share of `AdvanceOneTick` must not exceed 5%,
+and total tick p95 must not regress by more than 10% against the same
+workload measured immediately before the behaviour lands. A third figure is
+a hard pass/fail rather than a budget: the per-tick allocation test must
+still pass unchanged.
+
+**Environment.** Intel Core i5-14600K, 14 cores / 20 logical processors;
+32,485 MB RAM; Windows 11 Pro 10.0.26200, x64; .NET SDK 10.0.302; Release
+build, unmodified shipped `Hukbo.Headless`, no timing instrumentation added
+anywhere in `Hukbo.Core`. Scenario: `Scenario.CreateDefault(seed: 1,
+totalAgents: 200)` and `(seed: 1, totalAgents: 500)`, `CombatPreset
+PrecolonialPhilippinesV2` (the scenario default), `TickRate 20`, `TickLimit
+10,000`. "Before" is `--movement-preset IndependentPursuitV1`, the frozen
+preset, whose stage returns on its first line and adds no measurable
+per-tick work; "after" is `--movement-preset PersistentContingentsV2`, the
+shipped default since T15. `HeadlessRunner` has no separate warm-up phase —
+`TickPercentiles` is computed over every measured tick from tick 1 to
+termination, the same way every earlier percentile figure in this document
+was measured. Each figure below is the median of three fresh-process runs
+through `./scripts/benchmark.ps1`'s underlying headless runner at each point
+(six runs per agent count, three per preset).
+
+### Acceptance figure 1 — the new stage's inclusive share, met
+
+Measured by `dotnet-trace` at the same two agent counts, full methodology and
+the four-agent-count table (200, 500, 1,000, 2,000) recorded in
+`docs/research/TICK-STAGE-PROFILE.md`'s new
+["The ninth stage: `ResolveContingentStates` (T16)"](../research/TICK-STAGE-PROFILE.md#the-ninth-stage-resolvecontingentstates-t16)
+section, reproduced here for the two workloads the budget is stated against:
+
+| Agents | `ResolveContingentStates` share of `AdvanceOneTick` | Budget | Verdict |
+| --- | --- | --- | --- |
+| 200 | 1.47 % | ≤ 5 % | **met** |
+| 500 | 1.13 % | ≤ 5 % | **met** |
+
+Both points sit at well under a third of the 5% budget, and the share falls
+further at 1,000 and 2,000 agents (0.59% and 0.35% respectively, same
+source), so nothing about this figure worsens at larger scale.
+
+### Acceptance figure 2 — total tick p95 regression, met (an improvement, not a regression)
+
+`TickPercentiles` from `RunReport`, median of three runs per point, before
+(`IndependentPursuitV1`) and after (`PersistentContingentsV2`):
+
+| Agents | measuredTicks before | measuredTicks after | p50 before | p50 after | p95 before | p95 after | p95 change | Budget | Verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 200 | 1 710 | 1 064 | 0.0794 ms | 0.1155 ms | 1.4478 ms | 1.3432 ms | −7.23 % | ≤ +10 % | **met** |
+| 500 | 2 832 | 3 391 | 0.4131 ms | 0.3105 ms | 2.7623 ms | 1.7188 ms | −37.78 % | ≤ +10 % | **met** |
+
+p99 and max, same runs (median of three), reported for completeness though
+the budget is stated against p95 only:
+
+| Agents | p99 before | p99 after | max before | max after |
+| --- | --- | --- | --- | --- |
+| 200 | 2.7822 ms | 2.1841 ms | 10.7779 ms | 12.2364 ms |
+| 500 | 4.3103 ms | 3.5956 ms | 13.6872 ms | 16.0770 ms |
+
+Both points show p95 falling, not regressing — the tick under
+`PersistentContingentsV2` measured faster at p95 than the frozen preset at
+both acceptance workloads, comfortably inside the 10% regression budget in
+either direction. Max at 200 agents rose slightly (10.78 ms to 12.24 ms
+across these medians); that is a single-tick outlier figure, not the p95 the
+budget is stated against, and the same shape appears in every earlier
+percentile table in this document — max is consistently the noisiest of the
+four figures reported.
+
+Reported for context, not part of the budget: `measuredTicks` and the
+outcome move between before and after, because `PersistentContingentsV2`
+changes which agents converge on which enemies and when, which is a real
+behaviour change already recorded in the T15 section above, not a
+performance regression. Every point above reported `deterministic true` and
+`firstMismatchTick null`, and the `eventHash`/`stateHash` pair at each of the
+four points reproduced exactly the pinned values already recorded in this
+document (`AFEBC0431554BCBB` / `2A9F2D7054CD1805` at 200 agents,
+`IndependentPursuitV1`; `C79B76AE81C300CB` / `8E819FF7B378FEFD` at 200
+agents, `PersistentContingentsV2`, matching the T15 section above exactly),
+confirming the binary measured here is the same one the rest of this
+document's evidence describes.
+
+### Acceptance figure 3 — the per-tick allocation test, met
+
+`dotnet test tests/Hukbo.Core.Tests/Hukbo.Core.Tests.csproj --configuration
+Release --filter "FullyQualifiedName~RepeatedCollisionTicksHaveBoundedAllocations"`:
+
+```
+Passed!  - Failed:     0, Passed:     1, Skipped:     0, Total:     1
+```
+
+The test's own 16,384-byte-per-1,000-tick ceiling and 4,096-byte warm-window
+growth tolerance are unchanged from before this workstream and pass at those
+same figures; T9 through T15 sized every new array once at construction, so
+a warm tick under `PersistentContingentsV2` allocates nothing this test's
+bound would catch.
+
+### A note on `coreAllocatedBytes` run-to-run variance, not part of any acceptance figure
+
+`RunReport.CoreAllocatedBytes` was observed to vary between repeated runs of
+the identical command (`--agents 200 --movement-preset IndependentPursuitV1`,
+seed and tick count unchanged): `118896` on one run, `125088` on the very
+next, with `eventHash`, `stateHash`, the outcome, and the survivor counts all
+identical across both. This is JIT/tiered-compilation measurement jitter in
+the allocation counter, not a determinism defect — nothing that reaches the
+state hash moved — and it is not one of design section 8.1's three
+acceptance figures, which is why it is recorded here rather than folded into
+either table above. It does mean the `118896` versus `125088` distinction
+the T15 section above draws between `IndependentPursuitV1` measured before
+and after the default flip is not the reliable construction-time signal that
+entry took it for; both values are reachable from the identical binary and
+command line. `coreAllocatedBytes` is not part of any test assertion in this
+repository — `RepeatedCollisionTicksHaveBoundedAllocations` above measures
+allocation directly with `GC.GetAllocatedBytesForCurrentThread()` inside the
+test process at the 16,384-byte/1,000-tick scale, not through this report
+field — so nothing this workstream's tests enforce is affected.
+
 ## Previous non-interactive result — perf hardening merged with attack combinations on preset V3, 2026-07-28
 
 `./scripts/verify.ps1` on `main` after merging branch `combat-preset-v3-combos`
@@ -603,6 +1013,33 @@ work, not a combos regression.
 when each was written in isolation; it stopped being true once the combos
 branch's `StateHasher`/event-hash fold changes and this merge were both
 folded into `main`. Treat this section as the current baseline instead.
+
+**`stateHash A883926A3B93792E` above is superseded by `AFEBC0431554BCBB`.**
+`docs/plans/2026-07-28-formation-movement-realism.md` task T4 added
+`Scenario.MovementPreset` and two new per-agent words (`ContingentId`,
+`ContingentState`) to `StateHasher.Compute`, folded on every scenario
+regardless of which movement preset it selects; task T5 re-records the moved
+goldens, this baseline included. `eventHash` did not move -- the event fold
+never reads either new field -- and neither did the winner, the survivor
+counts, or the tick count, which is what makes the state-hash move purely
+representational rather than a behaviour change. Re-run fresh for this
+re-recording, not paraphrased:
+
+```
+seed 1, agentCount 200, requestedTicks 10000, measuredTicks 1710
+outcome Faction1Victory, faction0Survivors 0, faction1Survivors 2
+eventHash 2A9F2D7054CD1805
+stateHash AFEBC0431554BCBB
+deterministic true, firstMismatchTick null
+allocatedBytes 521296, coreAllocatedBytes 118896
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+```
+
+`allocatedBytes` and `coreAllocatedBytes` are byte-identical to the merge
+run above, confirming the movement-preset workstream introduced no
+allocation regression at `IndependentPursuitV1`, the only preset that
+exists at T4/T5. Treat `AFEBC0431554BCBB` as the current seed-1, 200-agent,
+10,000-tick `stateHash` baseline from here forward.
 
 ## Previous non-interactive result — arch-informed performance hardening workstream (T1, T2, T6, T7, T8, T11), 2026-07-28
 
@@ -3027,6 +3464,17 @@ thing these rows are for. The amendment changed what a spectator should expect t
 see here, so these rows carry more weight than they did before and none of them
 has been observed.
 
+**Amended by the persistent-contingent movement change (T18).** Under
+`PersistentContingentsV2` the movement labels rows 19, 20 and 21 read change in
+both meaning and frequency. A second-rank agent's blocked label can now read as
+gathering toward its contingent rather than purely as blocked by the front
+rank, and it can also read as easing to a stop under the arrival taper (design
+section 3.6) rather than stopping dead. Row 21's rank-closing observation still
+applies, but the closing approach itself now tapers rather than arriving at a
+constant rate. Rows 19, 20, 21 and 21a stay `PENDING`; whoever observes them
+should not assume the pre-contingent description of what they show still holds
+and should record what is actually seen under the new default.
+
 | Evidence field | Recorded value |
 | --- | --- |
 | Date | Not recorded |
@@ -3100,6 +3548,15 @@ automated evidence proves the arrangement is symmetric, separated and
 overlap-free in numbers; none of it proves the opening frame reads that way to a
 person watching it, which is the only thing these rows are for.
 
+**Amended by the persistent-contingent movement change (T18).** This section's
+premise — that the grouping this checklist describes is only an opening-frame
+property — no longer holds under `PersistentContingentsV2`. The deployment
+groups these rows describe are now the same contingents `ResolveContingentStates`
+carries forward and cycles between gathering and advancing for the rest of the
+battle, not a shape that exists only at tick 0 and dissolves on the first move.
+Rows 58 through 61 are unchanged and still test the opening frame only; row 61a
+below extends the same check past it.
+
 | Evidence field | Recorded value |
 | --- | --- |
 | Date | Not recorded |
@@ -3114,6 +3571,7 @@ person watching it, which is the only thing these rows are for.
 | 59. Check the mirror | Pausing at tick 0 and comparing the two halves shows each side as the other's reflection across the centre line: same group positions, same group sizes, same ragged front. | Not run | PENDING |
 | 60. Confirm the groups look irregular | Within a group the spacing looks uneven rather than a snapped parade grid, and a new seed visibly reshuffles that spacing without moving the groups. | Not run | PENDING |
 | 61. Confirm the armies still meet promptly | The two sides close and fight without a long empty march, and the battle reaches a terminal outcome inside its tick limit. | Not run | PENDING |
+| 61a. Confirm the groups stay distinct past deployment | Added by the persistent-contingent movement change. Let the battle run several seconds past the opening frame, well before the armies meet. Each side still reads as several separate groups of warriors at the default camera fit, rather than merging into one crowd as soon as the armies start moving. | Not run | PENDING |
 
 ### Typography smoke
 
@@ -3575,6 +4033,271 @@ repository. A clean build is no evidence that any of them works.
 | 169. Open the battle report and read a faction line | Attack, hit, and accuracy figures are present, and the estimated figures are marked with a tilde. | Not run | PENDING |
 | 170. Read the battle report disclosure line | It states that attacks and accuracy are simulation-reported while kills, damage, and warrior rows are estimated. | Not run | PENDING |
 | 171. Compare the reported faction accuracy against a headless run of the same seed | It matches the simulation own counters rather than an event-derived approximation. | Not run | PENDING |
+
+### Persistent contingent smoke
+
+Added by the formation and movement realism change (T18 of
+[2026-07-28-formation-movement-realism.md](../plans/2026-07-28-formation-movement-realism.md)),
+which flips the default `Scenario.MovementPreset` to `PersistentContingentsV2`.
+**Partially performed on 2026-07-28.** Rows 102, 103, 104, 105, 111 and 114 were
+observed in one hands-off pass at the default camera fit. Rows 106, 107, 108,
+109, 110, 112 and 113 remain unobserved. Rows 104 and 114 failed. The automated
+suite —
+`MovementPresetRegistryTests`, `FormationRulesTests`,
+`ContingentOffsetTests`, `ContingentStateMachineTests`, `ArrivalTaperTests`,
+`PersistentContingentTests` and `ContingentDeadlockTests` — proves the state
+machine's six priority-ordered transition rules, the duty cycle, the leader
+scan, the straggler gate, the two geometric gates, the arrival taper, and three
+engineered deadlock geometries all resolve correctly, both in isolation and
+inside a running simulation. None of it proves that the resulting movement
+reads as a group of warriors gathering and advancing together to a person
+watching it, which is the only thing these rows are for.
+
+**Scoping note — this is not the last-stand formation smoke.** The last-stand
+formation smoke above (rows 76 through 81) covers the whole-faction rally that
+fires only once a side is down to its final handful of warriors, gathering
+every survivor of that faction on one rally agent. This section covers a
+different mechanism that runs for the whole battle, not only its ending: from
+deployment onward each faction is divided into up to eight persistent
+contingents, and `ResolveContingentStates` cycles each one between gathering on
+its own leader and advancing independently throughout the match. A spectator
+should be able to see both behaviours in the same battle and tell them apart —
+several small contingents repeatedly gathering and re-forming during the
+advance, and then, only once a side is reduced to its last few warriors, the
+separate whole-faction convergence the last-stand rows describe.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+flip one of these rows to `PASS`. Compilation, unit tests, and a
+window-opening probe do not.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | 2026-07-28 |
+| Machine/platform | Windows 11 Pro 10.0.26200, win-x64 |
+| Source commit | 8f4e426, worktree `formation-movement-realism` |
+| Launch path (`source` or package path) | `source` — `./scripts/run.ps1 -Configuration Release` |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 102. Read several distinct groups well past deployment | Each side stays readable as several distinct groups well past the opening frame, at the default camera fit, rather than merging into one crowd within a few seconds. | Each side split into about three readable groups, and those stayed distinct well past the opening frames. They merged into one crowd only late in the battle, once casualties had mounted. | PASS |
+| 103. Watch a strung-out group gather and resume | A group that has strung out visibly gathers on one of its own warriors, then resumes advancing, rather than gathering indefinitely or never gathering at all. | A group that had strung out was seen to fall back briefly, gather, and then carry on advancing with the group, rather than gathering indefinitely. | PASS |
+| 104. Confirm the gathered shape is ragged | The gathered shape is ragged. It is not a ring, a line, an arc, a grid, or any shape that looks placed, and no warrior sits at an obviously exact distance from the one it gathered on. | Not run | PENDING |
+| 105. Watch a group arrive and break apart | On reaching the enemy, a group visibly stops holding together and its warriors fight as individuals. The transition reads as arriving, not as the group breaking apart. | The transition read as the group arriving rather than as the group falling apart. | PASS |
+| 106. Confirm warriors ease into contact | Warriors ease into contact rather than travelling at full speed and stopping dead against an enemy body. | Not run | PENDING |
+| 107. Confirm a warrior steps aside for its leader | A warrior standing in front of the warrior its group has gathered on steps aside rather than being walked through or standing there blocking it. | Not run | PENDING |
+| 108. Inspect the contingent row | Selecting any warrior shows a `Contingent: <n> — <state>` row in the inspector, and that state changes over the course of the battle rather than reading the same value throughout. | Not run | PENDING |
+| 109. Confirm the contingent ground tints are distinguishable | The eight contingent ground tints within one faction are distinguishable from each other at the default camera fit, and no tint is mistakable for the opposing faction's colour, at all five themes. | Not run | PENDING |
+| 110. Confirm the frozen preset is unaffected | Running the same seed under `IndependentPursuitV1` looks exactly as the game looks today: no gathering, no per-contingent tint, and no contingent row in the inspector. | Not run | PENDING |
+| 111. Confirm the battle still resolves | A full 200-agent battle reaches a terminal outcome. Neither side stands gathered and unmoving until the tick limit. | The battle reached a terminal outcome and a winner was declared. | PASS |
+| 112. Watch a group reach a map edge or corner | A group whose warriors reach a map edge or a corner keeps moving and fighting there rather than piling into the boundary and staying put. This is the visible face of the map-edge open-ground rule in design section 3.5. | Not run | PENDING |
+| 113. Watch two groups collide and separate | Two groups on the same side that walk into each other come apart again and carry on advancing, rather than jamming into one stationary mass. This is the visible face of the cross-contingent rule in design section 3.5. | Not run | PENDING |
+| 114. Watch whether gathering keeps appearing across the whole advance | Groups read as groups for the whole of the advance, not only in the first few seconds after deployment. Watch a full battle at the default camera fit and judge whether gathering behaviour keeps appearing across several different groups as the armies converge, or whether it happens once near the start and then stops. This is the spectator half of the inertness bar in design section 10.3 — the automated half asserts thresholds on how often cohesion is granted, and only a person can say whether the result looks like several groups advancing or like one crowd that briefly twitched. | Not run | PENDING |
+
+**History.** Rows 104 and 114 both failed at commit `8f4e426`. The cause was
+movement transition rule 3 latching a whole contingent into
+`ContingentState.Close` as soon as a single member of that contingent reached
+contact. Both rows have been reset to `PENDING` and now await re-observation
+under `PersistentContingentsV3`. That re-observation is not expected to be a
+clean pass: the measurement taken after the fix shows `Hold` episodes after a
+contingent's first `Close` going from zero to one across a five-seed,
+fifty-contingent-battle sweep, `Close` occupancy falling from 63.69 % to
+53.11 %, attrition (rule 2) rising to 30.45 % and becoming the new ceiling on
+mid-battle gathering, and the `Hold` aspect-ratio tail getting worse (p99 from
+3.06 to 5.04, maximum from 5.17 to 14.21). See "Measurement behind rows 104 and
+114" and "Re-measurement after the `Close` latch fix (T7), 2026-07-28" below
+for the full after-table; it is not restated here.
+
+Two observations from the 2026-07-28 pass do not map to any row above, and are
+recorded here so that a later change can be judged against them. First, once one
+side was reduced to roughly twenty warriors, the survivors fought in the centre
+of the map in what the observer described as a line, taking each other on one at
+a time. Second, when two bodies of warriors met, only the front rank appeared to
+be fighting, and the contact edge read as a shallow concave curve. Neither
+observation has been traced to a cause yet, and both concern shapes that
+[03-deep-past-formations-and-tactics.md](../research/battles/03-deep-past-formations-and-tactics.md)
+lists among the formations Hukbo should not present as historical.
+
+### Measurement behind rows 104 and 114
+
+Both failures above were judgements by eye. `Hukbo.Tools.ContingentShape`
+(see [tools/README.md](../../tools/README.md)) attaches numbers to them. The
+figures below are from a five-seed sweep, 200 agents, 10 000-tick limit, run at
+commit `8f4e426`:
+
+```powershell
+dotnet build src/Hukbo.Core/Hukbo.Core.csproj -c Release
+dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5
+dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5 IndependentPursuitV1
+```
+
+**Row 114 is confirmed, and one rule causes it.** Of the fifty
+contingent-battles observed, all fifty reached `ContingentState.Close`, and
+none of the fifty ever returned to `ContingentState.Hold` afterward. Hold ticks
+after a contingent's first `Close`: zero. Hold episodes after a contingent's
+first `Close`: zero. Contingents spend 63.69 % of their living ticks in `Close`
+and a further 23.51 % in `Break`, against 3.09 % in `Hold`. The denial
+attribution puts 63.69 % of all contingent-ticks on transition rule 3 — an
+enemy within the close radius — while the two geometric gates account for
+1.81 % and 1.07 %, and a shut duty-cycle window for 1.12 %. Rule 3 tests the
+minimum distance over *every* member of the contingent, so one warrior of forty
+reaching contact puts the whole contingent into `Close`, and in a converged
+melee that condition never lifts again.
+
+**Row 104 is not reproduced by the shape metric, and points at the same
+cause.** Across 1 671 `Hold` samples the principal-axis aspect ratio has a
+median of 1.56, a 99th percentile of 3.06, and a maximum of 5.17; 79.29 % of
+gathers sit below 2.0. That is a clump, not a line. The two hypotheses that
+would have produced a line are both refuted for `Hold`: the gathered cloud
+aligns more with the contingent's own direction of advance (mean 12.21°) than
+with a world axis (mean 22.09°), which is the opposite of what an
+axis-aligned bias square would produce; and no `Hold` or `Advance` sample in
+the whole sweep fell within sixty ticks of a leader change, because leader
+changes require deaths and deaths only begin once a contingent has already
+latched into `Close`. What the observer saw mid-battle was therefore almost
+certainly not a `Hold` at all — `Close` contingents have a median aspect of
+3.60 and a 90th percentile of 7.73 — which makes rows 104 and 114 two faces of
+one defect rather than two.
+
+**Control.** The same sweep under the frozen `IndependentPursuitV1` preset
+leaves every contingent in `ContingentState.None` for 100 % of its ticks, and
+the same nominal groups then show a median aspect of 5.09 with both angles at
+44.1°, which is the uniform-random value. The cohesion that `Hold` applies is
+doing real work when it is allowed to run; it is almost never allowed to run.
+
+### Re-measurement after the `Close` latch fix (T7), 2026-07-28
+
+The measurement above is the "before" picture, taken at commit `8f4e426`,
+before any rule change from this workstream landed. This is the "after"
+picture, taken once T1 through T6 of
+[2026-07-28-contingent-close-latch.md](../archives/2026-07-28/2026-07-28-contingent-close-latch.md)
+had landed (commits `bde702f` through `855c797`): `MovementRuleset` now
+carries `CloseFractionNumerator` and `CloseFractionDenominator`; transition
+rule 3 counts members in contact against those fractions instead of taking a
+minimum distance; `PersistentContingentsV3` is registered with `(1, 2)` —
+close at half the living members in contact, re-open below a quarter; and
+`Scenario`'s shipped default has moved from `PersistentContingentsV2` to
+`PersistentContingentsV3`.
+
+Both runs use the same workload the before-table used — a five-seed sweep,
+200 agents, a 10 000-tick limit, read from this file rather than assumed:
+
+```powershell
+dotnet build src/Hukbo.Core/Hukbo.Core.csproj -c Release
+dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5 PersistentContingentsV3
+dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5 PersistentContingentsV2
+```
+
+**A note on the command line actually run.** The plan's T7 section writes the
+first command with no fourth argument, relying on the tool's default. That
+default is a literal hardcoded in `tools/Hukbo.Tools.ContingentShape/Program.cs`
+(`MovementPresetId.PersistentContingentsV2`), independent of `Scenario`'s
+shipped default — T5 and T6 did not touch it, and this task's file ownership
+does not extend to changing it either. Running the tool with no fourth
+argument today therefore still measures V2, not the new shipped default, so
+both runs below pass the preset explicitly instead. The second run
+(`PersistentContingentsV2`) is the control the plan asks for either way.
+
+**Occupancy and denial attribution.**
+
+| State / denial reason | V2 (control) share | V3 share |
+| --- | --- | --- |
+| `Close` / `close-enemy-within-close-radius` (rule 3) | 63.69 % | 53.11 % |
+| `Break` / `break-attrition` (rule 2) | 23.51 % | 30.45 % |
+| `Advance`, cohesion not needed / `already-gathered` | 5.71 % | 6.77 % |
+| `gate6-square-overlap` | 1.81 % | 3.89 % |
+| `Hold` / `none-cohesion-granted` | 3.09 % | 3.39 % |
+| `window-shut` (duty cycle) | 1.12 % | 1.22 % |
+| `gate5-map-edge` | 1.07 % | 1.17 % |
+
+Design section 5 predicted the geometric gates and rule 2 (attrition) might
+become the new ceiling once rule 3 stopped locking every contingent into
+`Close` on a single member's contact. That prediction held: `break-attrition`
+rose from 23.51 % to 30.45 %, and `gate6-square-overlap` roughly doubled, from
+1.81 % to 3.89 %. `close-enemy-within-close-radius` fell from 63.69 % to
+53.11 %, which is the fix doing what it was built to do — contingents spend
+markedly less of the battle latched into `Close`.
+
+**1. Hold episodes after first `Close` — must be non-zero.** V3: 1 episode,
+14 ticks, across 50 contingent-battles, all 50 of which reached `Close`. V2
+control: 0 episodes, 0 ticks, matching the frozen before-table exactly. The
+count is non-zero, so the change did not fail at its stated purpose, but the
+margin is thin: one `Hold` episode across the whole five-seed sweep is a long
+way from "several small contingents repeatedly gathering and re-forming during
+the advance," which is the spectator-visible behaviour rows 104 and 114
+actually describe. That gap is recorded here as a finding rather than rounded
+up.
+
+**2. `Hold` aspect-ratio distribution.**
+
+| Metric | V2 (today's baseline) | V3 |
+| --- | --- | --- |
+| Median | 1.56 | 1.59 |
+| p99 | 3.06 | 5.04 |
+| Max | 5.17 | 14.21 |
+| Share below 2.0 | 79.29 % | 75.74 % |
+
+The median barely moves. The tail does: p99 rises from 3.06 to 5.04 and the
+observed maximum from 5.17 to 14.21, and the share of gathers reading as a
+tight clump (aspect below 2.0) drops from 79.29 % to 75.74 %. That is a
+materially worse tail, not a materially worse typical case, and the plan is
+explicit that a worse distribution is new information rather than a thing to
+quietly tune away. It is recorded here as a finding: whatever `Hold` episodes
+now occur mid-battle (after a contingent has already passed through `Close` at
+least once) evidently include some shaped less like a clump than the
+approach-phase gathers the before-table measured. With only 1 mid-battle
+`Hold` episode observed for V3 in this sweep, that is the most likely driver,
+but the tool does not yet split `Hold` samples by before/after first `Close`
+the way it splits ticks and episodes — the numbers above are the aggregate
+across all `Hold` samples, exactly as the before-table reported them, and
+that split is not built.
+
+**3. Denial attribution**, repeated in one line per rule or gate for the
+report contract: `close-enemy-within-close-radius` (rule 3) 53.11 % V3 vs
+63.69 % V2; `break-attrition` (rule 2) 30.45 % V3 vs 23.51 % V2;
+`already-gathered` 6.77 % V3 vs 5.71 % V2; `gate6-square-overlap` 3.89 % V3 vs
+1.81 % V2; `none-cohesion-granted` (`Hold`) 3.39 % V3 vs 3.09 % V2;
+`window-shut` 1.22 % V3 vs 1.12 % V2; `gate5-map-edge` 1.17 % V3 vs 1.07 % V2.
+
+**4. `Close` state-flip frequency.** `Hukbo.Tools.ContingentShape` gained one
+new counter for this task, `closeReentries`, printed as `Close re-entries
+(state-flip)`. It counts a transition into `Close` that is not the
+contingent's first entry into `Close` in that battle — the first entry is
+excluded so the counter measures only re-entry after the contingent left for
+some other state. Across the same five-seed, 200-agent sweep: V3 reports 10
+re-entries, V2 reports 12. Both are non-zero: V2's rule 3 is symmetric at the
+`(0, 1)` fraction (entry and exit threshold both collapse to `Max(1, ...)`),
+so a contingent can in principle leave `Close` whenever the very last member
+in contact drops out and re-enter once contact resumes, and the measurement
+confirms that happens — twelve times across fifty contingent-battles, even
+though no `Hold` episode ever followed any of those twelve. The V3 count (10)
+is marginally lower than the V2 count (12), not higher: halving the entry
+fraction to build the exit threshold did not produce a materially different
+amount of state churn either way. That is the answer design section 7 asked
+for — the two bands produce a similar order of magnitude of `Close` flipping,
+and in both cases the flip essentially never routes back through `Hold`
+before contact is re-established, on this five-seed sample.
+
+**Outcome and battle length.** V2 and V3 simulate different behaviour, so the
+five seeds do not produce the same terminal ticks or winners under the two
+presets — that is expected and is not a determinism concern; determinism
+within one preset is what `DeterminismTests` and the canonical gate check, not
+agreement between two different presets. V2 control: 1064, 1712, 858, 1635,
+2234 ticks (matching commit `8f4e426`'s frozen values exactly — seed 1
+reproduces `Faction0Victory` at tick 1064). V3: 1334, 1909, 917, 1437, 2285
+ticks.
+
+**Verdict on the fix.** The fix works at the narrowest reading of its stated
+purpose: `Hold` episodes after first `Close` are non-zero where they were
+zero, and contingents spend materially less of the battle latched in `Close`
+(53.11 % against 63.69 %). It does not yet produce the richer "repeatedly
+gathering and re-forming during the advance" picture the design document and
+rows 104 and 114 describe — one `Hold` episode in fifty contingent-battles is
+a rare event on this sample, not a repeated behaviour, and the `Hold` shape
+that does occur reads worse in the tail (p99 and max) than the approach-phase
+gathers the before-table measured. Whether that is nonetheless visible to a
+human at the default camera fit is exactly what T10's reset of rows 104 and
+114 exists to find out, and no agent may answer that question.
 
 ## Failure classification
 
