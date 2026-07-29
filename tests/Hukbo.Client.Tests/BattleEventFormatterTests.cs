@@ -20,12 +20,87 @@ public sealed class BattleEventFormatterTests
             ShieldId.None,
             BodyPart.Shoulder);
 
-        var formatted = BattleEventFormatter.Format(battleEvent);
+        var formatted = BattleEventFormatter.Format(battleEvent, scenarioSeed: 1);
+
+        // The actor carries its warrior name; the target stays a bare
+        // identifier because the event records no target faction, and the
+        // faction is what selects the regional name corpus.
+        Assert.Equal(
+            $"T00042  Blue {WarriorNames.FormatWarrior(7, 0, 1)} " +
+            "hit #12's shoulder with Kampilan — Great Blade for 10",
+            formatted);
+    }
+
+    [Fact]
+    public void GetRowActorLabel_DropsTheFactionWordForTheNarrowRowColumn()
+    {
+        var battleEvent = BattleEvent.NonAttack(
+            sequence: 1,
+            tick: 42,
+            BattleEventKind.Death,
+            sourceEntityId: 7,
+            targetEntityId: null,
+            value: 0,
+            factionId: 0);
 
         Assert.Equal(
-            "T00042  Blue #7 hit #12's shoulder with " +
-            "Kampilan — Great Blade for 10",
-            formatted);
+            $"Blue {WarriorNames.FormatWarrior(7, 0, 1)}",
+            BattleEventFormatter.GetActorLabel(battleEvent, scenarioSeed: 1));
+        Assert.Equal(
+            WarriorNames.FormatWarrior(7, 0, 1),
+            BattleEventFormatter.GetRowActorLabel(battleEvent, scenarioSeed: 1));
+    }
+
+    [Fact]
+    public void ActorLabels_NameTheBattleItselfForAnOutcomeEvent()
+    {
+        var outcome = BattleEvent.NonAttack(
+            sequence: 1,
+            tick: 42,
+            BattleEventKind.Outcome,
+            sourceEntityId: 0,
+            targetEntityId: null,
+            value: 0,
+            factionId: 0);
+
+        Assert.Equal(
+            "Battle",
+            BattleEventFormatter.GetActorLabel(outcome, scenarioSeed: 1));
+        Assert.Equal(
+            "Battle",
+            BattleEventFormatter.GetRowActorLabel(outcome, scenarioSeed: 1));
+    }
+
+    /// <summary>
+    /// The row column holds roughly fifteen characters, so the row label has
+    /// to stay inside that budget for every shipped name at a realistic
+    /// roster's entity identifiers — otherwise a name would be drawn
+    /// truncated mid-word.
+    /// </summary>
+    [Fact]
+    public void GetRowActorLabel_FitsTheRowColumnForEveryWarriorInALargeRoster()
+    {
+        for (ulong entityId = 1; entityId <= 500; entityId++)
+        {
+            foreach (var factionId in new[] { 0, 1 })
+            {
+                var battleEvent = BattleEvent.NonAttack(
+                    sequence: (long)entityId,
+                    tick: 1,
+                    BattleEventKind.Death,
+                    entityId,
+                    targetEntityId: null,
+                    value: 0,
+                    factionId);
+                var label = BattleEventFormatter.GetRowActorLabel(
+                    battleEvent,
+                    scenarioSeed: 1);
+
+                Assert.True(
+                    label.Length <= 15,
+                    $"Row label '{label}' is {label.Length} characters.");
+            }
+        }
     }
 
     [Theory]

@@ -120,6 +120,28 @@ internal static class PresentationSalts
     public const ulong GroundCornerLatticeSalt = 0x5E8C1A4F9D3B7602UL;
 
     /// <summary>
+    /// Warrior personal-name region assignment stream
+    /// (2026-07-29-warrior-personal-names-design.md), scoped by
+    /// <c>Scenario.Seed</c> and <c>FactionId</c>. Chooses which regional name
+    /// corpus a whole faction draws from, so every warrior in one faction
+    /// shares one regional grammar (the naming research's rule 1). Deliberately
+    /// its own stream rather than a reuse of
+    /// <see cref="AppearanceBlockAssignmentSalt"/>: the appearance roster has a
+    /// Cagayan block for which the name research clears no corpus, and the name
+    /// corpus has a Mindanao River region for which the appearance roster has no
+    /// block, so the two assignments cannot be one shared draw.
+    /// </summary>
+    public const ulong WarriorNameRegionSalt = 0x3C7A9E15D2B84F60UL;
+
+    /// <summary>
+    /// Warrior personal-name selection stream
+    /// (2026-07-29-warrior-personal-names-design.md), scoped by
+    /// <c>EntityId</c>. Chooses the specific recorded form within the region
+    /// assigned by <see cref="WarriorNameRegionSalt"/>.
+    /// </summary>
+    public const ulong WarriorNameSelectionSalt = 0xD6B03F82A5C1E794UL;
+
+    /// <summary>
     /// Every registered salt, existing and new, in declaration order. The
     /// pairwise-distinctness test walks this list; nothing else should need to.
     /// </summary>
@@ -147,5 +169,9 @@ internal static class PresentationSalts
             "Battlefield grass cluster placement and generation."),
         new(nameof(GroundCornerLatticeSalt), GroundCornerLatticeSalt,
             "Ground corner-lattice shading."),
+        new(nameof(WarriorNameRegionSalt), WarriorNameRegionSalt,
+            "Warrior personal-name regional corpus assignment."),
+        new(nameof(WarriorNameSelectionSalt), WarriorNameSelectionSalt,
+            "Warrior personal-name selection within the assigned region."),
     ];
 }

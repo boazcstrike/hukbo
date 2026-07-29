@@ -67,8 +67,8 @@ public sealed class PresentationSaltsTests
     }
 
     [Fact]
-    public void RegistryListsAllElevenSalts()
+    public void RegistryListsAllThirteenSalts()
     {
-        Assert.Equal(11, PresentationSalts.All.Count);
+        Assert.Equal(13, PresentationSalts.All.Count);
     }
 }

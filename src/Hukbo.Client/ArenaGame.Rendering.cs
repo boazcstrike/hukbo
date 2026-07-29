@@ -304,6 +304,7 @@ public sealed partial class ArenaGame
             fonts,
             selectedAgent,
             layout.InspectorBounds,
+            _scenario.Seed,
             theme);
         _eventLogPanel.Draw(
             spriteBatch,
@@ -338,6 +339,7 @@ public sealed partial class ArenaGame
                 fonts,
                 _presentation.Report,
                 layout.ArenaBounds,
+                _scenario.Seed,
                 theme);
         }
 

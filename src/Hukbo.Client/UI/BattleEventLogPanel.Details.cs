@@ -33,7 +33,10 @@ internal sealed partial class BattleEventLogPanel
             return;
         }
 
-        SynchronizeDetails(selected, layout.DetailsBounds.Width);
+        SynchronizeDetails(
+            selected,
+            layout.DetailsBounds.Width,
+            feed.ScenarioSeed);
         DrawDetailLines(spriteBatch, fonts, layout, selected, theme);
     }
 
@@ -95,10 +98,16 @@ internal sealed partial class BattleEventLogPanel
         }
     }
 
-    private void SynchronizeDetails(BattleEvent battleEvent, int width)
+    private void SynchronizeDetails(
+        BattleEvent battleEvent,
+        int width,
+        ulong scenarioSeed)
     {
+        // The seed joins the cache key for the same reason it joins the row
+        // cache's: the source line now carries a warrior name derived from it.
         if (_cachedDetailsSequence == battleEvent.Sequence &&
-            _cachedDetailsWidth == width)
+            _cachedDetailsWidth == width &&
+            _cachedDetailsScenarioSeed == scenarioSeed)
         {
             return;
         }
@@ -121,7 +130,10 @@ internal sealed partial class BattleEventLogPanel
                 BattleEventFormatter.GetDetailSummaryLine(battleEvent),
                 maxCharacters),
             ClipLabel(
-                $"Source: {BattleEventFormatter.GetActorLabel(battleEvent)}",
+                "Source: " +
+                    BattleEventFormatter.GetActorLabel(
+                        battleEvent,
+                        scenarioSeed),
                 maxCharacters),
             ClipLabel(
                 $"Target: {battleEvent.TargetEntityId?.ToString() ?? "none"}",
@@ -135,5 +147,6 @@ internal sealed partial class BattleEventLogPanel
         ];
         _cachedDetailsSequence = battleEvent.Sequence;
         _cachedDetailsWidth = width;
+        _cachedDetailsScenarioSeed = scenarioSeed;
     }
 }

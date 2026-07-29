@@ -259,6 +259,7 @@ public sealed partial class ArenaGame : Game
         _renderMetricsRecorder = _renderProbeEnabled
             ? new SpriteBatchRenderMetricsRecorder()
             : NullRenderMetricsRecorder.Instance;
+        _presentation.EventFeed.SetScenarioSeed(_scenario.Seed);
 
         LogScenarioBuilt("startup");
     }
@@ -1286,6 +1287,7 @@ public sealed partial class ArenaGame : Game
             _scenario.MapHeight);
         LogScenarioBuilt(resetCommand.ToString());
         _presentation.ResetFor(resetCommand);
+        _presentation.EventFeed.SetScenarioSeed(_scenario.Seed);
         _soundDirector.Clear();
         _hoverSelection.Clear();
         _simulationAccumulator = 0;
