@@ -6,10 +6,10 @@
 > `docs/plans/2026-07-29-leader-rank-design.md`.
 
 Date: 2026-07-29
-Design: [`2026-07-29-leader-rank-design.md`](2026-07-29-leader-rank-design.md)
-Parent design: [`2026-07-29-warrior-standing-design.md`](2026-07-29-warrior-standing-design.md)
+Design: [`2026-07-29-leader-rank-design.md`](../../plans/2026-07-29-leader-rank-design.md)
+Parent design: [`2026-07-29-warrior-standing-design.md`](../../plans/2026-07-29-warrior-standing-design.md)
 §6.3, Decisions items 1 and 3
-Evidence: [`docs/research/ARMY-COMPOSITION.md`](../research/ARMY-COMPOSITION.md)
+Evidence: [`docs/research/ARMY-COMPOSITION.md`](../../research/ARMY-COMPOSITION.md)
 §2, §7, §11.4
 
 This plan is scoped to leadership only: the rank-aware leader scan, its reach

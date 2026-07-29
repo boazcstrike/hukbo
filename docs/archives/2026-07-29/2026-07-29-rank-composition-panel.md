@@ -1,7 +1,11 @@
 # Rank in the army composition panel — plan
 
+> **Archived: reference only.** Completed on 2026-07-29. Tasks P1 through P5
+> all landed and the canonical gate passed. Do not execute this plan; the
+> default combat preset it flips has already moved.
+
 Date: 2026-07-29
-Design: [`2026-07-29-warrior-standing-design.md`](2026-07-29-warrior-standing-design.md) §2
+Design: [`2026-07-29-warrior-standing-design.md`](../../plans/2026-07-29-warrior-standing-design.md) §2
 Unblocks: task C3 in [`2026-07-29-warrior-rank.md`](2026-07-29-warrior-rank.md)
 
 The warrior rank design names three independent ways a spectator can discover

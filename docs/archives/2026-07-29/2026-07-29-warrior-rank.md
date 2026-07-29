@@ -1,11 +1,16 @@
 # Warrior rank — implementation plan (Phase A)
 
-Date: 2026-07-29
-Design: [`2026-07-29-warrior-standing-design.md`](2026-07-29-warrior-standing-design.md)
-Evidence: [`docs/research/HISTORICAL_1500s_RANKS.md`](../research/HISTORICAL_1500s_RANKS.md),
-[`docs/research/ARMY-COMPOSITION.md`](../research/ARMY-COMPOSITION.md)
+> **Archived: reference only.** Completed on 2026-07-29. Every task landed,
+> including C3 once its own plan unblocked it, and the canonical gate passed.
+> Do not execute this plan. The live design is
+> `docs/plans/2026-07-29-warrior-standing-design.md`.
 
-This document supersedes [`2026-07-29-warrior-standing.md`](../archives/2026-07-29/2026-07-29-warrior-standing.md),
+Date: 2026-07-29
+Design: [`2026-07-29-warrior-standing-design.md`](../../plans/2026-07-29-warrior-standing-design.md)
+Evidence: [`docs/research/HISTORICAL_1500s_RANKS.md`](../../research/HISTORICAL_1500s_RANKS.md),
+[`docs/research/ARMY-COMPOSITION.md`](../../research/ARMY-COMPOSITION.md)
+
+This document supersedes [`2026-07-29-warrior-standing.md`](2026-07-29-warrior-standing.md),
 which was written before the naming decision and still says `StandingId`
 throughout. Read this one; that one is kept only so the earlier reasoning
 can be traced.
@@ -13,7 +18,7 @@ can be traced.
 Phase A makes rank exist, makes it authoritative, and makes it visible.
 Leadership — the rank-aware leader scan and the client leader marker — is a
 separate, separately gated plan in
-[`2026-07-29-leader-rank.md`](../archives/2026-07-29/2026-07-29-leader-rank.md), and it does not
+[`2026-07-29-leader-rank.md`](2026-07-29-leader-rank.md), and it does not
 begin until Phase A has been through the canonical gate.
 
 ## Decisions this plan assumes
@@ -29,7 +34,7 @@ recorded in full in the design document's Decisions section. In short:
 5. **Per-rank attributes run through existing systems only** — loadout,
    level and therefore combo depth, and leadership eligibility. There is no
    per-rank damage or hit-point number. Follower capacity is deferred to
-   [`2026-07-29-contingent-shape-design.md`](2026-07-29-contingent-shape-design.md).
+   [`2026-07-29-contingent-shape-design.md`](../../plans/2026-07-29-contingent-shape-design.md).
 
 A task that finds itself guessing at a decision has hit a missing one and
 must stop rather than pick.
@@ -277,9 +282,21 @@ for free.
 **Original decision:** retarget the panel in this pass, so that the roster
 claim is legible before the battle starts.
 
-**Status: BLOCKED. Not implemented on 2026-07-29.** The retarget cascades
-well past the single file this task scoped, and the cascade was only visible
-once the work started:
+**Status: RESOLVED on 2026-07-29** by
+[`2026-07-29-rank-composition-panel.md`](2026-07-29-rank-composition-panel.md),
+which took the default-preset flip and reshaped the persisted settings. The
+panel now lists four rank-labelled categories and all three discoverability
+surfaces the design promised are live. The cascade recorded below was real,
+which is why it needed its own plan rather than a task here.
+
+The one thing that did not survive is the weapon half of each label: the
+combined rank-and-weapon form measured past the width a panel row gives it,
+so the labels carry the rank pair form alone and the weapon stays visible in
+the agent inspector. Under preset V4 rank and weapon are one-to-one, so no
+information is unrecoverable, but the panel no longer names the weapon a
+category fields. A two-line row would restore it and is not designed.
+
+**The cascade, as originally found:**
 
 - `CategoryLabels` is a fixed six-slot array that drives
   `ArmyCompositionStepper`.
@@ -300,7 +317,7 @@ this plan.
 **Consequence for discoverability.** `SIMULATION-GAME-STANDARDS.md` §10
 question 8 is answered by two surfaces rather than three: the inspector rank
 line, which ships here, and the observable leader change, which ships with
-[`2026-07-29-leader-rank.md`](../archives/2026-07-29/2026-07-29-leader-rank.md). Both are real and
+[`2026-07-29-leader-rank.md`](2026-07-29-leader-rank.md). Both are real and
 neither requires reading source code, so the feature is discoverable. What
 is lost is the only *pre-battle* surface — a spectator cannot see the rank
 composition of a force until the battle has started and they click a
@@ -447,13 +464,13 @@ tasks are strictly sequential and are executed by a single implementer.
 ## What this plan deliberately does not do
 
 - **No rank-aware leader selection.** That is
-  [`2026-07-29-leader-rank.md`](../archives/2026-07-29/2026-07-29-leader-rank.md), gated behind
+  [`2026-07-29-leader-rank.md`](2026-07-29-leader-rank.md), gated behind
   Phase A's own gate run so that the state hash moves for one reason at a
   time.
 - **No per-rank damage, hit-point, hit-rate, or endurance number.** No
   source grades fighting ability by social class.
 - **No follower capacity and no contingent-shape change.** Deferred to
-  [`2026-07-29-contingent-shape-design.md`](2026-07-29-contingent-shape-design.md).
+  [`2026-07-29-contingent-shape-design.md`](../../plans/2026-07-29-contingent-shape-design.md).
 - **No morale, fear, or rout**, under any name.
 - **No change to the shipped default combat preset.** That is a separate
   decision, after V4 has been through the gate.

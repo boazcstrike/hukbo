@@ -12,8 +12,8 @@
 > kept only so the earlier reasoning can be traced.
 
 Date: 2026-07-29
-Design: [`2026-07-29-warrior-standing-design.md`](2026-07-29-warrior-standing-design.md)
-Evidence: [`docs/research/HISTORICAL_1500s_RANKS.md`](../research/HISTORICAL_1500s_RANKS.md)
+Design: [`2026-07-29-warrior-standing-design.md`](../../plans/2026-07-29-warrior-standing-design.md)
+Evidence: [`docs/research/HISTORICAL_1500s_RANKS.md`](../../research/HISTORICAL_1500s_RANKS.md)
 
 Phase A is the whole of this plan's committed scope. Phase B is written out
 because sequencing it separately is the point, but it is gated on the user
