@@ -36,6 +36,18 @@ namespace Hukbo.Core.Tests;
 /// fixture byte-identically as part of its own verification.
 /// </description>
 /// </item>
+/// <item>
+/// <description>
+/// <c>PersistentContingentsV3</c>, <c>PersistentContingentsV4</c>, and
+/// <c>PersistentContingentsV5</c>, captured by
+/// docs/plans/2026-07-30-weapon-movement-foundation.md task T1, before a
+/// single line of the weapon-relative-movement workstream existed. That
+/// workstream adds <c>EquipmentRelativeFootworkV6</c> and touches the
+/// simulation pipeline every legacy preset runs through, so every later
+/// task in it that could plausibly disturb a legacy trajectory reproduces
+/// these fixtures byte-identically as part of its own verification.
+/// </description>
+/// </item>
 /// </list>
 /// This file is the oracle those tasks replay against.
 /// </summary>
@@ -53,6 +65,15 @@ public sealed class MovementPresetFreezeTests
 
     private const string PersistentContingentsV2DigestFileName =
         "seed-1-200-agents-movement-v2-digest.json";
+
+    private const string PersistentContingentsV3DigestFileName =
+        "seed-1-200-agents-movement-v3-digest.json";
+
+    private const string PersistentContingentsV4DigestFileName =
+        "seed-1-200-agents-movement-v4-digest.json";
+
+    private const string PersistentContingentsV5DigestFileName =
+        "seed-1-200-agents-movement-v5-digest.json";
 
     /// <summary>
     /// Replays the frozen seed-1, two-hundred-agent trajectory tick by tick
@@ -96,6 +117,69 @@ public sealed class MovementPresetFreezeTests
     {
         var digest = LoadDigest(PersistentContingentsV2DigestFileName);
         var simulation = CreateControlRun(MovementPresetId.PersistentContingentsV2);
+
+        ReplayAndAssertDigest(digest, simulation);
+        AssertFinalContingentFieldsMatch(digest, simulation);
+    }
+
+    /// <summary>
+    /// Replays the frozen seed-1, two-hundred-agent trajectory tick by tick
+    /// under <c>PersistentContingentsV3</c> and asserts every tick row and
+    /// the final per-agent rows -- including the real
+    /// <see cref="AgentView.ContingentId"/> and
+    /// <see cref="AgentView.ContingentState"/> values this preset populates
+    /// -- match the fixture exactly. See
+    /// docs/plans/2026-07-30-weapon-movement-foundation.md task T1: this
+    /// fixture is the oracle every later task in that plan replays against
+    /// before it is allowed to touch the shared movement pipeline.
+    /// </summary>
+    [Fact]
+    public void PersistentContingentsV3_ReproducesTheFrozenTrajectoryDigest()
+    {
+        var digest = LoadDigest(PersistentContingentsV3DigestFileName);
+        var simulation = CreateControlRun(MovementPresetId.PersistentContingentsV3);
+
+        ReplayAndAssertDigest(digest, simulation);
+        AssertFinalContingentFieldsMatch(digest, simulation);
+    }
+
+    /// <summary>
+    /// Replays the frozen seed-1, two-hundred-agent trajectory tick by tick
+    /// under <c>PersistentContingentsV4</c> and asserts every tick row and
+    /// the final per-agent rows -- including the real
+    /// <see cref="AgentView.ContingentId"/> and
+    /// <see cref="AgentView.ContingentState"/> values this preset populates
+    /// -- match the fixture exactly. See
+    /// docs/plans/2026-07-30-weapon-movement-foundation.md task T1: this
+    /// fixture is the oracle every later task in that plan replays against
+    /// before it is allowed to touch the shared movement pipeline.
+    /// </summary>
+    [Fact]
+    public void PersistentContingentsV4_ReproducesTheFrozenTrajectoryDigest()
+    {
+        var digest = LoadDigest(PersistentContingentsV4DigestFileName);
+        var simulation = CreateControlRun(MovementPresetId.PersistentContingentsV4);
+
+        ReplayAndAssertDigest(digest, simulation);
+        AssertFinalContingentFieldsMatch(digest, simulation);
+    }
+
+    /// <summary>
+    /// Replays the frozen seed-1, two-hundred-agent trajectory tick by tick
+    /// under <c>PersistentContingentsV5</c> and asserts every tick row and
+    /// the final per-agent rows -- including the real
+    /// <see cref="AgentView.ContingentId"/> and
+    /// <see cref="AgentView.ContingentState"/> values this preset populates
+    /// -- match the fixture exactly. See
+    /// docs/plans/2026-07-30-weapon-movement-foundation.md task T1: this
+    /// fixture is the oracle every later task in that plan replays against
+    /// before it is allowed to touch the shared movement pipeline.
+    /// </summary>
+    [Fact]
+    public void PersistentContingentsV5_ReproducesTheFrozenTrajectoryDigest()
+    {
+        var digest = LoadDigest(PersistentContingentsV5DigestFileName);
+        var simulation = CreateControlRun(MovementPresetId.PersistentContingentsV5);
 
         ReplayAndAssertDigest(digest, simulation);
         AssertFinalContingentFieldsMatch(digest, simulation);
