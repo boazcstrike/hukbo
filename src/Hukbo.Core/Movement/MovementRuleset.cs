@@ -42,6 +42,14 @@ namespace Hukbo.Core.Movement;
 /// recomputed from the built code whenever a field is added, never
 /// calculated by hand. See
 /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch-design.md section 3.
+/// All of that describes a field folded <em>unconditionally</em>. A field
+/// folded behind a version gate does not move any preset the gate is
+/// <see langword="false"/> for, because nothing is written for that preset at
+/// all: <see cref="AppliesPressureInterrupt"/> and its three weights fold
+/// inside <c>if (AppliesPressureInterrupt)</c>, which is why adding them left
+/// the pinned identity literals and the frozen trajectory digests of V1
+/// through V6 unchanged. See
+/// docs/plans/2026-07-31-movement-v7-pressure-interrupt-design.md section 6.
 /// </remarks>
 public sealed class MovementRuleset
 {
@@ -54,6 +62,15 @@ public sealed class MovementRuleset
     /// opponent, but the two constants name different shapes.
     /// </summary>
     public const int CanonicalLoadoutCount = 6;
+
+    /// <summary>
+    /// The exact basis-point total the three pressure-interrupt signal
+    /// weights must sum to when <see cref="AppliesPressureInterrupt"/> is
+    /// <see langword="true"/> — one whole unit, so the weighted sum stays in
+    /// the same basis-point space the per-row threshold is compared against.
+    /// A game-design choice, not a measurement.
+    /// </summary>
+    public const int TotalPressureInterruptWeightBasisPoints = 10_000;
 
     public MovementRuleset(
         MovementPresetId id,
@@ -72,14 +89,22 @@ public sealed class MovementRuleset
         bool usesEquipmentRelativeFootwork,
         int immediateRadiusBodyDiametersBasisPoints,
         int supportRadiusBodyDiametersBasisPoints,
-        ImmutableArray<LoadoutMovementProfile> loadoutMovementProfiles)
+        ImmutableArray<LoadoutMovementProfile> loadoutMovementProfiles,
+        bool appliesPressureInterrupt = false,
+        int supportPressureWeightBasisPoints = 0,
+        int incomingDamageWeightBasisPoints = 0,
+        int allyCollapseWeightBasisPoints = 0)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);
         ValidateEquipmentRelativeFootworkCoupling(
             usesEquipmentRelativeFootwork,
             immediateRadiusBodyDiametersBasisPoints,
             supportRadiusBodyDiametersBasisPoints,
-            loadoutMovementProfiles);
+            loadoutMovementProfiles,
+            appliesPressureInterrupt,
+            supportPressureWeightBasisPoints,
+            incomingDamageWeightBasisPoints,
+            allyCollapseWeightBasisPoints);
 
         Id = id;
         Version = version;
@@ -96,6 +121,10 @@ public sealed class MovementRuleset
             narrowsCohesionScanToCohesionCapableContingents;
         SelectsLeaderByRank = selectsLeaderByRank;
         UsesEquipmentRelativeFootwork = usesEquipmentRelativeFootwork;
+        AppliesPressureInterrupt = appliesPressureInterrupt;
+        SupportPressureWeightBasisPoints = supportPressureWeightBasisPoints;
+        IncomingDamageWeightBasisPoints = incomingDamageWeightBasisPoints;
+        AllyCollapseWeightBasisPoints = allyCollapseWeightBasisPoints;
         ImmediateRadiusBodyDiametersBasisPoints =
             immediateRadiusBodyDiametersBasisPoints;
         SupportRadiusBodyDiametersBasisPoints =
@@ -218,6 +247,60 @@ public sealed class MovementRuleset
     public bool UsesEquipmentRelativeFootwork { get; }
 
     /// <summary>
+    /// Whether this preset lets local pressure interrupt a committed blow,
+    /// resolving footwork to <c>FootworkPhase.Disengage</c> on the tick the
+    /// weighted pressure signal reaches a warrior's registered threshold.
+    /// Registered <see langword="false"/> with three zero weights for every
+    /// preset up to and including
+    /// <see cref="MovementPresetId.EquipmentRelativeFootworkV6"/>, so
+    /// introducing this field moves no existing preset's behaviour. It is
+    /// deliberately a separate gate from
+    /// <see cref="UsesEquipmentRelativeFootwork"/>, which V6 already
+    /// registers <see langword="true"/>: gating on that flag instead would
+    /// move V6. A game-design choice, not a measurement.
+    /// </summary>
+    /// <remarks>
+    /// This member and the three weights below are trailing optional
+    /// constructor parameters defaulting to <see langword="false"/> and zero,
+    /// so every construction site that predates them keeps compiling and
+    /// keeps the legacy behaviour. They are nonetheless declared here, in the
+    /// position their <see cref="ContentHash"/> fold occupies, because that
+    /// fold runs in declaration order.
+    /// </remarks>
+    public bool AppliesPressureInterrupt { get; }
+
+    /// <summary>
+    /// The weight, in basis points, the pressure signal for local enemy-to-ally
+    /// support odds carries in the interrupt's weighted sum. Zero for every
+    /// preset whose <see cref="AppliesPressureInterrupt"/> is
+    /// <see langword="false"/>; otherwise non-negative and, with the two
+    /// weights below, totalling exactly
+    /// <see cref="TotalPressureInterruptWeightBasisPoints"/>. Shared by all
+    /// six loadout rows — only the threshold the sum is compared against is
+    /// per row. A provisional reconstruction of gameplay tuning, not a
+    /// historical measurement.
+    /// </summary>
+    public int SupportPressureWeightBasisPoints { get; }
+
+    /// <summary>
+    /// The weight, in basis points, the pressure signal for damage taken on
+    /// the previous tick carries in the interrupt's weighted sum. Zero for
+    /// every preset whose <see cref="AppliesPressureInterrupt"/> is
+    /// <see langword="false"/>. A provisional reconstruction of gameplay
+    /// tuning, not a historical measurement.
+    /// </summary>
+    public int IncomingDamageWeightBasisPoints { get; }
+
+    /// <summary>
+    /// The weight, in basis points, the pressure signal for supporting allies
+    /// lost since the previous tick carries in the interrupt's weighted sum.
+    /// Zero for every preset whose <see cref="AppliesPressureInterrupt"/> is
+    /// <see langword="false"/>. A provisional reconstruction of gameplay
+    /// tuning, not a historical measurement.
+    /// </summary>
+    public int AllyCollapseWeightBasisPoints { get; }
+
+    /// <summary>
     /// Basis points of body diameter giving the immediate local-context
     /// radius — the scan inside which allies and enemies count as immediate
     /// neighbours. Zero for every preset whose
@@ -307,11 +390,25 @@ public sealed class MovementRuleset
     /// duplicate key, a missing canonical row, an unsupported shield, or an
     /// unsupported armor fails construction here.
     /// </summary>
+    /// <remarks>
+    /// Pressure-interrupt design section 6.3 adds the parallel clause for
+    /// <see cref="AppliesPressureInterrupt"/>: a preset that does not apply
+    /// the interrupt carries three zero weights, a preset that does carries
+    /// three non-negative weights totalling exactly
+    /// <see cref="TotalPressureInterruptWeightBasisPoints"/>, and the
+    /// interrupt may be applied only by a preset that also uses
+    /// equipment-relative footwork. That clause is checked before the
+    /// footwork clause returns early, so it binds both kinds of preset.
+    /// </remarks>
     private static void ValidateEquipmentRelativeFootworkCoupling(
         bool usesEquipmentRelativeFootwork,
         int immediateRadiusBodyDiametersBasisPoints,
         int supportRadiusBodyDiametersBasisPoints,
-        ImmutableArray<LoadoutMovementProfile> loadoutMovementProfiles)
+        ImmutableArray<LoadoutMovementProfile> loadoutMovementProfiles,
+        bool appliesPressureInterrupt,
+        int supportPressureWeightBasisPoints,
+        int incomingDamageWeightBasisPoints,
+        int allyCollapseWeightBasisPoints)
     {
         if (loadoutMovementProfiles.IsDefault)
         {
@@ -321,6 +418,13 @@ public sealed class MovementRuleset
                 "without equipment-relative footwork.",
                 nameof(loadoutMovementProfiles));
         }
+
+        ValidatePressureInterruptCoupling(
+            usesEquipmentRelativeFootwork,
+            appliesPressureInterrupt,
+            supportPressureWeightBasisPoints,
+            incomingDamageWeightBasisPoints,
+            allyCollapseWeightBasisPoints);
 
         if (!usesEquipmentRelativeFootwork)
         {
@@ -386,6 +490,89 @@ public sealed class MovementRuleset
         }
     }
 
+    /// <summary>
+    /// The pressure-interrupt half of the coupled validation, per design
+    /// section 6.3. A preset that does not apply the interrupt must register
+    /// three zero weights, so its <see cref="ContentHash"/> fold stays exactly
+    /// what it is today. A preset that does apply it must also use
+    /// equipment-relative footwork, because the interrupt is evaluated inside
+    /// a stage only that flag runs, and must register three non-negative
+    /// weights totalling exactly
+    /// <see cref="TotalPressureInterruptWeightBasisPoints"/>.
+    /// </summary>
+    private static void ValidatePressureInterruptCoupling(
+        bool usesEquipmentRelativeFootwork,
+        bool appliesPressureInterrupt,
+        int supportPressureWeightBasisPoints,
+        int incomingDamageWeightBasisPoints,
+        int allyCollapseWeightBasisPoints)
+    {
+        if (!appliesPressureInterrupt)
+        {
+            if (supportPressureWeightBasisPoints != 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(supportPressureWeightBasisPoints),
+                    supportPressureWeightBasisPoints,
+                    "A preset that does not apply the pressure interrupt " +
+                    "must register a zero support pressure weight.");
+            }
+
+            if (incomingDamageWeightBasisPoints != 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(incomingDamageWeightBasisPoints),
+                    incomingDamageWeightBasisPoints,
+                    "A preset that does not apply the pressure interrupt " +
+                    "must register a zero incoming damage weight.");
+            }
+
+            if (allyCollapseWeightBasisPoints != 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(allyCollapseWeightBasisPoints),
+                    allyCollapseWeightBasisPoints,
+                    "A preset that does not apply the pressure interrupt " +
+                    "must register a zero ally collapse weight.");
+            }
+
+            return;
+        }
+
+        if (!usesEquipmentRelativeFootwork)
+        {
+            throw new ArgumentException(
+                "A preset may apply the pressure interrupt only when it also " +
+                "uses equipment-relative footwork, because the interrupt is " +
+                "evaluated inside a stage that only the latter flag runs.",
+                nameof(appliesPressureInterrupt));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(
+            supportPressureWeightBasisPoints,
+            nameof(supportPressureWeightBasisPoints));
+        ArgumentOutOfRangeException.ThrowIfNegative(
+            incomingDamageWeightBasisPoints,
+            nameof(incomingDamageWeightBasisPoints));
+        ArgumentOutOfRangeException.ThrowIfNegative(
+            allyCollapseWeightBasisPoints,
+            nameof(allyCollapseWeightBasisPoints));
+
+        var totalWeightBasisPoints =
+            (long)supportPressureWeightBasisPoints +
+            incomingDamageWeightBasisPoints +
+            allyCollapseWeightBasisPoints;
+        if (totalWeightBasisPoints != TotalPressureInterruptWeightBasisPoints)
+        {
+            throw new ArgumentException(
+                "A preset that applies the pressure interrupt must register " +
+                "three weights totalling exactly " +
+                $"{TotalPressureInterruptWeightBasisPoints} basis points; " +
+                $"these total {totalWeightBasisPoints}.",
+                nameof(supportPressureWeightBasisPoints));
+        }
+    }
+
     private ulong ComputeContentHash()
     {
         var hash = Fnv1a.OffsetBasis;
@@ -405,6 +592,21 @@ public sealed class MovementRuleset
             NarrowsCohesionScanToCohesionCapableContingents ? 1UL : 0UL);
         Fnv1a.Add(ref hash, SelectsLeaderByRank ? 1UL : 0UL);
         Fnv1a.Add(ref hash, UsesEquipmentRelativeFootwork ? 1UL : 0UL);
+        if (AppliesPressureInterrupt)
+        {
+            // Design section 6.2: the version gate. Every preset that does
+            // not apply the interrupt writes nothing here at all, so V1
+            // through V6 keep the exact byte sequence they fold today, and
+            // their pinned ContentHash literals and frozen trajectory
+            // digests do not move. Folding these four values
+            // unconditionally would move V6, whose ContentHash does reach
+            // the state hash.
+            Fnv1a.Add(ref hash, AppliesPressureInterrupt ? 1UL : 0UL);
+            Fnv1a.Add(ref hash, (ulong)SupportPressureWeightBasisPoints);
+            Fnv1a.Add(ref hash, (ulong)IncomingDamageWeightBasisPoints);
+            Fnv1a.Add(ref hash, (ulong)AllyCollapseWeightBasisPoints);
+        }
+
         Fnv1a.Add(ref hash, (ulong)ImmediateRadiusBodyDiametersBasisPoints);
         Fnv1a.Add(ref hash, (ulong)SupportRadiusBodyDiametersBasisPoints);
         Fnv1a.Add(ref hash, (ulong)LoadoutMovementProfiles.Length);
