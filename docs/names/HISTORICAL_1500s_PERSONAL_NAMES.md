@@ -31,7 +31,7 @@ The short answer is:
    accompanied by a title, a parenthood name, a Christian baptismal name, or
    a later name of reputation.
 3. Names must be generated from a regional source set. A Tagalog name element
-   should not be joined to a Visayan or Mindanao element merely because both
+   should not be joined to a Visayan or Mindanao element merely because both 
    are now Philippine.
 4. The surviving sixteenth-century lists are overwhelmingly lists of male
    chiefs, witnesses, defendants, and envoys. The sources consulted here do
