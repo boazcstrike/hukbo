@@ -630,6 +630,276 @@ public sealed class ItakMovementScenarioTests
         Assert.True(sawAttack, "The battle never produced an attack event.");
     }
 
+    // ----- Legacy presets leave Itak footwork state untouched -----
+
+    /// <summary>
+    /// The Itak counterpart of
+    /// <c>MovementPipelineIntegrationTests.ALegacyPresetRunsNoEquipmentStageAtAll</c>:
+    /// under every registered legacy movement preset, a battle whose
+    /// warriors carry both Itak rows never writes any of the five
+    /// equipment-relative fields. The rows exist in the profile tables, but
+    /// only <see cref="MovementPresetId.EquipmentRelativeFootworkV6"/> may
+    /// read them.
+    /// </summary>
+    [Theory]
+    [InlineData(MovementPresetId.IndependentPursuitV1)]
+    [InlineData(MovementPresetId.PersistentContingentsV2)]
+    [InlineData(MovementPresetId.PersistentContingentsV3)]
+    [InlineData(MovementPresetId.PersistentContingentsV4)]
+    [InlineData(MovementPresetId.PersistentContingentsV5)]
+    public void EveryLegacyPresetLeavesItakFootworkStateUntouched(
+        MovementPresetId legacyPreset)
+    {
+        var scenario = CreateScenario() with { MovementPreset = legacyPreset };
+        var agents = new[]
+        {
+            CreateAgent(1, factionId: 0, 92_160, 51_200, scenario, SoloItak),
+            CreateAgent(
+                2, factionId: 0, 92_160, 55_296, scenario, ShieldedItak),
+            CreateAgent(3, factionId: 1, 112_640, 51_200, scenario, SoloItak),
+            CreateAgent(
+                4, factionId: 1, 112_640, 55_296, scenario, ShieldedItak),
+        };
+        var simulation = BattleSimulation.CreateForTesting(scenario, agents);
+
+        for (var tick = 0; tick < 20; tick++)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        Assert.All(agents, agent =>
+        {
+            Assert.Equal(Facing16.None, agent.Facing);
+            Assert.Equal(0, agent.MovementPaceRaw);
+            Assert.Equal(TacticalPosture.None, agent.TacticalPosture);
+            Assert.Equal(FootworkPhase.None, agent.FootworkPhase);
+            Assert.Equal(0, agent.FootworkTicksRemaining);
+        });
+    }
+
+    // ----- Itak-heavy long-run determinism -----
+
+    /// <summary>
+    /// The Itak-heavy counterpart of
+    /// <c>MovementPipelineIntegrationTests.TwoIdenticalVSixBattlesStayHashIdenticalTickForTick</c>,
+    /// over a substantially longer run: forty warriors split evenly between
+    /// the solo and shielded Itak roster entries, two simulations from the
+    /// same scenario advanced in lockstep for five hundred ticks, state
+    /// hash and outcome equal on every single tick.
+    /// </summary>
+    [Fact]
+    public void TwoIdenticalItakHeavyVSixBattlesStayHashIdenticalTickForTick()
+    {
+        var scenario = Scenario.CreateDefault(seed: 5, totalAgents: 40) with
+        {
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+            MovementPreset = MovementPresetId.EquipmentRelativeFootworkV6,
+            RosterCounts = ImmutableArray.Create(0, 0, 0, 0, 10, 10),
+        };
+        var first = BattleSimulation.Create(scenario);
+        var second = BattleSimulation.Create(scenario);
+
+        for (var tick = 0; tick < 500; tick++)
+        {
+            first.AdvanceOneTick();
+            second.AdvanceOneTick();
+            Assert.Equal(first.ComputeStateHash(), second.ComputeStateHash());
+            Assert.Equal(first.Outcome, second.Outcome);
+        }
+    }
+
+    // ----- Curated count-boundary disengagement -----
+
+    /// <summary>
+    /// One solo Itak against two, observed through a whole battle: two
+    /// enemies against the actor alone inside the support radius sit past
+    /// the solo entry ratio (2 &#215; 10,000 &#8805; 1 &#215; 12,500), so
+    /// the actor disengages. A live but distant ally keeps the global
+    /// headcount at two against two — posture Hold, never Withdraw or
+    /// Yield, asserted every tick — so the observed entry can only be the
+    /// support-ratio step, not the unconditional posture step. After entry
+    /// the actor attempts the exit: its distance to the nearest enemy does
+    /// not monotonically shrink, the observable form of an opened exit.
+    /// </summary>
+    [Fact]
+    public void AnOutnumberedSoloItakEntersDisengageAndOpensItsExitOneAgainstTwo()
+    {
+        var scenario = CreateScenario();
+        var actor = CreateAgent(
+            1, factionId: 0, 51_200, 51_200, scenario, SoloItak);
+        var farAlly = CreateAgent(
+            2, factionId: 0, 10_240, 10_240, scenario, SoloItak);
+        var firstEnemy = CreateAgent(
+            3, factionId: 1, 55_296, 50_176, scenario, SoloItak);
+        var secondEnemy = CreateAgent(
+            4, factionId: 1, 55_296, 52_224, scenario, SoloItak);
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario, actor, farAlly, firstEnemy, secondEnemy);
+
+        var entrySeen = false;
+        var postEntryDistances = new List<long>();
+        for (var tick = 0; tick < 60; tick++)
+        {
+            actor.AttackCooldownRemaining = 100;
+            simulation.AdvanceOneTick();
+
+            Assert.NotEqual(TacticalPosture.Withdraw, actor.TacticalPosture);
+            Assert.NotEqual(TacticalPosture.Yield, actor.TacticalPosture);
+            entrySeen |= actor.FootworkPhase == FootworkPhase.Disengage;
+            if (entrySeen)
+            {
+                postEntryDistances.Add(Math.Min(
+                    SquaredDistance(actor, firstEnemy),
+                    SquaredDistance(actor, secondEnemy)));
+            }
+        }
+
+        Assert.True(entrySeen, "The outnumbered actor never disengaged.");
+        Assert.True(
+            postEntryDistances.Count >= 2,
+            "The entry left no post-entry ticks to observe.");
+        var sawNonShrinkingStep = false;
+        for (var index = 1; index < postEntryDistances.Count; index++)
+        {
+            sawNonShrinkingStep |=
+                postEntryDistances[index] >= postEntryDistances[index - 1];
+        }
+
+        Assert.True(
+            sawNonShrinkingStep,
+            "The actor's distance to the nearest enemy shrank on every " +
+            "post-entry tick; the exit never opened.");
+    }
+
+    /// <summary>
+    /// The shielded entry boundary observed through a whole battle at its
+    /// exact equality: three enemies against a pair of shielded Itak allies
+    /// inside the support radius lands the ratio precisely on the entry
+    /// threshold (3 &#215; 10,000 = 2 &#215; 15,000), and equality enters.
+    /// Two live but distant allies hold the global headcount at four
+    /// against three — posture never Withdraw or Yield, asserted every
+    /// tick — so the observed entry can only be the ratio step. Were any
+    /// one of the three enemies outside the support radius, the ratio would
+    /// sit below entry and no branch would disengage.
+    /// </summary>
+    [Fact]
+    public void AShieldedItakPairEntersDisengageAtTheExactTwoAgainstThreeEquality()
+    {
+        var scenario = CreateScenario();
+        var firstAlly = CreateAgent(
+            1, factionId: 0, 51_200, 50_176, scenario, ShieldedItak);
+        var secondAlly = CreateAgent(
+            2, factionId: 0, 51_200, 52_224, scenario, ShieldedItak);
+        var farAllies = new[]
+        {
+            CreateAgent(
+                3, factionId: 0, 10_240, 10_240, scenario, ShieldedItak),
+            CreateAgent(
+                4, factionId: 0, 12_288, 10_240, scenario, ShieldedItak),
+        };
+        var enemies = new[]
+        {
+            CreateAgent(
+                5, factionId: 1, 55_296, 49_152, scenario, ShieldedItak),
+            CreateAgent(
+                6, factionId: 1, 55_296, 51_200, scenario, ShieldedItak),
+            CreateAgent(
+                7, factionId: 1, 55_296, 53_248, scenario, ShieldedItak),
+        };
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario, [firstAlly, secondAlly, .. farAllies, .. enemies]);
+
+        var firstEntered = false;
+        var secondEntered = false;
+        for (var tick = 0; tick < 40; tick++)
+        {
+            firstAlly.AttackCooldownRemaining = 100;
+            secondAlly.AttackCooldownRemaining = 100;
+            simulation.AdvanceOneTick();
+
+            Assert.NotEqual(
+                TacticalPosture.Withdraw, firstAlly.TacticalPosture);
+            Assert.NotEqual(TacticalPosture.Yield, firstAlly.TacticalPosture);
+            Assert.NotEqual(
+                TacticalPosture.Withdraw, secondAlly.TacticalPosture);
+            Assert.NotEqual(TacticalPosture.Yield, secondAlly.TacticalPosture);
+            firstEntered |= firstAlly.FootworkPhase == FootworkPhase.Disengage;
+            secondEntered |=
+                secondAlly.FootworkPhase == FootworkPhase.Disengage;
+        }
+
+        Assert.True(firstEntered, "The first ally never disengaged.");
+        Assert.True(secondEntered, "The second ally never disengaged.");
+    }
+
+    /// <summary>
+    /// Three against five sits past both rows' entry ratios (5 &#215;
+    /// 10,000 &#8805; 3 &#215; 12,500 solo, 5 &#215; 10,000 &#8805; 3
+    /// &#215; 15,000 shielded), so every member of the outnumbered trio
+    /// disengages on either row. Two live but distant allies level the
+    /// global headcount at five against five — posture never Withdraw or
+    /// Yield, asserted every tick — so the observed entries can only be the
+    /// ratio step.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BothItakRowsEnterDisengageThreeAgainstFive(bool shielded)
+    {
+        var scenario = CreateScenario();
+        var loadout = shielded ? ShieldedItak : SoloItak;
+        var trio = new[]
+        {
+            CreateAgent(1, factionId: 0, 51_200, 49_664, scenario, loadout),
+            CreateAgent(2, factionId: 0, 51_200, 51_200, scenario, loadout),
+            CreateAgent(3, factionId: 0, 51_200, 52_736, scenario, loadout),
+        };
+        var farAllies = new[]
+        {
+            CreateAgent(4, factionId: 0, 10_240, 10_240, scenario, loadout),
+            CreateAgent(5, factionId: 0, 12_288, 10_240, scenario, loadout),
+        };
+        var enemies = new[]
+        {
+            CreateAgent(6, factionId: 1, 54_272, 48_128, scenario, loadout),
+            CreateAgent(7, factionId: 1, 54_272, 49_664, scenario, loadout),
+            CreateAgent(8, factionId: 1, 54_272, 51_200, scenario, loadout),
+            CreateAgent(9, factionId: 1, 54_272, 52_736, scenario, loadout),
+            CreateAgent(10, factionId: 1, 54_272, 54_272, scenario, loadout),
+        };
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario, [.. trio, .. farAllies, .. enemies]);
+
+        var entered = new bool[trio.Length];
+        for (var tick = 0; tick < 40; tick++)
+        {
+            foreach (var member in trio)
+            {
+                member.AttackCooldownRemaining = 100;
+            }
+
+            simulation.AdvanceOneTick();
+
+            for (var index = 0; index < trio.Length; index++)
+            {
+                Assert.NotEqual(
+                    TacticalPosture.Withdraw, trio[index].TacticalPosture);
+                Assert.NotEqual(
+                    TacticalPosture.Yield, trio[index].TacticalPosture);
+                entered[index] |=
+                    trio[index].FootworkPhase == FootworkPhase.Disengage;
+            }
+        }
+
+        for (var index = 0; index < entered.Length; index++)
+        {
+            Assert.True(
+                entered[index],
+                $"Trio member {index} never disengaged on the " +
+                $"{(shielded ? "shielded" : "solo")} row.");
+        }
+    }
+
     // ----- Matrix runners -----
 
     private static BattleSimulation CreateOneVersusOne(
