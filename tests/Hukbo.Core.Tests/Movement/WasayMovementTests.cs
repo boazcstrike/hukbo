@@ -2557,5 +2557,1185 @@ public sealed class WasayMovementTests
             run.Agents,
             agent => Assert.True(agent.LargestStepRaw <= WarriorSpeedRaw));
     }
+
+    // ----- Family 15: asymmetric, mixed-group, and replay behaviour -----
+
+    /// <summary>
+    /// How many whole ticks every group fixture in this family is observed
+    /// for. It sits above the shared 250-tick no-progress bound of
+    /// docs/plans/movement/README.md task T10 step 6, so a stalled fixture
+    /// has room to break that bound rather than simply running out of ticks
+    /// first, and it sits above the 100-tick settling window that the
+    /// phase-flip rejection criterion of task T11 step 7 discards.
+    /// </summary>
+    private const int GroupObservedTicks = 400;
+
+    /// <summary>
+    /// The head of a group run that the phase-flip measurement discards,
+    /// from the rejection criterion in docs/plans/movement/README.md task
+    /// T11 step 7: "any phase/posture flips on more than 25% of ticks after
+    /// the first 100".
+    /// </summary>
+    private const int PhaseFlipSettlingTicks = 100;
+
+    /// <summary>
+    /// The 25% share of the same rejection criterion, expressed in basis
+    /// points so the comparison stays an integer cross-product.
+    /// </summary>
+    private const int PhaseFlipShareBasisPoints = 2_500;
+
+    /// <summary>
+    /// Row spacing across the group fixtures: three world units. It is wider
+    /// than the 1,792-raw Wasay clearance radius, so no fixture starts a
+    /// warrior already inside an ally's clearance, and it is inside the
+    /// 6,144-raw support radius, so warriors in one cluster perceive each
+    /// other from the first tick.
+    /// </summary>
+    private const int GroupRowSpacingRaw = 3_072;
+
+    /// <summary>
+    /// Column spacing for the homogeneous congestion fixture: two world
+    /// units. Still outside the 1,792-raw clearance radius at rest, but tight
+    /// enough that a rear warrior's advance runs straight into the lane the
+    /// warrior ahead of it holds.
+    /// </summary>
+    private const int GroupColumnSpacingRaw = 2_048;
+
+    /// <summary>
+    /// The northern pocket the globally favoured fixture isolates one Wasay
+    /// in: far enough from its own faction's southern cluster that no ally
+    /// falls inside its 6,144-raw support radius.
+    /// </summary>
+    private const int GroupNorthPocketXRaw = 102_400;
+
+    /// <inheritdoc cref="GroupNorthPocketXRaw"/>
+    private const int GroupNorthPocketYRaw = 20_480;
+
+    /// <summary>The southern cluster's column in the same fixture.</summary>
+    private const int GroupSouthClusterXRaw = 87_040;
+
+    /// <inheritdoc cref="GroupSouthClusterXRaw"/>
+    private const int GroupSouthClusterYRaw = 71_680;
+
+    /// <summary>
+    /// One warrior's placement in a group fixture: which faction it belongs
+    /// to, which complete loadout it carries, and where it starts.
+    /// </summary>
+    private readonly record struct GroupMember(
+        int FactionId,
+        CombatLoadout Loadout,
+        int XRaw,
+        int YRaw)
+    {
+        /// <summary>
+        /// The attack cooldown the warrior starts the run holding, default
+        /// zero, which is a blow ready on the first tick. Only the globally
+        /// favoured fixture sets it, and its remarks explain why.
+        /// </summary>
+        internal int InitialAttackCooldownTicks { get; init; }
+    }
+
+    /// <summary>
+    /// One named group fixture. The member order is also the entity-identifier
+    /// order the fixture is built with, so a member index and an observation
+    /// index refer to the same warrior.
+    /// </summary>
+    private sealed record GroupFixture(
+        string Name,
+        IReadOnlyList<GroupMember> Members)
+    {
+        /// <summary>How many warriors the given faction fields.</summary>
+        internal int RosterSize(int factionId) =>
+            Members.Count(member => member.FactionId == factionId);
+
+        /// <summary>
+        /// The unordered count suite this fixture belongs to, written smaller
+        /// side first, so a fixture that puts the Wasay on the larger side of
+        /// a 3v5 still reads as <c>3v5</c>.
+        /// </summary>
+        internal string CountSuite =>
+            $"{Math.Min(RosterSize(0), RosterSize(1))}v" +
+            $"{Math.Max(RosterSize(0), RosterSize(1))}";
+
+        /// <summary>
+        /// Whether any member carries a shield, which decides the combat
+        /// preset the fixture must name.
+        /// </summary>
+        internal bool ContainsShieldedLoadout =>
+            Members.Any(member => member.Loadout.Shield != ShieldId.None);
+    }
+
+    /// <summary>
+    /// One Wasay against two hostiles on a single lane. Global totals put its
+    /// faction at exactly double outnumbering, which the posture table already
+    /// reads as <see cref="TacticalPosture.Withdraw"/>.
+    /// </summary>
+    private static GroupFixture OneVersusTwoFixture() => new(
+        "1v2 lone Wasay",
+        [
+            new(0, WasayLoadout, CalibrationWestXRaw, CalibrationLaneYRaw),
+            new(
+                1,
+                KampilanLoadout,
+                CalibrationEastXRaw,
+                CalibrationLaneYRaw - GroupRowSpacingRaw),
+            new(
+                1,
+                ItakLoadout,
+                CalibrationEastXRaw,
+                CalibrationLaneYRaw + GroupRowSpacingRaw),
+        ]);
+
+    /// <summary>
+    /// A Wasay and one ally against three hostiles: the adjacent count suite,
+    /// whose four-to-three global pressure the posture table already reads as
+    /// <see cref="TacticalPosture.Yield"/>.
+    /// </summary>
+    private static GroupFixture TwoVersusThreeFixture() => new(
+        "2v3 Wasay and Kalis",
+        [
+            new(0, WasayLoadout, CalibrationWestXRaw, CalibrationLaneYRaw),
+            new(
+                0,
+                KalisLoadout,
+                CalibrationWestXRaw,
+                CalibrationLaneYRaw + GroupRowSpacingRaw),
+            new(
+                1,
+                KampilanLoadout,
+                CalibrationEastXRaw,
+                CalibrationLaneYRaw - GroupRowSpacingRaw),
+            new(1, ItakLoadout, CalibrationEastXRaw, CalibrationLaneYRaw),
+            new(
+                1,
+                KalisLoadout,
+                CalibrationEastXRaw,
+                CalibrationLaneYRaw + GroupRowSpacingRaw),
+        ]);
+
+    /// <summary>
+    /// The observation index of the Wasay the globally favoured fixture
+    /// isolates in the northern pocket.
+    /// </summary>
+    private const int FavouredIsolatedWasayIndex = 0;
+
+    /// <summary>
+    /// The observation index of the second Wasay in the same fixture, the one
+    /// standing inside its faction's southern cluster.
+    /// </summary>
+    private const int FavouredSupportedWasayIndex = 1;
+
+    /// <summary>
+    /// Five against three with both Wasay warriors on the larger side: the
+    /// globally favourable placement of task W5 step 1. Five against three is
+    /// <see cref="TacticalPosture.Advance"/> on the posture table's exact
+    /// five-to-four branch, so nothing global asks either Wasay to give
+    /// ground. One of them is isolated in a northern pocket with the whole
+    /// three-warrior hostile contingent inside its support radius — three
+    /// hostiles to its own single support ally, above the two-to-one entry
+    /// its row disengages on — while the other stands in the southern cluster
+    /// with three allies and no hostile in range. The run therefore holds the
+    /// favourable global posture fixed and varies only the local geometry.
+    /// </summary>
+    /// <remarks>
+    /// The isolated Wasay starts the run with its blow already spent, and that
+    /// is the only way this decision can be observed at all. Steps 2 and 3 of
+    /// the shared transition order carry a running <c>Commit</c> or
+    /// <c>Recover</c> before the local-ratio steps 4 and 5 are ever reached,
+    /// and an accepted attack overwrites the committed phase with a fresh
+    /// <c>Commit</c> after movement. Every loadout's attack reach is wider
+    /// than the shared support radius, so any hostile close enough to count
+    /// towards the two-to-one ratio is also close enough to be struck: a
+    /// warrior whose blow is ready spends the run in the attack lifecycle and
+    /// its movement decision never reaches authoritative state. Pinning the
+    /// cooldown is authoritative state written before the run, exactly as the
+    /// single-tick entry fixtures earlier in this file already do, and it
+    /// changes no rule.
+    /// </remarks>
+    private static GroupFixture GloballyFavouredLocallyOutnumberedFixture() =>
+        new(
+            "3v5 favourable global, outnumbered pocket",
+            [
+                new(
+                    0,
+                    WasayLoadout,
+                    GroupNorthPocketXRaw,
+                    GroupNorthPocketYRaw)
+                {
+                    InitialAttackCooldownTicks = GroupObservedTicks,
+                },
+                new(
+                    0,
+                    WasayLoadout,
+                    GroupSouthClusterXRaw,
+                    GroupSouthClusterYRaw),
+                new(
+                    0,
+                    KampilanLoadout,
+                    GroupSouthClusterXRaw,
+                    GroupSouthClusterYRaw - GroupRowSpacingRaw),
+                new(
+                    0,
+                    KalisLoadout,
+                    GroupSouthClusterXRaw,
+                    GroupSouthClusterYRaw + GroupRowSpacingRaw),
+                new(
+                    0,
+                    ItakLoadout,
+                    GroupSouthClusterXRaw - GroupRowSpacingRaw,
+                    GroupSouthClusterYRaw),
+                new(
+                    1,
+                    KampilanLoadout,
+                    GroupNorthPocketXRaw + GroupRowSpacingRaw,
+                    GroupNorthPocketYRaw - GroupColumnSpacingRaw),
+                new(
+                    1,
+                    ItakLoadout,
+                    GroupNorthPocketXRaw + GroupRowSpacingRaw,
+                    GroupNorthPocketYRaw + GroupColumnSpacingRaw),
+                new(
+                    1,
+                    KalisLoadout,
+                    GroupNorthPocketXRaw + GroupRowSpacingRaw +
+                        GroupColumnSpacingRaw,
+                    GroupNorthPocketYRaw),
+            ]);
+
+    /// <summary>
+    /// The observation index of the Wasay in the globally unfavourable
+    /// fixture.
+    /// </summary>
+    private const int OutnumberedWasayIndex = 0;
+
+    /// <summary>
+    /// Three against five with the Wasay on the smaller side and standing
+    /// between both of its allies: the globally unfavourable placement of task
+    /// W5 step 1. Its own support ring holds three allies against one hostile,
+    /// so nothing local asks it to disengage; only the faction totals do.
+    /// </summary>
+    private static GroupFixture GloballyOutnumberedLocallySupportedFixture() =>
+        new(
+            "3v5 unfavourable global, supported pocket",
+            [
+                new(0, WasayLoadout, CalibrationWestXRaw, CalibrationLaneYRaw),
+                new(
+                    0,
+                    KampilanLoadout,
+                    CalibrationWestXRaw,
+                    CalibrationLaneYRaw - GroupRowSpacingRaw),
+                new(
+                    0,
+                    KalisLoadout,
+                    CalibrationWestXRaw,
+                    CalibrationLaneYRaw + GroupRowSpacingRaw),
+                new(
+                    1,
+                    ItakLoadout,
+                    CalibrationWestXRaw + (GroupRowSpacingRaw * 5 / 3),
+                    CalibrationLaneYRaw),
+                new(
+                    1,
+                    KampilanLoadout,
+                    CalibrationEastXRaw,
+                    CalibrationLaneYRaw - (GroupRowSpacingRaw * 2)),
+                new(1, KalisLoadout, CalibrationEastXRaw, CalibrationLaneYRaw),
+                new(
+                    1,
+                    ItakLoadout,
+                    CalibrationEastXRaw,
+                    CalibrationLaneYRaw + (GroupRowSpacingRaw * 2)),
+                new(
+                    1,
+                    KampilanLoadout,
+                    CalibrationEastXRaw + GroupRowSpacingRaw,
+                    CalibrationLaneYRaw),
+            ]);
+
+    /// <summary>
+    /// Four Wasay against four Wasay, each faction stacked nose to tail on one
+    /// lane: the homogeneous congestion case of task W5 step 1. Nothing in the
+    /// fixture separates the allies, so every rear warrior's direct route runs
+    /// through the clearance radius of the warrior ahead of it.
+    /// </summary>
+    private static GroupFixture HomogeneousWasayColumnFixture()
+    {
+        var members = new List<GroupMember>(8);
+        for (var rank = 0; rank < 4; rank++)
+        {
+            members.Add(new GroupMember(
+                0,
+                WasayLoadout,
+                CalibrationWestXRaw - (rank * GroupColumnSpacingRaw),
+                CalibrationLaneYRaw));
+        }
+
+        for (var rank = 0; rank < 4; rank++)
+        {
+            members.Add(new GroupMember(
+                1,
+                WasayLoadout,
+                CalibrationEastXRaw + (rank * GroupColumnSpacingRaw),
+                CalibrationLaneYRaw));
+        }
+
+        return new GroupFixture("4v4 homogeneous Wasay column", members);
+    }
+
+    /// <summary>
+    /// The observation index of the Itak that already occupies the direct lane
+    /// in the mixed five-a-side fixture.
+    /// </summary>
+    private const int OccupiedLaneItakIndex = 0;
+
+    /// <summary>
+    /// The observation index of the Wasay standing behind that Itak on the
+    /// same lane.
+    /// </summary>
+    private const int OccupiedLaneWasayIndex = 1;
+
+    /// <summary>
+    /// Five against five with a shorter-reach Itak already holding the centre
+    /// lane and a Wasay directly behind it: the mixed-roster case of task W5
+    /// step 1. Both sides field the same composition reflected about the
+    /// arena's centre line, so nothing but the lane geometry distinguishes
+    /// them.
+    /// </summary>
+    private static GroupFixture OccupiedDirectLaneFixture() => new(
+        "5v5 shorter ally in the direct lane",
+        [
+            new(
+                0,
+                ItakLoadout,
+                CalibrationWestXRaw + (GroupRowSpacingRaw * 4),
+                CalibrationLaneYRaw),
+            new(
+                0,
+                WasayLoadout,
+                CalibrationWestXRaw + (GroupRowSpacingRaw * 7 / 3),
+                CalibrationLaneYRaw),
+            new(
+                0,
+                KampilanLoadout,
+                CalibrationWestXRaw,
+                CalibrationLaneYRaw - (GroupRowSpacingRaw * 2)),
+            new(
+                0,
+                KalisLoadout,
+                CalibrationWestXRaw,
+                CalibrationLaneYRaw + (GroupRowSpacingRaw * 2)),
+            new(
+                0,
+                KampilanLoadout,
+                CalibrationWestXRaw - GroupRowSpacingRaw,
+                CalibrationLaneYRaw),
+            new(
+                1,
+                ItakLoadout,
+                CalibrationEastXRaw - (GroupRowSpacingRaw * 4),
+                CalibrationLaneYRaw),
+            new(
+                1,
+                WasayLoadout,
+                CalibrationEastXRaw - (GroupRowSpacingRaw * 7 / 3),
+                CalibrationLaneYRaw),
+            new(
+                1,
+                KampilanLoadout,
+                CalibrationEastXRaw,
+                CalibrationLaneYRaw - (GroupRowSpacingRaw * 2)),
+            new(
+                1,
+                KalisLoadout,
+                CalibrationEastXRaw,
+                CalibrationLaneYRaw + (GroupRowSpacingRaw * 2)),
+            new(
+                1,
+                KampilanLoadout,
+                CalibrationEastXRaw + GroupRowSpacingRaw,
+                CalibrationLaneYRaw),
+        ]);
+
+    /// <summary>
+    /// Eight against eight, mixed on both sides and shielded on one, so the
+    /// largest fixture in the family also exercises the only combat preset
+    /// that fields all six canonical loadouts.
+    /// </summary>
+    private static GroupFixture EightVersusEightFixture()
+    {
+        CombatLoadout[] western =
+        [
+            WasayLoadout,
+            KampilanLoadout,
+            WasayLoadout,
+            KalisLoadout,
+            ItakLoadout,
+            KampilanLoadout,
+            WasayLoadout,
+            KalisLoadout,
+        ];
+        CombatLoadout[] eastern =
+        [
+            KampilanLoadout,
+            ItakLoadout,
+            KalisShieldLoadout,
+            KampilanLoadout,
+            WasayLoadout,
+            ItakShieldLoadout,
+            KalisLoadout,
+            KampilanLoadout,
+        ];
+
+        var members = new List<GroupMember>(western.Length + eastern.Length);
+        for (var rank = 0; rank < western.Length; rank++)
+        {
+            members.Add(new GroupMember(
+                0,
+                western[rank],
+                CalibrationWestXRaw,
+                EightVersusEightRowYRaw(rank)));
+        }
+
+        for (var rank = 0; rank < eastern.Length; rank++)
+        {
+            members.Add(new GroupMember(
+                1,
+                eastern[rank],
+                CalibrationEastXRaw,
+                EightVersusEightRowYRaw(rank)));
+        }
+
+        return new GroupFixture("8v8 mixed with shields", members);
+    }
+
+    /// <summary>
+    /// The lane of one rank in the eight-a-side fixture: eight rows spaced by
+    /// <see cref="GroupRowSpacingRaw"/> and centred on the calibration lane.
+    /// </summary>
+    private static int EightVersusEightRowYRaw(int rank) =>
+        CalibrationLaneYRaw +
+        (((rank * 2) - 7) * GroupRowSpacingRaw / 2);
+
+    /// <summary>
+    /// Every group fixture of task W5 step 1, in a fixed order.
+    /// </summary>
+    private static GroupFixture[] AllGroupFixtures() =>
+    [
+        OneVersusTwoFixture(),
+        TwoVersusThreeFixture(),
+        GloballyFavouredLocallyOutnumberedFixture(),
+        GloballyOutnumberedLocallySupportedFixture(),
+        HomogeneousWasayColumnFixture(),
+        OccupiedDirectLaneFixture(),
+        EightVersusEightFixture(),
+    ];
+
+    /// <summary>
+    /// Builds one group fixture into a scenario and its warriors. Entity
+    /// identifiers ascend with member order, and
+    /// <c>BattleSimulation.CreateForTesting</c> canonicalises by entity
+    /// identifier, so a member index and an observation index agree.
+    /// </summary>
+    private static (Scenario Scenario, AgentState[] Agents) BuildGroup(
+        GroupFixture fixture)
+    {
+        var scenario = CreateScenario(
+            CalibrationCombatPreset(fixture.ContainsShieldedLoadout));
+        var agents = new AgentState[fixture.Members.Count];
+        for (var index = 0; index < agents.Length; index++)
+        {
+            var member = fixture.Members[index];
+            agents[index] = CreateCalibrationAgent(
+                (ulong)(index + 1),
+                member.FactionId,
+                member.XRaw,
+                member.YRaw,
+                scenario,
+                member.Loadout);
+            agents[index].AttackCooldownRemaining =
+                member.InitialAttackCooldownTicks;
+        }
+
+        return (scenario, agents);
+    }
+
+    /// <summary>Runs one group fixture through the shared observation pass.</summary>
+    private static RunObservation ObserveGroup(GroupFixture fixture)
+    {
+        var (scenario, agents) = BuildGroup(fixture);
+        return ObserveRun(scenario, agents, GroupObservedTicks);
+    }
+
+    /// <summary>
+    /// One warrior's committed footwork phase and lifecycle timer on one tick.
+    /// </summary>
+    private readonly record struct FootworkSample(
+        FootworkPhase Phase,
+        int TicksRemaining);
+
+    /// <summary>
+    /// Records the committed phase and its timer for every warrior on every
+    /// tick. The shared observation pass deliberately keeps only derived
+    /// counts, and the commitment and recovery lengths of task W5 step 2(e)
+    /// are a statement about the timer itself, so this second, much smaller
+    /// pass reads the timer alongside the phase rather than re-deriving the
+    /// counts the shared pass already produces.
+    /// </summary>
+    private static IReadOnlyList<IReadOnlyList<FootworkSample>>
+        ObserveFootworkTimeline(GroupFixture fixture)
+    {
+        var (scenario, agents) = BuildGroup(fixture);
+        var simulation = BattleSimulation.CreateForTesting(scenario, agents);
+        var ordered = agents.OrderBy(agent => agent.EntityId).ToArray();
+        var tracks = new List<FootworkSample>[ordered.Length];
+        for (var index = 0; index < ordered.Length; index++)
+        {
+            tracks[index] = new List<FootworkSample>(GroupObservedTicks);
+        }
+
+        for (var tick = 1; tick <= GroupObservedTicks; tick++)
+        {
+            simulation.AdvanceOneTick();
+            for (var index = 0; index < ordered.Length; index++)
+            {
+                tracks[index].Add(new FootworkSample(
+                    ordered[index].FootworkPhase,
+                    ordered[index].FootworkTicksRemaining));
+            }
+        }
+
+        return tracks;
+    }
+
+    /// <summary>
+    /// The value folded into the event digest in place of an absent optional
+    /// event field. No real field can produce it, so a present field and an
+    /// absent one never collide.
+    /// </summary>
+    private const ulong AbsentEventField = ulong.MaxValue;
+
+    private const ulong EventDigestOffsetBasis = 14_695_981_039_346_656_037UL;
+
+    private const ulong EventDigestPrime = 1_099_511_628_211UL;
+
+    /// <summary>
+    /// Folds one widened field into the running FNV-1a digest, byte by byte
+    /// and in a fixed order, so the digest depends on every bit of every field
+    /// and on the order the fields arrive in.
+    /// </summary>
+    private static ulong FoldEventDigest(ulong digest, ulong value)
+    {
+        unchecked
+        {
+            for (var shift = 0; shift < 64; shift += 8)
+            {
+                digest ^= (value >> shift) & 0xFF;
+                digest *= EventDigestPrime;
+            }
+        }
+
+        return digest;
+    }
+
+    /// <summary>
+    /// The event hash of task W5 step 2(a): one integer digest over the whole
+    /// concatenated ordered event stream, folding every field a
+    /// <see cref="BattleEvent"/> carries. This is a test-local digest for
+    /// comparing one run against its own replay; it is not the headless run
+    /// report's event hash and is never pinned to a literal here.
+    /// </summary>
+    private static ulong ComputeEventDigest(IReadOnlyList<BattleEvent> events)
+    {
+        var digest = EventDigestOffsetBasis;
+        foreach (var battleEvent in events)
+        {
+            digest = FoldEventDigest(
+                digest, unchecked((ulong)battleEvent.Sequence));
+            digest = FoldEventDigest(digest, unchecked((ulong)battleEvent.Tick));
+            digest = FoldEventDigest(digest, (ulong)battleEvent.Kind);
+            digest = FoldEventDigest(digest, battleEvent.SourceEntityId);
+            digest = FoldEventDigest(
+                digest, battleEvent.TargetEntityId ?? AbsentEventField);
+            digest = FoldEventDigest(
+                digest, unchecked((ulong)(long)battleEvent.Value));
+            digest = FoldEventDigest(
+                digest,
+                battleEvent.FactionId is { } faction
+                    ? unchecked((ulong)(long)faction)
+                    : AbsentEventField);
+            digest = FoldEventDigest(
+                digest,
+                battleEvent.Weapon is { } weapon
+                    ? (ulong)weapon
+                    : AbsentEventField);
+            digest = FoldEventDigest(
+                digest,
+                battleEvent.Shield is { } shield
+                    ? (ulong)shield
+                    : AbsentEventField);
+            digest = FoldEventDigest(
+                digest,
+                battleEvent.HitLocation is { } location
+                    ? (ulong)location
+                    : AbsentEventField);
+            digest = FoldEventDigest(
+                digest,
+                battleEvent.Resolution is { } resolution
+                    ? (ulong)resolution
+                    : AbsentEventField);
+            digest = FoldEventDigest(
+                digest,
+                battleEvent.ComboPosition is { } position
+                    ? unchecked((ulong)(long)position)
+                    : AbsentEventField);
+        }
+
+        return digest;
+    }
+
+    /// <summary>
+    /// One whole replay of a group fixture: the outcome, the authoritative
+    /// state hash, the digest over the concatenated ordered event stream, and
+    /// that stream itself.
+    /// </summary>
+    private sealed record GroupReplay(
+        BattleOutcome Outcome,
+        ulong StateHash,
+        ulong EventDigest,
+        IReadOnlyList<BattleEvent> Events);
+
+    /// <summary>
+    /// Builds a group fixture from scratch and runs it for the fixed group
+    /// tick count, reusing the shared event-collecting helper.
+    /// </summary>
+    private static GroupReplay ReplayGroup(GroupFixture fixture)
+    {
+        var (scenario, agents) = BuildGroup(fixture);
+        var simulation = BattleSimulation.CreateForTesting(scenario, agents);
+        var events = RunAndCollectEvents(
+            simulation, GroupObservedTicks, out var stateHash);
+
+        return new GroupReplay(
+            simulation.Outcome,
+            stateHash,
+            ComputeEventDigest(events),
+            events);
+    }
+
+    /// <summary>
+    /// How many ticks after the settling window a warrior's committed phase
+    /// differed from the tick before it, and how many ticks were measured, for
+    /// the rejection criterion of docs/plans/movement/README.md task T11
+    /// step 7.
+    /// </summary>
+    private static (int Flips, int Measured) LatePhaseFlips(
+        IReadOnlyList<FootworkSample> track)
+    {
+        var flips = 0;
+        var measured = 0;
+        for (var tick = PhaseFlipSettlingTicks; tick < track.Count; tick++)
+        {
+            measured++;
+            if (track[tick].Phase != track[tick - 1].Phase)
+            {
+                flips++;
+            }
+        }
+
+        return (flips, measured);
+    }
+
+    /// <summary>
+    /// Every way a warrior's committed lifecycle timer disagreed with its own
+    /// profile across a whole recorded timeline, described well enough to name
+    /// the warrior and the tick. An empty list is the invariant of task W5
+    /// step 2(e).
+    /// </summary>
+    /// <remarks>
+    /// The timer, not the run length, is what carries the exact duration.
+    /// A run enters <c>Commit</c> or <c>Recover</c> at the profile's own
+    /// duration and counts down by one whole tick at a time, and an accepted
+    /// attack may reload a fresh <c>Commit</c> at the full duration at any
+    /// point, so a run measured only by its length would either miss the
+    /// reload or have to guess at it. Each warrior's own profile is resolved
+    /// from the registered ruleset, because the group fixtures are mixed and
+    /// the Wasay row's four-and-four rhythm is not the Kalis row's two-and-two.
+    /// </remarks>
+    private static List<string> LifecycleTimerViolations(
+        GroupFixture fixture,
+        IReadOnlyList<IReadOnlyList<FootworkSample>> timeline)
+    {
+        var movementRules = MovementPresetRegistry.Get(
+            MovementPresetId.EquipmentRelativeFootworkV6);
+        var violations = new List<string>();
+        for (var index = 0; index < timeline.Count; index++)
+        {
+            var profile = movementRules.ResolveLoadoutProfile(
+                fixture.Members[index].Loadout);
+            var track = timeline[index];
+            for (var tick = 0; tick < track.Count; tick++)
+            {
+                var sample = track[tick];
+                var previous = tick == 0
+                    ? new FootworkSample(FootworkPhase.None, 0)
+                    : track[tick - 1];
+                var entryTicks = sample.Phase switch
+                {
+                    FootworkPhase.Commit => profile.CommitmentTicks,
+                    FootworkPhase.Recover => profile.RecoveryTicks,
+                    _ => 0,
+                };
+
+                if (sample.Phase is not (FootworkPhase.Commit
+                    or FootworkPhase.Recover))
+                {
+                    if (sample.TicksRemaining != 0)
+                    {
+                        violations.Add(
+                            $"{fixture.Name}: warrior {index + 1} on tick " +
+                            $"{tick + 1} held phase {sample.Phase} with a " +
+                            $"timer of {sample.TicksRemaining} rather than 0.");
+                    }
+
+                    continue;
+                }
+
+                if (sample.Phase != previous.Phase)
+                {
+                    if (sample.TicksRemaining != entryTicks)
+                    {
+                        violations.Add(
+                            $"{fixture.Name}: warrior {index + 1} entered " +
+                            $"{sample.Phase} on tick {tick + 1} at " +
+                            $"{sample.TicksRemaining} ticks rather than its " +
+                            $"profile's {entryTicks}.");
+                    }
+                }
+                else if (sample.TicksRemaining != previous.TicksRemaining - 1 &&
+                    sample.TicksRemaining != entryTicks)
+                {
+                    violations.Add(
+                        $"{fixture.Name}: warrior {index + 1} carried " +
+                        $"{sample.Phase} from {previous.TicksRemaining} to " +
+                        $"{sample.TicksRemaining} on tick {tick + 1}, which " +
+                        "is neither one tick of countdown nor a fresh entry.");
+                }
+            }
+        }
+
+        return violations;
+    }
+
+    /// <summary>
+    /// How many ticks of a run one member's support ring held at or above the
+    /// Wasay row's two-to-one disengagement entry ratio, derived from outside
+    /// the simulation through the same shared local-context query the rest of
+    /// this file uses.
+    /// </summary>
+    private static int TwoToOneSupportTicks(
+        GroupFixture fixture,
+        int memberIndex)
+    {
+        var (scenario, agents) = BuildGroup(fixture);
+        var simulation = BattleSimulation.CreateForTesting(scenario, agents);
+        var ordered = agents.OrderBy(agent => agent.EntityId).ToArray();
+        var actor = ordered[memberIndex];
+        var pressured = 0;
+
+        for (var tick = 1; tick <= GroupObservedTicks; tick++)
+        {
+            simulation.AdvanceOneTick();
+            var context = DeriveWasayContext(
+                ordered, actor, actor.TargetEntityId);
+            if (checked((long)context.SupportEnemies * BasisPointDenominator) >=
+                checked((long)context.SupportAllies *
+                    WasayMovementProfile.Row.DisengageEnemyToAllyBasisPoints))
+            {
+                pressured++;
+            }
+        }
+
+        return pressured;
+    }
+
+    /// <summary>
+    /// Task W5 step 1. The seven group fixtures of this family are read as a
+    /// set rather than one at a time: together they cover the 1v2, 2v3, 3v5,
+    /// 4v4, 5v5, and 8v8 count suites the plan's section 7 asks for, every one
+    /// of them fields a Wasay, and every loadout in every one of them is a row
+    /// of the shared canonical matrix rather than a locally invented pairing.
+    /// </summary>
+    /// <remarks>
+    /// The combat preset is derived from shield presence rather than written
+    /// down, exactly as the duel family derives it: only
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV2"/> fields all six
+    /// canonical loadouts, so the one fixture that puts a tall hardwood shield
+    /// on the field must name it and the solo-only fixtures must not. The
+    /// movement preset is named explicitly on every fixture, because an
+    /// implicit default would quietly turn this whole family into a test of
+    /// some other preset.
+    /// </remarks>
+    [Fact]
+    public void TheWasayGroupFixturesCoverTheAsymmetricAndMixedCountSuites()
+    {
+        var fixtures = AllGroupFixtures();
+
+        Assert.Equal(
+            ["1v2", "2v3", "3v5", "3v5", "4v4", "5v5", "8v8"],
+            fixtures.Select(fixture => fixture.CountSuite).Order());
+
+        Assert.Contains(fixtures, fixture => fixture.ContainsShieldedLoadout);
+
+        foreach (var fixture in fixtures)
+        {
+            Assert.Contains(
+                fixture.Members,
+                member => member.Loadout.Weapon == WeaponId.Wasay);
+            Assert.All(
+                fixture.Members,
+                member => Assert.Contains(
+                    member.Loadout, MovementScenarioMatrix.CanonicalLoadouts));
+
+            var (scenario, agents) = BuildGroup(fixture);
+
+            Assert.Equal(
+                fixture.ContainsShieldedLoadout
+                    ? MovementScenarioMatrix.ShieldedCellCombatPreset
+                    : CombatPresetId.PrecolonialPhilippinesV4,
+                scenario.CombatPreset);
+            Assert.Equal(
+                MovementPresetId.EquipmentRelativeFootworkV6,
+                scenario.MovementPreset);
+
+            // The member order is also the entity-identifier order, so a
+            // member index and an observation index name the same warrior.
+            Assert.Equal(
+                fixture.Members.Select(member => member.Loadout),
+                agents.OrderBy(agent => agent.EntityId)
+                    .Select(agent => agent.Loadout));
+        }
+    }
+
+    /// <summary>
+    /// Task W5 step 2(a). Every group fixture is built from scratch twice and
+    /// run for the same number of ticks twice, and the two runs have to agree
+    /// on the outcome, on the authoritative state hash, on a digest folded
+    /// over the whole concatenated ordered event stream, and on that ordered
+    /// stream itself. The stream is asserted non-empty first, so a silent
+    /// battle cannot make the comparison pass vacuously, and the seven state
+    /// hashes are asserted distinct, so seven fixtures that had accidentally
+    /// collapsed into one could not pass either.
+    /// </summary>
+    [Fact]
+    public void EveryWasayGroupFixtureReplaysToTheSameOutcomeHashAndEvents()
+    {
+        var stateHashes = new List<ulong>();
+
+        foreach (var fixture in AllGroupFixtures())
+        {
+            var first = ReplayGroup(fixture);
+            var second = ReplayGroup(fixture);
+
+            Assert.True(
+                first.Events.Count > 0,
+                $"{fixture.Name} produced no events at all, so its replay " +
+                "comparison would prove nothing.");
+            Assert.Equal(first.Outcome, second.Outcome);
+            Assert.Equal(first.StateHash, second.StateHash);
+            Assert.Equal(first.EventDigest, second.EventDigest);
+            Assert.Equal(first.Events, second.Events);
+
+            stateHashes.Add(first.StateHash);
+        }
+
+        Assert.Equal(stateHashes.Count, stateHashes.Distinct().Count());
+    }
+
+    /// <summary>
+    /// Task W5 step 2(d). No warrior in any group fixture ever displaces
+    /// further in one tick than the shared human baseline
+    /// <c>AgentState.MovementSpeedRaw</c>. Every profile multiplier in the
+    /// design is at or below one whole, so no count, posture, or composition
+    /// can make anyone faster than a person; this is the scenario-scale check
+    /// that nothing in the group pipeline reintroduces one.
+    /// </summary>
+    [Fact]
+    public void NoWasayGroupFixtureStepsPastTheSharedHumanBaseline()
+    {
+        foreach (var fixture in AllGroupFixtures())
+        {
+            var run = ObserveGroup(fixture);
+            Assert.All(
+                run.Agents,
+                agent => Assert.True(
+                    agent.LargestStepRaw <= WarriorSpeedRaw,
+                    $"{fixture.Name}: warrior {agent.EntityId} carrying " +
+                    $"{agent.Loadout.Weapon} stepped " +
+                    $"{agent.LargestStepRaw} raw in one tick, past the " +
+                    $"{WarriorSpeedRaw}-unit shared baseline."));
+        }
+    }
+
+    /// <summary>
+    /// Task W5 step 2(e), the recovery half. Across every group fixture, every
+    /// warrior's <c>Commit</c> and <c>Recover</c> lifecycle enters at exactly
+    /// its own profile's duration, counts down one whole tick at a time, and
+    /// carries a zero timer in every other phase. A truncated, stretched, or
+    /// silently reloaded recovery therefore fails here rather than being
+    /// absorbed into an aggregate count.
+    /// </summary>
+    [Fact]
+    public void EveryCommitAndRecoverRunKeepsItsOwnProfileLength()
+    {
+        foreach (var fixture in AllGroupFixtures())
+        {
+            var timeline = ObserveFootworkTimeline(fixture);
+            var violations = LifecycleTimerViolations(fixture, timeline);
+
+            Assert.True(
+                violations.Count == 0,
+                string.Join(Environment.NewLine, violations.Take(10)));
+        }
+    }
+
+    /// <summary>
+    /// Task W5 step 2(e), the oscillation half. No warrior in any group
+    /// fixture changes its committed phase on every tick of the measured
+    /// window, which is the bounded-flipping property the plan's rejection
+    /// list asks for: a warrior that never holds a phase for two consecutive
+    /// ticks is oscillating rather than acting.
+    /// </summary>
+    /// <remarks>
+    /// docs/plans/movement/README.md task T11 step 7 carries a tighter
+    /// rejection criterion — reject if any phase or posture flips on more than
+    /// 25% of ticks after the first 100 — and that criterion is deliberately
+    /// not asserted here. Measured on these fixtures, the shipped V6 rows
+    /// exceed it routinely: the Wasay row's four-committed-then-four-recovery
+    /// rhythm sits at exactly 25% on its own, and the shorter Kalis and Itak
+    /// rhythms reach 50% to 60%. That is a calibration finding for the shared
+    /// integration owner, who owns every profile row; a weapon task with no
+    /// tuning authority may neither assert a bound its own row cannot meet nor
+    /// quietly relax the shared one, so the measurement is reported and the
+    /// assertion here stays at the structural bound.
+    /// </remarks>
+    [Fact]
+    public void NoWasayGroupFixtureFlipsItsPhaseOnEveryLateTick()
+    {
+        foreach (var fixture in AllGroupFixtures())
+        {
+            var timeline = ObserveFootworkTimeline(fixture);
+            for (var index = 0; index < timeline.Count; index++)
+            {
+                var (flips, measured) = LatePhaseFlips(timeline[index]);
+
+                Assert.True(measured > 0);
+                Assert.True(
+                    flips < measured,
+                    $"{fixture.Name}: warrior {index + 1} changed phase on " +
+                    $"all {measured} measured ticks after the first " +
+                    $"{PhaseFlipSettlingTicks}.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Task W5 step 2(f). No group fixture ends because it stopped making
+    /// progress: across every one of them, the longest run of ticks with no
+    /// change in living count, in any warrior's hit points, or in any
+    /// warrior's distance to its nearest opponent stays inside the shared
+    /// 250-tick bound of docs/plans/movement/README.md task T10 step 6. The
+    /// observed tick count is asserted to exceed that bound first, so a
+    /// fixture that was simply too short to break it cannot pass by accident.
+    /// </summary>
+    [Fact]
+    public void NoWasayGroupFixtureStallsForTheSharedNoProgressBound()
+    {
+        Assert.True(GroupObservedTicks > NoProgressStreakBoundTicks);
+
+        foreach (var fixture in AllGroupFixtures())
+        {
+            var run = ObserveGroup(fixture);
+
+            Assert.Equal(GroupObservedTicks, run.ObservedTicks);
+            Assert.True(
+                run.LongestNoProgressStreakTicks <= NoProgressStreakBoundTicks,
+                $"{fixture.Name} went {run.LongestNoProgressStreakTicks} " +
+                "ticks without a living-count, hit-point, or " +
+                "nearest-opponent-distance change.");
+        }
+    }
+
+    /// <summary>
+    /// Task W5 step 2(c), the globally favourable direction. Five against
+    /// three resolves <see cref="TacticalPosture.Advance"/> from the shared
+    /// posture table, and nothing about that advantage reaches the Wasay
+    /// standing alone against the whole hostile contingent: its support ring
+    /// holds at or above the two-to-one entry ratio for part of the run and it
+    /// disengages. The second Wasay of the same faction, on the same
+    /// favourable posture but standing inside its own cluster, never
+    /// disengages once — which is what makes the first one's decision local
+    /// rather than a faction-wide retreat.
+    /// </summary>
+    [Fact]
+    public void ALocallyOutnumberedWasayDisengagesOnAFavourablePosture()
+    {
+        var fixture = GloballyFavouredLocallyOutnumberedFixture();
+
+        Assert.Equal(5, fixture.RosterSize(0));
+        Assert.Equal(3, fixture.RosterSize(1));
+        Assert.Equal(
+            TacticalPosture.Advance,
+            WeaponMovementRules.ResolveTacticalPosture(
+                globalAllies: fixture.RosterSize(0),
+                globalEnemies: fixture.RosterSize(1),
+                ContingentState.Advance,
+                alliedRoleCoverage: 1,
+                enemyRoleCoverage: 1));
+
+        Assert.True(
+            TwoToOneSupportTicks(fixture, FavouredIsolatedWasayIndex) > 0,
+            "The isolated Wasay's support ring never reached the two-to-one " +
+            "entry ratio, so this fixture proves nothing about it.");
+        Assert.Equal(
+            0, TwoToOneSupportTicks(fixture, FavouredSupportedWasayIndex));
+
+        var run = ObserveGroup(fixture);
+        var isolated = run.Agents[FavouredIsolatedWasayIndex];
+        var supported = run.Agents[FavouredSupportedWasayIndex];
+
+        Assert.Equal(WeaponId.Wasay, isolated.Loadout.Weapon);
+        Assert.Equal(WeaponId.Wasay, supported.Loadout.Weapon);
+        Assert.True(
+            isolated.DisengageEntries > 0,
+            "The locally outnumbered Wasay never entered disengagement even " +
+            "though its own support ring was at or above two hostiles per " +
+            "ally.");
+        Assert.True(isolated.DisengageTicks > 0);
+        Assert.Equal(0, supported.DisengageEntries);
+        Assert.Equal(0, supported.DisengageTicks);
+    }
+
+    /// <summary>
+    /// Task W5 step 2(c), the globally unfavourable direction. Three against
+    /// five resolves <see cref="TacticalPosture.Yield"/> from the same shared
+    /// table, and the Wasay on that side disengages even though its own
+    /// support ring never once reaches the two-to-one entry ratio — it stands
+    /// between both of its allies against a single hostile the whole time.
+    /// Both directions of the global posture therefore produce disengagement
+    /// decisions, and this one is reached through the unconditional posture
+    /// step rather than through the local ratio.
+    /// </summary>
+    [Fact]
+    public void AGloballyOutnumberedWasayDisengagesWithoutLocalPressure()
+    {
+        var fixture = GloballyOutnumberedLocallySupportedFixture();
+
+        Assert.Equal(3, fixture.RosterSize(0));
+        Assert.Equal(5, fixture.RosterSize(1));
+        Assert.Equal(
+            TacticalPosture.Yield,
+            WeaponMovementRules.ResolveTacticalPosture(
+                globalAllies: fixture.RosterSize(0),
+                globalEnemies: fixture.RosterSize(1),
+                ContingentState.Advance,
+                alliedRoleCoverage: 1,
+                enemyRoleCoverage: 1));
+        Assert.Equal(0, TwoToOneSupportTicks(fixture, OutnumberedWasayIndex));
+
+        var run = ObserveGroup(fixture);
+        var wasay = run.Agents[OutnumberedWasayIndex];
+
+        Assert.Equal(WeaponId.Wasay, wasay.Loadout.Weapon);
+        Assert.True(
+            wasay.DisengageEntries > 0,
+            "The Wasay on the globally outnumbered side never disengaged.");
+        Assert.True(wasay.DisengageReleases > 0);
+        Assert.True(wasay.LandedAttacks > 0);
+    }
+
+    /// <summary>
+    /// Task W5 step 1, the homogeneous congestion case. Four identical Wasay
+    /// warriors stacked on one lane enter their commitments in rank order and
+    /// never at the same time, the delay is paid for by refused routes and by
+    /// the run's own friendly-clearance denials rather than by any hard-coded
+    /// alternation, and across the whole run no two allies ever close inside
+    /// the Wasay clearance radius.
+    /// </summary>
+    [Fact]
+    public void HomogeneousWasayCongestionStaggersEntryAndHoldsClearance()
+    {
+        var fixture = HomogeneousWasayColumnFixture();
+        var run = ObserveGroup(fixture);
+
+        Assert.All(
+            run.Agents,
+            agent => Assert.Equal(WeaponId.Wasay, agent.Loadout.Weapon));
+        Assert.True(
+            run.MovementConflictDenials > 0,
+            "A single-lane column of four Wasay allies produced no " +
+            "friendly-clearance denial at all.");
+        Assert.True(
+            run.MinimumAllySeparationRaw >= WasayClearanceRadiusRaw(),
+            $"Two allies closed to {run.MinimumAllySeparationRaw} raw, " +
+            $"inside the {WasayClearanceRadiusRaw()}-unit Wasay clearance " +
+            "radius.");
+
+        foreach (var factionId in new[] { 0, 1 })
+        {
+            var column = run.Agents
+                .Where(agent => agent.FactionId == factionId)
+                .ToList();
+
+            Assert.Equal(4, column.Count);
+            Assert.All(column, agent => Assert.NotNull(agent.FirstCommitTick));
+
+            for (var rank = 1; rank < column.Count; rank++)
+            {
+                Assert.True(
+                    column[rank].FirstCommitTick >
+                        column[rank - 1].FirstCommitTick,
+                    $"Rank {rank} of faction {factionId} committed on tick " +
+                    $"{column[rank].FirstCommitTick}, not after rank " +
+                    $"{rank - 1} on tick {column[rank - 1].FirstCommitTick}.");
+                Assert.True(
+                    column[rank].RefuseTicks >= column[rank - 1].RefuseTicks,
+                    $"Rank {rank} of faction {factionId} refused " +
+                    $"{column[rank].RefuseTicks} ticks, fewer than rank " +
+                    $"{rank - 1} ahead of it at " +
+                    $"{column[rank - 1].RefuseTicks}.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Task W5 step 1, the mixed-roster case. A shorter-reach Itak already
+    /// holds the direct lane to the shared target with a Wasay behind it on
+    /// the same line. The Wasay leaves that lane rather than pressing through
+    /// its ally, the run records the friendly-clearance denials that yielding
+    /// costs, and yielding the lane does not make the Wasay inert: it still
+    /// commits and still lands blows, and so does the Itak in front of it.
+    /// </summary>
+    [Fact]
+    public void AShorterAllyHoldingTheDirectLaneMovesTheWasayOffIt()
+    {
+        var fixture = OccupiedDirectLaneFixture();
+        var run = ObserveGroup(fixture);
+        var itak = run.Agents[OccupiedLaneItakIndex];
+        var wasay = run.Agents[OccupiedLaneWasayIndex];
+
+        Assert.Equal(WeaponId.Itak, itak.Loadout.Weapon);
+        Assert.Equal(WeaponId.Wasay, wasay.Loadout.Weapon);
+        Assert.Equal(itak.FactionId, wasay.FactionId);
+
+        Assert.True(
+            wasay.LargestLaneOffsetRaw > 0,
+            "The Wasay never left the lane its ally was already holding.");
+        Assert.True(
+            run.MovementConflictDenials > 0,
+            "Nothing in the run shows the shared lane being contended.");
+        Assert.NotNull(wasay.FirstCommitTick);
+        Assert.True(wasay.LandedAttacks > 0);
+        Assert.True(itak.LandedAttacks > 0);
+    }
 }
 
