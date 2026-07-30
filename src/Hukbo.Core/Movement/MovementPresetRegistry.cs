@@ -56,7 +56,11 @@ public static class MovementPresetRegistry
         usesEquipmentRelativeFootwork: false,
         immediateRadiusBodyDiametersBasisPoints: 0,
         supportRadiusBodyDiametersBasisPoints: 0,
-        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty);
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0);
 
     /// <summary>
     /// The persistent-contingent preset. Every tunable is the same value
@@ -86,7 +90,11 @@ public static class MovementPresetRegistry
         usesEquipmentRelativeFootwork: false,
         immediateRadiusBodyDiametersBasisPoints: 0,
         supportRadiusBodyDiametersBasisPoints: 0,
-        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty);
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0);
 
     /// <summary>
     /// The contact-fraction preset. Every tunable is the same value
@@ -127,7 +135,11 @@ public static class MovementPresetRegistry
         usesEquipmentRelativeFootwork: false,
         immediateRadiusBodyDiametersBasisPoints: 0,
         supportRadiusBodyDiametersBasisPoints: 0,
-        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty);
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0);
 
     /// <summary>
     /// The narrowed-cohesion-scan preset, and the shipped default. Every
@@ -171,7 +183,11 @@ public static class MovementPresetRegistry
         usesEquipmentRelativeFootwork: false,
         immediateRadiusBodyDiametersBasisPoints: 0,
         supportRadiusBodyDiametersBasisPoints: 0,
-        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty);
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0);
 
     /// <summary>
     /// The rank-aware leader-scan preset. Every tunable is the same value
@@ -211,7 +227,11 @@ public static class MovementPresetRegistry
         usesEquipmentRelativeFootwork: false,
         immediateRadiusBodyDiametersBasisPoints: 0,
         supportRadiusBodyDiametersBasisPoints: 0,
-        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty);
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0);
 
     /// <summary>
     /// The opt-in equipment-relative footwork preset. It carries
@@ -234,6 +254,15 @@ public static class MovementPresetRegistry
     /// is reachable only through explicit selection. See
     /// docs/plans/2026-07-30-weapon-movement-foundation-design.md sections 3,
     /// 5, and 13.
+    /// This entry registers
+    /// <see cref="MovementRuleset.AppliesPressureInterrupt"/>
+    /// <see langword="false"/> with three zero weights, exactly as the five
+    /// presets above do. Because that flag is the version gate the four
+    /// pressure-interrupt values fold behind, this preset writes none of them
+    /// into <see cref="MovementRuleset.ContentHash"/>, and its pinned identity
+    /// literal and frozen trajectory digest are unchanged by their addition —
+    /// which matters here more than above, because this is the first preset
+    /// whose movement content hash reaches the state hash.
     /// </summary>
     private static readonly MovementRuleset EquipmentRelativeFootworkV6Ruleset = new(
         id: MovementPresetId.EquipmentRelativeFootworkV6,
@@ -260,7 +289,11 @@ public static class MovementPresetRegistry
             ItakMovementProfile.Row,
             TallHardwoodMovementProfiles.KalisRow,
             TallHardwoodMovementProfiles.ItakRow,
-        ]);
+        ],
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0);
 
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
