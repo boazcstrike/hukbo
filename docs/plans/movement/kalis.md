@@ -555,6 +555,138 @@ the 200-agent/10,000-tick determinism workload all pass. Record actual output
 in the shared plan's verification section; do not claim manual spectator
 validation from this gate.
 
+## K6 measured results
+
+Measured on 2026-07-30 against branch `movement-kalis`, on Windows
+10.0.26200, .NET 10.0.10, X64, 20 cores. Every run named combat preset
+`PrecolonialPhilippinesV2` explicitly, because it is the only preset
+fielding all six canonical loadouts and therefore the only one under which a
+shielded Kalis warrior exists at all. Movement preset
+`EquipmentRelativeFootworkV6` throughout — the preset this plan calls V5 was
+renumbered by the shared foundation, and the code wins.
+
+The count tiers were run through a throwaway in-process harness rather than
+the headless runner, because the headless command line has no roster-count
+option and the asymmetric tiers need one faction larger than the other. The
+harness lived outside the committed tree and was deleted after the
+measurement; the results below are what it printed. Every tier ran on seeds
+1, 2, 3, 5, and 8, for at most 2,000 ticks, with both factions fielding the
+same Kalis variant so the comparison between the two rows is paired.
+
+### Count tiers
+
+Agent-tick shares are of living agent-ticks. "In band" is the share of
+living agent-ticks in which the warrior had a selected target at or inside
+its own offset-adjusted preferred distance. Figures are the seed-1 run
+except where a range is given across all five seeds.
+
+| Tier | Row | Ticks to a result | In band | Disengage share | Refuse share | Regroup share |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 1v1 | solo | 74–99 | 68% | 0% | 0% | 0% |
+| 1v1 | shielded | 115–134 | 77% | 0% | 0% | 0% |
+| 2v2 | solo | 89–109 | 71% | under 1% | 0% | 0% |
+| 2v2 | shielded | 134–188 | 80% | 1–8% | 0% | 0% |
+| 1v2 | solo | 251–256 | 15% | 30% | 0% | 0% |
+| 1v2 | shielded | 270–286 | 35% | 27% | under 1% | 0% |
+| 2v3 | solo | 154–176 | 67% | 24% | 1–2% | 0% |
+| 2v3 | shielded | 147–216 | 64% | 21% | under 1% | 0% |
+| 3v5 | solo | 112–149 | 50% | 23% | 3% | 0% |
+| 3v5 | shielded | 141–173 | 67% | 18% | 2–6% | 0% |
+| 4v4 | solo | 89–104 | 72% | 1% | 0% | 0% |
+| 4v4 | shielded | 124–185 | 77% | 1–4% | 0% | 0% |
+| 5v5 | solo | 99–116 | 70% | 1% | 0% | 0% |
+| 5v5 | shielded | 155–253 | 80% | 2–5% | 1% | 0% |
+| 8v8 | solo | 188–311 | 49% | 1–2% | 1–2% | 18–33% |
+| 8v8 | shielded | 250–340 | 58% | 1–4% | 9–14% | 14–29% |
+| 100v100 | solo | 1,389–2,000 | 8–20% | 0–15% | 7–13% | 54–68% |
+| 100v100 | shielded | 2,000 (draw) | 1–6% | 0% | 22–49% | 38–75% |
+| 250v250 | solo | 2,000 (draw) | 4–11% | 0% | 12–18% | 62–71% |
+| 250v250 | shielded | 2,000 (draw) | 1–4% | 0% | 27–56% | 53–70% |
+
+Every one of the hundred runs replayed to an identical state hash and an
+identical outcome, so no seed diverged and no threshold equality depended on
+iteration order.
+
+### What the tiers say about the two rows
+
+- **Both rows occupy their band rather than orbiting it.** In every tier up
+  to 5v5 the warriors spend the majority of their living agent-ticks at or
+  inside their own preferred distance, and every small-tier battle reaches a
+  result well inside the bounded window. The shielded row occupies its band
+  more of the time and takes roughly half again as long to settle a duel,
+  which is the deliberate consequence of a slower approach, a longer
+  commitment, and a longer recovery.
+- **The 1v2 disengagement works on both rows.** A lone Kalis warrior against
+  two enemies spends about 30% of its remaining life disengaging and loses,
+  which is the intended shape: disengagement buys time and an exit, not a
+  win.
+- **3v5 behaves as the plan predicted, by two different routes.** The solo
+  row enters on its own count (`5*2 >= 3*3`). The shielded row does not
+  (`5*4 < 3*7`), yet it still disengages, because three against five puts the
+  contingent in `Yield` and the shared posture step disengages every member
+  unconditionally. The 7:4 threshold is therefore tolerant without leaving
+  the shielded row unable to withdraw, which is exactly the open question the
+  plan flagged and asked to be resolved openly.
+
+### Rejection criteria
+
+| Criterion | Verdict | Evidence |
+| --- | --- | --- |
+| A favourable count increases physical movement speed | Not triggered | `NoKalisProposalEverExceedsTheSpeedCeiling` and the per-cell pace ceiling in every 2v2 matrix cell |
+| Full-speed reversal during commitment or recovery | Not triggered | Committed pace pinned at 3,300 and 3,000 basis points; `AnAcceptedAttackDoesNotCapTheMovementOfItsOwnTick` shows the cap binding from `T+1` |
+| A threshold equality differs by iteration order | Not triggered | Reverse-caller-order equality on every 2v2 cell and on the crowded transition roster; all 100 tier runs replayed identically |
+| Shielded Kalis computed by a second runtime multiplier | Not triggered | One materialised row resolved once by exact loadout key; `TheShieldedRowCarriesEveryApprovedValue` and `BothKalisRowsResolveUnderTheirExactLoadoutKey` |
+| An indefinite no-contact orbit in any Kalis 1v1 geometry | Not triggered | All twelve directed 1v1 cells reach the preferred band, engage, commit, recover, and attack; every 1v1 tier settles in 74–134 ticks |
+| 1v2 cannot produce disengagement with an open exit | Not triggered | 226 and 228 disengaging agent-ticks on the solo and shielded 1v2 tiers |
+| Shielded pairs form persistent wall-like equal spacing | Not triggered at pair scale | Every shielded 2v2 tier run terminates in 134–188 ticks |
+| Kalis universally dominant, or no viable individual and group role | **Not adjudicated** | Deliberately not measured. This plan forbids tuning toward equal win rates and this session asserted no winner anywhere; a cross-weapon viability judgement needs all five weapon sessions' rows and belongs to the shared calibration task |
+| V1–V4 digests move | Not triggered | `MovementPresetFreezeTests`, `MovementProfileRegistrationTests`, and `DeterminismTests` all green; no profile value changed, so no content hash moved |
+| Identical seeds diverge | Not triggered | 100 of 100 tier runs reproducible; `deterministic: true` on every benchmark below |
+| The shared 250v250 runtime and allocation budget fails | **Fails, and not on account of anything this session owns** | See below |
+
+### Performance, reported honestly
+
+Like-for-like against the shared baseline shape — the headless benchmark,
+combat preset V2 named explicitly, seed 1, 10,000 requested ticks:
+
+| Movement preset | Agents | Measured ticks | Elapsed (ms) | p50 per tick (ms) | Outcome |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `PersistentContingentsV4` | 200 | 1,279 | 335.1 | 0.120 | Faction0Victory |
+| `EquipmentRelativeFootworkV6` | 200 | 10,000 | 3,716.6 | 0.335 | Draw |
+| `PersistentContingentsV4` | 500 | 2,934 | 1,128.4 | 0.134 | Faction0Victory |
+| `EquipmentRelativeFootworkV6` | 500 | 10,000 | 11,927.0 | 1.032 | Draw |
+
+Raw elapsed is 11.1× at 200 agents and 10.6× at 500, far outside the 2.0×
+and 2.5× ceilings. Normalised per measured tick it is 2.8× and 3.1×, still
+outside them. Core allocation moved the other way: 142,640 bytes for the
+full V6 run at 200 agents against V4's 154,976, and 322,328 against 338,736
+at 500, so the new stages allocate nothing per tick.
+
+The reason the elapsed figure fails is the one the foundation session
+already recorded and deferred to T11: V6 does not terminate. V4 annihilates
+one side by tick 1,279 and 2,934; V6 draws at the 10,000-tick limit with
+151 and 279 survivors. The count tiers above show what the run degenerates
+into — at 100v100 and 250v250 both Kalis rows spend 53% to 71% of their
+living agent-ticks in `Regroup` and a further 12% to 56% in `Refuse`, with
+`Disengage` at zero. `Regroup` is resolved by the shared contingent stage
+from a `Hold` contingent, and `Refuse` is a lane-clearance finalisation;
+neither is selected by any value in a Kalis profile row, and both appear
+under the whole-roster benchmark where four of the six rows belong to other
+sessions.
+
+**No Kalis value was moved.** Nothing in the approved calibration ranges of
+section 5 addresses a shared posture or a shared clearance rule, and tuning a
+Kalis row to mask a program-level standoff is the kind of matchup-specific
+rescue this plan's task K6 step 4 forbids. The budget re-measurement stays
+with the shared calibration task, which owns all six rows and the shared
+stages at once.
+
+The warm-window allocation column the harness printed is not evidence and is
+not reproduced here: the harness allocated inside its own measurement window,
+so the figure describes the harness as much as the simulation. The
+authoritative allocation evidence is `coreAllocatedBytes` above and the
+Release bounded-allocation tests, which pass.
+
 ## Activation and rollback boundary
 
 - Profile rows may merge behind the new movement preset while it remains
