@@ -621,7 +621,622 @@ public sealed class KampilanMovementTests
         Assert.Same(Row, resolved);
     }
 
+    // ----- Local context counts (plan section 6; README support radius) -----
+
+    /// <summary>
+    /// The support ratio reads the six-body-diameter support radius with the
+    /// actor counted on the ally side. A dead ally contributes nowhere, an
+    /// enemy exactly at the radius is inside it, and an enemy beyond
+    /// perception is not observed at all.
+    /// </summary>
+    [Fact]
+    public void TheSupportCountsIncludeTheActorAndExcludeDeadAndDistantAgents()
+    {
+        var scenario = CreateScenario();
+
+        // 1024 * 25000 / 10000 = 2560 immediate; 1024 * 60000 / 10000 = 6144.
+        var immediateRaw = MovementContextQuery.ContextRadiusRaw(
+            BodyRadiusRaw, V6.ImmediateRadiusBodyDiametersBasisPoints);
+        var supportRaw = MovementContextQuery.ContextRadiusRaw(
+            BodyRadiusRaw, V6.SupportRadiusBodyDiametersBasisPoints);
+        Assert.Equal(2_560L, immediateRaw);
+        Assert.Equal(6_144L, supportRaw);
+
+        var actor = CreateAgent(1, 0, 100_000, 51_200, scenario, KampilanKey);
+        var livingAlly = CreateAgent(
+            2, 0, 100_000 + 3_000, 51_200, scenario, KampilanKey);
+        var deadAlly = CreateAgent(
+            3, 0, 100_000 + 3_100, 51_200, scenario, KampilanKey);
+        deadAlly.HitPoints = 0;
+        var enemyAtRadius = CreateAgent(
+            4, 1, 100_000 + (int)supportRaw, 51_200, scenario, KampilanKey);
+        var enemyBeyondPerception = CreateAgent(
+            5, 1, 100_000 + (200 * FixedPoint.Scale) + 1, 51_200, scenario,
+            KampilanKey);
+
+        AgentState[] agents =
+            [actor, livingAlly, deadAlly, enemyAtRadius, enemyBeyondPerception];
+
+        var solo = MovementContextQuery.Derive(
+            new[] { actor },
+            actor,
+            selectedTargetEntityId: null,
+            MovementContextQuery.SquaredContextRadius(immediateRaw),
+            MovementContextQuery.SquaredContextRadius(supportRaw));
+        Assert.Equal(1, solo.SupportAllies);
+        Assert.Equal(0, solo.ImmediateAllies);
+        Assert.Equal(0, solo.SupportEnemies);
+
+        var context = MovementContextQuery.Derive(
+            agents,
+            actor,
+            selectedTargetEntityId: enemyAtRadius.EntityId,
+            MovementContextQuery.SquaredContextRadius(immediateRaw),
+            MovementContextQuery.SquaredContextRadius(supportRaw));
+
+        // The actor plus the one living ally; the dead ally counts nowhere.
+        Assert.Equal(2, context.SupportAllies);
+
+        // The enemy exactly at the support radius is inclusive; the one past
+        // perception is never observed.
+        Assert.Equal(1, context.SupportEnemies);
+    }
+
+    /// <summary>
+    /// An exact distance tie between two eligible allied support references
+    /// resolves on the lower stable entity identifier, never on span order.
+    /// </summary>
+    [Fact]
+    public void TheNearestAllySupportReferenceTakesTheLowerEntityIdOnATie()
+    {
+        var scenario = CreateScenario();
+        var actor = CreateAgent(1, 0, 100_000, 51_200, scenario, KampilanKey);
+        var higherId = CreateAgent(
+            7, 0, 100_000 + 2_000, 51_200, scenario, KampilanKey);
+        var lowerId = CreateAgent(
+            4, 0, 100_000 - 2_000, 51_200, scenario, KampilanKey);
+
+        var context = Derive(scenario, actor, [actor, higherId, lowerId]);
+
+        Assert.Equal(4UL, context.NearestAllyEntityId);
+    }
+
+    /// <summary>
+    /// The derived context is a function of the set, not of the order it
+    /// arrives in. Every permutation of the same candidates yields an equal
+    /// <see cref="LocalMovementContext"/> field for field.
+    /// </summary>
+    [Fact]
+    public void PermutedCandidateOrderDoesNotChangeTheDerivedContext()
+    {
+        var scenario = CreateScenario();
+        var actor = CreateAgent(1, 0, 100_000, 51_200, scenario, KampilanKey);
+        var ally = CreateAgent(
+            4, 0, 100_000 - 2_000, 51_200, scenario, KampilanKey);
+        var enemyNear = CreateAgent(
+            6, 1, 100_000 + 2_400, 51_200, scenario, ItakKey);
+        var enemyFar = CreateAgent(
+            9, 1, 100_000 + 5_000, 51_200, scenario, KalisKey);
+
+        var expected = Derive(
+            scenario, actor, [actor, ally, enemyNear, enemyFar]);
+
+        AgentState[][] permutations =
+        [
+            [enemyFar, enemyNear, ally, actor],
+            [ally, enemyFar, actor, enemyNear],
+            [enemyNear, actor, enemyFar, ally],
+        ];
+
+        Assert.All(
+            permutations,
+            permutation =>
+                Assert.Equal(expected, Derive(scenario, actor, permutation)));
+    }
+
+    // ----- Whole-tick behaviour (plan K2 item 8, K3 step 2) -----
+
+    /// <summary>
+    /// Caller order is canonicalized on entity identifier, so the same battle
+    /// supplied in reverse produces an identical ordered event stream and an
+    /// identical state hash.
+    /// </summary>
+    [Fact]
+    public void ReversedCallerInputProducesTheSameStateAndEventHash()
+    {
+        var scenario = CreateScenario();
+
+        var forward = RunToCompletion(
+            scenario,
+            [
+                CreateAgent(1, 0, 96_000, 51_200, scenario, KampilanKey),
+                CreateAgent(2, 1, 108_000, 51_200, scenario, KampilanKey),
+            ],
+            ticks: 400);
+        var reversed = RunToCompletion(
+            scenario,
+            [
+                CreateAgent(2, 1, 108_000, 51_200, scenario, KampilanKey),
+                CreateAgent(1, 0, 96_000, 51_200, scenario, KampilanKey),
+            ],
+            ticks: 400);
+
+        Assert.Equal(forward.StateHash, reversed.StateHash);
+        Assert.Equal(forward.EventStream, reversed.EventStream);
+        Assert.Equal(forward.Outcome, reversed.Outcome);
+    }
+
+    /// <summary>
+    /// An attack accepted while recovering restarts a whole three-tick
+    /// commitment. The accepted-attack marker is a private pipeline field, so
+    /// this is observable only through authoritative agent state after a tick.
+    /// </summary>
+    [Fact]
+    public void AnAcceptedAttackDuringRecoveryRestartsAThreeTickCommitment()
+    {
+        // The shipped Kampilan cooldown of seven ticks is longer than the
+        // three-tick commitment plus three-tick recovery, so a shipped-tuning
+        // battle can never accept an attack while recovering. The interrupt is
+        // a pipeline rule rather than a tuning outcome, so this probe shortens
+        // the cooldown to one tick to make the rule observable at all. No
+        // combat statistic is being asserted or changed.
+        var scenario = CreateScenario();
+        // A cooldown of four lands the next accepted attack on the first
+        // recovery tick: commitment occupies the attack tick and two more,
+        // recovery begins on the fourth.
+        var west = CreateAgent(
+            1, 0, 100_000, 51_200, scenario, KampilanKey,
+            attackCooldownTicksOverride: 4);
+        var east = CreateAgent(
+            2, 1, 100_000 + 8_000, 51_200, scenario, KampilanKey,
+            attackCooldownTicksOverride: 4);
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario, west, east);
+
+        var sawRecovery = false;
+        var sawRestartFromRecovery = false;
+
+        for (var tick = 0; tick < 400; tick++)
+        {
+            var priorPhase = west.FootworkPhase;
+            simulation.AdvanceOneTick();
+
+            if (west.FootworkPhase == FootworkPhase.Recover)
+            {
+                sawRecovery = true;
+            }
+
+            if (priorPhase == FootworkPhase.Recover &&
+                west.FootworkPhase == FootworkPhase.Commit)
+            {
+                sawRestartFromRecovery = true;
+                Assert.Equal(
+                    Row.CommitmentTicks, west.FootworkTicksRemaining);
+            }
+
+            Assert.True(west.FootworkTicksRemaining >= 0);
+        }
+
+        Assert.True(
+            sawRecovery,
+            "The probe never reached a recovery tick, so the interrupt could " +
+            "not be observed.");
+        Assert.True(
+            sawRestartFromRecovery,
+            "No accepted attack restarted a commitment out of recovery.");
+    }
+
+    // ----- Matchup and group coverage (plan sections 7, K4, K5) -----
+
+    /// <summary>
+    /// Every canonical opponent, generated from the shared matrix rather than
+    /// a hand-maintained list. Each cell is asserted only against bounds the
+    /// shared plan already fixes: repeated runs are identical, no step exceeds
+    /// the shared baseline, every phase and posture is a declared member, and
+    /// no timer goes negative. Outcome statistics are calibration evidence,
+    /// not pass or fail criteria, and no win rate is asserted anywhere.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(KampilanOneVersusOneCells))]
+    public void KampilanFacesEveryCanonicalOpponentDeterministically(
+        int firstIndex, int secondIndex)
+    {
+        foreach (var seed in ApprovedSeeds)
+        {
+            var scenario = CreateScenario(seed: seed);
+            var first = MovementScenarioMatrix.CanonicalLoadouts[firstIndex];
+            var second = MovementScenarioMatrix.CanonicalLoadouts[secondIndex];
+
+            AgentState[] Build() =>
+            [
+                CreateAgent(1, 0, 96_000, 51_200, scenario, first),
+                CreateAgent(2, 1, 108_000, 51_200, scenario, second),
+            ];
+
+            var run = RunToCompletion(scenario, Build(), ticks: 600);
+            var repeat = RunToCompletion(scenario, Build(), ticks: 600);
+
+            Assert.Equal(run.StateHash, repeat.StateHash);
+            Assert.Equal(run.EventStream, repeat.EventStream);
+            Assert.True(run.LegalSteps);
+            Assert.True(run.LegalPhases);
+        }
+    }
+
+    /// <summary>
+    /// Two Kampilan allies crowded into one lane against a single enemy do not
+    /// commit on the same tick. The stagger comes from actual positions and
+    /// the shared clearance scan, not from any Kampilan pairing rule: there is
+    /// no special two-Kampilan state and no synchronized turn-taking.
+    /// </summary>
+    [Fact]
+    public void TwoKampilanAlliesStaggerTheirCommitmentsFromGeometry()
+    {
+        var scenario = CreateScenario();
+        // Both allies begin well outside reach and share one approach lane,
+        // the second trailing the first by rather less than the clearance
+        // radius, so the stagger is produced by geometry alone.
+        var first = CreateAgent(1, 0, 60_000, 51_200, scenario, KampilanKey);
+        var second = CreateAgent(2, 0, 58_000, 51_200, scenario, KampilanKey);
+        var enemy = CreateAgent(3, 1, 150_000, 51_200, scenario, KampilanKey);
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario, first, second, enemy);
+
+        int? firstCommitTick = null;
+        int? secondCommitTick = null;
+
+        for (var tick = 0; tick < 400; tick++)
+        {
+            simulation.AdvanceOneTick();
+
+            if (firstCommitTick is null &&
+                first.FootworkPhase == FootworkPhase.Commit)
+            {
+                firstCommitTick = tick;
+            }
+
+            if (secondCommitTick is null &&
+                second.FootworkPhase == FootworkPhase.Commit)
+            {
+                secondCommitTick = tick;
+            }
+
+            if (firstCommitTick is not null && secondCommitTick is not null)
+            {
+                break;
+            }
+        }
+
+        Assert.NotNull(firstCommitTick);
+        Assert.NotNull(secondCommitTick);
+        Assert.NotEqual(firstCommitTick, secondCommitTick);
+    }
+
+    /// <summary>
+    /// Kampilan-present groups at every small and mid size stay deterministic
+    /// and inside the shared legality bounds. The plan's 100v100 and 250v250
+    /// cases are mass workloads and belong to the benchmark script, not to a
+    /// unit test inside the canonical gate.
+    /// </summary>
+    [Theory]
+    [InlineData(1, 2)]
+    [InlineData(2, 3)]
+    [InlineData(3, 5)]
+    [InlineData(4, 4)]
+    [InlineData(5, 5)]
+    [InlineData(8, 8)]
+    public void AKampilanGroupScenarioStaysDeterministicAndBounded(
+        int factionZeroCount, int factionOneCount)
+    {
+        var scenario = CreateScenario();
+
+        AgentState[] Build()
+        {
+            var agents = new List<AgentState>();
+            ulong entityId = 1;
+            for (var index = 0; index < factionZeroCount; index++)
+            {
+                agents.Add(CreateAgent(
+                    entityId++, 0, 96_000, 40_000 + (index * 1_800), scenario,
+                    KampilanKey));
+            }
+
+            for (var index = 0; index < factionOneCount; index++)
+            {
+                agents.Add(CreateAgent(
+                    entityId++, 1, 112_000, 40_000 + (index * 1_800), scenario,
+                    index % 2 == 0 ? ItakKey : KampilanKey));
+            }
+
+            return [.. agents];
+        }
+
+        var run = RunToCompletion(scenario, Build(), ticks: 600);
+        var repeat = RunToCompletion(scenario, Build(), ticks: 600);
+
+        Assert.Equal(run.StateHash, repeat.StateHash);
+        Assert.Equal(run.EventStream, repeat.EventStream);
+        Assert.True(run.LegalSteps, run.StepFailure ?? "step");
+        Assert.True(run.LegalPhases, run.PhaseFailure ?? "phase");
+    }
+
+    /// <summary>
+    /// A Kampilan isolated in a locally outnumbered pocket disengages even
+    /// while its faction holds a commanding headcount advantage. Local
+    /// geometry decides, not the roster total.
+    /// </summary>
+    [Fact]
+    public void LocallyOutnumberedKampilanDisengagesUnderAFavourableFactionTotal()
+    {
+        var scenario = CreateScenario();
+        var agents = new List<AgentState>();
+        ulong entityId = 1;
+
+        // The isolated Kampilan, far from its own side.
+        var isolated = CreateAgent(
+            entityId++, 0, 40_000, 20_000, scenario, KampilanKey);
+        agents.Add(isolated);
+
+        // Three hostiles inside its support radius: 3 to 1 is past 2 to 1.
+        for (var index = 0; index < 3; index++)
+        {
+            agents.Add(CreateAgent(
+                entityId++, 1, 40_000 + 3_000, 20_000 + (index * 1_200),
+                scenario, ItakKey));
+        }
+
+        // Seven more allies far away, so faction zero holds 8 against 3.
+        for (var index = 0; index < 7; index++)
+        {
+            agents.Add(CreateAgent(
+                entityId++, 0, 180_000, 80_000 + (index * 1_500), scenario,
+                KampilanKey));
+        }
+
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario, [.. agents]);
+
+        var sawDisengage = false;
+        for (var tick = 0; tick < 200 && isolated.IsAlive; tick++)
+        {
+            simulation.AdvanceOneTick();
+            if (isolated.FootworkPhase == FootworkPhase.Disengage)
+            {
+                sawDisengage = true;
+                break;
+            }
+        }
+
+        Assert.True(
+            sawDisengage,
+            "A Kampilan facing three local hostiles with a faction total of " +
+            "eight against three never disengaged.");
+    }
+
+    // ----- Theory data -----
+
+    /// <summary>
+    /// The six one-versus-one cells containing Kampilan, generated from the
+    /// shared canonical matrix rather than hand-maintained here.
+    /// </summary>
+    public static TheoryData<int, int> KampilanOneVersusOneCells()
+    {
+        var data = new TheoryData<int, int>();
+        foreach (var pair in MovementScenarioMatrix.EnumerateOneVersusOnePairs())
+        {
+            if (pair.FirstLoadoutIndex == 0 || pair.SecondLoadoutIndex == 0)
+            {
+                data.Add(pair.FirstLoadoutIndex, pair.SecondLoadoutIndex);
+            }
+        }
+
+        return data;
+    }
+
     // ----- Helpers -----
+
+    private static readonly ulong[] ApprovedSeeds = [1, 2, 3, 5, 8];
+
+    private static readonly CombatLoadout KampilanKey =
+        new(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None);
+
+    private static readonly CombatLoadout ItakKey =
+        new(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.None);
+
+    private static readonly CombatLoadout KalisKey =
+        new(WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.None);
+
+    private static CombatRuleset CombatRules =>
+        CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV2);
+
+    /// <summary>
+    /// Every scenario names its combat preset and its movement preset
+    /// explicitly. <c>PrecolonialPhilippinesV2</c> is the only preset that
+    /// fields all six canonical loadouts, so it spans the whole matrix.
+    /// </summary>
+    private static Scenario CreateScenario(ulong seed = 1) =>
+        new(
+            Seed: seed,
+            MapWidth: 200,
+            MapHeight: 100,
+            AgentsPerFaction: 1,
+            TickRate: 20,
+            TickLimit: 2_000)
+        {
+            MaximumHitPoints = 1_000_000,
+            DamagePerAttack = 1,
+            AttackRangeRaw = AttackRangeRaw,
+            PerceptionRangeRaw = 200 * FixedPoint.Scale,
+            BodyRadiusRaw = BodyRadiusRaw,
+            MovementSpeedRaw = MovementSpeedRaw,
+            AttackCooldownTicks = 5,
+            LastStandThresholdAgents = 0,
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+            MovementPreset = MovementPresetId.EquipmentRelativeFootworkV6,
+        };
+
+    /// <summary>
+    /// Builds one agent carrying its weapon's real reach, damage, and cooldown
+    /// from the selected combat preset, exactly as a full-roster run does, so
+    /// a matchup is not artificially reach-equal.
+    /// </summary>
+    private static AgentState CreateAgent(
+        ulong entityId,
+        int factionId,
+        int xRaw,
+        int yRaw,
+        Scenario scenario,
+        CombatLoadout loadout,
+        int? attackCooldownTicksOverride = null)
+    {
+        var rules = CombatRules;
+        var weapon = rules.HasWeaponProfiles
+            ? rules.ResolveWeaponProfile(loadout.Weapon, loadout.Shield)
+            : new WeaponProfile(
+                scenario.DamagePerAttack,
+                scenario.AttackRangeRaw,
+                scenario.AttackCooldownTicks);
+
+        return new AgentState(
+            entityId,
+            factionId,
+            xRaw,
+            yRaw,
+            scenario.MaximumHitPoints,
+            scenario.MovementSpeedRaw,
+            scenario.PerceptionRangeRaw,
+            weapon.AttackRangeRaw,
+            weapon.DamagePerAttack,
+            attackCooldownTicksOverride ?? weapon.AttackCooldownTicks,
+            loadout);
+    }
+
+    private static LocalMovementContext Derive(
+        Scenario scenario, AgentState actor, AgentState[] agents)
+    {
+        var immediateRaw = MovementContextQuery.ContextRadiusRaw(
+            scenario.BodyRadiusRaw,
+            V6.ImmediateRadiusBodyDiametersBasisPoints);
+        var supportRaw = MovementContextQuery.ContextRadiusRaw(
+            scenario.BodyRadiusRaw,
+            V6.SupportRadiusBodyDiametersBasisPoints);
+
+        return MovementContextQuery.Derive(
+            agents,
+            actor,
+            selectedTargetEntityId: null,
+            MovementContextQuery.SquaredContextRadius(immediateRaw),
+            MovementContextQuery.SquaredContextRadius(supportRaw));
+    }
+
+    /// <summary>
+    /// Advances a battle and records the non-authoritative evidence the plan
+    /// asks for, without altering a single authoritative field.
+    /// </summary>
+    private static RunEvidence RunToCompletion(
+        Scenario scenario, AgentState[] agents, int ticks)
+    {
+        var simulation = BattleSimulation.CreateForTesting(scenario, agents);
+        var toleratedStepSquared =
+            (Int128)(scenario.MovementSpeedRaw + 1) *
+            (scenario.MovementSpeedRaw + 1);
+        var previous = agents
+            .ToDictionary(agent => agent.EntityId, agent => (agent.XRaw, agent.YRaw));
+        var eventStream = new List<string>();
+        var legalSteps = true;
+        var legalPhases = true;
+        string? stepFailure = null;
+        string? phaseFailure = null;
+
+        for (var tick = 0; tick < ticks; tick++)
+        {
+            simulation.AdvanceOneTick();
+
+            foreach (var agent in agents)
+            {
+                if (agent.IsAlive)
+                {
+                    var (priorX, priorY) = previous[agent.EntityId];
+                    var deltaX = (long)agent.XRaw - priorX;
+                    var deltaY = (long)agent.YRaw - priorY;
+                    var movedSquared =
+                        ((Int128)deltaX * deltaX) + ((Int128)deltaY * deltaY);
+
+                    // The shipped step model scales the target delta by
+                    // paceRaw divided by a truncated integer square root of
+                    // the distance (design section 10.1). Because the root
+                    // truncates downward, the per-axis cap is exact while the
+                    // Euclidean magnitude may exceed the cap by less than one
+                    // raw unit. Both bounds are asserted, at their real
+                    // strengths.
+                    if (Math.Abs(deltaX) > scenario.MovementSpeedRaw ||
+                        Math.Abs(deltaY) > scenario.MovementSpeedRaw)
+                    {
+                        legalSteps = false;
+                        stepFailure ??=
+                            $"Agent {agent.EntityId} moved ({deltaX},{deltaY}) " +
+                            $"on tick {tick}, exceeding the per-axis baseline " +
+                            $"{scenario.MovementSpeedRaw}.";
+                    }
+
+                    if (movedSquared > toleratedStepSquared)
+                    {
+                        legalSteps = false;
+                        stepFailure ??=
+                            $"Agent {agent.EntityId} moved ({deltaX},{deltaY}) " +
+                            $"on tick {tick}, squared {movedSquared}, beyond " +
+                            $"the one-raw-unit truncation tolerance " +
+                            $"{toleratedStepSquared}.";
+                    }
+                }
+
+                previous[agent.EntityId] = (agent.XRaw, agent.YRaw);
+
+                if (!Enum.IsDefined(agent.FootworkPhase) ||
+                    !Enum.IsDefined(agent.TacticalPosture) ||
+                    agent.FootworkTicksRemaining < 0)
+                {
+                    legalPhases = false;
+                    phaseFailure ??=
+                        $"Agent {agent.EntityId} on tick {tick} carried " +
+                        $"phase {agent.FootworkPhase}, posture " +
+                        $"{agent.TacticalPosture}, timer " +
+                        $"{agent.FootworkTicksRemaining}.";
+                }
+            }
+
+            foreach (var battleEvent in simulation.LastEvents)
+            {
+                eventStream.Add(
+                    $"{battleEvent.Sequence}:{battleEvent.Tick}:" +
+                    $"{battleEvent.Kind}:{battleEvent.SourceEntityId}:" +
+                    $"{battleEvent.TargetEntityId ?? 0}:{battleEvent.Value}");
+            }
+
+            if (simulation.Outcome != BattleOutcome.Ongoing)
+            {
+                break;
+            }
+        }
+
+        return new RunEvidence(
+            simulation.ComputeStateHash(),
+            eventStream,
+            simulation.Outcome,
+            legalSteps,
+            legalPhases,
+            stepFailure,
+            phaseFailure);
+    }
+
+    private sealed record RunEvidence(
+        ulong StateHash,
+        List<string> EventStream,
+        BattleOutcome Outcome,
+        bool LegalSteps,
+        bool LegalPhases,
+        string? StepFailure,
+        string? PhaseFailure);
 
     private static Int128 Square(long value) => (Int128)value * value;
 
