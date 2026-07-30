@@ -561,6 +561,252 @@ public sealed class HeadlessRunnerTests
     /// agree, is unchanged -- only which preset name the "explicit" run
     /// names has moved.
     /// </summary>
+    /// <summary>
+    /// The derived movement counters of design section 16 ride the report as
+    /// one camel-case block. A V6 workload must produce nonzero behaviour
+    /// counts — every warrior opens with a posture transition out of
+    /// <c>None</c> and an <c>Approach</c> toward the enemy line — and every
+    /// field must survive the reflection-based JSON round trip.
+    /// </summary>
+    [Fact]
+    public void Run_MovementMetricsSurviveAJsonRoundTripWithNonzeroV6Counters()
+    {
+        var output = new StringWriter();
+        var errorOutput = new StringWriter();
+
+        var exitCode = HeadlessRunner.Run(
+            [
+                "--agents", "20", "--ticks", "200", "--seed", "1234",
+                "--preset", "PrecolonialPhilippinesV2",
+                "--movement-preset", "EquipmentRelativeFootworkV6",
+            ],
+            output,
+            errorOutput);
+
+        Assert.Equal(0, exitCode);
+        var deserialized = JsonSerializer.Deserialize<RunReport>(
+            output.ToString(),
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            });
+
+        Assert.NotNull(deserialized);
+        using var report = JsonDocument.Parse(output.ToString());
+        var metrics = report.RootElement.GetProperty("movementMetrics");
+
+        Assert.Equal(
+            metrics.GetProperty("approachAgentTicks").GetInt64(),
+            deserialized.MovementMetrics.ApproachAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("engageAgentTicks").GetInt64(),
+            deserialized.MovementMetrics.EngageAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("commitAgentTicks").GetInt64(),
+            deserialized.MovementMetrics.CommitAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("recoverAgentTicks").GetInt64(),
+            deserialized.MovementMetrics.RecoverAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("refuseAgentTicks").GetInt64(),
+            deserialized.MovementMetrics.RefuseAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("disengageAgentTicks").GetInt64(),
+            deserialized.MovementMetrics.DisengageAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("regroupAgentTicks").GetInt64(),
+            deserialized.MovementMetrics.RegroupAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("pursueAgentTicks").GetInt64(),
+            deserialized.MovementMetrics.PursueAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("postureTransitions").GetInt64(),
+            deserialized.MovementMetrics.PostureTransitions);
+        Assert.Equal(
+            metrics.GetProperty("facingStepsTurned").GetInt64(),
+            deserialized.MovementMetrics.FacingStepsTurned);
+        Assert.Equal(
+            metrics.GetProperty("disengagementEntries").GetInt64(),
+            deserialized.MovementMetrics.DisengagementEntries);
+        Assert.Equal(
+            metrics.GetProperty("conflictDenials").GetInt64(),
+            deserialized.MovementMetrics.ConflictDenials);
+
+        Assert.True(
+            deserialized.MovementMetrics.ApproachAgentTicks > 0,
+            "A V6 run must spend agent-ticks approaching the enemy line.");
+        Assert.True(
+            deserialized.MovementMetrics.PostureTransitions > 0,
+            "Every living V6 warrior transitions out of posture None on the first tick.");
+    }
+
+    /// <summary>
+    /// A legacy preset never runs any equipment-relative footwork stage, so
+    /// its report must carry an all-zero movement block, and a report built
+    /// or parsed without the member — every report written before T9 — must
+    /// default to the same all-zero value.
+    /// </summary>
+    [Fact]
+    public void Run_ReportsZeroMovementMetricsUnderALegacyPreset()
+    {
+        var output = new StringWriter();
+        var errorOutput = new StringWriter();
+
+        var exitCode = HeadlessRunner.Run(
+            ["--agents", "20", "--ticks", "200", "--seed", "1234"],
+            output,
+            errorOutput);
+
+        Assert.Equal(0, exitCode);
+        var deserialized = JsonSerializer.Deserialize<RunReport>(
+            output.ToString(),
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            });
+
+        Assert.NotNull(deserialized);
+        Assert.Equal(default(MovementBehaviorMetrics), deserialized.MovementMetrics);
+    }
+
+    [Fact]
+    public void ALegacyReportWithoutTheMovementBlockDeserializesToDefaultMetrics()
+    {
+        var output = new StringWriter();
+        var errorOutput = new StringWriter();
+        var exitCode = HeadlessRunner.Run(
+            ["--agents", "20", "--ticks", "50", "--seed", "1234"],
+            output,
+            errorOutput);
+        Assert.Equal(0, exitCode);
+
+        // Strip the block to reconstruct the shape every report written
+        // before this member existed actually has on disk.
+        var node = System.Text.Json.Nodes.JsonNode.Parse(output.ToString());
+        Assert.NotNull(node);
+        var stripped = node.AsObject();
+        Assert.True(stripped.Remove("movementMetrics"));
+
+        var deserialized = JsonSerializer.Deserialize<RunReport>(
+            stripped.ToJsonString(),
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            });
+
+        Assert.NotNull(deserialized);
+        Assert.Equal(default(MovementBehaviorMetrics), deserialized.MovementMetrics);
+    }
+
+    /// <summary>
+    /// The case that catches the movement observation leaking either
+    /// non-determinism or simulation influence at the harness level: two
+    /// same-seed V6 runs, both accumulating metrics, must agree on both
+    /// hashes and serialize a byte-identical movement block.
+    /// </summary>
+    [Fact]
+    public void Run_TwoSameSeedV6RunsAgreeOnBothHashesAndTheMovementBlock()
+    {
+        var firstOutput = new StringWriter();
+        var secondOutput = new StringWriter();
+        var errorOutput = new StringWriter();
+        string[] arguments =
+        [
+            "--agents", "20", "--ticks", "200", "--seed", "1234",
+            "--preset", "PrecolonialPhilippinesV2",
+            "--movement-preset", "EquipmentRelativeFootworkV6",
+        ];
+
+        var firstExitCode = HeadlessRunner.Run(arguments, firstOutput, errorOutput);
+        var secondExitCode = HeadlessRunner.Run(arguments, secondOutput, errorOutput);
+
+        Assert.Equal(0, firstExitCode);
+        Assert.Equal(0, secondExitCode);
+        using var firstReport = JsonDocument.Parse(firstOutput.ToString());
+        using var secondReport = JsonDocument.Parse(secondOutput.ToString());
+
+        Assert.True(firstReport.RootElement.GetProperty("deterministic").GetBoolean());
+        Assert.Equal(
+            firstReport.RootElement.GetProperty("stateHash").GetString(),
+            secondReport.RootElement.GetProperty("stateHash").GetString());
+        Assert.Equal(
+            firstReport.RootElement.GetProperty("eventHash").GetString(),
+            secondReport.RootElement.GetProperty("eventHash").GetString());
+        Assert.Equal(
+            firstReport.RootElement.GetProperty("movementMetrics").GetRawText(),
+            secondReport.RootElement.GetProperty("movementMetrics").GetRawText(),
+            StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// The boundary proof of design section 16.3: the same seeded V6
+    /// workload advanced twice, once with the whole derived observation
+    /// exercised every tick — view comparison, per-tick combat and collision
+    /// reads, the denial counter — and once reading nothing, must produce an
+    /// identical state hash, ordered event stream, and outcome on every
+    /// tick. The observability reaches neither hash.
+    /// </summary>
+    [Fact]
+    public void ObservingDerivedMovementBehaviorChangesNeitherHashNorEventStream()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1234, totalAgents: 20) with
+        {
+            TickLimit = 200,
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+            MovementPreset = MovementPresetId.EquipmentRelativeFootworkV6,
+        };
+        scenario.Validate();
+        var observed = BattleSimulation.Create(scenario);
+        var ignored = BattleSimulation.Create(scenario);
+
+        var accumulator = default(MovementBehaviorMetricsAccumulator);
+        var previousViews = new AgentView[observed.Agents.Count];
+        for (var index = 0; index < previousViews.Length; index++)
+        {
+            previousViews[index] = observed.Agents[index];
+        }
+
+        for (var tick = 0;
+             tick < 200 && observed.Outcome == BattleOutcome.Ongoing;
+             tick++)
+        {
+            observed.AdvanceOneTick();
+            var observation = HeadlessRunner.ObserveMovementTick(
+                observed.Agents, previousViews);
+            accumulator.AddTick(
+                observation.ApproachAgents,
+                observation.EngageAgents,
+                observation.CommitAgents,
+                observation.RecoverAgents,
+                observation.RefuseAgents,
+                observation.DisengageAgents,
+                observation.RegroupAgents,
+                observation.PursueAgents,
+                observation.PostureTransitions,
+                observation.FacingStepsTurned,
+                observation.DisengagementEntries);
+            _ = observed.LastTickCombat;
+            _ = observed.MovementConflictDenials;
+
+            ignored.AdvanceOneTick();
+
+            Assert.Equal(ignored.ComputeStateHash(), observed.ComputeStateHash());
+            Assert.True(
+                observed.LastEvents.SequenceEqual(ignored.LastEvents),
+                $"The event streams diverged at tick {observed.Tick}.");
+        }
+
+        accumulator.RecordConflictDenialTotal(observed.MovementConflictDenials);
+        Assert.Equal(ignored.Outcome, observed.Outcome);
+        Assert.Equal(ignored.ComputeStateHash(), observed.ComputeStateHash());
+
+        var metrics = accumulator.ToMetrics();
+        Assert.True(
+            metrics.ApproachAgentTicks > 0,
+            "The observation must actually have been exercised.");
+        Assert.True(metrics.PostureTransitions > 0);
+    }
+
     [Fact]
     public void OmittingMovementPresetSelectsTheScenarioDefault()
     {

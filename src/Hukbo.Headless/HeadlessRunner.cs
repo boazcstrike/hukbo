@@ -390,6 +390,25 @@ public static class HeadlessRunner
         collisionMetrics.Reset();
         var combatMetrics = new CombatMetricsAccumulator();
         combatMetrics.Reset();
+        var movementMetrics = new MovementBehaviorMetricsAccumulator();
+        movementMetrics.Reset();
+
+        // The derived movement observation of the weapon-relative movement
+        // design, section 16: reconstructed here, outside the simulation, by
+        // comparing each tick's views against the previous tick's. The
+        // previous-view buffer is allocated once per run, and sized zero
+        // under a legacy preset, which resolves no posture, phase, or facing
+        // and would only ever observe zeros.
+        var usesFootwork = MovementPresetRegistry
+            .Get(scenario.MovementPreset)
+            .UsesEquipmentRelativeFootwork;
+        var previousViews = usesFootwork
+            ? new AgentView[left.Agents.Count]
+            : [];
+        for (var index = 0; index < previousViews.Length; index++)
+        {
+            previousViews[index] = left.Agents[index];
+        }
 
         var allocationStart = GC.GetAllocatedBytesForCurrentThread();
 
@@ -434,6 +453,26 @@ public static class HeadlessRunner
                 checked((int)tickCombat.DeflectedAttacks),
                 checked((int)tickCombat.EvadedAttacks));
 
+            var tickRefusals = 0;
+            if (usesFootwork)
+            {
+                var movementTick = ObserveMovementTick(
+                    left.Agents, previousViews);
+                movementMetrics.AddTick(
+                    movementTick.ApproachAgents,
+                    movementTick.EngageAgents,
+                    movementTick.CommitAgents,
+                    movementTick.RecoverAgents,
+                    movementTick.RefuseAgents,
+                    movementTick.DisengageAgents,
+                    movementTick.RegroupAgents,
+                    movementTick.PursueAgents,
+                    movementTick.PostureTransitions,
+                    movementTick.FacingStepsTurned,
+                    movementTick.DisengagementEntries);
+                tickRefusals = movementTick.RefuseAgents;
+            }
+
             right.AdvanceOneTick();
             var leftStateHash = left.ComputeStateHash();
             var rightStateHash = right.ComputeStateHash();
@@ -473,11 +512,12 @@ public static class HeadlessRunner
             }
 
             log.SetTick(left.Tick);
-            LogTick(log, left, leftStateHash);
+            LogTick(log, left, leftStateHash, usesFootwork, tickRefusals);
         }
 
         var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocationStart;
         collisionMetrics.ObserveBlockedStreak(left.LongestBlockedStreakTicks);
+        movementMetrics.RecordConflictDenialTotal(left.MovementConflictDenials);
         var sortedDurations = tickDurations.Order().ToArray();
         var survivors = left.Agents
             .Where(agent => agent.IsAlive)
@@ -530,7 +570,138 @@ public static class HeadlessRunner
             firstMismatchTick,
             collisionMetrics.ToMetrics(),
             combatMetrics.ToMetrics(),
-            coreAllocatedBytes);
+            coreAllocatedBytes,
+            movementMetrics.ToMetrics());
+    }
+
+    /// <summary>
+    /// One tick's derived movement behaviour counts, reconstructed entirely
+    /// from views (weapon-relative movement design, section 16). Internal so
+    /// the boundary test in <c>Hukbo.Core.Tests</c> can exercise the exact
+    /// production observation against an unobserved twin simulation.
+    /// </summary>
+    internal readonly record struct MovementTickObservation(
+        int ApproachAgents,
+        int EngageAgents,
+        int CommitAgents,
+        int RecoverAgents,
+        int RefuseAgents,
+        int DisengageAgents,
+        int RegroupAgents,
+        int PursueAgents,
+        int PostureTransitions,
+        int FacingStepsTurned,
+        int DisengagementEntries);
+
+    /// <summary>
+    /// Derives one tick's movement behaviour counts by comparing the current
+    /// views against the previous tick's, then overwrites
+    /// <paramref name="previousViews"/> with the current views so the next
+    /// tick compares against this one. Allocation-free: the caller owns the
+    /// single buffer for the whole run. Only living agents are counted;
+    /// facing steps are counted only when both ticks carry a resolved facing,
+    /// because <see cref="Facing16.None"/> is not a sector.
+    /// </summary>
+    internal static MovementTickObservation ObserveMovementTick(
+        IReadOnlyList<AgentView> currentViews,
+        AgentView[] previousViews)
+    {
+        ArgumentNullException.ThrowIfNull(currentViews);
+        ArgumentNullException.ThrowIfNull(previousViews);
+        if (currentViews.Count != previousViews.Length)
+        {
+            throw new ArgumentException(
+                $"The view buffers disagree on the agent count: " +
+                $"{currentViews.Count} current versus " +
+                $"{previousViews.Length} previous.",
+                nameof(previousViews));
+        }
+
+        var approachAgents = 0;
+        var engageAgents = 0;
+        var commitAgents = 0;
+        var recoverAgents = 0;
+        var refuseAgents = 0;
+        var disengageAgents = 0;
+        var regroupAgents = 0;
+        var pursueAgents = 0;
+        var postureTransitions = 0;
+        var facingStepsTurned = 0;
+        var disengagementEntries = 0;
+
+        for (var index = 0; index < previousViews.Length; index++)
+        {
+            var current = currentViews[index];
+            var previous = previousViews[index];
+            previousViews[index] = current;
+
+            if (!current.IsAlive)
+            {
+                continue;
+            }
+
+            switch (current.FootworkPhase)
+            {
+                case FootworkPhase.Approach:
+                    approachAgents++;
+                    break;
+                case FootworkPhase.Engage:
+                    engageAgents++;
+                    break;
+                case FootworkPhase.Commit:
+                    commitAgents++;
+                    break;
+                case FootworkPhase.Recover:
+                    recoverAgents++;
+                    break;
+                case FootworkPhase.Refuse:
+                    refuseAgents++;
+                    break;
+                case FootworkPhase.Disengage:
+                    disengageAgents++;
+                    break;
+                case FootworkPhase.Regroup:
+                    regroupAgents++;
+                    break;
+                case FootworkPhase.Pursue:
+                    pursueAgents++;
+                    break;
+                case FootworkPhase.None:
+                default:
+                    break;
+            }
+
+            if (current.TacticalPosture != previous.TacticalPosture)
+            {
+                postureTransitions++;
+            }
+
+            if (current.FootworkPhase == FootworkPhase.Disengage &&
+                previous.FootworkPhase != FootworkPhase.Disengage)
+            {
+                disengagementEntries++;
+            }
+
+            if (current.Facing != Facing16.None &&
+                previous.Facing != Facing16.None)
+            {
+                facingStepsTurned += FacingRules.SectorSeparation(
+                    previous.Facing, current.Facing);
+            }
+        }
+
+        return new MovementTickObservation(
+            approachAgents,
+            engageAgents,
+            commitAgents,
+            recoverAgents,
+            refuseAgents,
+            disengageAgents,
+            regroupAgents,
+            pursueAgents,
+            postureTransitions,
+            facingStepsTurned,
+            disengagementEntries);
     }
 
     /// <summary>
@@ -542,12 +713,17 @@ public static class HeadlessRunner
     /// <remarks>
     /// The state hash is passed in rather than recomputed: the caller already
     /// computed it to compare the two simulations, and a log must never add a
-    /// call the run would not otherwise make.
+    /// call the run would not otherwise make. The refusal count follows the
+    /// same rule — the caller already derived it for the metrics accumulator
+    /// — and the two movement fields ride the line only under a preset that
+    /// resolves footwork at all, so a legacy run's lines stay byte-identical.
     /// </remarks>
     private static void LogTick(
         DiagnosticLog log,
         BattleSimulation simulation,
-        ulong stateHash)
+        ulong stateHash,
+        bool includeMovementFields,
+        int refuseAgents)
     {
         var level = LogSampling.IsSampledTick(simulation.Tick)
             ? LogLevel.Debug
@@ -574,6 +750,29 @@ public static class HeadlessRunner
             {
                 alive1++;
             }
+        }
+
+        if (includeMovementFields)
+        {
+            log.Write(
+                level,
+                LogChannel.Simulation,
+                LogEvents.SimTick,
+                "tick",
+                simulation.Tick,
+                "alive0",
+                alive0,
+                "alive1",
+                alive1,
+                "events",
+                simulation.LastEvents.Count,
+                "stateHash",
+                ToHex(stateHash),
+                "refusals",
+                refuseAgents,
+                "conflictDenials",
+                simulation.MovementConflictDenials);
+            return;
         }
 
         log.Write(

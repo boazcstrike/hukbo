@@ -51,4 +51,8 @@ public sealed record RunReport(
     // one by hand, does not have to supply a block it does not care about. The
     // runner always populates it.
     CombatMetrics CombatMetrics = default,
-    long CoreAllocatedBytes = 0);
+    long CoreAllocatedBytes = 0,
+    // Defaulted for the same reason as CombatMetrics above: every report
+    // written before this member existed deserializes to an all-zero block,
+    // and every legacy movement preset legitimately reports one.
+    MovementBehaviorMetrics MovementMetrics = default);

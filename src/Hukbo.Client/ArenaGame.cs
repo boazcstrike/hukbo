@@ -11,6 +11,7 @@ using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 using Hukbo.Diagnostics;
 using Microsoft.Xna.Framework;
@@ -1460,6 +1461,7 @@ public sealed partial class ArenaGame : Game
 
         var alive0 = 0;
         var alive1 = 0;
+        var refusals = 0;
         foreach (var agent in _simulation.Agents)
         {
             if (!agent.IsAlive)
@@ -1475,6 +1477,41 @@ public sealed partial class ArenaGame : Game
             {
                 alive1++;
             }
+
+            if (agent.FootworkPhase == FootworkPhase.Refuse)
+            {
+                refusals++;
+            }
+        }
+
+        // The two movement fields ride the line only under a preset that
+        // resolves footwork at all, so a legacy run's lines stay
+        // byte-identical to the ones written before the fields existed.
+        if (MovementPresetRegistry
+            .Get(_simulation.Scenario.MovementPreset)
+            .UsesEquipmentRelativeFootwork)
+        {
+            _log.Write(
+                level,
+                LogChannel.Simulation,
+                LogEvents.SimTick,
+                "tick",
+                _simulation.Tick,
+                "alive0",
+                alive0,
+                "alive1",
+                alive1,
+                "events",
+                _simulation.LastEvents.Count,
+                "stateHash",
+                _simulation.ComputeStateHash().ToString(
+                    "X16",
+                    CultureInfo.InvariantCulture),
+                "refusals",
+                refusals,
+                "conflictDenials",
+                _simulation.MovementConflictDenials);
+            return;
         }
 
         _log.Write(

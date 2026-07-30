@@ -269,10 +269,20 @@ public sealed class BattleSimulation
     /// any simulation stage, and zero forever under every legacy preset,
     /// which never runs the pass at all. A denied agent is indistinguishable
     /// from a blocked one in the view, so this counter is the only honest
-    /// record; T9 wires it into reporting.
+    /// record.
     /// </summary>
+    /// <remarks>
+    /// Public for the same reason <see cref="LastTickCombat"/> is: a
+    /// reporting layer carries the authoritative count instead of guessing at
+    /// what a view cannot show. Reading it cannot affect the simulation — it
+    /// is written only by <see cref="ResolveFriendlyClearanceConflicts"/> and
+    /// never read back by any simulation stage.
+    /// </remarks>
+    public long MovementConflictDenials => _movementConflictDenials;
+
+    /// <inheritdoc cref="MovementConflictDenials"/>
     internal long MovementConflictDenialsForTesting =>
-        _movementConflictDenials;
+        MovementConflictDenials;
 
     /// <summary>
     /// The local movement context derived for one agent by the tick just
