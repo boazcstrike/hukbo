@@ -45,10 +45,10 @@ internal sealed class AgentInspectorPanel
     /// <param name="movementSpeedRaw">
     /// The match's <c>Scenario.MovementSpeedRaw</c>, the denominator of the
     /// pace row's percentage (weapon-relative movement design, section
-    /// 15.2). Defaulted to <c>0</c>, which omits the pace row, so the
-    /// existing call site compiles unchanged: the Client cannot select an
-    /// equipment-relative-footwork preset today, and the activation task
-    /// that makes it selectable passes the real value here.
+    /// 15.2). Defaulted to <c>0</c>, which omits the pace row, so a test
+    /// call site may leave it out. The game passes the real scenario value;
+    /// under a preset without equipment-relative footwork every agent's
+    /// retained pace stays <c>0</c>, so the row is omitted regardless.
     /// </param>
     public void Draw(
         SpriteBatch spriteBatch,

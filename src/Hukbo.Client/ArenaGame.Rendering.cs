@@ -602,7 +602,8 @@ public sealed partial class ArenaGame
             selectedAgent,
             layout.InspectorBounds,
             _scenario.Seed,
-            theme);
+            theme,
+            _scenario.MovementSpeedRaw);
         _eventLogPanel.Draw(
             spriteBatch,
             pixel,
