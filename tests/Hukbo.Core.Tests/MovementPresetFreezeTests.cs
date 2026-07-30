@@ -48,6 +48,17 @@ namespace Hukbo.Core.Tests;
 /// these fixtures byte-identically as part of its own verification.
 /// </description>
 /// </item>
+/// <item>
+/// <description>
+/// <c>EquipmentRelativeFootworkV6</c>, captured by
+/// docs/plans/2026-07-30-weapon-movement-foundation.md task T12, from the
+/// build that completed the weapon-relative-movement foundation. Unlike the
+/// legacy fixtures it freezes a brand-new opt-in preset at the moment it
+/// shipped, so any later change that moves the V6 trajectory -- a profile
+/// edit, a rules tweak, a pipeline reorder -- is caught here rather than
+/// discovered in a replay.
+/// </description>
+/// </item>
 /// </list>
 /// This file is the oracle those tasks replay against.
 /// </summary>
@@ -74,6 +85,9 @@ public sealed class MovementPresetFreezeTests
 
     private const string PersistentContingentsV5DigestFileName =
         "seed-1-200-agents-movement-v5-digest.json";
+
+    private const string EquipmentRelativeFootworkV6DigestFileName =
+        "seed-1-200-agents-movement-v6-digest.json";
 
     /// <summary>
     /// Replays the frozen seed-1, two-hundred-agent trajectory tick by tick
@@ -180,6 +194,30 @@ public sealed class MovementPresetFreezeTests
     {
         var digest = LoadDigest(PersistentContingentsV5DigestFileName);
         var simulation = CreateControlRun(MovementPresetId.PersistentContingentsV5);
+
+        ReplayAndAssertDigest(digest, simulation);
+        AssertFinalContingentFieldsMatch(digest, simulation);
+    }
+
+    /// <summary>
+    /// Replays the frozen seed-1, two-hundred-agent trajectory tick by tick
+    /// under <c>EquipmentRelativeFootworkV6</c> and asserts every tick row
+    /// and the final per-agent rows -- including the real
+    /// <see cref="AgentView.ContingentId"/> and
+    /// <see cref="AgentView.ContingentState"/> values this preset populates
+    /// -- match the fixture exactly. See
+    /// docs/plans/2026-07-30-weapon-movement-foundation.md task T12: this
+    /// fixture freezes the opt-in preset's trajectory at the commit that
+    /// completed the weapon-relative-movement foundation, with the control
+    /// run selecting <c>CombatPresetId.PrecolonialPhilippinesV2</c>
+    /// explicitly, the same way every other freeze test here does.
+    /// </summary>
+    [Fact]
+    public void EquipmentRelativeFootworkV6_ReproducesTheFrozenTrajectoryDigest()
+    {
+        var digest = LoadDigest(EquipmentRelativeFootworkV6DigestFileName);
+        var simulation = CreateControlRun(
+            MovementPresetId.EquipmentRelativeFootworkV6);
 
         ReplayAndAssertDigest(digest, simulation);
         AssertFinalContingentFieldsMatch(digest, simulation);
