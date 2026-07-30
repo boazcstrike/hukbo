@@ -1524,4 +1524,1038 @@ public sealed class WasayMovementTests
         stateHash = simulation.ComputeStateHash();
         return events;
     }
+
+    // ----- Family 14: the generated duel and pair calibration slice -----
+
+    /// <summary>
+    /// The canonical index of the Wasay row in the binding
+    /// <c>KP, WA, KA, IT, KS, IS</c> order.
+    /// </summary>
+    private const int WasayCanonicalIndex = 1;
+
+    /// <summary>
+    /// How many whole ticks every calibration run in this family is observed
+    /// for.
+    /// </summary>
+    private const int CalibrationTicks = 600;
+
+    /// <summary>
+    /// The shared no-progress bound of docs/plans/movement/README.md task T10
+    /// step 6.
+    /// </summary>
+    private const int NoProgressStreakBoundTicks = 250;
+
+    private const int CalibrationLaneYRaw = 51_200;
+
+    private const int CalibrationWestXRaw = 87_040;
+
+    private const int CalibrationEastXRaw = 117_760;
+
+    /// <summary>
+    /// One warrior's whole-run movement behaviour, recorded from outside the
+    /// simulation without touching authoritative state.
+    /// </summary>
+    private sealed record AgentObservation(
+        ulong EntityId,
+        int FactionId,
+        CombatLoadout Loadout,
+        int? FirstEngageTick,
+        int? FirstCommitTick,
+        int? FirstLandedAttackTick,
+        int CommitTicks,
+        int RecoverTicks,
+        int RefuseTicks,
+        int DisengageTicks,
+        int DisengageEntries,
+        int DisengageReleases,
+        int BlockedTicks,
+        int PhaseFlips,
+        int TicksBeyondPreferredDistance,
+        int LargestStepRaw,
+        int LargestLaneOffsetRaw,
+        int LandedAttacks);
+
+    /// <summary>One whole observed run.</summary>
+    private sealed record RunObservation(
+        IReadOnlyList<AgentObservation> Agents,
+        IReadOnlyList<IReadOnlyList<FootworkPhase>> PhaseTracks,
+        int ObservedTicks,
+        int LongestNoProgressStreakTicks,
+        long MinimumAllySeparationRaw,
+        BattleOutcome Outcome,
+        ulong StateHash,
+        long MovementConflictDenials);
+
+    /// <summary>
+    /// Builds an agent whose reach, damage, and cooldown come from the combat
+    /// preset's own weapon profile rather than from the scenario's uniform
+    /// placeholders, so the reach differences the matchup table talks about
+    /// are real in these runs.
+    /// </summary>
+    private static AgentState CreateCalibrationAgent(
+        ulong entityId,
+        int factionId,
+        int xRaw,
+        int yRaw,
+        Scenario scenario,
+        CombatLoadout loadout)
+    {
+        var profile = CombatPresetRegistry
+            .Get(scenario.CombatPreset)
+            .ResolveWeaponProfile(loadout.Weapon, loadout.Shield);
+
+        return new AgentState(
+            entityId,
+            factionId,
+            xRaw,
+            yRaw,
+            scenario.MaximumHitPoints,
+            scenario.MovementSpeedRaw,
+            scenario.PerceptionRangeRaw,
+            profile.AttackRangeRaw,
+            profile.DamagePerAttack,
+            profile.AttackCooldownTicks,
+            loadout);
+    }
+
+    /// <summary>
+    /// The 1v1 cells of the shared matrix that contain the Wasay row.
+    /// </summary>
+    private static List<MovementScenarioMatrix.OneVersusOnePair>
+        WasayOneVersusOnePairs() =>
+        MovementScenarioMatrix.EnumerateOneVersusOnePairs()
+            .Where(pair =>
+                pair.FirstLoadoutIndex == WasayCanonicalIndex ||
+                pair.SecondLoadoutIndex == WasayCanonicalIndex)
+            .ToList();
+
+    /// <summary>The canonical index of the non-Wasay side of a cell.</summary>
+    private static int OpponentCanonicalIndex(
+        MovementScenarioMatrix.OneVersusOnePair pair) =>
+        pair.FirstLoadoutIndex == WasayCanonicalIndex
+            ? pair.SecondLoadoutIndex
+            : pair.FirstLoadoutIndex;
+
+    /// <summary>
+    /// The combat preset a cell must name: only
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV2"/> fields all six
+    /// canonical loadouts, so any shielded cell takes it.
+    /// </summary>
+    private static CombatPresetId CalibrationCombatPreset(bool containsShield) =>
+        containsShield
+            ? MovementScenarioMatrix.ShieldedCellCombatPreset
+            : CombatPresetId.PrecolonialPhilippinesV4;
+
+    /// <summary>
+    /// Builds one duel. The mirrored orientation puts the Wasay on the eastern
+    /// start and the opponent on the western one, reflected about the arena's
+    /// centre line, so start side and faction bearing are both mirrored.
+    /// </summary>
+    private static (Scenario Scenario, AgentState[] Agents) BuildDuel(
+        int opponentCanonicalIndex,
+        bool mirrored)
+    {
+        var opponent =
+            MovementScenarioMatrix.CanonicalLoadouts[opponentCanonicalIndex];
+        var scenario = CreateScenario(
+            CalibrationCombatPreset(opponent.Shield != ShieldId.None));
+        var westLoadout = mirrored ? opponent : WasayLoadout;
+        var eastLoadout = mirrored ? WasayLoadout : opponent;
+
+        return (
+            scenario,
+            [
+                CreateCalibrationAgent(
+                    1,
+                    factionId: 0,
+                    CalibrationWestXRaw,
+                    CalibrationLaneYRaw,
+                    scenario,
+                    westLoadout),
+                CreateCalibrationAgent(
+                    2,
+                    factionId: 1,
+                    CalibrationEastXRaw,
+                    CalibrationLaneYRaw,
+                    scenario,
+                    eastLoadout),
+            ]);
+    }
+
+    /// <summary>Runs one duel cell and returns its observation.</summary>
+    private static RunObservation ObserveDuel(
+        int opponentCanonicalIndex,
+        bool mirrored = false)
+    {
+        var (scenario, agents) = BuildDuel(opponentCanonicalIndex, mirrored);
+        return ObserveRun(scenario, agents, CalibrationTicks);
+    }
+
+    /// <summary>
+    /// Builds one 2v2 cell from a shared-matrix team composition. Both teams
+    /// field the same composition, the western team is faction 0, and
+    /// <paramref name="laneOffsetRaw"/> is each team's half-separation across
+    /// the lane.
+    /// </summary>
+    private static (Scenario Scenario, AgentState[] Agents) BuildPairMatchup(
+        MovementScenarioMatrix.TeamComposition composition,
+        int laneOffsetRaw,
+        int columnDepthRaw = 0,
+        bool reverseMembers = false)
+    {
+        var scenario = CreateScenario(
+            CalibrationCombatPreset(composition.ContainsShieldedLoadout));
+        var leader = reverseMembers
+            ? composition.SecondMember
+            : composition.FirstMember;
+        var follower = reverseMembers
+            ? composition.FirstMember
+            : composition.SecondMember;
+
+        return (
+            scenario,
+            [
+                CreateCalibrationAgent(
+                    1,
+                    factionId: 0,
+                    CalibrationWestXRaw,
+                    CalibrationLaneYRaw - laneOffsetRaw,
+                    scenario,
+                    leader),
+                CreateCalibrationAgent(
+                    2,
+                    factionId: 0,
+                    CalibrationWestXRaw - columnDepthRaw,
+                    CalibrationLaneYRaw + laneOffsetRaw,
+                    scenario,
+                    follower),
+                CreateCalibrationAgent(
+                    3,
+                    factionId: 1,
+                    CalibrationEastXRaw,
+                    CalibrationLaneYRaw - laneOffsetRaw,
+                    scenario,
+                    leader),
+                CreateCalibrationAgent(
+                    4,
+                    factionId: 1,
+                    CalibrationEastXRaw + columnDepthRaw,
+                    CalibrationLaneYRaw + laneOffsetRaw,
+                    scenario,
+                    follower),
+            ]);
+    }
+
+    /// <summary>Runs one 2v2 cell and returns its observation.</summary>
+    private static RunObservation ObservePairMatchup(
+        MovementScenarioMatrix.TeamComposition composition,
+        int laneOffsetRaw,
+        int columnDepthRaw = 0,
+        bool reverseMembers = false)
+    {
+        var (scenario, agents) = BuildPairMatchup(
+            composition, laneOffsetRaw, columnDepthRaw, reverseMembers);
+        return ObserveRun(scenario, agents, CalibrationTicks);
+    }
+
+    /// <summary>
+    /// The single observation pass every calibration test in this family
+    /// reads. It advances whole ticks and records, per warrior and per run,
+    /// only values derived from state the caller already holds: no
+    /// authoritative field is written, and nothing here is fed back into the
+    /// simulation.
+    /// </summary>
+    private static RunObservation ObserveRun(
+        Scenario scenario,
+        AgentState[] agents,
+        int observedTicks)
+    {
+        var simulation = BattleSimulation.CreateForTesting(scenario, agents);
+        var movementRules = MovementPresetRegistry.Get(scenario.MovementPreset);
+        var ordered = agents.OrderBy(agent => agent.EntityId).ToArray();
+        var count = ordered.Length;
+
+        var firstEngage = new int?[count];
+        var firstCommit = new int?[count];
+        var firstLanded = new int?[count];
+        var commitTicks = new int[count];
+        var recoverTicks = new int[count];
+        var refuseTicks = new int[count];
+        var disengageTicks = new int[count];
+        var disengageEntries = new int[count];
+        var disengageReleases = new int[count];
+        var blockedTicks = new int[count];
+        var phaseFlips = new int[count];
+        var beyondPreferred = new int[count];
+        var largestStep = new int[count];
+        var largestLaneOffset = new int[count];
+        var startY = new int[count];
+        var landedAttacks = new int[count];
+        var priorPhase = new FootworkPhase[count];
+        var priorX = new int[count];
+        var priorY = new int[count];
+        var priorHitPoints = new int[count];
+        var priorNearestSquared = new long[count];
+        var phaseTracks = new List<FootworkPhase>[count];
+
+        for (var index = 0; index < count; index++)
+        {
+            priorPhase[index] = ordered[index].FootworkPhase;
+            priorNearestSquared[index] = -1;
+            startY[index] = ordered[index].YRaw;
+            phaseTracks[index] = new List<FootworkPhase>(observedTicks);
+        }
+
+        var minimumAllySeparationRaw = long.MaxValue;
+        var longestNoProgress = 0;
+        var currentNoProgress = 0;
+
+        for (var tick = 1; tick <= observedTicks; tick++)
+        {
+            for (var index = 0; index < count; index++)
+            {
+                priorX[index] = ordered[index].XRaw;
+                priorY[index] = ordered[index].YRaw;
+                priorHitPoints[index] = ordered[index].HitPoints;
+            }
+
+            var livingBefore = LivingCount(ordered);
+            simulation.AdvanceOneTick();
+
+            foreach (var battleEvent in simulation.LastEvents)
+            {
+                if (battleEvent.Kind != BattleEventKind.Attack ||
+                    battleEvent.Resolution != AttackResolution.Landed)
+                {
+                    continue;
+                }
+
+                var sourceIndex = IndexOfEntity(
+                    ordered, battleEvent.SourceEntityId);
+                landedAttacks[sourceIndex]++;
+                firstLanded[sourceIndex] ??= tick;
+            }
+
+            var progressed = LivingCount(ordered) != livingBefore;
+
+            for (var index = 0; index < count; index++)
+            {
+                var agent = ordered[index];
+                progressed |= agent.HitPoints != priorHitPoints[index];
+
+                var stepRaw = (int)FixedPoint.IntegerSquareRoot(
+                    CollisionGeometry.SquaredDistance(
+                        priorX[index], priorY[index], agent.XRaw, agent.YRaw));
+                largestStep[index] = Math.Max(largestStep[index], stepRaw);
+                largestLaneOffset[index] = Math.Max(
+                    largestLaneOffset[index],
+                    Math.Abs(agent.YRaw - startY[index]));
+
+                var phase = agent.FootworkPhase;
+                phaseTracks[index].Add(phase);
+                if (phase != priorPhase[index])
+                {
+                    phaseFlips[index]++;
+                    if (phase == FootworkPhase.Disengage)
+                    {
+                        disengageEntries[index]++;
+                    }
+                    else if (priorPhase[index] == FootworkPhase.Disengage)
+                    {
+                        disengageReleases[index]++;
+                    }
+                }
+
+                priorPhase[index] = phase;
+
+                switch (phase)
+                {
+                    case FootworkPhase.Engage:
+                        firstEngage[index] ??= tick;
+                        break;
+                    case FootworkPhase.Commit:
+                        commitTicks[index]++;
+                        firstCommit[index] ??= tick;
+                        break;
+                    case FootworkPhase.Recover:
+                        recoverTicks[index]++;
+                        break;
+                    case FootworkPhase.Refuse:
+                        refuseTicks[index]++;
+                        break;
+                    case FootworkPhase.Disengage:
+                        disengageTicks[index]++;
+                        break;
+                    default:
+                        break;
+                }
+
+                if (agent.MovementResolution == MovementResolution.Blocked)
+                {
+                    blockedTicks[index]++;
+                }
+
+                if (NearestHostile(ordered, agent) is { } hostile)
+                {
+                    var squaredRaw = CollisionGeometry.SquaredDistance(
+                        agent.XRaw, agent.YRaw, hostile.XRaw, hostile.YRaw);
+                    var preferredRaw =
+                        MovementRouteRules.EffectivePreferredDistanceRaw(
+                            agent.AttackRangeRaw,
+                            movementRules.ResolveLoadoutProfile(agent.Loadout),
+                            MovementRouteRules.CanonicalOpponentIndex(
+                                hostile.Loadout));
+                    if ((Int128)squaredRaw >
+                        checked((Int128)preferredRaw * preferredRaw))
+                    {
+                        beyondPreferred[index]++;
+                    }
+
+                    progressed |= squaredRaw != priorNearestSquared[index];
+                    priorNearestSquared[index] = squaredRaw;
+                }
+            }
+
+            minimumAllySeparationRaw = Math.Min(
+                minimumAllySeparationRaw, ClosestAllySeparationRaw(ordered));
+
+            if (progressed)
+            {
+                currentNoProgress = 0;
+            }
+            else
+            {
+                currentNoProgress++;
+                longestNoProgress =
+                    Math.Max(longestNoProgress, currentNoProgress);
+            }
+        }
+
+        var observations = new List<AgentObservation>(count);
+        for (var index = 0; index < count; index++)
+        {
+            observations.Add(new AgentObservation(
+                ordered[index].EntityId,
+                ordered[index].FactionId,
+                ordered[index].Loadout,
+                firstEngage[index],
+                firstCommit[index],
+                firstLanded[index],
+                commitTicks[index],
+                recoverTicks[index],
+                refuseTicks[index],
+                disengageTicks[index],
+                disengageEntries[index],
+                disengageReleases[index],
+                blockedTicks[index],
+                phaseFlips[index],
+                beyondPreferred[index],
+                largestStep[index],
+                largestLaneOffset[index],
+                landedAttacks[index]));
+        }
+
+        return new RunObservation(
+            observations,
+            phaseTracks,
+            observedTicks,
+            longestNoProgress,
+            minimumAllySeparationRaw,
+            simulation.Outcome,
+            simulation.ComputeStateHash(),
+            simulation.MovementConflictDenials);
+    }
+
+    private static int LivingCount(AgentState[] agents) =>
+        agents.Count(agent => agent.HitPoints > 0);
+
+    private static int IndexOfEntity(AgentState[] agents, ulong entityId)
+    {
+        for (var index = 0; index < agents.Length; index++)
+        {
+            if (agents[index].EntityId == entityId)
+            {
+                return index;
+            }
+        }
+
+        throw new ArgumentOutOfRangeException(
+            nameof(entityId), entityId, "No such agent in this run.");
+    }
+
+    /// <summary>
+    /// The nearest living hostile by squared distance, breaking an exact tie
+    /// on the lower stable entity identifier.
+    /// </summary>
+    private static AgentState? NearestHostile(
+        AgentState[] agents,
+        AgentState actor)
+    {
+        AgentState? nearest = null;
+        var nearestSquared = long.MaxValue;
+        foreach (var candidate in agents)
+        {
+            if (candidate.FactionId == actor.FactionId ||
+                candidate.HitPoints <= 0)
+            {
+                continue;
+            }
+
+            var squaredRaw = CollisionGeometry.SquaredDistance(
+                actor.XRaw, actor.YRaw, candidate.XRaw, candidate.YRaw);
+            if (squaredRaw < nearestSquared ||
+                (squaredRaw == nearestSquared &&
+                    nearest is { } held &&
+                    candidate.EntityId < held.EntityId))
+            {
+                nearest = candidate;
+                nearestSquared = squaredRaw;
+            }
+        }
+
+        return nearest;
+    }
+
+    /// <summary>
+    /// The smallest centre separation between any two living same-faction
+    /// warriors this tick, or <see cref="long.MaxValue"/> when no faction
+    /// fields two.
+    /// </summary>
+    private static long ClosestAllySeparationRaw(AgentState[] agents)
+    {
+        var closest = long.MaxValue;
+        for (var first = 0; first < agents.Length; first++)
+        {
+            for (var second = first + 1; second < agents.Length; second++)
+            {
+                if (agents[first].FactionId != agents[second].FactionId ||
+                    agents[first].HitPoints <= 0 ||
+                    agents[second].HitPoints <= 0)
+                {
+                    continue;
+                }
+
+                closest = Math.Min(
+                    closest,
+                    FixedPoint.IntegerSquareRoot(
+                        CollisionGeometry.SquaredDistance(
+                            agents[first].XRaw,
+                            agents[first].YRaw,
+                            agents[second].XRaw,
+                            agents[second].YRaw)));
+            }
+        }
+
+        return closest;
+    }
+
+    /// <summary>
+    /// The lane separation the 2v2 fixtures use when the two allies are meant
+    /// not to contend: six world units across the lane, far outside the
+    /// 1,792-raw Wasay clearance radius.
+    /// </summary>
+    private const int SeparatedLaneOffsetRaw = 6_144;
+
+    /// <summary>
+    /// The column depth the 2v2 fixtures use when the two allies are meant to
+    /// contend: three world units of depth on a single lane, so the rear
+    /// warrior's approach runs straight through the leading warrior's
+    /// clearance radius.
+    /// </summary>
+    private const int ContendedColumnDepthRaw = 3_072;
+
+    /// <summary>The observation index of the Wasay in a duel run.</summary>
+    private static int WasayDuelIndex(bool mirrored) => mirrored ? 1 : 0;
+
+    /// <summary>The observation index of the opponent in a duel run.</summary>
+    private static int OpponentDuelIndex(bool mirrored) => mirrored ? 0 : 1;
+
+    /// <summary>
+    /// How many ticks of a run the Wasay spent in
+    /// <see cref="FootworkPhase.Recover"/> while its opponent was in some
+    /// phase other than <see cref="FootworkPhase.Commit"/> — the
+    /// repositioning window the matchup table asks the longer Wasay recovery
+    /// to leave open.
+    /// </summary>
+    private static int RecoveryWindowTicks(
+        RunObservation run,
+        int wasayIndex,
+        int opponentIndex)
+    {
+        var wasayTrack = run.PhaseTracks[wasayIndex];
+        var opponentTrack = run.PhaseTracks[opponentIndex];
+        var windows = 0;
+        for (var tick = 0; tick < wasayTrack.Count; tick++)
+        {
+            if (wasayTrack[tick] == FootworkPhase.Recover &&
+                opponentTrack[tick] != FootworkPhase.Commit)
+            {
+                windows++;
+            }
+        }
+
+        return windows;
+    }
+
+    /// <summary>
+    /// The shared-matrix team composition that pairs the Wasay with
+    /// <paramref name="ally"/>.
+    /// </summary>
+    private static MovementScenarioMatrix.TeamComposition WasayTeamComposition(
+        CombatLoadout ally)
+    {
+        var allyIndex = MovementRouteRules.CanonicalOpponentIndex(ally);
+        return MovementScenarioMatrix.EnumerateTeamCompositions().Single(team =>
+            (team.FirstMemberIndex == WasayCanonicalIndex &&
+                team.SecondMemberIndex == allyIndex) ||
+            (team.FirstMemberIndex == allyIndex &&
+                team.SecondMemberIndex == WasayCanonicalIndex));
+    }
+
+    /// <summary>
+    /// Repeats one duel with the eastern warrior's starting bearing written
+    /// by hand before the simulation is built.
+    /// </summary>
+    private static RunObservation ObserveDuelWithEasternBearing(
+        int opponentCanonicalIndex,
+        Facing16 bearing)
+    {
+        var (scenario, agents) =
+            BuildDuel(opponentCanonicalIndex, mirrored: false);
+        agents[1].Facing = bearing;
+        return ObserveRun(scenario, agents, CalibrationTicks);
+    }
+
+    /// <summary>
+    /// The six duel cells this family runs are read out of the shared matrix
+    /// rather than written down here: the 1v1 enumeration is filtered to the
+    /// cells that contain the Wasay row, and the non-Wasay side of those six
+    /// cells is exactly the six canonical loadouts, the mirror cell included.
+    /// A seventh loadout added to the shared matrix therefore reaches this
+    /// family without a line of this file being edited.
+    /// </summary>
+    /// <remarks>
+    /// The combat preset is derived rather than assumed for the same reason.
+    /// Only <see cref="CombatPresetId.PrecolonialPhilippinesV2"/> fields all
+    /// six canonical loadouts, so every cell whose opponent carries a shield
+    /// must name it, and the cell's own
+    /// <c>RequiresPrecolonialPhilippinesV2</c> flag is what decides.
+    /// </remarks>
+    [Fact]
+    public void TheWasayDuelCellsComeFromTheSharedMatrixRatherThanAHandList()
+    {
+        var cells = WasayOneVersusOnePairs();
+
+        Assert.Equal(MovementScenarioMatrix.CanonicalLoadoutCount, cells.Count);
+        Assert.Equal(
+            Enumerable.Range(0, MovementScenarioMatrix.CanonicalLoadoutCount),
+            cells.Select(OpponentCanonicalIndex).Order());
+        Assert.Single(cells, cell => cell.IsMirror);
+
+        foreach (var cell in cells)
+        {
+            var opponentIndex = OpponentCanonicalIndex(cell);
+            var opponent =
+                MovementScenarioMatrix.CanonicalLoadouts[opponentIndex];
+            var (scenario, _) = BuildDuel(opponentIndex, mirrored: false);
+
+            Assert.Equal(
+                opponent.Shield != ShieldId.None,
+                cell.RequiresPrecolonialPhilippinesV2);
+            Assert.Equal(
+                cell.RequiresPrecolonialPhilippinesV2
+                    ? MovementScenarioMatrix.ShieldedCellCombatPreset
+                    : CombatPresetId.PrecolonialPhilippinesV4,
+                scenario.CombatPreset);
+            Assert.Equal(
+                MovementPresetId.EquipmentRelativeFootworkV6,
+                scenario.MovementPreset);
+        }
+    }
+
+    /// <summary>
+    /// The half of the section 7 table that every cell shares. Whichever of
+    /// the six opponents the Wasay is put in front of, and whichever side of
+    /// the arena it starts on, the run has to reach contact and keep making
+    /// progress: no stalemate longer than the shared 250-tick no-progress
+    /// bound of docs/plans/movement/README.md task T10 step 6, at least one
+    /// accepted blow from each side, a commitment from each side, and no step
+    /// past the shared human baseline for anyone.
+    /// </summary>
+    /// <remarks>
+    /// Start sides and faction bearings are mirrored by running every cell
+    /// twice: once with the Wasay on the western start as faction 0, and once
+    /// on the eastern start as faction 1 with both positions reflected about
+    /// the arena's centre line. The two orientations are not asserted to
+    /// produce the same hash, because README task T10 step 6 says raw hashes
+    /// need not match reflected coordinates; only the behavioural facts are
+    /// asserted of both. The determinism assertion is the honest one: the
+    /// identical fixture run twice reproduces its hash and every recorded
+    /// number.
+    /// </remarks>
+    [Fact]
+    public void EveryGeneratedWasayDuelCellReachesContactWithoutStalling()
+    {
+        foreach (var cell in WasayOneVersusOnePairs())
+        {
+            var opponentIndex = OpponentCanonicalIndex(cell);
+            var code =
+                MovementScenarioMatrix.CanonicalLoadoutCodes[opponentIndex];
+
+            foreach (var mirrored in new[] { false, true })
+            {
+                var run = ObserveDuel(opponentIndex, mirrored);
+                var wasay = run.Agents[WasayDuelIndex(mirrored)];
+                var opponent = run.Agents[OpponentDuelIndex(mirrored)];
+
+                Assert.True(
+                    run.LongestNoProgressStreakTicks <=
+                        NoProgressStreakBoundTicks,
+                    $"WA versus {code} (mirrored {mirrored}) went " +
+                    $"{run.LongestNoProgressStreakTicks} ticks without a " +
+                    "living-count, hit-point, or nearest-opponent-distance " +
+                    "change.");
+
+                Assert.True(
+                    wasay.LandedAttacks > 0,
+                    $"The Wasay never landed a blow against {code} " +
+                    $"(mirrored {mirrored}).");
+                Assert.True(
+                    opponent.LandedAttacks > 0,
+                    $"{code} never landed a blow against the Wasay " +
+                    $"(mirrored {mirrored}).");
+                Assert.NotNull(wasay.FirstCommitTick);
+                Assert.NotNull(opponent.FirstCommitTick);
+
+                foreach (var agent in run.Agents)
+                {
+                    Assert.True(
+                        agent.LargestStepRaw <= WarriorSpeedRaw,
+                        $"Entity {agent.EntityId} in WA versus {code} " +
+                        $"(mirrored {mirrored}) stepped " +
+                        $"{agent.LargestStepRaw} raw, past the " +
+                        $"{WarriorSpeedRaw}-unit shared baseline.");
+                }
+
+                var repeat = ObserveDuel(opponentIndex, mirrored);
+                Assert.Equal(run.StateHash, repeat.StateHash);
+                Assert.Equal(run.Agents, repeat.Agents);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The Kampilan row of the section 7 table. Its two named failure modes
+    /// are that the Wasay never closes and that it always closes without a
+    /// punishable interval, so both are what this pins: the Wasay does commit
+    /// and does land blows, and the longer-reach Kampilan has already landed
+    /// one before the Wasay's own commitment begins. The two commitments do
+    /// not start on the same tick, and that gap is the exposed crossing
+    /// interval itself.
+    /// </summary>
+    [Fact]
+    public void TheKampilanDuelCostsTheWasayAnIntervalToCrossTheLongerReach()
+    {
+        var kampilanIndex =
+            MovementRouteRules.CanonicalOpponentIndex(KampilanLoadout);
+
+        foreach (var mirrored in new[] { false, true })
+        {
+            var run = ObserveDuel(kampilanIndex, mirrored);
+            var wasay = run.Agents[WasayDuelIndex(mirrored)];
+            var kampilan = run.Agents[OpponentDuelIndex(mirrored)];
+
+            Assert.NotNull(wasay.FirstCommitTick);
+            Assert.True(wasay.LandedAttacks > 0);
+            Assert.NotNull(kampilan.FirstLandedAttackTick);
+            Assert.True(
+                kampilan.FirstLandedAttackTick < wasay.FirstCommitTick,
+                $"The Kampilan first landed on tick " +
+                $"{kampilan.FirstLandedAttackTick} and the Wasay committed " +
+                $"on tick {wasay.FirstCommitTick} (mirrored {mirrored}), so " +
+                "the crossing cost the Wasay nothing.");
+            Assert.NotEqual(kampilan.FirstCommitTick, wasay.FirstCommitTick);
+            Assert.True(
+                run.LongestNoProgressStreakTicks <=
+                    NoProgressStreakBoundTicks);
+        }
+    }
+
+    /// <summary>
+    /// The Wasay mirror row of the section 7 table, whose failure modes are
+    /// permanent circling, a fixed head-on collision loop, and never reaching
+    /// contact. Both warriors land blows, both spend most of the run at or
+    /// inside their own preferred distance, and neither is ever held in place
+    /// by the collision pass or denied by the friendly-clearance pass.
+    /// </summary>
+    /// <remarks>
+    /// Two head-on Wasay warriors on one lane are a geometrically symmetric
+    /// fixture running a single profile, so they enter <c>Commit</c> on the
+    /// same tick, and that equality is asserted here rather than glossed
+    /// over. The staggering the plan asks two Wasay allies for is a clearance
+    /// effect rather than a duel effect, and it is proved in
+    /// <see cref="TwoWasayAlliesStaggerOnlyWhenTheirClearanceContends"/>.
+    /// </remarks>
+    [Fact]
+    public void TheWasayMirrorReachesContactWithoutACollisionLoop()
+    {
+        var run = ObserveDuel(
+            MovementRouteRules.CanonicalOpponentIndex(WasayLoadout));
+        var west = run.Agents[0];
+        var east = run.Agents[1];
+
+        Assert.NotNull(west.FirstLandedAttackTick);
+        Assert.NotNull(east.FirstLandedAttackTick);
+        Assert.True(west.TicksBeyondPreferredDistance < run.ObservedTicks);
+        Assert.True(east.TicksBeyondPreferredDistance < run.ObservedTicks);
+        Assert.Equal(0, west.BlockedTicks);
+        Assert.Equal(0, east.BlockedTicks);
+        Assert.Equal(0, run.MovementConflictDenials);
+        Assert.Equal(west.FirstCommitTick, east.FirstCommitTick);
+        Assert.True(
+            run.LongestNoProgressStreakTicks <= NoProgressStreakBoundTicks);
+    }
+
+    /// <summary>
+    /// The Kalis row of the section 7 table, whose failure modes are that the
+    /// Wasay's damage identity overwhelms every exchange and that the Kalis
+    /// survives only by orbiting forever. The Kalis lands blows of its own,
+    /// takes commitments of its own, and spends most of the run at or inside
+    /// its own offset-adjusted preferred distance rather than circling
+    /// outside it. The repositioning window is the Wasay's own recovery: the
+    /// Wasay row's four recovery ticks are twice the Kalis row's two, so
+    /// there are ticks in which the Wasay is recovering and the Kalis is free
+    /// to move.
+    /// </summary>
+    [Fact]
+    public void TheKalisDuelLeavesKalisARepositioningWindowInTheWasayRecovery()
+    {
+        var kalisIndex =
+            MovementRouteRules.CanonicalOpponentIndex(KalisLoadout);
+
+        foreach (var mirrored in new[] { false, true })
+        {
+            var run = ObserveDuel(kalisIndex, mirrored);
+            var wasay = run.Agents[WasayDuelIndex(mirrored)];
+            var kalis = run.Agents[OpponentDuelIndex(mirrored)];
+
+            Assert.True(kalis.LandedAttacks > 0);
+            Assert.NotNull(kalis.FirstCommitTick);
+            Assert.True(kalis.TicksBeyondPreferredDistance < run.ObservedTicks);
+            Assert.True(wasay.RecoverTicks > 0);
+            Assert.True(
+                RecoveryWindowTicks(
+                    run,
+                    WasayDuelIndex(mirrored),
+                    OpponentDuelIndex(mirrored)) > 0,
+                "The Kalis was never free to move during a Wasay recovery " +
+                $"(mirrored {mirrored}).");
+        }
+    }
+
+    /// <summary>
+    /// The shielded Kalis row of the section 7 table, whose failure modes are
+    /// that mirroring the shield bearing changes authoritative movement and
+    /// that the shield grants speed. Neither can happen, and this is why: the
+    /// equipment-relative preset writes every warrior's opening facing from
+    /// its faction at simulation creation, so a starting bearing written by
+    /// hand — north, its mirror south, or none at all — is discarded, and all
+    /// three constructions produce the same state hash and the same recorded
+    /// behaviour. No step of either warrior passes the shared human baseline
+    /// either, so the shield buys no pace.
+    /// </summary>
+    [Fact]
+    public void TheShieldedKalisStartingBearingDoesNotChangeMovement()
+    {
+        var kalisShieldIndex =
+            MovementRouteRules.CanonicalOpponentIndex(KalisShieldLoadout);
+        var unset = ObserveDuelWithEasternBearing(
+            kalisShieldIndex, Facing16.None);
+        var north = ObserveDuelWithEasternBearing(
+            kalisShieldIndex, Facing16.North);
+        var south = ObserveDuelWithEasternBearing(
+            kalisShieldIndex, Facing16.South);
+
+        Assert.Equal(unset.StateHash, north.StateHash);
+        Assert.Equal(unset.StateHash, south.StateHash);
+        Assert.Equal(unset.Agents, north.Agents);
+        Assert.Equal(unset.Agents, south.Agents);
+
+        foreach (var agent in unset.Agents)
+        {
+            Assert.True(
+                agent.LargestStepRaw <= WarriorSpeedRaw,
+                $"Entity {agent.EntityId} stepped {agent.LargestStepRaw} " +
+                $"raw, past the {WarriorSpeedRaw}-unit shared baseline.");
+        }
+    }
+
+    /// <summary>
+    /// The Itak row of the section 7 table, whose failure modes are that the
+    /// Itak has no route in and that the Wasay can never restore separation
+    /// after a crossing. The straight entry is contested rather than free:
+    /// the shorter Itak is held outside its own offset-adjusted preferred
+    /// distance on strictly more ticks than the Wasay is held outside its.
+    /// The Itak still has a route in — it commits and it lands blows — and
+    /// the crossing or reset opportunity is the Wasay's own recovery.
+    /// </summary>
+    [Fact]
+    public void TheItakDuelContestsTheStraightEntryAndStillOpensOnRecovery()
+    {
+        var itakIndex = MovementRouteRules.CanonicalOpponentIndex(ItakLoadout);
+
+        foreach (var mirrored in new[] { false, true })
+        {
+            var run = ObserveDuel(itakIndex, mirrored);
+            var wasay = run.Agents[WasayDuelIndex(mirrored)];
+            var itak = run.Agents[OpponentDuelIndex(mirrored)];
+
+            Assert.True(
+                itak.TicksBeyondPreferredDistance >
+                    wasay.TicksBeyondPreferredDistance,
+                $"The Itak spent {itak.TicksBeyondPreferredDistance} ticks " +
+                "outside its preferred distance and the Wasay " +
+                $"{wasay.TicksBeyondPreferredDistance} (mirrored " +
+                $"{mirrored}), so the straight entry was uncontested.");
+            Assert.True(itak.LandedAttacks > 0);
+            Assert.NotNull(itak.FirstCommitTick);
+            Assert.True(
+                RecoveryWindowTicks(
+                    run,
+                    WasayDuelIndex(mirrored),
+                    OpponentDuelIndex(mirrored)) > 0,
+                "The Itak was never free to move during a Wasay recovery " +
+                $"(mirrored {mirrored}).");
+        }
+    }
+
+    /// <summary>
+    /// The shielded Itak row of the section 7 table, whose failure modes are
+    /// that the shield causes an endless Wasay retreat and that it grants a
+    /// movement-speed advantage. One ally against one hostile is a 1:1 local
+    /// ratio, far below the Wasay row's 2:1 disengagement entry, so the Wasay
+    /// never enters disengagement at all — the strongest available form of
+    /// "bounded". Neither warrior steps past the shared human baseline, and
+    /// the shield bearer still lands blows rather than being walked off the
+    /// field.
+    /// </summary>
+    [Fact]
+    public void TheShieldedItakDuelNeitherRoutsTheWasayNorOutpacesIt()
+    {
+        var itakShieldIndex =
+            MovementRouteRules.CanonicalOpponentIndex(ItakShieldLoadout);
+
+        foreach (var mirrored in new[] { false, true })
+        {
+            var run = ObserveDuel(itakShieldIndex, mirrored);
+            var wasay = run.Agents[WasayDuelIndex(mirrored)];
+            var itak = run.Agents[OpponentDuelIndex(mirrored)];
+
+            Assert.Equal(0, wasay.DisengageTicks);
+            Assert.Equal(0, wasay.DisengageEntries);
+            Assert.Equal(0, wasay.DisengageReleases);
+            Assert.True(itak.LargestStepRaw <= WarriorSpeedRaw);
+            Assert.True(wasay.LargestStepRaw <= WarriorSpeedRaw);
+            Assert.True(itak.LandedAttacks > 0);
+            Assert.True(
+                run.LongestNoProgressStreakTicks <=
+                    NoProgressStreakBoundTicks);
+        }
+    }
+
+    /// <summary>
+    /// The homogeneous 2v2 case of section 7. Two Wasay allies are asked to
+    /// stagger their commitments because of clearance and recovery, and not
+    /// because of any hard-coded alternation, so both halves are run. Given a
+    /// lane of their own each, the same two profiles contend for nothing and
+    /// commit on the very same tick, which is what rules out an alternation
+    /// rule. Put one behind the other on a single lane and they stagger, with
+    /// the delay accounted for by the run's own conflict denials and by the
+    /// rear warrior's refused routes.
+    /// </summary>
+    [Fact]
+    public void TwoWasayAlliesStaggerOnlyWhenTheirClearanceContends()
+    {
+        var composition = WasayTeamComposition(WasayLoadout);
+        var separated = ObservePairMatchup(
+            composition, SeparatedLaneOffsetRaw);
+        var column = ObservePairMatchup(
+            composition, laneOffsetRaw: 0, ContendedColumnDepthRaw);
+
+        Assert.Equal(0, separated.MovementConflictDenials);
+        Assert.All(
+            separated.Agents, agent => Assert.Equal(0, agent.RefuseTicks));
+        Assert.Equal(
+            separated.Agents[0].FirstCommitTick,
+            separated.Agents[1].FirstCommitTick);
+
+        Assert.NotEqual(
+            column.Agents[0].FirstCommitTick,
+            column.Agents[1].FirstCommitTick);
+        Assert.True(
+            column.MovementConflictDenials > 0,
+            "The column fixture staggered without a single conflict denial " +
+            "to explain it.");
+        Assert.True(
+            column.Agents[1].RefuseTicks > 0,
+            "The rear Wasay never refused a route, so the stagger has no " +
+            "clearance explanation.");
+        Assert.True(
+            column.MinimumAllySeparationRaw >= WasayClearanceRadiusRaw(),
+            "Two Wasay allies closed to " +
+            $"{column.MinimumAllySeparationRaw} raw, inside their own " +
+            $"{WasayClearanceRadiusRaw()}-unit clearance radius.");
+        Assert.True(
+            column.LongestNoProgressStreakTicks <=
+                NoProgressStreakBoundTicks);
+        Assert.All(
+            column.Agents,
+            agent => Assert.True(agent.LargestStepRaw <= WarriorSpeedRaw));
+    }
+
+    /// <summary>
+    /// The mixed 2v2 case of section 7: a Wasay whose shorter Itak ally
+    /// already occupies the direct lane has to take its own outer or
+    /// supporting lane rather than cutting through that approach. The Itak
+    /// leads the column and the Wasay follows on the same lane, and across
+    /// the whole run no two allies ever close inside the Wasay's own
+    /// clearance radius. The Wasay leaves the shared centre lane, records
+    /// refused routes or conflict denials rather than pressing through, and
+    /// still lands blows, so yielding the lane does not make it inert.
+    /// </summary>
+    [Fact]
+    public void AMixedWasayPairTakesItsOwnLaneWithoutCuttingThroughTheAlly()
+    {
+        var composition = WasayTeamComposition(ItakLoadout);
+        var run = ObservePairMatchup(
+            composition,
+            laneOffsetRaw: 0,
+            ContendedColumnDepthRaw,
+            reverseMembers: true);
+        var itak = run.Agents[0];
+        var wasay = run.Agents[1];
+
+        Assert.Equal(WeaponId.Itak, itak.Loadout.Weapon);
+        Assert.Equal(WeaponId.Wasay, wasay.Loadout.Weapon);
+
+        Assert.True(
+            run.MinimumAllySeparationRaw >= WasayClearanceRadiusRaw(),
+            $"The Wasay closed to {run.MinimumAllySeparationRaw} raw of its " +
+            $"ally, inside its own {WasayClearanceRadiusRaw()}-unit " +
+            "clearance radius.");
+        Assert.True(
+            wasay.LargestLaneOffsetRaw > 0,
+            "The Wasay never left the shared centre lane.");
+        Assert.True(
+            wasay.RefuseTicks > 0 || run.MovementConflictDenials > 0,
+            "Nothing in the run shows the Wasay yielding the occupied lane.");
+        Assert.True(wasay.LandedAttacks > 0);
+        Assert.True(itak.LandedAttacks > 0);
+        Assert.True(
+            run.LongestNoProgressStreakTicks <= NoProgressStreakBoundTicks);
+        Assert.All(
+            run.Agents,
+            agent => Assert.True(agent.LargestStepRaw <= WarriorSpeedRaw));
+    }
 }
+
