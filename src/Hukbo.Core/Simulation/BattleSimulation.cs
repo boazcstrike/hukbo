@@ -80,6 +80,26 @@ public sealed class BattleSimulation
     private readonly LoadoutCompositionCounts[] _factionSurvivingCompositions;
     private long _localMovementContextDerivations;
 
+    // Equipment-relative footwork pipeline scratch (weapon-relative movement
+    // design, sections 8 through 11). Every array is allocated once here and
+    // sized zero under every legacy preset, so a V1-through-V5 battle
+    // carries none of this storage and no V6 stage ever runs for it. None
+    // of these values is hashed or snapshotted: the authoritative results —
+    // posture, phase, timer, facing, retained pace — live on AgentState and
+    // are written by the stages that own them. The conflict-denial counter
+    // is derived observability in the same mould as the collision counters:
+    // never read by any simulation stage, reported by T9's wiring.
+    private readonly TacticalPosture[] _contingentPostures;
+    private readonly FootworkPhase[] _provisionalFootworkPhases;
+    private readonly int[] _provisionalFootworkTicks;
+    private readonly int[] _proposedPaceRaw;
+    private readonly bool[] _attackAcceptedThisTick;
+    private readonly int[] _factionLocalIndexes;
+    private readonly FriendlyClearanceProposal[] _conflictProposals;
+    private readonly int[] _conflictProposalAgentIndexes;
+    private readonly bool[] _conflictAccepted;
+    private long _movementConflictDenials;
+
     // Double-buffered event storage: each tick writes into whichever of these
     // two lists is not currently exposed through _lastEvents, so a caller
     // that retains one tick's LastEvents value keeps seeing that tick's data,
@@ -123,6 +143,23 @@ public sealed class BattleSimulation
             ? new LocalMovementContext[agents.Length]
             : [];
         _factionSurvivingCompositions = new LoadoutCompositionCounts[2];
+        var usesFootwork = _movementRules.UsesEquipmentRelativeFootwork;
+        _contingentPostures = usesFootwork
+            ? new TacticalPosture[ContingentSlotCount]
+            : [];
+        _provisionalFootworkPhases = usesFootwork
+            ? new FootworkPhase[agents.Length]
+            : [];
+        _provisionalFootworkTicks = usesFootwork ? new int[agents.Length] : [];
+        _proposedPaceRaw = usesFootwork ? new int[agents.Length] : [];
+        _attackAcceptedThisTick = usesFootwork ? new bool[agents.Length] : [];
+        _factionLocalIndexes = usesFootwork ? new int[agents.Length] : [];
+        _conflictProposals = usesFootwork
+            ? new FriendlyClearanceProposal[agents.Length]
+            : [];
+        _conflictProposalAgentIndexes =
+            usesFootwork ? new int[agents.Length] : [];
+        _conflictAccepted = usesFootwork ? new bool[agents.Length] : [];
         _eventBufferA = new List<BattleEvent>(agents.Length * 2);
         _eventBufferB = new List<BattleEvent>(agents.Length * 2);
         _eventViewA = new ReadOnlyCollection<BattleEvent>(_eventBufferA);
@@ -154,6 +191,36 @@ public sealed class BattleSimulation
                 (agent.FactionId * FormationPlanner.MaximumContingents) +
                 agent.ContingentId);
             _contingentInitialCounts[slot]++;
+        }
+
+        if (usesFootwork)
+        {
+            // Initial V6 facing (design section 6.3): East for faction 0,
+            // West for faction 1, written once at simulation creation. The
+            // faction-local index (design section 10.3) is the stable
+            // ascending-EntityId rank within the agent's own faction,
+            // computed here by explicit comparison so it never depends on
+            // the incidental storage order; it is derived scratch and is
+            // neither hashed nor snapshotted.
+            for (var index = 0; index < agents.Length; index++)
+            {
+                var agent = agents[index];
+                agent.Facing = agent.FactionId == 0
+                    ? Facing16.East
+                    : Facing16.West;
+
+                var rank = 0;
+                foreach (var other in agents)
+                {
+                    if (other.FactionId == agent.FactionId &&
+                        other.EntityId < agent.EntityId)
+                    {
+                        rank++;
+                    }
+                }
+
+                _factionLocalIndexes[index] = rank;
+            }
         }
 
         UpdateViews();
@@ -193,6 +260,19 @@ public sealed class BattleSimulation
     /// </summary>
     internal long LocalMovementContextDerivationsForTesting =>
         _localMovementContextDerivations;
+
+    /// <summary>
+    /// The number of movement proposals the friendly-clearance conflict pass
+    /// (weapon-relative movement design, section 10.6) has rejected since
+    /// the battle started. Derived observability in the same mould as the
+    /// collision counters: never hashed, never snapshotted, never read by
+    /// any simulation stage, and zero forever under every legacy preset,
+    /// which never runs the pass at all. A denied agent is indistinguishable
+    /// from a blocked one in the view, so this counter is the only honest
+    /// record; T9 wires it into reporting.
+    /// </summary>
+    internal long MovementConflictDenialsForTesting =>
+        _movementConflictDenials;
 
     /// <summary>
     /// The local movement context derived for one agent by the tick just
@@ -491,11 +571,36 @@ public sealed class BattleSimulation
         DecrementCooldowns();
         SelectTargetsAndIntents();
         ResolveContingentStates();
+        if (_movementRules.UsesEquipmentRelativeFootwork)
+        {
+            // Design section 11.2: posture, then the provisional footwork
+            // phase, resolved between the contingent-state stage and
+            // proposal gathering, under the opt-in flag only.
+            ResolveEquipmentPosturesAndProvisionalFootwork();
+        }
+
         GatherMovementProposals();
+        if (_movementRules.UsesEquipmentRelativeFootwork)
+        {
+            // Design section 10.6: the friendly-clearance conflict pass runs
+            // after every proposal exists and before anything is committed,
+            // preserving the no-peeking invariant GatherMovementProposals
+            // documents.
+            ResolveFriendlyClearanceConflicts();
+        }
+
         ResolveCollisions();
         CommitMovement(events);
         MeasureCollision();
         GatherAndCommitAttacks(events);
+        if (_movementRules.UsesEquipmentRelativeFootwork)
+        {
+            // Design section 9.6: surviving accepted attackers enter Commit,
+            // and agents killed by the gathered exchange take death cleanup,
+            // before any outcome, hash, or snapshot work.
+            ApplyEquipmentAttackFootworkAndDeathCleanup();
+        }
+
         ResolveOutcome(events);
 
         UpdateViews();
@@ -1343,6 +1448,15 @@ public sealed class BattleSimulation
     /// </remarks>
     private void GatherMovementProposals()
     {
+        if (_movementRules.UsesEquipmentRelativeFootwork)
+        {
+            // The equipment-relative route pipeline (design sections 10 and
+            // 11) replaces this whole stage under the opt-in flag; every
+            // legacy preset continues below untouched.
+            GatherEquipmentRelativeMovementProposals();
+            return;
+        }
+
         Array.Clear(_movementProposals);
 
         // Every persistent-contingent preset takes the cohesion branch. The
@@ -1422,6 +1536,1081 @@ public sealed class BattleSimulation
             }
         }
     }
+
+    /// <summary>
+    /// The equipment-relative posture-and-provisional-footwork stage of the
+    /// weapon-relative movement design, sections 8 and 9, inserted between
+    /// <see cref="ResolveContingentStates"/> and
+    /// <see cref="GatherMovementProposals"/> per design section 11.2 and
+    /// reached only under a preset whose
+    /// <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/> is
+    /// <see langword="true"/>. Postures resolve once per contingent from the
+    /// global living totals, this tick's already-resolved
+    /// <see cref="ContingentState"/>, and the two factions' role coverage,
+    /// and are written to every living member. The provisional phase and
+    /// timer stay in scratch: design section 9.4 commits them exactly once,
+    /// after route generation and lane clearance finalise them.
+    /// </summary>
+    private void ResolveEquipmentPosturesAndProvisionalFootwork()
+    {
+        for (var slot = 0; slot < ContingentSlotCount; slot++)
+        {
+            if (_contingentLivingCounts[slot] == 0)
+            {
+                _contingentPostures[slot] = TacticalPosture.None;
+                continue;
+            }
+
+            var factionId = slot / FormationPlanner.MaximumContingents;
+            _contingentPostures[slot] = WeaponMovementRules.ResolveTacticalPosture(
+                _factionLivingCounts[factionId],
+                _factionLivingCounts[1 - factionId],
+                _contingentResolvedStates[slot],
+                _factionSurvivingCompositions[factionId].RoleCoverage,
+                _factionSurvivingCompositions[1 - factionId].RoleCoverage);
+        }
+
+        for (var index = 0; index < _agentStates.Length; index++)
+        {
+            var agent = _agentStates[index];
+            if (!agent.IsAlive)
+            {
+                _provisionalFootworkPhases[index] = FootworkPhase.None;
+                _provisionalFootworkTicks[index] = 0;
+                continue;
+            }
+
+            var slot = checked(
+                (agent.FactionId * FormationPlanner.MaximumContingents) +
+                agent.ContingentId);
+            agent.TacticalPosture = _contingentPostures[slot];
+
+            var profile = _movementRules.ResolveLoadoutProfile(agent.Loadout);
+            var context = _localMovementContexts[index];
+            var hasTarget = false;
+            var targetAtOrInsidePreferredDistance = false;
+            if (agent.TargetEntityId is { } targetId &&
+                _agentIndexes.TryGetValue(targetId, out var targetIndex))
+            {
+                var target = _agentStates[targetIndex];
+                hasTarget = true;
+
+                // Design section 9.1, step 8: the offset-adjusted preferred
+                // distance, compared inclusively on squared values. The
+                // target's loadout is read from authoritative state here, at
+                // the moment the offset is applied, so no second copy of the
+                // target's identity is cached anywhere.
+                var preferredRaw =
+                    MovementRouteRules.EffectivePreferredDistanceRaw(
+                        agent.AttackRangeRaw,
+                        profile,
+                        MovementRouteRules.CanonicalOpponentIndex(
+                            target.Loadout));
+                targetAtOrInsidePreferredDistance =
+                    (Int128)SquaredDistance(agent, target) <=
+                    checked((Int128)preferredRaw * preferredRaw);
+            }
+
+            var (phase, ticksRemaining) =
+                WeaponMovementRules.ResolveProvisionalFootwork(
+                    isAlive: true,
+                    agent.FootworkPhase,
+                    agent.FootworkTicksRemaining,
+                    agent.TacticalPosture,
+                    context.SupportAllies,
+                    context.SupportEnemies,
+                    profile.DisengageEnemyToAllyBasisPoints,
+                    profile.ReengageEnemyToAllyBasisPoints,
+                    profile.RecoveryTicks,
+                    hasTarget,
+                    targetAtOrInsidePreferredDistance);
+            _provisionalFootworkPhases[index] = phase;
+            _provisionalFootworkTicks[index] = ticksRemaining;
+        }
+    }
+
+    /// <summary>
+    /// The equipment-relative proposal-gathering stage, replacing the legacy
+    /// stage wholesale under the opt-in flag. Reads tick-start state only,
+    /// exactly like the legacy stage: nothing is committed here except each
+    /// agent's own facing and finalised footwork phase, neither of which any
+    /// other agent's route reads this tick — every route reads tick-start
+    /// positions and the scratch the pre-movement stages produced.
+    /// </summary>
+    private void GatherEquipmentRelativeMovementProposals()
+    {
+        Array.Clear(_movementProposals);
+        Array.Clear(_proposedPaceRaw);
+        var tick = checked((int)Tick);
+
+        for (var index = 0; index < _agentStates.Length; index++)
+        {
+            var agent = _agentStates[index];
+            if (!agent.IsAlive)
+            {
+                continue;
+            }
+
+            GatherOneEquipmentProposal(index, agent, tick);
+        }
+    }
+
+    /// <summary>
+    /// Routes one living agent through the destination precedence chain of
+    /// design section 11.1 — dead, body-contact Attacking hold, last-stand
+    /// rally, V6 disengage route, contingent cohesion, the remaining V6
+    /// phase routes, then ordinary pursuit — and commits its footwork phase
+    /// and timer exactly once through the two-step finalisation of design
+    /// section 9.4. A destination taken from a source above the V6 routes
+    /// counts as a surviving candidate: only a route whose own candidates
+    /// were exhausted, by absence or by lane clearance, can finalise
+    /// <see cref="FootworkPhase.Refuse"/>.
+    /// </summary>
+    private void GatherOneEquipmentProposal(int index, AgentState agent, int tick)
+    {
+        var profile = _movementRules.ResolveLoadoutProfile(agent.Loadout);
+        var provisionalPhase = _provisionalFootworkPhases[index];
+        var provisionalTicks = _provisionalFootworkTicks[index];
+        var threat = ResolveLivingThreat(agent);
+
+        bool phaseSurvives;
+        if (agent.Intent == AgentIntent.Attacking)
+        {
+            // Body-contact Attacking hold: no movement is proposed, but the
+            // warrior still turns toward its threat — turning in place is
+            // permitted because facing commits independently of movement.
+            TurnFacingInPlace(agent, profile, provisionalPhase, threat);
+            phaseSurvives = true;
+        }
+        else if (agent.Intent == AgentIntent.Regrouping)
+        {
+            // The existing last-stand destination, pace-constrained per
+            // design section 11.1's closing rule.
+            if (TryComputeRegroupingAimPoint(agent, index) is { } rally)
+            {
+                ProposeEquipmentStepTowardPoint(
+                    index,
+                    agent,
+                    profile,
+                    provisionalPhase,
+                    threat,
+                    rally.XRaw,
+                    rally.YRaw,
+                    rally.RallyEntityId);
+            }
+            else
+            {
+                TurnFacingInPlace(agent, profile, provisionalPhase, threat);
+            }
+
+            phaseSurvives = true;
+        }
+        else if (provisionalPhase == FootworkPhase.Disengage)
+        {
+            phaseSurvives = TryProposeEquipmentRoute(
+                index, agent, profile, provisionalPhase, threat);
+        }
+        else if (agent.Intent == AgentIntent.Moving &&
+            agent.TargetEntityId is not null &&
+            TryResolveContingentCohesionAimPoint(
+                agent,
+                tick,
+                out var aimXRaw,
+                out var aimYRaw,
+                out var leaderEntityId))
+        {
+            // The existing contingent-cohesion destination, with the same
+            // arrived-guard the legacy branch applies, pace-constrained.
+            var squaredDistanceToAim = CollisionGeometry.SquaredDistance(
+                agent.XRaw,
+                agent.YRaw,
+                aimXRaw,
+                aimYRaw);
+            if (squaredDistanceToAim <=
+                CollisionGeometry.ContactSquaredDistance(Scenario.BodyRadiusRaw))
+            {
+                TurnFacingInPlace(agent, profile, provisionalPhase, threat);
+            }
+            else
+            {
+                ProposeEquipmentStepTowardPoint(
+                    index,
+                    agent,
+                    profile,
+                    provisionalPhase,
+                    threat,
+                    aimXRaw,
+                    aimYRaw,
+                    leaderEntityId);
+            }
+
+            phaseSurvives = true;
+        }
+        else if (provisionalPhase is FootworkPhase.Approach
+            or FootworkPhase.Engage
+            or FootworkPhase.Commit
+            or FootworkPhase.Recover
+            or FootworkPhase.Regroup
+            or FootworkPhase.Pursue)
+        {
+            phaseSurvives = TryProposeEquipmentRoute(
+                index, agent, profile, provisionalPhase, threat);
+        }
+        else if (agent.Intent == AgentIntent.Moving && threat is not null)
+        {
+            // Ordinary pursuit, the chain's floor. Defensive under V6: a
+            // Moving agent has a target, so its provisional phase is one of
+            // the route phases above and this branch is not reachable by
+            // the phase table — it exists so a future phase addition
+            // degrades to pursuit instead of to standing still.
+            ProposeEquipmentStepTowardPoint(
+                index,
+                agent,
+                profile,
+                provisionalPhase,
+                threat,
+                threat.XRaw,
+                threat.YRaw,
+                threat.EntityId);
+            phaseSurvives = true;
+        }
+        else
+        {
+            TurnFacingInPlace(agent, profile, provisionalPhase, threat);
+            phaseSurvives = true;
+        }
+
+        // Design section 9.4: FootworkPhase and FootworkTicksRemaining are
+        // written exactly once, here, after finalisation.
+        var (finalPhase, finalTicks) = WeaponMovementRules.FinalizeFootwork(
+            provisionalPhase, provisionalTicks, phaseSurvives);
+        agent.FootworkPhase = finalPhase;
+        agent.FootworkTicksRemaining = finalTicks;
+    }
+
+    /// <summary>
+    /// Generates the provisional phase's route candidates per design section
+    /// 10.4, clearance-tests them in order per section 10.5, and proposes
+    /// the first survivor. Returns whether any candidate survived; on
+    /// failure the agent emits no proposal and only turns in place toward
+    /// its threat.
+    /// </summary>
+    private bool TryProposeEquipmentRoute(
+        int index,
+        AgentState agent,
+        LoadoutMovementProfile profile,
+        FootworkPhase provisionalPhase,
+        AgentState? threat)
+    {
+        Span<EquipmentRouteCandidate> candidates =
+            stackalloc EquipmentRouteCandidate[3];
+        var count = BuildEquipmentRouteCandidates(
+            index, agent, profile, provisionalPhase, threat, candidates);
+        var context = _localMovementContexts[index];
+        var actorClearanceSquared = SquaredClearanceRadius(profile);
+        var mapWidthRaw = checked(Scenario.MapWidth * FixedPoint.Scale);
+        var mapHeightRaw = checked(Scenario.MapHeight * FixedPoint.Scale);
+
+        for (var candidateIndex = 0; candidateIndex < count; candidateIndex++)
+        {
+            var candidate = candidates[candidateIndex];
+            var facing = ResolveCandidateFacing(
+                agent,
+                profile,
+                provisionalPhase,
+                threat,
+                candidate.DeltaXRaw,
+                candidate.DeltaYRaw);
+            var paceRaw = ResolveProposedPace(
+                agent,
+                profile,
+                provisionalPhase,
+                facing,
+                candidate.DeltaXRaw,
+                candidate.DeltaYRaw);
+
+            // A point destination is somewhere to arrive; the step is the
+            // smaller of the resulting pace and the remaining distance
+            // (design section 6.5). A direction candidate — an oblique, a
+            // facing vector, an escape vector — has no arrival point, so the
+            // full pace applies.
+            var effectivePaceRaw = paceRaw;
+            if (candidate.IsPointDestination)
+            {
+                var distanceRaw = IntegerSquareRoot(checked(
+                    (candidate.DeltaXRaw * candidate.DeltaXRaw) +
+                    (candidate.DeltaYRaw * candidate.DeltaYRaw)));
+                effectivePaceRaw = (int)Math.Min(paceRaw, distanceRaw);
+            }
+
+            if (MovementRouteRules.StepEndpoint(
+                agent.XRaw,
+                agent.YRaw,
+                candidate.DeltaXRaw,
+                candidate.DeltaYRaw,
+                effectivePaceRaw,
+                mapWidthRaw,
+                mapHeightRaw,
+                Scenario.BodyRadiusRaw) is not { } endpoint)
+            {
+                continue;
+            }
+
+            if (candidate.SubjectToSecondThreatOmission &&
+                ShouldOmitDirectCandidate(agent, context, endpoint))
+            {
+                continue;
+            }
+
+            if (!IsLaneClearOfAllies(
+                index, agent, endpoint, actorClearanceSquared))
+            {
+                continue;
+            }
+
+            agent.Facing = facing;
+            _movementProposals[index] =
+                (endpoint.XRaw, endpoint.YRaw, candidate.EventTargetId);
+            _proposedPaceRaw[index] = paceRaw;
+            return true;
+        }
+
+        TurnFacingInPlace(agent, profile, provisionalPhase, threat);
+        return false;
+    }
+
+    /// <summary>
+    /// The candidate table of design section 10.4, one phase per arm. Every
+    /// candidate is a delta from the actor's tick-start position; the span
+    /// is filled in the phase's own preference order.
+    /// </summary>
+    private int BuildEquipmentRouteCandidates(
+        int index,
+        AgentState agent,
+        LoadoutMovementProfile profile,
+        FootworkPhase provisionalPhase,
+        AgentState? threat,
+        Span<EquipmentRouteCandidate> candidates)
+    {
+        var count = 0;
+        var sideAClockwise = MovementRouteRules.SideAIsWorldClockwise(
+            _factionLocalIndexes[index], agent.FactionId);
+
+        switch (provisionalPhase)
+        {
+            case FootworkPhase.Approach:
+            case FootworkPhase.Engage:
+                {
+                    if (threat is null)
+                    {
+                        return 0;
+                    }
+
+                    var deltaXRaw = (long)threat.XRaw - agent.XRaw;
+                    var deltaYRaw = (long)threat.YRaw - agent.YRaw;
+                    if (deltaXRaw == 0 && deltaYRaw == 0)
+                    {
+                        return 0;
+                    }
+
+                    // The preferred distance is not a stop line: both phases
+                    // continue toward the target's centre so the existing
+                    // post-movement reach test stays authoritative.
+                    var direct = new EquipmentRouteCandidate(
+                        deltaXRaw,
+                        deltaYRaw,
+                        IsPointDestination: true,
+                        SubjectToSecondThreatOmission: true,
+                        threat.EntityId);
+                    var (sideAX, sideAY) = MovementRouteRules.RotateOblique(
+                        deltaXRaw, deltaYRaw, sideAClockwise);
+                    var (sideBX, sideBY) = MovementRouteRules.RotateOblique(
+                        deltaXRaw, deltaYRaw, !sideAClockwise);
+                    var sideA = new EquipmentRouteCandidate(
+                        sideAX,
+                        sideAY,
+                        IsPointDestination: false,
+                        SubjectToSecondThreatOmission: false,
+                        threat.EntityId);
+                    var sideB = new EquipmentRouteCandidate(
+                        sideBX,
+                        sideBY,
+                        IsPointDestination: false,
+                        SubjectToSecondThreatOmission: false,
+                        threat.EntityId);
+
+                    // Engage against two or more occupied enemy loadout buckets
+                    // prefers the obliques; a homogeneous composition, and every
+                    // approach, goes direct first.
+                    var sidesFirst = provisionalPhase == FootworkPhase.Engage &&
+                        MovementRouteRules.OccupiedLoadoutBuckets(
+                            _localMovementContexts[index].EnemyComposition) >= 2;
+                    if (sidesFirst)
+                    {
+                        candidates[count++] = sideA;
+                        candidates[count++] = sideB;
+                        candidates[count++] = direct;
+                    }
+                    else
+                    {
+                        candidates[count++] = direct;
+                        candidates[count++] = sideA;
+                        candidates[count++] = sideB;
+                    }
+
+                    return count;
+                }
+
+            case FootworkPhase.Commit:
+                {
+                    if (threat is not null)
+                    {
+                        var deltaXRaw = (long)threat.XRaw - agent.XRaw;
+                        var deltaYRaw = (long)threat.YRaw - agent.YRaw;
+                        if (deltaXRaw == 0 && deltaYRaw == 0)
+                        {
+                            return 0;
+                        }
+
+                        candidates[count++] = new EquipmentRouteCandidate(
+                            deltaXRaw,
+                            deltaYRaw,
+                            IsPointDestination: true,
+                            SubjectToSecondThreatOmission: false,
+                            threat.EntityId);
+                        return count;
+                    }
+
+                    if (agent.Facing == Facing16.None)
+                    {
+                        return 0;
+                    }
+
+                    var (facingX, facingY) = FacingRules.SectorVector(agent.Facing);
+                    candidates[count++] = new EquipmentRouteCandidate(
+                        facingX,
+                        facingY,
+                        IsPointDestination: false,
+                        SubjectToSecondThreatOmission: false,
+                        agent.EntityId);
+                    return count;
+                }
+
+            case FootworkPhase.Recover:
+                {
+                    long baseXRaw;
+                    long baseYRaw;
+                    ulong eventTargetId;
+                    if (agent.Facing != Facing16.None)
+                    {
+                        var opposite = (Facing16)(((int)agent.Facing + 8) % 16);
+                        var (oppositeX, oppositeY) =
+                            FacingRules.SectorVector(opposite);
+                        baseXRaw = oppositeX;
+                        baseYRaw = oppositeY;
+                        eventTargetId = threat?.EntityId ?? agent.EntityId;
+                    }
+                    else if (threat is not null)
+                    {
+                        baseXRaw = (long)agent.XRaw - threat.XRaw;
+                        baseYRaw = (long)agent.YRaw - threat.YRaw;
+                        if (baseXRaw == 0 && baseYRaw == 0)
+                        {
+                            return 0;
+                        }
+
+                        eventTargetId = threat.EntityId;
+                    }
+                    else
+                    {
+                        return 0;
+                    }
+
+                    candidates[count++] = new EquipmentRouteCandidate(
+                        baseXRaw,
+                        baseYRaw,
+                        IsPointDestination: false,
+                        SubjectToSecondThreatOmission: false,
+                        eventTargetId);
+                    var (sideAX, sideAY) = MovementRouteRules.RotateOblique(
+                        baseXRaw, baseYRaw, sideAClockwise);
+                    var (sideBX, sideBY) = MovementRouteRules.RotateOblique(
+                        baseXRaw, baseYRaw, !sideAClockwise);
+                    candidates[count++] = new EquipmentRouteCandidate(
+                        sideAX,
+                        sideAY,
+                        IsPointDestination: false,
+                        SubjectToSecondThreatOmission: false,
+                        eventTargetId);
+                    candidates[count++] = new EquipmentRouteCandidate(
+                        sideBX,
+                        sideBY,
+                        IsPointDestination: false,
+                        SubjectToSecondThreatOmission: false,
+                        eventTargetId);
+                    return count;
+                }
+
+            case FootworkPhase.Disengage:
+            case FootworkPhase.Regroup:
+                {
+                    var context = _localMovementContexts[index];
+                    var anchorExists = false;
+                    if (context.NearestAllyEntityId is { } allyId &&
+                        _agentIndexes.TryGetValue(allyId, out var allyIndex))
+                    {
+                        var ally = _agentStates[allyIndex];
+                        if (ally.IsAlive)
+                        {
+                            anchorExists = true;
+                            var deltaXRaw = (long)ally.XRaw - agent.XRaw;
+                            var deltaYRaw = (long)ally.YRaw - agent.YRaw;
+                            if (deltaXRaw != 0 || deltaYRaw != 0)
+                            {
+                                candidates[count++] = new EquipmentRouteCandidate(
+                                    deltaXRaw,
+                                    deltaYRaw,
+                                    IsPointDestination: true,
+                                    SubjectToSecondThreatOmission: false,
+                                    allyId);
+                            }
+                        }
+                    }
+
+                    var slot = checked(
+                        (agent.FactionId * FormationPlanner.MaximumContingents) +
+                        agent.ContingentId);
+                    var leaderEntityId = _contingentLeaderEntityIds[slot];
+                    if (leaderEntityId != 0 &&
+                        leaderEntityId != agent.EntityId &&
+                        _agentIndexes.TryGetValue(leaderEntityId, out var leaderIndex))
+                    {
+                        var leader = _agentStates[leaderIndex];
+                        if (leader.IsAlive)
+                        {
+                            anchorExists = true;
+                            var deltaXRaw = (long)leader.XRaw - agent.XRaw;
+                            var deltaYRaw = (long)leader.YRaw - agent.YRaw;
+                            if (deltaXRaw != 0 || deltaYRaw != 0)
+                            {
+                                candidates[count++] = new EquipmentRouteCandidate(
+                                    deltaXRaw,
+                                    deltaYRaw,
+                                    IsPointDestination: true,
+                                    SubjectToSecondThreatOmission: false,
+                                    leaderEntityId);
+                            }
+                        }
+                    }
+
+                    // Regroup stops at ally-then-leader; only Disengage owns the
+                    // escape fallback, and only when neither anchor exists at
+                    // all (design section 10.4).
+                    if (provisionalPhase == FootworkPhase.Regroup || anchorExists)
+                    {
+                        return count;
+                    }
+
+                    if (threat is null)
+                    {
+                        return 0;
+                    }
+
+                    var escapeFromNearestX = (long)agent.XRaw - threat.XRaw;
+                    var escapeFromNearestY = (long)agent.YRaw - threat.YRaw;
+                    long escapeFromSecondX = 0;
+                    long escapeFromSecondY = 0;
+                    if (context.SecondThreatEntityId is { } secondThreatId &&
+                        _agentIndexes.TryGetValue(secondThreatId, out var secondIndex))
+                    {
+                        var second = _agentStates[secondIndex];
+                        if (second.IsAlive)
+                        {
+                            escapeFromSecondX = (long)agent.XRaw - second.XRaw;
+                            escapeFromSecondY = (long)agent.YRaw - second.YRaw;
+                        }
+                    }
+
+                    var escapeXRaw = checked(escapeFromNearestX + escapeFromSecondX);
+                    var escapeYRaw = checked(escapeFromNearestY + escapeFromSecondY);
+                    if (escapeXRaw == 0 && escapeYRaw == 0)
+                    {
+                        if (escapeFromNearestX == 0 && escapeFromNearestY == 0)
+                        {
+                            return 0;
+                        }
+
+                        (escapeXRaw, escapeYRaw) =
+                            MovementRouteRules.PerpendicularVector(
+                                escapeFromNearestX,
+                                escapeFromNearestY,
+                                sideAClockwise);
+                    }
+
+                    candidates[count++] = new EquipmentRouteCandidate(
+                        escapeXRaw,
+                        escapeYRaw,
+                        IsPointDestination: false,
+                        SubjectToSecondThreatOmission: false,
+                        threat.EntityId);
+                    return count;
+                }
+
+            case FootworkPhase.Pursue:
+                {
+                    if (threat is null ||
+                        !HasAllyWithinPursuitSupport(index, agent, profile))
+                    {
+                        return 0;
+                    }
+
+                    var deltaXRaw = (long)threat.XRaw - agent.XRaw;
+                    var deltaYRaw = (long)threat.YRaw - agent.YRaw;
+                    if (deltaXRaw == 0 && deltaYRaw == 0)
+                    {
+                        return 0;
+                    }
+
+                    candidates[count++] = new EquipmentRouteCandidate(
+                        deltaXRaw,
+                        deltaYRaw,
+                        IsPointDestination: true,
+                        SubjectToSecondThreatOmission: false,
+                        threat.EntityId);
+                    return count;
+                }
+
+            default:
+                return 0;
+        }
+    }
+
+    /// <summary>
+    /// The second-threat rule of design section 10.4: with two or more
+    /// immediate enemies, the direct candidate is omitted only when its
+    /// endpoint sits strictly closer to the second threat than the actor's
+    /// tick-start position does. Exact equality keeps the direct candidate.
+    /// </summary>
+    private bool ShouldOmitDirectCandidate(
+        AgentState agent,
+        in LocalMovementContext context,
+        (int XRaw, int YRaw) endpoint)
+    {
+        if (context.ImmediateEnemies < 2 ||
+            context.SecondThreatEntityId is not { } secondThreatId ||
+            !_agentIndexes.TryGetValue(secondThreatId, out var secondIndex))
+        {
+            return false;
+        }
+
+        var second = _agentStates[secondIndex];
+        if (!second.IsAlive)
+        {
+            return false;
+        }
+
+        var endpointSquared = CollisionGeometry.SquaredDistance(
+            endpoint.XRaw, endpoint.YRaw, second.XRaw, second.YRaw);
+        var startSquared = CollisionGeometry.SquaredDistance(
+            agent.XRaw, agent.YRaw, second.XRaw, second.YRaw);
+        return endpointSquared < startSquared;
+    }
+
+    /// <summary>
+    /// The lane-clearance test of design section 10.5: one stable scan over
+    /// every living same-faction agent's tick-start position, rejecting a
+    /// candidate endpoint that sits at squared distance strictly less than
+    /// the square of the larger of the actor's and that ally's clearance
+    /// radii. Exact equality is clear, matching the collision stage's
+    /// strict-less tangency convention. No neighbours are stored and
+    /// nothing allocates.
+    /// </summary>
+    private bool IsLaneClearOfAllies(
+        int selfIndex,
+        AgentState agent,
+        (int XRaw, int YRaw) endpoint,
+        Int128 actorClearanceSquared)
+    {
+        for (var otherIndex = 0; otherIndex < _agentStates.Length; otherIndex++)
+        {
+            if (otherIndex == selfIndex)
+            {
+                continue;
+            }
+
+            var ally = _agentStates[otherIndex];
+            if (!ally.IsAlive || ally.FactionId != agent.FactionId)
+            {
+                continue;
+            }
+
+            var required = Int128.Max(
+                actorClearanceSquared,
+                SquaredClearanceRadius(
+                    _movementRules.ResolveLoadoutProfile(ally.Loadout)));
+            var separation = (Int128)CollisionGeometry.SquaredDistance(
+                endpoint.XRaw, endpoint.YRaw, ally.XRaw, ally.YRaw);
+            if (separation < required)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether at least one living ally stands within the actor's
+    /// pursuit-support distance, inclusive at the exact radius like every
+    /// context ring — the condition under which <see cref="FootworkPhase.Pursue"/>
+    /// keeps proposing a direct route (design section 10.4).
+    /// </summary>
+    private bool HasAllyWithinPursuitSupport(
+        int selfIndex,
+        AgentState agent,
+        LoadoutMovementProfile profile)
+    {
+        var supportSquared = MovementContextQuery.SquaredContextRadius(
+            MovementRouteRules.ClearanceRadiusRaw(
+                Scenario.BodyRadiusRaw,
+                profile.PursuitSupportBodyDiametersBasisPoints));
+
+        for (var otherIndex = 0; otherIndex < _agentStates.Length; otherIndex++)
+        {
+            if (otherIndex == selfIndex)
+            {
+                continue;
+            }
+
+            var ally = _agentStates[otherIndex];
+            if (!ally.IsAlive || ally.FactionId != agent.FactionId)
+            {
+                continue;
+            }
+
+            if ((Int128)SquaredDistance(agent, ally) <= supportSquared)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Builds one pace-constrained proposal toward a point destination
+    /// selected above the V6 routes in the precedence chain — the last-stand
+    /// rally aim, the contingent-cohesion aim, or the pursuit floor. Facing
+    /// and phase pace constrain the one-tick step per design section 11.1;
+    /// no lane clearance applies, because these destinations are the
+    /// existing sources the chain preserves.
+    /// </summary>
+    private void ProposeEquipmentStepTowardPoint(
+        int index,
+        AgentState agent,
+        LoadoutMovementProfile profile,
+        FootworkPhase provisionalPhase,
+        AgentState? threat,
+        int destinationXRaw,
+        int destinationYRaw,
+        ulong eventTargetId)
+    {
+        var deltaXRaw = (long)destinationXRaw - agent.XRaw;
+        var deltaYRaw = (long)destinationYRaw - agent.YRaw;
+        if (deltaXRaw == 0 && deltaYRaw == 0)
+        {
+            TurnFacingInPlace(agent, profile, provisionalPhase, threat);
+            return;
+        }
+
+        var facing = ResolveCandidateFacing(
+            agent, profile, provisionalPhase, threat, deltaXRaw, deltaYRaw);
+        var paceRaw = ResolveProposedPace(
+            agent, profile, provisionalPhase, facing, deltaXRaw, deltaYRaw);
+        var distanceRaw = IntegerSquareRoot(checked(
+            (deltaXRaw * deltaXRaw) + (deltaYRaw * deltaYRaw)));
+        var effectivePaceRaw = (int)Math.Min(paceRaw, distanceRaw);
+        var mapWidthRaw = checked(Scenario.MapWidth * FixedPoint.Scale);
+        var mapHeightRaw = checked(Scenario.MapHeight * FixedPoint.Scale);
+
+        if (MovementRouteRules.StepEndpoint(
+            agent.XRaw,
+            agent.YRaw,
+            deltaXRaw,
+            deltaYRaw,
+            effectivePaceRaw,
+            mapWidthRaw,
+            mapHeightRaw,
+            Scenario.BodyRadiusRaw) is not { } endpoint)
+        {
+            TurnFacingInPlace(agent, profile, provisionalPhase, threat);
+            return;
+        }
+
+        agent.Facing = facing;
+        _movementProposals[index] = (endpoint.XRaw, endpoint.YRaw, eventTargetId);
+        _proposedPaceRaw[index] = paceRaw;
+    }
+
+    /// <summary>
+    /// Turns a warrior that proposes no movement this tick toward its
+    /// selected living threat. With no threat there is no destination
+    /// either, so facing is retained (design section 6.3).
+    /// </summary>
+    private static void TurnFacingInPlace(
+        AgentState agent,
+        LoadoutMovementProfile profile,
+        FootworkPhase provisionalPhase,
+        AgentState? threat)
+    {
+        if (threat is null)
+        {
+            return;
+        }
+
+        var desired = FacingRules.FromDelta(
+            (long)threat.XRaw - agent.XRaw,
+            (long)threat.YRaw - agent.YRaw,
+            agent.FactionId);
+        if (desired == Facing16.None)
+        {
+            return;
+        }
+
+        agent.Facing = TurnTowardWithBudget(
+            agent, profile, provisionalPhase, desired);
+    }
+
+    /// <summary>
+    /// The committed facing for one candidate: toward the selected living
+    /// threat when one exists, else toward the candidate's own travel
+    /// direction, advanced by at most the phase-appropriate turn budget
+    /// (design section 6.3).
+    /// </summary>
+    private static Facing16 ResolveCandidateFacing(
+        AgentState agent,
+        LoadoutMovementProfile profile,
+        FootworkPhase provisionalPhase,
+        AgentState? threat,
+        long travelDeltaXRaw,
+        long travelDeltaYRaw)
+    {
+        var desired = threat is not null
+            ? FacingRules.FromDelta(
+                (long)threat.XRaw - agent.XRaw,
+                (long)threat.YRaw - agent.YRaw,
+                agent.FactionId)
+            : FacingRules.FromDelta(
+                travelDeltaXRaw, travelDeltaYRaw, agent.FactionId);
+        if (desired == Facing16.None)
+        {
+            return agent.Facing;
+        }
+
+        return TurnTowardWithBudget(agent, profile, provisionalPhase, desired);
+    }
+
+    /// <summary>
+    /// One bounded turn: at most the profile's ordinary facing steps, or its
+    /// committed facing steps while the phase is <see cref="FootworkPhase.Commit"/>.
+    /// A warrior somehow still holding <see cref="Facing16.None"/> — never
+    /// the case for a living V6 agent, whose facing is initialised at
+    /// creation — snaps directly to the desired sector rather than feeding
+    /// the sentinel into sector arithmetic.
+    /// </summary>
+    private static Facing16 TurnTowardWithBudget(
+        AgentState agent,
+        LoadoutMovementProfile profile,
+        FootworkPhase provisionalPhase,
+        Facing16 desired)
+    {
+        if (agent.Facing == Facing16.None)
+        {
+            return desired;
+        }
+
+        var budget = provisionalPhase == FootworkPhase.Commit
+            ? profile.CommittedFacingStepsPerTick
+            : profile.MaximumFacingStepsPerTick;
+        return FacingRules.TurnToward(
+            agent.Facing, desired, budget, agent.FactionId);
+    }
+
+    /// <summary>
+    /// The direction-band pace pipeline of design sections 6.4 and 6.5: the
+    /// separation between the committed facing and the travel direction
+    /// selects the band cap, <see cref="FootworkPhase.Commit"/> clamps it
+    /// further, the capped basis points convert to a desired raw pace bounded
+    /// by <c>MovementSpeedRaw</c>, and the retained pace advances toward it
+    /// by one bounded acceleration or deceleration step.
+    /// </summary>
+    private static int ResolveProposedPace(
+        AgentState agent,
+        LoadoutMovementProfile profile,
+        FootworkPhase provisionalPhase,
+        Facing16 committedFacing,
+        long travelDeltaXRaw,
+        long travelDeltaYRaw)
+    {
+        var travelSector = FacingRules.FromDelta(
+            travelDeltaXRaw, travelDeltaYRaw, agent.FactionId);
+        int paceCapBasisPoints;
+        if (committedFacing == Facing16.None || travelSector == Facing16.None)
+        {
+            paceCapBasisPoints = profile.ForwardPaceBasisPoints;
+        }
+        else
+        {
+            var separation = FacingRules.SectorSeparation(
+                committedFacing, travelSector);
+            paceCapBasisPoints = FacingRules.DirectionBandPaceCapBasisPoints(
+                profile, separation);
+        }
+
+        if (provisionalPhase == FootworkPhase.Commit)
+        {
+            paceCapBasisPoints = Math.Min(
+                paceCapBasisPoints, profile.CommittedPaceBasisPoints);
+        }
+
+        var desiredPaceRaw = MovementRouteRules.DesiredPaceRaw(
+            agent.MovementSpeedRaw, paceCapBasisPoints);
+        return MovementRouteRules.AdvanceRetainedPaceRaw(
+            agent.MovementPaceRaw,
+            desiredPaceRaw,
+            MovementRouteRules.PaceStepRaw(
+                agent.MovementSpeedRaw,
+                profile.AccelerationBasisPointsPerTick),
+            MovementRouteRules.PaceStepRaw(
+                agent.MovementSpeedRaw,
+                profile.DecelerationBasisPointsPerTick));
+    }
+
+    /// <summary>
+    /// The clearance radius of one profile, squared through
+    /// <see cref="Int128"/> so no comparison can overflow.
+    /// </summary>
+    private Int128 SquaredClearanceRadius(LoadoutMovementProfile profile) =>
+        MovementContextQuery.SquaredContextRadius(
+            MovementRouteRules.ClearanceRadiusRaw(
+                Scenario.BodyRadiusRaw,
+                profile.AllyClearanceBodyDiametersBasisPoints));
+
+    /// <summary>
+    /// The agent's selected target, resolved to a living state, or
+    /// <see langword="null"/> when no living threat is selected.
+    /// </summary>
+    private AgentState? ResolveLivingThreat(AgentState agent) =>
+        agent.TargetEntityId is { } targetId &&
+        _agentIndexes.TryGetValue(targetId, out var targetIndex) &&
+        _agentStates[targetIndex].IsAlive
+            ? _agentStates[targetIndex]
+            : null;
+
+    /// <summary>
+    /// The friendly-clearance conflict pass of design section 10.6, run per
+    /// faction between proposal gathering and collision resolution. Every
+    /// living proposer enters in ascending <c>EntityId</c> order —
+    /// guaranteed by agent storage order — carrying its committed phase; a
+    /// rejected proposal becomes a no-move with zero retained pace and
+    /// increments the derived denial counter. No reroute, no phase change.
+    /// </summary>
+    private void ResolveFriendlyClearanceConflicts()
+    {
+        for (var faction = 0; faction < FactionCount; faction++)
+        {
+            var count = 0;
+            for (var index = 0; index < _agentStates.Length; index++)
+            {
+                var agent = _agentStates[index];
+                if (!agent.IsAlive || agent.FactionId != faction)
+                {
+                    continue;
+                }
+
+                if (_movementProposals[index] is not { } proposal)
+                {
+                    continue;
+                }
+
+                _conflictProposals[count] = new FriendlyClearanceProposal(
+                    agent.EntityId,
+                    agent.FootworkPhase,
+                    proposal.XRaw,
+                    proposal.YRaw,
+                    SquaredClearanceRadius(
+                        _movementRules.ResolveLoadoutProfile(agent.Loadout)));
+                _conflictProposalAgentIndexes[count] = index;
+                count++;
+            }
+
+            MovementRouteRules.AcceptFriendlyClearanceConflicts(
+                _conflictProposals.AsSpan(0, count),
+                _conflictAccepted.AsSpan(0, count));
+
+            for (var accepted = 0; accepted < count; accepted++)
+            {
+                if (_conflictAccepted[accepted])
+                {
+                    continue;
+                }
+
+                var agentIndex = _conflictProposalAgentIndexes[accepted];
+                _movementProposals[agentIndex] = null;
+                _proposedPaceRaw[agentIndex] = 0;
+                _movementConflictDenials = checked(_movementConflictDenials + 1);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The post-attack footwork pass of design section 9.6, run between
+    /// <see cref="GatherAndCommitAttacks"/> and <see cref="ResolveOutcome"/>:
+    /// surviving accepted attackers enter <see cref="FootworkPhase.Commit"/>
+    /// with the profile's commitment duration — interrupting
+    /// <see cref="FootworkPhase.Recover"/>, because movement recovery never
+    /// suppresses an attack the combat gates accepted — and every agent the
+    /// gathered exchange killed takes death cleanup: pace, posture, phase,
+    /// and timer clear atomically before any outcome, hash, or snapshot
+    /// work, while the final facing is retained as readable spectator
+    /// information. The writes are idempotent for agents that died on an
+    /// earlier tick, whose four fields are already clear.
+    /// </summary>
+    private void ApplyEquipmentAttackFootworkAndDeathCleanup()
+    {
+        for (var index = 0; index < _agentStates.Length; index++)
+        {
+            var agent = _agentStates[index];
+            if (!agent.IsAlive)
+            {
+                agent.MovementPaceRaw = 0;
+                agent.TacticalPosture = TacticalPosture.None;
+                agent.FootworkPhase = FootworkPhase.None;
+                agent.FootworkTicksRemaining = 0;
+                continue;
+            }
+
+            if (_attackAcceptedThisTick[index])
+            {
+                var profile = _movementRules.ResolveLoadoutProfile(agent.Loadout);
+                agent.FootworkPhase = FootworkPhase.Commit;
+                agent.FootworkTicksRemaining = profile.CommitmentTicks;
+            }
+        }
+    }
+
+    /// <summary>
+    /// One route candidate of design section 10.4: a delta from the actor's
+    /// tick-start position, whether it is a point to arrive at or a pure
+    /// direction, whether the second-threat rule may omit it, and the entity
+    /// the resulting Move event names.
+    /// </summary>
+    private readonly record struct EquipmentRouteCandidate(
+        long DeltaXRaw,
+        long DeltaYRaw,
+        bool IsPointDestination,
+        bool SubjectToSecondThreatOmission,
+        ulong EventTargetId);
 
     /// <summary>
     /// Evaluates the six movement gates of design section 3.5 for one
@@ -1671,6 +2860,32 @@ public sealed class BattleSimulation
         AgentState agent,
         int agentIndex)
     {
+        if (TryComputeRegroupingAimPoint(agent, agentIndex) is not
+            { } aim)
+        {
+            return null;
+        }
+
+        return BuildMovementProposal(
+            agent,
+            aim.XRaw,
+            aim.YRaw,
+            aim.RallyEntityId);
+    }
+
+    /// <summary>
+    /// The destination half of <see cref="BuildRegroupingProposal"/>,
+    /// extracted so the equipment-relative footwork pipeline can constrain
+    /// the same last-stand aim point with its own facing-and-pace step
+    /// while every legacy preset keeps building the identical proposal
+    /// through the wrapper above. All of the original selection logic —
+    /// the rally resolution, the give-way corridor escape, the
+    /// trail-plus-jitter aim point, and the arrived-guard — lives here
+    /// unchanged and in the original order.
+    /// </summary>
+    private (int XRaw, int YRaw, ulong RallyEntityId)?
+        TryComputeRegroupingAimPoint(AgentState agent, int agentIndex)
+    {
         var rallyEntityId = _factionRallyEntityIds[agent.FactionId];
         if (rallyEntityId == 0 ||
             !_agentIndexes.TryGetValue(rallyEntityId, out var rallyIndex))
@@ -1690,11 +2905,7 @@ public sealed class BattleSimulation
             TryComputeGiveWayAimPoint(agent, rallyAgent, direction) is
             { XRaw: var giveWayXRaw, YRaw: var giveWayYRaw })
         {
-            return BuildMovementProposal(
-                agent,
-                giveWayXRaw,
-                giveWayYRaw,
-                rallyAgent.EntityId);
+            return (giveWayXRaw, giveWayYRaw, rallyAgent.EntityId);
         }
 
         var trailRaw = FormationRules.ComputeRallyTrailRaw(Scenario.BodyRadiusRaw);
@@ -1738,11 +2949,7 @@ public sealed class BattleSimulation
         // The event log names the rally agent as the target, not the enemy
         // the follower would otherwise be chasing, so a spectator reads
         // "entity N moved toward entity <rally>" during a last stand.
-        return BuildMovementProposal(
-            agent,
-            aimXRaw,
-            aimYRaw,
-            rallyAgent.EntityId);
+        return (aimXRaw, aimYRaw, rallyAgent.EntityId);
     }
 
     /// <summary>
@@ -1963,6 +3170,7 @@ public sealed class BattleSimulation
     {
         var results = _collision.Resolver.Results;
         var resultIndex = 0;
+        var commitsRetainedPace = _movementRules.UsesEquipmentRelativeFootwork;
 
         for (var index = 0; index < _agentStates.Length; index++)
         {
@@ -1990,11 +3198,29 @@ public sealed class BattleSimulation
             var deltaY = (long)agent.YRaw - previousY;
             if (deltaX == 0 && deltaY == 0)
             {
+                if (commitsRetainedPace)
+                {
+                    // Design section 6.5: a blocked, rejected, or refused
+                    // move leaves zero retained pace rather than fictitious
+                    // momentum. Turning in place is still permitted, because
+                    // facing committed independently during gathering.
+                    agent.MovementPaceRaw = 0;
+                }
+
                 continue;
             }
 
             var movedRaw = checked((int)IntegerSquareRoot(
                 checked((deltaX * deltaX) + (deltaY * deltaY))));
+            if (commitsRetainedPace)
+            {
+                // Design section 6.5: the retained pace commits as the
+                // smaller of the pace this tick's proposal was built on and
+                // the distance the collision stage actually granted.
+                agent.MovementPaceRaw =
+                    Math.Min(_proposedPaceRaw[index], movedRaw);
+            }
+
             AddEvent(
                 events,
                 BattleEventKind.Move,
@@ -2098,6 +3324,15 @@ public sealed class BattleSimulation
     {
         Array.Clear(_damageTotals);
         var proposalCount = 0;
+        var marksAcceptedAttackers = _movementRules.UsesEquipmentRelativeFootwork;
+        if (marksAcceptedAttackers)
+        {
+            // Reusable scratch (design section 9.6): one bit per agent, set
+            // on the accept path below after the existing prechecks pass,
+            // read by ApplyEquipmentAttackFootworkAndDeathCleanup after this
+            // method returns, and never hashed or snapshotted.
+            Array.Clear(_attackAcceptedThisTick);
+        }
 
         // Derived observability counters for this tick. Locals rather than
         // state, folded into the reported value once at the end of the loop,
@@ -2191,6 +3426,15 @@ public sealed class BattleSimulation
             _attackProposals[proposalCount] =
                 (sourceIndex, targetIndex, hitLocation, resolution, comboPosition);
             proposalCount++;
+            if (marksAcceptedAttackers)
+            {
+                // Design section 9.6: the accept path is the only place an
+                // attack is known to have passed every precheck, so the
+                // scratch bit is set here, alongside the proposal buffering,
+                // and the accumulation, damage, cooldown, combo, and event
+                // work below continues unchanged.
+                _attackAcceptedThisTick[sourceIndex] = true;
+            }
 
             // Only a landed blow reaches the damage total. Every other
             // resolution still emitted its attack event above and still burned
