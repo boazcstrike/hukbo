@@ -598,10 +598,13 @@ public sealed class MovementRuleset
             // not apply the interrupt writes nothing here at all, so V1
             // through V6 keep the exact byte sequence they fold today, and
             // their pinned ContentHash literals and frozen trajectory
-            // digests do not move. Folding these four values
-            // unconditionally would move V6, whose ContentHash does reach
-            // the state hash.
-            Fnv1a.Add(ref hash, AppliesPressureInterrupt ? 1UL : 0UL);
+            // digests do not move. Folding these values unconditionally
+            // would move V6, whose ContentHash does reach the state hash.
+            //
+            // The flag itself is not folded. Inside this branch it is
+            // always true, so folding it would contribute a constant and
+            // discriminate nothing; the branch is what records it. Three
+            // weights fold here, as design section 6.2 item 1 specifies.
             Fnv1a.Add(ref hash, (ulong)SupportPressureWeightBasisPoints);
             Fnv1a.Add(ref hash, (ulong)IncomingDamageWeightBasisPoints);
             Fnv1a.Add(ref hash, (ulong)AllyCollapseWeightBasisPoints);
