@@ -10,7 +10,11 @@ namespace Hukbo.Core.Movement.Profiles;
 /// V6 digest ships, requires appending a new preset version rather than
 /// editing this one. Values are the single authority of
 /// docs/plans/2026-07-30-weapon-movement-foundation-design.md section 13,
-/// superseding any figure quoted in the weapon plans.
+/// superseding any figure quoted in the weapon plans. The approved
+/// calibration ranges these values sit inside, and the evidence they are
+/// and are not derived from, are recorded in
+/// docs/research/movement/kalis.md section 7; the task list that governs
+/// this row is docs/plans/movement/kalis.md.
 /// </summary>
 public static class KalisMovementProfile
 {
