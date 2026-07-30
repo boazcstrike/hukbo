@@ -883,4 +883,645 @@ public sealed class WasayMovementTests
             scenario.DamagePerAttack,
             scenario.AttackCooldownTicks,
             loadout ?? WasayLoadout);
+
+    // ----- Family 10: the local disengagement hysteresis band -----
+
+    /// <summary>
+    /// Entry equality enters. The Wasay row sets
+    /// <c>DisengageEnemyToAllyBasisPoints</c> to 20,000, which is exactly two
+    /// hostiles per support ally, and step 5 of the resolver admits the ratio
+    /// with a <c>&gt;=</c> comparison. The second assertion in each row shows
+    /// the boundary is real rather than incidental: one hostile fewer leaves
+    /// the same warrior on the ordinary engagement branch. Entry is also
+    /// checked before the target rules, so a target sitting at or inside the
+    /// preferred distance does not save the warrior from disengaging.
+    /// </summary>
+    [Theory]
+    [InlineData(1, 2)]
+    [InlineData(2, 4)]
+    [InlineData(3, 6)]
+    [InlineData(250, 500)]
+    public void TheExactTwoToOneLocalRatioEntersDisengagement(
+        int supportAllies,
+        int supportEnemies)
+    {
+        Assert.Equal(
+            (FootworkPhase.Disengage, 0),
+            Resolve(
+                supportAllies: supportAllies,
+                supportEnemies: supportEnemies,
+                hasTarget: true,
+                targetAtOrInsidePreferredDistance: true));
+
+        Assert.Equal(
+            (FootworkPhase.Engage, 0),
+            Resolve(
+                supportAllies: supportAllies,
+                supportEnemies: supportEnemies - 1,
+                hasTarget: true,
+                targetAtOrInsidePreferredDistance: true));
+    }
+
+    /// <summary>
+    /// Release equality leaves. The Wasay row sets
+    /// <c>ReengageEnemyToAllyBasisPoints</c> to 12,500, which is exactly five
+    /// hostiles per four support allies, and step 4 of the resolver keeps an
+    /// already-disengaging warrior only while the ratio is strictly above that
+    /// threshold. One hostile more than the exact ratio therefore still holds
+    /// the warrior in <c>Disengage</c>.
+    /// </summary>
+    [Theory]
+    [InlineData(4, 5)]
+    [InlineData(8, 10)]
+    [InlineData(12, 15)]
+    [InlineData(400, 500)]
+    public void TheExactFiveToFourLocalRatioReleasesDisengagement(
+        int supportAllies,
+        int supportEnemies)
+    {
+        Assert.Equal(
+            (FootworkPhase.Engage, 0),
+            Resolve(
+                priorPhase: FootworkPhase.Disengage,
+                supportAllies: supportAllies,
+                supportEnemies: supportEnemies,
+                hasTarget: true,
+                targetAtOrInsidePreferredDistance: true));
+
+        Assert.Equal(
+            (FootworkPhase.Disengage, 0),
+            Resolve(
+                priorPhase: FootworkPhase.Disengage,
+                supportAllies: supportAllies,
+                supportEnemies: supportEnemies + 1,
+                hasTarget: true,
+                targetAtOrInsidePreferredDistance: true));
+    }
+
+    /// <summary>
+    /// The whole point of carrying two thresholds instead of one: every ratio
+    /// strictly between the 5:4 release and the 2:1 entry preserves whatever
+    /// the warrior was already doing. The same input pair is resolved twice,
+    /// once from a disengaged prior phase and once from a non-disengaged one,
+    /// so both directions of the hysteresis are pinned by the same numbers
+    /// rather than by two separately chosen fixtures.
+    /// </summary>
+    [Theory]
+    [InlineData(2, 3)]
+    [InlineData(4, 6)]
+    [InlineData(4, 7)]
+    [InlineData(8, 13)]
+    [InlineData(100, 151)]
+    public void TheBandBetweenTheTwoThresholdsPreservesThePriorState(
+        int supportAllies,
+        int supportEnemies)
+    {
+        Assert.Equal(
+            (FootworkPhase.Disengage, 0),
+            Resolve(
+                priorPhase: FootworkPhase.Disengage,
+                supportAllies: supportAllies,
+                supportEnemies: supportEnemies,
+                hasTarget: true,
+                targetAtOrInsidePreferredDistance: true));
+
+        Assert.Equal(
+            (FootworkPhase.Engage, 0),
+            Resolve(
+                priorPhase: FootworkPhase.Engage,
+                supportAllies: supportAllies,
+                supportEnemies: supportEnemies,
+                hasTarget: true,
+                targetAtOrInsidePreferredDistance: true));
+    }
+
+    /// <summary>
+    /// With no hostile inside the support radius, neither the entry nor the
+    /// release comparison can fire, whatever the prior phase was, and a prior
+    /// <c>Disengage</c> in particular does not persist on the ratio arithmetic
+    /// alone. This holds structurally rather than by luck: the resolver
+    /// compares widened integer cross-products — the scaled hostile count
+    /// against the ally count times a basis-point threshold — and performs no
+    /// division anywhere, so a zero hostile count is simply a zero left-hand
+    /// side and there is no zero-denominator case to guard.
+    /// </summary>
+    [Theory]
+    [InlineData(FootworkPhase.None)]
+    [InlineData(FootworkPhase.Disengage)]
+    [InlineData(FootworkPhase.Engage)]
+    [InlineData(FootworkPhase.Approach)]
+    [InlineData(FootworkPhase.Regroup)]
+    [InlineData(FootworkPhase.Pursue)]
+    [InlineData(FootworkPhase.Refuse)]
+    public void ZeroSupportEnemiesNeitherEntersNorHoldsDisengagement(
+        FootworkPhase priorPhase)
+    {
+        Assert.Equal(
+            (FootworkPhase.None, 0),
+            Resolve(
+                priorPhase: priorPhase,
+                supportAllies: 1,
+                supportEnemies: 0));
+
+        Assert.Equal(
+            (FootworkPhase.None, 0),
+            Resolve(
+                priorPhase: priorPhase,
+                supportAllies: 9_999,
+                supportEnemies: 0));
+    }
+
+    /// <summary>
+    /// The comparison domain is deliberately wider than the counts. Both sides
+    /// are widened to <see langword="long"/> before the multiply, so counts
+    /// whose scaled product would wrap a naive 32-bit product still resolve
+    /// correctly: 214,748 hostiles already exceed
+    /// <c>int.MaxValue / 10_000</c>, and every count used here is far past
+    /// that. Nothing throws, because the widest product these thresholds can
+    /// build from <see cref="int"/> counts — <c>int.MaxValue * 20_000</c>,
+    /// about 4.29e13 — sits well inside <see cref="long"/>.
+    /// </summary>
+    [Fact]
+    public void TheRatioComparisonsSurviveOverflowingThirtyTwoBitProducts()
+    {
+        // Exact 2:1 entry, with a scaled hostile side of 2.0e10.
+        Assert.Equal(
+            (FootworkPhase.Disengage, 0),
+            Resolve(supportAllies: 1_000_000, supportEnemies: 2_000_000));
+
+        // One hostile short of the same ratio does not enter.
+        Assert.Equal(
+            (FootworkPhase.None, 0),
+            Resolve(supportAllies: 1_000_000, supportEnemies: 1_999_999));
+
+        // Exact 5:4 release, with a scaled hostile side of 5.0e10.
+        Assert.Equal(
+            (FootworkPhase.None, 0),
+            Resolve(
+                priorPhase: FootworkPhase.Disengage,
+                supportAllies: 4_000_000,
+                supportEnemies: 5_000_000));
+
+        // One hostile above the same ratio keeps the warrior disengaged.
+        Assert.Equal(
+            (FootworkPhase.Disengage, 0),
+            Resolve(
+                priorPhase: FootworkPhase.Disengage,
+                supportAllies: 4_000_000,
+                supportEnemies: 5_000_001));
+
+        // The largest counts the int parameters admit still resolve, and they
+        // resolve on the correct side of both thresholds.
+        Assert.Equal(
+            (FootworkPhase.Disengage, 0),
+            Resolve(
+                supportAllies: int.MaxValue / 2,
+                supportEnemies: int.MaxValue));
+
+        Assert.Equal(
+            (FootworkPhase.None, 0),
+            Resolve(
+                supportAllies: int.MaxValue,
+                supportEnemies: int.MaxValue));
+    }
+
+    // ----- Family 11: the local counts the resolver is fed -----
+
+    /// <summary>
+    /// The acting warrior is its own support ally. The count is not produced
+    /// by scanning for the actor in the candidate span — the accumulator is
+    /// seeded with a support-ally count of one and the actor's own composition
+    /// bucket before the scan starts, and the scan then skips the actor by
+    /// entity identity. The immediate counts exclude the actor entirely. The
+    /// final two assertions close the loop on the resolver's own precondition:
+    /// a support-ally count of one is exactly what a lone Wasay reports, and a
+    /// count of zero is rejected rather than divided by.
+    /// </summary>
+    [Fact]
+    public void AWasayAmongHostilesCountsOnlyItselfAsASupportAlly()
+    {
+        var scenario = CreateScenario();
+        var actor = CreateAgent(1, factionId: 0, 51_200, 51_200, scenario);
+        var agents = new[]
+        {
+            actor,
+            CreateAgent(2, factionId: 1, 52_224, 51_200, scenario),
+            CreateAgent(3, factionId: 1, 51_200, 55_296, scenario),
+        };
+
+        var context = DeriveWasayContext(agents, actor, 2);
+
+        Assert.Equal(1, context.SupportAllies);
+        Assert.Equal(0, context.ImmediateAllies);
+        Assert.Null(context.NearestAllyEntityId);
+        Assert.Equal(
+            new LoadoutCompositionCounts(0, 1, 0, 0, 0, 0),
+            context.AlliedComposition);
+
+        // Entity 2 sits 1,024 raw units away and entity 3 sits 4,096 away, so
+        // both are support hostiles and only entity 2 is an immediate one.
+        Assert.Equal(2, context.SupportEnemies);
+        Assert.Equal(1, context.ImmediateEnemies);
+        Assert.Equal(
+            new LoadoutCompositionCounts(0, 2, 0, 0, 0, 0),
+            context.EnemyComposition);
+        Assert.Null(context.SecondThreatEntityId);
+        Assert.Equal(context, DeriveWasayContextOracle(agents, actor, 2));
+
+        Assert.Equal(
+            (FootworkPhase.Disengage, 0),
+            Resolve(
+                supportAllies: context.SupportAllies,
+                supportEnemies: context.SupportEnemies));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => Resolve(supportAllies: 0, supportEnemies: 1));
+    }
+
+    /// <summary>
+    /// Ring membership is inclusive at the exact radius and dead neighbours
+    /// count nowhere. At this fixture's body radius the Wasay rings measure
+    /// <c>2 * 512 * 25000 / 10000 = 2,560</c> raw units for the immediate ring
+    /// and <c>2 * 512 * 60000 / 10000 = 6,144</c> for the support ring, and
+    /// both radii are read off the registered V6 ruleset rather than written
+    /// as literals. A neighbour standing exactly on either radius counts; one
+    /// raw unit beyond it does not; and a fallen ally or hostile standing well
+    /// inside both rings counts in neither.
+    /// </summary>
+    [Fact]
+    public void DeadAndOutOfRingNeighboursCountNowhereForAWasay()
+    {
+        Assert.Equal(2_560L, WasayImmediateRadiusRaw());
+        Assert.Equal(6_144L, WasaySupportRadiusRaw());
+
+        var scenario = CreateScenario();
+        var actor = CreateAgent(1, factionId: 0, 51_200, 51_200, scenario);
+        var agents = new[]
+        {
+            actor,
+            CreateAgent(2, factionId: 0, 57_344, 51_200, scenario),
+            CreateAgent(3, factionId: 0, 57_345, 51_200, scenario),
+            CreateAgent(4, factionId: 0, 53_760, 51_200, scenario),
+            CreateAgent(5, factionId: 0, 53_761, 51_200, scenario),
+            CreateAgent(6, factionId: 1, 45_056, 51_200, scenario),
+            CreateAgent(7, factionId: 1, 45_055, 51_200, scenario),
+            CreateAgent(8, factionId: 1, 48_640, 51_200, scenario),
+            CreateFallenAgent(9, factionId: 0, 51_300, 51_200, scenario),
+            CreateFallenAgent(10, factionId: 1, 51_100, 51_200, scenario),
+        };
+
+        var context = DeriveWasayContext(agents, actor, null);
+
+        // Entity 4 is exactly on the immediate radius, entity 5 is one raw
+        // unit beyond it, entity 2 is exactly on the support radius, and
+        // entity 3 is one raw unit beyond that.
+        Assert.Equal(1, context.ImmediateAllies);
+        Assert.Equal(4, context.SupportAllies);
+
+        // Entity 8 is exactly on the immediate radius, entity 6 is exactly on
+        // the support radius, and entity 7 is one raw unit beyond it.
+        Assert.Equal(1, context.ImmediateEnemies);
+        Assert.Equal(2, context.SupportEnemies);
+
+        // The two fallen agents stand 100 raw units away and still count in
+        // no bucket, in no composition, and in neither nearest-entity field.
+        Assert.Equal(
+            new LoadoutCompositionCounts(0, 4, 0, 0, 0, 0),
+            context.AlliedComposition);
+        Assert.Equal(
+            new LoadoutCompositionCounts(0, 2, 0, 0, 0, 0),
+            context.EnemyComposition);
+        Assert.Equal(4UL, context.NearestAllyEntityId);
+        Assert.Equal(8UL, context.SecondThreatEntityId);
+        Assert.Equal(context, DeriveWasayContextOracle(agents, actor, null));
+    }
+
+    // ----- Family 12: order independence of the local query -----
+
+    /// <summary>
+    /// The pure span seam is the only honest place to test storage order,
+    /// because <c>BattleSimulation.CreateForTesting</c> canonicalises its
+    /// agents by <c>EntityId</c> before the simulation ever sees them. Three
+    /// explicit permutations of the same eight bodies — reversed, rotated by
+    /// three, and a hand-picked interleave — must produce a context identical
+    /// field for field, and identical to the independent
+    /// <see cref="NaiveMovementContextQuery"/> oracle's answer on the same
+    /// inputs.
+    /// </summary>
+    [Fact]
+    public void ExplicitlyPermutedSpansDeriveIdenticalWasayContexts()
+    {
+        var scenario = CreateScenario(CombatPresetId.PrecolonialPhilippinesV2);
+        var actor = CreateAgent(4, factionId: 0, 51_200, 51_200, scenario);
+        var canonical = new[]
+        {
+            CreateAgent(1, 1, 52_200, 51_200, scenario, KalisLoadout),
+            CreateAgent(2, 0, 51_200, 53_760, scenario, ItakShieldLoadout),
+            CreateAgent(3, 1, 53_760, 51_200, scenario, ItakLoadout),
+            actor,
+            CreateAgent(5, 0, 48_639, 51_200, scenario, KalisShieldLoadout),
+            CreateAgent(6, 1, 57_344, 51_200, scenario, KampilanLoadout),
+            CreateAgent(7, 0, 51_200, 45_055, scenario, KampilanLoadout),
+            CreateFallenAgent(8, 1, 52_500, 52_500, scenario),
+        };
+
+        var reversed = canonical.Reverse().ToArray();
+        var rotated = canonical.Skip(3).Concat(canonical.Take(3)).ToArray();
+        var interleaved = new[]
+        {
+            canonical[5], canonical[0], canonical[7], canonical[2],
+            canonical[4], canonical[6], canonical[1], canonical[3],
+        };
+
+        var expected = DeriveWasayContextOracle(canonical, actor, 3);
+
+        Assert.Equal(expected, DeriveWasayContext(canonical, actor, 3));
+        Assert.Equal(expected, DeriveWasayContext(reversed, actor, 3));
+        Assert.Equal(expected, DeriveWasayContext(rotated, actor, 3));
+        Assert.Equal(expected, DeriveWasayContext(interleaved, actor, 3));
+    }
+
+    /// <summary>
+    /// Both nearest-entity fields break an exact squared-distance tie on the
+    /// lower stable <c>EntityId</c>, never on scan order. Entities 9 and 2 are
+    /// two allied support references at the same 1,024 raw units, and entities
+    /// 11, 3, and 12 are three immediate hostiles at the same 2,048 raw units;
+    /// with entity 3 chosen as this tick's target, the second threat falls to
+    /// the lower of the two remaining tied hostiles. Reversing the span
+    /// changes neither answer.
+    /// </summary>
+    [Fact]
+    public void EquidistantSupportReferencesResolveOnTheLowerEntityId()
+    {
+        var scenario = CreateScenario();
+        var actor = CreateAgent(5, factionId: 0, 51_200, 51_200, scenario);
+        var agents = new[]
+        {
+            actor,
+            CreateAgent(9, factionId: 0, 52_224, 51_200, scenario),
+            CreateAgent(2, factionId: 0, 51_200, 52_224, scenario),
+            CreateAgent(11, factionId: 1, 49_152, 51_200, scenario),
+            CreateAgent(3, factionId: 1, 51_200, 49_152, scenario),
+            CreateAgent(12, factionId: 1, 53_248, 51_200, scenario),
+        };
+        var reversed = agents.Reverse().ToArray();
+
+        var context = DeriveWasayContext(agents, actor, 3);
+
+        Assert.Equal(2UL, context.NearestAllyEntityId);
+        Assert.Equal(11UL, context.SecondThreatEntityId);
+        Assert.Equal(context, DeriveWasayContextOracle(agents, actor, 3));
+        Assert.Equal(context, DeriveWasayContext(reversed, actor, 3));
+    }
+
+    /// <summary>
+    /// <c>BattleSimulation.CreateForTesting</c> documents that it accepts its
+    /// agents in any order and canonicalises them by <c>EntityId</c>. Two
+    /// four-warrior Wasay battles built from the same positions, with the
+    /// agent arguments passed in opposite orders, therefore have to agree on
+    /// every tick: the same ordered event stream and the same state hash after
+    /// the same number of ticks. The event stream is asserted non-empty so a
+    /// silent battle cannot make this pass vacuously.
+    /// </summary>
+    [Fact]
+    public void ReversedCallerOrderProducesTheSameHashAndEventStream()
+    {
+        const int observedTicks = 40;
+        var scenario = CreateScenario();
+
+        var forwardEvents = RunAndCollectEvents(
+            BattleSimulation.CreateForTesting(
+                scenario,
+                CreateAgent(1, factionId: 0, 92_160, 51_200, scenario),
+                CreateAgent(2, factionId: 1, 93_184, 51_200, scenario),
+                CreateAgent(3, factionId: 0, 92_160, 52_400, scenario),
+                CreateAgent(4, factionId: 1, 93_184, 52_400, scenario)),
+            observedTicks,
+            out var forwardHash);
+
+        var reversedEvents = RunAndCollectEvents(
+            BattleSimulation.CreateForTesting(
+                scenario,
+                CreateAgent(4, factionId: 1, 93_184, 52_400, scenario),
+                CreateAgent(3, factionId: 0, 92_160, 52_400, scenario),
+                CreateAgent(2, factionId: 1, 93_184, 51_200, scenario),
+                CreateAgent(1, factionId: 0, 92_160, 51_200, scenario)),
+            observedTicks,
+            out var reversedHash);
+
+        Assert.NotEmpty(forwardEvents);
+        Assert.Equal(forwardEvents, reversedEvents);
+        Assert.Equal(forwardHash, reversedHash);
+    }
+
+    // ----- Family 13: global posture against the local ratio -----
+
+    /// <summary>
+    /// A faction that outnumbers its enemy ten to one resolves the most
+    /// favourable posture the table can produce, and that posture still does
+    /// not authorise a deep charge for a warrior locally at two hostiles per
+    /// ally: the entry comparison is step 5 and the posture branches are steps
+    /// 6 through 8, so the local ratio is consulted first and wins.
+    /// </summary>
+    [Fact]
+    public void AGlobalAdvantageDoesNotOverrideTheLocalTwoToOneEntry()
+    {
+        var posture = WeaponMovementRules.ResolveTacticalPosture(
+            globalAllies: 100,
+            globalEnemies: 10,
+            ContingentState.Advance,
+            alliedRoleCoverage: 3,
+            enemyRoleCoverage: 1);
+
+        Assert.Equal(TacticalPosture.Advance, posture);
+        Assert.Equal(
+            (FootworkPhase.Disengage, 0),
+            Resolve(
+                posture: posture,
+                supportAllies: 2,
+                supportEnemies: 4,
+                hasTarget: true,
+                targetAtOrInsidePreferredDistance: true));
+
+        // The same warrior on the same favourable posture engages normally as
+        // soon as the local ratio drops one hostile below the entry boundary.
+        Assert.Equal(
+            (FootworkPhase.Engage, 0),
+            Resolve(
+                posture: posture,
+                supportAllies: 2,
+                supportEnemies: 3,
+                hasTarget: true,
+                targetAtOrInsidePreferredDistance: true));
+    }
+
+    /// <summary>
+    /// The reverse direction, and a place where the shipped rule is stricter
+    /// than the plan prose. Plan section 6's count-sensitive posture table says
+    /// faction totals "cannot force every Wasay unit to retreat in sync"; in
+    /// the implemented resolver, step 6 is unconditional, so every member of a
+    /// <see cref="TacticalPosture.Withdraw"/> or
+    /// <see cref="TacticalPosture.Yield"/> contingent takes
+    /// <see cref="FootworkPhase.Disengage"/> even at nine support allies to
+    /// one hostile and with a target at the preferred distance. The per-agent
+    /// variation the plan asks for lives in the route each disengaging warrior
+    /// takes, not in its phase, and this test pins the implemented truth.
+    /// </summary>
+    [Theory]
+    [InlineData(TacticalPosture.Withdraw)]
+    [InlineData(TacticalPosture.Yield)]
+    public void AWithdrawOrYieldPostureDisengagesOnAFavourableLocalRatio(
+        TacticalPosture posture) =>
+        Assert.Equal(
+            (FootworkPhase.Disengage, 0),
+            Resolve(
+                posture: posture,
+                supportAllies: 9,
+                supportEnemies: 1,
+                hasTarget: true,
+                targetAtOrInsidePreferredDistance: true));
+
+    /// <summary>
+    /// The two globally disadvantaged postures the previous test consumes are
+    /// reachable from the posture table itself rather than hand-asserted:
+    /// exact double outnumbering is already <c>Withdraw</c>, and exact
+    /// four-to-three pressure is already <c>Yield</c>.
+    /// </summary>
+    [Theory]
+    [InlineData(10, 20, TacticalPosture.Withdraw)]
+    [InlineData(10, 14, TacticalPosture.Yield)]
+    public void TheGloballyDisadvantagedPosturesAreReachableFromTheTable(
+        int globalAllies,
+        int globalEnemies,
+        TacticalPosture expected) =>
+        Assert.Equal(
+            expected,
+            WeaponMovementRules.ResolveTacticalPosture(
+                globalAllies,
+                globalEnemies,
+                ContingentState.Advance,
+                alliedRoleCoverage: 3,
+                enemyRoleCoverage: 1));
+
+    // ----- Helpers for families 10 through 13 -----
+
+    private static readonly CombatLoadout KampilanLoadout =
+        new(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None);
+
+    private static readonly CombatLoadout KalisLoadout =
+        new(WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.None);
+
+    private static readonly CombatLoadout ItakLoadout =
+        new(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.None);
+
+    private static readonly CombatLoadout KalisShieldLoadout =
+        new(WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.TallHardwood);
+
+    private static readonly CombatLoadout ItakShieldLoadout =
+        new(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.TallHardwood);
+
+    /// <summary>
+    /// The immediate ring radius the registered V6 ruleset produces at this
+    /// file's body radius, read off the preset rather than written as a
+    /// literal so a retuned radius fails the assertion that pins it instead of
+    /// silently agreeing with a stale constant.
+    /// </summary>
+    private static long WasayImmediateRadiusRaw() =>
+        MovementContextQuery.ContextRadiusRaw(
+            WarriorBodyRadiusRaw,
+            MovementPresetRegistry
+                .Get(MovementPresetId.EquipmentRelativeFootworkV6)
+                .ImmediateRadiusBodyDiametersBasisPoints);
+
+    /// <summary>
+    /// The support ring radius, read off the same registered ruleset.
+    /// </summary>
+    private static long WasaySupportRadiusRaw() =>
+        MovementContextQuery.ContextRadiusRaw(
+            WarriorBodyRadiusRaw,
+            MovementPresetRegistry
+                .Get(MovementPresetId.EquipmentRelativeFootworkV6)
+                .SupportRadiusBodyDiametersBasisPoints);
+
+    /// <summary>
+    /// Calls the shared pure local-context query with this file's two Wasay
+    /// ring radii.
+    /// </summary>
+    private static LocalMovementContext DeriveWasayContext(
+        AgentState[] agents,
+        AgentState actor,
+        ulong? selectedTargetEntityId) =>
+        MovementContextQuery.Derive(
+            agents,
+            actor,
+            selectedTargetEntityId,
+            MovementContextQuery.SquaredContextRadius(
+                WasayImmediateRadiusRaw()),
+            MovementContextQuery.SquaredContextRadius(
+                WasaySupportRadiusRaw()));
+
+    /// <summary>
+    /// Computes the independent oracle's answer on the same radii, so a
+    /// mistake shared between the production query and this file's
+    /// expectations still has to survive a second, differently written
+    /// implementation.
+    /// </summary>
+    private static LocalMovementContext DeriveWasayContextOracle(
+        AgentState[] agents,
+        AgentState actor,
+        ulong? selectedTargetEntityId) =>
+        NaiveMovementContextQuery.Compute(
+            agents.Select(ToBody).ToList(),
+            ToBody(actor),
+            selectedTargetEntityId,
+            MovementContextQuery.SquaredContextRadius(
+                WasayImmediateRadiusRaw()),
+            MovementContextQuery.SquaredContextRadius(
+                WasaySupportRadiusRaw()));
+
+    private static NaiveMovementContextQuery.Body ToBody(AgentState state) =>
+        new(
+            state.EntityId,
+            state.FactionId,
+            state.XRaw,
+            state.YRaw,
+            state.IsAlive,
+            state.Loadout,
+            state.PerceptionRangeRaw);
+
+    /// <summary>
+    /// Builds an agent that is already dead. The hit points are zeroed on a
+    /// freshly constructed state before it is handed to the caller, so no
+    /// caller-owned object is ever mutated.
+    /// </summary>
+    private static AgentState CreateFallenAgent(
+        ulong entityId,
+        int factionId,
+        int xRaw,
+        int yRaw,
+        Scenario scenario)
+    {
+        var state = CreateAgent(entityId, factionId, xRaw, yRaw, scenario);
+        state.HitPoints = 0;
+        return state;
+    }
+
+    /// <summary>
+    /// Advances a battle by a fixed number of ticks, concatenating each tick's
+    /// ordered events into one stream and reporting the final state hash.
+    /// </summary>
+    private static List<BattleEvent> RunAndCollectEvents(
+        BattleSimulation simulation,
+        int ticks,
+        out ulong stateHash)
+    {
+        var events = new List<BattleEvent>();
+        for (var tick = 0; tick < ticks; tick++)
+        {
+            simulation.AdvanceOneTick();
+            events.AddRange(simulation.LastEvents);
+        }
+
+        stateHash = simulation.ComputeStateHash();
+        return events;
+    }
 }
