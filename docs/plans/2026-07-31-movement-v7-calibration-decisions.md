@@ -96,12 +96,14 @@ recorded here so the repository carries them rather than only the conversation.
    which research showed is not implementable as written — see below.
 4. **Threshold.** Per profile row.
 
-**One assumption, not a decision.** The three weights are treated as shared
-across rows, with only the trigger threshold varying per row. This was stated to
-the user and not contradicted, but it was not explicitly confirmed, and it is
-recorded as an assumption so the design document can settle it. Per-row weights
-would introduce three more provisional values across seven loadouts, which is
-the pattern that produced the unsigned-off values D4 had to ratify.
+**5. Weights.** Three weights, shared across all six rows, with only the trigger
+threshold varying per row. This began as an assumption stated to the user and
+not contradicted; it was explicitly confirmed on 2026-07-31 before phase 1 of
+the plan began. The reason to settle it early rather than late: per-row weights
+would move the V7 content hash and force a fresh trajectory digest, so changing
+it after tuning is expensive, and it would introduce eighteen provisional values
+instead of three — the pattern that produced the unsigned-off values D4 had to
+ratify retroactively.
 
 **Why "forfeits the swing" had to be redefined.** `FootworkPhase.Commit` is
 post-swing follow-through, not wind-up. `GatherAndCommitAttacks` runs at

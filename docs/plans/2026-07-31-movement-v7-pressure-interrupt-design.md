@@ -858,8 +858,12 @@ that introduces the division.
 
 ## 11. Open questions this design records rather than answers
 
-1. **Shared weights are an assumption.** Section 4.6. Confirm before
-   implementation begins.
+1. ~~**Shared weights are an assumption.** Section 4.6. Confirm before
+   implementation begins.~~ **Resolved 2026-07-31: the user confirmed three
+   shared weights.** Section 4.6's adopted assumption is now a decision, and
+   the flag it carries there is discharged. Making the weights per-row later
+   would move the V7 content hash and force a fresh trajectory digest, so this
+   is settled before phase 1 rather than after phase 5.
 2. **The shielded Kalis `Refuse` problem.** The Wasay session's 8v8 fixture found
    the shielded Kalis row spending 162 of 400 ticks in `FootworkPhase.Refuse` and
    not reaching its first `Commit` until tick 259. Whether the pressure interrupt
