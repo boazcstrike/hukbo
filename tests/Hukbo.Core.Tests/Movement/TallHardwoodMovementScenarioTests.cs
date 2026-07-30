@@ -1669,6 +1669,250 @@ public sealed class TallHardwoodMovementScenarioTests
             "five, where 5 x 2 = 10 passes 3 x 3 = 9.");
     }
 
+    // ----- Explicit combat V2 roster preservation -----
+
+    /// <summary>
+    /// The shipped default combat preset is the solo-only four-entry
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV4"/> roster, so a
+    /// six-entry roster carrying both shielded loadouts survives only by naming
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV2"/> explicitly. The
+    /// same counts validate under the explicit V2 preset and are a
+    /// roster-length mismatch under the default. This is the whole reason every
+    /// scenario in this file names its combat preset.
+    /// </summary>
+    [Fact]
+    public void TheSixEntryShieldRosterValidatesOnlyUnderTheExplicitCombatVTwoPreset()
+    {
+        var preserved = Scenario.CreateDefault(seed: 1, totalAgents: 12) with
+        {
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+            MovementPreset = MovementPresetId.EquipmentRelativeFootworkV6,
+            RosterCounts = ImmutableArray.Create(1, 1, 1, 1, 1, 1),
+        };
+
+        preserved.Validate();
+
+        var defaulted = Scenario.CreateDefault(seed: 1, totalAgents: 12) with
+        {
+            MovementPreset = MovementPresetId.EquipmentRelativeFootworkV6,
+            RosterCounts = ImmutableArray.Create(1, 1, 1, 1, 1, 1),
+        };
+
+        Assert.Equal(
+            CombatPresetId.PrecolonialPhilippinesV4, defaulted.CombatPreset);
+        Assert.Throws<ArgumentException>(defaulted.Validate);
+    }
+
+    /// <summary>
+    /// The V2 roster is ordered weapon-first, solo before paired within a
+    /// weapon: <c>KP, WA, KA, KS, IT, IS</c>. The shielded Kalis therefore sits
+    /// at roster slot three while it is movement canonical index four, and the
+    /// shielded Itak sits at slot five in both spaces. A scenario naming the
+    /// explicit V2 preset with all of one faction's warriors on a single
+    /// shielded roster slot spawns that exact loadout on every warrior, and
+    /// each spawned loadout resolves to the pinned profile row instance under
+    /// <see cref="MovementPresetId.EquipmentRelativeFootworkV6"/> — reference
+    /// identity, so nothing multiplies a solo row into a shielded one at
+    /// spawn.
+    /// </summary>
+    [Theory]
+    [InlineData(ShieldedKalisRosterSlot)]
+    [InlineData(ShieldedItakRosterSlot)]
+    public void AnExplicitVTwoShieldRosterSpawnsTheNamedLoadoutOnEveryWarrior(
+        int rosterSlot)
+    {
+        var counts = new int[VTwoRosterLength];
+        counts[rosterSlot] = 4;
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 8) with
+        {
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+            MovementPreset = MovementPresetId.EquipmentRelativeFootworkV6,
+            RosterCounts = [.. counts],
+        };
+        var expectedLoadout = CombatRules.Roster[rosterSlot];
+        var expectedRow = V6.ResolveLoadoutProfile(expectedLoadout);
+
+        var simulation = BattleSimulation.Create(scenario);
+
+        Assert.Equal(ShieldId.TallHardwood, expectedLoadout.Shield);
+        Assert.Equal(8, simulation.Agents.Count);
+        Assert.All(simulation.Agents, agent =>
+        {
+            Assert.Equal(expectedLoadout.Weapon, agent.Loadout.Weapon);
+            Assert.Equal(ArmorId.LightOrganic, agent.Loadout.Armor);
+            Assert.Equal(ShieldId.TallHardwood, agent.Loadout.Shield);
+            Assert.Same(expectedRow, V6.ResolveLoadoutProfile(agent.Loadout));
+        });
+    }
+
+    /// <summary>
+    /// A six-entry roster carrying both shielded loadouts, run end to end under
+    /// the explicitly named V2 combat preset and the V6 movement preset,
+    /// reproduces itself exactly on a repeat run: the same ordered event
+    /// stream, the same event hash folded from it, the same state hash, and the
+    /// same outcome. Every warrior's spawned loadout resolves to the profile row
+    /// its roster slot names, and both shielded rows are present in the spawned
+    /// battle rather than merely declared in the roster.
+    /// </summary>
+    [Fact]
+    public void AnExplicitVTwoShieldRosterReproducesItsOrderedEventsAndHashes()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 12) with
+        {
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+            MovementPreset = MovementPresetId.EquipmentRelativeFootworkV6,
+            RosterCounts = ImmutableArray.Create(1, 1, 1, 1, 1, 1),
+        };
+
+        (ulong StateHash, ulong EventHash, BattleOutcome Outcome,
+            List<string> EventStream) Run()
+        {
+            var simulation = BattleSimulation.Create(scenario);
+            var eventStream = new List<string>();
+            var eventHash = Fnv1a.OffsetBasis;
+
+            // Both shielded rows really are in the field, and each spawned
+            // loadout resolves to the row its roster slot names.
+            Assert.Contains(
+                simulation.Agents,
+                agent => agent.Loadout == CombatRules.Roster[
+                    ShieldedKalisRosterSlot]);
+            Assert.Contains(
+                simulation.Agents,
+                agent => agent.Loadout == CombatRules.Roster[
+                    ShieldedItakRosterSlot]);
+            Assert.All(simulation.Agents, agent =>
+            {
+                var row = V6.ResolveLoadoutProfile(agent.Loadout);
+                Assert.Equal(agent.Loadout.Weapon, row.Loadout.Weapon);
+                Assert.Equal(agent.Loadout.Armor, row.Loadout.Armor);
+                Assert.Equal(agent.Loadout.Shield, row.Loadout.Shield);
+            });
+
+            for (var tick = 0;
+                tick < 2_000 && simulation.Outcome == BattleOutcome.Ongoing;
+                tick++)
+            {
+                simulation.AdvanceOneTick();
+                foreach (var battleEvent in simulation.LastEvents)
+                {
+                    eventStream.Add(
+                        $"{battleEvent.Sequence}:{battleEvent.Tick}:" +
+                        $"{battleEvent.Kind}:{battleEvent.SourceEntityId}:" +
+                        $"{battleEvent.TargetEntityId ?? 0}:" +
+                        $"{battleEvent.Value}");
+                    Fnv1a.Add(ref eventHash, (ulong)battleEvent.Sequence);
+                    Fnv1a.Add(ref eventHash, (ulong)battleEvent.Tick);
+                    Fnv1a.Add(ref eventHash, (ulong)battleEvent.Kind);
+                    Fnv1a.Add(ref eventHash, battleEvent.SourceEntityId);
+                    Fnv1a.Add(
+                        ref eventHash, battleEvent.TargetEntityId ?? 0UL);
+                    Fnv1a.Add(ref eventHash, (ulong)(long)battleEvent.Value);
+                }
+            }
+
+            return (
+                simulation.ComputeStateHash(),
+                eventHash,
+                simulation.Outcome,
+                eventStream);
+        }
+
+        var first = Run();
+        var second = Run();
+
+        Assert.NotEmpty(first.EventStream);
+        Assert.Equal(first.EventStream, second.EventStream);
+        Assert.Equal(first.EventHash, second.EventHash);
+        Assert.Equal(first.StateHash, second.StateHash);
+        Assert.Equal(first.Outcome, second.Outcome);
+    }
+
+    /// <summary>
+    /// The shipped combat default is solo-only, read off the registry rather
+    /// than restated in prose: a default scenario names
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV4"/>, and neither the
+    /// V3 nor the V4 roster contains a single entry carrying a shield. Only
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV2"/> fields both
+    /// shielded loadouts, which is why every shielded cell must name it. The
+    /// weapon plan's instruction to change a default assertion ahead of a V2
+    /// to V3 switch is obsolete: the default is already V4.
+    /// </summary>
+    [Fact]
+    public void TheShippedCombatDefaultAndItsPredecessorFieldNoShieldedLoadout()
+    {
+        Assert.Equal(
+            CombatPresetId.PrecolonialPhilippinesV4,
+            Scenario.CreateDefault().CombatPreset);
+
+        foreach (var presetId in new[]
+        {
+            CombatPresetId.PrecolonialPhilippinesV3,
+            CombatPresetId.PrecolonialPhilippinesV4,
+        })
+        {
+            var roster = CombatPresetRegistry.Get(presetId).Roster;
+            Assert.All(roster, entry => Assert.Equal(
+                ShieldId.None, entry.Shield));
+        }
+
+        var vTwoRoster = CombatRules.Roster;
+        Assert.Equal(VTwoRosterLength, vTwoRoster.Count);
+        Assert.Equal(2, vTwoRoster.Count(
+            entry => entry.Shield == ShieldId.TallHardwood));
+    }
+
+    // ----- Legacy presets leave the shield rows inert -----
+
+    /// <summary>
+    /// The shield counterpart of
+    /// <c>MovementPipelineIntegrationTests.ALegacyPresetRunsNoEquipmentStageAtAll</c>:
+    /// under every registered movement preset other than
+    /// <see cref="MovementPresetId.EquipmentRelativeFootworkV6"/>, a battle
+    /// whose warriors carry both shield rows never writes any of the five
+    /// equipment-relative fields. The rows exist in the profile tables, but only
+    /// V6 may read them, so adding them changed nothing for any earlier replay.
+    /// </summary>
+    [Theory]
+    [InlineData(MovementPresetId.IndependentPursuitV1)]
+    [InlineData(MovementPresetId.PersistentContingentsV2)]
+    [InlineData(MovementPresetId.PersistentContingentsV3)]
+    [InlineData(MovementPresetId.PersistentContingentsV4)]
+    [InlineData(MovementPresetId.PersistentContingentsV5)]
+    public void EveryLegacyPresetLeavesShieldFootworkStateUntouched(
+        MovementPresetId legacyPreset)
+    {
+        var scenario = CreateScenario() with { MovementPreset = legacyPreset };
+        var agents = new[]
+        {
+            CreateAgent(1, factionId: 0, 92_160, 51_200, scenario, ShieldedKalis),
+            CreateAgent(2, factionId: 0, 92_160, 55_296, scenario, ShieldedItak),
+            CreateAgent(
+                3, factionId: 1, 112_640, 51_200, scenario, ShieldedKalis),
+            CreateAgent(
+                4, factionId: 1, 112_640, 55_296, scenario, ShieldedItak),
+        };
+        var simulation = BattleSimulation.CreateForTesting(scenario, agents);
+
+        for (var tick = 0; tick < 40; tick++)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        Assert.False(
+            MovementPresetRegistry
+                .Get(legacyPreset)
+                .UsesEquipmentRelativeFootwork);
+        Assert.All(agents, agent =>
+        {
+            Assert.Equal(Facing16.None, agent.Facing);
+            Assert.Equal(0, agent.MovementPaceRaw);
+            Assert.Equal(TacticalPosture.None, agent.TacticalPosture);
+            Assert.Equal(FootworkPhase.None, agent.FootworkPhase);
+            Assert.Equal(0, agent.FootworkTicksRemaining);
+        });
+    }
+
     // ----- Rejected failure modes -----
 
     /// <summary>
@@ -2237,8 +2481,9 @@ public sealed class TallHardwoodMovementScenarioTests
     /// <c>KampilanMovementTests.RunToCompletion</c> — the two merged weapon
     /// sessions duplicated their helpers per file rather than adding a shared
     /// fixture, and a shared fixture would touch a file no weapon session
-    /// owns — and extended with the event hash, the no-progress streak, and
-    /// the per-agent phase-streak observations the shield cases need.
+    /// owns — and extended with the event hash, the no-progress streak, the
+    /// largest single-tick displacement, the per-agent refusal streak, and the
+    /// unconditional-posture flag the shield cases need.
     /// </summary>
     private static RunEvidence RunToCompletion(
         Scenario scenario, AgentState[] agents, int ticks)
@@ -2259,23 +2504,12 @@ public sealed class TallHardwoodMovementScenarioTests
         var noProgressStreak = 0;
         var maximumDisplacementSquared = (Int128)0;
 
-        var disengageStreak = new Dictionary<ulong, int>();
         var refuseStreak = new Dictionary<ulong, int>();
-        var recoverStreak = new Dictionary<ulong, int>();
-        var disengageEntries = new Dictionary<ulong, int>();
-        var priorPhase = new Dictionary<ulong, FootworkPhase>();
-        var maximumDisengageStreak = 0;
         var maximumRefuseStreak = 0;
-        var maximumRecoverStreak = 0;
-        var maximumDisengageEntries = 0;
         var sawWithdrawOrYieldPosture = false;
         foreach (var agent in agents)
         {
-            disengageStreak[agent.EntityId] = 0;
             refuseStreak[agent.EntityId] = 0;
-            recoverStreak[agent.EntityId] = 0;
-            disengageEntries[agent.EntityId] = 0;
-            priorPhase[agent.EntityId] = agent.FootworkPhase;
         }
 
         for (var tick = 0; tick < ticks; tick++)
@@ -2344,34 +2578,8 @@ public sealed class TallHardwoodMovementScenarioTests
                     agent.TacticalPosture is TacticalPosture.Withdraw
                         or TacticalPosture.Yield;
 
-                maximumDisengageStreak = TrackStreak(
-                    disengageStreak,
-                    agent,
-                    FootworkPhase.Disengage,
-                    maximumDisengageStreak);
-                maximumRefuseStreak = TrackStreak(
-                    refuseStreak,
-                    agent,
-                    FootworkPhase.Refuse,
-                    maximumRefuseStreak);
-                maximumRecoverStreak = TrackStreak(
-                    recoverStreak,
-                    agent,
-                    FootworkPhase.Recover,
-                    maximumRecoverStreak);
-
-                if (agent.FootworkPhase == FootworkPhase.Disengage &&
-                    priorPhase[agent.EntityId] != FootworkPhase.Disengage)
-                {
-                    var entries = disengageEntries[agent.EntityId] + 1;
-                    disengageEntries[agent.EntityId] = entries;
-                    if (entries > maximumDisengageEntries)
-                    {
-                        maximumDisengageEntries = entries;
-                    }
-                }
-
-                priorPhase[agent.EntityId] = agent.FootworkPhase;
+                maximumRefuseStreak = TrackRefuseStreak(
+                    refuseStreak, agent, maximumRefuseStreak);
             }
 
             var anyEvent = false;
@@ -2420,21 +2628,20 @@ public sealed class TallHardwoodMovementScenarioTests
             phaseFailure,
             maximumNoProgressStreak,
             maximumDisplacementSquared,
-            maximumDisengageStreak,
             maximumRefuseStreak,
-            maximumRecoverStreak,
-            maximumDisengageEntries,
-            simulation.MovementConflictDenials,
             sawWithdrawOrYieldPosture);
     }
 
-    private static int TrackStreak(
+    /// <summary>
+    /// The running per-agent <see cref="FootworkPhase.Refuse"/> streak, and the
+    /// longest one seen so far across every agent.
+    /// </summary>
+    private static int TrackRefuseStreak(
         Dictionary<ulong, int> streaks,
         AgentState agent,
-        FootworkPhase phase,
         int maximum)
     {
-        if (agent.FootworkPhase == phase)
+        if (agent.FootworkPhase == FootworkPhase.Refuse)
         {
             var streak = streaks[agent.EntityId] + 1;
             streaks[agent.EntityId] = streak;
@@ -2456,10 +2663,6 @@ public sealed class TallHardwoodMovementScenarioTests
         string? PhaseFailure,
         int MaximumNoProgressStreak,
         Int128 MaximumDisplacementSquared,
-        int MaximumDisengageStreak,
         int MaximumRefuseStreak,
-        int MaximumRecoverStreak,
-        int MaximumDisengageEntries,
-        long ConflictDenials,
         bool SawWithdrawOrYieldPosture);
 }
