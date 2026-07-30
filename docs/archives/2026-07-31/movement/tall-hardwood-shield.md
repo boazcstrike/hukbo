@@ -1,5 +1,9 @@
 # Tall Hardwood Shield Movement Implementation Plan
 
+> **Archived: reference only.** The weapon-relative movement program finished
+> and every branch merged to main by 2026-07-31. Do not execute this plan; its
+> task list and verification steps are historical.
+
 > **For Codex:** REQUIRED SUB-SKILL: Use `executing-plans` to implement this plan task-by-task.
 
 **Goal:** Materialize deterministic Kalis + Tall Hardwood and Itak + Tall
