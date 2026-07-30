@@ -168,11 +168,27 @@ three disagree.
 and 8, at both 200 and 500 agents, each reach a decisive outcome — not `Draw` —
 within **6,000 ticks**.
 
-Six thousand was chosen against the measured `PersistentContingentsV4` spread,
-which lands between 981 and 2,934 ticks across the same cells. The bound leaves
-V7 room for the additional deliberation that weapon-relative footwork is
-supposed to introduce, while making a standoff equilibrium a failure rather than
-a curiosity.
+**Corrected 2026-07-31 against measured evidence.** Six thousand was originally
+justified against a `PersistentContingentsV4` spread of "981 to 2,934 ticks".
+That range was wrong: it mixed one endpoint from each combat preset. 981 is a
+combat-`PrecolonialPhilippinesV4` figure, measured with no shield row fielded at
+all, and 2,934 is a combat-V2 figure that turns out to be the *lowest* of the
+five 500-agent readings rather than the highest.
+
+The measured V4 spread under the pinned combat preset V2 that D2's own protocol
+requires is **1,279 to 4,405 ticks**
+(`docs/plans/2026-07-31-movement-v7-baseline.md`, twenty cells, commit
+`b3ab856`). The bar therefore leaves roughly 36% headroom over the true
+reference maximum, not the near-doubling the original figure implied.
+
+The bound is retained at 6,000 on the corrected evidence. It still sits well
+above every measured V4 cell and well below the 10,000-tick cap that defines the
+standoff failure, so it continues to discriminate between "terminates" and
+"deadlocks". Two qualifications now attach to it. A V7 result between 4,405 and
+6,000 is a pass but is worth reading as a regression against V4 rather than a
+clean win. Calibration should target the 500-agent cells, because that is where
+the bar binds: the 500-agent group's *shortest* V4 run, 2,551 ticks, already
+exceeds the 200-agent group's longest at 2,284.
 
 **Decision, part two — the metric.** The budget is median `p50Milliseconds`
 against `PersistentContingentsV4` on the same machine and the same seeds.

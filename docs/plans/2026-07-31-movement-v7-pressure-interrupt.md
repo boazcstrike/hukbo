@@ -68,6 +68,21 @@ against a comment that lies.
 One task, and it is the foundation everything else hangs from. It must land and
 prove V1 through V6 unmoved before any field is added anywhere.
 
+**Read this before starting B1.** Task A2's report claimed that any new
+`MovementRuleset` field folded into `ComputeContentHash` requires re-recording
+the V6 trajectory digest. **That claim is false for this task, and acting on it
+would destroy the freeze guarantee.** It is true only of *unconditional*
+folding, which is what `ComputeContentHash` does today — every `Fnv1a.Add` at
+`MovementRuleset.cs:388-397` runs on every call. B1 folds the four new values
+inside `if (AppliesPressureInterrupt)`, and that flag is `false` on all six
+existing presets. Nothing new therefore enters V6's fold, V6's `ContentHash` is
+byte-identical, V6's state hash is unchanged, and V6's digest cannot move.
+
+If any of the twelve pinned artifacts moves after B1, **the conditional fold is
+wrong. Fix the fold. Never re-pin a literal or re-record a digest to make the
+task go green** — that converts a caught mistake into a silent loss of the
+property the freeze exists to prove.
+
 | Task | What | Files | Done when | Depends on | Verified by |
 | --- | --- | --- | --- | --- | --- |
 | **B1** | Add `MovementRuleset.AppliesPressureInterrupt` plus the three shared weight fields `SupportPressureWeightBasisPoints`, `IncomingDamageWeightBasisPoints`, `AllyCollapseWeightBasisPoints`. Fold all four **conditionally** inside `if (AppliesPressureInterrupt)` in `ComputeContentHash`, positioned after the `UsesEquipmentRelativeFootwork` fold at `:394`. Extend `ValidateEquipmentRelativeFootworkCoupling` per design section 6.3: weights all zero when the flag is `false`; non-negative and totalling exactly 10,000 when `true`; the flag `true` only when `UsesEquipmentRelativeFootwork` is `true`. Register `false` with zero weights on all six existing presets | `src/Hukbo.Core/Movement/MovementRuleset.cs`, `src/Hukbo.Core/Movement/MovementPresetRegistry.cs` | All six pinned `ContentHash` literals in `MovementPresetRegistryTests` (`:33`, `:42`, `:51`, `:60`, `:69`, `:79`) pass **unchanged**, and all six trajectory digest freeze tests pass unchanged | A2 | `dotnet test` filtered to `MovementPresetRegistryTests` and `MovementPresetFreezeTests`. **If any of the twelve moves, the conditional fold is wrong and the task is not done** |
