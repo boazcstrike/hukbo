@@ -82,11 +82,79 @@ tune. It reaches the content hash and the trajectory digest on its own, for
 every row, whether or not any profile value is edited. It therefore forces a new
 preset version by itself — see D5.
 
-**Deliberately left open for the design document.** The interrupt's trigger
-condition, whether it may fire during `Commit` as well as `Recover`, whether it
-costs the agent anything, and whether the threshold is shared or per-row are all
-design questions. This decision authorizes the mechanism, not a specific shape
-for it.
+**The interrupt's shape, decided 2026-07-31.** An earlier revision of this
+document left the four questions below open for the design document. They were
+answered by the user the same day, after the first commit of this file, and are
+recorded here so the repository carries them rather than only the conversation.
+
+1. **Trigger.** A weighted sum of three signals — support ratio, incoming
+   damage, and ally count collapse — where the combined weight crossing a
+   threshold fires the interrupt. Not any one signal alone.
+2. **Scope.** It may preempt `Commit`, not only `Recover`.
+3. **Cost.** Breaking off re-charges `AttackCooldownRemaining` to full from the
+   movement stage. This replaces an earlier phrasing, "forfeits the swing",
+   which research showed is not implementable as written — see below.
+4. **Threshold.** Per profile row.
+
+**One assumption, not a decision.** The three weights are treated as shared
+across rows, with only the trigger threshold varying per row. This was stated to
+the user and not contradicted, but it was not explicitly confirmed, and it is
+recorded as an assumption so the design document can settle it. Per-row weights
+would introduce three more provisional values across seven loadouts, which is
+the pattern that produced the unsigned-off values D4 had to ratify.
+
+**Why "forfeits the swing" had to be redefined.** `FootworkPhase.Commit` is
+post-swing follow-through, not wind-up. `GatherAndCommitAttacks` runs at
+`src/Hukbo.Core/Simulation/BattleSimulation.cs:605` and fully resolves the blow —
+damage applied, `Attack`, `Damage`, and `Death` events emitted — and only then
+does `ApplyEquipmentAttackFootworkAndDeathCleanup` at `:611` stamp `Commit` on
+surviving attackers who landed one (`:2603-2607`). A warrior inside `Commit` has
+already swung. There is no pending swing to cancel, so the cost had to be
+expressed as something other than cancellation.
+
+Re-charging the cooldown was chosen over two alternatives: letting the disengage
+step break attack range and suppress the next attack through the existing gate at
+`:3392` (no new coupling, but the cost is only incurred when the step actually
+breaks range), and setting a scratch flag read at the cooldown gate `:3398` (a
+guaranteed cost, but it reverses the invariant documented at `:2580-2582`).
+
+**The risk this choice accepts, and how the plan contains it.**
+`AttackCooldownRemaining` today has exactly one non-decrement writer,
+`ResolveComboTransition` at `:3724`, inside the combat stage. The interrupt adds
+a second writer, in a different tick stage, with movement writing a combat field.
+`ComboChainTests` cannot catch the resulting contract erosion, because its
+fixtures run under `PersistentContingentsV4`, where `UsesEquipmentRelativeFootwork`
+is false and `FootworkPhase` is `None` on every agent. The plan therefore carries
+a task to add combo-chain coverage under a footwork preset, and the interrupt's
+write must be V7-gated and documented at both writer sites.
+
+**Consequences already established by research.** Two of the three trigger
+signals are histories rather than queries over current state: incoming damage
+needs a window, and ally count collapse needs a prior-tick comparison. Both
+require new authoritative per-agent state that reaches the state hash. They do
+not, however, touch save/resume: there is no save/resume path in this repository
+at all. `BattleSnapshot` is an outbound record with no deserializer, and
+`SIMULATION-GAME-STANDARDS.md` places save/resume equivalence in Gate 3, not yet
+reached. Adding persistent state costs a trailing member on `AgentView`.
+
+**The hardest constraint, found independently by two research agents.**
+`MovementRuleset.ContentHash` **does** reach the state hash under V6:
+`BattleSimulation.cs:654-656` passes it to `StateHasher.Compute`, which folds it
+at `StateHasher.cs:81-84`. The class remarks at `MovementRuleset.cs:21-27` and
+`MovementPresetRegistry.cs:18-23` both state the opposite in prose; that was true
+through V5 and is false for V6. Consequently, adding any content-hash-folded
+field — a per-row interrupt threshold, for instance — moves V6's `ContentHash`,
+moves V6's state hash from tick 1, and breaks the frozen V6 digest that D5
+requires stay byte-identical. The same trap exists on the per-agent side:
+`StateHasher.cs:122` gates the five footwork fields on a condition that V7 will
+also satisfy.
+
+The resolution is conditional folding under a **V7-specific gate** —  not
+`UsesEquipmentRelativeFootwork`, which V7 must also set. This follows the idiom
+`StateHasher` already uses at `:118-126`, where `Rank` folds only when
+`hasRankLevels` and the footwork fields only when the movement hash is non-null,
+precisely so that legacy presets keep their byte layout. The stale remarks in
+both files are corrected as part of this work.
 
 ### D2 — Termination bar and the single budget metric
 
@@ -125,6 +193,27 @@ to make the simulation terminate.
 **Measurement protocol.** Five seeds, one discarded warm run per cell, report
 the median. This is the protocol both the Wasay and shield sessions already
 used, and it is adopted rather than invented.
+
+**The workload runs under combat preset `PrecolonialPhilippinesV2`, pinned
+explicitly.** The shipped combat default `PrecolonialPhilippinesV4` rosters four
+solo loadouts and never pairs a shield with any weapon
+(`src/Hukbo.Core/Combat/PhilippineCombatPresetV4.cs:194-197`), so a workload run
+under the default would never field `KS` or `IS` — the two rows whose zero-window
+attack lifecycle motivated the interrupt. The V6 freeze fixture already pins V2
+for this same reason (`tests/Hukbo.Core.Tests/MovementPresetFreezeTests.cs:336`).
+
+**A baseline must be recorded before V7 work begins.** No recorded seed-1
+10,000-tick result corresponds to today's shipped default pair. The pairs in
+`docs/development/testing.md` and in the `hukbo-determinism-change` skill were
+each measured under earlier defaults. D2 is a comparison against
+`PersistentContingentsV4`, so that comparison has no "before" until one is
+measured and recorded.
+
+**Four of six rows, not two, never reach the disengage test.** Fall-through ticks
+per steady-state cycle are `max(0, cooldown - (commitment + recovery))`. Under
+combat V2 that gives `KS` 5-6, `IS` 4-6, `WA` 8-8, and `IT` 4-4 — all zero. Only
+`KP` (7-6) and `KA` (5-4) get a one-tick window. The problem is broader than the
+two shield rows that surfaced it.
 
 **Flagged before V7 begins.** `p50Milliseconds` is already a per-tick measure,
 so fixing termination does not mechanically fix it. Part of the current 4.83×
