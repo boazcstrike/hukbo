@@ -42,6 +42,14 @@ internal sealed class AgentInspectorPanel
     /// personal name from. Presentation-only: the name is read out of the
     /// simulation's published identity, never written back into it.
     /// </param>
+    /// <param name="movementSpeedRaw">
+    /// The match's <c>Scenario.MovementSpeedRaw</c>, the denominator of the
+    /// pace row's percentage (weapon-relative movement design, section
+    /// 15.2). Defaulted to <c>0</c>, which omits the pace row, so the
+    /// existing call site compiles unchanged: the Client cannot select an
+    /// equipment-relative-footwork preset today, and the activation task
+    /// that makes it selectable passes the real value here.
+    /// </param>
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
@@ -49,7 +57,8 @@ internal sealed class AgentInspectorPanel
         AgentView? agent,
         Rectangle bounds,
         ulong scenarioSeed,
-        UiTheme theme)
+        UiTheme theme,
+        int movementSpeedRaw = 0)
     {
         if (agent is not { } selected)
         {
@@ -173,7 +182,8 @@ internal sealed class AgentInspectorPanel
         var lowerLines = AgentInspectorContent.BuildLowerLines(
             selected,
             appearance.WeaponLabel,
-            appearance.EvidenceTierLabel);
+            appearance.EvidenceTierLabel,
+            movementSpeedRaw);
         for (var row = 0; row < lowerLines.Count; row++)
         {
             DrawLine(lowerLines[row], textX, lowerTextY, row);

@@ -221,5 +221,10 @@ internal sealed class AgentState
             ContingentId,
             ContingentState,
             Rank,
-            isLeader);
+            isLeader,
+            Facing,
+            MovementPaceRaw,
+            TacticalPosture,
+            FootworkPhase,
+            FootworkTicksRemaining);
 }

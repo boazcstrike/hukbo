@@ -2,6 +2,7 @@ using Hukbo.Client.Presentation;
 using Hukbo.Client.Presentation.Catalogs;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.UI;
@@ -36,19 +37,24 @@ internal static class AgentInspectorContent
     /// The most lower detail rows <see cref="BuildLowerLines"/> can produce:
     /// intent, contingent, target, position, rank, rank reconstruction note,
     /// weapon, attributes, level, combo attributes, evidence tier, grip,
-    /// armor, shield, and movement. The contingent row is present exactly
-    /// when the agent's <see cref="AgentView.ContingentState"/> is not
+    /// armor, shield, movement, facing, posture, footwork, and pace. The
+    /// contingent row is present exactly when the agent's
+    /// <see cref="AgentView.ContingentState"/> is not
     /// <see cref="ContingentState.None"/>. The rank reconstruction note row
     /// is present exactly when the agent's <see cref="AgentView.Rank"/>
     /// carries a <see cref="RankLabelEntry.ReconstructionNote"/> — today,
     /// only <see cref="RankId.AlipingNamamahay"/>. The combo attributes row
     /// is present exactly when the attributes row is (both come from the
     /// same resolved <see cref="WeaponProfile"/>), and the grip row is
-    /// absent for a two-handed weapon, so a real panel draws this many or
-    /// fewer — the panel is sized for the maximum so the taller case never
-    /// clips.
+    /// absent for a two-handed weapon. The four movement rows — facing,
+    /// posture, footwork, pace — are present only under a movement preset
+    /// that uses equipment-relative footwork; under every legacy preset the
+    /// projected fields hold their defaults and all four formatters return
+    /// <see langword="null"/> (weapon-relative movement design, section 15).
+    /// A real panel therefore draws this many or fewer — the panel is sized
+    /// for the maximum so the taller case never clips.
     /// </summary>
-    internal const int MaximumLowerRowCount = 15;
+    internal const int MaximumLowerRowCount = 19;
     internal const int PortraitBottomGap = 5;
     internal const int TopDetailBottomGap = 2;
 
@@ -133,10 +139,22 @@ internal static class AgentInspectorContent
     /// <c>GraphicsDevice</c>, or window, and is therefore unit testable in
     /// full — the split this repository enforces for panel content.
     /// </remarks>
+    /// <param name="agent">The selected warrior's authoritative view.</param>
+    /// <param name="weaponLabel">The pair-form weapon label.</param>
+    /// <param name="evidenceTierLabel">The weapon's evidence tier label.</param>
+    /// <param name="movementSpeedRaw">
+    /// The scenario's full movement speed in raw distance per tick — the
+    /// denominator of the pace row's percentage. Defaulted to <c>0</c>,
+    /// which omits the pace row, so callers written before the
+    /// weapon-relative movement design existed (and every caller under a
+    /// legacy preset, whose <see cref="AgentView.MovementPaceRaw"/> is
+    /// <c>0</c> anyway) still compile and render byte-identically.
+    /// </param>
     internal static IReadOnlyList<string> BuildLowerLines(
         AgentView agent,
         string weaponLabel,
-        string evidenceTierLabel)
+        string evidenceTierLabel,
+        int movementSpeedRaw = 0)
     {
         var loadout = agent.Loadout;
         var lines = new List<string>(MaximumLowerRowCount)
@@ -184,6 +202,33 @@ internal static class AgentInspectorContent
         lines.Add(FormatArmorLine(loadout.Armor));
         lines.Add(FormatShieldLine(loadout.Shield));
         lines.Add(FormatMovementLine(agent.MovementResolution));
+
+        // The four weapon-relative movement rows (design section 15.2), in
+        // the design's order: Facing, Posture, Footwork, Pace. Every
+        // formatter returns null while its projected field holds the
+        // default a legacy preset never moves, so legacy inspector output
+        // is byte-identical.
+        if (FormatFacingLine(agent.Facing) is { } facingLine)
+        {
+            lines.Add(facingLine);
+        }
+
+        if (FormatPostureLine(agent.TacticalPosture) is { } postureLine)
+        {
+            lines.Add(postureLine);
+        }
+
+        if (FormatFootworkLine(agent.FootworkPhase, agent.FootworkTicksRemaining)
+            is { } footworkLine)
+        {
+            lines.Add(footworkLine);
+        }
+
+        if (FormatPaceLine(agent.MovementPaceRaw, movementSpeedRaw)
+            is { } paceLine)
+        {
+            lines.Add(paceLine);
+        }
 
         return lines;
     }
@@ -281,6 +326,142 @@ internal static class AgentInspectorContent
             MovementResolution.Separated => "Pushed apart",
             _ => "Holding",
         };
+
+    /// <summary>
+    /// The facing row (weapon-relative movement design, section 15.2): a
+    /// compass label for the warrior's authoritative 16-sector facing,
+    /// never a sector number. <see langword="null"/> for
+    /// <see cref="Facing16.None"/>, the value every legacy preset leaves
+    /// forever, so legacy inspector output is byte-identical. A dead V6
+    /// warrior's retained facing still renders — that is the point of
+    /// retaining it.
+    /// </summary>
+    internal static string? FormatFacingLine(Facing16 facing) =>
+        facing == Facing16.None ? null : $"Facing: {GetFacingLabel(facing)}";
+
+    /// <summary>
+    /// The compass label for one resolved sector. Sector 0 is screen-right
+    /// and positive Y is screen-down, so sector 4 reads South — the same
+    /// convention <see cref="Facing16"/> itself documents.
+    /// </summary>
+    internal static string GetFacingLabel(Facing16 facing) =>
+        facing switch
+        {
+            Facing16.East => "East",
+            Facing16.EastSouthEast => "East-southeast",
+            Facing16.SouthEast => "Southeast",
+            Facing16.SouthSouthEast => "South-southeast",
+            Facing16.South => "South",
+            Facing16.SouthSouthWest => "South-southwest",
+            Facing16.SouthWest => "Southwest",
+            Facing16.WestSouthWest => "West-southwest",
+            Facing16.West => "West",
+            Facing16.WestNorthWest => "West-northwest",
+            Facing16.NorthWest => "Northwest",
+            Facing16.NorthNorthWest => "North-northwest",
+            Facing16.North => "North",
+            Facing16.NorthNorthEast => "North-northeast",
+            Facing16.NorthEast => "Northeast",
+            Facing16.EastNorthEast => "East-northeast",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(facing),
+                facing,
+                null),
+        };
+
+    /// <summary>
+    /// The posture row (design section 15.2): the contingent-level stance
+    /// in plain English, mirroring <see cref="GetContingentStateLabel"/>'s
+    /// style. <see langword="null"/> for
+    /// <see cref="TacticalPosture.None"/>, the value every legacy preset —
+    /// and death cleanup — leaves, so legacy inspector output is
+    /// byte-identical.
+    /// </summary>
+    internal static string? FormatPostureLine(TacticalPosture posture) =>
+        posture == TacticalPosture.None
+            ? null
+            : $"Posture: {GetPostureLabel(posture)}";
+
+    internal static string GetPostureLabel(TacticalPosture posture) =>
+        posture switch
+        {
+            TacticalPosture.Advance => "Advancing",
+            TacticalPosture.Hold => "Holding",
+            TacticalPosture.Yield => "Yielding",
+            TacticalPosture.Regroup => "Regrouping",
+            TacticalPosture.Pursue => "Pursuing",
+            TacticalPosture.Withdraw => "Withdrawing",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(posture),
+                posture,
+                null),
+        };
+
+    /// <summary>
+    /// The footwork row (design section 15.2): the lifecycle phase in plain
+    /// English, appending the remaining ticks only while the phase is
+    /// <see cref="FootworkPhase.Commit"/> or
+    /// <see cref="FootworkPhase.Recover"/> — the two phases whose timer is
+    /// authoritative. <see langword="null"/> for
+    /// <see cref="FootworkPhase.None"/>, the value every legacy preset —
+    /// and death cleanup — leaves, so legacy inspector output is
+    /// byte-identical.
+    /// </summary>
+    internal static string? FormatFootworkLine(
+        FootworkPhase phase,
+        int ticksRemaining)
+    {
+        if (phase == FootworkPhase.None)
+        {
+            return null;
+        }
+
+        var label = GetFootworkLabel(phase);
+        return phase is FootworkPhase.Commit or FootworkPhase.Recover
+            ? $"Footwork: {label} " +
+                $"({ticksRemaining} {(ticksRemaining == 1 ? "tick" : "ticks")})"
+            : $"Footwork: {label}";
+    }
+
+    internal static string GetFootworkLabel(FootworkPhase phase) =>
+        phase switch
+        {
+            FootworkPhase.Approach => "Approaching",
+            FootworkPhase.Engage => "Engaging",
+            FootworkPhase.Commit => "Committed",
+            FootworkPhase.Recover => "Recovering",
+            FootworkPhase.Refuse => "Refused",
+            FootworkPhase.Disengage => "Disengaging",
+            FootworkPhase.Regroup => "Regrouping",
+            FootworkPhase.Pursue => "Pursuing",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(phase),
+                phase,
+                null),
+        };
+
+    /// <summary>
+    /// The pace row (design section 15.2): the retained pace as an integer
+    /// percentage of the warrior's full movement speed, computed with pure
+    /// integer arithmetic — truncating division, never floating point.
+    /// <see langword="null"/> when no pace is retained — the legacy
+    /// default, a V6 warrior standing still, and death cleanup all share
+    /// the same zero — and <see langword="null"/> when the caller supplies
+    /// no <paramref name="movementSpeedRaw"/>, because a percentage of an
+    /// unknown speed cannot be rendered honestly.
+    /// </summary>
+    internal static string? FormatPaceLine(
+        int movementPaceRaw,
+        int movementSpeedRaw)
+    {
+        if (movementPaceRaw <= 0 || movementSpeedRaw <= 0)
+        {
+            return null;
+        }
+
+        var percent = (int)((long)movementPaceRaw * 100 / movementSpeedRaw);
+        return $"Pace: {percent}% of full speed";
+    }
 
     internal static string FormatWeaponLine(string weaponLabel) =>
         $"Weapon: {weaponLabel}";

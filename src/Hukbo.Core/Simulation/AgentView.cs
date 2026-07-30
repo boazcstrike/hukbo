@@ -1,4 +1,5 @@
 using Hukbo.Core.Combat;
+using Hukbo.Core.Movement;
 
 namespace Hukbo.Core.Simulation;
 
@@ -45,6 +46,41 @@ namespace Hukbo.Core.Simulation;
 /// above is defaulted, so presentation tests written before leadership
 /// existed can build a view without naming it.
 /// </param>
+/// <param name="Facing">
+/// The warrior's 16-sector facing under a movement preset whose
+/// <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/> is
+/// <see langword="true"/>; <see cref="Facing16.None"/> forever under every
+/// other preset. A corpse retains its final facing, so a dead V6 warrior's
+/// view still carries it. Defaulted, like every member from
+/// <see cref="MovementResolution"/> down, so presentation tests written
+/// before the field existed still compile (weapon-relative movement design,
+/// section 15.1).
+/// </param>
+/// <param name="MovementPaceRaw">
+/// The retained scalar pace of design section 6.5, in raw distance per
+/// tick. <c>0</c> forever under every preset that does not use
+/// equipment-relative footwork, and cleared to <c>0</c> by death cleanup.
+/// Defaulted for the same reason <see cref="Facing"/> is.
+/// </param>
+/// <param name="TacticalPosture">
+/// The contingent-level stance written on every living member each tick by
+/// the posture stage of design section 8.
+/// <see cref="Movement.TacticalPosture.None"/> forever under every other
+/// preset, and cleared by death cleanup. Defaulted for the same reason
+/// <see cref="Facing"/> is.
+/// </param>
+/// <param name="FootworkPhase">
+/// The footwork lifecycle phase of design section 9.
+/// <see cref="Movement.FootworkPhase.None"/> forever under every other
+/// preset, and cleared by death cleanup. Defaulted for the same reason
+/// <see cref="Facing"/> is.
+/// </param>
+/// <param name="FootworkTicksRemaining">
+/// The <see cref="Movement.FootworkPhase.Commit"/> /
+/// <see cref="Movement.FootworkPhase.Recover"/> timer of design section
+/// 9.5. <c>0</c> outside those phases and forever under every other
+/// preset. Defaulted for the same reason <see cref="Facing"/> is.
+/// </param>
 public readonly record struct AgentView(
     ulong EntityId,
     int FactionId,
@@ -61,4 +97,9 @@ public readonly record struct AgentView(
     int ContingentId = 0,
     ContingentState ContingentState = ContingentState.None,
     RankId Rank = RankId.Timawa,
-    bool IsLeader = false);
+    bool IsLeader = false,
+    Facing16 Facing = Facing16.None,
+    int MovementPaceRaw = 0,
+    TacticalPosture TacticalPosture = TacticalPosture.None,
+    FootworkPhase FootworkPhase = FootworkPhase.None,
+    int FootworkTicksRemaining = 0);

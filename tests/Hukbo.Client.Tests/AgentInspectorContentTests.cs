@@ -3,6 +3,7 @@ using Hukbo.Client.Presentation.Catalogs;
 using Hukbo.Client.UI;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.Tests;
@@ -239,7 +240,9 @@ public sealed class AgentInspectorContentTests
     {
         // ComputeRequiredHeight sizes the panel from MaximumLowerRowCount, so
         // a line added to BuildLowerLines without raising that constant would
-        // be drawn past the panel bounds and silently dropped.
+        // be drawn past the panel bounds and silently dropped. Both warriors
+        // carry the four V6 movement rows so the budget is exercised at its
+        // post-design-15 depth, not the legacy one.
         var shielded = BuildLowerLineCount(
             WeaponId.Kalis,
             ShieldId.TallHardwood);
@@ -256,8 +259,10 @@ public sealed class AgentInspectorContentTests
             $"A two-handed warrior produced {twoHanded} lower rows against " +
             $"a budget of {AgentInspectorContent.MaximumLowerRowCount}.");
 
-        // The grip row is the only optional one, so a two-handed warrior
-        // draws exactly one row fewer than a one-handed one.
+        // The grip row is the only weapon-dependent optional one, so a
+        // two-handed warrior draws exactly one row fewer than a one-handed
+        // one — the shielded-minus-one invariant the row budget is sized
+        // against.
         Assert.Equal(shielded - 1, twoHanded);
     }
 
@@ -1308,9 +1313,14 @@ public sealed class AgentInspectorContentTests
                 WeaponId.Kalis,
                 ShieldId.TallHardwood,
                 contingentId: 3,
-                contingentState: ContingentState.Hold),
+                contingentState: ContingentState.Hold,
+                facing: Facing16.East,
+                movementPaceRaw: 256,
+                tacticalPosture: TacticalPosture.Advance,
+                footworkPhase: FootworkPhase.Approach),
             "Kalis — Thrusting Blade",
-            "Documented").Count;
+            "Documented",
+            movementSpeedRaw: 512).Count;
 
         Assert.True(
             count <= AgentInspectorContent.MaximumLowerRowCount,
@@ -1382,28 +1392,256 @@ public sealed class AgentInspectorContentTests
     [Fact]
     public void LowerLinesWithAContingentRowAndTheRankReconstructionNoteNeverExceedTheRowBudget()
     {
+        // The deepest panel there is: shielded (grip row), contingent row,
+        // rank reconstruction note, and all four V6 movement rows. This is
+        // the exact case MaximumLowerRowCount is sized for, so the count
+        // must land on the budget, not merely under it — a raised budget
+        // without the rows to justify it fails here too.
         var count = AgentInspectorContent.BuildLowerLines(
             CreateAgentView(
                 WeaponId.Kalis,
                 ShieldId.TallHardwood,
                 contingentId: 3,
                 contingentState: ContingentState.Hold,
-                rank: RankId.AlipingNamamahay),
+                rank: RankId.AlipingNamamahay,
+                facing: Facing16.East,
+                movementPaceRaw: 256,
+                tacticalPosture: TacticalPosture.Advance,
+                footworkPhase: FootworkPhase.Approach),
             "Kalis — Thrusting Blade",
-            "Documented").Count;
+            "Documented",
+            movementSpeedRaw: 512).Count;
 
-        Assert.True(
-            count <= AgentInspectorContent.MaximumLowerRowCount,
-            $"A shielded warrior with a contingent row and the rank " +
-            $"reconstruction note produced {count} lower rows against a " +
-            $"budget of {AgentInspectorContent.MaximumLowerRowCount}.");
+        Assert.Equal(AgentInspectorContent.MaximumLowerRowCount, count);
+        Assert.Equal(19, AgentInspectorContent.MaximumLowerRowCount);
+    }
+
+    // ===== Weapon-relative movement inspector rows (design section 15.2) =====
+
+    [Theory]
+    [InlineData(Facing16.East, "Facing: East")]
+    [InlineData(Facing16.EastSouthEast, "Facing: East-southeast")]
+    [InlineData(Facing16.SouthEast, "Facing: Southeast")]
+    [InlineData(Facing16.SouthSouthEast, "Facing: South-southeast")]
+    [InlineData(Facing16.South, "Facing: South")]
+    [InlineData(Facing16.SouthSouthWest, "Facing: South-southwest")]
+    [InlineData(Facing16.SouthWest, "Facing: Southwest")]
+    [InlineData(Facing16.WestSouthWest, "Facing: West-southwest")]
+    [InlineData(Facing16.West, "Facing: West")]
+    [InlineData(Facing16.WestNorthWest, "Facing: West-northwest")]
+    [InlineData(Facing16.NorthWest, "Facing: Northwest")]
+    [InlineData(Facing16.NorthNorthWest, "Facing: North-northwest")]
+    [InlineData(Facing16.North, "Facing: North")]
+    [InlineData(Facing16.NorthNorthEast, "Facing: North-northeast")]
+    [InlineData(Facing16.NorthEast, "Facing: Northeast")]
+    [InlineData(Facing16.EastNorthEast, "Facing: East-northeast")]
+    public void FormatFacingLine_RendersACompassLabelForEverySector(
+        Facing16 facing,
+        string expected)
+    {
+        Assert.Equal(expected, AgentInspectorContent.FormatFacingLine(facing));
+    }
+
+    [Fact]
+    public void FormatFacingLine_ReturnsNullUnderALegacyPreset()
+    {
+        Assert.Null(AgentInspectorContent.FormatFacingLine(Facing16.None));
+    }
+
+    [Theory]
+    [InlineData(TacticalPosture.Advance, "Posture: Advancing")]
+    [InlineData(TacticalPosture.Hold, "Posture: Holding")]
+    [InlineData(TacticalPosture.Yield, "Posture: Yielding")]
+    [InlineData(TacticalPosture.Regroup, "Posture: Regrouping")]
+    [InlineData(TacticalPosture.Pursue, "Posture: Pursuing")]
+    [InlineData(TacticalPosture.Withdraw, "Posture: Withdrawing")]
+    public void FormatPostureLine_RendersPlainEnglishForEveryPosture(
+        TacticalPosture posture,
+        string expected)
+    {
+        Assert.Equal(expected, AgentInspectorContent.FormatPostureLine(posture));
+    }
+
+    [Fact]
+    public void FormatPostureLine_ReturnsNullUnderALegacyPreset()
+    {
+        Assert.Null(
+            AgentInspectorContent.FormatPostureLine(TacticalPosture.None));
+    }
+
+    [Theory]
+    [InlineData(FootworkPhase.Approach, "Footwork: Approaching")]
+    [InlineData(FootworkPhase.Engage, "Footwork: Engaging")]
+    [InlineData(FootworkPhase.Refuse, "Footwork: Refused")]
+    [InlineData(FootworkPhase.Disengage, "Footwork: Disengaging")]
+    [InlineData(FootworkPhase.Regroup, "Footwork: Regrouping")]
+    [InlineData(FootworkPhase.Pursue, "Footwork: Pursuing")]
+    public void FormatFootworkLine_RendersPlainEnglishWithoutTicksOutsideCommitAndRecover(
+        FootworkPhase phase,
+        string expected)
+    {
+        // A stale positive timer must not leak onto a phase that does not
+        // carry one — the design appends ticks only on Commit and Recover.
+        Assert.Equal(
+            expected,
+            AgentInspectorContent.FormatFootworkLine(phase, ticksRemaining: 3));
+    }
+
+    [Theory]
+    [InlineData(FootworkPhase.Commit, 3, "Footwork: Committed (3 ticks)")]
+    [InlineData(FootworkPhase.Commit, 1, "Footwork: Committed (1 tick)")]
+    [InlineData(FootworkPhase.Recover, 2, "Footwork: Recovering (2 ticks)")]
+    [InlineData(FootworkPhase.Recover, 1, "Footwork: Recovering (1 tick)")]
+    public void FormatFootworkLine_AppendsRemainingTicksOnCommitAndRecover(
+        FootworkPhase phase,
+        int ticksRemaining,
+        string expected)
+    {
+        Assert.Equal(
+            expected,
+            AgentInspectorContent.FormatFootworkLine(phase, ticksRemaining));
+    }
+
+    [Fact]
+    public void FormatFootworkLine_ReturnsNullUnderALegacyPreset()
+    {
+        Assert.Null(
+            AgentInspectorContent.FormatFootworkLine(
+                FootworkPhase.None,
+                ticksRemaining: 0));
+    }
+
+    [Theory]
+    [InlineData(256, 512, "Pace: 50% of full speed")]
+    [InlineData(512, 512, "Pace: 100% of full speed")]
+    [InlineData(1, 3, "Pace: 33% of full speed")]
+    [InlineData(501, 512, "Pace: 97% of full speed")]
+    public void FormatPaceLine_RendersAnIntegerPercentageOfFullMovementSpeed(
+        int movementPaceRaw,
+        int movementSpeedRaw,
+        string expected)
+    {
+        Assert.Equal(
+            expected,
+            AgentInspectorContent.FormatPaceLine(
+                movementPaceRaw,
+                movementSpeedRaw));
+    }
+
+    [Fact]
+    public void FormatPaceLine_ReturnsNullWhenNoPaceIsRetained()
+    {
+        // The legacy default and a V6 warrior standing still share the same
+        // zero, so both omit the row.
+        Assert.Null(
+            AgentInspectorContent.FormatPaceLine(
+                movementPaceRaw: 0,
+                movementSpeedRaw: 512));
+    }
+
+    [Fact]
+    public void FormatPaceLine_ReturnsNullWhenTheCallerHasNoMovementSpeed()
+    {
+        // A caller that cannot supply the scenario's movement speed cannot
+        // render a percentage; the row is omitted rather than divided by
+        // zero.
+        Assert.Null(
+            AgentInspectorContent.FormatPaceLine(
+                movementPaceRaw: 256,
+                movementSpeedRaw: 0));
+    }
+
+    [Fact]
+    public void LowerLinesOmitAllFourMovementRowsUnderALegacyPreset()
+    {
+        // Legacy byte-identity (design 15.2): a view whose five movement
+        // fields hold their defaults gains no row, even when the caller
+        // supplies a movement speed.
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(WeaponId.Kalis, ShieldId.TallHardwood),
+            "Kalis — Thrusting Blade",
+            "Documented",
+            movementSpeedRaw: 512);
+
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("Facing:", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("Posture:", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("Footwork:", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("Pace:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LowerLinesAppendTheFourMovementRowsInOrderForAVSixWarrior()
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                facing: Facing16.SouthEast,
+                movementPaceRaw: 256,
+                tacticalPosture: TacticalPosture.Advance,
+                footworkPhase: FootworkPhase.Commit,
+                footworkTicksRemaining: 3),
+            "Kalis — Thrusting Blade",
+            "Documented",
+            movementSpeedRaw: 512);
+
+        var expectedTail = new[]
+        {
+            "Facing: Southeast",
+            "Posture: Advancing",
+            "Footwork: Committed (3 ticks)",
+            "Pace: 50% of full speed",
+        };
+        Assert.Equal(expectedTail, lines.TakeLast(4));
+    }
+
+    [Fact]
+    public void ADeadVSixWarriorStillRendersItsRetainedFacing()
+    {
+        // Death cleanup clears pace, posture, phase, and the timer but
+        // deliberately retains the facing (design 15.2) — the corpse's
+        // final orientation stays readable.
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                facing: Facing16.WestNorthWest),
+            "Kalis — Thrusting Blade",
+            "Documented",
+            movementSpeedRaw: 512);
+
+        Assert.Contains("Facing: West-northwest", lines);
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("Posture:", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("Footwork:", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("Pace:", StringComparison.Ordinal));
     }
 
     private static int BuildLowerLineCount(WeaponId weapon, ShieldId shield) =>
         AgentInspectorContent.BuildLowerLines(
-            CreateAgentView(weapon, shield),
+            CreateAgentView(
+                weapon,
+                shield,
+                facing: Facing16.East,
+                movementPaceRaw: 256,
+                tacticalPosture: TacticalPosture.Advance,
+                footworkPhase: FootworkPhase.Approach),
             "label",
-            "tier").Count;
+            "tier",
+            movementSpeedRaw: 512).Count;
 
     private static AgentView CreateAgentView(
         WeaponId weapon,
@@ -1412,7 +1650,12 @@ public sealed class AgentInspectorContentTests
         int contingentId = 0,
         ContingentState contingentState = ContingentState.None,
         RankId rank = RankId.Timawa,
-        bool isLeader = false) =>
+        bool isLeader = false,
+        Facing16 facing = Facing16.None,
+        int movementPaceRaw = 0,
+        TacticalPosture tacticalPosture = TacticalPosture.None,
+        FootworkPhase footworkPhase = FootworkPhase.None,
+        int footworkTicksRemaining = 0) =>
         new(
             EntityId: 1,
             FactionId: 0,
@@ -1429,7 +1672,12 @@ public sealed class AgentInspectorContentTests
             ContingentId: contingentId,
             ContingentState: contingentState,
             Rank: rank,
-            IsLeader: isLeader);
+            IsLeader: isLeader,
+            Facing: facing,
+            MovementPaceRaw: movementPaceRaw,
+            TacticalPosture: tacticalPosture,
+            FootworkPhase: footworkPhase,
+            FootworkTicksRemaining: footworkTicksRemaining);
 
     private static Func<string, float> FixedWidthMeasure(
         float pixelsPerCharacter) =>
