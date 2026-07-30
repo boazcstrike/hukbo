@@ -251,6 +251,27 @@ Candidate ratio hysteresis: enter disengagement around ally:enemy
 `0.67–0.80`, leave near `0.85–1.00`; consider advance near `1.25–1.50` only
 while a free lane persists. These ratios are experimental bands, not facts.
 
+**Note added 2026-07-31 — the shipped thresholds depart from the band above.**
+The paragraph above is left exactly as this research proposed it. This note
+records only that gameplay tuning chose different numbers; it does not record
+that the research was wrong. The shipped disengagement entry threshold for the
+Kalis-and-shield row is 17,500 basis points, which is 1.75 enemies per ally, or
+an ally-to-enemy ratio of 0.571, and that sits below the proposed `0.67–0.80`
+entry band. The shipped entry threshold for the Itak-and-shield row is 15,000
+basis points, which is 1.50 enemies per ally, or a ratio of 0.667, and that
+sits exactly at the bottom edge of the same band. Both rows release from
+disengagement at 11,000 basis points, which is 1.10 enemies per ally, or a
+ratio of 0.909, and that value does sit inside the proposed `0.85–1.00` release
+band. Decision D4 of
+[`2026-07-31-movement-v7-calibration-decisions.md`](../../plans/2026-07-31-movement-v7-calibration-decisions.md)
+ratified this departure on 2026-07-31 as deliberate rather than accidental:
+both shield rows tolerating more pressure before they disengage is the intended
+"protected deliberation" reading of the shield, and that reading is now signed
+off and owned rather than sitting unattributed. Every number in this note, like
+every number in the tables above it, is a **Provisional reconstruction:**
+gameplay tuning under the historical accuracy policy in `CLAUDE.md` section 7.
+None of them is a historical measurement and none may be presented as one.
+
 Calibration must compare shielded and shieldless counterparts with identical
 seed and geometry. Reject values that create artificial speed, endless
 backward kiting, threshold oscillation, universal shield dominance, rigid
