@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
@@ -475,6 +476,158 @@ public sealed class ItakMovementScenarioTests
         simulation.AdvanceOneTick();
 
         Assert.Equal(FootworkPhase.Disengage, actor.FootworkPhase);
+    }
+
+    // ----- Shielded rosters preserved under explicit combat V2 -----
+
+    /// <summary>
+    /// The shipped default combat preset is the solo-only, four-entry
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV4"/> roster, so a
+    /// six-entry Itak roster survives only by naming
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV2"/> explicitly:
+    /// the same counts validate under the explicit V2 preset and are a
+    /// roster-length mismatch under the default.
+    /// </summary>
+    [Fact]
+    public void TheSixEntryItakRosterValidatesOnlyUnderTheExplicitCombatVTwoPreset()
+    {
+        var preserved = Scenario.CreateDefault(seed: 1, totalAgents: 8) with
+        {
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+            MovementPreset = MovementPresetId.EquipmentRelativeFootworkV6,
+            RosterCounts = ImmutableArray.Create(0, 0, 0, 0, 0, 4),
+        };
+
+        preserved.Validate();
+
+        var defaulted = Scenario.CreateDefault(seed: 1, totalAgents: 8) with
+        {
+            MovementPreset = MovementPresetId.EquipmentRelativeFootworkV6,
+            RosterCounts = ImmutableArray.Create(0, 0, 0, 0, 0, 4),
+        };
+
+        Assert.Equal(
+            CombatPresetId.PrecolonialPhilippinesV4, defaulted.CombatPreset);
+        Assert.Throws<ArgumentException>(defaulted.Validate);
+    }
+
+    /// <summary>
+    /// The V2 roster is indexed weapon-first, solo before paired: index four
+    /// is the solo Itak entry and index five the shielded one. A scenario
+    /// naming the explicit V2 preset with all of one faction's warriors on a
+    /// single Itak roster entry spawns that exact loadout on every warrior,
+    /// and each spawned loadout resolves to the pinned profile row instance
+    /// under <see cref="MovementPresetId.EquipmentRelativeFootworkV6"/>.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AnExplicitVTwoItakRosterSpawnsTheNamedLoadoutOnEveryWarrior(
+        bool shielded)
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 8) with
+        {
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+            MovementPreset = MovementPresetId.EquipmentRelativeFootworkV6,
+            RosterCounts = shielded
+                ? ImmutableArray.Create(0, 0, 0, 0, 0, 4)
+                : ImmutableArray.Create(0, 0, 0, 0, 4, 0),
+        };
+        var ruleset = MovementPresetRegistry.Get(
+            MovementPresetId.EquipmentRelativeFootworkV6);
+        var expectedShield = shielded ? ShieldId.TallHardwood : ShieldId.None;
+        var expectedRow = shielded
+            ? TallHardwoodMovementProfiles.ItakRow
+            : ItakMovementProfile.Row;
+
+        var simulation = BattleSimulation.Create(scenario);
+
+        Assert.Equal(8, simulation.Agents.Count);
+        Assert.All(simulation.Agents, agent =>
+        {
+            Assert.Equal(WeaponId.Itak, agent.Loadout.Weapon);
+            Assert.Equal(ArmorId.LightOrganic, agent.Loadout.Armor);
+            Assert.Equal(expectedShield, agent.Loadout.Shield);
+            Assert.Same(
+                expectedRow, ruleset.ResolveLoadoutProfile(agent.Loadout));
+        });
+    }
+
+    /// <summary>
+    /// End-to-end event-stream shape under an explicit V2 Itak roster, the
+    /// same five fields the headless feed consumes: every event carries a
+    /// declared kind, the emitting tick, a source that spawned in this
+    /// battle (the outcome event's zero sentinel excepted), a target that is
+    /// absent or spawned, and a non-negative value. Every attack in an
+    /// all-Itak battle carries <see cref="WeaponId.Itak"/> and the roster
+    /// entry's shield, which is what preserving the shielded row end to end
+    /// means: the shield chosen at the roster index is the one the event
+    /// stream reports on every blow.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AnExplicitVTwoItakBattleStreamsWellFormedEventsEndToEnd(
+        bool shielded)
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 12) with
+        {
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+            MovementPreset = MovementPresetId.EquipmentRelativeFootworkV6,
+            RosterCounts = shielded
+                ? ImmutableArray.Create(0, 0, 0, 0, 0, 6)
+                : ImmutableArray.Create(0, 0, 0, 0, 6, 0),
+        };
+        var expectedShield = shielded ? ShieldId.TallHardwood : ShieldId.None;
+        var simulation = BattleSimulation.Create(scenario);
+        var knownIds = new HashSet<ulong>();
+        foreach (var agent in simulation.Agents)
+        {
+            knownIds.Add(agent.EntityId);
+        }
+
+        var sawAttack = false;
+        for (var tick = 0;
+            tick < 2_000 && simulation.Outcome == BattleOutcome.Ongoing;
+            tick++)
+        {
+            simulation.AdvanceOneTick();
+            foreach (var battleEvent in simulation.LastEvents)
+            {
+                Assert.True(
+                    Enum.IsDefined(battleEvent.Kind),
+                    $"Tick {simulation.Tick}: undeclared event kind " +
+                    $"{(int)battleEvent.Kind}.");
+                Assert.Equal(simulation.Tick, battleEvent.Tick);
+                if (battleEvent.Kind == BattleEventKind.Outcome)
+                {
+                    Assert.Equal(0UL, battleEvent.SourceEntityId);
+                }
+                else
+                {
+                    Assert.Contains(battleEvent.SourceEntityId, knownIds);
+                }
+
+                if (battleEvent.TargetEntityId is { } targetId)
+                {
+                    Assert.Contains(targetId, knownIds);
+                }
+
+                Assert.True(
+                    battleEvent.Value >= 0,
+                    $"Tick {simulation.Tick}: event value " +
+                    $"{battleEvent.Value} is negative.");
+                if (battleEvent.Kind == BattleEventKind.Attack)
+                {
+                    sawAttack = true;
+                    Assert.Equal(WeaponId.Itak, battleEvent.Weapon);
+                    Assert.Equal(expectedShield, battleEvent.Shield);
+                    Assert.NotNull(battleEvent.TargetEntityId);
+                }
+            }
+        }
+
+        Assert.True(sawAttack, "The battle never produced an attack event.");
     }
 
     // ----- Matrix runners -----
