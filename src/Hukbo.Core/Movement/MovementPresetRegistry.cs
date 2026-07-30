@@ -15,12 +15,22 @@ public static class MovementPresetRegistry
     /// The frozen preset. What is frozen is this preset's simulated
     /// behaviour, proved byte-identically by
     /// tests/Hukbo.Core.Tests/Fixtures/seed-1-200-agents-movement-v1-digest.json,
-    /// not its field list. <see cref="MovementRuleset.ContentHash"/> never
-    /// reaches the state hash, so a task that adds a field to
-    /// <see cref="MovementRuleset"/> moves only the pinned <c>ContentHash</c>
-    /// identity literal in <c>MovementPresetRegistryTests</c> — recomputed
-    /// from the built code, never guessed — and leaves this preset's actual
-    /// behaviour untouched. See
+    /// not its field list. <see cref="MovementRuleset.ContentHash"/> does
+    /// reach the state hash, but only for a preset whose
+    /// <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/> is
+    /// <see langword="true"/>: <c>BattleSimulation.ComputeStateHash</c> hands
+    /// the movement content hash to <c>StateHasher.Compute</c> for those and
+    /// hands <see langword="null"/> for the rest
+    /// (src/Hukbo.Core/Simulation/BattleSimulation.cs:642-656,
+    /// src/Hukbo.Core/Determinism/StateHasher.cs:81-84). This preset
+    /// registers that flag <see langword="false"/>, so a task that adds a
+    /// field to <see cref="MovementRuleset"/> moves only the pinned
+    /// <c>ContentHash</c> identity literal in
+    /// <c>MovementPresetRegistryTests</c> — recomputed from the built code,
+    /// never guessed — and leaves this preset's actual behaviour and state
+    /// hash untouched. That reasoning does not carry over to
+    /// <see cref="MovementPresetId.EquipmentRelativeFootworkV6"/>, which does
+    /// fold the movement content hash. See
     /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch-design.md section 3.
     /// <c>CloseFractionNumerator</c> and <c>CloseFractionDenominator</c> are
     /// registered here at <c>(0, 1)</c>, which collapses both the entry and
@@ -213,10 +223,15 @@ public static class MovementPresetRegistry
     /// per-loadout movement profile rows in canonical
     /// <c>KP, WA, KA, IT, KS, IS</c> order. Both radii and every profile
     /// value are provisional reconstructions: gameplay tuning; no historical
-    /// measurement. This entry is registration only: no
-    /// <c>BattleSimulation</c> code path consults the flag yet, the shipped
-    /// default stays <see cref="MovementPresetId.PersistentContingentsV4"/>,
-    /// and the preset is reachable only through explicit selection. See
+    /// measurement. This entry is no longer registration only: twelve
+    /// <c>BattleSimulation</c> code paths consult the flag — lines 142, 146,
+    /// 297, 420, 584, 593, 606, 654, 922, 1461, 3183, and 3337 of
+    /// src/Hukbo.Core/Simulation/BattleSimulation.cs — so selecting this
+    /// preset changes local-context derivation, footwork pacing, attack
+    /// marking, and the state hash fold itself. The shipped default
+    /// nonetheless stays
+    /// <see cref="MovementPresetId.PersistentContingentsV4"/>, and the preset
+    /// is reachable only through explicit selection. See
     /// docs/plans/2026-07-30-weapon-movement-foundation-design.md sections 3,
     /// 5, and 13.
     /// </summary>

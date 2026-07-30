@@ -18,16 +18,29 @@ namespace Hukbo.Core.Movement;
 /// What stays frozen is each preset's simulated behaviour, proved
 /// byte-identically by its own digest fixture in
 /// <c>MovementPresetFreezeTests</c> — not this type's field list.
-/// <see cref="ContentHash"/> is folded over every field below, but it never
-/// reaches the state hash: <c>BattleSimulation.ComputeStateHash</c> folds
+/// <see cref="ContentHash"/> is folded over every field below, and since V6
+/// it does reach the state hash, conditionally.
+/// <c>BattleSimulation.ComputeStateHash</c> always folds
 /// <c>_rules.ContentHash</c>, where <c>_rules</c> is the
-/// <c>CombatRuleset</c> (src/Hukbo.Core/Simulation/BattleSimulation.cs:18-19,
-/// 393), and <c>StateHasher.Compute</c> never receives a
-/// <see cref="MovementRuleset"/> at all. Adding a field here therefore cannot
-/// move any preset's state hash, event hash, outcome, or recorded digest;
-/// what it does move is the pinned <c>ContentHash</c> identity literals in
-/// <c>MovementPresetRegistryTests</c>, which must be recomputed from the
-/// built code whenever a field is added, never calculated by hand. See
+/// <c>CombatRuleset</c> (src/Hukbo.Core/Simulation/BattleSimulation.cs:25,
+/// 628), and it additionally hands this type's <see cref="ContentHash"/> to
+/// <c>StateHasher.Compute</c> for every preset whose
+/// <see cref="UsesEquipmentRelativeFootwork"/> is <see langword="true"/>, and
+/// <see langword="null"/> for every preset where that flag is
+/// <see langword="false"/>
+/// (src/Hukbo.Core/Simulation/BattleSimulation.cs:642-656).
+/// <c>StateHasher.Compute</c> folds that value immediately after the combat
+/// content hash when it is non-null, and writes nothing at all when it is
+/// null (src/Hukbo.Core/Determinism/StateHasher.cs:81-84). Adding a field
+/// here therefore leaves the state hash, event hash, outcome, and recorded
+/// digest of V1 through V5 byte-identical, but moves every one of them for
+/// each preset that opts into equipment-relative footwork — V6 today, whose
+/// freeze fixture seed-1-200-agents-movement-v6-digest.json records a state
+/// hash per tick and would have to be re-recorded. It also moves the pinned
+/// <c>ContentHash</c> identity literals in
+/// <c>MovementPresetRegistryTests</c> for every preset, and those must be
+/// recomputed from the built code whenever a field is added, never
+/// calculated by hand. See
 /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch-design.md section 3.
 /// </remarks>
 public sealed class MovementRuleset
