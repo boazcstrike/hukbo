@@ -32,9 +32,13 @@ internal static class WeaponMovementRules
     /// The scale of one whole in the basis-point ratio model: the
     /// enemy-to-ally support ratio thresholds on
     /// <see cref="LoadoutMovementProfile"/> are expressed in
-    /// ten-thousandths.
+    /// ten-thousandths. It is <see langword="internal"/> rather than private,
+    /// as <see cref="SignalCeilingBasisPoints"/> already is, because the
+    /// simulation divides <see cref="ComputeWeightedPressure"/>'s scaled sum
+    /// back down by it to obtain the basis-point value the agent inspector
+    /// shows against a row's own threshold.
     /// </summary>
-    private const long RatioBasisPointScale = 10_000;
+    internal const long RatioBasisPointScale = 10_000;
 
     /// <summary>
     /// The inclusive ceiling, in basis points, that each pressure-interrupt
@@ -158,8 +162,10 @@ internal static class WeaponMovementRules
     /// step 1a of <see cref="ResolveProvisionalFootwork"/> consumes, and the
     /// caller charges the cost of a firing interrupt — a full attack cooldown
     /// and a cleared combo chain — from that same single answer, so the
-    /// formula is evaluated exactly once per agent per tick and there is one
-    /// authority for it.
+    /// predicate is evaluated exactly once per agent per tick. The weighted
+    /// sum itself lives in <see cref="ComputeWeightedPressure"/>, the single
+    /// authority for the formula, which the simulation also calls directly to
+    /// fill the agent inspector's pressure row.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -269,6 +275,88 @@ internal static class WeaponMovementRules
             return false;
         }
 
+        long weighted = ComputeWeightedPressure(
+            supportAllies,
+            supportEnemies,
+            priorSupportAllies,
+            damageTakenLastTick,
+            maximumHitPoints,
+            supportPressureWeightBasisPoints,
+            incomingDamageWeightBasisPoints,
+            allyCollapseWeightBasisPoints);
+
+        return weighted >= checked(thresholdBasisPoints * RatioBasisPointScale);
+    }
+
+    /// <summary>
+    /// The weighted sum of the three saturating pressure signals — support
+    /// pressure, incoming damage, and ally collapse — scaled by
+    /// <see cref="RatioBasisPointScale"/> (design section 5.1). This is the
+    /// left-hand side of <see cref="ShouldPressureInterrupt"/>'s comparison,
+    /// factored out so that the one number the agent inspector shows and the
+    /// one number the interrupt weighs are produced by the same arithmetic and
+    /// can never drift apart. Divide the result by
+    /// <see cref="RatioBasisPointScale"/> to obtain the basis-point value that
+    /// is directly comparable to a row's own
+    /// <see cref="LoadoutMovementProfile.PressureInterruptThresholdBasisPoints"/>;
+    /// the comparison in <see cref="ShouldPressureInterrupt"/> instead scales
+    /// the threshold up, because dividing the sum down first would truncate.
+    /// </summary>
+    /// <remarks>
+    /// The three guards that decide whether an interrupt may fire at all — the
+    /// transition-only rule and the zero-threshold rule — deliberately do not
+    /// live here. They belong to the predicate, which short-circuits before
+    /// reaching this method, while the spectator's pressure row is shown on
+    /// every tick regardless of the warrior's phase (design section 3,
+    /// question 8, channel 3). This method therefore has exactly the same
+    /// preconditions the predicate documents: it divides by
+    /// <paramref name="supportAllies"/>, by
+    /// <paramref name="maximumHitPoints"/>, and — when that count is non-zero —
+    /// by <paramref name="priorSupportAllies"/>, and it guards none of them, so
+    /// it may only be called on the living-agent path.
+    /// </remarks>
+    /// <param name="supportAllies">
+    /// Living allies within the support radius this tick, including the actor
+    /// itself — <see cref="LocalMovementContext.SupportAllies"/>. At least one
+    /// for a living agent, and the divisor of the support-pressure signal.
+    /// </param>
+    /// <param name="supportEnemies">
+    /// Living perceived enemies within the support radius this tick —
+    /// <see cref="LocalMovementContext.SupportEnemies"/>.
+    /// </param>
+    /// <param name="priorSupportAllies">
+    /// The same supporting-ally count as it stood on the previous tick. Zero
+    /// means no previous tick was recorded, and the collapse signal is then
+    /// zero rather than undefined.
+    /// </param>
+    /// <param name="damageTakenLastTick">
+    /// The damage the agent absorbed on the previous tick.
+    /// </param>
+    /// <param name="maximumHitPoints">
+    /// The agent's maximum hit points, the denominator of the incoming-damage
+    /// signal. At least one.
+    /// </param>
+    /// <param name="supportPressureWeightBasisPoints">
+    /// The ruleset's shared weight for the support-pressure signal.
+    /// </param>
+    /// <param name="incomingDamageWeightBasisPoints">
+    /// The ruleset's shared weight for the incoming-damage signal.
+    /// </param>
+    /// <param name="allyCollapseWeightBasisPoints">
+    /// The ruleset's shared weight for the ally-collapse signal. The three
+    /// weights total exactly 10,000 whenever the preset applies the interrupt,
+    /// which <see cref="MovementRuleset"/> enforces at construction.
+    /// </param>
+    internal static long ComputeWeightedPressure(
+        int supportAllies,
+        int supportEnemies,
+        int priorSupportAllies,
+        int damageTakenLastTick,
+        int maximumHitPoints,
+        int supportPressureWeightBasisPoints,
+        int incomingDamageWeightBasisPoints,
+        int allyCollapseWeightBasisPoints)
+    {
         // Signal A, support pressure: the enemy-to-ally ratio in the support
         // ring, saturated at the shared ceiling.
         long supportPressure = Math.Min(
@@ -293,12 +381,10 @@ internal static class WeaponMovementRules
         // The weights sum to exactly one whole unit, so the weighted sum is a
         // true weighted average scaled by RatioBasisPointScale and the
         // threshold stays directly comparable to a single signal's value.
-        long weighted = checked(
+        return checked(
             (supportPressure * supportPressureWeightBasisPoints)
             + (incomingDamage * incomingDamageWeightBasisPoints)
             + (allyCollapse * allyCollapseWeightBasisPoints));
-
-        return weighted >= checked(thresholdBasisPoints * RatioBasisPointScale);
     }
 
     /// <summary>
