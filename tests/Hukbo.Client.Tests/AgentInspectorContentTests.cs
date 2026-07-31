@@ -1393,27 +1393,94 @@ public sealed class AgentInspectorContentTests
     public void LowerLinesWithAContingentRowAndTheRankReconstructionNoteNeverExceedTheRowBudget()
     {
         // The deepest panel there is: shielded (grip row), contingent row,
-        // rank reconstruction note, and all four V6 movement rows. This is
-        // the exact case MaximumLowerRowCount is sized for, so the count
-        // must land on the budget, not merely under it — a raised budget
-        // without the rows to justify it fails here too.
+        // rank reconstruction note, all four V6 movement rows, and the V7
+        // pressure row. This is the exact case MaximumLowerRowCount is sized
+        // for, so the count must land on the budget, not merely under it — a
+        // raised budget without the rows to justify it fails here too.
         var count = AgentInspectorContent.BuildLowerLines(
-            CreateAgentView(
-                WeaponId.Kalis,
-                ShieldId.TallHardwood,
-                contingentId: 3,
-                contingentState: ContingentState.Hold,
-                rank: RankId.AlipingNamamahay,
-                facing: Facing16.East,
-                movementPaceRaw: 256,
-                tacticalPosture: TacticalPosture.Advance,
-                footworkPhase: FootworkPhase.Approach),
+            DeepestView(),
             "Kalis — Thrusting Blade",
             "Documented",
             movementSpeedRaw: 512).Count;
 
         Assert.Equal(AgentInspectorContent.MaximumLowerRowCount, count);
-        Assert.Equal(19, AgentInspectorContent.MaximumLowerRowCount);
+        Assert.Equal(20, AgentInspectorContent.MaximumLowerRowCount);
+    }
+
+    /// <summary>
+    /// The deepest warrior a panel can draw: shielded, in a contingent,
+    /// carrying the rank reconstruction note, with all four V6 movement rows
+    /// and the V7 pressure row present.
+    /// </summary>
+    private static AgentView DeepestView() =>
+        CreateAgentView(
+            WeaponId.Kalis,
+            ShieldId.TallHardwood,
+            contingentId: 3,
+            contingentState: ContingentState.Hold,
+            rank: RankId.AlipingNamamahay,
+            facing: Facing16.East,
+            movementPaceRaw: 256,
+            tacticalPosture: TacticalPosture.Advance,
+            footworkPhase: FootworkPhase.Approach,
+            pressureBasisPoints: 4200,
+            pressureThresholdBasisPoints: 6500);
+
+    [Fact]
+    public void ComputeRequiredHeightFitsTheDeepestRealRowCountIncludingThePressureRow()
+    {
+        // Height math asserted against the row count BuildLowerLines really
+        // produces, not against a hardcoded number that happens to match: the
+        // bottom of the last row a full panel draws must still sit inside the
+        // reserved height, above the bottom padding. Adding a row without
+        // raising MaximumLowerRowCount fails here.
+        var lowerRowCount = AgentInspectorContent.BuildLowerLines(
+            DeepestView(),
+            "Kalis — Thrusting Blade",
+            "Documented",
+            movementSpeedRaw: 512).Count;
+        var totalRowCount =
+            lowerRowCount
+            + AgentInspectorContent.WarriorNameReservedLineCount
+            + AgentInspectorContent.EvidenceReservedLineCount;
+
+        // The row arithmetic AgentInspectorPanel.Draw uses: rows start at
+        // lowerTextY and each row's bottom is lowerTextY + row*LineHeight +
+        // LineHeight.
+        var textY = AgentInspectorContent.Padding
+            + AgentInspectorContent.TitleHeight;
+        var lowerTextY = Math.Max(
+            textY
+                + AgentInspectorContent.PortraitSize
+                + AgentInspectorContent.PortraitBottomGap,
+            textY
+                + (AgentInspectorContent.TopDetailRowCount
+                    * AgentInspectorContent.LineHeight)
+                + AgentInspectorContent.TopDetailBottomGap);
+        var lastRowBottom = lowerTextY
+            + ((totalRowCount - 1) * AgentInspectorContent.LineHeight)
+            + AgentInspectorContent.LineHeight;
+
+        var reservedHeight = AgentInspectorContent.ComputeRequiredHeight(
+            AgentInspectorContent.EvidenceReservedLineCount);
+
+        Assert.True(
+            lastRowBottom + AgentInspectorContent.Padding <= reservedHeight,
+            $"The deepest panel draws {totalRowCount} rows ending at " +
+            $"{lastRowBottom}px, which does not fit inside the reserved " +
+            $"height of {reservedHeight}px.");
+    }
+
+    [Fact]
+    public void ComputeRequiredHeightReservesOneLineHeightPerLowerRow()
+    {
+        // The pressure row is worth exactly one row of panel height, which is
+        // what "update ComputeRequiredHeight for the extra row" has to mean.
+        var perEvidenceLine =
+            AgentInspectorContent.ComputeRequiredHeight(1)
+            - AgentInspectorContent.ComputeRequiredHeight(0);
+
+        Assert.Equal(AgentInspectorContent.LineHeight, perEvidenceLine);
     }
 
     // ===== Weapon-relative movement inspector rows (design section 15.2) =====
@@ -1509,6 +1576,134 @@ public sealed class AgentInspectorContentTests
             AgentInspectorContent.FormatFootworkLine(
                 FootworkPhase.None,
                 ticksRemaining: 0));
+    }
+
+    // ===== Pressure interrupt: footwork suffix (design 3, question 8) =====
+
+    [Theory]
+    [InlineData(FootworkPhase.None, null)]
+    [InlineData(FootworkPhase.Approach, "Footwork: Approaching")]
+    [InlineData(FootworkPhase.Engage, "Footwork: Engaging")]
+    [InlineData(FootworkPhase.Commit, "Footwork: Committed (3 ticks)")]
+    [InlineData(FootworkPhase.Recover, "Footwork: Recovering (3 ticks)")]
+    [InlineData(FootworkPhase.Refuse, "Footwork: Refused")]
+    [InlineData(FootworkPhase.Disengage, "Footwork: Disengaging")]
+    [InlineData(FootworkPhase.Regroup, "Footwork: Regrouping")]
+    [InlineData(FootworkPhase.Pursue, "Footwork: Pursuing")]
+    public void FormatFootworkLine_TwoArgumentCallersRenderByteIdenticallyToBeforeTheInterrupt(
+        FootworkPhase phase,
+        string? expected)
+    {
+        // Every string a caller written before the pressure interrupt could
+        // get back, pinned in one place. The new parameter is trailing and
+        // optional, so this is the whole legacy surface of the formatter.
+        Assert.Equal(
+            expected,
+            AgentInspectorContent.FormatFootworkLine(phase, ticksRemaining: 3));
+    }
+
+    [Fact]
+    public void FormatFootworkLine_MarksADisengageDrivenByThePressureInterrupt()
+    {
+        Assert.Equal(
+            "Footwork: Disengaging (broke off under pressure)",
+            AgentInspectorContent.FormatFootworkLine(
+                FootworkPhase.Disengage,
+                ticksRemaining: 0,
+                brokeOffUnderPressure: true));
+    }
+
+    [Fact]
+    public void FormatFootworkLine_LeavesAnOrdinaryDisengageUnmarked()
+    {
+        // A warrior that hit its ordinary ratio threshold reads exactly as it
+        // did before the interrupt existed.
+        Assert.Equal(
+            "Footwork: Disengaging",
+            AgentInspectorContent.FormatFootworkLine(
+                FootworkPhase.Disengage,
+                ticksRemaining: 0,
+                brokeOffUnderPressure: false));
+    }
+
+    [Theory]
+    [InlineData(FootworkPhase.Approach)]
+    [InlineData(FootworkPhase.Engage)]
+    [InlineData(FootworkPhase.Commit)]
+    [InlineData(FootworkPhase.Recover)]
+    [InlineData(FootworkPhase.Refuse)]
+    [InlineData(FootworkPhase.Regroup)]
+    [InlineData(FootworkPhase.Pursue)]
+    public void FormatFootworkLine_NeverLeaksTheFlagOntoAPhaseThatIsNotDisengage(
+        FootworkPhase phase)
+    {
+        // Same discipline as the stale timer: the flag decorates the phase the
+        // interrupt actually produced, and nothing else.
+        Assert.Equal(
+            AgentInspectorContent.FormatFootworkLine(phase, ticksRemaining: 3),
+            AgentInspectorContent.FormatFootworkLine(
+                phase,
+                ticksRemaining: 3,
+                brokeOffUnderPressure: true));
+    }
+
+    [Fact]
+    public void FormatFootworkLine_StillReturnsNullForNoneEvenWithTheFlagSet()
+    {
+        Assert.Null(
+            AgentInspectorContent.FormatFootworkLine(
+                FootworkPhase.None,
+                ticksRemaining: 0,
+                brokeOffUnderPressure: true));
+    }
+
+    // ===== Pressure interrupt: pressure row (design 3, question 8) =====
+
+    [Theory]
+    [InlineData(0, 6500, "Pressure: 0 of 6500 basis points to break off")]
+    [InlineData(4200, 6500, "Pressure: 4200 of 6500 basis points to break off")]
+    [InlineData(6500, 6500, "Pressure: 6500 of 6500 basis points to break off")]
+    [InlineData(9100, 6500, "Pressure: 9100 of 6500 basis points to break off")]
+    public void FormatPressureLine_ReadsTheRunningValueAgainstThisWarriorsOwnThreshold(
+        int pressureBasisPoints,
+        int thresholdBasisPoints,
+        string expected)
+    {
+        // The row renders on every tick, at every value — below the bar, on
+        // it, and past it — because a running reading is what lets a
+        // spectator predict a break-off rather than only witness one.
+        Assert.Equal(
+            expected,
+            AgentInspectorContent.FormatPressureLine(
+                pressureBasisPoints,
+                thresholdBasisPoints));
+    }
+
+    [Fact]
+    public void FormatPressureLine_ReturnsNullWhenNoThresholdIsProjected()
+    {
+        // Every preset that does not apply the interrupt, and death cleanup,
+        // leave the threshold at zero, so the row is absent under all of them.
+        Assert.Null(
+            AgentInspectorContent.FormatPressureLine(
+                pressureBasisPoints: 0,
+                thresholdBasisPoints: 0));
+        Assert.Null(
+            AgentInspectorContent.FormatPressureLine(
+                pressureBasisPoints: 4200,
+                thresholdBasisPoints: 0));
+    }
+
+    [Fact]
+    public void FormatPressureLine_TreatsTwoWarriorsWithTheSamePressureDifferently()
+    {
+        // The point of pairing the running value with the warrior's own bar:
+        // the same pressure reads differently for two different loadouts,
+        // which is what explains why one broke off and its neighbour did not.
+        var lowBar = AgentInspectorContent.FormatPressureLine(4200, 3000);
+        var highBar = AgentInspectorContent.FormatPressureLine(4200, 9000);
+
+        Assert.NotEqual(lowBar, highBar);
     }
 
     [Theory]
@@ -1630,6 +1825,117 @@ public sealed class AgentInspectorContentTests
             line => line.StartsWith("Pace:", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void LowerLinesOmitThePressureRowUnderAPresetWithoutTheInterrupt()
+    {
+        // Legacy byte-identity, channel 3: a V6 warrior — every V6 movement
+        // row present — whose three pressure members hold their defaults gains
+        // no pressure row and no break-off suffix, so its rows read exactly as
+        // they did before the interrupt existed.
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                facing: Facing16.SouthEast,
+                movementPaceRaw: 256,
+                tacticalPosture: TacticalPosture.Advance,
+                footworkPhase: FootworkPhase.Disengage),
+            "Kalis — Thrusting Blade",
+            "Documented",
+            movementSpeedRaw: 512);
+
+        var expectedTail = new[]
+        {
+            "Facing: Southeast",
+            "Posture: Advancing",
+            "Footwork: Disengaging",
+            "Pace: 50% of full speed",
+        };
+        Assert.Equal(expectedTail, lines.TakeLast(4));
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("Pressure:", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            lines,
+            line => line.Contains("pressure", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LowerLinesCarryThePressureRowOnEveryTickNotOnlyWhenTheInterruptFires(
+        bool brokeOffUnderPressure)
+    {
+        // The row is the channel a spectator can actually use, so it must not
+        // depend on the interrupt having fired — E1 measured firings on about
+        // 0.09% of agent-ticks, and a firing-only row would be blank almost
+        // always.
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                facing: Facing16.SouthEast,
+                movementPaceRaw: 256,
+                tacticalPosture: TacticalPosture.Advance,
+                footworkPhase: brokeOffUnderPressure
+                    ? FootworkPhase.Disengage
+                    : FootworkPhase.Engage,
+                brokeOffUnderPressure: brokeOffUnderPressure,
+                pressureBasisPoints: 4200,
+                pressureThresholdBasisPoints: 6500),
+            "Kalis — Thrusting Blade",
+            "Documented",
+            movementSpeedRaw: 512);
+
+        Assert.Contains(
+            "Pressure: 4200 of 6500 basis points to break off",
+            lines);
+        Assert.Equal(
+            "Pressure: 4200 of 6500 basis points to break off",
+            lines[^1]);
+    }
+
+    [Fact]
+    public void LowerLinesMarkTheFootworkRowWhenTheInterruptBrokeThisWarriorOff()
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                facing: Facing16.SouthEast,
+                movementPaceRaw: 256,
+                tacticalPosture: TacticalPosture.Advance,
+                footworkPhase: FootworkPhase.Disengage,
+                brokeOffUnderPressure: true,
+                pressureBasisPoints: 9100,
+                pressureThresholdBasisPoints: 6500),
+            "Kalis — Thrusting Blade",
+            "Documented",
+            movementSpeedRaw: 512);
+
+        Assert.Contains("Footwork: Disengaging (broke off under pressure)", lines);
+        Assert.DoesNotContain("Footwork: Disengaging", lines);
+    }
+
+    [Fact]
+    public void ADeadWarriorUnderTheInterruptPresetShowsNoPressureRow()
+    {
+        // Death cleanup zeroes all three pressure members alongside the
+        // movement ones, so a corpse's inspector carries neither channel.
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                facing: Facing16.WestNorthWest),
+            "Kalis — Thrusting Blade",
+            "Documented",
+            movementSpeedRaw: 512);
+
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("Pressure:", StringComparison.Ordinal));
+    }
+
     private static int BuildLowerLineCount(WeaponId weapon, ShieldId shield) =>
         AgentInspectorContent.BuildLowerLines(
             CreateAgentView(
@@ -1655,7 +1961,10 @@ public sealed class AgentInspectorContentTests
         int movementPaceRaw = 0,
         TacticalPosture tacticalPosture = TacticalPosture.None,
         FootworkPhase footworkPhase = FootworkPhase.None,
-        int footworkTicksRemaining = 0) =>
+        int footworkTicksRemaining = 0,
+        bool brokeOffUnderPressure = false,
+        int pressureBasisPoints = 0,
+        int pressureThresholdBasisPoints = 0) =>
         new(
             EntityId: 1,
             FactionId: 0,
@@ -1677,7 +1986,10 @@ public sealed class AgentInspectorContentTests
             MovementPaceRaw: movementPaceRaw,
             TacticalPosture: tacticalPosture,
             FootworkPhase: footworkPhase,
-            FootworkTicksRemaining: footworkTicksRemaining);
+            FootworkTicksRemaining: footworkTicksRemaining,
+            BrokeOffUnderPressure: brokeOffUnderPressure,
+            PressureBasisPoints: pressureBasisPoints,
+            PressureThresholdBasisPoints: pressureThresholdBasisPoints);
 
     private static Func<string, float> FixedWidthMeasure(
         float pixelsPerCharacter) =>
