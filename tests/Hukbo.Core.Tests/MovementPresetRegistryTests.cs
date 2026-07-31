@@ -115,6 +115,12 @@ public sealed class MovementPresetRegistryTests
     }
 
     [Fact]
+    public void EquipmentRelativeFootworkV7IsRegistered()
+    {
+        Assert.True(MovementPresetRegistry.IsRegistered(MovementPresetId.EquipmentRelativeFootworkV7));
+    }
+
+    [Fact]
     public void TheZeroValueIsNotRegistered()
     {
         Assert.False(MovementPresetRegistry.IsRegistered((MovementPresetId)0));
@@ -238,8 +244,16 @@ public sealed class MovementPresetRegistryTests
     /// and <c>EquipmentRelativeFootworkV6</c> both carry the flag forward
     /// deliberately — V5 layers rank-aware leader selection on V4's
     /// narrowed scan, and V6 carries V5's cohesion tunables unchanged — and
-    /// this Fact states both so neither value can drift silently.
+    /// this Fact states both so neither value can drift silently, as does
+    /// <c>EquipmentRelativeFootworkV7</c>, which carries V6's cohesion
+    /// tunables forward unchanged in turn.
     /// </summary>
+    /// <remarks>
+    /// The name has been inaccurate since V5 shipped — the body already
+    /// asserts <see langword="true"/> for V5 and V6 — and it is left alone
+    /// deliberately: renaming it here would be churn that hides the real diff.
+    /// Pressure-interrupt design section 8 records that decision.
+    /// </remarks>
     [Fact]
     public void OnlyPersistentContingentsV4NarrowsTheCrossContingentScan()
     {
@@ -261,6 +275,9 @@ public sealed class MovementPresetRegistryTests
         Assert.True(MovementPresetRegistry
             .Get(MovementPresetId.EquipmentRelativeFootworkV6)
             .NarrowsCohesionScanToCohesionCapableContingents);
+        Assert.True(MovementPresetRegistry
+            .Get(MovementPresetId.EquipmentRelativeFootworkV7)
+            .NarrowsCohesionScanToCohesionCapableContingents);
     }
 
     /// <summary>
@@ -269,8 +286,9 @@ public sealed class MovementPresetRegistryTests
     /// preset carries it, so a preset added later cannot quietly turn it on
     /// for a frozen trajectory without this Fact failing.
     /// <c>EquipmentRelativeFootworkV6</c> carries the flag forward
-    /// deliberately — it carries V5's cohesion tunables unchanged — and this
-    /// Fact states that value so it cannot drift silently.
+    /// deliberately — it carries V5's cohesion tunables unchanged — and so
+    /// does <c>EquipmentRelativeFootworkV7</c> in turn; this Fact states both
+    /// values so neither can drift silently.
     /// </summary>
     [Fact]
     public void OnlyPersistentContingentsV5SelectsLeaderByRank()
@@ -293,6 +311,9 @@ public sealed class MovementPresetRegistryTests
         Assert.True(MovementPresetRegistry
             .Get(MovementPresetId.EquipmentRelativeFootworkV6)
             .SelectsLeaderByRank);
+        Assert.True(MovementPresetRegistry
+            .Get(MovementPresetId.EquipmentRelativeFootworkV7)
+            .SelectsLeaderByRank);
     }
 
     /// <summary>
@@ -300,7 +321,18 @@ public sealed class MovementPresetRegistryTests
     /// <c>EquipmentRelativeFootworkV6</c> from every earlier preset; no
     /// earlier preset carries it, so a preset added later cannot quietly
     /// turn it on for a frozen trajectory without this Fact failing.
+    /// <c>EquipmentRelativeFootworkV7</c> carries the flag forward
+    /// deliberately — the pressure interrupt is evaluated inside a stage only
+    /// this flag runs, which is why
+    /// <see cref="MovementRuleset.AppliesPressureInterrupt"/> may be
+    /// <see langword="true"/> only alongside it — and this Fact states that
+    /// value so it cannot drift silently.
     /// </summary>
+    /// <remarks>
+    /// The name has been inaccurate since V7 shipped, for the same reason and
+    /// with the same deliberate decision recorded in
+    /// <c>OnlyPersistentContingentsV4NarrowsTheCrossContingentScan</c>.
+    /// </remarks>
     [Fact]
     public void OnlyEquipmentRelativeFootworkV6UsesEquipmentRelativeFootwork()
     {
@@ -322,5 +354,52 @@ public sealed class MovementPresetRegistryTests
         Assert.True(MovementPresetRegistry
             .Get(MovementPresetId.EquipmentRelativeFootworkV6)
             .UsesEquipmentRelativeFootwork);
+        Assert.True(MovementPresetRegistry
+            .Get(MovementPresetId.EquipmentRelativeFootworkV7)
+            .UsesEquipmentRelativeFootwork);
+    }
+
+    /// <summary>
+    /// The pressure-interrupt flag is what separates
+    /// <c>EquipmentRelativeFootworkV7</c> from every earlier preset; no
+    /// earlier preset carries it, so a preset added later cannot quietly turn
+    /// it on for a frozen trajectory without this Fact failing. That matters
+    /// more here than for the three flags above, because this flag is the
+    /// version gate the four pressure-interrupt values fold behind: were it
+    /// ever registered <see langword="true"/> on V6, V6's
+    /// <see cref="MovementRuleset.ContentHash"/> would move, and with it the
+    /// state hash and the frozen trajectory digest that hash records.
+    /// </summary>
+    /// <remarks>
+    /// It also states the value the V7 entry itself registers. A V7 entry that
+    /// left the flag to its trailing constructor default would compile
+    /// cleanly, register <see langword="false"/>, and silently never fire the
+    /// feature the preset exists for; this Fact is what makes that failure
+    /// loud.
+    /// </remarks>
+    [Fact]
+    public void OnlyEquipmentRelativeFootworkV7AppliesThePressureInterrupt()
+    {
+        Assert.False(MovementPresetRegistry
+            .Get(MovementPresetId.IndependentPursuitV1)
+            .AppliesPressureInterrupt);
+        Assert.False(MovementPresetRegistry
+            .Get(MovementPresetId.PersistentContingentsV2)
+            .AppliesPressureInterrupt);
+        Assert.False(MovementPresetRegistry
+            .Get(MovementPresetId.PersistentContingentsV3)
+            .AppliesPressureInterrupt);
+        Assert.False(MovementPresetRegistry
+            .Get(MovementPresetId.PersistentContingentsV4)
+            .AppliesPressureInterrupt);
+        Assert.False(MovementPresetRegistry
+            .Get(MovementPresetId.PersistentContingentsV5)
+            .AppliesPressureInterrupt);
+        Assert.False(MovementPresetRegistry
+            .Get(MovementPresetId.EquipmentRelativeFootworkV6)
+            .AppliesPressureInterrupt);
+        Assert.True(MovementPresetRegistry
+            .Get(MovementPresetId.EquipmentRelativeFootworkV7)
+            .AppliesPressureInterrupt);
     }
 }
