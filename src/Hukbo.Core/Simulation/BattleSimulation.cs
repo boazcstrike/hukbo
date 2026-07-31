@@ -100,6 +100,21 @@ public sealed class BattleSimulation
     private readonly bool[] _conflictAccepted;
     private long _movementConflictDenials;
 
+    // Pressure-interrupt scratch (V7 design section 3, question 2). One slot
+    // per scenario agent, allocated once here and sized zero under every preset
+    // whose MovementRuleset.AppliesPressureInterrupt is false — which is every
+    // preset from V1 through V6 — so a legacy battle carries no storage for a
+    // feature it never runs. The answer is produced exactly once per living
+    // agent per tick, by the single ShouldPressureInterrupt call in
+    // ResolveEquipmentPosturesAndProvisionalFootwork, and is read twice in that
+    // same iteration: once by the cost the interrupt charges and once by the
+    // footwork ladder it preempts. One computation and one authority is what
+    // keeps those two from ever disagreeing. The value is derived scratch in
+    // the same mould as _provisionalFootworkPhases: never hashed, never
+    // snapshotted, never persisted, because the authoritative results the
+    // interrupt produces live on AgentState.
+    private readonly bool[] _pressureInterruptFired;
+
     // Double-buffered event storage: each tick writes into whichever of these
     // two lists is not currently exposed through _lastEvents, so a caller
     // that retains one tick's LastEvents value keeps seeing that tick's data,
@@ -160,6 +175,9 @@ public sealed class BattleSimulation
         _conflictProposalAgentIndexes =
             usesFootwork ? new int[agents.Length] : [];
         _conflictAccepted = usesFootwork ? new bool[agents.Length] : [];
+        _pressureInterruptFired = _movementRules.AppliesPressureInterrupt
+            ? new bool[agents.Length]
+            : [];
         _eventBufferA = new List<BattleEvent>(agents.Length * 2);
         _eventBufferB = new List<BattleEvent>(agents.Length * 2);
         _eventViewA = new ReadOnlyCollection<BattleEvent>(_eventBufferA);
@@ -1566,6 +1584,14 @@ public sealed class BattleSimulation
     /// timer stay in scratch: design section 9.4 commits them exactly once,
     /// after route generation and lane clearance finalise them.
     /// </summary>
+    /// <remarks>
+    /// This is also the one place the V7 pressure interrupt is evaluated, under
+    /// <see cref="MovementRuleset.AppliesPressureInterrupt"/> and therefore
+    /// never under any preset from V1 through V6. It is the only stage that
+    /// both charges the interrupt's cost and feeds its answer into the footwork
+    /// ladder, which is why the answer is computed once, here, rather than
+    /// twice — see the V7 design document, sections 3 and 4.4.
+    /// </remarks>
     private void ResolveEquipmentPosturesAndProvisionalFootwork()
     {
         for (var slot = 0; slot < ContingentSlotCount; slot++)
@@ -1585,6 +1611,7 @@ public sealed class BattleSimulation
                 _factionSurvivingCompositions[1 - factionId].RoleCoverage);
         }
 
+        var appliesPressureInterrupt = _movementRules.AppliesPressureInterrupt;
         for (var index = 0; index < _agentStates.Length; index++)
         {
             var agent = _agentStates[index];
@@ -1592,6 +1619,15 @@ public sealed class BattleSimulation
             {
                 _provisionalFootworkPhases[index] = FootworkPhase.None;
                 _provisionalFootworkTicks[index] = 0;
+                if (appliesPressureInterrupt)
+                {
+                    // The slot is cleared rather than left stale, but the
+                    // predicate itself is never called here: it guards none of
+                    // its own arguments and divides by counts that only a
+                    // living agent is guaranteed to carry.
+                    _pressureInterruptFired[index] = false;
+                }
+
                 continue;
             }
 
@@ -1626,6 +1662,90 @@ public sealed class BattleSimulation
                     checked((Int128)preferredRaw * preferredRaw);
             }
 
+            if (appliesPressureInterrupt)
+            {
+                // Design section 4, the pressure interrupt: one call per living
+                // agent per tick, on tick-start authoritative state plus the
+                // scratch SelectTargetsAndIntents finalised before this loop
+                // began. No agent's answer reads another agent's answer, so the
+                // loop order cannot decide an outcome and the no-peeking
+                // invariant GatherEquipmentRelativeMovementProposals documents
+                // is preserved. No random stream is consulted.
+                //
+                // The predicate guards no argument of its own: it divides by
+                // supportAllies, by maximumHitPoints, and — when that count is
+                // non-zero — by priorSupportAllies. LocalMovementContext's
+                // ally count includes the actor itself and Scenario.Validate
+                // proves MaximumHitPoints is at least 1, so both divisors are
+                // non-zero by construction for a living agent. That is why the
+                // call sits in the living-agent path only, and why the dead
+                // branch above clears the slot instead of asking.
+                _pressureInterruptFired[index] =
+                    WeaponMovementRules.ShouldPressureInterrupt(
+                        agent.FootworkPhase,
+                        context.SupportAllies,
+                        context.SupportEnemies,
+                        agent.PriorSupportAllies,
+                        agent.DamageTakenLastTick,
+                        agent.MaximumHitPoints,
+                        _movementRules.SupportPressureWeightBasisPoints,
+                        _movementRules.IncomingDamageWeightBasisPoints,
+                        _movementRules.AllyCollapseWeightBasisPoints,
+                        profile.PressureInterruptThresholdBasisPoints);
+
+                if (_pressureInterruptFired[index])
+                {
+                    // The cost, design section 4.4. This is the second
+                    // non-decrement writer of AgentState.AttackCooldownRemaining;
+                    // the other is ResolveComboTransition, which writes it from
+                    // the combat stage. That is a deliberate, documented
+                    // inversion of the invariant
+                    // ApplyEquipmentAttackFootworkAndDeathCleanup's summary
+                    // records: combat still reads nothing from movement, and
+                    // the post-attack footwork pass still never blocks an
+                    // attack the combat gates accepted. What changes is the
+                    // reverse direction — the movement stage writing a field
+                    // the combat stage owns — and the write is unreachable
+                    // under every preset from V1 through V6, because the gate
+                    // above is false for all of them.
+                    //
+                    // AttackCooldownTicks rather than the weapon profile's
+                    // value, matching the reasoning ResolveComboTransition's
+                    // remarks already record: the two are bit-identical for
+                    // every agent CreateAgent produces, and the cached field is
+                    // the one every other tick stage reads.
+                    //
+                    // The timing is exact. DecrementCooldowns runs before this
+                    // stage, so the value written here is not decremented on
+                    // the tick it is written: the first decrement lands at the
+                    // start of the next tick and the attack gate reopens
+                    // exactly AttackCooldownTicks ticks later. On this tick
+                    // GatherAndCommitAttacks sees a non-zero cooldown and the
+                    // warrior lands nothing. That is the cost, and it is the
+                    // observable point of the whole feature.
+                    agent.AttackCooldownRemaining = agent.AttackCooldownTicks;
+
+                    // The chain is cleared, not preserved, and this is a
+                    // decision rather than an oversight: a warrior whose
+                    // cooldown was just reset to the full normal value is by
+                    // definition not continuing a chain, and leaving
+                    // ComboStepsRemaining above zero would let the next blow
+                    // claim a chain position across the interruption — an event
+                    // field reporting a continuity that did not happen. These
+                    // are the same two writes ClearActiveComboChain performs.
+                    agent.ComboStepsRemaining = 0;
+                    agent.ComboTargetEntityId = null;
+
+                    // The spectator channel of design section 8. It is set here
+                    // and cleared by ApplyEquipmentAttackFootworkAndDeathCleanup
+                    // the moment this tick's finalised phase is anything but the
+                    // Disengage this interrupt produced, so the pawn mark
+                    // persists for a readable number of ticks rather than
+                    // pulsing for one.
+                    agent.BrokeOffUnderPressure = true;
+                }
+            }
+
             var (phase, ticksRemaining) =
                 WeaponMovementRules.ResolveProvisionalFootwork(
                     isAlive: true,
@@ -1638,7 +1758,14 @@ public sealed class BattleSimulation
                     profile.ReengageEnemyToAllyBasisPoints,
                     profile.RecoveryTicks,
                     hasTarget,
-                    targetAtOrInsidePreferredDistance);
+                    targetAtOrInsidePreferredDistance,
+                    // The same answer the cost above was charged from, read
+                    // back from the one slot that holds it. The gate is what
+                    // keeps the index off a zero-length array under every
+                    // preset that does not apply the interrupt, and the
+                    // parameter's own default is the legacy ladder exactly.
+                    pressureInterruptFired: appliesPressureInterrupt &&
+                        _pressureInterruptFired[index]);
             _provisionalFootworkPhases[index] = phase;
             _provisionalFootworkTicks[index] = ticksRemaining;
         }
@@ -2591,8 +2718,27 @@ public sealed class BattleSimulation
     /// information. The writes are idempotent for agents that died on an
     /// earlier tick, whose four fields are already clear.
     /// </summary>
+    /// <remarks>
+    /// Under <see cref="MovementRuleset.AppliesPressureInterrupt"/> this pass
+    /// also stamps the two one-tick histories the interrupt reads on the
+    /// following tick and maintains the break-off flag it sets, and clears all
+    /// three on a dead agent alongside the four above. The stamps land here,
+    /// after the footwork stage has already read the previous tick's values,
+    /// which is exactly what makes a single integer per signal sufficient (V7
+    /// design section 4.5). Nothing here reads the interrupt's decision; it
+    /// only records the state the next tick's decision will be made from.
+    /// <para>
+    /// The summary's invariant survives the interrupt: combat still reads
+    /// nothing from movement, and this pass still never suppresses an attack
+    /// the combat gates accepted. What V7 adds is the reverse direction — the
+    /// movement stage writing <see cref="AgentState.AttackCooldownRemaining"/>,
+    /// a field the combat stage owns — at the one gated site in
+    /// <see cref="ResolveEquipmentPosturesAndProvisionalFootwork"/>.
+    /// </para>
+    /// </remarks>
     private void ApplyEquipmentAttackFootworkAndDeathCleanup()
     {
+        var appliesPressureInterrupt = _movementRules.AppliesPressureInterrupt;
         for (var index = 0; index < _agentStates.Length; index++)
         {
             var agent = _agentStates[index];
@@ -2602,6 +2748,15 @@ public sealed class BattleSimulation
                 agent.TacticalPosture = TacticalPosture.None;
                 agent.FootworkPhase = FootworkPhase.None;
                 agent.FootworkTicksRemaining = 0;
+                if (appliesPressureInterrupt)
+                {
+                    // Idempotent for an agent that died on an earlier tick,
+                    // exactly as the four writes above are.
+                    agent.DamageTakenLastTick = 0;
+                    agent.PriorSupportAllies = 0;
+                    agent.BrokeOffUnderPressure = false;
+                }
+
                 continue;
             }
 
@@ -2610,6 +2765,34 @@ public sealed class BattleSimulation
                 var profile = _movementRules.ResolveLoadoutProfile(agent.Loadout);
                 agent.FootworkPhase = FootworkPhase.Commit;
                 agent.FootworkTicksRemaining = profile.CommitmentTicks;
+            }
+
+            if (appliesPressureInterrupt)
+            {
+                // Signal B's history: this tick's accumulated damage, read on
+                // the next tick as the damage taken on the previous one.
+                // _damageTotals is cleared at the top of GatherAndCommitAttacks
+                // and is still populated here, so this is a stamp rather than a
+                // new query or a second pass.
+                agent.DamageTakenLastTick = _damageTotals[index];
+
+                // Signal C's history: this tick's support-ring ally count,
+                // including the actor, taken from the context
+                // SelectTargetsAndIntents derived at the top of the tick.
+                agent.PriorSupportAllies =
+                    _localMovementContexts[index].SupportAllies;
+
+                // The break-off flag's lifetime, design section 8, channel 1.
+                // It is not a single-tick pulse: it survives every tick the
+                // warrior stays in the Disengage the interrupt produced, and
+                // clears the moment this tick's finalised phase is anything
+                // else — including the Commit an accepted attack writes just
+                // above — and on death, in the branch above. That persistence
+                // is what makes the pawn mark visible at 1x speed. This runs
+                // after the attack-footwork write on purpose, so the flag is
+                // always judged against the phase the tick actually ends in.
+                agent.BrokeOffUnderPressure = agent.BrokeOffUnderPressure &&
+                    agent.FootworkPhase == FootworkPhase.Disengage;
             }
         }
     }
@@ -3726,6 +3909,13 @@ public sealed class BattleSimulation
             }
         }
 
+        // One of exactly two non-decrement writers of
+        // AgentState.AttackCooldownRemaining. The other is the V7 pressure
+        // interrupt in ResolveEquipmentPosturesAndProvisionalFootwork, which
+        // re-charges this same field from the movement stage under
+        // MovementRuleset.AppliesPressureInterrupt and is therefore unreachable
+        // under every preset from V1 through V6. That site carries the matching
+        // comment and the argument for why the inversion is deliberate.
         source.AttackCooldownRemaining = cooldown;
         return comboPosition;
     }
