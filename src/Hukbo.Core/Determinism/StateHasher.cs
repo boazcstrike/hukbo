@@ -49,6 +49,24 @@ internal static class StateHasher
     /// <see cref="AgentState.FootworkPhase"/>, and
     /// <see cref="AgentState.FootworkTicksRemaining"/>.
     /// </param>
+    /// <param name="appliesPressureInterrupt">
+    /// The <see cref="Movement.MovementRuleset.AppliesPressureInterrupt"/> of
+    /// the movement preset the simulation is running on,
+    /// <see langword="false"/> for every preset up to and including V6. It is
+    /// deliberately a gate of its own rather than a reuse of
+    /// <paramref name="movementContentHash"/>: that value is already non-null
+    /// under V6, so folding the pressure-interrupt fields inside its block
+    /// would move V6's per-agent byte layout and break the frozen V6 digest.
+    /// When <see langword="false"/> nothing new is written anywhere, following
+    /// the <paramref name="hasRankLevels"/> and
+    /// <paramref name="movementContentHash"/> precedent. When
+    /// <see langword="true"/>, three fields fold at the tail of each per-agent
+    /// fold, after the conditional footwork fields, in their
+    /// <see cref="AgentState"/> declaration order:
+    /// <see cref="AgentState.DamageTakenLastTick"/>,
+    /// <see cref="AgentState.PriorSupportAllies"/>, and
+    /// <see cref="AgentState.BrokeOffUnderPressure"/> as <c>1</c> or <c>0</c>.
+    /// </param>
     internal static ulong Compute(
         Scenario scenario,
         long tick,
@@ -57,7 +75,8 @@ internal static class StateHasher
         IReadOnlyList<AgentState> agents,
         ulong contentHash,
         bool hasRankLevels,
-        ulong? movementContentHash = null)
+        ulong? movementContentHash = null,
+        bool appliesPressureInterrupt = false)
     {
         var hash = Fnv1a.OffsetBasis;
         Add(ref hash, scenario.Seed);
@@ -126,6 +145,13 @@ internal static class StateHasher
                 Add(ref hash, (int)agent.TacticalPosture);
                 Add(ref hash, (int)agent.FootworkPhase);
                 Add(ref hash, agent.FootworkTicksRemaining);
+            }
+
+            if (appliesPressureInterrupt)
+            {
+                Add(ref hash, agent.DamageTakenLastTick);
+                Add(ref hash, agent.PriorSupportAllies);
+                Add(ref hash, agent.BrokeOffUnderPressure ? 1 : 0);
             }
         }
 
