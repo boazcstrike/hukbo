@@ -81,6 +81,41 @@ namespace Hukbo.Core.Simulation;
 /// 9.5. <c>0</c> outside those phases and forever under every other
 /// preset. Defaulted for the same reason <see cref="Facing"/> is.
 /// </param>
+/// <param name="BrokeOffUnderPressure">
+/// Whether the pressure interrupt broke this warrior off a committed blow on
+/// the tick just resolved — channel 1 of the spectator explanation in
+/// pressure-interrupt design section 3, question 8. It is not a single-tick
+/// pulse: it stays set for as long as the warrior remains in the
+/// <see cref="Movement.FootworkPhase.Disengage"/> the interrupt produced, which
+/// is what makes the mark it drives readable at 1x speed.
+/// <see langword="false"/> forever under every preset whose
+/// <see cref="MovementRuleset.AppliesPressureInterrupt"/> is
+/// <see langword="false"/>, and <see langword="false"/> for a corpse. Defaulted
+/// for the same reason <see cref="Facing"/> is.
+/// </param>
+/// <param name="PressureBasisPoints">
+/// This warrior's weighted pressure as of the tick this view was captured, in
+/// the same basis-point unit as <see cref="PressureThresholdBasisPoints"/>
+/// below, so the two read against each other with no further arithmetic —
+/// channel 3 of pressure-interrupt design section 3, question 8. It is carried
+/// on every tick for every living warrior, not only on a tick an interrupt
+/// fires, because a running value is what lets a spectator predict a break-off
+/// rather than only witness one. <c>0</c> forever under every preset whose
+/// <see cref="MovementRuleset.AppliesPressureInterrupt"/> is
+/// <see langword="false"/>, and <c>0</c> for a corpse. Defaulted for the same
+/// reason <see cref="Facing"/> is.
+/// </param>
+/// <param name="PressureThresholdBasisPoints">
+/// The value <see cref="PressureBasisPoints"/> must reach for this warrior to
+/// abandon a committed blow, read from its resolved
+/// <see cref="LoadoutMovementProfile.PressureInterruptThresholdBasisPoints"/>.
+/// It is a per-loadout constant rather than a per-tick quantity, and pairing it
+/// with the running value above is what explains why one warrior broke off and
+/// the neighbour beside it did not. <c>0</c> forever under every preset whose
+/// <see cref="MovementRuleset.AppliesPressureInterrupt"/> is
+/// <see langword="false"/>, and <c>0</c> for a corpse. Defaulted for the same
+/// reason <see cref="Facing"/> is.
+/// </param>
 public readonly record struct AgentView(
     ulong EntityId,
     int FactionId,
@@ -102,4 +137,7 @@ public readonly record struct AgentView(
     int MovementPaceRaw = 0,
     TacticalPosture TacticalPosture = TacticalPosture.None,
     FootworkPhase FootworkPhase = FootworkPhase.None,
-    int FootworkTicksRemaining = 0);
+    int FootworkTicksRemaining = 0,
+    bool BrokeOffUnderPressure = false,
+    int PressureBasisPoints = 0,
+    int PressureThresholdBasisPoints = 0);
