@@ -653,7 +653,12 @@ public sealed class BattleSimulation
             // folds its movement content hash and the five footwork fields.
             _movementRules.UsesEquipmentRelativeFootwork
                 ? _movementRules.ContentHash
-                : null);
+                : null,
+            // A gate of its own, not a reuse of the one above: V6 already
+            // passes a non-null movement content hash, so folding the three
+            // pressure-interrupt fields inside that block would move V6's
+            // per-agent byte layout. Only V7 registers this true.
+            _movementRules.AppliesPressureInterrupt);
 
     public BattleSnapshot CreateSnapshot()
     {

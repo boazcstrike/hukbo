@@ -202,6 +202,43 @@ internal sealed class AgentState
     /// </summary>
     internal int FootworkTicksRemaining { get; set; }
 
+    /// <summary>
+    /// The damage this warrior absorbed on the previous tick, stamped once per
+    /// tick from the per-agent damage accumulator the attack stage already
+    /// maintains, and read on the following tick as the incoming-damage signal
+    /// of the pressure interrupt (V7 design section 4.5, signal B). <c>0</c>
+    /// forever under every preset whose
+    /// <see cref="MovementRuleset.AppliesPressureInterrupt"/> is
+    /// <see langword="false"/>, and cleared by death cleanup. This property and
+    /// the two below it are declared after
+    /// <see cref="FootworkTicksRemaining"/> so that the five properties above
+    /// keep the V6 fold order the shipped V6 digest froze; they fold only
+    /// under the V7 gate, in this declaration order.
+    /// </summary>
+    internal int DamageTakenLastTick { get; set; }
+
+    /// <summary>
+    /// The number of allies this warrior's support ring held on the previous
+    /// tick, including itself, stamped after the footwork stage has already
+    /// read it so a single integer suffices. Read on the following tick as the
+    /// ally-collapse signal of the pressure interrupt (V7 design section 4.5,
+    /// signal C). <c>0</c> at spawn, which is what keeps the signal silent on
+    /// the first tick; <c>0</c> forever under every preset whose
+    /// <see cref="MovementRuleset.AppliesPressureInterrupt"/> is
+    /// <see langword="false"/>, and cleared by death cleanup.
+    /// </summary>
+    internal int PriorSupportAllies { get; set; }
+
+    /// <summary>
+    /// Whether the pressure interrupt broke this warrior off a committed blow
+    /// on the tick just resolved — the spectator channel of V7 design section
+    /// 8, and the reason an interrupted warrior's cooldown and chain state
+    /// read the way they do. <see langword="false"/> forever under every preset
+    /// whose <see cref="MovementRuleset.AppliesPressureInterrupt"/> is
+    /// <see langword="false"/>, and cleared by death cleanup.
+    /// </summary>
+    internal bool BrokeOffUnderPressure { get; set; }
+
     internal bool IsAlive => HitPoints > 0;
 
     internal AgentView ToView(bool isLeader) =>
