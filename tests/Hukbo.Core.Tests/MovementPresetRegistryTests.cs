@@ -78,6 +78,33 @@ public sealed class MovementPresetRegistryTests
     /// </summary>
     private const ulong EquipmentRelativeFootworkV6ContentHash = 0x0FFE5D202B324D25UL;
 
+    /// <summary>
+    /// Pinned by the pressure-interrupt plan's task E2 against
+    /// <c>EquipmentRelativeFootworkV7</c>'s constant set, once task E1 had
+    /// settled the four tuning values for good. V7 carries every one of
+    /// <c>EquipmentRelativeFootworkV6</c>'s field values unchanged and differs
+    /// from it in <see cref="MovementRuleset.Id"/>, in
+    /// <c>AppliesPressureInterrupt</c> (<see langword="true"/>), and in the
+    /// four values that flag gates: the three signal weights folded once for
+    /// the ruleset and the sixteenth per-row scalar,
+    /// <c>PressureInterruptThresholdBasisPoints</c>, folded once per profile
+    /// row. Those four fold inside <c>if (AppliesPressureInterrupt)</c>
+    /// precisely so that this seventh literal can exist without moving the six
+    /// above it, and
+    /// <see cref="EquipmentRelativeFootworkV7ContentHashMatchesThePinnedLiteral"/>
+    /// states that separation as six <c>NotEqual</c> assertions.
+    /// Recorded from the built code, never calculated by hand.
+    /// </summary>
+    /// <remarks>
+    /// Task E1 measured that V7's tuning does not meet the design section 2.1
+    /// termination bar at any setting it tried, and left the values where they
+    /// stand for the reasons recorded in
+    /// docs/plans/2026-07-31-movement-v7-calibration-record.md. That is a
+    /// finding about what the preset achieves; this literal records what the
+    /// preset is, which is frozen either way.
+    /// </remarks>
+    private const ulong EquipmentRelativeFootworkV7ContentHash = 0x66F4FDF91F56AF1BUL;
+
     [Fact]
     public void IndependentPursuitV1IsRegistered()
     {
@@ -234,6 +261,31 @@ public sealed class MovementPresetRegistryTests
         Assert.NotEqual(PersistentContingentsV3ContentHash, ruleset.ContentHash);
         Assert.NotEqual(PersistentContingentsV4ContentHash, ruleset.ContentHash);
         Assert.NotEqual(PersistentContingentsV5ContentHash, ruleset.ContentHash);
+    }
+
+    /// <summary>
+    /// Pins <c>EquipmentRelativeFootworkV7</c>'s content hash to a literal
+    /// distinct from all six existing literals: introducing the seventh preset
+    /// must move nothing about the first six. The comparison against
+    /// <see cref="EquipmentRelativeFootworkV6ContentHash"/> is the load-bearing
+    /// one, because V7 is registered from V6's own field values plus the four
+    /// pressure-interrupt values alone. Were those four folded
+    /// unconditionally rather than behind the version gate, V6's literal would
+    /// have moved when V7 shipped, and the state hash and frozen trajectory
+    /// digest that literal reaches would have moved with it.
+    /// </summary>
+    [Fact]
+    public void EquipmentRelativeFootworkV7ContentHashMatchesThePinnedLiteral()
+    {
+        var ruleset = MovementPresetRegistry.Get(MovementPresetId.EquipmentRelativeFootworkV7);
+
+        Assert.Equal(EquipmentRelativeFootworkV7ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(IndependentPursuitV1ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(PersistentContingentsV2ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(PersistentContingentsV3ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(PersistentContingentsV4ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(PersistentContingentsV5ContentHash, ruleset.ContentHash);
+        Assert.NotEqual(EquipmentRelativeFootworkV6ContentHash, ruleset.ContentHash);
     }
 
     /// <summary>

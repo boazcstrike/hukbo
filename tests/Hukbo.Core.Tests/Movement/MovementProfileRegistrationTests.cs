@@ -15,6 +15,11 @@ namespace Hukbo.Core.Tests.Movement;
 /// provisional reconstruction — gameplay tuning, not a historical
 /// measurement — pinned here so it cannot drift silently before the V6
 /// digest ships.
+/// Also the one place the sixteenth per-row scalar,
+/// <see cref="LoadoutMovementProfile.PressureInterruptThresholdBasisPoints"/>,
+/// is covered for content-hash sensitivity. That scalar folds only under
+/// <see cref="MovementPresetId.EquipmentRelativeFootworkV7"/>, so its cases
+/// run against V7 while every other case here runs against V6.
 /// </summary>
 public sealed class MovementProfileRegistrationTests
 {
@@ -39,6 +44,9 @@ public sealed class MovementProfileRegistrationTests
 
     private static MovementRuleset V6 =>
         MovementPresetRegistry.Get(MovementPresetId.EquipmentRelativeFootworkV6);
+
+    private static MovementRuleset V7 =>
+        MovementPresetRegistry.Get(MovementPresetId.EquipmentRelativeFootworkV7);
 
     /// <summary>
     /// Rebuilds a V6-shaped ruleset from explicit rows so a test can perturb
@@ -73,13 +81,57 @@ public sealed class MovementProfileRegistrationTests
             loadoutMovementProfiles: profiles);
 
     /// <summary>
+    /// Rebuilds a V7-shaped ruleset from explicit rows, the same way
+    /// <see cref="BuildV6Ruleset"/> does for V6, so a test can perturb one
+    /// value at a time under the preset that actually folds the sixteenth
+    /// per-row scalar. Every non-profile argument matches the registered V7
+    /// entry, which
+    /// <see cref="RebuildingTheRegisteredV7RowsReproducesTheRegisteredContentHash"/>
+    /// proves against the registry.
+    /// </summary>
+    private static MovementRuleset BuildV7Ruleset(
+        ImmutableArray<LoadoutMovementProfile> profiles) =>
+        new(
+            id: MovementPresetId.EquipmentRelativeFootworkV7,
+            version: 1,
+            cohesionRadiusMultiplier: 24,
+            closeRadiusMultiplier: 16,
+            closeFractionNumerator: 1,
+            closeFractionDenominator: 2,
+            minimumCohesiveMembers: 3,
+            cohesionCycleTicks: 240,
+            cohesionDutyTicks: 180,
+            arrivalTaperMultiplier: 4,
+            offsetUnit: 1024,
+            narrowsCohesionScanToCohesionCapableContingents: true,
+            selectsLeaderByRank: true,
+            usesEquipmentRelativeFootwork: true,
+            immediateRadiusBodyDiametersBasisPoints: 25_000,
+            supportRadiusBodyDiametersBasisPoints: 60_000,
+            loadoutMovementProfiles: profiles,
+            appliesPressureInterrupt: true,
+            supportPressureWeightBasisPoints: 5_000,
+            incomingDamageWeightBasisPoints: 3_000,
+            allyCollapseWeightBasisPoints: 2_000);
+
+    /// <summary>
     /// Clones one profile row, optionally decrementing one scalar (indexed 0
-    /// through 14 in design section 4.2 declaration order, skipping the
+    /// through 15 in design section 4.2 declaration order, skipping the
     /// loadout key and the offset array) or one signed offset cell. A
     /// one-unit decrement stays inside every design 4.3 bound for every
     /// shipped row, so each variant constructs successfully and differs from
     /// its source in exactly one folded value.
     /// </summary>
+    /// <remarks>
+    /// Index 15 is <c>PressureInterruptThresholdBasisPoints</c>, and it is
+    /// usable only against a row registered under a preset that applies the
+    /// interrupt. Every V6 row carries the threshold as zero, which the
+    /// coupled validation requires of a flag-off preset, so decrementing index
+    /// 15 there would produce a negative threshold and fail construction.
+    /// <see cref="EveryRowAndScalar"/> therefore stops at 14 and
+    /// <see cref="EveryV7RowAndTheSixteenthScalar"/> covers index 15 on its
+    /// own, under V7.
+    /// </remarks>
     private static LoadoutMovementProfile Clone(
         LoadoutMovementProfile source,
         int scalarIndex = -1,
@@ -112,26 +164,45 @@ public sealed class MovementProfileRegistrationTests
             Adjust(11, source.AllyClearanceBodyDiametersBasisPoints),
             Adjust(12, source.DisengageEnemyToAllyBasisPoints),
             Adjust(13, source.ReengageEnemyToAllyBasisPoints),
-            Adjust(14, source.PursuitSupportBodyDiametersBasisPoints));
+            Adjust(14, source.PursuitSupportBodyDiametersBasisPoints),
+            Adjust(15, source.PressureInterruptThresholdBasisPoints));
+    }
+
+    /// <summary>
+    /// Clones every row of one registered ruleset, applying the single-value
+    /// perturbation to the row at <paramref name="variantRowIndex"/> only.
+    /// </summary>
+    private static ImmutableArray<LoadoutMovementProfile> CloneRows(
+        MovementRuleset source,
+        int variantRowIndex,
+        int scalarIndex,
+        int offsetCellIndex)
+    {
+        var builder = ImmutableArray.CreateBuilder<LoadoutMovementProfile>(
+            MovementRuleset.CanonicalLoadoutCount);
+        for (var row = 0; row < source.LoadoutMovementProfiles.Length; row++)
+        {
+            builder.Add(row == variantRowIndex
+                ? Clone(
+                    source.LoadoutMovementProfiles[row],
+                    scalarIndex,
+                    offsetCellIndex)
+                : Clone(source.LoadoutMovementProfiles[row]));
+        }
+
+        return builder.MoveToImmutable();
     }
 
     private static ImmutableArray<LoadoutMovementProfile> CloneRegisteredRows(
         int variantRowIndex = -1,
         int scalarIndex = -1,
-        int offsetCellIndex = -1)
-    {
-        var builder = ImmutableArray.CreateBuilder<LoadoutMovementProfile>(
-            MovementRuleset.CanonicalLoadoutCount);
-        for (var row = 0; row < V6.LoadoutMovementProfiles.Length; row++)
-        {
-            builder.Add(row == variantRowIndex
-                ? Clone(
-                    V6.LoadoutMovementProfiles[row], scalarIndex, offsetCellIndex)
-                : Clone(V6.LoadoutMovementProfiles[row]));
-        }
+        int offsetCellIndex = -1) =>
+        CloneRows(V6, variantRowIndex, scalarIndex, offsetCellIndex);
 
-        return builder.MoveToImmutable();
-    }
+    private static ImmutableArray<LoadoutMovementProfile> CloneRegisteredV7Rows(
+        int variantRowIndex = -1,
+        int scalarIndex = -1) =>
+        CloneRows(V7, variantRowIndex, scalarIndex, offsetCellIndex: -1);
 
     public static TheoryData<int, int> EveryRowAndScalar()
     {
@@ -142,6 +213,26 @@ public sealed class MovementProfileRegistrationTests
             {
                 data.Add(row, scalar);
             }
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    /// One case per row for the sixteenth per-row scalar,
+    /// <c>PressureInterruptThresholdBasisPoints</c>, which
+    /// <see cref="EveryRowAndScalar"/> deliberately does not reach. Every
+    /// registered V7 threshold is at least 6,250, so a one-unit decrement
+    /// stays well inside the inclusive
+    /// <c>[1, WeaponMovementRules.SignalCeilingBasisPoints]</c> band the
+    /// coupled validation enforces for a preset that applies the interrupt.
+    /// </summary>
+    public static TheoryData<int> EveryV7RowAndTheSixteenthScalar()
+    {
+        var data = new TheoryData<int>();
+        for (var row = 0; row < 6; row++)
+        {
+            data.Add(row);
         }
 
         return data;
@@ -450,6 +541,53 @@ public sealed class MovementProfileRegistrationTests
             CloneRegisteredRows(rowIndex, offsetCellIndex: offsetCellIndex));
 
         Assert.NotEqual(V6.ContentHash, variant.ContentHash);
+    }
+
+    /// <summary>
+    /// The identity baseline for the V7 sensitivity case below, and the exact
+    /// counterpart of
+    /// <see cref="RebuildingTheRegisteredRowsReproducesTheRegisteredContentHash"/>
+    /// for the preset that applies the pressure interrupt: rebuilding the six
+    /// registered V7 rows field-for-field, through fresh constructor calls,
+    /// reproduces the registered content hash exactly. Without this the
+    /// <c>NotEqual</c> below would pass for the wrong reason — any rebuild
+    /// that dropped the sixteenth scalar on the floor would also differ from
+    /// the registered hash.
+    /// </summary>
+    [Fact]
+    public void RebuildingTheRegisteredV7RowsReproducesTheRegisteredContentHash()
+    {
+        var rebuilt = BuildV7Ruleset(CloneRegisteredV7Rows());
+
+        Assert.Equal(V7.ContentHash, rebuilt.ContentHash);
+    }
+
+    /// <summary>
+    /// Pressure-interrupt design section 6.2 item 2: under a preset that
+    /// applies the interrupt, the sixteenth per-row scalar,
+    /// <c>PressureInterruptThresholdBasisPoints</c>, is folded into the
+    /// content hash, so changing it on any single row moves that hash. One
+    /// case per row.
+    /// </summary>
+    /// <remarks>
+    /// This is the case task B2's note deferred to task E2. B2 folded the
+    /// scalar behind the <c>AppliesPressureInterrupt</c> gate and left
+    /// <see cref="EveryRowAndScalar"/>'s upper bound at 15 exclusive, because
+    /// under V6 the scalar is not folded at all: that is the whole point of
+    /// the gate, and it is what keeps V6's pinned <c>ContentHash</c> literal
+    /// and V6's frozen trajectory digest from moving when V7 shipped. The
+    /// scalar therefore cannot be covered by the V6 loop and needs its own
+    /// case here, under the preset that does fold it.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(EveryV7RowAndTheSixteenthScalar))]
+    public void ChangingThePressureInterruptThresholdChangesTheV7ContentHash(
+        int rowIndex)
+    {
+        var variant = BuildV7Ruleset(
+            CloneRegisteredV7Rows(rowIndex, scalarIndex: 15));
+
+        Assert.NotEqual(V7.ContentHash, variant.ContentHash);
     }
 
     [Fact]

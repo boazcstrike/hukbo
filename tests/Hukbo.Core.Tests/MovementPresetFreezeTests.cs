@@ -59,6 +59,17 @@ namespace Hukbo.Core.Tests;
 /// discovered in a replay.
 /// </description>
 /// </item>
+/// <item>
+/// <description>
+/// <c>EquipmentRelativeFootworkV7</c>, captured by
+/// docs/plans/2026-07-31-movement-v7-pressure-interrupt.md task E2, from the
+/// build whose task E1 settled the pressure interrupt's four tuning values
+/// for good. Like the V6 fixture it freezes a brand-new opt-in preset at the
+/// moment it shipped rather than a legacy trajectory, so any later change
+/// that moves it -- a threshold edit, a signal-weight edit, a rules tweak, a
+/// pipeline reorder -- is caught here rather than discovered in a replay.
+/// </description>
+/// </item>
 /// </list>
 /// This file is the oracle those tasks replay against.
 /// </summary>
@@ -88,6 +99,9 @@ public sealed class MovementPresetFreezeTests
 
     private const string EquipmentRelativeFootworkV6DigestFileName =
         "seed-1-200-agents-movement-v6-digest.json";
+
+    private const string EquipmentRelativeFootworkV7DigestFileName =
+        "seed-1-200-agents-movement-v7-digest.json";
 
     /// <summary>
     /// Replays the frozen seed-1, two-hundred-agent trajectory tick by tick
@@ -218,6 +232,38 @@ public sealed class MovementPresetFreezeTests
         var digest = LoadDigest(EquipmentRelativeFootworkV6DigestFileName);
         var simulation = CreateControlRun(
             MovementPresetId.EquipmentRelativeFootworkV6);
+
+        ReplayAndAssertDigest(digest, simulation);
+        AssertFinalContingentFieldsMatch(digest, simulation);
+    }
+
+    /// <summary>
+    /// Replays the frozen seed-1, two-hundred-agent trajectory tick by tick
+    /// under <c>EquipmentRelativeFootworkV7</c> and asserts every tick row
+    /// and the final per-agent rows -- including the real
+    /// <see cref="AgentView.ContingentId"/> and
+    /// <see cref="AgentView.ContingentState"/> values this preset populates
+    /// -- match the fixture exactly. See
+    /// docs/plans/2026-07-31-movement-v7-pressure-interrupt.md task E2: this
+    /// fixture freezes the pressure-interrupt preset's trajectory at the
+    /// commit that settled its four tuning values, with the control run
+    /// selecting <c>CombatPresetId.PrecolonialPhilippinesV2</c> explicitly,
+    /// the same way every other freeze test here does.
+    /// </summary>
+    /// <remarks>
+    /// Task E1 measured that V7's tuning does not meet the design section 2.1
+    /// termination bar, and this fixture records a draw at the ten-thousandth
+    /// tick because of it. That is deliberate. The fixture's job is to prove
+    /// the trajectory has not moved, not to prove the trajectory is the one
+    /// the workstream wanted; a preset whose behaviour is disappointing is
+    /// still a preset whose behaviour must not change silently.
+    /// </remarks>
+    [Fact]
+    public void EquipmentRelativeFootworkV7_ReproducesTheFrozenTrajectoryDigest()
+    {
+        var digest = LoadDigest(EquipmentRelativeFootworkV7DigestFileName);
+        var simulation = CreateControlRun(
+            MovementPresetId.EquipmentRelativeFootworkV7);
 
         ReplayAndAssertDigest(digest, simulation);
         AssertFinalContingentFieldsMatch(digest, simulation);
