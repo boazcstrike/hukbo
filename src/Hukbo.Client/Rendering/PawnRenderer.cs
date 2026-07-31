@@ -37,6 +37,26 @@ internal static class PawnRenderer
     /// rather than a garment or ornament color.
     /// </summary>
     private static readonly Color LeaderColor = new(92, 200, 214);
+
+    /// <summary>
+    /// The break-off mark's dedicated color — channel 1 of the spectator
+    /// explanation in pressure-interrupt design section 3, question 8. It
+    /// follows <see cref="LeaderColor"/>'s precedent exactly: a private tone
+    /// on this renderer rather than a semantic <c>UiTheme</c> role, because
+    /// nothing in the pawn layer reads a theme. <c>PawnRenderer</c> takes no
+    /// <c>UiTheme</c> parameter, <c>FactionColorPalette</c> resolves the only
+    /// other pawn color statically, and threading a theme down to a warrior's
+    /// head would be a wider change than this mark justifies.
+    ///
+    /// A hot orange, chosen against the rest of this file for the same reason
+    /// <see cref="LeaderColor"/> is cool: it is far from
+    /// <see cref="LeaderColor"/>'s cyan, which can sit one slot below it on
+    /// the same pawn, and far from <see cref="HoverColor"/>'s and
+    /// <see cref="HitPulseColor"/>'s pale yellows, which are the only other
+    /// warm UI tones a pawn can carry.
+    /// </summary>
+    private static readonly Color BreakOffColor = new(232, 108, 40);
+
     private static readonly Color HitPulseColor = new(255, 244, 214);
     private static readonly Color SwingTrailColor = new(206, 214, 220);
 
@@ -159,6 +179,15 @@ internal static class PawnRenderer
     /// a run under the frozen preset — where every agent carries
     /// <see cref="ContingentState.None"/> — looks exactly as it looks today.
     /// </param>
+    /// <param name="brokeOffUnderPressure">
+    /// The pawn's <see cref="AgentView.BrokeOffUnderPressure"/>, used only to
+    /// gate the break-off mark above the head. Defaulted to
+    /// <see langword="false"/>, matching <paramref name="contingentState"/>
+    /// above, so the existing call sites keep compiling without naming it and
+    /// so a run under any preset that does not apply the pressure interrupt —
+    /// where every view carries <see langword="false"/> — draws exactly what
+    /// it draws today.
+    /// </param>
     public static void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
@@ -177,7 +206,8 @@ internal static class PawnRenderer
         DiagnosticLog? log = null,
         int contingentId = 0,
         ContingentState contingentState = ContingentState.None,
-        bool isLeader = false)
+        bool isLeader = false,
+        bool brokeOffUnderPressure = false)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(pixel);
@@ -207,7 +237,8 @@ internal static class PawnRenderer
             log,
             contingentId,
             contingentState,
-            isLeader);
+            isLeader,
+            brokeOffUnderPressure);
     }
 
     /// <summary>
@@ -245,7 +276,8 @@ internal static class PawnRenderer
         DiagnosticLog? log = null,
         int contingentId = 0,
         ContingentState contingentState = ContingentState.None,
-        bool isLeader = false)
+        bool isLeader = false,
+        bool brokeOffUnderPressure = false)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(pixel);
@@ -405,6 +437,23 @@ internal static class PawnRenderer
         if (isLeader)
         {
             DrawLeaderMark(spriteBatch, pixel, layout.HeadBounds);
+        }
+
+        // The same coexistence decision as the leader mark above, taken for
+        // the same reason and stated rather than inherited: the break-off
+        // mark draws whenever brokeOffUnderPressure is true, independent of
+        // both the selection/hover/dead branch and the leader branch. All
+        // three can be true of one warrior on one tick — a selected leader
+        // that the pressure interrupt has just pulled off its blow — and all
+        // three are then correct to show. GetBreakOffMarkBounds reserves the
+        // leader's slot whether or not the leader mark draws, so the three
+        // never overlap; PawnRendererTests pins that over a real layout grid.
+        if (TryGetBreakOffMarkBounds(
+                brokeOffUnderPressure,
+                layout.HeadBounds,
+                out var breakOffMarkBounds))
+        {
+            spriteBatch.Draw(pixel, breakOffMarkBounds, BreakOffColor);
         }
     }
 
@@ -1231,6 +1280,42 @@ internal static class PawnRenderer
             color);
     }
 
+    /// <summary>
+    /// The arm length of one selection-mark corner bracket, in pixels. Pure
+    /// placement math, extracted so <c>PawnRendererTests</c> can reason about
+    /// where the selection ring actually puts pixels without a graphics
+    /// device. <see cref="DrawSelectionMark"/> is its only production caller,
+    /// so the drawn ring and the tested rectangles cannot drift apart.
+    /// </summary>
+    public static int GetSelectionMarkCornerLength(Rectangle selectionBounds) =>
+        Math.Clamp(
+            Math.Min(selectionBounds.Width, selectionBounds.Height) / 4,
+            4,
+            10);
+
+    /// <summary>
+    /// The axis-aligned bounding box of one of the four L-shaped corner
+    /// brackets <see cref="DrawSelectionMark"/> draws, identified by which
+    /// corner of <paramref name="selectionBounds"/> it hangs off. The
+    /// bracket's two quads both lie inside this square whatever thickness is
+    /// passed, because thickness is 1 or 2 and the arm length is at least 4,
+    /// which makes an intersection test against this square a conservative
+    /// stand-in for a test against the drawn pixels: anything that misses the
+    /// square misses the bracket.
+    /// </summary>
+    public static Rectangle GetSelectionMarkCornerBounds(
+        Rectangle selectionBounds,
+        bool right,
+        bool bottom)
+    {
+        var cornerLength = GetSelectionMarkCornerLength(selectionBounds);
+        return new Rectangle(
+            right ? selectionBounds.Right - cornerLength : selectionBounds.Left,
+            bottom ? selectionBounds.Bottom - cornerLength : selectionBounds.Top,
+            cornerLength,
+            cornerLength);
+    }
+
     private static void DrawSelectionMark(
         SpriteBatch spriteBatch,
         Texture2D pixel,
@@ -1238,35 +1323,29 @@ internal static class PawnRenderer
         Color color,
         int thickness)
     {
-        var cornerLength = Math.Clamp(
-            Math.Min(bounds.Width, bounds.Height) / 4,
-            4,
-            10);
-        var right = bounds.Right - 1;
-        var bottom = bounds.Bottom - 1;
+        DrawCorner(right: false, bottom: false);
+        DrawCorner(right: true, bottom: false);
+        DrawCorner(right: false, bottom: true);
+        DrawCorner(right: true, bottom: true);
 
-        DrawCorner(bounds.Left, bounds.Top, 1, 1);
-        DrawCorner(right, bounds.Top, -1, 1);
-        DrawCorner(bounds.Left, bottom, 1, -1);
-        DrawCorner(right, bottom, -1, -1);
-
-        void DrawCorner(int x, int y, int horizontal, int vertical)
+        void DrawCorner(bool right, bool bottom)
         {
+            var corner = GetSelectionMarkCornerBounds(bounds, right, bottom);
             spriteBatch.Draw(
                 pixel,
                 new Rectangle(
-                    horizontal > 0 ? x : x - cornerLength + 1,
-                    vertical > 0 ? y : y - thickness + 1,
-                    cornerLength,
+                    corner.Left,
+                    bottom ? corner.Bottom - thickness : corner.Top,
+                    corner.Width,
                     thickness),
                 color);
             spriteBatch.Draw(
                 pixel,
                 new Rectangle(
-                    horizontal > 0 ? x : x - thickness + 1,
-                    vertical > 0 ? y : y - cornerLength + 1,
+                    right ? corner.Right - thickness : corner.Left,
+                    corner.Top,
                     thickness,
-                    cornerLength),
+                    corner.Height),
                 color);
         }
     }
@@ -1283,18 +1362,93 @@ internal static class PawnRenderer
     private static void DrawLeaderMark(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        Rectangle headBounds)
+        Rectangle headBounds) =>
+        spriteBatch.Draw(pixel, GetLeaderMarkBounds(headBounds), LeaderColor);
+
+    /// <summary>
+    /// Where the leader band sits, given the head it hangs over. Pure
+    /// placement math, extracted unchanged from the body
+    /// <see cref="DrawLeaderMark"/> used to carry, so that the break-off
+    /// mark's own slot can be derived from this one rather than guessed, and
+    /// so that <c>PawnRendererTests</c> can prove the two never overlap.
+    /// </summary>
+    public static Rectangle GetLeaderMarkBounds(Rectangle headBounds)
     {
         var markWidth = Math.Max(2, headBounds.Width / 2);
         var markHeight = Math.Max(1, headBounds.Height / 6);
-        var gap = Math.Max(1, headBounds.Height / 8);
-        var bounds = new Rectangle(
+        var gap = GetMarkGap(headBounds);
+        return new Rectangle(
             headBounds.Center.X - (markWidth / 2),
             headBounds.Top - gap - markHeight,
             markWidth,
             markHeight);
+    }
 
-        spriteBatch.Draw(pixel, bounds, LeaderColor);
+    /// <summary>
+    /// Where the break-off band sits, given the head it hangs over — channel
+    /// 1 of the spectator explanation in pressure-interrupt design section 3,
+    /// question 8.
+    /// </summary>
+    /// <remarks>
+    /// It occupies the slot immediately above the leader band's, separated by
+    /// the same gap that separates the leader band from the head, and it does
+    /// so <em>whether or not this warrior is a leader</em>. Reserving the
+    /// leader's slot unconditionally is what makes non-collision structural
+    /// rather than circumstantial: the break-off band's rectangle does not
+    /// depend on <c>isLeader</c>, so a warrior who is leading, selected, and
+    /// breaking off on the same tick shows three marks that cannot overlap by
+    /// construction. The cost is a one-slot gap under the band on a
+    /// non-leader, which at the head sizes this renderer produces is between
+    /// two and a few pixels.
+    ///
+    /// It is deliberately wider than the leader band and a different color,
+    /// because sitting one slot apart is not on its own enough to tell two
+    /// thin horizontal bands apart at typical camera zoom.
+    /// </remarks>
+    public static Rectangle GetBreakOffMarkBounds(Rectangle headBounds)
+    {
+        var leaderBounds = GetLeaderMarkBounds(headBounds);
+        var markWidth = Math.Max(3, (headBounds.Width * 2) / 3);
+        var markHeight = Math.Max(1, headBounds.Height / 6);
+        var gap = GetMarkGap(headBounds);
+        return new Rectangle(
+            headBounds.Center.X - (markWidth / 2),
+            leaderBounds.Top - gap - markHeight,
+            markWidth,
+            markHeight);
+    }
+
+    /// <summary>
+    /// The vertical separation between one above-head mark slot and the next,
+    /// and between the lowest slot and the head itself. Shared by
+    /// <see cref="GetLeaderMarkBounds"/> and
+    /// <see cref="GetBreakOffMarkBounds"/> so the stack cannot close up on one
+    /// side only; the expression is the one the leader mark has always used.
+    /// </summary>
+    private static int GetMarkGap(Rectangle headBounds) =>
+        Math.Max(1, headBounds.Height / 8);
+
+    /// <summary>
+    /// Whether a warrior carrying <paramref name="brokeOffUnderPressure"/>
+    /// draws a break-off mark at all, and where. The gate and the placement
+    /// live in one pure function, and <see cref="DrawLayout"/> holds no copy
+    /// of either, so "a view flag of <see langword="false"/> puts no mark on
+    /// screen" is a property a test can assert without a graphics device
+    /// rather than a property a reader has to take on trust.
+    /// </summary>
+    public static bool TryGetBreakOffMarkBounds(
+        bool brokeOffUnderPressure,
+        Rectangle headBounds,
+        out Rectangle bounds)
+    {
+        if (!brokeOffUnderPressure)
+        {
+            bounds = Rectangle.Empty;
+            return false;
+        }
+
+        bounds = GetBreakOffMarkBounds(headBounds);
+        return true;
     }
 
     private static void DrawDeadMark(
