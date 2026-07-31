@@ -26,6 +26,26 @@ internal static class WeaponMovementRules
     private const long RatioBasisPointScale = 10_000;
 
     /// <summary>
+    /// The inclusive ceiling, in basis points, that each pressure-interrupt
+    /// signal saturates at before it is weighted — three whole units. Its
+    /// purpose is to stop one saturated signal from carrying the weighted sum
+    /// on its own: without it, a warrior facing forty enemies alone
+    /// contributes a support-pressure signal of 400,000 basis points and the
+    /// other two weights become decorative. It is also the inclusive upper
+    /// bound of every registered
+    /// <see cref="LoadoutMovementProfile.PressureInterruptThresholdBasisPoints"/>
+    /// under a preset that applies the interrupt, which
+    /// <see cref="MovementRuleset"/> enforces at construction. A provisional
+    /// reconstruction of gameplay tuning under CLAUDE.md section 7, not a
+    /// historical measurement: no source describes how a warrior in the
+    /// pre-colonial Philippines decided to break off a committed blow, and
+    /// this value claims nothing about one. See
+    /// docs/plans/2026-07-31-movement-v7-pressure-interrupt-design.md
+    /// section 5.1.
+    /// </summary>
+    internal const long SignalCeilingBasisPoints = 30_000;
+
+    /// <summary>
     /// Resolves one contingent's <see cref="TacticalPosture"/> for this tick
     /// from the global living faction totals, the contingent's own
     /// tick-start <see cref="ContingentState"/>, and the two factions'

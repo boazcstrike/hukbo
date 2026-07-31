@@ -47,7 +47,8 @@ public sealed class LoadoutMovementProfile
         int allyClearanceBodyDiametersBasisPoints,
         int disengageEnemyToAllyBasisPoints,
         int reengageEnemyToAllyBasisPoints,
-        int pursuitSupportBodyDiametersBasisPoints)
+        int pursuitSupportBodyDiametersBasisPoints,
+        int pressureInterruptThresholdBasisPoints = 0)
     {
         // Design 4.3: every pace lies in the inclusive range [1, 10_000].
         // Inclusive at the top or the Itak row, whose forward pace is exactly
@@ -120,6 +121,17 @@ public sealed class LoadoutMovementProfile
             pursuitSupportBodyDiametersBasisPoints,
             nameof(pursuitSupportBodyDiametersBasisPoints));
 
+        // Pressure-interrupt design 6.3: the row itself validates only
+        // non-negativity. Zero means "no threshold registered", which is what
+        // every row of every preset predating the interrupt carries. The
+        // coupled bounds — zero everywhere under a preset that does not apply
+        // the interrupt, and [1, SignalCeilingBasisPoints] under one that
+        // does — need the ruleset's version gate, which no single row can see,
+        // so MovementRuleset enforces them instead.
+        ArgumentOutOfRangeException.ThrowIfNegative(
+            pressureInterruptThresholdBasisPoints,
+            nameof(pressureInterruptThresholdBasisPoints));
+
         // Design 4.3: strictly less, so hysteresis always exists and a
         // warrior can never enter and leave disengagement on the same counts.
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(
@@ -147,6 +159,8 @@ public sealed class LoadoutMovementProfile
         ReengageEnemyToAllyBasisPoints = reengageEnemyToAllyBasisPoints;
         PursuitSupportBodyDiametersBasisPoints =
             pursuitSupportBodyDiametersBasisPoints;
+        PressureInterruptThresholdBasisPoints =
+            pressureInterruptThresholdBasisPoints;
     }
 
     /// <summary>
@@ -247,6 +261,61 @@ public sealed class LoadoutMovementProfile
     /// <c>Pursue</c> to keep proposing a direct route.
     /// </summary>
     public int PursuitSupportBodyDiametersBasisPoints { get; }
+
+    /// <summary>
+    /// The weighted pressure value, in basis points, at or above which this
+    /// row's warrior abandons a committed blow and resolves footwork to
+    /// <c>Disengage</c>. Zero means no threshold is registered and the
+    /// interrupt can never fire for this row, which is what every row of
+    /// every preset predating the interrupt carries — and what keeps those
+    /// rows' folded bytes identical to what they were before this member
+    /// existed, because the <see cref="MovementRuleset.ContentHash"/> fold
+    /// writes it only for a preset whose
+    /// <see cref="MovementRuleset.AppliesPressureInterrupt"/> is
+    /// <see langword="true"/>. A provisional reconstruction of gameplay
+    /// tuning under CLAUDE.md section 7, not a historical measurement.
+    /// </summary>
+    /// <remarks>
+    /// This is a trailing optional constructor parameter defaulting to zero,
+    /// so every construction site that predates it keeps compiling and keeps
+    /// the legacy behaviour. It is nonetheless declared last, in the position
+    /// its <see cref="MovementRuleset.ContentHash"/> fold occupies, because
+    /// that fold runs in declaration order (pressure-interrupt design
+    /// section 6.2, item 2).
+    /// </remarks>
+    public int PressureInterruptThresholdBasisPoints { get; }
+
+    /// <summary>
+    /// Returns a new row identical to this one except for its
+    /// <see cref="PressureInterruptThresholdBasisPoints"/>. This instance is
+    /// never mutated, so a preset that applies the interrupt is built from an
+    /// earlier preset's rows without duplicating sixteen scalars per row and
+    /// without any risk of the two presets' shared tuning drifting apart
+    /// before it is deliberately moved (pressure-interrupt design section
+    /// 6.3). The new row runs the full constructor, so the non-negativity
+    /// bound is enforced here exactly as it is at construction.
+    /// </summary>
+    public LoadoutMovementProfile WithPressureInterruptThreshold(
+        int pressureInterruptThresholdBasisPoints) =>
+        new(
+            Loadout,
+            ForwardPaceBasisPoints,
+            LateralPaceBasisPoints,
+            BackwardPaceBasisPoints,
+            CommittedPaceBasisPoints,
+            PreferredDistanceBasisPoints,
+            OpponentDistanceOffsetBasisPoints,
+            MaximumFacingStepsPerTick,
+            CommittedFacingStepsPerTick,
+            AccelerationBasisPointsPerTick,
+            DecelerationBasisPointsPerTick,
+            CommitmentTicks,
+            RecoveryTicks,
+            AllyClearanceBodyDiametersBasisPoints,
+            DisengageEnemyToAllyBasisPoints,
+            ReengageEnemyToAllyBasisPoints,
+            PursuitSupportBodyDiametersBasisPoints,
+            pressureInterruptThresholdBasisPoints);
 
     private static void ValidateBasisPointRange(int value, string parameterName)
     {
