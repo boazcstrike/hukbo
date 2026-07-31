@@ -4222,8 +4222,43 @@ public sealed class BattleSimulation
     /// real agent's comparison below is therefore <see langword="false"/>
     /// with no extra preset check needed.
     /// </summary>
+    /// <remarks>
+    /// The three pressure-interrupt members are projected here rather than by
+    /// <see cref="AgentState.ToView"/>, because only one of the three is
+    /// authoritative agent state. <see cref="AgentView.PressureBasisPoints"/>
+    /// comes from <see cref="_pressureBasisPoints"/>, the derived per-tick
+    /// scratch this simulation owns, and
+    /// <see cref="AgentView.PressureThresholdBasisPoints"/> comes from the
+    /// running ruleset's profile row; an <see cref="AgentState"/> holds
+    /// neither, and giving it either would turn scratch into stored state that
+    /// the hash and the snapshot would then have to exclude by hand.
+    /// <para>
+    /// All three are written only for a living agent under a preset whose
+    /// <see cref="MovementRuleset.AppliesPressureInterrupt"/> is
+    /// <see langword="true"/>, and are left at their constructor defaults
+    /// otherwise. That gate is doing three separate jobs. It keeps the index
+    /// off <see cref="_pressureBasisPoints"/>, which is zero-length under every
+    /// preset from V1 through V6. It keeps
+    /// <see cref="MovementRuleset.ResolveLoadoutProfile"/> — which throws for
+    /// every key under a preset without equipment-relative footwork — off the
+    /// legacy path entirely. And it keeps a corpse at zero: the scratch slot
+    /// still holds the value computed before the killing blow landed, since it
+    /// is not cleared until the next tick's footwork stage, so reading it for a
+    /// dead agent would show pressure on a warrior that can no longer feel any.
+    /// The other three fields death cleanup clears — pace, posture, and phase —
+    /// behave the same way by the tick's end.
+    /// </para>
+    /// <para>
+    /// The projection is a <c>with</c> expression on a
+    /// <see langword="readonly"/> <see langword="record"/>
+    /// <see langword="struct"/>, so it copies on the stack and allocates
+    /// nothing, and the profile lookup returns a row the registry built once at
+    /// startup rather than a new object.
+    /// </para>
+    /// </remarks>
     private void UpdateViews()
     {
+        var appliesPressureInterrupt = _movementRules.AppliesPressureInterrupt;
         for (var index = 0; index < _agentStates.Length; index++)
         {
             var agent = _agentStates[index];
@@ -4231,7 +4266,28 @@ public sealed class BattleSimulation
                 (agent.FactionId * FormationPlanner.MaximumContingents) +
                 agent.ContingentId);
             var isLeader = agent.EntityId == _contingentLeaderEntityIds[slot];
-            _agentViews[index] = agent.ToView(isLeader);
+            var view = agent.ToView(isLeader);
+            if (appliesPressureInterrupt && agent.IsAlive)
+            {
+                // The running value, on every tick rather than only on a tick
+                // the interrupt fired: design section 3, question 8, channel 3
+                // is explicit that a spectator has to be able to predict a
+                // break-off, and a row that only appeared on a firing tick
+                // would be blank almost always. ResolveEquipmentPosturesAnd-
+                // ProvisionalFootwork writes the slot for every living agent
+                // for exactly that reason, and this reads back the number it
+                // wrote — no second computation and no second formula.
+                view = view with
+                {
+                    BrokeOffUnderPressure = agent.BrokeOffUnderPressure,
+                    PressureBasisPoints = _pressureBasisPoints[index],
+                    PressureThresholdBasisPoints = _movementRules
+                        .ResolveLoadoutProfile(agent.Loadout)
+                        .PressureInterruptThresholdBasisPoints,
+                };
+            }
+
+            _agentViews[index] = view;
         }
     }
 }
