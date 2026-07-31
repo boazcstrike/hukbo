@@ -41,13 +41,9 @@ internal sealed class UiThemeManager
         UiThemeCatalog catalog,
         string themeId)
     {
-        var current = settingsStore.Load(catalog.DefaultThemeId);
-        return settingsStore.TrySave(
-            themeId,
-            current.Composition,
-            current.GoreIntensity,
-            current.MotionIntensity,
-            current.AutoCameraMode);
+        return settingsStore.TryUpdate(
+            catalog.DefaultThemeId,
+            current => current with { SelectedThemeId = themeId });
     }
 
     public UiTheme ActiveTheme { get; private set; }

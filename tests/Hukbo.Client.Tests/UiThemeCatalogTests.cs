@@ -13,21 +13,29 @@ public sealed class UiThemeCatalogTests
             "ui-theme-standards.json");
 
     [Fact]
-    public void BuiltInCatalogContainsExactlyFiveUniqueThemes()
+    public void BuiltInCatalogContainsExactlySixUniqueThemes()
     {
         var catalog = UiThemeCatalog.Load(BuiltInCatalogPath);
 
-        Assert.Equal(5, catalog.Themes.Count);
+        Assert.Equal(6, catalog.Themes.Count);
         Assert.Equal(
-            5,
+            6,
             catalog.Themes
                 .Select(theme => theme.Id)
                 .Distinct(StringComparer.Ordinal)
                 .Count());
-        Assert.Contains(
-            catalog.Themes,
-            theme => theme.Id == catalog.DefaultThemeId);
-        Assert.Equal(5, catalog.Standards.RequiredThemeCount);
+        Assert.Equal(
+            [
+                "command",
+                "field-manual",
+                "signal",
+                "broadcast",
+                "high-contrast",
+                "datu-court",
+            ],
+            catalog.Themes.Select(theme => theme.Id));
+        Assert.Equal("datu-court", catalog.DefaultThemeId);
+        Assert.Equal(6, catalog.Standards.RequiredThemeCount);
         // The former single shared-font assertion was retired alongside the
         // float-scale path in T21. Every role must still resolve to an
         // allowed asset ID; the exhaustive per-role mapping is covered
@@ -47,6 +55,7 @@ public sealed class UiThemeCatalogTests
     [InlineData("signal")]
     [InlineData("broadcast")]
     [InlineData("high-contrast")]
+    [InlineData("datu-court")]
     public void EveryBuiltInThemeIsCompleteAndAccessible(string id)
     {
         var catalog = UiThemeCatalog.Load(BuiltInCatalogPath);
@@ -257,19 +266,20 @@ public sealed class UiThemeCatalogTests
     }
 
     [Fact]
-    public void InvalidShippedCatalogUsesCompleteCommandFallback()
+    public void InvalidShippedCatalogUsesCompleteDatuCourtFallback()
     {
         var missingPath = Path.Combine(
             Path.GetTempPath(),
             $"missing-theme-catalog-{Guid.NewGuid():N}.json");
 
+        var shipped = UiThemeCatalog.Load(BuiltInCatalogPath);
         var catalog = UiThemeCatalog.LoadOrFallback(missingPath);
 
-        Assert.Equal("command", catalog.DefaultThemeId);
-        Assert.Equal(5, catalog.Themes.Count);
+        Assert.Equal("datu-court", catalog.DefaultThemeId);
+        Assert.Equal(6, catalog.Themes.Count);
         Assert.Equal(
-            catalog.GetRequired("command").Colors,
-            catalog.GetRequired("signal").Colors);
+            shipped.GetRequired("datu-court"),
+            catalog.GetRequired("datu-court"));
     }
 
     [Fact]

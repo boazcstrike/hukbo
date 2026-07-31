@@ -1,3 +1,4 @@
+using Hukbo.Client.Theming;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.UI;
@@ -70,13 +71,30 @@ internal static class BattleReportLayout
 
     internal static BattleReportPanelLayout Calculate(Rectangle arenaContentBounds)
     {
+        var preferredWidth = UiScaleContext.Pixels(PreferredWidth);
+        var preferredHeight = UiScaleContext.Pixels(PreferredHeight);
+        var minimumWidth = UiScaleContext.Pixels(MinimumWidth);
+        var margin = UiScaleContext.Pixels(Margin);
+        var padding = UiScaleContext.Pixels(Padding);
+        var headerBaselineHeight = UiScaleContext.Pixels(HeaderHeight);
+        var closeButtonSize = UiScaleContext.Pixels(CloseButtonSize);
+        var sectionGap = UiScaleContext.Pixels(SectionGap);
+        var factionTotalsBaselineHeight =
+            UiScaleContext.Pixels(FactionTotalsHeight);
+        var highlightsBaselineHeight =
+            UiScaleContext.Pixels(HighlightsHeight);
+        var leaderboardHeaderBaselineHeight =
+            UiScaleContext.Pixels(LeaderboardHeaderHeight);
+        var scrollbarWidth = UiScaleContext.Pixels(ScrollbarWidth);
+        var scrollbarGap = UiScaleContext.Pixels(ScrollbarGap);
+
         var width = Math.Min(
-            PreferredWidth,
-            Math.Max(MinimumWidth, arenaContentBounds.Width - (Margin * 2)));
+            preferredWidth,
+            Math.Max(minimumWidth, arenaContentBounds.Width - (margin * 2)));
         width = Math.Min(width, Math.Max(0, arenaContentBounds.Width));
         var height = Math.Min(
-            PreferredHeight,
-            Math.Max(0, arenaContentBounds.Height - (Margin * 2)));
+            preferredHeight,
+            Math.Max(0, arenaContentBounds.Height - (margin * 2)));
         var bounds = new Rectangle(
             arenaContentBounds.Center.X - (width / 2),
             arenaContentBounds.Center.Y - (height / 2),
@@ -84,26 +102,28 @@ internal static class BattleReportLayout
             height);
 
         var inner = new Rectangle(
-            bounds.Left + Padding,
-            bounds.Top + Padding,
-            Math.Max(0, bounds.Width - (Padding * 2)),
-            Math.Max(0, bounds.Height - (Padding * 2)));
+            bounds.Left + padding,
+            bounds.Top + padding,
+            Math.Max(0, bounds.Width - (padding * 2)),
+            Math.Max(0, bounds.Height - (padding * 2)));
 
-        var headerHeight = Math.Min(HeaderHeight, Math.Max(0, inner.Height));
+        var headerHeight = Math.Min(
+            headerBaselineHeight,
+            Math.Max(0, inner.Height));
         var header = new Rectangle(
             inner.Left,
             inner.Top,
-            Math.Max(0, inner.Width - CloseButtonSize - SectionGap),
+            Math.Max(0, inner.Width - closeButtonSize - sectionGap),
             headerHeight);
         var closeButton = new Rectangle(
-            inner.Right - CloseButtonSize,
-            inner.Top + ((headerHeight - CloseButtonSize) / 2),
-            CloseButtonSize,
-            CloseButtonSize);
+            inner.Right - closeButtonSize,
+            inner.Top + ((headerHeight - closeButtonSize) / 2),
+            closeButtonSize,
+            closeButtonSize);
 
-        var factionTotalsTop = header.Bottom + SectionGap;
+        var factionTotalsTop = header.Bottom + sectionGap;
         var factionTotalsHeight = Math.Min(
-            FactionTotalsHeight,
+            factionTotalsBaselineHeight,
             Math.Max(0, inner.Bottom - factionTotalsTop));
         var factionTotals = new Rectangle(
             inner.Left,
@@ -111,9 +131,9 @@ internal static class BattleReportLayout
             inner.Width,
             factionTotalsHeight);
 
-        var highlightsTop = factionTotals.Bottom + SectionGap;
+        var highlightsTop = factionTotals.Bottom + sectionGap;
         var highlightsHeight = Math.Min(
-            HighlightsHeight,
+            highlightsBaselineHeight,
             Math.Max(0, inner.Bottom - highlightsTop));
         var highlights = new Rectangle(
             inner.Left,
@@ -121,9 +141,9 @@ internal static class BattleReportLayout
             inner.Width,
             highlightsHeight);
 
-        var leaderboardHeaderTop = highlights.Bottom + SectionGap;
+        var leaderboardHeaderTop = highlights.Bottom + sectionGap;
         var leaderboardHeaderHeight = Math.Min(
-            LeaderboardHeaderHeight,
+            leaderboardHeaderBaselineHeight,
             Math.Max(0, inner.Bottom - leaderboardHeaderTop));
         var leaderboardHeader = new Rectangle(
             inner.Left,
@@ -135,16 +155,16 @@ internal static class BattleReportLayout
         var leaderboardListHeight = Math.Max(0, inner.Bottom - leaderboardListTop);
         var leaderboardListWidth = Math.Max(
             0,
-            inner.Width - ScrollbarWidth - ScrollbarGap);
+            inner.Width - scrollbarWidth - scrollbarGap);
         var leaderboardList = new Rectangle(
             inner.Left,
             leaderboardListTop,
             leaderboardListWidth,
             leaderboardListHeight);
         var scrollbar = new Rectangle(
-            leaderboardList.Right + ScrollbarGap,
+            leaderboardList.Right + scrollbarGap,
             leaderboardListTop,
-            ScrollbarWidth,
+            scrollbarWidth,
             leaderboardListHeight);
 
         return new BattleReportPanelLayout(

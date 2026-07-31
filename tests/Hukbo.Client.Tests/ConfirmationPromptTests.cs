@@ -1,15 +1,64 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Settings;
+using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Tests;
 
+[Collection(UiScaleContextCollection.Name)]
 public sealed class ConfirmationPromptTests
 {
     private static readonly Rectangle AvailableBounds = new(0, 0, 1280, 720);
 
     private static ConfirmationPrompt CreatePrompt() =>
         new("Quit Hukbo?", "Quit", ClientCommand.Exit);
+
+    [Fact]
+    public void CalculateLayout_AtOneHundredPercentPreservesBaselineGeometry()
+    {
+        AtScale(UiScale.Percent100, () =>
+        {
+            var layout = ConfirmationPrompt.CalculateLayout(AvailableBounds);
+
+            Assert.Equal(
+                new Rectangle(410, 265, 460, 190),
+                layout.PanelBounds);
+            Assert.Equal(
+                new Rectangle(434, 299, 412, 60),
+                layout.MessageBounds);
+            Assert.Equal(
+                new Rectangle(446, 387, 186, 44),
+                layout.CancelBounds);
+            Assert.Equal(
+                new Rectangle(648, 387, 186, 44),
+                layout.ConfirmBounds);
+        });
+    }
+
+    [Theory]
+    [InlineData(UiScale.Percent125)]
+    [InlineData(UiScale.Percent150)]
+    [InlineData(UiScale.Percent200)]
+    public void CalculateLayout_ScalesAndContainsEveryPart(UiScale scale)
+    {
+        AtScale(scale, () =>
+        {
+            var available = new Rectangle(0, 0, 3840, 2160);
+            var layout = ConfirmationPrompt.CalculateLayout(available);
+
+            Assert.Equal(
+                UiScaleContext.Pixels(ConfirmationPrompt.PanelWidth),
+                layout.PanelBounds.Width);
+            Assert.Equal(
+                UiScaleContext.Pixels(ConfirmationPrompt.PanelHeight),
+                layout.PanelBounds.Height);
+            Assert.True(available.Contains(layout.PanelBounds));
+            Assert.True(layout.PanelBounds.Contains(layout.MessageBounds));
+            Assert.True(layout.PanelBounds.Contains(layout.CancelBounds));
+            Assert.True(layout.PanelBounds.Contains(layout.ConfirmBounds));
+        });
+    }
 
     [Fact]
     public void CalculateLayout_KeepsEveryPartInsideThePanel()
@@ -51,12 +100,19 @@ public sealed class ConfirmationPromptTests
     [Fact]
     public void CalculateLayout_ClampsToATinyViewport()
     {
-        var tiny = new Rectangle(0, 0, 200, 120);
+        AtScale(UiScale.Percent200, () =>
+        {
+            var tiny = new Rectangle(0, 0, 200, 120);
 
-        var layout = ConfirmationPrompt.CalculateLayout(tiny);
+            var layout = ConfirmationPrompt.CalculateLayout(tiny);
 
-        Assert.True(layout.PanelBounds.Width <= tiny.Width);
-        Assert.True(layout.PanelBounds.Height <= tiny.Height);
+            Assert.True(tiny.Contains(layout.PanelBounds));
+            Assert.True(layout.PanelBounds.Contains(layout.MessageBounds));
+            Assert.True(layout.PanelBounds.Contains(layout.CancelBounds));
+            Assert.True(layout.PanelBounds.Contains(layout.ConfirmBounds));
+            Assert.False(
+                layout.CancelBounds.Intersects(layout.ConfirmBounds));
+        });
     }
 
     [Fact]
@@ -133,6 +189,36 @@ public sealed class ConfirmationPromptTests
     }
 
     [Fact]
+    public void EntranceMotion_PreservesFinalHitGeometryAndOffSnaps()
+    {
+        var prompt = CreatePrompt();
+        prompt.Open();
+
+        prompt.Update(
+            new InputEdges(),
+            AvailableBounds,
+            TimeSpan.FromMilliseconds(40),
+            MotionIntensity.Reduced);
+        var layout = ConfirmationPrompt.CalculateLayout(AvailableBounds);
+
+        Assert.InRange(prompt.ScrimOpacity, 0.001f, 0.999f);
+        Assert.InRange(prompt.EntranceOpacity, 0.001f, 0.999f);
+        Assert.Equal(
+            ClientCommand.Exit,
+            prompt.GetCommandAt(layout.ConfirmBounds.Center));
+
+        prompt.Update(
+            new InputEdges(),
+            AvailableBounds,
+            TimeSpan.Zero,
+            MotionIntensity.Off);
+
+        Assert.Equal(1f, prompt.ScrimOpacity);
+        Assert.Equal(1f, prompt.EntranceOpacity);
+        Assert.Equal(layout.PanelBounds, prompt.Bounds);
+    }
+
+    [Fact]
     public void Constructor_RejectsAConfirmCommandThatCouldNeverAct()
     {
         Assert.Throws<ArgumentOutOfRangeException>(
@@ -146,5 +232,19 @@ public sealed class ConfirmationPromptTests
     {
         Assert.Throws<ArgumentException>(
             () => new ConfirmationPrompt(message, "Quit", ClientCommand.Exit));
+    }
+
+    private static void AtScale(UiScale scale, Action action)
+    {
+        var previous = UiScaleContext.ActiveScale;
+        try
+        {
+            UiScaleContext.Set(scale);
+            action();
+        }
+        finally
+        {
+            UiScaleContext.Set(previous);
+        }
     }
 }

@@ -21,18 +21,19 @@ public sealed class WeaponVisualCatalogTests
     // that own them, matching AppearanceComponentCatalogTests' own
     // "mirrors ContrastEnvelopeTests' own reference set" convention. ---
 
-    // The five shipped themes' ArenaSurface/ArenaBorder pair, lerped to
+    // The six shipped themes' ArenaSurface/ArenaBorder pair, lerped to
     // PlainsBackdropGeometry.MaximumBackdropInterpolation (0.22) — the
     // worst-case ground shade VIS-005's own text names ("minimum distance
     // of any equipment tone from all ground shades at the 0.22 ceiling").
     // Hex values mirror src/Hukbo.Client/Content/Themes/ui-theme-
     // standards.json (command, field-manual, signal, broadcast,
-    // high-contrast).
+    // high-contrast, datu-court).
     private static readonly Color GroundShadeCommand = new(40, 54, 73);
     private static readonly Color GroundShadeFieldManual = new(201, 185, 146);
     private static readonly Color GroundShadeSignal = new(26, 42, 46);
     private static readonly Color GroundShadeBroadcast = new(212, 217, 222);
     private static readonly Color GroundShadeHighContrast = new(56, 56, 56);
+    private static readonly Color GroundShadeDatuCourt = new(101, 99, 63);
 
     private static readonly Color[] AllGroundShades =
     [
@@ -41,6 +42,7 @@ public sealed class WeaponVisualCatalogTests
         GroundShadeSignal,
         GroundShadeBroadcast,
         GroundShadeHighContrast,
+        GroundShadeDatuCourt,
     ];
 
     // PawnAppearanceFactory's private clothing-color set, mirrored here the
@@ -431,11 +433,15 @@ public sealed class WeaponVisualCatalogTests
     }
 
     [Fact]
-    public void CharredWoodBrown_ClearsTheGroundEnvelopeAgainstTheLighterThemes()
+    public void CharredWoodBrown_ClearsTheGroundEnvelopeAgainstItsSafeThemes()
     {
         Assert.True(ContrastEnvelope.IsWithinEnvelope(
             WeaponVisualCatalog.CharredWoodBrown,
-            [GroundShadeFieldManual, GroundShadeBroadcast],
+            [
+                GroundShadeFieldManual,
+                GroundShadeBroadcast,
+                GroundShadeDatuCourt,
+            ],
             ContrastEnvelope.MinimumGroundDistance));
     }
 
@@ -483,11 +489,16 @@ public sealed class WeaponVisualCatalogTests
     }
 
     [Fact]
-    public void IronBlueBlack_DoesNotClearTheGroundEnvelopeAgainstTheThreeDarkestThemes()
+    public void IronBlueBlack_DoesNotClearTheGroundEnvelopeAgainstFourThemes()
     {
         Assert.False(ContrastEnvelope.IsWithinEnvelope(
             DyePalette.IronBlueBlack,
-            [GroundShadeCommand, GroundShadeSignal, GroundShadeHighContrast],
+            [
+                GroundShadeCommand,
+                GroundShadeSignal,
+                GroundShadeHighContrast,
+                GroundShadeDatuCourt,
+            ],
             ContrastEnvelope.MinimumGroundDistance));
     }
 

@@ -55,13 +55,13 @@ internal sealed class GoreIntensitySelector
     public Rectangle Bounds { get; set; }
 
     public Rectangle PreviousBounds =>
-        new(Bounds.Left, Bounds.Top, _layout.ArrowWidth, Bounds.Height);
+        new(Bounds.Left, Bounds.Top, GetArrowWidth(), Bounds.Height);
 
     public Rectangle NextBounds =>
         new(
-            Bounds.Right - _layout.ArrowWidth,
+            Bounds.Right - GetArrowWidth(),
             Bounds.Top,
-            _layout.ArrowWidth,
+            GetArrowWidth(),
             Bounds.Height);
 
     public IReadOnlyList<string> OptionNames => Names;
@@ -165,9 +165,10 @@ internal sealed class GoreIntensitySelector
             pixel,
             Bounds,
             isFocused ? colors.ActionFocus : colors.PanelBorder,
-            isFocused
-                ? activeTheme.Metrics.FocusThickness
-                : activeTheme.Metrics.BorderThickness);
+            UiScaleContext.Pixels(
+                isFocused
+                    ? activeTheme.Metrics.FocusThickness
+                    : activeTheme.Metrics.BorderThickness));
 
         UiPrimitives.DrawCenteredText(
             spriteBatch,
@@ -187,13 +188,19 @@ internal sealed class GoreIntensitySelector
             spriteBatch,
             fonts.Get(_textRoles.SelectorLabel),
             Label,
-            new Vector2(centerX, Bounds.Top + _layout.LabelTopOffset),
+            new Vector2(
+                centerX,
+                Bounds.Top +
+                    UiScaleContext.Pixels(_layout.LabelTopOffset)),
             colors.TextSecondary);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(_textRoles.SelectorName),
             GetDisplayName(current),
-            new Vector2(centerX, Bounds.Top + _layout.NameTopOffset),
+            new Vector2(
+                centerX,
+                Bounds.Top +
+                    UiScaleContext.Pixels(_layout.NameTopOffset)),
             colors.TextPrimary);
 
         // The level is stated as text as well as position, so the control never
@@ -202,9 +209,17 @@ internal sealed class GoreIntensitySelector
             spriteBatch,
             fonts.Get(_textRoles.SelectorMarker),
             GetSelectedMarkerText(current),
-            new Vector2(centerX, Bounds.Top + _layout.MarkerTopOffset),
+            new Vector2(
+                centerX,
+                Bounds.Top +
+                    UiScaleContext.Pixels(_layout.MarkerTopOffset)),
             colors.Selection);
     }
+
+    private int GetArrowWidth() =>
+        Math.Max(
+            UiScaleContext.Pixels(_layout.ArrowWidth),
+            UiScaleContext.Pixels(_layout.MinimumTargetSize));
 
     private static GoreIntensity GetRelative(
         GoreIntensity current,

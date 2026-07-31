@@ -46,7 +46,7 @@ public sealed class UiThemeManagerTests
     {
         var manager = CreateManager("not-a-theme", _ => true);
 
-        Assert.Equal("command", manager.ActiveTheme.Id);
+        Assert.Equal("datu-court", manager.ActiveTheme.Id);
     }
 
     private static UiThemeManager CreateManager(

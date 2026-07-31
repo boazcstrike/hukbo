@@ -8,6 +8,22 @@ internal sealed class InputEdges
     private KeyboardState _previousKeyboard;
     private MouseState _previousMouse;
 
+    public InputEdges()
+    {
+    }
+
+    internal InputEdges(
+        KeyboardState previousKeyboard,
+        KeyboardState keyboard,
+        MouseState previousMouse,
+        MouseState mouse)
+    {
+        _previousKeyboard = previousKeyboard;
+        Keyboard = keyboard;
+        _previousMouse = previousMouse;
+        Mouse = mouse;
+    }
+
     public KeyboardState Keyboard { get; private set; }
 
     public MouseState Mouse { get; private set; }

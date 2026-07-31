@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Theming;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.UI;
@@ -65,7 +66,9 @@ internal sealed partial class BattleEventLogPanel
             inner.Top,
             inner.Width,
             headerHeight);
-        var latestWidth = Math.Min(72, Math.Max(0, header.Width / 4));
+        var latestWidth = Math.Min(
+            UiScaleContext.Pixels(72),
+            Math.Max(0, header.Width / 4));
         var latest = new Rectangle(
             header.Right - latestWidth,
             header.Top,
@@ -110,7 +113,9 @@ internal sealed partial class BattleEventLogPanel
             controlsTop,
             Math.Max(0, inner.Right - faction.Right - controlGap),
             firstFilterHeight);
-        var resetWidth = Math.Min(62, Math.Max(0, inner.Width / 4));
+        var resetWidth = Math.Min(
+            UiScaleContext.Pixels(62),
+            Math.Max(0, inner.Width / 4));
         var search = new Rectangle(
             inner.Left,
             secondFilterTop,
@@ -154,7 +159,9 @@ internal sealed partial class BattleEventLogPanel
         var rows = new Rectangle(
             list.Left,
             rowsTop,
-            Math.Max(0, list.Width - ScrollbarWidth - 4),
+            Math.Max(
+                0,
+                list.Width - ScrollbarWidth - UiScaleContext.Pixels(4)),
             Math.Max(0, list.Bottom - rowsTop));
         var scrollbar = new Rectangle(
             Math.Max(list.Left, list.Right - ScrollbarWidth),
@@ -239,11 +246,13 @@ internal sealed partial class BattleEventLogPanel
         }
 
         return new Rectangle(
-            layout.DetailsBounds.Left + 9,
+            layout.DetailsBounds.Left + UiScaleContext.Pixels(9),
             layout.DetailsBounds.Top +
             DetailsHeaderHeight +
             (lineIndex * DetailLineHeight),
-            Math.Max(0, layout.DetailsBounds.Width - 18),
+            Math.Max(
+                0,
+                layout.DetailsBounds.Width - UiScaleContext.Pixels(18)),
             DetailLineHeight);
     }
 

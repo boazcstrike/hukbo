@@ -1,3 +1,4 @@
+using Hukbo.Client.Settings;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace Hukbo.Client.Theming;
@@ -12,11 +13,12 @@ namespace Hukbo.Client.Theming;
 /// </summary>
 internal sealed class UiFontSet
 {
-    private readonly SpriteFont[] _fontsByRole;
+    private readonly SpriteFont[,] _fontsByScaleAndRole;
+    private UiScale _activeScale = UiScale.Percent100;
 
-    private UiFontSet(SpriteFont[] fontsByRole)
+    private UiFontSet(SpriteFont[,] fontsByScaleAndRole)
     {
-        _fontsByRole = fontsByRole;
+        _fontsByScaleAndRole = fontsByScaleAndRole;
     }
 
     /// <summary>
@@ -29,17 +31,51 @@ internal sealed class UiFontSet
     {
         ArgumentNullException.ThrowIfNull(load);
 
-        var fontsByRole = new SpriteFont[UiFontRamp.AllRoles.Count];
-        foreach (var role in UiFontRamp.AllRoles)
+        var fonts = new SpriteFont[
+            UiFontRamp.AllScales.Count,
+            UiFontRamp.AllRoles.Count];
+        for (var scaleIndex = 0;
+             scaleIndex < UiFontRamp.AllScales.Count;
+             scaleIndex++)
         {
-            fontsByRole[(int)role] = load(UiFontRamp.GetAssetId(role));
+            var scale = UiFontRamp.AllScales[scaleIndex];
+            foreach (var role in UiFontRamp.AllRoles)
+            {
+                fonts[scaleIndex, (int)role] = load(
+                    UiFontRamp.GetAssetId(role, scale));
+            }
         }
 
-        return new UiFontSet(fontsByRole);
+        return new UiFontSet(fonts);
     }
 
     /// <summary>
     /// The loaded font for the given role.
     /// </summary>
-    public SpriteFont Get(UiFontRole role) => _fontsByRole[(int)role];
+    public SpriteFont Get(UiFontRole role) =>
+        _fontsByScaleAndRole[GetScaleIndex(_activeScale), (int)role];
+
+    public UiScale ActiveScale => _activeScale;
+
+    public void SelectScale(UiScale configured, int width, int height)
+    {
+        _activeScale = UiScalePolicy.Resolve(configured, width, height);
+        UiScaleContext.Set(_activeScale);
+    }
+
+    public int GetApproximateAdvancePx(UiFontRole role) =>
+        UiFontRamp.GetApproximateAdvancePx(role, _activeScale);
+
+    private static int GetScaleIndex(UiScale scale)
+    {
+        for (var index = 0; index < UiFontRamp.AllScales.Count; index++)
+        {
+            if (UiFontRamp.AllScales[index] == scale)
+            {
+                return index;
+            }
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(scale), scale, null);
+    }
 }

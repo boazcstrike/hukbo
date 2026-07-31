@@ -1,5 +1,6 @@
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Presentation.Catalogs;
+using Hukbo.Client.Theming;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
@@ -83,7 +84,11 @@ internal static class AgentInspectorContent
     /// of the given total width.
     /// </summary>
     internal static int ComputeContentWidthBudget(int panelWidth) =>
-        Math.Max(0, panelWidth - (Padding * 2) - AccentWidth);
+        Math.Max(
+            0,
+            panelWidth
+                - (UiScaleContext.Pixels(Padding) * 2)
+                - UiScaleContext.Pixels(AccentWidth));
 
     /// <summary>
     /// Panel height needed so the deepest row — including up to
@@ -108,18 +113,22 @@ internal static class AgentInspectorContent
 
     internal static int ComputeRequiredHeight(int evidenceLineCount)
     {
-        var textY = Padding + TitleHeight;
-        var portraitBottom = textY + PortraitSize;
+        var padding = UiScaleContext.Pixels(Padding);
+        var lineHeight = UiScaleContext.Pixels(LineHeight);
+        var textY = padding + UiScaleContext.Pixels(TitleHeight);
+        var portraitBottom = textY + UiScaleContext.Pixels(PortraitSize);
         var lowerTextY = Math.Max(
-            portraitBottom + PortraitBottomGap,
-            textY + (TopDetailRowCount * LineHeight) + TopDetailBottomGap);
+            portraitBottom + UiScaleContext.Pixels(PortraitBottomGap),
+            textY
+                + (TopDetailRowCount * lineHeight)
+                + UiScaleContext.Pixels(TopDetailBottomGap));
         var lowerRowCount =
             MaximumLowerRowCount
             + WarriorNameReservedLineCount
             + Math.Max(0, evidenceLineCount);
-        var lastRowY = lowerTextY + ((lowerRowCount - 1) * LineHeight);
-        var lastRowBottom = lastRowY + LineHeight;
-        return lastRowBottom + Padding;
+        var lastRowY = lowerTextY + ((lowerRowCount - 1) * lineHeight);
+        var lastRowBottom = lastRowY + lineHeight;
+        return lastRowBottom + padding;
     }
 
     /// <summary>

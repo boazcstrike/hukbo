@@ -27,6 +27,11 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal(ArmyComposition.Default, settings.Composition);
             Assert.Equal(GoreIntensity.Stylized, settings.GoreIntensity);
             Assert.Equal(MotionIntensity.Full, settings.MotionIntensity);
+            Assert.Equal(AutoCameraMode.Assisted, settings.AutoCameraMode);
+            Assert.Equal(UiScale.Auto, settings.UiScale);
+            Assert.Equal(
+                StartupDisplayMode.Windowed,
+                settings.StartupDisplayMode);
         });
     }
 
@@ -40,13 +45,17 @@ public sealed class ClientSettingsStoreTests
                 ArmyComposition.Default,
                 GoreIntensity.Stylized,
                 MotionIntensity.Full,
-                AutoCameraMode.Assisted));
+                AutoCameraMode.Assisted,
+                UiScale.Auto,
+                StartupDisplayMode.Windowed));
             Assert.True(store.TrySave(
                 "broadcast",
                 ArmyComposition.Default,
                 GoreIntensity.Stylized,
                 MotionIntensity.Full,
-                AutoCameraMode.Assisted));
+                AutoCameraMode.Assisted,
+                UiScale.Auto,
+                StartupDisplayMode.Windowed));
 
             var settings = store.Load("command");
 
@@ -134,7 +143,9 @@ public sealed class ClientSettingsStoreTests
                 SampleComposition,
                 GoreIntensity.Stylized,
                 MotionIntensity.Full,
-                AutoCameraMode.Assisted));
+                AutoCameraMode.Assisted,
+                UiScale.Auto,
+                StartupDisplayMode.Windowed));
 
             var settings = store.Load("command");
 
@@ -152,7 +163,9 @@ public sealed class ClientSettingsStoreTests
                 SampleComposition,
                 GoreIntensity.Full,
                 MotionIntensity.Full,
-                AutoCameraMode.Assisted));
+                AutoCameraMode.Assisted,
+                UiScale.Auto,
+                StartupDisplayMode.Windowed));
 
             var settings = store.Load("signal");
 
@@ -172,7 +185,9 @@ public sealed class ClientSettingsStoreTests
                 SampleComposition,
                 GoreIntensity.Stylized,
                 MotionIntensity.Off,
-                AutoCameraMode.Assisted));
+                AutoCameraMode.Assisted,
+                UiScale.Auto,
+                StartupDisplayMode.Windowed));
 
             var settings = store.Load("signal");
 
@@ -368,7 +383,9 @@ public sealed class ClientSettingsStoreTests
                 SampleComposition,
                 GoreIntensity.Stylized,
                 MotionIntensity.Full,
-                AutoCameraMode.Follow));
+                AutoCameraMode.Follow,
+                UiScale.Auto,
+                StartupDisplayMode.Windowed));
 
             var settings = store.Load("command");
 
@@ -376,6 +393,158 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal(
                 ClientSettingsStore.SupportedSchemaVersion,
                 settings.SchemaVersion);
+        });
+    }
+
+    [Fact]
+    public void AVersionSevenFilePreservesExistingFieldsAndDefaultsNewFields()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":7,\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal(
+                ClientSettingsStore.SupportedSchemaVersion,
+                settings.SchemaVersion);
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(80, settings.Composition.UnitsPerTeam);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Off, settings.MotionIntensity);
+            Assert.Equal(AutoCameraMode.Follow, settings.AutoCameraMode);
+            Assert.Equal(UiScale.Auto, settings.UiScale);
+            Assert.Equal(
+                StartupDisplayMode.Windowed,
+                settings.StartupDisplayMode);
+        });
+    }
+
+    [Theory]
+    [InlineData(UiScale.Auto)]
+    [InlineData(UiScale.Percent100)]
+    [InlineData(UiScale.Percent125)]
+    [InlineData(UiScale.Percent150)]
+    [InlineData(UiScale.Percent200)]
+    public void EveryUiScaleValueSurvivesARoundTrip(UiScale uiScale)
+    {
+        WithTemporarySettings((store, _) =>
+        {
+            Assert.True(store.TrySave(
+                "signal",
+                SampleComposition,
+                GoreIntensity.Full,
+                MotionIntensity.Reduced,
+                AutoCameraMode.Follow,
+                uiScale,
+                StartupDisplayMode.Fullscreen));
+
+            var settings = store.Load("command");
+
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(SampleComposition, settings.Composition);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Reduced, settings.MotionIntensity);
+            Assert.Equal(AutoCameraMode.Follow, settings.AutoCameraMode);
+            Assert.Equal(uiScale, settings.UiScale);
+            Assert.Equal(
+                StartupDisplayMode.Fullscreen,
+                settings.StartupDisplayMode);
+        });
+    }
+
+    [Theory]
+    [InlineData(StartupDisplayMode.Windowed)]
+    [InlineData(StartupDisplayMode.Fullscreen)]
+    public void EveryStartupDisplayModeSurvivesARoundTrip(
+        StartupDisplayMode startupDisplayMode)
+    {
+        WithTemporarySettings((store, _) =>
+        {
+            Assert.True(store.TrySave(
+                "signal",
+                SampleComposition,
+                GoreIntensity.Full,
+                MotionIntensity.Reduced,
+                AutoCameraMode.Follow,
+                UiScale.Percent150,
+                startupDisplayMode));
+
+            var settings = store.Load("command");
+
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(SampleComposition, settings.Composition);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Reduced, settings.MotionIntensity);
+            Assert.Equal(AutoCameraMode.Follow, settings.AutoCameraMode);
+            Assert.Equal(UiScale.Percent150, settings.UiScale);
+            Assert.Equal(startupDisplayMode, settings.StartupDisplayMode);
+        });
+    }
+
+    [Fact]
+    public void AnOutOfRangeUiScaleResetsOnlyThatField()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiScale\":175," +
+                "\"startupDisplayMode\":1}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(80, settings.Composition.UnitsPerTeam);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Off, settings.MotionIntensity);
+            Assert.Equal(AutoCameraMode.Follow, settings.AutoCameraMode);
+            Assert.Equal(UiScale.Auto, settings.UiScale);
+            Assert.Equal(
+                StartupDisplayMode.Fullscreen,
+                settings.StartupDisplayMode);
+        });
+    }
+
+    [Fact]
+    public void AnOutOfRangeStartupDisplayModeResetsOnlyThatField()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiScale\":125," +
+                "\"startupDisplayMode\":99}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(80, settings.Composition.UnitsPerTeam);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Off, settings.MotionIntensity);
+            Assert.Equal(AutoCameraMode.Follow, settings.AutoCameraMode);
+            Assert.Equal(UiScale.Percent125, settings.UiScale);
+            Assert.Equal(
+                StartupDisplayMode.Windowed,
+                settings.StartupDisplayMode);
         });
     }
 
@@ -424,6 +593,61 @@ public sealed class ClientSettingsStoreTests
     }
 
     [Fact]
+    public void IndependentUpdatesPreserveEverySiblingPreference()
+    {
+        WithTemporarySettings((store, _) =>
+        {
+            Assert.True(store.TrySave(
+                "command",
+                ArmyComposition.Default,
+                GoreIntensity.Stylized,
+                MotionIntensity.Full,
+                AutoCameraMode.Assisted,
+                UiScale.Auto,
+                StartupDisplayMode.Windowed));
+
+            Assert.True(store.TryUpdate(
+                "command",
+                current => current with { SelectedThemeId = "signal" }));
+            Assert.True(store.TryUpdate(
+                "command",
+                current => current with { Composition = SampleComposition }));
+            Assert.True(store.TryUpdate(
+                "command",
+                current => current with { GoreIntensity = GoreIntensity.Full }));
+            Assert.True(store.TryUpdate(
+                "command",
+                current => current with { MotionIntensity = MotionIntensity.Off }));
+            Assert.True(store.TryUpdate(
+                "command",
+                current => current with
+                {
+                    AutoCameraMode = AutoCameraMode.Off,
+                }));
+            Assert.True(store.TryUpdate(
+                "command",
+                current => current with { UiScale = UiScale.Percent150 }));
+            Assert.True(store.TryUpdate(
+                "command",
+                current => current with
+                {
+                    StartupDisplayMode = StartupDisplayMode.Fullscreen,
+                }));
+
+            var settings = store.Load("command");
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(SampleComposition, settings.Composition);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Off, settings.MotionIntensity);
+            Assert.Equal(AutoCameraMode.Off, settings.AutoCameraMode);
+            Assert.Equal(UiScale.Percent150, settings.UiScale);
+            Assert.Equal(
+                StartupDisplayMode.Fullscreen,
+                settings.StartupDisplayMode);
+        });
+    }
+
+    [Fact]
     public void AFailedSaveLeavesThePreviousValidFileIntact()
     {
         WithTemporarySettings((store, settingsPath) =>
@@ -433,7 +657,9 @@ public sealed class ClientSettingsStoreTests
                 SampleComposition,
                 GoreIntensity.Full,
                 MotionIntensity.Full,
-                AutoCameraMode.Assisted));
+                AutoCameraMode.Assisted,
+                UiScale.Percent150,
+                StartupDisplayMode.Fullscreen));
             using var locked = new FileStream(
                 settingsPath,
                 FileMode.Open,
@@ -445,7 +671,9 @@ public sealed class ClientSettingsStoreTests
                 ArmyComposition.Default,
                 GoreIntensity.Off,
                 MotionIntensity.Off,
-                AutoCameraMode.Assisted));
+                AutoCameraMode.Assisted,
+                UiScale.Percent100,
+                StartupDisplayMode.Windowed));
             Assert.Empty(
                 Directory.GetFiles(
                     Path.GetDirectoryName(settingsPath)!,
@@ -456,6 +684,10 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal("command", settings.SelectedThemeId);
             Assert.Equal(SampleComposition, settings.Composition);
             Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(UiScale.Percent150, settings.UiScale);
+            Assert.Equal(
+                StartupDisplayMode.Fullscreen,
+                settings.StartupDisplayMode);
         });
     }
 

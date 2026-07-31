@@ -23,7 +23,7 @@ namespace Hukbo.Client.Tests;
 ///
 /// R-W6.11's own theme contrast-pair validation is <see cref="UiThemeCatalog"/>
 /// territory and is not touched here — this package added no theme roles, so
-/// <see cref="UiThemeCatalogTests"/>'s own green run against all five themes
+/// <see cref="UiThemeCatalogTests"/>'s own green run against all six themes
 /// is the recorded confirmation this task's step 3 asks for.
 /// </summary>
 public sealed class FactionSignalGuardTests
@@ -37,9 +37,10 @@ public sealed class FactionSignalGuardTests
     private static readonly Color FactionGold = new(231, 199, 84);
     private static readonly Color[] BattleFactionConstants = [FactionBlue, FactionRed];
 
-    // The five shipped themes' ArenaSurface/ArenaBorder pair. Hex values
+    // The six shipped themes' ArenaSurface/ArenaBorder pair. Hex values
     // mirror src/Hukbo.Client/Content/Themes/ui-theme-standards.json
-    // (command, field-manual, signal, broadcast, high-contrast) — the same
+    // (command, field-manual, signal, broadcast, high-contrast, datu-court)
+    // — the same
     // mirroring convention WeaponVisualCatalogTests' own GroundShadeXxx
     // constants use. Unlike those pre-lerped constants, the shades below are
     // computed with the real <see cref="Color.Lerp"/> call at test time
@@ -53,6 +54,7 @@ public sealed class FactionSignalGuardTests
         ("signal", new Color(7, 16, 19), new Color(92, 135, 142)),
         ("broadcast", new Color(242, 245, 248), new Color(104, 116, 130)),
         ("high-contrast", new Color(0, 0, 0), new Color(255, 255, 255)),
+        ("datu-court", new Color(74, 81, 56), new Color(195, 163, 90)),
     ];
 
     // The Field Manual theme's parchment-tan ground is the one shade family

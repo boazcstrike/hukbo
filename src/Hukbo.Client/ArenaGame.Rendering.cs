@@ -586,7 +586,14 @@ public sealed partial class ArenaGame
             SpriteSortMode.Deferred,
             BlendState.AlphaBlend,
             SamplerState.LinearClamp);
-        DrawStatus(spriteBatch, pixel, fonts, screenBounds, theme);
+        var controlBarBounds = _controlBar.GetBounds(screenBounds);
+        DrawStatus(
+            spriteBatch,
+            pixel,
+            fonts,
+            screenBounds,
+            controlBarBounds,
+            theme);
         _controlBar.Draw(
             spriteBatch,
             pixel,
@@ -649,7 +656,9 @@ public sealed partial class ArenaGame
             theme,
             _goreManager.Value,
             _motionManager.Value,
-            _autoCameraManager.Value);
+            _autoCameraManager.Value,
+            _configuredUiScale,
+            _startupDisplayMode);
 
         // Last, and above the menu: the prompt is modal, so nothing may paint
         // over it. It scrims the whole area itself, which is what makes the
@@ -1007,27 +1016,76 @@ public sealed partial class ArenaGame
         Texture2D pixel,
         UiFontSet fonts,
         Rectangle screenBounds,
+        Rectangle controlBarBounds,
         UiTheme theme)
     {
         var statusBounds = new Rectangle(
             screenBounds.Left,
             screenBounds.Top,
             screenBounds.Width,
-            Math.Min(StatusBarHeight, screenBounds.Height));
+            Math.Min(
+                UiScaleContext.Pixels(StatusBarHeight),
+                screenBounds.Height));
         spriteBatch.Draw(pixel, statusBounds, theme.Colors.StatusSurface);
 
+        var textBounds = CalculateStatusTextBounds(
+            screenBounds,
+            controlBarBounds);
+        var labelCharacters = textBounds.Width /
+            fonts.GetApproximateAdvancePx(UiFontRole.Label);
+        var bodyCharacters = textBounds.Width /
+            fonts.GetApproximateAdvancePx(UiFontRole.Body);
         UiPrimitives.DrawText(
             spriteBatch,
             fonts.Get(UiFontRole.Label),
-            BuildStatusLine(),
-            new Vector2(18, 12),
+            ClipStatusLine(BuildStatusLine(), labelCharacters),
+            new Vector2(
+                textBounds.Left,
+                screenBounds.Top + UiScaleContext.Pixels(12)),
             theme.Colors.TextPrimary);
         UiPrimitives.DrawText(
             spriteBatch,
             fonts.Get(UiFontRole.Body),
-            ShortcutHintLine,
-            new Vector2(18, 39),
+            ClipStatusLine(ShortcutHintLine, bodyCharacters),
+            new Vector2(
+                textBounds.Left,
+                screenBounds.Top + UiScaleContext.Pixels(39)),
             theme.Colors.TextSecondary);
+    }
+
+    internal static Rectangle CalculateStatusTextBounds(
+        Rectangle screenBounds,
+        Rectangle controlBarBounds)
+    {
+        var left = screenBounds.Left + UiScaleContext.Pixels(18);
+        var right = Math.Min(
+            screenBounds.Right,
+            controlBarBounds.Left - UiScaleContext.Pixels(10));
+        return new Rectangle(
+            left,
+            screenBounds.Top,
+            Math.Max(0, right - left),
+            Math.Min(
+                UiScaleContext.Pixels(StatusBarHeight),
+                screenBounds.Height));
+    }
+
+    internal static string ClipStatusLine(string text, int maximumCharacters)
+    {
+        if (maximumCharacters <= 0)
+        {
+            return string.Empty;
+        }
+
+        if (text.Length <= maximumCharacters)
+        {
+            return text;
+        }
+
+        const string ellipsis = "...";
+        return maximumCharacters <= ellipsis.Length
+            ? text[..maximumCharacters]
+            : $"{text[..(maximumCharacters - ellipsis.Length)]}{ellipsis}";
     }
 
     private string BuildStatusLine()

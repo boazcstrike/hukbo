@@ -28,6 +28,14 @@ internal sealed partial class ArmyCompositionPanel
         Rectangle screenBounds,
         UiArmyCompositionLayout metrics)
     {
+        metrics = new UiArmyCompositionLayout(
+            UiScaleContext.Pixels(metrics.PanelWidth),
+            UiScaleContext.Pixels(metrics.PanelHeight),
+            UiScaleContext.Pixels(metrics.RowHeight),
+            UiScaleContext.Pixels(metrics.RowGap),
+            UiScaleContext.Pixels(metrics.StepperWidth),
+            UiScaleContext.Pixels(metrics.ArrowWidth));
+
         var panelBounds = new Rectangle(
             screenBounds.Center.X - (metrics.PanelWidth / 2),
             screenBounds.Center.Y - (metrics.PanelHeight / 2),

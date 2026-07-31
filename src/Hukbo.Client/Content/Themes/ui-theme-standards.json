@@ -1,14 +1,15 @@
 {
   "schemaVersion": 1,
-  "defaultThemeId": "command",
+  "defaultThemeId": "datu-court",
   "standards": {
-    "requiredThemeCount": 5,
+    "requiredThemeCount": 6,
     "requiredThemeIds": [
       "command",
       "field-manual",
       "signal",
       "broadcast",
-      "high-contrast"
+      "high-contrast",
+      "datu-court"
     ],
     "requiredColorRoles": [
       "canvasBackground",
@@ -332,6 +333,44 @@
         "otherFaction": "#FFE600",
         "selection": "#FFE600",
         "newEvent": "#FFE600"
+      }
+    },
+    {
+      "id": "datu-court",
+      "displayName": "Cebu 1521 — Provisional",
+      "metrics": {
+        "borderThickness": 2,
+        "focusThickness": 3,
+        "shadowOffset": 2
+      },
+      "colors": {
+        "canvasBackground": "#120D0A",
+        "arenaSurface": "#4A5138",
+        "arenaBorder": "#C3A35A",
+        "statusSurface": "#1D1410",
+        "overlayScrim": "#120D0AE6",
+        "panelSurface": "#251914",
+        "panelAlternate": "#32231C",
+        "panelBorder": "#B58A3D",
+        "textPrimary": "#F3E6C8",
+        "textSecondary": "#D9C7A7",
+        "textDisabled": "#C7B79E",
+        "textInverse": "#1A110D",
+        "actionDefault": "#D0A64A",
+        "actionHover": "#E2BE68",
+        "actionFocus": "#E3BC62",
+        "actionPressed": "#B88939",
+        "actionActive": "#A7B58C",
+        "actionDisabled": "#493A31",
+        "statusInfo": "#84AFC2",
+        "statusSuccess": "#91B27A",
+        "statusWarning": "#E3BC62",
+        "statusDanger": "#E67864",
+        "teamA": "#76B8DA",
+        "teamB": "#EF7768",
+        "otherFaction": "#E3BC62",
+        "selection": "#D0A64A",
+        "newEvent": "#F2CD75"
       }
     }
   ]

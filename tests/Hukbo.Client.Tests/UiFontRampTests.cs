@@ -1,3 +1,4 @@
+using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 
 namespace Hukbo.Client.Tests;
@@ -10,11 +11,38 @@ public sealed class UiFontRampTests
     [Fact]
     public void EveryRoleHasADistinctAssetId()
     {
-        var assetIds = UiFontRamp.AllRoles
-            .Select(UiFontRamp.GetAssetId)
+        var assetIds = UiFontRamp.AllScales
+            .SelectMany(scale => UiFontRamp.AllRoles.Select(
+                role => UiFontRamp.GetAssetId(role, scale)))
             .ToList();
 
         Assert.Equal(assetIds.Count, assetIds.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Theory]
+    [InlineData(1280, 720, UiScale.Percent100)]
+    [InlineData(1920, 1080, UiScale.Percent125)]
+    [InlineData(2560, 1440, UiScale.Percent150)]
+    [InlineData(3840, 2160, UiScale.Percent200)]
+    [InlineData(3440, 1080, UiScale.Percent125)]
+    public void AutoScaleUsesBothViewportAxes(
+        int width,
+        int height,
+        UiScale expected)
+    {
+        Assert.Equal(expected, UiScalePolicy.Resolve(UiScale.Auto, width, height));
+    }
+
+    [Theory]
+    [InlineData(UiScale.Percent100)]
+    [InlineData(UiScale.Percent125)]
+    [InlineData(UiScale.Percent150)]
+    [InlineData(UiScale.Percent200)]
+    public void ExplicitScaleIsCappedByTheViewport(UiScale scale)
+    {
+        Assert.Equal(
+            UiScale.Percent100,
+            UiScalePolicy.Resolve(scale, 1280, 720));
     }
 
     [Fact]
@@ -96,24 +124,29 @@ public sealed class UiFontRampTests
     {
         var mgcbLines = File.ReadAllLines(ContentProjectPath);
 
-        foreach (var role in UiFontRamp.AllRoles)
+        foreach (var scale in UiFontRamp.AllScales)
         {
-            var expectedBuildLine = $"/build:{UiFontRamp.GetAssetId(role)}.spritefont";
+            foreach (var role in UiFontRamp.AllRoles)
+            {
+                var expectedBuildLine =
+                    $"/build:{UiFontRamp.GetAssetId(role, scale)}.spritefont";
 
-            Assert.Contains(
-                mgcbLines,
-                line => string.Equals(
-                    line.Trim(),
-                    expectedBuildLine,
-                    StringComparison.Ordinal));
+                Assert.Contains(
+                    mgcbLines,
+                    line => string.Equals(
+                        line.Trim(),
+                        expectedBuildLine,
+                        StringComparison.Ordinal));
+            }
         }
     }
 
     [Fact]
     public void NoContentProjectFontBuildLineIsOrphanedFromTheRamp()
     {
-        var rampAssetIds = UiFontRamp.AllRoles
-            .Select(UiFontRamp.GetAssetId)
+        var rampAssetIds = UiFontRamp.AllScales
+            .SelectMany(scale => UiFontRamp.AllRoles.Select(
+                role => UiFontRamp.GetAssetId(role, scale)))
             .ToHashSet(StringComparer.Ordinal);
 
         var mgcbLines = File.ReadAllLines(ContentProjectPath);

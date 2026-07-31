@@ -1,3 +1,6 @@
+using Hukbo.Client.Settings;
+using Microsoft.Xna.Framework.Input;
+
 namespace Hukbo.Client.Tests;
 
 public sealed class MenuOverlayFocusTests
@@ -37,6 +40,31 @@ public sealed class MenuOverlayFocusTests
             MenuOverlay.ResolveFocusedControlIndex(5, 1, 5, 6));
     }
 
+    [Theory]
+    [InlineData(Keys.Tab, null, 1)]
+    [InlineData(Keys.Tab, Keys.LeftShift, -1)]
+    [InlineData(Keys.Tab, Keys.RightShift, -1)]
+    [InlineData(Keys.Down, null, 1)]
+    [InlineData(Keys.Up, null, -1)]
+    public void KeyboardDirectionHonorsBackwardTab(
+        Keys pressed,
+        Keys? heldModifier,
+        int expected)
+    {
+        var keys = heldModifier is { } modifier
+            ? new KeyboardState(pressed, modifier)
+            : new KeyboardState(pressed);
+        var input = new InputEdges(
+            new KeyboardState(),
+            keys,
+            default,
+            default);
+
+        Assert.Equal(
+            expected,
+            MenuOverlay.ResolveKeyboardFocusDirection(input));
+    }
+
     [Fact]
     public void TheGoreSelectorTakesTheIndexAfterEveryButton()
     {
@@ -46,9 +74,9 @@ public sealed class MenuOverlayFocusTests
     }
 
     /// <summary>
-    /// The settings selectors stack below the button band in the order they
-    /// were added: gore, then motion (VIS-032), then auto camera. Each new one
-    /// takes the terminal index and grows
+    /// The settings selectors occupy the right column in the order they were
+    /// added: gore, motion, auto camera, UI scale, then startup display. Each
+    /// new one takes the terminal index and grows
     /// <see cref="MenuOverlay.ControlCount"/> by one, which leaves every
     /// existing index unchanged.
     /// </summary>
@@ -63,17 +91,23 @@ public sealed class MenuOverlayFocusTests
             MenuOverlay.AutoCameraSelectorControlIndex);
         Assert.Equal(
             MenuOverlay.AutoCameraSelectorControlIndex + 1,
+            MenuOverlay.UiScaleSelectorControlIndex);
+        Assert.Equal(
+            MenuOverlay.UiScaleSelectorControlIndex + 1,
+            MenuOverlay.DisplayModeSelectorControlIndex);
+        Assert.Equal(
+            MenuOverlay.DisplayModeSelectorControlIndex + 1,
             MenuOverlay.ControlCount);
     }
 
     [Fact]
-    public void KeyboardFocusWrapsThroughTheTerminalAutoCameraSelectorIndex()
+    public void KeyboardFocusWrapsThroughTheTerminalDisplaySelectorIndex()
     {
         var controlCount = MenuOverlay.ControlCount;
-        var autoCameraIndex = MenuOverlay.AutoCameraSelectorControlIndex;
+        var displayIndex = MenuOverlay.DisplayModeSelectorControlIndex;
 
         Assert.Equal(
-            autoCameraIndex,
+            displayIndex,
             MenuOverlay.ResolveFocusedControlIndex(
                 currentIndex: 0,
                 keyboardDirection: -1,
@@ -82,14 +116,14 @@ public sealed class MenuOverlayFocusTests
         Assert.Equal(
             0,
             MenuOverlay.ResolveFocusedControlIndex(
-                currentIndex: autoCameraIndex,
+                currentIndex: displayIndex,
                 keyboardDirection: 1,
                 hoveredIndex: -1,
                 controlCount: controlCount));
         Assert.Equal(
-            autoCameraIndex,
+            displayIndex,
             MenuOverlay.ResolveFocusedControlIndex(
-                currentIndex: autoCameraIndex - 1,
+                currentIndex: displayIndex - 1,
                 keyboardDirection: 1,
                 hoveredIndex: -1,
                 controlCount: controlCount));
@@ -156,11 +190,98 @@ public sealed class MenuOverlayFocusTests
             standards.Shared.Selector,
             MenuOverlay.ButtonDefinitions.Length);
 
+        var menu = new MenuOverlay(
+            Theming.UiThemeCatalog.Load(path).Themes,
+            standards);
+        var panel = menu.GetPanelBounds(new(0, 0, 1280, 720));
+
         Assert.True(
             requiredHeight <=
-            standards.Shared.Menu.PanelHeight -
-            standards.Shared.Menu.HelperBottomOffset,
+            panel.Height - standards.Shared.Menu.HelperBottomOffset,
             $"Menu content needs {requiredHeight}px but the panel only " +
-            $"offers {standards.Shared.Menu.PanelHeight} px.");
+            $"offers {panel.Height} px.");
+    }
+
+    [Theory]
+    [InlineData(1024, 720)]
+    [InlineData(1280, 720)]
+    [InlineData(1920, 1080)]
+    [InlineData(1440, 1920)]
+    public void ResponsivePanelContainsEveryControl(int width, int height)
+    {
+        var path = Path.Combine(
+            AppContext.BaseDirectory,
+            "Content",
+            "Themes",
+            "ui-theme-standards.json");
+        var catalog = Theming.UiThemeCatalog.Load(path);
+        var menu = new MenuOverlay(catalog.Themes, catalog.Standards);
+        var screen = new Microsoft.Xna.Framework.Rectangle(
+            0,
+            0,
+            width,
+            height);
+        var panel = menu.GetPanelBounds(screen);
+        var controls = menu.GetControlBounds(screen);
+
+        Assert.True(screen.Contains(panel));
+        Assert.All(controls, control => Assert.True(panel.Contains(control)));
+        for (var left = 0; left < controls.Count; left++)
+        {
+            for (var right = left + 1; right < controls.Count; right++)
+            {
+                Assert.False(
+                    controls[left].Intersects(controls[right]),
+                    $"Control {left} overlaps control {right} at {width}x{height}.");
+            }
+        }
+    }
+
+    [Fact]
+    public void EntranceMotion_PreservesFinalControlGeometryAndOffSnaps()
+    {
+        var path = Path.Combine(
+            AppContext.BaseDirectory,
+            "Content",
+            "Themes",
+            "ui-theme-standards.json");
+        var catalog = Theming.UiThemeCatalog.Load(path);
+        var menu = new MenuOverlay(catalog.Themes, catalog.Standards);
+        var screen = new Microsoft.Xna.Framework.Rectangle(
+            0,
+            0,
+            1280,
+            720);
+        menu.Open();
+
+        menu.Update(
+            new InputEdges(),
+            screen,
+            catalog.DefaultThemeId,
+            GoreIntensity.Stylized,
+            MotionIntensity.Reduced,
+            AutoCameraMode.Assisted,
+            UiScale.Percent100,
+            StartupDisplayMode.Windowed,
+            TimeSpan.FromMilliseconds(40));
+        var controls = menu.GetControlBounds(screen).ToArray();
+
+        Assert.InRange(menu.ScrimOpacity, 0.001f, 0.999f);
+        Assert.InRange(menu.EntranceOpacity, 0.001f, 0.999f);
+
+        menu.Update(
+            new InputEdges(),
+            screen,
+            catalog.DefaultThemeId,
+            GoreIntensity.Stylized,
+            MotionIntensity.Off,
+            AutoCameraMode.Assisted,
+            UiScale.Percent100,
+            StartupDisplayMode.Windowed,
+            TimeSpan.Zero);
+
+        Assert.Equal(1f, menu.ScrimOpacity);
+        Assert.Equal(1f, menu.EntranceOpacity);
+        Assert.Equal(controls, menu.GetControlBounds(screen));
     }
 }

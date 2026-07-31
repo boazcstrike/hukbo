@@ -13,7 +13,7 @@ namespace Hukbo.Client.UI;
 /// </summary>
 internal sealed partial class SoundLogPanel
 {
-    private const int StatusColumnWidth = 74;
+    private static int StatusColumnWidth => UiScaleContext.Pixels(74);
     private const string Ellipsis = "...";
 
     private Point _pointerPosition;
@@ -99,13 +99,39 @@ internal sealed partial class SoundLogPanel
             pixel,
             bounds,
             theme.Colors.PanelBorder,
-            theme.Metrics.BorderThickness);
+            Math.Max(
+                1,
+                UiScaleContext.Pixels(theme.Metrics.BorderThickness)));
 
         var titleFont = fonts.Get(UiFontRole.Title);
         var captionFont = fonts.Get(UiFontRole.Caption);
-        DrawHeader(spriteBatch, pixel, titleFont, captionFont, director, layout, theme);
-        DrawBindings(spriteBatch, pixel, captionFont, director, layout, theme);
-        DrawCues(spriteBatch, pixel, captionFont, director, layout, theme);
+        var captionAdvancePx =
+            fonts.GetApproximateAdvancePx(UiFontRole.Caption);
+        DrawHeader(
+            spriteBatch,
+            pixel,
+            titleFont,
+            captionFont,
+            captionAdvancePx,
+            director,
+            layout,
+            theme);
+        DrawBindings(
+            spriteBatch,
+            pixel,
+            captionFont,
+            captionAdvancePx,
+            director,
+            layout,
+            theme);
+        DrawCues(
+            spriteBatch,
+            pixel,
+            captionFont,
+            captionAdvancePx,
+            director,
+            layout,
+            theme);
     }
 
     private void DrawHeader(
@@ -113,6 +139,7 @@ internal sealed partial class SoundLogPanel
         Texture2D pixel,
         SpriteFont titleFont,
         SpriteFont captionFont,
+        int captionAdvancePx,
         SoundDirector director,
         SoundLogPanelLayout layout,
         UiTheme theme)
@@ -170,7 +197,9 @@ internal sealed partial class SoundLogPanel
             captionFont,
             ClipPathTail(
                 director.Player.DirectoryPath,
-                GetMaximumCharacters(layout.PathBounds.Width)),
+                GetMaximumCharacters(
+                    layout.PathBounds.Width,
+                    captionAdvancePx)),
             new Vector2(layout.PathBounds.Left, layout.PathBounds.Top),
             theme.Colors.TextSecondary);
     }
@@ -179,6 +208,7 @@ internal sealed partial class SoundLogPanel
         SpriteBatch spriteBatch,
         Texture2D pixel,
         SpriteFont font,
+        int captionAdvancePx,
         SoundDirector director,
         SoundLogPanelLayout layout,
         UiTheme theme)
@@ -220,7 +250,9 @@ internal sealed partial class SoundLogPanel
                 font,
                 ClipText(
                     row.Label,
-                    GetMaximumCharacters(nameWidth)),
+                    GetMaximumCharacters(
+                        nameWidth,
+                        captionAdvancePx)),
                 new Vector2(rowBounds.Left, rowBounds.Top),
                 theme.Colors.TextPrimary);
             UiPrimitives.DrawText(
@@ -228,7 +260,9 @@ internal sealed partial class SoundLogPanel
                 font,
                 row.StatusText,
                 new Vector2(
-                    rowBounds.Right - StatusColumnWidth + 4,
+                    rowBounds.Right -
+                    StatusColumnWidth +
+                    UiScaleContext.Pixels(4),
                     rowBounds.Top),
                 GetBindingStatusColor(theme.Colors, row.Status));
         }
@@ -256,6 +290,7 @@ internal sealed partial class SoundLogPanel
         SpriteBatch spriteBatch,
         Texture2D pixel,
         SpriteFont font,
+        int captionAdvancePx,
         SoundDirector director,
         SoundLogPanelLayout layout,
         UiTheme theme)
@@ -296,7 +331,9 @@ internal sealed partial class SoundLogPanel
                 font,
                 ClipText(
                     SoundCueFormatter.Format(cue),
-                    GetMaximumCharacters(rowBounds.Width)),
+                    GetMaximumCharacters(
+                        rowBounds.Width,
+                        captionAdvancePx)),
                 new Vector2(rowBounds.Left, rowBounds.Top),
                 GetCueStatusColor(theme.Colors, cue.Status));
         }
@@ -320,11 +357,12 @@ internal sealed partial class SoundLogPanel
             theme.Colors.ActionDefault);
     }
 
-    private static int GetMaximumCharacters(int availableWidth) =>
+    private static int GetMaximumCharacters(
+        int availableWidth,
+        int approximateAdvancePx) =>
         Math.Max(
             0,
-            availableWidth /
-                UiFontRamp.GetApproximateAdvancePx(UiFontRole.Caption));
+            availableWidth / approximateAdvancePx);
 
     /// <summary>
     /// Trims text to fit a row, keeping the start.

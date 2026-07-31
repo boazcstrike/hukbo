@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -50,8 +51,15 @@ internal sealed class MatchSummaryPanel
         new("Menu", ClientCommand.OpenMenu),
         new("Battle Report", ClientCommand.ToggleBattleReport),
     ];
+    private readonly UiEntranceMotion _entrance = new();
+    private bool _wasVisible;
 
     public Rectangle Bounds { get; private set; }
+
+    internal float EntranceOpacity => _entrance.PanelOpacity;
+
+    internal IReadOnlyList<Rectangle> ButtonBounds =>
+        Array.ConvertAll(_buttons, button => button.Bounds);
 
     /// <summary>
     /// Pure hit test over the buttons' already-computed <see cref="UiButton.Bounds"/>.
@@ -66,7 +74,20 @@ internal sealed class MatchSummaryPanel
     public UiInteraction Update(
         InputEdges input,
         MatchSummary? summary,
-        Rectangle arenaContentBounds)
+        Rectangle arenaContentBounds) =>
+        Update(
+            input,
+            summary,
+            arenaContentBounds,
+            TimeSpan.Zero,
+            MotionIntensity.Off);
+
+    public UiInteraction Update(
+        InputEdges input,
+        MatchSummary? summary,
+        Rectangle arenaContentBounds,
+        TimeSpan elapsed,
+        MotionIntensity motionIntensity)
     {
         if (summary is null)
         {
@@ -75,10 +96,21 @@ internal sealed class MatchSummaryPanel
             return UiInteraction.None;
         }
 
+        if (!_wasVisible)
+        {
+            _wasVisible = true;
+            _entrance.Begin();
+        }
+
+        _entrance.Advance(
+            elapsed,
+            motionIntensity,
+            UiEntranceMotion.SummaryPanelDuration,
+            hasScrim: false);
         Layout(arenaContentBounds);
         foreach (var button in _buttons)
         {
-            if (button.Update(input))
+            if (button.Update(input, elapsed, motionIntensity))
             {
                 return new UiInteraction(button.Command, true);
             }
@@ -104,13 +136,16 @@ internal sealed class MatchSummaryPanel
         }
 
         Layout(arenaContentBounds);
+        theme = UiMotionTheme.WithOpacity(theme, EntranceOpacity);
         spriteBatch.Draw(pixel, Bounds, theme.Colors.PanelSurface);
         UiPrimitives.DrawBorder(
             spriteBatch,
             pixel,
             Bounds,
             theme.Colors.PanelBorder,
-            Math.Max(3, theme.Metrics.BorderThickness));
+            Math.Max(
+                UiScaleContext.Pixels(3),
+                UiScaleContext.Pixels(theme.Metrics.BorderThickness)));
 
         var subtitleFont = fonts.Get(UiFontRole.Subtitle);
         var titleFont = fonts.Get(UiFontRole.Title);
@@ -123,17 +158,22 @@ internal sealed class MatchSummaryPanel
             summary.WinnerLabel == "Draw"
                 ? "Draw"
                 : $"{summary.WinnerLabel} wins",
-            new Vector2(Bounds.Center.X, Bounds.Top + WinnerLineTopOffset),
+            new Vector2(
+                Bounds.Center.X,
+                Bounds.Top + UiScaleContext.Pixels(WinnerLineTopOffset)),
             theme.Colors.TextPrimary);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             titleFont,
             "MATCH COMPLETE",
-            new Vector2(Bounds.Center.X, Bounds.Top + HeaderTopOffset),
+            new Vector2(
+                Bounds.Center.X,
+                Bounds.Top + UiScaleContext.Pixels(HeaderTopOffset)),
             theme.Colors.TextSecondary);
 
-        var detailsLeft = Bounds.Left + 45;
-        var detailsTop = Bounds.Top + 105;
+        var detailLineHeight = UiScaleContext.Pixels(DetailLineHeight);
+        var detailsLeft = Bounds.Left + UiScaleContext.Pixels(45);
+        var detailsTop = Bounds.Top + UiScaleContext.Pixels(105);
         DrawDetail(
             $"Survivors: Blue {summary.BlueSurvivors} / Red {summary.RedSurvivors}",
             0);
@@ -150,42 +190,67 @@ internal sealed class MatchSummaryPanel
 
         void DrawDetail(string text, int row)
         {
+            var rowTop = detailsTop + (row * detailLineHeight);
+            if (rowTop + detailLineHeight > _buttons[PairButtonCount].Bounds.Top)
+            {
+                return;
+            }
+
             UiPrimitives.DrawText(
                 spriteBatch,
                 bodyFont,
                 text,
-                new Vector2(detailsLeft, detailsTop + (row * DetailLineHeight)),
+                new Vector2(detailsLeft, rowTop),
                 theme.Colors.TextPrimary);
         }
     }
 
     private void Layout(Rectangle arenaContentBounds)
     {
+        var margin = UiScaleContext.Pixels(Margin);
         var width = Math.Min(
-            PreferredWidth,
+            UiScaleContext.Pixels(PreferredWidth),
             Math.Max(
-                MinimumWidth,
-                arenaContentBounds.Width - (Margin * 2)));
+                UiScaleContext.Pixels(MinimumWidth),
+                arenaContentBounds.Width - (margin * 2)));
         width = Math.Min(width, Math.Max(0, arenaContentBounds.Width));
         var height = Math.Min(
-            PreferredHeight,
-            Math.Max(0, arenaContentBounds.Height - (Margin * 2)));
+            UiScaleContext.Pixels(PreferredHeight),
+            Math.Max(0, arenaContentBounds.Height - (margin * 2)));
         Bounds = new Rectangle(
             arenaContentBounds.Center.X - (width / 2),
             arenaContentBounds.Center.Y - (height / 2),
             width,
             height);
 
-        var buttonTop = Bounds.Bottom - ButtonHeight - 18;
-        var totalButtonWidth = (ButtonWidth * 2) + ButtonGap;
+        var horizontalGap = Math.Min(
+            UiScaleContext.Pixels(ButtonGap),
+            Bounds.Width);
+        var buttonWidth = Math.Min(
+            UiScaleContext.Pixels(ButtonWidth),
+            Math.Max(0, (Bounds.Width - horizontalGap) / 2));
+        var totalButtonWidth = (buttonWidth * 2) + horizontalGap;
         var buttonLeft = Bounds.Center.X - (totalButtonWidth / 2);
+        var bottomPadding = Math.Min(
+            UiScaleContext.Pixels(18),
+            Bounds.Height);
+        var availableButtonHeight = Math.Max(
+            0,
+            Bounds.Height - bottomPadding);
+        var verticalGap = Math.Min(
+            UiScaleContext.Pixels(ButtonGap),
+            availableButtonHeight);
+        var buttonHeight = Math.Min(
+            UiScaleContext.Pixels(ButtonHeight),
+            Math.Max(0, (availableButtonHeight - verticalGap) / 2));
+        var buttonTop = Bounds.Bottom - bottomPadding - buttonHeight;
         for (var index = 0; index < PairButtonCount; index++)
         {
             _buttons[index].Bounds = new Rectangle(
-                buttonLeft + (index * (ButtonWidth + ButtonGap)),
+                buttonLeft + (index * (buttonWidth + horizontalGap)),
                 buttonTop,
-                ButtonWidth,
-                ButtonHeight);
+                buttonWidth,
+                buttonHeight);
         }
 
         // The full-width battle-report button sits directly above the
@@ -194,13 +259,15 @@ internal sealed class MatchSummaryPanel
         // by the same ButtonGap used between them.
         _buttons[PairButtonCount].Bounds = new Rectangle(
             buttonLeft,
-            buttonTop - ButtonGap - ButtonHeight,
+            buttonTop - verticalGap - buttonHeight,
             totalButtonWidth,
-            ButtonHeight);
+            buttonHeight);
     }
 
     private void ResetVisualState()
     {
+        _wasVisible = false;
+        _entrance.Reset();
         foreach (var button in _buttons)
         {
             button.ResetVisualState();

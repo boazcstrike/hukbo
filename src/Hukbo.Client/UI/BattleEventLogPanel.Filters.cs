@@ -20,15 +20,39 @@ internal sealed partial class BattleEventLogPanel
         UiTheme theme)
     {
         var font = fonts.Get(UiFontRole.Caption);
-        DrawKindFactionActorControls(spriteBatch, pixel, font, feed, layout, theme);
-        DrawSearchControl(spriteBatch, pixel, font, feed, layout, theme);
-        DrawResetControl(spriteBatch, pixel, font, feed, layout, theme);
+        var approximateAdvancePx =
+            fonts.GetApproximateAdvancePx(UiFontRole.Caption);
+        DrawKindFactionActorControls(
+            spriteBatch,
+            pixel,
+            font,
+            approximateAdvancePx,
+            feed,
+            layout,
+            theme);
+        DrawSearchControl(
+            spriteBatch,
+            pixel,
+            font,
+            approximateAdvancePx,
+            feed,
+            layout,
+            theme);
+        DrawResetControl(
+            spriteBatch,
+            pixel,
+            font,
+            approximateAdvancePx,
+            feed,
+            layout,
+            theme);
     }
 
     private void DrawKindFactionActorControls(
         SpriteBatch spriteBatch,
         Texture2D pixel,
         SpriteFont font,
+        int approximateAdvancePx,
         BattleEventFeed feed,
         BattleEventPanelLayout layout,
         UiTheme theme)
@@ -37,6 +61,7 @@ internal sealed partial class BattleEventLogPanel
             spriteBatch,
             pixel,
             font,
+            approximateAdvancePx,
             layout.KindFilterBounds,
             BattleEventFormatter.GetKindLabel(feed.KindFilter),
             feed.KindFilter.HasValue,
@@ -46,6 +71,7 @@ internal sealed partial class BattleEventLogPanel
             spriteBatch,
             pixel,
             font,
+            approximateAdvancePx,
             layout.FactionFilterBounds,
             feed.FactionFilter switch
             {
@@ -61,6 +87,7 @@ internal sealed partial class BattleEventLogPanel
             spriteBatch,
             pixel,
             font,
+            approximateAdvancePx,
             layout.ActorFilterBounds,
             GetActorFilterLabel(
                 feed.ActorFilter,
@@ -77,6 +104,7 @@ internal sealed partial class BattleEventLogPanel
         SpriteBatch spriteBatch,
         Texture2D pixel,
         SpriteFont font,
+        int approximateAdvancePx,
         BattleEventFeed feed,
         BattleEventPanelLayout layout,
         UiTheme theme)
@@ -92,6 +120,7 @@ internal sealed partial class BattleEventLogPanel
             spriteBatch,
             pixel,
             font,
+            approximateAdvancePx,
             layout.SearchBounds,
             searchLabel,
             feed.TextFilter.Length > 0,
@@ -104,6 +133,7 @@ internal sealed partial class BattleEventLogPanel
         SpriteBatch spriteBatch,
         Texture2D pixel,
         SpriteFont font,
+        int approximateAdvancePx,
         BattleEventFeed feed,
         BattleEventPanelLayout layout,
         UiTheme theme)
@@ -114,6 +144,7 @@ internal sealed partial class BattleEventLogPanel
                 spriteBatch,
                 pixel,
                 font,
+                approximateAdvancePx,
                 layout.ResetBounds,
                 "RESET",
                 isActive: false,
@@ -131,7 +162,7 @@ internal sealed partial class BattleEventLogPanel
             pixel,
             layout.ResetBounds,
             theme.Colors.PanelBorder,
-            1);
+            UiScaleContext.Pixels(1));
     }
 
     internal static bool TryGetActorFilterForClick(

@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -18,6 +19,8 @@ internal sealed class ControlBar
     private const int BarWidth = 660;
     private const int BarHeight = 48;
     private const int Margin = 10;
+    private const int LeftPadding = 10;
+    private const int RightPadding = 14;
     private const int ButtonGap = 8;
     private const int ButtonWidth = 84;
 
@@ -62,11 +65,35 @@ internal sealed class ControlBar
     internal IReadOnlyList<Rectangle> ButtonBounds =>
         Array.ConvertAll(_buttons, button => button.Bounds);
 
+    internal Rectangle GetBounds(Rectangle availableBounds)
+    {
+        Layout(availableBounds);
+        return Bounds;
+    }
+
+    internal IReadOnlyList<float> ButtonHoverAmounts =>
+        Array.ConvertAll(_buttons, button => button.HoverAmount);
+
     public UiInteraction Update(
         InputEdges input,
         Rectangle availableBounds,
         bool isPlaying,
-        bool isSoundLogVisible)
+        bool isSoundLogVisible) =>
+        Update(
+            input,
+            availableBounds,
+            isPlaying,
+            isSoundLogVisible,
+            TimeSpan.Zero,
+            MotionIntensity.Off);
+
+    public UiInteraction Update(
+        InputEdges input,
+        Rectangle availableBounds,
+        bool isPlaying,
+        bool isSoundLogVisible,
+        TimeSpan elapsed,
+        MotionIntensity motionIntensity)
     {
         Layout(availableBounds);
 
@@ -76,7 +103,11 @@ internal sealed class ControlBar
                 button.Command,
                 isPlaying,
                 isSoundLogVisible);
-            if (button.Update(input, isActive: isActive))
+            if (button.Update(
+                    input,
+                    elapsed,
+                    motionIntensity,
+                    isActive: isActive))
             {
                 return new UiInteraction(button.Command, true);
             }
@@ -105,7 +136,7 @@ internal sealed class ControlBar
             pixel,
             Bounds,
             theme.Colors.PanelBorder,
-            theme.Metrics.BorderThickness);
+            UiScaleContext.Pixels(theme.Metrics.BorderThickness));
 
         var labelFont = fonts.Get(UiFontRole.Label);
         foreach (var button in _buttons)
@@ -116,26 +147,66 @@ internal sealed class ControlBar
 
     private void Layout(Rectangle availableBounds)
     {
-        var width = Math.Min(BarWidth, Math.Max(0, availableBounds.Width));
-        var height = Math.Min(BarHeight, Math.Max(0, availableBounds.Height));
+        var margin = UiScaleContext.Pixels(Margin);
+        var width = Math.Min(
+            UiScaleContext.Pixels(BarWidth),
+            Math.Max(0, availableBounds.Width));
+        var height = Math.Min(
+            UiScaleContext.Pixels(BarHeight),
+            Math.Max(0, availableBounds.Height));
         Bounds = new Rectangle(
-            Math.Max(availableBounds.Left, availableBounds.Right - width - Margin),
+            Math.Max(
+                availableBounds.Left,
+                availableBounds.Right - width - margin),
             Math.Min(
                 availableBounds.Bottom - height,
-                availableBounds.Top + Margin),
+                availableBounds.Top + margin),
             width,
             height);
 
-        var buttonTop = Bounds.Top + ((Bounds.Height - ButtonHeight) / 2);
-        var buttonLeft = Bounds.Left + 10;
+        var desiredButtonHeight = UiScaleContext.Pixels(ButtonHeight);
+        if (UiScaleContext.ActiveScale != UiScale.Percent100)
+        {
+            // The baseline's established 34px geometry remains byte-identical
+            // at 100%. Larger accessibility tiers must not round the 125%
+            // target down below a 44px physical hit target.
+            desiredButtonHeight = Math.Max(44, desiredButtonHeight);
+        }
+
+        var buttonHeight = Math.Min(desiredButtonHeight, Bounds.Height);
+        var buttonTop = Bounds.Top + ((Bounds.Height - buttonHeight) / 2);
+        var leftPadding = Math.Min(
+            UiScaleContext.Pixels(LeftPadding),
+            Bounds.Width);
+        var rightPadding = Math.Min(
+            UiScaleContext.Pixels(RightPadding),
+            Math.Max(0, Bounds.Width - leftPadding));
+        var contentWidth = Math.Max(
+            0,
+            Bounds.Width - leftPadding - rightPadding);
+        var gapCount = Math.Max(0, _buttons.Length - 1);
+        var buttonGap = gapCount == 0
+            ? 0
+            : Math.Min(
+                UiScaleContext.Pixels(ButtonGap),
+                contentWidth / gapCount);
+        var maximumButtonWidth = _buttons.Length == 0
+            ? 0
+            : Math.Max(
+                0,
+                (contentWidth - (buttonGap * gapCount)) / _buttons.Length);
+        var buttonWidth = Math.Min(
+            UiScaleContext.Pixels(ButtonWidth),
+            maximumButtonWidth);
+        var buttonLeft = Bounds.Left + leftPadding;
 
         for (var index = 0; index < _buttons.Length; index++)
         {
             _buttons[index].Bounds = new Rectangle(
-                buttonLeft + (index * (ButtonWidth + ButtonGap)),
+                buttonLeft + (index * (buttonWidth + buttonGap)),
                 buttonTop,
-                ButtonWidth,
-                ButtonHeight);
+                buttonWidth,
+                buttonHeight);
         }
     }
 
