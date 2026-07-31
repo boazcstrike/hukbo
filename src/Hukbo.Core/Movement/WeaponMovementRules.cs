@@ -11,9 +11,20 @@ namespace Hukbo.Core.Movement;
 /// simulation, no tick pipeline — so <c>Hukbo.Core.Tests</c> calls each one
 /// directly with hand-built inputs instead of observing through a whole
 /// battle, the same testability shape <see cref="MovementRules"/> and
-/// <see cref="FacingRules"/> already use. Every ratio comparison is a
-/// widened <see langword="checked"/> integer cross-product; nothing
-/// divides, and nothing here touches floating point.
+/// <see cref="FacingRules"/> already use. Every ratio comparison in the
+/// posture table and in the footwork ladder is a widened
+/// <see langword="checked"/> integer cross-product, so no comparison on
+/// those paths divides at all. <see cref="ShouldPressureInterrupt"/> is the
+/// single exception, and it is a deliberate one: a weighted sum of three
+/// ratios over three different denominators has no cross-multiplied form,
+/// because putting it over a common denominator produces a five-factor
+/// product of roughly 1e25 that overflows <see langword="long"/> and would
+/// force <c>Int128</c> arithmetic per agent per tick, in a stage already
+/// under performance scrutiny. That predicate therefore performs three
+/// <see langword="long"/> divisions. They truncate toward zero, which is
+/// exact and deterministic on every platform, and it is the same behaviour
+/// <c>FixedPoint.MultiplyRatio</c> and <c>MovementRules.CeilDiv</c> already
+/// rely on inside hashed code paths. Nothing here touches floating point.
 /// </summary>
 internal static class WeaponMovementRules
 {
@@ -140,6 +151,157 @@ internal static class WeaponMovementRules
     }
 
     /// <summary>
+    /// Decides whether the pressure interrupt fires for one agent this tick:
+    /// the weighted sum of three saturating basis-point signals — support
+    /// pressure, incoming damage, and ally collapse — measured against this
+    /// row's own registered threshold (design section 5.1). The answer is what
+    /// step 1a of <see cref="ResolveProvisionalFootwork"/> consumes, and the
+    /// caller charges the cost of a firing interrupt — a full attack cooldown
+    /// and a cleared combo chain — from that same single answer, so the
+    /// formula is evaluated exactly once per agent per tick and there is one
+    /// authority for it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The predicate returns <see langword="false"/> unless the prior phase is
+    /// <see cref="FootworkPhase.Commit"/> or
+    /// <see cref="FootworkPhase.Recover"/>. That transition-only clause is
+    /// load-bearing rather than tidy. Without it the interrupt fires on every
+    /// tick the pressure holds, including every tick the warrior is already
+    /// disengaging, re-charging the cooldown each time, so a warrior under
+    /// sustained pressure would never attack again — a worse standoff than the
+    /// one this preset exists to end. With it, the cost is charged once per
+    /// break-off and the subsequent stay in
+    /// <see cref="FootworkPhase.Disengage"/> is governed by the existing
+    /// hysteresis at steps 4 and 5, whose release threshold is validated
+    /// strictly below its entry threshold. Outside the attack lifecycle there
+    /// is in any case nothing to preempt.
+    /// </para>
+    /// <para>
+    /// Every operation is on <see langword="long"/>, every multiplication is
+    /// <see langword="checked"/>, and no floating-point value appears
+    /// anywhere. The comparison is <c>&gt;=</c> rather than <c>&gt;</c> for
+    /// the same reason step 5's entry comparison is: entry equality enters,
+    /// which is the exactness convention this class documents throughout.
+    /// </para>
+    /// <para>
+    /// The three divisions truncate toward zero and cannot divide by zero on
+    /// any reachable input. <paramref name="supportAllies"/> counts the actor
+    /// itself and is therefore at least one for a living agent, the
+    /// precondition <see cref="ResolveProvisionalFootwork"/> enforces;
+    /// <paramref name="maximumHitPoints"/> is validated to at least one when
+    /// the scenario is validated; and the ally-collapse signal short-circuits
+    /// to zero when <paramref name="priorSupportAllies"/> is zero, which is
+    /// what a freshly spawned agent carries on the first tick. Design section
+    /// 5.2 records the full overflow analysis: the tightest intermediate is
+    /// the incoming-damage numerator, which still has roughly four hundred
+    /// thirty thousand times headroom against <see cref="long.MaxValue"/>, and
+    /// <see langword="checked"/> is present so that an unreachable overflow
+    /// throws rather than wrapping silently.
+    /// </para>
+    /// </remarks>
+    /// <param name="priorPhase">
+    /// The agent's authoritative phase from the previous tick. Only
+    /// <see cref="FootworkPhase.Commit"/> and
+    /// <see cref="FootworkPhase.Recover"/> can interrupt.
+    /// </param>
+    /// <param name="supportAllies">
+    /// Living allies within the support radius this tick, including the actor
+    /// itself — <see cref="LocalMovementContext.SupportAllies"/>.
+    /// </param>
+    /// <param name="supportEnemies">
+    /// Living perceived enemies within the support radius this tick —
+    /// <see cref="LocalMovementContext.SupportEnemies"/>.
+    /// </param>
+    /// <param name="priorSupportAllies">
+    /// The same supporting-ally count as it stood on the previous tick. Zero
+    /// means no previous tick was recorded, and the collapse signal is then
+    /// zero rather than undefined.
+    /// </param>
+    /// <param name="damageTakenLastTick">
+    /// Damage this agent absorbed on the previous tick.
+    /// </param>
+    /// <param name="maximumHitPoints">
+    /// The agent's maximum hit points, the denominator of the incoming-damage
+    /// signal. At least one.
+    /// </param>
+    /// <param name="supportPressureWeightBasisPoints">
+    /// The ruleset's shared weight for the support-pressure signal.
+    /// </param>
+    /// <param name="incomingDamageWeightBasisPoints">
+    /// The ruleset's shared weight for the incoming-damage signal.
+    /// </param>
+    /// <param name="allyCollapseWeightBasisPoints">
+    /// The ruleset's shared weight for the ally-collapse signal. The three
+    /// weights total exactly 10,000 whenever the preset applies the interrupt,
+    /// which <see cref="MovementRuleset"/> enforces at construction.
+    /// </param>
+    /// <param name="thresholdBasisPoints">
+    /// This row's
+    /// <see cref="LoadoutMovementProfile.PressureInterruptThresholdBasisPoints"/>.
+    /// Zero — what every row under a preset that does not apply the interrupt
+    /// carries — never fires.
+    /// </param>
+    internal static bool ShouldPressureInterrupt(
+        FootworkPhase priorPhase,
+        int supportAllies,
+        int supportEnemies,
+        int priorSupportAllies,
+        int damageTakenLastTick,
+        int maximumHitPoints,
+        int supportPressureWeightBasisPoints,
+        int incomingDamageWeightBasisPoints,
+        int allyCollapseWeightBasisPoints,
+        int thresholdBasisPoints)
+    {
+        // The transition-only rule: the interrupt exists to preempt the attack
+        // lifecycle, so it may only fire from inside that lifecycle.
+        if (priorPhase != FootworkPhase.Commit &&
+            priorPhase != FootworkPhase.Recover)
+        {
+            return false;
+        }
+
+        // A row that registered no threshold never interrupts, which is what
+        // keeps every preset from V1 through V6 on the legacy ladder.
+        if (thresholdBasisPoints <= 0)
+        {
+            return false;
+        }
+
+        // Signal A, support pressure: the enemy-to-ally ratio in the support
+        // ring, saturated at the shared ceiling.
+        long supportPressure = Math.Min(
+            SignalCeilingBasisPoints,
+            checked(supportEnemies * RatioBasisPointScale) / supportAllies);
+
+        // Signal B, incoming damage: the previous tick's damage as a fraction
+        // of maximum hit points, saturated at the same ceiling.
+        long incomingDamage = Math.Min(
+            SignalCeilingBasisPoints,
+            checked(damageTakenLastTick * RatioBasisPointScale) / maximumHitPoints);
+
+        // Signal C, ally collapse: the fraction of the support ring lost since
+        // the previous tick. Ally growth yields zero rather than a negative,
+        // and this signal needs no ceiling because the loss can never exceed
+        // the prior count, so it is naturally at most one whole unit.
+        long alliesLost = Math.Max(0L, (long)priorSupportAllies - supportAllies);
+        long allyCollapse = priorSupportAllies == 0
+            ? 0L
+            : checked(alliesLost * RatioBasisPointScale) / priorSupportAllies;
+
+        // The weights sum to exactly one whole unit, so the weighted sum is a
+        // true weighted average scaled by RatioBasisPointScale and the
+        // threshold stays directly comparable to a single signal's value.
+        long weighted = checked(
+            (supportPressure * supportPressureWeightBasisPoints)
+            + (incomingDamage * incomingDamageWeightBasisPoints)
+            + (allyCollapse * allyCollapseWeightBasisPoints));
+
+        return weighted >= checked(thresholdBasisPoints * RatioBasisPointScale);
+    }
+
+    /// <summary>
     /// Resolves one agent's provisional <see cref="FootworkPhase"/> and
     /// timer for this tick through the ten first-match transition steps of
     /// design section 9.1. The result is provisional scratch: section 9.4's
@@ -164,6 +326,18 @@ internal static class WeaponMovementRules
     /// <see cref="TacticalPosture.Yield"/> contingent takes
     /// <see cref="FootworkPhase.Disengage"/> regardless of its own local
     /// advantage; only routes differ per agent (design section 9.3).
+    /// <para>
+    /// Step 1a is the pressure interrupt. It is numbered 1a rather than by
+    /// renumbering the ten steps because those numbers are cited by comments,
+    /// by test names, and by both V7 design documents. Its position is forced
+    /// rather than chosen: it sits below the dead check, because a dead agent
+    /// resolves to <c>(None, 0)</c> and reads no counts; below the argument
+    /// validation, because <see cref="ShouldPressureInterrupt"/> divides by
+    /// <paramref name="supportAllies"/> and that validation is what guarantees
+    /// the count is at least one; and above step 2, because step 2 returns
+    /// unconditionally for a prior <c>Commit</c> and everything below it is
+    /// unreachable for a committed warrior.
+    /// </para>
     /// </remarks>
     /// <param name="isAlive">Whether the agent is alive this tick.</param>
     /// <param name="priorPhase">
@@ -209,6 +383,17 @@ internal static class WeaponMovementRules
     /// caller. Meaningless when <paramref name="hasTarget"/> is
     /// <see langword="false"/>.
     /// </param>
+    /// <param name="pressureInterruptFired">
+    /// Whether <see cref="ShouldPressureInterrupt"/> fired for this agent this
+    /// tick, as the caller computed it once and kept it. The default
+    /// <see langword="false"/> is the legacy ladder exactly and by
+    /// construction, which is what every preset from V1 through V6 and every
+    /// call site written before the interrupt existed continues to get. It is
+    /// a trailing optional parameter for that reason: widening the return
+    /// tuple would break every helper's declared return type, and an
+    /// <see langword="out"/> parameter cannot be defaulted, so either would
+    /// have forced edits on call sites the interrupt does not concern.
+    /// </param>
     internal static (FootworkPhase Phase, int TicksRemaining)
         ResolveProvisionalFootwork(
             bool isAlive,
@@ -221,7 +406,8 @@ internal static class WeaponMovementRules
             int reengageEnemyToAllyBasisPoints,
             int recoveryTicks,
             bool hasTarget,
-            bool targetAtOrInsidePreferredDistance)
+            bool targetAtOrInsidePreferredDistance,
+            bool pressureInterruptFired = false)
     {
         // Step 1: dead.
         if (!isAlive)
@@ -231,6 +417,20 @@ internal static class WeaponMovementRules
 
         ArgumentOutOfRangeException.ThrowIfLessThan(supportAllies, 1);
         ArgumentOutOfRangeException.ThrowIfNegative(supportEnemies);
+
+        // Step 1a, the pressure interrupt: a warrior broken off mid-lifecycle
+        // takes Disengage with a zero timer, matching every other Disengage
+        // return in this ladder. It is numbered 1a rather than by renumbering
+        // the ten steps, whose numbers are cited elsewhere; the remarks above
+        // record why this position is forced rather than chosen. The finalised
+        // phase still goes through FinalizeFootwork exactly as any other
+        // provisional phase does, so lane clearance can still fall it back and
+        // nothing downstream learns this Disengage arrived by a different
+        // route.
+        if (pressureInterruptFired)
+        {
+            return (FootworkPhase.Disengage, 0);
+        }
 
         // Step 2: a continuing Commit decrements; an expiring Commit enters
         // Recover with the profile recovery duration.
