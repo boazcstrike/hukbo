@@ -287,7 +287,7 @@ Plugins that earn their keep here (see `.claude/settings.json`):
 | `context7` | MonoGame 3.8.5, .NET 10, xunit API facts — check docs, do not answer from memory |
 | `code-review` | `/code-review` on a diff before integrating |
 | `codex` | Second opinion on a determinism bug or a stuck investigation |
-| `caveman` | Agent-to-agent prompts only. **Never** on repository files |
+| `caveman` | **Required** on every agent-to-agent prompt. **Never** on repository files |
 | `ui-ux-pro-max` | HUD, theme, and inspector layout work in `Hukbo.Client/UI` |
 | `last30days` | Genre and community research, as used for `RESEARCHED.md` |
 
@@ -367,8 +367,16 @@ Rules that bind this pipeline:
 - **The canonical gate is not delegated.** `./scripts/verify.ps1` runs once,
   after integration, and its real output is the evidence. No sub-agent's report
   substitutes for it, and no agent may flip a manual smoke-checklist row.
-- Agent-to-agent prompts may be compressed; repository documentation may not.
-  See the rule in section 6.
+- **Coding tasks run on Sonnet.** Every agent that writes or edits code in this
+  repository is dispatched on Sonnet, every time, with no per-task exception.
+  Research and planning agents keep whatever model their own agent file
+  declares; this rule binds the implementation stage. Confirm the roster with
+  `bo agents` before spawning, since an agent's declared model can change.
+- **Every agent prompt is caveman-compressed.** Orchestration is not authorized
+  without it: run the `caveman` skill over each sub-agent prompt before
+  dispatching it, at every stage of the pipeline. Repository documentation,
+  commits, pull requests, and user-facing prose stay in full English — see the
+  rule in section 6.
 
 The `hukbo-orchestrate` skill is the invocable form of this section — the
 worktree setup, the two research groups, the planner audit, the prompt contract,
