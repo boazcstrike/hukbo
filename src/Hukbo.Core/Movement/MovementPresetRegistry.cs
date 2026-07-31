@@ -350,14 +350,55 @@ public static class MovementPresetRegistry
         supportRadiusBodyDiametersBasisPoints: 60_000,
         loadoutMovementProfiles:
         [
-            WithDisengageRatioAsStartingThreshold(KampilanMovementProfile.Row),
-            WithDisengageRatioAsStartingThreshold(WasayMovementProfile.Row),
-            WithDisengageRatioAsStartingThreshold(KalisMovementProfile.Row),
-            WithDisengageRatioAsStartingThreshold(ItakMovementProfile.Row),
-            WithDisengageRatioAsStartingThreshold(
-                TallHardwoodMovementProfiles.KalisRow),
-            WithDisengageRatioAsStartingThreshold(
-                TallHardwoodMovementProfiles.ItakRow),
+            // Each row's pressure-interrupt threshold is a provisional
+            // reconstruction of gameplay tuning under CLAUDE.md section 7,
+            // not a historical measurement. No source describes how a warrior
+            // in the pre-colonial Philippines decided to break off a
+            // committed blow, and none of these six numbers claims one.
+            //
+            // Every threshold is the row's own
+            // LoadoutMovementProfile.DisengageEnemyToAllyBasisPoints scaled by
+            // SupportPressureWeightBasisPoints / 10,000 — 2.0:1 for Kampilan
+            // and Wasay, 1.75:1 for the shielded Kalis row, 1.5:1 for Kalis
+            // and the shielded Itak row, and 1.25:1 for Itak, each halved at
+            // the shipped support weight of 5,000. That scaling is what makes
+            // the intended reading of the threshold true: a warrior
+            // interrupts at roughly the odds at which it would already have
+            // refused to close. The values registered before task E1 were the
+            // bare disengage ratios, compared against a weighted average that
+            // is a different quantity in the same units, and three of the six
+            // rows were unreachable as a result. The weighted sum can never
+            // exceed 2 * SupportPressureWeightBasisPoints + 10,000 for a
+            // warrior that survives the tick — 20,000 here — because the
+            // weights are a true average, signal A saturates at
+            // WeaponMovementRules.SignalCeilingBasisPoints, and a signal B of
+            // 10,000 requires damage at least equal to maximum hit points,
+            // which kills the agent. Kampilan and Wasay at 20,000 could
+            // therefore never fire, and the shielded Kalis row at 17,500
+            // needed all three signals saturated at once. The tuned values
+            // below preserve the relative ordering the six weapon sessions
+            // recorded and put every row inside reach.
+            //
+            // Reaching every row is not the same as terminating a battle, and
+            // these values do not meet the design section 2.1 termination
+            // bar: all ten cells of the section 2.2 matrix still ended in
+            // Draw at the 10,000-tick limit. Neither did any other
+            // configuration task E1 measured, including a probe that
+            // registered the minimum threshold of 1 on all six rows and so
+            // fired on every agent-tick the predicate can ever fire on. See
+            // docs/plans/2026-07-31-movement-v7-calibration-record.md.
+            KampilanMovementProfile.Row
+                .WithPressureInterruptThreshold(10_000),
+            WasayMovementProfile.Row
+                .WithPressureInterruptThreshold(10_000),
+            KalisMovementProfile.Row
+                .WithPressureInterruptThreshold(7_500),
+            ItakMovementProfile.Row
+                .WithPressureInterruptThreshold(6_250),
+            TallHardwoodMovementProfiles.KalisRow
+                .WithPressureInterruptThreshold(8_750),
+            TallHardwoodMovementProfiles.ItakRow
+                .WithPressureInterruptThreshold(7_500),
         ],
         appliesPressureInterrupt: true,
 
@@ -365,46 +406,26 @@ public static class MovementPresetRegistry
         // tuning under CLAUDE.md section 7, not historical measurements. No
         // source describes how a warrior in the pre-colonial Philippines
         // decided to abandon a committed blow, and none is claimed here; they
-        // are chosen to make a battle terminate. They total exactly
+        // were chosen in the hope of making a battle terminate, which task E1
+        // then measured and disproved. They total exactly
         // MovementRuleset.TotalPressureInterruptWeightBasisPoints, which the
         // constructor's coupled validation requires. The split leans on
         // support odds because that signal is the one a spectator can read off
         // the screen, and gives damage taken more weight than allies lost
-        // because the second is the slower of the two. Plan task E1 re-tunes
-        // all three against design section 2.1's termination bar and records
-        // what it measured; these are a principled starting point, not a
-        // final answer.
+        // because the second is the slower of the two.
+        //
+        // Plan task E1 measured all three against design section 2.1's
+        // termination bar and left them where they stand. Two alternative
+        // splits were measured and neither did better: 7,000 / 2,000 / 1,000,
+        // which raises the reachability ceiling to 24,000, and
+        // 3,000 / 5,000 / 2,000, which leans on incoming damage instead. Both
+        // drew every cell they were measured over, as this split does. The
+        // full record, with the numbers and with the reason the interrupt
+        // cannot reach the standoff at any tuning, is
+        // docs/plans/2026-07-31-movement-v7-calibration-record.md.
         supportPressureWeightBasisPoints: 5_000,
         incomingDamageWeightBasisPoints: 3_000,
         allyCollapseWeightBasisPoints: 2_000);
-
-    /// <summary>
-    /// Returns the supplied V6 profile row with its pressure-interrupt
-    /// threshold registered at its own
-    /// <see cref="LoadoutMovementProfile.DisengageEnemyToAllyBasisPoints"/>.
-    /// The weighted pressure sum and that ratio are measured in the same
-    /// basis-point space and the first signal feeding the sum <em>is</em> the
-    /// enemy-to-ally ratio, so a row's existing disengage ratio is the natural
-    /// starting bar for interrupting a committed blow: a warrior interrupts at
-    /// roughly the odds at which it would already have refused to close.
-    /// Deriving it keeps each row's starting threshold in step with the tuning
-    /// it is drawn from instead of restating a literal that could drift from
-    /// it.
-    /// </summary>
-    /// <remarks>
-    /// Every value this produces is a provisional reconstruction of gameplay
-    /// tuning under CLAUDE.md section 7, not a historical measurement. Plan
-    /// task E1 replaces these calls with per-row tuned literals once design
-    /// section 2.1's termination bar has been measured. Each result lands
-    /// inside the inclusive range <c>[1, SignalCeilingBasisPoints]</c> the
-    /// constructor's coupled validation requires — 20,000 for Kampilan and
-    /// Wasay, 15,000 for Kalis, 12,500 for Itak, 17,500 for the shielded
-    /// Kalis row, and 15,000 for the shielded Itak row, against a ceiling of
-    /// 30,000.
-    /// </remarks>
-    private static LoadoutMovementProfile WithDisengageRatioAsStartingThreshold(
-        LoadoutMovementProfile row) =>
-        row.WithPressureInterruptThreshold(row.DisengageEnemyToAllyBasisPoints);
 
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
