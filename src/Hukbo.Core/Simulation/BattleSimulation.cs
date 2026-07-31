@@ -115,6 +115,20 @@ public sealed class BattleSimulation
     // interrupt produces live on AgentState.
     private readonly bool[] _pressureInterruptFired;
 
+    // The same scratch expressed as a number a spectator can read: the
+    // weighted pressure sum divided back down by
+    // WeaponMovementRules.RatioBasisPointScale, so the stored value is in the
+    // same basis-point unit as this row's
+    // LoadoutMovementProfile.PressureInterruptThresholdBasisPoints and the two
+    // can be shown side by side without further arithmetic. Unlike the flag
+    // above it is written for every living agent, not only for one whose
+    // interrupt fired, because design section 3, question 8, channel 3
+    // requires the inspector row on every tick — that is what lets a spectator
+    // predict a break-off rather than only witness one. It is allocated,
+    // sized, and cleared exactly as the flag is, and it is derived scratch in
+    // the same category: never hashed, never snapshotted, never persisted.
+    private readonly int[] _pressureBasisPoints;
+
     // Double-buffered event storage: each tick writes into whichever of these
     // two lists is not currently exposed through _lastEvents, so a caller
     // that retains one tick's LastEvents value keeps seeing that tick's data,
@@ -177,6 +191,9 @@ public sealed class BattleSimulation
         _conflictAccepted = usesFootwork ? new bool[agents.Length] : [];
         _pressureInterruptFired = _movementRules.AppliesPressureInterrupt
             ? new bool[agents.Length]
+            : [];
+        _pressureBasisPoints = _movementRules.AppliesPressureInterrupt
+            ? new int[agents.Length]
             : [];
         _eventBufferA = new List<BattleEvent>(agents.Length * 2);
         _eventBufferB = new List<BattleEvent>(agents.Length * 2);
@@ -1621,11 +1638,13 @@ public sealed class BattleSimulation
                 _provisionalFootworkTicks[index] = 0;
                 if (appliesPressureInterrupt)
                 {
-                    // The slot is cleared rather than left stale, but the
-                    // predicate itself is never called here: it guards none of
-                    // its own arguments and divides by counts that only a
-                    // living agent is guaranteed to carry.
+                    // Both slots are cleared rather than left stale, but
+                    // neither the predicate nor ComputeWeightedPressure is
+                    // called here: neither of them guards any of its own
+                    // arguments, and both divide by counts that only a living
+                    // agent is guaranteed to carry.
                     _pressureInterruptFired[index] = false;
+                    _pressureBasisPoints[index] = 0;
                 }
 
                 continue;
@@ -1692,6 +1711,36 @@ public sealed class BattleSimulation
                         _movementRules.IncomingDamageWeightBasisPoints,
                         _movementRules.AllyCollapseWeightBasisPoints,
                         profile.PressureInterruptThresholdBasisPoints);
+
+                // The spectator's pressure row, design section 3, question 8,
+                // channel 3. The predicate above answers whether the interrupt
+                // fires, which its two guards can decide without ever weighing
+                // the signals; the inspector needs the weighed number itself,
+                // on every tick, whatever phase the warrior is in. Those are
+                // two different questions, so this is a second call rather
+                // than a second copy: the formula lives once, in
+                // ComputeWeightedPressure, which the predicate calls too, and
+                // the displayed value therefore cannot drift from the value
+                // the interrupt weighed.
+                //
+                // Dividing by the ratio scale converts the weighted sum back
+                // into the basis-point unit the profile's threshold is
+                // registered in, so the inspector can print the two against
+                // each other. The quotient is at most SignalCeilingBasisPoints,
+                // because the three weights sum to one whole unit under a
+                // preset that applies the interrupt, so the int cast cannot
+                // truncate.
+                _pressureBasisPoints[index] = (int)(
+                    WeaponMovementRules.ComputeWeightedPressure(
+                        context.SupportAllies,
+                        context.SupportEnemies,
+                        agent.PriorSupportAllies,
+                        agent.DamageTakenLastTick,
+                        agent.MaximumHitPoints,
+                        _movementRules.SupportPressureWeightBasisPoints,
+                        _movementRules.IncomingDamageWeightBasisPoints,
+                        _movementRules.AllyCollapseWeightBasisPoints)
+                    / WeaponMovementRules.RatioBasisPointScale);
 
                 if (_pressureInterruptFired[index])
                 {
