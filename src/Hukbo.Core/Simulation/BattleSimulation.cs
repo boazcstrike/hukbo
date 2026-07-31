@@ -1683,25 +1683,34 @@ public sealed class BattleSimulation
 
             if (appliesPressureInterrupt)
             {
-                // Design section 4, the pressure interrupt: one call per living
-                // agent per tick, on tick-start authoritative state plus the
-                // scratch SelectTargetsAndIntents finalised before this loop
-                // began. No agent's answer reads another agent's answer, so the
-                // loop order cannot decide an outcome and the no-peeking
+                // Design section 4, the pressure interrupt: one evaluation per
+                // living agent per tick, on tick-start authoritative state plus
+                // the scratch SelectTargetsAndIntents finalised before this
+                // loop began. No agent's answer reads another agent's answer,
+                // so the loop order cannot decide an outcome and the no-peeking
                 // invariant GatherEquipmentRelativeMovementProposals documents
                 // is preserved. No random stream is consulted.
                 //
-                // The predicate guards no argument of its own: it divides by
-                // supportAllies, by maximumHitPoints, and — when that count is
-                // non-zero — by priorSupportAllies. LocalMovementContext's
-                // ally count includes the actor itself and Scenario.Validate
-                // proves MaximumHitPoints is at least 1, so both divisors are
-                // non-zero by construction for a living agent. That is why the
-                // call sits in the living-agent path only, and why the dead
-                // branch above clears the slot instead of asking.
-                _pressureInterruptFired[index] =
-                    WeaponMovementRules.ShouldPressureInterrupt(
-                        agent.FootworkPhase,
+                // ComputeWeightedPressure guards no argument of its own: it
+                // divides by supportAllies, by maximumHitPoints, and — when
+                // that count is non-zero — by priorSupportAllies.
+                // LocalMovementContext's ally count includes the actor itself
+                // and Scenario.Validate proves MaximumHitPoints is at least 1,
+                // so both divisors are non-zero by construction for a living
+                // agent. That is why the call sits in the living-agent path
+                // only, and why the dead branch above clears the slot instead
+                // of asking.
+                //
+                // Design section 4.2 requires the weighted sum to be computed
+                // exactly once per agent per tick, and this is that one
+                // computation. The value it produces feeds both consumers
+                // below: the spectator's pressure row and the interrupt
+                // predicate, whose single answer the charged cost and the
+                // footwork ladder then share. Three long divisions and six
+                // multiplications are not worth running twice in a stage the
+                // tick budget is measured against.
+                long weightedPressure =
+                    WeaponMovementRules.ComputeWeightedPressure(
                         context.SupportAllies,
                         context.SupportEnemies,
                         agent.PriorSupportAllies,
@@ -1709,19 +1718,17 @@ public sealed class BattleSimulation
                         agent.MaximumHitPoints,
                         _movementRules.SupportPressureWeightBasisPoints,
                         _movementRules.IncomingDamageWeightBasisPoints,
-                        _movementRules.AllyCollapseWeightBasisPoints,
-                        profile.PressureInterruptThresholdBasisPoints);
+                        _movementRules.AllyCollapseWeightBasisPoints);
 
                 // The spectator's pressure row, design section 3, question 8,
-                // channel 3. The predicate above answers whether the interrupt
+                // channel 3. The predicate below answers whether the interrupt
                 // fires, which its two guards can decide without ever weighing
                 // the signals; the inspector needs the weighed number itself,
                 // on every tick, whatever phase the warrior is in. Those are
-                // two different questions, so this is a second call rather
-                // than a second copy: the formula lives once, in
-                // ComputeWeightedPressure, which the predicate calls too, and
-                // the displayed value therefore cannot drift from the value
-                // the interrupt weighed.
+                // two different questions asked of the one sum above, which is
+                // why this write sits outside the predicate and runs for every
+                // living agent under the interrupt preset, including one whose
+                // guards reject the interrupt.
                 //
                 // Dividing by the ratio scale converts the weighted sum back
                 // into the basis-point unit the profile's threshold is
@@ -1731,16 +1738,17 @@ public sealed class BattleSimulation
                 // preset that applies the interrupt, so the int cast cannot
                 // truncate.
                 _pressureBasisPoints[index] = (int)(
-                    WeaponMovementRules.ComputeWeightedPressure(
-                        context.SupportAllies,
-                        context.SupportEnemies,
-                        agent.PriorSupportAllies,
-                        agent.DamageTakenLastTick,
-                        agent.MaximumHitPoints,
-                        _movementRules.SupportPressureWeightBasisPoints,
-                        _movementRules.IncomingDamageWeightBasisPoints,
-                        _movementRules.AllyCollapseWeightBasisPoints)
+                    weightedPressure
                     / WeaponMovementRules.RatioBasisPointScale);
+
+                // What is left of the predicate is its two guards and one
+                // comparison against this row's own threshold; the number it
+                // weighs is the sum above rather than a second copy of it.
+                _pressureInterruptFired[index] =
+                    WeaponMovementRules.ShouldPressureInterrupt(
+                        agent.FootworkPhase,
+                        profile.PressureInterruptThresholdBasisPoints,
+                        weightedPressure);
 
                 if (_pressureInterruptFired[index])
                 {

@@ -164,8 +164,11 @@ internal static class WeaponMovementRules
     /// and a cleared combo chain — from that same single answer, so the
     /// predicate is evaluated exactly once per agent per tick. The weighted
     /// sum itself lives in <see cref="ComputeWeightedPressure"/>, the single
-    /// authority for the formula, which the simulation also calls directly to
-    /// fill the agent inspector's pressure row.
+    /// authority for the formula. The simulation calls that method once per
+    /// living agent per tick and hands the one value it returns both to the
+    /// agent inspector's pressure row and to the overload of this predicate
+    /// that takes an already-computed sum, so the arithmetic runs once and the
+    /// two consumers can never disagree.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -285,7 +288,84 @@ internal static class WeaponMovementRules
             incomingDamageWeightBasisPoints,
             allyCollapseWeightBasisPoints);
 
-        return weighted >= checked(thresholdBasisPoints * RatioBasisPointScale);
+        return ShouldPressureInterrupt(
+            priorPhase,
+            thresholdBasisPoints,
+            weighted);
+    }
+
+    /// <summary>
+    /// The same pressure-interrupt decision as the overload above, taken from
+    /// a weighted sum the caller has already computed. This is the form the
+    /// simulation calls, so that <see cref="ComputeWeightedPressure"/> runs
+    /// exactly once per living agent per tick and the one value it returns
+    /// feeds both consumers: the agent inspector's pressure row and this
+    /// predicate, whose answer step 1a of
+    /// <see cref="ResolveProvisionalFootwork"/> consumes and whose cost the
+    /// caller charges. One computation, one authority, no duplicated formula
+    /// (design section 4.2).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Both guards and the final comparison live here and only here. The
+    /// ten-parameter overload above runs the same two guards first, so that it
+    /// still short-circuits before paying for a weighted sum it would then
+    /// discard; it is the honest expression of the predicate as a whole and is
+    /// what the unit tests exercise. The two are behaviourally identical.
+    /// </para>
+    /// <para>
+    /// The comparison scales the threshold up by
+    /// <see cref="RatioBasisPointScale"/> rather than dividing
+    /// <paramref name="weightedPressure"/> down, because dividing the sum down
+    /// first would truncate. It is <c>&gt;=</c> rather than <c>&gt;</c> for the
+    /// same reason step 5's entry comparison is: entry equality enters. The
+    /// multiplication is <see langword="checked"/>, every operation is on
+    /// <see langword="long"/>, and no floating-point value appears.
+    /// </para>
+    /// <para>
+    /// This overload divides nothing, so it guards none of the divisors
+    /// <see cref="ComputeWeightedPressure"/> needs; whoever produced
+    /// <paramref name="weightedPressure"/> has already satisfied them by
+    /// calling that method on the living-agent path.
+    /// </para>
+    /// </remarks>
+    /// <param name="priorPhase">
+    /// The agent's authoritative phase from the previous tick. Only
+    /// <see cref="FootworkPhase.Commit"/> and
+    /// <see cref="FootworkPhase.Recover"/> can interrupt.
+    /// </param>
+    /// <param name="thresholdBasisPoints">
+    /// The row's
+    /// <see cref="LoadoutMovementProfile.PressureInterruptThresholdBasisPoints"/>.
+    /// Zero — what every row under a preset that does not apply the interrupt
+    /// carries — never fires.
+    /// </param>
+    /// <param name="weightedPressure">
+    /// The value <see cref="ComputeWeightedPressure"/> returned for this agent
+    /// on this tick, still scaled by <see cref="RatioBasisPointScale"/>.
+    /// </param>
+    internal static bool ShouldPressureInterrupt(
+        FootworkPhase priorPhase,
+        int thresholdBasisPoints,
+        long weightedPressure)
+    {
+        // The transition-only rule: the interrupt exists to preempt the attack
+        // lifecycle, so it may only fire from inside that lifecycle.
+        if (priorPhase != FootworkPhase.Commit &&
+            priorPhase != FootworkPhase.Recover)
+        {
+            return false;
+        }
+
+        // A row that registered no threshold never interrupts, which is what
+        // keeps every preset from V1 through V6 on the legacy ladder.
+        if (thresholdBasisPoints <= 0)
+        {
+            return false;
+        }
+
+        return weightedPressure >=
+            checked(thresholdBasisPoints * RatioBasisPointScale);
     }
 
     /// <summary>
@@ -305,10 +385,12 @@ internal static class WeaponMovementRules
     /// <remarks>
     /// The three guards that decide whether an interrupt may fire at all — the
     /// transition-only rule and the zero-threshold rule — deliberately do not
-    /// live here. They belong to the predicate, which short-circuits before
-    /// reaching this method, while the spectator's pressure row is shown on
-    /// every tick regardless of the warrior's phase (design section 3,
-    /// question 8, channel 3). This method therefore has exactly the same
+    /// live here. They belong to the predicate. The simulation calls this
+    /// method for every living agent and hands the one sum it returns to the
+    /// predicate, because the spectator's pressure row is shown on every tick
+    /// regardless of the warrior's phase (design section 3, question 8,
+    /// channel 3), while the predicate's answer only matters inside the attack
+    /// lifecycle. This method therefore has exactly the same
     /// preconditions the predicate documents: it divides by
     /// <paramref name="supportAllies"/>, by
     /// <paramref name="maximumHitPoints"/>, and — when that count is non-zero —
