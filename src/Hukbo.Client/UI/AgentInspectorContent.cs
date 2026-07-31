@@ -37,8 +37,8 @@ internal static class AgentInspectorContent
     /// The most lower detail rows <see cref="BuildLowerLines"/> can produce:
     /// intent, contingent, target, position, rank, rank reconstruction note,
     /// weapon, attributes, level, combo attributes, evidence tier, grip,
-    /// armor, shield, movement, facing, posture, footwork, and pace. The
-    /// contingent row is present exactly when the agent's
+    /// armor, shield, movement, facing, posture, footwork, pace, and
+    /// pressure. The contingent row is present exactly when the agent's
     /// <see cref="AgentView.ContingentState"/> is not
     /// <see cref="ContingentState.None"/>. The rank reconstruction note row
     /// is present exactly when the agent's <see cref="AgentView.Rank"/>
@@ -51,10 +51,17 @@ internal static class AgentInspectorContent
     /// that uses equipment-relative footwork; under every legacy preset the
     /// projected fields hold their defaults and all four formatters return
     /// <see langword="null"/> (weapon-relative movement design, section 15).
+    /// The pressure row is present only under a preset whose
+    /// <c>MovementRuleset.AppliesPressureInterrupt</c> is
+    /// <see langword="true"/>, because every other preset leaves this
+    /// warrior's threshold at zero and
+    /// <see cref="FormatPressureLine"/> then returns
+    /// <see langword="null"/> (pressure-interrupt design, section 3,
+    /// question 8, channel 3).
     /// A real panel therefore draws this many or fewer — the panel is sized
     /// for the maximum so the taller case never clips.
     /// </summary>
-    internal const int MaximumLowerRowCount = 19;
+    internal const int MaximumLowerRowCount = 20;
     internal const int PortraitBottomGap = 5;
     internal const int TopDetailBottomGap = 2;
 
@@ -218,7 +225,10 @@ internal static class AgentInspectorContent
             lines.Add(postureLine);
         }
 
-        if (FormatFootworkLine(agent.FootworkPhase, agent.FootworkTicksRemaining)
+        if (FormatFootworkLine(
+                agent.FootworkPhase,
+                agent.FootworkTicksRemaining,
+                agent.BrokeOffUnderPressure)
             is { } footworkLine)
         {
             lines.Add(footworkLine);
@@ -228,6 +238,18 @@ internal static class AgentInspectorContent
             is { } paceLine)
         {
             lines.Add(paceLine);
+        }
+
+        // The pressure row (pressure-interrupt design section 3, question 8,
+        // channel 3), last because it is the newest and because a preset
+        // without the interrupt leaves the threshold at zero and drops the
+        // row entirely, keeping every earlier preset's output byte-identical.
+        if (FormatPressureLine(
+                agent.PressureBasisPoints,
+                agent.PressureThresholdBasisPoints)
+            is { } pressureLine)
+        {
+            lines.Add(pressureLine);
         }
 
         return lines;
@@ -407,9 +429,28 @@ internal static class AgentInspectorContent
     /// and death cleanup — leaves, so legacy inspector output is
     /// byte-identical.
     /// </summary>
+    /// <param name="phase">The warrior's finalised footwork phase.</param>
+    /// <param name="ticksRemaining">
+    /// The <see cref="FootworkPhase.Commit"/> / <see cref="FootworkPhase.Recover"/>
+    /// timer, appended only in those two phases.
+    /// </param>
+    /// <param name="brokeOffUnderPressure">
+    /// The warrior's authoritative
+    /// <see cref="AgentView.BrokeOffUnderPressure"/> — channel 2 of
+    /// pressure-interrupt design section 3, question 8. When it is set and the
+    /// phase really is <see cref="FootworkPhase.Disengage"/>, the row gains a
+    /// suffix so a warrior broken off mid-commitment reads differently from one
+    /// that disengaged on the ordinary ratio rule. Defaulted to
+    /// <see langword="false"/>, which is what every preset without the
+    /// interrupt projects, so those presets' rows stay byte-identical and
+    /// callers written before the interrupt existed still compile. The suffix
+    /// is gated on the phase for the same reason the timer is: a stale flag
+    /// must not leak onto a phase that does not carry it.
+    /// </param>
     internal static string? FormatFootworkLine(
         FootworkPhase phase,
-        int ticksRemaining)
+        int ticksRemaining,
+        bool brokeOffUnderPressure = false)
     {
         if (phase == FootworkPhase.None)
         {
@@ -417,9 +458,14 @@ internal static class AgentInspectorContent
         }
 
         var label = GetFootworkLabel(phase);
-        return phase is FootworkPhase.Commit or FootworkPhase.Recover
-            ? $"Footwork: {label} " +
-                $"({ticksRemaining} {(ticksRemaining == 1 ? "tick" : "ticks")})"
+        if (phase is FootworkPhase.Commit or FootworkPhase.Recover)
+        {
+            return $"Footwork: {label} " +
+                $"({ticksRemaining} {(ticksRemaining == 1 ? "tick" : "ticks")})";
+        }
+
+        return phase == FootworkPhase.Disengage && brokeOffUnderPressure
+            ? $"Footwork: {label} (broke off under pressure)"
             : $"Footwork: {label}";
     }
 
@@ -461,6 +507,51 @@ internal static class AgentInspectorContent
 
         var percent = (int)((long)movementPaceRaw * 100 / movementSpeedRaw);
         return $"Pace: {percent}% of full speed";
+    }
+
+    /// <summary>
+    /// The pressure row (pressure-interrupt design section 3, question 8,
+    /// channel 3): this warrior's running weighted pressure read against its
+    /// own break-off threshold, both in the basis points the simulation
+    /// already works in, so the two numbers compare with no further
+    /// arithmetic. It is drawn on every tick for every living warrior under a
+    /// preset that applies the interrupt, not only on the tick an interrupt
+    /// fires — a running value is what lets a spectator predict a break-off
+    /// and understand why one warrior broke and the neighbour beside it did
+    /// not, and the interrupt fires far too rarely for a firing-only row to
+    /// show anything.
+    /// </summary>
+    /// <remarks>
+    /// Presentation renders the two authoritative values and nothing else: it
+    /// never recomputes the pressure, never compares it to decide a
+    /// break-off, and never infers one from the numbers.
+    /// </remarks>
+    /// <param name="pressureBasisPoints">
+    /// <see cref="AgentView.PressureBasisPoints"/> as of this tick.
+    /// </param>
+    /// <param name="thresholdBasisPoints">
+    /// <see cref="AgentView.PressureThresholdBasisPoints"/> — this warrior's
+    /// own bar, from its resolved loadout profile.
+    /// </param>
+    /// <returns>
+    /// <see langword="null"/> when the threshold is zero or negative. Every
+    /// preset that does not apply the interrupt projects a zero threshold, as
+    /// does death cleanup, so the row is absent under all of them and their
+    /// inspector output stays byte-identical. A zero threshold is also the one
+    /// value that cannot be rendered honestly: it would read as a warrior
+    /// already past its bar.
+    /// </returns>
+    internal static string? FormatPressureLine(
+        int pressureBasisPoints,
+        int thresholdBasisPoints)
+    {
+        if (thresholdBasisPoints <= 0)
+        {
+            return null;
+        }
+
+        return $"Pressure: {pressureBasisPoints} of {thresholdBasisPoints} " +
+            "basis points to break off";
     }
 
     internal static string FormatWeaponLine(string weaponLabel) =>
