@@ -945,6 +945,24 @@ that introduces the division.
    not reaching its first `Commit` until tick 259. Whether the pressure interrupt
    improves, worsens, or does not touch that is unknown, and the tuning task
    should measure it rather than assume.
-3. **Whether the interrupt is enough on its own.** If V7 with the interrupt and
+3. ~~**Whether the interrupt is enough on its own.** If V7 with the interrupt and
    tuned thresholds still fails the section 2.1 termination bar, the remaining
-   cause is elsewhere and this design does not predict where.
+   cause is elsewhere and this design does not predict where.~~
+   **Answered 2026-08-06, negatively (tasks E1 and F2). The interrupt is not
+   enough on its own.** V7 with tuned thresholds fails the section 2.1
+   termination bar in all ten cells, at the shipped values and at every one of
+   the six candidate tunings task E1 measured. The decisive measurement is task
+   E1's candidate 2: the minimum legal threshold on every row makes the
+   predicate fire on every agent-tick it is *capable* of firing on, and every
+   cell still drew. Across the six candidates the firing count ranged over a
+   factor of 4.6 and no cell's terminal tick moved by a single tick.
+   The remaining cause is upstream, as this question anticipated, and is now
+   located if not diagnosed: the standoff is a refusal to enter the attack
+   lifecycle at all, holding `FootworkPhase.Refuse` and the regroup posture for
+   roughly 349 ticks out of every 350, which leaves the interrupt an addressable
+   population of about 0.3% of agent-ticks. Which rule is responsible — the
+   refuse conditions, the regroup cycle, the cohesion duty window, or the
+   approach-sidestep rules — is not determined by anything measured here and
+   needs its own design document.
+   **Do not reopen this by tuning weights or thresholds. That search is
+   finished.**

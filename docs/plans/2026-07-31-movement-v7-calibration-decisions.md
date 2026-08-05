@@ -243,6 +243,36 @@ It may not fall under 2.0×. `ResolveCollisions` already accounts for 58.11% to
 termination bar and still fails `p50Milliseconds`, that is a performance pass
 and separate work. It must not be recorded as a calibration failure.**
 
+> **Annotation, 2026-08-06 (task F2). D2 is written as a bar V7 would meet. V7
+> does not meet it, and no tuning of the V7 values can.**
+>
+> The decision itself is sound and is not withdrawn: the 6,000-tick bar remains
+> the right discriminator between a preset that terminates and one that
+> deadlocks, and the corrected 1,279-to-4,405 V4 spread above was reproduced
+> exactly by task F2's own same-session V4 arm. What has changed is the outcome,
+> not the standard.
+>
+> Measured under V7 at the final pinned values, **zero of ten cells reach a
+> decisive outcome; all ten end `Draw` at the 10,000-tick limit.** Task E1
+> measured six candidate tunings and every cell drew under every one of them,
+> including a probe registering the minimum legal threshold on every row, which
+> fires the predicate on every agent-tick it can ever fire on. Across those
+> candidates the firing count ranged over a factor of 4.6 and no cell's terminal
+> tick moved by a single tick.
+>
+> The `p50Milliseconds` half of D2 also fails, at 3.44× against a 2.0× ceiling
+> at two hundred agents and 4.02× against 2.5× at five hundred. **D2's own
+> provision that a `p50` failure is separate work applies only when the
+> termination bar passes, so it is unavailable here** and both readings are
+> recorded as plain failures. Section 7 of
+> `docs/plans/2026-07-31-movement-v7-calibration-record.md` carries the full
+> twenty-cell evidence.
+>
+> Neither failure is a defect in this decision. The cause sits upstream of
+> anything V7 touches: warriors hold `FootworkPhase.Refuse` and the regroup
+> posture for roughly 349 ticks out of every 350, so the interrupt's entire
+> addressable population is about 0.3% of agent-ticks.
+
 ### D3 — The phase-flip metric is redefined; the 25% ceiling stands
 
 **Question.** The shared acceptance criterion rejects a preset if phase or
@@ -312,6 +342,32 @@ trajectory digest, per the determinism contract in
 **Decision.** `Scenario.MovementPreset` remains `PersistentContingentsV4`. The
 flip to V7 is a separate decision, taken after the D2 termination bar and budget
 are both met and evidenced.
+
+> **Annotation, 2026-08-06 (task F2). The condition this decision waits on can
+> never be met by V7, so D6 is now permanent as far as V7 is concerned.**
+>
+> D6 is worded as a deferral — the default moves *once* D2 passes. Read today
+> that wording invites a future session to re-run the matrix and check whether
+> the bar has come within reach. It has not and it will not: task E1 measured
+> six tunings including the maximum-intervention limit case, and the annotation
+> on D2 above records that no tuning of the values V7 owns moves a single cell's
+> terminal tick. There is no pending condition here, and re-measuring V7 to
+> see whether it now passes is wasted work.
+>
+> `Scenario.MovementPreset` therefore stays `PersistentContingentsV4`, and the
+> calibration record is evidence *against* flipping it rather than the evidence
+> D6 anticipated collecting *for* it.
+>
+> This does not close the question of moving the default off V4 in general. It
+> closes moving it to V7. A preset that addresses the refuse-and-regroup loop
+> upstream could meet the D2 bar and would be judged by this same decision on
+> its own evidence; it does not exist, and designing it is not authorized by
+> this document.
+>
+> One consequence is recorded in `docs/development/testing.md`: because V7 is
+> unreachable from the client and the default does not move, the nine smoke
+> rows covering the interrupt's spectator channels are `BLOCKED` rather than
+> `PENDING`. No human can run them.
 
 ## 3. What this authorizes
 

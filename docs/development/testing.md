@@ -4538,8 +4538,9 @@ ranking member dies.
 
 ### Footwork pressure interrupt smoke (movement V7 plan F1)
 
-**No interactive run was performed for this change.** Every row below is
-`PENDING`, and none of them has ever been executed.
+**No interactive run was performed for this change.** None of the rows below has
+ever been executed. Nine of the ten are `BLOCKED` rather than `PENDING`, for the
+reason set out below; only the legacy-regression row P-10 is `PENDING`.
 
 What the automated tests already prove, and what they do not:
 `FootworkPressureInterruptTests` covers the `ShouldPressureInterrupt` predicate
@@ -4564,12 +4565,29 @@ shipped colour and position.
 an omission by the person reading this.** `MovementPresetId.EquipmentRelativeFootworkV7`
 is reachable only by explicit selection, `Scenario.MovementPreset` remains
 `PersistentContingentsV4` under decision D6, and the client exposes no
-movement-preset selector — `ArenaGame` reads
-`_simulation.Scenario.MovementPreset` and offers no way to change it. A human at
-an interactive desktop therefore has no supported route to a V7 battle in the
-game window. The rows are written now so they exist, already worded, on the day
-V7 becomes reachable; until then their honest status is `PENDING` and no row
-may be flipped by anyone, agent or human, who has not actually seen the screen.
+movement-preset selector — `ArenaGame.BuildScenario` calls
+`Scenario.CreateDefault` and overrides only `RosterCounts`, so the client always
+runs the shipped default. Under that default `AppliesPressureInterrupt` is
+`false`, all three new `AgentView` members stay at their defaults, no mark is
+ever drawn, and no pressure row ever renders. A human at an interactive desktop
+therefore has no supported route to a V7 battle in the game window.
+
+**Why `BLOCKED` and not `PENDING`.** `PENDING` asserts that a check has not been
+run yet. That would be false here: these nine checks *cannot* be run by anyone,
+and recording them as merely not-yet-done would misrepresent the state of the
+work to the next reader. `CLAUDE.md` section 6 is explicit that a blocked row is
+reported honestly as blocked. This is not a gap in V7's implementation — the
+three spectator channels are built, unit-tested, and will apply unchanged to
+whatever interrupt-applying preset eventually becomes selectable. It is a gap
+between the feature and the player, and the honest record of it is `BLOCKED`.
+
+These rows become executable the day any preset with
+`AppliesPressureInterrupt = true` can be selected from the client, whether by a
+preset selector or by the default moving. Neither is authorized by this
+workstream: decision D6 moves the default only once the termination bar passes,
+and section 7 of the calibration record establishes that V7 never will. When
+that day comes, the rows are already worded and waiting. Until then no row may
+be flipped by anyone, agent or human, who has not actually seen the screen.
 
 The rows below also assume a V7 battle that reaches `Commit` or `Recover` often
 enough to interrupt. The calibration record measures the interrupt firing on
@@ -4579,15 +4597,15 @@ automatically a failure of the mark.
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| P-1 | Watch a V7 battle at default zoom and 1× speed | A warrior that breaks off under pressure shows the break-off mark above its head, and the mark is noticeable at 1× without pausing or zooming | | PENDING |
-| P-2 | Watch a warrior that is losing a local fight — outnumbered, taking hits, allies dying around it | It visibly peels out of the knot, and a spectator can tell that it chose to disengage rather than that it died or was pushed. **This is the section 10 discoverability row: the effect must be readable without reading source code.** | | PENDING |
-| P-3 | Find a warrior showing both the break-off mark and the leader mark | Both are visible at once and neither is hidden by the other | | PENDING |
-| P-4 | Select a warrior showing the break-off mark | The selection ring, the leader mark where present, and the break-off mark are all legible together, none fighting for the same screen space | | PENDING |
-| P-5 | Watch a warrior carrying the break-off mark as it is killed | The dead mark and the break-off mark do not merge into an unreadable smear on that warrior | | PENDING |
-| P-6 | Click a warrior that has just broken off | The footwork row reads `Footwork: Disengaging (broke off under pressure)`, distinct from an ordinary `Footwork: Disengaging` | | PENDING |
-| P-7 | Click any warrior in a V7 battle | The pressure row reads `Pressure: {value} of {threshold} basis points to break off`, and the value visibly moves as the warrior's local situation changes | | PENDING |
-| P-8 | Click warriors carrying each of the six weapon rows | Each shows its own threshold, and the ordering matches the shipped values — Kampilan and Wasay highest, Itak lowest | | PENDING |
-| P-9 | Compare an ordinary `Disengaging` warrior with a broken-off one | The two footwork rows are distinguishable at a glance, not only by careful reading | | PENDING |
+| P-1 | Watch a V7 battle at default zoom and 1× speed | A warrior that breaks off under pressure shows the break-off mark above its head, and the mark is noticeable at 1× without pausing or zooming | | BLOCKED |
+| P-2 | Watch a warrior that is losing a local fight — outnumbered, taking hits, allies dying around it | It visibly peels out of the knot, and a spectator can tell that it chose to disengage rather than that it died or was pushed. **This is the section 10 discoverability row: the effect must be readable without reading source code.** | | BLOCKED |
+| P-3 | Find a warrior showing both the break-off mark and the leader mark | Both are visible at once and neither is hidden by the other | | BLOCKED |
+| P-4 | Select a warrior showing the break-off mark | The selection ring, the leader mark where present, and the break-off mark are all legible together, none fighting for the same screen space | | BLOCKED |
+| P-5 | Watch a warrior carrying the break-off mark as it is killed | The dead mark and the break-off mark do not merge into an unreadable smear on that warrior | | BLOCKED |
+| P-6 | Click a warrior that has just broken off | The footwork row reads `Footwork: Disengaging (broke off under pressure)`, distinct from an ordinary `Footwork: Disengaging` | | BLOCKED |
+| P-7 | Click any warrior in a V7 battle | The pressure row reads `Pressure: {value} of {threshold} basis points to break off`, and the value visibly moves as the warrior's local situation changes | | BLOCKED |
+| P-8 | Click warriors carrying each of the six weapon rows | Each shows its own threshold, and the ordering matches the shipped values — Kampilan and Wasay highest, Itak lowest | | BLOCKED |
+| P-9 | Compare an ordinary `Disengaging` warrior with a broken-off one | The two footwork rows are distinguishable at a glance, not only by careful reading | | BLOCKED |
 | P-10 | Legacy regression: launch under `PersistentContingentsV4` | No warrior ever shows the break-off mark, and no inspector line ever carries the pressure row. This is the L-7-equivalent row: it proves the feature is gated, and it is the one row here that **is** runnable today, because V4 is the shipped default | | PENDING |
 
 ## Failure classification
