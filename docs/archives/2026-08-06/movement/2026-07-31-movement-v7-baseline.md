@@ -1,5 +1,14 @@
 # Movement V7 pre-change baseline — measured record
 
+> **Archived: reference only.** The movement V7 pressure-interrupt workstream
+> finished and merged to main on 2026-08-06. V7 shipped as a registered, pinned,
+> fully tested preset that is reachable only by explicit selection, and it does
+> not meet the design section 2.1 termination bar at any tuning. Decision D6
+> stands: `Scenario.MovementPreset` remains `PersistentContingentsV4`. Do not
+> execute this plan; its task list, line numbers, and verification steps are
+> historical. The dated annotations inside record where measurement overturned
+> what the document originally claimed.
+
 Date: 2026-07-31
 
 Status: **measurement only. No source file, test, fixture, or script was

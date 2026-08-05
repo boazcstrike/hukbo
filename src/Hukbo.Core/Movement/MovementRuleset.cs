@@ -45,11 +45,14 @@ namespace Hukbo.Core.Movement;
 /// All of that describes a field folded <em>unconditionally</em>. A field
 /// folded behind a version gate does not move any preset the gate is
 /// <see langword="false"/> for, because nothing is written for that preset at
-/// all: <see cref="AppliesPressureInterrupt"/> and its three weights fold
-/// inside <c>if (AppliesPressureInterrupt)</c>, which is why adding them left
-/// the pinned identity literals and the frozen trajectory digests of V1
-/// through V6 unchanged. See
-/// docs/plans/2026-07-31-movement-v7-pressure-interrupt-design.md section 6.
+/// all: the three pressure-interrupt weights, and every profile row's
+/// <see cref="LoadoutMovementProfile.PressureInterruptThresholdBasisPoints"/>,
+/// fold inside <c>if (AppliesPressureInterrupt)</c>, which is why adding them
+/// left the pinned identity literals and the frozen trajectory digests of V1
+/// through V6 unchanged. The gate itself is not folded: inside its own branch
+/// it is always <see langword="true"/>, so it would contribute a constant and
+/// discriminate nothing. See
+/// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt-design.md section 6.
 /// </remarks>
 public sealed class MovementRuleset
 {
@@ -421,6 +424,7 @@ public sealed class MovementRuleset
 
         ValidatePressureInterruptCoupling(
             usesEquipmentRelativeFootwork,
+            loadoutMovementProfiles,
             appliesPressureInterrupt,
             supportPressureWeightBasisPoints,
             incomingDamageWeightBasisPoints,
@@ -500,8 +504,22 @@ public sealed class MovementRuleset
     /// weights totalling exactly
     /// <see cref="TotalPressureInterruptWeightBasisPoints"/>.
     /// </summary>
+    /// <remarks>
+    /// The per-row half of the same clause is checked here too, because this
+    /// is the only place that sees both the version gate and the profile rows
+    /// at once: every row's
+    /// <see cref="LoadoutMovementProfile.PressureInterruptThresholdBasisPoints"/>
+    /// is zero under a preset that does not apply the interrupt — which is
+    /// what keeps that preset's folded bytes identical to what they were
+    /// before the member existed — and lies in the inclusive range
+    /// <c>[1, SignalCeilingBasisPoints]</c> under one that does, so no row of
+    /// a preset that applies the interrupt is silently unreachable and none
+    /// carries a threshold no saturated signal could ever reach. A row
+    /// validates only its own non-negativity, because it cannot see the gate.
+    /// </remarks>
     private static void ValidatePressureInterruptCoupling(
         bool usesEquipmentRelativeFootwork,
+        ImmutableArray<LoadoutMovementProfile> loadoutMovementProfiles,
         bool appliesPressureInterrupt,
         int supportPressureWeightBasisPoints,
         int incomingDamageWeightBasisPoints,
@@ -534,6 +552,21 @@ public sealed class MovementRuleset
                     allyCollapseWeightBasisPoints,
                     "A preset that does not apply the pressure interrupt " +
                     "must register a zero ally collapse weight.");
+            }
+
+            foreach (var profile in loadoutMovementProfiles)
+            {
+                if (profile.PressureInterruptThresholdBasisPoints != 0)
+                {
+                    throw new ArgumentException(
+                        "A preset that does not apply the pressure interrupt " +
+                        "must register a zero threshold on every profile row; " +
+                        "the row keyed " +
+                        $"({profile.Loadout.Weapon}, {profile.Loadout.Armor}, " +
+                        $"{profile.Loadout.Shield}) registers " +
+                        $"{profile.PressureInterruptThresholdBasisPoints}.",
+                        nameof(loadoutMovementProfiles));
+                }
             }
 
             return;
@@ -570,6 +603,24 @@ public sealed class MovementRuleset
                 $"{TotalPressureInterruptWeightBasisPoints} basis points; " +
                 $"these total {totalWeightBasisPoints}.",
                 nameof(supportPressureWeightBasisPoints));
+        }
+
+        foreach (var profile in loadoutMovementProfiles)
+        {
+            if (profile.PressureInterruptThresholdBasisPoints < 1 ||
+                profile.PressureInterruptThresholdBasisPoints >
+                    WeaponMovementRules.SignalCeilingBasisPoints)
+            {
+                throw new ArgumentException(
+                    "A preset that applies the pressure interrupt must " +
+                    "register a threshold in the inclusive range [1, " +
+                    $"{WeaponMovementRules.SignalCeilingBasisPoints}] on " +
+                    "every profile row; the row keyed " +
+                    $"({profile.Loadout.Weapon}, {profile.Loadout.Armor}, " +
+                    $"{profile.Loadout.Shield}) registers " +
+                    $"{profile.PressureInterruptThresholdBasisPoints}.",
+                    nameof(loadoutMovementProfiles));
+            }
         }
     }
 
@@ -648,6 +699,20 @@ public sealed class MovementRuleset
             Fnv1a.Add(
                 ref hash,
                 (ulong)profile.PursuitSupportBodyDiametersBasisPoints);
+            if (AppliesPressureInterrupt)
+            {
+                // Design section 6.2 item 2: the same version gate, one layer
+                // down. Every preset that does not apply the interrupt writes
+                // nothing here either, so V1 through V6 keep the exact per-row
+                // byte sequence they fold today, and their pinned ContentHash
+                // literals and frozen trajectory digests do not move. The gate
+                // is available even though the value folded lives on the row,
+                // which cannot see it, because the fold runs on the ruleset,
+                // which can.
+                Fnv1a.Add(
+                    ref hash,
+                    (ulong)profile.PressureInterruptThresholdBasisPoints);
+            }
         }
 
         return hash;

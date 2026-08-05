@@ -114,4 +114,30 @@ public enum MovementPresetId
     /// 5, and 13.
     /// </summary>
     EquipmentRelativeFootworkV6 = 6,
+
+    /// <summary>
+    /// The pressure-interrupt preset. It carries
+    /// <see cref="EquipmentRelativeFootworkV6"/>'s cohesion tunables, context
+    /// radii, and six per-loadout movement profile rows forward unchanged, and
+    /// adds one thing: it registers
+    /// <see cref="MovementRuleset.AppliesPressureInterrupt"/>
+    /// <see langword="true"/>, so local pressure may interrupt a committed
+    /// blow. A warrior whose weighted pressure signal — enemy-to-ally support
+    /// odds, damage taken on the previous tick, and supporting allies lost
+    /// since the previous tick — reaches its row's registered threshold
+    /// abandons the blow and resolves footwork to
+    /// <c>FootworkPhase.Disengage</c> instead of finishing the commitment
+    /// timer. The version gate is deliberately separate from
+    /// <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/>, which
+    /// <see cref="EquipmentRelativeFootworkV6"/> already registers
+    /// <see langword="true"/>: gating on that flag instead would move V6's
+    /// state hash and frozen trajectory digest.
+    /// It is reachable only through explicit selection — the shipped default
+    /// stays <see cref="PersistentContingentsV4"/> — and every weight and
+    /// threshold it carries is a provisional reconstruction for gameplay
+    /// tuning under CLAUDE.md section 7, not a historical measurement. See
+    /// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt-design.md sections
+    /// 4.6, 6.2, and 6.3.
+    /// </summary>
+    EquipmentRelativeFootworkV7 = 7,
 }

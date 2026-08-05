@@ -979,7 +979,8 @@ public sealed partial class ArenaGame
                 hitPulseStrength,
                 contingentId: agent.ContingentId,
                 contingentState: agent.ContingentState,
-                isLeader: agent.IsLeader);
+                isLeader: agent.IsLeader,
+                brokeOffUnderPressure: agent.BrokeOffUnderPressure);
 
             OpenArenaGeometrySpan();
         }

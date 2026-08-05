@@ -295,6 +295,138 @@ public static class MovementPresetRegistry
         incomingDamageWeightBasisPoints: 0,
         allyCollapseWeightBasisPoints: 0);
 
+    /// <summary>
+    /// The pressure-interrupt preset. It carries
+    /// <see cref="EquipmentRelativeFootworkV6Ruleset"/>'s cohesion tunables,
+    /// both local-context radii, and all six per-loadout movement profile rows
+    /// forward unchanged; the single difference is
+    /// <see cref="MovementRuleset.AppliesPressureInterrupt"/>, registered here
+    /// at <see langword="true"/> along with the three signal weights the
+    /// interrupt's weighted sum uses and, on every row, the threshold that sum
+    /// is compared against. All four are passed by name below rather than left
+    /// to their trailing defaults: those defaults exist so the five presets
+    /// above and V6 could keep compiling untouched when the members landed, and
+    /// a V7 entry that omitted them would compile cleanly, register the flag
+    /// <see langword="false"/>, and silently never fire the feature this preset
+    /// exists for.
+    /// The shipped default nonetheless stays
+    /// <see cref="MovementPresetId.PersistentContingentsV4"/>, and this preset
+    /// is reachable only through explicit selection. See
+    /// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt-design.md sections
+    /// 4.6, 6.2, and 6.3.
+    /// </summary>
+    /// <remarks>
+    /// The cohesion tunables and both radii are restated verbatim rather than
+    /// referenced, following the "restate, do not reference" convention every
+    /// preset above uses. The six profile rows are the exception: they are
+    /// derived from V6's rows through
+    /// <see cref="LoadoutMovementProfile.WithPressureInterruptThreshold"/>
+    /// rather than duplicated, because duplicating sixteen scalars per row
+    /// would let V7's and V6's shared tuning drift apart before a task
+    /// deliberately moves it (design section 6.3).
+    /// It lands as a new preset rather than as an edit to
+    /// <see cref="EquipmentRelativeFootworkV6Ruleset"/> because V6 has already
+    /// shipped: CLAUDE.md section 5 requires a new preset version plus new
+    /// golden expectations for any change that moves simulated behaviour, and
+    /// V1 through V6 all keep the behaviour their own recorded expectations
+    /// pin.
+    /// </remarks>
+    private static readonly MovementRuleset EquipmentRelativeFootworkV7Ruleset = new(
+        id: MovementPresetId.EquipmentRelativeFootworkV7,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: true,
+        usesEquipmentRelativeFootwork: true,
+        immediateRadiusBodyDiametersBasisPoints: 25_000,
+        supportRadiusBodyDiametersBasisPoints: 60_000,
+        loadoutMovementProfiles:
+        [
+            // Each row's pressure-interrupt threshold is a provisional
+            // reconstruction of gameplay tuning under CLAUDE.md section 7,
+            // not a historical measurement. No source describes how a warrior
+            // in the pre-colonial Philippines decided to break off a
+            // committed blow, and none of these six numbers claims one.
+            //
+            // Every threshold is the row's own
+            // LoadoutMovementProfile.DisengageEnemyToAllyBasisPoints scaled by
+            // SupportPressureWeightBasisPoints / 10,000 — 2.0:1 for Kampilan
+            // and Wasay, 1.75:1 for the shielded Kalis row, 1.5:1 for Kalis
+            // and the shielded Itak row, and 1.25:1 for Itak, each halved at
+            // the shipped support weight of 5,000. That scaling is what makes
+            // the intended reading of the threshold true: a warrior
+            // interrupts at roughly the odds at which it would already have
+            // refused to close. The values registered before task E1 were the
+            // bare disengage ratios, compared against a weighted average that
+            // is a different quantity in the same units, and three of the six
+            // rows were unreachable as a result. The weighted sum can never
+            // exceed 2 * SupportPressureWeightBasisPoints + 10,000 for a
+            // warrior that survives the tick — 20,000 here — because the
+            // weights are a true average, signal A saturates at
+            // WeaponMovementRules.SignalCeilingBasisPoints, and a signal B of
+            // 10,000 requires damage at least equal to maximum hit points,
+            // which kills the agent. Kampilan and Wasay at 20,000 could
+            // therefore never fire, and the shielded Kalis row at 17,500
+            // needed all three signals saturated at once. The tuned values
+            // below preserve the relative ordering the six weapon sessions
+            // recorded and put every row inside reach.
+            //
+            // Reaching every row is not the same as terminating a battle, and
+            // these values do not meet the design section 2.1 termination
+            // bar: all ten cells of the section 2.2 matrix still ended in
+            // Draw at the 10,000-tick limit. Neither did any other
+            // configuration task E1 measured, including a probe that
+            // registered the minimum threshold of 1 on all six rows and so
+            // fired on every agent-tick the predicate can ever fire on. See
+            // docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md.
+            KampilanMovementProfile.Row
+                .WithPressureInterruptThreshold(10_000),
+            WasayMovementProfile.Row
+                .WithPressureInterruptThreshold(10_000),
+            KalisMovementProfile.Row
+                .WithPressureInterruptThreshold(7_500),
+            ItakMovementProfile.Row
+                .WithPressureInterruptThreshold(6_250),
+            TallHardwoodMovementProfiles.KalisRow
+                .WithPressureInterruptThreshold(8_750),
+            TallHardwoodMovementProfiles.ItakRow
+                .WithPressureInterruptThreshold(7_500),
+        ],
+        appliesPressureInterrupt: true,
+
+        // The three weights are provisional reconstructions of gameplay
+        // tuning under CLAUDE.md section 7, not historical measurements. No
+        // source describes how a warrior in the pre-colonial Philippines
+        // decided to abandon a committed blow, and none is claimed here; they
+        // were chosen in the hope of making a battle terminate, which task E1
+        // then measured and disproved. They total exactly
+        // MovementRuleset.TotalPressureInterruptWeightBasisPoints, which the
+        // constructor's coupled validation requires. The split leans on
+        // support odds because that signal is the one a spectator can read off
+        // the screen, and gives damage taken more weight than allies lost
+        // because the second is the slower of the two.
+        //
+        // Plan task E1 measured all three against design section 2.1's
+        // termination bar and left them where they stand. Two alternative
+        // splits were measured and neither did better: 7,000 / 2,000 / 1,000,
+        // which raises the reachability ceiling to 24,000, and
+        // 3,000 / 5,000 / 2,000, which leans on incoming damage instead. Both
+        // drew every cell they were measured over, as this split does. The
+        // full record, with the numbers and with the reason the interrupt
+        // cannot reach the standoff at any tuning, is
+        // docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md.
+        supportPressureWeightBasisPoints: 5_000,
+        incomingDamageWeightBasisPoints: 3_000,
+        allyCollapseWeightBasisPoints: 2_000);
+
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
         {
@@ -304,6 +436,7 @@ public static class MovementPresetRegistry
             MovementPresetId.PersistentContingentsV4 => true,
             MovementPresetId.PersistentContingentsV5 => true,
             MovementPresetId.EquipmentRelativeFootworkV6 => true,
+            MovementPresetId.EquipmentRelativeFootworkV7 => true,
             _ => false,
         };
 
@@ -316,6 +449,7 @@ public static class MovementPresetRegistry
             MovementPresetId.PersistentContingentsV4 => PersistentContingentsV4Ruleset,
             MovementPresetId.PersistentContingentsV5 => PersistentContingentsV5Ruleset,
             MovementPresetId.EquipmentRelativeFootworkV6 => EquipmentRelativeFootworkV6Ruleset,
+            MovementPresetId.EquipmentRelativeFootworkV7 => EquipmentRelativeFootworkV7Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,

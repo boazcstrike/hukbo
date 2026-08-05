@@ -1,5 +1,14 @@
 # Agent backlog — movement V7 pressure interrupt, session handoff
 
+> **Archived: reference only.** The movement V7 pressure-interrupt workstream
+> finished and merged to main on 2026-08-06. V7 shipped as a registered, pinned,
+> fully tested preset that is reachable only by explicit selection, and it does
+> not meet the design section 2.1 termination bar at any tuning. Decision D6
+> stands: `Scenario.MovementPreset` remains `PersistentContingentsV4`. Do not
+> execute this plan; its task list, line numbers, and verification steps are
+> historical. The dated annotations inside record where measurement overturned
+> what the document originally claimed.
+
 Written 2026-08-01. This document is a continuation prompt. Read it in full
 before touching anything, then execute from "What to do next".
 
@@ -87,7 +96,7 @@ firing count ranged over a factor of 4.6 and no cell's terminal tick moved by a
 single tick.
 
 The mechanism is recorded in
-`docs/plans/2026-07-31-movement-v7-baseline.md` lines 510 through 516. The
+`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md` lines 510 through 516. The
 interrupt is gated to fire only from `FootworkPhase.Commit` or `Recover`, but
 the standoff is a refusal to enter that lifecycle at all. The seed-1 200-agent
 cell holds 1,140,221 `refuseAgentTicks` and 338,634 `regroupAgentTicks` against
@@ -97,7 +106,7 @@ the warriors holding the battle open are precisely the ones that never commit.
 
 Design section 11 open question 3 asked whether the interrupt would be enough on
 its own. It is not. The full search is recorded in
-`docs/plans/2026-07-31-movement-v7-calibration-record.md`.
+`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md`.
 
 **Do not attempt to fix this by tuning weights or thresholds.** That search is
 finished. Any future work on battle termination belongs upstream, in whatever

@@ -37,7 +37,8 @@ public sealed class LoadoutMovementProfileTests
         int allyClearanceBodyDiametersBasisPoints = 15_000,
         int disengageEnemyToAllyBasisPoints = 20_000,
         int reengageEnemyToAllyBasisPoints = 12_500,
-        int pursuitSupportBodyDiametersBasisPoints = 12_500) =>
+        int pursuitSupportBodyDiametersBasisPoints = 12_500,
+        int pressureInterruptThresholdBasisPoints = 0) =>
         new(
             loadout ?? DefaultLoadout,
             forwardPaceBasisPoints,
@@ -55,7 +56,8 @@ public sealed class LoadoutMovementProfileTests
             allyClearanceBodyDiametersBasisPoints,
             disengageEnemyToAllyBasisPoints,
             reengageEnemyToAllyBasisPoints,
-            pursuitSupportBodyDiametersBasisPoints);
+            pursuitSupportBodyDiametersBasisPoints,
+            pressureInterruptThresholdBasisPoints);
 
     [Fact]
     public void ConstructionStoresEveryPropertyUnchanged()
@@ -81,6 +83,7 @@ public sealed class LoadoutMovementProfileTests
         Assert.Equal(20_000, profile.DisengageEnemyToAllyBasisPoints);
         Assert.Equal(12_500, profile.ReengageEnemyToAllyBasisPoints);
         Assert.Equal(12_500, profile.PursuitSupportBodyDiametersBasisPoints);
+        Assert.Equal(0, profile.PressureInterruptThresholdBasisPoints);
     }
 
     /// <summary>
@@ -391,5 +394,177 @@ public sealed class LoadoutMovementProfileTests
             reengageEnemyToAllyBasisPoints: 19_999);
 
         Assert.Equal(19_999, profile.ReengageEnemyToAllyBasisPoints);
+    }
+
+    /// <summary>
+    /// Pressure-interrupt design 6.3: the threshold is a trailing optional
+    /// parameter defaulting to zero. This test calls the constructor
+    /// positionally with sixteen arguments rather than through
+    /// <see cref="Create"/>, because the property under test is the
+    /// constructor's own default and not the helper's — a construction site
+    /// written before this member existed still compiles and still carries no
+    /// threshold.
+    /// </summary>
+    [Fact]
+    public void AnOmittedPressureInterruptThresholdDefaultsToZero()
+    {
+        var profile = new LoadoutMovementProfile(
+            DefaultLoadout,
+            9_800,
+            8_200,
+            7_000,
+            3_000,
+            11_500,
+            [0, 0, 250, 500, 250, 500],
+            2,
+            1,
+            5_000,
+            6_000,
+            3,
+            3,
+            15_000,
+            20_000,
+            12_500,
+            12_500);
+
+        Assert.Equal(0, profile.PressureInterruptThresholdBasisPoints);
+    }
+
+    [Fact]
+    public void AnExplicitPressureInterruptThresholdIsStoredUnchanged()
+    {
+        var profile = Create(pressureInterruptThresholdBasisPoints: 7_500);
+
+        Assert.Equal(7_500, profile.PressureInterruptThresholdBasisPoints);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(-10_000)]
+    public void ANegativePressureInterruptThresholdIsRejected(int threshold) =>
+        Assert.Equal(
+            "pressureInterruptThresholdBasisPoints",
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => Create(
+                    pressureInterruptThresholdBasisPoints: threshold))
+                .ParamName);
+
+    /// <summary>
+    /// Pressure-interrupt design 6.3: a row validates non-negativity and
+    /// nothing else. The coupled bounds — zero everywhere under a preset that
+    /// does not apply the interrupt, and
+    /// <c>[1, SignalCeilingBasisPoints]</c> under one that does — need the
+    /// ruleset's version gate, which no single row can see, so a row on its
+    /// own accepts both a zero and a value above the signal ceiling.
+    /// </summary>
+    [Fact]
+    public void ARowAloneEnforcesNeitherTheZeroFloorNorTheSignalCeiling()
+    {
+        var unregistered = Create(pressureInterruptThresholdBasisPoints: 0);
+        var aboveCeiling = Create(
+            pressureInterruptThresholdBasisPoints:
+                (int)WeaponMovementRules.SignalCeilingBasisPoints + 1);
+
+        Assert.Equal(0, unregistered.PressureInterruptThresholdBasisPoints);
+        Assert.Equal(
+            (int)WeaponMovementRules.SignalCeilingBasisPoints + 1,
+            aboveCeiling.PressureInterruptThresholdBasisPoints);
+    }
+
+    /// <summary>
+    /// Pressure-interrupt design 6.3: the derivation is immutable. The source
+    /// row is a different instance, still carries its own threshold, and every
+    /// other value is copied across unchanged, so a preset built from an
+    /// earlier preset's rows cannot drift from that preset's tuning.
+    /// </summary>
+    [Fact]
+    public void WithPressureInterruptThresholdReturnsANewRowAndLeavesTheSourceIntact()
+    {
+        var source = Create(pressureInterruptThresholdBasisPoints: 4_000);
+
+        var derived = source.WithPressureInterruptThreshold(6_250);
+
+        Assert.NotSame(source, derived);
+        Assert.Equal(4_000, source.PressureInterruptThresholdBasisPoints);
+        Assert.Equal(6_250, derived.PressureInterruptThresholdBasisPoints);
+    }
+
+    [Fact]
+    public void WithPressureInterruptThresholdCopiesEveryOtherValueUnchanged()
+    {
+        var source = Create();
+
+        var derived = source.WithPressureInterruptThreshold(9_000);
+
+        Assert.Equal(source.Loadout, derived.Loadout);
+        Assert.Equal(
+            source.ForwardPaceBasisPoints, derived.ForwardPaceBasisPoints);
+        Assert.Equal(
+            source.LateralPaceBasisPoints, derived.LateralPaceBasisPoints);
+        Assert.Equal(
+            source.BackwardPaceBasisPoints, derived.BackwardPaceBasisPoints);
+        Assert.Equal(
+            source.CommittedPaceBasisPoints, derived.CommittedPaceBasisPoints);
+        Assert.Equal(
+            source.PreferredDistanceBasisPoints,
+            derived.PreferredDistanceBasisPoints);
+        Assert.Equal(
+            source.OpponentDistanceOffsetBasisPoints,
+            derived.OpponentDistanceOffsetBasisPoints);
+        Assert.Equal(
+            source.MaximumFacingStepsPerTick,
+            derived.MaximumFacingStepsPerTick);
+        Assert.Equal(
+            source.CommittedFacingStepsPerTick,
+            derived.CommittedFacingStepsPerTick);
+        Assert.Equal(
+            source.AccelerationBasisPointsPerTick,
+            derived.AccelerationBasisPointsPerTick);
+        Assert.Equal(
+            source.DecelerationBasisPointsPerTick,
+            derived.DecelerationBasisPointsPerTick);
+        Assert.Equal(source.CommitmentTicks, derived.CommitmentTicks);
+        Assert.Equal(source.RecoveryTicks, derived.RecoveryTicks);
+        Assert.Equal(
+            source.AllyClearanceBodyDiametersBasisPoints,
+            derived.AllyClearanceBodyDiametersBasisPoints);
+        Assert.Equal(
+            source.DisengageEnemyToAllyBasisPoints,
+            derived.DisengageEnemyToAllyBasisPoints);
+        Assert.Equal(
+            source.ReengageEnemyToAllyBasisPoints,
+            derived.ReengageEnemyToAllyBasisPoints);
+        Assert.Equal(
+            source.PursuitSupportBodyDiametersBasisPoints,
+            derived.PursuitSupportBodyDiametersBasisPoints);
+    }
+
+    /// <summary>
+    /// The derivation runs the full constructor, so the non-negativity bound
+    /// is enforced on the new row exactly as it is at construction rather than
+    /// bypassed by the copy.
+    /// </summary>
+    [Fact]
+    public void WithPressureInterruptThresholdRejectsANegativeThreshold() =>
+        Assert.Equal(
+            "pressureInterruptThresholdBasisPoints",
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => Create().WithPressureInterruptThreshold(-1)).ParamName);
+
+    /// <summary>
+    /// Design 4.1 survives the derivation: the new row runs the same
+    /// rank-dropping constructor, so a derived row's key is still equipment
+    /// only.
+    /// </summary>
+    [Fact]
+    public void WithPressureInterruptThresholdKeepsTheRankIndependentKey()
+    {
+        var ranked = new CombatLoadout(
+            WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None, RankId.Datu);
+
+        var derived = Create(loadout: ranked).WithPressureInterruptThreshold(1);
+
+        Assert.Equal(RankId.Timawa, derived.Loadout.Rank);
+        Assert.Equal(DefaultLoadout, derived.Loadout);
     }
 }
