@@ -1238,4 +1238,155 @@ public sealed class DeterminismTests
         Assert.Equal(firstAgent, snapshot.Agents[0]);
         Assert.NotEqual(snapshot.StateHash, simulation.ComputeStateHash());
     }
+
+    /// <summary>
+    /// Task F0 of docs/plans/2026-07-31-movement-v7-pressure-interrupt.md.
+    /// The same lockstep, every-tick comparison
+    /// <see cref="TwoIndependentSameSeedRunsAgreeOnOrderedEventsAndStateHashEveryTick"/>
+    /// makes for the shipped default, but under
+    /// <see cref="MovementPresetId.EquipmentRelativeFootworkV7"/>, whose
+    /// pressure interrupt writes three new per-agent fields and folds four new
+    /// ruleset values into the state hash. A divergence introduced by the
+    /// interrupt's scratch arrays, its cooldown and combo writes, or the
+    /// conditional <c>StateHasher</c> block would surface here at the tick it
+    /// first appeared rather than only in the terminal hash.
+    /// </summary>
+    /// <remarks>
+    /// The loop is bounded by an explicit tick count rather than by
+    /// <see cref="BattleOutcome.Ongoing"/>, which is what the two tests above
+    /// use. V7 does not terminate: every cell of the calibration matrix in
+    /// docs/plans/2026-07-31-movement-v7-calibration-record.md ended
+    /// <see cref="BattleOutcome.Draw"/> at the 10,000-tick limit, so an
+    /// outcome-driven loop would run the full limit twice over on every
+    /// <c>dotnet test</c> invocation and prove nothing the bounded window does
+    /// not.
+    /// </remarks>
+    /// <remarks>
+    /// The agent count and the seed are not free choices. The interrupt fires
+    /// rarely -- section 4 of the calibration record measures 129 firings
+    /// across all six rows of the whole 10,000-tick seed-1 200-agent cell --
+    /// and at 60 agents it does not fire inside this window at all, which the
+    /// closing assertion caught when this test was first written against that
+    /// size. Seed 2 at 200 agents is the densest cell in the matrix, at 360
+    /// firings, and is chosen so the compared window reliably contains some.
+    /// </remarks>
+    [Fact]
+    public void EquipmentRelativeFootworkV7_SameSeedRunsAgreeOnEventsAndStateHashEveryTick()
+    {
+        const int ComparedTicks = 1_500;
+
+        var scenario = Scenario.CreateDefault(seed: 2, totalAgents: 200) with
+        {
+            MovementPreset = MovementPresetId.EquipmentRelativeFootworkV7,
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+        };
+        var left = BattleSimulation.Create(scenario);
+        var right = BattleSimulation.Create(scenario);
+        var sawInterruptFire = false;
+
+        Assert.Equal(left.ComputeStateHash(), right.ComputeStateHash());
+
+        for (var tick = 0;
+            tick < ComparedTicks && left.Outcome == BattleOutcome.Ongoing;
+            tick++)
+        {
+            left.AdvanceOneTick();
+            right.AdvanceOneTick();
+
+            sawInterruptFire |= left.Agents.Any(
+                agent => agent.IsAlive && agent.BrokeOffUnderPressure);
+
+            if (!left.LastEvents.SequenceEqual(right.LastEvents))
+            {
+                Assert.Fail(
+                    $"Ordered events first diverged at tick {left.Tick}: the " +
+                    $"first run emitted {left.LastEvents.Count} events and the " +
+                    $"second emitted {right.LastEvents.Count}.");
+            }
+
+            var leftHash = left.ComputeStateHash();
+            var rightHash = right.ComputeStateHash();
+
+            if (leftHash != rightHash)
+            {
+                Assert.Fail(
+                    $"State hash first diverged at tick {left.Tick}: " +
+                    $"0x{leftHash:X16} against 0x{rightHash:X16}.");
+            }
+        }
+
+        Assert.Equal(left.Tick, right.Tick);
+        Assert.Equal(left.Outcome, right.Outcome);
+
+        // The interrupt must actually have fired somewhere in the compared
+        // window, or this test would agree just as happily about a V7 that
+        // never took its own branch, and would therefore be asserting
+        // determinism over the V6 code path under a V7 name.
+        Assert.True(
+            sawInterruptFire,
+            $"No warrior broke off under pressure in the first {ComparedTicks} " +
+            "ticks, so this run never exercised the V7 branch it exists to " +
+            "cover.");
+    }
+
+    /// <summary>
+    /// Task F0 of docs/plans/2026-07-31-movement-v7-pressure-interrupt.md.
+    /// Two independent headless runs of one seed under V7 agree on the state
+    /// hash, the event hash, the outcome, and the survivor counts. This is the
+    /// <c>CLAUDE.md</c> section 5 contract -- same seed plus same build gives
+    /// an identical state hash, event hash, winner, and ordered event stream --
+    /// asserted through the same runner the canonical gate's determinism
+    /// workload uses, so it covers the whole path rather than
+    /// <c>BattleSimulation</c> alone.
+    /// </summary>
+    [Fact]
+    public void EquipmentRelativeFootworkV7_RepeatedHeadlessRunsAgree()
+    {
+        var first = RunV7Headless();
+        var second = RunV7Headless();
+
+        Assert.Equal(
+            first.RootElement.GetProperty("stateHash").GetString(),
+            second.RootElement.GetProperty("stateHash").GetString());
+        Assert.Equal(
+            first.RootElement.GetProperty("eventHash").GetString(),
+            second.RootElement.GetProperty("eventHash").GetString());
+        Assert.Equal(
+            first.RootElement.GetProperty("outcome").GetString(),
+            second.RootElement.GetProperty("outcome").GetString());
+        Assert.Equal(
+            first.RootElement.GetProperty("faction0Survivors").GetInt32(),
+            second.RootElement.GetProperty("faction0Survivors").GetInt32());
+        Assert.Equal(
+            first.RootElement.GetProperty("faction1Survivors").GetInt32(),
+            second.RootElement.GetProperty("faction1Survivors").GetInt32());
+
+        // The runner's own two-run comparison, which is the check the gate's
+        // determinism workload reports on.
+        Assert.True(first.RootElement.GetProperty("deterministic").GetBoolean());
+        Assert.True(second.RootElement.GetProperty("deterministic").GetBoolean());
+
+        first.Dispose();
+        second.Dispose();
+    }
+
+    private static JsonDocument RunV7Headless()
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+        string[] arguments =
+        [
+            "--agents", "20",
+            "--ticks", "400",
+            "--seed", "1",
+            "--preset", nameof(CombatPresetId.PrecolonialPhilippinesV2),
+            "--movement-preset",
+            nameof(MovementPresetId.EquipmentRelativeFootworkV7),
+        ];
+
+        var exitCode = HeadlessRunner.Run(arguments, output, error);
+        Assert.Equal(0, exitCode);
+
+        return JsonDocument.Parse(output.ToString());
+    }
 }

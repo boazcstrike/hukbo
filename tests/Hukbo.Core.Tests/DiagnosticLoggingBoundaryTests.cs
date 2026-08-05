@@ -93,6 +93,59 @@ public sealed class DiagnosticLoggingBoundaryTests
     }
 
     /// <summary>
+    /// Task F0 of docs/plans/2026-07-31-movement-v7-pressure-interrupt.md. The
+    /// same claim as
+    /// <see cref="FullTraceLoggingDoesNotChangeTheSimulationResult"/>, made
+    /// again under <c>EquipmentRelativeFootworkV7</c>. The preset above it runs
+    /// is whatever <c>Scenario</c> defaults to, which is
+    /// <c>PersistentContingentsV4</c> and never reaches the footwork stage at
+    /// all, so nothing in this file exercised the pressure interrupt before
+    /// this Fact existed.
+    /// </summary>
+    [Fact]
+    public void FullTraceLoggingDoesNotChangeTheSimulationResultUnderV7()
+    {
+        var logDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "hukbo-log-determinism-v7-" + Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            var silent = RunHeadless(
+                ["--agents", "200", "--ticks", "2000", "--seed", "1",
+                 "--movement-preset", "EquipmentRelativeFootworkV7",
+                 "--log-level", "off"]);
+            var traced = RunHeadless(
+                ["--agents", "200", "--ticks", "2000", "--seed", "1",
+                 "--movement-preset", "EquipmentRelativeFootworkV7",
+                 "--log-level", "trc", "--log-channels", "all",
+                 "--log-dir", logDirectory]);
+
+            Assert.Equal(silent.StateHash, traced.StateHash);
+            Assert.Equal(silent.EventHash, traced.EventHash);
+            Assert.Equal(silent.Outcome, traced.Outcome);
+            Assert.Equal(silent.MeasuredTicks, traced.MeasuredTicks);
+            Assert.Equal(silent.Faction0Survivors, traced.Faction0Survivors);
+            Assert.Equal(silent.Faction1Survivors, traced.Faction1Survivors);
+            Assert.True(silent.Deterministic);
+            Assert.True(traced.Deterministic);
+
+            var written = Directory.GetFiles(
+                logDirectory,
+                LogPaths.FileNamePrefix + "*" + LogPaths.FileNameExtension);
+            var singleFile = Assert.Single(written);
+            Assert.NotEmpty(File.ReadAllLines(singleFile));
+        }
+        finally
+        {
+            if (Directory.Exists(logDirectory))
+            {
+                Directory.Delete(logDirectory, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Every line the runner writes must be valid JSON, and the six leading
     /// fields must be present on all of them.
     /// </summary>
