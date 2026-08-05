@@ -62,7 +62,7 @@ namespace Hukbo.Core.Tests;
 /// <item>
 /// <description>
 /// <c>EquipmentRelativeFootworkV7</c>, captured by
-/// docs/plans/2026-07-31-movement-v7-pressure-interrupt.md task E2, from the
+/// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt.md task E2, from the
 /// build whose task E1 settled the pressure interrupt's four tuning values
 /// for good. Like the V6 fixture it freezes a brand-new opt-in preset at the
 /// moment it shipped rather than a legacy trajectory, so any later change
@@ -244,7 +244,7 @@ public sealed class MovementPresetFreezeTests
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
     /// -- match the fixture exactly. See
-    /// docs/plans/2026-07-31-movement-v7-pressure-interrupt.md task E2: this
+    /// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt.md task E2: this
     /// fixture freezes the pressure-interrupt preset's trajectory at the
     /// commit that settled its four tuning values, with the control run
     /// selecting <c>CombatPresetId.PrecolonialPhilippinesV2</c> explicitly,

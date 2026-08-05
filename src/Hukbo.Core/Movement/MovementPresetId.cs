@@ -136,7 +136,7 @@ public enum MovementPresetId
     /// stays <see cref="PersistentContingentsV4"/> — and every weight and
     /// threshold it carries is a provisional reconstruction for gameplay
     /// tuning under CLAUDE.md section 7, not a historical measurement. See
-    /// docs/plans/2026-07-31-movement-v7-pressure-interrupt-design.md sections
+    /// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt-design.md sections
     /// 4.6, 6.2, and 6.3.
     /// </summary>
     EquipmentRelativeFootworkV7 = 7,

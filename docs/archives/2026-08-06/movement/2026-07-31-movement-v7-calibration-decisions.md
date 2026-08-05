@@ -1,5 +1,14 @@
 # Movement V7 calibration — decisions taken
 
+> **Archived: reference only.** The movement V7 pressure-interrupt workstream
+> finished and merged to main on 2026-08-06. V7 shipped as a registered, pinned,
+> fully tested preset that is reachable only by explicit selection, and it does
+> not meet the design section 2.1 termination bar at any tuning. Decision D6
+> stands: `Scenario.MovementPreset` remains `PersistentContingentsV4`. Do not
+> execute this plan; its task list, line numbers, and verification steps are
+> historical. The dated annotations inside record where measurement overturned
+> what the document originally claimed.
+
 Date: 2026-07-31
 Status: **decisions recorded, nothing executed.** No code was written, no test
 was run, and the canonical gate was not invoked for this document. It records
@@ -177,7 +186,7 @@ five 500-agent readings rather than the highest.
 
 The measured V4 spread under the pinned combat preset V2 that D2's own protocol
 requires is **1,279 to 4,405 ticks**
-(`docs/plans/2026-07-31-movement-v7-baseline.md`, twenty cells, commit
+(`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md`, twenty cells, commit
 `b3ab856`). The bar therefore leaves roughly 36% headroom over the true
 reference maximum, not the near-doubling the original figure implied.
 
@@ -265,7 +274,7 @@ and separate work. It must not be recorded as a calibration failure.**
 > provision that a `p50` failure is separate work applies only when the
 > termination bar passes, so it is unavailable here** and both readings are
 > recorded as plain failures. Section 7 of
-> `docs/plans/2026-07-31-movement-v7-calibration-record.md` carries the full
+> `docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md` carries the full
 > twenty-cell evidence.
 >
 > Neither failure is a defect in this decision. The cause sits upstream of

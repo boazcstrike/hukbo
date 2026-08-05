@@ -11,7 +11,7 @@ namespace Hukbo.Core.Tests.Movement;
 
 /// <summary>
 /// The hand-run calibration harness of task E0 in
-/// <c>docs/plans/2026-07-31-movement-v7-pressure-interrupt.md</c>. It runs the
+/// <c>docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt.md</c>. It runs the
 /// measurement matrix of the V7 design document section 2.2 under a
 /// caller-supplied movement preset and reports, per cell, the terminal tick,
 /// the outcome, both survivor counts, the measured <c>p50</c> tick duration,
@@ -180,7 +180,7 @@ internal static class PressureInterruptCalibrationHarness
     /// The scenario body radius. It defaults to the shipped
     /// <see cref="CollisionRules.DefaultBodyRadiusRaw"/> because that is what
     /// <c>scripts/benchmark.ps1</c> used to produce the "before" numbers in
-    /// <c>docs/plans/2026-07-31-movement-v7-baseline.md</c>, and a p50
+    /// <c>docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md</c>, and a p50
     /// compared against those medians has to have been measured under the same
     /// radius. The V6 trajectory fixture pins <c>4 * FixedPoint.Scale</c>
     /// instead, for reasons that belong to a frozen fixture and not to a

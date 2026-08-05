@@ -755,7 +755,67 @@ allocation figures from the headless runner's own instrumentation; no peak
 working set was measured, so the working-set table under T7 stands unrefreshed
 and superseded.
 
-## Latest non-interactive result — auto-camera hysteresis and mode setting, 2026-07-28
+## Latest non-interactive result — movement V7 pressure interrupt, task F3, 2026-08-06
+
+`./scripts/verify.ps1 -SkipBootstrap` on the integrated `v7-pressure-interrupt`
+branch, after `main` was merged in and after tasks F0, F1, and F2 landed. This
+is the single canonical gate run task F3 requires, and it was not delegated.
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Total tests: 2614
+Total tests: 2995
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+The determinism workload's own report, from the same run:
+
+```
+  "seed": 1,
+  "agentCount": 200,
+  "requestedTicks": 10000,
+  "measuredTicks": 981,
+  "tickPercentiles": {
+    "p50Milliseconds": 0.125,
+    "p95Milliseconds": 1.0998,
+    "p99Milliseconds": 1.2448,
+    "maximumMilliseconds": 14.7129
+  },
+  "allocatedBytes": 480936,
+  "outcome": "Faction1Victory",
+  "faction0Survivors": 0,
+  "faction1Survivors": 6,
+  "eventHash": "AC55684F24D39344",
+  "stateHash": "1B73FC5923879AA0",
+  "deterministic": true,
+  "firstMismatchTick": null,
+  "coreAllocatedBytes": 161168,
+```
+
+Core 2614 tests and Client 2995 tests, 5,609 in total, none skipped. Core rose
+by three from the 2,611 recorded at `42c119b`: two determinism Facts and one
+logging-neutrality Fact, all added by task F0. The Client figure includes
+`main`'s responsive-presentation tests, merged in at the start of this session.
+
+The gate's workload runs under the shipped default `PersistentContingentsV4`,
+so its `movementMetrics` block reads zero throughout and this run says nothing
+about V7. V7's own evidence is its pinned content hash, its trajectory digest
+freeze test, the F0 Facts, and the twenty-cell matrix in section 7 of
+`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md`.
+
+`Scenario.MovementPreset` is still `PersistentContingentsV4`, which decision D6
+requires and which this workstream's measurement now makes permanent with
+respect to V7.
+
+The calibration harness is not in this count. Its only `[Fact]` sits behind
+`#if HUKBO_CALIBRATION`, which no ordinary build defines, so the gate's test
+count is unaffected by its presence — the property task E0 was required to
+preserve.
+
+## Previous non-interactive result — auto-camera hysteresis and mode setting, 2026-07-28
 
 `./scripts/verify.ps1 -SkipBootstrap` on `main` after the auto-camera change:
 idle grace, post-pan dwell, periodic re-targeting, a pan-duration ceiling, and
@@ -787,7 +847,7 @@ hash.
 calm is a question about motion on a screen, and every row in the "Auto camera
 modes smoke" checklist below is `PENDING`.
 
-## Latest non-interactive result — movement preset default flips to PersistentContingentsV3 (T6), 2026-07-28
+## Previous non-interactive result — movement preset default flips to PersistentContingentsV3 (T6), 2026-07-28
 
 Task T6 of `docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md` changes
 `Scenario.MovementPreset`'s shipped default from `PersistentContingentsV2` to
@@ -2299,7 +2359,7 @@ interception switched off. A spectator therefore perceives the shield as blows
 turned aside, not as a warrior who visibly lives longer, which is what the
 per-resolution event-log labels in T54 have to convey.
 
-## Latest non-interactive result — sound gain compensation, 2026-07-27
+## Previous non-interactive result — sound gain compensation, 2026-07-27
 
 Presentation-only change: per-cue gain now scales with the number of voices
 still sounding, and the per-frame cue budget was raised from a throttle to a

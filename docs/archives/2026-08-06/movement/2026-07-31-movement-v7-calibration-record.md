@@ -1,6 +1,15 @@
 # Movement V7 pressure interrupt — calibration record (task E1)
 
-Task **E1** of `docs/plans/2026-07-31-movement-v7-pressure-interrupt.md`. This
+> **Archived: reference only.** The movement V7 pressure-interrupt workstream
+> finished and merged to main on 2026-08-06. V7 shipped as a registered, pinned,
+> fully tested preset that is reachable only by explicit selection, and it does
+> not meet the design section 2.1 termination bar at any tuning. Decision D6
+> stands: `Scenario.MovementPreset` remains `PersistentContingentsV4`. Do not
+> execute this plan; its task list, line numbers, and verification steps are
+> historical. The dated annotations inside record where measurement overturned
+> what the document originally claimed.
+
+Task **E1** of `docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt.md`. This
 document records the tuning search over the three shared pressure-interrupt
 weights and the six per-row thresholds of
 `MovementPresetId.EquipmentRelativeFootworkV7`, every candidate configuration
@@ -507,7 +516,7 @@ ticks on which it is allowed to act.
 | 500 | 0.2275 ms | 2.5× (0.5688 ms) | 0.9279 ms | 4.08× | **FAIL** |
 
 The V4 reference medians are taken from
-`docs/plans/2026-07-31-movement-v7-baseline.md`, which records them explicitly:
+`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md`, which records them explicitly:
 `PersistentContingentsV4 200: sorted=0.0519, 0.0583, 0.0607, 0.0657, 0.1195
 median=0.0607` and `PersistentContingentsV4 500: sorted=0.1324, 0.2087, 0.2275,
 0.3316, 0.3701 median=0.2275`.
@@ -603,7 +612,7 @@ not move.
 ## 7. Re-measurement and final verdict (task F2)
 
 Date: 2026-08-06. Task **F2** of
-`docs/plans/2026-07-31-movement-v7-pressure-interrupt.md`, run after task E2
+`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt.md`, run after task E2
 pinned V7's content hash and trajectory digest and after `main` was merged into
 the integration branch.
 

@@ -55,7 +55,7 @@ internal static class WeaponMovementRules
     /// historical measurement: no source describes how a warrior in the
     /// pre-colonial Philippines decided to break off a committed blow, and
     /// this value claims nothing about one. See
-    /// docs/plans/2026-07-31-movement-v7-pressure-interrupt-design.md
+    /// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt-design.md
     /// section 5.1.
     /// </summary>
     internal const long SignalCeilingBasisPoints = 30_000;

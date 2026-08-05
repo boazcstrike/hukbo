@@ -1,5 +1,14 @@
 # Movement V7 pressure interrupt — design
 
+> **Archived: reference only.** The movement V7 pressure-interrupt workstream
+> finished and merged to main on 2026-08-06. V7 shipped as a registered, pinned,
+> fully tested preset that is reachable only by explicit selection, and it does
+> not meet the design section 2.1 termination bar at any tuning. Decision D6
+> stands: `Scenario.MovementPreset` remains `PersistentContingentsV4`. Do not
+> execute this plan; its task list, line numbers, and verification steps are
+> historical. The dated annotations inside record where measurement overturned
+> what the document originally claimed.
+
 Date: 2026-07-31
 Status: **design only. No code written, no test run, the canonical gate not
 invoked by this document.**
@@ -45,7 +54,7 @@ discover by watching, which is exactly what
 > sustained contact spends every tick inside that lifecycle" — is false, and
 > it is the load-bearing sentence of this whole diagnosis.**
 >
-> `docs/plans/2026-07-31-movement-v7-baseline.md` measured the 200-agent seed-1
+> `docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md` measured the 200-agent seed-1
 > cell directly: 1,140,221 agent-ticks in `FootworkPhase.Refuse` and 338,634
 > regrouping, against 2,216 committing and 2,017 recovering. That is a ratio of
 > about 349 to 1 *against* being inside the attack lifecycle. Warriors are not
@@ -61,7 +70,7 @@ discover by watching, which is exactly what
 >
 > The original text is left standing because it is the reasoning the whole
 > feature was built on, and section 5 of
-> `docs/plans/2026-07-31-movement-v7-calibration-record.md` traces the
+> `docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md` traces the
 > measurement that overturned it.
 
 This design adds a **pressure interrupt**: a weighted sum of three signals that,
@@ -133,7 +142,7 @@ not authorization to touch it.
 >
 > The overrun is nonetheless not a cost the interrupt introduced. V6 already
 > carried substantially all of it at zero firings, which
-> `docs/plans/2026-07-31-movement-v7-calibration-record.md` section 4.2 works
+> `docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md` section 4.2 works
 > through. That is an observation about where the cost lives, not a licence to
 > defer it under this paragraph.
 
@@ -640,7 +649,7 @@ makes no such claim. The values are chosen to make a game terminate.
 > above is correct and is honoured by the shipped values. The closing clause is
 > not: the values are chosen to make a game terminate, and no choice of them
 > does. See the annotation under Question 1 and section 5 of
-> `docs/plans/2026-07-31-movement-v7-calibration-record.md`.
+> `docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md`.
 
 ## 5. The arithmetic, in basis points, with overflow analysis
 

@@ -1240,7 +1240,7 @@ public sealed class DeterminismTests
     }
 
     /// <summary>
-    /// Task F0 of docs/plans/2026-07-31-movement-v7-pressure-interrupt.md.
+    /// Task F0 of docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt.md.
     /// The same lockstep, every-tick comparison
     /// <see cref="TwoIndependentSameSeedRunsAgreeOnOrderedEventsAndStateHashEveryTick"/>
     /// makes for the shipped default, but under
@@ -1255,7 +1255,7 @@ public sealed class DeterminismTests
     /// The loop is bounded by an explicit tick count rather than by
     /// <see cref="BattleOutcome.Ongoing"/>, which is what the two tests above
     /// use. V7 does not terminate: every cell of the calibration matrix in
-    /// docs/plans/2026-07-31-movement-v7-calibration-record.md ended
+    /// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md ended
     /// <see cref="BattleOutcome.Draw"/> at the 10,000-tick limit, so an
     /// outcome-driven loop would run the full limit twice over on every
     /// <c>dotnet test</c> invocation and prove nothing the bounded window does
@@ -1330,7 +1330,7 @@ public sealed class DeterminismTests
     }
 
     /// <summary>
-    /// Task F0 of docs/plans/2026-07-31-movement-v7-pressure-interrupt.md.
+    /// Task F0 of docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt.md.
     /// Two independent headless runs of one seed under V7 agree on the state
     /// hash, the event hash, the outcome, and the survivor counts. This is the
     /// <c>CLAUDE.md</c> section 5 contract -- same seed plus same build gives

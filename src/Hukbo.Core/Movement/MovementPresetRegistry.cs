@@ -312,7 +312,7 @@ public static class MovementPresetRegistry
     /// The shipped default nonetheless stays
     /// <see cref="MovementPresetId.PersistentContingentsV4"/>, and this preset
     /// is reachable only through explicit selection. See
-    /// docs/plans/2026-07-31-movement-v7-pressure-interrupt-design.md sections
+    /// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt-design.md sections
     /// 4.6, 6.2, and 6.3.
     /// </summary>
     /// <remarks>
@@ -386,7 +386,7 @@ public static class MovementPresetRegistry
             // configuration task E1 measured, including a probe that
             // registered the minimum threshold of 1 on all six rows and so
             // fired on every agent-tick the predicate can ever fire on. See
-            // docs/plans/2026-07-31-movement-v7-calibration-record.md.
+            // docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md.
             KampilanMovementProfile.Row
                 .WithPressureInterruptThreshold(10_000),
             WasayMovementProfile.Row
@@ -422,7 +422,7 @@ public static class MovementPresetRegistry
         // drew every cell they were measured over, as this split does. The
         // full record, with the numbers and with the reason the interrupt
         // cannot reach the standoff at any tuning, is
-        // docs/plans/2026-07-31-movement-v7-calibration-record.md.
+        // docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md.
         supportPressureWeightBasisPoints: 5_000,
         incomingDamageWeightBasisPoints: 3_000,
         allyCollapseWeightBasisPoints: 2_000);
