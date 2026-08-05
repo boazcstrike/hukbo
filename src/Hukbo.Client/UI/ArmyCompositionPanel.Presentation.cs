@@ -116,7 +116,7 @@ internal sealed partial class ArmyCompositionPanel
             pixel,
             layout.PanelBounds,
             colors.PanelBorder,
-            theme.Metrics.BorderThickness);
+            UiScaleContext.Pixels(theme.Metrics.BorderThickness));
 
         UiPrimitives.DrawCenteredText(
             spriteBatch,
@@ -280,7 +280,7 @@ internal sealed partial class ArmyCompositionPanel
                 pixel,
                 bounds,
                 colors.ActionFocus,
-                theme.Metrics.FocusThickness);
+                UiScaleContext.Pixels(theme.Metrics.FocusThickness));
         }
 
         UiPrimitives.DrawCenteredText(
@@ -313,7 +313,7 @@ internal sealed partial class ArmyCompositionPanel
                 pixel,
                 bounds,
                 colors.ActionFocus,
-                theme.Metrics.FocusThickness);
+                UiScaleContext.Pixels(theme.Metrics.FocusThickness));
         }
 
         UiPrimitives.DrawCenteredText(

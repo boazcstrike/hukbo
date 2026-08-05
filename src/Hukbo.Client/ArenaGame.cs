@@ -24,6 +24,8 @@ public sealed partial class ArenaGame : Game
 {
     private const int InitialWindowWidth = 1280;
     private const int InitialWindowHeight = 720;
+    private const int MinimumWindowWidth = 1024;
+    private const int MinimumWindowHeight = 720;
 
     // The integration design's measurement matrix (VIS-035, section 11) is
     // fixed at 1080p; the render probe forces the window to this size
@@ -44,7 +46,7 @@ public sealed partial class ArenaGame : Game
     // refuses to draw any row that would still fall past its own bounds,
     // so this cannot overflow even if a future evidence string needs
     // more lines than reserved.
-    private static readonly int InspectorHeight =
+    private static int InspectorHeight =>
         AgentInspectorContent.ComputeRequiredHeight(
             AgentInspectorContent.EvidenceReservedLineCount);
     private const int EventHistoryCapacity = 200;
@@ -127,6 +129,9 @@ public sealed partial class ArenaGame : Game
     private readonly MotionIntensityManager _motionManager;
     private readonly AutoCameraModeManager _autoCameraManager;
     private readonly ArmyCompositionPanel _armyCompositionPanel;
+    private readonly string _defaultThemeId;
+    private UiScale _configuredUiScale;
+    private StartupDisplayMode _startupDisplayMode;
 
     /// <summary>
     /// Reused each frame so the draw path allocates nothing. The mapping into
@@ -275,17 +280,21 @@ public sealed partial class ArenaGame : Game
             "Themes",
             "ui-theme-standards.json");
         var catalog = UiThemeCatalog.LoadOrFallback(catalogPath, _log);
+        _defaultThemeId = catalog.DefaultThemeId;
         _settingsStore = ClientSettingsStore.CreateDefault(_log);
+        var initialSettings = _settingsStore.Load(catalog.DefaultThemeId);
         _themeManager = new UiThemeManager(catalog, _settingsStore);
         _goreManager = new GoreIntensityManager(
-            _settingsStore.Load(catalog.DefaultThemeId).GoreIntensity,
+            initialSettings.GoreIntensity,
             value => TryPersistGoreIntensity(catalog.DefaultThemeId, value));
         _motionManager = new MotionIntensityManager(
-            _settingsStore.Load(catalog.DefaultThemeId).MotionIntensity,
+            initialSettings.MotionIntensity,
             value => TryPersistMotionIntensity(catalog.DefaultThemeId, value));
         _autoCameraManager = new AutoCameraModeManager(
-            _settingsStore.Load(catalog.DefaultThemeId).AutoCameraMode,
+            initialSettings.AutoCameraMode,
             value => TryPersistAutoCameraMode(catalog.DefaultThemeId, value));
+        _configuredUiScale = initialSettings.UiScale;
+        _startupDisplayMode = initialSettings.StartupDisplayMode;
 
         // Resolved here, ahead of the coordinator below, because the
         // coordinator's appearance cache reports through it. _renderProbeEnabled
@@ -305,23 +314,33 @@ public sealed partial class ArenaGame : Game
         _presentation.Blood.Intensity = _goreManager.Value;
         _presentation.Dust.MotionIntensity = _motionManager.Value;
         _menu = new MenuOverlay(catalog.Themes, catalog.Standards);
-        _activeComposition =
-            _settingsStore.Load(catalog.DefaultThemeId).Composition;
+        _activeComposition = initialSettings.Composition;
         _armyCompositionPanel = new ArmyCompositionPanel(
             ToPanelComposition(_activeComposition),
             catalog.Standards.Shared.ArmyComposition);
 
+        var displayMode = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
+        var startupGraphics = StartupDisplayPolicy.Resolve(
+            _startupDisplayMode,
+            InitialWindowWidth,
+            InitialWindowHeight,
+            displayMode.Width,
+            displayMode.Height,
+            _renderProbeEnabled,
+            RenderProbeWindowWidth,
+            RenderProbeWindowHeight);
         _graphics = new GraphicsDeviceManager(this)
         {
-            PreferredBackBufferWidth =
-                _renderProbeEnabled ? RenderProbeWindowWidth : InitialWindowWidth,
-            PreferredBackBufferHeight =
-                _renderProbeEnabled ? RenderProbeWindowHeight : InitialWindowHeight,
+            PreferredBackBufferWidth = startupGraphics.BackBufferWidth,
+            PreferredBackBufferHeight = startupGraphics.BackBufferHeight,
             SynchronizeWithVerticalRetrace = true,
+            HardwareModeSwitch = startupGraphics.HardwareModeSwitch,
+            IsFullScreen = startupGraphics.IsFullScreen,
         };
 
         Window.AllowUserResizing = true;
         Window.IsBorderless = true;
+        Window.ClientSizeChanged += OnClientSizeChanged;
         Window.Title = "Hukbo";
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
@@ -442,16 +461,14 @@ public sealed partial class ArenaGame : Game
     /// </summary>
     private bool TryPersistGoreIntensity(
         string defaultThemeId,
-        GoreIntensity value)
-    {
-        var current = _settingsStore.Load(defaultThemeId);
-        return _settingsStore.TrySave(
-            _themeManager.ActiveTheme.Id,
-            current.Composition,
-            value,
-            current.MotionIntensity,
-            current.AutoCameraMode);
-    }
+        GoreIntensity value) =>
+        _settingsStore.TryUpdate(
+            defaultThemeId,
+            current => current with
+            {
+                SelectedThemeId = _themeManager.ActiveTheme.Id,
+                GoreIntensity = value,
+            });
 
     /// <summary>
     /// Mirrors <see cref="TryPersistGoreIntensity"/> for the motion setting:
@@ -460,16 +477,14 @@ public sealed partial class ArenaGame : Game
     /// </summary>
     private bool TryPersistMotionIntensity(
         string defaultThemeId,
-        MotionIntensity value)
-    {
-        var current = _settingsStore.Load(defaultThemeId);
-        return _settingsStore.TrySave(
-            _themeManager.ActiveTheme.Id,
-            current.Composition,
-            current.GoreIntensity,
-            value,
-            current.AutoCameraMode);
-    }
+        MotionIntensity value) =>
+        _settingsStore.TryUpdate(
+            defaultThemeId,
+            current => current with
+            {
+                SelectedThemeId = _themeManager.ActiveTheme.Id,
+                MotionIntensity = value,
+            });
 
     /// <summary>
     /// Mirrors <see cref="TryPersistGoreIntensity"/> for the camera-assistant
@@ -478,15 +493,45 @@ public sealed partial class ArenaGame : Game
     /// </summary>
     private bool TryPersistAutoCameraMode(
         string defaultThemeId,
-        AutoCameraMode value)
+        AutoCameraMode value) =>
+        _settingsStore.TryUpdate(
+            defaultThemeId,
+            current => current with
+            {
+                SelectedThemeId = _themeManager.ActiveTheme.Id,
+                AutoCameraMode = value,
+            });
+
+    private bool TryPersistUiScale(string defaultThemeId, UiScale value) =>
+        _settingsStore.TryUpdate(
+            defaultThemeId,
+            current => current with
+            {
+                SelectedThemeId = _themeManager.ActiveTheme.Id,
+                UiScale = value,
+            });
+
+    private bool TryPersistStartupDisplayMode(
+        string defaultThemeId,
+        StartupDisplayMode value) =>
+        _settingsStore.TryUpdate(
+            defaultThemeId,
+            current => current with
+            {
+                SelectedThemeId = _themeManager.ActiveTheme.Id,
+                StartupDisplayMode = value,
+            });
+
+    protected override void Initialize()
     {
-        var current = _settingsStore.Load(defaultThemeId);
-        return _settingsStore.TrySave(
-            _themeManager.ActiveTheme.Id,
-            current.Composition,
-            current.GoreIntensity,
-            current.MotionIntensity,
-            value);
+        base.Initialize();
+        if (!_graphics.IsFullScreen && !_renderProbeEnabled)
+        {
+            SDL_SetWindowMinimumSize(
+                Window.Handle,
+                MinimumWindowWidth,
+                MinimumWindowHeight);
+        }
     }
 
     protected override void LoadContent()
@@ -502,6 +547,10 @@ public sealed partial class ArenaGame : Game
         try
         {
             _fonts = UiFontSet.Load(Content.Load<SpriteFont>);
+            _fonts.SelectScale(
+                _configuredUiScale,
+                GraphicsDevice.Viewport.Width,
+                GraphicsDevice.Viewport.Height);
             _log.Write(
                 LogLevel.Information,
                 LogChannel.Assets,
@@ -530,14 +579,7 @@ public sealed partial class ArenaGame : Game
             SoundLibrary.GetDefaultDirectoryPath());
         _soundDirector.AttachPlayer(_soundPlayer);
 
-        _log.Write(
-            LogLevel.Information,
-            LogChannel.Boot,
-            LogEvents.BootWindowCreated,
-            "width",
-            GraphicsDevice.Viewport.Width,
-            "height",
-            GraphicsDevice.Viewport.Height);
+        LogViewport(LogEvents.BootWindowCreated, LogChannel.Boot);
 
         ValidateVisualCatalogs();
 
@@ -613,6 +655,10 @@ public sealed partial class ArenaGame : Game
             _simulation.Agents,
             _swingPoses);
         var screenBounds = GraphicsDevice.Viewport.Bounds;
+        _fonts?.SelectScale(
+            _configuredUiScale,
+            screenBounds.Width,
+            screenBounds.Height);
         var layout = GetLayout(screenBounds);
         _eventLogPanel.ReleaseKeyboardFocusIfPointerLeaves(
             _input,
@@ -650,7 +696,11 @@ public sealed partial class ArenaGame : Game
         // rather than falling through to the menu handling below.
         if (_quitPrompt.IsVisible)
         {
-            var promptInteraction = _quitPrompt.Update(_input, screenBounds);
+            var promptInteraction = _quitPrompt.Update(
+                _input,
+                screenBounds,
+                gameTime.ElapsedGameTime,
+                _motionManager.Value);
             LogPointer("quitPrompt");
             if (promptInteraction.Command != ClientCommand.None)
             {
@@ -677,7 +727,10 @@ public sealed partial class ArenaGame : Game
                 _themeManager.ActiveTheme.Id,
                 _goreManager.Value,
                 _motionManager.Value,
-                _autoCameraManager.Value);
+                _autoCameraManager.Value,
+                _configuredUiScale,
+                _startupDisplayMode,
+                gameTime.ElapsedGameTime);
             pointerConsumed = menuInteraction.PointerConsumed;
             consumedBy = pointerConsumed ? "menu" : consumedBy;
             if (menuInteraction.SelectedThemeId is { } selectedThemeId)
@@ -737,6 +790,37 @@ public sealed partial class ArenaGame : Game
                 }
             }
 
+            if (menuInteraction.SelectedUiScale is { } selectedUiScale &&
+                selectedUiScale != _configuredUiScale)
+            {
+                var previousUiScale = _configuredUiScale;
+                _configuredUiScale = selectedUiScale;
+                TryPersistUiScale(_defaultThemeId, selectedUiScale);
+                _fonts?.SelectScale(
+                    _configuredUiScale,
+                    screenBounds.Width,
+                    screenBounds.Height);
+                LogSettingChanged(
+                    "uiScale",
+                    previousUiScale.ToString(),
+                    _configuredUiScale.ToString());
+            }
+
+            if (menuInteraction.SelectedStartupDisplayMode is
+                { } selectedDisplayMode &&
+                selectedDisplayMode != _startupDisplayMode)
+            {
+                var previousDisplayMode = _startupDisplayMode;
+                _startupDisplayMode = selectedDisplayMode;
+                TryPersistStartupDisplayMode(
+                    _defaultThemeId,
+                    selectedDisplayMode);
+                LogSettingChanged(
+                    "startupDisplay",
+                    previousDisplayMode.ToString(),
+                    _startupDisplayMode.ToString());
+            }
+
             ApplyClientCommand(menuInteraction.Command);
         }
         else
@@ -744,7 +828,9 @@ public sealed partial class ArenaGame : Game
             var interaction = _battleReportPanel.Update(
                 _input,
                 _isBattleReportVisible ? _presentation.Report : null,
-                layout.ArenaBounds);
+                layout.ArenaBounds,
+                gameTime.ElapsedGameTime,
+                _motionManager.Value);
             pointerConsumed = interaction.PointerConsumed;
             consumedBy = pointerConsumed ? "battleReport" : consumedBy;
 
@@ -753,7 +839,9 @@ public sealed partial class ArenaGame : Game
                 interaction = _summaryPanel.Update(
                     _input,
                     _presentation.Summary,
-                    layout.ArenaBounds);
+                    layout.ArenaBounds,
+                    gameTime.ElapsedGameTime,
+                    _motionManager.Value);
                 pointerConsumed = interaction.PointerConsumed;
                 consumedBy = pointerConsumed ? "matchSummary" : consumedBy;
             }
@@ -764,7 +852,9 @@ public sealed partial class ArenaGame : Game
                     _input,
                     screenBounds,
                     _presentation.Playback.IsPlaying,
-                    _isSoundLogVisible);
+                    _isSoundLogVisible,
+                    gameTime.ElapsedGameTime,
+                    _motionManager.Value);
                 pointerConsumed = interaction.PointerConsumed;
                 consumedBy = pointerConsumed ? "controlBar" : consumedBy;
             }
@@ -1154,14 +1244,14 @@ public sealed partial class ArenaGame : Game
                 _isArmyCompositionPanelVisible = false;
                 return;
             case ArmyCompositionPanelResult.Applied:
-                var savedForComposition = _settingsStore.Load(
-                    _themeManager.ActiveTheme.Id);
-                _settingsStore.TrySave(
+                _settingsStore.TryUpdate(
                     _themeManager.ActiveTheme.Id,
-                    ToSettingsComposition(_armyCompositionPanel.Saved),
-                    savedForComposition.GoreIntensity,
-                    savedForComposition.MotionIntensity,
-                    savedForComposition.AutoCameraMode);
+                    current => current with
+                    {
+                        SelectedThemeId = _themeManager.ActiveTheme.Id,
+                        Composition = ToSettingsComposition(
+                            _armyCompositionPanel.Saved),
+                    });
                 _isCompositionStaged = true;
                 _isArmyCompositionPanelVisible = false;
                 return;
@@ -1251,6 +1341,12 @@ public sealed partial class ArenaGame : Game
     [LibraryImport("SDL2")]
     private static partial void SDL_RestoreWindow(nint window);
 
+    [LibraryImport("SDL2")]
+    private static partial void SDL_SetWindowMinimumSize(
+        nint window,
+        int minimumWidth,
+        int minimumHeight);
+
     /// <summary>
     /// Reads SDL's own window state flags. This is what makes the Max button
     /// correct rather than merely plausible: the spectator can maximize or
@@ -1275,6 +1371,11 @@ public sealed partial class ArenaGame : Game
     /// </summary>
     private void ToggleMaximizeWindow()
     {
+        if (_graphics.IsFullScreen)
+        {
+            return;
+        }
+
         var handle = Window.Handle;
         if ((SDL_GetWindowFlags(handle) & SdlWindowMaximized) != 0)
         {
@@ -1285,6 +1386,91 @@ public sealed partial class ArenaGame : Game
             SDL_MaximizeWindow(handle);
         }
     }
+
+    private void OnClientSizeChanged(object? sender, EventArgs eventArgs)
+    {
+        if (GraphicsDevice is null)
+        {
+            return;
+        }
+
+        _fonts?.SelectScale(
+            _configuredUiScale,
+            GraphicsDevice.Viewport.Width,
+            GraphicsDevice.Viewport.Height);
+        LogViewport(LogEvents.RenderViewportChanged, LogChannel.Render);
+    }
+
+    private void LogViewport(string eventId, LogChannel channel)
+    {
+        if (!_log.IsEnabledFor(LogLevel.Information, channel))
+        {
+            return;
+        }
+
+        var viewport = GraphicsDevice.Viewport;
+        var client = Window.ClientBounds;
+        var displayMode = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
+        var presentation = GraphicsDevice.PresentationParameters;
+        var snapshot = CreateViewportDiagnosticSnapshot(
+            client.Width,
+            client.Height,
+            viewport.Width,
+            viewport.Height,
+            presentation.BackBufferWidth,
+            presentation.BackBufferHeight,
+            displayMode.Width,
+            displayMode.Height,
+            _fonts?.ActiveScale.ToString() ?? _configuredUiScale.ToString(),
+            _graphics.IsFullScreen ? "Fullscreen" : "Windowed");
+        _log.Write(
+            LogLevel.Information,
+            channel,
+            eventId,
+            "client",
+            snapshot.ClientDimensions,
+            "viewport",
+            snapshot.ViewportDimensions,
+            "backBufferWidth",
+            snapshot.BackBufferWidth,
+            "backBufferHeight",
+            snapshot.BackBufferHeight,
+            "display",
+            snapshot.DisplayDimensions,
+            "uiScale",
+            snapshot.UiScale,
+            "windowMode",
+            snapshot.WindowMode);
+    }
+
+    internal static ViewportDiagnosticSnapshot CreateViewportDiagnosticSnapshot(
+        int clientWidth,
+        int clientHeight,
+        int viewportWidth,
+        int viewportHeight,
+        int backBufferWidth,
+        int backBufferHeight,
+        int displayWidth,
+        int displayHeight,
+        string uiScale,
+        string windowMode) =>
+        new(
+            $"{clientWidth}x{clientHeight}",
+            $"{viewportWidth}x{viewportHeight}",
+            backBufferWidth,
+            backBufferHeight,
+            $"{displayWidth}x{displayHeight}",
+            uiScale,
+            windowMode);
+
+    internal readonly record struct ViewportDiagnosticSnapshot(
+        string ClientDimensions,
+        string ViewportDimensions,
+        int BackBufferWidth,
+        int BackBufferHeight,
+        string DisplayDimensions,
+        string UiScale,
+        string WindowMode);
 
     private void AdvanceSimulation(double elapsedSeconds)
     {
@@ -1701,50 +1887,57 @@ public sealed partial class ArenaGame : Game
         Rectangle screenBounds,
         bool isSoundLogVisible)
     {
+        var statusBarHeight = UiScaleContext.Pixels(StatusBarHeight);
+        var eventPanelWidth = UiScaleContext.Pixels(EventPanelWidth);
+        var layoutMargin = UiScaleContext.Pixels(LayoutMargin);
+        var layoutGap = UiScaleContext.Pixels(LayoutGap);
+        var inspectorWidthLimit = UiScaleContext.Pixels(InspectorWidth);
+        var soundLogMinimumHeight =
+            UiScaleContext.Pixels(SoundLogMinimumHeight);
         var contentTop = Math.Min(
             screenBounds.Bottom,
-            screenBounds.Top + StatusBarHeight);
+            screenBounds.Top + statusBarHeight);
         var contentHeight = Math.Max(
             0,
-            screenBounds.Bottom - contentTop - LayoutMargin);
+            screenBounds.Bottom - contentTop - layoutMargin);
         var eventWidth = Math.Min(
-            EventPanelWidth,
+            eventPanelWidth,
             Math.Max(0, screenBounds.Width / 3));
         var column = RightColumnSplit.Split(
             new Rectangle(
                 Math.Max(
                     screenBounds.Left,
-                    screenBounds.Right - eventWidth - LayoutMargin),
+                    screenBounds.Right - eventWidth - layoutMargin),
                 contentTop,
                 eventWidth,
                 contentHeight),
             isSoundLogVisible,
-            SoundLogMinimumHeight,
+            soundLogMinimumHeight,
             SoundLogHeightPercent,
-            LayoutGap);
+            layoutGap);
         var eventBounds = column.EventBounds;
         var soundLogBounds = column.SoundLogBounds;
         var arenaRight = Math.Max(
-            screenBounds.Left + LayoutMargin,
-            eventBounds.Left - LayoutGap);
+            screenBounds.Left + layoutMargin,
+            eventBounds.Left - layoutGap);
         var arenaBounds = new Rectangle(
-            screenBounds.Left + LayoutMargin,
+            screenBounds.Left + layoutMargin,
             contentTop,
             Math.Max(
                 0,
-                arenaRight - screenBounds.Left - LayoutMargin),
+                arenaRight - screenBounds.Left - layoutMargin),
             contentHeight);
         var inspectorWidth = Math.Min(
-            InspectorWidth,
-            Math.Max(0, arenaBounds.Width - (LayoutMargin * 2)));
+            inspectorWidthLimit,
+            Math.Max(0, arenaBounds.Width - (layoutMargin * 2)));
         var inspectorHeight = Math.Min(
             InspectorHeight,
-            Math.Max(0, arenaBounds.Height - (LayoutMargin * 2)));
+            Math.Max(0, arenaBounds.Height - (layoutMargin * 2)));
         var inspectorBounds = new Rectangle(
-            arenaBounds.Left + LayoutMargin,
+            arenaBounds.Left + layoutMargin,
             Math.Max(
-                arenaBounds.Top + LayoutMargin,
-                arenaBounds.Bottom - inspectorHeight - LayoutMargin),
+                arenaBounds.Top + layoutMargin,
+                arenaBounds.Bottom - inspectorHeight - layoutMargin),
             inspectorWidth,
             inspectorHeight);
 

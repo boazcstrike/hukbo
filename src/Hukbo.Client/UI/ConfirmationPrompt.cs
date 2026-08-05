@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -55,6 +56,7 @@ internal sealed class ConfirmationPrompt
 
     private readonly UiButton _cancel = new("Cancel", ClientCommand.None);
     private readonly UiButton _confirm;
+    private readonly UiEntranceMotion _entrance = new();
 
     /// <param name="message">
     /// The question put to the spectator. Kept short enough to read at a
@@ -91,6 +93,10 @@ internal sealed class ConfirmationPrompt
 
     public Rectangle Bounds { get; private set; }
 
+    internal float ScrimOpacity => _entrance.ScrimOpacity;
+
+    internal float EntranceOpacity => _entrance.PanelOpacity;
+
     /// <summary>
     /// True when the confirm button holds focus. Cancel holds it otherwise, and
     /// cancel is where focus starts every time the prompt opens.
@@ -111,33 +117,56 @@ internal sealed class ConfirmationPrompt
     internal static ConfirmationPromptLayout CalculateLayout(
         Rectangle availableBounds)
     {
-        var width = Math.Min(PanelWidth, Math.Max(0, availableBounds.Width));
-        var height = Math.Min(PanelHeight, Math.Max(0, availableBounds.Height));
+        var width = Math.Min(
+            UiScaleContext.Pixels(PanelWidth),
+            Math.Max(0, availableBounds.Width));
+        var height = Math.Min(
+            UiScaleContext.Pixels(PanelHeight),
+            Math.Max(0, availableBounds.Height));
         var panel = new Rectangle(
             availableBounds.Left + ((availableBounds.Width - width) / 2),
             availableBounds.Top + ((availableBounds.Height - height) / 2),
             width,
             height);
 
-        var message = new Rectangle(
-            panel.Left + Margin,
-            panel.Top + MessageTopOffset,
-            Math.Max(0, panel.Width - (Margin * 2)),
-            Math.Min(MessageHeight, Math.Max(0, panel.Height - MessageTopOffset)));
-
-        var buttonTop = panel.Bottom - Margin - ButtonHeight;
-        var pairWidth = (ButtonWidth * 2) + ButtonGap;
+        var horizontalMargin = Math.Min(
+            UiScaleContext.Pixels(Margin),
+            panel.Width / 2);
+        var bottomMargin = Math.Min(
+            UiScaleContext.Pixels(Margin),
+            panel.Height);
+        var desiredButtonGap = UiScaleContext.Pixels(ButtonGap);
+        var buttonGap = Math.Min(desiredButtonGap, panel.Width);
+        var buttonWidth = Math.Min(
+            UiScaleContext.Pixels(ButtonWidth),
+            Math.Max(0, (panel.Width - buttonGap) / 2));
+        var buttonHeight = Math.Min(
+            UiScaleContext.Pixels(ButtonHeight),
+            Math.Max(0, panel.Height - bottomMargin));
+        var buttonTop = panel.Bottom - bottomMargin - buttonHeight;
+        var pairWidth = (buttonWidth * 2) + buttonGap;
         var pairLeft = panel.Left + ((panel.Width - pairWidth) / 2);
+        var messageTopOffset = Math.Min(
+            UiScaleContext.Pixels(MessageTopOffset),
+            panel.Height);
+        var messageTop = panel.Top + messageTopOffset;
+        var message = new Rectangle(
+            panel.Left + horizontalMargin,
+            messageTop,
+            Math.Max(0, panel.Width - (horizontalMargin * 2)),
+            Math.Min(
+                UiScaleContext.Pixels(MessageHeight),
+                Math.Max(0, buttonTop - messageTop)));
 
         return new ConfirmationPromptLayout(
             panel,
             message,
-            new Rectangle(pairLeft, buttonTop, ButtonWidth, ButtonHeight),
+            new Rectangle(pairLeft, buttonTop, buttonWidth, buttonHeight),
             new Rectangle(
-                pairLeft + ButtonWidth + ButtonGap,
+                pairLeft + buttonWidth + buttonGap,
                 buttonTop,
-                ButtonWidth,
-                ButtonHeight));
+                buttonWidth,
+                buttonHeight));
     }
 
     /// <summary>
@@ -147,6 +176,7 @@ internal sealed class ConfirmationPrompt
     {
         IsVisible = true;
         IsConfirmFocused = false;
+        _entrance.Begin();
     }
 
     /// <summary>
@@ -158,6 +188,7 @@ internal sealed class ConfirmationPrompt
         IsConfirmFocused = false;
         _cancel.ResetVisualState();
         _confirm.ResetVisualState();
+        _entrance.Reset();
     }
 
     /// <summary>
@@ -193,7 +224,20 @@ internal sealed class ConfirmationPrompt
     /// than no modal, because the spectator would believe the click was
     /// swallowed.
     /// </remarks>
-    public UiInteraction Update(InputEdges input, Rectangle availableBounds)
+    public UiInteraction Update(
+        InputEdges input,
+        Rectangle availableBounds) =>
+        Update(
+            input,
+            availableBounds,
+            TimeSpan.Zero,
+            MotionIntensity.Off);
+
+    public UiInteraction Update(
+        InputEdges input,
+        Rectangle availableBounds,
+        TimeSpan elapsed,
+        MotionIntensity motionIntensity)
     {
         if (!IsVisible)
         {
@@ -201,6 +245,11 @@ internal sealed class ConfirmationPrompt
             return UiInteraction.None;
         }
 
+        _entrance.Advance(
+            elapsed,
+            motionIntensity,
+            UiEntranceMotion.ModalPanelDuration,
+            hasScrim: true);
         var layout = CalculateLayout(availableBounds);
         Bounds = layout.PanelBounds;
         _cancel.Bounds = layout.CancelBounds;
@@ -228,8 +277,16 @@ internal sealed class ConfirmationPrompt
                 true);
         }
 
-        var cancelClicked = _cancel.Update(input, isFocused: !IsConfirmFocused);
-        var confirmClicked = _confirm.Update(input, isFocused: IsConfirmFocused);
+        var cancelClicked = _cancel.Update(
+            input,
+            elapsed,
+            motionIntensity,
+            isFocused: !IsConfirmFocused);
+        var confirmClicked = _confirm.Update(
+            input,
+            elapsed,
+            motionIntensity,
+            isFocused: IsConfirmFocused);
 
         if (cancelClicked)
         {
@@ -266,26 +323,44 @@ internal sealed class ConfirmationPrompt
 
         // Scrim the whole area first: it dims the battle behind the prompt and
         // makes the modality visible rather than merely enforced in code.
-        spriteBatch.Draw(pixel, availableBounds, theme.Colors.OverlayScrim);
+        var scrimTheme = UiMotionTheme.WithOpacity(theme, ScrimOpacity);
+        spriteBatch.Draw(
+            pixel,
+            availableBounds,
+            scrimTheme.Colors.OverlayScrim);
+        theme = UiMotionTheme.WithOpacity(theme, EntranceOpacity);
         spriteBatch.Draw(pixel, layout.PanelBounds, theme.Colors.PanelSurface);
         UiPrimitives.DrawBorder(
             spriteBatch,
             pixel,
             layout.PanelBounds,
             theme.Colors.StatusWarning,
-            Math.Max(3, theme.Metrics.BorderThickness));
+            Math.Max(
+                UiScaleContext.Pixels(3),
+                UiScaleContext.Pixels(theme.Metrics.BorderThickness)));
 
-        UiPrimitives.DrawCenteredText(
-            spriteBatch,
-            fonts.Get(UiFontRole.Body),
-            Message,
-            new Vector2(
-                layout.PanelBounds.Center.X,
-                layout.MessageBounds.Top),
-            theme.Colors.TextPrimary);
+        if (layout.MessageBounds.Width > 0 &&
+            layout.MessageBounds.Height > 0)
+        {
+            UiPrimitives.DrawCenteredText(
+                spriteBatch,
+                fonts.Get(UiFontRole.Body),
+                Message,
+                new Vector2(
+                    layout.PanelBounds.Center.X,
+                    layout.MessageBounds.Top),
+                theme.Colors.TextPrimary);
+        }
 
         var labelFont = fonts.Get(UiFontRole.Label);
-        _cancel.Draw(spriteBatch, pixel, labelFont, theme);
-        _confirm.Draw(spriteBatch, pixel, labelFont, theme);
+        if (layout.CancelBounds.Width > 0 && layout.CancelBounds.Height > 0)
+        {
+            _cancel.Draw(spriteBatch, pixel, labelFont, theme);
+        }
+
+        if (layout.ConfirmBounds.Width > 0 && layout.ConfirmBounds.Height > 0)
+        {
+            _confirm.Draw(spriteBatch, pixel, labelFont, theme);
+        }
     }
 }

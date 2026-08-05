@@ -29,53 +29,55 @@ internal sealed partial class SoundLogPanel
     // Bebas Neue at 22px (the `Title` rung) measured 35. Guessing from pixel
     // size alone (the "12px needs about 15px" rule of thumb) would have
     // undershot both figures.
-    private const int CaptionLineSpacing = 20;
-    private const int TitleLineSpacing = 35;
+    private static int CaptionLineSpacing => UiScaleContext.Pixels(20);
+    private static int TitleLineSpacing => UiScaleContext.Pixels(35);
 
     /// <summary>
     /// Vertical offset of the "SOUND LOG" title's draw position from the
     /// header's top edge. Small and fixed, independent of the line spacing
     /// constants above, so the title never touches the panel's own border.
     /// </summary>
-    private const int HeaderTitleTopOffset = 2;
+    private static int HeaderTitleTopOffset => UiScaleContext.Pixels(2);
 
     /// <summary>
     /// Clearance between the bottom of the title line and the top of the
     /// availability caption line stacked beneath it.
     /// </summary>
-    private const int HeaderLineGap = 2;
+    private static int HeaderLineGap => UiScaleContext.Pixels(2);
 
     /// <summary>
     /// Clearance reserved below the availability caption line before the
     /// header's own bottom edge.
     /// </summary>
-    private const int HeaderBottomPadding = 3;
+    private static int HeaderBottomPadding => UiScaleContext.Pixels(3);
 
     /// <summary>
     /// Vertical offset of the availability caption's draw position from the
     /// header's top edge — directly beneath the title's own line box.
     /// </summary>
-    internal const int HeaderCaptionTopOffset =
+    internal static int HeaderCaptionTopOffset =>
         HeaderTitleTopOffset + TitleLineSpacing + HeaderLineGap;
 
-    internal const int BindingRowHeight = CaptionLineSpacing;
-    internal const int CueRowHeight = CaptionLineSpacing;
-    internal const int MinimumThumbHeight = 18;
+    internal static int BindingRowHeight => CaptionLineSpacing;
+    internal static int CueRowHeight => CaptionLineSpacing;
+    internal static int MinimumThumbHeight => UiScaleContext.Pixels(18);
 
-    private const int Padding = 10;
-    private const int Gap = 6;
+    private static int Padding => UiScaleContext.Pixels(10);
+    private static int Gap => UiScaleContext.Pixels(6);
 
     // Tall enough to stack the Title-rung title line and the Caption-rung
     // availability line beneath it without either one clipping into the
     // panel's own header/path seam. See the derivation note above.
-    private const int HeaderHeight =
+    private static int HeaderHeight =>
         HeaderCaptionTopOffset + CaptionLineSpacing + HeaderBottomPadding;
 
-    private const int PathHeight = CaptionLineSpacing;
-    private const int SectionHeaderHeight = CaptionLineSpacing;
+    private static int PathHeight => CaptionLineSpacing;
+    private static int SectionHeaderHeight => CaptionLineSpacing;
     private const int MinimumCueRowCount = 3;
-    private const int MuteWidth = 54;
-    private const int ScrollbarWidth = 8;
+    private static int MuteWidth => UiScaleContext.Pixels(54);
+    private static int ScrollbarWidth => UiScaleContext.Pixels(8);
+    private static int HeaderPathGap => UiScaleContext.Pixels(2);
+    private static int ScrollbarGap => UiScaleContext.Pixels(4);
     private const int RowsPerWheelDetent = 3;
     private const int MouseWheelDeltaPerDetent = 120;
 
@@ -94,7 +96,9 @@ internal sealed partial class SoundLogPanel
             header.Top,
             muteWidth,
             header.Height);
-        var pathTop = Math.Min(inner.Bottom, header.Bottom + 2);
+        var pathTop = Math.Min(
+            inner.Bottom,
+            header.Bottom + HeaderPathGap);
         var path = new Rectangle(
             inner.Left,
             pathTop,
@@ -132,7 +136,9 @@ internal sealed partial class SoundLogPanel
         var bindingRows = new Rectangle(
             bindings.Left,
             bindingRowsTop,
-            Math.Max(0, bindings.Width - ScrollbarWidth - 4),
+            Math.Max(
+                0,
+                bindings.Width - ScrollbarWidth - ScrollbarGap),
             Math.Max(0, bindings.Bottom - bindingRowsTop));
         var bindingScrollbar = new Rectangle(
             Math.Max(bindings.Left, bindings.Right - ScrollbarWidth),
@@ -152,7 +158,9 @@ internal sealed partial class SoundLogPanel
         var cueRows = new Rectangle(
             cueList.Left,
             cueRowsTop,
-            Math.Max(0, cueList.Width - ScrollbarWidth - 4),
+            Math.Max(
+                0,
+                cueList.Width - ScrollbarWidth - ScrollbarGap),
             Math.Max(0, cueList.Bottom - cueRowsTop));
         var scrollbar = new Rectangle(
             Math.Max(cueList.Left, cueList.Right - ScrollbarWidth),

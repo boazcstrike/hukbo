@@ -11,12 +11,6 @@ namespace Hukbo.Client.UI;
 
 internal sealed class AgentInspectorPanel
 {
-    private const int Padding = AgentInspectorContent.Padding;
-    private const int AccentWidth = AgentInspectorContent.AccentWidth;
-    private const int PortraitSize = AgentInspectorContent.PortraitSize;
-    private const int PortraitGap = AgentInspectorContent.PortraitGap;
-    private const int LineHeight = AgentInspectorContent.LineHeight;
-
     public Rectangle Bounds { get; private set; }
 
     public UiInteraction Update(
@@ -67,18 +61,26 @@ internal sealed class AgentInspectorPanel
         }
 
         Bounds = bounds;
+        var padding = UiScaleContext.Pixels(AgentInspectorContent.Padding);
+        var accentWidth = UiScaleContext.Pixels(
+            AgentInspectorContent.AccentWidth);
+        var portraitGap = UiScaleContext.Pixels(
+            AgentInspectorContent.PortraitGap);
+        var lineHeight = UiScaleContext.Pixels(
+            AgentInspectorContent.LineHeight);
+        var maxRowBottom = Bounds.Bottom - padding;
         spriteBatch.Draw(pixel, Bounds, theme.Colors.PanelSurface);
         UiPrimitives.DrawBorder(
             spriteBatch,
             pixel,
             Bounds,
             theme.Colors.PanelBorder,
-            theme.Metrics.BorderThickness);
+            UiScaleContext.Pixels(theme.Metrics.BorderThickness));
 
         var titleFont = fonts.Get(UiFontRole.Title);
         var bodyFont = fonts.Get(UiFontRole.Body);
-        var textX = Bounds.Left + Padding + AccentWidth;
-        var textY = Bounds.Top + Padding;
+        var textX = Bounds.Left + padding + accentWidth;
+        var textY = Bounds.Top + padding;
         UiPrimitives.DrawText(
             spriteBatch,
             titleFont,
@@ -86,14 +88,17 @@ internal sealed class AgentInspectorPanel
             new Vector2(textX, textY),
             theme.Colors.TextPrimary);
 
-        textY += AgentInspectorContent.TitleHeight;
+        textY += UiScaleContext.Pixels(AgentInspectorContent.TitleHeight);
+        var accentInset = UiScaleContext.Pixels(2);
         spriteBatch.Draw(
             pixel,
             new Rectangle(
-                Bounds.Left + 2,
-                Bounds.Top + 2,
-                AccentWidth,
-                Math.Max(0, Bounds.Height - 4)),
+                Bounds.Left + accentInset,
+                Bounds.Top + accentInset,
+                Math.Min(
+                    accentWidth,
+                    Math.Max(0, Bounds.Width - (accentInset * 2))),
+                Math.Max(0, Bounds.Height - (accentInset * 2))),
             GetUiFactionColor(selected.FactionId, theme));
 
         var appearance = PawnAppearanceFactory.Create(
@@ -105,11 +110,18 @@ internal sealed class AgentInspectorPanel
         var targetLabel = selected.TargetEntityId?.ToString() ?? "none";
         var x = selected.XRaw / (double)FixedPoint.Scale;
         var y = selected.YRaw / (double)FixedPoint.Scale;
+        var portraitSize = Math.Min(
+            UiScaleContext.Pixels(AgentInspectorContent.PortraitSize),
+            Math.Max(
+                0,
+                Math.Min(
+                    Bounds.Right - padding - textX,
+                    Bounds.Bottom - padding - textY)));
         var portraitBounds = new Rectangle(
             textX,
             textY,
-            PortraitSize,
-            PortraitSize);
+            portraitSize,
+            portraitSize);
         spriteBatch.Draw(
             pixel,
             portraitBounds,
@@ -119,7 +131,7 @@ internal sealed class AgentInspectorPanel
             pixel,
             portraitBounds,
             GetUiFactionColor(selected.FactionId, theme),
-            1);
+            UiScaleContext.Pixels(1));
         // The third PawnRenderer.Draw call site, and the one that deliberately
         // passes no swing pose: a portrait is a still. It compiles unchanged
         // only because the pose parameter is optional.
@@ -137,21 +149,24 @@ internal sealed class AgentInspectorPanel
         // parameter is left at its default (false) here too. The inspector's
         // lower text lines carry the leadership fact instead — see
         // AgentInspectorContent.FormatContingentLine's "(leading)" suffix.
-        PawnRenderer.Draw(
-            spriteBatch,
-            pixel,
-            new Vector2(
-                portraitBounds.Center.X,
-                portraitBounds.Bottom - 7),
-            cameraZoom: 1f,
-            appearance,
-            FactionColorPalette.GetPawnColor(selected.FactionId),
-            selected.IsAlive
-                ? PawnVisualState.Normal
-                : PawnVisualState.Dead,
-            scaleMultiplier: 1f);
+        if (portraitBounds.Width > 0 && portraitBounds.Height > 0)
+        {
+            PawnRenderer.Draw(
+                spriteBatch,
+                pixel,
+                new Vector2(
+                    portraitBounds.Center.X,
+                    portraitBounds.Bottom - UiScaleContext.Pixels(7)),
+                cameraZoom: 1f,
+                appearance,
+                FactionColorPalette.GetPawnColor(selected.FactionId),
+                selected.IsAlive
+                    ? PawnVisualState.Normal
+                    : PawnVisualState.Dead,
+                scaleMultiplier: 1f);
+        }
 
-        var detailX = portraitBounds.Right + PortraitGap;
+        var detailX = portraitBounds.Right + portraitGap;
         var warriorName = WarriorNames.Resolve(
             selected.EntityId,
             selected.FactionId,
@@ -172,10 +187,13 @@ internal sealed class AgentInspectorPanel
             3);
 
         var lowerTextY = Math.Max(
-            portraitBounds.Bottom + AgentInspectorContent.PortraitBottomGap,
+            portraitBounds.Bottom
+                + UiScaleContext.Pixels(
+                    AgentInspectorContent.PortraitBottomGap),
             textY
-                + (AgentInspectorContent.TopDetailRowCount * LineHeight)
-                + AgentInspectorContent.TopDetailBottomGap);
+                + (AgentInspectorContent.TopDetailRowCount * lineHeight)
+                + UiScaleContext.Pixels(
+                    AgentInspectorContent.TopDetailBottomGap));
         // Built as an ordered list rather than fixed row indices because the
         // grip line is absent for a two-handed weapon, and hard-coded indices
         // would leave a blank row where it would have been.
@@ -186,6 +204,12 @@ internal sealed class AgentInspectorPanel
             movementSpeedRaw);
         for (var row = 0; row < lowerLines.Count; row++)
         {
+            var rowBottom = lowerTextY + (row * lineHeight) + lineHeight;
+            if (rowBottom > maxRowBottom)
+            {
+                break;
+            }
+
             DrawLine(lowerLines[row], textX, lowerTextY, row);
         }
 
@@ -257,11 +281,10 @@ internal sealed class AgentInspectorPanel
             .Concat(wrappedAppearancePresetLines)
             .ToArray();
 
-        var maxRowBottom = Bounds.Bottom - Padding;
         for (var i = 0; i < extraLines.Length; i++)
         {
             var row = lowerLines.Count + i;
-            var rowBottom = lowerTextY + (row * LineHeight) + LineHeight;
+            var rowBottom = lowerTextY + (row * lineHeight) + lineHeight;
             if (rowBottom > maxRowBottom)
             {
                 break;
@@ -272,13 +295,21 @@ internal sealed class AgentInspectorPanel
 
         void DrawLine(string text, int xPosition, int yPosition, int row)
         {
+            var rowTop = yPosition + (row * lineHeight);
+            if (xPosition >= Bounds.Right ||
+                rowTop < Bounds.Top ||
+                rowTop + lineHeight > maxRowBottom)
+            {
+                return;
+            }
+
             UiPrimitives.DrawText(
                 spriteBatch,
                 bodyFont,
                 text,
                 new Vector2(
                     xPosition,
-                    yPosition + (row * LineHeight)),
+                    rowTop),
                 theme.Colors.TextPrimary);
         }
     }

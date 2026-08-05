@@ -137,6 +137,24 @@ public sealed class SourceHygieneTests
         "Fonts/UiSubtitle.spritefont",
         "Fonts/UiTitle.spritefont",
         "Fonts/UiDisplay.spritefont",
+        "Fonts/UiCaption125.spritefont",
+        "Fonts/UiBody125.spritefont",
+        "Fonts/UiLabel125.spritefont",
+        "Fonts/UiSubtitle125.spritefont",
+        "Fonts/UiTitle125.spritefont",
+        "Fonts/UiDisplay125.spritefont",
+        "Fonts/UiCaption150.spritefont",
+        "Fonts/UiBody150.spritefont",
+        "Fonts/UiLabel150.spritefont",
+        "Fonts/UiSubtitle150.spritefont",
+        "Fonts/UiTitle150.spritefont",
+        "Fonts/UiDisplay150.spritefont",
+        "Fonts/UiCaption200.spritefont",
+        "Fonts/UiBody200.spritefont",
+        "Fonts/UiLabel200.spritefont",
+        "Fonts/UiSubtitle200.spritefont",
+        "Fonts/UiTitle200.spritefont",
+        "Fonts/UiDisplay200.spritefont",
     ];
 
     /// <summary>
@@ -246,12 +264,12 @@ public sealed class SourceHygieneTests
     }
 
     /// <summary>
-    /// <c>Content.mgcb</c> stays exactly six spritefonts and nothing else
+    /// <c>Content.mgcb</c> stays exactly 24 spritefonts and nothing else
     /// (R-W6.18): the package ships zero textures, atlases, or shaders, per
     /// OD-4's fully procedural direction.
     /// </summary>
     [Fact]
-    public void ContentPipelineEntriesAreUnchangedFromTheSixPinnedSpritefonts()
+    public void ContentPipelineEntriesAreUnchangedFromThePinnedSpritefonts()
     {
         var root = GetRepositoryRoot();
         var mgcbPath = Path.Combine(

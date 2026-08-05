@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -14,6 +15,8 @@ internal readonly record struct UiInteraction(
 
 internal sealed class UiButton
 {
+    private readonly UiButtonMotion _motion = new();
+
     public UiButton(string label, ClientCommand command)
     {
         Label = label;
@@ -36,8 +39,28 @@ internal sealed class UiButton
 
     public bool IsActive { get; private set; }
 
+    internal float HoverAmount => _motion.HoverAmount;
+
     public bool Update(
         InputEdges input,
+        bool isFocused = false,
+        bool isActive = false) =>
+        Update(
+            input,
+            TimeSpan.Zero,
+            MotionIntensity.Off,
+            isFocused,
+            isActive);
+
+    /// <summary>
+    /// Updates interaction state immediately, then advances decorative
+    /// feedback with unscaled client time. The hit target remains
+    /// <see cref="Bounds"/> throughout the transition.
+    /// </summary>
+    public bool Update(
+        InputEdges input,
+        TimeSpan elapsed,
+        MotionIntensity motionIntensity,
         bool isFocused = false,
         bool isActive = false)
     {
@@ -45,6 +68,12 @@ internal sealed class UiButton
         IsFocused = IsEnabled && isFocused;
         IsPressed = IsHovered && input.IsLeftMouseDown;
         IsActive = IsEnabled && isActive;
+        _motion.Advance(
+            IsHovered,
+            IsFocused,
+            IsPressed,
+            elapsed,
+            motionIntensity);
         return IsHovered && input.WasLeftMousePressed();
     }
 
@@ -54,6 +83,7 @@ internal sealed class UiButton
         IsFocused = false;
         IsPressed = false;
         IsActive = false;
+        _motion.Reset();
     }
 
     public void UpdateVisualState(bool isActive)
@@ -73,26 +103,28 @@ internal sealed class UiButton
         SpriteFont font,
         UiTheme theme)
     {
-        var textColor = DrawBackgroundAndBorder(spriteBatch, pixel, theme);
+        var (textColor, visualBounds) =
+            DrawBackgroundAndBorder(spriteBatch, pixel, theme);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             font,
             Label,
-            Bounds.Center.ToVector2(),
+            visualBounds.Center.ToVector2(),
             textColor);
     }
 
-    private Color DrawBackgroundAndBorder(
+    private (Color TextColor, Rectangle VisualBounds) DrawBackgroundAndBorder(
         SpriteBatch spriteBatch,
         Texture2D pixel,
         UiTheme theme)
     {
         var fillColor = GetFillColor(theme);
+        var visualBounds = _motion.GetVisualBounds(Bounds);
         var textColor = IsEnabled
             ? theme.Colors.TextInverse
             : theme.Colors.TextDisabled;
 
-        spriteBatch.Draw(pixel, Bounds, fillColor);
+        spriteBatch.Draw(pixel, visualBounds, fillColor);
         if ((IsFocused || IsActive) && IsEnabled)
         {
             UiPrimitives.DrawBorder(
@@ -100,20 +132,27 @@ internal sealed class UiButton
                 pixel,
                 Bounds,
                 IsFocused
-                    ? theme.Colors.ActionFocus
+                    ? Color.Lerp(
+                        theme.Colors.Selection,
+                        theme.Colors.ActionFocus,
+                        _motion.FocusAmount)
                     : theme.Colors.Selection,
-                theme.Metrics.FocusThickness);
+                UiScaleContext.Pixels(theme.Metrics.FocusThickness));
         }
 
         if (IsActive && IsEnabled)
         {
             spriteBatch.Draw(
                 pixel,
-                new Rectangle(Bounds.Left, Bounds.Top, 6, Bounds.Height),
+                new Rectangle(
+                    visualBounds.Left,
+                    visualBounds.Top,
+                    UiScaleContext.Pixels(6),
+                    visualBounds.Height),
                 theme.Colors.Selection);
         }
 
-        return textColor;
+        return (textColor, visualBounds);
     }
 
     private Color GetFillColor(UiTheme theme)
@@ -123,23 +162,18 @@ internal sealed class UiButton
             return theme.Colors.ActionDisabled;
         }
 
-        if (IsPressed)
-        {
-            return theme.Colors.ActionPressed;
-        }
-
-        if (IsActive)
-        {
-            return theme.Colors.ActionActive;
-        }
-
-        if (IsHovered)
-        {
-            return theme.Colors.ActionHover;
-        }
-
-        return theme.Colors.ActionDefault;
+        var hoverColor = IsActive
+            ? theme.Colors.ActionActive
+            : Color.Lerp(
+                theme.Colors.ActionDefault,
+                theme.Colors.ActionHover,
+                _motion.HoverAmount);
+        return Color.Lerp(
+            hoverColor,
+            theme.Colors.ActionPressed,
+            _motion.PressAmount);
     }
+
 }
 
 internal static class UiPrimitives

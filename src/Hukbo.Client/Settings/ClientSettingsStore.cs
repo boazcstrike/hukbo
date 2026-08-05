@@ -31,26 +31,33 @@ internal sealed class ClientSettingsStore
     /// renamed, so an older file cannot be read forward under any
     /// interpretation. A third deliberate reset, recorded on
     /// <see cref="ArmyComposition"/>.
+    /// Raised again from 7 to 8 by the <see cref="UiScale"/> and
+    /// <see cref="StartupDisplayMode"/> settings. This is backward compatible:
+    /// a version 7 file loads through <see cref="AcceptedSchemaVersions"/>
+    /// with only those absent fields defaulting.
     /// </summary>
-    public const int SupportedSchemaVersion = 7;
+    public const int SupportedSchemaVersion = 8;
 
     /// <summary>
     /// Schema versions <see cref="Load"/> accepts without discarding the
-    /// whole file. Only the current version qualifies. Versions 3, 4, and 5
-    /// were accepted while the field-defaulting path was enough to read them
-    /// forward; the 5-to-6 default-composition change and the 6-to-7
-    /// rank-category change are not field additions and cannot be read
-    /// forward, so every earlier version is discarded per the deliberate
-    /// resets recorded on <see cref="ArmyComposition"/>.
+    /// whole file. Version 7 and the current version qualify because the
+    /// 7-to-8 change only adds independently defaulted fields. Versions before
+    /// 7 remain incompatible because of the deliberate composition resets
+    /// recorded on <see cref="ArmyComposition"/>.
     /// </summary>
     private static readonly int[] AcceptedSchemaVersions =
-        [SupportedSchemaVersion];
+        [7, SupportedSchemaVersion];
 
     private const GoreIntensity DefaultGoreIntensity = GoreIntensity.Stylized;
     private const MotionIntensity DefaultMotionIntensity = MotionIntensity.Full;
 
     private const AutoCameraMode DefaultAutoCameraMode =
         AutoCameraMode.Assisted;
+
+    private const UiScale DefaultUiScale = UiScale.Auto;
+
+    private const StartupDisplayMode DefaultStartupDisplayMode =
+        StartupDisplayMode.Windowed;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -131,12 +138,14 @@ internal sealed class ClientSettingsStore
             }
 
             var settings = new ClientSettings(
-                raw.SchemaVersion,
+                SupportedSchemaVersion,
                 raw.SelectedThemeId,
                 raw.Composition,
                 ResolveGoreIntensity(raw.GoreIntensity),
                 ResolveMotionIntensity(raw.MotionIntensity),
-                ResolveAutoCameraMode(raw.AutoCameraMode));
+                ResolveAutoCameraMode(raw.AutoCameraMode),
+                ResolveUiScale(raw.UiScale),
+                ResolveStartupDisplayMode(raw.StartupDisplayMode));
             _log.Write(
                 LogLevel.Debug,
                 LogChannel.Settings,
@@ -181,7 +190,9 @@ internal sealed class ClientSettingsStore
         ArmyComposition composition,
         GoreIntensity goreIntensity,
         MotionIntensity motionIntensity,
-        AutoCameraMode autoCameraMode)
+        AutoCameraMode autoCameraMode,
+        UiScale uiScale,
+        StartupDisplayMode startupDisplayMode)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(selectedThemeId);
         ArgumentNullException.ThrowIfNull(composition);
@@ -204,7 +215,9 @@ internal sealed class ClientSettingsStore
                 composition,
                 ResolveGoreIntensity(goreIntensity),
                 ResolveMotionIntensity(motionIntensity),
-                ResolveAutoCameraMode(autoCameraMode));
+                ResolveAutoCameraMode(autoCameraMode),
+                ResolveUiScale(uiScale),
+                ResolveStartupDisplayMode(startupDisplayMode));
             using (var stream = new FileStream(
                 temporaryPath,
                 FileMode.CreateNew,
@@ -241,7 +254,11 @@ internal sealed class ClientSettingsStore
                 "motion",
                 motionIntensity.ToString(),
                 "autoCamera",
-                autoCameraMode.ToString());
+                autoCameraMode.ToString(),
+                "uiScale",
+                uiScale.ToString(),
+                "startupDisplayMode",
+                startupDisplayMode.ToString());
             return true;
         }
         catch (Exception exception) when (
@@ -261,6 +278,28 @@ internal sealed class ClientSettingsStore
                 exception.Message);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Re-reads the complete record and writes a caller-selected change so
+    /// every independent settings writer preserves sibling preferences.
+    /// </summary>
+    public bool TryUpdate(
+        string defaultThemeId,
+        Func<ClientSettings, ClientSettings> update)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(defaultThemeId);
+        ArgumentNullException.ThrowIfNull(update);
+
+        var next = update(Load(defaultThemeId));
+        return TrySave(
+            next.SelectedThemeId,
+            next.Composition,
+            next.GoreIntensity,
+            next.MotionIntensity,
+            next.AutoCameraMode,
+            next.UiScale,
+            next.StartupDisplayMode);
     }
 
     private void LogDefaulted(string defaultThemeId, string reason) =>
@@ -284,7 +323,9 @@ internal sealed class ClientSettingsStore
             ArmyComposition.Default,
             DefaultGoreIntensity,
             DefaultMotionIntensity,
-            DefaultAutoCameraMode);
+            DefaultAutoCameraMode,
+            DefaultUiScale,
+            DefaultStartupDisplayMode);
 
     /// <summary>
     /// A missing or out-of-range gore level resolves to the default without
@@ -318,6 +359,27 @@ internal sealed class ClientSettingsStore
             ? value
             : DefaultAutoCameraMode;
 
+    /// <summary>
+    /// A missing or out-of-range UI scale resolves to automatic selection
+    /// without invalidating any sibling field. Missing is what a version 7
+    /// file - written before this field existed - looks like.
+    /// </summary>
+    private static UiScale ResolveUiScale(UiScale? persisted) =>
+        persisted is { } value && Enum.IsDefined(value)
+            ? value
+            : DefaultUiScale;
+
+    /// <summary>
+    /// A missing or out-of-range startup display mode resolves to the current
+    /// windowed behavior without invalidating any sibling field. Missing is
+    /// what a version 7 file - written before this field existed - looks like.
+    /// </summary>
+    private static StartupDisplayMode ResolveStartupDisplayMode(
+        StartupDisplayMode? persisted) =>
+        persisted is { } value && Enum.IsDefined(value)
+            ? value
+            : DefaultStartupDisplayMode;
+
     private static void TryDelete(string path)
     {
         try
@@ -344,5 +406,7 @@ internal sealed class ClientSettingsStore
         ArmyComposition? Composition,
         GoreIntensity? GoreIntensity,
         MotionIntensity? MotionIntensity,
-        AutoCameraMode? AutoCameraMode);
+        AutoCameraMode? AutoCameraMode,
+        UiScale? UiScale,
+        StartupDisplayMode? StartupDisplayMode);
 }

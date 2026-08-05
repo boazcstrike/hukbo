@@ -1,3 +1,5 @@
+using Hukbo.Client.Settings;
+
 namespace Hukbo.Client.Theming;
 
 /// <summary>
@@ -52,6 +54,18 @@ internal static class UiFontRamp
     ];
 
     /// <summary>
+    /// Every physical font tier compiled into the content project. Auto is a
+    /// policy value and therefore never appears here.
+    /// </summary>
+    public static IReadOnlyList<UiScale> AllScales { get; } =
+    [
+        UiScale.Percent100,
+        UiScale.Percent125,
+        UiScale.Percent150,
+        UiScale.Percent200,
+    ];
+
+    /// <summary>
     /// The content pipeline asset identifier for a role, matching the
     /// corresponding <c>#begin Fonts/Ui*.spritefont</c> block in
     /// <c>Content/Content.mgcb</c>.
@@ -66,6 +80,19 @@ internal static class UiFontRamp
         UiFontRole.Display => "Fonts/UiDisplay",
         _ => throw new ArgumentOutOfRangeException(nameof(role), role, null),
     };
+
+    /// <summary>
+    /// Returns the content id for a role at a resolved physical tier. The
+    /// baseline ids stay unchanged for backward compatibility; larger tiers
+    /// use a numeric suffix and are independently rasterized by MGCB.
+    /// </summary>
+    public static string GetAssetId(UiFontRole role, UiScale scale)
+    {
+        var baseline = GetAssetId(role);
+        return scale == UiScale.Percent100
+            ? baseline
+            : $"{baseline}{UiScalePolicy.GetPercent(scale)}";
+    }
 
     /// <summary>
     /// The pixel size the role's descriptor was baked at. Every draw of this
@@ -83,6 +110,11 @@ internal static class UiFontRamp
         _ => throw new ArgumentOutOfRangeException(nameof(role), role, null),
     };
 
+    public static int GetPixelSize(UiFontRole role, UiScale scale) =>
+        (int)Math.Round(
+            GetPixelSize(role) * (UiScalePolicy.GetPercent(scale) / 100d),
+            MidpointRounding.AwayFromZero);
+
     /// <summary>
     /// A conservative, over-estimated per-character advance width in pixels
     /// for the role. Callers that need to guess how many characters fit in a
@@ -94,6 +126,12 @@ internal static class UiFontRamp
     /// </summary>
     public static int GetApproximateAdvancePx(UiFontRole role) =>
         (int)MathF.Ceiling(GetPixelSize(role) * ConservativeAdvanceFactor);
+
+    public static int GetApproximateAdvancePx(
+        UiFontRole role,
+        UiScale scale) =>
+        (int)MathF.Ceiling(
+            GetPixelSize(role, scale) * ConservativeAdvanceFactor);
 
     /// <summary>
     /// Parses a role name as it appears in shared configuration (for example

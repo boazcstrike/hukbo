@@ -90,6 +90,15 @@ Interactive behavior is proven only by the manual checklist in
 authorize marking a checklist row `PASS`; leave it `PENDING` or report
 `BLOCKED` honestly. Full rules: `CLAUDE.md` §6.
 
+## Agent orchestration
+
+Non-trivial work runs as parallel read-only research, then a single planner,
+then implementation agents that each own a non-overlapping set of files. Two
+rules bind every dispatch: a coding task runs on Sonnet, every time, and every
+agent-to-agent prompt is caveman-compressed before it is sent. Repository
+files, documentation, commits, and pull requests are never compressed. The
+canonical gate is never delegated to a sub-agent. Full rules: `CLAUDE.md` §10.
+
 ## Historical accuracy
 
 This is a game about a real place and real people, built on contested

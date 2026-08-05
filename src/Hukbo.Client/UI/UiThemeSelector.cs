@@ -34,13 +34,13 @@ internal sealed class UiThemeSelector
     public Rectangle Bounds { get; set; }
 
     public Rectangle PreviousBounds =>
-        new(Bounds.Left, Bounds.Top, _layout.ArrowWidth, Bounds.Height);
+        new(Bounds.Left, Bounds.Top, GetArrowWidth(), Bounds.Height);
 
     public Rectangle NextBounds =>
         new(
-            Bounds.Right - _layout.ArrowWidth,
+            Bounds.Right - GetArrowWidth(),
             Bounds.Top,
-            _layout.ArrowWidth,
+            GetArrowWidth(),
             Bounds.Height);
 
     public IReadOnlyList<string> ThemeNames =>
@@ -60,6 +60,11 @@ internal sealed class UiThemeSelector
 
     public string GetSelectedMarkerText(string currentId) =>
         $"ACTIVE  -  {GetPositionText(currentId)}";
+
+    public static string GetSelectorLabelText(string currentId) =>
+        currentId == "datu-court"
+            ? "PROVISIONAL RECONSTRUCTION"
+            : "VISUAL THEME";
 
     public string? GetKeyboardSelection(
         Keys key,
@@ -150,9 +155,10 @@ internal sealed class UiThemeSelector
             pixel,
             Bounds,
             isFocused ? colors.ActionFocus : colors.PanelBorder,
-            isFocused
-                ? activeTheme.Metrics.FocusThickness
-                : activeTheme.Metrics.BorderThickness);
+            UiScaleContext.Pixels(
+                isFocused
+                    ? activeTheme.Metrics.FocusThickness
+                    : activeTheme.Metrics.BorderThickness));
 
         UiPrimitives.DrawCenteredText(
             spriteBatch,
@@ -171,20 +177,29 @@ internal sealed class UiThemeSelector
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(_textRoles.SelectorLabel),
-            "VISUAL THEME",
-            new Vector2(centerX, Bounds.Top + _layout.LabelTopOffset),
+            GetSelectorLabelText(activeTheme.Id),
+            new Vector2(
+                centerX,
+                Bounds.Top +
+                    UiScaleContext.Pixels(_layout.LabelTopOffset)),
             colors.TextSecondary);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(_textRoles.SelectorName),
             activeTheme.DisplayName,
-            new Vector2(centerX, Bounds.Top + _layout.NameTopOffset),
+            new Vector2(
+                centerX,
+                Bounds.Top +
+                    UiScaleContext.Pixels(_layout.NameTopOffset)),
             colors.TextPrimary);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(_textRoles.SelectorMarker),
             GetSelectedMarkerText(activeTheme.Id),
-            new Vector2(centerX, Bounds.Top + _layout.MarkerTopOffset),
+            new Vector2(
+                centerX,
+                Bounds.Top +
+                    UiScaleContext.Pixels(_layout.MarkerTopOffset)),
             colors.Selection);
 
         var swatches = new[]
@@ -196,22 +211,32 @@ internal sealed class UiThemeSelector
             colors.Selection,
         };
         var totalWidth =
-            (swatches.Length * _layout.SwatchWidth) +
-            ((swatches.Length - 1) * _layout.SwatchGap);
+            (swatches.Length *
+                UiScaleContext.Pixels(_layout.SwatchWidth)) +
+            ((swatches.Length - 1) *
+                UiScaleContext.Pixels(_layout.SwatchGap));
         var left = centerX - (totalWidth / 2);
         var top =
-            Bounds.Bottom - _layout.Padding - _layout.SwatchHeight;
+            Bounds.Bottom -
+            UiScaleContext.Pixels(_layout.Padding) -
+            UiScaleContext.Pixels(_layout.SwatchHeight);
         for (var index = 0; index < swatches.Length; index++)
         {
             var swatch = new Rectangle(
                 left + (index *
-                    (_layout.SwatchWidth + _layout.SwatchGap)),
+                    (UiScaleContext.Pixels(_layout.SwatchWidth) +
+                        UiScaleContext.Pixels(_layout.SwatchGap))),
                 top,
-                _layout.SwatchWidth,
-                _layout.SwatchHeight);
+                UiScaleContext.Pixels(_layout.SwatchWidth),
+                UiScaleContext.Pixels(_layout.SwatchHeight));
             spriteBatch.Draw(pixel, swatch, swatches[index]);
         }
     }
+
+    private int GetArrowWidth() =>
+        Math.Max(
+            UiScaleContext.Pixels(_layout.ArrowWidth),
+            UiScaleContext.Pixels(_layout.MinimumTargetSize));
 
     private string GetRelativeId(string currentId, int direction)
     {

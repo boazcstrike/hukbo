@@ -1,10 +1,12 @@
 using Hukbo.Client.Audio;
+using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Tests;
 
+[Collection(UiScaleContextCollectionDefinition.Name)]
 public sealed class SoundLogPanelTests
 {
     private static readonly Rectangle PanelBounds = new(900, 400, 420, 300);
@@ -33,6 +35,27 @@ public sealed class SoundLogPanelTests
             layout.BindingRowsBounds.Top >= layout.BindingsBounds.Top);
         Assert.True(layout.CueListBounds.Top >= layout.BindingsBounds.Bottom);
         Assert.True(layout.CueRowsBounds.Top >= layout.CueListBounds.Top);
+    }
+
+    [Fact]
+    public void CalculateLayout_ScalesChromeAndRowsAtTwoHundredPercent()
+    {
+        WithScale(
+            UiScale.Percent200,
+            () =>
+            {
+                var bounds = new Rectangle(100, 100, 840, 1600);
+                var layout = SoundLogPanel.CalculateLayout(bounds);
+
+                Assert.Equal(40, SoundLogPanel.BindingRowHeight);
+                Assert.Equal(40, SoundLogPanel.CueRowHeight);
+                Assert.Equal(36, SoundLogPanel.MinimumThumbHeight);
+                Assert.Equal(20, layout.HeaderBounds.Left - bounds.Left);
+                Assert.Equal(124, layout.HeaderBounds.Height);
+                Assert.Equal(108, layout.MuteBounds.Width);
+                Assert.Equal(78, SoundLogPanel.HeaderCaptionTopOffset);
+                Assert.Equal(4, layout.PathBounds.Top - layout.HeaderBounds.Bottom);
+            });
     }
 
     [Fact]
@@ -501,5 +524,18 @@ public sealed class SoundLogPanelTests
             "Themes",
             "ui-theme-standards.json");
         return UiThemeCatalog.Load(path).GetRequired("command");
+    }
+
+    private static void WithScale(UiScale scale, Action assertion)
+    {
+        try
+        {
+            UiScaleContext.Set(scale);
+            assertion();
+        }
+        finally
+        {
+            UiScaleContext.Set(UiScale.Percent100);
+        }
     }
 }

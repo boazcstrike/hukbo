@@ -1,8 +1,12 @@
+using Hukbo.Client.Presentation;
+using Hukbo.Client.Settings;
+using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Tests;
 
+[Collection(UiScaleContextCollectionDefinition.Name)]
 public sealed class BattleReportLayoutTests
 {
     [Theory]
@@ -121,6 +125,29 @@ public sealed class BattleReportLayoutTests
     }
 
     [Fact]
+    public void Calculate_ScalesPanelChromeAndRowsAtTwoHundredPercent()
+    {
+        WithScale(
+            UiScale.Percent200,
+            () =>
+            {
+                var layout = BattleReportLayout.Calculate(
+                    new Rectangle(0, 0, 3200, 2000));
+
+                Assert.Equal(1440, layout.Bounds.Width);
+                Assert.Equal(1120, layout.Bounds.Height);
+                Assert.Equal(32, layout.HeaderBounds.Left - layout.Bounds.Left);
+                Assert.Equal(80, layout.HeaderBounds.Height);
+                Assert.Equal(56, layout.CloseButtonBounds.Width);
+                Assert.Equal(96, layout.FactionTotalsBounds.Height);
+                Assert.Equal(160, layout.HighlightsBounds.Height);
+                Assert.Equal(50, layout.LeaderboardHeaderBounds.Height);
+                Assert.Equal(60, BattleReportLayout.RowHeight);
+                Assert.Equal(16, layout.ScrollbarBounds.Width);
+            });
+    }
+
+    [Fact]
     public void GetVisibleRowCount_MatchesListHeightDividedByRowHeight()
     {
         var layout = BattleReportLayout.Calculate(new Rectangle(0, 0, 1600, 1000));
@@ -139,6 +166,40 @@ public sealed class BattleReportLayoutTests
         Assert.Equal(0, BattleReportLayout.GetVisibleRowCount(layout));
     }
 
+    [Fact]
+    public void PanelEntranceMotion_PreservesFinalBoundsAndOffSnaps()
+    {
+        var panel = new BattleReportPanel();
+        var report = new BattleReport(
+            TerminalTick: 1,
+            Leaderboard: [],
+            Factions: [],
+            FirstBlood: null,
+            DecisiveKill: null,
+            LongestSurvivor: null);
+        var arena = new Rectangle(0, 0, 1600, 1000);
+
+        panel.Update(
+            new InputEdges(),
+            report,
+            arena,
+            TimeSpan.FromMilliseconds(40),
+            MotionIntensity.Full);
+        var enteringBounds = panel.Bounds;
+
+        Assert.InRange(panel.EntranceOpacity, 0.001f, 0.999f);
+
+        panel.Update(
+            new InputEdges(),
+            report,
+            arena,
+            TimeSpan.Zero,
+            MotionIntensity.Off);
+
+        Assert.Equal(1f, panel.EntranceOpacity);
+        Assert.Equal(enteringBounds, panel.Bounds);
+    }
+
     private static void AssertInside(Rectangle outer, Rectangle inner)
     {
         Assert.True(inner.Width >= 0);
@@ -147,5 +208,18 @@ public sealed class BattleReportLayoutTests
         Assert.True(inner.Top >= outer.Top);
         Assert.True(inner.Right <= outer.Right);
         Assert.True(inner.Bottom <= outer.Bottom);
+    }
+
+    private static void WithScale(UiScale scale, Action assertion)
+    {
+        try
+        {
+            UiScaleContext.Set(scale);
+            assertion();
+        }
+        finally
+        {
+            UiScaleContext.Set(UiScale.Percent100);
+        }
     }
 }

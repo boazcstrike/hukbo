@@ -19,16 +19,17 @@ public sealed class ShieldVisualCatalogTests
     // checks below. Kept local rather than importing the production types
     // that own them, matching WeaponVisualCatalogTests' own convention. ---
 
-    // The five shipped themes' ArenaSurface/ArenaBorder pair, lerped to
+    // The six shipped themes' ArenaSurface/ArenaBorder pair, lerped to
     // PlainsBackdropGeometry.MaximumBackdropInterpolation (0.22) — the
     // worst-case ground shade VIS-005's own text names. Hex values mirror
     // src/Hukbo.Client/Content/Themes/ui-theme-standards.json (command,
-    // field-manual, signal, broadcast, high-contrast).
+    // field-manual, signal, broadcast, high-contrast, datu-court).
     private static readonly Color GroundShadeCommand = new(40, 54, 73);
     private static readonly Color GroundShadeFieldManual = new(201, 185, 146);
     private static readonly Color GroundShadeSignal = new(26, 42, 46);
     private static readonly Color GroundShadeBroadcast = new(212, 217, 222);
     private static readonly Color GroundShadeHighContrast = new(56, 56, 56);
+    private static readonly Color GroundShadeDatuCourt = new(101, 99, 63);
 
     private static readonly Color[] AllGroundShades =
     [
@@ -37,6 +38,7 @@ public sealed class ShieldVisualCatalogTests
         GroundShadeSignal,
         GroundShadeBroadcast,
         GroundShadeHighContrast,
+        GroundShadeDatuCourt,
     ];
 
     // PawnAppearanceFactory's private clothing-color set, mirrored here the
@@ -455,7 +457,7 @@ public sealed class ShieldVisualCatalogTests
     }
 
     [Fact]
-    public void PalmWoodPale_ClearsTheGroundEnvelopeAgainstFourOfTheFiveThemes()
+    public void PalmWoodPale_ClearsTheGroundEnvelopeAgainstFiveOfTheSixThemes()
     {
         Assert.True(ContrastEnvelope.IsWithinEnvelope(
             ShieldVisualCatalog.PalmWoodPale,
@@ -464,6 +466,7 @@ public sealed class ShieldVisualCatalogTests
                 GroundShadeSignal,
                 GroundShadeBroadcast,
                 GroundShadeHighContrast,
+                GroundShadeDatuCourt,
             ],
             ContrastEnvelope.MinimumGroundDistance));
     }
@@ -544,11 +547,15 @@ public sealed class ShieldVisualCatalogTests
     }
 
     [Fact]
-    public void BoxerCagayanFaceColor_ClearsTheGroundEnvelopeAgainstTheLighterThemes()
+    public void BoxerCagayanFaceColor_ClearsTheGroundEnvelopeAgainstItsSafeThemes()
     {
         Assert.True(ContrastEnvelope.IsWithinEnvelope(
             ShieldVisualCatalog.BoxerCagayan.FaceColor,
-            [GroundShadeFieldManual, GroundShadeBroadcast],
+            [
+                GroundShadeFieldManual,
+                GroundShadeBroadcast,
+                GroundShadeDatuCourt,
+            ],
             ContrastEnvelope.MinimumGroundDistance));
     }
 

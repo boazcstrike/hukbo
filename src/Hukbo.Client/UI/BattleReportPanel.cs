@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -36,13 +37,30 @@ internal sealed class BattleReportPanel
 
     private int _scrollStart;
     private Point _pointerPosition;
+    private readonly UiEntranceMotion _entrance = new();
+    private bool _wasVisible;
 
     public Rectangle Bounds { get; private set; }
+
+    internal float EntranceOpacity => _entrance.PanelOpacity;
 
     public UiInteraction Update(
         InputEdges input,
         BattleReport? report,
-        Rectangle arenaContentBounds)
+        Rectangle arenaContentBounds) =>
+        Update(
+            input,
+            report,
+            arenaContentBounds,
+            TimeSpan.Zero,
+            MotionIntensity.Off);
+
+    public UiInteraction Update(
+        InputEdges input,
+        BattleReport? report,
+        Rectangle arenaContentBounds,
+        TimeSpan elapsed,
+        MotionIntensity motionIntensity)
     {
         _pointerPosition = input.MousePosition;
 
@@ -50,9 +68,22 @@ internal sealed class BattleReportPanel
         {
             Bounds = Rectangle.Empty;
             _scrollStart = 0;
+            _wasVisible = false;
+            _entrance.Reset();
             return UiInteraction.None;
         }
 
+        if (!_wasVisible)
+        {
+            _wasVisible = true;
+            _entrance.Begin();
+        }
+
+        _entrance.Advance(
+            elapsed,
+            motionIntensity,
+            UiEntranceMotion.ReportPanelDuration,
+            hasScrim: false);
         var layout = BattleReportLayout.Calculate(arenaContentBounds);
         Bounds = layout.Bounds;
         var pointerInside = Bounds.Contains(input.MousePosition);
@@ -117,6 +148,7 @@ internal sealed class BattleReportPanel
 
         var layout = BattleReportLayout.Calculate(arenaContentBounds);
         Bounds = layout.Bounds;
+        theme = UiMotionTheme.WithOpacity(theme, EntranceOpacity);
         var visibleRowCount = BattleReportLayout.GetVisibleRowCount(layout);
         ClampScroll(report.Leaderboard.Count, visibleRowCount);
 
@@ -126,7 +158,9 @@ internal sealed class BattleReportPanel
             pixel,
             Bounds,
             theme.Colors.PanelBorder,
-            Math.Max(3, theme.Metrics.BorderThickness));
+            Math.Max(
+                UiScaleContext.Pixels(3),
+                UiScaleContext.Pixels(theme.Metrics.BorderThickness)));
 
         DrawHeader(spriteBatch, pixel, fonts, layout, theme);
         DrawFactionTotals(spriteBatch, fonts, report, layout, scenarioSeed, theme);
@@ -194,7 +228,7 @@ internal sealed class BattleReportPanel
             pixel,
             layout.CloseButtonBounds,
             theme.Colors.PanelBorder,
-            1);
+            UiScaleContext.Pixels(1));
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(UiFontRole.Label),
@@ -247,7 +281,8 @@ internal sealed class BattleReportPanel
                 line,
                 new Vector2(
                     layout.FactionTotalsBounds.Left,
-                    layout.FactionTotalsBounds.Top + (index * 24)),
+                    layout.FactionTotalsBounds.Top +
+                    (index * UiScaleContext.Pixels(24))),
                 factionColor);
         }
     }
@@ -299,7 +334,8 @@ internal sealed class BattleReportPanel
                 lines[index],
                 new Vector2(
                     layout.HighlightsBounds.Left,
-                    layout.HighlightsBounds.Top + (index * 20)),
+                    layout.HighlightsBounds.Top +
+                    (index * UiScaleContext.Pixels(20))),
                 theme.Colors.TextSecondary);
         }
     }
@@ -352,7 +388,7 @@ internal sealed class BattleReportPanel
         var rowWidth = layout.LeaderboardListBounds.Width;
         var maximumCharacters = Math.Max(
             8,
-            rowWidth / UiFontRamp.GetApproximateAdvancePx(UiFontRole.Caption));
+            rowWidth / fonts.GetApproximateAdvancePx(UiFontRole.Caption));
 
         for (var offset = 0; offset < visibleRowCount; offset++)
         {
@@ -383,7 +419,7 @@ internal sealed class BattleReportPanel
                 new Rectangle(
                     rowBounds.Left,
                     rowBounds.Top,
-                    Math.Min(4, rowBounds.Width),
+                    Math.Min(UiScaleContext.Pixels(4), rowBounds.Width),
                     rowBounds.Height),
                 factionColor);
 
@@ -391,7 +427,9 @@ internal sealed class BattleReportPanel
                 spriteBatch,
                 captionFont,
                 ClipRow(FormatRow(row, scenarioSeed), maximumCharacters),
-                new Vector2(rowBounds.Left + 10, rowBounds.Top + 6),
+                new Vector2(
+                    rowBounds.Left + UiScaleContext.Pixels(10),
+                    rowBounds.Top + UiScaleContext.Pixels(6)),
                 theme.Colors.TextPrimary);
         }
     }

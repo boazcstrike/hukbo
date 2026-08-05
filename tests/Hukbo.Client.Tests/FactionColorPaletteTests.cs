@@ -37,6 +37,7 @@ public sealed class FactionColorPaletteTests
     [InlineData("signal")]
     [InlineData("broadcast")]
     [InlineData("high-contrast")]
+    [InlineData("datu-court")]
     public void ContingentZeroReturnsTheUnmodifiedBaseColorUnderEveryNonNoneState(
         string themeId)
     {
@@ -65,6 +66,7 @@ public sealed class FactionColorPaletteTests
     [InlineData("signal")]
     [InlineData("broadcast")]
     [InlineData("high-contrast")]
+    [InlineData("datu-court")]
     public void ContingentStateNoneAlwaysReturnsTheUnmodifiedBaseColor(
         string themeId)
     {
@@ -103,6 +105,7 @@ public sealed class FactionColorPaletteTests
     [InlineData("signal")]
     [InlineData("broadcast")]
     [InlineData("high-contrast")]
+    [InlineData("datu-court")]
     public void TheEightContingentTintsArePairwiseDistinctWithinAFaction(
         string themeId)
     {
@@ -134,6 +137,7 @@ public sealed class FactionColorPaletteTests
     [InlineData("signal")]
     [InlineData("broadcast")]
     [InlineData("high-contrast")]
+    [InlineData("datu-court")]
     public void NoContingentTintCollidesWithTheOtherFactionsBaseColor(
         string themeId)
     {
@@ -194,10 +198,10 @@ public sealed class FactionColorPaletteTests
     }
 
     [Fact]
-    public void TheDerivationIsTotalAcrossAllFiveShippedThemes()
+    public void TheDerivationIsTotalAcrossAllSixShippedThemes()
     {
         var catalog = UiThemeCatalog.Load(BuiltInCatalogPath);
-        Assert.Equal(5, catalog.Themes.Count);
+        Assert.Equal(6, catalog.Themes.Count);
 
         foreach (var theme in catalog.Themes)
         {
@@ -209,7 +213,7 @@ public sealed class FactionColorPaletteTests
                 {
                     // No exception, and every channel stays a valid byte —
                     // Color.Lerp already guarantees the latter, but the
-                    // point of this fact is that every one of the five
+                    // point of this fact is that every one of the six
                     // shipped themes reaches this call at all, for both
                     // factions and across the full contingent range.
                     _ = FactionColorPalette.GetContingentGroundTint(

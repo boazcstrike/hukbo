@@ -68,5 +68,6 @@ public static class LogEvents
     // Render channel.
     public const string RenderFrame = "render.frame";
     public const string RenderStarved = "render.starved";
+    public const string RenderViewportChanged = "render.viewport.changed";
     public const string RenderWindow = "render.window";
 }

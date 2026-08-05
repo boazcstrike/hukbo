@@ -1,5 +1,7 @@
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Presentation.Catalogs;
+using Hukbo.Client.Settings;
+using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
@@ -8,6 +10,7 @@ using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.Tests;
 
+[Collection(UiScaleContextCollection.Name)]
 public sealed class AgentInspectorContentTests
 {
     private static readonly AgentView SampleAgent = new(
@@ -207,6 +210,48 @@ public sealed class AgentInspectorContentTests
         var budget = AgentInspectorContent.ComputeContentWidthBudget(0);
 
         Assert.Equal(0, budget);
+    }
+
+    [Fact]
+    public void InspectorGeometry_AtOneHundredPercentPreservesBaselineValues()
+    {
+        AtScale(UiScale.Percent100, () =>
+        {
+            Assert.Equal(
+                277,
+                AgentInspectorContent.ComputeContentWidthBudget(310));
+
+            // This baseline was 833 while MaximumLowerRowCount was 19. The
+            // pressure-interrupt row raised that reservation to 20, and the
+            // panel is sized for the worst case so it does not resize as
+            // conditional rows appear, exactly as the grip row and the
+            // reserved evidence and warrior-name lines already are. One
+            // LineHeight of 24 is therefore the whole difference: 833 + 24.
+            Assert.Equal(
+                857,
+                AgentInspectorContent.ComputeRequiredHeight(
+                    AgentInspectorContent.EvidenceReservedLineCount));
+        });
+    }
+
+    [Fact]
+    public void InspectorGeometry_AtTwoHundredPercentScalesWithoutOverlap()
+    {
+        var baselineHeight = AtScale(
+            UiScale.Percent100,
+            () => AgentInspectorContent.ComputeRequiredHeight(
+                AgentInspectorContent.EvidenceReservedLineCount));
+
+        AtScale(UiScale.Percent200, () =>
+        {
+            Assert.Equal(
+                554,
+                AgentInspectorContent.ComputeContentWidthBudget(620));
+            Assert.Equal(
+                baselineHeight * 2,
+                AgentInspectorContent.ComputeRequiredHeight(
+                    AgentInspectorContent.EvidenceReservedLineCount));
+        });
     }
 
     [Theory]
@@ -1994,6 +2039,31 @@ public sealed class AgentInspectorContentTests
     private static Func<string, float> FixedWidthMeasure(
         float pixelsPerCharacter) =>
         text => text.Length * pixelsPerCharacter;
+
+    private static void AtScale(UiScale scale, Action action)
+    {
+        _ = AtScale(
+            scale,
+            () =>
+            {
+                action();
+                return true;
+            });
+    }
+
+    private static T AtScale<T>(UiScale scale, Func<T> action)
+    {
+        var previous = UiScaleContext.ActiveScale;
+        try
+        {
+            UiScaleContext.Set(scale);
+            return action();
+        }
+        finally
+        {
+            UiScaleContext.Set(previous);
+        }
+    }
 
     // ===== Warrior personal-name inspector lines =====
 
