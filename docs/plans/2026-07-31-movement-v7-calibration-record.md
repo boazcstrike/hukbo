@@ -16,6 +16,12 @@ claims that any of these numbers does.
 
 ## 1. Verdict
 
+> Task **F2** re-ran this matrix on 2026-08-06 against the final pinned values
+> and against a same-session `PersistentContingentsV4` arm, and reproduced every
+> simulation quantity below exactly. **Section 7 carries the final verdict per
+> criterion and is the section to read first.** Sections 1 through 6 are task
+> E1's record and are left as written.
+
 **The design section 2.1 termination bar is not met, and task E1 could not
 meet it at any tuning of the values it owns.**
 
@@ -591,3 +597,163 @@ stays reachable only by explicit selection. No V7 `ContentHash` is pinned here;
 task E2 pins it now that these values are final. Presets V1 through V6 are
 untouched, and their six pinned content hashes and six trajectory digests do
 not move.
+
+---
+
+## 7. Re-measurement and final verdict (task F2)
+
+Date: 2026-08-06. Task **F2** of
+`docs/plans/2026-07-31-movement-v7-pressure-interrupt.md`, run after task E2
+pinned V7's content hash and trajectory digest and after `main` was merged into
+the integration branch.
+
+This section re-runs the design section 2.2 protocol against the final,
+pinned V7 values and compares it to `PersistentContingentsV4`. Both arms were
+measured in the same session on the same machine, twenty cells in total, so the
+`p50Milliseconds` ratio is computed from a denominator measured under the same
+conditions as its numerator rather than from a figure carried over from the
+task A0 baseline document.
+
+### 7.1 What re-measurement is for
+
+Section 4's matrix was captured by task E1, before E2 pinned the digest and
+before `main` merged in. Re-running it answers two separate questions: whether
+the recorded result still holds against the integrated build, and whether the
+result is reproducible at all.
+
+**It is reproducible exactly.** Every simulation quantity in the V7 arm below is
+byte-identical to section 4's — the same terminal ticks, the same outcomes, the
+same survivor counts, the same flip counts, the same flip percentages, and the
+same per-row firing totals of `KP 385, WA 235, KA 560, IT 671, KS 418, IS 482`.
+Only the wall-clock timing columns moved, which is what wall-clock columns do.
+That is an independent confirmation of the F0 determinism property, arrived at
+from a different direction: the same seed and the same build reproduced the same
+battle across two sessions separated by a merge.
+
+### 7.2 The V7 arm, ten cells
+
+```
+movementPreset        : EquipmentRelativeFootworkV7
+combatPreset          : PrecolonialPhilippinesV2 (pinned)
+bodyRadiusRaw         : 4352
+requestedTicks        : 10000
+seeds                 : 1, 2, 3, 5, 8
+agentCounts           : 200, 500
+usesFootwork          : True
+appliesInterrupt      : True
+weightsBasisPoints    : support=5000, damage=3000, allyCollapse=2000
+rowThresholdsBp       : KP=10000 WA=10000 KA=7500 IT=6250 KS=8750 IS=7500
+flipWindow            : ticks 101 through 400 inclusive
+operatingSystem       : Microsoft Windows 10.0.26200
+framework             : .NET 10.0.10
+processArchitecture   : X64
+processorCount        : 20
+
+== Cells: one discarded warm run then one measured run each ==
+agents  seed  terminalTick  outcome           F0    F1     p50(ms)   p95(ms)   max(ms)  warmP50(ms)  flips  flipObs  flip%
+   200     1         10000  Draw                81    82     0.3519    0.4514    1.0322       0.3626   5332    59804    8.92
+   200     2         10000  Draw                30    38     0.1127    0.3670    0.8697       0.1084   3955    58198    6.80
+   200     3         10000  Draw                39    39     0.2191    0.4114    1.3179       0.2125   5194    57846    8.98
+   200     5         10000  Draw                76    68     0.3206    0.4623    1.0333       0.3321   1608    59973    2.68
+   200     8         10000  Draw                27    24     0.0896    0.3738    3.9195       0.0907   6601    55334   11.93
+   500     1         10000  Draw               192   195     1.6607    2.1098    4.6366       1.6662  10818   146080    7.41
+   500     2         10000  Draw               149   144     0.9464    1.7332    2.4619       0.9410  13866   142462    9.73
+   500     3         10000  Draw               122   115     0.7243    1.4303    4.7217       0.7240  10770   135454    7.95
+   500     5         10000  Draw               168   167     1.2188    1.9351    4.0276       1.2199  12649   141524    8.94
+   500     8         10000  Draw               110   102     0.6483    1.5895    4.2109       0.6235  14490   135366   10.70
+
+== Median p50 per agent count, the design section 2.2 budget denominator ==
+   200 agents: median p50 = 0.2191 ms over 5 seeds
+   500 agents: median p50 = 0.9464 ms over 5 seeds
+```
+
+### 7.3 The `PersistentContingentsV4` arm, ten cells
+
+The same harness, the same session, the same pinned combat preset and body
+radius, with only the movement preset changed.
+
+```
+movementPreset        : PersistentContingentsV4
+combatPreset          : PrecolonialPhilippinesV2 (pinned)
+bodyRadiusRaw         : 4352
+requestedTicks        : 10000
+seeds                 : 1, 2, 3, 5, 8
+agentCounts           : 200, 500
+
+agents  seed  terminalTick  outcome           F0    F1     p50(ms)   p95(ms)   max(ms)  warmP50(ms)  flips  flipObs  flip%
+   200     1          1279  Faction0Victory     15     0     0.1314    1.1775    2.4670       0.4584   2020    50991    3.96
+   200     2          1439  Faction0Victory      5     0     0.0637    0.3017    0.5815       0.0676   2286    49521    4.62
+   200     3          2037  Faction1Victory      0     9     0.0616    0.2912    0.4941       0.0635   2078    50692    4.10
+   200     5          2230  Faction1Victory      0     1     0.0637    0.3191    0.4873       0.0625   1938    51461    3.77
+   200     8          2284  Faction0Victory      1     0     0.0551    0.3038    0.5992       0.0540   1700    52613    3.23
+   500     1          2934  Faction0Victory      2     0     0.1370    1.0287    1.7743       0.1422   3331   135805    2.45
+   500     2          2551  Faction0Victory     20     0     0.3912    1.1569    3.4927       0.4262   2812   137344    2.05
+   500     3          4085  Faction0Victory      4     0     0.2281    1.2717    2.7648       0.2962   2073   138670    1.49
+   500     5          2568  Faction0Victory      8     0     0.3383    1.1202    1.6562       0.3400   2460   138577    1.78
+   500     8          4405  Faction1Victory      0     5     0.2356    1.0854    4.3804       0.2458   2304   140785    1.64
+
+== Median p50 per agent count, the design section 2.2 budget denominator ==
+   200 agents: median p50 = 0.0637 ms over 5 seeds
+   500 agents: median p50 = 0.2356 ms over 5 seeds
+```
+
+All ten V4 cells reach a decisive outcome, between 1,279 and 4,405 ticks. That
+range sits inside the 6,000-tick bar and is consistent with the 981-to-2,934
+spread design section 2.1 cited when it chose the bar, the upper end here being
+higher because this arm pins `PrecolonialPhilippinesV2` rather than the shipped
+combat default.
+
+### 7.4 Verdict, per criterion
+
+| Criterion | Source | Requirement | Measured | Verdict |
+| --- | --- | --- | --- | --- |
+| Termination bar | design 2.1 | Every one of ten cells decisive within 6,000 ticks | 0 of 10 decisive; all ten `Draw` at 10,000 | **FAIL** |
+| Phase-flip ceiling | design 2.3 | Redefined metric at or below 25% | 2.68% to 11.93% | **PASS** |
+| `p50` at 200 agents | design 2.2 | At most 2.0× V4, so at most 0.1274 ms | 0.2191 ms against 0.0637 ms = **3.44×** | **FAIL** |
+| `p50` at 500 agents | design 2.2 | At most 2.5× V4, so at most 0.5890 ms | 0.9464 ms against 0.2356 ms = **4.02×** | **FAIL** |
+| `Scenario.MovementPreset` unmoved | decision D6, plan item 8 | Still `PersistentContingentsV4` | Still `PersistentContingentsV4` | **PASS** |
+| Six earlier content hashes unmoved | plan item 2 | Unchanged | Unchanged | **PASS** |
+| Six earlier trajectory digests unmoved | plan item 3 | Unchanged | Unchanged | **PASS** |
+| V7 has its own pin and digest | plan item 4 | Captured once after tuning | Captured by task E2 | **PASS** |
+| Determinism and logging neutrality under V7 | plan F0 | Identical hashes, outcome, event stream | Asserted, and reproduced across sessions here | **PASS** |
+
+**The `p50` failures are recorded as failures, not as deferred work.** Decision
+D2 defers a `p50` overrun only when the termination bar passes. It does not
+pass, so the deferral is unavailable — the point the 2026-08-06 annotation on
+design section 2.2 makes in that document.
+
+Two qualifications belong with those `p50` rows, and neither softens the
+verdict:
+
+1. **The overrun is almost entirely V6's, not the interrupt's.** Section 4.2
+   works this through against the task A0 baseline: V6 measured 0.2984 ms at two
+   hundred agents, *above* V7's reading, and 0.8666 ms at five hundred against
+   V7's 0.9279 ms. Equipment-relative footwork carried this cost before any
+   interrupt existed and at zero firings.
+2. **`ResolveCollisions` remains the flagged suspect**, at 58.11% to 77.44% of
+   tick time per `docs/research/TICK-STAGE-PROFILE.md`. Design section 2.2 is
+   explicit that flagging it is not authorization to touch it, and this task
+   does not touch it.
+
+### 7.5 What this means for V7
+
+The verdict of the workstream is unchanged by re-measurement, and now rests on
+two independent measurement sessions rather than one.
+
+`EquipmentRelativeFootworkV7` ships as a registered, pinned, fully tested preset
+that is reachable only by explicit selection. It fixes a real defect — three of
+six rows could not fire at all under the values task B3 first registered — and
+it delivers all three spectator channels the design specified. It does not meet
+the termination bar, and no tuning of the values this workstream owns meets it,
+because the interrupt's addressable population is the 0.3% of agent-ticks inside
+the attack lifecycle and the standoff lives in the other 99.7%.
+
+`Scenario.MovementPreset` therefore stays `PersistentContingentsV4`. Decision D6
+stands, and this record remains evidence against flipping it.
+
+The next investigation is upstream of the interrupt, in whatever holds
+`FootworkPhase.Refuse` and the regroup posture occupied for 349 ticks out of
+every 350. Section 5 names the candidates — the refuse conditions, the regroup
+cycle, the cohesion duty window, the approach-sidestep rules — and declines to
+choose between them, because nothing measured here distinguishes them. That
+choice needs its own design document, and it is not authorized by this one.

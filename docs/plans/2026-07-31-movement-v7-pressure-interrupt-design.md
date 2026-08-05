@@ -41,6 +41,29 @@ weapon sessions specified, tested, and shipped, and that no spectator can
 discover by watching, which is exactly what
 `SIMULATION-GAME-STANDARDS.md` section 10 question 8 forbids.
 
+> **Annotation, 2026-08-06 (task F2). The premise above — "a warrior in
+> sustained contact spends every tick inside that lifecycle" — is false, and
+> it is the load-bearing sentence of this whole diagnosis.**
+>
+> `docs/plans/2026-07-31-movement-v7-baseline.md` measured the 200-agent seed-1
+> cell directly: 1,140,221 agent-ticks in `FootworkPhase.Refuse` and 338,634
+> regrouping, against 2,216 committing and 2,017 recovering. That is a ratio of
+> about 349 to 1 *against* being inside the attack lifecycle. Warriors are not
+> spending every tick inside it; they are overwhelmingly refusing to enter it
+> at all.
+>
+> The ladder analysis above it remains correct as far as it goes — steps 4 and 5
+> genuinely are unreachable for a warrior inside the lifecycle, and four of six
+> rows genuinely do have a zero-tick window. What is wrong is the inference that
+> this is *why* battles do not resolve. The shadowed steps affect under three
+> tenths of one per cent of the run. The standoff lives in the other 99.7%,
+> upstream of anything this design touches.
+>
+> The original text is left standing because it is the reasoning the whole
+> feature was built on, and section 5 of
+> `docs/plans/2026-07-31-movement-v7-calibration-record.md` traces the
+> measurement that overturned it.
+
 This design adds a **pressure interrupt**: a weighted sum of three signals that,
 when it crosses a per-row threshold, breaks a committed warrior off the attack
 lifecycle and into `FootworkPhase.Disengage`, at the cost of re-charging that
@@ -99,6 +122,21 @@ failure. `ResolveCollisions` already consumes between 58.11% and 77.44% of tick
 time per `docs/research/TICK-STAGE-PROFILE.md`; that is flagged, and flagging is
 not authorization to touch it.
 
+> **Annotation, 2026-08-06 (task F2). This deferral does not apply to V7, and a
+> reader must not invoke it.**
+>
+> The sentence is conditional on V7 meeting the termination bar. V7 does not
+> meet it — no cell does, at any measured tuning — so the antecedent is false
+> and the `p50Milliseconds` overrun is recorded as a plain failure rather than
+> as deferred performance work. Task F2 measures 3.44× against a 2.0× ceiling
+> at two hundred agents and 4.02× against a 2.5× ceiling at five hundred.
+>
+> The overrun is nonetheless not a cost the interrupt introduced. V6 already
+> carried substantially all of it at zero firings, which
+> `docs/plans/2026-07-31-movement-v7-calibration-record.md` section 4.2 works
+> through. That is an observation about where the cost lives, not a licence to
+> defer it under this paragraph.
+
 ### 2.3 The phase-flip criterion (decision D3)
 
 The shared acceptance criterion rejects a preset if the phase or posture flips
@@ -119,6 +157,25 @@ scripted lifecycle, so an interrupt firing does count against the redefined
 ceiling. That is intentional: a preset that interrupts every warrior every few
 ticks is oscillating, and the criterion should say so.
 
+> **Annotation, 2026-08-06 (task F2). The mechanism described here is real, but
+> the criterion cannot bind on this feature, so it does not do the job this
+> paragraph assigns it.**
+>
+> An interrupt firing is counted, exactly as written. What measurement showed is
+> that the interrupt cannot fire often enough to matter to the metric. At the
+> shipped values the redefined flip percentage sits between 2.68% and 11.93%
+> against a ceiling of 25%. Task E1's maximum-intervention probe — the minimum
+> threshold on every row, which makes the predicate fire on every tick it is
+> *capable* of firing on — peaked at 13.47%, still barely half the ceiling.
+>
+> There is no tuning of the weights or the thresholds that pushes this metric
+> past 25%, because the transition-only rule in section 4.3 makes the interrupt
+> eligible on well under one per cent of agent-ticks. The phase-flip ceiling is
+> therefore inert as a guard on the pressure interrupt: it will pass whatever
+> the tuning, and a future session must not read a passing flip percentage as
+> evidence that the interrupt is well behaved. It is evidence only that the
+> interrupt is rare.
+
 ## 3. The nine questions of `SIMULATION-GAME-STANDARDS.md` section 10
 
 ### Question 1 — user-visible outcome
@@ -129,6 +186,19 @@ in the agent inspector, both a running pressure reading against that warrior's
 own threshold and an explicit statement that the warrior broke off under
 pressure rather than disengaging on the ordinary ratio rule. Battles reach a
 decision instead of running to the tick limit.
+
+> **Annotation, 2026-08-06 (task F2). The final sentence is false as shipped.**
+>
+> Battles do not reach a decision. All ten cells of the section 2.2 matrix end
+> `BattleOutcome.Draw` at the 10,000-tick limit under V7, at the shipped values
+> and at every other tuning measured during task E1. The re-measurement in task
+> F2 reproduced that outcome cell for cell.
+>
+> The two inspector channels and the pawn mark in the middle of this paragraph
+> *are* delivered and are covered by tests. What is not delivered is the
+> termination the last sentence promises. A reader taking this section as a
+> statement of shipped behaviour would be misled on the one claim that decided
+> whether the feature succeeded.
 
 Question 8 below is the full spectator answer; this is the plain-language one.
 
@@ -565,6 +635,12 @@ tuning under `CLAUDE.md` section 7. None of them is a historical measurement,
 and none of them is presented as one.** No source describes how a warrior in the
 pre-colonial Philippines decided to break off a committed blow, and this design
 makes no such claim. The values are chosen to make a game terminate.
+
+> **Annotation, 2026-08-06 (task F2).** The provisional-reconstruction labelling
+> above is correct and is honoured by the shipped values. The closing clause is
+> not: the values are chosen to make a game terminate, and no choice of them
+> does. See the annotation under Question 1 and section 5 of
+> `docs/plans/2026-07-31-movement-v7-calibration-record.md`.
 
 ## 5. The arithmetic, in basis points, with overflow analysis
 
