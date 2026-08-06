@@ -69,7 +69,14 @@ internal readonly record struct SwingTrail(
 /// (unarmored, no sash, no accents) or the current
 /// <see cref="PawnDetailTier"/> gates the layer off, exactly the same
 /// "pure output, empty when absent" convention <see cref="ShieldBounds"/>
-/// already uses for an unshielded warrior.
+/// already uses for an unshielded warrior. <see cref="LeftLegBounds"/>,
+/// <see cref="RightLegBounds"/>, <see cref="LeftFootBounds"/>, and
+/// <see cref="RightFootBounds"/> (movement-gait-animation design section 7)
+/// are the leg and foot rectangles between the torso and the ground ring,
+/// built from the pose-invariant leg proportions plus the gait pose the same
+/// way the weapon line is built from the swing pose;
+/// <see cref="Rectangle.Empty"/> at <see cref="PawnDetailTier.Low"/>, where
+/// the ground ring already carries the footprint.
 /// </summary>
 internal readonly record struct PawnLayout(
     Vector2 FootAnchor,
@@ -95,7 +102,11 @@ internal readonly record struct PawnLayout(
     Rectangle PlaceholderBounds,
     Rectangle SelectionBounds,
     Rectangle VisualBounds,
-    SwingTrail SwingTrail);
+    SwingTrail SwingTrail,
+    Rectangle LeftLegBounds,
+    Rectangle RightLegBounds,
+    Rectangle LeftFootBounds,
+    Rectangle RightFootBounds);
 
 /// <summary>
 /// GPU-013. Both answers the arena render loop needs about one pawn, from
@@ -262,6 +273,85 @@ internal static class PawnGeometry
     /// </summary>
     internal const float ShieldPostureRotationRadians = 0.15f;
 
+    // ============= Gait legs and feet (movement-gait-animation design
+    // section 7, T8 correction) =============
+    //
+    // The legs are a real part of the body now, not a decoration squeezed
+    // into whatever gap was left over. CreateTorso used to reserve a fixed
+    // max(1, apparentScale)-unit gap between the torso's own bottom and the
+    // body anchor regardless of how tall the legs were, which left no room
+    // for a visible leg: at LegLengthUnits' old value of 1f, ToSize's
+    // whole-pixel floor rounded the drawn leg body to zero height at almost
+    // every apparent scale, so a moving warrior's stride was invisible. That
+    // constraint is gone. CreateTorso now reserves exactly
+    // <see cref="PawnProportions.TorsoBottomGap"/> — the full scaled leg
+    // length at Medium and High tier, where legs draw — so the leg-plus-foot
+    // band sits between the torso's bottom and the ground ring by
+    // construction rather than by accident, and the neutral (unlifted) foot
+    // lands exactly on the ground ring's bottom edge rather than short of it.
+    // At <see cref="PawnDetailTier.Low"/>, where legs never draw, the gap is
+    // still the original <c>max(1, apparentScale)</c> so a distant pawn's
+    // silhouette is pixel-for-pixel what it always was.
+    //
+    // LegLengthUnits is sized so the leg-plus-foot band reads as roughly
+    // 30-33% of the full head-top-to-foot-anchor silhouette at every apparent
+    // scale from the Medium-tier floor through the clamp maximum: worked out
+    // from TorsoHeightUnits (8), HeadSize's own 7-unit multiplier, and
+    // HeadGap's own 1-unit multiplier as
+    // LegLengthUnits / (7 + 1 + TorsoHeightUnits + LegLengthUnits). This is a
+    // drawing choice, not a measurement — every constant in this section is
+    // PROVISIONAL.
+    //
+    // PawnRenderer.GetBounds' pinned regression rectangle
+    // (PawnGeometryTests.GetBounds_MatchesThePinnedRegressionRectangle) moves
+    // as a direct, deliberate consequence of this restructure: the torso is
+    // shorter and the legs now occupy real, visible space below it.
+
+    /// <summary>
+    /// Torso height per layout unit at unit scale, before
+    /// <see cref="PawnAppearance.StatureMultiplier"/>. Reduced from its
+    /// original <c>12f</c> so the leg-plus-foot band
+    /// (<see cref="LegLengthUnits"/>) has real room to occupy without
+    /// growing the whole silhouette — see this section's own remarks above
+    /// for the worked ratio. A drawing choice, not a measurement.
+    /// </summary>
+    private const float TorsoHeightUnits = 8f;
+
+    /// <summary>PROVISIONAL. Leg width per leg, in layout units at unit scale.</summary>
+    private const float LegWidthUnits = 1.6f;
+
+    /// <summary>
+    /// PROVISIONAL. Full leg-plus-foot vertical span, in layout units at unit
+    /// scale — the distance from the torso's bottom edge down to the ground
+    /// ring's own bottom edge at neutral stance. Raised from its old value of
+    /// <c>1f</c>, which rounded to a zero-height drawn leg body at almost
+    /// every apparent scale (see this section's own remarks above); this
+    /// value is sized instead for a legible ~30-33% leg-band share of the
+    /// silhouette and a stride displacement of at least one whole pixel at
+    /// the Medium-tier floor.
+    /// </summary>
+    private const float LegLengthUnits = 7.5f;
+
+    /// <summary>
+    /// PROVISIONAL. Horizontal separation between each leg's neutral-stance
+    /// center and the body anchor, in layout units at unit scale.
+    /// </summary>
+    private const float LegGapUnits = 1.5f;
+
+    /// <summary>PROVISIONAL. Foot width, in layout units at unit scale.</summary>
+    private const float FootWidthUnits = 2.2f;
+
+    /// <summary>
+    /// PROVISIONAL. Foot height, in layout units at unit scale. Raised from
+    /// its old value of <c>0.4f</c>, which rounded to <c>1</c> pixel by
+    /// itself but left the leg body above it — <c>LegLength - FootHeight</c>
+    /// — at zero height, since the two nearly-equal whole-pixel floors
+    /// cancelled out. Sized well below <see cref="LegLengthUnits"/> so the
+    /// leg body keeps a positive whole-pixel height of its own at every
+    /// apparent scale where legs draw at all (Medium tier and up).
+    /// </summary>
+    private const float FootHeightUnits = 2f;
+
     /// <param name="swingPose">
     /// The pose one in-flight swing puts this pawn in, or <c>null</c> for a
     /// pawn standing still. A neutral pose produces the same layout as no pose
@@ -292,6 +382,13 @@ internal static class PawnGeometry
     /// (R-W3.6, "Area cap"). <c>0</c> (the default) is layer 9's no-op
     /// state.
     /// </param>
+    /// <param name="gaitPose">
+    /// The stride pose the warrior's legs and feet are drawn in, or
+    /// <c>null</c> for a pawn standing still (movement-gait-animation design
+    /// section 7). A neutral pose produces the same legs as no pose at all,
+    /// so a caller may pass either, exactly as <paramref name="swingPose"/>
+    /// already allows.
+    /// </param>
     public static PawnLayout Create(
         Vector2 footAnchor,
         float cameraZoom,
@@ -300,7 +397,8 @@ internal static class PawnGeometry
         SwingPose? swingPose = null,
         float armorWidthFactor = 1f,
         bool hasSash = false,
-        int adornmentAccentMarkCount = 0)
+        int adornmentAccentMarkCount = 0,
+        GaitPose? gaitPose = null)
     {
         var proportions = CreateProportions(
             footAnchor,
@@ -317,7 +415,8 @@ internal static class PawnGeometry
             swingPose ?? default,
             armorWidthFactor,
             hasSash,
-            adornmentAccentMarkCount);
+            adornmentAccentMarkCount,
+            gaitPose ?? default);
     }
 
     /// <summary>
@@ -350,7 +449,8 @@ internal static class PawnGeometry
         SwingPose? swingPose = null,
         float armorWidthFactor = 1f,
         bool hasSash = false,
-        int adornmentAccentMarkCount = 0)
+        int adornmentAccentMarkCount = 0,
+        GaitPose? gaitPose = null)
     {
         var prefix = PoseBlindPrefix.Create(
             footAnchor,
@@ -362,7 +462,7 @@ internal static class PawnGeometry
             adornmentAccentMarkCount);
 
         return new PosedPawnGeometry(
-            prefix.CompletePosedLayout(swingPose),
+            prefix.CompletePosedLayout(swingPose, gaitPose),
             prefix.PoseBlindVisualBounds);
     }
 
@@ -493,12 +593,19 @@ internal static class PawnGeometry
         /// <see cref="PawnGeometry.Create"/>. A neutral pose produces the same
         /// layout as no pose at all, so a caller may pass either.
         /// </param>
+        /// <param name="gaitPose">
+        /// The stride pose the legs and feet are drawn in, or <c>null</c> for
+        /// a pawn standing still, exactly as on
+        /// <see cref="PawnGeometry.Create"/>.
+        /// </param>
         /// <remarks>
         /// Nothing stops a caller finishing the same prefix more than once
         /// with different poses: the prefix is a value, the stage is pure, and
         /// the proportions a pose cannot change are shared by every result.
         /// </remarks>
-        public PawnLayout CompletePosedLayout(SwingPose? swingPose = null) =>
+        public PawnLayout CompletePosedLayout(
+            SwingPose? swingPose = null,
+            GaitPose? gaitPose = null) =>
             CreateLayout(
                 _proportions,
                 _footAnchor,
@@ -506,7 +613,8 @@ internal static class PawnGeometry
                 swingPose ?? default,
                 _armorWidthFactor,
                 _hasSash,
-                _adornmentAccentMarkCount);
+                _adornmentAccentMarkCount,
+                gaitPose ?? default);
     }
 
     /// <summary>
@@ -569,12 +677,29 @@ internal static class PawnGeometry
             ringHeight);
 
         var torsoHeight = ToSize(
-            12f * appearance.StatureMultiplier * apparentScale);
+            TorsoHeightUnits * appearance.StatureMultiplier * apparentScale);
         var torsoWidth = ToSize(
             7f * appearance.BuildMultiplier * apparentScale);
         var headSize = ToSize(7f * apparentScale);
         var headGap = ToSize(apparentScale);
         var headTreatmentHeight = Math.Max(1, ToSize(2.6f * apparentScale));
+
+        var legWidth = ToSize(LegWidthUnits * apparentScale);
+        var legLength = ToSize(LegLengthUnits * apparentScale);
+        var legGap = LegGapUnits * apparentScale;
+        var footWidth = ToSize(FootWidthUnits * apparentScale);
+        var footHeight = ToSize(FootHeightUnits * apparentScale);
+
+        // Low tier never draws legs (design section 9), so the torso keeps
+        // sitting in the same small max(1, apparentScale) gap above the
+        // ground ring it always has — a distant pawn's silhouette is
+        // pixel-for-pixel unchanged. Medium and High tier reserve the full
+        // scaled leg length instead, so the leg-plus-foot band has real room
+        // between the torso's bottom and the ground ring (see this class's
+        // gait remarks above).
+        var torsoBottomGap = detailTier == PawnDetailTier.Low
+            ? MathF.Max(1f, apparentScale)
+            : legLength;
 
         return new PawnProportions(
             apparentScale,
@@ -582,6 +707,7 @@ internal static class PawnGeometry
             groundRingBounds,
             torsoWidth,
             torsoHeight,
+            torsoBottomGap,
             headSize,
             headGap,
             headTreatmentHeight,
@@ -589,7 +715,12 @@ internal static class PawnGeometry
                 footAnchor,
                 apparentScale,
                 appearance.ShieldSkinId,
-                detailTier));
+                detailTier),
+            legWidth,
+            legLength,
+            legGap,
+            footWidth,
+            footHeight);
     }
 
     /// <summary>
@@ -603,15 +734,25 @@ internal static class PawnGeometry
         SwingPose pose,
         float armorWidthFactor,
         bool hasSash,
-        int adornmentAccentMarkCount)
+        int adornmentAccentMarkCount,
+        GaitPose gaitPose)
     {
         var apparentScale = proportions.ApparentScale;
         var detailTier = proportions.DetailTier;
 
         // The feet stay planted, so the ground ring keeps the foot anchor
         // while everything the warrior can lean moves with the torso.
-        var bodyAnchor = CreateBodyAnchor(footAnchor, apparentScale, pose);
-        var torsoBounds = CreateTorso(bodyAnchor, apparentScale, proportions);
+        var bodyAnchor = CreateBodyAnchor(footAnchor, apparentScale, pose, gaitPose);
+        var torsoBounds = CreateTorso(bodyAnchor, proportions);
+        var legs = CreateLegsAndFeet(
+            bodyAnchor,
+            torsoBounds,
+            proportions,
+            detailTier,
+            gaitPose);
+        var legsBounds = Rectangle.Union(
+            Rectangle.Union(legs.LeftLeg, legs.RightLeg),
+            Rectangle.Union(legs.LeftFoot, legs.RightFoot));
         var headBounds = CreateHead(bodyAnchor, torsoBounds, proportions);
         var headTreatmentBounds = CreateHeadTreatment(headBounds, proportions);
 
@@ -623,10 +764,21 @@ internal static class PawnGeometry
         // instead of nothing. Inscribed within TorsoBounds (never larger),
         // so it never grows VisualBounds beyond what the torso already
         // contributes and never disturbs PawnRenderer.GetBounds.
+        // T8: built from torsoBounds' own integer edges rather than through
+        // CenteredRectangle's float-rounded center. TorsoHeightUnits shrank
+        // for the leg restructure (this class's gait remarks above), which
+        // now lands on an odd torsoBounds.Height at some scales; Rectangle's
+        // integer-truncating Center combined with CenteredRectangle's own
+        // round-half-to-even could then place the placeholder's top edge one
+        // pixel above torsoBounds' own top, breaking the inscribed-square
+        // guarantee this rectangle exists to keep. This formula can never do
+        // that: placeholderSide never exceeds either torso dimension, so both
+        // integer offsets below are non-negative and the far edge never
+        // exceeds torsoBounds' own far edge.
         var placeholderSide = Math.Min(torsoBounds.Width, torsoBounds.Height);
-        var placeholderBounds = CenteredRectangle(
-            torsoBounds.Center.X,
-            torsoBounds.Center.Y,
+        var placeholderBounds = new Rectangle(
+            torsoBounds.X + ((torsoBounds.Width - placeholderSide) / 2),
+            torsoBounds.Y + ((torsoBounds.Height - placeholderSide) / 2),
             placeholderSide,
             placeholderSide);
 
@@ -667,7 +819,8 @@ internal static class PawnGeometry
             weapon.Bounds,
             weapon.SecondaryBounds,
             shield.Bounds,
-            armorBounds);
+            armorBounds,
+            legsBounds);
         var selectionBounds = CreateSelectionBounds(renderedBounds, apparentScale);
         var visualBounds = Rectangle.Union(renderedBounds, selectionBounds);
 
@@ -695,7 +848,11 @@ internal static class PawnGeometry
             placeholderBounds,
             selectionBounds,
             visualBounds,
-            CreateSwingTrail(weapon, apparentScale, detailTier, pose));
+            CreateSwingTrail(weapon, apparentScale, detailTier, pose),
+            legs.LeftLeg,
+            legs.RightLeg,
+            legs.LeftFoot,
+            legs.RightFoot);
     }
 
     /// <summary>
@@ -710,12 +867,20 @@ internal static class PawnGeometry
     /// </summary>
     /// <remarks>
     /// The pose is passed as <see langword="default"/> through the same
-    /// <see cref="CreateBodyAnchor"/> and <see cref="CreateWeaponLayout"/>
-    /// the posed path uses, rather than by omitting the pose terms, so the
-    /// result is identical to <c>PawnRenderer.GetBounds</c> by construction
-    /// rather than by argument. A neutral pose leans by nothing and rotates
-    /// by nothing, which is exactly what <c>swingPose: null</c> means to
-    /// <see cref="Create"/>.
+    /// <see cref="CreateBodyAnchor"/>, <see cref="CreateWeaponLayout"/>, and
+    /// <see cref="CreateLegsAndFeet"/> the posed path uses, rather than by
+    /// omitting the pose terms, so the result is identical to
+    /// <c>PawnRenderer.GetBounds</c> by construction rather than by argument.
+    /// A neutral pose leans by nothing and rotates by nothing, which is
+    /// exactly what <c>swingPose: null</c> means to <see cref="Create"/>, and
+    /// <c>default(GaitPose)</c> is documented as the same "standing still"
+    /// neutral for the legs. This is deliberately the neutral-stance leg
+    /// footprint rather than a stride envelope larger than it: the actual
+    /// gait phase is never read here, which is what keeps two different
+    /// phases at one position producing an identical result, and reading
+    /// <see langword="default"/> unconditionally is what keeps this
+    /// bit-identical to <c>PawnRenderer.GetBounds</c>, which never forwards a
+    /// gait pose at all.
     /// </remarks>
     private static Rectangle CreatePoseBlindVisualBounds(
         in PawnProportions proportions,
@@ -726,8 +891,8 @@ internal static class PawnGeometry
         var apparentScale = proportions.ApparentScale;
         var detailTier = proportions.DetailTier;
 
-        var bodyAnchor = CreateBodyAnchor(footAnchor, apparentScale, default);
-        var torsoBounds = CreateTorso(bodyAnchor, apparentScale, proportions);
+        var bodyAnchor = CreateBodyAnchor(footAnchor, apparentScale, default, default);
+        var torsoBounds = CreateTorso(bodyAnchor, proportions);
         var headBounds = CreateHead(bodyAnchor, torsoBounds, proportions);
         var headTreatmentBounds = CreateHeadTreatment(headBounds, proportions);
         var weapon = CreateWeaponLayout(
@@ -741,6 +906,15 @@ internal static class PawnGeometry
             torsoBounds,
             appearance.ShieldRole);
         var armorBounds = CreateArmor(torsoBounds, detailTier, armorWidthFactor);
+        var legs = CreateLegsAndFeet(
+            bodyAnchor,
+            torsoBounds,
+            proportions,
+            detailTier,
+            default);
+        var legsBounds = Rectangle.Union(
+            Rectangle.Union(legs.LeftLeg, legs.RightLeg),
+            Rectangle.Union(legs.LeftFoot, legs.RightFoot));
 
         var renderedBounds = CreateRenderedBounds(
             proportions.GroundRingBounds,
@@ -750,7 +924,8 @@ internal static class PawnGeometry
             weapon.Bounds,
             weapon.SecondaryBounds,
             shieldBounds,
-            armorBounds);
+            armorBounds,
+            legsBounds);
 
         return Rectangle.Union(
             renderedBounds,
@@ -760,23 +935,27 @@ internal static class PawnGeometry
     /// <summary>
     /// Where the torso, and everything that leans with it, is centred. The
     /// lean is the only way a pose moves the body; a neutral pose leaves the
-    /// body on the foot anchor exactly.
+    /// body on the foot anchor exactly. Sums the swing pose's lean with the
+    /// gait pose's own <see cref="GaitPose.TorsoLeanX"/>/
+    /// <see cref="GaitPose.TorsoLeanY"/> (nonzero only at
+    /// <see cref="GaitMode.Run"/>), the same way the two are independent,
+    /// additive channels on the pose types themselves.
     /// </summary>
     private static Vector2 CreateBodyAnchor(
         Vector2 footAnchor,
         float apparentScale,
-        SwingPose pose) =>
+        SwingPose pose,
+        GaitPose gaitPose) =>
         footAnchor + new Vector2(
-            pose.TorsoLeanX * apparentScale,
-            pose.TorsoLeanY * apparentScale);
+            (pose.TorsoLeanX + gaitPose.TorsoLeanX) * apparentScale,
+            (pose.TorsoLeanY + gaitPose.TorsoLeanY) * apparentScale);
 
     private static Rectangle CreateTorso(
         Vector2 bodyAnchor,
-        float apparentScale,
         in PawnProportions proportions)
     {
         var torsoBottom = (int)MathF.Round(
-            bodyAnchor.Y - MathF.Max(1f, apparentScale));
+            bodyAnchor.Y - proportions.TorsoBottomGap);
 
         return new Rectangle(
             (int)MathF.Round(bodyAnchor.X - (proportions.TorsoWidth / 2f)),
@@ -805,6 +984,106 @@ internal static class PawnGeometry
             proportions.HeadTreatmentHeight);
 
     /// <summary>
+    /// The four leg and foot rectangles a warrior draws between the torso's
+    /// bottom and the ground ring (movement-gait-animation design section
+    /// 7), built from the pose-invariant leg proportions plus
+    /// <paramref name="gaitPose"/>. Mirrors <see cref="CreateWeaponLayout"/>'s
+    /// own shape: a pure function of the anchor, the proportions, the tier,
+    /// and one pose, called once with the actual gait pose by
+    /// <see cref="CreateLayout"/> and once with
+    /// <see langword="default"/>(<see cref="GaitPose"/>) by
+    /// <see cref="CreatePoseBlindVisualBounds"/>, exactly as
+    /// <see cref="CreateBodyAnchor"/> and <see cref="CreateWeaponLayout"/>
+    /// already are.
+    /// </summary>
+    /// <remarks>
+    /// <see langword="default"/>(<see cref="LegLayout"/>) — four
+    /// <see cref="Rectangle.Empty"/> rectangles — at
+    /// <see cref="PawnDetailTier.Low"/> (design section 9's detail-tier
+    /// table), where a pawn is a handful of pixels tall and the ground ring
+    /// already carries the footprint. <see cref="GaitPose.LeftLegOffsetRatio"/>
+    /// and <see cref="GaitPose.RightLegOffsetRatio"/> are direction-agnostic
+    /// on the pose itself, so this is where
+    /// <see cref="GaitPose.DirectionSign"/> is applied, matching that field's
+    /// own documented contract.
+    /// </remarks>
+    private static LegLayout CreateLegsAndFeet(
+        Vector2 bodyAnchor,
+        Rectangle torsoBounds,
+        in PawnProportions proportions,
+        PawnDetailTier detailTier,
+        GaitPose gaitPose)
+    {
+        if (detailTier == PawnDetailTier.Low)
+        {
+            return default;
+        }
+
+        var legTop = torsoBounds.Bottom;
+        var legBaseHeight = Math.Max(
+            0,
+            proportions.LegLength - proportions.FootHeight);
+
+        var leftCenterX = bodyAnchor.X - proportions.LegGap +
+            (gaitPose.LeftLegOffsetRatio * gaitPose.DirectionSign * proportions.LegLength);
+        var rightCenterX = bodyAnchor.X + proportions.LegGap +
+            (gaitPose.RightLegOffsetRatio * gaitPose.DirectionSign * proportions.LegLength);
+        var leftLiftY = gaitPose.LeftFootLiftRatio * proportions.LegLength;
+        var rightLiftY = gaitPose.RightFootLiftRatio * proportions.LegLength;
+
+        var leftLeg = BuildLeg(
+            leftCenterX,
+            legTop,
+            leftLiftY,
+            legBaseHeight,
+            proportions.LegWidth);
+        var rightLeg = BuildLeg(
+            rightCenterX,
+            legTop,
+            rightLiftY,
+            legBaseHeight,
+            proportions.LegWidth);
+        var leftFoot = BuildFoot(leftLeg, proportions.FootWidth, proportions.FootHeight);
+        var rightFoot = BuildFoot(rightLeg, proportions.FootWidth, proportions.FootHeight);
+
+        return new LegLayout(leftLeg, rightLeg, leftFoot, rightFoot);
+    }
+
+    /// <summary>
+    /// One leg rectangle: horizontally centred on <paramref name="centerX"/>,
+    /// rising <paramref name="liftY"/> layout pixels above
+    /// <paramref name="legTop"/> when the gait pose lifts that leg.
+    /// </summary>
+    private static Rectangle BuildLeg(
+        float centerX,
+        int legTop,
+        float liftY,
+        int legBaseHeight,
+        int legWidth)
+    {
+        var top = legTop - (int)MathF.Round(liftY);
+        return new Rectangle(
+            (int)MathF.Round(centerX - (legWidth / 2f)),
+            top,
+            legWidth,
+            legBaseHeight);
+    }
+
+    /// <summary>
+    /// The foot directly beneath <paramref name="leg"/>, so a lifted leg's
+    /// foot rises with it.
+    /// </summary>
+    private static Rectangle BuildFoot(
+        Rectangle leg,
+        int footWidth,
+        int footHeight) =>
+        new(
+            (int)MathF.Round(leg.Center.X - (footWidth / 2f)),
+            leg.Bottom,
+            footWidth,
+            footHeight);
+
+    /// <summary>
     /// The union every drawn layer sits inside, in the one order both the
     /// posed layout and the pose-blind bounds walk it. Sole authority for
     /// which layers contribute, so the two callers can never drift apart on
@@ -814,9 +1093,11 @@ internal static class PawnGeometry
     /// The sash, the adornment accents, and the diagnostic placeholder are
     /// absent deliberately: each is inscribed inside the torso or head
     /// footprint by construction — see each helper's own remarks — so none of
-    /// them can grow this rectangle. <paramref name="armorBounds"/> is the
-    /// one composed layer that can extend past the torso it widens, so it is
-    /// the one that has to be folded in.
+    /// them can grow this rectangle. <paramref name="armorBounds"/> is a
+    /// composed layer that can extend past the torso it widens, and
+    /// <paramref name="legsBounds"/> (movement-gait-animation design section
+    /// 7) sits below the torso rather than inside it, so both have to be
+    /// folded in explicitly.
     /// </remarks>
     private static Rectangle CreateRenderedBounds(
         Rectangle groundRingBounds,
@@ -826,7 +1107,8 @@ internal static class PawnGeometry
         Rectangle weaponBounds,
         Rectangle weaponSecondaryBounds,
         Rectangle shieldBounds,
-        Rectangle armorBounds)
+        Rectangle armorBounds,
+        Rectangle legsBounds)
     {
         var renderedBounds = Rectangle.Union(groundRingBounds, torsoBounds);
         renderedBounds = Rectangle.Union(renderedBounds, headBounds);
@@ -848,6 +1130,11 @@ internal static class PawnGeometry
         if (!armorBounds.IsEmpty)
         {
             renderedBounds = Rectangle.Union(renderedBounds, armorBounds);
+        }
+
+        if (!legsBounds.IsEmpty)
+        {
+            renderedBounds = Rectangle.Union(renderedBounds, legsBounds);
         }
 
         return renderedBounds;
@@ -1370,6 +1657,20 @@ internal static class PawnGeometry
         Rectangle SecondaryBounds);
 
     /// <summary>
+    /// The four rectangles <see cref="CreateLegsAndFeet"/> produces.
+    /// <see langword="default"/> — four <see cref="Rectangle.Empty"/>
+    /// rectangles — is the <see cref="PawnDetailTier.Low"/> result, and their
+    /// union collapses to <see cref="Rectangle.Empty"/> in that case, the
+    /// same "empty when absent" convention every other optional layer in this
+    /// class already uses.
+    /// </summary>
+    private readonly record struct LegLayout(
+        Rectangle LeftLeg,
+        Rectangle RightLeg,
+        Rectangle LeftFoot,
+        Rectangle RightFoot);
+
+    /// <summary>
     /// GPU-013. The pose-invariant half of a pawn's layout: the values a
     /// swing can never change, computed once per call and read by both the
     /// posed layout and the pose-blind bounds. A pose leans the body and
@@ -1382,16 +1683,35 @@ internal static class PawnGeometry
     /// block rather than of <see cref="CreateShieldRectangle"/> because the
     /// distance is a function of apparent scale alone.
     /// </param>
+    /// <param name="TorsoBottomGap">
+    /// How far above the body anchor the torso's own bottom edge sits
+    /// (movement-gait-animation design section 7, T8 correction): the full
+    /// scaled <see cref="LegLength"/> at Medium and High tier, where the legs
+    /// occupy that band for real, or the original small
+    /// <c>max(1, apparentScale)</c> at <see cref="PawnDetailTier.Low"/>,
+    /// where no legs draw and the torso keeps its pre-gait position exactly.
+    /// </param>
+    /// <param name="LegWidth">See <see cref="LegWidthUnits"/>.</param>
+    /// <param name="LegLength">See <see cref="LegLengthUnits"/>.</param>
+    /// <param name="LegGap">See <see cref="LegGapUnits"/>.</param>
+    /// <param name="FootWidth">See <see cref="FootWidthUnits"/>.</param>
+    /// <param name="FootHeight">See <see cref="FootHeightUnits"/>.</param>
     private readonly record struct PawnProportions(
         float ApparentScale,
         PawnDetailTier DetailTier,
         Rectangle GroundRingBounds,
         int TorsoWidth,
         int TorsoHeight,
+        float TorsoBottomGap,
         int HeadSize,
         int HeadGap,
         int HeadTreatmentHeight,
-        ShieldBlock Shield);
+        ShieldBlock Shield,
+        int LegWidth,
+        int LegLength,
+        float LegGap,
+        int FootWidth,
+        int FootHeight);
 
     /// <param name="Left">
     /// The block's left edge, measured from the planted foot anchor rather

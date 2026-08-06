@@ -140,6 +140,16 @@ public sealed partial class ArenaGame : Game
     /// construction.
     /// </summary>
     private readonly Dictionary<ulong, SwingPose> _swingPoses = [];
+
+    /// <summary>
+    /// Reused each frame, mirroring <see cref="_swingPoses"/> exactly. The
+    /// mapping into it lives in <see cref="GaitPoseResolver"/>; unlike the
+    /// swing poses it is never scaled by playback speed, because
+    /// <see cref="GaitAnimationSystem"/>'s phase already advances by distance
+    /// travelled per ingested tick rather than by elapsed seconds
+    /// (movement-gait-animation-design.md section 4).
+    /// </summary>
+    private readonly Dictionary<ulong, GaitPose> _gaitPoses = [];
     private readonly DiagnosticLog _log;
 
     /// <summary>
@@ -654,6 +664,11 @@ public sealed partial class ArenaGame : Game
             _presentation.Swings,
             _simulation.Agents,
             _swingPoses);
+        GaitPoseResolver.Resolve(
+            _presentation.Gait,
+            _simulation.Agents,
+            _motionManager.Value,
+            _gaitPoses);
         var screenBounds = GraphicsDevice.Viewport.Bounds;
         _fonts?.SelectScale(
             _configuredUiScale,

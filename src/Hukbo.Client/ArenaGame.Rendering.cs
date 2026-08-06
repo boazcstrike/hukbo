@@ -958,6 +958,12 @@ public sealed partial class ArenaGame
                 out var pose)
                 ? pose
                 : (SwingPose?)null;
+            var gaitPose = GaitPoseResolver.TryGetPose(
+                _gaitPoses,
+                agent.EntityId,
+                out var resolvedGaitPose)
+                ? resolvedGaitPose
+                : (GaitPose?)null;
 
             // GPU-014, stage two. Redundancy R1 is gone: this finishes the
             // construction stage one began, reading the proportions no swing
@@ -965,7 +971,7 @@ public sealed partial class ArenaGame
             // inputs, same layout, same pixels as the PawnGeometry.Create call
             // this replaces — PawnGeometryTests pins that too. Deliberately
             // not counted as a second invocation; see the note at stage one.
-            var pawnLayout = pawnPrefix.CompletePosedLayout(swingPose);
+            var pawnLayout = pawnPrefix.CompletePosedLayout(swingPose, gaitPose);
 
             CloseArenaGeometrySpan();
 
