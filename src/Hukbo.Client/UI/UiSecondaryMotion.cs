@@ -7,7 +7,8 @@ namespace Hukbo.Client.UI;
 /// new-event row emphasis, selected-agent accent, selector arrow and marker
 /// interpolation, control-bar active strip, and status-badge emphasis. Each
 /// value is the midpoint of its published band in
-/// <c>docs/plans/2026-08-07-ui-52-secondary-feedback-design.md</c> §4.4,
+/// <c>docs/archives/2026-08-07/2026-08-07-ui-52-secondary-feedback-design.md</c>
+/// §4.4,
 /// rounded to a round number of milliseconds. Kept in one class so every
 /// UI-52 duration can be asserted inside its band with a single test.
 /// </summary>

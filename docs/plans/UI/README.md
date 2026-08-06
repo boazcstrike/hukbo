@@ -78,7 +78,7 @@ typography solution.
 - [Current implementation audit](current-ui-ux-audit.md)
 - [Historically bounded visual directions](historical-royal-visual-direction.md)
 - [Approval-gated improvement plan](ui-ux-improvement-plan.md)
-- [UI-52 secondary feedback plan](../2026-08-07-ui-52-secondary-feedback.md) —
+- [UI-52 secondary feedback plan](../../archives/2026-08-07/2026-08-07-ui-52-secondary-feedback.md) —
   the follow-on pass that completed Phase 5 on 2026-08-07
 
 ## Non-goals

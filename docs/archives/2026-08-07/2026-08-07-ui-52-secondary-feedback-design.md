@@ -1,5 +1,10 @@
 # UI-52 — Secondary feedback: design
 
+**Archived: reference only.** The design it describes shipped and merged into
+`main` at `7ad4d65` on 2026-08-07. Kept so the motion decisions — the one-shot
+pulse channel, the duration choices, and the decision not to collapse the five
+selector classes — can be traced back to their reasoning.
+
 Date: 2026-08-07
 Status: design only. This document does not authorize implementation. The
 ordered task list lives in
@@ -7,7 +12,7 @@ ordered task list lives in
 
 ## 1. What this closes
 
-Phase 5 of [`docs/plans/UI/ui-ux-improvement-plan.md`](UI/ui-ux-improvement-plan.md)
+Phase 5 of [`docs/plans/UI/ui-ux-improvement-plan.md`](../../plans/UI/ui-ux-improvement-plan.md)
 has four items. UI-50 (the bounded transition primitive) and UI-51 (priority
 interaction motion) are already merged on `main`. UI-53 is a prohibition list,
 not work. UI-52 is the only remaining implementable item in the phase.
@@ -522,8 +527,8 @@ current behaviour.
 
 ## 11. Sources
 
-- [`docs/plans/UI/ui-ux-improvement-plan.md`](UI/ui-ux-improvement-plan.md), Phase 5, UI-50 through UI-53
-- [`docs/plans/UI/current-ui-ux-audit.md`](UI/current-ui-ux-audit.md), integer-pixel and hit-target rules
+- [`docs/plans/UI/ui-ux-improvement-plan.md`](../../plans/UI/ui-ux-improvement-plan.md), Phase 5, UI-50 through UI-53
+- [`docs/plans/UI/current-ui-ux-audit.md`](../../plans/UI/current-ui-ux-audit.md), integer-pixel and hit-target rules
 - `SIMULATION-GAME-STANDARDS.md` §10, feature and reviewer acceptance
 - `CLAUDE.md` §5 non-negotiables and §6 workflow
 - `.claude/skills/hukbo-client-ui/SKILL.md`, pure-helper testability and the 27 theme roles

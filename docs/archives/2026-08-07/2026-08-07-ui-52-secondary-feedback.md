@@ -1,5 +1,11 @@
 # UI-52 — Secondary feedback: plan
 
+**Archived: reference only.** This plan was completed and merged into `main` at
+`7ad4d65` on 2026-08-07. Do not execute it. The manual smoke rows it produced,
+UI-12 through UI-16, are still live in
+[docs/development/testing.md](../../development/testing.md) and are the current
+record of what remains unverified.
+
 Date: 2026-08-07
 Design: [`2026-08-07-ui-52-secondary-feedback-design.md`](2026-08-07-ui-52-secondary-feedback-design.md)
 
@@ -138,7 +144,7 @@ firstMismatchTick: null
 ```
 
 All three values are identical to the baseline recorded in
-[docs/plans/UI/implementation-report.md](UI/implementation-report.md), which is
+[docs/plans/UI/implementation-report.md](../../plans/UI/implementation-report.md), which is
 the evidence that this work remained client-presentation-only: no simulation
 state, event stream, or outcome moved.
 
@@ -166,7 +172,7 @@ agents reported, and were fixed by the orchestrating session:
 ### Manual verification
 
 No interactive row was flipped. Rows UI-12 through UI-16 in
-[docs/development/testing.md](../development/testing.md) are recorded `Not run`
+[docs/development/testing.md](../../development/testing.md) are recorded `Not run`
 / `PENDING`. The canonical gate, the test suite, and the unchanged determinism
 hashes prove the code is correct and inert with respect to the simulation; they
 do not prove that any of the five effects looks right on screen. Only a person
