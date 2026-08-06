@@ -16,6 +16,24 @@ internal enum PawnVisualState
     Dead,
 }
 
+/// <summary>
+/// The three quads that make up the leader mark's upward chevron —
+/// <see cref="PawnRenderer.GetLeaderMarkGlyph"/>'s pure return shape. A base
+/// band plus two rising arms sharing one apex, all in value types so the
+/// geometry can be asserted without a <c>GraphicsDevice</c>.
+/// </summary>
+/// <param name="Base">The horizontal band across the bottom of the slot.</param>
+/// <param name="LeftArmStart">The base band's left end, where the left arm rises from.</param>
+/// <param name="LeftArmEnd">The chevron's apex, shared with <paramref name="RightArmEnd"/>.</param>
+/// <param name="RightArmStart">The base band's right end, where the right arm rises from.</param>
+/// <param name="RightArmEnd">The chevron's apex, shared with <paramref name="LeftArmEnd"/>.</param>
+public readonly record struct LeaderMarkGlyph(
+    Rectangle Base,
+    Vector2 LeftArmStart,
+    Vector2 LeftArmEnd,
+    Vector2 RightArmStart,
+    Vector2 RightArmEnd);
+
 internal static class PawnRenderer
 {
     private static readonly Color ShadowColor = new(30, 40, 48);
@@ -1351,10 +1369,14 @@ internal static class PawnRenderer
     }
 
     /// <summary>
-    /// A small horizontal band hovering above the pawn's head, in
+    /// An upward chevron hovering above the pawn's head, in
     /// <see cref="LeaderColor"/> — the client-visible leader marker (leader
-    /// rank plan L4). Modeled directly on <see cref="DrawSelectionMark"/> and
-    /// <see cref="DrawDeadMark"/>: a hand-drawn primitive over
+    /// rank plan L4). A shape, not merely a tinted band, so a leader's
+    /// silhouette above the head differs from a non-leader's at a glance
+    /// (leader-character design section 4.3): a base band plus two rising
+    /// arms, three quads via <see cref="GetLeaderMarkGlyph"/>. Modeled
+    /// directly on <see cref="DrawSelectionMark"/> and
+    /// <see cref="DrawDeadMark"/>: hand-drawn primitives over
     /// <paramref name="headBounds"/>, an existing <c>PawnLayout</c> bounds
     /// value, using the shared <paramref name="pixel"/> texture. No new
     /// <c>PawnGeometry</c> entry, matching both of those.
@@ -1362,26 +1384,62 @@ internal static class PawnRenderer
     private static void DrawLeaderMark(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        Rectangle headBounds) =>
-        spriteBatch.Draw(pixel, GetLeaderMarkBounds(headBounds), LeaderColor);
+        Rectangle headBounds)
+    {
+        var glyph = GetLeaderMarkGlyph(headBounds);
+        spriteBatch.Draw(pixel, glyph.Base, LeaderColor);
+        DrawLine(spriteBatch, pixel, glyph.LeftArmStart, glyph.LeftArmEnd, LeaderColor, 1f);
+        DrawLine(spriteBatch, pixel, glyph.RightArmStart, glyph.RightArmEnd, LeaderColor, 1f);
+    }
 
     /// <summary>
-    /// Where the leader band sits, given the head it hangs over. Pure
-    /// placement math, extracted unchanged from the body
-    /// <see cref="DrawLeaderMark"/> used to carry, so that the break-off
-    /// mark's own slot can be derived from this one rather than guessed, and
-    /// so that <c>PawnRendererTests</c> can prove the two never overlap.
+    /// Where the leader slot sits, given the head it hangs over. Pure
+    /// placement math, and the rectangle the break-off mark's own slot is
+    /// derived from, so that <c>PawnRendererTests</c> can prove the two never
+    /// overlap.
     /// </summary>
+    /// <remarks>
+    /// Widened for leader rank plan L4: the slot spans the full head width
+    /// (was <c>headBounds.Width / 2</c>) and stands <c>max(2, headHeight /
+    /// 4)</c> tall (was <c>max(1, headHeight / 6)</c>), so the chevron
+    /// <see cref="DrawLeaderMark"/> draws inside it has room to carry vertical
+    /// extent instead of reading as a flat, colour-only band. The one-pixel
+    /// head in <c>PawnRendererTests.HeadBoundsGrid</c> is why the height floor
+    /// is 2 rather than 1: at <c>headHeight / 4 == 0</c> the slot must still
+    /// be tall enough to hold a base band and a rising arm above it.
+    /// </remarks>
     public static Rectangle GetLeaderMarkBounds(Rectangle headBounds)
     {
-        var markWidth = Math.Max(2, headBounds.Width / 2);
-        var markHeight = Math.Max(1, headBounds.Height / 6);
+        var markWidth = headBounds.Width;
+        var markHeight = Math.Max(2, headBounds.Height / 4);
         var gap = GetMarkGap(headBounds);
         return new Rectangle(
             headBounds.Center.X - (markWidth / 2),
             headBounds.Top - gap - markHeight,
             markWidth,
             markHeight);
+    }
+
+    /// <summary>
+    /// The three quads <see cref="DrawLeaderMark"/> submits, expressed as
+    /// pure geometry over value types only — no <c>GraphicsDevice</c>, no
+    /// <c>SpriteBatch</c> — so the shape can be asserted without a window.
+    /// A base band spanning the full width of <see cref="GetLeaderMarkBounds"/>'s
+    /// slot, plus two arms rising from the band's ends to an apex at the
+    /// slot's top centre: an upward chevron, abstract HUD glyph rather than a
+    /// depicted object (leader-character design section 4.3, section 6.3).
+    /// Every point stays within the slot rectangle, so widening the chevron
+    /// never widens what a collision test has to reason about.
+    /// </summary>
+    public static LeaderMarkGlyph GetLeaderMarkGlyph(Rectangle headBounds)
+    {
+        var slot = GetLeaderMarkBounds(headBounds);
+        var baseHeight = Math.Max(1, slot.Height / 3);
+        var baseBand = new Rectangle(slot.Left, slot.Bottom - baseHeight, slot.Width, baseHeight);
+        var apex = new Vector2(slot.Center.X, slot.Top);
+        var leftArmStart = new Vector2(slot.Left, baseBand.Top);
+        var rightArmStart = new Vector2(slot.Right - 1, baseBand.Top);
+        return new LeaderMarkGlyph(baseBand, leftArmStart, apex, rightArmStart, apex);
     }
 
     /// <summary>
