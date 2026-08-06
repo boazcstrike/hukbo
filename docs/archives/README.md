@@ -29,9 +29,26 @@ yet — `mkdir docs/archives/<today>` — rather than dropping the file at the
   `docs/archives/2026-07-26/2026-07-26-foo.md`.
 - Reading one to answer "why was it built this way" is the intended use.
 
-Known stale content, left in place deliberately: two of these plans list GitHub
-Actions in their tech stack. The repository uses local-only verification and has
-no CI. Do not act on that line.
+## Pruned on 2026-08-07
+
+The dated folders `2026-07-26` through `2026-07-31` were removed on 2026-08-07.
+That is 109 finished plans, designs, and agent notes covering the foundation
+work, the visual improvement package, the weapon and movement workstreams, and
+the collision and formation changes. Nothing was lost: every one of those files
+is still in git history and any of them can be read with
+`git show b144b7d:docs/archives/<date>/<file>` or restored with
+`git checkout b144b7d -- <path>`.
+
+Roughly a hundred and sixty comments in `src/`, `tests/`, `tools/`, and the live
+documents still cite those paths. Those citations now name a file that is not in
+the working tree. They are prose references inside comments, so nothing fails to
+build and no test asserts them, but a reader who follows one will find nothing
+there and should reach for `git show` rather than assuming the reference was
+wrong.
+
+The earlier note about two plans listing GitHub Actions in their tech stack
+applied to files removed in that prune. The repository still uses local-only
+verification and still has no CI.
 
 ## Where the live contract lives
 
