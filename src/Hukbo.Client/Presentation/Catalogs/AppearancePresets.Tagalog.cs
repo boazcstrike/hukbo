@@ -482,7 +482,8 @@ internal static class AppearancePresetsTagalog
             ]),
         AppearancePresetLoadoutCompatibility.Any,
         FallbackId: "appearance.presetTagalog.tag02",
-        RarityWeight: EliteRarityWeight);
+        RarityWeight: EliteRarityWeight,
+        Status: AppearancePresetStatus.Leader);
 
     /// <summary>
     /// TAG-14. B1 knotted hair, C1 putong (cream), D2 chinina (indigo), E1
@@ -556,7 +557,8 @@ internal static class AppearancePresetsTagalog
             ]),
         AppearancePresetLoadoutCompatibility.Any,
         FallbackId: "appearance.presetTagalog.tag13",
-        RarityWeight: EliteRarityWeight);
+        RarityWeight: EliteRarityWeight,
+        Status: AppearancePresetStatus.Leader);
 
     /// <summary>
     /// Every preset this block ships, in design-table order (TAG-01 through

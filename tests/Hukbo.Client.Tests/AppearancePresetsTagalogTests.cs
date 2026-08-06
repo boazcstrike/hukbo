@@ -373,6 +373,28 @@ public sealed class AppearancePresetsTagalogTests
         Assert.Equal(expectedFallbackId, preset.FallbackId);
     }
 
+    // --- Leader status gate (L1) ---
+
+    [Fact]
+    public void OnlyTag13AndTag15CarryLeaderStatus_EveryOtherPresetIsGeneral()
+    {
+        var leaderIds = new HashSet<string>(
+            [
+                "appearance.presetTagalog.tag13",
+                "appearance.presetTagalog.tag15",
+            ],
+            StringComparer.Ordinal);
+
+        foreach (var preset in AppearancePresetsTagalog.All)
+        {
+            var expected = leaderIds.Contains(preset.Catalog.Id)
+                ? AppearancePresetStatus.Leader
+                : AppearancePresetStatus.General;
+
+            Assert.Equal(expected, preset.Status);
+        }
+    }
+
     // --- Test helpers ---
 
     private static IReadOnlyList<AppearancePresetEntry> FilterCompatible(

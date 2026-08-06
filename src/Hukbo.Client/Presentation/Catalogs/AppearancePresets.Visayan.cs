@@ -538,7 +538,8 @@ internal static class AppearancePresetsVisayan
             ]),
         AppearancePresetLoadoutCompatibility.Any,
         FallbackId: "appearance.presetVisayan.vis13",
-        RarityWeight: EliteOrLeaderRarityWeight);
+        RarityWeight: EliteOrLeaderRarityWeight,
+        Status: AppearancePresetStatus.Leader);
 
     /// <summary>
     /// VIS-16. B1, C1 putong (undyed cream), D1 with I1 full tattoos, E1,

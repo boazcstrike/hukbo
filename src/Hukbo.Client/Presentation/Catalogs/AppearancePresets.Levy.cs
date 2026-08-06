@@ -24,6 +24,37 @@ internal enum AppearancePresetLoadoutCompatibility
 }
 
 /// <summary>
+/// Which social position a preset row depicts (leader-character-design.md
+/// section 4.1, "Gate the leader appearance on actual leadership").
+/// <see cref="AppearancePresets.SelectPreset"/> walks a different pool per
+/// value instead of one undifferentiated pool, so the rows built for chiefs
+/// and datus draw only for the entity the simulation actually elected to
+/// lead its contingent.
+/// </summary>
+internal enum AppearancePresetStatus
+{
+    /// <summary>
+    /// The default, carried by every preset row that ships today unless a
+    /// row is explicitly marked <see cref="Leader"/>. Selected when
+    /// <c>SelectPreset</c>'s <c>isLeader</c> argument is
+    /// <see langword="false"/>.
+    /// </summary>
+    General,
+
+    /// <summary>
+    /// Carried by exactly three rows as of this milestone:
+    /// <c>AppearancePresetsVisayan.Vis15</c> ("Visayan Datu"),
+    /// <c>AppearancePresetsTagalog.Tag13</c> ("Tagalog Chief"), and
+    /// <c>AppearancePresetsTagalog.Tag15</c> ("Tagalog Leader"). Selected
+    /// only when <c>SelectPreset</c>'s <c>isLeader</c> argument is
+    /// <see langword="true"/>; a block that ships no <see cref="Leader"/>
+    /// row (Northern Luzon, generic levy) falls back to the
+    /// <see cref="General"/> pool rather than inventing one.
+    /// </summary>
+    Leader,
+}
+
+/// <summary>
 /// One preset's authored component recipe: exactly the categories the
 /// warrior-appearance research and catalog define (category A stature/build
 /// and category J palette are not recipe fields — A stays the independent
@@ -129,7 +160,8 @@ internal sealed record AppearancePresetEntry(
     AppearancePresetRecipe Recipe,
     AppearancePresetLoadoutCompatibility LoadoutCompatibility,
     string? FallbackId = null,
-    int RarityWeight = 1)
+    int RarityWeight = 1,
+    AppearancePresetStatus Status = AppearancePresetStatus.General)
 {
     public VisualCatalogEntry Catalog { get; init; } =
         Catalog ?? throw new ArgumentNullException(nameof(Catalog));
@@ -163,6 +195,16 @@ internal sealed record AppearancePresetEntry(
     /// roughly 2% each, R-W3.14) without a breaking change to this record.
     /// </summary>
     public int RarityWeight { get; init; } = ValidateRarityWeight(RarityWeight);
+
+    /// <summary>
+    /// Which social position this row depicts — see
+    /// <see cref="AppearancePresetStatus"/>. Defaults to
+    /// <see cref="AppearancePresetStatus.General"/>; only the three shipped
+    /// chief/datu rows carry <see cref="AppearancePresetStatus.Leader"/>.
+    /// <see cref="AppearancePresets.SelectPreset"/> walks a pool built from
+    /// this field rather than treating every row as interchangeable.
+    /// </summary>
+    public AppearancePresetStatus Status { get; init; } = ValidateStatus(Status);
 
     private static VisualScopeTag ValidateBlock(VisualScopeTag block, VisualCatalogEntry catalog)
     {
@@ -223,6 +265,19 @@ internal sealed record AppearancePresetEntry(
         }
 
         return rarityWeight;
+    }
+
+    private static AppearancePresetStatus ValidateStatus(AppearancePresetStatus status)
+    {
+        if (!Enum.IsDefined(status))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(status),
+                status,
+                "Status must be a defined AppearancePresetStatus member.");
+        }
+
+        return status;
     }
 }
 
@@ -710,33 +765,95 @@ internal static class AppearancePresets
     }
 
     /// <summary>
+    /// <see cref="CompatiblePoolsByBlockAndWasay"/> partitioned by
+    /// <see cref="AppearancePresetEntry.Status"/> — a pool holding only the
+    /// <paramref name="status"/> rows for each (block, is-the-weapon-Wasay)
+    /// key. Pre-built once per status at type initialization, same
+    /// allocation-free-per-frame discipline as
+    /// <see cref="CompatiblePoolsByBlockAndWasay"/> itself.
+    /// </summary>
+    private static IReadOnlyDictionary<(VisualScopeTag, bool), IReadOnlyList<AppearancePresetEntry>>
+        BuildStatusFilteredPools(AppearancePresetStatus status)
+    {
+        var result = new Dictionary<(VisualScopeTag, bool), IReadOnlyList<AppearancePresetEntry>>();
+        foreach (var (key, pool) in CompatiblePoolsByBlockAndWasay)
+        {
+            result[key] = [.. pool.Where(preset => preset.Status == status)];
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// The general-pool half of the status split (leader-character-
+    /// design.md section 4.1): every loadout-compatible preset per (block,
+    /// is-the-weapon-Wasay) whose <see cref="AppearancePresetEntry.Status"/>
+    /// is <see cref="AppearancePresetStatus.General"/> — today's pool minus
+    /// the three leader rows.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<(VisualScopeTag Block, bool IsWasay), IReadOnlyList<AppearancePresetEntry>>
+        GeneralPoolsByBlockAndWasay = BuildStatusFilteredPools(AppearancePresetStatus.General);
+
+    /// <summary>
+    /// The leader-pool half of the status split (leader-character-
+    /// design.md section 4.1): every loadout-compatible preset per (block,
+    /// is-the-weapon-Wasay) whose <see cref="AppearancePresetEntry.Status"/>
+    /// is <see cref="AppearancePresetStatus.Leader"/>. Empty for the
+    /// Northern Luzon and generic-levy blocks, which ship no chief row —
+    /// <see cref="SelectPreset"/> falls back to
+    /// <see cref="GeneralPoolsByBlockAndWasay"/> rather than inventing one.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<(VisualScopeTag Block, bool IsWasay), IReadOnlyList<AppearancePresetEntry>>
+        LeaderPoolsByBlockAndWasay = BuildStatusFilteredPools(AppearancePresetStatus.Leader);
+
+    /// <summary>
     /// The deterministic preset-selection stream (R-W3.5, R-W6.2): a pure,
     /// salted, allocation-free function of <paramref name="entityId"/>,
-    /// <paramref name="block"/>, and <paramref name="weapon"/>, stable
-    /// across frames and replays of the same seed. Mixes
+    /// <paramref name="block"/>, <paramref name="weapon"/>, and
+    /// <paramref name="isLeader"/>, stable across frames and replays of the
+    /// same seed. Mixes
     /// <c>entityId XOR PresentationSalts.AppearancePresetSelectionSalt</c>
-    /// through the SplitMix64 finalizer and walks the loadout-filtered pool's
+    /// through the SplitMix64 finalizer and walks the selected pool's
     /// cumulative <see cref="AppearancePresetEntry.RarityWeight"/> — a strict
     /// generalization of plain modulo selection that behaves identically to
     /// it whenever every candidate's weight is the uniform default of 1 (the
     /// generic-levy and Northern Luzon blocks throughout; every non-elite,
-    /// non-leader row in the Visayan and Tagalog blocks). Falls back to
-    /// <see cref="Lev01"/> — the family default — whenever the filtered pool
-    /// is empty; as of VIS-022 every shipped block carries at least one
-    /// loadout-<see cref="AppearancePresetLoadoutCompatibility.Any"/> preset,
-    /// so this path is unreachable for any real <see cref="VisualScopeTag"/>
-    /// block, but stays total rather than partial for
-    /// <see cref="VisualScopeTag.NotApplicable"/> (no preset ever declares
-    /// that as its <see cref="AppearancePresetEntry.Block"/>) and for
-    /// whichever future roster first ships a block/loadout pair with no
-    /// compatible preset.
+    /// non-leader row in the Visayan and Tagalog blocks). No new salt is
+    /// introduced by <paramref name="isLeader"/>: it only chooses which of
+    /// two statically ordered pools is walked (leader-character-design.md
+    /// section 4.1).
+    ///
+    /// <paramref name="isLeader"/> defaults to <see langword="false"/> so
+    /// today's call sites keep compiling unchanged until they are updated to
+    /// pass the pawn's real leadership value.
+    ///
+    /// When <paramref name="isLeader"/> is <see langword="true"/> and the
+    /// block's loadout-filtered leader pool is empty (Northern Luzon,
+    /// generic levy — neither ships a chief row), this falls back to the
+    /// block's general pool rather than to <see cref="Lev01"/>, so a leader
+    /// in one of those blocks still resolves a preset from its own block.
+    /// Falls back to <see cref="Lev01"/> — the family default — only when
+    /// the applicable pool (general, or leader-with-general-fallback) is
+    /// empty; as of VIS-022 every shipped block carries at least one
+    /// loadout-<see cref="AppearancePresetLoadoutCompatibility.Any"/> general
+    /// preset, so this path is unreachable for any real
+    /// <see cref="VisualScopeTag"/> block, but stays total rather than
+    /// partial for <see cref="VisualScopeTag.NotApplicable"/> (no preset
+    /// ever declares that as its <see cref="AppearancePresetEntry.Block"/>)
+    /// and for whichever future roster first ships a block/loadout pair with
+    /// no compatible preset.
     /// </summary>
     public static AppearancePresetEntry SelectPreset(
         ulong entityId,
         VisualScopeTag block,
-        PawnWeaponRole weapon)
+        PawnWeaponRole weapon,
+        bool isLeader = false)
     {
-        var pool = GetCompatiblePresets(block, weapon);
+        var key = (block, weapon == PawnWeaponRole.Wasay);
+        var pool = isLeader
+            ? GetLeaderPoolWithGeneralFallback(key)
+            : GeneralPoolsByBlockAndWasay[key];
+
         if (pool.Count == 0)
         {
             return Lev01;
@@ -767,6 +884,19 @@ internal static class AppearancePresets
         // a total, non-throwing fallback rather than an unreachable throw,
         // matching this codebase's fallback-chain discipline.
         return pool[^1];
+    }
+
+    /// <summary>
+    /// The leader pool for <paramref name="key"/>, or the general pool for
+    /// the same key when the leader pool is empty (leader-character-
+    /// design.md section 4.1: "not a corner case" — Northern Luzon and
+    /// generic levy ship no chief row on purpose).
+    /// </summary>
+    private static IReadOnlyList<AppearancePresetEntry> GetLeaderPoolWithGeneralFallback(
+        (VisualScopeTag Block, bool IsWasay) key)
+    {
+        var leaderPool = LeaderPoolsByBlockAndWasay[key];
+        return leaderPool.Count > 0 ? leaderPool : GeneralPoolsByBlockAndWasay[key];
     }
 
     private static ulong Mix(ulong value)
