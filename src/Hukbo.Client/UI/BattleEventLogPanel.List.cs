@@ -183,6 +183,10 @@ internal sealed partial class BattleEventLogPanel
                 UiScaleContext.Pixels(1));
         }
 
+        var emphasis = GetRowEmphasis(
+            battleEvent.Sequence,
+            _newEventThreshold,
+            _newEventPulse.Amount);
         DrawRowText(
             spriteBatch,
             font,
@@ -192,7 +196,8 @@ internal sealed partial class BattleEventLogPanel
             isSelected,
             index == hoveredIndex,
             feed.ScenarioSeed,
-            approximateAdvancePx);
+            approximateAdvancePx,
+            emphasis);
     }
 
     private void DrawRowText(
@@ -204,7 +209,8 @@ internal sealed partial class BattleEventLogPanel
         bool isSelected,
         bool isHovered,
         ulong scenarioSeed,
-        int approximateAdvancePx)
+        int approximateAdvancePx,
+        float emphasis)
     {
         var formatted = GetFormattedRow(
             battleEvent,
@@ -216,6 +222,20 @@ internal sealed partial class BattleEventLogPanel
             isSelected,
             isHovered,
             battleEvent.FactionId);
+        if (emphasis > 0f)
+        {
+            foregrounds = new BattleEventRowForegrounds(
+                Color.Lerp(foregrounds.Tick, theme.Colors.NewEvent, emphasis),
+                Color.Lerp(
+                    foregrounds.Actor,
+                    theme.Colors.NewEvent,
+                    emphasis),
+                Color.Lerp(
+                    foregrounds.Action,
+                    theme.Colors.NewEvent,
+                    emphasis));
+        }
+
         var tickX = rowBounds.Left + UiScaleContext.Pixels(9);
         var actorX = tickX + UiScaleContext.Pixels(54);
         var actionX = actorX + Math.Min(
@@ -380,6 +400,26 @@ internal sealed partial class BattleEventLogPanel
             BattleEventKind.Outcome => theme.Colors.StatusSuccess,
             _ => theme.Colors.TextSecondary,
         };
+
+    /// <summary>
+    /// Surface A pure helper. Returns <paramref name="pulseAmount"/> when
+    /// <paramref name="sequence"/> is newer than the exclusive
+    /// <paramref name="emphasisThreshold"/>, and zero otherwise — including
+    /// when the threshold is <see langword="null"/>, which is the
+    /// first-observation and no-pulse-yet state.
+    /// </summary>
+    internal static float GetRowEmphasis(
+        long sequence,
+        long? emphasisThreshold,
+        float pulseAmount)
+    {
+        if (emphasisThreshold is not { } threshold || sequence <= threshold)
+        {
+            return 0f;
+        }
+
+        return pulseAmount;
+    }
 
     internal static BattleEventRowForegrounds GetRowForegrounds(
         UiTheme theme,

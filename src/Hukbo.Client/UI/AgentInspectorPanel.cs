@@ -1,5 +1,6 @@
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Rendering;
+using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
@@ -11,18 +12,53 @@ namespace Hukbo.Client.UI;
 
 internal sealed class AgentInspectorPanel
 {
+    private UiEmphasisPulse _accentPulse;
+    private ulong? _selectedEntityId;
+
     public Rectangle Bounds { get; private set; }
+
+    /// <summary>Surface B accent pulse amount, 0 (faction colour) to 1
+    /// (selection colour). Exposed for the pure-helper tests.</summary>
+    internal float AccentPulseAmount => _accentPulse.Amount;
 
     public UiInteraction Update(
         InputEdges input,
         AgentView? agent,
-        Rectangle bounds)
+        Rectangle bounds) =>
+        Update(input, agent, bounds, TimeSpan.Zero, MotionIntensity.Off);
+
+    /// <summary>
+    /// Updates interaction state and, when the selected agent's
+    /// <c>EntityId</c> changes (including from no selection to a
+    /// selection), triggers the surface-B accent pulse consumed by
+    /// <see cref="GetAccentColor"/> in <see cref="Draw"/>.
+    /// </summary>
+    public UiInteraction Update(
+        InputEdges input,
+        AgentView? agent,
+        Rectangle bounds,
+        TimeSpan elapsed,
+        MotionIntensity motionIntensity)
     {
+        var isMotionEnabled = UiSecondaryMotion.IsEnabled(motionIntensity);
         if (agent is null)
         {
             Bounds = Rectangle.Empty;
+            _selectedEntityId = null;
+            _accentPulse.Reset();
             return UiInteraction.None;
         }
+
+        if (_selectedEntityId != agent.Value.EntityId)
+        {
+            _selectedEntityId = agent.Value.EntityId;
+            _accentPulse.Trigger(isMotionEnabled);
+        }
+
+        _accentPulse.Advance(
+            elapsed,
+            UiSecondaryMotion.SelectionAccentDuration,
+            isMotionEnabled);
 
         Bounds = bounds;
         return new UiInteraction(
@@ -99,7 +135,10 @@ internal sealed class AgentInspectorPanel
                     accentWidth,
                     Math.Max(0, Bounds.Width - (accentInset * 2))),
                 Math.Max(0, Bounds.Height - (accentInset * 2))),
-            GetUiFactionColor(selected.FactionId, theme));
+            GetAccentColor(
+                GetUiFactionColor(selected.FactionId, theme),
+                theme.Colors.Selection,
+                _accentPulse.Amount));
 
         var appearance = PawnAppearanceFactory.Create(
             selected.EntityId,
@@ -329,4 +368,16 @@ internal sealed class AgentInspectorPanel
             factionId,
             theme,
             theme.Colors.OtherFaction);
+
+    /// <summary>
+    /// Surface B — selected-agent accent. Blends the accent bar from the
+    /// selected agent's faction colour toward the panel's selection colour
+    /// by <paramref name="pulseAmount"/>, so a newly selected agent's
+    /// accent brightens and settles back to its faction colour.
+    /// </summary>
+    internal static Color GetAccentColor(
+        Color factionColor,
+        Color selectionColor,
+        float pulseAmount) =>
+        Color.Lerp(factionColor, selectionColor, Math.Clamp(pulseAmount, 0f, 1f));
 }

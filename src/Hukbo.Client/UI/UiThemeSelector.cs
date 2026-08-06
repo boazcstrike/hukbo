@@ -1,3 +1,4 @@
+using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -14,6 +15,7 @@ internal sealed class UiThemeSelector
     private readonly IReadOnlyList<UiTheme> _themes;
     private readonly UiThemeSelectorLayout _layout;
     private readonly UiTextRoles _textRoles;
+    private readonly UiSelectorMotion _motion = new();
 
     public UiThemeSelector(
         IReadOnlyList<UiTheme> themes,
@@ -141,6 +143,27 @@ internal sealed class UiThemeSelector
         return new ThemeSelectorInteraction(null, pointerInside);
     }
 
+    /// <summary>
+    /// Advances the shared arrow-hover and marker-pulse motion. Called once
+    /// per visible-menu frame from <see cref="MenuOverlay.Update"/>, before
+    /// the early-returning interaction chain, so a selection reported by any
+    /// other selector never stalls this one's transitions mid-flight.
+    /// </summary>
+    public void AdvanceMotion(
+        InputEdges input,
+        TimeSpan elapsed,
+        MotionIntensity intensity,
+        string currentId)
+    {
+        _motion.AdvanceMotion(
+            input.MousePosition,
+            PreviousBounds,
+            NextBounds,
+            GetSelectedMarkerText(currentId),
+            elapsed,
+            intensity);
+    }
+
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
@@ -165,13 +188,13 @@ internal sealed class UiThemeSelector
             fonts.Get(_textRoles.SelectorArrow),
             "<",
             PreviousBounds.Center.ToVector2(),
-            colors.TextPrimary);
+            _motion.PreviousArrowColor(colors));
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(_textRoles.SelectorArrow),
             ">",
             NextBounds.Center.ToVector2(),
-            colors.TextPrimary);
+            _motion.NextArrowColor(colors));
 
         var centerX = Bounds.Center.X;
         UiPrimitives.DrawCenteredText(
@@ -200,7 +223,7 @@ internal sealed class UiThemeSelector
                 centerX,
                 Bounds.Top +
                     UiScaleContext.Pixels(_layout.MarkerTopOffset)),
-            colors.Selection);
+            _motion.MarkerColor(colors));
 
         var swatches = new[]
         {

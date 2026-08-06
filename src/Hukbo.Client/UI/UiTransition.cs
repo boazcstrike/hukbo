@@ -63,6 +63,18 @@ internal struct UiTransition
             ((_targetValue - _startValue) * easedProgress);
     }
 
+    /// <summary>
+    /// Immediately sets the current value, the start value, and the target
+    /// value to <paramref name="value"/>, discarding any in-progress
+    /// transition. Used to jump a channel to a value and then transition
+    /// away from it via a subsequent <see cref="AdvanceTo"/> call.
+    /// </summary>
+    public void Restart(float value)
+    {
+        var clamped = float.IsFinite(value) ? Math.Clamp(value, 0f, 1f) : 0f;
+        SnapTo(clamped);
+    }
+
     private static float EaseOutCubic(float progress)
     {
         var remaining = 1f - Math.Clamp(progress, 0f, 1f);

@@ -259,6 +259,13 @@ motion's positional feedback remains limited to the one-pixel button press.
 
 ### UI-52: secondary feedback
 
+**Implemented on 2026-08-07.** Every surface below now has bounded, client-only
+motion. The task breakdown, the design decisions, and the gate output are in
+[2026-08-07-ui-52-secondary-feedback.md](../2026-08-07-ui-52-secondary-feedback.md)
+and its design document. The stepper arrows in the army composition panel were
+added to the same pass, because leaving them static would have made one set of
+arrows in the menu animate while an adjacent set snapped.
+
 After priority motion is stable:
 
 - new-event row accent, without moving or reordering rows: `160–220` ms;

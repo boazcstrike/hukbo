@@ -91,6 +91,47 @@ public sealed class UiTransitionTests
     }
 
     [Fact]
+    public void Restart_SnapsValueStartAndTargetToTheGivenValue()
+    {
+        var transition = new UiTransition();
+        transition.AdvanceTo(
+            1f,
+            TimeSpan.FromMilliseconds(25),
+            Duration,
+            isMotionEnabled: true);
+
+        transition.Restart(1f);
+
+        Assert.Equal(1f, transition.Value);
+        Assert.True(transition.IsSettled);
+    }
+
+    [Fact]
+    public void Restart_ThenAdvanceToZeroDecaysAndSettlesExactlyAtZero()
+    {
+        var transition = new UiTransition();
+
+        transition.Restart(1f);
+        transition.AdvanceTo(
+            0f,
+            TimeSpan.FromMilliseconds(50),
+            Duration,
+            isMotionEnabled: true);
+
+        Assert.InRange(transition.Value, 0.001f, 0.499f);
+        Assert.False(transition.IsSettled);
+
+        transition.AdvanceTo(
+            0f,
+            TimeSpan.FromMilliseconds(50),
+            Duration,
+            isMotionEnabled: true);
+
+        Assert.Equal(0f, transition.Value);
+        Assert.True(transition.IsSettled);
+    }
+
+    [Fact]
     public void EntranceMotion_OffSnapsScrimAndPanelToVisible()
     {
         var entrance = new UiEntranceMotion();

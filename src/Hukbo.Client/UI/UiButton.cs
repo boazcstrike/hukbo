@@ -73,7 +73,8 @@ internal sealed class UiButton
             IsFocused,
             IsPressed,
             elapsed,
-            motionIntensity);
+            motionIntensity,
+            IsActive);
         return IsHovered && input.WasLeftMousePressed();
     }
 
@@ -140,7 +141,7 @@ internal sealed class UiButton
                 UiScaleContext.Pixels(theme.Metrics.FocusThickness));
         }
 
-        if (IsActive && IsEnabled)
+        if (IsEnabled && (IsActive || !_motion.IsActiveSettled))
         {
             spriteBatch.Draw(
                 pixel,
@@ -149,11 +150,21 @@ internal sealed class UiButton
                     visualBounds.Top,
                     UiScaleContext.Pixels(6),
                     visualBounds.Height),
-                theme.Colors.Selection);
+                GetActiveStripColor(theme.Colors, _motion.ActiveAmount));
         }
 
         return (textColor, visualBounds);
     }
+
+    /// <summary>
+    /// Resolves the control-bar active strip's colour by amount alone, with
+    /// no positional change, matching the colour-and-opacity-only decision
+    /// for UI-52 secondary feedback.
+    /// </summary>
+    internal static Color GetActiveStripColor(
+        UiThemeColors colors,
+        float activeAmount) =>
+        Color.Lerp(colors.PanelBorder, colors.Selection, activeAmount);
 
     private Color GetFillColor(UiTheme theme)
     {
