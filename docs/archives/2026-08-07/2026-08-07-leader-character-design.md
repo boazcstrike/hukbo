@@ -1,7 +1,11 @@
 # Leader character — design
 
+> **Archived: reference only.** This document is finished work, kept so the
+> decision can be traced back to its reasoning. Do not execute it and do not
+> cite it as the reason to change anything.
+
 Status: design only. This document does not authorize implementation; the
-ordered task list lives in `docs/plans/2026-08-07-leader-character.md`.
+ordered task list lives in `docs/archives/2026-08-07/2026-08-07-leader-character.md`.
 
 Scope: `Hukbo.Client` presentation only. `Hukbo.Core` is not touched by
 anything described here.

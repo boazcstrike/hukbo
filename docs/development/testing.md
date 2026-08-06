@@ -757,7 +757,66 @@ allocation figures from the headless runner's own instrumentation; no peak
 working set was measured, so the working-set table under T7 stands unrefreshed
 and superseded.
 
-## Latest non-interactive result — movement V7 pressure interrupt, task F3, 2026-08-06
+## Latest non-interactive result — leader character presentation, task L8, 2026-08-07
+
+`./scripts/verify.ps1 -SkipBootstrap` on the integrated `leader-character` branch
+at `29284d7`, after tasks L1 through L7 landed. This is the single canonical
+gate run task L8 requires, and it was not delegated. Every task in this
+workstream is scoped to `Hukbo.Client` presentation — leader appearance preset
+selection, cache key composition, the on-sprite leader mark, the pawn quad
+budget, and the inspector's leadership line. No file under `src/Hukbo.Core` was
+edited.
+
+```
+[PASS] Canonical repository verification completed.
+
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+```
+
+The determinism workload's own report, from the same run:
+
+```
+outcome: Faction1Victory
+faction0Survivors: 0
+faction1Survivors: 6
+eventHash: AC55684F24D39344
+stateHash: 1B73FC5923879AA0
+deterministic: true
+firstMismatchTick: null
+coreAllocatedBytes: 161168
+```
+
+`./scripts/format.ps1 -Verify`:
+
+```
+[PASS] Formatted 0 421 files.
+```
+
+`./scripts/test.ps1 -Configuration Release`:
+
+```
+Hukbo.Core.Tests 2614/2614 passed
+Hukbo.Client.Tests 3018/3018 passed
+```
+
+**`eventHash AC55684F24D39344` and `stateHash 1B73FC5923879AA0` are byte-identical
+to the seed-1 baseline already recorded immediately below, under "Previous
+non-interactive result — movement V7 pressure interrupt, task F3, 2026-08-06".**
+That equality is the single most important fact in this record: it is the
+evidence that this workstream's presentation-only changes never touched
+`Hukbo.Core`, exactly as the plan's scope statement requires. A moved hash here
+would mean the simulation had been reached by mistake, not a new baseline to
+record.
+
+**The interactive smoke rows added under "Leader identification smoke (Client
+presentation)" below remain `PENDING`.** No compilation, unit test run, or
+canonical gate result — including the one recorded in this section — proves
+anything about a spectator's ability to identify a leader on a real
+battlefield. Those rows can only be flipped by a human at an interactive
+Windows desktop who has actually watched the screen; this record is not that
+review, and does not claim to be.
+
+## Previous non-interactive result — movement V7 pressure interrupt, task F3, 2026-08-06
 
 `./scripts/verify.ps1 -SkipBootstrap` on the integrated `v7-pressure-interrupt`
 branch, after `main` was merged in and after tasks F0, F1, and F2 landed. This
@@ -4705,6 +4764,27 @@ do not. Leave untouched rows `PENDING`; report `BLOCKED` honestly.
 
 Phase 3's rows GR-6 through GR-10 are deliberately absent. They covered the
 instanced backend, which the NO-GO verdict closed and which does not exist.
+
+### Leader identification smoke (leader character plan L7)
+
+**No interactive run was performed for this change. Every row below is
+`PENDING`.** The automated tests prove preset gating, the cache key, the mark
+geometry, the quad accounting, and the inspector row. None of them prove that a
+person watching a battle can pick a leader out.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| LC-1 | Start a battle and watch it at default zoom without clicking anything | Roughly sixteen warriors carry a mark above their head whose shape differs from every other pawn's outline, not merely its colour | | PENDING |
+| LC-2 | Zoom all the way out to the Low detail tier | The leader marks are still findable; they do not vanish into the mass or read as rendering noise | | PENDING |
+| LC-3 | Zoom in on one marked warrior in the Visayan-block faction | It wears datu kit — gold-edged head wrap, gold earrings and necklace, a draped shoulder cloth, a red waist sash — and its immediate neighbours do not | | PENDING |
+| LC-4 | Zoom in on one marked warrior in the Tagalog-block faction | It wears chief or leader kit; if it is the red-chinina row, the red jacket is the single clearest cue at that zoom | | PENDING |
+| LC-5 | Zoom in on a marked warrior in a Northern Luzon or generic-levy faction | It looks like its neighbours; the above-head mark plus the inspector are the only identification. This is the designed outcome, not a defect | | PENDING |
+| LC-6 | Watch until a marked warrior dies | Exactly one other warrior in the contingent picks up the mark, and its appearance changes once, cleanly, without flickering back and forth on subsequent frames | | PENDING |
+| LC-7 | Click the marked warrior | The inspector states that it is leading, and further down names the appearance preset with its scope, tag, and evidence tier — for example "Visayan Datu", Visayan, Documented, form uncertain | | PENDING |
+| LC-8 | Click the marked warrior, then hover a second one, while a third is breaking off under pressure | The leader mark, the selection ring, and the break-off band are all visible and none overlaps another | | PENDING |
+| LC-9 | Click a warrior in a battle running the frozen `IndependentPursuitV1` preset, where `ContingentState` is always `None` | No leadership row appears, because no leader is elected under this preset — if one somehow is elected, the row appears rather than being silently dropped | | PENDING |
+| LC-10 | Watch a full battle to the end and open the battle report | The report is unchanged; its "Leaderboard" still ranks kills and makes no claim about contingent leadership | | PENDING |
+| LC-11 | Run the same seed twice and compare the same warrior at the same tick in both runs | Identical appearance and identical leader marks; nothing about who leads or how they look differs between the two runs | | PENDING |
 
 ## Failure classification
 

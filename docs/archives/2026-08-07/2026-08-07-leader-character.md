@@ -1,7 +1,11 @@
 # Leader character — plan
 
-Design: `docs/plans/2026-08-07-leader-character-design.md`. Read it first; this
-document assumes its decisions and does not re-argue them.
+> **Archived: reference only.** This document is finished work, kept so the
+> decision can be traced back to its reasoning. Do not execute it and do not
+> cite it as the reason to change anything.
+
+Design: `docs/archives/2026-08-07/2026-08-07-leader-character-design.md`. Read
+it first; this document assumes its decisions and does not re-argue them.
 
 Branch: `leader-character`, based on `14f104b`.
 
