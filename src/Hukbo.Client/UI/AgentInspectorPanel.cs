@@ -104,7 +104,8 @@ internal sealed class AgentInspectorPanel
         var appearance = PawnAppearanceFactory.Create(
             selected.EntityId,
             selected.Loadout.Weapon,
-            selected.Loadout.Shield);
+            selected.Loadout.Shield,
+            selected.IsLeader);
         var factionLabel = GetFactionLabel(selected.FactionId);
         var stateLabel = selected.IsAlive ? "ALIVE" : "DEAD";
         var targetLabel = selected.TargetEntityId?.ToString() ?? "none";

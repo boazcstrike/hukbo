@@ -458,7 +458,8 @@ public sealed partial class ArenaGame
             var appearance = PawnAppearanceFactory.Create(
                 agent.EntityId,
                 agent.Loadout.Weapon,
-                agent.Loadout.Shield);
+                agent.Loadout.Shield,
+                agent.IsLeader);
             var pawnPrefix = PawnGeometry.PoseBlindPrefix.Create(
                 footAnchor,
                 _camera.Zoom,
@@ -482,7 +483,11 @@ public sealed partial class ArenaGame
                 selectedEntityId,
                 hoveredEntityId);
 
-            RecordQuads(PawnQuadCount.Count(layout, appearance, state));
+            RecordQuads(PawnQuadCount.Count(
+                layout,
+                appearance,
+                state,
+                isLeader: agent.IsLeader));
         }
 
         // GPU-005, as amended by GPU-014. One pawn-layout construction begun
@@ -904,7 +909,8 @@ public sealed partial class ArenaGame
                 ordinal,
                 agent.EntityId,
                 agent.Loadout.Weapon,
-                agent.Loadout.Shield);
+                agent.Loadout.Shield,
+                agent.IsLeader);
 
             // GPU-014, stage one. The cull rectangle without the posed layout
             // behind it. Pose-blind on purpose: a pose-aware cull would make

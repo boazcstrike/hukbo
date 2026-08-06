@@ -257,7 +257,8 @@ public sealed class PresentationCoordinatorTests
                 ordinal,
                 entityId: (ulong)ordinal + 1,
                 WeaponId.Kampilan,
-                ShieldId.TallHardwood);
+                ShieldId.TallHardwood,
+                isLeader: false);
         }
 
         Assert.Equal(4, coordinator.PawnAppearances.Fill);
@@ -299,12 +300,14 @@ public sealed class PresentationCoordinatorTests
             ordinal: 0,
             entityId: 7,
             WeaponId.Kampilan,
-            ShieldId.None);
+            ShieldId.None,
+            isLeader: false);
         coordinator.PawnAppearances.Resolve(
             ordinal: 0,
             entityId: 7,
             WeaponId.Kampilan,
-            ShieldId.None);
+            ShieldId.None,
+            isLeader: false);
 
         var snapshot = recorder.Snapshot();
 
