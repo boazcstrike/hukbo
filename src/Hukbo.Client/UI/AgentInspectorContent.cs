@@ -41,7 +41,11 @@ internal static class AgentInspectorContent
     /// armor, shield, movement, facing, posture, footwork, pace, and
     /// pressure. The contingent row is present exactly when the agent's
     /// <see cref="AgentView.ContingentState"/> is not
-    /// <see cref="ContingentState.None"/>. The rank reconstruction note row
+    /// <see cref="ContingentState.None"/>; the standalone leadership row
+    /// (leader rank plan L6, see <see cref="FormatLeadershipLine"/>) takes
+    /// its place, never adding to the count, exactly when that state is
+    /// <see cref="ContingentState.None"/> and the agent is a leader. The rank
+    /// reconstruction note row
     /// is present exactly when the agent's <see cref="AgentView.Rank"/>
     /// carries a <see cref="RankLabelEntry.ReconstructionNote"/> — today,
     /// only <see cref="RankId.AlipingNamamahay"/>. The combo attributes row
@@ -183,6 +187,10 @@ internal static class AgentInspectorContent
         {
             lines.Add(contingentLine);
         }
+        else if (agent.IsLeader)
+        {
+            lines.Add(FormatLeadershipLine());
+        }
 
         lines.Add($"Target: {agent.TargetEntityId?.ToString() ?? "none"}");
         lines.Add(FormatPositionLine(agent));
@@ -300,6 +308,33 @@ internal static class AgentInspectorContent
         var line = $"Contingent: {contingentId} — {GetContingentStateLabel(state)}";
         return isLeader ? $"{line} (leading)" : line;
     }
+
+    /// <summary>
+    /// The standalone leadership row (leader rank plan L6). Emitted by
+    /// <see cref="BuildLowerLines"/> exactly when
+    /// <see cref="FormatContingentLine"/> returned <see langword="null"/> —
+    /// today that is only <see cref="ContingentState.None"/> — and
+    /// <see cref="AgentView.IsLeader"/> is <see langword="true"/>: the frozen
+    /// <c>IndependentPursuitV1</c> preset, and every agent under
+    /// <c>PersistentContingentsV2</c> before its contingent stage first
+    /// resolves. Without this row a leader elected under either condition had
+    /// no leadership indication anywhere in the inspector — the contingent
+    /// row that normally carries the "(leading)" suffix is itself absent
+    /// there. <see cref="BuildLowerLines"/>'s <c>if</c>/<c>else if</c>
+    /// structure makes this row and that suffix mutually exclusive by
+    /// construction: the two conditions partition on whether
+    /// <see cref="FormatContingentLine"/> returned a line, so a warrior never
+    /// produces both, and the deepest row count — and therefore
+    /// <see cref="MaximumLowerRowCount"/> — is unchanged.
+    /// </summary>
+    /// <remarks>
+    /// Reads "leading", never "chief" or "commander" (<c>CLAUDE.md</c>
+    /// section 7), for the same reason <see cref="FormatContingentLine"/>'s
+    /// own suffix does: the succession rule that elects a leader is a
+    /// <b>Provisional reconstruction</b>, not a documented historical fact,
+    /// and either of those words would present an unearned rank claim.
+    /// </remarks>
+    internal static string FormatLeadershipLine() => "Leading";
 
     internal static string GetContingentStateLabel(ContingentState state) =>
         state switch
