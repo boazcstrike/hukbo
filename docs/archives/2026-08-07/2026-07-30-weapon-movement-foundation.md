@@ -1,0 +1,74 @@
+# Weapon-relative movement — shared foundation task list
+
+> **Archived: reference only.** This document is finished work, kept so the
+> decision can be traced back to its reasoning. Do not execute it and do not
+> cite it as the reason to change anything.
+
+**Date:** 2026-07-30
+**Status:** Plan. Implementation executes these tasks in dependency order.
+The design this list executes is
+[`2026-07-30-weapon-movement-foundation-design.md`](2026-07-30-weapon-movement-foundation-design.md);
+where a cell below is terse, the named design section carries the full rule.
+**Branch:** `movement-foundation`, based on `main` at `caf0d63`.
+
+Task identity notes, binding on every executor:
+
+- The preset is `EquipmentRelativeFootworkV6 = 6` everywhere. Never `V5`.
+- **There is no T2.** The combat-default switch the earlier shared plan wanted
+  is obsolete: `Scenario.CombatPreset` already defaults to
+  `PrecolonialPhilippinesV4`. Do not touch it.
+- **There is no T11.** The matchup runs and the asymmetric, group, and mass
+  calibration belong to the five weapon sessions (design sections 17, 19.3).
+- `BattleSimulation.cs`, `StateHasher.cs`, `MovementRuleset.cs`,
+  `MovementPresetRegistry.cs`, and `AgentState.cs` are **single-writer**
+  files: every task that touches one of them is marked `SERIAL` and no two of
+  those tasks may run at the same time. `PARALLEL-SAFE` tasks touch none of
+  the five.
+- Every task is sized for one implementation agent. Every scenario, test,
+  fixture, and benchmark names its combat preset explicitly; shielded rows
+  need `PrecolonialPhilippinesV2`.
+
+| Task | What | Files | Done when | Depends on | Verified by |
+| --- | --- | --- | --- | --- | --- |
+| **T0** — **DONE** | Verify the V4 baseline and record the performance budget | None (measurement only) | Baseline recorded | — | Recorded evidence: canonical gate exit `0`, `2773/2773` tests passed; benchmark medians V2/200 = 376.51 ms, V2/500 = 1288.79 ms, V4/200 = 314.73 ms, V4/500 = 1207.07 ms; seed-1 headless hashes `1B73FC5923879AA0` / `AC55684F24D39344` (research brief A6; design section 18) |
+| **T1** — PARALLEL-SAFE | Freeze the V3, V4, and V5 trajectories before any structural edit — three new fixtures; the V1/V2 fixtures already exist and are untouched | `tests/Hukbo.Core.Tests/MovementPresetFreezeTests.cs`; three new digest JSONs under `tests/Hukbo.Core.Tests/Fixtures/`; `tests/Hukbo.Core.Tests/Hukbo.Core.Tests.csproj` (copy items); a throwaway capture harness, deleted before commit with its disposition recorded in each fixture's provenance | Three freeze tests select combat `PrecolonialPhilippinesV2` and movement V3/V4/V5 explicitly, follow the existing V1/V2 digest format (design refers to brief B4), and pass twice byte-identically; no `DeterminismTests` pinned literal moves | T0 | `dotnet test` filter `MovementPresetFreeze` run twice; full Core suite green |
+| **T3** — PARALLEL-SAFE | Profile and facing primitives: the immutable profile type with every validation bound, the 16-sector facing enum and rules, and the `IntegerSquareRoot` lift | New `src/Hukbo.Core/Movement/LoadoutMovementProfile.cs`, `Facing16.cs`, `FacingRules.cs`; `src/Hukbo.Core/Mathematics/FixedPoint.cs` (lift `IntegerSquareRoot`); new tests under `tests/Hukbo.Core.Tests/Movement/` | Every design 4.3 bound has a rejection test and the inclusive `[1, 10_000]` pace bound admits Itak's `10000`; the exact 16-vector table, lower-sector tie, canonical-clockwise half-turn tie, step-cap edge, zero-delta `None`, and faction-reflection tests pass; a source-hygiene test bans `Math.Atan*`, `MathF`, and `double` from `FacingRules.cs`; `BattleSimulation`'s private `IntegerSquareRoot` delegates to or is replaced by the lifted helper with no hash movement | T0 | Focused `LoadoutMovementProfileTests` / `FacingRulesTests` filters; full Core suite green; seed-1 hashes unchanged |
+| **T4** — SERIAL | Register `EquipmentRelativeFootworkV6 = 6`: extend the ruleset schema (four new members, coupled validation, content-hash fold per design 5.1), ship all six profile rows from design 13, recompute the pinned literals | `src/Hukbo.Core/Movement/MovementPresetId.cs`, `MovementRuleset.cs`, `MovementPresetRegistry.cs`; five new files under `src/Hukbo.Core/Movement/Profiles/`; `tests/Hukbo.Core.Tests/MovementPresetRegistryTests.cs` | V1–V5 register `false` / zero radii / empty profiles and V6 registers `true` / `25_000` / `60_000` / six canonical rows; `ResolveLoadoutProfile` ignores `Rank` (dedicated test) and throws on an unmapped key; changing each scalar and each offset cell changes the V6 content hash while constructor-call order does not; all six pinned literals recomputed from built output plus the new V6 literal; the two existing "only" assertions extended and a third added for V6; `Scenario` default untouched | T1, T3 | Registry and profile filters; T1 fixtures byte-identical; full Core suite green |
+| **T4P** — SERIAL | Equipment-aware deployment assignment at the `BattleSimulation.Create` seam (design 12); `FormationPlanner` is not edited | New `src/Hukbo.Core/Movement/EquipmentDeploymentAssignment.cs`; `src/Hukbo.Core/Simulation/BattleSimulation.cs` (guarded call at the line-250 seam, before the line-273 mirroring); new `tests/Hukbo.Core.Tests/Movement/EquipmentFormationAssignmentTests.cs` | Singleton and homogeneous contingents map identically; mixed contingents pair clearance-descending warriors to isolation-descending slots with the design 12.2 tie-breaks; explicitly symmetric rosters mirror; contingent membership unchanged; a draw-sequence test proves zero additional SplitMix64 draws; V1–V5 spawn byte-identically | T4 | Formation, collision-spawn, roster-order, determinism, and freeze tests green |
+| **T5** — SERIAL | Local context: the two immutable context types, the pure span-based query, the O(n²) naive oracle, and the hook inside `SelectTargetsAndIntents` (design 7) | New `src/Hukbo.Core/Movement/LoadoutCompositionCounts.cs`, `LocalMovementContext.cs`, `MovementContextQuery.cs`; `src/Hukbo.Core/Simulation/BattleSimulation.cs` (hook between the perception test and the comparison block); new `tests/Hukbo.Core.Tests/Movement/NaiveMovementContextQuery.cs`, `MovementContextObservationTests.cs` | Production output equals the oracle field-for-field across seeded worlds, explicitly permuted spans, exact-radius tangencies (inclusive, C-5), dead agents, all six loadouts, zero neighbours, maximum coordinates, and maximum valid body radius; ties break on lower `EntityId`; target selection stays byte-identical; scratch rows allocated once in the constructor; `CreateForTesting` not used to claim storage-order coverage | T4 | Oracle-equivalence filter; warm-loop allocation assertion; freeze and full Core suites green |
+| **T6** — SERIAL | Posture and footwork: the two append-only enums, the pure resolvers for the nine posture branches and ten phase steps, and the five `AgentState` fields with legacy-inert defaults (design 8, 9, 14.1) — no pipeline integration yet | New `src/Hukbo.Core/Movement/TacticalPosture.cs`, `FootworkPhase.cs`, `WeaponMovementRules.cs`; `src/Hukbo.Core/Simulation/AgentState.cs`; new rules tests under `tests/Hukbo.Core.Tests/Movement/` | Table tests cover every posture branch, every boundary equality, and the `RoleCoverage` tie-break falling through to `Hold`; phase tests cover the corrected ratio steps 4/5, both hysteresis equality sides, zero enemies, entry-tick timer semantics, commit-to-recover, and the finalisation helper converting only `Approach`/`Engage`/`Pursue` to `Refuse`; the five fields default to `None`/`0` and every freeze fixture is unchanged | T3, T5 | Rules test filters; full Core suite green; all fixtures byte-identical |
+| **T7a** — SERIAL | The state-hash contract: trailing `ulong? movementContentHash = null` on `StateHasher.Compute`, the V6-only folds, and the legacy byte-for-byte guarantee (design 14.2, 14.3) | `src/Hukbo.Core/Determinism/StateHasher.cs`; `src/Hukbo.Core/Simulation/BattleSimulation.cs` (`ComputeStateHash` passes `null` for V1–V5, the movement content hash for V6); `tests/Hukbo.Core.Tests/DeterminismTests.cs` and new hasher tests | The `null` path is byte-for-byte legacy in both `hasRankLevels` states; V6 folds the movement hash after the combat hash and the five fields after the conditional rank fold; every pinned pair in design 14.3 and the seed-1 baseline `1B73FC5923879AA0` / `AC55684F24D39344` are unchanged; changing any one V6 field or any profile value changes the V6 hash | T4, T6 | `DeterminismTests` green; freeze suites green; headless seed-1 workload reproduces the pinned hashes |
+| **T7b** — SERIAL | Pipeline integration: posture and provisional phase stage, route candidates, lane clearance, the conflict pass with its naive pairwise oracle, pace application and commit, `AttackAcceptedThisTick` marking, `Commit` entry, and same-tick death cleanup (design 6, 10, 11) | `src/Hukbo.Core/Simulation/BattleSimulation.cs`; `src/Hukbo.Core/Movement/WeaponMovementRules.cs` and route-rule files from T6; new and modified focused simulation tests under `tests/Hukbo.Core.Tests/` | Every insertion point matches design 11.2; candidate order, second-threat equality, `StepEndpoint` math, side parity, clearance strict-less/equality-clear, conflict-pass order and equality-accepts all pass focused tests; a precedence test exists for every adjacent pair of design 11.1; `Engage` crosses the preferred band and reaches the existing post-movement attack gate without a one-tick delay in a clear mirrored duel; V1–V5 control tests prove no V6 work runs; quiet and crowded allocation tests pass unchanged | T4P, T5, T6, T7a | Focused movement, collision, attack, contingent, hash, and freeze suites; allocation tests; full Core suite green |
+| **T8** — SERIAL | Snapshot, view, and inspector: five trailing-default `AgentView` members, `ToView` mapping, four pure conditional formatters, and the row-budget rise (design 15) | `src/Hukbo.Core/Simulation/AgentView.cs`; `src/Hukbo.Core/Simulation/AgentState.cs` (`ToView`); Core snapshot tests; `src/Hukbo.Client/UI/AgentInspectorContent.cs`, `AgentInspectorPanel.cs`; `tests/Hukbo.Client.Tests/AgentInspectorContentTests.cs` | The five members carry trailing defaults after `IsLeader` and survive `CreateSnapshot`; Facing renders a compass label, Footwork appends ticks only on `Commit`/`Recover`, Pace renders an integer percentage; all four formatters return `null` under legacy presets so legacy inspector output is byte-identical; `MaximumLowerRowCount` is `19` and the three pinned budget tests (including the shielded-minus-one assertion) pass | T7b | Core snapshot tests and the Client inspector suite green; no Client test constructs `ArenaGame` or a graphics device |
+| **T9** — PARALLEL-SAFE | Derived observability: the metrics accumulator modelled on `CollisionMetricsAccumulator`, the trailing `RunReport` member, and the flat `sim.tick` aggregate fields (design 16) | New `src/Hukbo.Core/Simulation/MovementBehaviorMetrics.cs`; `src/Hukbo.Headless/RunReport.cs`, `HeadlessRunner.cs`; `src/Hukbo.Client/ArenaGame.cs` (`LogTick` payload only); headless and logging tests | Accumulator has `Reset`, validated `AddTick`, `checked` `long` totals, and a non-consuming `ToMetrics`; view-derivable counters accumulate in `HeadlessRunner` from once-allocated current/previous `AgentView` arrays; the conflict-denial counter follows the `MeasureCollision` observability-only pattern; `RunReport` gains one trailing defaulted member that round-trips as camelCase JSON; `sim.tick` gains flat fields only, guarded by `IsEnabledFor`; a test proves metrics reach neither hash and disabled logging allocates nothing | T8 | Headless runner tests, logging-boundary tests, JSON round-trip, same-seed hash equality with metrics on and off |
+| **T10** — PARALLEL-SAFE | The scenario matrix generator and its self-tests — generation only, no simulation runs (design 17) | New `tests/Hukbo.Core.Tests/Movement/MovementScenarioMatrix.cs` and `MovementScenarioMatrixTests.cs` | Nested `i <= j` enumeration yields exactly 21 unordered 1v1 pairs with six mirrors, the same 21 team compositions, and exactly 231 team matchups with 21 mirrors; self-tests assert count, uniqueness, and canonical order without constructing a simulation | T0 | Generator self-tests green |
+| **T12** — SERIAL | Freeze V6 and run integration verification: the V6 digest fixture, the freeze test, the budget benchmarks, the canonical gate, and the honest manual checklist (design 14.2, 18, 19.4) | `tests/Hukbo.Core.Tests/MovementPresetFreezeTests.cs` plus one new V6 fixture JSON and its csproj copy item; `docs/development/testing.md`; this plan's checkboxes and the implementation record | The seed-1/200-agent V6 digest names combat `PrecolonialPhilippinesV2` and movement `EquipmentRelativeFootworkV6` explicitly with full provenance and its freeze test passes twice byte-identically; `./scripts/benchmark.ps1` runs at 200 and 500 agents, seeds 1/2/3/5/8, land inside the design 18 ceilings with zero warm-tick movement bytes; `./scripts/verify.ps1` exits `0` with the actual output pasted; every interactive checklist row is `PASS` only if personally observed, else `PENDING` or `BLOCKED`; the final diff review finds no default activation, no V1–V5 data change, no floating point in Core movement, and no unrelated edit | T1, T7b, T8, T9, T10 | The canonical gate's real output; the benchmark `RunReport`s; the twice-run freeze test |
+
+## Concurrency groups
+
+The eight-agent ceiling is never approached; the widest group is three.
+
+| Group | Tasks | Why safe together |
+| --- | --- | --- |
+| G1 | T1, T3, T10 in parallel | Disjoint files; none touches a single-writer file |
+| G2 | T4 alone | `MovementRuleset.cs`, `MovementPresetRegistry.cs` |
+| G3 | T5 alone | `BattleSimulation.cs` |
+| G4 | T4P and T6 in parallel | T4P owns `BattleSimulation.cs`; T6 owns `AgentState.cs` plus new files — disjoint |
+| G5 | T7a alone | `StateHasher.cs`, `BattleSimulation.cs` |
+| G6 | T7b alone | `BattleSimulation.cs` |
+| G7 | T8 alone | `AgentState.cs`, `AgentView.cs`, Client UI files |
+| G8 | T9 alone (T10 already done in G1) | Headless and Client logging files only |
+| G9 | T12 alone | The canonical gate is never delegated |
+
+## Deferred, with reasons
+
+- **T2 (combat-default switch):** obsolete — the default is already
+  `PrecolonialPhilippinesV4` (`Scenario.cs:67-68`); the plan described a
+  V2-to-V3 switch that happened and moved on again.
+- **T11 and all matrix simulation runs:** owned by the five weapon sessions;
+  this foundation ships the generator and the invariant conventions only.
+- **Bounded spatial query / movement grid:** forbidden in this slice; only a
+  failed design-18 budget authorizes a separate optimization design.
+- **Default activation of V6:** separate future task with new golden
+  expectations, gated on design section 19.4.
+

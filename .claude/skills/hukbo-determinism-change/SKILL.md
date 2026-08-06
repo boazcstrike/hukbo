@@ -71,7 +71,7 @@ re-records it and this skill file is a periodic snapshot copied from it; if the 
 believe `docs/development/testing.md`, not the table below.
 
 From `docs/development/testing.md`'s record of T6 in
-`docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md`, seed 1, 200 agents, run after T6 flipped
+the contingent close-latch plan, seed 1, 200 agents, run after T6 flipped
 `Scenario.MovementPreset`'s shipped default from `PersistentContingentsV2` to
 `PersistentContingentsV3`:
 
@@ -85,7 +85,7 @@ From `docs/development/testing.md`'s record of T6 in
 **This supersedes the `PersistentContingentsV2` pair — `Faction0Victory` at tick 1064
 (`faction0Survivors 8`, `faction1Survivors 0`), state hash `C79B76AE81C300CB`, event hash
 `8E819FF7B378FEFD`**, which was the seed-1, 200-agent baseline before this workstream (T1 through
-T9 of `docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md`) flipped the shipped default. The hashes,
+T9 of the contingent close-latch plan) flipped the shipped default. The hashes,
 outcome, and survivor counts all moved because transition rule 3 of the contingent state machine
 now counts members in contact instead of taking a minimum distance, and `PersistentContingentsV3`
 is the first registered preset to carry a non-zero close fraction (`1, 2`) rather than the `(0, 1)`

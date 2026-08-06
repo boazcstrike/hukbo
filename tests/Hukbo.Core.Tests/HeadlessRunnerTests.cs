@@ -552,10 +552,10 @@ public sealed class HeadlessRunnerTests
     /// <see cref="MovementPresetId.PersistentContingentsV4"/>, which is
     /// <see cref="Scenario"/>'s own default. That default was
     /// <see cref="MovementPresetId.PersistentContingentsV2"/> until task T6 of
-    /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md flipped it (itself a
+    /// the contingent close-latch plan flipped it (itself a
     /// flip from <see cref="MovementPresetId.IndependentPursuitV1"/> by task
     /// T15 of
-    /// docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md),
+    /// the formation and movement realism plan),
     /// and <see cref="MovementPresetId.PersistentContingentsV3"/> until the
     /// cross-contingent scan narrowing flipped it again; the
     /// comparison itself, and the fact that implicit and explicit runs must

@@ -6,7 +6,7 @@ work, with `Hukbo.Tools.DeadlockProbe`.
 **What this settles.** Step 1 and step 2 of section 9 of
 [`docs/plans/2026-07-28-follower-trailing-deadlock-design.md`](../plans/2026-07-28-follower-trailing-deadlock-design.md),
 under the plan at
-[`docs/plans/2026-07-28-follower-trailing-deadlock-diagnostic.md`](../plans/2026-07-28-follower-trailing-deadlock-diagnostic.md).
+[`docs/archives/2026-08-07/2026-07-28-follower-trailing-deadlock-diagnostic.md`](../archives/2026-08-07/2026-07-28-follower-trailing-deadlock-diagnostic.md).
 Until now that design's sections 4 and 6 were explicitly labelled hypothesis and
 no fix could be chosen honestly. They can be now.
 

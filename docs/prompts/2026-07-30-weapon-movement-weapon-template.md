@@ -20,7 +20,7 @@ can do nothing but fail.
 | `{{WEAPON}}` | Kampilan — Great Blade | Wasay — War Axe | Kalis — Thrusting Blade | Itak — Work Blade | Tall Hardwood Shield |
 | `{{SLUG}}` | kampilan | wasay | kalis | itak | tall-hardwood-shield |
 | `{{BRANCH}}` | movement-kampilan | movement-wasay | movement-kalis | movement-itak | movement-shield |
-| `{{PLAN}}` | `docs/archives/2026-07-31/movement/kampilan.md` | `docs/archives/2026-07-31/movement/wasay.md` | `docs/archives/2026-07-31/movement/kalis.md` | `docs/archives/2026-07-31/movement/itak.md` | `docs/archives/2026-07-31/movement/tall-hardwood-shield.md` |
+| `{{PLAN}}` | the kampilan movement plan | the wasay movement plan | the kalis movement plan | the itak movement plan | the tall-hardwood-shield movement plan |
 | `{{RESEARCH}}` | `docs/research/movement/kampilan.md` | `docs/research/movement/wasay.md` | `docs/research/movement/kalis.md` | `docs/research/movement/itak.md` | `docs/research/movement/tall-hardwood-shield.md` |
 | `{{LOADOUT}}` | `CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None)` | `CombatLoadout(WeaponId.Wasay, ArmorId.LightOrganic, ShieldId.None)` | `CombatLoadout(WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.None)` | `CombatLoadout(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.None)` | both `CombatLoadout(WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.TallHardwood)` and `CombatLoadout(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.TallHardwood)` |
 | `{{MATRIX ID}}` | `KP` | `WA` | `KA` | `IT` | `KS` and `IS` |
@@ -41,7 +41,7 @@ on it and you do not change it.
 
 Your governing documents, in precedence order:
 
-1. `docs/archives/2026-07-31/movement/README.md` — the shared architecture, preset identity,
+1. the weapon movement workstream plan — the shared architecture, preset identity,
    hashing order, route and clearance contract, and the file-ownership table.
    **This outranks your weapon plan on anything shared.**
 2. `{{PLAN}}` — your weapon's task list. This is the only plan you execute.

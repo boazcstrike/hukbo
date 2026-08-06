@@ -258,7 +258,7 @@ bronze verso for a later crew-served or emplacement system.
 
 Hukbo now has an authoritative pre-colonial Philippine combat preset in
 `Hukbo.Core.Combat` (see the approved design at
-`docs/archives/2026-07-26/2026-07-26-philippine-combat-configuration-design.md`), which
+the Philippine combat configuration design), which
 gives every warrior a weapon, an armor identity, and a shield identity, and
 resolves an explainable body-part hit location for every accepted attack.
 That preset was built from this document's evidence, but it is a distinct

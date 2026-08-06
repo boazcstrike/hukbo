@@ -7,7 +7,7 @@ using Hukbo.Core.Simulation;
 namespace Hukbo.Core.Tests.Movement;
 
 /// <summary>
-/// Task K2 of <c>docs/archives/2026-07-31/movement/kalis.md</c>: every
+/// Task K2 of the kalis movement plan: every
 /// equality rule the Kalis rows own, pinned one raw unit outside, exactly
 /// on the boundary, and
 /// one raw unit inside. The count and lifecycle rules are called directly on

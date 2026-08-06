@@ -90,7 +90,7 @@ document says so in as many words.
 
 The full reasoning, the evidence tier behind every claim, and the panel
 arithmetic are in
-[docs/archives/2026-07-29/2026-07-29-shield-clash-audio-design.md](../../../../docs/archives/2026-07-29/2026-07-29-shield-clash-audio-design.md).
+the shield clash audio design.
 
 ## Swing slots — open question, no design yet
 

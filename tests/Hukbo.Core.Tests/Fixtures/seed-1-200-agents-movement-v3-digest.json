@@ -1,6 +1,6 @@
 {
   "provenance": {
-    "task": "T1, docs/plans/2026-07-30-weapon-movement-foundation.md",
+    "task": "T1, docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md",
     "capturedFromCommit": "af2a0a1",
     "purpose": "Per-tick trajectory digest for seed 1 at 200 agents under PersistentContingentsV3, captured from the completely unmodified src/ tree at commit af2a0a1, before any weapon-relative-movement code exists. Every later task in that plan that could plausibly disturb PersistentContingentsV3\u0027s trajectory reproduces this fixture byte-identically as part of its own verification.",
     "eventFoldSpecification": "Per tick, start at the canonical FNV-1a 64-bit offset basis 14695981039346656037 and fold, for each event of that tick in emission order, the twelve words HeadlessRunner.AddEventToHash folds: (ulong)Sequence, (ulong)Tick, (ulong)Kind, SourceEntityId, TargetEntityId ?? 0, (ulong)(uint)Value, FactionId is int f ? (ulong)(uint)f : ulong.MaxValue, Weapon is WeaponId w ? (ulong)(uint)(int)w : ulong.MaxValue, Shield is ShieldId s ? (ulong)(uint)(int)s : ulong.MaxValue, HitLocation is BodyPart h ? (ulong)(uint)(int)h : ulong.MaxValue, Resolution is AttackResolution r ? (ulong)(uint)(int)r : ulong.MaxValue, ComboPosition is int p ? (ulong)(uint)p : ulong.MaxValue. This is the same fold the headless runner and the benchmark script use to report eventHash, so this fixture\u0027s per-tick eventFold column is directly comparable to that output at the same tick.",

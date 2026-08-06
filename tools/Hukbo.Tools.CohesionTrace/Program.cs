@@ -9,10 +9,10 @@ namespace Hukbo.Tools.CohesionTrace;
 /// <summary>
 /// Measures why contingent cohesion stops firing partway through a faction's
 /// advance, which is the one thing design section 7 of
-/// docs/plans/2026-07-28-cohesion-scan-narrowing-design.md records as not
-/// established. Section 10.3 of the formation-movement design forbids moving
-/// the inertness bar's thresholds until that cause is known, so this program
-/// exists to establish it rather than to change anything.
+/// docs/archives/2026-08-07/2026-07-28-cohesion-scan-narrowing-design.md
+/// records as not established. Section 10.3 of the formation-movement design
+/// forbids moving the inertness bar's thresholds until that cause is known, so
+/// this program exists to establish it rather than to change anything.
 /// </summary>
 /// <remarks>
 /// <para>

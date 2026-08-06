@@ -13,7 +13,7 @@ namespace Hukbo.Core.Tests.Movement;
 /// Every value asserted here is a provisional reconstruction: gameplay tuning;
 /// no historical measurement. The evidence behind the row, and the reasoning
 /// for each figure, lives in docs/research/movement/wasay.md and in the
-/// calibration table of docs/archives/2026-07-31/movement/wasay.md
+/// calibration table of the wasay movement plan
 /// section 5. Nothing in this file is a claim about how a
 /// sixteenth-century warrior actually moved.
 /// </summary>
@@ -158,7 +158,7 @@ public sealed class WasayMovementProfileTests
 
     /// <summary>
     /// Every scalar of the row sits inside the calibration range approved in
-    /// the table of docs/archives/2026-07-31/movement/wasay.md section 5.
+    /// the table of the wasay movement plan section 5.
     /// A later retuning pass that moves a value outside its approved range
     /// fails here by name,
     /// rather than quietly shipping a row nobody agreed to. Both bounds are

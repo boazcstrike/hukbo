@@ -31,7 +31,7 @@ public static class MovementPresetRegistry
     /// hash untouched. That reasoning does not carry over to
     /// <see cref="MovementPresetId.EquipmentRelativeFootworkV6"/>, which does
     /// fold the movement content hash. See
-    /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch-design.md section 3.
+    /// the contingent close-latch design section 3.
     /// <c>CloseFractionNumerator</c> and <c>CloseFractionDenominator</c> are
     /// registered here at <c>(0, 1)</c>, which collapses both the entry and
     /// exit thresholds in <c>MovementRules.ResolveContingentState</c> to
@@ -70,7 +70,7 @@ public static class MovementPresetRegistry
     /// floor of <c>Max(1, ...)</c> makes the fraction reproduce today's
     /// minimum-distance rule exactly, so introducing the fields moves no
     /// behaviour under this preset either. See
-    /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch-design.md section 3 for
+    /// the contingent close-latch design section 3 for
     /// the derivation of each value.
     /// </summary>
     private static readonly MovementRuleset PersistentContingentsV2Ruleset = new(
@@ -105,8 +105,8 @@ public static class MovementPresetRegistry
     /// target inside the close radius, instead of the single-member minimum
     /// the <c>(0, 1)</c> floor reproduces. Not the shipped default — reachable
     /// only through <c>--movement-preset</c> until
-    /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md T6 flips it. See
-    /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch-design.md section 3 for
+    /// the contingent close-latch plan T6 flips it. See
+    /// the contingent close-latch design section 3 for
     /// the derivation.
     /// </summary>
     /// <remarks>
@@ -156,9 +156,11 @@ public static class MovementPresetRegistry
     /// bar did fail — <c>CohesionCoverageIsNotPracticallyInertAcrossSeedsOneThroughTwenty</c>
     /// reported seed 11, faction 1 with no cohering tick in the later half of
     /// a 138-tick pre-<c>Close</c> window — and the user answered question 8
-    /// in favour of narrowing. Adopting it did not clear the bar; see
-    /// docs/plans/2026-07-28-cohesion-scan-narrowing-design.md for what the
-    /// measurement found instead. It lands as a
+    /// in favour of narrowing. Adopting it appeared not to clear the bar, until
+    /// the bar's own gate-6 reconstruction was found to be measuring V4 with
+    /// V3's rule; see
+    /// docs/archives/2026-08-07/2026-07-28-cohesion-scan-narrowing-design.md
+    /// for that measurement. It lands as a
     /// new preset rather than as an edit to
     /// <see cref="PersistentContingentsV3Ruleset"/> because V3 has already
     /// shipped as a default: CLAUDE.md section 5 requires a new preset version
@@ -206,7 +208,7 @@ public static class MovementPresetRegistry
     /// version plus new golden expectations for any change that moves
     /// simulated behaviour, and V1 through V4 all keep the behaviour their
     /// own recorded expectations pin. See
-    /// docs/plans/2026-07-29-leader-rank-design.md section 2 for why this
+    /// docs/archives/2026-08-07/2026-07-29-leader-rank-design.md section 2 for why this
     /// comparator swap reaches further into the simulation than the leader
     /// scan itself.
     /// </remarks>
@@ -252,7 +254,7 @@ public static class MovementPresetRegistry
     /// nonetheless stays
     /// <see cref="MovementPresetId.PersistentContingentsV4"/>, and the preset
     /// is reachable only through explicit selection. See
-    /// docs/plans/2026-07-30-weapon-movement-foundation-design.md sections 3,
+    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation-design.md sections 3,
     /// 5, and 13.
     /// This entry registers
     /// <see cref="MovementRuleset.AppliesPressureInterrupt"/>

@@ -1172,7 +1172,7 @@ public sealed class BattleSimulation
     /// its first line and touches no contingent array at all, which is why
     /// the frozen preset's trajectory is untouched by this stage's
     /// existence. See
-    /// docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
+    /// the formation and movement realism design
     /// sections 3.4 and 3.5.
     /// </summary>
     /// <remarks>
@@ -1486,7 +1486,7 @@ public sealed class BattleSimulation
     /// Under every persistent-contingent preset, a
     /// <see cref="AgentIntent.Moving"/> agent that passes all six movement
     /// gates of design section 3.5
-    /// (docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md)
+    /// (the formation and movement realism design)
     /// takes a
     /// contingent cohesion destination instead of its ordinary nearest-enemy
     /// pursuit; every agent that fails even one of the six gates takes
@@ -3048,7 +3048,7 @@ public sealed class BattleSimulation
     /// <remarks>
     /// <para>
     /// Only reached at a non-zero stall generation. The design is in
-    /// <c>docs/plans/2026-07-29-approach-sidestep-design.md</c>, and its section
+    /// <c>docs/archives/2026-08-07/2026-07-29-approach-sidestep-design.md</c>, and its section
     /// 2 records why the rally escape alone was not enough: that escape lives in
     /// <see cref="BuildRegroupingProposal"/> and a pursuing warrior never
     /// reaches it, so a locked cluster could contain warriors with a way out and

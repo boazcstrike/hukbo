@@ -5,7 +5,7 @@ using Hukbo.Core.Movement.Profiles;
 namespace Hukbo.Core.Tests.Movement;
 
 /// <summary>
-/// Task K1 of <c>docs/archives/2026-07-31/movement/kalis.md</c>: the two
+/// Task K1 of the kalis movement plan: the two
 /// exported Kalis rows — solo <c>KA</c> and shielded <c>KS</c> — pinned at
 /// their source, on the exported static property rather than through the
 /// registry, and
@@ -13,7 +13,7 @@ namespace Hukbo.Core.Tests.Movement;
 /// asserted number is a <b>Provisional reconstruction: gameplay tuning; no
 /// historical measurement</b>, drawn from
 /// <c>docs/research/movement/kalis.md</c> section 7 and materialised by
-/// <c>docs/plans/2026-07-30-weapon-movement-foundation-design.md</c>
+/// <c>docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation-design.md</c>
 /// section 13.
 /// </summary>
 /// <remarks>

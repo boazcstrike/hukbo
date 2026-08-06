@@ -12,7 +12,7 @@ public enum MovementPresetId
     /// Today's behaviour, frozen. Every warrior pursues its nearest enemy
     /// independently; contingents exist only at deployment and are never
     /// consulted again; no cohesion, no unit state, no arrival taper. See
-    /// docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
+    /// the formation and movement realism design
     /// section 6.2 for what "frozen" binds here.
     /// </summary>
     IndependentPursuitV1 = 1,
@@ -25,7 +25,7 @@ public enum MovementPresetId
     /// contingent while gathering, may be given a cohesion destination
     /// instead of independent pursuit, subject to the six movement gates and
     /// the cohesion duty cycle of design section 3.5. See
-    /// docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
+    /// the formation and movement realism design
     /// sections 3.4 through 3.6.
     /// </summary>
     PersistentContingentsV2 = 2,
@@ -43,7 +43,7 @@ public enum MovementPresetId
     /// members have a selected target inside the close radius, and re-opens it
     /// once that fraction drops below a quarter, instead of the single-member
     /// minimum <see cref="PersistentContingentsV2"/> uses. See
-    /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch-design.md section 3 for
+    /// the contingent close-latch design section 3 for
     /// the derivation.
     /// </summary>
     PersistentContingentsV3 = 3,
@@ -71,16 +71,19 @@ public enum MovementPresetId
     /// body-occupancy residual.
     /// </summary>
     /// <remarks>
-    /// The narrowing does what it claims and does not fix the inertness bar,
-    /// and both halves of that sentence are measured. It provably stops a
-    /// <c>Close</c> contingent denying its neighbours, which is what
+    /// The narrowing provably stops a <c>Close</c> contingent denying its
+    /// neighbours, which is what
     /// <c>UnderTheNarrowedScanACloseContingentStopsDenyingItsNeighbours</c>
-    /// pins. The bar nevertheless still fails, on more faction-seeds than
-    /// before rather than fewer, because the clause that fails turns out not
-    /// to be measuring chain denial at all. The evidence, and the threshold
-    /// question it opens instead, are recorded in
-    /// docs/plans/2026-07-28-cohesion-scan-narrowing-design.md. Do not read
-    /// this preset as a fix for section 10.3.
+    /// pins. It appeared at first not to fix the inertness bar, and to fail it
+    /// on more faction-seeds than before rather than fewer. That turned out to
+    /// be a defect in the bar's own gate-6 reconstruction, which scanned every
+    /// living contingent while measuring the one preset whose distinguishing
+    /// rule is that it does not; with the observer corrected, all three clauses
+    /// pass on this preset. The evidence is recorded in
+    /// docs/archives/2026-08-07/2026-07-28-cohesion-scan-narrowing-design.md.
+    /// Section 13 question 7 — whether the three thresholds are the right ones
+    /// — is still open, so do not read a bar that no longer fails as a bar
+    /// proved right.
     /// </remarks>
     PersistentContingentsV4 = 4,
 
@@ -91,8 +94,8 @@ public enum MovementPresetId
     /// <c>(RankId ascending, EntityId ascending)</c> instead of
     /// <c>EntityId</c> alone, so a contingent's highest-ranking living
     /// member leads it rather than its lowest-entity-id living member. See
-    /// docs/plans/2026-07-29-leader-rank-design.md for the reasoning and
-    /// docs/archives/2026-07-29/2026-07-29-leader-rank.md task L1 for this
+    /// docs/archives/2026-08-07/2026-07-29-leader-rank-design.md for the reasoning and
+    /// the leader rank plan task L1 for this
     /// preset's derivation.
     /// </summary>
     PersistentContingentsV5 = 5,
@@ -110,7 +113,7 @@ public enum MovementPresetId
     /// <see cref="PersistentContingentsV4"/> — and every profile value it
     /// carries is a provisional reconstruction for gameplay tuning, not a
     /// historical measurement. See
-    /// docs/plans/2026-07-30-weapon-movement-foundation-design.md sections 3,
+    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation-design.md sections 3,
     /// 5, and 13.
     /// </summary>
     EquipmentRelativeFootworkV6 = 6,

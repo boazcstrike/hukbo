@@ -26,7 +26,7 @@ the repository state at commit `8a3d930`.
 ## 2. Current state of the backdrop
 
 The plains backdrop shipped on 2026-07-27 (design archived at
-`docs/archives/2026-07-27/2026-07-27-plains-backdrop-design.md`, reference
+the plains backdrop design, reference
 only). What exists today, verified in source:
 
 - `src/Hukbo.Client/Rendering/PlainsBackdropGeometry.cs` — pure helpers. A
@@ -416,7 +416,7 @@ Repository evidence: `src/Hukbo.Client/Rendering/PlainsBackdropGeometry.cs`,
 `src/Hukbo.Core/Simulation/BattleEvent.cs`,
 `src/Hukbo.Client/Presentation/{SwingAnimationSystem,HitEffectSystem,BloodEffectSystem,BattleEventFeed}.cs`,
 `src/Hukbo.Client/Audio/SoundCueMapper.cs`, and the archived design
-`docs/archives/2026-07-27/2026-07-27-plains-backdrop-design.md` (reference
+the plains backdrop design (reference
 only). MonoGame API facts: current MonoGame documentation via context7
 (custom effects and MGFXC `/Profile OpenGL`, `vs_3_0`/`ps_3_0` OpenGL
 profiles, `SpriteBatch.Begin` effect parameter and Deferred-versus-Immediate

@@ -763,7 +763,7 @@ public sealed class LastStandFormationTests
     /// </para>
     /// <para>
     /// Two hundred is chosen because it is what the surveys behind
-    /// <c>docs/plans/2026-07-29-approach-sidestep-design.md</c> ran at, so the
+    /// <c>docs/archives/2026-08-07/2026-07-29-approach-sidestep-design.md</c> ran at, so the
     /// bar this test holds and the evidence gathered against it are the same
     /// sample. Widening it is not free of information either: the residual
     /// stalls recorded in section 10 of that design are all at thresholds 7 and
@@ -831,7 +831,7 @@ public sealed class LastStandFormationTests
     /// found eight stalling seeds; these are the five the sidestep clears. The
     /// remaining three — 5, 49 and 146 — still stall, for a reason recorded in
     /// section 10.1 of
-    /// <c>docs/plans/2026-07-29-approach-sidestep-design.md</c>: their blocked
+    /// <c>docs/archives/2026-08-07/2026-07-29-approach-sidestep-design.md</c>: their blocked
     /// warriors are enclosed rather than merely misdirected. Seed 49's longest
     /// blocked streak is 9 823 consecutive ticks, so the escape fires about
     /// fifty-one times and offers fifty-one different aim points without the

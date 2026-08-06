@@ -636,7 +636,7 @@ public sealed class BattleSimulationTests
 
     /// <summary>
     /// Acceptance row <c>Battle completion</c> of
-    /// <c>docs/archives/2026-07-27/2026-07-27-formation-collision-mechanics.md</c>:
+    /// the formation collision mechanics plan:
     /// the canonical two-hundred-agent battle still reaches a decisive result
     /// well inside its tick limit. Solid bodies must not turn the battle into
     /// a stalemate that only the limit ends.

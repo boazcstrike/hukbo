@@ -15,7 +15,7 @@ public sealed class FormationPlannerTests
     /// The jitter reach on the default scenario. Lattice spacing there is six
     /// body radii, which is 25.5 world units at the enlarged 4.25-world-unit
     /// collision radius (task C1,
-    /// docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md; it
+    /// the collision report and window shell plan; it
     /// was 24 world units before that change), and the jitter is
     /// half the clearance above a body diameter, so a warrior sits within nine
     /// units of its lattice cell and two independently jittered plans differ
@@ -113,7 +113,7 @@ public sealed class FormationPlannerTests
     /// are clustered by gap. On the default 200-agent scenario the lattice
     /// spacing is 6 body radii, which is 25.5 world units at the enlarged
     /// 4.25-world-unit collision radius (task C1,
-    /// docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md).
+    /// the collision report and window shell plan).
     /// Regenerated for that task: a real run across seeds 1, 2, and 9
     /// measured the widest within-group row gap at about 22 world units and
     /// the narrowest between-group gap at about 44, both markedly closer
@@ -365,7 +365,7 @@ public sealed class FormationPlannerTests
         int factionId)
     {
         // 32 world units, regenerated for task C5
-        // (docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md)
+        // (the collision report and window shell plan)
         // alongside the summary above: it clears the widest measured
         // within-group row gap (~22 world units) and sits below the
         // narrowest measured between-group gap (~44 world units) at the

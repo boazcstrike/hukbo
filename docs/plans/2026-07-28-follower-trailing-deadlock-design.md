@@ -279,7 +279,7 @@ first task determines. Choosing before that measurement would be guessing.
 both the state hash and the event hash on every seed.**
 
 That is the opposite requirement from the collision work described in
-`docs/plans/2026-07-28-collision-resolution-scaling-design.md`, which is
+`docs/archives/2026-08-07/2026-07-28-collision-resolution-scaling-design.md`, which is
 strictly hash-neutral and whose section 13 puts "anything that changes a
 committed position, a preset version, or a golden expectation" out of scope.
 These two documents touch the same file and the same method and must not be
@@ -318,7 +318,7 @@ In order.
    record, for the stalled ticks, which agents resolved `Blocked`, which body
    each one's ladder was refused against, and whether that body was pending or
    committed. This is a diagnostic run, not a code change; the debug log under
-   `docs/archives/2026-07-27/2026-07-27-debug-logging-standard-design.md` is the right vehicle
+   the debug logging standard design is the right vehicle
    and a `trc`-level channel is the right level. Until this exists, sections 4
    and 6 are speculation and no option can be chosen honestly.
 2. **Establish whether the stall is a half-rate column or a true mutual lock.**

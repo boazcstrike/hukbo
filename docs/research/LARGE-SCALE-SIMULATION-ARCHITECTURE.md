@@ -436,7 +436,7 @@ Interpretation limits:
 The allocation curve is almost perfectly linear because each active
 simulation creates a tick event list with a backing array sized to twice the
 agent count. Existing deferred debt is recorded in
-`docs/archives/2026-07-27/2026-07-27-battle-event-allocation-packing.md`.
+the battle event allocation packing plan.
 
 ### Gaps between standards and source
 

@@ -5,7 +5,7 @@ using Hukbo.Core.Simulation;
 
 // Measures mean ticks-to-kill per weapon loadout and per-faction win rate,
 // for T32/T27 of
-// docs/archives/2026-07-28/2026-07-27-weapon-identity-and-attributes.md.
+// the weapon identity and attributes plan.
 // Runs real BattleSimulation instances; read-only against Hukbo.Core and
 // writes nothing to a repository file.
 //

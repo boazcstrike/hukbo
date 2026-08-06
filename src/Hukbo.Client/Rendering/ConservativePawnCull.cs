@@ -9,7 +9,19 @@ namespace Hukbo.Client.Rendering;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The purpose is the reordering described in the GPU render design's section
+/// <b>Not adopted, and deliberately so.</b> GPU-016, the task that would have
+/// moved this bound ahead of appearance resolution in the pawn loop, was
+/// dropped on 2026-08-07 and nothing calls this type today. The saving it
+/// measured is zero at minimum zoom and zero at default fit, and the only
+/// station it could move already renders ten times inside budget. The bound and
+/// its brute-force containment proof are kept because
+/// <c>ConservativePawnCullTests</c> is the only thing that would catch the
+/// mirrored <see cref="PawnGeometry"/> constants below drifting from the real
+/// ones. See the archived plan at
+/// <c>docs/archives/2026-08-07/gpu-render/2026-07-28-gpu-render.md</c>.
+/// </para>
+/// <para>
+/// The purpose was the reordering described in the GPU render design's section
 /// 5.2, fix 2a. Today the pawn loop resolves an appearance for every living
 /// agent and only then tests the exact pose-blind bounds against the arena
 /// panel, so a battle viewed at maximum zoom still resolves an appearance for

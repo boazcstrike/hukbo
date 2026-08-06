@@ -24,7 +24,7 @@ Navigate:
 
 [HISTORICAL_1500s_RANKS.md](HISTORICAL_1500s_RANKS.md) covers the same rank
 vocabulary as section 4 below and is the evidence base already cited by
-`docs/plans/2026-07-29-warrior-standing-design.md`. The two documents were
+`docs/archives/2026-08-07/2026-07-29-warrior-standing-design.md`. The two documents were
 written independently. **They were reconciled term by term on 2026-07-29**
 (see §9.1 below for the full record): three label and tier disagreements were
 resolved in RANKS's favour, the `aliping namamahay` UI-clearance question was

@@ -27,7 +27,7 @@ section 7 and by the evidence-labelling rules established in
 - Nothing from one region or decade may be generalized to "the Philippines".
 
 One prior document requires a standing caution.
-`docs/archives/2026-07-27/SHIELDS.md` is an archived design for a shield
+the archived shields research note is an archived design for a shield
 stat-variant system. It was consulted here as prior research only. It is
 reference material, it authorizes nothing, and its proposed
 `ShieldId.NarrowBreastHigh` does not exist in the implemented game. Where this
@@ -839,7 +839,7 @@ traced, or imported as an asset.
     shield primacy in the defensive record; the untraceable "50 × 150 cm,
     sword-proof, enmeshing" formulation flag; active-angled shield use
     (Warming, Viking comparative); the exclusion of enthusiast metallurgy.
-22. **`docs/archives/2026-07-27/SHIELDS.md`** (this repository, archived).
+22. **the archived shields research note** (this repository, archived).
     Prior shield design research. Reference only; authorizes nothing; its
     conclusions on the *kalasag* name and the narrow shield's coverage were
     independently re-derived here.

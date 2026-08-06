@@ -13,7 +13,7 @@ times as you like.
 [![C#](https://img.shields.io/badge/C%23-14-239120?logo=csharp&logoColor=white)](src)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078D6?logo=windows&logoColor=white)](docs/platform-support-matrix.md)
 
-[![Tests](https://img.shields.io/badge/tests-2785%20passing-3FB950)](docs/development/testing.md)
+[![Tests](https://img.shields.io/badge/tests-5448%20passing-3FB950)](docs/development/testing.md)
 [![Determinism](https://img.shields.io/badge/determinism-verified-3FB950)](SIMULATION-GAME-STANDARDS.md)
 [![Gate](https://img.shields.io/badge/gate-local%20only-8B949E)](scripts/verify.ps1)
 [![Offline](https://img.shields.io/badge/offline-no%20telemetry-8B949E)](#offline-by-design)
@@ -119,6 +119,10 @@ measurement harnesses; they are not in the solution and not in the gate.
 | Mouse wheel over the event log | Scroll battle-event history |
 | Click a warrior | Select it for persistent inspection |
 | Click empty arena | Clear the selection |
+| `F9` | Show or hide the sound log panel |
+| `Tab` / `Shift+Tab` | Move keyboard focus forward and backward inside the menu |
+| Arrow keys or `WASD` in the menu | Move keyboard focus between menu controls |
+| `Enter` | Activate the focused menu control |
 
 On-screen controls: **Play** resumes and, from the modal, also closes the menu.
 **Pause** pauses and, from the modal, leaves the menu visible. **Menu** pauses
@@ -146,6 +150,97 @@ and opens the modal. The modal carries **Next Round**, **Full Reset**, and
 
 </details>
 
+## What the simulation models
+
+Everything below lives in `Hukbo.Core`, reaches the state hash, and is
+reproducible from a seed. None of it is presentation.
+
+**Combat.** An attack is resolved against a target's defences and then against
+a hit location. The five outcomes are `Landed`, `ShieldBlocked`, `Parried`,
+`Deflected`, and `Evaded`; the seed-1 gate run above resolves 2 244 accepted
+attacks into 1 671 landed blows with roughly a quarter of the remainder
+attributable to defence. A landed blow picks one of thirteen body parts —
+weapon arm, shield arm, shoulder, head, neck, face, chest, abdomen, thigh,
+knee, shin, hands, feet — and that part is recorded on the battle event and
+decides which impact sound plays. It is metadata only: damage comes from the
+attacker's weapon profile alone, and the location struck changes no damage,
+health capacity, cooldown, later action, or death. There is no per-part health,
+wound, or crippling model.
+Landed blows can open a combination chain whose maximum length depends
+on the fighter, and a live chain shortens the attack cooldown.
+
+**Equipment.** Four fielded weapons — Kampilan, Wasay, Kalis, Itak — each with
+its own damage, reach, and cooldown, carried either alone or paired with a
+`TallHardwood` shield. Armour is a single `LightOrganic` entry. Weapon and
+shield identities are numbered and pinned: renumbering one is a content-hash
+change, not an edit.
+
+**Rank.** Four ranks — Datu, Maharlika, Timawa, Aliping Namamahay — select
+clash profiles and roster composition. Rank carries no combat-strength bonus of
+its own, for the reason given under [Historical accuracy](#historical-accuracy).
+
+**Movement and formation.** Warriors hold a tactical posture (`Advance`,
+`Hold`, `Yield`, `Regroup`, `Pursue`, `Withdraw`) and step through a footwork
+lifecycle (`Approach`, `Engage`, `Commit`, `Recover`, `Refuse`, `Disengage`,
+`Regroup`, `Pursue`) with sixteen-way facing. Contingents hold formation and
+latch on contact, a rally corridor pulls stragglers back, a stall-escape rule
+breaks a deadlock that has lasted 192 ticks, an approach sidestep keeps
+warriors from queueing single file into the same gap, and a faction reduced to
+six or fewer survivors falls into a last stand.
+
+**Collision.** A uniform grid produces candidate pairs, a fairness rule orders
+contested moves, and penetration is held at zero — the seed-1 run reports
+98 076 candidate pairs, 6 020 contacts, 84 515 accepted moves, and a maximum
+penetration of 0. There is no rigid-body physics; distance checks and hitscan
+are the model.
+
+### Rulesets and versions
+
+Rulesets are versioned rather than edited, so an old replay keeps reproducing.
+Every earlier version stays registered and unmodified.
+
+| Ruleset | Versions | Default | What the newest version added |
+| --- | --- | --- | --- |
+| Combat preset | V1 – V4 | **V4** | Rank identity, per-rank clash profiles |
+| Movement preset | V1 – V6 | **V4** | Equipment-relative footwork (V6) |
+
+The movement default deliberately lags the newest registered preset. V6 is
+built and tested, and a `Scenario` can name it, but the client never does: the
+default only moves once a battle under the newer preset terminates inside the
+tick budget, and it does not yet. The measured evidence is in
+[`docs/plans/`](docs/plans/) — see the movement V7 baseline and calibration
+records, which located the cause upstream of the tuning that was tried.
+
+## What the client shows and hears
+
+The client draws what the simulation already decided, and nothing here can
+change an outcome.
+
+**Panels.** Agent inspector, filterable battle event log with per-event detail,
+army composition editor with steppers, a battle report carrying per-faction
+combat metrics, a terminal match summary, and a sound log (`F9`). Warriors
+carry personal names drawn client-side from the researched sixteenth-century
+pool in
+[`docs/names/HISTORICAL_1500s_PERSONAL_NAMES.md`](docs/names/HISTORICAL_1500s_PERSONAL_NAMES.md).
+
+**Effects.** Blood, dust, trample marks, grass sway over a plains backdrop,
+swing animation posed per weapon, and shield-clash effects. A detail-tier gate
+and conservative culling keep the effect load bounded at high agent counts.
+
+**Audio.** 70 generated sound files: 40 attack cues keyed by weapon and body
+region, 16 shield-clash cues, 10 death lines, per-faction victory, a draw cue,
+and a UI click. A voice ledger and a cue budget cap simultaneous playback so a
+mass casualty does not become noise.
+
+**Themes and settings.** Six themes — `command`, `field-manual`, `signal`,
+`broadcast`, `high-contrast`, and the default `datu-court` — each filling the
+same set of semantic colour roles rather than hard-coded colours. Choices
+persist to `%LOCALAPPDATA%\Hukbo\settings.json` (schema version 8): selected
+theme, army composition, gore intensity (`Off`, `Stylized`, `Full`), motion
+intensity (`Off`, `Reduced`, `Full`), auto-camera mode (`Off`, `Assisted`,
+`Follow`), UI scale (`Auto`, 100%, 125%, 150%, 200%), and startup display mode
+(windowed or fullscreen).
+
 ## Determinism
 
 Determinism is the load-bearing property of this repository, not a nice
@@ -170,10 +265,11 @@ preset stays registered and unmodified so its replays keep reproducing.
 Latest gate run on this machine, 200 agents, 10,000 requested ticks, seed 1:
 
 ```
-Total tests: 2785     Passed: 2785
+Core     Total tests: 2504   Passed: 2504
+Client   Total tests: 2944   Passed: 2944
 measuredTicks 981   outcome Faction1Victory   survivors 0 / 6
 stateHash 1B73FC5923879AA0   eventHash AC55684F24D39344   deterministic true
-coreAllocatedBytes 154976   p50 0.12 ms   p95 1.01 ms   p99 1.58 ms
+coreAllocatedBytes 161168   p50 0.1239 ms   p95 1.05 ms   p99 1.2013 ms
 ```
 
 ## Verify the repository
@@ -242,7 +338,8 @@ Two boundaries are enforced by tests, not by convention:
 
 Client presentation tests never construct an `ArenaGame`, a graphics device, a
 sprite batch, or a window, and never depend on GPU, audio, focus, network, or
-the wall clock. That is what lets 2 785 tests finish in under two seconds.
+the wall clock. That is what lets 5 448 tests finish in seconds rather than
+minutes.
 
 ## Debug logging
 
@@ -361,10 +458,15 @@ output, or in a commit message.
   [decisions](docs/dependency-decisions.md) ·
   [risk register](docs/dependency-risk-register.md)
 
-Active plans live in `docs/plans/`. **`docs/archives/` is deprecated by
-definition** — it is the dump for finished and abandoned work, kept only so a
-past decision can be traced to its reasoning. Never execute an archived plan and
-never cite one as justification for a change.
+Active plans live in `docs/plans/`, and the work that has been explicitly
+parked — with the decision that parked it — is listed in
+[`docs/plans/TODO.md`](docs/plans/TODO.md).
+
+**`docs/archives/` is deprecated by definition** — it is the dump for finished
+and abandoned work, kept only so a past decision can be traced to its
+reasoning. Never execute an archived plan and never cite one as justification
+for a change. Anything an archived plan shipped that a reader still needs to
+know is described in this file instead.
 
 ## Scope and limits
 

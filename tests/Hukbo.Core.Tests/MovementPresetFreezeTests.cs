@@ -18,7 +18,7 @@ namespace Hukbo.Core.Tests;
 /// <item>
 /// <description>
 /// <c>IndependentPursuitV1</c>, captured by
-/// docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md task
+/// the formation and movement realism plan task
 /// T1, before a single line of the movement-preset workstream existed. Every
 /// later task in that plan that could plausibly disturb its trajectory --
 /// the formation planner change, the state-hash move, the shared helper
@@ -30,7 +30,7 @@ namespace Hukbo.Core.Tests;
 /// <item>
 /// <description>
 /// <c>PersistentContingentsV2</c>, captured by
-/// docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md task T1, before a single
+/// the contingent close-latch plan task T1, before a single
 /// line of the contingent-close-latch workstream existed. That plan rewrites
 /// the <c>Close</c>-state transition rule that V2 uses, so every later task
 /// in it that could plausibly disturb V2's trajectory reproduces this
@@ -41,7 +41,7 @@ namespace Hukbo.Core.Tests;
 /// <description>
 /// <c>PersistentContingentsV3</c>, <c>PersistentContingentsV4</c>, and
 /// <c>PersistentContingentsV5</c>, captured by
-/// docs/plans/2026-07-30-weapon-movement-foundation.md task T1, before a
+/// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T1, before a
 /// single line of the weapon-relative-movement workstream existed. That
 /// workstream adds <c>EquipmentRelativeFootworkV6</c> and touches the
 /// simulation pipeline every legacy preset runs through, so every later
@@ -52,7 +52,7 @@ namespace Hukbo.Core.Tests;
 /// <item>
 /// <description>
 /// <c>EquipmentRelativeFootworkV6</c>, captured by
-/// docs/plans/2026-07-30-weapon-movement-foundation.md task T12, from the
+/// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T12, from the
 /// build that completed the weapon-relative-movement foundation. Unlike the
 /// legacy fixtures it freezes a brand-new opt-in preset at the moment it
 /// shipped, so any later change that moves the V6 trajectory -- a profile
@@ -137,7 +137,7 @@ public sealed class MovementPresetFreezeTests
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
     /// -- match the fixture exactly. See
-    /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md task T1: this fixture
+    /// the contingent close-latch plan task T1: this fixture
     /// is the oracle every later task in that plan replays against before it
     /// is allowed to touch the <c>Close</c>-state transition rule V2 uses.
     /// </summary>
@@ -158,7 +158,7 @@ public sealed class MovementPresetFreezeTests
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
     /// -- match the fixture exactly. See
-    /// docs/plans/2026-07-30-weapon-movement-foundation.md task T1: this
+    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T1: this
     /// fixture is the oracle every later task in that plan replays against
     /// before it is allowed to touch the shared movement pipeline.
     /// </summary>
@@ -179,7 +179,7 @@ public sealed class MovementPresetFreezeTests
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
     /// -- match the fixture exactly. See
-    /// docs/plans/2026-07-30-weapon-movement-foundation.md task T1: this
+    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T1: this
     /// fixture is the oracle every later task in that plan replays against
     /// before it is allowed to touch the shared movement pipeline.
     /// </summary>
@@ -200,7 +200,7 @@ public sealed class MovementPresetFreezeTests
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
     /// -- match the fixture exactly. See
-    /// docs/plans/2026-07-30-weapon-movement-foundation.md task T1: this
+    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T1: this
     /// fixture is the oracle every later task in that plan replays against
     /// before it is allowed to touch the shared movement pipeline.
     /// </summary>
@@ -221,7 +221,7 @@ public sealed class MovementPresetFreezeTests
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
     /// -- match the fixture exactly. See
-    /// docs/plans/2026-07-30-weapon-movement-foundation.md task T12: this
+    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T12: this
     /// fixture freezes the opt-in preset's trajectory at the commit that
     /// completed the weapon-relative-movement foundation, with the control
     /// run selecting <c>CombatPresetId.PrecolonialPhilippinesV2</c>
@@ -335,7 +335,7 @@ public sealed class MovementPresetFreezeTests
     private static BattleSimulation CreateControlRun(MovementPresetId movementPreset)
     {
         // Named by T15's inventory step
-        // (docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md)
+        // (the formation and movement realism plan)
         // after flipping Scenario.MovementPreset's shipped default to
         // PersistentContingentsV2: this fixture is the frozen-behaviour
         // oracle for IndependentPursuitV1 specifically, and its own pinned
@@ -345,7 +345,7 @@ public sealed class MovementPresetFreezeTests
         // DeterminismTests.CreateZeroInterceptionControlRun's identical
         // rationale for CombatPreset. The same reasoning applies to the
         // PersistentContingentsV2 control run once
-        // docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md flips the default
+        // the contingent close-latch plan flips the default
         // again, to PersistentContingentsV3.
         // The body radius is pinned here for exactly the reason the preset
         // above is, and it was missed when that reasoning was first written.
@@ -369,7 +369,7 @@ public sealed class MovementPresetFreezeTests
         // Both fixtures' provenance.construction.combatPreset records
         // "PrecolonialPhilippinesV2" -- the shipped default at capture time.
         // The rank-in-composition-panel plan
-        // (docs/archives/2026-07-29/2026-07-29-rank-composition-panel.md,
+        // (the rank composition panel plan,
         // task P1) moves Scenario.CombatPreset's own default to
         // CombatPresetId.PrecolonialPhilippinesV4, which changes every
         // agent's roster loadout and therefore the state hash from tick 1

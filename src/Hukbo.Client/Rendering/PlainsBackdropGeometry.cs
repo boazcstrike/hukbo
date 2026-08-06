@@ -33,7 +33,7 @@ internal readonly record struct PlainsDecal(
 /// Pure helpers for the plains battlefield backdrop: ground-grid cell
 /// boundaries and shading, and scatter-decal placement and sizing. Presentation
 /// only — see
-/// docs/archives/2026-07-27/2026-07-27-plains-backdrop-design.md. Touches only
+/// the plains backdrop design. Touches only
 /// value types, so it is fully unit tested with no graphics device.
 /// </summary>
 internal static class PlainsBackdropGeometry
