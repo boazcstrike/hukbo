@@ -27,7 +27,7 @@ producing a second parallel design, is a failure of this task.
 | File | What it already settles |
 | --- | --- |
 | `docs/research/HISTORICAL_1500s_RANKS.md` | The rank/standing evidence base, confidence tiers, cleared and excluded terms |
-| `docs/plans/2026-07-29-warrior-standing-design.md` | The design: `StandingId`, the five-value ladder, why standing is not a damage multiplier, determinism impact, nine acceptance answers, four open questions |
+| `docs/archives/2026-08-07/2026-07-29-warrior-standing-design.md` | The design: `StandingId`, the five-value ladder, why standing is not a damage multiplier, determinism impact, nine acceptance answers, four open questions |
 | the warrior standing plan | The task plan: Phase A (A1-A13), Phase B (B1-B3), and an explicit exclusion list |
 
 A fourth document is **new** and has not been folded into that design yet:
@@ -42,7 +42,7 @@ grouped and who they follow**. The second has not been designed against yet.
 
 ### The four open questions block everything
 
-`docs/plans/2026-07-29-warrior-standing-design.md` §10 lists four questions the
+`docs/archives/2026-08-07/2026-07-29-warrior-standing-design.md` §10 lists four questions the
 user must answer before implementation starts, and task A1 of the plan exists to
 record those answers. Ask them, get answers, record them. Do not guess. A task
 that finds itself guessing has hit a missing decision and must stop.
@@ -231,7 +231,7 @@ A single planner reads both research groups and produces one ordered task list.
 It writes the design and plan documents. It writes no code.
 
 The planner's specific job here is **not** to rewrite
-`docs/plans/2026-07-29-warrior-standing-design.md`. It is to:
+`docs/archives/2026-08-07/2026-07-29-warrior-standing-design.md`. It is to:
 
 1. Amend that design with a Decisions section recording the five answered
    questions (this is existing task A1).

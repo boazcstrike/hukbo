@@ -1,11 +1,15 @@
 # Warrior rank — design
 
+> **Archived: reference only.** This document is finished work, kept so the
+> decision can be traced back to its reasoning. Do not execute it and do not
+> cite it as the reason to change anything.
+
 Date: 2026-07-29
 Amended: 2026-07-29 (Decisions section added; renamed Standing to Rank
 throughout; see the Decisions section for the full record)
 Status: design only. This document does not authorize implementation.
-Evidence base: [`docs/research/HISTORICAL_1500s_RANKS.md`](../research/HISTORICAL_1500s_RANKS.md),
-[`docs/research/ARMY-COMPOSITION.md`](../research/ARMY-COMPOSITION.md)
+Evidence base: [`docs/research/HISTORICAL_1500s_RANKS.md`](../../research/HISTORICAL_1500s_RANKS.md),
+[`docs/research/ARMY-COMPOSITION.md`](../../research/ARMY-COMPOSITION.md)
 
 Leadership specifics — the leader-follower relationship, the leader marker,
 and the full nine-question acceptance answer for leadership on its own — are
@@ -101,7 +105,7 @@ being built now. It depends on the contingent-shape work —
 size should be evidence-backed rather than a square-root split — which is a
 larger, separately evidenced change to the most heavily tested surface in the
 repository (`FormationPlanner`). Follower capacity is deferred to
-[`2026-07-29-contingent-shape-design.md`](2026-07-29-contingent-shape-design.md)
+[`2026-07-29-contingent-shape-design.md`](../../plans/2026-07-29-contingent-shape-design.md)
 as a design question there, and it is explicitly **not** scheduled for
 implementation in this pass.
 
@@ -507,7 +511,7 @@ follower capacity (Decisions, item 5); rank-aware appearance selection (the
 client already has elite and leader appearance rows chosen by a rarity
 weight, which rank could replace with something authoritative); any Visayan
 or Tagalog faction character. Its own document is
-[`2026-07-29-contingent-shape-design.md`](2026-07-29-contingent-shape-design.md).
+[`2026-07-29-contingent-shape-design.md`](../../plans/2026-07-29-contingent-shape-design.md).
 
 ## 10. Resolved questions
 

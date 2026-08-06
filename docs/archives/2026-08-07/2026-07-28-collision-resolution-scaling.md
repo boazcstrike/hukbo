@@ -1,5 +1,9 @@
 # Collision resolution scaling — plan
 
+> **Archived: reference only.** This document is finished work, kept so the
+> decision can be traced back to its reasoning. Do not execute it and do not
+> cite it as the reason to change anything.
+
 **Design:** [`2026-07-28-collision-resolution-scaling-design.md`](2026-07-28-collision-resolution-scaling-design.md).
 This plan authorizes the implementation that document describes, and nothing
 beyond it.
@@ -30,7 +34,7 @@ was written, is:
 The acceptance criterion is unchanged in substance — every recorded hash must
 come back byte-identical — but it is checked against these values and against
 the four-point sweep currently recorded in
-[`docs/development/testing.md`](../development/testing.md), not against the
+[`docs/development/testing.md`](../../development/testing.md), not against the
 figures quoted in the design.
 
 ## 2. Decisions the design left to this plan
@@ -382,7 +386,7 @@ rejection from section 14's question 3, per the decision in section 2 above.
 
 ## 6. Relationship to the deadlock work
 
-[`2026-07-28-follower-trailing-deadlock-design.md`](2026-07-28-follower-trailing-deadlock-design.md)
+[`2026-07-28-follower-trailing-deadlock-design.md`](../../plans/2026-07-28-follower-trailing-deadlock-design.md)
 touches the same method with the opposite hash requirement. Its section 8 puts
 this work first and this plan takes that ordering as given. The deadlock
 investigation's first step is a diagnostic run rather than a code change, so it

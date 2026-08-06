@@ -1,6 +1,10 @@
 # Follower-trailing deadlock — diagnostic plan
 
-**Design:** [`2026-07-28-follower-trailing-deadlock-design.md`](2026-07-28-follower-trailing-deadlock-design.md).
+> **Archived: reference only.** This document is finished work, kept so the
+> decision can be traced back to its reasoning. Do not execute it and do not
+> cite it as the reason to change anything.
+
+**Design:** [`2026-07-28-follower-trailing-deadlock-design.md`](../../plans/2026-07-28-follower-trailing-deadlock-design.md).
 
 **Date:** 2026-07-28. Written against `main` at `a6ca2a8`.
 
@@ -165,7 +169,7 @@ scaling work lands.
 ## 4a. Outcome
 
 All five tasks are done. The findings are in
-[`docs/research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md`](../research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md)
+[`docs/research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md`](../../research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md)
 and the design's section 4 has been amended to record them.
 
 The verdict: the stall is a **true mutual lock**, symmetric, between **allies

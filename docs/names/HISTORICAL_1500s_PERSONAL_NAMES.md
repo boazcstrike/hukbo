@@ -11,7 +11,7 @@ and the agent inspector. That implementation ships only the region-scoped
 ledger of recorded forms and none of the optional layers: no titles, no
 parenthood forms, no reputation or friendship names, no Christian-plus-local
 forms, and no famous historical bearers. See
-[docs/plans/2026-07-29-warrior-personal-names-design.md](../plans/2026-07-29-warrior-personal-names-design.md)
+[docs/archives/2026-08-07/2026-07-29-warrior-personal-names-design.md](../archives/2026-08-07/2026-07-29-warrior-personal-names-design.md)
 for what was cleared, what was excluded, and which tests pin each exclusion.
 Nothing in this document is superseded by that implementation.
 

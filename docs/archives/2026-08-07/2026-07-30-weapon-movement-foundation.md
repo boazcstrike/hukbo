@@ -1,5 +1,9 @@
 # Weapon-relative movement — shared foundation task list
 
+> **Archived: reference only.** This document is finished work, kept so the
+> decision can be traced back to its reasoning. Do not execute it and do not
+> cite it as the reason to change anything.
+
 **Date:** 2026-07-30
 **Status:** Plan. Implementation executes these tasks in dependency order.
 The design this list executes is

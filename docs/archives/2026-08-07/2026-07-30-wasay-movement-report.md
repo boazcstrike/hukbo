@@ -1,9 +1,13 @@
 # Wasay — War Axe: weapon-relative movement implementation report
 
+> **Archived: reference only.** This document is finished work, kept so the
+> decision can be traced back to its reasoning. Do not execute it and do not
+> cite it as the reason to change anything.
+
 Date: 2026-07-30
 Branch: `movement-wasay`, rebased onto `main` at `5afae08`.
-Executes: [`docs/archives/2026-07-31/movement/wasay.md`](../archives/2026-07-31/movement/wasay.md), tasks W1 through W5.
-Governed by: [`docs/archives/2026-07-31/movement/README.md`](../archives/2026-07-31/movement/README.md) and the shared
+Executes: [`docs/archives/2026-07-31/movement/wasay.md`](../../archives/2026-07-31/movement/wasay.md), tasks W1 through W5.
+Governed by: [`docs/archives/2026-07-31/movement/README.md`](../../archives/2026-07-31/movement/README.md) and the shared
 foundation handoff in
 [`2026-07-30-weapon-movement-foundation-report.md`](2026-07-30-weapon-movement-foundation-report.md).
 

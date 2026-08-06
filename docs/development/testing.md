@@ -540,7 +540,7 @@ below, and nothing else. The hashes are the point: they did not move.
 
 The collision resolver now answers both of its obstacle queries through bounded
 uniform-grid lookups instead of two linear scans, under
-[docs/plans/2026-07-28-collision-resolution-scaling.md](../plans/2026-07-28-collision-resolution-scaling.md).
+[docs/archives/2026-08-07/2026-07-28-collision-resolution-scaling.md](../archives/2026-08-07/2026-07-28-collision-resolution-scaling.md).
 That change is hash-neutral by construction, so this sweep is simultaneously the
 performance measurement and the correctness evidence: had any committed position
 changed, a hash would have moved.
