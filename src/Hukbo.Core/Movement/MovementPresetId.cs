@@ -94,7 +94,7 @@ public enum MovementPresetId
     /// <c>(RankId ascending, EntityId ascending)</c> instead of
     /// <c>EntityId</c> alone, so a contingent's highest-ranking living
     /// member leads it rather than its lowest-entity-id living member. See
-    /// docs/plans/2026-07-29-leader-rank-design.md for the reasoning and
+    /// docs/archives/2026-08-07/2026-07-29-leader-rank-design.md for the reasoning and
     /// the leader rank plan task L1 for this
     /// preset's derivation.
     /// </summary>
@@ -113,7 +113,7 @@ public enum MovementPresetId
     /// <see cref="PersistentContingentsV4"/> — and every profile value it
     /// carries is a provisional reconstruction for gameplay tuning, not a
     /// historical measurement. See
-    /// docs/plans/2026-07-30-weapon-movement-foundation-design.md sections 3,
+    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation-design.md sections 3,
     /// 5, and 13.
     /// </summary>
     EquipmentRelativeFootworkV6 = 6,

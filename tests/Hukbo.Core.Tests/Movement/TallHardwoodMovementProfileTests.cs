@@ -15,7 +15,7 @@ namespace Hukbo.Core.Tests.Movement;
 /// reconstruction: gameplay tuning; no historical measurement. The evidence
 /// ledger and the approved calibration ranges live in
 /// docs/research/movement/tall-hardwood-shield.md; the rows themselves are
-/// fixed by docs/plans/2026-07-30-weapon-movement-foundation-design.md
+/// fixed by docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation-design.md
 /// section 13, which supersedes any figure quoted in the weapon plans.
 /// </summary>
 /// <remarks>

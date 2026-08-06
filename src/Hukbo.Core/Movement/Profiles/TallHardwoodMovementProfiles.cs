@@ -10,7 +10,7 @@ namespace Hukbo.Core.Movement.Profiles;
 /// session from now on — any later retuning of these rows belongs to that
 /// session and, once the V6 digest ships, requires appending a new preset
 /// version rather than editing this one. Values are the single authority of
-/// docs/plans/2026-07-30-weapon-movement-foundation-design.md section 13,
+/// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation-design.md section 13,
 /// superseding any figure quoted in the weapon plans; in particular the
 /// shielded Kalis preferred distance is 13,000 and the shielded disengage
 /// bands are 17,500 and 15,000, and shield rows carry no facing penalty —

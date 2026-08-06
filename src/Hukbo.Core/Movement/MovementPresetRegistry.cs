@@ -208,7 +208,7 @@ public static class MovementPresetRegistry
     /// version plus new golden expectations for any change that moves
     /// simulated behaviour, and V1 through V4 all keep the behaviour their
     /// own recorded expectations pin. See
-    /// docs/plans/2026-07-29-leader-rank-design.md section 2 for why this
+    /// docs/archives/2026-08-07/2026-07-29-leader-rank-design.md section 2 for why this
     /// comparator swap reaches further into the simulation than the leader
     /// scan itself.
     /// </remarks>
@@ -254,7 +254,7 @@ public static class MovementPresetRegistry
     /// nonetheless stays
     /// <see cref="MovementPresetId.PersistentContingentsV4"/>, and the preset
     /// is reachable only through explicit selection. See
-    /// docs/plans/2026-07-30-weapon-movement-foundation-design.md sections 3,
+    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation-design.md sections 3,
     /// 5, and 13.
     /// This entry registers
     /// <see cref="MovementRuleset.AppliesPressureInterrupt"/>

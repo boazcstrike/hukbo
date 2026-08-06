@@ -7,7 +7,7 @@ namespace Hukbo.Core.Tests.Movement;
 /// <summary>
 /// Deterministic combinatorial generator over the six canonical loadouts of
 /// the weapon-relative movement design (design section 17 of
-/// <c>docs/plans/2026-07-30-weapon-movement-foundation-design.md</c>). This
+/// <c>docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation-design.md</c>). This
 /// is test infrastructure, not simulation code: it never constructs a
 /// simulation, never draws from an RNG, and never runs a battle. The matchup
 /// <em>runs</em> — mirrored starts, reversed caller input, termination and
