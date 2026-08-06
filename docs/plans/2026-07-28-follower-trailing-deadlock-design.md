@@ -318,7 +318,7 @@ In order.
    record, for the stalled ticks, which agents resolved `Blocked`, which body
    each one's ladder was refused against, and whether that body was pending or
    committed. This is a diagnostic run, not a code change; the debug log under
-   `docs/archives/2026-07-27/2026-07-27-debug-logging-standard-design.md` is the right vehicle
+   the debug logging standard design is the right vehicle
    and a `trc`-level channel is the right level. Until this exists, sections 4
    and 6 are speculation and no option can be chosen honestly.
 2. **Establish whether the stall is a half-rate column or a true mutual lock.**

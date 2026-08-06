@@ -12,7 +12,7 @@ namespace Hukbo.Core.Movement;
 /// tuning values here are game-design choices, not historical measurements —
 /// no source describes a unit cohesion radius, a duty cycle, or an arrival
 /// taper; see
-/// docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
+/// the formation and movement realism design
 /// section 3 for the derivations.
 /// </summary>
 /// <remarks>
@@ -42,7 +42,7 @@ namespace Hukbo.Core.Movement;
 /// <c>MovementPresetRegistryTests</c> for every preset, and those must be
 /// recomputed from the built code whenever a field is added, never
 /// calculated by hand. See
-/// docs/archives/2026-07-28/2026-07-28-contingent-close-latch-design.md section 3.
+/// the contingent close-latch design section 3.
 /// All of that describes a field folded <em>unconditionally</em>. A field
 /// folded behind a version gate does not move any preset the gate is
 /// <see langword="false"/> for, because nothing is written for that preset at

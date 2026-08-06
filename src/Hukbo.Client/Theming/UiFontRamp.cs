@@ -20,7 +20,7 @@ internal enum UiFontRole
 
 /// <summary>
 /// The single source of truth for the size ramp described in
-/// <c>docs/archives/2026-07-27/2026-07-27-font-text-quality-design.md</c>,
+/// the font and text quality design,
 /// section 4. Pure
 /// and static: no MonoGame type appears in any signature here, so this class
 /// is fully unit-testable without a graphics device. <see cref="UiFontSet"/>

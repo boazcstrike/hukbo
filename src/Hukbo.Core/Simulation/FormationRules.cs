@@ -366,7 +366,7 @@ public static class FormationRules
     /// is the persistent-contingent analogue of
     /// <see cref="ComputeRallyJitterRaw"/>, generalised from a fixed
     /// multiplier to one solved from the contingent's own size — see
-    /// docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
+    /// the formation and movement realism design
     /// section 3.5, "The personal offset".
     /// </summary>
     /// <remarks>
@@ -444,7 +444,7 @@ public static class FormationRules
     /// persistent-contingent analogue of <see cref="ComputeRallyTrailRaw"/>,
     /// how far behind a contingent's leader, opposite the leader's own
     /// direction of travel, a member's unjittered aim point sits — see
-    /// docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
+    /// the formation and movement realism design
     /// section 3.5, "The trail".
     /// </summary>
     /// <remarks>
@@ -523,7 +523,7 @@ public static class FormationRules
     /// <c>jitterRaw + bodyRadiusRaw</c> — fits inside the legal interval
     /// <see cref="CollisionGeometry.ClampCenterToBounds"/> enforces on both
     /// axes. See
-    /// docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
+    /// the formation and movement realism design
     /// section 3.5, "The map-edge open-ground test, and why the packing proof
     /// needs it".
     /// </summary>
@@ -587,7 +587,7 @@ public static class FormationRules
     /// The cross-contingent test. Reports whether two same-faction
     /// contingents' bias squares — each centred on its own unclamped trail
     /// base, half-side its own margin — overlap. See
-    /// docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
+    /// the formation and movement realism design
     /// section 3.5, "The cross-contingent test, and the combined-density
     /// argument".
     /// </summary>

@@ -522,7 +522,7 @@ public sealed class PhilippineCombatIntegrationTests
         // WeaponProfile.ComboCooldownTicks instead -- see ComboChainTests,
         // which covers that behaviour explicitly against V3. Following the
         // shipped default here (now PrecolonialPhilippinesV4, task P1 of
-        // docs/archives/2026-07-29/2026-07-29-rank-composition-panel.md)
+        // the rank composition panel plan)
         // would fail this case on real combo attacks rather than on a
         // cooldown regression.
         var scenario = Scenario.CreateDefault(seed: 55, totalAgents: 20) with
@@ -695,7 +695,7 @@ public sealed class PhilippineCombatIntegrationTests
             // Pinned to V2 explicitly: the measured range documented above
             // (0.2920 to 0.3301) is V2's own clash profile, retuned by T60 of
             // the clash / preset V2 integration plan. Task P1 of
-            // docs/archives/2026-07-29/2026-07-29-rank-composition-panel.md
+            // the rank composition panel plan
             // moves Scenario.CombatPreset's shipped default to
             // PrecolonialPhilippinesV4, whose clash profile was never tuned
             // against this band -- seed 6 measures 0.2490 under V4, just
@@ -806,7 +806,7 @@ public sealed class PhilippineCombatIntegrationTests
             // Pinned to V2 explicitly: the pooled ratios documented above
             // (1.22 shipped, 1.00 with interception off) are measured against
             // V2's shielded/shieldless roster split. Task P1 of
-            // docs/archives/2026-07-29/2026-07-29-rank-composition-panel.md
+            // the rank composition panel plan
             // moves Scenario.CombatPreset's shipped default to
             // PrecolonialPhilippinesV4, whose four ranks all carry
             // ShieldId.None -- there is no shielded group left to compare

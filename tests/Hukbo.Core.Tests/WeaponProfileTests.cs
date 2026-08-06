@@ -125,7 +125,7 @@ public sealed class WeaponProfileTests
     // ticks. These are the six rows of the design's attribute table; the
     // paired Kalis row is exactly V1's global defaults and is the control.
     // Every combo open chance is 0 — V2's combo values are a true no-op, per
-    // docs/archives/2026-07-28/2026-07-27-combat-preset-v3-combos.md section
+    // the combat preset V3 combinations plan section
     // 5 — and the other three combo columns borrow that weapon's V3 solo-row
     // combo values, which is what makes them positive without inventing a
     // divergent number.
@@ -224,7 +224,7 @@ public sealed class WeaponProfileTests
     public void EnlargedCollisionBodyRaisesTheReachFloorButTheItakPairedProfileStillClearsItByOneAndAHalfWorldUnits()
     {
         // Task C1
-        // (docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md)
+        // (the collision report and window shell plan)
         // moved CollisionRules.DefaultBodyRadiusRaw from four world units to
         // 4.25, which raises MinimumProfileReachRawExclusive (twice the body
         // radius) from eight world units to 8.5. Design section 1.2 rejected

@@ -41,7 +41,7 @@ public sealed class ScenarioTests
     public void TheCanonicalTwoHundredAgentScenarioClearsEveryCollisionGuardAtTheEnlargedRadius()
     {
         // Task C3
-        // (docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md):
+        // (the collision report and window shell plan):
         // re-verifies, in one place, every guard tabulated in design section
         // 1.4 that could have rejected the 4.25-world-unit body radius --
         // attack-range clearance and movement-speed clearance
@@ -242,7 +242,7 @@ public sealed class ScenarioTests
     public void CreateDefaultSelectsPersistentContingentsV4MovementPreset()
     {
         // The shipped default has moved twice: T6 of
-        // docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md flipped it
+        // the contingent close-latch plan flipped it
         // from PersistentContingentsV2 to PersistentContingentsV3, and the
         // cross-contingent scan narrowing flipped it again to
         // PersistentContingentsV4. Both earlier presets stay registered and

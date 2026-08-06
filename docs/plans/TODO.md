@@ -11,21 +11,21 @@ is not authorized work; it is a reminder that the question was decided
   kills during a battle, which would require bounded client-side kill
   tracking from `Death` events as new presentation state. Excluded from the
   visual improvement pass by user decision on 2026-07-28. Context:
-  `docs/archives/2026-07-28/improve-visuals/warrior-appearance-design.md` and requirement
-  R-W3.10 in `docs/archives/2026-07-28/improve-visuals-agents/requirements.md`.
+  the warrior appearance design and requirement
+  R-W3.10 in the improve-visuals requirements note.
 - **Shape-redundant faction marker (was OD-7).** A non-hue faction channel
   (shape or position) for color-blind spectators, beyond the current
   no-regression floor. Deferred by user decision on 2026-07-28. Context:
   requirement R-X (color-blind readability) in
-  `docs/archives/2026-07-28/improve-visuals-agents/requirements.md` and the accessibility
-  section of `docs/archives/2026-07-28/improve-visuals/visual-system-integration-design.md`.
+  the improve-visuals requirements note and the accessibility
+  section of the visual system integration design.
 - **Jungle and plains ground texture exploration (follow-up to OD-6).** The
   approved pass shifts the default theme's ground toward cogon olive-gold.
   The user additionally wants a look at jungle and plains ground treatments
   as distinct battlefield looks. Any such work stays procedural under the
   package's boundary 4 (no textures, no content-pipeline additions) unless a
   future design revisits that boundary. Context:
-  `docs/archives/2026-07-28/improve-visuals/battlefield-environment-design.md`.
+  the battlefield environment design.
 
 ## From the second-round lag report (2026-07-30)
 

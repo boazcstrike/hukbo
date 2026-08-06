@@ -12,7 +12,7 @@ public enum MovementPresetId
     /// Today's behaviour, frozen. Every warrior pursues its nearest enemy
     /// independently; contingents exist only at deployment and are never
     /// consulted again; no cohesion, no unit state, no arrival taper. See
-    /// docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
+    /// the formation and movement realism design
     /// section 6.2 for what "frozen" binds here.
     /// </summary>
     IndependentPursuitV1 = 1,
@@ -25,7 +25,7 @@ public enum MovementPresetId
     /// contingent while gathering, may be given a cohesion destination
     /// instead of independent pursuit, subject to the six movement gates and
     /// the cohesion duty cycle of design section 3.5. See
-    /// docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
+    /// the formation and movement realism design
     /// sections 3.4 through 3.6.
     /// </summary>
     PersistentContingentsV2 = 2,
@@ -43,7 +43,7 @@ public enum MovementPresetId
     /// members have a selected target inside the close radius, and re-opens it
     /// once that fraction drops below a quarter, instead of the single-member
     /// minimum <see cref="PersistentContingentsV2"/> uses. See
-    /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch-design.md section 3 for
+    /// the contingent close-latch design section 3 for
     /// the derivation.
     /// </summary>
     PersistentContingentsV3 = 3,
@@ -95,7 +95,7 @@ public enum MovementPresetId
     /// <c>EntityId</c> alone, so a contingent's highest-ranking living
     /// member leads it rather than its lowest-entity-id living member. See
     /// docs/plans/2026-07-29-leader-rank-design.md for the reasoning and
-    /// docs/archives/2026-07-29/2026-07-29-leader-rank.md task L1 for this
+    /// the leader rank plan task L1 for this
     /// preset's derivation.
     /// </summary>
     PersistentContingentsV5 = 5,

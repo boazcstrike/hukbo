@@ -9,7 +9,7 @@ namespace Hukbo.Client.Rendering;
 /// <summary>
 /// Draw sink for dust puffs: quad submission only, every decision already
 /// made by <see cref="DustGeometry"/>. Presentation only — see
-/// docs/archives/2026-07-28/improve-visuals/battlefield-environment-design.md, "Dust and
+/// the battlefield environment design, "Dust and
 /// disturbed vegetation". Not unit tested, matching
 /// <see cref="HitEffectRenderer"/> and <see cref="GrassRenderer"/>. Draws
 /// inside the caller's existing arena Begin/End pair from the shared 1x1

@@ -28,7 +28,7 @@ producing a second parallel design, is a failure of this task.
 | --- | --- |
 | `docs/research/HISTORICAL_1500s_RANKS.md` | The rank/standing evidence base, confidence tiers, cleared and excluded terms |
 | `docs/plans/2026-07-29-warrior-standing-design.md` | The design: `StandingId`, the five-value ladder, why standing is not a damage multiplier, determinism impact, nine acceptance answers, four open questions |
-| `docs/archives/2026-07-29/2026-07-29-warrior-standing.md` | The task plan: Phase A (A1-A13), Phase B (B1-B3), and an explicit exclusion list |
+| the warrior standing plan | The task plan: Phase A (A1-A13), Phase B (B1-B3), and an explicit exclusion list |
 
 A fourth document is **new** and has not been folded into that design yet:
 
@@ -206,7 +206,7 @@ the sources allow.
 
 **Group B — existing code.** What the repository already does.
 
-- Map the standing surface named in `docs/archives/2026-07-29/2026-07-29-warrior-standing.md`
+- Map the standing surface named in the warrior standing plan
   tasks A2-A8: `CombatIdentity.cs`, `CombatLoadout`, `AgentState`, `AgentView`,
   `CombatRuleset`, the content hash, `StateHasher`, and the preset registries.
   Return file, symbol, line, and what each task would have to change.

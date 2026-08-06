@@ -31,7 +31,7 @@ public sealed class DeterminismTests
     /// 1081. It is the value the capture harness recorded, not a golden edited
     /// to match output: the per-tick digest guard proves the same run row by row.
     /// Recaptured again for
-    /// docs/archives/2026-07-28/2026-07-27-combat-preset-v3-combos.md task 4:
+    /// the combat preset V3 combinations plan task 4:
     /// <c>StateHasher.Compute</c> now folds three new per-agent words
     /// (<c>Level</c>, <c>ComboStepsRemaining</c>, <c>ComboTargetEntityId</c>) for
     /// every <c>CombatPresetId</c>, including this fixture's
@@ -40,7 +40,7 @@ public sealed class DeterminismTests
     /// byte-for-byte the same battle. The superseded value was
     /// <c>0x5BEBA7A68F69BE0D</c>, still at terminal tick 1154.
     /// Recaptured a third time for task T5b of
-    /// docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md: T4
+    /// the formation and movement realism plan: T4
     /// folded <c>Scenario.MovementPreset</c> and the two new per-agent
     /// contingent words into <c>StateHasher.Compute</c> for every
     /// <c>CombatPresetId</c>,
@@ -71,7 +71,7 @@ public sealed class DeterminismTests
         // second hardcoded figure. It was 2,000 -- comfortably above the
         // frozen IndependentPursuitV1 preset's own pinned seed-1 tick count
         // of 1,710 -- until T15 of
-        // docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md
+        // the formation and movement realism plan
         // flipped the shipped default to PersistentContingentsV2, whose
         // contingent cohesion cycle (up to 240 ticks per duty window)
         // legitimately extends how long an arbitrary seed can take to reach
@@ -157,7 +157,7 @@ public sealed class DeterminismTests
 
     /// <summary>
     /// Task 4 of
-    /// docs/archives/2026-07-28/2026-07-27-combat-preset-v3-combos.md.
+    /// the combat preset V3 combinations plan.
     /// Pinned so that an accidental edit to a V3 weapon attribute, grip,
     /// roster entry, or combo field fails here rather than silently
     /// invalidating every V3 replay. V3 fields only the four solo loadouts
@@ -181,7 +181,7 @@ public sealed class DeterminismTests
 
     /// <summary>
     /// Group R, task R5 of
-    /// docs/archives/2026-07-29/2026-07-29-warrior-rank.md. Preset V4
+    /// the warrior rank plan. Preset V4
     /// assigns a <see cref="RankId"/> to each of V3's four solo roster
     /// entries and declares a per-rank fighter level table, which is folded
     /// into <c>ComputeContentHash</c> only because V4 is the first preset to
@@ -204,7 +204,7 @@ public sealed class DeterminismTests
 
     /// <summary>
     /// Group R, task R5 of
-    /// docs/archives/2026-07-29/2026-07-29-warrior-rank.md. A small, fast
+    /// the warrior rank plan. A small, fast
     /// seed-1 workload run through the same headless path
     /// <see cref="PresetV3_SeedOneStateAndEventHashArePinned"/> uses, pinned
     /// against preset V4 so an accidental change to the rank fold in
@@ -245,7 +245,7 @@ public sealed class DeterminismTests
 
     /// <summary>
     /// Task 4 of
-    /// docs/archives/2026-07-28/2026-07-27-combat-preset-v3-combos.md. A
+    /// the combat preset V3 combinations plan. A
     /// small, fast seed-1 workload run through the same headless path
     /// <see cref="CombatMetrics_ReachesNeitherHash"/> uses, pinned against
     /// preset V3 so an accidental change anywhere in the V3 attack-
@@ -275,7 +275,7 @@ public sealed class DeterminismTests
             // Scenario.MovementPreset defaults to. This Fact exists to isolate
             // the V3 attack-combination axis -- see the type-level remarks --
             // and task T15 of
-            // docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md
+            // the formation and movement realism plan
             // makes the shipped default PersistentContingentsV2, which changes
             // real movement behaviour rather than merely moving a
             // representational hash. Following the default here would let a
@@ -326,7 +326,7 @@ public sealed class DeterminismTests
 
     /// <summary>
     /// Task T15 of
-    /// docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md. A
+    /// the formation and movement realism plan. A
     /// small, fast seed-1 workload run through the same headless path
     /// <see cref="PresetV3_SeedOneStateAndEventHashArePinned"/> uses, pinned
     /// against <see cref="MovementPresetId.PersistentContingentsV2"/> -- the
@@ -363,7 +363,7 @@ public sealed class DeterminismTests
         var eventHash = report.RootElement.GetProperty("eventHash").GetString();
 
         // Originally captured for task T15 of
-        // docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md,
+        // the formation and movement realism plan,
         // the task that flips Scenario.MovementPreset's shipped default to
         // PersistentContingentsV2.
         //
@@ -377,7 +377,7 @@ public sealed class DeterminismTests
         // deliberate and each file states its own reason.
         //
         // Recaptured again by task P1 of
-        // docs/archives/2026-07-29/2026-07-29-rank-composition-panel.md,
+        // the rank composition panel plan,
         // which flips Scenario.CombatPreset's own shipped default from
         // PrecolonialPhilippinesV2 to PrecolonialPhilippinesV4. This Fact
         // leaves --preset unnamed on the arguments above precisely so it
@@ -796,7 +796,7 @@ public sealed class DeterminismTests
             CreateAgent(lowerRowEntityId, 0, 60 * FixedPoint.Scale, 46 * FixedPoint.Scale, scenario),
             // 54.5, not 54: exactly one body diameter (8.5 world units at the
             // enlarged 4.25-world-unit collision radius, task C1,
-            // docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md)
+            // the collision report and window shell plan)
             // above the lower row. CreateForTesting does not validate initial
             // placement, so an unwidened eight-unit gap here would start the
             // two allies illegally overlapped and poison the contest this
@@ -1036,7 +1036,7 @@ public sealed class DeterminismTests
             // Likewise for the movement axis: the fixture was captured under
             // IndependentPursuitV1, before Scenario.MovementPreset defaulted
             // to PersistentContingentsV2 in T15 of
-            // docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md.
+            // the formation and movement realism plan.
             // The control run has to name V1 explicitly, or it silently
             // replays the frozen digest against a preset that moves every
             // agent's trajectory.

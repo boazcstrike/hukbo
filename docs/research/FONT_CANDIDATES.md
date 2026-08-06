@@ -1,7 +1,7 @@
 # Font Candidates
 
 Research notes for the typeface used by the Hukbo user interface. Compiled
-2026-07-27. Companion to `docs/archives/2026-07-27/2026-07-27-font-text-quality-design.md`,
+2026-07-27. Companion to the font and text quality design,
 which covers the technical side of text rendering — the size ramp, the sampler
 state, and whole-pixel positioning — independently of which typeface is chosen.
 

@@ -919,7 +919,7 @@ measurement.
 ## 15. Performance technique inventory
 
 This section is the durable record of
-[docs/archives/2026-07-28/2026-07-28-arch-informed-performance-hardening-design.md](docs/archives/2026-07-28/2026-07-28-arch-informed-performance-hardening-design.md)'s
+the Arch-informed performance hardening design's
 conclusions: which techniques an external research pass over the Arch entity-component-system
 library found usable in Hukbo, which are usable only with a named discipline, and which are
 forbidden and why. The design document carries the reasoning; this section carries the consequence,

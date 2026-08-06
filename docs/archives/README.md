@@ -39,12 +39,22 @@ is still in git history and any of them can be read with
 `git show b144b7d:docs/archives/<date>/<file>` or restored with
 `git checkout b144b7d -- <path>`.
 
-Roughly a hundred and sixty comments in `src/`, `tests/`, `tools/`, and the live
-documents still cite those paths. Those citations now name a file that is not in
-the working tree. They are prose references inside comments, so nothing fails to
-build and no test asserts them, but a reader who follows one will find nothing
-there and should reach for `git show` rather than assuming the reference was
-wrong.
+The 159 citations of those paths in `src/`, `tests/`, `tools/`, and the live
+documents were rewritten on the same day. Each one now names its document in
+prose — "the formation and movement realism design", "the contingent close-latch
+plan", "the wasay movement plan" — instead of pointing at a path that resolves
+to nothing. Section numbers, task identifiers, and the surrounding reasoning are
+unchanged, so a comment that cited section 3.5 still cites section 3.5.
+
+To read one of those documents, find it by name in the prune commit's parent:
+
+```powershell
+git show b144b7d --stat -- docs/archives | Select-String formation
+git show b144b7d:docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
+```
+
+Documents archived on 2026-08-07 or later are still cited by path, because those
+files are present.
 
 The earlier note about two plans listing GitHub Actions in their tech stack
 applied to files removed in that prune. The repository still uses local-only

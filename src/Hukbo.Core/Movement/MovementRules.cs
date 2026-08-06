@@ -15,7 +15,7 @@ namespace Hukbo.Core.Movement;
 /// uses for the rally geometry, and the reason
 /// <c>Hukbo.Core</c> carries <c>[assembly: InternalsVisibleTo("Hukbo.Core.Tests")]</c>
 /// (<c>src/Hukbo.Core/Properties/AssemblyInfo.cs:3</c>). See
-/// docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
+/// the formation and movement realism design
 /// sections 3.4 and 3.5 for the derivations.
 /// </summary>
 internal static class MovementRules

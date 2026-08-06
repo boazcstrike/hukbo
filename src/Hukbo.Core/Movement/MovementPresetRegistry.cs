@@ -31,7 +31,7 @@ public static class MovementPresetRegistry
     /// hash untouched. That reasoning does not carry over to
     /// <see cref="MovementPresetId.EquipmentRelativeFootworkV6"/>, which does
     /// fold the movement content hash. See
-    /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch-design.md section 3.
+    /// the contingent close-latch design section 3.
     /// <c>CloseFractionNumerator</c> and <c>CloseFractionDenominator</c> are
     /// registered here at <c>(0, 1)</c>, which collapses both the entry and
     /// exit thresholds in <c>MovementRules.ResolveContingentState</c> to
@@ -70,7 +70,7 @@ public static class MovementPresetRegistry
     /// floor of <c>Max(1, ...)</c> makes the fraction reproduce today's
     /// minimum-distance rule exactly, so introducing the fields moves no
     /// behaviour under this preset either. See
-    /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch-design.md section 3 for
+    /// the contingent close-latch design section 3 for
     /// the derivation of each value.
     /// </summary>
     private static readonly MovementRuleset PersistentContingentsV2Ruleset = new(
@@ -105,8 +105,8 @@ public static class MovementPresetRegistry
     /// target inside the close radius, instead of the single-member minimum
     /// the <c>(0, 1)</c> floor reproduces. Not the shipped default — reachable
     /// only through <c>--movement-preset</c> until
-    /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md T6 flips it. See
-    /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch-design.md section 3 for
+    /// the contingent close-latch plan T6 flips it. See
+    /// the contingent close-latch design section 3 for
     /// the derivation.
     /// </summary>
     /// <remarks>

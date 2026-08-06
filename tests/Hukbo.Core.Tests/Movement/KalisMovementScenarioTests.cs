@@ -10,7 +10,7 @@ namespace Hukbo.Core.Tests.Movement;
 
 /// <summary>
 /// Tasks K3, K4, and K5 of
-/// <c>docs/archives/2026-07-31/movement/kalis.md</c>: the twelve
+/// the kalis movement plan: the twelve
 /// directed Kalis-variant 1v1 cells, every mechanically selected
 /// Kalis-relevant 2v2 cell of the shared scenario matrix, the focused
 /// geometry cases, the explicit combat-V2 roster scenarios that keep

@@ -14,7 +14,7 @@ namespace Hukbo.Core.Movement.Profiles;
 /// calibration ranges these values sit inside, and the evidence they are
 /// and are not derived from, are recorded in
 /// docs/research/movement/kalis.md section 7; the task list that governs
-/// this row is docs/archives/2026-07-31/movement/kalis.md.
+/// this row is the kalis movement plan.
 /// </summary>
 public static class KalisMovementProfile
 {
