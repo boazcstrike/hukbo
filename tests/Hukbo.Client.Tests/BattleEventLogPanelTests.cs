@@ -287,6 +287,45 @@ public sealed class BattleEventLogPanelTests
                 bounds));
     }
 
+    [Fact]
+    public void GetRowEmphasis_ReturnsZeroAtOrBelowThreshold()
+    {
+        Assert.Equal(
+            0f,
+            BattleEventLogPanel.GetRowEmphasis(
+                sequence: 5,
+                emphasisThreshold: 5,
+                pulseAmount: 0.75f));
+        Assert.Equal(
+            0f,
+            BattleEventLogPanel.GetRowEmphasis(
+                sequence: 4,
+                emphasisThreshold: 5,
+                pulseAmount: 0.75f));
+    }
+
+    [Fact]
+    public void GetRowEmphasis_ReturnsPulseAmountAboveThreshold()
+    {
+        Assert.Equal(
+            0.75f,
+            BattleEventLogPanel.GetRowEmphasis(
+                sequence: 6,
+                emphasisThreshold: 5,
+                pulseAmount: 0.75f));
+    }
+
+    [Fact]
+    public void GetRowEmphasis_ReturnsZeroWhenThresholdIsNull()
+    {
+        Assert.Equal(
+            0f,
+            BattleEventLogPanel.GetRowEmphasis(
+                sequence: 1,
+                emphasisThreshold: null,
+                pulseAmount: 1f));
+    }
+
     private static void AssertInside(Rectangle outer, Rectangle inner)
     {
         Assert.True(inner.Width >= 0);
