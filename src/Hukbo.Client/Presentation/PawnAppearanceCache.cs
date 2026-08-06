@@ -30,10 +30,11 @@ namespace Hukbo.Client.Presentation;
 /// </item>
 /// <item>
 /// <description>
-/// <b>Key.</b> The triple (entity ID, weapon, shield), not the entity ID
-/// alone. Keying on identity alone would silently return a stale appearance
-/// if a loadout ever became mutable, and the key must not depend on a
-/// property the simulation is not contractually obliged to keep.
+/// <b>Key.</b> The tuple (entity ID, weapon, shield, leadership), not the
+/// entity ID alone. Keying on identity alone would silently return a stale
+/// appearance the moment either the loadout or the leadership behind that
+/// identity changed, and the key must not depend on a property the
+/// simulation is not contractually obliged to keep.
 /// </description>
 /// </item>
 /// <item>
@@ -58,12 +59,23 @@ namespace Hukbo.Client.Presentation;
 /// </item>
 /// <item>
 /// <description>
-/// <b>Invalidation.</b> None during a battle, because no key input can change
-/// during a battle. That is a load-bearing assumption rather than a
-/// convenience, and <c>PawnAppearanceCacheTests</c> asserts it against the
-/// shape of <c>AgentView</c> and <c>CombatLoadout</c> themselves: if a
-/// loadout ever becomes mutable mid-battle, that test fails and this cache is
-/// invalid.
+/// <b>Invalidation.</b> Not "none" — that used to be true of every key input
+/// at once, and it no longer is. Entity ID, weapon, and shield still cannot
+/// change while a battle runs, and <c>PawnAppearanceCacheTests</c> asserts
+/// that against the shape of <c>AgentView</c> and <c>CombatLoadout</c>
+/// themselves: if a loadout ever becomes mutable mid-battle, that test fails
+/// and this cache is invalid. Leadership is different: it is mutable by
+/// design for the whole of a battle. A contingent's leader can die, and the
+/// movement stage promotes the next living member to
+/// <c>AgentView.IsLeader</c> on a later tick, so the same entity ID can
+/// legitimately carry <see langword="false"/> on one frame and
+/// <see langword="true"/> on a later one, or the reverse as leadership passes
+/// on. Correctness here rests entirely on leadership being part of the
+/// stored key rather than on it staying fixed: a promotion changes the key
+/// <see cref="Resolve"/> compares against, the read misses exactly as it
+/// would for a changed weapon or shield, and the slot is recomputed and
+/// overwritten. No frame can be handed the appearance recorded for an entity
+/// under its old leadership status.
 /// </description>
 /// </item>
 /// <item>
@@ -85,7 +97,7 @@ namespace Hukbo.Client.Presentation;
 /// merely stops being accelerated.
 /// </para>
 /// <para>
-/// <see cref="Resolve"/> deliberately takes only the three key inputs and
+/// <see cref="Resolve"/> deliberately takes only the four key inputs and
 /// calls the factory the way both render call sites already do, leaving
 /// <c>factionId</c> and <c>scenarioSeed</c> at the factory's own defaults.
 /// Accepting an input that is not part of the key would let two reads with
@@ -156,11 +168,24 @@ internal sealed class PawnAppearanceCache
     /// <param name="entityId">The agent's identity, part of the key.</param>
     /// <param name="weapon">The authoritative weapon, part of the key.</param>
     /// <param name="shield">The authoritative shield, part of the key.</param>
+    /// <param name="isLeader">
+    /// Whether the simulation currently has this entity leading its
+    /// contingent (<c>AgentView.IsLeader</c>), part of the key. Required
+    /// rather than defaulted: a cache that quietly answered every caller as
+    /// though it were <see langword="false"/> would misreport every leader on
+    /// the battlefield while still compiling and still passing every test
+    /// that does not check appearance against leadership, which is exactly
+    /// the failure this cache exists to make impossible. Every caller must
+    /// read the agent's real, current value and pass it — never a literal
+    /// constant — because leadership is mutable mid-battle; see this type's
+    /// own remarks, "Invalidation".
+    /// </param>
     public PawnAppearance Resolve(
         int ordinal,
         ulong entityId,
         WeaponId weapon,
-        ShieldId shield)
+        ShieldId shield,
+        bool isLeader)
     {
         if ((uint)ordinal >= (uint)Capacity)
         {
@@ -169,7 +194,7 @@ internal sealed class PawnAppearanceCache
             // it costs; growing the array instead is the one thing this type
             // must never do.
             _recorder.AddAppearanceCacheMisses(1);
-            return PawnAppearanceFactory.Create(entityId, weapon, shield);
+            return PawnAppearanceFactory.Create(entityId, weapon, shield, isLeader);
         }
 
         ref var entry = ref _entries[ordinal];
@@ -177,14 +202,15 @@ internal sealed class PawnAppearanceCache
         if (entry.IsOccupied &&
             entry.EntityId == entityId &&
             entry.Weapon == weapon &&
-            entry.Shield == shield)
+            entry.Shield == shield &&
+            entry.IsLeader == isLeader)
         {
             _recorder.AddAppearanceCacheHits(1);
             return entry.Appearance;
         }
 
         var appearance =
-            PawnAppearanceFactory.Create(entityId, weapon, shield);
+            PawnAppearanceFactory.Create(entityId, weapon, shield, isLeader);
 
         _recorder.AddAppearanceCacheMisses(1);
 
@@ -194,7 +220,7 @@ internal sealed class PawnAppearanceCache
             _recorder.AddAppearanceCacheFills(1);
         }
 
-        entry = new Entry(true, entityId, weapon, shield, appearance);
+        entry = new Entry(true, entityId, weapon, shield, isLeader, appearance);
         return appearance;
     }
 
@@ -223,5 +249,6 @@ internal sealed class PawnAppearanceCache
         ulong EntityId,
         WeaponId Weapon,
         ShieldId Shield,
+        bool IsLeader,
         PawnAppearance Appearance);
 }
