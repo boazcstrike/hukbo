@@ -1,6 +1,17 @@
 # GPU-Instanced Arena Rendering — Design
 
-**Status: design only. This document does not authorize implementation.**
+> **Archived: reference only.** This design closed on 2026-07-29. Its Phase 1
+> and Phase 2 work was built and merged; its Phase 3 instanced backend was not,
+> because the two-clause trigger returned **NO-GO** — the 1,000-unit default-fit
+> `Draw` p95 came in at 3.28 ms against an 8.0 ms budget once the per-agent CPU
+> work was removed. Section 8's instanced-backend design is kept so that the
+> next person to propose instancing finds the measurement rather than repeating
+> the investigation; it describes a backend that does not exist and must not be
+> read as describing this renderer. The closing numbers are in
+> `docs/development/testing.md`.
+
+**Status at the time of writing: design only. This document does not authorize
+implementation.**
 No source file under `src/`, `tests/`, `tools/`, or `scripts/` may be changed on
 the strength of this document alone. A separate plan document turns the phases
 below into an ordered, checkable task list, and each phase carries its own

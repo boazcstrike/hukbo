@@ -1,6 +1,16 @@
 # GPU-Instanced Arena Rendering — Plan
 
-**Status: this plan authorizes Phases 1 and 2 only.** Phase 3 — the instanced
+> **Archived: reference only.** The GPU render workstream finished and merged to
+> main on 2026-07-29. Phases 1 and 2 landed in full — GPU-001 through GPU-023,
+> with GPU-016 deliberately not adopted and GPU-021 deliberately ending in no
+> code change. The two-clause trigger in section 4 was evaluated on the recorded
+> Phase 2 re-measurement and returned **NO-GO**, so Phase 3 was never built and
+> GPU-024 through GPU-038 were never started. Do not execute this plan; its task
+> list, line numbers, and verification steps are historical. The recorded
+> verdict is in section 4.1a and the measurement behind it is in
+> `docs/development/testing.md`.
+
+**Status at the time of writing: this plan authorizes Phases 1 and 2 only.** Phase 3 — the instanced
 backend — is listed below in full so that the work is legible and estimable,
 but it is **not authorized**. No task numbered GPU-024 or higher may be started
 until the two-clause go/no-go trigger in section 4 of this document fires on a
@@ -247,6 +257,23 @@ silently invalidates it, caught only by `ConservativePawnCullTests`.
 
 GPU-016 therefore remains authorized but is explicitly not on the critical path,
 and it must not be counted toward the Phase 2 exit criterion or the trigger.
+
+**Closed 2026-08-07: GPU-016 was not adopted, and is now dropped.** The
+adoption never happened during the workstream and the workstream closed NO-GO,
+so the row is recorded as dropped rather than left open indefinitely. The
+evidence is on disk: `ConservativePawnCull` is referenced by nothing outside its
+own file and `ConservativePawnCullTests`, so the pawn loop still resolves an
+appearance before testing the exact pose-blind bounds, exactly as it did before
+Phase 2. Nothing is lost by that. The saving GPU-015 measured is zero at minimum
+zoom and zero at default fit, and the only station it could move — maximum zoom
+— already renders ten times inside budget. Phase 2 met the 8.0 millisecond
+budget at 1,000 units with 4.7 milliseconds to spare without it.
+
+The helper and its 435,456-case containment proof are kept in place rather than
+deleted. They cost nothing at runtime, they document a bound that a future
+renderer change may want, and `ConservativePawnCullTests` is the only thing that
+would catch the mirrored `PawnGeometry` constants drifting. Removing them is a
+separate, reviewable change against `src/`, not a documentation cleanup.
 
 ### The appearance cache declaration
 
@@ -596,6 +623,13 @@ Everything else is pushed above the pure-helper boundary deliberately.
 These rows are added by the tasks named and are left `PENDING` until a human
 performs them. The table uses the file's existing five-column format:
 `| # | Step | Expected | Actual | Status |`.
+
+**Recorded 2026-08-07.** GR-1 through GR-5 were drafted here but never reached
+`docs/development/testing.md` while the workstream ran, so no human ever had a
+checklist to work from. They now live in that file under "GPU render smoke
+(gpu-render Phases 1 and 2)", still `PENDING`, and that copy is the live one.
+The copies below are historical. GR-6 through GR-10 were never added anywhere
+and never will be: they belong to Phase 3, which the NO-GO verdict closed.
 
 **Added by GPU-012 (Phase 1):**
 

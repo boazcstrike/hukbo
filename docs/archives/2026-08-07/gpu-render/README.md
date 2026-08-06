@@ -1,5 +1,8 @@
 # GPU-Instanced Arena Rendering
 
+> **Archived: reference only.** This workstream finished on 2026-07-29 and is
+> closed. Do not execute either document in this folder.
+
 Work on making a 1,000-unit battle (500 per team) render inside a 60 Hz frame,
 and on deciding — from measurement rather than intuition — whether a
 GPU-instanced rendering backend is the thing that gets it there.
@@ -11,13 +14,35 @@ GPU-instanced rendering backend is the thing that gets it there.
 | [`2026-07-28-gpu-render-design.md`](2026-07-28-gpu-render-design.md) | The design of record. Explains the measurement, the three phases, the full instanced-backend design, and the decision record. Authorizes nothing. |
 | [`2026-07-28-gpu-render.md`](2026-07-28-gpu-render.md) | The plan. Ordered task table GPU-001 through GPU-038, verification boundaries, rollback, and the determinism statement. |
 
-## Status
+## Status — closed 2026-07-29
 
-**Phases 1 and 2 are authorized. Phase 3 is not.** The Phase 3 tasks
-(GPU-024 through GPU-038) are written out in the plan so the work is legible and
-estimable, but none of them may be started until the go/no-go trigger below
-fires on a recorded, committed Phase 2 re-measurement. No task in any phase has
-been started yet.
+**Phases 1 and 2 shipped. Phase 3 was never built, and never will be under this
+plan.**
+
+| Phase | Tasks | Outcome |
+| --- | --- | --- |
+| 1 — establish measurement truth | GPU-001 to GPU-012 | Complete. Merged to main. |
+| 2 — remove per-agent CPU cost | GPU-013 to GPU-023 | Complete. Merged to main. GPU-016 dropped, GPU-021 measured and deliberately no code change. |
+| 3 — the instanced backend | GPU-024 to GPU-038 | **Never started.** The go/no-go trigger returned NO-GO. |
+
+The result Phase 2 reached is the good outcome rather than a disappointing one:
+at 1,000 units, default fit, seed 1, Release, retrace disabled, the `Draw` p95
+is **3 276.6 us (3.28 ms)** against an 8.0 ms budget. The 1,000-unit target is
+met by the existing `SpriteBatch` backend, so instancing had nothing left to buy.
+
+What is still outstanding is interactive confirmation, not code. The five smoke
+rows GR-1 through GR-5 live in
+[`docs/development/testing.md`](../../development/testing.md) and are all
+`PENDING` — nobody has yet watched a 1,000-unit battle in a real window. Only a
+human at an interactive desktop may flip one.
+
+Two implementation notes worth carrying forward:
+
+- `ConservativePawnCull` and its containment proof are live, tested, and
+  referenced by nothing. GPU-016 never adopted them and the plan records the
+  decision to drop it. Deleting them is a separate reviewable change.
+- Phase 2 changed `Hukbo.Client` only. The seed-1 headless figures the plan
+  pins in section 9 are unmoved.
 
 ## The three decisions
 
@@ -34,9 +59,17 @@ been started yet.
   supported, so detection must be empirical, and empirical detection needs
   somewhere to fall back to.
 
-## The go/no-go trigger for Phase 3
+## The go/no-go trigger for Phase 3 — evaluated, NO-GO
 
-Phase 3 is authorized if and only if **both** hold on the Phase 2
+The trigger fired on 2026-07-29 against
+`docs/development/render-baselines/render-matrix-phase2-2026-07-29.json`. Clause
+1 failed: `Draw` p95 was 3.28 ms against the 8.0 ms threshold, so the budget was
+met. Clause 2 failed as reported: `submitMicroseconds` p95 was 766.7 us, 23.4
+percent of the frame, against a 50 percent threshold. Both clauses are required,
+so the verdict is NO-GO. Full reasoning in the plan's section 4.1a. The
+statement of the trigger is preserved below as it was written.
+
+Phase 3 would have been authorized if and only if **both** held on the Phase 2
 re-measurement, at 1,000 units, seed 1, Release configuration, 120 frames per
 station, vertical retrace disabled, at the default-fit camera station:
 

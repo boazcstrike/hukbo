@@ -240,7 +240,9 @@ attribution would need per-frame span records, which the report does not retain.
 
 #### Phase 1 exit criteria
 
-Assessed against section 5.1 of `docs/plans/gpu-render/2026-07-28-gpu-render.md`.
+Assessed against section 5.1 of
+`docs/archives/2026-08-07/gpu-render/2026-07-28-gpu-render.md` (that plan was
+archived on 2026-08-07; it lived at `docs/plans/gpu-render/` while the work ran).
 
 1. Matrix run at 200, 500 and 1 000 units, seed 1, 120 frames per station,
    Release, retrace disabled, fingerprint stating the retrace setting — **met**.
@@ -4667,6 +4669,42 @@ automatically a failure of the mark.
 | P-8 | Click warriors carrying each of the six weapon rows | Each shows its own threshold, and the ordering matches the shipped values — Kampilan and Wasay highest, Itak lowest | | BLOCKED |
 | P-9 | Compare an ordinary `Disengaging` warrior with a broken-off one | The two footwork rows are distinguishable at a glance, not only by careful reading | | BLOCKED |
 | P-10 | Legacy regression: launch under `PersistentContingentsV4` | No warrior ever shows the break-off mark, and no inspector line ever carries the pressure row. This is the L-7-equivalent row: it proves the feature is gated, and it is the one row here that **is** runnable today, because V4 is the shipped default | | PENDING |
+
+### GPU render smoke (gpu-render Phases 1 and 2)
+
+**No interactive run was performed for this change.** Every row below is
+`PENDING`. These rows were drafted in the plan on 2026-07-28 and moved here on
+2026-08-07; they were never in this file while the workstream ran, which is why
+no human has worked from them. The archived plan is
+[2026-07-28-gpu-render.md](../archives/2026-08-07/gpu-render/2026-07-28-gpu-render.md)
+and this copy is now the live one.
+
+What the automated work already proves, and what it does not: the render probe
+recorded a 1,000-unit default-fit `Draw` p95 of 3 276.6 us against an 8.0 ms
+budget, `PawnGeometryTests` pins the two-stage geometry path bit-identical to the
+entry points it replaced over a 73,728-case grid, `PawnQuadCountTests` still pins
+17, 19, 20 and 40 quads, `PawnAppearanceCacheTests` proves cold-cache equivalence
+and the capacity bound, `HitEffectSystemTests` proves the per-frame pulse lookup
+returns what the per-pawn scan returned, and `ArmyCompositionStepperTests` proves
+the stepper clamps at 500 per team. None of that proves that a 1,000-unit battle
+is watchable rather than merely measurable, that the composition panel still fits
+the window at the new maximum, or that Phase 2 changed no pixel — which is the
+one claim the whole phase rests on.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+flip one of these rows. Compilation, unit tests, and a window-opening probe run
+do not. Leave untouched rows `PENDING`; report `BLOCKED` honestly.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| GR-1 | Launch the game normally with `./scripts/run.ps1` | The window still runs with vertical retrace enabled; no tearing appears and frame pacing is unchanged. The retrace override from GPU-006 is probe-only and must never reach a normal launch | | PENDING |
+| GR-2 | Open the army composition panel and raise a team to 500 | The stepper reaches 500, refuses to go higher, and every row and both buttons stay fully on screen | | PENDING |
+| GR-3 | Start a 1,000-unit battle (500 per team) and watch one full engagement | The battle renders and remains watchable; pawns, shields, swings, and hit pulses all read correctly at all three camera stations | | PENDING |
+| GR-4 | Compare a seed-1 200-unit battle before and after the Phase 2 commits at the same tick and camera station | No visible difference. Phase 2 is pure removal of duplicated work; any visible difference is a defect, not a new baseline | | PENDING |
+| GR-5 | Watch hit pulses in a dense 1,000-unit melee | Pulse strength and timing read exactly as before the per-frame lookup replaced the per-pawn scan | | PENDING |
+
+Phase 3's rows GR-6 through GR-10 are deliberately absent. They covered the
+instanced backend, which the NO-GO verdict closed and which does not exist.
 
 ## Failure classification
 
