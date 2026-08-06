@@ -414,7 +414,8 @@ public sealed class PersistentContingentTests
             "living contingent for gate 6 while measuring the preset whose " +
             "one distinguishing rule is that it does not. Check this " +
             "observer against BattleSimulation before suspecting the bar. " +
-            "See docs/plans/2026-07-28-cohesion-scan-narrowing-design.md:\n" +
+            "See docs/archives/2026-08-07/" +
+            "2026-07-28-cohesion-scan-narrowing-design.md:\n" +
             string.Join('\n', failures));
     }
 

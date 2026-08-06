@@ -156,9 +156,11 @@ public static class MovementPresetRegistry
     /// bar did fail — <c>CohesionCoverageIsNotPracticallyInertAcrossSeedsOneThroughTwenty</c>
     /// reported seed 11, faction 1 with no cohering tick in the later half of
     /// a 138-tick pre-<c>Close</c> window — and the user answered question 8
-    /// in favour of narrowing. Adopting it did not clear the bar; see
-    /// docs/plans/2026-07-28-cohesion-scan-narrowing-design.md for what the
-    /// measurement found instead. It lands as a
+    /// in favour of narrowing. Adopting it appeared not to clear the bar, until
+    /// the bar's own gate-6 reconstruction was found to be measuring V4 with
+    /// V3's rule; see
+    /// docs/archives/2026-08-07/2026-07-28-cohesion-scan-narrowing-design.md
+    /// for that measurement. It lands as a
     /// new preset rather than as an edit to
     /// <see cref="PersistentContingentsV3Ruleset"/> because V3 has already
     /// shipped as a default: CLAUDE.md section 5 requires a new preset version

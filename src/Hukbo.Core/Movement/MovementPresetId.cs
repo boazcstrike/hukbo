@@ -71,16 +71,19 @@ public enum MovementPresetId
     /// body-occupancy residual.
     /// </summary>
     /// <remarks>
-    /// The narrowing does what it claims and does not fix the inertness bar,
-    /// and both halves of that sentence are measured. It provably stops a
-    /// <c>Close</c> contingent denying its neighbours, which is what
+    /// The narrowing provably stops a <c>Close</c> contingent denying its
+    /// neighbours, which is what
     /// <c>UnderTheNarrowedScanACloseContingentStopsDenyingItsNeighbours</c>
-    /// pins. The bar nevertheless still fails, on more faction-seeds than
-    /// before rather than fewer, because the clause that fails turns out not
-    /// to be measuring chain denial at all. The evidence, and the threshold
-    /// question it opens instead, are recorded in
-    /// docs/plans/2026-07-28-cohesion-scan-narrowing-design.md. Do not read
-    /// this preset as a fix for section 10.3.
+    /// pins. It appeared at first not to fix the inertness bar, and to fail it
+    /// on more faction-seeds than before rather than fewer. That turned out to
+    /// be a defect in the bar's own gate-6 reconstruction, which scanned every
+    /// living contingent while measuring the one preset whose distinguishing
+    /// rule is that it does not; with the observer corrected, all three clauses
+    /// pass on this preset. The evidence is recorded in
+    /// docs/archives/2026-08-07/2026-07-28-cohesion-scan-narrowing-design.md.
+    /// Section 13 question 7 — whether the three thresholds are the right ones
+    /// — is still open, so do not read a bar that no longer fails as a bar
+    /// proved right.
     /// </remarks>
     PersistentContingentsV4 = 4,
 

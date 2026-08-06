@@ -1,5 +1,9 @@
 # Narrowing the cross-contingent cohesion scan
 
+> **Archived: reference only.** This document is finished work, kept so the
+> decision can be traced back to its reasoning. Do not execute it and do not
+> cite it as the reason to change anything.
+
 Status: implemented; the measurement it was adopted for now passes. The reason
 it went on failing after the narrowing landed is recorded in section 9, and it
 was not the one section 7 was looking for.
