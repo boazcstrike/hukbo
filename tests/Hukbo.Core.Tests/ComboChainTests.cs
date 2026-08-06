@@ -6,10 +6,11 @@ using Hukbo.Core.Simulation;
 namespace Hukbo.Core.Tests;
 
 /// <summary>
-/// Task 4 of docs/plans/2026-07-27-combat-preset-v3-combos.md: unit-level
-/// coverage of the section 3 attack-combination state machine, driven
-/// through constructed <see cref="AgentState"/>/<see cref="WeaponProfile"/>
-/// fixtures rather than a full multi-agent battle.
+/// Task 4 of docs/archives/2026-07-28/2026-07-27-combat-preset-v3-combos.md:
+/// unit-level coverage of the section 3 attack-combination state machine,
+/// driven through constructed
+/// <see cref="AgentState"/>/<see cref="WeaponProfile"/> fixtures rather than
+/// a full multi-agent battle.
 /// </summary>
 /// <remarks>
 /// <para>

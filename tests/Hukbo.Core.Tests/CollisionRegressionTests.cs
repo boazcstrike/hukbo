@@ -20,7 +20,8 @@ namespace Hukbo.Core.Tests;
 /// </para>
 /// <para>
 /// Each test is named for the acceptance row of
-/// <c>docs/plans/2026-07-27-formation-collision-mechanics.md</c> that it locks.
+/// <c>docs/archives/2026-07-27/2026-07-27-formation-collision-mechanics.md</c>
+/// that it locks.
 /// </para>
 /// <para>
 /// The post-tick overlap invariant is checked by brute force over every ordered
@@ -45,8 +46,9 @@ public sealed class CollisionRegressionTests
     /// Rows of a hand-built line are spaced exactly one body diameter apart, so
     /// neighbours rest in tangent contact. Tangency is clearance, not collision.
     /// Nine world units at the enlarged 4.25-world-unit collision radius (task
-    /// C1, docs/plans/2026-07-28-collision-report-and-shell.md); it was eight
-    /// before that change.
+    /// C1,
+    /// docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md); it
+    /// was eight before that change.
     /// </summary>
     private const int RowSpacingWorld = 9;
 
@@ -204,12 +206,13 @@ public sealed class CollisionRegressionTests
     /// Acceptance row <c>Packed front</c> / decision record section 3. Two bodies
     /// pressed into contact sit exactly one diameter apart — eight and a half
     /// world units at the enlarged 4.25-world-unit collision radius (task C1,
-    /// docs/plans/2026-07-28-collision-report-and-shell.md); it was eight
-    /// before that change — against a twelve-world-unit reach, so a packed
-    /// front must deal damage rather than deadlock. This is the row that
-    /// proves solid contact did not strangle combat. The separation is derived
-    /// from <c>BodyRadiusRaw</c> rather than written out as a whole number of
-    /// world units, so the lines stay in true contact if the radius is retuned.
+    /// docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md); it
+    /// was eight before that change — against a twelve-world-unit reach, so a
+    /// packed front must deal damage rather than deadlock. This is the row
+    /// that proves solid contact did not strangle combat. The separation is
+    /// derived from <c>BodyRadiusRaw</c> rather than written out as a whole
+    /// number of world units, so the lines stay in true contact if the radius
+    /// is retuned.
     /// </summary>
     [Fact]
     public void PackedFront_OpposingBodiesInContactStayInsideReachAndDealDamage()

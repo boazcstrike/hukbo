@@ -11,7 +11,8 @@ namespace Hukbo.Core.Movement;
 /// the same way <see cref="Combat.CombatRuleset.ContentHash"/> is. Gameplay
 /// tuning values here are game-design choices, not historical measurements —
 /// no source describes a unit cohesion radius, a duty cycle, or an arrival
-/// taper; see docs/plans/2026-07-28-formation-movement-realism-design.md
+/// taper; see
+/// docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
 /// section 3 for the derivations.
 /// </summary>
 /// <remarks>

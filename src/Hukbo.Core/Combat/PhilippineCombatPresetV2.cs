@@ -123,7 +123,8 @@ public static class PhilippineCombatPresetV2
         // existed. The other three combo fields are unreachable once no
         // chain can open, but WeaponProfile.Validate() still requires
         // positive values, so each row borrows that weapon's V3 solo-row
-        // combo values (docs/plans/2026-07-27-combat-preset-v3-combos.md
+        // combo values
+        // (docs/archives/2026-07-28/2026-07-27-combat-preset-v3-combos.md
         // section 5, "V2's combo values must be a true no-op") rather than
         // inventing a divergent number.
         var weaponAttributes = new Dictionary<WeaponId, WeaponAttributes>

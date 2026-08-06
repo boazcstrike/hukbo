@@ -2,8 +2,8 @@
 
 Date: 2026-07-30
 Branch: `movement-wasay`, rebased onto `main` at `5afae08`.
-Executes: [`docs/plans/movement/wasay.md`](movement/wasay.md), tasks W1 through W5.
-Governed by: [`docs/plans/movement/README.md`](movement/README.md) and the shared
+Executes: [`docs/archives/2026-07-31/movement/wasay.md`](../archives/2026-07-31/movement/wasay.md), tasks W1 through W5.
+Governed by: [`docs/archives/2026-07-31/movement/README.md`](../archives/2026-07-31/movement/README.md) and the shared
 foundation handoff in
 [`2026-07-30-weapon-movement-foundation-report.md`](2026-07-30-weapon-movement-foundation-report.md).
 
@@ -239,7 +239,7 @@ test. Four bounds were needed and are reported here instead of asserted.
    prose requires contact.
 
 The one numeric bound that *is* asserted — the 250-tick no-progress limit — comes
-from `docs/plans/movement/README.md`, task T10 step 6.
+from `docs/archives/2026-07-31/movement/README.md`, task T10 step 6.
 
 ## 9. Left out, and why
 

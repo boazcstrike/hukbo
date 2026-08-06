@@ -14,7 +14,8 @@ namespace Hukbo.Core.Tests.Movement;
 /// enforces, the three direction-band pace caps, the one-sector turn budget,
 /// the acceleration and deceleration steps, the retained-pace commit under a
 /// denied move, and the four-committed-then-four-recovery rhythm with its
-/// attack interrupt. Task W2 of docs/plans/movement/wasay.md.
+/// attack interrupt. Task W2 of
+/// docs/archives/2026-07-31/movement/wasay.md.
 /// </summary>
 /// <remarks>
 /// Every boundary is asserted twice where both surfaces exist: once on the
@@ -1540,8 +1541,8 @@ public sealed class WasayMovementTests
     private const int CalibrationTicks = 600;
 
     /// <summary>
-    /// The shared no-progress bound of docs/plans/movement/README.md task T10
-    /// step 6.
+    /// The shared no-progress bound of
+    /// docs/archives/2026-07-31/movement/README.md task T10 step 6.
     /// </summary>
     private const int NoProgressStreakBoundTicks = 250;
 
@@ -2178,9 +2179,9 @@ public sealed class WasayMovementTests
     /// the six opponents the Wasay is put in front of, and whichever side of
     /// the arena it starts on, the run has to reach contact and keep making
     /// progress: no stalemate longer than the shared 250-tick no-progress
-    /// bound of docs/plans/movement/README.md task T10 step 6, at least one
-    /// accepted blow from each side, a commitment from each side, and no step
-    /// past the shared human baseline for anyone.
+    /// bound of docs/archives/2026-07-31/movement/README.md task T10 step
+    /// 6, at least one accepted blow from each side, a commitment from
+    /// each side, and no step past the shared human baseline for anyone.
     /// </summary>
     /// <remarks>
     /// Start sides and faction bearings are mirrored by running every cell
@@ -2563,18 +2564,19 @@ public sealed class WasayMovementTests
     /// <summary>
     /// How many whole ticks every group fixture in this family is observed
     /// for. It sits above the shared 250-tick no-progress bound of
-    /// docs/plans/movement/README.md task T10 step 6, so a stalled fixture
-    /// has room to break that bound rather than simply running out of ticks
-    /// first, and it sits above the 100-tick settling window that the
-    /// phase-flip rejection criterion of task T11 step 7 discards.
+    /// docs/archives/2026-07-31/movement/README.md task T10 step 6, so a
+    /// stalled fixture has room to break that bound rather than simply
+    /// running out of ticks first, and it sits above the 100-tick settling
+    /// window that the phase-flip rejection criterion of task T11 step 7
+    /// discards.
     /// </summary>
     private const int GroupObservedTicks = 400;
 
     /// <summary>
     /// The head of a group run that the phase-flip measurement discards,
-    /// from the rejection criterion in docs/plans/movement/README.md task
-    /// T11 step 7: "any phase/posture flips on more than 25% of ticks after
-    /// the first 100".
+    /// from the rejection criterion in
+    /// docs/archives/2026-07-31/movement/README.md task T11 step 7: "any
+    /// phase/posture flips on more than 25% of ticks after the first 100".
     /// </summary>
     private const int PhaseFlipSettlingTicks = 100;
 
@@ -3224,9 +3226,9 @@ public sealed class WasayMovementTests
 
     /// <summary>
     /// How many ticks after the settling window a warrior's committed phase
-    /// differed from the tick before it, and how many ticks were measured, for
-    /// the rejection criterion of docs/plans/movement/README.md task T11
-    /// step 7.
+    /// differed from the tick before it, and how many ticks were measured,
+    /// for the rejection criterion of
+    /// docs/archives/2026-07-31/movement/README.md task T11 step 7.
     /// </summary>
     private static (int Flips, int Measured) LatePhaseFlips(
         IReadOnlyList<FootworkSample> track)
@@ -3506,10 +3508,11 @@ public sealed class WasayMovementTests
     /// ticks is oscillating rather than acting.
     /// </summary>
     /// <remarks>
-    /// docs/plans/movement/README.md task T11 step 7 carries a tighter
-    /// rejection criterion — reject if any phase or posture flips on more than
-    /// 25% of ticks after the first 100 — and that criterion is deliberately
-    /// not asserted here. Measured on these fixtures, the shipped V6 rows
+    /// docs/archives/2026-07-31/movement/README.md task T11 step 7 carries a
+    /// tighter rejection criterion — reject if any phase or posture flips on
+    /// more than 25% of ticks after the first 100 — and that criterion is
+    /// deliberately not asserted here. Measured on these fixtures, the
+    /// shipped V6 rows
     /// exceed it routinely: the Wasay row's four-committed-then-four-recovery
     /// rhythm sits at exactly 25% on its own, and the shorter Kalis and Itak
     /// rhythms reach 50% to 60%. That is a calibration finding for the shared
@@ -3543,8 +3546,9 @@ public sealed class WasayMovementTests
     /// progress: across every one of them, the longest run of ticks with no
     /// change in living count, in any warrior's hit points, or in any
     /// warrior's distance to its nearest opponent stays inside the shared
-    /// 250-tick bound of docs/plans/movement/README.md task T10 step 6. The
-    /// observed tick count is asserted to exceed that bound first, so a
+    /// 250-tick bound of docs/archives/2026-07-31/movement/README.md task
+    /// T10 step 6. The observed tick count is asserted to exceed that
+    /// bound first, so a
     /// fixture that was simply too short to break it cannot pass by accident.
     /// </summary>
     [Fact]

@@ -40,7 +40,8 @@ public sealed class ScenarioTests
     [Fact]
     public void TheCanonicalTwoHundredAgentScenarioClearsEveryCollisionGuardAtTheEnlargedRadius()
     {
-        // Task C3 (docs/plans/2026-07-28-collision-report-and-shell.md):
+        // Task C3
+        // (docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md):
         // re-verifies, in one place, every guard tabulated in design section
         // 1.4 that could have rejected the 4.25-world-unit body radius --
         // attack-range clearance and movement-speed clearance

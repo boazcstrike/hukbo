@@ -20,15 +20,17 @@ namespace Hukbo.Core.Tests.Movement;
 /// </summary>
 /// <remarks>
 /// These tests assert the conventions the shared foundation actually
-/// implemented, which differ from docs/plans/movement/kampilan.md in two
-/// places the shared handoff calls out by name. First, the preferred distance
+/// implemented, which differ from
+/// docs/archives/2026-07-31/movement/kampilan.md in two places the shared
+/// handoff calls out by name. First, the preferred distance
 /// is <em>not</em> a stop line: equality enters
 /// <see cref="FootworkPhase.Engage"/> inclusively, and the agent keeps closing
 /// to the post-movement reach gate. Second, the ordered ladder in
 /// <see cref="WeaponMovementRules.ResolveProvisionalFootwork"/> places the
 /// commitment and recovery continuations at steps 2 and 3, ahead of the ratio
 /// checks at steps 4 and 5, so local pressure cannot cancel a commitment.
-/// docs/plans/movement/README.md outranks the weapon plan on both points.
+/// docs/archives/2026-07-31/movement/README.md outranks the weapon plan on
+/// both points.
 /// </remarks>
 public sealed class KampilanMovementTests
 {

@@ -7,7 +7,7 @@ and are preserved unchanged. Two decisions were revised after the first gated
 run; they are recorded in the [Amendment](#amendment--2026-07-27) at the end of
 this document, which states exactly what it supersedes. Read the amendment
 before acting on section 3, section 9, or section 11.
-**Plan:** [docs/plans/2026-07-27-formation-collision-mechanics.md](../plans/2026-07-27-formation-collision-mechanics.md)
+**Plan:** [docs/archives/2026-07-27/2026-07-27-formation-collision-mechanics.md](../archives/2026-07-27/2026-07-27-formation-collision-mechanics.md)
 **Research:** [docs/research/FORMATION_AND_COLLISION_MECHANICS.md](../research/FORMATION_AND_COLLISION_MECHANICS.md)
 
 ## Historical boundary

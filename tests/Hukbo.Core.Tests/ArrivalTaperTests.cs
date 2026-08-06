@@ -5,10 +5,10 @@ namespace Hukbo.Core.Tests;
 /// <summary>
 /// T10 unit-level sweep of <see cref="MovementRules.ComputeArrivalStepRaw"/>,
 /// the arrival-slowdown taper of design section 3.6
-/// (docs/plans/2026-07-28-formation-movement-realism-design.md). This is the
-/// test the T10 plan entry names as owing its own assertions: the frozen-
-/// preset reproduction the canonical gate also runs proves nothing about this
-/// arithmetic, because the taper never executes under
+/// (docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md).
+/// This is the test the T10 plan entry names as owing its own assertions:
+/// the frozen-preset reproduction the canonical gate also runs proves
+/// nothing about this arithmetic, because the taper never executes under
 /// <see cref="MovementPresetId.IndependentPursuitV1"/>. Every fact here calls
 /// the pure static directly with hand-built scalars; none of them constructs
 /// a <see cref="Simulation.BattleSimulation"/>.

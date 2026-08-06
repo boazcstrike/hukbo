@@ -7,8 +7,9 @@ using Hukbo.Core.Simulation;
 namespace Hukbo.Core.Tests.Movement;
 
 /// <summary>
-/// Task K2 of <c>docs/plans/movement/kalis.md</c>: every equality rule the
-/// Kalis rows own, pinned one raw unit outside, exactly on the boundary, and
+/// Task K2 of <c>docs/archives/2026-07-31/movement/kalis.md</c>: every
+/// equality rule the Kalis rows own, pinned one raw unit outside, exactly
+/// on the boundary, and
 /// one raw unit inside. The count and lifecycle rules are called directly on
 /// the shared pure resolvers with the Kalis thresholds substituted; the
 /// distance rule is called directly on the shared route arithmetic and then

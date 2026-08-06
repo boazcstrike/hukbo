@@ -8,14 +8,14 @@ task list lives in
 
 ## Authority chain
 
-This design supersedes [`docs/plans/movement/README.md`](movement/README.md)
+This design supersedes [`docs/archives/2026-07-31/movement/README.md`](../archives/2026-07-31/movement/README.md)
 wherever the two disagree. That earlier shared plan was written on 2026-07-29
 and the repository has moved since: the movement preset number it wanted is
 taken, the combat default it wanted to change has already changed twice, and
 `CombatLoadout` has grown a field that breaks its profile-key proposal. Every
 correction is listed in section 19.3 rather than silently applied.
 
-The five weapon documents under [`docs/plans/movement/`](movement/) and
+The five weapon documents under [`docs/archives/2026-07-31/movement/`](../archives/2026-07-31/movement/) and
 [`docs/research/movement/`](../research/movement/) remain the source for their
 own rows and their own acceptance tests. Where a weapon document disagrees with
 this design on a shared convention, this design wins, and section 19.3 records

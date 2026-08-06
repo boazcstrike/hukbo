@@ -2,7 +2,7 @@
 
 Date: 2026-07-30
 Branch: `movement-shield`, based on `main` at `5afae08`.
-Executes: [`docs/plans/movement/tall-hardwood-shield.md`](movement/tall-hardwood-shield.md)
+Executes: [`docs/archives/2026-07-31/movement/tall-hardwood-shield.md`](../archives/2026-07-31/movement/tall-hardwood-shield.md)
 under the prompt in
 [`docs/prompts/2026-07-30-weapon-movement-weapon-template.md`](../prompts/2026-07-30-weapon-movement-weapon-template.md).
 Consumes the handoff in
@@ -54,7 +54,7 @@ them is separate work.
 | Facing penalty | Not stated as adopted, but the research proposed a 0.88 multiplier | No facing penalty exists. Both shield rows turn at the solo value of two sectors, because 0.88 is unrepresentable in sixteen sectors and was deliberately rejected |
 | Shielded Kalis preferred distance | 13,000 | 13,000. The conflicting 1.10-reach sentence lives in the Kalis plan, not this one, and is the wrong figure |
 | Second-threat lane omission | Absent from the plan entirely | A real shared rule: with two immediate enemies the direct lane is dropped only when its endpoint is strictly closer to the second threat than the tick-start position, and `Commit`'s lone direct candidate is exempt. Covered here anyway |
-| `MovementRuleset` documentation | — | `docs/plans/movement/README.md` still says "V5" throughout for the preset that shipped as V6, and `MovementPresetRegistry.cs` still carries a comment claiming no `BattleSimulation` path consults the V6 flag. Both are stale and neither is this session's to fix |
+| `MovementRuleset` documentation | — | `docs/archives/2026-07-31/movement/README.md` still says "V5" throughout for the preset that shipped as V6, and `MovementPresetRegistry.cs` still carries a comment claiming no `BattleSimulation` path consults the V6 flag. Both are stale and neither is this session's to fix |
 
 ## 2. What landed
 

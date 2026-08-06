@@ -6,7 +6,7 @@ verdict in
 and by its companion,
 [docs/archives/2026-07-28/2026-07-28-arch-informed-performance-hardening-design.md](../archives/2026-07-28/2026-07-28-arch-informed-performance-hardening-design.md).
 The eight-stage measurement below predates the movement-preset axis
-`docs/plans/2026-07-28-formation-movement-realism.md` introduced. T16 of that
+`docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md` introduced. T16 of that
 plan added the ["The ninth stage"](#the-ninth-stage-resolvecontingentstates-t16)
 section at the end of this document, which is the up-to-date measurement of
 the tick pipeline as it stands today, nine stages, `PersistentContingentsV2`
@@ -79,7 +79,7 @@ inclusive `AdvanceOneTick` time reported below): 1185.1 ms at 200 agents,
 the tick pipeline executes them. The eight names below are exactly what the
 table two sections down measures; `ResolveContingentStates` is the ninth
 stage, added between `SelectTargetsAndIntents` and `GatherMovementProposals`
-by task T9 of `docs/plans/2026-07-28-formation-movement-realism.md`. It
+by task T9 of `docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md`. It
 returns on its first line under `IndependentPursuitV1` and performs the
 contingent state machine, the duty-cycle window, and gates 5 and 6 of the
 cohesion rule under `PersistentContingentsV2`.
@@ -188,7 +188,7 @@ start.
 
 ## The ninth stage: `ResolveContingentStates` (T16)
 
-Task T16 of `docs/plans/2026-07-28-formation-movement-realism.md` measures
+Task T16 of `docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md` measures
 the stage T9 of that plan added. This section is a self-contained
 measurement, dated after and separate from the eight-stage table above; it
 does not revise any figure in that table.

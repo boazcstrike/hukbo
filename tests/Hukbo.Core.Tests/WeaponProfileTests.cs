@@ -125,9 +125,9 @@ public sealed class WeaponProfileTests
     // ticks. These are the six rows of the design's attribute table; the
     // paired Kalis row is exactly V1's global defaults and is the control.
     // Every combo open chance is 0 — V2's combo values are a true no-op, per
-    // docs/plans/2026-07-27-combat-preset-v3-combos.md section 5 — and the
-    // other three combo columns borrow that weapon's V3 solo-row combo
-    // values, which is what makes them positive without inventing a
+    // docs/archives/2026-07-28/2026-07-27-combat-preset-v3-combos.md section
+    // 5 — and the other three combo columns borrow that weapon's V3 solo-row
+    // combo values, which is what makes them positive without inventing a
     // divergent number.
     [InlineData(WeaponId.Kampilan, ShieldId.None, 15, 16, 7, 0, 3_000, 2, 4)]
     [InlineData(WeaponId.Wasay, ShieldId.None, 18, 13, 8, 0, 2_000, 2, 5)]
@@ -223,9 +223,10 @@ public sealed class WeaponProfileTests
     [Fact]
     public void EnlargedCollisionBodyRaisesTheReachFloorButTheItakPairedProfileStillClearsItByOneAndAHalfWorldUnits()
     {
-        // Task C1 (docs/plans/2026-07-28-collision-report-and-shell.md) moved
-        // CollisionRules.DefaultBodyRadiusRaw from four world units to 4.25,
-        // which raises MinimumProfileReachRawExclusive (twice the body
+        // Task C1
+        // (docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md)
+        // moved CollisionRules.DefaultBodyRadiusRaw from four world units to
+        // 4.25, which raises MinimumProfileReachRawExclusive (twice the body
         // radius) from eight world units to 8.5. Design section 1.2 rejected
         // a 5.0-unit radius specifically because it would have pushed the
         // floor to ten world units and rejected the Itak's shield-paired

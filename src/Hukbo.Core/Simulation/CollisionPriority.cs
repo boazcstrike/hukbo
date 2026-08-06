@@ -14,7 +14,7 @@ namespace Hukbo.Core.Simulation;
 /// cross-faction contest of the entire battle. That is a standing advantage,
 /// and once the mirrored deployment removed the spawn noise that had masked
 /// it, it decided 19 of 20 seeds. See
-/// <c>docs/plans/2026-07-27-collision-priority-fairness-design.md</c>.
+/// <c>docs/archives/2026-07-27/2026-07-27-collision-priority-fairness-design.md</c>.
 /// </para>
 /// <para>
 /// The key below reshuffles priority every tick, so no agent and therefore no

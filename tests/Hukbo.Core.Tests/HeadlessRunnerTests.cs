@@ -554,8 +554,9 @@ public sealed class HeadlessRunnerTests
     /// <see cref="MovementPresetId.PersistentContingentsV2"/> until task T6 of
     /// docs/archives/2026-07-28/2026-07-28-contingent-close-latch.md flipped it (itself a
     /// flip from <see cref="MovementPresetId.IndependentPursuitV1"/> by task
-    /// T15 of docs/plans/2026-07-28-formation-movement-realism.md), and
-    /// <see cref="MovementPresetId.PersistentContingentsV3"/> until the
+    /// T15 of
+    /// docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md),
+    /// and <see cref="MovementPresetId.PersistentContingentsV3"/> until the
     /// cross-contingent scan narrowing flipped it again; the
     /// comparison itself, and the fact that implicit and explicit runs must
     /// agree, is unchanged -- only which preset name the "explicit" run

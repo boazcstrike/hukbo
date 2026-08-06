@@ -912,7 +912,7 @@ is what its digest fixture proves.
 
 ## Previous non-interactive result — movement preset default flips to PersistentContingentsV2 (T15), 2026-07-28
 
-Task T15 of `docs/plans/2026-07-28-formation-movement-realism.md` changes
+Task T15 of `docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md` changes
 `Scenario.MovementPreset`'s shipped default from `IndependentPursuitV1` to
 `PersistentContingentsV2` — the persistent-contingent cohesion movement this
 workstream built in T7 through T14. `IndependentPursuitV1` stays registered
@@ -1055,7 +1055,7 @@ invocation rather than only in the slower canonical benchmark above.
 
 ## Performance measurement — persistent contingent movement (T16), 2026-07-28
 
-Task T16 of `docs/plans/2026-07-28-formation-movement-realism.md` measures
+Task T16 of `docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md` measures
 the ninth tick stage T9 added, `ResolveContingentStates`, against the two
 acceptance figures in design section 8.1 of the companion design document:
 the new stage's p95 inclusive share of `AdvanceOneTick` must not exceed 5%,
@@ -1215,7 +1215,7 @@ branch's `StateHasher`/event-hash fold changes and this merge were both
 folded into `main`. Treat this section as the current baseline instead.
 
 **`stateHash A883926A3B93792E` above is superseded by `AFEBC0431554BCBB`.**
-`docs/plans/2026-07-28-formation-movement-realism.md` task T4 added
+`docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md` task T4 added
 `Scenario.MovementPreset` and two new per-agent words (`ContingentId`,
 `ContingentState`) to `StateHasher.Compute`, folded on every scenario
 regardless of which movement preset it selects; task T5 re-records the moved
@@ -1276,7 +1276,7 @@ At 200 agents / 10 000 ticks / seed 1, after T1 and T6 (see below):
 
 **Both hashes were re-recorded on 2026-07-28** when
 `CollisionRules.DefaultBodyRadiusRaw` moved from 4.0 to 4.25 world units under
-`docs/plans/2026-07-28-collision-report-and-shell.md`. The superseded pair,
+`docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md`. The superseded pair,
 recorded against the four-world-unit radius, was `stateHash 71211929A44A16CA`
 and `eventHash A2DC3ECA3F7345ED`. The run that produced the new pair reported
 `measuredTicks 1677`, `outcome Faction0Victory`, and `maximumPenetrationRaw 0`.
@@ -1668,7 +1668,7 @@ V2, not instead of them. V3 fields exactly the four solo loadouts V2 already
 carries — Kampilan, Wasay, solo Kalis, solo Itak — with V2's own
 damage/reach/cooldown/target-weight/grip/clash values for those four
 weapons, plus the new combo attributes. See
-[docs/plans/2026-07-27-combat-preset-v3-combos.md](../plans/2026-07-27-combat-preset-v3-combos.md)
+[docs/archives/2026-07-28/2026-07-27-combat-preset-v3-combos.md](../archives/2026-07-28/2026-07-27-combat-preset-v3-combos.md)
 and its design document. `AgentState` gains `Level`, `ComboStepsRemaining`,
 and `ComboTargetEntityId`; `BattleEvent` gains `ComboPosition`; both are
 folded into `StateHasher.Compute` and `HeadlessRunner.AddEventToHash` for
@@ -1775,7 +1775,7 @@ failed, 0 skipped — zero pinned-hash mismatches anywhere in the suite.
 ## T32 (V3) — chain metrics and level sweep, 2026-07-28
 
 Closes task 5 of
-[docs/plans/2026-07-27-combat-preset-v3-combos.md](../plans/2026-07-27-combat-preset-v3-combos.md).
+[docs/archives/2026-07-28/2026-07-27-combat-preset-v3-combos.md](../archives/2026-07-28/2026-07-27-combat-preset-v3-combos.md).
 Extends
 [`tools/Hukbo.Tools.WeaponBalance`](../../tools/Hukbo.Tools.WeaponBalance/Program.cs)
 — the same hand-run harness the V2 T32 entry above already used — to run
@@ -1887,7 +1887,7 @@ moved, no gate re-run was required.
 ## Previous non-interactive result — weapon clash on preset V2, 2026-07-28
 
 Merges the weapon-clash defensive-resolution feature onto preset V2. See
-[docs/plans/2026-07-27-clash-preset-v2-integration.md](../plans/2026-07-27-clash-preset-v2-integration.md),
+[docs/archives/2026-07-27/2026-07-27-clash-preset-v2-integration.md](../archives/2026-07-27/2026-07-27-clash-preset-v2-integration.md),
 its design document, and its handoff. An accepted attack now resolves against
 a five-way `AttackResolution` — `Landed`, `ShieldBlocked`, `Parried`,
 `Deflected`, `Evaded` — instead of landing unconditionally. Preset V1 stays
@@ -2162,7 +2162,7 @@ three combat-context fields than it was with two.
 ## Phase 2 reference pair, superseded at T39
 
 Weapon clash, Phase 2. See
-[docs/plans/2026-07-27-weapon-clash.md](../plans/2026-07-27-weapon-clash.md).
+[docs/archives/2026-07-27/2026-07-27-weapon-clash.md](../archives/2026-07-27/2026-07-27-weapon-clash.md).
 Every figure below comes from `./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`
 run on this branch. These pairs are a comparand for the far side of the Phase 3
 fan-out and are superseded once that work lands.
@@ -2364,7 +2364,7 @@ per-resolution event-log labels in T54 have to convey.
 Presentation-only change: per-cue gain now scales with the number of voices
 still sounding, and the per-frame cue budget was raised from a throttle to a
 backstop. See
-[docs/plans/2026-07-27-sound-gain-compensation.md](../plans/2026-07-27-sound-gain-compensation.md)
+[docs/archives/2026-07-27/2026-07-27-sound-gain-compensation.md](../archives/2026-07-27/2026-07-27-sound-gain-compensation.md)
 and [docs/research/SOUND-CAPACITY-MEASUREMENTS.md](../research/SOUND-CAPACITY-MEASUREMENTS.md).
 
 `./scripts/verify.ps1 -SkipBootstrap` passed at all five stages:
@@ -2621,9 +2621,9 @@ Every figure in this section comes from one final verified run of the
 last-stand formation change on 2026-07-27, taken on the
 `worktree-last-stand-formation` branch after it was rebased onto `main`'s
 mirrored starting-formation deployment. See
-[docs/plans/2026-07-27-last-stand-formation-design.md](../plans/2026-07-27-last-stand-formation-design.md)
+[docs/archives/2026-07-27/2026-07-27-last-stand-formation-design.md](../archives/2026-07-27/2026-07-27-last-stand-formation-design.md)
 and
-[docs/plans/2026-07-27-last-stand-formation.md](../plans/2026-07-27-last-stand-formation.md).
+[docs/archives/2026-07-27/2026-07-27-last-stand-formation.md](../archives/2026-07-27/2026-07-27-last-stand-formation.md).
 Nothing here is estimated, rounded, or carried over from an earlier run.
 
 Both hashes moved because this is an authoritative movement change: a
@@ -2939,9 +2939,9 @@ checklist below stay `PENDING`.
 
 `./scripts/verify.ps1 -SkipBootstrap` was run at the repository root on
 2026-07-27 after the font and text quality change (design document
-[docs/plans/2026-07-27-font-text-quality-design.md](../plans/2026-07-27-font-text-quality-design.md),
+[docs/archives/2026-07-27/2026-07-27-font-text-quality-design.md](../archives/2026-07-27/2026-07-27-font-text-quality-design.md),
 plan document
-[docs/plans/2026-07-27-font-text-quality.md](../plans/2026-07-27-font-text-quality.md)).
+[docs/archives/2026-07-27/2026-07-27-font-text-quality.md](../archives/2026-07-27/2026-07-27-font-text-quality.md)).
 It ended with `[PASS] Canonical repository verification completed.` and printed
 exactly:
 
@@ -3164,7 +3164,7 @@ also ends 124 ticks earlier, so fewer ticks were paid for. Neither figure is
 comparable to the much older 15,128,696-byte measurement, which covered a far
 shorter battle under a different contact rule, and no ratio between them is
 stated here. The open allocation-packing item in
-[docs/plans/2026-07-27-battle-event-allocation-packing.md](../plans/2026-07-27-battle-event-allocation-packing.md)
+[docs/archives/2026-07-27/2026-07-27-battle-event-allocation-packing.md](../archives/2026-07-27/2026-07-27-battle-event-allocation-packing.md)
 is unaffected by the collision work and remains the place where per-event
 allocation is paid down. The next meaningful allocation comparison is against the
 42,568,888-byte figure above, at the same agent count and the same seed.
@@ -3881,7 +3881,7 @@ unit tests, and a window-opening probe do not.
 ### Sound gain compensation smoke
 
 Covers the change recorded in
-`docs/plans/2026-07-27-sound-gain-compensation.md`. The measured evidence is in
+`docs/archives/2026-07-27/2026-07-27-sound-gain-compensation.md`. The measured evidence is in
 `docs/research/SOUND-CAPACITY-MEASUREMENTS.md`; these rows are the part that
 only a person with working speakers can settle.
 
@@ -3907,7 +3907,7 @@ only a person with working speakers can settle.
 ### Tactical hit animations smoke
 
 Covers the change recorded in
-`docs/plans/2026-07-26-tactical-hit-animations.md`, whose Task 6 requires a
+`docs/archives/2026-07-26/2026-07-26-tactical-hit-animations.md`, whose Task 6 requires a
 manual checklist that this document was previously missing. **Not performed.**
 `HitEffectSystemTests.cs` and `HitEffectGeometryTests.cs` prove that the effect
 buffer has a fixed capacity and replaces its oldest entry in a defined order,
@@ -4203,7 +4203,7 @@ No row born flipped, per VIS-043's own prohibited-scope clause.
 
 ### Collision firmness, battle report, and window shell smoke (2026-07-28)
 
-Added by `docs/plans/2026-07-28-collision-report-and-shell.md`. The canonical
+Added by `docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md`. The canonical
 gate passed on 2026-07-28 with `stateHash A080E28DA7C79C20`,
 `eventHash 2B6FB3A9A9C1960D`, `measuredTicks 1677`, `outcome Faction0Victory`,
 `deterministic true`, `maximumPenetrationRaw 0`, and
@@ -4236,7 +4236,7 @@ native call works; if it fails, the button is dead with no visible error.
 
 ### Quit confirmation, maximize, and Core faction metrics smoke (2026-07-28)
 
-Added by `docs/plans/2026-07-28-quit-confirm-maximize-and-faction-metrics.md`.
+Added by `docs/archives/2026-07-28/2026-07-28-quit-confirm-maximize-and-faction-metrics.md`.
 **A passing gate proves none of the rows below.** Every one needs a human at an
 interactive desktop, and no agent may flip one to `PASS`.
 

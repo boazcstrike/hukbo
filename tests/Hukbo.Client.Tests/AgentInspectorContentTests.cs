@@ -384,7 +384,8 @@ public sealed class AgentInspectorContentTests
         // The paired Kalis profile (the first registered preset with
         // weapon profiles that TryResolveProfile resolves is V2, whose
         // combo fields are a true no-op per
-        // docs/plans/2026-07-27-combat-preset-v3-combos.md section 5):
+        // docs/archives/2026-07-28/2026-07-27-combat-preset-v3-combos.md
+        // section 5):
         // ComboOpenChanceBasisPoints 0, ComboContinueChanceBasisPoints
         // 4,500, ComboMaxSteps 4, ComboCooldownTicks 3 — rendered here
         // exactly as authored, and immediately below the V2 attribute

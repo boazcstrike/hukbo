@@ -1172,8 +1172,8 @@ public sealed class BattleSimulation
     /// its first line and touches no contingent array at all, which is why
     /// the frozen preset's trajectory is untouched by this stage's
     /// existence. See
-    /// docs/plans/2026-07-28-formation-movement-realism-design.md sections
-    /// 3.4 and 3.5.
+    /// docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
+    /// sections 3.4 and 3.5.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -1486,7 +1486,8 @@ public sealed class BattleSimulation
     /// Under every persistent-contingent preset, a
     /// <see cref="AgentIntent.Moving"/> agent that passes all six movement
     /// gates of design section 3.5
-    /// (docs/plans/2026-07-28-formation-movement-realism-design.md) takes a
+    /// (docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md)
+    /// takes a
     /// contingent cohesion destination instead of its ordinary nearest-enemy
     /// pursuit; every agent that fails even one of the six gates takes
     /// ordinary pursuit exactly as it does under

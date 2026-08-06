@@ -10,13 +10,15 @@ namespace Hukbo.Core.Tests.Movement;
 /// no historical measurement. The evidence ledger and the approved calibration
 /// ranges live in docs/research/movement/kampilan.md; the row itself is fixed
 /// by docs/plans/2026-07-30-weapon-movement-foundation-design.md section 13,
-/// which supersedes any figure quoted in docs/plans/movement/kampilan.md.
+/// which supersedes any figure quoted in
+/// docs/archives/2026-07-31/movement/kampilan.md.
 /// </summary>
 /// <remarks>
 /// The registry-side equivalent of the value assertion already exists as
 /// <c>MovementProfileRegistrationTests.TheKampilanRowCarriesTheDesignSectionThirteenValues</c>,
 /// which reads the row through <c>LoadoutMovementProfiles[0]</c>. This file is
-/// the equipment-owned pin named by docs/plans/movement/kampilan.md task K1,
+/// the equipment-owned pin named by
+/// docs/archives/2026-07-31/movement/kampilan.md task K1,
 /// and it asserts the exported <see cref="KampilanMovementProfile.Row"/>
 /// directly so that a change to the export is caught in the file the Kampilan
 /// session owns. The overlap is deliberate, not accidental duplication.

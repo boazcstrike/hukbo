@@ -14,8 +14,9 @@ public sealed class FormationPlannerTests
     /// <summary>
     /// The jitter reach on the default scenario. Lattice spacing there is six
     /// body radii, which is 25.5 world units at the enlarged 4.25-world-unit
-    /// collision radius (task C1, docs/plans/2026-07-28-collision-report-and-
-    /// shell.md; it was 24 world units before that change), and the jitter is
+    /// collision radius (task C1,
+    /// docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md; it
+    /// was 24 world units before that change), and the jitter is
     /// half the clearance above a body diameter, so a warrior sits within nine
     /// units of its lattice cell and two independently jittered plans differ
     /// by at most eighteen. The value was eight and sixteen respectively
@@ -112,15 +113,16 @@ public sealed class FormationPlannerTests
     /// are clustered by gap. On the default 200-agent scenario the lattice
     /// spacing is 6 body radii, which is 25.5 world units at the enlarged
     /// 4.25-world-unit collision radius (task C1,
-    /// docs/plans/2026-07-28-collision-report-and-shell.md). Regenerated for
-    /// that task: a real run across seeds 1, 2, and 9 measured the widest
-    /// within-group row gap at about 22 world units and the narrowest
-    /// between-group gap at about 44, both markedly closer together than at
-    /// the old four-world-unit radius (spacing 24, between-group gap
-    /// comfortably above the old 48-unit threshold). A 32-unit threshold sits
-    /// clear of both bounds with roughly ten world units of margin on either
-    /// side; the old 48-unit threshold sat above every measured between-group
-    /// gap and merged contingents into fewer, unequal groups.
+    /// docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md).
+    /// Regenerated for that task: a real run across seeds 1, 2, and 9
+    /// measured the widest within-group row gap at about 22 world units and
+    /// the narrowest between-group gap at about 44, both markedly closer
+    /// together than at the old four-world-unit radius (spacing 24,
+    /// between-group gap comfortably above the old 48-unit threshold). A
+    /// 32-unit threshold sits clear of both bounds with roughly ten world
+    /// units of margin on either side; the old 48-unit threshold sat above
+    /// every measured between-group gap and merged contingents into fewer,
+    /// unequal groups.
     /// </summary>
     [Theory]
     [InlineData(1UL)]
@@ -362,11 +364,12 @@ public sealed class FormationPlannerTests
         BattleSimulation simulation,
         int factionId)
     {
-        // 32 world units, regenerated for task C5 (docs/plans/2026-07-28-
-        // collision-report-and-shell.md) alongside the summary above: it
-        // clears the widest measured within-group row gap (~22 world units)
-        // and sits below the narrowest measured between-group gap (~44 world
-        // units) at the enlarged 4.25-world-unit collision radius. The old
+        // 32 world units, regenerated for task C5
+        // (docs/archives/2026-07-28/2026-07-28-collision-report-and-shell.md)
+        // alongside the summary above: it clears the widest measured
+        // within-group row gap (~22 world units) and sits below the
+        // narrowest measured between-group gap (~44 world units) at the
+        // enlarged 4.25-world-unit collision radius. The old
         // 48-unit threshold predates that radius and no longer discriminates
         // reliably.
         const int separationRaw = 32 * FixedPoint.Scale;

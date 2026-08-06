@@ -29,7 +29,7 @@ that follow own the tuning.
 
 Your governing documents, in precedence order:
 
-1. `docs/plans/movement/README.md` — the shared architecture, the exact
+1. `docs/archives/2026-07-31/movement/README.md` — the shared architecture, the exact
    configuration types, the content-hash fold order, the facing table, the
    route and clearance contract, the precedence chain, and the task graph
    T0–T12. This is your plan.

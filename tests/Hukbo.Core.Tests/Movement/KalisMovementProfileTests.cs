@@ -5,9 +5,10 @@ using Hukbo.Core.Movement.Profiles;
 namespace Hukbo.Core.Tests.Movement;
 
 /// <summary>
-/// Task K1 of <c>docs/plans/movement/kalis.md</c>: the two exported Kalis
-/// rows — solo <c>KA</c> and shielded <c>KS</c> — pinned at their source,
-/// on the exported static property rather than through the registry, and
+/// Task K1 of <c>docs/archives/2026-07-31/movement/kalis.md</c>: the two
+/// exported Kalis rows — solo <c>KA</c> and shielded <c>KS</c> — pinned at
+/// their source, on the exported static property rather than through the
+/// registry, and
 /// then proved to be the very instances the registry composes. Every
 /// asserted number is a <b>Provisional reconstruction: gameplay tuning; no
 /// historical measurement</b>, drawn from

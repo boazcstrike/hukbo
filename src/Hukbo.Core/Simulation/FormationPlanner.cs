@@ -47,8 +47,8 @@ internal static class FormationPlanner
     /// <remarks>
     /// Widened from <see langword="private"/> to <see langword="internal"/>
     /// by the persistent-contingent movement preset
-    /// (docs/plans/2026-07-28-formation-movement-realism-design.md section
-    /// 3.4), which uses this same constant for its
+    /// (docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
+    /// section 3.4), which uses this same constant for its
     /// <c>FactionId * MaximumContingents + ContingentId</c> slot arithmetic
     /// and its cross-contingent pair-scan bound rather than declaring a
     /// second <c>8</c> that could drift from this one.

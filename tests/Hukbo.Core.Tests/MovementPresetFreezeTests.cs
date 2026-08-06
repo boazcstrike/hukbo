@@ -18,10 +18,11 @@ namespace Hukbo.Core.Tests;
 /// <item>
 /// <description>
 /// <c>IndependentPursuitV1</c>, captured by
-/// docs/plans/2026-07-28-formation-movement-realism.md task T1, before a
-/// single line of the movement-preset workstream existed. Every later task
-/// in that plan that could plausibly disturb its trajectory -- the formation
-/// planner change, the state-hash move, the shared helper extraction --
+/// docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md task
+/// T1, before a single line of the movement-preset workstream existed. Every
+/// later task in that plan that could plausibly disturb its trajectory --
+/// the formation planner change, the state-hash move, the shared helper
+/// extraction --
 /// reproduces this fixture byte-identically as part of its own
 /// verification.
 /// </description>
@@ -334,8 +335,8 @@ public sealed class MovementPresetFreezeTests
     private static BattleSimulation CreateControlRun(MovementPresetId movementPreset)
     {
         // Named by T15's inventory step
-        // (docs/plans/2026-07-28-formation-movement-realism.md) after
-        // flipping Scenario.MovementPreset's shipped default to
+        // (docs/archives/2026-07-28/2026-07-28-formation-movement-realism.md)
+        // after flipping Scenario.MovementPreset's shipped default to
         // PersistentContingentsV2: this fixture is the frozen-behaviour
         // oracle for IndependentPursuitV1 specifically, and its own pinned
         // trajectory must not move when the default moves out from under
@@ -368,8 +369,8 @@ public sealed class MovementPresetFreezeTests
         // Both fixtures' provenance.construction.combatPreset records
         // "PrecolonialPhilippinesV2" -- the shipped default at capture time.
         // The rank-in-composition-panel plan
-        // (docs/plans/2026-07-29-rank-composition-panel.md, task P1) moves
-        // Scenario.CombatPreset's own default to
+        // (docs/archives/2026-07-29/2026-07-29-rank-composition-panel.md,
+        // task P1) moves Scenario.CombatPreset's own default to
         // CombatPresetId.PrecolonialPhilippinesV4, which changes every
         // agent's roster loadout and therefore the state hash from tick 1
         // onward. Pinning V2 explicitly here, exactly as MovementPreset and
