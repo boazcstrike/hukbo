@@ -22,62 +22,6 @@ internal static class SquadGrouping
 {
     /// <summary>
     /// Computes one <see cref="SquadSlot"/> per entry of
-    /// <paramref name="entityIds"/>, written into the matching index of
-    /// <paramref name="results"/>. <b>Retained for a caller with no position
-    /// data to give the cohesion radius something to measure against</b> —
-    /// today, <c>MovementSourceTests</c>, which exercises grouping in
-    /// isolation from order assignment and never claimed to prove the radius.
-    /// This overload unions every same-faction candidate pair
-    /// unconditionally, exactly as this type did before task 74 gave the
-    /// radius somewhere to be read: it is the pre-task-74 behaviour, kept
-    /// only because nothing yet supplies this overload with positions, not
-    /// because it is the design's rule. Design section 8 of
-    /// <c>docs/plans/2026-08-07-sandata-scaffold-design.md</c>, "Grouping is
-    /// derived, not stored", states the radius-gated rule; the overload below
-    /// that takes positions and <c>groupCohesionRadiusRaw</c> is the one that
-    /// enforces it, and is the one every future caller should prefer once it
-    /// has positions to give it (task 49, the tick pipeline wiring).
-    /// </summary>
-    /// <param name="entityIds">
-    /// Every operator in the tick-start roster, strictly ascending with no
-    /// duplicate — the order <c>MissionState.Operators</c> is documented to
-    /// hold.
-    /// </param>
-    /// <param name="isAlive">Parallel to <paramref name="entityIds"/>: whether that operator is currently alive.</param>
-    /// <param name="factions">Parallel to <paramref name="entityIds"/>: that operator's faction.</param>
-    /// <param name="pairs">
-    /// The candidate contact pairs for this tick. The order of this list
-    /// never affects the result: union is applied pair by pair, and set
-    /// union is commutative and associative regardless of application
-    /// order, so permuting <paramref name="pairs"/> permutes nothing in
-    /// <paramref name="results"/>.
-    /// </param>
-    /// <param name="results">
-    /// Receives one result per entry of <paramref name="entityIds"/>, in the
-    /// same order. Must be exactly <paramref name="entityIds"/>.Length long.
-    /// </param>
-    /// <exception cref="ArgumentNullException"><paramref name="pairs"/> is <see langword="null"/>.</exception>
-    /// <exception cref="ArgumentException">
-    /// <paramref name="isAlive"/>, <paramref name="factions"/>, or
-    /// <paramref name="results"/> has a different length than
-    /// <paramref name="entityIds"/>; <paramref name="entityIds"/> is not
-    /// strictly ascending; or a pair in <paramref name="pairs"/> names an
-    /// entity ID absent from <paramref name="entityIds"/>.
-    /// </exception>
-    internal static void Compute(
-        ReadOnlySpan<ulong> entityIds,
-        ReadOnlySpan<bool> isAlive,
-        ReadOnlySpan<int> factions,
-        IReadOnlyList<SandataCollisionPair> pairs,
-        Span<SquadSlot> results)
-    {
-        ComputeCore(
-            entityIds, isAlive, factions, pairs, results,
-            xRaw: default, yRaw: default, groupCohesionRadiusRaw: 0, applyCohesionRadius: false);
-    }
-
-    /// <summary>
-    /// Computes one <see cref="SquadSlot"/> per entry of
     /// <paramref name="entityIds"/>, gating every union on
     /// <paramref name="groupCohesionRadiusRaw"/> as design section 8 states:
     /// "Two operators of the same faction within <c>GroupCohesionRadius</c>
@@ -159,13 +103,16 @@ internal static class SquadGrouping
     }
 
     /// <summary>
-    /// The shared derivation both <see cref="Compute(ReadOnlySpan{ulong}, ReadOnlySpan{bool}, ReadOnlySpan{int}, IReadOnlyList{SandataCollisionPair}, Span{SquadSlot})"/>
-    /// and its position-aware overload run. <paramref name="applyCohesionRadius"/>
-    /// selects which of those two callers this is: when
-    /// <see langword="false"/>, <paramref name="xRaw"/> and
-    /// <paramref name="yRaw"/> are ignored entirely and every same-faction
-    /// candidate pair unions unconditionally, reproducing this type's
-    /// pre-task-74 behaviour for the caller that has no positions to give.
+    /// The derivation <see cref="Compute"/> runs: union-find over the
+    /// candidate pairs, gated by <paramref name="applyCohesionRadius"/> and
+    /// (when that gate is set) the squared-distance comparison against
+    /// <paramref name="groupCohesionRadiusRaw"/>, followed by the
+    /// group-id and leader two-pass derivation. Task 74 removed the
+    /// no-position overload that used to call this with
+    /// <paramref name="applyCohesionRadius"/> <see langword="false"/>; the
+    /// parameter and the unconditional-union path stay because narrowing
+    /// this private helper to a single call shape is a separate, unrequested
+    /// change, and every current caller passes <see langword="true"/>.
     /// </summary>
     private static void ComputeCore(
         ReadOnlySpan<ulong> entityIds,

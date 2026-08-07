@@ -417,6 +417,17 @@ public sealed class SquadGroupingTests
         }
     }
 
+    /// <summary>
+    /// Reproduces the removed no-position overload's unconditional-union
+    /// behaviour for every fact below that predates task 74's radius gate
+    /// and was never trying to prove anything about distance. Every entity
+    /// is placed at the same coincident position (0, 0), so the squared
+    /// distance between any pair is always zero; any non-negative radius
+    /// then satisfies the gate for every same-faction pair, so the choice of
+    /// radius here cannot change which pairs union. <see cref="UnconditionalUnionRadiusRaw"/>
+    /// is a large, clearly-labelled constant instead of zero purely for
+    /// readability — nothing below depends on its exact value.
+    /// </summary>
     private static SquadSlot[] Compute(
         ReadOnlySpan<ulong> entityIds,
         ReadOnlySpan<bool> isAlive,
@@ -424,9 +435,22 @@ public sealed class SquadGroupingTests
         IReadOnlyList<SandataCollisionPair> pairs)
     {
         var results = new SquadSlot[entityIds.Length];
-        SquadGrouping.Compute(entityIds, isAlive, factions, pairs, results);
+        var coincidentPositions = new int[entityIds.Length];
+        SquadGrouping.Compute(
+            entityIds, isAlive, factions,
+            coincidentPositions, coincidentPositions, UnconditionalUnionRadiusRaw,
+            pairs, results);
         return results;
     }
+
+    /// <summary>
+    /// Paired with the coincident (0, 0) positions <see cref="Compute"/>
+    /// synthesizes for every entity: any non-negative radius unions every
+    /// same-faction candidate pair when every position is identical, so this
+    /// value's magnitude is arbitrary and chosen only to read as
+    /// deliberately large rather than accidentally zero.
+    /// </summary>
+    private const int UnconditionalUnionRadiusRaw = 1_000_000;
 
     // ------------------------------------------------------------------
     // Task 74's first rule: the position-aware overload, which is the one
