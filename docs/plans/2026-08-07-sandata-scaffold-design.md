@@ -1622,6 +1622,8 @@ suppression bracket, selection ring.
 | Mission clock and tick counter | top-right | integer tick, derived seconds | **built** |
 | Event log | right column, below contacts | ordered authoritative events, at most 200 retained | **built** |
 | Operator inspector | left panel on selection | intent, reason code, chain phase and remaining ticks, cover state and arc, group id, slot index, decision position and resolution position | **built** — this is the "spectator can discover the effect" requirement, so it is not optional |
+| Go-code panel | left column, below the operator inspector | every go-code letter in play, how many operators carry it, and whether it has been released | **built** — task 71 gives task 62's helper its call site |
+| Order queue view | left column, below the go-code panel | every order the spectator has submitted, and — for a rejected one — the specific reason it failed validation | **built** — task 71 gives task 62's helper its call site |
 | Spectator control bar | bottom-centre | pause, step one tick, speed, restart | **built**, reusing Hukbo's control-bar shape |
 | Fire cone overlay | in-world | per-operator vision cone, `FireConeFill` and `FireConeEdge`, at every detail tier | **built** |
 | Order path overlay | in-world | the polyline and waypoints for a selected group | **scaffolded** — renders a path when one exists, has no editor |
