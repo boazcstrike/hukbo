@@ -521,3 +521,72 @@ Each was therefore forbidden the file and asked to report a verdict on its
 placeholder instead. Task 63 applies all four verdicts in one edit and moves the
 hash once. The cost is one extra task; the alternative was a guaranteed conflict
 on a file that carries a pinned hash.
+
+### Two type defects task 28 reported, and the task that fixes them
+
+Task 28 was told to assert by reflection that no group state is stored on
+`MissionState`. It could not honestly assert that, and rather than widening its
+own scope into a forbidden file it narrowed its test to the risk it could
+control — a *new* leader field or membership collection — and reported the rest.
+That is the behaviour the file-list rule exists to produce.
+
+**The squad slot index is stored but should be derived.** Design section 4's
+authoritative list named it; design section 8 says group id, leader, membership,
+and slot index are all derived each tick and nothing is stored per group. The two
+could not both hold. Section 8 wins, section 4 is corrected in place with the
+reasoning recorded there, and `OperatorState.SquadSlotIndex` has to go. Being
+derived does not disturb the `(groupId, slotIndex, entityId)` commit key: a value
+computed identically on every run orders exactly as totally as a stored one.
+
+**Entity ids are two different types in one game.** `SandataCollisionBody`,
+`SandataCollisionPair`, and `SandataCollisionMoveRequest` use `ulong` for entity
+and group ids. `MissionState.OperatorState.EntityId` is `int`. Hukbo's own
+`AgentState.EntityId` is `ulong`, so `ulong` is the house style and the mission
+record is the outlier. Left alone, the widening cast lands in whichever task
+first wires the pipeline together, which is exactly where a silent type error is
+most expensive.
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 64 | 5b | Mission state type reconciliation and the world-unit conversion | Widen every entity and group identifier on the mission record from `int` to `ulong`, matching `Hukbo.Core.Simulation.AgentState` and Sandata's own collision types. Remove `SquadSlotIndex` from `OperatorState` and from the state hasher, per design section 4's 2026-08-07 correction. Add the missing `FixedPoint`-to-world-unit conversion as a named helper with a written rounding rule — design section 4 stores distance as `FixedPoint` raw at scale 1024 while `NavGrid`, `WallBuckets`, and every rule built on them take plain `long` world units, and no conversion exists today. Change no other field and no field order beyond the removal. **Single-writer task, run between waves 5 and 6** — every wave-6 task consumes these types, so the fix has to precede them. | `src/Sandata.Core/Simulation/MissionState.cs`, `src/Sandata.Core/Simulation/MissionSnapshot.cs`, `src/Sandata.Core/Determinism/SandataStateHasher.cs`, `src/Sandata.Core/Mathematics/WorldUnits.cs`, `tests/Sandata.Core.Tests/MissionStateTests.cs`, `tests/Sandata.Core.Tests/WorldUnitsTests.cs` | `MissionStateTests` passes with the widened identifiers; a reflection test asserts no member named `SquadSlotIndex` survives on `OperatorState`; the snapshot still round-trips to an equal `MissionState`; `WorldUnitsTests` pins the conversion at zero, at an exact world unit, at a fractional value, and on both sides of zero, with the rounding rule stated in the XML doc rather than left to C# division's truncation-toward-zero; and the task reports explicitly whether any pinned constant moved. No golden mission hash exists yet, so this should cost no re-pinning — if it does, that is a finding to report, not to absorb. | 17, 28, 32 | |
+
+The conversion is a determinism decision, not a convenience. C# integer division
+truncates toward zero and an arithmetic right shift floors, so the two disagree
+for negative coordinates. Map space cannot express a negative coordinate, but
+relative offsets are signed, which is exactly why design section 4 already
+requires explicit floor division for every world-to-cell conversion. The helper
+states which rule it implements and a test pins it on both sides of zero.
+
+Wave 5b is a real wave, not a footnote: it holds exactly one task, it is
+single-writer on four files, and wave 6 does not start before it is green.
+
+### The unowned step task 27 exposed: nothing smooths the published path
+
+Task 27 published a path as the A\* corridor's ordered cell-index sequence, and
+said so rather than assuming. That is the correct output for the file list it
+was given — task 26's funnel string-pull was running in a sibling worktree it
+could not see, and design section 7 is explicit that the corridor and the
+smoothed polyline are two different things: "Grid A\* decides topology; a funnel
+string-pull snaps the corridor to the real vector wall geometry."
+
+No task owns the step between them. Task 26 writes `Funnel.StringPull` and
+tests it on synthetic corridors. Task 27 writes the service that publishes a
+path. Task 34 consumes "the shared polyline" and computes cumulative arclength
+along it. Nothing in the plan says who calls the funnel on a published corridor,
+so as written the squad would follow a staircase and the funnel would be dead
+code — which is precisely the visible defect design section 7 introduced the
+funnel to prevent.
+
+This is the third instance of the same audit gap, after `NavGrid.cs` and
+`Sandata.Client.csproj`: the wave audit checks that no file is claimed twice and
+does not check that every *step* is claimed once. A file-level audit cannot catch
+it, because the missing owner here is a call, not a file.
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 65 | 5b | Smooth the published path | Make `PathService` publish the funnel-smoothed polyline rather than the raw corridor, calling `Funnel.StringPull` on the corridor `NavSearch` produced. The request record stays authoritative and unchanged; the smoothed polyline stays derived and recomputed on resume, so the recompute test must now reproduce the smoothed output rather than the corridor. Keep the corridor available to callers that genuinely want cells, and say in the XML doc which one is which. | `src/Sandata.Core/Navigation/PathService.cs`, `tests/Sandata.Core.Tests/PathServiceTests.cs` | `PathServiceTests` passes with the published path asserted as a smoothed polyline: a corridor crossing the `angle-house` fixture's 26.57-degree wall publishes a single straight segment rather than a staircase, and recomputing every published path from its stored request reproduces the identical smoothed polyline. Task 26's own `FunnelTests` stay untouched and green. | 26, 27 | |
+
+Task 65 joins task 64 in wave 5b. Their file sets are disjoint — 64 owns the
+mission record and the hasher, 65 owns the path service — and both must be green
+before wave 6 starts, because task 34's arclength work consumes exactly the
+polyline task 65 changes and exactly the identifiers task 64 widens.

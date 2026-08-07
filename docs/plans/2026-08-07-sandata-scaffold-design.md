@@ -493,7 +493,7 @@ Everything in this list is in the snapshot and in the state hash:
 
 - `Tick`, `Phase`, `Winner`, `NextEntityId`, `NextEventSequence`.
 - Per operator: position (two `FixedPoint`), `Facing16`, `Bam16` aim angle,
-  health, faction, squad slot index, intent, posture (standing or crouched),
+  health, faction, intent, posture (standing or crouched),
   `WeaponLowered` flag, weapon chain phase and remaining ticks, magazine rounds,
   cyclic-fire accumulator, and suppression counter.
 - Per operator: contact memory — for each remembered enemy, the last known cell,
@@ -504,6 +504,24 @@ Everything in this list is in the snapshot and in the state hash:
   `(groupId, startCellIndex, goalCellIndex, requestTick)`.
 - Per RNG stream: algorithm identifier, root seed, and stream state.
 - `MissionContentHash` and `SandataRuleset.ContentHash`.
+
+**Correction, 2026-08-07: the squad slot index was on this list and should not
+have been.** Section 8 states plainly that group id, leader, membership, and
+slot index are all derived each tick from positions and entity ids, and stores
+nothing per group. This list contradicted that by naming the slot index as a
+hashed per-operator field, and task 17 implemented the list rather than the
+section, so `OperatorState` carries a `SquadSlotIndex` that nothing derives from
+and nothing may trust.
+
+Section 8 is the reasoned statement and it wins. The slot index is derived, and
+it is removed from this list and from the operator record. Being derived does
+not stop it ordering the movement commit: `(groupId, slotIndex, entityId)` stays
+the commit key, because a derived value computed identically on every run orders
+just as totally as a stored one.
+
+Task 28 found this from the inside — it was told to assert that no group state is
+stored, and could not honestly assert it about a field it was forbidden to
+touch — and reported it rather than quietly widening its own scope.
 
 ### What is derived and never hashed, never snapshotted
 
