@@ -264,6 +264,7 @@ no sub-agent's report substitutes for its real output.
 | RU-32 | The manual smoke-checklist rows for this package, added to the interactive checklist and **shipped as `PENDING`**. They must cover, at minimum: a projectile visible in flight; the gap between the release cue and the impact cue being audible as the flight time; each of the three five-phase draw sequences reading as that weapon; a ranged warrior visibly stopping while its melee comrades walk in past it; the inspector reading "holding at range" rather than "blocked"; a missed shot not playing a flesh impact; the three new silhouettes distinguishable at each detail tier including Low; the arquebus reading as rare, loud, and distinctive; **and a row that explicitly asks whether an arrow passing through the friendly front rank looks wrong**, because that is the one effect in Phase 1 a spectator cannot discover and it must be looked at deliberately. Under `CLAUDE.md` section 6 rule 4, **no compilation, unit test, or window-opening probe may flip any of these rows to `PASS`, and no agent may flip one at all.** The plan owes the rows; it does not owe the results. | `docs/development/testing.md` | Rows exist, each describes what a person must look at and what they should expect to see or hear, and every one is `PENDING`. | RU-01 (shares the file), RU-25, RU-31 | A human at an interactive desktop |
 | RU-33 | The canonical gate, run once after integration. Not delegated to any sub-agent, and no sub-agent's report substitutes for its real output. | — | `./scripts/verify.ps1` output pasted verbatim into section 9, together with the two determinism workloads' `stateHash`, `eventHash`, `deterministic`, and `firstMismatchTick`. | RU-01 through RU-32 | `./scripts/verify.ps1` |
 | RU-34 | **Added 2026-08-07, after RU-03 exposed that no task owned these files.** Make three `Hukbo.Core.Tests` suites roster-aware instead of enum-exhaustive. `ClashResolverTests` (five red facts), `HitLocationResolverTests.WeaponOverrides_CanChangeTheResolvedBodyPartForTheSameTuple`, and `PhilippineCombatIntegrationTests` (two red facts) each sweep `Enum.GetValues<WeaponId>()` and feed every value into a ruleset built from `PrecolonialPhilippinesV1` or `V2`. **Those four presets are frozen and will never gain a ranged arm, so no amount of work on V5 can turn these green** — the sweep itself is what has to change, from "every value the enum defines" to "every weapon this ruleset's own roster actually declares". The coverage intent must survive: a sweep that silently skips a weapon a ruleset *does* declare is a weakened test and is forbidden by `CLAUDE.md` section 5. Derive the weapon set from the ruleset under test, do not hard-code a list of four, so that adding an eighth weapon later fails loudly in the right place rather than here. | `tests/Hukbo.Core.Tests/ClashResolverTests.cs`, `tests/Hukbo.Core.Tests/HitLocationResolverTests.cs`, `tests/Hukbo.Core.Tests/PhilippineCombatIntegrationTests.cs` | All eight of those facts pass with the three ranged `WeaponId` members defined and unregistered in V1 through V4; each sweep still covers every weapon its ruleset declares, verified by asserting the swept count equals the roster count rather than by inspection; no assertion is deleted, loosened, or marked `Skip`. | RU-03 | `dotnet test` on the three named files |
+| RU-37 | **Added 2026-08-07. Found by RU-06, and RU-30 cannot be measured without it.** Wire F-A's four route-refusal counters through the headless runner so they appear in a real benchmark report instead of reading `0`. `HeadlessRunner.cs:520` owns the `MovementBehaviorMetricsAccumulator` and already calls `RecordConflictDenialTotal(left.MovementConflictDenials)`; the four new counters need the equivalent call from `BattleSimulation`'s four new public properties, recorded the same way and for the same reason. RU-06 could not do this because `HeadlessRunner.cs` was not in its authorized file list — the row named `RunReport.cs`, which is the record definition rather than the population site, which is the identical mistake the RU-05 row made. Nothing here reaches either hash: these are derived observability counters, so **no new preset version and no pinned artifact may move**. | `src/Hukbo.Headless/HeadlessRunner.cs` | `./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1 -MovementPreset EquipmentRelativeFootworkV6` reports four non-zero `routeRefusal*` counters summing to exactly 692,750; the shipped-default run still reports `stateHash 1B73FC5923879AA0` and `eventHash AC55684F24D39344`; the same run on `PersistentContingentsV4` reports all four as zero, because that preset never calls `TryProposeEquipmentRoute`. | RU-06 | `./scripts/benchmark.ps1` on V6 and on the shipped default, both reports pasted into section 9 |
 | RU-36 | **Added 2026-08-07. Found by RU-07, and it needs a decision before RU-12 builds V5.** `CombatRuleset.AddProfile` (`CombatRuleset.cs:641-648`) folds exactly three fields into the preset content hash — `DamagePerAttack`, `AttackRangeRaw`, `AttackCooldownTicks`. RU-07's three ranged fields are **not** folded, and neither are the pre-existing combo fields. The consequence is not cosmetic: RU-24 calibrates the ranged tuning and RU-26 pins V5's content hash, so under the current fold a calibration pass changes how the game plays while the content hash stays byte-identical. The content hash is what decides whether a saved replay is the same configuration, so two genuinely different tunings would be declared identical and a replay recorded under the old values would be accepted and then diverge. **The obstacle is that the naive fix breaks a frozen invariant:** folding three more values unconditionally changes the content hash of V1 through V4, which this plan requires to stay byte-identical. The candidate resolution is to fold the three ranged values **only when the profile declares any of them non-zero**, so an all-zero melee profile hashes exactly as it does today and V1 through V4 are preserved, while V5 becomes sensitive to its own ranged tuning. Conditional folding has bitten this repository before — check how the V7 work handled it and match that precedent or state why it does not apply. The pre-existing unfolded combo fields are **not** in scope; note them and leave them. | `src/Hukbo.Core/Combat/CombatRuleset.cs`, `tests/Hukbo.Core.Tests/DeterminismTests.cs` | V1 through V4's pinned content hashes are byte-identical to their current values; two V5 rulesets differing only in a ranged tuning value produce **different** content hashes, proven by a test that constructs both; an all-zero melee profile folds exactly as before, proven against a pinned literal. | RU-07, and it must land before RU-12 pins anything | `dotnet test` on `tests/Hukbo.Core.Tests/DeterminismTests.cs` and `WeaponProfileTests.cs` |
 | RU-35 | **Added 2026-08-07, same cause as RU-34.** `PawnAppearanceFactory.ToWeaponRole` (`PawnAppearanceFactory.cs:130`) is a total switch over `WeaponId` that throws `ArgumentOutOfRangeException` on `Bangkaw`, and **no task in this plan owned that file** — RU-10 owns the catalog and `PawnAppearance.cs`, RU-22 owns `PawnGeometry.cs`. Add the three arms mapping the ranged weapons to the `PawnWeaponRole` members RU-10 introduces, and repair the five red `PawnAppearanceFactoryTests` facts plus `ConservativePawnCullTests.GeometryAppearances_CoverEverythingTheFactoryCanProduce`. `Create_MapsAllFourWeaponIdsToDistinctSilhouettes` is named for a four-weapon roster and must be renamed and widened to seven rather than left asserting a stale number. The two policy facts — `WeaponLabels_NeverUseTheRejectedPanabasName` and `WeaponLabels_NeverCarryACulturalNameWithoutItsDescriptor` — enforce `CLAUDE.md` section 7 and must keep enforcing it across all seven weapons, not just the original four. | `src/Hukbo.Client/Presentation/PawnAppearanceFactory.cs`, `tests/Hukbo.Client.Tests/PawnAppearanceFactoryTests.cs` — **`ConservativePawnCullTests.cs` was reassigned to RU-22 on 2026-08-07, see the second correction in section 3** | All seven `WeaponId` values resolve to a `PawnWeaponRole` without throwing; the five `PawnAppearanceFactoryTests` facts pass; the distinct-silhouette fact covers seven weapons and still requires distinctness; both naming-policy facts pass for the three new weapons. | RU-10 (introduces the `PawnWeaponRole` members this maps onto) | `dotnet test` on `tests/Hukbo.Client.Tests/PawnAppearanceFactoryTests.cs` and `ConservativePawnCullTests.cs` |
 
@@ -376,7 +377,9 @@ evidence; the command's output is.
 - At least 19 of 20 seeds are decisive before the 5,000-tick cap on the ranged
   presets, with a median decisive tick at or below 5,000, and each faction wins
   at least four of the twenty.
-- F-A's four counters sum to exactly 1,140,221 on the recorded V6 workload.
+- F-A's four counters sum to exactly **692,750** on the V6 workload — the
+  measured value, replacing the stale 1,140,221 this plan originally asked for.
+  See "The refuse-tick baseline was stale" in section 9.
 - F-B's lane-not-clear counter collapses relative to that V6 measurement. If it
   does not, the diagnosis was wrong, and that is a finding to record rather than
   a number to tune toward.
@@ -514,6 +517,53 @@ evidence lives rather than where a summary lives. It owes, at minimum:
   then on a mixed roster.
 - The task status table.
 
+### The refuse-tick baseline was stale, and F-A's real number is 692,750
+
+RU-06 reported that this plan's hard acceptance target for F-A — four counters
+summing to 1,140,221 — did not match reality, and declined to adjust its exit
+sites to force a match. It was right, and the orchestrator confirmed the whole
+picture with its own benchmark runs rather than accepting the report:
+
+| Workload, 200 agents / seed 1 / 10,000 ticks | `refuseAgentTicks` |
+| --- | --- |
+| `EquipmentRelativeFootworkV6`, today | **692,750** |
+| `EquipmentRelativeFootworkV7`, today | 1,092,119 |
+| The figure this plan asked for | 1,140,221 |
+
+So 1,140,221 reproduces on **no** current preset. Two separate faults produced
+it. First, provenance: the number traces to
+`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md:523`, an
+**archived** document, and `CLAUDE.md` section 6 states that archived files are
+deprecated by definition and may never be cited as justification for a change.
+Second, drift: it was recorded on 2026-07-31, and the tree has moved a long way
+since — on V6 today `regroupAgentTicks` is 844,387 against the archived 338,634
+and `conflictDenials` is 322,705 against 130,844. Even the preset was wrong, since
+the archived cell is a V7 baseline and this plan asked for it on V6.
+
+**The diagnosis F-B rests on survives the correction, which is the part that
+matters.** `docs/research/ranged/2026-08-07-STANDOFF-ROOT-CAUSE.md:751` derives a
+route-search failure rate of at least 95.61% from the stale number. Recomputed on
+today's V6 measurements, 692,750 / (692,750 + 37,414 + 198 + 0) = **94.85%**.
+Route-search refusal still overwhelmingly dominates, so F-B remains the right
+intervention and RU-30's premise holds. Only the arithmetic needed correcting, and
+RU-30 must compare against 692,750 rather than against anything in that archived
+file.
+
+### RU-06's counters do not reach a live benchmark report yet
+
+Every one of the four reads `0` in an actual
+`./scripts/benchmark.ps1 -MovementPreset EquipmentRelativeFootworkV6` report, even
+though RU-06's own unit test correctly reconstructs the sum by driving
+`BattleSimulation` directly. The cause is a file-ownership gap of exactly the same
+shape as the one RU-05 hit: this plan's RU-06 row names
+`src/Hukbo.Headless/RunReport.cs` as where the counters are surfaced, but the
+population site is `HeadlessRunner.cs:520`, which owns the
+`MovementBehaviorMetricsAccumulator` and calls `RecordConflictDenialTotal` on it.
+`HeadlessRunner.cs` was not in RU-06's authorized file list, so RU-06 documented
+the gap and correctly stopped. RU-37 closes it, and **it must land before RU-30**,
+whose entire acceptance criterion is a benchmark-measured collapse in the
+lane-not-clear counter.
+
 ### Integration baselines, measured after each wave
 
 Every count below is from a real `dotnet test` run in `Release` on the
@@ -587,7 +637,7 @@ citation into volume III that the source entry does not yet enumerate.
 | RU-03 | Done on branch `ru-03` at `5f2e5f6`, not yet integrated — opened the known-red window; see the correction in section 3 |
 | RU-04 | Done on branch `ru-04` at `a7cebde`, not yet integrated |
 | RU-05 | Done on branch `ru-05` at `8b1a88e` and `2c7f854`, not yet integrated |
-| RU-06 | In progress on branch `ru-06`, not yet committed |
+| RU-06 | Done on branch `ru-06` at `7a065eb`, merged into `ranged-units` — acceptance number corrected to 692,750; counters not yet in a live report, see RU-37 |
 | RU-07 | Done on branch `ru-07` at `746669e`, merged into `ranged-units` |
 | RU-08 | Done on branch `ru-08` at `5c4b4b4`, merged into `ranged-units` |
 | RU-09 | Done on branch `ru-09` at `84b78dc`, merged into `ranged-units` |
@@ -618,3 +668,4 @@ citation into volume III that the source entry does not yet enumerate.
 | RU-34 | Done on branch `ru-34` at `7b80c24`, merged into `ranged-units` — took Core from 18 red to 10 |
 | RU-35 | Not started — added 2026-08-07, see the correction in section 3 |
 | RU-36 | Not started — added 2026-08-07, found by RU-07, needs a decision before RU-12 |
+| RU-37 | Not started — added 2026-08-07, found by RU-06, must land before RU-30 |

@@ -740,6 +740,33 @@ of six rows, and the three directions offered do not point out of it.
 
 ### 4.5 The measured failure rate of the route search
 
+**Superseded arithmetic, corrected 2026-08-07 during RU-06.** The numbers in the
+block below come from
+`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md:523`, which
+is an archived document recording a **V7** cell on 2026-07-31. Two things are
+wrong with using it here: `CLAUDE.md` section 6 forbids citing an archived file as
+justification, and the tree has drifted since it was written. Measured directly on
+the current tree at 200 agents, seed 1, 10,000 ticks:
+
+| Preset | `refuseAgentTicks` |
+| --- | --- |
+| `EquipmentRelativeFootworkV6` | 692,750 |
+| `EquipmentRelativeFootworkV7` | 1,092,119 |
+
+The 1,140,221 below reproduces on neither. Recomputed against today's V6 block —
+`refuseAgentTicks` 692,750, `approachAgentTicks` 37,414, `engageAgentTicks` 198,
+`pursueAgentTicks` 0:
+
+```
+route-search failure rate >= 692,750 / 730,362 = 94.85%
+```
+
+**The conclusion of this section is unchanged.** Route-search refusal still
+dominates by an overwhelming margin, so the diagnosis this document draws and the
+F-B intervention it motivates both stand. Only the figures needed correcting. The
+original derivation is preserved below rather than rewritten, so the reasoning can
+still be traced.
+
 From the seed-1 200-agent `movementMetrics` block in section 2.3:
 
 ```
