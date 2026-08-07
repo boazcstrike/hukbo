@@ -24,9 +24,14 @@ see a winner. Repeated headless runs match winner, ordered events, and final sta
 
 ### Deferred layers
 
-Terrain/pathfinding, cover, projectiles/ammo, morale, diplomacy, body parts, equipment, needs,
-economy, persistent worlds, multiplayer, and mods are deferred. Section 11 preserves the future
-pathfinding acceptance bar.
+Terrain/pathfinding, cover, morale, diplomacy, body parts, equipment, needs, economy, persistent
+worlds, multiplayer, and mods are deferred. Section 11 preserves the future pathfinding acceptance
+bar.
+
+Projectiles and projectile flight time were lifted from this deferred list on 2026-08-07,
+authorized for the ranged-units package (`docs/plans/2026-08-07-ranged-units.md`) alone.
+Ammunition — quiver sizes, resupply, and any other stock-and-consumption model for a projectile —
+was not lifted and stays deferred.
 
 ## 2. Language and engine decision
 
@@ -873,8 +878,12 @@ termination criterion; the recorded figures are in
 (`ResolutionShift = 24`), alongside `Weapon` (bits 16-23), `Shield` (bits 8-15), and `HitLocation`
 (bits 0-7). `Landed = 0` contributes nothing to the resolution byte, which is safe only because the
 weapon field is non-zero for every attack event and "absent" is tested on the whole field, not on any
-one byte — a pinned test guards this reasoning. The event stays at 72 bytes and the collision
-allocation ceiling stays at 900,000. `ClashProfile`'s entire tuning surface — the weapon-intercept
+one byte — a pinned test guards this reasoning. The event stays at 72 bytes. The enforced per-tick
+allocation ceiling is **16,384 bytes per 1,000 warm ticks, with a 4,096-byte growth tolerance, at 12
+agents per faction** (`tests/Hukbo.Core.Tests/BattleSimulationTests.cs:393-395`); the 900,000-byte
+figure once recorded here was a stale absolute-window measurement from an earlier collision-scaling
+workload and is superseded — see the historical run records in `docs/development/testing.md` for
+where it came from. `ClashProfile`'s entire tuning surface — the weapon-intercept
 matrix keyed by all three key parts, the shield scalar, the void channel, the hard-share rows, and the
 clamp bounds — folds into `CombatRuleset.ContentHash` conditionally: only a ruleset actually
 constructed with a clash profile folds it, which is what keeps preset V1's pinned content hash

@@ -120,8 +120,12 @@ at all. Full rules: `docs/research/HISTORICAL_1500s_WEAPONS.md` and
   measured techniques under `SIMULATION-GAME-STANDARDS.md` section 15.
 - Commit credentials, absolute local paths, `bin/`, `obj/`, or package
   output.
-- Start terrain, pathfinding, morale, projectile ammunition, persistence
-  migrations, multiplayer, or mod APIs before the gate that authorizes them.
+- Start terrain, pathfinding, morale, ammunition (quiver sizes, resupply, or
+  any stock-and-consumption model for a projectile), persistence migrations,
+  multiplayer, or mod APIs before the gate that authorizes them. Projectiles
+  and projectile flight time were authorized on 2026-08-07 for the
+  ranged-units package (`docs/plans/2026-08-07-ranged-units.md`) alone;
+  ammunition was not authorized and stays deferred.
 
 The full rules are in `CLAUDE.md` and `SIMULATION-GAME-STANDARDS.md`. Keep
 this file and `CLAUDE.md` consistent.

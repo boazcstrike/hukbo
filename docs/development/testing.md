@@ -1994,7 +1994,13 @@ hash would have meant the clash stage was never actually wired in.
   bands. Both moves are legitimate content changes, not re-baseline drift —
   see the retune note under "T60 — the 20-seed defence-attributable share"
   below.
-- The collision allocation ceiling stays at 900,000 bytes. The merged
+- The collision allocation ceiling stays at 900,000 bytes. **Superseded: this
+  was the ceiling in force on 2026-07-28 and is not the current one.** The
+  enforced per-tick allocation ceiling as of RU-01 (2026-08-07) is 16,384
+  bytes per 1,000 warm ticks, with a 4,096-byte growth tolerance, at 12 agents
+  per faction (`tests/Hukbo.Core.Tests/BattleSimulationTests.cs:393-395`).
+  This paragraph is left unedited below as the historical record of the
+  measurement taken at the time. The merged
   `BattleEvent` — carrying `Weapon`, `Shield`, `HitLocation`, and `Resolution`
   all packed into one `int` per D5 — measures 815,312 bytes, comfortably under
   the ceiling and smaller than the pre-clash 200-agent figure above.
@@ -2210,6 +2216,14 @@ because they are what makes the move trustworthy:
 | `maximumPenetrationRaw` | 0 |
 
 ### A note on per-tick allocation
+
+**Superseded: the 900,000-byte figure below was the ceiling in force on
+2026-07-27 and is not the current one.** The enforced per-tick allocation
+ceiling as of RU-01 (2026-08-07) is 16,384 bytes per 1,000 warm ticks, with a
+4,096-byte growth tolerance, at 12 agents per faction
+(`tests/Hukbo.Core.Tests/BattleSimulationTests.cs:393-395`). The paragraph
+below is left unedited as the historical record of the measurement taken at
+the time.
 
 Adding the attacker's shield to `BattleEvent` — needed so a feed line can say
 whether a one-handed blow was solo or shielded — first pushed the collision
