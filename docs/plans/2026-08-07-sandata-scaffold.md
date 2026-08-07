@@ -236,3 +236,35 @@ Three scheduling rules bind the plan:
 | **ElevenLabs take quality overruns the credit budget** | Medium | Medium. 22 USD becomes 99 USD, or the run stalls half-finished with a partially populated folder | The project's own skill documentation records one run peaking at 93 percent usable and another under 1 percent. The manifest carries the credit and dollar estimate at both a zero-reject and a 50-percent-reject rate so the authorisation is informed. Whether credits scale with requested duration is **UNVERIFIED** and is stated as unverified rather than assumed favourable |
 | **The product name changes after the first commit** | Medium | Medium. Seven project names, every namespace, every file path in this plan, and every `sandata.*` log event identifier | Design section 15 question 3 raises it before wave 1. The name is trivial to change before the first commit and expensive after, and the single cheapest moment to answer is now. The same applies to question 8, the assembly name of the shared spine |
 | **A manual smoke row is marked `PASS` without a human at a desktop** | Medium | Medium. The checklist stops meaning anything, and an interactive regression ships | Standing rule 7 forbids any task from flipping a row, task 54's acceptance criterion is that every new row is `PENDING`, and design section 13 lists exactly which behaviours are human-only. Compilation, unit tests, and a window-opening probe do not qualify. `BLOCKED` is reported honestly rather than upgraded |
+
+## Status log
+
+**Wave 1 complete, 2026-08-07.** Tier-1 extraction of four files into
+`Hukbo.Shared.Core` plus seven new project shells. Two hazards recorded above.
+
+**Wave 2 complete, 2026-08-07.** Tasks 2 through 9 all merged into
+`sandata-scaffold`, each from its own worktree, with no merge conflicts — the
+disjoint file-set audit held in practice. 175 Sandata tests and 5,733 Hukbo
+tests pass. The canonical gate passes all five stages, and the seed-1 workload
+reproduces `stateHash 1B73FC5923879AA0` and `eventHash AC55684F24D39344`,
+byte-identical to the same workload run on untouched `main`. Adding a second
+game moved no Hukbo hash.
+
+**Stale line citations, 2026-08-07.** `main` gained warrior gait animation
+during this session and it has been merged in. It is `Hukbo.Client` only and
+touches nothing Sandata depends on, but it rewrote large parts of
+`PawnGeometry.cs` and `PawnRenderer.cs`. Design section 11's analysis of the
+pawn draw path cites line numbers in both files that have now shifted by
+several hundred lines. **Task 37 must re-derive those citations against the
+current files rather than trusting the design's numbers.** The structural
+claims — fifteen composed layers, arbitrary rotation about a pivot already
+available, the weapon tip already serving as a muzzle anchor — were verified
+independently and still hold; only the line numbers are stale.
+
+**A note on the const-inlining discovery, 2026-08-07.** While proving its new
+assembly-reference assertions could fail, task 7 found that Roslyn inlines
+`const` fields and emits no `AssemblyRef` for them. A reference test therefore
+passes falsely when the only usage is a constant. This applies to the
+pre-existing `CoreDoesNotReferenceTheDiagnosticsAssembly` fact as much as to the
+new Sandata ones: it proves no *non-constant* use of the assembly. The paired
+source-text scan is what closes that gap, which is why both forms exist.
