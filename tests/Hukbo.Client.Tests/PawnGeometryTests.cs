@@ -260,6 +260,360 @@ public sealed class PawnGeometryTests
         Assert.True(swinging.VisualBounds.Contains(swinging.WeaponBounds));
     }
 
+    // --- movement-gait-animation, T3: leg and foot layout ---
+
+    /// <summary>
+    /// The gait pose is optional so that every existing call site and every
+    /// existing case here compiles and passes unchanged, mirroring
+    /// <see cref="Create_WithoutASwingPose_MatchesTheStaticLayout"/>: a
+    /// neutral pose is asserted alongside no pose at all, because
+    /// <c>default(GaitPose)</c> is documented as a pawn standing as it does
+    /// today and a caller may hand one over rather than a null.
+    /// </summary>
+    [Fact]
+    public void Create_WithoutAGaitPose_MatchesTheStaticLayout()
+    {
+        var footAnchor = new Vector2(137.25f, 241.75f);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan, ShieldId.None);
+
+        var withoutPose = PawnGeometry.Create(footAnchor, 2f, appearance);
+        var withNullPose = PawnGeometry.Create(
+            footAnchor,
+            2f,
+            appearance,
+            scaleMultiplier: 1f,
+            swingPose: null,
+            gaitPose: null);
+        var withNeutralPose = PawnGeometry.Create(
+            footAnchor,
+            2f,
+            appearance,
+            scaleMultiplier: 1f,
+            swingPose: null,
+            gaitPose: default(GaitPose));
+
+        Assert.Equal(withoutPose, withNullPose);
+        Assert.Equal(withoutPose, withNeutralPose);
+    }
+
+    /// <summary>
+    /// Design section 9's detail-tier table: the legs and feet are absent at
+    /// <see cref="PawnDetailTier.Low"/>, where the ground ring already
+    /// carries the footprint, and present at Medium and High.
+    /// </summary>
+    [Fact]
+    public void Create_LegAndFootBoundsAreEmptyAtLowTierAndNonEmptyAtMediumAndHigh()
+    {
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan, ShieldId.None);
+        var footAnchor = new Vector2(100, 100);
+
+        var low = PawnGeometry.Create(footAnchor, 0.05f, appearance);
+        var medium = PawnGeometry.Create(footAnchor, 1f, appearance);
+        var high = PawnGeometry.Create(footAnchor, 3f, appearance);
+
+        Assert.Equal(PawnDetailTier.Low, low.DetailTier);
+        Assert.True(low.LeftLegBounds.IsEmpty);
+        Assert.True(low.RightLegBounds.IsEmpty);
+        Assert.True(low.LeftFootBounds.IsEmpty);
+        Assert.True(low.RightFootBounds.IsEmpty);
+
+        foreach (var layout in new[] { medium, high })
+        {
+            Assert.NotEqual(PawnDetailTier.Low, layout.DetailTier);
+            Assert.False(layout.LeftLegBounds.IsEmpty);
+            Assert.False(layout.RightLegBounds.IsEmpty);
+            Assert.False(layout.LeftFootBounds.IsEmpty);
+            Assert.False(layout.RightFootBounds.IsEmpty);
+        }
+    }
+
+    /// <summary>
+    /// The pose-blind cull rectangle a caller culls on must not become a
+    /// function of the presentation-only stride phase, exactly as it must not
+    /// become a function of the swing phase
+    /// (<see cref="CreateWithPoseBlindBounds_KeepsTheCullRectangleBlindToTheSwing"/>).
+    /// Two warriors at the same position and detail tier, one standing and
+    /// one mid-stride at two different phases, must cull identically.
+    /// </summary>
+    [Fact]
+    public void CreateWithPoseBlindBounds_KeepsThePoseBlindBoundsIdenticalAcrossDifferentGaitPhases()
+    {
+        var footAnchor = new Vector2(137f, 241f);
+        var appearance = PawnAppearanceFactory.Create(
+            7,
+            WeaponId.Kampilan,
+            ShieldId.TallHardwood);
+        var stancePose = default(GaitPose);
+        var walkPose = new GaitPose(
+            GaitMode.Walk,
+            PhaseTurns: 0.25f,
+            LeftLegOffsetRatio: 0.32f,
+            RightLegOffsetRatio: -0.32f,
+            LeftFootLiftRatio: 0.15f,
+            RightFootLiftRatio: 0f,
+            TorsoLeanX: 0f,
+            TorsoLeanY: 0f,
+            DirectionSign: 1f);
+        var runPose = new GaitPose(
+            GaitMode.Run,
+            PhaseTurns: 0.75f,
+            LeftLegOffsetRatio: -0.6f,
+            RightLegOffsetRatio: 0.6f,
+            LeftFootLiftRatio: 0f,
+            RightFootLiftRatio: 0.38f,
+            TorsoLeanX: 0.18f,
+            TorsoLeanY: 0f,
+            DirectionSign: -1f);
+
+        var stanceCombined = PawnGeometry.CreateWithPoseBlindBounds(
+            footAnchor, 2f, appearance, gaitPose: stancePose);
+        var walkCombined = PawnGeometry.CreateWithPoseBlindBounds(
+            footAnchor, 2f, appearance, gaitPose: walkPose);
+        var runCombined = PawnGeometry.CreateWithPoseBlindBounds(
+            footAnchor, 2f, appearance, gaitPose: runPose);
+
+        Assert.Equal(
+            stanceCombined.PoseBlindVisualBounds,
+            walkCombined.PoseBlindVisualBounds);
+        Assert.Equal(
+            stanceCombined.PoseBlindVisualBounds,
+            runCombined.PoseBlindVisualBounds);
+
+        // Guards the assertions above against passing for the wrong reason:
+        // if the gait pose were never actually threaded into the posed
+        // layout at all, this would also hold vacuously.
+        Assert.NotEqual(
+            walkCombined.Layout.LeftLegBounds,
+            runCombined.Layout.LeftLegBounds);
+    }
+
+    /// <summary>
+    /// <see cref="GaitPose.LeftLegOffsetRatio"/> and
+    /// <see cref="GaitPose.RightLegOffsetRatio"/> are direction-agnostic on
+    /// the pose itself (see that field's own documentation); this proves
+    /// <see cref="PawnGeometry"/> is the caller that applies
+    /// <see cref="GaitPose.DirectionSign"/>, by checking that flipping the
+    /// sign mirrors the leg offset around the neutral stance position.
+    /// </summary>
+    [Fact]
+    public void Create_WithAGaitPose_MirrorsTheLegOffsetWhenDirectionSignFlips()
+    {
+        var footAnchor = new Vector2(100f, 100f);
+        var appearance = PawnAppearanceFactory.Create(
+            0,
+            WeaponId.Kampilan,
+            ShieldId.None) with
+        {
+            StatureMultiplier = 1f,
+            BuildMultiplier = 1f,
+        };
+
+        var neutral = PawnGeometry.Create(footAnchor, cameraZoom: 3f, appearance);
+        var forward = PawnGeometry.Create(
+            footAnchor,
+            cameraZoom: 3f,
+            appearance,
+            gaitPose: new GaitPose(
+                GaitMode.Walk, 0.25f, 0.5f, -0.5f, 0f, 0f, 0f, 0f, DirectionSign: 1f));
+        var backward = PawnGeometry.Create(
+            footAnchor,
+            cameraZoom: 3f,
+            appearance,
+            gaitPose: new GaitPose(
+                GaitMode.Walk, 0.25f, 0.5f, -0.5f, 0f, 0f, 0f, 0f, DirectionSign: -1f));
+
+        var neutralCenterX = neutral.LeftLegBounds.Center.X;
+        var forwardDelta = forward.LeftLegBounds.Center.X - neutralCenterX;
+        var backwardDelta = backward.LeftLegBounds.Center.X - neutralCenterX;
+
+        Assert.NotEqual(0, forwardDelta);
+        Assert.Equal(-forwardDelta, backwardDelta);
+    }
+
+    /// <summary>
+    /// The maximum foot lift a gait pose can request must never draw a foot
+    /// below the ground ring's own bottom edge, at every detail tier and
+    /// every stride phase — the ground ring is the planted-feet footprint,
+    /// and a foot drawn beneath it would read as sinking into the ground
+    /// rather than lifting off it.
+    /// </summary>
+    [Fact]
+    public void Create_FeetNeverDrawBelowTheGroundRingsBottomEdge()
+    {
+        var baseAppearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan, ShieldId.None);
+        var footAnchor = new Vector2(200f, 200f);
+        var cameraZooms = new[] { 0.3f, 0.7f, 1f, 2f, 3f, 8f };
+        var gaitPoses = new[]
+        {
+            default(GaitPose),
+            new GaitPose(GaitMode.Walk, 0.1f, 0.32f, -0.32f, 0.15f, 0f, 0f, 0f, 1f),
+            new GaitPose(GaitMode.Walk, 0.6f, -0.32f, 0.32f, 0f, 0.15f, 0f, 0f, -1f),
+            new GaitPose(GaitMode.Run, 0.35f, 0.6f, -0.6f, 0.38f, 0f, 0.18f, 0f, 1f),
+            new GaitPose(GaitMode.Run, 0.85f, -0.6f, 0.6f, 0f, 0.38f, 0.18f, 0f, -1f),
+        };
+
+        foreach (var cameraZoom in cameraZooms)
+        {
+            foreach (var gaitPose in gaitPoses)
+            {
+                var layout = PawnGeometry.Create(
+                    footAnchor,
+                    cameraZoom,
+                    baseAppearance,
+                    gaitPose: gaitPose);
+
+                if (layout.DetailTier == PawnDetailTier.Low)
+                {
+                    continue;
+                }
+
+                var groundRing = layout.GroundRingBounds;
+                foreach (var rectangle in new[]
+                {
+                    layout.LeftLegBounds,
+                    layout.RightLegBounds,
+                    layout.LeftFootBounds,
+                    layout.RightFootBounds,
+                })
+                {
+                    Assert.True(
+                        rectangle.Bottom <= groundRing.Bottom,
+                        $"zoom {cameraZoom}, pose {gaitPose}: {rectangle} draws " +
+                        $"below the ground ring {groundRing}.");
+                    Assert.True(
+                        rectangle.Left >= groundRing.Left &&
+                        rectangle.Right <= groundRing.Right,
+                        $"zoom {cameraZoom}, pose {gaitPose}: {rectangle} draws " +
+                        $"outside the ground ring's horizontal span {groundRing}.");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// T8 correction, requirement 1: the leg-plus-foot band — the span from
+    /// the torso's own bottom edge down to the ground ring's bottom edge —
+    /// must read as roughly 30-35% of the full head-top-to-foot-anchor
+    /// silhouette, so a spectator can actually see legs. Checked at the two
+    /// apparent scales the correction names explicitly: 1.0 and 1.35 (the
+    /// class's own <c>ZoomScale</c> default), both inside Medium tier.
+    /// </summary>
+    [Theory]
+    [InlineData(0.7407407f)] // apparentScale ~= 1.0
+    [InlineData(1f)] // apparentScale ~= 1.35 (ZoomScale's own default)
+    public void Create_LegBandIsRoughlyAThirdOfTheSilhouetteHeight(float cameraZoom)
+    {
+        var appearance = PawnAppearanceFactory.Create(
+            0,
+            WeaponId.Kampilan,
+            ShieldId.None) with
+        {
+            StatureMultiplier = 1f,
+            BuildMultiplier = 1f,
+        };
+        var footAnchor = new Vector2(100f, 100f);
+
+        var layout = PawnGeometry.Create(footAnchor, cameraZoom, appearance);
+
+        Assert.Equal(PawnDetailTier.Medium, layout.DetailTier);
+
+        var silhouetteHeight = layout.GroundRingBounds.Bottom - layout.HeadBounds.Top;
+        var legBandHeight = layout.GroundRingBounds.Bottom - layout.TorsoBounds.Bottom;
+        var legBandRatio = legBandHeight / (float)silhouetteHeight;
+
+        Assert.InRange(legBandRatio, 0.30f, 0.35f);
+    }
+
+    /// <summary>
+    /// T8 correction, requirement 6: the drawn leg and foot rectangles must
+    /// never round down to zero height, at any apparent scale from the
+    /// clamp floor through the clamp ceiling, the same way <see cref="ToSize"/>'s
+    /// own <c>Math.Max(1, ...)</c> floor already guarantees for every other
+    /// element. The old <c>LegLengthUnits</c> of <c>1f</c> failed this at
+    /// almost every scale because it and <c>FootHeightUnits</c> rounded to
+    /// nearly the same whole pixel and cancelled in the leg-body subtraction
+    /// (this class's own gait remarks, above <c>LegLengthUnits</c>).
+    /// </summary>
+    [Fact]
+    public void Create_LegAndFootHeightNeverRoundsToZeroAcrossTheApparentScaleRange()
+    {
+        var baseAppearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan, ShieldId.None);
+        var footAnchor = new Vector2(200f, 200f);
+        var cameraZooms = new[] { 0.55f, 0.6f, 0.7f, 0.75f, 0.8f, 1f, 1.2f, 1.35f, 1.6f, 2f, 3f, 8f };
+
+        foreach (var cameraZoom in cameraZooms)
+        {
+            var layout = PawnGeometry.Create(footAnchor, cameraZoom, baseAppearance);
+
+            if (layout.DetailTier == PawnDetailTier.Low)
+            {
+                continue;
+            }
+
+            foreach (var rectangle in new[]
+            {
+                layout.LeftLegBounds,
+                layout.RightLegBounds,
+                layout.LeftFootBounds,
+                layout.RightFootBounds,
+            })
+            {
+                Assert.True(
+                    rectangle.Height >= 1,
+                    $"zoom {cameraZoom}, tier {layout.DetailTier}: {rectangle} " +
+                    "has zero or negative height.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// T8 correction, requirement 7: at Medium tier, a mid-stride pose must
+    /// displace a leg at least one whole pixel from the neutral stance
+    /// position, and lift a foot at least one whole pixel off the ground —
+    /// otherwise the stride is not actually visible to a spectator.
+    /// </summary>
+    [Fact]
+    public void Create_WithAGaitPose_StrideAndFootLiftAreAtLeastOnePixelAtMediumTier()
+    {
+        var footAnchor = new Vector2(200f, 200f);
+        var appearance = PawnAppearanceFactory.Create(
+            0,
+            WeaponId.Kampilan,
+            ShieldId.None) with
+        {
+            StatureMultiplier = 1f,
+            BuildMultiplier = 1f,
+        };
+        const float cameraZoom = 1f; // apparentScale 1.35, Medium tier.
+        var midStridePose = new GaitPose(
+            GaitMode.Walk,
+            PhaseTurns: 0.25f,
+            LeftLegOffsetRatio: 0.32f,
+            RightLegOffsetRatio: -0.32f,
+            LeftFootLiftRatio: 0.15f,
+            RightFootLiftRatio: 0f,
+            TorsoLeanX: 0f,
+            TorsoLeanY: 0f,
+            DirectionSign: 1f);
+
+        var neutral = PawnGeometry.Create(footAnchor, cameraZoom, appearance);
+        var midStride = PawnGeometry.Create(
+            footAnchor, cameraZoom, appearance, gaitPose: midStridePose);
+
+        Assert.Equal(PawnDetailTier.Medium, neutral.DetailTier);
+
+        var strideDisplacement = Math.Abs(
+            midStride.LeftLegBounds.Center.X - neutral.LeftLegBounds.Center.X);
+        var footLift = neutral.LeftFootBounds.Top - midStride.LeftFootBounds.Top;
+
+        Assert.True(
+            strideDisplacement >= 1,
+            $"stride displacement was only {strideDisplacement}px.");
+        Assert.True(
+            footLift >= 1,
+            $"foot lift was only {footLift}px.");
+    }
+
     /// <summary>
     /// The arc lives on the layout so the renderer consumes it rather than
     /// deriving it a second time. That shape is required by the
@@ -753,7 +1107,7 @@ public sealed class PawnGeometryTests
             cameraZoom: 3f,
             appearance);
 
-        Assert.Equal(new Rectangle(92, 74, 17, 17), layout.PlaceholderBounds);
+        Assert.Equal(new Rectangle(92, 64, 17, 17), layout.PlaceholderBounds);
     }
 
     /// <summary>
@@ -869,8 +1223,8 @@ public sealed class PawnGeometryTests
             appearance);
 
         Assert.Equal(PawnDetailTier.High, layout.DetailTier);
-        Assert.Equal(new Rectangle(75, 71, 10, 26), layout.ShieldBounds);
-        Assert.Equal(new Vector2(80f, 84f), layout.ShieldAnchor);
+        Assert.Equal(new Rectangle(75, 65, 10, 26), layout.ShieldBounds);
+        Assert.Equal(new Vector2(80f, 78f), layout.ShieldAnchor);
         Assert.Equal(
             PawnGeometry.ShieldPostureRotationRadians,
             layout.ShieldPostureRotationRadians);
@@ -1015,8 +1369,8 @@ public sealed class PawnGeometryTests
     /// <see cref="GetBounds_MatchesThePinnedRegressionRectangle"/> and
     /// <see cref="Create_PlaceholderBoundsMatchesThePinnedRegressionRectangle"/>
     /// use, so <c>torsoBounds</c> is the already-verified
-    /// <c>(92, 69, 17, 29)</c> and <c>headBounds</c> is
-    /// <c>(92, 50, 17, 17)</c> those two tests independently confirm.
+    /// <c>(92, 63, 17, 19)</c> and <c>headBounds</c> is
+    /// <c>(92, 44, 17, 17)</c> those two tests independently confirm.
     /// </summary>
     [Fact]
     public void Create_ArmorSashAndAdornmentBoundsMatchThePinnedRegressionRectangles()
@@ -1043,12 +1397,12 @@ public sealed class PawnGeometryTests
             adornmentAccentMarkCount: AppearanceComponentCatalog.MaxAccentMarksPerPawn);
 
         Assert.Equal(PawnDetailTier.High, layout.DetailTier);
-        Assert.Equal(new Rectangle(92, 69, 17, 29), layout.TorsoBounds);
-        Assert.Equal(new Rectangle(92, 50, 17, 17), layout.HeadBounds);
-        Assert.Equal(new Rectangle(90, 68, 20, 29), layout.ArmorBounds);
-        Assert.Equal(new Rectangle(93, 83, 15, 2), layout.SashBounds);
-        Assert.Equal(new Rectangle(107, 57, 2, 2), layout.AdornmentAccentPrimaryBounds);
-        Assert.Equal(new Rectangle(99, 69, 2, 2), layout.AdornmentAccentSecondaryBounds);
+        Assert.Equal(new Rectangle(92, 63, 17, 19), layout.TorsoBounds);
+        Assert.Equal(new Rectangle(92, 44, 17, 17), layout.HeadBounds);
+        Assert.Equal(new Rectangle(90, 62, 20, 19), layout.ArmorBounds);
+        Assert.Equal(new Rectangle(93, 72, 15, 2), layout.SashBounds);
+        Assert.Equal(new Rectangle(107, 51, 2, 2), layout.AdornmentAccentPrimaryBounds);
+        Assert.Equal(new Rectangle(99, 63, 2, 2), layout.AdornmentAccentSecondaryBounds);
     }
 
     [Theory]

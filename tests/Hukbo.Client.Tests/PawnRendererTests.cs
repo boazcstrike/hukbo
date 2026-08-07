@@ -457,4 +457,125 @@ public sealed class PawnRendererTests
             }
         }
     }
+
+    // ------------------------------------------------------------------
+    // movement-gait-animation T4: legs and feet, between the ground ring
+    // and the torso. PawnRenderer.DrawLayout calls DrawLegs and DrawFeet
+    // immediately after DrawGroundBase and before DrawTorso/DrawPlaceholder
+    // (see that method's own comment); no SpriteBatch is constructed here
+    // to observe that call order directly, so these assert the geometric
+    // fact the ordering exists to preserve — the torso stays on top and
+    // unobstructed because legs never draw inside its footprint, and always
+    // sit in the pose-invariant band directly beneath it.
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void LegsAndFeet_AreEmptyAtLowTierAcrossEveryRealLayout()
+    {
+        var sawALowTierLayout = false;
+
+        foreach (var layout in EnumerateLayouts())
+        {
+            if (layout.DetailTier != PawnDetailTier.Low)
+            {
+                continue;
+            }
+
+            sawALowTierLayout = true;
+            Assert.Equal(Rectangle.Empty, layout.LeftLegBounds);
+            Assert.Equal(Rectangle.Empty, layout.RightLegBounds);
+            Assert.Equal(Rectangle.Empty, layout.LeftFootBounds);
+            Assert.Equal(Rectangle.Empty, layout.RightFootBounds);
+        }
+
+        Assert.True(sawALowTierLayout, "no Low-tier layout in the enumerated grid");
+    }
+
+    /// <summary>
+    /// At the neutral pose <see cref="PawnGeometry.Create"/> builds when no
+    /// gait pose is passed, both legs hang from exactly the torso's own
+    /// bottom edge — the band <c>PawnRenderer.DrawLegs</c> draws into
+    /// between <c>DrawGroundBase</c> and <c>DrawTorso</c>. Combined with
+    /// <see cref="TorsoNeverOverlapsALegOrFootRectangle"/>, this is the
+    /// geometric proxy for "legs draw before the torso, and the torso stays
+    /// unobstructed": the torso is drawn after the legs in every case, and
+    /// the two footprints never share a pixel regardless of draw order.
+    /// </summary>
+    [Fact]
+    public void Legs_HangFromExactlyTheTorsosBottomEdgeAtNeutralPose()
+    {
+        var sawANonLowTierLayout = false;
+
+        foreach (var layout in EnumerateLayouts())
+        {
+            if (layout.DetailTier == PawnDetailTier.Low)
+            {
+                continue;
+            }
+
+            sawANonLowTierLayout = true;
+            Assert.Equal(layout.TorsoBounds.Bottom, layout.LeftLegBounds.Top);
+            Assert.Equal(layout.TorsoBounds.Bottom, layout.RightLegBounds.Top);
+        }
+
+        Assert.True(sawANonLowTierLayout, "no Medium/High-tier layout in the enumerated grid");
+    }
+
+    [Fact]
+    public void TorsoNeverOverlapsALegOrFootRectangle()
+    {
+        foreach (var layout in EnumerateLayouts())
+        {
+            if (layout.DetailTier == PawnDetailTier.Low)
+            {
+                continue;
+            }
+
+            Assert.False(layout.TorsoBounds.Intersects(layout.LeftLegBounds));
+            Assert.False(layout.TorsoBounds.Intersects(layout.RightLegBounds));
+            Assert.False(layout.TorsoBounds.Intersects(layout.LeftFootBounds));
+            Assert.False(layout.TorsoBounds.Intersects(layout.RightFootBounds));
+        }
+    }
+
+    /// <summary>
+    /// <c>PawnQuadCount.Count</c> is the renderer-agnostic seam
+    /// (<c>SubmissionCount.cs</c>'s own class doc) that mirrors
+    /// <c>PawnRenderer.DrawLayout</c>'s draw order exactly; this asserts the
+    /// leg/foot term of that equality directly rather than only through the
+    /// fixed pins in <c>PawnQuadCountTests</c>: adding a leg or a foot
+    /// rectangle changes the count by exactly one, for every non-empty
+    /// rectangle in a real layout, at both tiers that draw them.
+    /// </summary>
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(3f)]
+    public void QuadCount_RisesByExactlyOnePerNonEmptyLegOrFootRectangle(float zoom)
+    {
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kalis, ShieldId.None);
+        var layout = PawnGeometry.Create(Vector2.Zero, zoom, appearance);
+        Assert.NotEqual(PawnDetailTier.Low, layout.DetailTier);
+
+        var nonEmptyLegAndFootRectangles = new[]
+        {
+            layout.LeftLegBounds,
+            layout.RightLegBounds,
+            layout.LeftFootBounds,
+            layout.RightFootBounds,
+        }.Count(bounds => !bounds.IsEmpty);
+
+        var withLegsAndFeet = PawnQuadCount.Count(layout, appearance, PawnVisualState.Normal);
+        var withoutLegsAndFeet = PawnQuadCount.Count(
+            layout with
+            {
+                LeftLegBounds = Rectangle.Empty,
+                RightLegBounds = Rectangle.Empty,
+                LeftFootBounds = Rectangle.Empty,
+                RightFootBounds = Rectangle.Empty,
+            },
+            appearance,
+            PawnVisualState.Normal);
+
+        Assert.Equal(nonEmptyLegAndFootRectangles, withLegsAndFeet - withoutLegsAndFeet);
+    }
 }
