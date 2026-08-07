@@ -3,6 +3,18 @@ using System.Collections.Immutable;
 namespace Sandata.Core.Navigation;
 
 /// <summary>
+/// One vertex of a funnel-smoothed path polyline, in raw world units — the
+/// same unit <see cref="Funnel.StringPull"/> writes and <see cref="NavGrid"/>
+/// measures cells in. Not a <c>FixedPoint</c> value: the nav grid and the
+/// funnel both work in plain integer world units, matching
+/// <see cref="NavGrid.CellSizeWu"/>, so this type carries the coordinate
+/// pair verbatim rather than re-scaling it.
+/// </summary>
+/// <param name="X">The vertex's X coordinate, in world units.</param>
+/// <param name="Y">The vertex's Y coordinate, in world units.</param>
+public readonly record struct PathPoint(long X, long Y);
+
+/// <summary>
 /// Owns every group's autonomous path request and published path, under
 /// design section 7's fixed-latency amortisation rule and section 5 stage 7:
 /// "Path service: publish paths whose latency elapsed, enqueue new requests,
@@ -12,6 +24,20 @@ namespace Sandata.Core.Navigation;
 /// polylines from outside this service, and this service must keep owning
 /// autonomous group paths alongside that without either one reaching into a
 /// shared global.
+///
+/// <para>
+/// <b>Two shapes are published, and they are not the same thing.</b>
+/// <see cref="GetCurrentPath"/> returns the funnel-smoothed polyline — design
+/// section 7's "Shape": "a funnel string-pull snaps the resulting corridor to
+/// the real vector wall geometry" — which is what a mover should actually
+/// walk. <see cref="GetCurrentCorridor"/> returns the raw ordered nav grid
+/// cell-index corridor <see cref="NavSearch.TryFindPath"/> found before the
+/// funnel touched it, for a caller that genuinely wants cells rather than a
+/// walkable line. Both are derived, never hashed, never snapshotted — design
+/// section 4's "Published path polylines and their cumulative arclengths"
+/// under "What is derived and never hashed" — and both are recomputed from
+/// the same authoritative <see cref="PathRequest"/> on every resume.
+/// </para>
 ///
 /// <para>
 /// <b>The rule this type exists to enforce, verbatim from design section 7:</b>
@@ -49,10 +75,19 @@ namespace Sandata.Core.Navigation;
 /// </summary>
 public sealed class PathService
 {
+    /// <summary>
+    /// Starting capacity for <see cref="_scratchSmoothedX"/> and
+    /// <see cref="_scratchSmoothedY"/>, grown on demand and never shrunk —
+    /// see <see cref="SmoothCorridor"/>.
+    /// </summary>
+    private const int InitialSmoothedCapacity = 16;
+
     private readonly List<GroupState> _groups = [];
     private readonly NavSearch _search = new();
     private readonly List<int> _scratchPathCells = [];
     private readonly List<int> _scratchExpandedCells = [];
+    private long[] _scratchSmoothedX = new long[InitialSmoothedCapacity];
+    private long[] _scratchSmoothedY = new long[InitialSmoothedCapacity];
 
     /// <summary>
     /// Creates a path service that publishes a group's path exactly
@@ -153,7 +188,7 @@ public sealed class PathService
                 continue;
             }
 
-            Publish(group);
+            Publish(group, grid);
         }
     }
 
@@ -171,8 +206,10 @@ public sealed class PathService
     /// what a save/resume recomputes a path from: rebuilding the nav grid,
     /// then calling <see cref="NavSearch.TryFindPath"/> again with this
     /// request's <see cref="PathRequest.StartCellIndex"/> and
-    /// <see cref="PathRequest.GoalCellIndex"/>, reproduces the identical
-    /// polyline this service published from it.
+    /// <see cref="PathRequest.GoalCellIndex"/> and running
+    /// <see cref="Funnel.StringPull"/> over the resulting corridor,
+    /// reproduces the identical smoothed polyline this service published
+    /// from it.
     /// </summary>
     /// <returns><see langword="false"/> if <paramref name="groupId"/> has never made a request.</returns>
     public bool TryGetRequest(int groupId, out PathRequest request)
@@ -189,14 +226,29 @@ public sealed class PathService
     }
 
     /// <summary>
-    /// The group's current published path, as a sequence of nav grid cell
-    /// indices from its start cell to its goal cell inclusive, oldest first.
-    /// Empty when the group has never published a path, or when its most
-    /// recently published search found the goal unreachable — see
-    /// <see cref="GetReasonCode"/> to tell those two apart, and to tell
+    /// The group's current published path, as a funnel-smoothed polyline of
+    /// world-unit vertices from its start position to its goal position
+    /// inclusive, oldest first — the shape a mover should actually walk, per
+    /// design section 7. Empty when the group has never published a path, or
+    /// when its most recently published search found the goal unreachable —
+    /// see <see cref="GetReasonCode"/> to tell those two apart, and to tell
     /// either apart from a path that is merely still awaiting its latency.
+    /// See <see cref="GetCurrentCorridor"/> for the raw cell sequence this
+    /// polyline was smoothed from.
     /// </summary>
-    public ImmutableArray<int> GetCurrentPath(int groupId) => FindGroup(groupId)?.CurrentPath ?? ImmutableArray<int>.Empty;
+    public ImmutableArray<PathPoint> GetCurrentPath(int groupId) => FindGroup(groupId)?.CurrentPath ?? ImmutableArray<PathPoint>.Empty;
+
+    /// <summary>
+    /// The group's current published path as the raw ordered sequence of nav
+    /// grid cell indices <see cref="NavSearch.TryFindPath"/> found, from its
+    /// start cell to its goal cell inclusive, before the funnel string-pull
+    /// smoothed it into <see cref="GetCurrentPath"/>'s polyline. Kept
+    /// available for a caller that genuinely wants cells rather than a
+    /// walkable line. Empty and non-empty exactly when
+    /// <see cref="GetCurrentPath"/> is — both are published together by
+    /// <see cref="Publish"/> from the same search result.
+    /// </summary>
+    public ImmutableArray<int> GetCurrentCorridor(int groupId) => FindGroup(groupId)?.CurrentCorridor ?? ImmutableArray<int>.Empty;
 
     /// <summary>
     /// Why <see cref="GetCurrentPath"/> currently returns what it returns,
@@ -212,7 +264,7 @@ public sealed class PathService
             return PathReasonCode.NoDestinationRequested;
         }
 
-        if (!group.CurrentPath.IsEmpty)
+        if (!group.CurrentCorridor.IsEmpty)
         {
             return PathReasonCode.PathValid;
         }
@@ -239,15 +291,72 @@ public sealed class PathService
         group.SearchCompleted = true;
     }
 
-    private static void Publish(GroupState group)
+    /// <summary>
+    /// Publishes <paramref name="group"/>'s search result — a found path
+    /// becomes both <see cref="GroupState.CurrentCorridor"/> (the raw cells)
+    /// and, funnel-smoothed via <see cref="SmoothCorridor"/>,
+    /// <see cref="GroupState.CurrentPath"/> (the polyline
+    /// <see cref="GetCurrentPath"/> returns); an unreachable result clears
+    /// both. Instance rather than static because smoothing reuses this
+    /// service's own scratch buffers.
+    /// </summary>
+    private void Publish(GroupState group, NavGrid grid)
     {
-        group.CurrentPath = group.PendingOutcome == NavSearchOutcome.PathFound
-            ? group.PendingPath
-            : ImmutableArray<int>.Empty;
+        if (group.PendingOutcome == NavSearchOutcome.PathFound)
+        {
+            group.CurrentCorridor = group.PendingPath;
+            group.CurrentPath = SmoothCorridor(group.PendingPath, grid);
+        }
+        else
+        {
+            group.CurrentCorridor = ImmutableArray<int>.Empty;
+            group.CurrentPath = ImmutableArray<PathPoint>.Empty;
+        }
 
         group.HasOutstandingRequest = false;
         group.SearchCompleted = false;
         group.PendingPath = ImmutableArray<int>.Empty;
+    }
+
+    /// <summary>
+    /// Runs <see cref="Funnel.StringPull"/> over <paramref name="corridor"/>,
+    /// growing this service's reused <see cref="_scratchSmoothedX"/> and
+    /// <see cref="_scratchSmoothedY"/> arrays on demand — never shrinking
+    /// them, and never reallocating on a call a previous, larger corridor
+    /// already sized them for — rather than allocating a fresh output pair
+    /// every publish, matching how <see cref="_scratchPathCells"/> and
+    /// <see cref="_scratchExpandedCells"/> are already reused across calls.
+    /// </summary>
+    /// <remarks>
+    /// The requested capacity is <c>corridor.Length + 2</c>. Walking
+    /// <see cref="Funnel.StringPull"/>'s own loop proves this can never be
+    /// exceeded: one point for the initial apex, at most one committed point
+    /// per portal transition (the loop visits exactly <c>corridor.Length</c>
+    /// portals and <c>i</c> only ever advances, so no portal is revisited),
+    /// and one for the unconditional final endpoint append. A capacity this
+    /// size therefore never triggers <see cref="Funnel.StringPull"/>'s
+    /// early-stop truncation.
+    /// </remarks>
+    private ImmutableArray<PathPoint> SmoothCorridor(ImmutableArray<int> corridor, NavGrid grid)
+    {
+        var capacity = corridor.Length + 2;
+        if (_scratchSmoothedX.Length < capacity)
+        {
+            _scratchSmoothedX = new long[capacity];
+            _scratchSmoothedY = new long[capacity];
+        }
+
+        var outputX = _scratchSmoothedX.AsSpan(0, capacity);
+        var outputY = _scratchSmoothedY.AsSpan(0, capacity);
+        var count = Funnel.StringPull(corridor.AsSpan(), outputX, outputY, grid);
+
+        var builder = ImmutableArray.CreateBuilder<PathPoint>(count);
+        for (var i = 0; i < count; i++)
+        {
+            builder.Add(new PathPoint(outputX[i], outputY[i]));
+        }
+
+        return builder.MoveToImmutable();
     }
 
     private GroupState? FindGroup(int groupId)
@@ -311,6 +420,10 @@ public sealed class PathService
 
         public ImmutableArray<int> PendingPath { get; set; } = ImmutableArray<int>.Empty;
 
-        public ImmutableArray<int> CurrentPath { get; set; } = ImmutableArray<int>.Empty;
+        /// <summary>The raw cell corridor last published — see <see cref="PathService.GetCurrentCorridor"/>.</summary>
+        public ImmutableArray<int> CurrentCorridor { get; set; } = ImmutableArray<int>.Empty;
+
+        /// <summary>The funnel-smoothed polyline last published — see <see cref="PathService.GetCurrentPath"/>.</summary>
+        public ImmutableArray<PathPoint> CurrentPath { get; set; } = ImmutableArray<PathPoint>.Empty;
     }
 }
