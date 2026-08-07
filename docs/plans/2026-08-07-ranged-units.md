@@ -514,6 +514,27 @@ evidence lives rather than where a summary lives. It owes, at minimum:
   then on a mixed roster.
 - The task status table.
 
+### Integration baselines, measured after each wave
+
+Every count below is from a real `dotnet test` run in `Release` on the
+integration branch itself, after merging that wave's branches. Configuration
+matters: `Debug` adds two allocation-budget failures
+(`MovementContextObservationTests.RepeatedQuietV6TicksHaveBoundedAllocations` and
+`MovementPipelineIntegrationTests.RepeatedVSixCollisionTicksHaveBoundedAllocations`)
+that pass under `Release` and have nothing to do with this package, so a red count
+quoted without its configuration is not evidence.
+
+| Point | Commit | Core | Client |
+| --- | --- | --- | --- |
+| Base, before the package | `f02d012` | 0 red / 2614 | 0 red / 3121 |
+| Wave 1 merged, `AgentIntent` pin extended | `59c4556` | 18 red / 2618 | 11 red / 3121 |
+| Wave 2 merged, RU-06 still outstanding | `04de103` | 10 red / 2627 | 34 red / 3214 |
+
+Wave 2 introduced no cross-branch interaction failure: the merged counts equal the
+counts each branch reported alone. Wave 1 did — the `AgentIntent` pin — which is
+why this table exists and why the suites are now run on the integration branch
+after every wave rather than only at RU-33.
+
 ### RU-02's verification finding: CONFIRMED, with one correction to this plan
 
 The attribution was confirmed against Blair and Robertson, *The Philippine
@@ -566,12 +587,12 @@ citation into volume III that the source entry does not yet enumerate.
 | RU-03 | Done on branch `ru-03` at `5f2e5f6`, not yet integrated — opened the known-red window; see the correction in section 3 |
 | RU-04 | Done on branch `ru-04` at `a7cebde`, not yet integrated |
 | RU-05 | Done on branch `ru-05` at `8b1a88e` and `2c7f854`, not yet integrated |
-| RU-06 | Not started |
-| RU-07 | Not started |
-| RU-08 | Not started |
-| RU-09 | Not started |
-| RU-10 | Not started |
-| RU-11 | Not started |
+| RU-06 | In progress on branch `ru-06`, not yet committed |
+| RU-07 | Done on branch `ru-07` at `746669e`, merged into `ranged-units` |
+| RU-08 | Done on branch `ru-08` at `5c4b4b4`, merged into `ranged-units` |
+| RU-09 | Done on branch `ru-09` at `84b78dc`, merged into `ranged-units` |
+| RU-10 | Done on branch `ru-10` at `42002d7`, merged into `ranged-units` — took the Client window to 34, see the second correction in section 3 |
+| RU-11 | Done on branch `ru-11` at `3208c86`, merged into `ranged-units` |
 | RU-12 | Not started |
 | RU-13 | Not started |
 | RU-14 | Not started |
@@ -594,6 +615,6 @@ citation into volume III that the source entry does not yet enumerate.
 | RU-31 | Not started |
 | RU-32 | Not started |
 | RU-33 | Not started |
-| RU-34 | Not started — added 2026-08-07, see the correction in section 3 |
+| RU-34 | Done on branch `ru-34` at `7b80c24`, merged into `ranged-units` — took Core from 18 red to 10 |
 | RU-35 | Not started — added 2026-08-07, see the correction in section 3 |
 | RU-36 | Not started — added 2026-08-07, found by RU-07, needs a decision before RU-12 |
