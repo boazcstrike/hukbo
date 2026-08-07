@@ -436,4 +436,94 @@ public sealed class BattleEventFormatterTests
 
         Assert.Equal("Red wins", actionLabel);
     }
+
+    /// <summary>
+    /// The release line states that a shot has left the weapon and how many
+    /// ticks it will be in the air; <see cref="BattleEvent.Value"/> carries
+    /// the flight time.
+    /// </summary>
+    [Fact]
+    public void GetActionLabel_ReleaseEventNamesTheFlightTime()
+    {
+        var battleEvent = BattleEvent.NonAttack(
+            sequence: 1,
+            tick: 1,
+            BattleEventKind.Release,
+            sourceEntityId: 5,
+            targetEntityId: 9,
+            value: 14,
+            factionId: 0);
+
+        var actionLabel = BattleEventFormatter.GetActionLabel(battleEvent);
+
+        Assert.Contains("14", actionLabel);
+        Assert.Contains("released", actionLabel);
+    }
+
+    /// <summary>
+    /// The miss line states that the shot spent itself without landing,
+    /// distinct from every other line the feed renders.
+    /// </summary>
+    [Fact]
+    public void GetActionLabel_MissEventFormattingIsUnchanged()
+    {
+        var battleEvent = BattleEvent.NonAttack(
+            sequence: 1,
+            tick: 1,
+            BattleEventKind.Miss,
+            sourceEntityId: 5,
+            targetEntityId: 9,
+            value: 0,
+            factionId: 0);
+
+        var actionLabel = BattleEventFormatter.GetActionLabel(battleEvent);
+
+        Assert.Equal("shot spent itself without landing", actionLabel);
+    }
+
+    /// <summary>
+    /// The feed has to render every <see cref="BattleEventKind"/> defined
+    /// today, including the two ranged, non-attack kinds this task adds a
+    /// case for — a missing case falls through to the shared "unknown event"
+    /// fallback, which is a blank row a spectator cannot read.
+    /// </summary>
+    [Fact]
+    public void GetActionLabel_RendersANonEmptyDistinctLineForEveryEventKind()
+    {
+        var labels = new List<string>();
+
+        foreach (var kind in Enum.GetValues<BattleEventKind>())
+        {
+            var battleEvent = kind == BattleEventKind.Attack
+                ? BattleEvent.Attack(
+                    sequence: 1,
+                    tick: 1,
+                    sourceEntityId: 7,
+                    targetEntityId: 12,
+                    damage: 10,
+                    factionId: 0,
+                    WeaponId.Kampilan,
+                    ShieldId.None,
+                    BodyPart.Shoulder)
+                : BattleEvent.NonAttack(
+                    sequence: 1,
+                    tick: 1,
+                    kind,
+                    sourceEntityId: 7,
+                    targetEntityId: 12,
+                    value: kind == BattleEventKind.Release ? 14 : 0,
+                    factionId: 0);
+
+            var actionLabel = BattleEventFormatter.GetActionLabel(battleEvent);
+
+            Assert.False(
+                string.IsNullOrWhiteSpace(actionLabel),
+                $"{kind} rendered a blank line.");
+            Assert.NotEqual("unknown event", actionLabel);
+
+            labels.Add(actionLabel);
+        }
+
+        Assert.Equal(labels.Count, labels.Distinct(StringComparer.Ordinal).Count());
+    }
 }

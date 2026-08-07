@@ -76,6 +76,11 @@ internal static class BattleEventFormatter
             BattleEventKind.Death => "died",
             BattleEventKind.Outcome =>
                 GetOutcomeLabel(battleEvent.FactionId),
+            BattleEventKind.Release =>
+                $"released a shot toward {target} — " +
+                $"{battleEvent.Value} ticks in flight",
+            BattleEventKind.Miss =>
+                "shot spent itself without landing",
             _ => "unknown event",
         };
     }
