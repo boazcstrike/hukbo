@@ -38,12 +38,12 @@ technical catalog.
 
 | Weapon | Sixteenth-century basis | Placeholder UI label | Readable visual language | Confidence |
 | --- | --- | --- | --- | --- |
-| Long iron-tipped lance | Pigafetta records iron-pointed lances at Mactan in 1521. A 1569 relation describes long lances with broad iron or steel points. | **Bangkaw - Long Spear** | Very long dark palm or rattan shaft, oversized leaf-shaped steel point, carried diagonally beyond the body. | Documented weapon class. "Bangkaw" is a plausible local name and should retain its English descriptor. |
+| Long iron-tipped lance | Pigafetta records iron-pointed lances at Mactan in 1521. Diego de Artieda's *Relation of the Western Islands Called Filipinas*, which Blair and Robertson date 1573, describes lances two and a half *varas* long, with iron and steel points a third as long as the lance and as wide as the hand, ground to a very fine edge in some districts. | **Bangkaw - Long Spear** | Very long dark palm or rattan shaft, oversized leaf-shaped steel point, carried diagonally beyond the body. | Documented weapon class. "Bangkaw" is a plausible local name and should retain its English descriptor. |
 | Fire-hardened throwing spear or javelin | Pigafetta distinguishes javelins, fire-hardened spears, and iron-pointed lances. A Luzon account describes palm-wood lances hard enough to pierce mail. | **Hardened Javelin** | Shorter and thinner than the long spear, warm brown shaft, charred dark tip, optional bundle behind the shoulder. | Documented; exact local terminology and distribution are uncertain. |
-| Bow and reed arrows | Bows and arrows appear at Mactan. Legazpi later sent a native bow, quiver, and arrows as weapon specimens. A 1569 account describes large bows, reed shafts, hardwood points, and unfeathered arrows. Boxer Codex Zambal figures provide late-century visual references. | **Busog - War Bow** | Tall bow arc outside the torso silhouette, pale reed arrows, dark points, clearly visible back quiver. | Documented. Poisoned arrows are attested but must not be presented as universal. |
-| Broad dagger or cutlass | Legazpi described cutlasses and daggers in common use in 1565 and sent specimens in 1567. A 1569 relation compares their broad shape to lance points. | **Broad Dagger** or **Cutlass** | Wide leaf-shaped steel blade, short wood grip, cloth or carved-wood sheath at the waist. | Documented, form uncertain. Avoid assigning a later specific type without object-level evidence. |
+| Bow and reed arrows | Bows and arrows appear at Mactan. Legazpi later sent a native bow, quiver, and arrows as weapon specimens. Diego de Artieda's *Relation of the Western Islands Called Filipinas*, dated 1573 by Blair and Robertson, describes bows that are very strong and large, arrows made of reeds whose forward third is a point of the hardest available wood, and no feathering. Boxer Codex Zambal figures provide late-century visual references. | **Busog - War Bow** | Tall bow arc outside the torso silhouette, pale reed arrows, dark points, clearly visible back quiver. | Documented. Poisoned arrows are attested but must not be presented as universal. |
+| Broad dagger or cutlass | Legazpi described cutlasses and daggers in common use in 1565 and sent specimens in 1567. Diego de Artieda's *Relation of the Western Islands Called Filipinas*, dated 1573 by Blair and Robertson, puts cutlasses or daggers at a half to three-fourths of a *vara* long and made in the same shape as the lance-points. | **Broad Dagger** or **Cutlass** | Wide leaf-shaped steel blade, short wood grip, cloth or carved-wood sheath at the waist. | Documented, form uncertain. Avoid assigning a later specific type without object-level evidence. |
 | Large cutting sword | Pigafetta describes the weapon that struck Magellan as a great sword comparable to a great scimitar, but does not give a local name. | **Great Blade** | Long, single-edged, forward-heavy silhouette with a widening tip and carved dark-wood hilt. | Documented weapon class. Identification as a kampilan is provisional. |
-| Blowgun and darts | A 1569 relation explicitly mentions poisoned darts or arrows discharged through blowguns at shorter range than bows. | **Blowgun** | Long, straight, narrow tube held horizontally, with a small dart bundle. | Documented; regional prevalence is uncertain. |
+| Blowgun and darts | Diego de Artieda's *Relation of the Western Islands Called Filipinas*, dated 1573 by Blair and Robertson, records that arrows are also discharged through blow-guns with the same poisonous effect as bow arrows, although not with the same range. | **Blowgun** | Long, straight, narrow tube held horizontally, with a small dart bundle. | Documented; regional prevalence is uncertain. |
 | Chinese arquebus in local use | Legazpi wrote in 1567 that some local fighters possessed Chinese arquebuses and were skilled with them, especially aboard praus. | **Imported Arquebus** | Long timber stock, dark iron barrel, horizontal pose, small glowing matchcord, and an `IMPORTED` badge. | Documented existence; exact form and prevalence are uncertain. It should be rare. |
 | Locally cast bronze culverin or verso | Manila-area forces used small artillery in 1570. Legazpi sent two locally made bronze versos to Spain as examples of metalworking skill. Culverins also appeared in forts and boats. | **Bronze Verso** or **Small Culverin** | Warm bronze barrel, hardwood swivel or yoke, wide crew-served footprint, restrained smoke and recoil. | Documented. This is an emplacement or crew weapon, not an individual firearm. |
 
@@ -207,9 +207,15 @@ Suggested placeholder multipliers:
    - Legazpi-era documents covering cutlasses, daggers, lances, bows, Chinese
      arquebuses, armor, and weapon specimens sent in 1567.
 4. [The Philippine Islands, 1493-1803, Volume III](https://www.gutenberg.org/ebooks/13616)
-   - Accounts from 1569-1576 covering bows, lances, daggers, shields,
-     blowguns, fortifications, locally cast artillery, and the 1570 Manila
-     campaign.
+   - Documents from 1569 to 1576, grouped by year on the volume's own contents
+     page. Diego de Artieda's *Relation of the Western Islands Called
+     Filipinas*, which this volume places among its documents of 1573 and
+     summarizes in the preface as written in 1573, is the single passage behind
+     the lance, cutlass or dagger, bow, unfeathered reed arrow, arrow poison,
+     breast-high shield, cotton and rattan and dark-wood armor, blow-gun, and
+     locally cast bronze culverin descriptions cited above. None of the
+     volume's 1569 documents describes weapons. The volume also covers
+     fortifications and the 1570 Manila campaign.
 5. [Philippine eLib scan of Volume III](https://www.elib.gov.ph/downloadfile.php?uid=94a844b6ef7427db1fd8f3f7826ed197)
    - Alternate searchable scan of the same translated documentary collection.
 
