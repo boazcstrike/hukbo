@@ -1173,16 +1173,16 @@ Two supporting rules:
 
 `M4` and `M4A1` are separate rows on purpose: M4 is `Safe | Single | Burst3`,
 M4A1 is `Safe | Single | Auto`. They are different weapons to the simulation and
-to the audio library. Likewise AK-12 (2018/2021) carries `Burst2` while the 2023
-model deletes it.
+to the audio library. Likewise AK-12 (2018/2021) and AK-15 carry `Burst2` while
+the AK-12 2023 model deletes it.
 
 The five distinct sets in the roster:
 
 | Set | Covers |
 | --- | --- |
-| `Safe \| Single \| Auto` | eighteen rifles |
+| `Safe \| Single \| Auto` | nineteen rifles |
 | `Safe \| Single \| Burst3` | M16A4, M4 |
-| `Safe \| Single \| Burst2 \| Auto` | AK-12 (2018/2021), G36 |
+| `Safe \| Single \| Burst2 \| Auto` | AK-12 (2018/2021), AK-15, G36 |
 | `Single` | striker-fired pistols with no manual safety |
 | `Safe \| Single` | the remaining pistols |
 

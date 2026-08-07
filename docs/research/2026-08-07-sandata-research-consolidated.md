@@ -146,12 +146,13 @@ VP9, HK USP, CZ P-10 C, Walther PDP, MP-443 Grach, QSZ-92.
 
 `M4` and `M4A1` are separate rows on purpose: M4 is `safe/single/burst3`, M4A1 is
 `safe/single/auto`. They are different weapons to the simulation and to the audio
-library. Likewise AK-12 (2018/2021) carries `burst2` while the 2023 model deletes it.
+library. Likewise AK-12 (2018/2021) and AK-15 carry `burst2` while the AK-12 2023
+model deletes it.
 
-Distinct sets in the roster: `{safe, single, auto}` covers eighteen rifles;
+Distinct sets in the roster: `{safe, single, auto}` covers nineteen rifles;
 `{safe, single, burst3}` covers M16A4 and M4; `{safe, single, burst2, auto}` covers
-AK-12 (2018/2021) and G36; `{single}` covers striker-fired pistols with no manual
-safety; `{safe, single}` covers the rest of the pistols.
+AK-12 (2018/2021), AK-15, and G36; `{single}` covers striker-fired pistols with no
+manual safety; `{safe, single}` covers the rest of the pistols.
 
 Two audio consequences that must not be lost:
 

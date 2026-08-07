@@ -138,7 +138,7 @@ public static class FirearmCatalog
             FireModeSet.Safe | FireModeSet.Single | FireModeSet.Auto,
             magazineCapacity: 30, cyclicRpm: 600),
         Rifle(FirearmId.Ak15, CaliberFamily.Cal762X39, MechanismGroup.Ak,
-            FireModeSet.Safe | FireModeSet.Single | FireModeSet.Auto,
+            FireModeSet.Safe | FireModeSet.Single | FireModeSet.Burst2 | FireModeSet.Auto,
             magazineCapacity: 30, cyclicRpm: 600),
         Rifle(FirearmId.M16A4, CaliberFamily.Cal556X45, MechanismGroup.Ar,
             FireModeSet.Safe | FireModeSet.Single | FireModeSet.Burst3,

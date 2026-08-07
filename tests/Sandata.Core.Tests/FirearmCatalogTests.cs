@@ -107,11 +107,17 @@ public sealed class FirearmCatalogTests
     /// order, the catalog's row data, or the FNV-1a fold moves this value,
     /// which is a new preset version with a new recorded expectation, not a
     /// fix to this test.
+    ///
+    /// Re-pinned from 13_098_676_811_469_352_013 by the correction that
+    /// restored the AK-15's dropped Burst2 mode (the consolidated research
+    /// omitted its row entirely, and the design and catalog inherited the
+    /// omission). Changing that one row's Modes field is exactly the kind of
+    /// change this pin exists to catch.
     /// </summary>
     [Fact]
     public void ModernTacticalV1_ContentHashIsPinned()
     {
-        Assert.Equal(13_098_676_811_469_352_013UL, FirearmRuleset.ModernTacticalV1.ContentHash);
+        Assert.Equal(12_611_003_062_847_309_889UL, FirearmRuleset.ModernTacticalV1.ContentHash);
     }
 
     /// <summary>
