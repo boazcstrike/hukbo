@@ -353,12 +353,18 @@ public sealed class WeaponProfileTests
         Assert.Equal(18, PhilippineCombatPresetV2.Rules.MaximumProfileDamagePerAttack);
 
     [Fact]
-    public void EveryProfileOfEveryRegisteredPresetDeclaresAllRangedFieldsZero()
+    public void EveryProfileOfEveryRegisteredPresetDeclaresRangedFieldsConsistentWithItsKind()
     {
-        // Every weapon in every currently registered preset (V1 through V4)
-        // is melee. RU-12's PrecolonialPhilippinesV5 is what will first field
-        // a non-zero declaration and it is deliberately not registered yet,
-        // so this loop only ever sees the melee case.
+        // Every registered preset's every profile must land on one of the two
+        // halves CombatRuleset (via WeaponProfile.ValidateRangedFields)
+        // enforces at construction: melee declares all three ranged fields
+        // zero, ranged declares all three non-zero. This used to assert only
+        // the melee half, which was true only because RU-12's
+        // PrecolonialPhilippinesV5 — the first registered preset to field a
+        // ranged row — was not registered yet. It is registered now, so this
+        // sweeps both halves rather than hard-coding which presets are melee:
+        // a hard-coded list would rot again at the next preset exactly as
+        // this fact just did.
         foreach (var id in Enum.GetValues<CombatPresetId>())
         {
             if (!CombatPresetRegistry.IsRegistered(id))
@@ -378,9 +384,26 @@ public sealed class WeaponProfileTests
                     loadout.Weapon,
                     loadout.Shield);
 
-                Assert.Equal(0, profile.ProjectileSpeedRaw);
-                Assert.Equal(0, profile.StandoffDistanceRaw);
-                Assert.Equal(0, profile.FlightTickCeiling);
+                // A profile that constructed at all is already guaranteed by
+                // WeaponProfile.ValidateRangedFields to be either all-zero or
+                // all-non-zero across the three ranged fields, so any one
+                // field's zero-ness tells us which kind this is.
+                var isRanged = profile.ProjectileSpeedRaw != 0 ||
+                    profile.StandoffDistanceRaw != 0 ||
+                    profile.FlightTickCeiling != 0;
+
+                if (isRanged)
+                {
+                    Assert.NotEqual(0, profile.ProjectileSpeedRaw);
+                    Assert.NotEqual(0, profile.StandoffDistanceRaw);
+                    Assert.NotEqual(0, profile.FlightTickCeiling);
+                }
+                else
+                {
+                    Assert.Equal(0, profile.ProjectileSpeedRaw);
+                    Assert.Equal(0, profile.StandoffDistanceRaw);
+                    Assert.Equal(0, profile.FlightTickCeiling);
+                }
             }
         }
     }
