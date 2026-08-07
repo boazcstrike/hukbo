@@ -129,8 +129,26 @@ why RU-34 and RU-35 now exist:
 | `SoundCatalogTests`, two facts | RU-09 and RU-14 | Yes |
 | `PawnGeometryTests`, three facts | RU-22 | Yes |
 | `BattleSimulationTests`, the leader fact | RU-21 and RU-30, by registering V8 and V9 | Yes, no test edit needed |
+| `BattleSimulationTests.AgentIntentNumericValuesArePinned`, the thirtieth | Fixed on the integration branch, see below | No, and it only appears once RU-03 and RU-04 are merged together |
 | `ClashResolverTests` (5), `HitLocationResolverTests` (1), `PhilippineCombatIntegrationTests` (2) | **RU-34, added** | **No — no task listed any of those three files** |
 | `PawnAppearanceFactoryTests` (5), `ConservativePawnCullTests` (1) | **RU-35, added** | **No — and `PawnAppearanceFactory.cs` itself was unowned** |
+
+**A thirtieth red test exists that no single branch could see.**
+`BattleSimulationTests.AgentIntentNumericValuesArePinned` pins each
+`AgentIntent` member's numeric value and then pins the member count at five.
+RU-04's `Holding = 5` makes the count six, so the fact fails — but only on a tree
+that has RU-04 merged, and RU-04's own verification was scoped to
+`BattleEventTests.cs`, so its branch never ran the suite that contains this
+assertion. It appeared for the first time when wave 1 was merged into
+`ranged-units`, which is the argument for integrating and running the full suite
+after every wave rather than only at RU-33.
+
+It was fixed on the integration branch by *extending* the pin rather than
+loosening it: `Assert.Equal(5, (int)AgentIntent.Holding)` was added and the count
+raised to six. The guard's purpose is to make an enum addition deliberate and
+visible, and an authorized addition that updates the pin satisfies that purpose;
+deleting the count assertion would not have. Core returned to eighteen red with
+that one line, and `./scripts/format.ps1 -Verify` reports `[PASS]`.
 
 The two unowned groups are not the same kind of problem as the owned ones, and
 that is the important part. The owned failures close when a registry or a catalog
