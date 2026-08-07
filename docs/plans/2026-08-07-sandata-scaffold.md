@@ -320,3 +320,33 @@ cone needs a range. Task 56's design-correction pass covers this alongside the
 property that must hold, not the symbol that must be absent. "No cosine
 comparison" is checkable and correct; "no `Trig` call" is checkable and wrong,
 and it produced real duplicated state that a later task now has to unwind.
+
+### Two map-format decisions task 25 must make explicit
+
+Task 15 implemented canonicalisation and the content hash as specified and
+surfaced two places where the specification is silent rather than wrong. Both
+are decisions, and both are currently settled by accident.
+
+**A map name does not reach the content hash.** Design section 12 says the hash
+folds "each integer field", and a `NAME` record's identifier is a string, so it
+contributes only its kind byte. Two maps differing solely by name therefore hash
+identically. That is very probably the right behaviour — a name changes no
+simulation outcome, and hashing it would force new golden expectations for a
+pure rename. But the hash exists to stop a recorded replay being silently reused
+against a different map, so "which differences are allowed to be invisible" has
+to be stated deliberately. Task 25 either writes that rule down and keeps the
+current behaviour, or folds the name in and accepts that renaming a map
+invalidates its replays.
+
+**A canonicalised door does not move its hinge.** Endpoint normalisation sorts a
+door's endpoints into lexicographic order, but hinge side and open state are
+left as authored. If hinge side is expressed relative to the endpoint order,
+then swapping the endpoints without swapping the hinge silently mirrors the
+door. If it is absolute, nothing is wrong. Design section 12 does not say which,
+and the answer changes whether a door opens into the room or out of it. Task 25
+must state it and add a fixture that would fail under the wrong reading.
+
+Task 15 also added a narrow duplicate check inside the canonicaliser, needed
+there so the comparator is total and immune to introsort's instability. That is
+not a substitute for task 25's full cross-record duplicate rule and is
+documented in the code as such.
