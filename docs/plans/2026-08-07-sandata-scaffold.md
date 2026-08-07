@@ -1532,3 +1532,248 @@ Giving task 62 these files instead was considered and rejected: it would have
 made one agent responsible for three new pure helpers, three existing client
 files, four test files, and a design amendment, which is past the size where a
 single agent finishes reliably.
+
+### Wave 9 complete, 2026-08-08
+
+Six tasks — 44, 60, 61, 62, 63, and the new 71 — all merged into
+`sandata-scaffold`, each from its own worktree, with no merge conflicts. The
+wave ran as two batches: five in parallel, then task 71 alone. The eight-agent
+ceiling is not what forced the split; task 71 composes task 62's helpers and
+could not run before they existed.
+
+Counts through the supported entry point:
+
+```
+./scripts/test.ps1 -Configuration Release -Game Sandata
+Total tests: 985
+     Passed: 985
+Total tests: 192
+     Passed: 192
+[PASS] Release repository tests completed.
+```
+
+The Sandata core suite moved from 937 to 985 and the client suite from 169 to
+192. The core arithmetic closes exactly: 17 facts from task 44, 16 from task 60,
+15 from task 61, and none from task 63, which added only documentation. The
+client arithmetic closes at 16 from task 62 and 7 from task 71.
+
+The canonical gate was run by the integrating thread after integration, not
+delegated:
+
+```
+[PASS] Locked package restore completed.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Total tests: 3108
+     Passed: 3108
+[PASS] Release repository tests completed.
+  "outcome": "Faction1Victory",
+  "eventHash": "AC55684F24D39344",
+  "stateHash": "1B73FC5923879AA0",
+  "deterministic": true,
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+Still byte-identical to untouched `main`. Nine waves of a second game have now
+moved no Hukbo hash.
+
+#### Task 63 found that all four ruleset constants are read by nothing
+
+This is the most consequential finding of the wave and it came from a task whose
+row was wrong about its own input. The wave-8 audit had already established that
+the four verdicts tasks 23, 27, 28, and 32 were supposed to have recorded were
+never written down, so task 63's brief told it to re-derive from the consuming
+code instead of applying a record, and explicitly authorised "no change
+justified" as an outcome.
+
+It returned "no change justified" for all four. `ContentHash` did not move and
+stays `8_955_292_433_887_190_872`.
+
+The reason it did not move is the finding. Verified against the working tree
+rather than taken from the report: **not one of the four fields is read by any
+production code.** Every reference outside `SandataRuleset.cs` is in a test.
+
+- `PathLatencyTicks` — `PathService` holds its own property, set from its own
+  constructor parameter. Nothing passes the ruleset's value into it.
+- `LoweredWallDistanceWu` — `WeaponLoweredRules` takes a wall distance as a
+  parameter. Only tests supply one, and they supply a local `8`, not the
+  production `24`.
+- `GroupCohesionRadius` — no reference anywhere under `src/`.
+- `AimToleranceBam` — no reference anywhere under `src/`.
+
+**Two of those are behavioural deviations from the design, not merely unwired
+constants.** Design section 8 says two operators within `GroupCohesionRadius` are
+unioned into a squad; `SquadGrouping.Compute` unions same-faction pairs
+unconditionally from a pair list that `SandataCollisionGrid.Rebuild` already
+filtered by physical body radius, which is a different quantity, and no
+cohesion-radius comparison exists in the codebase. Design section 9 states the
+aim transition rule as `|ShortestArc| <= AimToleranceBam`; `WeaponChain.Advance`
+takes an already-decided `arcWithinTolerance` boolean and nothing anywhere
+computes it, although `Bam16.ShortestArc` exists.
+
+There is a second-order consequence. `SandataRulesetTests`'
+`ChangingAnySingleField_MovesTheContentHash` currently passes on four fields no
+behaviour depends on, which is exactly the failure its own doc comment warns
+against when it says a pinned hash is meaningless if most of its inputs are dead
+weight. The test is not wrong; the wiring behind it is missing.
+
+An agent that had invented four numbers to satisfy the original row would have
+moved the hash, passed every stated criterion, and buried both deviations. The
+corrected brief is what prevented that, and it is worth keeping the shape of it:
+name the evidence, say what a non-change looks like, and say that inventing a
+value is worse than reporting none.
+
+#### Nothing specifies what causes an intent, so task 44 invented it
+
+Design section 5's stage-8 row names the six intents and says they are read from
+the tick-start view. Neither it nor the plan row states a single trigger
+condition for any of them. Task 44 therefore invented the whole selection rule:
+a first-match-wins cascade of `Dead`, then `Reposition`, then `Engage`, then
+`Breach`, then `Advance`, then `Hold`; the condition behind each; and a
+`SuppressionRepositionThreshold` of 3 whose input, `OperatorState.SuppressionCounter`,
+nothing in the repository currently increments.
+
+It documented all of it as a reasoned decision rather than presenting it as
+derived, which is the correct handling of an underspecified requirement. But
+this is a design gap filled by an implementer, not a provisional constant, and it
+is larger than the usual placeholder: how an operator decides to engage or fall
+back is a gameplay decision. It should be reviewed before the tick pipeline makes
+it load-bearing, and if it is confirmed it belongs in design section 5 as a
+written rule rather than living only in one file's XML remarks.
+
+#### A second bypassable door on `OrderQueue`, found by a task forbidden the file
+
+Wave 8 recorded that task 58 shipped `SubmitValidated` beside a public,
+unvalidated `Submit`, and that narrowing `Submit` to private closed it. Task 60
+then found the same defect on a second door: `OrderQueue.Orders` is declared
+`public ImmutableArray<Order> Orders { get; init; }` on a record, so
+`queue with { Orders = ... }` injects arbitrary orders and skips validation
+entirely.
+
+Task 60 could not fix it — `OrderQueue.cs` was outside its file list — verified
+that its own two files never do it, and reported. That is the wall working
+exactly as intended for the second time in two waves.
+
+It was deliberately not fixed during the wave, and the reason is worth recording
+because it is not squeamishness. Three existing tests build queues through that
+setter, and task 61 was at that moment adding snapshot resume, which legitimately
+needs a non-validating way to rebuild a queue: a snapshot's orders were validated
+when they were submitted, and revalidating them on resume would violate design
+section 16's rule that an authored polyline is never recomputed. Narrowing the
+setter before knowing what resume needs would have either broken task 61 or
+forced it into a workaround. It is now task 72 below.
+
+**These two are a distinct defect class from the six unowned steps before them.**
+The earlier six were a *missing* call site. These are a *bypassable* one: the
+correct path exists, the code is right, every acceptance criterion passes, and an
+incorrect path sits open beside it. A file-level ownership audit cannot see
+either, but the bypassable kind is harder, because nothing fails. The check that
+finds it is to ask, whenever a task adds a validating or ordering entry point,
+what else can reach the same state — a second constructor, an `init` accessor on
+a record, a `with` expression, a public collection property.
+
+#### Task 61 pinned the pre-change hash, which is what "appended" actually means
+
+The brief demanded one fact above all others: that a state with an empty order
+queue and no assignments hash to exactly what the same state hashed to before the
+change. Task 61 captured `5_550_901_129_500_655_850` by running the pre-edit
+hasher through a deliberately failing temporary test before touching any source,
+then deleting the temporary file, and pinned it.
+
+That is the operational meaning of "folded after every field the hasher already
+covers". A reviewer can read a diff and believe the folds were appended; only the
+pinned pre-change value proves it, and it would fail immediately if a fold were
+inserted rather than appended.
+
+It also added the case that would otherwise silently collide with that baseline:
+a queue whose counters have advanced but which stores no orders is not
+`OrderQueue.Empty`, and must hash differently from the empty case. A gate written
+against emptiness alone would have merged the two.
+
+The resume rule is proven the hard way as well. The fixture constructs a case
+where recomputing the path would produce a *different* polyline from the stored
+one, and asserts the stored one wins. A naive round-trip test passes even when
+the implementation recomputes; that one does not.
+
+#### Task 71 gave task 62's helpers their call sites, and left one behind
+
+Task 71 exists because task 62 built three pure helpers with no caller, which
+would have been the seventh instance of the pattern. It routed the pointer chain
+into `PathDrawTool`, added `GoCodePanel` and `OrderQueueView` to
+`HudComposer.Layout` with real computed bounds, replaced task 69's placeholder
+empty order-path waypoint list with the path actually being drawn, wired the
+go-code keypress so a release enters the queue as an ordinary `GoCodeRelease`
+order, and amended design section 11's HUD element table with the two rows that
+table had been missing since section 16 promoted the order layer.
+
+Its most surprising claim was checked and is true: `OperatorInspector` already
+carried `ActiveOrderId`, `OrderNodeIndex`, and `OrderClearReasonCode`, with
+format functions and row wiring, from an earlier task. Design section 16's three
+inspector rows were already built, so task 71 correctly edited nothing there
+rather than duplicating them.
+
+**`PathDrawTool.Submit` still has no production caller.** A drawn path is added
+to, undone, and rendered, but nothing submits it as a `MoveAlongPath` order. That
+was not among the six things task 71's brief listed, so this is a scoping miss in
+the brief rather than a failure by the agent. Submission needs an addressee set
+from the multi-select state and a real target tick, neither of which exists
+outside a placeholder yet. It is task 73 below.
+
+**Task 71 did not commit its own work.** It applied a general "only commit when
+explicitly asked" rule over its brief's explicit instruction to commit, and left
+five modified files uncommitted in its worktree. The integrating thread verified
+the tree and committed it. Worth knowing because the work was complete and a less
+careful check would have read the clean-looking report and merged nothing.
+
+#### Design section 11's order-path overlay row is now stale
+
+That row still reads "**scaffolded** — renders a path when one exists, has no
+editor". After task 71 there is an editor and the overlay renders live drawn
+nodes. Task 71 was scoped to add two rows and deliberately not to restatus an
+existing one, so the row was left alone rather than changed outside its remit. It
+needs a one-row correction, and that is folded into task 73.
+
+#### Provisional constants this wave introduced
+
+All marked at their site, none presented as measured or derived:
+
+- `IntentSelection.SuppressionRepositionThreshold = 3` (task 44), plus the entire
+  intent trigger cascade discussed above.
+- `GoCodePanel`'s margin, width, header height, row height, and maximum visible
+  row count, and the same five for `OrderQueueView` (task 62). Task 62's
+  top-right and bottom-right anchors were explicitly offered to task 71 to
+  override, and task 71 placed both in the left column instead.
+- `SandataGame.PlaceholderOrderTargetTick = 0` and
+  `PlaceholderOrderFactionId = 0` (task 71), standing in for a mission tick and
+  a faction selector no system supplies yet.
+- Two test-only counts in `HudComposerTests`, following that file's existing
+  operator-count and contact-count convention.
+
+Task 60 and task 61 introduced no provisional constants at all.
+
+#### Report arithmetic drifted in three of six reports, and file sets did not
+
+Task 60 claimed a 949-test baseline that never existed. Task 62 claimed 22 new
+facts against a 163 baseline; the file holds 16 `[Fact]` and no `[Theory]`, and
+169 + 16 = 185 closed exactly. Task 71's own numbers were right. In every case
+the file set, the pass or fail, and the shape of the work were accurate, and only
+the counts were wrong.
+
+This now matches wave 7's finding about task 69's line count and wave 8's about
+task 58's. The rule that follows is narrow and cheap: quote `git diff --stat`
+against the merge base and the test runner's own totals, never a report's
+figures, and re-derive every count from the merged tree.
+
+#### Three tasks this wave created
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 72 | 10 | Close `OrderQueue`'s second bypassable door | `OrderQueue.Orders` is `public ... { get; init; }` on a record, so `queue with { Orders = ... }` injects orders and skips `SubmitValidated` entirely. Narrow it so submission has exactly one door, while giving snapshot resume an explicit, named restore path that does not revalidate — a snapshot's orders were validated when submitted, and revalidating them would violate design section 16's rule that an authored polyline is never recomputed. Migrate the three tests that build queues through the setter. | `src/Sandata.Core/Orders/OrderQueue.cs`, `src/Sandata.Core/Simulation/MissionSnapshot.cs`, `tests/Sandata.Core.Tests/OrderQueueTests.cs` | A test asserts that no public member other than `SubmitValidated` and the named restore path can add an order to a queue, by reflection over the type's writable surface rather than by inspection. The restore path is documented as resume-only and a test proves it does not revalidate. Every existing `OrderQueueTests` and `OrderStateHashTests` fact still passes. | 58, 61 | |
+| 73 | 10 | Submit a drawn path, and correct the overlay's design row | `PathDrawTool.Submit` has no production caller: a path is drawn, undone, and rendered, but never submitted. Wire submission from the multi-select state's addressee set, through `OrderQueue.SubmitValidated`, and surface the rejection in `OrderQueueView`. Correct design section 11's order-path overlay row, which still reads "has no editor". | `src/Sandata.Client/SandataGame.cs`, `tests/Sandata.Client.Tests/HudComposerTests.cs`, `docs/plans/2026-08-07-sandata-scaffold-design.md` (section 11's element table only) | A test proves a drawn path with a non-empty selection submits exactly one `MoveAlongPath` order with ascending addressees, and that a rejected submission's reason code reaches the order queue view. A test proves an empty selection submits nothing rather than an order with no addressees. Design section 11's order-path overlay row no longer claims there is no editor. | 62, 71 | |
+| 74 | 10 | Wire the four ruleset constants, and close two design deviations | Not one of `PathLatencyTicks`, `GroupCohesionRadius`, `LoweredWallDistanceWu`, or `AimToleranceBam` is read by production code. Pass the ruleset's values to `PathService` and `WeaponLoweredRules` rather than to constructor parameters callers fill arbitrarily. Implement the two rules the design states and the code does not: design section 8's cohesion-radius union in `SquadGrouping`, and design section 9's `|ShortestArc| <= AimToleranceBam` comparison feeding `WeaponChain.Advance`'s `arcWithinTolerance`. | `src/Sandata.Core/Squads/SquadGrouping.cs`, `src/Sandata.Core/Weapons/WeaponChain.cs`, `src/Sandata.Core/Navigation/PathService.cs`, `src/Sandata.Core/Combat/WeaponLoweredRules.cs`, and the corresponding test files | For each of the four constants, a test fails when the ruleset's value changes and the behaviour does not follow it — which is what makes `ChangingAnySingleField_MovesTheContentHash` meaningful rather than a hash over dead weight. A squad-grouping test pins that two operators just inside `GroupCohesionRadius` union and two just outside do not. A weapon-chain test pins that the transition fires at exactly `AimToleranceBam` and not one raw unit beyond. | 63 | |
+
+Task 74 is the one to schedule deliberately rather than opportunistically. It is
+the first task in this project that will change simulation behaviour on purpose,
+and it touches four subsystems that currently agree with each other only because
+none of them consults the value that is supposed to govern them.
