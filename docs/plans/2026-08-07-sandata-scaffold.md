@@ -615,3 +615,54 @@ Wave 5b now holds tasks 64, 65, and 66. Their file sets are disjoint: 64 owns
 the mission record, the hasher, and the new world-unit helper; 65 owns the path
 service; 66 owns the system-tag enum and the accuracy rules. All three must be
 green before wave 6 starts.
+
+### What task 26 proved about the funnel, and what that means for task 65
+
+Task 26 is merged and green, and it returned a geometric result that changes how
+a later task has to be tested.
+
+**The plan and the design disagreed on the fixture angle.** The task 26 row above
+says the shallow-angle corridor is 26.57 degrees; design section 6's signature
+row says 18.4 degrees, which is `atan(1/3)` and matches the slope the existing
+`GridRayTests` fixture already uses. The design wins under the stated read order,
+the implementation used 18.4 degrees, and the row above is wrong on this point.
+
+**A one-cell-wide corridor cannot generally collapse to a straight segment, and
+that is a property of the geometry rather than a defect in the port.** Every turn
+in a single-file grid corridor puts a real concave notch in the passable region,
+and a taut string has to route around it. It collapses only when the notch
+happens to lie exactly on the straight line from start to end. Task 26's shallow
+fixture works because its two south-transition portal corners, `(8,4)` and
+`(20,8)`, were chosen to sit exactly on `y = 2 + (x - 2) / 3`. The agent
+hand-traced all nine portals before writing code and said so, rather than
+tuning the fixture until it went green.
+
+So the acceptance criterion as written — "a corridor along the shallow wall emits
+a single straight segment" — was satisfiable only by choosing a corridor that
+makes it true. That does not invalidate the port. It relocates where the design's
+actual promise lives: the funnel delivers "the path follows the angled wall
+rather than a staircase" **when the corridor is wider than one cell**, which is
+the ordinary case in a room, and delivers exactly the corridor's own shape when
+it is not, which is correct behaviour for a single-file passage.
+
+**Task 65 must be tested against a corridor wider than one cell.** Task 65 makes
+`PathService` publish the funnel-smoothed polyline. If its acceptance fixture is
+a single-file corridor, it will pin a staircase, the test will pass, and the
+visible defect the funnel exists to prevent will ship anyway. Its criterion is
+therefore restated: the published path across an open region beside the
+`angle-house` fixture's angled wall is materially straighter than the corridor it
+came from, asserted as a vertex count and as the absence of an axis-aligned
+step, not as a coincidence of one hand-picked line.
+
+The manual smoke row for this behaviour is affected the same way: the human check
+is a squad crossing an open room diagonally, not a squad in a corridor.
+
+**One decision task 26 settled that the design did not state.** Deriving a
+portal's left and right endpoints from the two cells' local travel direction
+labels the same physical corner inconsistently across a turn, which a hand-trace
+proved. The port instead uses a fixed, translation-invariant per-departing-cell
+corner winding — top-left, top-right, bottom-right, bottom-left — which is how a
+real navmesh's precomputed winding behaves. The reasoning and the discarded
+alternative are recorded in `Funnel.cs`. It also ports DotRecast's exact-equality
+deduplication against the last emitted point, without which the last commit
+emits a spurious trailing duplicate.
