@@ -137,7 +137,7 @@ internal sealed class PresentationCoordinator
         FactionCombatMetrics tickCombatByFaction)
     {
         EventFeed.Ingest(events);
-        BattleReportAccumulator.Ingest(events, tickCombatByFaction);
+        BattleReportAccumulator.Ingest(events, tickCombatByFaction, agents);
         HitEffects.Ingest(events, agents);
         Blood.Ingest(events, agents);
         Swings.Ingest(events, agents);
