@@ -29,14 +29,22 @@ namespace Sandata.Core.Determinism;
 /// <see cref="OperatorState"/>'s remarks — folded first, parallel to how
 /// <c>Hukbo.Core.Determinism.StateHasher</c> folds <c>agent.EntityId</c>
 /// first), then <c>PositionX</c>, <c>PositionY</c>, <c>Facing</c>,
-/// <c>AimAngle</c>, <c>Health</c>, <c>Faction</c>, <c>SquadSlotIndex</c>,
+/// <c>AimAngle</c>, <c>Health</c>, <c>Faction</c>,
 /// <c>Intent</c>, <c>IsCrouched</c>, <c>WeaponLowered</c>,
 /// <c>WeaponChainPhase</c>, <c>WeaponChainRemainingTicks</c>,
 /// <c>MagazineRounds</c>, <c>CyclicFireAccumulator</c>,
 /// <c>SuppressionCounter</c>, then that operator's
 /// <c>ContactMemory</c>'s count and, for each entry, in the array's stored
 /// order, <c>EnemyEntityId</c>, <c>LastKnownCellIndex</c>, <c>ContactTier</c>,
-/// <c>LastSeenTick</c>.
+/// <c>LastSeenTick</c>. <c>SquadSlotIndex</c> is not folded: task 64's
+/// 2026-08-07 correction removed it from <see cref="OperatorState"/> because
+/// design section 8 derives it every tick and stores nothing per group.
+/// <c>EntityId</c>, <c>EnemyEntityId</c>, and <c>Groups</c>' <c>GroupId</c>
+/// below are <see langword="ulong"/> and fold through the same
+/// <c>unchecked((long)value)</c> reinterpretation <see cref="Mission.MissionContentHash"/>
+/// and <see cref="SandataRuleset.ContentHash"/> already use lower in this
+/// list, so the fold order and the hash algorithm are unchanged — only the
+/// C# type carrying the bits changed.
 /// <para>
 /// Design section 4 states an operator's own fields and its contact memory
 /// as two separate bullets ("Per operator: position ... suppression
@@ -89,7 +97,7 @@ internal static class SandataStateHasher
         SandataHash.Fold(ref hash, state.Tick);
         SandataHash.Fold(ref hash, state.Phase);
         SandataHash.Fold(ref hash, state.Winner);
-        SandataHash.Fold(ref hash, state.NextEntityId);
+        SandataHash.Fold(ref hash, unchecked((long)state.NextEntityId));
         SandataHash.Fold(ref hash, state.NextEventSequence);
 
         var operators = state.Operators;
@@ -131,7 +139,7 @@ internal static class SandataStateHasher
         {
             foreach (var group in groups)
             {
-                SandataHash.Fold(ref hash, group.GroupId);
+                SandataHash.Fold(ref hash, unchecked((long)group.GroupId));
                 SandataHash.Fold(ref hash, group.DestinationCellIndex);
                 SandataHash.Fold(ref hash, group.HasOutstandingRequest);
                 SandataHash.Fold(ref hash, group.StartCellIndex);
@@ -161,14 +169,13 @@ internal static class SandataStateHasher
 
     private static void FoldOperator(ref ulong hash, OperatorState operatorState)
     {
-        SandataHash.Fold(ref hash, operatorState.EntityId);
+        SandataHash.Fold(ref hash, unchecked((long)operatorState.EntityId));
         SandataHash.Fold(ref hash, operatorState.PositionX.RawValue);
         SandataHash.Fold(ref hash, operatorState.PositionY.RawValue);
         SandataHash.Fold(ref hash, (long)operatorState.Facing);
         SandataHash.Fold(ref hash, operatorState.AimAngle.Raw);
         SandataHash.Fold(ref hash, operatorState.Health);
         SandataHash.Fold(ref hash, operatorState.Faction);
-        SandataHash.Fold(ref hash, operatorState.SquadSlotIndex);
         SandataHash.Fold(ref hash, operatorState.Intent);
         SandataHash.Fold(ref hash, operatorState.IsCrouched);
         SandataHash.Fold(ref hash, operatorState.WeaponLowered);
@@ -187,7 +194,7 @@ internal static class SandataStateHasher
 
         foreach (var entry in contactMemory)
         {
-            SandataHash.Fold(ref hash, entry.EnemyEntityId);
+            SandataHash.Fold(ref hash, unchecked((long)entry.EnemyEntityId));
             SandataHash.Fold(ref hash, entry.LastKnownCellIndex);
             SandataHash.Fold(ref hash, entry.ContactTier);
             SandataHash.Fold(ref hash, entry.LastSeenTick);

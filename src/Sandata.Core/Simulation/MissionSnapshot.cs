@@ -20,7 +20,7 @@ public sealed record MissionSnapshot(
     long Tick,
     int Phase,
     int Winner,
-    int NextEntityId,
+    ulong NextEntityId,
     long NextEventSequence)
 {
     public ImmutableArray<OperatorState> Operators { get; init; } =
