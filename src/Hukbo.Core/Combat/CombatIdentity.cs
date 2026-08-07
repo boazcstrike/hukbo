@@ -42,6 +42,40 @@ public enum WeaponId
     /// as a blanket name.
     /// </summary>
     Itak = 4,
+
+    /// <summary>
+    /// Documented. Thrown role. Pigafetta, present and wounded at Mactan on 27
+    /// April 1521, records bamboo spears — some iron-tipped — hurled at the
+    /// captain-general and reused "four or six times". Pigafetta's 1521
+    /// Visayan word list gives "for Spear — bancan", identified by Blair and
+    /// Robertson's editors against <c>bangcao</c>; a zero-year gap between
+    /// attestation and the depicted period. Visayan, Mindanao, and Maranao
+    /// term — Tagalog is <c>sibat</c>, and the label must not be generalised
+    /// across the archipelago.
+    /// </summary>
+    Bangkaw = 5,
+
+    /// <summary>
+    /// Documented. Pigafetta, Mactan, 27 April 1521: the captain-general shot
+    /// through the leg with a poisoned arrow, and Pigafetta's own face wound
+    /// days later at Cebu. Pigafetta's 1521 Visayan word list gives "for Bow
+    /// — bossugh", identified against <c>bosog</c>, inherited from
+    /// Proto-Austronesian *busuʀ* rather than borrowed; a zero-year gap
+    /// between attestation and the depicted period.
+    /// </summary>
+    Busog = 6,
+
+    /// <summary>
+    /// Documented, form uncertain. Matchlock firearms in local hands are
+    /// attested three separate times between roughly 1543 and 1567 — earliest
+    /// García Descalante Alvarado, writing from Lisbon 7 August 1548 about the
+    /// Sarangani and Mindanao area c. 1543-45 — and one specimen physically
+    /// reached Spain via Legazpi in 1567. What is uncertain is the weapon's
+    /// exact form and how many there were. "Arquebus" is a European term
+    /// contemporary with the depicted period, not a cultural identification,
+    /// so no Filipino name check applies.
+    /// </summary>
+    Arquebus = 7,
 }
 
 /// <summary>
@@ -120,6 +154,19 @@ public enum CombatPresetId
     /// unmodified so their replays remain reproducible.
     /// </summary>
     PrecolonialPhilippinesV4 = 4,
+
+    /// <summary>
+    /// V4 plus three ranged roster entries — Bangkaw, Busog, and Arquebus,
+    /// each <see cref="WeaponGrip.TwoHanded"/> with <see cref="ShieldId.None"/>
+    /// — carrying the ranged-only <see cref="WeaponProfile"/> fields
+    /// (projectile speed, standoff distance, flight-tick ceiling). V4's four
+    /// melee rows and its shared target-weight profile are otherwise
+    /// unchanged. V1 through V4 stay registered and unmodified so their
+    /// replays remain reproducible. Every ranged value V5 carries is a
+    /// provisional gameplay-tuning reconstruction under CLAUDE.md section 7,
+    /// never a historical measurement.
+    /// </summary>
+    PrecolonialPhilippinesV5 = 5,
 }
 
 /// <summary>

@@ -143,4 +143,33 @@ public enum MovementPresetId
     /// 4.6, 6.2, and 6.3.
     /// </summary>
     EquipmentRelativeFootworkV7 = 7,
+
+    /// <summary>
+    /// The ranged-standoff preset. A verbatim restatement of
+    /// <see cref="PersistentContingentsV4"/>'s values plus one rule, with
+    /// <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/> and
+    /// <see cref="MovementRuleset.AppliesPressureInterrupt"/> both
+    /// <see langword="false"/>: a warrior whose target is beyond its weapon's
+    /// standoff distance pursues with that distance as its stop-short radius
+    /// instead of body contact; a warrior whose target is at or inside that
+    /// distance proposes no movement and is assigned
+    /// <c>AgentIntent.Holding</c> instead. A melee weapon's
+    /// standoff distance is zero, so a melee-only roster behaves
+    /// byte-identically to <see cref="PersistentContingentsV4"/>, which stays
+    /// registered, unmodified, and the shipped default. See design section 6
+    /// and plan task RU-21.
+    /// </summary>
+    RangedStandoffV8 = 8,
+
+    /// <summary>
+    /// The monotone-ally-clearance preset. Carries every tunable of
+    /// <see cref="PersistentContingentsV4"/> forward unchanged except that
+    /// <c>IsLaneClearOfAllies</c> rejects a candidate endpoint only when it
+    /// moves the actor closer to an ally it is already too close to, rather
+    /// than on the ally's absolute distance alone — the F-B fix for the
+    /// standoff root cause recorded in design section 10.3. V4, V6, and V7
+    /// keep their own content hashes and frozen trajectory digests
+    /// byte-identical. See plan task RU-30.
+    /// </summary>
+    MonotoneAllyClearanceV9 = 9,
 }
