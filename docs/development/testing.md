@@ -4711,6 +4711,40 @@ do not. Leave untouched rows `PENDING`; report `BLOCKED` honestly.
 Phase 3's rows GR-6 through GR-10 are deliberately absent. They covered the
 instanced backend, which the NO-GO verdict closed and which does not exist.
 
+### Movement gait animation smoke (2026-08-07)
+
+**No interactive run was performed for this change.** Every row below is
+`PENDING`. The automated tests prove the pose mathematics, the per-entity
+store, the leg and foot rectangles, the detail-tier gating, the quad
+accounting, and the wiring; none of them prove that a warrior on screen looks
+like it is walking, that a run reads differently from a walk, or that two
+hundred warriors advancing together do not read as a marching band. Design:
+`docs/plans/2026-08-07-movement-gait-animation-design.md`.
+
+The restructured body is what makes this section load-bearing rather than
+routine. The torso was shortened from twelve layout units to eight so the legs
+could take a real share of the silhouette, which moved the head, the shield,
+the armor, the sash, and the adornment accents up by six pixels at the test
+fixture's scale. Nothing automated can say whether the result still reads as a
+warrior.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| GA-1 | Watch one warrior cross open ground at default zoom | The legs visibly alternate and the feet lift and plant; the warrior does not slide | | PENDING |
+| GA-2 | Compare a warrior closing on a target against one holding position | The moving one steps; the stationary one stands with both feet planted | | PENDING |
+| GA-3 | Watch a fast advance and a slow one | The fast gait reads as a run — longer stride, higher foot lift, forward lean — not merely as the same walk played faster | | PENDING |
+| GA-4 | Watch a contingent advance together at default zoom | The warriors do not all step on the same foot at the same moment | | PENDING |
+| GA-5 | Pause mid-advance | Every leg freezes where it was; nothing keeps moving and nothing snaps to a neutral stance | | PENDING |
+| GA-6 | Run the battle at 2x and at 4x | The step cadence speeds up with the battle; no warrior appears to skate or to run in place | | PENDING |
+| GA-7 | Zoom out to the lowest detail tier | Legs and feet disappear cleanly; the pawn falls back to the ground ring with no flicker at the tier boundary | | PENDING |
+| GA-8 | Zoom in to the highest detail tier | The feet are distinguishable from the legs and read as bare feet | | PENDING |
+| GA-9 | Set motion to Reduced, then to Off | Reduced keeps the legs moving with a shorter stride; Off leaves the legs drawn and completely still | | PENDING |
+| GA-10 | Watch a warrior die mid-stride | The corpse does not continue stepping and does not run in place | | PENDING |
+| GA-11 | Look at any warrior standing still, at default zoom | The restructured body still reads as head, torso, and legs — not as a head on stilts or a torso with stumps | | PENDING |
+| GA-12 | Watch a shield bearer advance | The shield still reads as covering chest and abdomen, and no swinging leg crosses or hides it | | PENDING |
+| GA-13 | Watch a warrior attack while moving | The swing and the gait compose without the body jumping between two poses | | PENDING |
+| GA-14 | Watch a battle at 200 agents from minimum zoom | The formation still reads as a formation; leg motion has not turned the field into noise | | PENDING |
+
 ## Failure classification
 
 Classify failures as implementation, test, environment/dependency, pre-existing,

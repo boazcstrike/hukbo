@@ -337,6 +337,11 @@ internal static class PawnRenderer
             pixel,
             layout.GroundRingBounds,
             displayedFactionColor);
+        // movement-gait-animation design section 7: legs and feet draw
+        // between the ground ring and the torso, so an unobstructed torso,
+        // shield, head, and weapon still draw after them, on top.
+        DrawLegs(spriteBatch, pixel, layout, torsoFillColor);
+        DrawFeet(spriteBatch, pixel, layout, skinColor);
         DrawSecondaryEquipment(
             spriteBatch,
             pixel,
@@ -469,6 +474,64 @@ internal static class PawnRenderer
         if (!inner.IsEmpty)
         {
             spriteBatch.Draw(pixel, inner, ShadowColor);
+        }
+    }
+
+    /// <summary>
+    /// Movement-gait-animation design section 7: the two leg rectangles
+    /// between the torso and the ground ring, in the warrior's existing
+    /// garment tone — this is moving geometry, not a new garment, so it
+    /// reuses <paramref name="legColor"/> rather than reading a new color.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="PawnGeometry"/> already returns <see cref="Rectangle.Empty"/>
+    /// for both leg rectangles at <see cref="PawnDetailTier.Low"/>, so this
+    /// skips each rectangle exactly the way <see cref="DrawArmor"/> and
+    /// <see cref="DrawSash"/> already skip an absent layer, rather than
+    /// re-deriving the tier gate here.
+    /// </remarks>
+    private static void DrawLegs(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        PawnLayout layout,
+        Color legColor)
+    {
+        if (!layout.LeftLegBounds.IsEmpty)
+        {
+            spriteBatch.Draw(pixel, layout.LeftLegBounds, legColor);
+        }
+
+        if (!layout.RightLegBounds.IsEmpty)
+        {
+            spriteBatch.Draw(pixel, layout.RightLegBounds, legColor);
+        }
+    }
+
+    /// <summary>
+    /// Movement-gait-animation design section 7: the two foot rectangles,
+    /// drawn bare in <paramref name="skinColor"/>. No footwear is documented
+    /// for these warriors (design section 7, the footwear entry's
+    /// <c>Documented</c> evidence tier), so this never reads a garment or
+    /// footwear tone, and no sandal or boot variant is added here.
+    /// </summary>
+    /// <remarks>
+    /// Empty at <see cref="PawnDetailTier.Low"/>, skipped the same way
+    /// <see cref="DrawLegs"/> skips its own empty rectangles.
+    /// </remarks>
+    private static void DrawFeet(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        PawnLayout layout,
+        Color skinColor)
+    {
+        if (!layout.LeftFootBounds.IsEmpty)
+        {
+            spriteBatch.Draw(pixel, layout.LeftFootBounds, skinColor);
+        }
+
+        if (!layout.RightFootBounds.IsEmpty)
+        {
+            spriteBatch.Draw(pixel, layout.RightFootBounds, skinColor);
         }
     }
 
