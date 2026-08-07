@@ -113,10 +113,33 @@ plus `PawnAppearanceFactoryTests` —
 
 This changes the risk profile of the window rather than the plan's design. A red
 tree of twenty-nine tests is a far worse place to hide a genuine regression than
-a red tree of two, so the tasks that add the missing arms — RU-07 and the Core
-registration work above all, then RU-09, RU-10 and RU-12 on the Client side —
-should be scheduled as early as their dependencies allow, and the count above is
-the baseline any later agent compares against.
+a red tree of two, so the tasks that add the missing arms should be scheduled as
+early as their dependencies allow, and the count above is the baseline any later
+agent compares against.
+
+**Fourteen of the twenty-nine had no owner anywhere in this plan's original
+thirty-three tasks, and two tasks were added to close them.** Tracing each red
+test to the task that closes it produced the following, and the last two rows are
+why RU-34 and RU-35 now exist:
+
+| Red tests | Closed by | Was it owned? |
+| --- | --- | --- |
+| `CombatConfigurationTests`, seven facts | RU-12 | Yes, RU-12 owns the file |
+| `WeaponProfileTests`, two facts | RU-07 | Yes |
+| `SoundCatalogTests`, two facts | RU-09 and RU-14 | Yes |
+| `PawnGeometryTests`, three facts | RU-22 | Yes |
+| `BattleSimulationTests`, the leader fact | RU-21 and RU-30, by registering V8 and V9 | Yes, no test edit needed |
+| `ClashResolverTests` (5), `HitLocationResolverTests` (1), `PhilippineCombatIntegrationTests` (2) | **RU-34, added** | **No — no task listed any of those three files** |
+| `PawnAppearanceFactoryTests` (5), `ConservativePawnCullTests` (1) | **RU-35, added** | **No — and `PawnAppearanceFactory.cs` itself was unowned** |
+
+The two unowned groups are not the same kind of problem as the owned ones, and
+that is the important part. The owned failures close when a registry or a catalog
+gains an arm for a new weapon. The eight in RU-34's group cannot close that way
+at all: they build their ruleset from `PrecolonialPhilippinesV1` or `V2`, and
+those presets are frozen by this plan's own rollback rules, so they will never
+declare a ranged weapon. Only a change to how the tests enumerate weapons can
+make them pass. An agent that assumed RU-12 would fix them would have waited
+through five waves for a green that was never coming.
 
 Three consequences bind every agent working this plan.
 
@@ -183,6 +206,8 @@ no sub-agent's report substitutes for its real output.
 | RU-31 | **PAID. A HUMAN RUNS THIS. NO AGENT GENERATES SOUNDS.** Generate the sixty sound files with `./scripts/sfx.ps1`, twenty per weapon: `release-<weapon>` at 5 / 6 / 7 takes, `attack-<weapon>` at 9 / 8 / 6 takes across the six hit classes (with `ribcage` present for every weapon, because it is the universal fallback target and a hit-location driven slot without it can resolve `Missing`), `clash-shield-<weapon>` at 3 / 3 / 3, `miss-<weapon>` at 3 / 3 / 2, and `misfire-arquebus` at 2. This task **spends money** on the ElevenLabs text-to-sound-effects API and it is the one task in this plan that talks to a network service. It is scheduled last among the audio work for a load-bearing reason: eighteen of the sixty files cannot be triggered at all until `BattleEventKind.Release` exists, is emitted, and is carried by the mapper, and three more depend on decisions in RU-14. Three operational facts: the API refuses anything under 0.5 seconds, so a short impact is generated long and trimmed; a take peaking below ten per cent of full scale is rejected without writing anything, so re-running the same command is safe and is usually all that is needed; and the script retries a rate-limit response six times with exponential backoff. **No test walks the audio folder to check that a file there is a file the game will read, and no automated test can confirm a sound was heard** — a misnamed file is ignored silently and sixty files can pass the entire gate while being inaudible. Verification is a person listening, and its result is a smoke-checklist row. `ELEVENLABS_API_KEY` comes from the environment or the untracked `.env` and never appears in a tracked file, in output, or in a commit message. | `src/Hukbo.Client/Content/Audio/*.wav` (sixty new files) | Sixty correctly named uncompressed PCM WAV files exist in `src/Hukbo.Client/Content/Audio/`; `./scripts/sfx.ps1 -List` reports every one of the twenty-six slots as present; the game loads without a missing-cue warning; a person has heard at least one take from each of the thirteen new slots. | RU-04, RU-14, RU-15, RU-19, RU-20 (the mix headroom must be measured before the spend), RU-25 | `./scripts/sfx.ps1 -List`, then a human at an interactive desktop; the result is a `PENDING` row in `docs/development/testing.md` that only that human may flip |
 | RU-32 | The manual smoke-checklist rows for this package, added to the interactive checklist and **shipped as `PENDING`**. They must cover, at minimum: a projectile visible in flight; the gap between the release cue and the impact cue being audible as the flight time; each of the three five-phase draw sequences reading as that weapon; a ranged warrior visibly stopping while its melee comrades walk in past it; the inspector reading "holding at range" rather than "blocked"; a missed shot not playing a flesh impact; the three new silhouettes distinguishable at each detail tier including Low; the arquebus reading as rare, loud, and distinctive; **and a row that explicitly asks whether an arrow passing through the friendly front rank looks wrong**, because that is the one effect in Phase 1 a spectator cannot discover and it must be looked at deliberately. Under `CLAUDE.md` section 6 rule 4, **no compilation, unit test, or window-opening probe may flip any of these rows to `PASS`, and no agent may flip one at all.** The plan owes the rows; it does not owe the results. | `docs/development/testing.md` | Rows exist, each describes what a person must look at and what they should expect to see or hear, and every one is `PENDING`. | RU-01 (shares the file), RU-25, RU-31 | A human at an interactive desktop |
 | RU-33 | The canonical gate, run once after integration. Not delegated to any sub-agent, and no sub-agent's report substitutes for its real output. | — | `./scripts/verify.ps1` output pasted verbatim into section 9, together with the two determinism workloads' `stateHash`, `eventHash`, `deterministic`, and `firstMismatchTick`. | RU-01 through RU-32 | `./scripts/verify.ps1` |
+| RU-34 | **Added 2026-08-07, after RU-03 exposed that no task owned these files.** Make three `Hukbo.Core.Tests` suites roster-aware instead of enum-exhaustive. `ClashResolverTests` (five red facts), `HitLocationResolverTests.WeaponOverrides_CanChangeTheResolvedBodyPartForTheSameTuple`, and `PhilippineCombatIntegrationTests` (two red facts) each sweep `Enum.GetValues<WeaponId>()` and feed every value into a ruleset built from `PrecolonialPhilippinesV1` or `V2`. **Those four presets are frozen and will never gain a ranged arm, so no amount of work on V5 can turn these green** — the sweep itself is what has to change, from "every value the enum defines" to "every weapon this ruleset's own roster actually declares". The coverage intent must survive: a sweep that silently skips a weapon a ruleset *does* declare is a weakened test and is forbidden by `CLAUDE.md` section 5. Derive the weapon set from the ruleset under test, do not hard-code a list of four, so that adding an eighth weapon later fails loudly in the right place rather than here. | `tests/Hukbo.Core.Tests/ClashResolverTests.cs`, `tests/Hukbo.Core.Tests/HitLocationResolverTests.cs`, `tests/Hukbo.Core.Tests/PhilippineCombatIntegrationTests.cs` | All eight of those facts pass with the three ranged `WeaponId` members defined and unregistered in V1 through V4; each sweep still covers every weapon its ruleset declares, verified by asserting the swept count equals the roster count rather than by inspection; no assertion is deleted, loosened, or marked `Skip`. | RU-03 | `dotnet test` on the three named files |
+| RU-35 | **Added 2026-08-07, same cause as RU-34.** `PawnAppearanceFactory.ToWeaponRole` (`PawnAppearanceFactory.cs:130`) is a total switch over `WeaponId` that throws `ArgumentOutOfRangeException` on `Bangkaw`, and **no task in this plan owned that file** — RU-10 owns the catalog and `PawnAppearance.cs`, RU-22 owns `PawnGeometry.cs`. Add the three arms mapping the ranged weapons to the `PawnWeaponRole` members RU-10 introduces, and repair the five red `PawnAppearanceFactoryTests` facts plus `ConservativePawnCullTests.GeometryAppearances_CoverEverythingTheFactoryCanProduce`. `Create_MapsAllFourWeaponIdsToDistinctSilhouettes` is named for a four-weapon roster and must be renamed and widened to seven rather than left asserting a stale number. The two policy facts — `WeaponLabels_NeverUseTheRejectedPanabasName` and `WeaponLabels_NeverCarryACulturalNameWithoutItsDescriptor` — enforce `CLAUDE.md` section 7 and must keep enforcing it across all seven weapons, not just the original four. | `src/Hukbo.Client/Presentation/PawnAppearanceFactory.cs`, `tests/Hukbo.Client.Tests/PawnAppearanceFactoryTests.cs`, `tests/Hukbo.Client.Tests/ConservativePawnCullTests.cs` | All seven `WeaponId` values resolve to a `PawnWeaponRole` without throwing; the six named facts pass; the distinct-silhouette fact covers seven weapons and still requires distinctness; both naming-policy facts pass for the three new weapons. | RU-10 (introduces the `PawnWeaponRole` members this maps onto) | `dotnet test` on `tests/Hukbo.Client.Tests/PawnAppearanceFactoryTests.cs` and `ConservativePawnCullTests.cs` |
 
 ### PARALLEL-SAFE and SERIAL, per task
 
@@ -194,7 +219,7 @@ dispatched beside it.
 
 - **PARALLEL-SAFE:** RU-02, RU-03, RU-04, RU-05, RU-07, RU-08, RU-09, RU-10,
   RU-11, RU-15, RU-16, RU-18, RU-19, RU-20, RU-22, RU-23, RU-25, RU-26, RU-27,
-  RU-28, RU-29, RU-31.
+  RU-28, RU-29, RU-31, RU-34, RU-35.
 - **SERIAL:** RU-01 (first owner of `SIMULATION-GAME-STANDARDS.md` and
   `docs/development/testing.md`), RU-06, RU-13, RU-17, RU-21 and RU-30 (the
   `BattleSimulation.cs` chain), RU-12 and RU-24 (`PhilippineCombatPresetV5.cs`),
@@ -214,8 +239,8 @@ wave starts before every task in the wave above it has actually reported.
 | Wave | Tasks | Parallel? | Note |
 | --- | --- | --- | --- |
 | 1 | RU-01, RU-02, RU-03, RU-04, RU-05 | PARALLEL-SAFE, five agents | Four disjoint documentation and enum tasks plus the headless option. RU-03 satisfies ordering constraint 1 — the three `WeaponId` members and the V5 preset identity land before anything references a ranged weapon. RU-04 satisfies ordering constraint 2 — the two `BattleEventKind` members land before any audio work. RU-01 is first in the `SIMULATION-GAME-STANDARDS.md` and `docs/development/testing.md` chains. |
-| 2 | RU-06, RU-07, RU-08, RU-09, RU-10, RU-11 | PARALLEL-SAFE, six agents | RU-06 is F-A and is the first owner of `BattleSimulation.cs`; ordering constraint 5 puts it before F-B, and putting it at the head of the file's chain costs nothing because it is the cheapest task in that file and moves no hash. |
-| 3 | RU-12, RU-13, RU-14, RU-15, RU-16 | PARALLEL-SAFE, five agents | RU-13 is the second owner of `BattleSimulation.cs`. RU-14 closes the known-red window of section 3 and is the second owner of `SIMULATION-GAME-STANDARDS.md`. |
+| 2 | RU-06, RU-07, RU-08, RU-09, RU-10, RU-11, **RU-34** | PARALLEL-SAFE, seven agents | RU-06 is F-A and is the first owner of `BattleSimulation.cs`; ordering constraint 5 puts it before F-B, and putting it at the head of the file's chain costs nothing because it is the cheapest task in that file and moves no hash. **RU-34 was added to this wave on 2026-08-07.** Its three test files are disjoint from every other task in the wave, it depends only on RU-03, and it closes eight of the twenty-nine red tests that nothing else in the plan could close. RU-35 waits on RU-10 and lands in wave 3. |
+| 3 | RU-12, RU-13, RU-14, RU-15, RU-16, **RU-35** | PARALLEL-SAFE, six agents | RU-13 is the second owner of `BattleSimulation.cs`. RU-14 closes the `SoundCatalogTests` part of the known-red window and is the second owner of `SIMULATION-GAME-STANDARDS.md`. **RU-35 was added here on 2026-08-07.** It owns `PawnAppearanceFactory.cs`, which no original task owned, and it cannot start earlier because it maps onto the `PawnWeaponRole` members RU-10 introduces in wave 2. |
 | 4 | RU-17, RU-18, RU-19, RU-20 | PARALLEL-SAFE, four agents | RU-17 is the third owner of `BattleSimulation.cs` and is the largest single task in the plan. RU-18 satisfies ordering constraint 6 — the pose work starts only after RU-13 has put the projection fields on `AgentView`. RU-20 satisfies ordering constraint 4 — the mix harness is updated and re-run here, four waves before anyone pays for a sound file. |
 | 5 | RU-21, RU-22 | PARALLEL-SAFE, two agents | RU-21 is the fourth owner of `BattleSimulation.cs`. This is the narrowest wave and it is the plan's critical path. |
 | 6 | RU-23, RU-24, RU-25 | PARALLEL-SAFE, three agents | RU-24 is calibration and it deliberately runs **before** any golden is pinned, because calibration moves the values a golden would capture. |
@@ -511,3 +536,5 @@ citation into volume III that the source entry does not yet enumerate.
 | RU-31 | Not started |
 | RU-32 | Not started |
 | RU-33 | Not started |
+| RU-34 | Not started — added 2026-08-07, see the correction in section 3 |
+| RU-35 | Not started — added 2026-08-07, see the correction in section 3 |
