@@ -362,9 +362,22 @@ public sealed class WeaponProfileTests
         // the melee half, which was true only because RU-12's
         // PrecolonialPhilippinesV5 — the first registered preset to field a
         // ranged row — was not registered yet. It is registered now, so this
-        // sweeps both halves rather than hard-coding which presets are melee:
-        // a hard-coded list would rot again at the next preset exactly as
-        // this fact just did.
+        // sweeps both halves rather than hard-coding which presets are melee.
+        //
+        // Deriving "is this profile ranged" from the same three fields the
+        // assertion then checks would be tautological: WeaponProfile
+        // .ValidateRangedFields already forces every profile that manages to
+        // construct into all-zero-or-all-non-zero, so the self-referential
+        // predicate could never disagree with the fields it reads and this
+        // fact could never fail. The kind has to come from a signal
+        // independent of the three fields under test, so it comes from the
+        // weapon's identity instead, via RangedPhaseProjection.Derive — the
+        // production switch over WeaponId (Bangkaw, Busog, Arquebus) that
+        // decides whether a warrior's readable draw cycle exists at all. A
+        // melee weapon wrongly given non-zero ranged fields, or a ranged
+        // weapon wrongly given all-zero ones, disagrees with this second,
+        // independent source and fails here even though it would have
+        // constructed cleanly.
         foreach (var id in Enum.GetValues<CombatPresetId>())
         {
             if (!CombatPresetRegistry.IsRegistered(id))
@@ -384,27 +397,49 @@ public sealed class WeaponProfileTests
                     loadout.Weapon,
                     loadout.Shield);
 
-                // A profile that constructed at all is already guaranteed by
-                // WeaponProfile.ValidateRangedFields to be either all-zero or
-                // all-non-zero across the three ranged fields, so any one
-                // field's zero-ness tells us which kind this is.
-                var isRanged = profile.ProjectileSpeedRaw != 0 ||
-                    profile.StandoffDistanceRaw != 0 ||
-                    profile.FlightTickCeiling != 0;
-
-                if (isRanged)
-                {
-                    Assert.NotEqual(0, profile.ProjectileSpeedRaw);
-                    Assert.NotEqual(0, profile.StandoffDistanceRaw);
-                    Assert.NotEqual(0, profile.FlightTickCeiling);
-                }
-                else
-                {
-                    Assert.Equal(0, profile.ProjectileSpeedRaw);
-                    Assert.Equal(0, profile.StandoffDistanceRaw);
-                    Assert.Equal(0, profile.FlightTickCeiling);
-                }
+                AssertRangedFieldsAgreeWithWeaponIdentity(loadout.Weapon, profile);
             }
+        }
+    }
+
+    /// <summary>
+    /// Asserts a profile's declared ranged fields agree with the independent
+    /// signal <see cref="RangedPhaseProjection.Derive"/> reads from the
+    /// weapon's identity alone: a weapon the projection recognizes as ranged
+    /// must declare all three fields non-zero, and a weapon it does not
+    /// recognize must declare all three zero. Split out from
+    /// <see cref="EveryProfileOfEveryRegisteredPresetDeclaresRangedFieldsConsistentWithItsKind"/>
+    /// so a hand-built weapon/profile disagreement can drive this exact
+    /// mechanism directly, rather than only through whatever the registry
+    /// currently happens to field.
+    /// </summary>
+    private static void AssertRangedFieldsAgreeWithWeaponIdentity(
+        WeaponId weapon,
+        WeaponProfile profile)
+    {
+        var declaresRangedFields = profile.ProjectileSpeedRaw != 0 ||
+            profile.StandoffDistanceRaw != 0 ||
+            profile.FlightTickCeiling != 0;
+
+        var (phase, _) = RangedPhaseProjection.Derive(
+            weapon,
+            attackCooldownRemaining: 0,
+            attackCooldownTicks: profile.AttackCooldownTicks);
+        var isRangedWeaponIdentity = phase != RangedPhase.None;
+
+        Assert.Equal(isRangedWeaponIdentity, declaresRangedFields);
+
+        if (declaresRangedFields)
+        {
+            Assert.NotEqual(0, profile.ProjectileSpeedRaw);
+            Assert.NotEqual(0, profile.StandoffDistanceRaw);
+            Assert.NotEqual(0, profile.FlightTickCeiling);
+        }
+        else
+        {
+            Assert.Equal(0, profile.ProjectileSpeedRaw);
+            Assert.Equal(0, profile.StandoffDistanceRaw);
+            Assert.Equal(0, profile.FlightTickCeiling);
         }
     }
 
