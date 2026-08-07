@@ -1,5 +1,6 @@
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Rendering;
+using Hukbo.Client.Settings;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
 
@@ -369,6 +370,119 @@ public sealed class PresentationCoordinatorTests
         Assert.True(deathsSeen);
     }
 
+    /// <summary>
+    /// <see cref="PresentationCoordinator.IngestTick"/> must forward the
+    /// completed tick's agent views to <see cref="PresentationCoordinator.Gait"/>,
+    /// alongside every other presentation system it already feeds
+    /// (movement-gait-animation-design.md section 3). A store the coordinator
+    /// never ingests into would leave <see cref="GaitAnimationSystem.TryGetEntry"/>
+    /// returning nothing for every warrior, forever.
+    /// </summary>
+    [Fact]
+    public void IngestTick_ForwardsAgentsToTheGaitStore()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        AgentView[] agents = [CreateAgentAt(1, xRaw: 0, yRaw: 0)];
+
+        coordinator.IngestTick([], agents, default);
+
+        Assert.True(coordinator.Gait.TryGetEntry(1, out var entry));
+        Assert.Equal(0, entry.PreviousXRaw);
+        Assert.Equal(0, entry.PreviousYRaw);
+    }
+
+    /// <summary>
+    /// One <see cref="PresentationCoordinator.IngestTick"/> call advances the
+    /// gait phase by exactly the distance covered between the two ingested
+    /// positions — never by more, which is what a stray second call to
+    /// <c>Gait.Ingest</c> from a different code path (for example
+    /// <see cref="PresentationCoordinator.AdvanceEffects"/>, covered
+    /// separately below) would risk introducing.
+    /// </summary>
+    [Fact]
+    public void IngestTick_AdvancesTheGaitPhaseByExactlyOneTicksWorthOfDistance()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        coordinator.IngestTick([], [CreateAgentAt(1, xRaw: 0, yRaw: 0)], default);
+        Assert.True(coordinator.Gait.TryGetEntry(1, out var initialEntry));
+
+        // Half of GaitAnimationSystem.StrideCycleDistanceRaw (6000), so one
+        // ingested tick of this displacement advances the phase by exactly
+        // half a turn.
+        coordinator.IngestTick([], [CreateAgentAt(1, xRaw: 3000, yRaw: 0)], default);
+
+        Assert.True(coordinator.Gait.TryGetEntry(1, out var advancedEntry));
+        var expectedPhase = (initialEntry.PhaseTurns + 0.5f) % 1f;
+        Assert.Equal(expectedPhase, advancedEntry.PhaseTurns, precision: 4);
+    }
+
+    /// <summary>
+    /// The gait phase moves only with distance travelled per ingested tick,
+    /// never with elapsed presentation seconds (movement-gait-animation-
+    /// design.md section 4), unlike every other system
+    /// <see cref="PresentationCoordinator.AdvanceEffects"/> advances.
+    /// </summary>
+    [Fact]
+    public void AdvanceEffects_DoesNotChangeTheGaitStore()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        coordinator.IngestTick([], [CreateAgentAt(1, xRaw: 0, yRaw: 0)], default);
+        coordinator.IngestTick([], [CreateAgentAt(1, xRaw: 2000, yRaw: 0)], default);
+        Assert.True(coordinator.Gait.TryGetEntry(1, out var beforeAdvance));
+
+        coordinator.AdvanceEffects(1.5f, speedMultiplier: 4f);
+
+        Assert.True(coordinator.Gait.TryGetEntry(1, out var afterAdvance));
+        Assert.Equal(beforeAdvance, afterAdvance);
+    }
+
+    /// <summary>
+    /// Mirrors <see cref="ResetFor_ClearsSwingsAndClashEffects"/> for the gait
+    /// store: its declared lifetime is one battle, so both round-reset
+    /// commands must empty it.
+    /// </summary>
+    [Theory]
+    [InlineData((int)ClientCommand.NextRound)]
+    [InlineData((int)ClientCommand.FullReset)]
+    public void ResetFor_ClearsTheGaitStore(int commandValue)
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        coordinator.IngestTick([], [CreateAgentAt(1, xRaw: 0, yRaw: 0)], default);
+
+        Assert.NotEmpty(coordinator.Gait.ActiveEntries.ToArray());
+
+        coordinator.ResetFor((ClientCommand)commandValue);
+
+        Assert.Empty(coordinator.Gait.ActiveEntries.ToArray());
+        Assert.False(coordinator.Gait.TryGetEntry(1, out _));
+    }
+
+    /// <summary>
+    /// The spectator's <see cref="MotionIntensity"/> setting must reach gait
+    /// resolution: <see cref="GaitPoseResolver.Resolve"/>'s
+    /// <c>MotionIntensity.Off</c> path always resolves the neutral standing
+    /// pose regardless of the store's own tracked mode, exactly the same
+    /// store <see cref="PresentationCoordinator.Gait"/> exposes to the draw
+    /// loop (movement-gait-animation-design.md section 9).
+    /// </summary>
+    [Fact]
+    public void GaitPoseResolution_HonoursTheMotionIntensityAgainstTheCoordinatorsGaitStore()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        coordinator.IngestTick([], [CreateAgentAt(1, xRaw: 0, yRaw: 0)], default);
+        AgentView[] moved = [CreateAgentAt(1, xRaw: 2000, yRaw: 0)];
+        coordinator.IngestTick([], moved, default);
+        var destination = new Dictionary<ulong, GaitPose>();
+
+        var offPoses = GaitPoseResolver.Resolve(
+            coordinator.Gait, moved, MotionIntensity.Off, destination);
+        Assert.Equal(default, offPoses[1]);
+
+        var fullPoses = GaitPoseResolver.Resolve(
+            coordinator.Gait, moved, MotionIntensity.Full, destination);
+        Assert.Equal(GaitMode.Run, fullPoses[1].Mode);
+    }
+
     [Fact]
     public void ResetFor_RejectsCommandsThatDoNotResetTheRound()
     {
@@ -446,11 +560,14 @@ public sealed class PresentationCoordinatorTests
     }
 
     private static AgentView CreateAgent(ulong entityId) =>
+        CreateAgentAt(entityId, xRaw: 0, yRaw: 0);
+
+    private static AgentView CreateAgentAt(ulong entityId, int xRaw, int yRaw) =>
         new(
             entityId,
             FactionId: 0,
-            XRaw: 0,
-            YRaw: 0,
+            xRaw,
+            yRaw,
             HitPoints: 100,
             MaximumHitPoints: 100,
             TargetEntityId: null,

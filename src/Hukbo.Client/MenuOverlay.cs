@@ -203,6 +203,24 @@ internal sealed class MenuOverlay
             hasScrim: true);
         Layout(screenBounds);
 
+        // All six selector instances advance their motion in one pass here,
+        // before the early-returning interaction chain below. That chain
+        // returns as soon as any one selector reports a selection; advancing
+        // motion inside it would starve every selector below the one that
+        // fired on that frame, stalling their transitions mid-flight.
+        _themeSelector.AdvanceMotion(
+            input, elapsed, activeMotionIntensity, activeThemeId);
+        _goreSelector.AdvanceMotion(
+            input, elapsed, activeMotionIntensity, activeGoreIntensity);
+        _motionSelector.AdvanceMotion(
+            input, elapsed, activeMotionIntensity, activeMotionIntensity);
+        _autoCameraSelector.AdvanceMotion(
+            input, elapsed, activeMotionIntensity, activeAutoCameraMode);
+        _uiScaleSelector.AdvanceMotion(
+            input, elapsed, activeMotionIntensity, activeUiScale);
+        _displayModeSelector.AdvanceMotion(
+            input, elapsed, activeMotionIntensity, activeStartupDisplayMode);
+
         var focusDirection = ResolveKeyboardFocusDirection(input);
 
         var hoveredControlIndex = _themeSelector.Bounds.Contains(

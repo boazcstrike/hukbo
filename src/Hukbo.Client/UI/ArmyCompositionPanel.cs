@@ -134,6 +134,20 @@ internal sealed partial class ArmyCompositionPanel
     ];
 
     private readonly UiArmyCompositionLayout _metrics;
+
+    /// <summary>
+    /// One <see cref="UiSelectorMotion"/> per stepper row's minus/plus arrow
+    /// pair — <see cref="ArmyCompositionStepper.CategoryCount"/> category
+    /// pairs plus the separate units-per-team pair, so that hovering one
+    /// row's arrows never bleeds motion into another row's static ones.
+    /// Reused unmodified from the shared selector motion helper (UI-52 T4);
+    /// only the arrow-hover channels are read here, never the marker pulse.
+    /// </summary>
+    private readonly UiSelectorMotion[] _categoryArrowMotion =
+        CreateArrowMotionArray();
+
+    private readonly UiSelectorMotion _unitsPerTeamArrowMotion = new();
+
     private ArmyComposition _draft;
     private ArmyComposition _saved;
     private int _focusedControlIndex;
@@ -147,9 +161,44 @@ internal sealed partial class ArmyCompositionPanel
         _metrics = metrics;
     }
 
+    private static UiSelectorMotion[] CreateArrowMotionArray()
+    {
+        var motion = new UiSelectorMotion[ArmyCompositionStepper.CategoryCount];
+        for (var index = 0; index < motion.Length; index++)
+        {
+            motion[index] = new UiSelectorMotion();
+        }
+
+        return motion;
+    }
+
     public ArmyComposition Draft => _draft;
 
     public ArmyComposition Saved => _saved;
+
+    /// <summary>
+    /// Test seam onto the per-row arrow-hover motion — pure reads of state
+    /// the four-argument <c>Update</c> overload already advanced, so a test
+    /// can assert a resolved colour without constructing a
+    /// <c>SpriteBatch</c>. Not called from <see cref="Draw"/>, which reads
+    /// the same <see cref="UiSelectorMotion"/> instances directly; these
+    /// accessors exist for tests only.
+    /// </summary>
+    internal Color GetCategoryMinusArrowColor(
+        int categoryIndex,
+        UiThemeColors colors) =>
+        _categoryArrowMotion[categoryIndex].PreviousArrowColor(colors);
+
+    internal Color GetCategoryPlusArrowColor(
+        int categoryIndex,
+        UiThemeColors colors) =>
+        _categoryArrowMotion[categoryIndex].NextArrowColor(colors);
+
+    internal Color GetUnitsPerTeamMinusArrowColor(UiThemeColors colors) =>
+        _unitsPerTeamArrowMotion.PreviousArrowColor(colors);
+
+    internal Color GetUnitsPerTeamPlusArrowColor(UiThemeColors colors) =>
+        _unitsPerTeamArrowMotion.NextArrowColor(colors);
 
     public int Unassigned => _draft.Unassigned;
 

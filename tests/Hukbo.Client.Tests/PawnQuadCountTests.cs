@@ -46,8 +46,11 @@ public sealed class PawnQuadCountTests
         var layout = PawnGeometry.Create(Vector2.Zero, MediumTierZoom, appearance);
 
         Assert.Equal(PawnDetailTier.Medium, layout.DetailTier);
+        // movement-gait-animation T4: +4 over the pre-gait pin of 19 (a left
+        // and a right leg quad, a left and a right foot quad — none of the
+        // four rectangles is Rectangle.Empty at Medium tier).
         Assert.Equal(
-            19,
+            23,
             PawnQuadCount.Count(layout, appearance, PawnVisualState.Normal));
     }
 
@@ -58,9 +61,30 @@ public sealed class PawnQuadCountTests
         var layout = PawnGeometry.Create(Vector2.Zero, HighTierZoom, appearance);
 
         Assert.Equal(PawnDetailTier.High, layout.DetailTier);
+        // movement-gait-animation T4: +4 over the pre-gait pin of 20, same
+        // arithmetic as the Medium-tier pin above.
         Assert.Equal(
-            20,
+            24,
             PawnQuadCount.Count(layout, appearance, PawnVisualState.Normal));
+    }
+
+    /// <summary>
+    /// movement-gait-animation design section 9: a Low-tier layout produces
+    /// empty leg and foot rectangles, so <c>PawnRenderer.DrawLegs</c> and
+    /// <c>DrawFeet</c> submit nothing and the Low-tier pin above
+    /// (unchanged at 17) is exactly the pre-gait count.
+    /// </summary>
+    [Fact]
+    public void Count_LegsAndFeetContributeNothingAtLowTier()
+    {
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan, ShieldId.None);
+        var layout = PawnGeometry.Create(Vector2.Zero, LowTierZoom, appearance);
+
+        Assert.Equal(PawnDetailTier.Low, layout.DetailTier);
+        Assert.Equal(Rectangle.Empty, layout.LeftLegBounds);
+        Assert.Equal(Rectangle.Empty, layout.RightLegBounds);
+        Assert.Equal(Rectangle.Empty, layout.LeftFootBounds);
+        Assert.Equal(Rectangle.Empty, layout.RightFootBounds);
     }
 
     /// <summary>
@@ -99,8 +123,11 @@ public sealed class PawnQuadCountTests
         Assert.False(layout.ArmorBounds.IsEmpty);
         Assert.False(layout.SashBounds.IsEmpty);
         Assert.False(layout.AdornmentAccentSecondaryBounds.IsEmpty);
+        // movement-gait-animation T4: +4 over the pre-gait pin of 40, same
+        // leg/foot arithmetic as the plain High-tier pin above — this High
+        // Selected layout also carries four non-empty leg/foot rectangles.
         Assert.Equal(
-            40,
+            44,
             PawnQuadCount.Count(layout, appearance, PawnVisualState.Selected));
     }
 

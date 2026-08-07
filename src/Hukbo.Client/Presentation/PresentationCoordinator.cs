@@ -20,6 +20,7 @@ internal sealed class PresentationCoordinator
         int clashEffectCapacity = 256,
         int trampleMarkCapacity = TrampleMarkSystem.Capacity,
         int dustPuffCapacity = DustEffectSystem.Capacity,
+        int gaitCapacity = PawnAppearanceCache.Capacity,
         IRenderMetricsRecorder? renderMetricsRecorder = null)
     {
         PawnAppearances = new PawnAppearanceCache(
@@ -31,6 +32,7 @@ internal sealed class PresentationCoordinator
         ClashEffects = new ClashEffectSystem(clashEffectCapacity);
         Trample = new TrampleMarkSystem(trampleMarkCapacity);
         Dust = new DustEffectSystem(dustPuffCapacity);
+        Gait = new GaitAnimationSystem(gaitCapacity);
         BattleReportAccumulator = new BattleReportAccumulator();
     }
 
@@ -87,6 +89,19 @@ internal sealed class PresentationCoordinator
     public DustEffectSystem Dust { get; }
 
     /// <summary>
+    /// The per-entity previous-position and stride-phase store behind drawn
+    /// legs and feet (movement-gait-animation-design.md section 3). Ingested
+    /// from the completed-tick agent views alone, unlike every other system
+    /// here — it consumes no events, because its whole signal is the change in
+    /// a warrior's authoritative position between one ingested tick and the
+    /// next. It is not advanced in <see cref="AdvanceEffects"/>: its phase
+    /// moves only with distance travelled per ingested tick, never with
+    /// elapsed presentation seconds (design section 4), so it has nothing to
+    /// do on that clock.
+    /// </summary>
+    public GaitAnimationSystem Gait { get; }
+
+    /// <summary>
     /// Accumulates the per-unit, per-faction, and battle-wide statistics
     /// behind the post-battle battle report. Fed here from the raw per-tick
     /// event list, never through <see cref="EventFeed"/> — that feed
@@ -129,6 +144,10 @@ internal sealed class PresentationCoordinator
         ClashEffects.Ingest(events, agents);
         Trample.Ingest(events, agents);
         Dust.Ingest(events, agents);
+
+        // Gait consumes no events, unlike every system above — its whole
+        // signal is the agent views' own XRaw/YRaw, per design section 3.
+        Gait.Ingest(agents);
     }
 
     /// <param name="speedMultiplier">
@@ -214,6 +233,7 @@ internal sealed class PresentationCoordinator
         ClashEffects.Clear();
         Trample.Clear();
         Dust.Clear();
+        Gait.Clear();
         GrassSwayClockSeconds = 0f;
         Summary = null;
         Report = null;

@@ -101,6 +101,13 @@ public sealed partial class ArenaGame : Game
     private readonly AgentInspectorPanel _inspectorPanel = new();
     private readonly BattleEventLogPanel _eventLogPanel = new();
     private readonly SoundLogPanel _soundLogPanel = new();
+
+    /// <summary>
+    /// Surface E — status-badge emphasis (UI-52). Observed once per frame in
+    /// <see cref="Update"/>, unconditionally, so a frame where the pointer is
+    /// consumed elsewhere still decays the pulse; read by <see cref="DrawStatus"/>.
+    /// </summary>
+    private readonly UiStatusBadgeMotion _statusBadgeMotion = new();
     private readonly SoundDirector _soundDirector;
     private readonly MatchSummaryPanel _summaryPanel = new();
     private readonly BattleReportPanel _battleReportPanel = new();
@@ -140,6 +147,16 @@ public sealed partial class ArenaGame : Game
     /// construction.
     /// </summary>
     private readonly Dictionary<ulong, SwingPose> _swingPoses = [];
+
+    /// <summary>
+    /// Reused each frame, mirroring <see cref="_swingPoses"/> exactly. The
+    /// mapping into it lives in <see cref="GaitPoseResolver"/>; unlike the
+    /// swing poses it is never scaled by playback speed, because
+    /// <see cref="GaitAnimationSystem"/>'s phase already advances by distance
+    /// travelled per ingested tick rather than by elapsed seconds
+    /// (movement-gait-animation-design.md section 4).
+    /// </summary>
+    private readonly Dictionary<ulong, GaitPose> _gaitPoses = [];
     private readonly DiagnosticLog _log;
 
     /// <summary>
@@ -654,6 +671,11 @@ public sealed partial class ArenaGame : Game
             _presentation.Swings,
             _simulation.Agents,
             _swingPoses);
+        GaitPoseResolver.Resolve(
+            _presentation.Gait,
+            _simulation.Agents,
+            _motionManager.Value,
+            _gaitPoses);
         var screenBounds = GraphicsDevice.Viewport.Bounds;
         _fonts?.SelectScale(
             _configuredUiScale,
@@ -714,7 +736,9 @@ public sealed partial class ArenaGame : Game
         {
             var panelInteraction = _armyCompositionPanel.Update(
                 _input,
-                screenBounds);
+                screenBounds,
+                gameTime.ElapsedGameTime,
+                _motionManager.Value);
             pointerConsumed = panelInteraction.PointerConsumed;
             consumedBy = pointerConsumed ? "armyComposition" : consumedBy;
             ApplyArmyCompositionResult(panelInteraction.Result);
@@ -864,7 +888,9 @@ public sealed partial class ArenaGame : Game
                 interaction = _eventLogPanel.Update(
                     _input,
                     _presentation.EventFeed,
-                    layout.EventBounds);
+                    layout.EventBounds,
+                    gameTime.ElapsedGameTime,
+                    _motionManager.Value);
                 pointerConsumed = interaction.PointerConsumed;
                 consumedBy = pointerConsumed ? "eventLog" : consumedBy;
             }
@@ -884,7 +910,9 @@ public sealed partial class ArenaGame : Game
                 interaction = _inspectorPanel.Update(
                     _input,
                     _presentation.Selection.Resolve(_simulation.Agents),
-                    layout.InspectorBounds);
+                    layout.InspectorBounds,
+                    gameTime.ElapsedGameTime,
+                    _motionManager.Value);
                 pointerConsumed = interaction.PointerConsumed;
                 consumedBy = pointerConsumed ? "inspector" : consumedBy;
             }
@@ -901,6 +929,15 @@ public sealed partial class ArenaGame : Game
                 pointerConsumed,
                 (float)gameTime.ElapsedGameTime.TotalSeconds);
         }
+
+        // Unconditional: must decay every frame even when a higher-priority
+        // surface consumed the pointer above, so the badge never stalls
+        // mid-pulse (UI-52 surface E).
+        _statusBadgeMotion.Observe(
+            _simulation.Outcome,
+            _presentation.Playback.IsPlaying,
+            gameTime.ElapsedGameTime,
+            _motionManager.Value);
 
         LogPointer(consumedBy);
         LogFocusChange();

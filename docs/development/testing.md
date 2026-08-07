@@ -3910,6 +3910,11 @@ until that observation is performed.
 | UI-9. Motion Reduced | Select Motion Reduced. Hover, focus, and press buttons: color transitions remain gentle, no control shifts position, and the setting takes effect immediately. | Not run | PENDING |
 | UI-10. Motion Full | Select Motion Full. Hover and press buttons: transitions ease smoothly and a pressed control moves by no more than one active-scale pixel without changing its clickable bounds. | Not run | PENDING |
 | UI-11. Cebu 1521 Court theme | Select `Cebu 1521 — Provisional` and confirm the selector label reads `PROVISIONAL RECONSTRUCTION`. The restrained dark hardwood, woven-fibre, warm metal, soot-black, and textile-red palette reads as a provisional early-contact chiefly-court interpretation rather than a generic European-medieval or modern national design; text and faction signals remain legible. | Not run | PENDING |
+| UI-12. Battle event log new-event accent | With a battle running and the event log panel visible, let a new event append while the log is on screen. At Motion Off, the new row's text renders in its final new-event accent colour immediately, with no colour fade. At Motion Reduced and Motion Full, the row's text eases from the new-event accent colour back toward the normal text colour over roughly 200 ms, and the two intensities look identical to each other. Row order, row height, and every other row are unaffected at every intensity. | Not run | PENDING |
+| UI-13. Selected-agent inspector accent | Select an agent, open the agent inspector, then select a different agent while the inspector stays open. At Motion Off, the inspector's accent updates to the newly selected agent immediately, with no colour fade. At Motion Reduced and Motion Full, the accent eases in from the emphasis colour over roughly 160 ms before settling, and the two intensities look identical to each other. Re-selecting the agent that is already selected does not retrigger the accent. | Not run | PENDING |
+| UI-14. Selector arrow and active-marker interpolation | In the menu, hover the pointer over a selector's previous and next arrows (theme, gore, motion, auto camera, or UI scale) and change the selector's value. At Motion Off, the hovered arrow's highlight and the active-value marker snap instantly with no fade, and hit targets are unaffected. At Motion Reduced and Motion Full, the hovered arrow eases toward its highlighted colour and the marker eases toward its emphasis colour over the selector's pulse duration, and the two intensities look identical to each other. Moving focus without changing the selector's value does not retrigger the marker pulse. | Not run | PENDING |
+| UI-15. Control-bar active strip | On the control bar, toggle play/pause and change the simulation speed. At Motion Off, each button's active strip snaps instantly to its active colour at its existing six-pixel width. At Motion Reduced and Motion Full, the strip's colour eases from the inactive border colour toward the active colour over roughly 120 ms when a button becomes active, and eases back when it deactivates; the two intensities look identical to each other. The strip's width and the button's hit target never change at any intensity. | Not run | PENDING |
+| UI-16. Status-badge emphasis (one-shot, non-looping) | Cause the battle outcome to change, or toggle play/pause so the playing flag changes, and watch the status badge for several seconds afterward. At Motion Off, the badge's fill snaps to the new state's colour immediately with no pulse. At Motion Reduced and Motion Full, the badge briefly pulses toward its emphasis colour and settles back within roughly 450 to 650 ms, and the two intensities look identical to each other; the badge does not pulse again on its own while the state stays unchanged. Toggling the same state change again triggers a fresh, single pulse each time. | Not run | PENDING |
 
 ### Last-stand formation smoke
 
@@ -4785,6 +4790,39 @@ person watching a battle can pick a leader out.
 | LC-9 | Click a warrior in a battle running the frozen `IndependentPursuitV1` preset, where `ContingentState` is always `None` | No leadership row appears, because no leader is elected under this preset — if one somehow is elected, the row appears rather than being silently dropped | | PENDING |
 | LC-10 | Watch a full battle to the end and open the battle report | The report is unchanged; its "Leaderboard" still ranks kills and makes no claim about contingent leadership | | PENDING |
 | LC-11 | Run the same seed twice and compare the same warrior at the same tick in both runs | Identical appearance and identical leader marks; nothing about who leads or how they look differs between the two runs | | PENDING |
+### Movement gait animation smoke (2026-08-07)
+
+**No interactive run was performed for this change.** Every row below is
+`PENDING`. The automated tests prove the pose mathematics, the per-entity
+store, the leg and foot rectangles, the detail-tier gating, the quad
+accounting, and the wiring; none of them prove that a warrior on screen looks
+like it is walking, that a run reads differently from a walk, or that two
+hundred warriors advancing together do not read as a marching band. Design:
+`docs/plans/2026-08-07-movement-gait-animation-design.md`.
+
+The restructured body is what makes this section load-bearing rather than
+routine. The torso was shortened from twelve layout units to eight so the legs
+could take a real share of the silhouette, which moved the head, the shield,
+the armor, the sash, and the adornment accents up by six pixels at the test
+fixture's scale. Nothing automated can say whether the result still reads as a
+warrior.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| GA-1 | Watch one warrior cross open ground at default zoom | The legs visibly alternate and the feet lift and plant; the warrior does not slide | | PENDING |
+| GA-2 | Compare a warrior closing on a target against one holding position | The moving one steps; the stationary one stands with both feet planted | | PENDING |
+| GA-3 | Watch a fast advance and a slow one | The fast gait reads as a run — longer stride, higher foot lift, forward lean — not merely as the same walk played faster | | PENDING |
+| GA-4 | Watch a contingent advance together at default zoom | The warriors do not all step on the same foot at the same moment | | PENDING |
+| GA-5 | Pause mid-advance | Every leg freezes where it was; nothing keeps moving and nothing snaps to a neutral stance | | PENDING |
+| GA-6 | Run the battle at 2x and at 4x | The step cadence speeds up with the battle; no warrior appears to skate or to run in place | | PENDING |
+| GA-7 | Zoom out to the lowest detail tier | Legs and feet disappear cleanly; the pawn falls back to the ground ring with no flicker at the tier boundary | | PENDING |
+| GA-8 | Zoom in to the highest detail tier | The feet are distinguishable from the legs and read as bare feet | | PENDING |
+| GA-9 | Set motion to Reduced, then to Off | Reduced keeps the legs moving with a shorter stride; Off leaves the legs drawn and completely still | | PENDING |
+| GA-10 | Watch a warrior die mid-stride | The corpse does not continue stepping and does not run in place | | PENDING |
+| GA-11 | Look at any warrior standing still, at default zoom | The restructured body still reads as head, torso, and legs — not as a head on stilts or a torso with stumps | | PENDING |
+| GA-12 | Watch a shield bearer advance | The shield still reads as covering chest and abdomen, and no swinging leg crosses or hides it | | PENDING |
+| GA-13 | Watch a warrior attack while moving | The swing and the gait compose without the body jumping between two poses | | PENDING |
+| GA-14 | Watch a battle at 200 agents from minimum zoom | The formation still reads as a formation; leg motion has not turned the field into noise | | PENDING |
 
 ## Failure classification
 

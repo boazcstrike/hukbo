@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Hukbo.Core.Simulation;
 using Microsoft.Xna.Framework;
@@ -65,6 +66,15 @@ internal sealed partial class BattleEventLogPanel
     private ulong _cachedDetailsScenarioSeed;
     private string[] _cachedDetails = [];
 
+    // Surface A (new-event row emphasis). _highestVisibleSequence is the
+    // highest Sequence observed among visible rows as of the last frame.
+    // _newEventThreshold is the exclusive threshold rows are compared
+    // against while the pulse is active: it is the *previous* highest
+    // sequence, recorded at the moment the highest sequence advanced.
+    private long? _highestVisibleSequence;
+    private long? _newEventThreshold;
+    private UiEmphasisPulse _newEventPulse;
+
     public Rectangle Bounds { get; private set; }
 
     public bool HasKeyboardFocus =>
@@ -79,7 +89,20 @@ internal sealed partial class BattleEventLogPanel
     public UiInteraction Update(
         InputEdges input,
         BattleEventFeed feed,
-        Rectangle bounds)
+        Rectangle bounds) =>
+        Update(input, feed, bounds, TimeSpan.Zero, MotionIntensity.Off);
+
+    /// <summary>
+    /// Motion-aware overload. Behaves exactly like the three-argument
+    /// overload, and additionally advances the Surface A new-event row
+    /// emphasis pulse using unscaled elapsed time.
+    /// </summary>
+    public UiInteraction Update(
+        InputEdges input,
+        BattleEventFeed feed,
+        Rectangle bounds,
+        TimeSpan elapsed,
+        MotionIntensity motionIntensity)
     {
         Bounds = bounds;
         _pointerPosition = input.MousePosition;
@@ -87,6 +110,8 @@ internal sealed partial class BattleEventLogPanel
         var pointerInside = Bounds.Contains(input.MousePosition);
         var visibleRowCount = GetVisibleRowCount(layout);
         var visibleEntries = feed.GetVisibleEntries(visibleRowCount);
+
+        AdvanceNewEventEmphasis(visibleEntries, elapsed, motionIntensity);
 
         HandlePointerClick(
             input,
@@ -103,6 +128,36 @@ internal sealed partial class BattleEventLogPanel
         }
 
         return new UiInteraction(ClientCommand.None, pointerInside);
+    }
+
+    /// <summary>
+    /// Tracks the highest visible <c>Sequence</c> across frames. When it
+    /// advances, records the previous highest as the exclusive emphasis
+    /// threshold and triggers the pulse; otherwise only decays the pulse.
+    /// </summary>
+    private void AdvanceNewEventEmphasis(
+        ReadOnlySpan<BattleEvent> visibleEntries,
+        TimeSpan elapsed,
+        MotionIntensity motionIntensity)
+    {
+        var isMotionEnabled = UiSecondaryMotion.IsEnabled(motionIntensity);
+        var currentHighest = visibleEntries.Length > 0
+            ? visibleEntries[^1].Sequence
+            : (long?)null;
+
+        if (currentHighest.HasValue &&
+            (!_highestVisibleSequence.HasValue ||
+             currentHighest.Value > _highestVisibleSequence.Value))
+        {
+            _newEventThreshold = _highestVisibleSequence;
+            _newEventPulse.Trigger(isMotionEnabled);
+        }
+
+        _highestVisibleSequence = currentHighest;
+        _newEventPulse.Advance(
+            elapsed,
+            UiSecondaryMotion.NewEventDuration,
+            isMotionEnabled);
     }
 
     public bool HandleEscape(InputEdges input, BattleEventFeed feed)

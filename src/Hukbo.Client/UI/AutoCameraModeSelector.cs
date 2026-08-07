@@ -44,6 +44,7 @@ internal sealed class AutoCameraModeSelector
 
     private readonly UiThemeSelectorLayout _layout;
     private readonly UiTextRoles _textRoles;
+    private readonly UiSelectorMotion _motion = new();
 
     public AutoCameraModeSelector(UiThemeStandards standards)
     {
@@ -150,6 +151,27 @@ internal sealed class AutoCameraModeSelector
         return new AutoCameraSelectorInteraction(null, pointerInside);
     }
 
+    /// <summary>
+    /// Advances the shared arrow-hover and marker-pulse motion. Called once
+    /// per visible-menu frame from <see cref="MenuOverlay.Update"/>, before
+    /// the early-returning interaction chain, so a selection reported by any
+    /// other selector never stalls this one's transitions mid-flight.
+    /// </summary>
+    public void AdvanceMotion(
+        InputEdges input,
+        TimeSpan elapsed,
+        MotionIntensity intensity,
+        AutoCameraMode current)
+    {
+        _motion.AdvanceMotion(
+            input.MousePosition,
+            PreviousBounds,
+            NextBounds,
+            GetSelectedMarkerText(current),
+            elapsed,
+            intensity);
+    }
+
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
@@ -175,13 +197,13 @@ internal sealed class AutoCameraModeSelector
             fonts.Get(_textRoles.SelectorArrow),
             "<",
             PreviousBounds.Center.ToVector2(),
-            colors.TextPrimary);
+            _motion.PreviousArrowColor(colors));
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(_textRoles.SelectorArrow),
             ">",
             NextBounds.Center.ToVector2(),
-            colors.TextPrimary);
+            _motion.NextArrowColor(colors));
 
         var centerX = Bounds.Center.X;
         UiPrimitives.DrawCenteredText(
@@ -213,7 +235,7 @@ internal sealed class AutoCameraModeSelector
                 centerX,
                 Bounds.Top +
                     UiScaleContext.Pixels(_layout.MarkerTopOffset)),
-            colors.Selection);
+            _motion.MarkerColor(colors));
     }
 
     private int GetArrowWidth() =>

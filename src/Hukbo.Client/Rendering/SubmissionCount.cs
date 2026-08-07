@@ -98,6 +98,8 @@ internal static class PawnQuadCount
         var total = 0;
 
         total += CountGroundBase(layout.GroundRingBounds);
+        total += CountLegs(layout);
+        total += CountFeet(layout);
         total += CountSecondaryEquipment(layout, appearance);
         total += torsoResolutionStep == VisualFallbackStep.DiagnosticPlaceholder
             ? CountPlaceholder(layout.PlaceholderBounds)
@@ -132,6 +134,26 @@ internal static class PawnQuadCount
     /// </summary>
     private static int CountGroundBase(Rectangle bounds) =>
         1 + (IsEmpty(Inset(bounds, 1)) ? 0 : 1);
+
+    /// <summary>
+    /// <c>PawnRenderer.DrawLegs</c> (movement-gait-animation design section
+    /// 7): one quad per non-empty leg rectangle, zero at
+    /// <see cref="PawnDetailTier.Low"/> where <c>PawnGeometry</c> returns
+    /// both leg rectangles <see cref="Rectangle.Empty"/>.
+    /// </summary>
+    private static int CountLegs(PawnLayout layout) =>
+        (IsEmpty(layout.LeftLegBounds) ? 0 : 1) +
+        (IsEmpty(layout.RightLegBounds) ? 0 : 1);
+
+    /// <summary>
+    /// <c>PawnRenderer.DrawFeet</c> (movement-gait-animation design section
+    /// 7): one quad per non-empty foot rectangle, zero at
+    /// <see cref="PawnDetailTier.Low"/> for the same reason as
+    /// <see cref="CountLegs"/>.
+    /// </summary>
+    private static int CountFeet(PawnLayout layout) =>
+        (IsEmpty(layout.LeftFootBounds) ? 0 : 1) +
+        (IsEmpty(layout.RightFootBounds) ? 0 : 1);
 
     /// <summary>
     /// <c>PawnRenderer.DrawSecondaryEquipment</c>: nothing when the layout
@@ -399,6 +421,31 @@ internal static class BackdropQuadCount
 /// </summary>
 internal static class RenderBudgetEstimate
 {
+    // movement-gait-animation T4: the legs and feet
+    // (PawnRenderer.DrawLegs/DrawFeet, PawnQuadCount.CountLegs/CountFeet)
+    // raised the representative dense per-pawn quad count
+    // RenderBudgetEstimateTests measures against these two ceilings from 20
+    // to 24 quads (High tier, the unshielded/unarmored Kampilan baseline
+    // pinned by PawnQuadCountTests.Count_PinsTheHighTierUnshieldedUnarmoredNormalPawn):
+    // a left and a right leg quad, plus a left and a right foot quad, is a
+    // delta of +4. Backdrop's own worst case (ground grid + decals + grass
+    // clusters + trample marks + dust puffs, every one at its own hard cap
+    // simultaneously) is unaffected by this change and stays 4,032 quads.
+    //
+    //   old: (20 quads/pawn x 200 units) + 4,032 backdrop =  8,032 quads
+    //   new: (24 quads/pawn x 200 units) + 4,032 backdrop =  8,832 quads
+    //   old: (20 quads/pawn x 500 units) + 4,032 backdrop = 14,032 quads
+    //   new: (24 quads/pawn x 500 units) + 4,032 backdrop = 16,032 quads
+    //
+    // Both new totals still fit under the existing ceilings below with
+    // margin, so those ceilings are left exactly as VIS-034/035 set them —
+    // moving either one for a per-pawn cost that already fits inside it
+    // would be the "silently rewritten to match a measurement" this class's
+    // own doc comment forbids (R-W6.14). RenderBudgetEstimateTests recomputes
+    // the actual per-pawn term from PawnQuadCount.Count every run, so this
+    // comment records the arithmetic rather than a value the test re-derives
+    // on its own.
+
     /// <summary>Arena-batch quad ceiling at 200 visible units.</summary>
     internal const int ArenaBatchQuadsAt200UnitsEstimate = 12_000;
 
