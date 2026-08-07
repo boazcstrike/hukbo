@@ -116,6 +116,22 @@ namespace Hukbo.Core.Simulation;
 /// <see langword="false"/>, and <c>0</c> for a corpse. Defaulted for the same
 /// reason <see cref="Facing"/> is.
 /// </param>
+/// <param name="RangedPhase">
+/// This warrior's readable draw-and-loose cycle, a **derived projection and
+/// not stored state** — <see cref="RangedPhaseProjection.Derive"/> computes
+/// it every tick from the attack cooldown the tick has already produced, per
+/// ranged-units design section 8.1. <see cref="Simulation.RangedPhase.None"/>
+/// forever for a melee weapon, at every cooldown value. Defaulted for the
+/// same reason <see cref="Facing"/> is.
+/// </param>
+/// <param name="RangedPhaseTicksRemaining">
+/// How many ticks remain in <see cref="RangedPhase"/>, derived alongside it
+/// by <see cref="RangedPhaseProjection.Derive"/>. Strictly decreasing while a
+/// ranged warrior stays in one phase; <c>0</c> whenever
+/// <see cref="RangedPhase"/> is <see cref="Simulation.RangedPhase.None"/> or
+/// <see cref="Simulation.RangedPhase.Ready"/>. Defaulted for the same reason
+/// <see cref="Facing"/> is.
+/// </param>
 public readonly record struct AgentView(
     ulong EntityId,
     int FactionId,
@@ -140,4 +156,6 @@ public readonly record struct AgentView(
     int FootworkTicksRemaining = 0,
     bool BrokeOffUnderPressure = false,
     int PressureBasisPoints = 0,
-    int PressureThresholdBasisPoints = 0);
+    int PressureThresholdBasisPoints = 0,
+    RangedPhase RangedPhase = RangedPhase.None,
+    int RangedPhaseTicksRemaining = 0);
