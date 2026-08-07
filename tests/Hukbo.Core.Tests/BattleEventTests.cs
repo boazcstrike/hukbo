@@ -266,6 +266,8 @@ public sealed class BattleEventTests
     [InlineData(BattleEventKind.Damage)]
     [InlineData(BattleEventKind.Death)]
     [InlineData(BattleEventKind.Outcome)]
+    [InlineData(BattleEventKind.Release)]
+    [InlineData(BattleEventKind.Miss)]
     public void NonAttack_LeavesTheResolutionNull(BattleEventKind kind)
     {
         var battleEvent = BattleEvent.NonAttack(
@@ -285,6 +287,8 @@ public sealed class BattleEventTests
     [InlineData(BattleEventKind.Damage)]
     [InlineData(BattleEventKind.Death)]
     [InlineData(BattleEventKind.Outcome)]
+    [InlineData(BattleEventKind.Release)]
+    [InlineData(BattleEventKind.Miss)]
     public void NonAttack_AllowsEveryNonAttackKind(BattleEventKind kind)
     {
         var battleEvent = BattleEvent.NonAttack(
