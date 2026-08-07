@@ -1777,3 +1777,72 @@ Task 74 is the one to schedule deliberately rather than opportunistically. It is
 the first task in this project that will change simulation behaviour on purpose,
 and it touches four subsystems that currently agree with each other only because
 none of them consults the value that is supposed to govern them.
+
+### The wave-10 audit, run before dispatch — 2026-08-08
+
+Wave 10 is tasks 49, 50, 72, 73, and 74. Both directions of the audit were run
+over their rows before any agent was dispatched. The file-level check passed: no
+file is claimed by two tasks. It then found three things a file-level check
+cannot see, and two of them are decisions rather than observations, so they are
+recorded here at the time they were taken rather than after the wave.
+
+#### Task 74 is re-scoped: two of its four constants are not defects
+
+Task 74's row, written during wave 9, says to wire all four ruleset constants
+into the code that should consume them. Reading the code first showed that two of
+the four are already correct by design.
+
+`PathService` does not read `SandataRuleset` on purpose, and the reason is
+written at the site: the latency "is a ruleset constant in the caller's
+possession... so it stays usable in a test or a tool that has no ruleset to
+hand." `WeaponLoweredRules` has the same shape for `LoweredWallDistanceWu`. Both
+take their value as a parameter, which is this codebase's established convention
+for handing a ruleset constant to a `Sandata.Core` type.
+
+So for those two the gap is not in the consumer. It is that **no caller passes
+the ruleset's value**, and the caller is the tick pipeline. That half moves to
+task 49's call-site obligations, and task 74 was explicitly forbidden both files.
+
+What remains in task 74 is the two genuine deviations, where the design states a
+rule and no code implements it at all: design section 8's cohesion-radius union
+in `SquadGrouping`, and design section 9's `|ShortestArc| <= AimToleranceBam`
+comparison feeding `WeaponChain.Advance`.
+
+This is worth recording as a general caution. Wave 9 established that all four
+constants were unread, which was true. The inference that all four were therefore
+defects was not, and it survived into a task row. **A finding and its remedy are
+separate claims, and the remedy needs its own reading of the code.**
+
+#### Task 49 cannot run beside tasks 72 and 74
+
+Their file sets are disjoint, so the file-level audit passed them for the same
+wave. They still cannot run in parallel.
+
+Task 49 is the first production caller of the order queue, of squad grouping, and
+of the weapon chain. Task 72 changes the order queue's writable surface and task
+74 changes both of the other two. Whichever merged second would carry a call site
+written against a surface that had moved underneath it — a conflict created on
+purpose, exactly what the disjointness rule exists to prevent, and invisible to
+that rule because no file is shared.
+
+Wave 10 therefore runs as two batches: 50, 72, 73, and 74 together, then task 49
+alone against the merged result. This is the third wave in a row to need a
+second batch, and the reason differs each time. Wave 7's was the eight-agent
+ceiling, wave 9's was a missing dependency, and wave 10's is an API surface two
+tasks move and a third consumes.
+
+**The audit question that catches this one is not "which files does each task
+own" but "which surfaces does each task move, and who calls them".**
+
+#### Task 50 could not reach its own acceptance criterion
+
+Its row says the benchmark is exposed "behind headless flags" and its file list
+names no `Program.cs`. `Sandata.Headless/Program.cs` parses only `--help` and the
+log flags today, so as scoped the benchmark would have been unreachable from any
+command line and its "runs to completion and prints all six percentiles"
+criterion unsatisfiable.
+
+`Program.cs` was granted to task 50 for its navigation-benchmark flags only. Task
+51 still owns the determinism workload flags next wave, and task 50 was told not
+to add them and not to "fix" the known `Unsupported argument '--agents'` failure,
+which remains expected rather than a defect.
