@@ -47,21 +47,6 @@
           "Microsoft.TestPlatform.ObjectModel": "18.8.1"
         }
       },
-      "MonoGame.Library.OpenAL": {
-        "type": "Transitive",
-        "resolved": "1.24.3.4",
-        "contentHash": "/FhE0hblY9owGPvIHnMbH+6kXtjfl+/t3Cm776RQiZnGyxGy2Qd9pTAzclLuMO8pvtjiGLYkkRwjRciUA4XFyQ=="
-      },
-      "MonoGame.Library.SDL": {
-        "type": "Transitive",
-        "resolved": "2.32.10.2",
-        "contentHash": "mtnmWr50KgH2Ui9fPscHPMI3sXgb5NBRnPS7igi4ViJ23ROdP+MLi/j9CmLWX47KuXvI3Bp5BElCDVwRUlswgg=="
-      },
-      "NVorbis": {
-        "type": "Transitive",
-        "resolved": "0.10.4",
-        "contentHash": "WYnil3DhQHzjCY0dM9I2B3r1vWip90AOuQd25KE4NrjPQBg0tBJFluRLm5YPnO5ZLDmwrfosY8jCQGQRmWI/Pg=="
-      },
       "xunit.abstractions": {
         "type": "Transitive",
         "resolved": "2.0.3",
@@ -102,55 +87,24 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
-      "hukbo.client": {
-        "type": "Project",
-        "dependencies": {
-          "Hukbo.Core": "[1.0.0, )",
-          "Hukbo.Diagnostics": "[1.0.0, )",
-          "MonoGame.Content.Builder.Task": "[3.8.5, )",
-          "MonoGame.Framework.DesktopGL": "[3.8.5, )"
-        }
-      },
-      "hukbo.core": {
-        "type": "Project",
-        "dependencies": {
-          "Hukbo.Shared.Core": "[1.0.0, )"
-        }
-      },
       "hukbo.diagnostics": {
         "type": "Project"
       },
       "hukbo.shared.core": {
         "type": "Project"
       },
-      "MonoGame.Content.Builder.Task": {
-        "type": "CentralTransitive",
-        "requested": "[3.8.5, )",
-        "resolved": "3.8.5",
-        "contentHash": "J+iCTYSkmQLI5WMVxJ/PSidUesd/A3izDVn8JlUTlMrBI/hOeGjGSIux497zVWlNGlmvoIWDunKTwRbkAXYFHA=="
-      },
-      "MonoGame.Framework.DesktopGL": {
-        "type": "CentralTransitive",
-        "requested": "[3.8.5, )",
-        "resolved": "3.8.5",
-        "contentHash": "oG5Thkic4i/6kX3OWtq2p6DEATflP71yM0p/1ymIoFaIp1xNFOqAd4jW2D9GIQLIMT6mn5RmJknYPqJnOQbi5w==",
+      "sandata.core": {
+        "type": "Project",
         "dependencies": {
-          "MonoGame.Library.OpenAL": "1.24.3.4",
-          "MonoGame.Library.SDL": "2.32.10.2",
-          "NVorbis": "0.10.4"
+          "Hukbo.Shared.Core": "[1.0.0, )"
         }
-      }
-    },
-    "net10.0/win-x64": {
-      "MonoGame.Library.OpenAL": {
-        "type": "Transitive",
-        "resolved": "1.24.3.4",
-        "contentHash": "/FhE0hblY9owGPvIHnMbH+6kXtjfl+/t3Cm776RQiZnGyxGy2Qd9pTAzclLuMO8pvtjiGLYkkRwjRciUA4XFyQ=="
       },
-      "MonoGame.Library.SDL": {
-        "type": "Transitive",
-        "resolved": "2.32.10.2",
-        "contentHash": "mtnmWr50KgH2Ui9fPscHPMI3sXgb5NBRnPS7igi4ViJ23ROdP+MLi/j9CmLWX47KuXvI3Bp5BElCDVwRUlswgg=="
+      "sandata.headless": {
+        "type": "Project",
+        "dependencies": {
+          "Hukbo.Diagnostics": "[1.0.0, )",
+          "Sandata.Core": "[1.0.0, )"
+        }
       }
     }
   }

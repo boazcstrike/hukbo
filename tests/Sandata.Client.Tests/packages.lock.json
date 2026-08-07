@@ -102,26 +102,26 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
-      "hukbo.client": {
-        "type": "Project",
-        "dependencies": {
-          "Hukbo.Core": "[1.0.0, )",
-          "Hukbo.Diagnostics": "[1.0.0, )",
-          "MonoGame.Content.Builder.Task": "[3.8.5, )",
-          "MonoGame.Framework.DesktopGL": "[3.8.5, )"
-        }
-      },
-      "hukbo.core": {
-        "type": "Project",
-        "dependencies": {
-          "Hukbo.Shared.Core": "[1.0.0, )"
-        }
-      },
       "hukbo.diagnostics": {
         "type": "Project"
       },
       "hukbo.shared.core": {
         "type": "Project"
+      },
+      "sandata.client": {
+        "type": "Project",
+        "dependencies": {
+          "Hukbo.Diagnostics": "[1.0.0, )",
+          "MonoGame.Content.Builder.Task": "[3.8.5, )",
+          "MonoGame.Framework.DesktopGL": "[3.8.5, )",
+          "Sandata.Core": "[1.0.0, )"
+        }
+      },
+      "sandata.core": {
+        "type": "Project",
+        "dependencies": {
+          "Hukbo.Shared.Core": "[1.0.0, )"
+        }
       },
       "MonoGame.Content.Builder.Task": {
         "type": "CentralTransitive",

@@ -88,7 +88,10 @@
         }
       },
       "hukbo.core": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Hukbo.Shared.Core": "[1.0.0, )"
+        }
       },
       "hukbo.diagnostics": {
         "type": "Project"
@@ -99,6 +102,9 @@
           "Hukbo.Core": "[1.0.0, )",
           "Hukbo.Diagnostics": "[1.0.0, )"
         }
+      },
+      "hukbo.shared.core": {
+        "type": "Project"
       }
     }
   }

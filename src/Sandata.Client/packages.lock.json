@@ -34,17 +34,17 @@
         "resolved": "0.10.4",
         "contentHash": "WYnil3DhQHzjCY0dM9I2B3r1vWip90AOuQd25KE4NrjPQBg0tBJFluRLm5YPnO5ZLDmwrfosY8jCQGQRmWI/Pg=="
       },
-      "hukbo.core": {
-        "type": "Project",
-        "dependencies": {
-          "Hukbo.Shared.Core": "[1.0.0, )"
-        }
-      },
       "hukbo.diagnostics": {
         "type": "Project"
       },
       "hukbo.shared.core": {
         "type": "Project"
+      },
+      "sandata.core": {
+        "type": "Project",
+        "dependencies": {
+          "Hukbo.Shared.Core": "[1.0.0, )"
+        }
       }
     },
     "net10.0/win-x64": {
