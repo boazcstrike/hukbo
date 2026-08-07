@@ -411,6 +411,18 @@ public static class NavBenchmark
         return (startCellIndex, bestGoalCellIndex);
     }
 
+    /// <summary>
+    /// Marshals <paramref name="walls"/>' four coordinate fields into the flat
+    /// <see langword="long"/> arrays <see cref="WallBuckets.Build"/> requires,
+    /// verbatim — a perimeter wall's endpoint sitting exactly on the map's
+    /// far edge (for example angle-house's <c>WALL 0 720 640 720 1</c>, whose
+    /// Y coordinate equals the fixture's own <c>HeightWu</c>) no longer needs
+    /// any local adjustment here: <see cref="WallBuckets.Build"/> itself now
+    /// clamps only the coordinates it feeds its broad-phase traversal, and
+    /// stores every segment's true, unclamped endpoint for the narrow phase.
+    /// Matches <c>Sandata.Client.SandataGame.BuildWallBuckets</c>'s own
+    /// unadorned marshaling for the identical call.
+    /// </summary>
     private static WallBuckets BuildWallBuckets(NavGrid grid, IReadOnlyList<WallRecord> walls)
     {
         var segmentAX = new long[walls.Count];
@@ -420,42 +432,13 @@ public static class NavBenchmark
 
         for (var i = 0; i < walls.Count; i++)
         {
-            var (ax, ay) = ClampToGridBounds(walls[i].X1, walls[i].Y1, grid);
-            var (bx, by) = ClampToGridBounds(walls[i].X2, walls[i].Y2, grid);
-            segmentAX[i] = ax;
-            segmentAY[i] = ay;
-            segmentBX[i] = bx;
-            segmentBY[i] = by;
+            segmentAX[i] = walls[i].X1;
+            segmentAY[i] = walls[i].Y1;
+            segmentBX[i] = walls[i].X2;
+            segmentBY[i] = walls[i].Y2;
         }
 
         return WallBuckets.Build(grid, segmentAX, segmentAY, segmentBX, segmentBY);
-    }
-
-    /// <summary>
-    /// Pulls a wall endpoint one world unit inward whenever it sits exactly
-    /// on <paramref name="grid"/>'s outer edge, so <see cref="GridRay.Traverse"/>
-    /// — which <see cref="WallBuckets.Build"/> uses for its broad phase, and
-    /// which requires its origin's cell to lie strictly inside the grid —
-    /// never sees a coordinate whose cell is one past the grid's last valid
-    /// row or column. A perimeter wall's endpoints are authored at the exact
-    /// map bounds (for example angle-house's <c>WALL 0 720 640 720 1</c>,
-    /// whose Y coordinate equals the fixture's own <c>HeightWu</c>), and
-    /// <see cref="NavGrid.WorldToCellCoordinate"/> maps that exact bound to
-    /// the cell one past the last one, matching
-    /// <see cref="Sandata.Core.Navigation.NavBake"/>'s own tolerance for the
-    /// identical case via <see cref="NavGrid.TryGetCellIndex"/>. Only the far
-    /// edge needs this: world unit 0 already maps to cell 0, which is always
-    /// in bounds.
-    /// </summary>
-    private static (long X, long Y) ClampToGridBounds(long x, long y, NavGrid grid)
-    {
-        var maxX = ((long)grid.Width * NavGrid.CellSizeWu) - 1;
-        var maxY = ((long)grid.Height * NavGrid.CellSizeWu) - 1;
-
-        var clampedX = x < 0 ? 0 : x > maxX ? maxX : x;
-        var clampedY = y < 0 ? 0 : y > maxY ? maxY : y;
-
-        return (clampedX, clampedY);
     }
 
     /// <summary>
