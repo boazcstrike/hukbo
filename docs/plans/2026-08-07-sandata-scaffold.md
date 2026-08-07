@@ -950,3 +950,251 @@ declarations rather than missing files.
 | # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 69 | 7 | Client composition | Compose the HUD from task 38's elements, wire task 37's operator geometry and task 39's sound player into the game loop, and draw all of it through the existing world renderer and theme. The layout helpers stay pure and untouched; this task owns only the composition and the call sites. Where an element needs a value the simulation does not yet expose, pass a documented placeholder rather than reaching into `Sandata.Core`. | `src/Sandata.Client/SandataGame.cs`, `src/Sandata.Client/UI/HudComposer.cs`, `tests/Sandata.Client.Tests/HudComposerTests.cs` | `HudComposerTests` passes with no graphics device: the composed rectangles do not overlap at three window sizes, every element from design section 11's HUD list is present exactly once, and the composer degrades sanely at the smallest supported window rather than producing negative or inverted rectangles. Whether any of it actually appears on screen stays a manual smoke row that only a human at a desktop may flip. | 33, 37, 38, 39 | |
+
+### Wave 7 complete, 2026-08-07
+
+Nine tasks — 42, 43, 45, 46, 47, 48, 57, 68, and 69 — all merged into
+`sandata-scaffold`, each from its own worktree, with no merge conflicts. The
+wave held nine tasks against an eight-agent ceiling, so it ran as two batches:
+eight in parallel, then task 69 alone.
+
+Counts through the supported entry point:
+
+```
+./scripts/test.ps1 -Configuration Release -Game Sandata
+Total tests: 909
+     Passed: 909
+Total tests: 169
+     Passed: 169
+[PASS] Release repository tests completed.
+```
+
+The canonical gate was run by the integrating thread after integration, not
+delegated:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+  "outcome": "Faction1Victory",
+  "eventHash": "AC55684F24D39344",
+  "stateHash": "1B73FC5923879AA0",
+  "deterministic": true,
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+Still byte-identical to untouched `main`. Seven waves of a second game have now
+moved no Hukbo hash.
+
+#### Why task 69 was held back rather than dropped from the wave
+
+The eight-agent ceiling forced a split, and which task to hold was not
+arbitrary. Task 45 built the three tactical overlays and task 46 built the
+minimap, the multi-select state, the drag capture layer, and the undo stack, all
+as pure helpers with no call site. Task 69's row named only tasks 37, 38, and
+39, so as written nothing in the plan ever drew tasks 45 or 46. That is the
+sixth instance of the unowned-step pattern this project has hit.
+
+Holding task 69 for the second batch turned the ceiling into the fix. By the
+time it ran, tasks 45 and 46 were merged and visible to it, and every call site
+it needed lived inside `SandataGame.cs`, which it already owned. Its brief was
+extended to cover them explicitly. No file ownership changed and no task was
+re-cut.
+
+#### A real defect in the collision resolver, found by task 43
+
+`SandataCollisionResolver.CommitOne` does not guarantee non-overlap. Task 43 hit
+it as a reproducible `Entities 2 and 3 overlap after commit` failure, correctly
+declined to edit `src/Sandata.Core/Collision/` because it was outside its file
+list, and reported it. The integrating thread verified the claim against the
+source before accepting it rather than trusting the report.
+
+There are two distinct causes, both in `SandataCollisionResolver.cs`:
+
+- `_committedGrid` is cleared at the start of every `Resolve` call and gains a
+  body only when that body's own turn is processed, in ascending priority order.
+  The highest-priority entity therefore evaluates its move against an empty
+  grid, and can move directly onto a lower-priority entity's real current
+  position without seeing anything there.
+- The `Blocked` fallback commits the entity to `request.StartXRaw` and
+  `request.StartYRaw` unconditionally, with no check that the start position is
+  still clear. By the time a lower-priority entity is blocked, an
+  earlier-priority entity may already be standing where it is about to fall
+  back to.
+
+The separation path only fires on exact coincidence, through
+`AnyCoincidentUnchecked`, so a partial overlap at the desired position skips the
+separation search entirely and goes straight to the unchecked fallback.
+
+Task 43 worked around this inside its own test's proposal generator, which was
+the right call for a task forbidden the file, but it means the production defect
+is still present. A passing `LocalAvoidanceTests` does not prove that stage 10
+cannot produce an overlap. This is the same shape as the wave-6 note about task
+35's door path: a rule proven generically and not yet wired to the thing it has
+to govern.
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 70 | 8 | Close the collision resolver's overlap hole | Make `SandataCollisionResolver.Resolve` guarantee that no two committed bodies overlap. Seed `_committedGrid` with every request's start position before the commit loop and remove each body as its own turn is processed, so a mover sees the real current positions of entities it has not reached yet. Make the `Blocked` fallback validate the start position before committing to it, and give the resolver a written rule for what happens when the start position is itself occupied. Change the commit priority order in no way — it is the total key `(groupId, slotIndex, entityId)` and it stays that. Remove task 43's `WouldStepIntoALowerPriorityEntitysCurrentPosition` guard from `LocalAvoidanceTests` once the resolver no longer needs it, and say in the report whether the funnel test still passes without it. | `src/Sandata.Core/Collision/SandataCollisionResolver.cs`, `tests/Sandata.Core.Tests/SandataCollisionTests.cs`, `tests/Sandata.Core.Tests/LocalAvoidanceTests.cs` | `SandataCollisionTests` gains a fact that fails against today's resolver: two entities where the higher-priority one's desired position lands exactly on the lower-priority one's start position, asserted to produce no overlap after commit. A second fact covers the blocked-fallback case, where an entity's start position has been taken by an earlier commit. `LocalAvoidanceTests` passes with task 43's test-side guard removed, and the pinned eight-body committed-position list from task 16 is re-derived and re-pinned if it moved, with the move reported rather than absorbed. | 16, 43 | |
+
+Task 70 is placed in wave 8 rather than wave 7 because it changes committed
+positions, and every wave-7 task that consumes the resolver had to be green
+against the current behaviour before the behaviour moves underneath it.
+
+#### The alert ladder: the code and design section 5 currently disagree
+
+Task 68 implemented a fixed-ceiling model rather than the two adjacent steps
+design section 5's amendment narrates. Under its reading, the low-severity
+trigger family — an identified contact, or a heard sound that carries intent —
+raises the level to at most `Raised`, and the high-severity family — a friendly
+death or a wall breach — raises it to at most `Breach`, from wherever the level
+started. A friendly death therefore reaches `Breach` directly from `Calm`.
+
+The design text says `Raised` becomes `Breach` on a friendly death, which read
+literally means a death only matters once the faction has already noticed
+something else. The integrating thread checked that literal reading before
+accepting the deviation, and it is degenerate. Triggers are evaluated per tick.
+A first death evaluates against a previous level of `Calm`, so only the raise
+rule can fire; on the following tick the death is no longer a trigger, and
+`Breach` is never reached. Under the literal ladder the first death in a mission
+can never breach — only a death occurring after some separate contact or heard
+sound can. That is very unlikely to be what the amendment intended.
+
+Two consequences are recorded here rather than settled:
+
+- **Design section 5's amendment needs an edit, and it is a gameplay decision
+  rather than an implementation detail**, so it is deliberately not made here.
+  The code is the deviation until someone confirms it. Reversing it is one line
+  in `AlertRules.Evaluate`.
+- **Task 68's acceptance criterion is now inaccurate.** "Each trigger raises
+  exactly one level and no more" describes the ladder reading. The property the
+  implementation actually holds, and the one its tests assert, is that no
+  trigger raises the level past its own named ceiling. If the ceiling model is
+  confirmed, the criterion should be restated in those terms.
+
+This is the third time in this project that an acceptance criterion has turned
+out to describe something other than the behaviour wanted. The first two were
+caught after the fact; this one was caught because the implementer reported the
+ambiguity instead of choosing silently.
+
+#### Three more unowned steps, none of them files
+
+- **Nothing supplies the production formation half-width.** Task 42 correctly
+  made it a parameter and used a test-local value of 8, marked provisional. No
+  `SandataRuleset` field carries it and nothing derives it from the slot table,
+  although the maximum absolute lateral offset across a formation's slots is the
+  obvious derivation. Whichever task wires stage 9 owns this.
+- **Nothing implements `ISandataSoundOutput` against MonoGame.** Task 69 wired
+  task 39's `SandataSoundPlayer` into the game loop against a private
+  `NullSandataSoundOutput` stub that always refuses, because no MonoGame-backed
+  implementation exists anywhere and adding one was outside its file list. The
+  sound player is constructed, correct, and mute. There is also no shot-event
+  source to trigger it until the tick pipeline lands.
+- **`tools/README.md` has no row for `Sandata.Tools.AudioPool`.** Every other
+  harness under `tools/` is described there. Task 48 could not reach the file
+  and said so. Task 54 is the documentation task and is the natural owner.
+
+Task 49's brief now carries four call-site obligations that wave 7 created and
+deliberately did not satisfy: apply the order queue at stage 1, evaluate the
+alert transition during stage 5 and commit it after the frozen view is released,
+apply the formation collapse to slot offsets in stage 9, and run local avoidance
+at stage 10. Each is a pure function today with no production caller.
+
+#### What the audio pool measurement found
+
+Task 48's harness ran on this machine and returned a real number rather than an
+estimate. The MonoGame DesktopGL and OpenAL instance pool holds 256 concurrent
+instances; the 257th `Play()` raises `InstancePlayLimitException`. Eight
+shooters, each holding one looping instance with a tail cue fired at every tail
+interval, sustained ten seconds of continuous fire with zero refusals and zero
+exceptions.
+
+`SandataSoundBudget.DefaultMaximumInstances` is currently 64, so the provisional
+constant is conservative by a factor of four rather than optimistic. These
+figures are recorded here and in no other document. Task 53 re-runs the harness
+and task 54 writes the numbers into `docs/development/testing.md`.
+
+The harness measures `Microsoft.Xna.Framework.Audio.SoundEffectInstance`
+directly rather than going through `SandataSoundPlayer`, which is `internal` to
+`Sandata.Client`. That was deliberate: widening the grant is the open decision
+recorded in the wave-6 amendment above, and a measurement harness is not the
+place to settle it.
+
+#### `verify.ps1 -Game Sandata` and what it currently proves
+
+Task 47's passthrough works end to end. `./scripts/verify.ps1 -Game Sandata`
+passes formatting, the Release build, and both Sandata test suites, then fails
+at the benchmark stage with:
+
+```
+Argument error: Unsupported argument '--agents'.
+Usage: sandata-headless [--help] [--log-level off|err|warn|inf|dbg|trc] ...
+```
+
+That is the expected state and not a defect. `Sandata.Headless/Program.cs`
+parses only `--help` and the log flags today; task 51 adds the workload flags.
+The failure is itself evidence the passthrough is correct, because the flags
+reached the Sandata headless binary rather than the Hukbo one.
+
+The default gate is untouched. `./scripts/verify.ps1` with no `-Game` argument
+still invokes `benchmark.ps1` exactly once with 200 agents, 10,000 ticks, and
+seed 1, and `ScriptDefaultsTests` was proved able to fail by temporarily adding
+a second invocation and observing
+`Assert.Single() Failure: The collection contained 2 items`.
+
+Task 47 also replaced `doctor.ps1`'s four hardcoded lock-file paths with a check
+derived from the project list rather than from the lock files on disk, on the
+reasoning that a disk-derived list can only confirm files that exist and can
+never notice a project whose lock file was never generated. All twenty projects
+report present, and the check was proved able to fail by removing
+`src/Sandata.Core/packages.lock.json` and observing
+`[FAIL] Project is missing its packages.lock.json`.
+
+#### Provisional constants this wave introduced
+
+All marked at their site, none presented as measured or derived:
+
+- `UndoStack<T>.DefaultDepthLimit = 50` (task 46). The depth-limit test uses a
+  caller-supplied limit instead, so no acceptance criterion depends on the
+  invented number.
+- `OrderPathOverlay.WaypointMarkerRadiusWu = 6` and
+  `BreachMarkerOverlay.BreachMarkerRadiusWu = 12` (task 45), the latter chosen
+  larger than `WorldRenderer.WallThicknessWu` so a breach marker does not vanish
+  inside its own wall. The fire cone's far edge is a straight chord rather than
+  a true arc, marked as a rendering simplification.
+- `Order.MaxAuthoredPathNodeCount = 128` (task 57). Design section 16 requires
+  the cap to be a `const` on the order type and names no value. Task 58 enforces
+  it as a rejection rule and may revise it before any fixture depends on it.
+- Task 43's funnel fixture constants, all test-local: a 200-tick budget, a
+  15-raw maximum step, a 10-raw body radius, a 40-raw cell size, and a 15-raw
+  door half-width.
+- Task 69's ten placeholder values, each documented at its site with the task
+  that supplies the real one — body radius for nav baking, operator apparent
+  scale and detail tier, fire-cone half-width and range, alert level, the empty
+  order-path waypoint list, the entity id taken from a spawn record's array
+  index, the faction-0-is-friendly mapping, and the null sound output backend.
+
+Task 48's harness constants — an eight-operator maximum, a 150 ms loop clip, a
+764 ms tail clip, and a ten-second sustain — live in `tools/` only and reach no
+shipped code.
+
+#### Two things worth remembering from this wave
+
+**A doorway cannot be a mathematical point.** Task 43's first funnel fixture
+aimed eight lanes at the exact coordinate `(0,0)` and deadlocked permanently.
+Eight bodies of finite radius cannot occupy one point, and because the sidestep
+rule is fully deterministic — a fixed rotation with the side pinned on entity id
+parity — a failed sidestep against a symmetric, equally frozen neighbour never
+resolves on retry, since nothing about the state changes between ticks. The
+fixture now uses a finite door band. This is a property of any deterministic
+avoidance model and is worth knowing before anyone tunes one: determinism
+removes the jitter that lets a stochastic model escape a symmetric deadlock.
+
+**Verify a report's numbers against the disk, not against the report.** Task
+69's report gave `SandataGame.cs` as 663 lines; the file on disk is 887. Nothing
+about the work was wrong and the test output was accurate, but the file-level
+figures in a long agent report drifted. Every branch in this wave was checked
+with `git diff --stat` against its merge base before merging, and every reported
+file list matched. Doing that check is cheap and it is the only thing that would
+have caught a report claiming a file it never wrote.
