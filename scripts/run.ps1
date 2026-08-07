@@ -10,15 +10,22 @@ param(
 
     [string] $LogChannels,
 
-    [switch] $NoBuild
+    [switch] $NoBuild,
+
+    # Which game's client to launch. Defaults to 'Hukbo' so a caller that
+    # never passes -Game gets today's behavior unchanged.
+    [ValidateSet('Hukbo', 'Sandata')]
+    [string] $Game = 'Hukbo'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_common.ps1')
+. (Join-Path $PSScriptRoot '_gametargets.ps1')
 
 $root = Get-RepositoryRoot
-$clientProject = 'src/Hukbo.Client/Hukbo.Client.csproj'
+$target = Get-GameTarget -Game $Game
+$clientProject = $target.Client
 Push-Location $root
 try {
     Restore-RepositoryTools
@@ -49,7 +56,7 @@ try {
 
     Write-Host "Debug log level: $effectiveLevel"
     Write-Host "Debug log directory: $(Join-Path $root 'artifacts/logs')"
-    Write-Host 'Starting Hukbo. Press Escape for Play, Pause, and Exit Game.'
+    Write-Host "Starting $Game. Press Escape for Play, Pause, and Exit Game."
     Invoke-DotNet -Arguments @(
         'run',
         '--project', $clientProject,

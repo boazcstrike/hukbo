@@ -1,17 +1,33 @@
 [CmdletBinding()]
 param(
     [ValidateSet('win-x64')]
-    [string] $Runtime = 'win-x64'
+    [string] $Runtime = 'win-x64',
+
+    # Which game's client to publish. Defaults to 'Hukbo' so a caller that
+    # never passes -Game gets today's behavior unchanged, including the
+    # output path below.
+    [ValidateSet('Hukbo', 'Sandata')]
+    [string] $Game = 'Hukbo'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_common.ps1')
+. (Join-Path $PSScriptRoot '_gametargets.ps1')
 
 $root = Get-RepositoryRoot
-$clientProject = 'src/Hukbo.Client/Hukbo.Client.csproj'
+$target = Get-GameTarget -Game $Game
+$clientProject = $target.Client
 $packageRoot = Join-Path $root 'artifacts/packages'
-$outputLeaf = "client-$Runtime"
+# The Hukbo leaf is unchanged from before -Game existed. Sandata gets its own
+# prefixed leaf so the two games' packages never collide in the same
+# artifacts/packages directory.
+$outputLeaf = if ($Game -eq 'Hukbo') {
+    "client-$Runtime"
+}
+else {
+    "$($Game.ToLowerInvariant())-client-$Runtime"
+}
 $output = Join-Path $packageRoot $outputLeaf
 $stagingLeaf = ".$outputLeaf-staging-$([guid]::NewGuid().ToString('N'))"
 $staging = Join-Path $packageRoot $stagingLeaf
