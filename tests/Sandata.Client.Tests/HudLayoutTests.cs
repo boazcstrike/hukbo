@@ -1,6 +1,7 @@
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Sandata.Client.UI;
+using Sandata.Core.Navigation;
 
 namespace Sandata.Client.Tests;
 
@@ -218,5 +219,39 @@ public sealed class HudLayoutTests
         var bounds = OperatorInspector.CalculateBounds(new Rectangle(0, 0, windowWidth, windowHeight));
 
         Assert.Equal(new Rectangle(x, y, width, height), bounds);
+    }
+
+    /// <summary>
+    /// Task 71's own done-when bar for <see cref="HudComposer"/>'s
+    /// go-code-panel/order-queue-view stacking math: at a window far smaller
+    /// than every panel's preferred size, both of task 71's own synthetic
+    /// windows (<c>goCodePanelWindow</c>, <c>orderQueueViewWindow</c> inside
+    /// <see cref="HudComposer.Compose"/>) still clamp to a non-negative,
+    /// real-window-bounded rectangle. This is distinct from
+    /// <c>PathDrawToolTests</c>'s own <c>GoCodePanel_CalculateBounds_ClipsSanelyForATooSmallWindow</c>
+    /// and <c>OrderQueueView_CalculateBounds_ClipsSanelyForATooSmallWindow</c>,
+    /// which exercise the two panel helpers' own clamp directly against a
+    /// too-small window rectangle; this test exercises task 71's own
+    /// composition-stacking math instead — the synthetic window each panel is
+    /// handed, not the panel helper's own clamp.
+    /// </summary>
+    [Fact]
+    public void HudComposer_GoCodePanelAndOrderQueueViewClipSanelyAtATooSmallComposedWindow()
+    {
+        var windowBounds = new Rectangle(0, 0, 100, 60);
+        var minimapGrid = new NavGrid(width: 4, height: 3);
+
+        var layout = HudComposer.Compose(
+            windowBounds, operatorCount: 4, contactCount: 5, minimapGrid, goCodeCount: 4, orderQueueEntryCount: 5);
+
+        Assert.True(layout.GoCodePanel.Width >= 0);
+        Assert.True(layout.GoCodePanel.Height >= 0);
+        Assert.True(layout.GoCodePanel.Width <= windowBounds.Width);
+        Assert.True(layout.GoCodePanel.Height <= windowBounds.Height);
+
+        Assert.True(layout.OrderQueueView.Width >= 0);
+        Assert.True(layout.OrderQueueView.Height >= 0);
+        Assert.True(layout.OrderQueueView.Width <= windowBounds.Width);
+        Assert.True(layout.OrderQueueView.Height <= windowBounds.Height);
     }
 }

@@ -10,6 +10,7 @@ using Sandata.Client.UI;
 using Sandata.Core.Maps;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Navigation;
+using Sandata.Core.Orders;
 
 namespace Sandata.Client;
 
@@ -131,6 +132,27 @@ internal sealed class SandataGame : Game
     /// </summary>
     private const float LineThicknessPixels = 2f;
 
+    // ---- Task 71 placeholders: no tick pipeline (task 49) is wired into the
+    // Sandata client yet, so every order this class submits — a drawn path,
+    // a go-code release — necessarily carries this task's own stand-in
+    // values rather than a real simulation clock or a real per-code roster.
+
+    /// <summary>
+    /// The <see cref="Order.TargetTick"/> every order this class submits
+    /// carries. No tick pipeline exists yet (task 49); <c>0</c> is the
+    /// earliest tick any pipeline can ever reach, so every order submitted
+    /// before task 49 exists necessarily lands on it.
+    /// </summary>
+    private const long PlaceholderOrderTargetTick = 0;
+
+    /// <summary>
+    /// The <see cref="Order.FactionId"/> every order this class submits
+    /// addresses. Matches this constructor's own established "faction 0 is
+    /// the spectator's own squad" convention (see the
+    /// <c>spawn.Faction == 0</c> check above).
+    /// </summary>
+    private const int PlaceholderOrderFactionId = 0;
+
     /// <summary>
     /// A theme used only if the shipped catalog at
     /// <c>Content/Themes/sandata-theme-standards.json</c> cannot be read or
@@ -204,6 +226,7 @@ internal sealed class SandataGame : Game
     private readonly SandataCamera _camera;
     private readonly SandataTheme _theme;
     private readonly NavGrid _navGrid;
+    private readonly WallBuckets _wallBuckets;
     private readonly SandataSoundPlayer _soundPlayer;
     private readonly UndoStack<int> _undoStack = new();
     private readonly int _operatorCount;
@@ -213,8 +236,13 @@ internal sealed class SandataGame : Game
     private Texture2D? _pixel;
     private int _previousScrollWheelValue;
     private MouseState _previousMouseState;
+    private KeyboardState _previousKeyboardState;
     private DragCapture _dragCapture = DragCapture.Inactive;
     private MultiSelectState _multiSelect = MultiSelectState.Empty;
+    private PathDrawState _pathDrawState = PathDrawState.CreateEmpty();
+    private OrderQueue _orderQueue = OrderQueue.Empty;
+    private ImmutableArray<GoCodePanel.GoCodeEntry> _goCodeEntries = ImmutableArray<GoCodePanel.GoCodeEntry>.Empty;
+    private ImmutableArray<OrderQueueView.Entry> _orderQueueEntries = ImmutableArray<OrderQueueView.Entry>.Empty;
 
     /// <summary>
     /// Builds the game window. <paramref name="mapRecords"/> is the already
@@ -267,6 +295,13 @@ internal sealed class SandataGame : Game
         var heightCells = Math.Clamp(mapHeightWu / NavGrid.CellSizeWu, 1, NavGrid.MaxDimensionCells);
         _navGrid = new NavGrid(widthCells, heightCells);
         NavBake.Bake(_navGrid, _wallRecords, _doorRecords, PlaceholderBodyRadiusWu);
+
+        // OrderQueue.SubmitValidated requires a non-null WallBuckets for every
+        // order kind, including OrderKind.GoCodeRelease (task 71 build item
+        // 5), so this task's own order-submission call sites need one built
+        // over the same wall data _navGrid was already baked from — no
+        // earlier task builds one for the Sandata client.
+        _wallBuckets = BuildWallBuckets(_navGrid, _wallRecords);
 
         // Task 39 built SandataSoundPlayer and SandataSoundBudget but
         // deliberately left the MonoGame-backed ISandataSoundOutput to a
@@ -327,15 +362,20 @@ internal sealed class SandataGame : Game
     protected override void Update(GameTime gameTime)
     {
         var mouseState = Mouse.GetState();
+        var keyboardState = Keyboard.GetState();
         _camera.Update(
-            Keyboard.GetState(),
+            keyboardState,
             mouseState.ScrollWheelValue,
             _previousScrollWheelValue,
             (float)gameTime.ElapsedGameTime.TotalSeconds);
         _previousScrollWheelValue = mouseState.ScrollWheelValue;
 
         UpdateDragCapture(mouseState);
+        UpdatePathDrawing(mouseState);
+        UpdateGoCodeReleases(keyboardState);
+
         _previousMouseState = mouseState;
+        _previousKeyboardState = keyboardState;
 
         base.Update(gameTime);
     }
@@ -350,18 +390,8 @@ internal sealed class SandataGame : Game
     private void UpdateDragCapture(MouseState mouseState)
     {
         var windowBounds = GraphicsDevice.Viewport.Bounds;
-        var hudLayout = HudComposer.Compose(windowBounds, _operatorCount, _contactCount, _navGrid);
-        Rectangle[] panelBounds =
-        [
-            hudLayout.RosterStrip,
-            hudLayout.ContactList,
-            hudLayout.AlertIndicator,
-            hudLayout.MissionClock,
-            hudLayout.EventLog,
-            hudLayout.OperatorInspector,
-            hudLayout.ControlBar,
-            hudLayout.Minimap,
-        ];
+        var hudLayout = ComposeHudLayout(windowBounds);
+        var panelBounds = ComposedPanelBounds(hudLayout);
 
         var wasPressed = _previousMouseState.LeftButton == ButtonState.Pressed;
         var isPressed = mouseState.LeftButton == ButtonState.Pressed;
@@ -384,6 +414,252 @@ internal sealed class SandataGame : Game
 
             _dragCapture = _dragCapture.End();
         }
+    }
+
+    /// <summary>
+    /// Task 71's pointer routing for the in-world path-drawing layer: a
+    /// right-button press converts to a world-space point and is appended to
+    /// the in-progress drawn path via <see cref="TryAddPathNode"/>, unless it
+    /// starts inside any composed HUD panel — mirroring
+    /// <see cref="UI.DragCapture.Begin"/>'s own refusal for the same reason,
+    /// design section 11's pointer-priority chain: "the topmost consuming
+    /// element wins ... the in-world layer is last." The right mouse button
+    /// is this task's own input-mapping decision — design section 11 names
+    /// no physical input for path drawing, and the left button already
+    /// drives drag-capture and marquee selection.
+    /// </summary>
+    private void UpdatePathDrawing(MouseState mouseState)
+    {
+        var wasPressed = _previousMouseState.RightButton == ButtonState.Pressed;
+        var isPressed = mouseState.RightButton == ButtonState.Pressed;
+        if (!isPressed || wasPressed)
+        {
+            return;
+        }
+
+        var windowBounds = GraphicsDevice.Viewport.Bounds;
+        var hudLayout = ComposeHudLayout(windowBounds);
+        var panelBounds = ComposedPanelBounds(hudLayout);
+
+        var worldPositionWu = _camera.ScreenToWorld(mouseState.Position, windowBounds);
+        _pathDrawState = TryAddPathNode(_pathDrawState, mouseState.Position, worldPositionWu, panelBounds);
+    }
+
+    /// <summary>
+    /// Task 71's go-code keypress wiring: releasing an A-through-Z key
+    /// submits one <see cref="OrderKind.GoCodeRelease"/> order addressed to
+    /// whichever operators the marquee currently has selected, via
+    /// <see cref="ReleaseGoCode"/> — design section 16: "releasing that
+    /// letter is itself an order ... a keypress therefore enters the same
+    /// queue as everything else." No earlier task wires a real per-letter
+    /// operator assignment into the Sandata client, so the current
+    /// multi-select is this task's own provisional stand-in for "the
+    /// operators tied to the released code." The <see cref="Keys"/>-to-
+    /// <see langword="char"/> conversion happens here, in impure code,
+    /// because <see cref="ReleaseGoCode"/> and every other pure helper this
+    /// class exposes must not depend on a platform input type (the
+    /// <c>hukbo-client-ui</c> skill's platform-input rule).
+    /// </summary>
+    private void UpdateGoCodeReleases(KeyboardState keyboardState)
+    {
+        for (var key = Keys.A; key <= Keys.Z; key++)
+        {
+            var wasDown = _previousKeyboardState.IsKeyDown(key);
+            var isDown = keyboardState.IsKeyDown(key);
+            if (!wasDown || isDown)
+            {
+                continue;
+            }
+
+            var letter = (char)('A' + (key - Keys.A));
+            var addressees = ToAddressees(_multiSelect.SelectedEntityIds);
+
+            (_orderQueue, _goCodeEntries, _orderQueueEntries) = ReleaseGoCode(
+                letter,
+                addressees,
+                PlaceholderOrderTargetTick,
+                PlaceholderOrderFactionId,
+                _orderQueue,
+                _navGrid,
+                _wallBuckets,
+                _goCodeEntries,
+                _orderQueueEntries);
+        }
+    }
+
+    /// <summary>
+    /// Composes <see cref="HudComposer.Layout"/> for <paramref name="windowBounds"/>
+    /// from this instance's own operator/contact/go-code/order-queue counts —
+    /// the one place every <see cref="HudComposer.Compose"/> call site in this
+    /// class builds its arguments, so <see cref="UpdateDragCapture"/>,
+    /// <see cref="UpdatePathDrawing"/>, and <see cref="Draw(GameTime)"/> can
+    /// never drift out of sync with one another.
+    /// </summary>
+    private HudComposer.Layout ComposeHudLayout(Rectangle windowBounds) =>
+        HudComposer.Compose(windowBounds, _operatorCount, _contactCount, _navGrid, _goCodeEntries.Length, _orderQueueEntries.Length);
+
+    /// <summary>
+    /// Every panel <paramref name="hudLayout"/> anchors, in the same order
+    /// <see cref="UpdateDragCapture"/> already established before task 71 —
+    /// now including <see cref="HudComposer.Layout.GoCodePanel"/> and
+    /// <see cref="HudComposer.Layout.OrderQueueView"/>, so both drag-capture
+    /// refusal and path-node refusal cover them exactly as they already cover
+    /// every other panel.
+    /// </summary>
+    private static Rectangle[] ComposedPanelBounds(HudComposer.Layout hudLayout) =>
+    [
+        hudLayout.RosterStrip,
+        hudLayout.ContactList,
+        hudLayout.AlertIndicator,
+        hudLayout.MissionClock,
+        hudLayout.EventLog,
+        hudLayout.OperatorInspector,
+        hudLayout.GoCodePanel,
+        hudLayout.OrderQueueView,
+        hudLayout.ControlBar,
+        hudLayout.Minimap,
+    ];
+
+    /// <summary>
+    /// Whether <paramref name="position"/> falls inside any rectangle in
+    /// <paramref name="panelBounds"/> — the same "a higher-priority panel
+    /// already consumed this pointer-down" test <see cref="UI.DragCapture.Begin"/>
+    /// already applies to the drag-capture layer, reused here so path
+    /// drawing obeys the identical pointer-priority rule.
+    /// </summary>
+    internal static bool IsPointerOverAnyPanel(Point position, IReadOnlyList<Rectangle> panelBounds)
+    {
+        foreach (var bounds in panelBounds)
+        {
+            if (bounds.Contains(position))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Appends a node at <paramref name="worldPositionWu"/> to
+    /// <paramref name="state"/> via <see cref="UI.PathDrawTool.AddNode"/>,
+    /// unless <paramref name="screenPosition"/> falls inside any of
+    /// <paramref name="panelBounds"/> — in which case the panel has already
+    /// consumed the pointer-down and <paramref name="state"/> is returned
+    /// unchanged, so a click on the go-code panel or the order queue view
+    /// (or any other composed panel) never becomes a path node.
+    /// </summary>
+    internal static PathDrawState TryAddPathNode(
+        PathDrawState state, Point screenPosition, Vector2 worldPositionWu, IReadOnlyList<Rectangle> panelBounds)
+    {
+        if (IsPointerOverAnyPanel(screenPosition, panelBounds))
+        {
+            return state;
+        }
+
+        var node = new DrawnPathNode((long)MathF.Round(worldPositionWu.X), (long)MathF.Round(worldPositionWu.Y));
+        return PathDrawTool.AddNode(state, node);
+    }
+
+    /// <summary>
+    /// Converts <paramref name="selectedEntityIds"/> —
+    /// <see cref="UI.MultiSelectState.SelectedEntityIds"/>'s own placeholder
+    /// entity-id representation — to the <see langword="ulong"/> addressee
+    /// list <see cref="OrderQueue.SubmitValidated"/> requires. No
+    /// <c>EntityId</c> type wider than <see langword="int"/> exists yet in
+    /// the Sandata client, so this is a direct widening, not a lookup.
+    /// </summary>
+    internal static ImmutableArray<ulong> ToAddressees(ImmutableArray<int> selectedEntityIds)
+    {
+        if (selectedEntityIds.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<ulong>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<ulong>(selectedEntityIds.Length);
+        foreach (var entityId in selectedEntityIds)
+        {
+            builder.Add((ulong)entityId);
+        }
+
+        return builder.MoveToImmutable();
+    }
+
+    /// <summary>
+    /// Submits one <see cref="OrderKind.GoCodeRelease"/> order for
+    /// <paramref name="letter"/>, addressed to <paramref name="addressees"/>,
+    /// through <see cref="OrderQueue.SubmitValidated"/> — the same door
+    /// <see cref="UI.PathDrawTool.Submit"/> uses for a drawn path — and folds
+    /// the result into both the go-code panel's own entry list and the order
+    /// queue view's entry list, so an accepted release marks its code
+    /// released and a rejected one still becomes an observable queue entry
+    /// carrying its specific <see cref="OrderRejectReason"/> (design section
+    /// 16: "rejection is observable").
+    /// </summary>
+    internal static (
+        OrderQueue Queue,
+        ImmutableArray<GoCodePanel.GoCodeEntry> GoCodeEntries,
+        ImmutableArray<OrderQueueView.Entry> OrderQueueEntries) ReleaseGoCode(
+        char letter,
+        ImmutableArray<ulong> addressees,
+        long targetTick,
+        int factionId,
+        OrderQueue queue,
+        NavGrid grid,
+        WallBuckets wallBuckets,
+        ImmutableArray<GoCodePanel.GoCodeEntry> existingGoCodeEntries,
+        ImmutableArray<OrderQueueView.Entry> existingOrderQueueEntries)
+    {
+        ArgumentNullException.ThrowIfNull(queue);
+        ArgumentNullException.ThrowIfNull(grid);
+        ArgumentNullException.ThrowIfNull(wallBuckets);
+
+        var (updatedQueue, submitted, rejection) = queue.SubmitValidated(
+            targetTick, factionId, addressees, OrderKind.GoCodeRelease, grid, wallBuckets);
+
+        var goCodeEntries = existingGoCodeEntries.IsDefault
+            ? ImmutableArray<GoCodePanel.GoCodeEntry>.Empty
+            : existingGoCodeEntries;
+        var orderQueueEntries = existingOrderQueueEntries.IsDefault
+            ? ImmutableArray<OrderQueueView.Entry>.Empty
+            : existingOrderQueueEntries;
+
+        if (submitted is not null)
+        {
+            goCodeEntries = goCodeEntries.Add(new GoCodePanel.GoCodeEntry(letter, addressees.Length, IsReleased: true));
+            orderQueueEntries = orderQueueEntries.Add(OrderQueueView.FromSubmittedOrder(submitted));
+        }
+        else if (rejection is not null)
+        {
+            orderQueueEntries = orderQueueEntries.Add(
+                OrderQueueView.FromRejection(rejection, OrderKind.GoCodeRelease, targetTick));
+        }
+
+        return (updatedQueue, goCodeEntries, orderQueueEntries);
+    }
+
+    /// <summary>
+    /// Converts the in-progress drawn path's nodes to the
+    /// <see cref="Vector2"/> world-unit waypoint list
+    /// <see cref="UI.OrderPathOverlay.CreateWorldSegments"/> and
+    /// <see cref="UI.OrderPathOverlay.CreateWaypointWorldShapes"/> both
+    /// already accept — the placeholder empty list <see cref="DrawOrderPath"/>
+    /// used before this task retires here.
+    /// </summary>
+    internal static ImmutableArray<Vector2> ToOrderPathWaypointsWu(ImmutableArray<DrawnPathNode> nodes)
+    {
+        if (nodes.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<Vector2>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<Vector2>(nodes.Length);
+        foreach (var node in nodes)
+        {
+            builder.Add(new Vector2(node.X, node.Y));
+        }
+
+        return builder.MoveToImmutable();
     }
 
     private ImmutableArray<MarqueeCandidate> BuildMarqueeCandidates(Rectangle contentBounds)
@@ -454,7 +730,7 @@ internal sealed class SandataGame : Game
         DrawOperatorsAndFireCones(spriteBatch, contentBounds);
         DrawOrderPath(spriteBatch, contentBounds);
 
-        var hudLayout = HudComposer.Compose(contentBounds, _operatorCount, _contactCount, _navGrid);
+        var hudLayout = ComposeHudLayout(contentBounds);
         DrawHud(spriteBatch, contentBounds, hudLayout);
         DrawMinimapCells(spriteBatch, hudLayout.Minimap);
         DrawMarquee(spriteBatch);
@@ -527,27 +803,27 @@ internal sealed class SandataGame : Game
     }
 
     /// <summary>
-    /// Task 45's order-path overlay, always composed with an empty waypoint
-    /// list: design section 16's order layer does not exist yet, so there is
-    /// no real waypoint source to read. <see cref="OrderPathOverlay.CreateWorldSegments"/>
-    /// and <see cref="OrderPathOverlay.CreateWaypointWorldShapes"/> both
-    /// already define "fewer than the minimum input" as "produce nothing",
-    /// so this call is reachable and correct today, and starts drawing real
-    /// paths the moment a future task supplies real waypoints — no change
-    /// needed here.
+    /// Task 45's order-path overlay, now (task 71) fed the real in-progress
+    /// drawn path's nodes via <see cref="ToOrderPathWaypointsWu"/> instead of
+    /// the placeholder empty list task 69 composed it with.
+    /// <see cref="OrderPathOverlay.CreateWorldSegments"/> and
+    /// <see cref="OrderPathOverlay.CreateWaypointWorldShapes"/> both already
+    /// define "fewer than the minimum input" as "produce nothing", so this
+    /// draws nothing before the first node is placed and the whole polyline
+    /// once <see cref="_pathDrawState"/> has one.
     /// </summary>
     private void DrawOrderPath(SpriteBatch spriteBatch, Rectangle contentBounds)
     {
-        var placeholderWaypointsWu = ImmutableArray<Vector2>.Empty;
+        var waypointsWu = ToOrderPathWaypointsWu(_pathDrawState.Nodes);
 
-        var worldSegments = OrderPathOverlay.CreateWorldSegments(placeholderWaypointsWu);
+        var worldSegments = OrderPathOverlay.CreateWorldSegments(waypointsWu);
         var screenSegments = OrderPathOverlay.ToScreenSegments(worldSegments, _camera, contentBounds);
         foreach (var segment in screenSegments)
         {
             DrawLine(spriteBatch, segment.Start, segment.End, _theme.Colors.OrderPath);
         }
 
-        var waypointShapes = OrderPathOverlay.CreateWaypointWorldShapes(placeholderWaypointsWu);
+        var waypointShapes = OrderPathOverlay.CreateWaypointWorldShapes(waypointsWu);
         foreach (var shape in waypointShapes)
         {
             Draw(spriteBatch, shape, contentBounds, _theme.Colors.Waypoint);
@@ -558,9 +834,10 @@ internal sealed class SandataGame : Game
     /// Draws every panel <see cref="HudComposer.Layout"/> anchors — a filled,
     /// bordered background rectangle for each, since no font/text pipeline
     /// exists anywhere in <c>Sandata.Client</c> to render row content onto
-    /// them. Roster tiles and control-bar buttons get one extra layer of
-    /// sub-rectangle geometry since their own task-38 helpers already expose
-    /// it cheaply; the rest are a single panel rectangle.
+    /// them. Roster tiles, control-bar buttons, go-code rows, and order queue
+    /// rows each get one extra layer of sub-rectangle geometry since their
+    /// own helpers already expose it cheaply; the rest are a single panel
+    /// rectangle.
     /// </summary>
     private void DrawHud(SpriteBatch spriteBatch, Rectangle windowBounds, HudComposer.Layout layout)
     {
@@ -572,10 +849,53 @@ internal sealed class SandataGame : Game
         DrawPanel(spriteBatch, layout.EventLog);
         DrawPanel(spriteBatch, layout.OperatorInspector);
 
+        DrawPanel(spriteBatch, layout.GoCodePanel);
+        DrawGoCodeRows(spriteBatch, layout.GoCodePanel);
+
+        DrawPanel(spriteBatch, layout.OrderQueueView);
+        DrawOrderQueueRows(spriteBatch, layout.OrderQueueView);
+
         DrawPanel(spriteBatch, layout.ControlBar);
         DrawControlButtons(spriteBatch, layout.ControlBar);
 
         DrawAlertIndicator(spriteBatch, layout.AlertIndicator);
+    }
+
+    /// <summary>
+    /// Draws one colored row per <see cref="_goCodeEntries"/> entry, using
+    /// <see cref="UI.GoCodePanel.CalculateRowBounds"/> and
+    /// <see cref="UI.GoCodePanel.ResolveEntryColor"/> — the same "no
+    /// font/text pipeline, so a row is a colored rectangle" precedent
+    /// <see cref="DrawRosterTiles"/> and <see cref="DrawControlButtons"/>
+    /// already establish; <see cref="UI.GoCodePanel.FormatEntryLine"/> is
+    /// never called for the same reason no other panel's <c>FormatEntryLine</c>
+    /// equivalent is called anywhere in this class's draw path.
+    /// </summary>
+    private void DrawGoCodeRows(SpriteBatch spriteBatch, Rectangle panelBounds)
+    {
+        for (var index = 0; index < _goCodeEntries.Length; index++)
+        {
+            var rowBounds = GoCodePanel.CalculateRowBounds(panelBounds, index);
+            var color = GoCodePanel.ResolveEntryColor(_theme.Colors, _goCodeEntries[index]);
+            spriteBatch.Draw(_pixel, rowBounds, color);
+        }
+    }
+
+    /// <summary>
+    /// Draws one colored row per <see cref="_orderQueueEntries"/> entry,
+    /// using <see cref="UI.OrderQueueView.CalculateRowBounds"/> and
+    /// <see cref="UI.OrderQueueView.ResolveEntryColor"/> — see
+    /// <see cref="DrawGoCodeRows"/>'s own remarks for why no
+    /// <c>FormatEntryLine</c> call belongs in this draw path.
+    /// </summary>
+    private void DrawOrderQueueRows(SpriteBatch spriteBatch, Rectangle panelBounds)
+    {
+        for (var index = 0; index < _orderQueueEntries.Length; index++)
+        {
+            var rowBounds = OrderQueueView.CalculateRowBounds(panelBounds, index);
+            var color = OrderQueueView.ResolveEntryColor(_theme.Colors, _orderQueueEntries[index]);
+            spriteBatch.Draw(_pixel, rowBounds, color);
+        }
     }
 
     private void DrawRosterTiles(SpriteBatch spriteBatch, Rectangle windowBounds, Rectangle stripBounds)
@@ -819,6 +1139,30 @@ internal sealed class SandataGame : Game
         }
 
         return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Marshals <paramref name="walls"/>' four coordinate fields into the flat
+    /// <see langword="long"/> arrays <see cref="WallBuckets.Build"/> requires.
+    /// Un-tested data marshaling, matching <see cref="FindWalls"/> and
+    /// <see cref="FindDoors"/>'s own precedent immediately above.
+    /// </summary>
+    private static WallBuckets BuildWallBuckets(NavGrid grid, ImmutableArray<WallRecord> walls)
+    {
+        var segmentAX = new long[walls.Length];
+        var segmentAY = new long[walls.Length];
+        var segmentBX = new long[walls.Length];
+        var segmentBY = new long[walls.Length];
+        for (var index = 0; index < walls.Length; index++)
+        {
+            var wall = walls[index];
+            segmentAX[index] = wall.X1;
+            segmentAY[index] = wall.Y1;
+            segmentBX[index] = wall.X2;
+            segmentBY[index] = wall.Y2;
+        }
+
+        return WallBuckets.Build(grid, segmentAX, segmentAY, segmentBX, segmentBY);
     }
 
     private static ImmutableArray<SpawnRecord> FindSpawns(ImmutableArray<MapRecord> records)
