@@ -49,10 +49,8 @@ namespace Sandata.Core.Geometry;
 /// Whether an edge's half-open height test passes only decides whether that
 /// edge is a <i>candidate</i> crossing; whether it actually crosses to the
 /// correct side of the test point is then decided exactly, with no epsilon,
-/// by the sign of a cross product of the same shape the repository's exact
-/// predicates module computes — reimplemented privately here rather than
-/// depending on that module, which is under construction elsewhere in this
-/// change and is expected to be reconciled with this copy later.
+/// by <see cref="ExactPredicates.Orient"/> — the same sign-of-cross-product
+/// test used everywhere else in this module.
 /// </remarks>
 public static class Polygon
 {
@@ -99,7 +97,7 @@ public static class Polygon
                 continue;
             }
 
-            var orientation = Orient(ax, ay, bx, by, pointX, pointY);
+            var orientation = ExactPredicates.Orient(ax, ay, bx, by, pointX, pointY);
 
             if (isUpwardCandidate && orientation > 0)
             {
@@ -112,18 +110,5 @@ public static class Polygon
         }
 
         return inside;
-    }
-
-    /// <summary>
-    /// Sign-only cross product of <c>(b - a)</c> and <c>(p - a)</c>: positive
-    /// when <c>p</c> is left of the directed line from <c>a</c> to <c>b</c>,
-    /// negative when right, and zero when the three points are collinear.
-    /// Kept private to this file rather than shared, per this change's
-    /// reconciliation note.
-    /// </summary>
-    private static int Orient(long ax, long ay, long bx, long by, long px, long py)
-    {
-        var cross = ((bx - ax) * (py - ay)) - ((by - ay) * (px - ax));
-        return cross.CompareTo(0L);
     }
 }
