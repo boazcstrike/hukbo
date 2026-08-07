@@ -226,16 +226,131 @@ public sealed class SandataSimulation
     /// </summary>
     private const int CollisionBodyRadiusRaw = 32;
 
-    private static MissionState ApplyOrders(MissionState state, long currentTick) => state;
+    /// <summary>
+    /// Stage 1. Applies every order whose <see cref="Order.TargetTick"/>
+    /// equals <paramref name="currentTick"/>, read from
+    /// <c>state.OrderQueue.InApplicationOrder()</c> — already sorted by
+    /// <c>(TargetTick, OrderSequence)</c>, so this method does no sorting of
+    /// its own. This stage never calls <see cref="OrderQueue.SubmitValidated"/>
+    /// (see <see cref="SubmitOrder"/> for that door); it only reads orders
+    /// already accepted into the queue by some earlier submission.
+    /// </summary>
+    /// <remarks>
+    /// For a <see cref="OrderKind.MoveAlongPath"/> order, every addressee's
+    /// existing <see cref="OrderAssignment"/> (if any) is replaced by a new
+    /// one naming this order's <see cref="Order.PathNodes"/>, starting at
+    /// node index 0. For every other <see cref="OrderKind"/> — only
+    /// <see cref="OrderKind.Hold"/> exists in this worktree today — the
+    /// addressee's existing assignment is cleared and nothing is added back.
+    /// <b>PROVISIONAL reconstruction:</b> design section 16 states that an
+    /// <see cref="OrderAssignment"/>'s presence or absence is the whole
+    /// movement-source selector, but does not enumerate every
+    /// <see cref="OrderKind"/>'s exact effect on that assignment; clearing on
+    /// every non-<see cref="OrderKind.MoveAlongPath"/> kind is this task's
+    /// best-effort reading, not a value taken from that section verbatim.
+    /// </remarks>
+    private static MissionState ApplyOrders(MissionState state, long currentTick)
+    {
+        var assignments = state.OrderAssignments;
 
+        foreach (var order in state.OrderQueue.InApplicationOrder())
+        {
+            if (order.TargetTick != currentTick)
+            {
+                continue;
+            }
+
+            foreach (var addressee in order.Addressees)
+            {
+                assignments = WithoutAssignment(assignments, addressee);
+
+                if (order.Kind == OrderKind.MoveAlongPath)
+                {
+                    var assignment = new OrderAssignment(addressee, order.OrderId, CurrentNodeIndex: 0)
+                    {
+                        PathNodes = order.PathNodes,
+                    };
+                    assignments = assignments.Add(assignment);
+                }
+            }
+        }
+
+        if (assignments.Length > 1)
+        {
+            var builder = assignments.ToBuilder();
+            builder.Sort(static (left, right) => left.EntityId.CompareTo(right.EntityId));
+            assignments = builder.ToImmutable();
+        }
+
+        return state with { OrderAssignments = assignments };
+    }
+
+    private static ImmutableArray<OrderAssignment> WithoutAssignment(
+        ImmutableArray<OrderAssignment> assignments, ulong entityId)
+    {
+        if (assignments.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<OrderAssignment>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<OrderAssignment>(assignments.Length);
+        foreach (var assignment in assignments)
+        {
+            if (assignment.EntityId != entityId)
+            {
+                builder.Add(assignment);
+            }
+        }
+
+        return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Stage 2. No spawn or despawn trigger source exists anywhere in this
+    /// worktree, so this stage is an honest pass-through, per
+    /// <see cref="TickStage.SpawnAndDespawn"/>'s own remarks: the state it
+    /// receives is the state it returns, unchanged.
+    /// </summary>
     private static MissionState ApplySpawnAndDespawn(MissionState state) => state;
 
-    private static ImmutableArray<SandataCollisionBody> BuildCollisionBodies(MissionState state) =>
-        ImmutableArray<SandataCollisionBody>.Empty;
+    /// <summary>
+    /// Builds this tick's collision broad-phase bodies from every operator
+    /// <see cref="ApplyOrders"/> and <see cref="ApplySpawnAndDespawn"/> left
+    /// behind, in <see cref="MissionState.Operators"/> order (already
+    /// ascending by <see cref="OperatorState.EntityId"/>).
+    /// </summary>
+    private static ImmutableArray<SandataCollisionBody> BuildCollisionBodies(MissionState state)
+    {
+        var operators = state.Operators;
+        if (operators.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<SandataCollisionBody>.Empty;
+        }
 
+        var builder = ImmutableArray.CreateBuilder<SandataCollisionBody>(operators.Length);
+        foreach (var op in operators)
+        {
+            builder.Add(new SandataCollisionBody(
+                op.EntityId, op.PositionX.RawValue, op.PositionY.RawValue, op.Health > 0));
+        }
+
+        return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Stage 3. Rebuilds this tick's collision uniform grid (already done by
+    /// <see cref="RunTick"/> before calling this method) and freezes the
+    /// tick-start view stages 5 through 9 read.
+    /// </summary>
     private static TickStartView CaptureTickStartView(MissionState state, SandataCollisionGrid grid) =>
         new(state, grid.Pairs);
 
+    /// <summary>
+    /// Stage 4. No door-trigger source (a breach action, a switch) exists
+    /// anywhere in this worktree, so this stage is an honest pass-through,
+    /// per <see cref="TickStage.DoorMutation"/>'s own remarks: the state it
+    /// receives is the state it returns, unchanged.
+    /// </summary>
     private static MissionState ApplyDoorMutations(MissionState state) => state;
 
     private readonly record struct SensingOutcome(
