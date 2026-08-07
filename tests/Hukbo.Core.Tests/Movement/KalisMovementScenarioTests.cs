@@ -9,24 +9,36 @@ using Hukbo.Core.Simulation;
 namespace Hukbo.Core.Tests.Movement;
 
 /// <summary>
-/// Tasks K3, K4, and K5 of
-/// the kalis movement plan: the twelve
-/// directed Kalis-variant 1v1 cells, every mechanically selected
-/// Kalis-relevant 2v2 cell of the shared scenario matrix, the focused
-/// geometry cases, the explicit combat-V2 roster scenarios that keep
-/// shielded Kalis reachable, and the Kalis-specific hash, snapshot, and
-/// legacy-preset neutrality coverage.
+/// Tasks K3, K4, and K5 of the kalis movement plan: the twelve directed
+/// Kalis-variant 1v1 cells, the focused geometry cases, the explicit
+/// combat-V2 roster scenarios that keep shielded Kalis reachable, and the
+/// Kalis-specific hash, snapshot, and legacy-preset neutrality coverage.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Every scenario here names its combat preset explicitly. Shielded Kalis
 /// exists only under <see cref="CombatPresetId.PrecolonialPhilippinesV2"/>,
-/// the one preset fielding all six canonical loadouts, so the matrix and
-/// duel cells select it uniformly rather than switching per cell — nothing
-/// in this file ever relies on the shipped default. Every assertion is a
-/// movement property: a distance band, a lane, a phase, a pace ceiling, or
-/// a determinism equality. No cell asserts a winner, and no cell asserts an
+/// the one preset fielding all six canonical loadouts, so the duel cells
+/// select it uniformly rather than switching per cell — nothing in this file
+/// ever relies on the shipped default. Every assertion is a movement
+/// property: a distance band, a lane, a phase, a pace ceiling, or a
+/// determinism equality. No cell asserts a winner, and no cell asserts an
 /// equal win rate; balance here means role viability, which these tests do
 /// not attempt to measure.
+/// </para>
+/// <para>
+/// The 176 mechanically selected Kalis-relevant 2v2 cells of the shared
+/// scenario matrix used to run here as well, under a caller-order and
+/// pace-ceiling contract. The Itak and tall-hardwood-shield suites each held
+/// an overlapping 176-cell slice of the same 231-cell matrix under contracts
+/// of their own, so most cells ran two or three times and each run applied
+/// only part of the union. Every cell now runs exactly once, under the union
+/// of all three contracts — including this suite's caller-order reversal — in
+/// <see cref="MovementMatrixContractTests"/>. The twelve directed duel cells
+/// stay here, because they assert Kalis liveness rather than matrix
+/// determinism: the warrior closes into its own band, works the whole
+/// approach-engage-commit-recover lifecycle, and lands a blow.
+/// </para>
 /// </remarks>
 public sealed class KalisMovementScenarioTests
 {
@@ -129,126 +141,6 @@ public sealed class KalisMovementScenarioTests
         Assert.Contains(FootworkPhase.Commit, phasesSeen);
         Assert.Contains(FootworkPhase.Recover, phasesSeen);
         Assert.True(attacks > 0, "The duel produced no attack at all.");
-    }
-
-    // ----- K3 step 4: the mechanically selected 2v2 matrix cells -----
-
-    /// <summary>
-    /// Every unordered team-versus-team cell of the shared matrix in which
-    /// either team fields <c>KA</c> or <c>KS</c>, generated rather than
-    /// enumerated by hand.
-    /// </summary>
-    public static TheoryData<int, int, int, int> KalisTeamMatchupCells()
-    {
-        var data = new TheoryData<int, int, int, int>();
-        foreach (var matchup in SelectedTeamMatchups())
-        {
-            data.Add(
-                matchup.FirstTeam.FirstMemberIndex,
-                matchup.FirstTeam.SecondMemberIndex,
-                matchup.SecondTeam.FirstMemberIndex,
-                matchup.SecondTeam.SecondMemberIndex);
-        }
-
-        return data;
-    }
-
-    /// <summary>
-    /// The mechanical selection is complete and has the size the shared
-    /// contract's arithmetic predicts: of the 231 unordered team-versus-team
-    /// cells, the 55 whose two teams both avoid <c>KA</c> and <c>KS</c> are
-    /// out of this session's scope and the remaining 176 are in it. No cell
-    /// is skipped, and none is enumerated twice.
-    /// </summary>
-    [Fact]
-    public void TheKalisRelevantMatrixSelectionIsCompleteAndUnique()
-    {
-        var all = MovementScenarioMatrix.EnumerateTeamMatchups();
-        var selected = SelectedTeamMatchups();
-
-        Assert.Equal(231, all.Length);
-        Assert.Equal(176, selected.Length);
-        Assert.Equal(selected.Length, selected.Distinct().Count());
-        Assert.All(selected, matchup => Assert.Contains(matchup, all));
-        Assert.DoesNotContain(
-            all.Where(matchup => !selected.Contains(matchup)),
-            matchup =>
-                ContainsKalis(matchup.FirstTeam) ||
-                ContainsKalis(matchup.SecondTeam));
-    }
-
-    /// <summary>
-    /// Both homogeneous and mixed Kalis teams are actually executed, so the
-    /// selection cannot silently collapse to one shape.
-    /// </summary>
-    [Fact]
-    public void BothHomogeneousAndMixedKalisTeamsAreExecuted()
-    {
-        var selected = SelectedTeamMatchups();
-
-        Assert.Contains(
-            selected,
-            matchup =>
-                matchup.FirstTeam.FirstMemberIndex == SoloKalisIndex &&
-                matchup.FirstTeam.SecondMemberIndex == SoloKalisIndex);
-        Assert.Contains(
-            selected,
-            matchup =>
-                matchup.FirstTeam.FirstMemberIndex == SoloKalisIndex &&
-                matchup.FirstTeam.SecondMemberIndex == ShieldedKalisIndex);
-        Assert.Contains(
-            selected,
-            matchup =>
-                matchup.FirstTeam.FirstMemberIndex == SoloKalisIndex &&
-                !ContainsKalis(matchup.SecondTeam));
-    }
-
-    /// <summary>
-    /// Every selected 2v2 cell, on two seeds: the cell runs to completion,
-    /// no warrior on either side ever retains a pace above its own forward
-    /// cap, two living allies never resolve to the same position, and
-    /// handing the same four warriors to the simulation in reverse caller
-    /// order produces an identical state hash on every tick.
-    /// </summary>
-    [Theory]
-    [MemberData(nameof(KalisTeamMatchupCells))]
-    public void EveryKalisRelevantTeamCellRunsDeterministically(
-        int firstTeamFirst,
-        int firstTeamSecond,
-        int secondTeamFirst,
-        int secondTeamSecond)
-    {
-        foreach (var seed in new ulong[] { 1, 2 })
-        {
-            var scenario = CreateScenario() with { Seed = seed };
-            var forward = BuildTeamRoster(
-                scenario,
-                firstTeamFirst,
-                firstTeamSecond,
-                secondTeamFirst,
-                secondTeamSecond);
-            var reversed = BuildTeamRoster(
-                scenario,
-                firstTeamFirst,
-                firstTeamSecond,
-                secondTeamFirst,
-                secondTeamSecond);
-            Array.Reverse(reversed);
-
-            var first = BattleSimulation.CreateForTesting(scenario, forward);
-            var second = BattleSimulation.CreateForTesting(scenario, reversed);
-
-            for (var tick = 0; tick < 150; tick++)
-            {
-                first.AdvanceOneTick();
-                second.AdvanceOneTick();
-
-                Assert.Equal(
-                    first.ComputeStateHash(), second.ComputeStateHash());
-
-                AssertPaceCeilingsAndDistinctAllyPositions(forward, first);
-            }
-        }
     }
 
     // ----- K3 step 5: focused geometry -----
@@ -673,76 +565,6 @@ public sealed class KalisMovementScenarioTests
     private const int BodyRadiusRaw = FixedPoint.Scale / 2;
 
     private const int MovementSpeedRaw = FixedPoint.Scale / 2;
-
-    private static bool ContainsKalis(
-        MovementScenarioMatrix.TeamComposition team) =>
-        team.FirstMemberIndex is SoloKalisIndex or ShieldedKalisIndex ||
-        team.SecondMemberIndex is SoloKalisIndex or ShieldedKalisIndex;
-
-    private static ImmutableArray<MovementScenarioMatrix.TeamMatchup>
-        SelectedTeamMatchups() =>
-        [.. MovementScenarioMatrix.EnumerateTeamMatchups()
-            .Where(matchup =>
-                ContainsKalis(matchup.FirstTeam) ||
-                ContainsKalis(matchup.SecondTeam))];
-
-    private static AgentState[] BuildTeamRoster(
-        Scenario scenario,
-        int firstTeamFirst,
-        int firstTeamSecond,
-        int secondTeamFirst,
-        int secondTeamSecond) =>
-    [
-        CreateAgent(
-            1, 0, 92_160, 49_152, scenario,
-            MovementScenarioMatrix.CanonicalLoadouts[firstTeamFirst]),
-        CreateAgent(
-            2, 0, 92_160, 53_248, scenario,
-            MovementScenarioMatrix.CanonicalLoadouts[firstTeamSecond]),
-        CreateAgent(
-            3, 1, 102_400, 49_152, scenario,
-            MovementScenarioMatrix.CanonicalLoadouts[secondTeamFirst]),
-        CreateAgent(
-            4, 1, 102_400, 53_248, scenario,
-            MovementScenarioMatrix.CanonicalLoadouts[secondTeamSecond]),
-    ];
-
-    private static void AssertPaceCeilingsAndDistinctAllyPositions(
-        AgentState[] agents, BattleSimulation simulation)
-    {
-        foreach (var agent in agents)
-        {
-            var cap = MovementRouteRules.DesiredPaceRaw(
-                MovementSpeedRaw,
-                V6.ResolveLoadoutProfile(agent.Loadout)
-                    .ForwardPaceBasisPoints);
-
-            Assert.True(
-                agent.MovementPaceRaw <= cap,
-                $"Agent {agent.EntityId} retained pace " +
-                $"{agent.MovementPaceRaw} above its own forward cap {cap} " +
-                $"on tick {simulation.Tick}.");
-        }
-
-        foreach (var agent in agents)
-        {
-            foreach (var other in agents)
-            {
-                if (agent.EntityId >= other.EntityId ||
-                    agent.FactionId != other.FactionId ||
-                    !agent.IsAlive ||
-                    !other.IsAlive)
-                {
-                    continue;
-                }
-
-                Assert.False(
-                    agent.XRaw == other.XRaw && agent.YRaw == other.YRaw,
-                    $"Allies {agent.EntityId} and {other.EntityId} resolved " +
-                    $"the same position on tick {simulation.Tick}.");
-            }
-        }
-    }
 
     /// <summary>
     /// The hand-built duel and team scenario. Combat preset

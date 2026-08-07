@@ -10,21 +10,37 @@ using Hukbo.Core.Simulation;
 namespace Hukbo.Core.Tests.Movement;
 
 /// <summary>
-/// The hand-run calibration harness of task E0 in
-/// <c>docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt.md</c>. It runs the
-/// measurement matrix of the V7 design document section 2.2 under a
-/// caller-supplied movement preset and reports, per cell, the terminal tick,
-/// the outcome, both survivor counts, the measured <c>p50</c> tick duration,
-/// the redefined phase-flip percentage of design section 2.3 over ticks 101
-/// through 400, and the per-row pressure-interrupt firing counts.
+/// The hand-run calibration harness for the standoff investigation: the only
+/// instrument in this repository that measures, per matchup cell and under a
+/// caller-supplied movement preset, the terminal tick, the outcome, both
+/// survivor counts, the <c>p50</c> tick duration, the phase-flip percentage
+/// over ticks 101 through 400, and the per-row pressure-interrupt firing
+/// counts.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>This measures. It does not tune, and it does not assert.</b> Task E1
-/// owns every weight and threshold in
-/// <c>MovementPresetRegistry</c>; nothing here reads a shipped value in order
-/// to check it, and nothing here passes or fails. The harness only produces a
-/// block of text for a person to read and paste into the E1 record.
+/// <b>Provenance, not instruction.</b> This file was written as task E0 of the
+/// V7 pressure-interrupt work, whose plan and design now live under
+/// <c>docs/archives/2026-08-06/movement/</c>. Those documents are archived and
+/// closed: the V7 measurement was taken, its verdict recorded — no tuning of
+/// the interrupt meets the termination bar, because the cause sits upstream of
+/// it — and nothing here authorizes executing an archived plan. The file is
+/// kept because the instrument outlived the investigation that commissioned
+/// it, and the standoff it was built to measure is still open. A later
+/// investigation should point this doc comment at its own live plan.
+/// </para>
+/// <para>
+/// The measurement matrix, the phase-flip definition, and the cell list below
+/// are those of the V7 design document sections 2.2 and 2.3, reproduced here
+/// so a reader never has to open an archived file to understand what the
+/// harness reports.
+/// </para>
+/// <para>
+/// <b>This measures. It does not tune, and it does not assert.</b> Every
+/// weight and threshold in <c>MovementPresetRegistry</c> is owned elsewhere;
+/// nothing here reads a shipped value in order to check it, and nothing here
+/// passes or fails. The harness only produces a block of text for a person to
+/// read and paste into a record.
 /// </para>
 /// <para>
 /// <b>It is not a test.</b> There is no <c>[Fact]</c> and no <c>[Theory]</c>
@@ -568,7 +584,7 @@ internal static class PressureInterruptCalibrationHarness
         int bodyRadiusRaw)
     {
         report.AppendLine(
-            "Hukbo movement V7 pressure-interrupt calibration harness (task E0)");
+            "Hukbo movement pressure-interrupt calibration harness");
         report.AppendLine(
             "Measurement only. Nothing here asserts, passes, or fails.");
         report.AppendLine();
@@ -707,7 +723,7 @@ internal static class PressureInterruptCalibrationHarness
         report.AppendLine();
         report.AppendLine(
             "The lines above are arithmetic on measured numbers, not a " +
-            "verdict. Task E1 owns the verdict.");
+            "verdict. A person reading them owns the verdict.");
         report.AppendLine();
     }
 
