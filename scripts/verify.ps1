@@ -1,6 +1,17 @@
 [CmdletBinding()]
 param(
-    [switch] $SkipBootstrap
+    [switch] $SkipBootstrap,
+
+    # Which game's test suite and benchmark workload the gate exercises.
+    # Defaults to 'Hukbo' so a caller that never passes -Game runs exactly
+    # the command sequence this gate has always run, against exactly the
+    # same projects, producing the same output -- see design section 14,
+    # "The default must be byte-identical, and here is how that is proven."
+    # The default gate keeps running the Hukbo workload alone; a second,
+    # unconditional benchmark invocation for Sandata is not added here --
+    # that is its own task, gated on task 51 recording a baseline.
+    [ValidateSet('Hukbo', 'Sandata')]
+    [string] $Game = 'Hukbo'
 )
 
 Set-StrictMode -Version Latest
@@ -21,12 +32,14 @@ Invoke-RepositoryScript -Name 'build.ps1' -Parameters @{
 Invoke-RepositoryScript -Name 'test.ps1' -Parameters @{
     Configuration = 'Release'
     NoBuild = $true
+    Game = $Game
 }
 Invoke-RepositoryScript -Name 'benchmark.ps1' -Parameters @{
     Agents = 200
     Ticks = 10000
     Seed = 1
     NoBuild = $true
+    Game = $Game
 }
 
 Write-Host '[PASS] Canonical repository verification completed.'
