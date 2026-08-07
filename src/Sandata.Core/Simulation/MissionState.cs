@@ -8,21 +8,32 @@ namespace Sandata.Core.Simulation;
 /// <summary>
 /// One remembered enemy on an <see cref="OperatorState"/>'s contact memory —
 /// design section 4's "for each remembered enemy, the last known cell, the
-/// contact tier, and the tick it was last seen". <see cref="ContactTier"/> is
-/// a raw backing value for the not-yet-declared <c>ContactTier</c> enum that
-/// task 35 (contact memory, alert levels, hearing rules) owns;
-/// <see cref="LastKnownCellIndex"/> is a raw nav-grid cell index for the
-/// same reason task 10's nav grid is not visible from this file.
+/// contact tier, and the tick it was last seen". <see cref="EnemyEntityId"/>
+/// is <see langword="ulong"/> to match <c>Hukbo.Core.Simulation.AgentState.EntityId</c>
+/// and <see cref="OperatorState.EntityId"/> below — it names an operator, so
+/// it shares that type (task 64's 2026-08-07 identifier-widening pass).
+/// <see cref="ContactTier"/> is a raw backing value for the not-yet-declared
+/// <c>ContactTier</c> enum that task 35 (contact memory, alert levels,
+/// hearing rules) owns; <see cref="LastKnownCellIndex"/> is a raw nav-grid
+/// cell index — <c>int</c>, matching <c>NavGrid</c>'s own <c>nodeIndex</c>
+/// type, not an entity or group identifier — for the same reason task 10's
+/// nav grid is not visible from this file.
 /// </summary>
 public readonly record struct ContactMemoryEntry(
-    int EnemyEntityId,
+    ulong EnemyEntityId,
     int LastKnownCellIndex,
     int ContactTier,
     long LastSeenTick);
 
 /// <summary>
 /// One faction's alert state — design section 4's "per faction: alert level,
-/// one of Calm, Raised, Breach." <see cref="AlertLevel"/> is a raw backing
+/// one of Calm, Raised, Breach." <see cref="FactionId"/> stays
+/// <see langword="int"/>: it is not an entity or group identifier but a
+/// two-valued faction selector, matching <c>OperatorState.Faction</c> below
+/// and <c>Mission.MissionFactionSetup.FactionId</c>, both already
+/// <see langword="int"/> and both constrained to exactly <c>0</c> or
+/// <c>1</c> (task 64's 2026-08-07 identifier-widening pass left this field
+/// alone on purpose). <see cref="AlertLevel"/> is a raw backing
 /// value for the not-yet-declared <c>AlertLevel</c> enum task 35 owns; by
 /// that design line's own listed order, <c>0</c> is <c>Calm</c>, <c>1</c> is
 /// <c>Raised</c>, and <c>2</c> is <c>Breach</c>, but that numbering is task
@@ -35,9 +46,14 @@ public readonly record struct FactionAlertState(int FactionId, int AlertLevel);
 /// closed, and the tick it last changed." <see cref="DoorId"/> is an
 /// implementer addition: design names no door identifier, and one is needed
 /// to give this collection a stable, total order (parallel to
-/// <c>Hukbo.Core.Simulation.AgentState.EntityId</c>). Whichever future task
-/// authors real doors from the map format should confirm this identifier
-/// against its own.
+/// <c>Hukbo.Core.Simulation.AgentState.EntityId</c> in role, not in type).
+/// It stays <see langword="int"/> under task 64's 2026-08-07
+/// identifier-widening pass: a door is not an operator and never appears in
+/// <c>SandataCollisionBody</c>, <c>SandataCollisionPair</c>, or a squad's
+/// derived group id, so nothing requires it to share the operator entity-id
+/// space or that space's <see langword="ulong"/> range. Whichever future
+/// task authors real doors from the map format should confirm this
+/// identifier against its own.
 /// </summary>
 public readonly record struct DoorState(int DoorId, bool IsOpen, long LastChangedTick);
 
@@ -45,15 +61,23 @@ public readonly record struct DoorState(int DoorId, bool IsOpen, long LastChange
 /// One group's path state — design section 4's "per group: the destination
 /// record and the outstanding path request
 /// <c>(groupId, startCellIndex, goalCellIndex, requestTick)</c>."
+/// <see cref="GroupId"/> is <see langword="ulong"/>: design section 8 defines
+/// group identity as "the minimum entity id in the component", so it holds
+/// an <see cref="OperatorState.EntityId"/> value and must share that type
+/// (task 64's 2026-08-07 identifier-widening pass).
 /// <see cref="HasOutstandingRequest"/> is an implementer addition: the design
 /// line calls the request "outstanding", implying it need not always exist,
 /// and a raw <see cref="ImmutableArray{T}"/> cannot express "absent" without
-/// either a nullable struct or a presence flag. <see cref="DestinationCellIndex"/>
-/// stands in for the richer destination record task 27 (path service) and
-/// task 28 (squad grouping) will own.
+/// either a nullable struct or a presence flag. <see cref="DestinationCellIndex"/>,
+/// <see cref="StartCellIndex"/>, and <see cref="GoalCellIndex"/> stay
+/// <see langword="int"/>: they are <c>NavGrid</c> cell indices, not entity or
+/// group identifiers, and <c>NavGrid</c>'s own <c>nodeIndex</c> is
+/// <see langword="int"/>. <see cref="DestinationCellIndex"/> stands in for
+/// the richer destination record task 27 (path service) and task 28 (squad
+/// grouping) will own.
 /// </summary>
 public readonly record struct GroupPathState(
-    int GroupId,
+    ulong GroupId,
     int DestinationCellIndex,
     bool HasOutstandingRequest,
     int StartCellIndex,
@@ -66,10 +90,12 @@ public readonly record struct GroupPathState(
 /// implementer addition standing in for design's own <c>SystemTag</c>
 /// concept (<c>Accuracy</c>, <c>Reaction</c>, <c>Sidestep</c>,
 /// <c>SpawnJitter</c>), which is not yet a declared type in this worktree.
-/// <see cref="AlgorithmId"/> is a raw backing value; <c>SplitMix64</c> is the
-/// only algorithm Sandata defines today, but the identifier still folds into
-/// the hash so a future second algorithm is a hash-visible change rather
-/// than a silent one.
+/// Neither <see cref="StreamId"/> nor <see cref="AlgorithmId"/> is an entity
+/// or group identifier, so task 64's 2026-08-07 identifier-widening pass
+/// left both <see langword="int"/>. <see cref="AlgorithmId"/> is a raw
+/// backing value; <c>SplitMix64</c> is the only algorithm Sandata defines
+/// today, but the identifier still folds into the hash so a future second
+/// algorithm is a hash-visible change rather than a silent one.
 /// </summary>
 public readonly record struct RngStreamState(
     int StreamId,
@@ -83,7 +109,21 @@ public readonly record struct RngStreamState(
 /// them, plus <see cref="EntityId"/>, an implementer addition needed to give
 /// <see cref="MissionState.Operators"/> a stable total order — the same role
 /// <c>Hukbo.Core.Simulation.AgentState.EntityId</c> plays for
-/// <c>StateHasher</c>.
+/// <c>StateHasher</c>. <see cref="EntityId"/> is <see langword="ulong"/> to
+/// match that Hukbo type and Sandata's own <c>SandataCollisionBody</c>,
+/// <c>SandataCollisionPair</c>, and <c>SandataCollisionMoveRequest</c>, which
+/// already use <see langword="ulong"/> for entity and group ids — this record
+/// was the outlier and is corrected by task 64's 2026-08-07
+/// identifier-widening pass. <see cref="Faction"/> stays
+/// <see langword="int"/>: it is a two-valued faction selector, not an entity
+/// or group identifier — see <see cref="FactionAlertState"/>'s remarks.
+/// <b>Design section 4's originally-listed <c>SquadSlotIndex</c> field is
+/// removed</b>: design section 8 states plainly that group id, leader,
+/// membership, and slot index are all derived each tick from positions and
+/// entity ids, and stores nothing per group, so nothing may be stored here
+/// either. Task 64's 2026-08-07 correction to design section 4 resolves the
+/// contradiction in the design's favour of section 8; <c>SquadGrouping.Compute</c>
+/// (task 28) derives the slot every tick instead.
 /// </summary>
 /// <remarks>
 /// <see cref="Intent"/> is a raw backing value for the not-yet-declared
@@ -101,14 +141,13 @@ public readonly record struct RngStreamState(
 /// </para>
 /// </remarks>
 public sealed record OperatorState(
-    int EntityId,
+    ulong EntityId,
     FixedPoint PositionX,
     FixedPoint PositionY,
     Facing16 Facing,
     Bam16 AimAngle,
     int Health,
     int Faction,
-    int SquadSlotIndex,
     int Intent,
     bool IsCrouched,
     bool WeaponLowered,
@@ -149,7 +188,6 @@ public sealed record OperatorState(
             AimAngle == other.AimAngle &&
             Health == other.Health &&
             Faction == other.Faction &&
-            SquadSlotIndex == other.SquadSlotIndex &&
             Intent == other.Intent &&
             IsCrouched == other.IsCrouched &&
             WeaponLowered == other.WeaponLowered &&
@@ -171,7 +209,6 @@ public sealed record OperatorState(
         hash.Add(AimAngle);
         hash.Add(Health);
         hash.Add(Faction);
-        hash.Add(SquadSlotIndex);
         hash.Add(Intent);
         hash.Add(IsCrouched);
         hash.Add(WeaponLowered);
@@ -220,6 +257,15 @@ public sealed record OperatorState(
 /// <c>BattleSimulation</c>, not the state type, owns ordering.
 /// </para>
 /// <para>
+/// <see cref="NextEntityId"/> is <see langword="ulong"/>, matching
+/// <see cref="OperatorState.EntityId"/> (task 64's 2026-08-07
+/// identifier-widening pass): it is the counter that assigns the next
+/// entity id, so it must be able to hold every value that id can, not merely
+/// widen from it. <see cref="Phase"/> and <see cref="Winner"/> are not
+/// identifiers and stay <see langword="int"/>, per this type's own remarks
+/// below.
+/// </para>
+/// <para>
 /// This type holds five <see cref="ImmutableArray{T}"/> collections, so —
 /// exactly like <c>Hukbo.Core.Simulation.Scenario</c> and
 /// <see cref="OperatorState"/> above — it overrides
@@ -231,7 +277,7 @@ public sealed record MissionState(
     long Tick,
     int Phase,
     int Winner,
-    int NextEntityId,
+    ulong NextEntityId,
     long NextEventSequence)
 {
     /// <summary>Ordered ascending by <see cref="OperatorState.EntityId"/>.</summary>

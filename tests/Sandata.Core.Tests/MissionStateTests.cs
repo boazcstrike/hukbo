@@ -29,14 +29,13 @@ public sealed class MissionStateTests
         rulesetId: SandataPresetId.ModernTacticalV1);
 
     private static OperatorState BuildSampleOperator(int entityId) => new(
-        EntityId: entityId,
+        EntityId: (ulong)entityId,
         PositionX: FixedPoint.FromWhole(entityId),
         PositionY: FixedPoint.FromWhole(entityId * 2),
         Facing: Facing16.East,
         AimAngle: Bam16.FromFacing16(Facing16.East),
         Health: 100,
         Faction: entityId % 2,
-        SquadSlotIndex: 0,
         Intent: 1,
         IsCrouched: false,
         WeaponLowered: false,
@@ -46,7 +45,7 @@ public sealed class MissionStateTests
         CyclicFireAccumulator: 0,
         SuppressionCounter: 0)
     {
-        ContactMemory = ImmutableArray.Create(new ContactMemoryEntry(99, 5, 1, 10)),
+        ContactMemory = ImmutableArray.Create(new ContactMemoryEntry(99UL, 5, 1, 10)),
     };
 
     private static MissionState BuildSampleState() => new(
@@ -259,7 +258,7 @@ public sealed class MissionStateTests
                 BuildSampleOperator(1) with
                 {
                     ContactMemory = ImmutableArray.Create(
-                        new ContactMemoryEntry(99, 5, 1, 999)),
+                        new ContactMemoryEntry(99UL, 5, 1, 999)),
                 },
                 BuildSampleOperator(2)),
         };
@@ -423,5 +422,88 @@ public sealed class MissionStateTests
                 derivedTerm,
                 name,
                 StringComparison.OrdinalIgnoreCase));
+    }
+
+    // -- Task 64's 2026-08-07 correction: the slot index is derived, never stored. --
+
+    /// <summary>
+    /// Task 64 of docs/plans/2026-08-07-sandata-scaffold.md removes
+    /// <c>OperatorState.SquadSlotIndex</c>: design section 8 states plainly
+    /// that group id, leader, membership, and slot index are all derived
+    /// each tick, and design section 4 is corrected in place to agree. This
+    /// asserts by reflection, rather than by absence of a compile error
+    /// alone, that no member named <c>SquadSlotIndex</c> — public or
+    /// non-public, property, field, or constructor parameter — survives
+    /// anywhere on <see cref="OperatorState"/>.
+    /// </summary>
+    [Fact]
+    public void OperatorState_HasNoSquadSlotIndexMember()
+    {
+        var type = typeof(OperatorState);
+
+        var memberNames = type
+            .GetMembers(
+                BindingFlags.Public | BindingFlags.NonPublic |
+                BindingFlags.Instance | BindingFlags.Static)
+            .Select(member => member.Name);
+
+        Assert.All(
+            memberNames,
+            name => Assert.DoesNotContain(
+                "SquadSlotIndex",
+                name,
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    // -- Task 64's 2026-08-07 correction: every entity and group id is ulong. --
+
+    /// <summary>
+    /// Task 64 widens every entity and group identifier on the mission
+    /// record from <c>int</c> to <see langword="ulong"/>, matching
+    /// <c>Hukbo.Core.Simulation.AgentState.EntityId</c> and Sandata's own
+    /// <c>SandataCollisionBody</c>/<c>SandataCollisionPair</c>/
+    /// <c>SandataCollisionMoveRequest</c>. This pins the four fields that
+    /// name an entity or a group — <see cref="OperatorState.EntityId"/>,
+    /// <see cref="ContactMemoryEntry.EnemyEntityId"/>,
+    /// <see cref="GroupPathState.GroupId"/>, and
+    /// <see cref="MissionState.NextEntityId"/> — at <see langword="ulong"/>
+    /// by reflection, so a future edit that narrows one back to
+    /// <see langword="int"/> fails a test rather than silently reopening the
+    /// defect task 64 fixed.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(OperatorState), nameof(OperatorState.EntityId))]
+    [InlineData(typeof(ContactMemoryEntry), nameof(ContactMemoryEntry.EnemyEntityId))]
+    [InlineData(typeof(GroupPathState), nameof(GroupPathState.GroupId))]
+    [InlineData(typeof(MissionState), nameof(MissionState.NextEntityId))]
+    public void EntityAndGroupIdentifiers_AreUlong(Type declaringType, string propertyName)
+    {
+        var property = declaringType.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+
+        Assert.NotNull(property);
+        Assert.Equal(typeof(ulong), property!.PropertyType);
+    }
+
+    /// <summary>
+    /// The fields task 64 deliberately left <see langword="int"/> because
+    /// they are not entity or group identifiers: a two-valued faction
+    /// selector, a nav-grid cell index, an implementer-added door ordinal,
+    /// and the RNG-stream/algorithm selectors. Widening any of these would
+    /// be an unreviewed scope expansion, so this pins the negative case too.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(FactionAlertState), nameof(FactionAlertState.FactionId))]
+    [InlineData(typeof(DoorState), nameof(DoorState.DoorId))]
+    [InlineData(typeof(GroupPathState), nameof(GroupPathState.DestinationCellIndex))]
+    [InlineData(typeof(ContactMemoryEntry), nameof(ContactMemoryEntry.LastKnownCellIndex))]
+    [InlineData(typeof(RngStreamState), nameof(RngStreamState.StreamId))]
+    [InlineData(typeof(RngStreamState), nameof(RngStreamState.AlgorithmId))]
+    [InlineData(typeof(OperatorState), nameof(OperatorState.Faction))]
+    public void NonIdentifierFields_StayInt(Type declaringType, string propertyName)
+    {
+        var property = declaringType.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+
+        Assert.NotNull(property);
+        Assert.Equal(typeof(int), property!.PropertyType);
     }
 }
