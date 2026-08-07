@@ -725,3 +725,41 @@ the candidate in isolation before calling it a rename.
 **Nothing in wave 5 was rewritten by the answer to question 1.** The user chose
 both autonomous bots and hand-drawn player paths, and every wave-5 task stood
 exactly as written. The order layer's own tasks are 57 through 63.
+
+### The funnel does not deliver the straight line, and task 67 does
+
+Task 65 is merged and its tests are honest: the published path is measurably
+straighter than its corridor, and the fixture is open ground rather than the
+single-file corridor the earlier amendment warned against. It still does not
+produce the straight line the design promised, and the numbers say so plainly.
+
+Across a fully open ten-by-four cell region with no walls, from cell `(0,0)` to
+cell `(9,3)`, the taut path is the single segment `(2,2)` to `(38,14)` in world
+units. The published path is `(2,2)`, `(4,4)`, `(8,8)`, `(12,12)`, `(38,14)` —
+five points, off the straight line by about 6.7 world units at its worst, which
+is roughly one and three quarter cells. The first four points are collinear, so
+the shape is really the corridor's diagonal run followed by one long segment: a
+better path than the staircase, and not the taut one.
+
+The cause is structural and design section 7 now carries the amendment that
+records it. A navmesh portal is as wide as the polygons sharing it; a grid A\*
+corridor is a chain of single cells, so every portal is one cell edge wide. The
+funnel removes the steps it has room to remove and cannot straighten what the
+corridor never gave it room to straighten.
+
+This is the second time in this wave that an acceptance criterion was met while
+the behaviour behind it was not delivered, and both times the criterion was the
+problem. "Emits a single straight segment" was satisfiable by picking a
+convenient corridor. "Materially straighter than its corridor" was satisfiable by
+any improvement at all. The criterion that would have caught it on the first pass
+is the one task 67 now carries: on open ground, the published path equals the
+straight line, exactly.
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 67 | 5b | Line-of-sight path smoothing | Publish the greedy line-of-sight smoothing of the corridor, per design section 7's 2026-08-07 amendment: anchor at the first point, advance a probe to the furthest corridor point still visible from the anchor, emit it, repeat. Visibility is `LineOfSight.IsVisible` against the wall bucket index — the same exact, epsilon-free predicate the shooting model uses. `PathService.Advance` takes the `WallBuckets` it needs. `Funnel.StringPull` and `FunnelTests` are **not** deleted and **not** edited: the amendment records why the port is kept and marked off the v0.1 publish path. | `src/Sandata.Core/Navigation/PathSmoothing.cs`, `src/Sandata.Core/Navigation/PathService.cs`, `tests/Sandata.Core.Tests/PathSmoothingTests.cs`, `tests/Sandata.Core.Tests/PathServiceTests.cs` | `PathSmoothingTests` passes: across open ground the published path is **exactly two points and equals the straight line**, asserted as literal coordinates rather than as a vertex-count improvement; a path around one wall publishes exactly three points; every emitted segment passes `LineOfSight.IsVisible`; no segment can be removed without breaking visibility, which is what "minimum vertices" means here. `PathServiceTests` still passes with the recompute-from-request test reproducing the identical smoothed polyline. `FunnelTests` untouched and green. | 20, 65 | |
+
+Task 67 joins wave 5b. It is the third task to own `PathService.cs` in sequence —
+27 wrote it, 65 changed what it publishes, 67 changes how — and each held it
+alone. That is the file-ownership rule working as intended rather than three
+agents discovering each other in a merge.

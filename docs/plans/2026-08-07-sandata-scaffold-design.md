@@ -920,6 +920,55 @@ specific, extremely well-proven algorithms in integer form**:
 Both are ported with a licence header naming the source and the licence, and
 neither adds a NuGet package, so `PinnedPackageNames` stays exact.
 
+### Amendment, 2026-08-07: a grid corridor needs line-of-sight smoothing, and the funnel alone cannot deliver the promise above
+
+The paragraph above says the string-pull is what buys the angles, and that a unit
+crossing a shallow-angle corridor moves in a straight line rather than a
+staircase. Implementation measured that claim and it does not hold as stated.
+The reasoning was sound and the port is correct; the mismatch is between the
+algorithm and the shape of the data it was given here.
+
+**The measurement.** Task 65 published a path across a fully open ten-by-four
+cell region with no walls at all, from cell `(0,0)` to cell `(9,3)`. The taut
+path across empty ground is the single segment `(2,2)` to `(38,14)` in world
+units. What the funnel produced was `(2,2)`, `(4,4)`, `(8,8)`, `(12,12)`,
+`(38,14)` — five points, deviating from the straight line by about 6.7 world
+units, roughly one and three quarter cells, at its worst. Task 26 had already
+reached the same conclusion analytically from the other direction, by
+hand-tracing all nine portals of its own fixture before writing any code.
+
+**Why.** Recast's funnel operates on navmesh portals, and a navmesh portal is as
+wide as the polygons that share it. A grid A\* corridor is a chain of single
+cells, so every portal is one cell edge wide, and the funnel's freedom to pull
+the string taut is bounded by that width everywhere along the path. It removes
+the staircase steps it has room to remove, and it cannot straighten what the
+corridor never gave it room to straighten. This is a property of the input, not
+a defect in the port, and no amount of tuning changes it.
+
+**The fix: greedy line-of-sight smoothing, over the corridor, using the wall
+bucket index this design already builds.** Anchor at the first point; advance a
+probe to the furthest corridor point still visible from the anchor; emit that
+point and make it the new anchor; repeat to the goal. The visibility test is
+`LineOfSight.IsVisible`, which is the exact-predicate, epsilon-free test the
+shooting model already uses, so smoothing inherits the determinism of a
+subsystem that is already pinned rather than introducing a second geometry
+convention. On open ground it yields exactly two points, which is the taut path;
+around an obstacle it yields the minimum vertices that keep every segment clear.
+
+**What happens to the funnel port.** `Funnel.StringPull` stays in the tree with
+its licence header and its tests, and it is documented as not being on v0.1's
+publish path. It is the right algorithm the moment the corridor is wider than
+one cell — a navmesh, or a widened corridor built from the passable cells
+around the path — and both are plausible later milestones. Keeping unused code
+has a real cost and this is a deliberate choice rather than an oversight: the
+alternative considered was widening the corridor at publish time so the funnel
+had room to work, which is strictly more machinery than the line-of-sight pass
+for the same result in v0.1.
+
+The prose above this amendment is left as written so the reasoning that produced
+the funnel decision stays legible. This amendment, not that prose, is the
+current rule.
+
 ---
 
 ## 8. Squad model
