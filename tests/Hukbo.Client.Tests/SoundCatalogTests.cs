@@ -147,7 +147,20 @@ public sealed class SoundCatalogTests
     [InlineData((int)GameSoundId.ClashShieldWasay, false)]
     [InlineData((int)GameSoundId.ClashShieldKalis, false)]
     [InlineData((int)GameSoundId.ClashShieldItak, false)]
-    public void IsHitLocationDriven_IsTrueOnlyForTheFourWeaponSlots(
+    [InlineData((int)GameSoundId.ReleaseBangkaw, false)]
+    [InlineData((int)GameSoundId.ReleaseBusog, false)]
+    [InlineData((int)GameSoundId.ReleaseArquebus, false)]
+    [InlineData((int)GameSoundId.AttackBangkaw, true)]
+    [InlineData((int)GameSoundId.AttackBusog, true)]
+    [InlineData((int)GameSoundId.AttackArquebus, true)]
+    [InlineData((int)GameSoundId.ClashShieldBangkaw, false)]
+    [InlineData((int)GameSoundId.ClashShieldBusog, false)]
+    [InlineData((int)GameSoundId.ClashShieldArquebus, false)]
+    [InlineData((int)GameSoundId.MissBangkaw, false)]
+    [InlineData((int)GameSoundId.MissBusog, false)]
+    [InlineData((int)GameSoundId.MissArquebus, false)]
+    [InlineData((int)GameSoundId.MisfireArquebus, false)]
+    public void IsHitLocationDriven_IsTrueOnlyForTheSevenAttackSlots(
         int sound,
         bool expected) =>
         Assert.Equal(expected, SoundCatalog.IsHitLocationDriven((GameSoundId)sound));
