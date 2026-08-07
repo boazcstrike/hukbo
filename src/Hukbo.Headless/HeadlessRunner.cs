@@ -518,6 +518,11 @@ public static class HeadlessRunner
         var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocationStart;
         collisionMetrics.ObserveBlockedStreak(left.LongestBlockedStreakTicks);
         movementMetrics.RecordConflictDenialTotal(left.MovementConflictDenials);
+        movementMetrics.RecordRouteRefusalReasonTotals(
+            left.RouteRefusalNoCandidatesBuilt,
+            left.RouteRefusalStepEndpointRejected,
+            left.RouteRefusalDirectCandidateOmitted,
+            left.RouteRefusalLaneNotClear);
         var sortedDurations = tickDurations.Order().ToArray();
         var survivors = left.Agents
             .Where(agent => agent.IsAlive)
