@@ -1,3 +1,5 @@
+using Hukbo.Core.Combat;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Headless;
@@ -55,4 +57,13 @@ public sealed record RunReport(
     // Defaulted for the same reason as CombatMetrics above: every report
     // written before this member existed deserializes to an all-zero block,
     // and every legacy movement preset legitimately reports one.
-    MovementBehaviorMetrics MovementMetrics = default);
+    MovementBehaviorMetrics MovementMetrics = default,
+    // The two preset identities that actually produced this run: whatever
+    // Scenario.CombatPreset and Scenario.MovementPreset resolved to, after
+    // CreateDefault and any --preset/--movement-preset override. Defaulted to
+    // the enums' zero members so a report built by hand or read from an older
+    // file still deserializes; the runner always populates both with the
+    // scenario's real, validated values -- never a guess and never silently
+    // substituted.
+    CombatPresetId CombatPreset = default,
+    MovementPresetId MovementPreset = default);

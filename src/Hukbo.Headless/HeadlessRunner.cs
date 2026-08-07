@@ -571,7 +571,9 @@ public static class HeadlessRunner
             collisionMetrics.ToMetrics(),
             combatMetrics.ToMetrics(),
             coreAllocatedBytes,
-            movementMetrics.ToMetrics());
+            movementMetrics.ToMetrics(),
+            scenario.CombatPreset,
+            scenario.MovementPreset);
     }
 
     /// <summary>
