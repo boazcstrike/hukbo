@@ -60,11 +60,72 @@ fail until `SoundCatalog` and `SoundCueMapper` have an arm for every new weapon.
 Their own comments say this is the designed safety net rather than a defect, and
 the design document restates it in section 9.7.
 
+**Correction, recorded 2026-08-07 after RU-03 landed: the two paragraphs above
+undercount the window by a factor of fourteen.** RU-03 appended the three
+`WeaponId` members and the two `MovementPresetId` members exactly as its row
+required, touching only the two enum files, and the measured result was
+**twenty-nine red tests, not two** — eighteen in `Hukbo.Core.Tests` and eleven
+in `Hukbo.Client.Tests`. This was measured twice: once by the RU-03 agent and
+once independently by the orchestrator running both suites on branch `ru-03` at
+`5f2e5f6`, against a base run on `f02d012` that was green at 2614 of 2614 Core
+and 3121 of 3121 Client.
+
+Every one of the twenty-nine fails through the same mechanism the plan already
+accepts for the two named tests: an exhaustive `Enum.GetValues<TId>()` sweep fed
+into a ruleset, a registry, or a factory that has no arm for the new value yet.
+The Core failures raise
+`ArgumentOutOfRangeException: Unknown weapon identity for this combat ruleset.
+Actual value was Bangkaw.` from `CombatRuleset.ResolveWeaponWeight`
+(`CombatRuleset.cs:213`); the Client failures raise the same exception type from
+`PawnAppearanceFactory.ToWeaponRole`. None is a regression, and none was
+weakened, skipped, or re-pinned.
+
+The eighteen in `Hukbo.Core.Tests`: `ClashResolverTests` —
+`Resolve_TallHardwoodBlocksMoreOftenThanItParries`,
+`Resolve_MatchesTheNaiveReferenceAcrossTheWholeRosterMatrix`,
+`SplitWeaponChannel_HardPlusSoftEqualsTheRescaledWeaponChannel`,
+`Resolve_NeverBlocksWithoutAShield`, `Clamp_NeverExceedsTheCeiling`;
+`CombatConfigurationTests` —
+`PresetV2_RowMeansMatchTheDesignedTotalInterceptionMatrix` (six parameter cases)
+and `WithClashProfile_PreservesEveryFieldExceptTheProfile`;
+`WeaponProfileTests` — `EveryCombatPresetIdIsRegistered` and
+`EveryProfileOfEveryRegisteredPresetClearsTheReachFloor`;
+`HitLocationResolverTests.WeaponOverrides_CanChangeTheResolvedBodyPartForTheSameTuple`;
+`PhilippineCombatIntegrationTests` —
+`LargeFixedTupleMatrix_TallHardwoodShieldLowersChestAndAbdomenFrequency` and
+`LargeFixedTupleMatrix_FourWeaponProfilesProduceDistinctTargetDistributions`;
+and
+`BattleSimulationTests.ExactlyOneLivingLeaderPerNonEmptyContingentAcrossEveryRegisteredMovementPreset`,
+which is the one driven by the unregistered `MovementPresetId` members rather
+than by `WeaponId`.
+
+The eleven in `Hukbo.Client.Tests`: the two `SoundCatalogTests` named above,
+plus `PawnAppearanceFactoryTests` —
+`WeaponLabels_NeverUseTheRejectedPanabasName`,
+`EveryWeaponCarriesAnEvidenceNote`,
+`Create_NeverDerivesWeaponRoleFromEntityIdAlone`,
+`WeaponLabels_NeverCarryACulturalNameWithoutItsDescriptor`,
+`Create_MapsAllFourWeaponIdsToDistinctSilhouettes`; `PawnGeometryTests` —
+`CreateWithPoseBlindBounds_MatchesCreateAndGetBoundsAcrossTheInputGrid`,
+`Create_RenderLoopCallMatchesThePawnRendererParameterDefaults`,
+`PoseBlindPrefix_MatchesCreateAndGetBoundsAcrossTheInputGrid`; and
+`ConservativePawnCullTests.GeometryAppearances_CoverEverythingTheFactoryCanProduce`.
+
+This changes the risk profile of the window rather than the plan's design. A red
+tree of twenty-nine tests is a far worse place to hide a genuine regression than
+a red tree of two, so the tasks that add the missing arms — RU-07 and the Core
+registration work above all, then RU-09, RU-10 and RU-12 on the Client side —
+should be scheduled as early as their dependencies allow, and the count above is
+the baseline any later agent compares against.
+
 Three consequences bind every agent working this plan.
 
-1. **The window closes at RU-14.** Between RU-03 and RU-14 the client suite is
-   expected to be red on exactly those two tests and on nothing else. An agent
-   that finds a *third* red test in that window has found a real regression.
+1. **The window closes progressively, not all at once at RU-14.** Between RU-03
+   and the tasks that add the missing arms, the two suites are expected to be
+   red on exactly the twenty-nine tests enumerated above and on nothing else. An
+   agent that finds a red test *not on that list* has found a real regression;
+   an agent that finds one *on* it has found the designed safety net. Compare
+   against the list, never against a remembered count.
 2. **Nobody weakens or skips those two tests to get green.** `CLAUDE.md` section
    5 forbids weakening a test, a warning, or an analyzer to get green, and these
    two are the mechanism by which a new weapon cannot ship silently mute.
@@ -419,7 +480,7 @@ citation into volume III that the source entry does not yet enumerate.
 | --- | --- |
 | RU-01 | Done on branch `ru-01` at `21cd148`, not yet integrated |
 | RU-02 | Done on branch `ru-02` at `6320ef1`, not yet integrated — CONFIRMED, see the finding above |
-| RU-03 | Not started |
+| RU-03 | Done on branch `ru-03` at `5f2e5f6`, not yet integrated — opened the known-red window; see the correction in section 3 |
 | RU-04 | Done on branch `ru-04` at `a7cebde`, not yet integrated |
 | RU-05 | Done on branch `ru-05` at `8b1a88e` and `2c7f854`, not yet integrated |
 | RU-06 | Not started |
