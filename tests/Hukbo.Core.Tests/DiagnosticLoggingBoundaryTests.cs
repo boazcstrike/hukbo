@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Hukbo.Core.Mathematics;
 using Hukbo.Core.Simulation;
 using Hukbo.Diagnostics;
 using Hukbo.Headless;
@@ -43,6 +44,26 @@ public sealed class DiagnosticLoggingBoundaryTests
             .ToArray();
 
         Assert.Contains("Hukbo.Diagnostics", referenced);
+    }
+
+    /// <summary>
+    /// <c>Hukbo.Shared.Core</c> (design section 3 of
+    /// docs/plans/2026-08-07-sandata-scaffold-design.md) carries the
+    /// primitives both <c>Hukbo.Core</c> and <c>Sandata.Core</c> build on —
+    /// <c>FixedPoint</c>, <c>SplitMix64</c>, <c>Fnv1a</c>, <c>Facing16</c> —
+    /// and, like <c>Hukbo.Core</c> itself, is forbidden the filesystem and
+    /// the wall clock. If this fails, someone added a reference or a usage
+    /// that pulls the debug log into code both games' simulations depend on.
+    /// </summary>
+    [Fact]
+    public void HukboSharedCoreDoesNotReferenceTheDiagnosticsAssembly()
+    {
+        var referenced = typeof(FixedPoint).Assembly
+            .GetReferencedAssemblies()
+            .Select(assembly => assembly.Name)
+            .ToArray();
+
+        Assert.DoesNotContain("Hukbo.Diagnostics", referenced);
     }
 
     /// <summary>

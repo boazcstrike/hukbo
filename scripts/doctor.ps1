@@ -78,16 +78,62 @@ else {
 $requiredFiles = @(
     'Hukbo.slnx',
     'Directory.Packages.props',
-    'NuGet.config',
-    'src/Hukbo.Client/packages.lock.json',
-    'src/Hukbo.Core/packages.lock.json',
-    'src/Hukbo.Headless/packages.lock.json',
-    'tests/Hukbo.Core.Tests/packages.lock.json'
+    'NuGet.config'
 )
 foreach ($relativePath in $requiredFiles) {
     if (-not (Test-Path -LiteralPath (Join-Path $root $relativePath) -PathType Leaf)) {
         $failures.Add("Required repository file is missing: $relativePath")
     }
+}
+
+# Every project in the repository must carry a packages.lock.json sibling.
+# The expected set is derived from the *project list* -- every .csproj under
+# the repository outside build output -- rather than from the lock files
+# already sitting on disk. A list built by scanning for packages.lock.json
+# files can only ever confirm files that already exist; it cannot notice a
+# project whose lock file was never generated, because there is nothing on
+# disk for that scan to find. Scanning for .csproj files first and then
+# asserting each one's sibling lock file exists closes that hole: the
+# invariant this check protects is "every project that should have a lock
+# file has one," not "every lock file that exists is where we expect it."
+#
+# tools/ projects are included. They are real, independently restorable
+# .csproj projects that already carry their own packages.lock.json (eight of
+# them, as of this writing), and CLAUDE.md section 3's "tools/ ... not in
+# Hukbo.slnx, not in the gate" describes verify.ps1's build/test/benchmark
+# gate -- it says nothing about this prerequisite-and-configuration doctor.
+# Excluding tools/ here would leave those eight lock files permanently
+# unchecked and contradict the "every lock file in the repository" bar this
+# script is asked to meet.
+#
+# This check proves presence, matching the Test-Path-only style every other
+# check in this script already uses; it does not re-derive whether a lock
+# file's content is stale relative to Directory.Packages.props. Currency in
+# that deeper sense is what build.ps1 and bootstrap.ps1 already prove on
+# every run, because they restore with --locked-mode and fail loudly the
+# moment a lock file no longer matches the packages it locks.
+$projectFiles = @(Get-ChildItem -LiteralPath $root -Recurse -Filter '*.csproj' |
+    Where-Object {
+        $relative = $_.FullName.Substring($root.Length + 1)
+        $relative -notmatch '[\\/](bin|obj)[\\/]'
+    })
+
+if ($projectFiles.Count -eq 0) {
+    $failures.Add('No .csproj files were found under the repository; the lock-file check could not run.')
+}
+
+$missingLockFileCount = 0
+foreach ($projectFile in $projectFiles) {
+    $lockPath = Join-Path $projectFile.DirectoryName 'packages.lock.json'
+    if (-not (Test-Path -LiteralPath $lockPath -PathType Leaf)) {
+        $relativeProject = $projectFile.FullName.Substring($root.Length + 1)
+        $failures.Add("Project is missing its packages.lock.json: $relativeProject")
+        $missingLockFileCount++
+    }
+}
+
+if ($projectFiles.Count -gt 0 -and $missingLockFileCount -eq 0) {
+    Write-Host "[PASS] packages.lock.json present for all $($projectFiles.Count) projects."
 }
 
 $packagePropsPath = Join-Path $root 'Directory.Packages.props'

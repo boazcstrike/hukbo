@@ -3,18 +3,22 @@ param(
     [ValidateSet('Debug', 'Release')]
     [string] $Configuration = 'Release',
 
-    [switch] $NoBuild
+    [switch] $NoBuild,
+
+    # Which game's test suite to run. Defaults to 'Hukbo' so a caller that
+    # never passes -Game gets today's behavior unchanged.
+    [ValidateSet('Hukbo', 'Sandata')]
+    [string] $Game = 'Hukbo'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_common.ps1')
+. (Join-Path $PSScriptRoot '_gametargets.ps1')
 
 $root = Get-RepositoryRoot
-$testProjects = @(
-    'tests/Hukbo.Core.Tests/Hukbo.Core.Tests.csproj'
-    'tests/Hukbo.Client.Tests/Hukbo.Client.Tests.csproj'
-)
+$target = Get-GameTarget -Game $Game
+$testProjects = $target.Tests
 Push-Location $root
 try {
     foreach ($testProject in $testProjects) {
