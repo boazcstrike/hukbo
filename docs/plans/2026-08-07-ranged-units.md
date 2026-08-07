@@ -776,3 +776,4 @@ citation into volume III that the source entry does not yet enumerate.
 | RU-36 | Not started — added 2026-08-07, found by RU-07, **awaiting a decision from the user**, must precede RU-26's pins |
 | RU-37 | Done on branch `ru-37` at `719fbe7` — F-A reports real counters; see the F-A result in section 9 |
 | RU-38 | Not started — added 2026-08-07, found by RU-16, must land before RU-32's smoke rows |
+| RU-39 | Not started — added 2026-08-07, found by RU-12; one of the two remaining Core failures |
