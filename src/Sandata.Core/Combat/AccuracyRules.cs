@@ -12,24 +12,6 @@ namespace Sandata.Core.Combat;
 public static class AccuracyRules
 {
     /// <summary>
-    /// A stand-in for design section 4's not-yet-declared <c>SystemTag</c>
-    /// enumeration (<c>Accuracy</c>, <c>Reaction</c>, <c>Sidestep</c>,
-    /// <c>SpawnJitter</c>) — <see cref="Simulation.MissionState.RngStreams"/>'
-    /// own remarks note that type does not exist yet in this worktree. This
-    /// constant plays exactly the role a
-    /// <c>SystemTag.Accuracy</c> member would: a fixed value folded into the
-    /// stream key so that a draw added for one system can never collide with,
-    /// or be shifted by, a draw added for another. It is the ASCII bytes of
-    /// <c>"SNDT_ACC"</c> read as one big-endian <see cref="ulong"/>, the same
-    /// "readable tag constant" convention <c>Hukbo.Core.Simulation.ApproachSidestep</c>
-    /// and its sibling offset types already use for their own stream tags.
-    /// Whichever future task declares the real <c>SystemTag</c> enum should
-    /// confirm this value against it rather than assume the two agree by
-    /// construction.
-    /// </summary>
-    private const ulong AccuracyStreamTag = 0x534E44545F414343UL;
-
-    /// <summary>
     /// Design section 9's linear integer dispersion interpolation:
     /// <c>DispersionAtZeroWu + (DispersionAtMaxWu - DispersionAtZeroWu) *
     /// min(range, MaxEffectiveWu) / MaxEffectiveWu</c>, using C#'s
@@ -88,8 +70,8 @@ public static class AccuracyRules
     /// </summary>
     /// <remarks>
     /// The stream key folds <paramref name="missionSeed"/>, then
-    /// <see cref="AccuracyStreamTag"/>, then <paramref name="entityId"/>, in
-    /// that order — the same order the design line states the key's three
+    /// <see cref="SandataSystemTag.Accuracy"/>, then <paramref name="entityId"/>,
+    /// in that order — the same order the design line states the key's three
     /// components — through <see cref="SandataHash"/>, Sandata's own folding
     /// wrapper over the shared <see cref="Fnv1a"/> primitive. The folded
     /// value seeds a fresh <see cref="SplitMix64"/> generator, and exactly
@@ -121,7 +103,7 @@ public static class AccuracyRules
 
         var hash = SandataHash.Begin();
         SandataHash.Fold(ref hash, unchecked((long)missionSeed));
-        SandataHash.Fold(ref hash, unchecked((long)AccuracyStreamTag));
+        SandataHash.Fold(ref hash, (long)SandataSystemTag.Accuracy);
         SandataHash.Fold(ref hash, entityId);
 
         var generator = new SplitMix64(hash);
