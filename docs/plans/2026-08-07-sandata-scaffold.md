@@ -1198,3 +1198,337 @@ figures in a long agent report drifted. Every branch in this wave was checked
 with `git diff --stat` against its merge base before merging, and every reported
 file list matched. Doing that check is cheap and it is the only thing that would
 have caught a report claiming a file it never wrote.
+
+### Wave 8 complete, 2026-08-08
+
+Three tasks — 58, 59, and 70 — all merged into `sandata-scaffold`, each from its
+own worktree, with no merge conflicts. The wave ran as a single batch of three,
+well under the eight-agent ceiling, because the three file sets are disjoint and
+every dependency was already merged.
+
+Counts through the supported entry point:
+
+```
+./scripts/test.ps1 -Configuration Release -Game Sandata
+Total tests: 937
+     Passed: 937
+Total tests: 169
+     Passed: 169
+[PASS] Release repository tests completed.
+```
+
+The Sandata core suite moved from 909 to 937. That is 10 facts from task 59, 14
+from task 58, and 4 from task 70, and the arithmetic was checked against the
+merged tree rather than taken from the three reports.
+
+The canonical gate was run by the integrating thread after integration, not
+delegated:
+
+```
+[PASS] Locked package restore completed.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+  "outcome": "Faction1Victory",
+  "eventHash": "AC55684F24D39344",
+  "stateHash": "1B73FC5923879AA0",
+  "deterministic": true,
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+Still byte-identical to untouched `main`. Eight waves of a second game have now
+moved no Hukbo hash.
+
+#### All three agents died at launch on a transient API failure
+
+The first dispatch of all three tasks terminated within seconds with
+`API Error: Unable to connect to API (ConnectionRefused)`. The local proxy on
+`127.0.0.1:8787` was still listening throughout, and the integrating thread's own
+tool calls kept working, so the refusal was specific to the three simultaneous
+sub-agent connections rather than to the machine being down.
+
+All three worktrees were confirmed clean at the base commit before anything was
+retried, so nothing had been half-written. The agents were then resumed by
+message rather than re-spawned, which preserved each one's transcript and cost
+nothing. Re-spawning would have been the wrong move: a fresh spawn starts with an
+empty transcript and the brief has to be sent again. This is worth knowing
+because the failure looks alarming and is recoverable in one step.
+
+#### Task 58 shipped two submission doors, and was sent back to close one
+
+Task 58 added `OrderQueue.SubmitValidated` as a new public method and left the
+existing `OrderQueue.Submit` public and unvalidated beside it. Every acceptance
+criterion passed, and the work was correct as far as it went, but design section
+16 says "An order is validated when it is submitted", and as shipped the
+validation was opt-in. Task 49 wires the queue into the tick pipeline and could
+have called the unvalidated door without anything failing.
+
+This is the same shape as the six earlier unowned-step findings, and it is worth
+separating out because the earlier six were missing call sites while this one was
+a bypassable call site. A file-level ownership audit cannot see either. There
+were four `.Submit(` call sites in the whole repository, all inside
+`OrderQueueTests.cs` and none in production, so narrowing cost almost nothing:
+`Submit` is now `private`, `SubmitValidated` is the only public entry, and it
+delegates internally for the five order kinds that carry no authored polyline.
+
+The four pre-existing facts were migrated to enter through the validated door.
+That relaxed the standing "existing facts unmodified" constraint deliberately and
+narrowly: the constraint exists to stop an agent silently rewriting a test to go
+green, not to freeze an API against a reason to narrow it. Each migrated fact
+still asserts exactly the property it asserted before, and the agent listed them
+one by one. One fixture's nav grid grew from 10x10 to 20x20 cells because the
+validated door now bounds-checks that fact's own path, which reaches world
+coordinate (50, 60); the property under test did not change.
+
+#### Task 58's interpretation call: a rejected order consumes an id
+
+Design section 16 calls `OrderId` "dense, ascending, assigned at submission", and
+separately requires a rejected order to emit an event "carrying the order id and
+the reason code". Those two readings conflict for exactly one case, because an id
+has to be assigned before it can be carried, and a rejected order never enters
+the stored set.
+
+Task 58 resolved it in favour of carrying the id: `SubmitValidated` advances both
+counters on a rejection and does not append to `Orders`, so the stored sequence
+can contain a gap. The reasoning is recorded in that method's own XML remarks
+rather than only here. The alternative reading — that "dense" governs the stored
+set and a rejection consumes nothing — is defensible and was not chosen. Whoever
+builds the event feed should revisit it, because the choice only matters once a
+rejection is observable somewhere other than the caller's own return value.
+
+#### There is still no event feed, and it is still nobody's
+
+`Sandata.Core` has no event type at all. It has `MissionState.NextEventSequence`
+and nothing that consumes it. Design section 16 says a rejected order "emits an
+authoritative event", and design section 11's HUD list has an event log element
+marked built, which draws events that no core type produces.
+
+Task 58 could not build one — an event feed lives outside `Orders/` and outside
+its file list — and correctly did not invent one. It returns an
+`OrderRejection(OrderId, Reason)` value instead, which carries both required
+fields and is not silently dropped, but is observable only to the immediate
+caller. Design section 10's question 8 asks whether a spectator can discover an
+effect without reading source code; a rejection visible only as a return value
+does not yet clear that bar.
+
+This is now a named gap rather than an incidental one. Whichever task wires the
+order queue into the tick pipeline owns deciding where `OrderRejection` values
+go.
+
+#### Task 59 enforced "no third case" in the type system rather than in a test
+
+Design section 16 says an operator's movement comes from exactly one of two
+sources, with "no third case and no blend of the two". Task 59 made that
+structural: `MovementSource` is an abstract record with a private constructor and
+exactly two nested sealed subtypes, so no third subtype is declarable anywhere
+outside the file, and no cast can fabricate one. The brief had asked for a test;
+what came back is stronger, because a wrong implementation fails to compile
+rather than failing an assertion. An enum would have been weaker — an enum
+permits an undefined numeric value.
+
+The four clearing conditions carry `AssignmentClearReason.ReachedFinalNode`,
+`Cancelled`, `OperatorDied`, and `PolylineUntraversable`, asserted distinct from
+one another rather than merely non-default.
+
+#### The wave-7 hygiene test caught a planned dictionary before review did
+
+Task 59 intended an `IReadOnlyDictionary<ulong, OrderAssignment>` for its
+slot-targeting roster and was stopped by
+`SandataSourceHygieneTests.SandataCoreDoesNotUseBannedNumericOrCollectionTypes`,
+the test wave 7 added for design section 7's "flat arrays, no dictionaries" rule.
+The roster became a sorted `ReadOnlySpan<ulong>` with a hand-rolled binary
+search.
+
+This is the first time one of this project's own hygiene tests caught a design
+violation before a human or an integrating thread did. It is worth recording as
+evidence that the assembly-boundary and banned-type tests earn their maintenance
+cost, because the equivalent rule stated only in a design document has been
+missed repeatedly.
+
+#### Task 70 closed the overlap hole, and left one documented last resort
+
+The resolver now seeds its committed grid with every request's real start
+position before the commit loop and removes each body as its own turn is
+processed, so a mover sees where the entities it has not reached yet actually
+are. The `Blocked` fallback now validates the start position before committing to
+it. The commit priority order is untouched and is still the total key
+`(GroupId, SlotIndex, EntityId)`.
+
+Three new facts were each proved able to fail: the resolver file alone was
+stashed, the facts were run against the unmodified resolver, and all of them
+failed with real overlap coordinates in the output — for example
+`Entities 1 at (200, 0) and 2 at (215, 0) overlap.` The stash was then popped and
+all of them passed. A general pairwise no-overlap assertion was added as a shared
+helper and is now applied to five fixtures rather than only to the new ones.
+
+The invariant has one stated exception. When an entity's start position is
+occupied at fallback time, the resolver repairs it with the same bounded ring
+search used for an exact coincidence at the desired position, and reports
+`Separated` rather than `Blocked`. If that search also exhausts its sixteen rings
+without finding daylight, the resolver commits into the occupied start position
+as an absolute last resort. That is the one place where no-overlap is not
+guaranteed, it is documented at the site rather than hidden, and it has never
+been observed to trigger against any fixture in this codebase. It exists so the
+method always returns a value rather than throwing out of an already-degenerate
+scene. Anyone tightening this later should know the hole is deliberate and
+labelled, not overlooked.
+
+#### Task 43's workaround guard is gone and the funnel still passes
+
+`WouldStepIntoALowerPriorityEntitysCurrentPosition` was task 43's test-side
+pre-filter, written to work around exactly this resolver defect. It has been
+removed along with its call site, and
+`EightUnitsFunnellingIntoOneDoorwayAllPassThroughWithNoOverlapAndNoDeadlock`
+passes without it, well inside its 200-tick budget. That was the stated condition
+for task 70 being done at all, and it is met.
+
+#### One pinned fixture moved, and it is the right one
+
+Task 16's pinned eight-body committed-position list did not move. Entities 1
+through 8 land at their original positions and resolutions; only the no-overlap
+assertion was added to that fixture.
+
+`TwoBodiesAtTheSameStartingPositionResolveToADeterministicSeparation` did move,
+and it is a different fixture from the one the task 70 row named. Its pinned
+outcome flipped from entity 1 holding at (0, 0) with entity 2 separating to
+(20, 0), to entity 1 separating to (20, 0) with entity 2 holding at (0, 0). The
+cause is the fix itself: the grid is now seeded with both start positions before
+either entity is processed, so entity 1, processed first because it has the lower
+id, is the one that discovers the coincidence and separates. Under the old
+empty-grid behaviour entity 1 saw nothing and entity 2 was the one that had to
+move.
+
+The flip was confirmed by an actual run rather than by hand-tracing alone, and it
+is documented in the fixture's own remarks. It is a consequence of the rule
+changing, not a re-pin of convenience, and it is recorded here because the
+standing rule is that a moved pin is reported rather than absorbed.
+
+#### The resolver's cost changed, and the allocation claim is inspection not measurement
+
+`SandataCollisionGrid` has no per-body remove or update primitive, so removing a
+body as its turn comes up is implemented as a full clear and re-insert of every
+live body, once per request. That is linear per request and quadratic per
+`Resolve` call, where it was linear per call before. For an indoor operator squad
+this is not a concern and the trade is documented in the class remarks, but it is
+a real change to a per-tick hot path and it is recorded here rather than left to
+be rediscovered by whoever runs task 50's navigation benchmark matrix.
+
+The zero-allocation-on-a-warm-tick property is claimed by code inspection, not
+measured: the committed grid, the result list, and the new live-body list are all
+reused across calls and the body write is an in-place struct write into an
+existing slot. No allocation micro-benchmark exists for this resolver. The agent
+said so plainly instead of implying a measurement, which is the behaviour the
+verification-honesty rule is asking for, and the claim should be treated as
+unverified until task 53 measures it.
+
+#### Provisional constants this wave introduced
+
+All marked at their site, none presented as measured or derived:
+
+- `MovementSource`'s precedence order among the four clearing conditions when
+  more than one holds on the same tick. Design section 16 lists the four
+  conditions and does not order them; the chosen order is documented in that
+  file's XML remarks.
+- `MovementSource.MaxCellsPerSegment`, a traversal-buffer bound derived from
+  `NavGrid.MaxDimensionCells`.
+- `Order.MaxAuthoredPathNodeCount = 128` is unchanged. Task 58 was free to revise
+  it, looked, and found no reason in design section 16 or in any existing test to
+  move it. It keeps task 57's PROVISIONAL marker at its original site.
+- A 1.5-world-unit clearance in one of task 58's wall-proximity fixtures. It is a
+  test-local value that exercises the exact predicate against a near miss; it is
+  not a runtime constant and carries no tuning claim.
+
+#### The wave-9 audit, run before dispatch rather than after
+
+Both directions were run over wave 9's five rows: no file is claimed by two
+tasks, and every file named in a "What" column is claimed by exactly one task.
+The file-level audit passed. It then found five things a file-level audit cannot
+see, which is the whole reason the audit is now run in both directions.
+
+1. Nothing draws task 62. Task 62 builds `PathDrawTool`, `GoCodePanel`, and
+`OrderQueueView` as pure layout helpers with no call site, and
+`src/Sandata.Client/SandataGame.cs` became unowned the moment task 69 finished.
+This is the seventh instance of the pattern. It is worse than the previous six in
+one specific way: `HudComposer.Layout` has thirteen fields matching design
+section 11's HUD element list exactly, and that list has no row for a go-code
+panel or an order queue view, because section 11 was written before section 16
+promoted the order layer. Two new window-anchored panels would have had no
+anchor, no bounds, and no overlap test.
+
+2. Task 61's change does not reach the client. This was checked rather than
+assumed. No file under `src/Sandata.Client` or `tests/Sandata.Client.Tests`
+references `MissionState`, `MissionSnapshot`, or any `Sandata.Core.Simulation`
+type in code; the only four occurrences are doc comments, each stating that the
+helper deliberately takes primitives instead. Of task 69's ten placeholders, one
+— the empty order-path waypoint list — is supplied from the client-side draw tool
+and belongs to the order-UI work. The other nine wait on the tick pipeline in
+wave 10. No follow-through task is needed for task 61, and this is recorded so
+the question is not reopened.
+
+3. Task 63 has no input document. Its row says tasks 23, 27, 28, and 32 "each
+reported a verdict instead" and that task 63 "applies all four verdicts in one
+edit". Those verdicts were never written down. A search for the word across the
+whole plan returns only task 63's own row and the paragraph that promises them,
+and the four constants in `SandataRuleset.cs` are still task 9's provisionals.
+Task 63 therefore has to re-derive each value from the code and tests that
+consume it, which is different and larger work than applying a record, and it
+must be allowed to return "no change justified" for any of the four rather than
+inventing a number to satisfy the row.
+
+4. Task 63's acceptance criterion presumes a change. It requires
+`SandataRuleset.ContentHash` be updated from `8955292433887190872` to a newly
+measured value. If re-derivation justifies keeping all four constants, the hash
+does not move and the criterion cannot be met as written. The criterion is
+restated: the hash moves if and only if a value moves, and the report says which.
+
+5. The preset-version rule may bind, and task 63 cannot satisfy it as scoped.
+`SandataRulesetTests.ModernTacticalV1_ContentHashIsPinned` carries its own doc
+comment saying a moved value "is a new preset version with a new recorded
+expectation, not a fix to this test", and `CLAUDE.md` section 5 requires a new
+preset version for changed weights. `SandataPresetId.cs` is not in task 63's file
+list, so as scoped it could not produce a `ModernTacticalV2` even if one were
+required.
+
+Revising `ModernTacticalV1` in place is nonetheless the right call here, and the
+reasoning is recorded so it is not mistaken for an oversight: no golden replay,
+no save file, and no recorded Sandata baseline references the preset yet — design
+section 16 states this explicitly when it says no golden mission hash exists —
+so there is no earlier artifact for a version bump to protect. The moment a
+golden replay is recorded, this stops being true and the preset-version rule
+binds in full.
+
+#### Task 49's call-site obligations, extended
+
+Wave 7 recorded four. Wave 8 adds three more, and one belongs to the client
+rather than to task 49. Every one of these is a pure function today with no
+production caller:
+
+- apply the order queue at stage 1, through `OrderQueue.SubmitValidated` and
+  never through the now-private `Submit`
+- select intent at its stage (task 44)
+- choose each operator's movement source, and exclude ordered operators from slot
+  targeting (task 59)
+- evaluate sync sets and go-code releases at stage 8 against the frozen
+  tick-start view (task 60)
+- evaluate the alert transition during stage 5 and commit it after the frozen
+  view is released (task 68)
+- apply the formation collapse to slot offsets at stage 9 (task 42)
+- run local avoidance at stage 10 (task 43)
+
+The go-code keypress path into the order queue is client-side and belongs to the
+order-UI composition task below, not to task 49.
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 71 | 9, second batch | Order-UI composition and the inspector's order rows | Give task 62's three helpers real call sites, and give design section 16's order layer the spectator surface it requires. Route the pointer chain into `PathDrawTool` at the priority design section 11 states — above the in-world layer, below every panel. Draw `GoCodePanel` and `OrderQueueView`, and add both to `HudComposer.Layout` as window-anchored panels with real computed bounds, since neither exists in design section 11's element list. Replace task 69's placeholder empty order-path waypoint list with the path currently drawn. Add design section 16's three operator-inspector rows — active order id, the node index currently being walked, and the reason code that cleared the last assignment — against documented placeholders until the tick pipeline supplies them. Wire the go-code keypress so it enters the order queue as an ordinary `GoCodeRelease` order rather than through a separate input path. Amend design section 11's HUD element list in the same change to carry the two new panels, in full normal English. | `src/Sandata.Client/SandataGame.cs`, `src/Sandata.Client/UI/HudComposer.cs`, `src/Sandata.Client/UI/OperatorInspector.cs`, `tests/Sandata.Client.Tests/HudComposerTests.cs`, `tests/Sandata.Client.Tests/HudLayoutTests.cs`, `tests/Sandata.Client.Tests/OperatorInspectorTests.cs`, `docs/plans/2026-08-07-sandata-scaffold-design.md` (section 11's element table only) | `HudComposerTests` passes with two more elements in the layout, both carrying non-empty rectangles that overlap no other panel. `HudLayoutTests` proves the go-code panel and the order queue view each clip correctly in a window too small for them. `OperatorInspectorTests` proves all three new rows render, and that the cleared-assignment row shows the reason code rather than a blank when an assignment has been cleared. A test proves the drawn path reaches the order-path overlay rather than the placeholder empty list. A test proves the go-code keypress produces a `GoCodeRelease` order carrying its own `TargetTick`, and that no other input path reaches the queue. Design section 11's element table names both new panels. | 62, 69 | |
+
+Task 71 runs alone in a second batch after task 62 merges, exactly as task 69 ran
+after tasks 45 and 46 in wave 7. The ceiling is not what forces the split this
+time — wave 9 has five tasks and room for more — the dependency is. Task 71
+cannot compose helpers that do not exist yet.
+
+Giving task 62 these files instead was considered and rejected: it would have
+made one agent responsible for three new pure helpers, three existing client
+files, four test files, and a design amendment, which is past the size where a
+single agent finishes reliably.
