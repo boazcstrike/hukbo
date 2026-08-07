@@ -269,6 +269,7 @@ no sub-agent's report substitutes for its real output.
 | RU-37 | **Added 2026-08-07. Found by RU-06, and RU-30 cannot be measured without it.** Wire F-A's four route-refusal counters through the headless runner so they appear in a real benchmark report instead of reading `0`. `HeadlessRunner.cs:520` owns the `MovementBehaviorMetricsAccumulator` and already calls `RecordConflictDenialTotal(left.MovementConflictDenials)`; the four new counters need the equivalent call from `BattleSimulation`'s four new public properties, recorded the same way and for the same reason. RU-06 could not do this because `HeadlessRunner.cs` was not in its authorized file list — the row named `RunReport.cs`, which is the record definition rather than the population site, which is the identical mistake the RU-05 row made. Nothing here reaches either hash: these are derived observability counters, so **no new preset version and no pinned artifact may move**. | `src/Hukbo.Headless/HeadlessRunner.cs` | `./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1 -MovementPreset EquipmentRelativeFootworkV6` reports four non-zero `routeRefusal*` counters summing to exactly 692,750; the shipped-default run still reports `stateHash 1B73FC5923879AA0` and `eventHash AC55684F24D39344`; the same run on `PersistentContingentsV4` reports all four as zero, because that preset never calls `TryProposeEquipmentRoute`. | RU-06 | `./scripts/benchmark.ps1` on V6 and on the shipped default, both reports pasted into section 9 |
 | RU-36 | **Added 2026-08-07. Found by RU-07, and it needs a decision before RU-12 builds V5.** `CombatRuleset.AddProfile` (`CombatRuleset.cs:641-648`) folds exactly three fields into the preset content hash — `DamagePerAttack`, `AttackRangeRaw`, `AttackCooldownTicks`. RU-07's three ranged fields are **not** folded, and neither are the pre-existing combo fields. The consequence is not cosmetic: RU-24 calibrates the ranged tuning and RU-26 pins V5's content hash, so under the current fold a calibration pass changes how the game plays while the content hash stays byte-identical. The content hash is what decides whether a saved replay is the same configuration, so two genuinely different tunings would be declared identical and a replay recorded under the old values would be accepted and then diverge. **The obstacle is that the naive fix breaks a frozen invariant:** folding three more values unconditionally changes the content hash of V1 through V4, which this plan requires to stay byte-identical. The candidate resolution is to fold the three ranged values **only when the profile declares any of them non-zero**, so an all-zero melee profile hashes exactly as it does today and V1 through V4 are preserved, while V5 becomes sensitive to its own ranged tuning. Conditional folding has bitten this repository before — check how the V7 work handled it and match that precedent or state why it does not apply. The pre-existing unfolded combo fields are **not** in scope; note them and leave them. | `src/Hukbo.Core/Combat/CombatRuleset.cs`, `tests/Hukbo.Core.Tests/DeterminismTests.cs` | V1 through V4's pinned content hashes are byte-identical to their current values; two V5 rulesets differing only in a ranged tuning value produce **different** content hashes, proven by a test that constructs both; an all-zero melee profile folds exactly as before, proven against a pinned literal. | RU-07, and it must land before RU-12 pins anything | `dotnet test` on `tests/Hukbo.Core.Tests/DeterminismTests.cs` and `WeaponProfileTests.cs` |
 | RU-35 | **Added 2026-08-07, same cause as RU-34.** `PawnAppearanceFactory.ToWeaponRole` (`PawnAppearanceFactory.cs:130`) is a total switch over `WeaponId` that throws `ArgumentOutOfRangeException` on `Bangkaw`, and **no task in this plan owned that file** — RU-10 owns the catalog and `PawnAppearance.cs`, RU-22 owns `PawnGeometry.cs`. Add the three arms mapping the ranged weapons to the `PawnWeaponRole` members RU-10 introduces, and repair the five red `PawnAppearanceFactoryTests` facts plus `ConservativePawnCullTests.GeometryAppearances_CoverEverythingTheFactoryCanProduce`. `Create_MapsAllFourWeaponIdsToDistinctSilhouettes` is named for a four-weapon roster and must be renamed and widened to seven rather than left asserting a stale number. The two policy facts — `WeaponLabels_NeverUseTheRejectedPanabasName` and `WeaponLabels_NeverCarryACulturalNameWithoutItsDescriptor` — enforce `CLAUDE.md` section 7 and must keep enforcing it across all seven weapons, not just the original four. | `src/Hukbo.Client/Presentation/PawnAppearanceFactory.cs`, `tests/Hukbo.Client.Tests/PawnAppearanceFactoryTests.cs` — **`ConservativePawnCullTests.cs` was reassigned to RU-22 on 2026-08-07, see the second correction in section 3** | All seven `WeaponId` values resolve to a `PawnWeaponRole` without throwing; the five `PawnAppearanceFactoryTests` facts pass; the distinct-silhouette fact covers seven weapons and still requires distinctness; both naming-policy facts pass for the three new weapons. | RU-10 (introduces the `PawnWeaponRole` members this maps onto) | `dotnet test` on `tests/Hukbo.Client.Tests/PawnAppearanceFactoryTests.cs` and `ConservativePawnCullTests.cs` |
+| RU-40 | **Added 2026-08-08. Found by the orchestrator while reviewing RU-19.** RU-19 added a public one-argument `SoundDirector.Ingest(events)` that forwards to the required two-argument overload with an empty view list. Its reasoning was sound at the time: twenty-seven pre-existing call sites in `SoundDirectorTests.cs` use the one-argument form, including the guard at `:41-74` that RU-19's own acceptance criteria required be left unmodified, so removing the overload meant editing a protected test. But a public overload that silently resolves every `Release` to no cue is an unvalidated door standing beside the validated one, and that is the same shape of defect that produced RU-38 and RU-19 themselves. Delete the one-argument overload and migrate all twenty-seven test call sites to pass a view list, empty where the test does not care. The guard at `:41-74` keeps its assertions and its semantics untouched; only its call gains an argument, which is not a weakening. | `src/Hukbo.Client/Audio/SoundDirector.cs`, `tests/Hukbo.Client.Tests/SoundDirectorTests.cs` | No one-argument `Ingest` overload exists; every call site passes a view list explicitly; `Ingest_UsesANullHitClassForAShieldBlockDespiteTheHitLocation` still asserts exactly what it asserts today and passes; the Client suite shows no failure outside the known-red list. | RU-19 | `dotnet test` on `tests/Hukbo.Client.Tests/SoundDirectorTests.cs` |
 
 ### PARALLEL-SAFE and SERIAL, per task
 
@@ -734,6 +735,119 @@ cites a Luzon account of palm-wood lances, which corresponds to a
 accurate as written, so it was not changed, but it is a second distinct
 citation into volume III that the source entry does not yet enumerate.
 
+### Wave 4's result, measured on the integration branch after merging
+
+Wave 4 dispatched six tasks — RU-17, RU-18, RU-19 and RU-20 from the plan's own
+wave, plus RU-38 and RU-39, which are small, independent, and were pulled forward
+because RU-39 was one of only two remaining Core failures and leaving it red made
+the baseline harder to read for every wave downstream.
+
+All six merged into `ranged-units` without a conflict. Measured on the merge
+commit itself, in `Release`:
+
+```
+Core:   Failed: 1, Passed: 2647, Total: 2648
+Client: Failed: 21, Passed: 3262, Total: 3283
+format: [PASS] Formatting verification completed.
+```
+
+Core is down from two red to one. The survivor is
+`BattleSimulationTests.ExactlyOneLivingLeaderPerNonEmptyContingentAcrossEveryRegisteredMovementPreset`,
+which closes when RU-21 and RU-30 register the V8 and V9 movement presets. The
+twenty-one Client failures are the same `PawnGeometryTests` (eleven) and
+`ConservativePawnCullTests` (ten) that RU-22 owns in wave 5, and no failure
+appeared outside that list.
+
+**RU-17 moved a hash, and the evidence that it moved the right one is the point.**
+The shipped-default V4 workload is byte-identical to the recorded baseline, while
+the same workload on V5 moved on both hashes:
+
+| Preset | `stateHash` | `eventHash` |
+| --- | --- | --- |
+| V4, before and after RU-17 | `1B73FC5923879AA0` | `AC55684F24D39344` |
+| V5, before RU-17 | `1B2524B9DFEB7FDB` | `673EF3076D2B2EC9` |
+| V5, after RU-17 | `CA230133F128B1A9` | `6953A1C982A3014C` |
+
+That pair of results is what proves the capability gate in `StateHasher.Compute`
+works as designed: a ruleset with no ranged entry folds nothing at all, so the
+frozen presets cannot drift, while a ruleset that fields a ranged weapon folds the
+pool and necessarily hashes differently. It is also the end-to-end proof that the
+ranged path is genuinely live rather than structurally present and functionally
+dead — the failure mode this package has already hit twice. If V5's hashes had not
+moved, nothing would be launching.
+
+`StateHasher.Compute` has exactly one production caller,
+`BattleSimulation.cs:815`, so its optional `hasRangedWeapon` parameter has no
+bypassable call site today.
+
+**RU-13's projection was checked end to end and holds.** Before wave 4 was
+dispatched, `RangedPhaseProjection.Derive` was confirmed to be called
+unconditionally for every agent at `BattleSimulation.cs:4483`, with no gate and no
+optional parameter, and a live V5 battle was driven through the headless runner for
+the first time in this package. The projection therefore runs for every agent every
+tick. What remains unproven is whether the phases *read* correctly on screen, which
+is a wave 6 question for RU-25, not a correctness question about the derivation.
+
+**RU-39 was rejected once and re-done, and the reason is worth recording.** Its
+first rescoping derived "is this profile ranged" from the same three fields the
+assertion then checked. Because `WeaponProfile.ValidateRangedFields`
+(`WeaponProfile.cs:140`) already forces every profile that constructs into
+all-zero-or-all-non-zero using the identical predicate, the fact could not fail: a
+melee weapon wrongly declaring all three ranged fields non-zero would have been
+classified ranged and passed. The suite was green and the fact was worthless. Its
+negative proof looked convincing because it exercised a copy of the branch logic
+rather than the fact itself.
+
+The accepted version takes its signal from the weapon's identity instead, through
+`RangedPhaseProjection.Derive`, and asserts that the two independent declarations
+agree. That version fails in both directions, proven against the committed helper
+rather than a copy. The general lesson is that a test which re-derives its own
+premise from the data under test is not a weaker test, it is not a test at all, and
+a green suite will never say so.
+
+**RU-20 did not produce the number it exists to produce.** The harness now matches
+the client's twenty-six-slot mapping, and along the way it had to fix two
+pre-existing harness defects to claim parity honestly: every `Attack` ignored
+`AttackResolution`, so `ShieldBlocked` never routed to a clash slot, and bare-file
+resolution never worked, so `victory-*.wav`, `draw.wav` and `ui-click.wav` had
+never resolved at all.
+
+But all three ranged release slots measured zero cues and −∞ dBFS. On the base it
+was measured against, nothing emitted a `Release` event, because RU-17 had not
+landed on that branch, and no ranged sound files exist because RU-31 has not run.
+The release-cue concentration that this task exists to quantify is therefore still
+unmeasured. **RU-20 must be re-run now that RU-17 has landed, and RU-31 is not
+cleared to spend money until that re-run produces a real number.** The plan's
+dependency column for RU-20 names only RU-14; that is wrong, and RU-17 belongs
+there.
+
+The per-slot cap of sixteen does not bind: zero suppressions out of 6,302 cues
+under the shipped policy, with peak concurrent voices of fifty-four against a total
+cap of sixty-four. So the raised `DefaultMaximumPerSound` that the RU-20 row
+anticipated is not indicated by this data, and `SoundCueBudgetTests.cs:59-79` should
+not move.
+
+**A finding outside this package's scope, surfaced by RU-20 and left unfixed.** On
+a melee-only 500-agent battle under the shipped policy — sixteen per slot, sixty-four
+total, `CueVolume` 0.65 — the mix now measures **+0.9 dBFS with 8 clipped samples**,
+against the −0.2 dBFS and zero clipped samples recorded in section 7.2a of
+`docs/research/SOUND-CAPACITY-MEASUREMENTS.md`. Peak concurrent voices rose from
+forty-one to fifty-four. The cause is `Hukbo.Core` combat drift since that
+2026-07-27 measurement, not anything this package changed.
+
+The shipped mix is therefore already over full scale before a single ranged cue
+exists, and this package intends to add thirteen more slots on top of it. That is a
+`CueVolume` and gain question that belongs to whoever owns the audio mix, not to
+the ranged-units package, and it is recorded here and in section 7.2b rather than
+silently absorbed. It should be settled before RU-31 is paid for.
+
+**RU-19 shipped a seam, accepted deliberately, and RU-40 closes it.** The details
+are in the RU-40 row. The short version is that a public one-argument `Ingest`
+survives beside the required two-argument one, because removing it meant editing a
+test that RU-19's acceptance criteria required be left unmodified. The single
+production call site is hard-wired to the two-argument form, so the feature is live
+today; the risk is a future caller taking the silent door.
+
 ### Task status
 
 | Task | Status |
@@ -754,10 +868,10 @@ citation into volume III that the source entry does not yet enumerate.
 | RU-14 | Done on branch `ru-14` at `1eb93d5` — closed the `SoundCatalogTests` pair |
 | RU-15 | Done on branch `ru-15` at `3e7c33a` and `2fac60d` — `-List` now reports 13 present of 26 instead of 4 |
 | RU-16 | Done on branch `ru-16` at `d09e8ee` — inspector line live, per-faction count inert until RU-38 |
-| RU-17 | Not started |
-| RU-18 | Not started |
-| RU-19 | Not started |
-| RU-20 | Not started |
+| RU-17 | Done on branch `ru-17` at `a9a54c1`, merged into `ranged-units` — the projectile pool is live; V4 hashes held and V5's moved, see the wave 4 result in section 9 |
+| RU-18 | Done on branch `ru-18` at `37620c4`, merged into `ranged-units` — five new files, resolver not yet wired into the draw loop, which is RU-25's |
+| RU-19 | Done on branch `ru-19` at `ef85d78`, merged into `ranged-units` — release and miss cues fire end to end; left a one-argument `Ingest` seam that RU-40 closes |
+| RU-20 | **Partly done** on branch `ru-20` at `e2c73d4`, merged into `ranged-units` — the harness now matches the 26-slot mapping, but the ranged measurement it exists to produce is **still missing** and must be re-run after RU-17. See the wave 4 result in section 9. **RU-31 is not cleared to spend money.** |
 | RU-21 | Not started |
 | RU-22 | Not started |
 | RU-23 | Not started |
@@ -775,5 +889,6 @@ citation into volume III that the source entry does not yet enumerate.
 | RU-35 | Done on branch `ru-35` at `47b0719` — Client 34 red to 29 |
 | RU-36 | Not started — added 2026-08-07, found by RU-07, **awaiting a decision from the user**, must precede RU-26's pins |
 | RU-37 | Done on branch `ru-37` at `719fbe7` — F-A reports real counters; see the F-A result in section 9 |
-| RU-38 | Not started — added 2026-08-07, found by RU-16, must land before RU-32's smoke rows |
-| RU-39 | Not started — added 2026-08-07, found by RU-12; one of the two remaining Core failures |
+| RU-38 | Done on branch `ru-38` at `215bff1`, merged into `ranged-units` — `HoldingCount` now reads a real roster in the running game |
+| RU-39 | Done on branch `ru-39` at `53105bd` and `b622c76`, merged into `ranged-units` — Core is down from two red to one; the second commit exists because the first rescoping was tautological, see the wave 4 result in section 9 |
+| RU-40 | Not started — added 2026-08-08, found by the orchestrator while reviewing RU-19; closes the one-argument `Ingest` seam |
