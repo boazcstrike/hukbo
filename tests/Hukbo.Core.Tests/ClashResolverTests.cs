@@ -63,7 +63,65 @@ public sealed class ClashResolverTests
     private const ulong ZeroRollSource = 1;
     private const ulong ZeroRollTarget = 2;
 
+    /// <summary>
+    /// The literal per-weapon void-channel table design section 3.3 tuned,
+    /// named as a field rather than a local so <see cref="BuildShippedTables"/>
+    /// and <see cref="ShippedTablesVoidByWeaponCount"/> read the same object
+    /// instead of two copies that could drift apart.
+    /// </summary>
+    private static readonly Dictionary<WeaponId, int> ShippedTablesVoidByWeapon = new()
+    {
+        [WeaponId.Kampilan] = 1_000,
+        [WeaponId.Wasay] = 900,
+        [WeaponId.Kalis] = 1_000,
+        [WeaponId.Itak] = 1_100,
+    };
+
+    private static int ShippedTablesVoidByWeaponCount => ShippedTablesVoidByWeapon.Count;
+
     private static readonly ClashProfile ShippedTables = BuildShippedTables();
+
+    /// <summary>
+    /// The weapon roster a <see cref="ClashProfile"/> actually declares, read
+    /// straight off its own internal <see cref="ClashProfile.OrderedHardShareRows"/>
+    /// accessor rather than a separately maintained list. This is what every
+    /// sweep below iterates instead of <c>Enum.GetValues&lt;WeaponId&gt;()</c>:
+    /// <see cref="ShippedTables"/> only ever declares the four weapons design
+    /// section 3.3 tuned, while every profile <see cref="BuildUniformProfile"/>
+    /// or <see cref="BuildProfile"/> produces declares a row for whatever
+    /// <see cref="Enum.GetValues{TEnum}"/> reports for <see cref="WeaponId"/>
+    /// at the moment it is built, because those builders fill one themselves.
+    /// A profile that gains an eighth weapon's row later is swept in
+    /// automatically; a profile that never declared one -- like
+    /// <see cref="ShippedTables"/> against a ranged weapon -- is never handed
+    /// to a resolver call that would throw.
+    /// </summary>
+    private static IReadOnlyList<WeaponId> RosterOf(ClashProfile profile) =>
+        profile.OrderedHardShareRows
+            .Select(row => row.Weapon)
+            .ToArray();
+
+    /// <summary>
+    /// Coverage proof for <see cref="RosterOf"/>: the roster it reads off
+    /// <see cref="ShippedTables"/> must have exactly as many members as the
+    /// independent, hand-written void-channel table
+    /// <see cref="BuildShippedTables"/> declares. The two are built from
+    /// different dictionaries in that method, so a future edit that added a
+    /// weapon-intercept or hard-share row without also adding its void row --
+    /// or a <see cref="RosterOf"/> that silently dropped a weapon
+    /// <see cref="ShippedTables"/> does declare -- fails here rather than
+    /// passing by coincidence in one of the sweeps below.
+    /// </summary>
+    [Fact]
+    public void RosterOf_CoversExactlyTheWeaponCountShippedTablesDeclares()
+    {
+        var swept = RosterOf(ShippedTables);
+
+        Assert.Equal(ShippedTablesVoidByWeaponCount, swept.Count);
+        Assert.Equal(
+            swept.Count,
+            swept.Distinct().Count());
+    }
 
     // Independently calculated golden vectors. Derivation method for each row:
     // expectedRoll is the 64-bit FNV-1a fold (offset basis
@@ -613,9 +671,14 @@ public sealed class ClashResolverTests
 
         foreach (var profile in profiles)
         {
-            foreach (var attackerWeapon in Enum.GetValues<WeaponId>())
+            var roster = RosterOf(profile);
+            var sweptAttackers = new HashSet<WeaponId>();
+
+            foreach (var attackerWeapon in roster)
             {
-                foreach (var defenderWeapon in Enum.GetValues<WeaponId>())
+                sweptAttackers.Add(attackerWeapon);
+
+                foreach (var defenderWeapon in roster)
                 {
                     foreach (var defenderShield in Enum.GetValues<ShieldId>())
                     {
@@ -638,6 +701,8 @@ public sealed class ClashResolverTests
                     }
                 }
             }
+
+            Assert.Equal(roster.Count, sweptAttackers.Count);
         }
     }
 
@@ -653,10 +718,14 @@ public sealed class ClashResolverTests
     {
         var blocked = 0;
         var parried = 0;
+        var roster = RosterOf(ShippedTables);
+        var sweptAttackers = new HashSet<WeaponId>();
 
-        foreach (var attackerWeapon in Enum.GetValues<WeaponId>())
+        foreach (var attackerWeapon in roster)
         {
-            foreach (var defenderWeapon in Enum.GetValues<WeaponId>())
+            sweptAttackers.Add(attackerWeapon);
+
+            foreach (var defenderWeapon in roster)
             {
                 for (var tick = 1L; tick <= 500; tick++)
                 {
@@ -682,6 +751,7 @@ public sealed class ClashResolverTests
             }
         }
 
+        Assert.Equal(roster.Count, sweptAttackers.Count);
         Assert.True(
             blocked > parried * 2,
             "PROVISIONAL band. Expected a tall hardwood shield to take at " +
@@ -713,9 +783,14 @@ public sealed class ClashResolverTests
 
         foreach (var profile in profiles)
         {
-            foreach (var attackerWeapon in Enum.GetValues<WeaponId>())
+            var roster = RosterOf(profile);
+            var sweptAttackers = new HashSet<WeaponId>();
+
+            foreach (var attackerWeapon in roster)
             {
-                foreach (var defenderWeapon in Enum.GetValues<WeaponId>())
+                sweptAttackers.Add(attackerWeapon);
+
+                foreach (var defenderWeapon in roster)
                 {
                     foreach (var defenderShield in Enum.GetValues<ShieldId>())
                     {
@@ -744,6 +819,8 @@ public sealed class ClashResolverTests
                     }
                 }
             }
+
+            Assert.Equal(roster.Count, sweptAttackers.Count);
         }
     }
 
@@ -787,9 +864,14 @@ public sealed class ClashResolverTests
     [Fact]
     public void Resolve_NeverBlocksWithoutAShield()
     {
-        foreach (var attackerWeapon in Enum.GetValues<WeaponId>())
+        var roster = RosterOf(ShippedTables);
+        var sweptAttackers = new HashSet<WeaponId>();
+
+        foreach (var attackerWeapon in roster)
         {
-            foreach (var defenderWeapon in Enum.GetValues<WeaponId>())
+            sweptAttackers.Add(attackerWeapon);
+
+            foreach (var defenderWeapon in roster)
             {
                 for (var tick = 1L; tick <= 500; tick++)
                 {
@@ -807,15 +889,21 @@ public sealed class ClashResolverTests
                 }
             }
         }
+
+        Assert.Equal(roster.Count, sweptAttackers.Count);
     }
 
     private static void AssertMatchesNaiveReference(ClashProfile profile, string profileName)
     {
         var mismatches = new List<string>();
+        var roster = RosterOf(profile);
+        var sweptAttackers = new HashSet<WeaponId>();
 
-        foreach (var attackerWeapon in Enum.GetValues<WeaponId>())
+        foreach (var attackerWeapon in roster)
         {
-            foreach (var defenderWeapon in Enum.GetValues<WeaponId>())
+            sweptAttackers.Add(attackerWeapon);
+
+            foreach (var defenderWeapon in roster)
             {
                 foreach (var defenderShield in Enum.GetValues<ShieldId>())
                 {
@@ -858,6 +946,7 @@ public sealed class ClashResolverTests
             }
         }
 
+        Assert.Equal(roster.Count, sweptAttackers.Count);
         Assert.True(
             mismatches.Count == 0,
             $"The resolver disagreed with the naive reference on profile " +
@@ -989,13 +1078,7 @@ public sealed class ClashResolverTests
             [(WeaponId.Itak, WeaponId.Itak)] = 500,
         };
 
-        var voidByWeapon = new Dictionary<WeaponId, int>
-        {
-            [WeaponId.Kampilan] = 1_000,
-            [WeaponId.Wasay] = 900,
-            [WeaponId.Kalis] = 1_000,
-            [WeaponId.Itak] = 1_100,
-        };
+        var voidByWeapon = ShippedTablesVoidByWeapon;
 
         var weaponIntercept = new Dictionary<
             (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>();

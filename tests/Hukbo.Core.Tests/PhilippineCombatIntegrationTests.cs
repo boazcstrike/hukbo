@@ -25,6 +25,22 @@ public sealed class PhilippineCombatIntegrationTests
 {
     private static readonly CombatRuleset Rules = PhilippineCombatPreset.Rules;
 
+    /// <summary>
+    /// The weapon roster this ruleset actually fields, read off
+    /// <see cref="CombatRuleset.Roster"/> rather than
+    /// <c>Enum.GetValues&lt;WeaponId&gt;()</c>. <see cref="Rules"/> is a
+    /// frozen preset that will never declare a ranged weapon, so a sweep of
+    /// every <see cref="WeaponId"/> the enum defines throws the moment a
+    /// ranged weapon is added to the enum; a sweep of the weapons this
+    /// ruleset's own roster declares does not, and still covers every weapon
+    /// added to a future roster automatically.
+    /// </summary>
+    private static readonly WeaponId[] RosterWeapons = Rules.Roster
+        .Select(loadout => loadout.Weapon)
+        .Distinct()
+        .OrderBy(weapon => (int)weapon)
+        .ToArray();
+
     private static readonly ulong[] FixedSeeds = [1UL, 7UL, 42UL, 999UL, 0xDEADBEEFUL];
 
     private static readonly (ulong Source, ulong Target)[] FixedEntityPairs =
@@ -194,10 +210,12 @@ public sealed class PhilippineCombatIntegrationTests
     [Fact]
     public void LargeFixedTupleMatrix_FourWeaponProfilesProduceDistinctTargetDistributions()
     {
-        var histograms = Enum.GetValues<WeaponId>()
+        var histograms = RosterWeapons
             .ToDictionary(weapon => weapon, weapon => BuildHistogram(weapon, ShieldId.None));
 
-        foreach (var (weaponA, weaponB) in AllUnorderedPairs(Enum.GetValues<WeaponId>()))
+        Assert.Equal(RosterWeapons.Length, histograms.Count);
+
+        foreach (var (weaponA, weaponB) in AllUnorderedPairs(RosterWeapons))
         {
             var histogramA = histograms[weaponA];
             var histogramB = histograms[weaponB];
@@ -235,9 +253,11 @@ public sealed class PhilippineCombatIntegrationTests
     {
         var hits = 0;
         var total = 0;
+        var sweptAttackers = new HashSet<WeaponId>();
 
-        foreach (var weapon in Enum.GetValues<WeaponId>())
+        foreach (var weapon in RosterWeapons)
         {
+            sweptAttackers.Add(weapon);
             var attacker = new CombatLoadout(weapon, ArmorId.LightOrganic, ShieldId.None);
             var defender = new CombatLoadout(
                 WeaponId.Kampilan,
@@ -262,6 +282,7 @@ public sealed class PhilippineCombatIntegrationTests
             }
         }
 
+        Assert.Equal(RosterWeapons.Length, sweptAttackers.Count);
         return (hits, total);
     }
 
