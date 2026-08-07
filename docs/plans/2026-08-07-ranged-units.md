@@ -597,6 +597,34 @@ state, not distinct decisions, so a single warrior stuck for a thousand ticks
 contributes a thousand. The number establishes *which* predicate refuses and how
 overwhelmingly, not how many separate warriors were affected.
 
+### A Release event cannot name its own weapon, and RU-19 has to resolve it
+
+RU-14 added the mapper branches its row asked for and then reported that they
+cannot fire yet. The reason is structural rather than an omission, and it is a
+tension between two of this plan's own rows.
+
+RU-04 made `Release` and `Miss` non-attack kinds, constructed through
+`BattleEvent.NonAttack`, which was correct and was pinned by tests. But
+`NonAttack` takes no weapon parameter at all — verified by reading its signature
+at `BattleEvent.cs:331-338`, which accepts only sequence, tick, kind, source,
+target, value, and faction. RU-14's row then asks for "a branch that maps a
+`Release` event to the launching weapon's release slot". A `Release` event cannot
+say which weapon launched it, so `Map(BattleEvent)` returns null for both kinds
+and will keep doing so no matter how the mapper is written.
+
+The branches are therefore structurally present and functionally inert until two
+later tasks arrive: RU-17 emits the events, and RU-19 must resolve the launching
+weapon from `AgentView.Loadout` at the call site rather than expecting it on the
+event. RU-14 exposed `MapRelease(WeaponId?)` as `internal` for exactly that
+caller, so **the hook already exists and RU-19 should not reinvent it**.
+
+Two things follow for whoever picks up RU-19. First, the sound for a shot is
+keyed on state the spectator's view already carries, not on the event, so the
+event stream stays free of combat context and RU-04's pinned tests stay true.
+Second, nobody should "fix" this by adding a weapon to `NonAttack`: that would
+relax the guarantee those tests exist to hold, and `SIMULATION-GAME-STANDARDS.md`
+treats a non-attack event carrying combat context as a contract violation.
+
 ### Integration baselines, measured after each wave
 
 Every count below is from a real `dotnet test` run in `Release` on the
