@@ -221,7 +221,15 @@ public sealed class CombatConfigurationTests
                 source.GeneralTargets.Get(part),
                 copy.GeneralTargets.Get(part));
 
-            foreach (var weapon in Enum.GetValues<WeaponId>())
+            // Scoped to the weapons this source ruleset actually declares
+            // target weights for, not the bare WeaponId enum: PhilippineCombatPresetV2
+            // is a frozen four-melee-weapon preset and never gains the three
+            // ranged weapons WeaponId later added, so a full-enum sweep would
+            // throw on a weapon this preset was never asked to know about.
+            foreach (var weapon in source.Roster
+                .Select(loadout => loadout.Weapon)
+                .Distinct()
+                .OrderBy(id => (int)id))
             {
                 Assert.Equal(
                     source.ResolveWeaponWeight(weapon, part),
@@ -425,7 +433,18 @@ public sealed class CombatConfigurationTests
         int expectedMean)
     {
         var profile = PhilippineCombatPresetV2.Rules.ClashProfile;
-        var attackers = Enum.GetValues<WeaponId>();
+
+        // Scoped to the weapons PhilippineCombatPresetV2's roster actually
+        // fields, not the bare WeaponId enum: this frozen preset only ever
+        // declares clash data for its original four melee weapons, and the
+        // pinned expectedMean values above were computed against exactly
+        // those four attackers, before WeaponId later gained three ranged
+        // members this preset never learns about.
+        var attackers = PhilippineCombatPresetV2.Rules.Roster
+            .Select(loadout => loadout.Weapon)
+            .Distinct()
+            .OrderBy(id => (int)id)
+            .ToArray();
         var total = 0;
 
         foreach (var attacker in attackers)
