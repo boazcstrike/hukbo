@@ -2,12 +2,12 @@ namespace Sandata.Core.Navigation;
 
 /// <summary>
 /// A uniform integer grid over map space: one cell per <see cref="CellSizeWu"/>
-/// world units on a side, holding no per-node arrays of its own beyond its
-/// dimensions. Every per-node array a later task adds — passability, the
-/// clearance field, the A* scratch arrays — is sized <c>Width * Height</c> and
-/// indexed by the same flat <c>nodeIndex</c> this type computes, per design
-/// section 7 ("Data structures: flat arrays, no dictionaries") of
-/// docs/plans/2026-08-07-sandata-scaffold-design.md.
+/// world units on a side. <see cref="Passability"/> is the one per-node array
+/// this type owns (task 18's amendment to task 10); every other per-node
+/// array a later task adds — the clearance field, the A* scratch arrays — is
+/// sized <c>Width * Height</c> and indexed by the same flat <c>nodeIndex</c>
+/// this type computes, per design section 7 ("Data structures: flat arrays,
+/// no dictionaries") of docs/plans/2026-08-07-sandata-scaffold-design.md.
 ///
 /// <para>
 /// <c>nodeIndex = (y * Width) + x</c>. No <c>Dictionary</c>, no
@@ -61,6 +61,35 @@ public sealed class NavGrid
     public int CellCount { get; }
 
     /// <summary>
+    /// This grid's passability, one <see cref="NavCellFlags"/> per cell,
+    /// indexed by the same flat <c>nodeIndex</c> as every other per-node
+    /// array. Allocated once, here, sized <see cref="CellCount"/>, and never
+    /// replaced with a different array instance — <see cref="NavBake.Bake"/>
+    /// and any later rebake overwrite this array's elements in place rather
+    /// than assigning a new one, so a caller that already holds this
+    /// reference always sees the current bake without re-reading the
+    /// property.
+    ///
+    /// <para>
+    /// Every element defaults to <see cref="NavCellFlags.Blocked"/> (the
+    /// enum's zero value) until <see cref="NavBake.Bake"/> runs, which is the
+    /// safe default: an un-baked grid permits no movement rather than
+    /// silently permitting all of it.
+    /// </para>
+    ///
+    /// <para>
+    /// This array is derived, not authoritative, state: it is rebuilt from
+    /// the map's <c>WALL</c> and <c>DOOR</c> records and the mover's body
+    /// radius every time it is needed, and it is never written to a save
+    /// file, folded into the state hash, or captured in a snapshot (design
+    /// section 4's derived-versus-hashed split; <c>CLAUDE.md</c> section 9,
+    /// "Save derived caches, render data, or metrics into a snapshot" is a
+    /// do-not).
+    /// </para>
+    /// </summary>
+    public NavCellFlags[] Passability { get; }
+
+    /// <summary>
     /// Creates a grid of <paramref name="width"/> by <paramref name="height"/>
     /// cells. Both dimensions must be strictly positive and no larger than
     /// <see cref="MaxDimensionCells"/>.
@@ -86,6 +115,7 @@ public sealed class NavGrid
         Width = width;
         Height = height;
         CellCount = checked(width * height);
+        Passability = new NavCellFlags[CellCount];
     }
 
     /// <summary>
