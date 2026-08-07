@@ -50,10 +50,12 @@ public sealed class OrderQueueTests
         long[] submittedTargetTicks, long[] expectedOrderSequence)
     {
         var queue = OrderQueue.Empty;
+        var grid = NewOpenGrid();
+        var wallBuckets = NoWalls(grid);
         foreach (var targetTick in submittedTargetTicks)
         {
-            (queue, _) = queue.Submit(
-                targetTick, factionId: 0, ImmutableArray<ulong>.Empty, OrderKind.Hold);
+            (queue, _, _) = queue.SubmitValidated(
+                targetTick, factionId: 0, ImmutableArray<ulong>.Empty, OrderKind.Hold, grid, wallBuckets);
         }
 
         var applied = queue.InApplicationOrder();
@@ -197,15 +199,21 @@ public sealed class OrderQueueTests
     public void Submit_StoresAddresseesAscending_RegardlessOfSubmittedOrder(ulong[] submittedAddressees)
     {
         var queue = OrderQueue.Empty;
+        var grid = NewOpenGrid();
+        var wallBuckets = NoWalls(grid);
 
-        (_, var submitted) = queue.Submit(
+        (_, var submitted, var rejection) = queue.SubmitValidated(
             targetTick: 1,
             factionId: 0,
             ImmutableArray.Create(submittedAddressees),
-            OrderKind.Hold);
+            OrderKind.Hold,
+            grid,
+            wallBuckets);
 
+        Assert.Null(rejection);
+        Assert.NotNull(submitted);
         Assert.Equal(
-            new ulong[] { 2, 5, 17, 30, 100 }, submitted.Addressees.ToArray());
+            new ulong[] { 2, 5, 17, 30, 100 }, submitted!.Addressees.ToArray());
     }
 
     public static IEnumerable<object[]> UnorderedAddresseeLists()
@@ -231,14 +239,25 @@ public sealed class OrderQueueTests
         var nodes = ImmutableArray.Create(
             new OrderPathNode(10, 20), new OrderPathNode(30, 40), new OrderPathNode(50, 60));
 
-        (queue, var first) = queue.Submit(
-            targetTick: 5, factionId: 0, ImmutableArray<ulong>.Empty, OrderKind.MoveAlongPath, nodes);
-        (queue, var second) = queue.Submit(
-            targetTick: 5, factionId: 1, ImmutableArray<ulong>.Empty, OrderKind.Hold);
+        // Widened to 20x20 cells (80x80 world units) so every node in
+        // `nodes` — up to (50, 60) — is in bounds; the default 10x10 grid
+        // used elsewhere in this file is too small for this fixture's own
+        // path, now that SubmitValidated runs bounds validation on it.
+        var grid = NewOpenGrid(widthCells: 20, heightCells: 20);
+        var wallBuckets = NoWalls(grid);
 
-        Assert.Equal(0, first.OrderId);
+        (queue, var first, var firstRejection) = queue.SubmitValidated(
+            targetTick: 5, factionId: 0, ImmutableArray<ulong>.Empty, OrderKind.MoveAlongPath, grid, wallBuckets, nodes);
+        (queue, var second, var secondRejection) = queue.SubmitValidated(
+            targetTick: 5, factionId: 1, ImmutableArray<ulong>.Empty, OrderKind.Hold, grid, wallBuckets);
+
+        Assert.Null(firstRejection);
+        Assert.Null(secondRejection);
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.Equal(0, first!.OrderId);
         Assert.Equal(0, first.OrderSequence);
-        Assert.Equal(1, second.OrderId);
+        Assert.Equal(1, second!.OrderId);
         Assert.Equal(1, second.OrderSequence);
         Assert.Equal(nodes, first.PathNodes);
         Assert.Empty(second.PathNodes);
@@ -247,9 +266,9 @@ public sealed class OrderQueueTests
     private static Order MakeOrder(long orderId, long orderSequence, long targetTick) =>
         new(orderId, orderSequence, targetTick, FactionId: 0, OrderKind.Hold);
 
-    private static NavGrid NewOpenGrid()
+    private static NavGrid NewOpenGrid(int widthCells = 10, int heightCells = 10)
     {
-        var grid = new NavGrid(width: 10, height: 10);
+        var grid = new NavGrid(width: widthCells, height: heightCells);
         Array.Fill(grid.Passability, NavCellFlags.Open);
         return grid;
     }

@@ -103,6 +103,15 @@ public sealed record OrderQueue(long NextOrderId, long NextOrderSequence)
     /// is stored — design section 16: "<c>Addressees</c> — entity ids in
     /// ascending order, so the set has one written form."
     /// </summary>
+    /// <remarks>
+    /// This is the unvalidated storage primitive. Design section 16: "An
+    /// order is validated when it is submitted" — so this member is
+    /// deliberately <see langword="private"/>, and <see cref="SubmitValidated"/>
+    /// is the only public door into this type. <see cref="SubmitValidated"/>
+    /// calls this method for every accepted order, including every kind
+    /// other than <see cref="OrderKind.MoveAlongPath"/>, which design section
+    /// 16's four rejection rules do not apply to.
+    /// </remarks>
     /// <param name="targetTick">The tick the order takes effect.</param>
     /// <param name="factionId">The faction this order addresses.</param>
     /// <param name="addressees">
@@ -128,7 +137,7 @@ public sealed record OrderQueue(long NextOrderId, long NextOrderSequence)
     /// just submitted without re-deriving it from
     /// <see cref="Orders"/>.
     /// </returns>
-    public (OrderQueue Queue, Order Submitted) Submit(
+    private (OrderQueue Queue, Order Submitted) Submit(
         long targetTick,
         int factionId,
         ImmutableArray<ulong> addressees,
