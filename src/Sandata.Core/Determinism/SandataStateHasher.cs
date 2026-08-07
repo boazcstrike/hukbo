@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using Sandata.Core.Orders;
 using Sandata.Core.Rules;
 using Sandata.Core.Simulation;
 
@@ -78,14 +80,62 @@ namespace Sandata.Core.Determinism;
 /// </description></item>
 /// <item><description><see cref="Mission.MissionContentHash"/></description></item>
 /// <item><description><see cref="SandataRuleset.ContentHash"/></description></item>
+/// <item><description>
+/// <b>Task 61 addition (docs/plans/2026-08-07-sandata-scaffold.md), appended
+/// here rather than interleaved among the items above.</b>
+/// <see cref="MissionState.OrderQueue"/>, folded only when it is not equal to
+/// <see cref="Orders.OrderQueue.Empty"/>: first <c>NextOrderId</c> and
+/// <c>NextOrderSequence</c>, then the queue's applied order count and, for
+/// each order in <see cref="Orders.OrderQueue.InApplicationOrder"/>'s
+/// ascending <c>(TargetTick, OrderSequence)</c> order — design section 16:
+/// "it folds into the state hash, in ascending
+/// <c>(TargetTick, OrderSequence)</c>" — <c>OrderId</c>,
+/// <c>OrderSequence</c>, <c>TargetTick</c>, <c>FactionId</c>, <c>Kind</c>,
+/// <c>Addressees</c>' count then each entry, and <c>PathNodes</c>' count then
+/// each entry's <c>X</c> and <c>Y</c>.
+/// </description></item>
+/// <item><description>
+/// <see cref="MissionState.OrderAssignments"/>' count then, for each entry in
+/// the array's stored (ascending <c>EntityId</c>) order, <c>EntityId</c>,
+/// <c>OrderId</c>, <c>CurrentNodeIndex</c>, and <c>PathNodes</c>' count then
+/// each entry's <c>X</c> and <c>Y</c> — folded only when the array is
+/// non-empty.
+/// </description></item>
 /// </list>
+/// <para>
+/// <b>Why "folded only when non-empty/non-default" for both new items.</b>
+/// <see cref="SandataHash.Fold(ref ulong, long)"/>'s underlying FNV-1a fold is never a no-op — folding a zero-valued
+/// field still changes the running hash — so appending an unconditional
+/// count fold of <c>0</c> for a mission that never used the order layer would
+/// silently change every hash computed by this method relative to the
+/// pre-task-61 build, for every existing caller, even one that submits no
+/// order and assigns no operator. Gating both new folds on "is there
+/// anything here to report" instead means a mission whose
+/// <see cref="MissionState.OrderQueue"/> is still
+/// <see cref="Orders.OrderQueue.Empty"/> and whose
+/// <see cref="MissionState.OrderAssignments"/> is still empty produces the
+/// exact same <see cref="Compute"/> output this method produced before this
+/// task — <c>OrderStateHashTests.StateHash_WithEmptyOrderQueueAndNoAssignments_MatchesThePreTask61Hasher</c>
+/// pins that value directly. Any real order-layer activity (even a queue
+/// whose <c>Orders</c> array is empty because every submission was rejected,
+/// which still advances <c>NextOrderId</c>/<c>NextOrderSequence</c> away from
+/// zero) is not equal to <see cref="Orders.OrderQueue.Empty"/> and is folded
+/// in full, so this gate never hides a real state difference — it only makes
+/// the one, singular "nothing has happened yet" state byte-identical to the
+/// state that predates the order layer entirely.
+/// </para>
 /// <para>
 /// Every array is folded in the order it is already stored in, never
 /// re-sorted here — <see cref="MissionState"/>'s remarks place that ordering
 /// obligation on whichever caller builds the state, not on this hasher.
-/// Changing this fold order, or any field it folds, is a new preset version
-/// with new golden expectations, per design section 4 and <c>CLAUDE.md</c>
-/// section 5.
+/// <see cref="MissionState.OrderQueue"/> is the one exception: its own
+/// <see cref="Orders.OrderQueue.InApplicationOrder"/> — not
+/// <see cref="Orders.OrderQueue.Orders"/>'s raw submission order — is what
+/// design section 16 names as the fold order, so this hasher calls that
+/// method rather than reading <see cref="Orders.OrderQueue.Orders"/>
+/// directly. Changing this fold order, or any field it folds, is a new
+/// preset version with new golden expectations, per design section 4 and
+/// <c>CLAUDE.md</c> section 5.
 /// </para>
 /// </remarks>
 internal static class SandataStateHasher
@@ -164,7 +214,100 @@ internal static class SandataStateHasher
         SandataHash.Fold(ref hash, unchecked((long)mission.MissionContentHash));
         SandataHash.Fold(ref hash, unchecked((long)ruleset.ContentHash));
 
+        // Task 61: appended after every field above, never interleaved among
+        // them — see this type's own remarks for why each fold below is
+        // gated on "is there anything here to report" rather than
+        // unconditional.
+        FoldOrderQueue(ref hash, state.OrderQueue);
+        FoldOrderAssignments(ref hash, state.OrderAssignments);
+
         return hash;
+    }
+
+    /// <summary>
+    /// Folds <paramref name="queue"/> into <paramref name="hash"/>, but only
+    /// when it is not equal to <see cref="Orders.OrderQueue.Empty"/> — see
+    /// this type's own remarks for why an unconditional fold would change
+    /// every hash this method has ever produced, including for a mission
+    /// that never touches the order layer.
+    /// </summary>
+    private static void FoldOrderQueue(ref ulong hash, OrderQueue queue)
+    {
+        if (queue.Equals(OrderQueue.Empty))
+        {
+            return;
+        }
+
+        SandataHash.Fold(ref hash, queue.NextOrderId);
+        SandataHash.Fold(ref hash, queue.NextOrderSequence);
+
+        var applied = queue.InApplicationOrder();
+        SandataHash.Fold(ref hash, applied.Length);
+        foreach (var order in applied)
+        {
+            FoldOrder(ref hash, order);
+        }
+    }
+
+    private static void FoldOrder(ref ulong hash, Order order)
+    {
+        SandataHash.Fold(ref hash, order.OrderId);
+        SandataHash.Fold(ref hash, order.OrderSequence);
+        SandataHash.Fold(ref hash, order.TargetTick);
+        SandataHash.Fold(ref hash, order.FactionId);
+        SandataHash.Fold(ref hash, (long)order.Kind);
+
+        var addressees = order.Addressees;
+        SandataHash.Fold(ref hash, addressees.IsDefault ? 0 : addressees.Length);
+        if (!addressees.IsDefault)
+        {
+            foreach (var addressee in addressees)
+            {
+                SandataHash.Fold(ref hash, unchecked((long)addressee));
+            }
+        }
+
+        FoldPathNodes(ref hash, order.PathNodes);
+    }
+
+    /// <summary>
+    /// Folds <paramref name="assignments"/> into <paramref name="hash"/>, but
+    /// only when the array is not empty — the assignment analogue of
+    /// <see cref="FoldOrderQueue"/>'s empty-queue gate. There is no counter
+    /// analogue here to worry about: an empty <c>OrderAssignments</c> array
+    /// has no other field that could make it a real, non-default state, so a
+    /// plain emptiness check is the whole condition.
+    /// </summary>
+    private static void FoldOrderAssignments(ref ulong hash, ImmutableArray<OrderAssignment> assignments)
+    {
+        if (assignments.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        SandataHash.Fold(ref hash, assignments.Length);
+        foreach (var assignment in assignments)
+        {
+            SandataHash.Fold(ref hash, unchecked((long)assignment.EntityId));
+            SandataHash.Fold(ref hash, assignment.OrderId);
+            SandataHash.Fold(ref hash, assignment.CurrentNodeIndex);
+            FoldPathNodes(ref hash, assignment.PathNodes);
+        }
+    }
+
+    private static void FoldPathNodes(ref ulong hash, ImmutableArray<OrderPathNode> pathNodes)
+    {
+        SandataHash.Fold(ref hash, pathNodes.IsDefault ? 0 : pathNodes.Length);
+        if (pathNodes.IsDefault)
+        {
+            return;
+        }
+
+        foreach (var node in pathNodes)
+        {
+            SandataHash.Fold(ref hash, node.X);
+            SandataHash.Fold(ref hash, node.Y);
+        }
     }
 
     private static void FoldOperator(ref ulong hash, OperatorState operatorState)

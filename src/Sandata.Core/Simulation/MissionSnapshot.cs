@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Sandata.Core.Orders;
 
 namespace Sandata.Core.Simulation;
 
@@ -16,6 +17,19 @@ namespace Sandata.Core.Simulation;
 /// the collision grid, and the render snapshot) is rebuilt after resume, not
 /// stored here.
 /// </summary>
+/// <remarks>
+/// <see cref="OrderQueue"/> and <see cref="OrderAssignments"/> (task 61 of
+/// docs/plans/2026-08-07-sandata-scaffold.md) follow that same rule in the
+/// direction design section 16 states for the order layer specifically: "An
+/// authored polyline is player input. It is stored verbatim in the snapshot
+/// and folds into the state hash. It is never recomputed, never re-smoothed,
+/// and never replaced by a search result. On resume it is restored exactly as
+/// it was drawn." Every <see cref="OrderAssignment.PathNodes"/> element and
+/// every <see cref="Orders.Order.PathNodes"/> element inside
+/// <see cref="OrderQueue"/> round-trips through this type completely
+/// unchanged — this file does no smoothing, no re-baking, and no
+/// re-derivation of either array.
+/// </remarks>
 public sealed record MissionSnapshot(
     long Tick,
     int Phase,
@@ -38,6 +52,13 @@ public sealed record MissionSnapshot(
     public ImmutableArray<RngStreamState> RngStreams { get; init; } =
         ImmutableArray<RngStreamState>.Empty;
 
+    /// <summary>The authoritative order queue, stored verbatim. See this type's own remarks.</summary>
+    public OrderQueue OrderQueue { get; init; } = OrderQueue.Empty;
+
+    /// <summary>Every operator's current order assignment, stored verbatim. See this type's own remarks.</summary>
+    public ImmutableArray<OrderAssignment> OrderAssignments { get; init; } =
+        ImmutableArray<OrderAssignment>.Empty;
+
     /// <summary>
     /// Restores a <see cref="MissionState"/> from this snapshot. Every
     /// collection is copied by value (an <see cref="ImmutableArray{T}"/>
@@ -53,6 +74,8 @@ public sealed record MissionSnapshot(
         Doors = Doors,
         Groups = Groups,
         RngStreams = RngStreams,
+        OrderQueue = OrderQueue,
+        OrderAssignments = OrderAssignments,
     };
 }
 
@@ -76,5 +99,7 @@ public static class MissionStateSnapshotExtensions
             Doors = state.Doors,
             Groups = state.Groups,
             RngStreams = state.RngStreams,
+            OrderQueue = state.OrderQueue,
+            OrderAssignments = state.OrderAssignments,
         };
 }
