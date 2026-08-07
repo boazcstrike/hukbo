@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Sandata.Core.Navigation;
 
 namespace Sandata.Core.Orders;
 
@@ -156,6 +157,98 @@ public sealed record OrderQueue(long NextOrderId, long NextOrderSequence)
         };
 
         return (updated, order);
+    }
+
+    /// <summary>
+    /// The validating submission boundary — design section 16, "Validation
+    /// happens at submission, and rejection is observable": "An order is
+    /// validated when it is submitted, not when it is applied." For
+    /// <see cref="OrderKind.MoveAlongPath"/>, <paramref name="pathNodes"/> is
+    /// checked against <see cref="OrderValidation.ValidateMoveAlongPath"/>'s
+    /// four rules before anything is stored; every other
+    /// <see cref="OrderKind"/> carries no authored polyline for those rules
+    /// to apply to, so it is accepted unconditionally, exactly as
+    /// <see cref="Submit"/> already accepts it.
+    /// </summary>
+    /// <param name="targetTick">The tick the order takes effect.</param>
+    /// <param name="factionId">The faction this order addresses.</param>
+    /// <param name="addressees">
+    /// The addressed entity ids, in any order; sorted ascending on
+    /// acceptance, exactly as <see cref="Submit"/> already sorts them.
+    /// </param>
+    /// <param name="kind">Which of the six v0.1 <see cref="OrderKind"/> members this order is.</param>
+    /// <param name="grid">
+    /// The current nav bake <see cref="OrderValidation.ValidateMoveAlongPath"/>
+    /// checks a <see cref="OrderKind.MoveAlongPath"/> polyline's bounds and
+    /// blocked-cell rules against. Ignored for every other <paramref name="kind"/>.
+    /// </param>
+    /// <param name="wallBuckets">
+    /// The wall bucket index <see cref="OrderValidation.ValidateMoveAlongPath"/>
+    /// checks the wall-crossing rule's broad phase against, built over the
+    /// same map <paramref name="grid"/> was baked from. Ignored for every
+    /// other <paramref name="kind"/>.
+    /// </param>
+    /// <param name="pathNodes">
+    /// The <see cref="OrderKind.MoveAlongPath"/> payload. Defaults to an
+    /// empty polyline for every kind that carries no path payload, exactly
+    /// as <see cref="Submit"/> already defaults it.
+    /// </param>
+    /// <returns>
+    /// <para>
+    /// If the submission is accepted: the updated queue, the
+    /// <see cref="Order"/> just created (which <see cref="Orders"/> now
+    /// contains), and a <see langword="null"/> <c>Rejection</c>.
+    /// </para>
+    /// <para>
+    /// If the submission is rejected: the updated queue, a
+    /// <see langword="null"/> <c>Submitted</c> order, and the
+    /// <see cref="OrderRejection"/> naming the id that was assigned to it
+    /// and the rule it failed. Design section 16 says a rejected order
+    /// "emits an authoritative event carrying the order id" — carrying an
+    /// order id at all requires one to have been assigned, so a rejected
+    /// submission still consumes <see cref="NextOrderId"/> and
+    /// <see cref="NextOrderSequence"/> exactly as an accepted one would,
+    /// even though <see cref="Orders"/> never gains an entry for it. Both
+    /// counters remain "unique, never reused" (design section 16) across
+    /// every submission attempt; only the <em>stored</em> order ids are
+    /// dense, not the raw counter values a rejected attempt also drew from.
+    /// </para>
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="grid"/> or <paramref name="wallBuckets"/> is <see langword="null"/>.
+    /// </exception>
+    public (OrderQueue Queue, Order? Submitted, OrderRejection? Rejection) SubmitValidated(
+        long targetTick,
+        int factionId,
+        ImmutableArray<ulong> addressees,
+        OrderKind kind,
+        NavGrid grid,
+        WallBuckets wallBuckets,
+        ImmutableArray<OrderPathNode> pathNodes = default)
+    {
+        ArgumentNullException.ThrowIfNull(grid);
+        ArgumentNullException.ThrowIfNull(wallBuckets);
+
+        if (kind == OrderKind.MoveAlongPath)
+        {
+            var storedPathNodes = pathNodes.IsDefault ? ImmutableArray<OrderPathNode>.Empty : pathNodes;
+            var rejectReason = OrderValidation.ValidateMoveAlongPath(new AuthoredPath(storedPathNodes), grid, wallBuckets);
+
+            if (rejectReason is { } reason)
+            {
+                var rejectedOrderId = NextOrderId;
+                var queueAfterRejection = this with
+                {
+                    NextOrderId = NextOrderId + 1,
+                    NextOrderSequence = NextOrderSequence + 1,
+                };
+
+                return (queueAfterRejection, null, new OrderRejection(rejectedOrderId, reason));
+            }
+        }
+
+        var (queue, submitted) = Submit(targetTick, factionId, addressees, kind, pathNodes);
+        return (queue, submitted, null);
     }
 
     /// <summary>
