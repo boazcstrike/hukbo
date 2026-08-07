@@ -34,6 +34,30 @@ public sealed class BattleSimulation
     private readonly ReadOnlyCollection<AgentView> _agents;
     private readonly CollisionScratch _collision;
 
+    // The projectile pool (ranged-units plan RU-17): a flat array sized once
+    // here from Scenario.MaximumProjectilesInFlight, with a live count.
+    // Launch appends at the count; a resolved or missed shot compacts the
+    // tail forward, preserving order, in GatherAndCommitAttacks's new pass
+    // A0. Sized zero, exactly like the V6/V7 scratch above, under any
+    // ruleset that fields no ranged weapon -- every preset up to and
+    // including PrecolonialPhilippinesV4 -- so a legacy battle carries no
+    // pool storage at all and never allocates one. _hasRangedWeapon is
+    // computed once here, from the ruleset's roster, and reused by both the
+    // pool sizing below and the state-hash gate ComputeStateHash passes to
+    // StateHasher.Compute, following the hasRankLevels precedent at
+    // StateHasher.cs:136-139.
+    private readonly bool _hasRangedWeapon;
+    private readonly Projectile[] _projectiles;
+    private int _projectileLiveCount;
+
+    // A launch attempted while the pool already holds
+    // Scenario.MaximumProjectilesInFlight live projectiles is refused
+    // outright: the shot does not occur and the launching warrior's cooldown
+    // is not charged. Derived observability in the same mould as
+    // _movementConflictDenials: never hashed, never snapshotted, never read
+    // by any simulation stage.
+    private long _projectileLaunchRefusals;
+
     // Persistent-contingent movement state, resolved once per tick by
     // ResolveContingentStates and consumed later the same tick by
     // GatherMovementProposals's cohesion branch. Every array is sized once
@@ -187,9 +211,22 @@ public sealed class BattleSimulation
         _damageTotals = new int[agents.Length];
         _movementProposals =
             new (int XRaw, int YRaw, ulong TargetId)?[agents.Length];
+        _hasRangedWeapon = DetermineHasRangedWeapon(rules);
+        // Sized for the worst case a single tick could buffer: every agent
+        // resolving a melee blow (at most agents.Length) plus every pooled
+        // projectile arriving the same tick (at most
+        // MaximumProjectilesInFlight, pass A0's ceiling), so neither source
+        // can ever overrun this array. Zero extra capacity, and therefore
+        // byte-identical sizing to before this feature, under any ruleset
+        // that fields no ranged weapon.
         _attackProposals =
             new (int SourceIndex, int TargetIndex, BodyPart HitLocation,
-                AttackResolution Resolution, int? ComboPosition)[agents.Length];
+                AttackResolution Resolution, int? ComboPosition)[
+                    agents.Length +
+                        (_hasRangedWeapon ? scenario.MaximumProjectilesInFlight : 0)];
+        _projectiles = _hasRangedWeapon
+            ? new Projectile[scenario.MaximumProjectilesInFlight]
+            : [];
         _agentViews = new AgentView[agents.Length];
         _agents = Array.AsReadOnly(_agentViews);
         _collision = new CollisionScratch(scenario, agents.Length);
@@ -399,6 +436,20 @@ public sealed class BattleSimulation
     /// </summary>
     public long RouteRefusalLaneNotClear =>
         _routeRefusalLaneNotClear;
+
+    /// <summary>
+    /// The number of ranged-weapon launches refused, since the battle
+    /// started, because the projectile pool already held
+    /// <see cref="Scenario.MaximumProjectilesInFlight"/> live projectiles.
+    /// A refused launch does not occur — no projectile enters the pool, no
+    /// <see cref="BattleEventKind.Release"/> event is emitted, and the
+    /// launching warrior's cooldown is not charged — so this is the only
+    /// record that it was ever attempted. Derived observability in the same
+    /// mould as <see cref="MovementConflictDenials"/>: never hashed, never
+    /// snapshotted, never read by any simulation stage, and zero forever
+    /// under every ruleset that fields no ranged weapon.
+    /// </summary>
+    public long ProjectileLaunchRefusals => _projectileLaunchRefusals;
 
     /// <summary>
     /// The local movement context derived for one agent by the tick just
@@ -779,18 +830,28 @@ public sealed class BattleSimulation
             // passes a non-null movement content hash, so folding the three
             // pressure-interrupt fields inside that block would move V6's
             // per-agent byte layout. Only V7 registers this true.
-            _movementRules.AppliesPressureInterrupt);
+            _movementRules.AppliesPressureInterrupt,
+            // A ruleset with no ranged roster entry folds nothing at all for
+            // the projectile pool -- not even a zero -- which is what keeps
+            // every preset up to and including PrecolonialPhilippinesV4
+            // exactly where its pinned hash already is.
+            _hasRangedWeapon,
+            new ReadOnlySpan<Projectile>(_projectiles, 0, _projectileLiveCount));
 
     public BattleSnapshot CreateSnapshot()
     {
         var agents = Array.AsReadOnly(_agents.ToArray());
         var events = Array.AsReadOnly(_lastEvents.ToArray());
+        var projectiles = Array.AsReadOnly(
+            new ReadOnlySpan<Projectile>(_projectiles, 0, _projectileLiveCount)
+                .ToArray());
         return new BattleSnapshot(
             Tick,
             Outcome,
             agents,
             events,
-            ComputeStateHash());
+            ComputeStateHash(),
+            projectiles);
     }
 
     /// <summary>
@@ -1003,6 +1064,37 @@ public sealed class BattleSimulation
                 Scenario.DamagePerAttack,
                 Scenario.AttackRangeRaw,
                 Scenario.AttackCooldownTicks);
+
+    /// <summary>
+    /// Whether <paramref name="rules"/> fields at least one ranged weapon —
+    /// "this combat ruleset fields at least one ranged weapon" — computed
+    /// once at construction and cached on <see cref="_hasRangedWeapon"/>
+    /// rather than re-derived per tick. A weapon is ranged exactly when
+    /// <see cref="WeaponProfile.StandoffDistanceRaw"/> is non-zero, the same
+    /// test <see cref="WeaponProfile.ValidateRangedFields"/> uses; every
+    /// registered preset up to and including
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV4"/> declares no
+    /// weapon profiles at all, so this returns <see langword="false"/> for
+    /// every one of them without resolving a single profile.
+    /// </summary>
+    private static bool DetermineHasRangedWeapon(CombatRuleset rules)
+    {
+        if (!rules.HasWeaponProfiles)
+        {
+            return false;
+        }
+
+        foreach (var loadout in rules.Roster)
+        {
+            var profile = rules.ResolveWeaponProfile(loadout.Weapon, loadout.Shield);
+            if (profile.StandoffDistanceRaw != 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// Clears an attacker's active attack combination. Called by the pre-
@@ -3813,6 +3905,132 @@ public sealed class BattleSimulation
         Span<int> deflected = stackalloc int[FactionCount];
         Span<int> evaded = stackalloc int[FactionCount];
 
+        // Pass A0 (ranged-units plan RU-17): advance every pooled
+        // projectile's flight countdown and resolve any arrival, before the
+        // melee gather loop below even starts. A projectile's clash and
+        // hit-location roll folds its LAUNCH tick, not this arrival tick, so
+        // a shot's outcome was already fixed the instant it left its
+        // weapon; only whether the result is visible yet was ever in
+        // question. Order-preserving compaction: a projectile that survives
+        // is copied down to close the gap left by one that resolved this
+        // tick, exactly as CollisionScratch's own compaction preserves
+        // order elsewhere. _projectileLiveCount is zero, and this loop a
+        // single no-op comparison, under any ruleset that fields no ranged
+        // weapon.
+        var projectileWriteIndex = 0;
+        for (var readIndex = 0; readIndex < _projectileLiveCount; readIndex++)
+        {
+            var projectile = _projectiles[readIndex];
+            var ticksRemaining = projectile.TicksRemaining - 1;
+            if (ticksRemaining > 0)
+            {
+                _projectiles[projectileWriteIndex] =
+                    projectile with { TicksRemaining = ticksRemaining };
+                projectileWriteIndex++;
+                continue;
+            }
+
+            // Arrived. The launching warrior's FactionId, Loadout, and
+            // EntityId never change once created, even after death, so
+            // reading them here from a source that may itself have died
+            // since launch is exactly as safe as the shared code below
+            // already treats a melee source.
+            var arrivalSourceIndex = _agentIndexes[projectile.SourceEntityId];
+            var arrivalSource = _agentStates[arrivalSourceIndex];
+            var arrivalTargetIndex = _agentIndexes[projectile.TargetEntityId];
+            var arrivalTarget = _agentStates[arrivalTargetIndex];
+
+            if (!arrivalTarget.IsAlive)
+            {
+                // Phase 1's only miss: the recorded target died between
+                // launch and arrival. This shot produces no accepted attack,
+                // so it never enters _attackProposals.
+                AddEvent(
+                    events,
+                    BattleEventKind.Miss,
+                    projectile.SourceEntityId,
+                    projectile.TargetEntityId,
+                    0,
+                    arrivalSource.FactionId);
+                continue;
+            }
+
+            var arrivalHitLocation = HitLocationResolver.Resolve(
+                _rules,
+                arrivalSource.Loadout,
+                arrivalTarget.Loadout,
+                Scenario.Seed,
+                projectile.LaunchTick,
+                projectile.SourceEntityId,
+                projectile.TargetEntityId);
+            var arrivalResolution = ClashResolver.Resolve(
+                _rules.ClashProfile,
+                Scenario.Seed,
+                projectile.LaunchTick,
+                projectile.SourceEntityId,
+                projectile.TargetEntityId,
+                arrivalSource.Loadout.Weapon,
+                arrivalTarget.Loadout.Weapon,
+                arrivalTarget.Loadout.Shield);
+
+            // An impact needs no new BattleEventKind: it is buffered here
+            // exactly as a melee blow is, and pass B below emits it as an
+            // ordinary Attack event carrying weapon, shield, hit location,
+            // and resolution. Ranged weapons never open a combo chain
+            // (PhilippineCombatPresetV5.RangedProfile fixes their
+            // combo-open chance at zero), so the buffered combo position is
+            // unconditionally null rather than routed through
+            // ResolveComboTransition, which would also incorrectly rewrite
+            // the cooldown this shot already charged at launch.
+            _attackProposals[proposalCount] = (
+                arrivalSourceIndex,
+                arrivalTargetIndex,
+                arrivalHitLocation,
+                arrivalResolution,
+                null);
+            proposalCount++;
+
+            // The damage recorded at launch, not the launcher's current
+            // DamagePerAttack, so a later loadout or preset change could
+            // never retroactively alter a shot already in flight. The two
+            // are bit-identical for every agent CreateAgent ever produces —
+            // AgentState.DamagePerAttack is a get-only property, written
+            // once at spawn — so this is not a behavioural difference today,
+            // only which of two equal sources the code commits to.
+            if (arrivalResolution == AttackResolution.Landed)
+            {
+                _damageTotals[arrivalTargetIndex] = checked(
+                    _damageTotals[arrivalTargetIndex] + projectile.DamageAtLaunch);
+            }
+
+            // Credited to the launcher's faction, in the same shape the
+            // melee loop below credits its own resolutions, so the impact
+            // tick — not the launch tick — is what counts toward this
+            // tick's CombatMetrics.
+            var arrivalFaction = arrivalSource.FactionId;
+            accepted[arrivalFaction]++;
+            switch (arrivalResolution)
+            {
+                case AttackResolution.Landed:
+                    landed[arrivalFaction]++;
+                    break;
+                case AttackResolution.ShieldBlocked:
+                    shieldBlocked[arrivalFaction]++;
+                    break;
+                case AttackResolution.Parried:
+                    parried[arrivalFaction]++;
+                    break;
+                case AttackResolution.Deflected:
+                    deflected[arrivalFaction]++;
+                    break;
+                default:
+                    evaded[arrivalFaction]++;
+                    break;
+            }
+        }
+
+        _projectileLiveCount = projectileWriteIndex;
+
         for (var sourceIndex = 0;
              sourceIndex < _agentStates.Length;
              sourceIndex++)
@@ -3849,6 +4067,65 @@ public sealed class BattleSimulation
 
             if (source.AttackCooldownRemaining != 0)
             {
+                continue;
+            }
+
+            // Ranged-units plan RU-17: a ranged weapon launches a
+            // projectile here instead of resolving immediately. The
+            // precheck ladder above -- alive, has a target, target alive,
+            // within reach, cooldown ready -- is unchanged and load-bearing
+            // for both weapon families; only what happens once every
+            // precheck has passed differs. Phase 1: a projectile passes
+            // through allies and through every enemy but its target -- there
+            // is no line of sight and no interception.
+            var weaponProfile = ResolveAttackerWeaponProfile(source.Loadout);
+            if (weaponProfile.StandoffDistanceRaw != 0)
+            {
+                if (_projectileLiveCount >= Scenario.MaximumProjectilesInFlight)
+                {
+                    // Launch at the ceiling is refused outright: the shot
+                    // does not occur, the cooldown is not charged, and the
+                    // refusal is counted so it is visible rather than
+                    // silently dropped.
+                    _projectileLaunchRefusals =
+                        checked(_projectileLaunchRefusals + 1);
+                    continue;
+                }
+
+                source.Intent = AgentIntent.Attacking;
+                _projectiles[_projectileLiveCount] = new Projectile(
+                    source.EntityId,
+                    target.EntityId,
+                    Tick,
+                    weaponProfile.FlightTickCeiling,
+                    source.XRaw,
+                    source.YRaw,
+                    source.Loadout.Weapon,
+                    weaponProfile.DamagePerAttack);
+                _projectileLiveCount++;
+
+                // The cooldown charges on launch, not on arrival, mirroring
+                // the existing non-landed-attack cooldown-reset behaviour.
+                // Every ranged weapon this preset family declares fixes its
+                // combo-open chance at zero
+                // (PhilippineCombatPresetV5.RangedProfile), so it can never
+                // open a chain and this writes the normal cooldown directly
+                // rather than routing through ResolveComboTransition.
+                source.AttackCooldownRemaining = source.AttackCooldownTicks;
+
+                AddEvent(
+                    events,
+                    BattleEventKind.Release,
+                    source.EntityId,
+                    target.EntityId,
+                    weaponProfile.FlightTickCeiling,
+                    source.FactionId);
+
+                if (marksAcceptedAttackers)
+                {
+                    _attackAcceptedThisTick[sourceIndex] = true;
+                }
+
                 continue;
             }
 
