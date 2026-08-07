@@ -426,3 +426,98 @@ into two adjacent distinct cells and had never tested what it claimed.
 unanswered question in section 15: whether bots path and group themselves, or the
 player draws every path by hand, or both. Everything through wave 4 holds under
 any of the three answers.
+
+## Answer C, and the wave re-cut it forces — 2026-08-07
+
+The open question this plan and the design both flagged as the largest single
+assumption was put to the user before wave 5 started, as three options:
+
+- **(A)** autonomous bots that path and group themselves,
+- **(B)** a literal Door Kickers 2 in which the player hand-draws every path,
+- **(C)** both.
+
+**The answer was (C).** Design section 2 records the decision and design
+section 16, added the same day, is the full specification of the order layer it
+promotes. The design document remains authoritative over this plan; what follows
+is only the task-level consequence.
+
+### What did not change, and why wave 5 started anyway
+
+(C) is additive rather than corrective. Every autonomous mechanism in the plan
+stands exactly as written, so tasks 26 through 33 were dispatched unchanged and
+none of waves 1 through 4 is invalidated. This is the cheapest of the three
+outcomes: (B) would have re-cut roughly thirty tasks and (C) adds seven.
+
+Task 27 was given one forward-looking instruction rather than a change: a later
+order layer supplies authored polylines from outside the path service, so
+`PathService` must not be written as though it were the only source of a polyline
+in the game. It still owns autonomous group paths alone.
+
+### Seven new tasks
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 57 | 7 | Order records and the queue | Declare `Order` with `OrderId`, `OrderSequence`, `TargetTick`, `FactionId`, ascending `Addressees`, `Kind`, and payload; the six v0.1 kinds from design section 16; and the queue applied in `(TargetTick, OrderSequence)` order. The authored-polyline node cap is a `const` on the order type, never a `SandataRuleset` field — design section 16 records why. | `src/Sandata.Core/Orders/Order.cs`, `src/Sandata.Core/Orders/OrderKind.cs`, `src/Sandata.Core/Orders/OrderQueue.cs`, `tests/Sandata.Core.Tests/OrderQueueTests.cs` | `OrderQueueTests` passes: the applied order equals `(TargetTick, OrderSequence)` for a deliberately shuffled submission order; two orders sharing a `TargetTick` resolve on `OrderSequence` alone; every `OrderKind` numeric value is pinned; and an addressee list submitted out of order is stored ascending. | 17 | |
+| 58 | 8 | Authored polyline validation and rejection | Validate a `MoveAlongPath` order at submission against design section 16's four rejection rules — out of bounds, a node in a `Blocked` cell, a segment crossing a wall by `ExactPredicates.ClassifySegments`, and the node-count bounds. A door cell is deliberately not a rejection. Every rejection carries a reason code and an authoritative event; nothing is silently dropped. | `src/Sandata.Core/Orders/AuthoredPath.cs`, `src/Sandata.Core/Orders/OrderValidation.cs`, `src/Sandata.Core/Orders/OrderRejectReason.cs`, `tests/Sandata.Core.Tests/OrderValidationTests.cs` | `OrderValidationTests` passes with one failing fixture per rejection rule, a fixture proving a path through a door cell is accepted, and a fixture proving a segment that grazes a wall endpoint is classified by the exact predicate rather than an epsilon. | 20, 57 | |
+| 59 | 8 | Order assignment and the movement-source rule | Implement design section 16's per-tick rule: an operator with an `OrderAssignment` follows its authored polyline and is excluded from slot targeting; an operator without one follows its squad slot target. Implement all four clearing conditions, each with an inspectable reason code. A cleared assignment never repairs, re-routes, or re-smooths the polyline. | `src/Sandata.Core/Orders/OrderAssignment.cs`, `src/Sandata.Core/Orders/MovementSource.cs`, `tests/Sandata.Core.Tests/MovementSourceTests.cs` | `MovementSourceTests` passes: exactly one source is selected per operator per tick with no third case; each of the four clearing conditions is exercised and names its reason code; autonomy resumes on the same tick the assignment clears; a closed door across a polyline clears rather than re-routes; and an ordered operator's group still derives the same group id it would have had. | 34, 57 | |
+| 60 | 9 | Sync sets and go-codes | Sync pace-matching evaluated in stage 8 against the frozen tick-start view, releasing every living member on one tick, keyed by the lowest entity id. `GoCodeRelease` as an ordinary order carrying its own `TargetTick`, so a keypress enters the same queue. | `src/Sandata.Core/Orders/SyncRules.cs`, `src/Sandata.Core/Orders/GoCodeRules.cs`, `tests/Sandata.Core.Tests/SyncRulesTests.cs`, `tests/Sandata.Core.Tests/GoCodeRulesTests.cs` | Both pass: a sync set releases on exactly the tick its last living member arrives; a dead member does not deadlock the set; permuting the evaluation order of the members changes nothing; two sets releasing on the same tick resolve in a total order; and a go-code release is indistinguishable from any other order at the queue boundary. | 57, 59 | |
+| 61 | 9 | Order state on mission state, snapshot, and hasher | Add the order queue and the per-operator assignment to `MissionState`, to the snapshot, and to `SandataStateHasher`, folded **after** every field the hasher already covers so the existing field order is undisturbed. An authored polyline is stored verbatim and hashed; it is never recomputed on resume. **Single-writer wave task** — no other task in wave 9 touches these files. | `src/Sandata.Core/Simulation/MissionState.cs`, `src/Sandata.Core/Simulation/MissionSnapshot.cs`, `src/Sandata.Core/Determinism/SandataStateHasher.cs`, `tests/Sandata.Core.Tests/MissionStateTests.cs`, `tests/Sandata.Core.Tests/OrderStateHashTests.cs` | `OrderStateHashTests` passes: the state hash moves when any order field changes, the snapshot round-trips an authored polyline byte for byte, a resumed authored polyline is identical rather than recomputed, and the existing `MissionStateTests` facts still pass unchanged. | 57, 58, 59 | |
+| 62 | 9 | Path drawing tool and order authoring UI | The hand-drawn path tool, the go-code panel, and the order queue view, built on task 46's multi-select, drag capture, and undo stack. Pure layout and state helpers, tested with no graphics device. The undo stack edits orders **before** submission and never reaches `Sandata.Core`. | `src/Sandata.Client/UI/PathDrawTool.cs`, `src/Sandata.Client/UI/GoCodePanel.cs`, `src/Sandata.Client/UI/OrderQueueView.cs`, `tests/Sandata.Client.Tests/PathDrawToolTests.cs` | `PathDrawToolTests` passes: a drawn node list submits as one `MoveAlongPath` order with ascending addressees; undo removes the last unsubmitted node and cannot remove a submitted one; a rejected order surfaces its reason code in the queue view; and a test asserts no `Sandata.Core` type is reachable from the undo stack. | 33, 46 | |
+| 63 | 9 | Ruleset constant revision, single writer | The wave-2 note left `PathLatencyTicks`, `GroupCohesionRadius`, `LoweredWallDistanceWu`, and `AimToleranceBam` as documented placeholders, each naming a later task that revises it. Those four tasks ran in parallel worktrees and were **forbidden** `SandataRuleset.cs` to stop a three-way collision on one file; each reported a verdict instead. This task applies all four verdicts at once and moves the content hash once. | `src/Sandata.Core/Rules/SandataRuleset.cs`, `tests/Sandata.Core.Tests/SandataRulesetTests.cs` | `SandataRulesetTests` passes with the revised values, the pinned `ContentHash` is updated from `8955292433887190872` to the newly measured value, and every downstream test that consumed a placeholder still passes. Each of the four values cites the task that justified it. | 23, 27, 28, 32 | |
+
+### Five existing rows amended
+
+- **Task 44 (intent selection) moves from wave 7 to wave 9** and gains task 59 as
+  a dependency. Intent selection consults the order assignment first: an operator
+  under orders never selects an autonomous intent. Its file list is unchanged.
+- **Task 46 (interaction layer) is no longer speculative.** Its file list and
+  acceptance criteria stand exactly as written, but the types it declares now
+  have a real producer in task 62 rather than being kept warm for a later
+  milestone. The original row's phrase "nothing in v0.1 requires them to be
+  driven" no longer holds.
+- **Task 49 (tick pipeline) gains tasks 57, 59, 60, and 61 as dependencies.**
+  Stage 1 is no longer empty: it applies the order queue in
+  `(TargetTick, OrderSequence)` order. The stage's position and ordering rule do
+  not change.
+- **Task 52 (determinism suite) needs two golden baselines**, not one: an empty
+  order stream, which is the pure autonomous case, and a recorded non-empty one.
+  Its save-resume test must cover an authored polyline, because a mission with
+  only autonomous paths never exercises design section 16's authored-path rule.
+- **Task 54 (documentation) covers the order layer** — the two path sources, the
+  order stream as part of the replay contract, and the new smoke rows for
+  drawing, submitting, cancelling, and go-code release, all `PENDING`.
+
+### Revised wave plan
+
+| Wave | Tasks | Count | Change |
+| --- | --- | --- | --- |
+| 1–4 | 1–25, 56 | — | Complete. Unaffected by the answer. |
+| 5 | 26–33 | 8 | Dispatched unchanged. |
+| 6 | 34–41 | 8 | Unchanged. |
+| 7 | 42, 43, 45, 46, 47, 48, 57 | 7 | Task 44 moved out to wave 9; task 57 added. |
+| 8 | 58, 59 | 2 | New. |
+| 9 | 44, 60, 61, 62, 63 | 5 | New, plus task 44 relocated. Task 61 is single-writer on the mission-state files and task 63 is single-writer on the ruleset. |
+| 10 | 49, 50 | 2 | Was wave 8. |
+| 11 | 51 | 1 | Was wave 9. |
+| 12 | 52, 53 | 2 | Was wave 10. |
+| 13 | 54 | 1 | Was wave 11. |
+| 14 | 55 | 1 | Was wave 12. |
+
+Both directions of the wave audit were run on the new rows: no file is claimed by
+two tasks in one wave, and every file named in a new "What" column is claimed by
+exactly one task. `MissionState.cs`, `MissionSnapshot.cs`,
+`SandataStateHasher.cs`, and `SandataRuleset.cs` are the four files this re-cut
+puts back into play, and each is given to exactly one single-writer task.
+
+### The ruleset placeholders, and why no wave-5 task touched them
+
+The wave-2 note tasked 23, 27, 28, and 32 with confirming or replacing one
+placeholder each and moving `SandataRuleset.ContentHash` when they did. Tasks 27,
+28, and 32 ran in parallel in wave 5, and all three would have had to edit
+`SandataRuleset.cs` and its test to do that — three agents, one file, in one
+wave, which is the merge conflict the plan's own rules exist to prevent.
+
+Each was therefore forbidden the file and asked to report a verdict on its
+placeholder instead. Task 63 applies all four verdicts in one edit and moves the
+hash once. The cost is one extra task; the alternative was a guaranteed conflict
+on a file that carries a pinned hash.

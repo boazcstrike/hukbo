@@ -173,6 +173,44 @@ procedural 2D and has no sprite or mesh asset pipeline; the content pipeline
 ships fonts only. If 3D meshes were meant, this plan does not cover them and
 does not cost them.
 
+### Answered 2026-08-07: both readings, and the order layer is promoted
+
+The question was put to the user before wave 5 started, as three options —
+autonomous bots, a literal Door Kickers 2 in which the player draws every path,
+or both. **The answer was both.** The game gets autonomous bots that path and
+group themselves, and a player order layer that can override them with
+hand-drawn paths.
+
+That answer is additive rather than corrective, which is the cheapest of the
+three outcomes and the reason asking before wave 5 was worth the message. Every
+autonomous mechanism specified in sections 5 through 13 stands unchanged: squad
+grouping, the shared group path, arclength slot targeting, the doorway collapse,
+propose-prioritise-commit avoidance, the whole weapon and cover model. Nothing
+in waves 1 through 5 is re-cut and nothing already merged is invalidated.
+
+What changes is the status of the order layer. It stops being types and UI kept
+warm for a later milestone and becomes a first-class subsystem with its own
+authoritative state, its own work in tick stage 1, its own tests, and its own
+place in the determinism contract. Three consequences are worth stating here
+rather than leaving them to be discovered:
+
+- **Tick stage 1 is no longer empty.** The table in section 5 says of stage 1
+  "Empty in v0.1". Under this answer it applies a real order queue, ordered by
+  `(targetTick, orderSequence)`. The stage's position and its ordering rule do
+  not change; only its emptiness does.
+- **A player's drawn polyline is authoritative input, not a derived path.**
+  Section 4 makes published path polylines derived and recomputed on resume,
+  and that rule is correct for a path a search produced. It is wrong for a path
+  a person drew, because recomputing it would let the nav bake state at resume
+  time silently rewrite the player's intent. The two path kinds are therefore
+  governed by two different rules, and section 16 writes both down.
+- **Precedence between an order and autonomy has to be a total written rule.**
+  "The order usually wins" is not a rule a determinism test can assert. Section
+  16 gives the per-tick movement-source rule and the exact conditions under
+  which an assignment is cleared and autonomy resumes.
+
+The full specification of the order layer is section 16, added the same day.
+
 ---
 
 ## 3. Project layout
@@ -1954,10 +1992,12 @@ be confused for one another by a tired person or an over-eager agent.
 Ten, of which the first five are carried directly from the research
 consolidation's own list.
 
-1. **Autonomous bots versus player orders.** Section 2. The plan assumes
-   autonomous bots as primary with the order layer scaffolded. **This is the
-   largest single assumption in the document** and it changes the shape of
-   sections 7, 8, and 11 if answered the other way.
+1. **Autonomous bots versus player orders. ANSWERED 2026-08-07: both.**
+   Sections 2 and 16. The user was given three options — autonomous bots, a
+   literal Door Kickers 2 with hand-drawn paths only, or both — and chose both.
+   The autonomous side is unchanged; the order layer is promoted from scaffold
+   to a first-class subsystem, specified in section 16. This was the largest
+   single assumption in the document and it is now a decision.
 2. **Two-dimensional weapon geometry versus 3D meshes.** Section 2. The plan
    assumes 2D throughout and costs nothing for meshes.
 3. **The product name `Sandata`.** Trivial to change before the first commit,
@@ -1996,3 +2036,172 @@ consolidation's own list.
     `Directory.Build.props`, and `global.json` are all shared today. A 27 to
     46 MB audio library that every Hukbo clone pays for is the first real cost of
     staying, and it lands the moment question 5 is answered yes.
+
+---
+
+## 16. The order layer
+
+Added 2026-08-07, after the user answered question 1 with "both". This section
+is the specification the promoted order layer is built against. Everything it
+adds is additive: no rule stated earlier in this document is withdrawn, and the
+autonomous mechanisms in sections 7 and 8 are untouched.
+
+### The two path sources, and the rule that keeps them from fighting
+
+Every operator's movement, on every tick, comes from exactly one of two sources.
+Which one is not a preference and not a heuristic. It is derived from a single
+authoritative field:
+
+> An operator whose `OrderAssignment` is present follows the authored polyline
+> that assignment names. An operator with no assignment follows its squad slot
+> target along its group's autonomous polyline, exactly as section 8 describes.
+> There is no third case and no blend of the two.
+
+An assignment is present only because an order created it, and it is cleared
+only by one of four written conditions:
+
+1. The operator reached the polyline's final node.
+2. A `Cancel` order addressed to that operator was applied.
+3. The operator died.
+4. The polyline became untraversable — a door closed across it, or a nav rebake
+   blocked a cell the polyline crosses.
+
+Case 4 is the one that needs a stated behaviour rather than an implied one. The
+assignment is cleared with an inspectable reason code and autonomy resumes on
+the same tick. **The polyline is never silently repaired, re-routed, or
+re-smoothed.** A path a person drew is that person's decision, and a simulation
+that quietly redraws it is lying to the player about what it was told to do.
+
+Squad grouping itself is unaffected. Section 8's union-find derivation still runs
+every tick over the same proximity pair list, and a group id still exists for
+every operator whether or not it is under orders. The group id remains the truth
+for cohesion display and for the roster strip. What an assignment suppresses is
+narrower and exact: an operator under orders is excluded from slot targeting for
+that tick, and the path service does not enqueue a request on its behalf.
+
+### Order records and the queue
+
+An order is an immutable record carrying an identity, a schedule, an addressee
+set, a kind, and that kind's payload:
+
+- `OrderId` — dense, ascending, assigned at submission.
+- `OrderSequence` — the submission counter, unique and never reused.
+- `TargetTick` — the tick at which the order takes effect.
+- `FactionId` — orders address one faction's operators only.
+- `Addressees` — entity ids in ascending order, so the set has one written form.
+- `Kind` and that kind's payload.
+
+The order kinds in v0.1 are `MoveAlongPath`, `Hold`, `Breach`, `Sync`,
+`GoCodeRelease`, and `Cancel`. Stage 1 applies the queue in
+`(TargetTick, OrderSequence)` order, which is the ordering the tick pipeline
+table already pinned before the order layer existed; it did not need changing.
+
+The queue is authoritative state. It is snapshotted and it folds into the state
+hash, in ascending `(TargetTick, OrderSequence)`, after every field the hasher
+already covers. Appending rather than interleaving keeps the existing field
+order intact, which matters because it means the addition does not disturb any
+hash recorded before it.
+
+The node-count cap on an authored polyline is a `const` on the order type, not a
+field on `SandataRuleset`. It is a structural limit that exists so a malformed
+input cannot allocate without bound, not a tuning value a designer would ever
+sweep, and putting it on the ruleset would move `ContentHash` for a constant
+that never varies.
+
+### An authored polyline is authoritative, not derived
+
+Section 4 states that a published path polyline is derived, excluded from the
+snapshot, and recomputed from its stored request on resume. That rule stands for
+every path a search produced. The companion rule for the other source is:
+
+> An authored polyline is player input. It is stored verbatim in the snapshot
+> and folds into the state hash. It is never recomputed, never re-smoothed, and
+> never replaced by a search result. On resume it is restored exactly as it was
+> drawn.
+
+The asymmetry is deliberate and it is the whole reason both rules have to be
+written down. A derived path recomputed on resume is a correctness property; an
+authored path recomputed on resume is a defect that would let the nav bake state
+at load time rewrite a decision the player made an hour earlier.
+
+The save-resume equivalence test therefore has to cover both kinds, and a mission
+with only autonomous paths does not exercise this rule at all.
+
+### Validation happens at submission, and rejection is observable
+
+An order is validated when it is submitted, not when it is applied, so the player
+learns immediately rather than several ticks later. A `MoveAlongPath` order is
+rejected when any of the following holds:
+
+- A node lies outside the map bounds.
+- A node lies in a cell that is `Blocked` in the current nav bake.
+- A segment between consecutive nodes crosses a wall segment, tested with
+  `ExactPredicates.ClassifySegments` against the wall bucket index. This is an
+  exact integer test with no epsilon, the same predicate line of sight uses.
+- The node count exceeds the cap, or is below two.
+
+A rejected order emits an authoritative event carrying the order id and a reason
+code. It is not silently dropped. Section 10's question 8 asks whether a
+spectator can discover an effect without reading source code, and an order that
+vanishes with no explanation fails that test outright.
+
+Door cells are deliberately not a rejection condition. A path through a door is
+the ordinary case in this game, and the mover's own door handling already governs
+whether it can pass yet.
+
+### Sync sets and go-codes
+
+Both of Door Kickers 2's grouping primitives are expressible as orders, which is
+why they cost so little under this answer.
+
+**Sync** pace-matches a set of operators. Each member that reaches its polyline's
+final node holds there. When every living member of the set is holding, all of
+them release on the same tick. The evaluation runs in stage 8 against the frozen
+tick-start view, so it is order-independent by construction, and the set is keyed
+by its lowest entity id so that two sets releasing on the same tick have a total
+order between them.
+
+**A go-code** assigns a letter to waypoints across several operators, and
+releasing that letter is itself an order — a `GoCodeRelease` with its own
+`TargetTick` and `OrderSequence`. A keypress therefore enters the same queue as
+everything else and gets the same determinism guarantee for free. No separate
+input path reaches the simulation.
+
+### Undo, multi-select, and drag capture stay presentation-only
+
+The undo stack, the multi-select state, and the drag capture layer edit orders
+**before** submission. Nothing about them crosses into `Sandata.Core`: they are
+not snapshotted, they do not fold into any hash, and undoing a drawn node that
+was never submitted is invisible to the simulation. The only thing that crosses
+the boundary is a submitted order.
+
+A test asserts that no type in `Sandata.Core` is reachable from the undo stack,
+for the same reason a test asserts `Hukbo.Core` never references
+`Hukbo.Diagnostics`: the boundary is worth more as a checked fact than as an
+intention.
+
+### What this does to the determinism contract
+
+- **The replay contract gains the order stream.** The guarantee becomes: same
+  seed, same build, same ordered order stream, identical state hash, event hash,
+  outcome, and event stream. An order stream is part of a replay in exactly the
+  way a seed already is.
+- **The golden replay needs two baselines**, not one: a mission with an empty
+  order stream, which is the pure autonomous case, and a mission with a recorded
+  non-empty one. A single empty-stream baseline would prove nothing about the
+  subsystem this section adds.
+- **`MissionState`, `MissionSnapshot`, and `SandataStateHasher` gain the queue
+  and the per-operator assignment.** No golden mission hash exists yet, so this
+  costs no re-pinning provided it lands before the golden replay task records
+  one.
+- **`SandataRuleset.ContentHash` does not move.** The order layer introduces no
+  tuning value, so it adds no ruleset field.
+
+### What a spectator sees
+
+Section 10's question 8, answered explicitly. A drawn path renders as a polyline
+overlay with waypoint markers, at every detail tier, alongside the tactical
+overlays. The operator inspector gains three rows: the active order id, the node
+index currently being walked, and the reason code that cleared the last
+assignment. An operator that stopped following a drawn path can therefore be
+asked why it stopped, and it answers.
