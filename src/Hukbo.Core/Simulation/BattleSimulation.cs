@@ -100,6 +100,33 @@ public sealed class BattleSimulation
     private readonly bool[] _conflictAccepted;
     private long _movementConflictDenials;
 
+    // The four-way split of TryProposeEquipmentRoute's route-refusal reasons
+    // (ranged-units plan RU-06, F-A): derived observability in the same
+    // mould as _movementConflictDenials just above. A denied route's reason
+    // is not recoverable from an AgentView the way a phase is, so
+    // TryProposeEquipmentRoute records which reason applied to
+    // _pendingRouteRefusalReasons below rather than incrementing directly:
+    // ApplyEquipmentAttackFootworkAndDeathCleanup can still overwrite this
+    // same tick's Refuse with Commit, for an agent whose gathered attack the
+    // combat stage accepted after the route was already rejected, and a
+    // reason recorded for a tick that never actually surfaces as Refuse must
+    // not be counted. ReconcileRouteRefusalReasonCounters resolves each
+    // pending reason against the tick's now-final FootworkPhase and
+    // increments exactly one of the four counters below, so together they
+    // decompose MovementBehaviorMetrics.RefuseAgentTicks exactly, never
+    // inflated by a reason a later stage overrode.
+    private long _routeRefusalNoCandidatesBuilt;
+    private long _routeRefusalStepEndpointRejected;
+    private long _routeRefusalDirectCandidateOmitted;
+    private long _routeRefusalLaneNotClear;
+
+    // One slot per scenario agent: which of the four reasons, if any,
+    // TryProposeEquipmentRoute recorded for the agent this tick, pending
+    // ReconcileRouteRefusalReasonCounters resolving it after the
+    // accepted-attack override has had its say. Allocated only when
+    // usesFootwork, matching every other V6-only scratch array above.
+    private readonly RouteRefusalReason[] _pendingRouteRefusalReasons;
+
     // Pressure-interrupt scratch (V7 design section 3, question 2). One slot
     // per scenario agent, allocated once here and sized zero under every preset
     // whose MovementRuleset.AppliesPressureInterrupt is false — which is every
@@ -182,6 +209,9 @@ public sealed class BattleSimulation
         _provisionalFootworkTicks = usesFootwork ? new int[agents.Length] : [];
         _proposedPaceRaw = usesFootwork ? new int[agents.Length] : [];
         _attackAcceptedThisTick = usesFootwork ? new bool[agents.Length] : [];
+        _pendingRouteRefusalReasons = usesFootwork
+            ? new RouteRefusalReason[agents.Length]
+            : [];
         _factionLocalIndexes = usesFootwork ? new int[agents.Length] : [];
         _conflictProposals = usesFootwork
             ? new FriendlyClearanceProposal[agents.Length]
@@ -318,6 +348,57 @@ public sealed class BattleSimulation
     /// <inheritdoc cref="MovementConflictDenials"/>
     internal long MovementConflictDenialsForTesting =>
         MovementConflictDenials;
+
+    /// <summary>
+    /// The number of <c>TryProposeEquipmentRoute</c> calls, since the battle
+    /// started, that finalised <see cref="Movement.FootworkPhase.Refuse"/>
+    /// because <c>BuildEquipmentRouteCandidates</c> produced zero candidates
+    /// for the tick. One of the four rejection-reason counters (ranged-units
+    /// plan RU-06, F-A) that together decompose
+    /// <see cref="Simulation.MovementBehaviorMetrics.RefuseAgentTicks"/>.
+    /// Derived observability in the same mould as
+    /// <see cref="MovementConflictDenials"/>: never hashed, never
+    /// snapshotted, never read by any simulation stage.
+    /// </summary>
+    public long RouteRefusalNoCandidatesBuilt =>
+        _routeRefusalNoCandidatesBuilt;
+
+    /// <summary>
+    /// The number of <c>TryProposeEquipmentRoute</c> calls, since the battle
+    /// started, whose last attempted candidate was rejected because
+    /// <c>MovementRouteRules.StepEndpoint</c> found no legal step for it. One
+    /// of the four rejection-reason counters decomposing
+    /// <see cref="Simulation.MovementBehaviorMetrics.RefuseAgentTicks"/>. See
+    /// <see cref="RouteRefusalNoCandidatesBuilt"/> for the shared derived
+    /// observability contract.
+    /// </summary>
+    public long RouteRefusalStepEndpointRejected =>
+        _routeRefusalStepEndpointRejected;
+
+    /// <summary>
+    /// The number of <c>TryProposeEquipmentRoute</c> calls, since the battle
+    /// started, whose last attempted candidate was rejected because
+    /// <c>ShouldOmitDirectCandidate</c> ruled out a direct approach subject
+    /// to second-threat omission. One of the four rejection-reason counters
+    /// decomposing
+    /// <see cref="Simulation.MovementBehaviorMetrics.RefuseAgentTicks"/>. See
+    /// <see cref="RouteRefusalNoCandidatesBuilt"/> for the shared derived
+    /// observability contract.
+    /// </summary>
+    public long RouteRefusalDirectCandidateOmitted =>
+        _routeRefusalDirectCandidateOmitted;
+
+    /// <summary>
+    /// The number of <c>TryProposeEquipmentRoute</c> calls, since the battle
+    /// started, whose last attempted candidate was rejected because
+    /// <c>IsLaneClearOfAllies</c> found the route too close to a friendly
+    /// agent. One of the four rejection-reason counters decomposing
+    /// <see cref="Simulation.MovementBehaviorMetrics.RefuseAgentTicks"/>. See
+    /// <see cref="RouteRefusalNoCandidatesBuilt"/> for the shared derived
+    /// observability contract.
+    /// </summary>
+    public long RouteRefusalLaneNotClear =>
+        _routeRefusalLaneNotClear;
 
     /// <summary>
     /// The local movement context derived for one agent by the tick just
@@ -644,6 +725,11 @@ public sealed class BattleSimulation
             // and agents killed by the gathered exchange take death cleanup,
             // before any outcome, hash, or snapshot work.
             ApplyEquipmentAttackFootworkAndDeathCleanup();
+
+            // RU-06, F-A: resolved only after the accepted-attack override
+            // just above has had its say, so a route rejection whose Refuse
+            // was overwritten to Commit this same tick is never counted.
+            ReconcileRouteRefusalReasonCounters();
         }
 
         ResolveOutcome(events);
@@ -1989,6 +2075,20 @@ public sealed class BattleSimulation
     }
 
     /// <summary>
+    /// Which of the four route-refusal reasons (ranged-units plan RU-06,
+    /// F-A) <c>TryProposeEquipmentRoute</c> recorded for an agent's current
+    /// tick, pending <see cref="ReconcileRouteRefusalReasonCounters"/>.
+    /// </summary>
+    private enum RouteRefusalReason : byte
+    {
+        None = 0,
+        NoCandidatesBuilt = 1,
+        StepEndpointRejected = 2,
+        DirectCandidateOmitted = 3,
+        LaneNotClear = 4,
+    }
+
+    /// <summary>
     /// Generates the provisional phase's route candidates per design section
     /// 10.4, clearance-tests them in order per section 10.5, and proposes
     /// the first survivor. Returns whether any candidate survived; on
@@ -2010,6 +2110,37 @@ public sealed class BattleSimulation
         var actorClearanceSquared = SquaredClearanceRadius(profile);
         var mapWidthRaw = checked(Scenario.MapWidth * FixedPoint.Scale);
         var mapHeightRaw = checked(Scenario.MapHeight * FixedPoint.Scale);
+
+        // WeaponMovementRules.FinalizeFootwork only turns a failed route into
+        // FootworkPhase.Refuse for these three provisional phases; a failed
+        // Commit/Recover/Regroup/Disengage route keeps its own phase and
+        // timer instead (design section 9.4's "a blocked lane must not erase
+        // a safety or attack lifecycle"). The four counters below decompose
+        // MovementBehaviorMetrics.RefuseAgentTicks specifically, so they must
+        // count only the calls FinalizeFootwork actually turns into Refuse —
+        // gating on the identical condition keeps the four-way sum equal to
+        // RefuseAgentTicks exactly, never inflated by a non-Refuse failure.
+        var finalizesRefuseOnFailure = provisionalPhase is FootworkPhase.Approach
+            or FootworkPhase.Engage
+            or FootworkPhase.Pursue;
+
+        // No candidate table at all: BuildEquipmentRouteCandidates found no
+        // threat, no facing, or no non-zero delta to route toward, so the
+        // loop below never runs. Counted here, once, rather than inside the
+        // loop, so this reason is mutually exclusive with the three below —
+        // together the four counters decompose RefuseAgentTicks with exactly
+        // one increment per finalised Refuse, never more (RU-06, F-A).
+        if (count == 0)
+        {
+            if (finalizesRefuseOnFailure)
+            {
+                _pendingRouteRefusalReasons[index] =
+                    RouteRefusalReason.NoCandidatesBuilt;
+            }
+
+            TurnFacingInPlace(agent, profile, provisionalPhase, threat);
+            return false;
+        }
 
         for (var candidateIndex = 0; candidateIndex < count; candidateIndex++)
         {
@@ -2053,18 +2184,42 @@ public sealed class BattleSimulation
                 mapHeightRaw,
                 Scenario.BodyRadiusRaw) is not { } endpoint)
             {
+                // Only the last candidate tried this call decides the
+                // reason: an earlier candidate's continue is superseded the
+                // moment a later one is attempted, so counting only the
+                // final iteration keeps this counter mutually exclusive with
+                // the other three and the four-way sum equal to
+                // RefuseAgentTicks exactly (never a double count).
+                if (finalizesRefuseOnFailure && candidateIndex == count - 1)
+                {
+                    _pendingRouteRefusalReasons[index] =
+                        RouteRefusalReason.StepEndpointRejected;
+                }
+
                 continue;
             }
 
             if (candidate.SubjectToSecondThreatOmission &&
                 ShouldOmitDirectCandidate(agent, context, endpoint))
             {
+                if (finalizesRefuseOnFailure && candidateIndex == count - 1)
+                {
+                    _pendingRouteRefusalReasons[index] =
+                        RouteRefusalReason.DirectCandidateOmitted;
+                }
+
                 continue;
             }
 
             if (!IsLaneClearOfAllies(
                 index, agent, endpoint, actorClearanceSquared))
             {
+                if (finalizesRefuseOnFailure && candidateIndex == count - 1)
+                {
+                    _pendingRouteRefusalReasons[index] =
+                        RouteRefusalReason.LaneNotClear;
+                }
+
                 continue;
             }
 
@@ -2077,6 +2232,57 @@ public sealed class BattleSimulation
 
         TurnFacingInPlace(agent, profile, provisionalPhase, threat);
         return false;
+    }
+
+    /// <summary>
+    /// Resolves every pending route-refusal reason
+    /// <c>TryProposeEquipmentRoute</c> recorded this tick against each
+    /// agent's now-final <see cref="Movement.FootworkPhase"/>, incrementing
+    /// exactly one of the four RU-06 counters per agent whose tick still
+    /// finalises as <see cref="Movement.FootworkPhase.Refuse"/>. Must run
+    /// after <see cref="ApplyEquipmentAttackFootworkAndDeathCleanup"/>: that
+    /// pass can overwrite this same tick's Refuse with Commit for an agent
+    /// whose gathered attack the combat stage accepted after the route was
+    /// already rejected, and a reason recorded for a tick that never
+    /// actually surfaces as Refuse must not be counted.
+    /// </summary>
+    private void ReconcileRouteRefusalReasonCounters()
+    {
+        for (var index = 0; index < _agentStates.Length; index++)
+        {
+            var reason = _pendingRouteRefusalReasons[index];
+            if (reason == RouteRefusalReason.None)
+            {
+                continue;
+            }
+
+            _pendingRouteRefusalReasons[index] = RouteRefusalReason.None;
+
+            if (_agentStates[index].FootworkPhase != FootworkPhase.Refuse)
+            {
+                continue;
+            }
+
+            switch (reason)
+            {
+                case RouteRefusalReason.NoCandidatesBuilt:
+                    _routeRefusalNoCandidatesBuilt =
+                        checked(_routeRefusalNoCandidatesBuilt + 1);
+                    break;
+                case RouteRefusalReason.StepEndpointRejected:
+                    _routeRefusalStepEndpointRejected =
+                        checked(_routeRefusalStepEndpointRejected + 1);
+                    break;
+                case RouteRefusalReason.DirectCandidateOmitted:
+                    _routeRefusalDirectCandidateOmitted =
+                        checked(_routeRefusalDirectCandidateOmitted + 1);
+                    break;
+                case RouteRefusalReason.LaneNotClear:
+                    _routeRefusalLaneNotClear =
+                        checked(_routeRefusalLaneNotClear + 1);
+                    break;
+            }
+        }
     }
 
     /// <summary>

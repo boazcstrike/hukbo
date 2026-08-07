@@ -75,6 +75,38 @@ namespace Hukbo.Core.Simulation;
 /// (weapon-relative movement design, section 10.6) rejected across the run,
 /// read from the simulation's own observability counter.
 /// </param>
+/// <param name="RouteRefusalNoCandidatesBuilt">
+/// Total number of <c>TryProposeEquipmentRoute</c> calls that finalised
+/// <see cref="Movement.FootworkPhase.Refuse"/> because
+/// <c>BuildEquipmentRouteCandidates</c> produced zero candidates for the
+/// tick — the provisional phase had no threat, no facing, or no non-zero
+/// delta to route toward. One of the four rejection-reason counters
+/// decomposing <see cref="RefuseAgentTicks"/>; like
+/// <see cref="ConflictDenials"/>, a reason a view cannot show, so it is read
+/// from the simulation's own observability counter rather than reconstructed
+/// from consecutive views.
+/// </param>
+/// <param name="RouteRefusalStepEndpointRejected">
+/// Total number of <c>TryProposeEquipmentRoute</c> calls whose last
+/// attempted candidate was rejected because
+/// <c>MovementRouteRules.StepEndpoint</c> found no legal step for it. One of
+/// the four rejection-reason counters decomposing
+/// <see cref="RefuseAgentTicks"/>.
+/// </param>
+/// <param name="RouteRefusalDirectCandidateOmitted">
+/// Total number of <c>TryProposeEquipmentRoute</c> calls whose last
+/// attempted candidate was rejected because
+/// <c>ShouldOmitDirectCandidate</c> ruled out a direct approach subject to
+/// second-threat omission. One of the four rejection-reason counters
+/// decomposing <see cref="RefuseAgentTicks"/>.
+/// </param>
+/// <param name="RouteRefusalLaneNotClear">
+/// Total number of <c>TryProposeEquipmentRoute</c> calls whose last
+/// attempted candidate was rejected because
+/// <c>IsLaneClearOfAllies</c> found the route too close to a friendly agent.
+/// One of the four rejection-reason counters decomposing
+/// <see cref="RefuseAgentTicks"/>.
+/// </param>
 public readonly record struct MovementBehaviorMetrics(
     long ApproachAgentTicks,
     long EngageAgentTicks,
@@ -87,7 +119,11 @@ public readonly record struct MovementBehaviorMetrics(
     long PostureTransitions,
     long FacingStepsTurned,
     long DisengagementEntries,
-    long ConflictDenials);
+    long ConflictDenials,
+    long RouteRefusalNoCandidatesBuilt = 0,
+    long RouteRefusalStepEndpointRejected = 0,
+    long RouteRefusalDirectCandidateOmitted = 0,
+    long RouteRefusalLaneNotClear = 0);
 
 /// <summary>
 /// Accumulates per-tick movement behaviour counts into the run aggregate
@@ -121,6 +157,10 @@ internal struct MovementBehaviorMetricsAccumulator
     private long _facingStepsTurned;
     private long _disengagementEntries;
     private long _conflictDenials;
+    private long _routeRefusalNoCandidatesBuilt;
+    private long _routeRefusalStepEndpointRejected;
+    private long _routeRefusalDirectCandidateOmitted;
+    private long _routeRefusalLaneNotClear;
 
     /// <summary>
     /// Returns the accumulator to the state of a freshly constructed one, so
@@ -240,6 +280,54 @@ internal struct MovementBehaviorMetricsAccumulator
     }
 
     /// <summary>
+    /// Records the simulation's cumulative route-rejection-reason totals —
+    /// the four-way split of <see cref="BattleSimulation"/>'s
+    /// <c>TryProposeEquipmentRoute</c> exit sites that together decompose
+    /// <see cref="MovementBehaviorMetrics.RefuseAgentTicks"/> (weapon-relative
+    /// movement design, section 16, F-A). Recorded the same way as
+    /// <see cref="RecordConflictDenialTotal"/>: the counters on
+    /// <see cref="BattleSimulation"/> are already running totals, so this
+    /// assigns rather than adds, and calling once after the run's final tick
+    /// is sufficient.
+    /// </summary>
+    /// <param name="noCandidatesBuiltTotal">
+    /// The cumulative "no candidates built" total as reported by
+    /// <see cref="BattleSimulation.RouteRefusalNoCandidatesBuilt"/>.
+    /// </param>
+    /// <param name="stepEndpointRejectedTotal">
+    /// The cumulative "step endpoint rejected" total as reported by
+    /// <see cref="BattleSimulation.RouteRefusalStepEndpointRejected"/>.
+    /// </param>
+    /// <param name="directCandidateOmittedTotal">
+    /// The cumulative "direct candidate omitted" total as reported by
+    /// <see cref="BattleSimulation.RouteRefusalDirectCandidateOmitted"/>.
+    /// </param>
+    /// <param name="laneNotClearTotal">
+    /// The cumulative "lane not clear" total as reported by
+    /// <see cref="BattleSimulation.RouteRefusalLaneNotClear"/>.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Any argument is negative. The accumulator is left unchanged when an
+    /// argument is rejected.
+    /// </exception>
+    internal void RecordRouteRefusalReasonTotals(
+        long noCandidatesBuiltTotal,
+        long stepEndpointRejectedTotal,
+        long directCandidateOmittedTotal,
+        long laneNotClearTotal)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(noCandidatesBuiltTotal);
+        ArgumentOutOfRangeException.ThrowIfNegative(stepEndpointRejectedTotal);
+        ArgumentOutOfRangeException.ThrowIfNegative(directCandidateOmittedTotal);
+        ArgumentOutOfRangeException.ThrowIfNegative(laneNotClearTotal);
+
+        _routeRefusalNoCandidatesBuilt = noCandidatesBuiltTotal;
+        _routeRefusalStepEndpointRejected = stepEndpointRejectedTotal;
+        _routeRefusalDirectCandidateOmitted = directCandidateOmittedTotal;
+        _routeRefusalLaneNotClear = laneNotClearTotal;
+    }
+
+    /// <summary>
     /// Projects the accumulated counts into the reported value. Reading does
     /// not consume the accumulator, so it may be called any number of times.
     /// </summary>
@@ -256,5 +344,9 @@ internal struct MovementBehaviorMetricsAccumulator
             _postureTransitions,
             _facingStepsTurned,
             _disengagementEntries,
-            _conflictDenials);
+            _conflictDenials,
+            _routeRefusalNoCandidatesBuilt,
+            _routeRefusalStepEndpointRejected,
+            _routeRefusalDirectCandidateOmitted,
+            _routeRefusalLaneNotClear);
 }
