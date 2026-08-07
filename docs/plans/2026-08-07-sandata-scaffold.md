@@ -382,3 +382,47 @@ cannot both hold. Task 14 kept the existing test — it guards a real invariant 
 and used `boot.sandata.started` rather than `sandata.boot.started`. Design
 section 4's wording should be corrected to match, since channel-first ordering
 is the established contract and the design was simply unaware of it.
+
+**Wave 4 complete, 2026-08-07.** Tasks 18 through 25 plus task 56 all merged, no
+merge conflicts across nine worktrees. 608 Sandata.Core tests, 25
+Sandata.Client tests, 2,635 Hukbo.Core and 3,098 Hukbo.Client tests — 6,366
+total, zero failures. The canonical gate passes all five stages and the seed-1
+workload still reproduces stateHash 1B73FC5923879AA0 and eventHash
+AC55684F24D39344, unchanged from untouched main.
+
+Decisions settled and pinned by tests during this wave:
+
+- A map's NAME record does **not** reach MapContentHash. Two maps differing only
+  by name hash identically, so a rename does not invalidate recorded replays.
+- A door's hinge is **absolute** to canonical endpoint order, not relative to
+  authored order. MapCanonicalizer leaving the hinge untouched on an endpoint
+  swap is therefore correct and needed no change.
+- FirearmRuleset.ContentHash is 12611003062847309889, and it was observed to
+  move when a single Modes field changed, which is what makes it meaningful.
+- angle-house.hkmap has MapContentHash 11909359227906322716.
+
+**The AK-15 correction, and what it says about the pipeline.** Task 22 reported a
+rifle count it could not reconcile against the research rather than quietly
+choosing a number. Chasing it found that the research consolidation had dropped
+the AK-15 two-round burst entirely while condensing the source material. The
+design inherited the omission and the catalog implemented the design faithfully.
+Every step downstream was correct; the input was wrong.
+
+The consolidation step is the only link in this chain with no test behind it, and
+it fed thirty-eight rows of weapon data. Correcting it touched four files and
+moved a pinned hash. The general point for future work: a research consolidation
+deserves the same suspicion as generated code, and the cheapest guard is an
+implementer that reports an irreconcilable count instead of picking one.
+
+**Two real defects found during verification, both by the agent that wrote the
+code.** Task 25 MarkBlockedCells clamped only the upper cell-index bound, so a
+wall lying exactly on the grid far boundary produced an empty cell range and
+silently never rasterised — a wall present in the file, drawn on screen, and
+blocking nothing, with enclosure validation passing over the hole. Task 21 found
+that one of its own ten fixtures, labelled start-equals-goal, actually parsed
+into two adjacent distinct cells and had never tested what it claimed.
+
+**Wave 5 is not started.** It is the first wave whose work depends on the
+unanswered question in section 15: whether bots path and group themselves, or the
+player draws every path by hand, or both. Everything through wave 4 holds under
+any of the three answers.
