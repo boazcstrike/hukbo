@@ -26,6 +26,20 @@ Navigate:
   directly demonstrated.
 - **Unknown or unsupported** — not recoverable from the present evidence.
 
+```mermaid
+flowchart LR
+    A["Attested"]:::attested --> B["Strong reconstruction"]:::strong --> C["Plausible inference"]:::plausible --> D["Unknown or unsupported"]:::unknown
+
+    classDef attested fill:#2e7d32,color:#fff,stroke:#1b5e20
+    classDef strong fill:#7cb342,color:#000,stroke:#558b2f
+    classDef plausible fill:#f9a825,color:#000,stroke:#f57f17
+    classDef unknown fill:#c62828,color:#fff,stroke:#8e0000
+```
+
+Node color for these four tiers repeats in every diagram below. Left is best
+supported, right is design space — it is a confidence spectrum, not a claimed
+sequence.
+
 ## The individual evidence base
 
 ### Material weapons
@@ -106,6 +120,21 @@ affordances**, not indigenous terminology:
 | Long hand-weapon distance | Use a shaft or point while keeping the body farther from contact. | **Plausible affordance** of a spear |
 | Close contact | Manage crowding, edged or pointed tools, grappling risk, and multiple directions. | **Attested violence / plausible mechanics** |
 | Disengagement | Create enough distance to flee, regroup, reach a boat, or use terrain. | **Plausible inference** |
+
+```mermaid
+flowchart LR
+    O["Observation<br/>detect before weapons reach"]:::strong <--> T["Thrown-weapon distance<br/>spear reach/accuracy"]:::attested
+    T <--> H["Long hand-weapon distance<br/>shaft/point, body held back"]:::plausible
+    H <--> CC["Close contact<br/>crowding, edged tools, grappling risk"]:::attested
+    CC <--> D["Disengagement<br/>create distance to flee/regroup"]:::plausible
+
+    classDef attested fill:#2e7d32,color:#fff,stroke:#1b5e20
+    classDef strong fill:#7cb342,color:#000,stroke:#558b2f
+    classDef plausible fill:#f9a825,color:#000,stroke:#f57f17
+```
+
+Double-headed arrows because a fighter can close or open distance in either
+direction. No meter values are implied — see the caution below the table.
 
 No historical meter values should be assigned from these sources. Weapon
 length, user stature, footing, vegetation, fatigue, and nearby bodies all
@@ -373,6 +402,54 @@ The following is a **game-planning abstraction** compatible with the evidence:
 4. **Act:** move, threaten, throw, strike, assist, or withdraw.
 5. **Reassess:** account for fatigue, injury, lost weapon, leader movement, and
    changing local numbers.
+
+```mermaid
+flowchart TD
+    P["1. Perceive<br/>threats, companions, leader, terrain, exit"] --> E["2. Evaluate distance<br/>outside reach / thrown / hand-reach / crowded"]
+    E --> C["3. Choose objective<br/>protect self, follow leader, help companion,<br/>seize opportunity, disengage"]
+    C --> A["4. Act<br/>move, threaten, throw, strike, assist, withdraw"]
+    A --> R["5. Reassess<br/>fatigue, injury, lost weapon, leader movement,<br/>changing local numbers"]
+    R --> P
+```
+
+Drawn as a loop because step 5 feeds back into step 1 on the next moment of
+contact — a design abstraction, not a recovered five-step doctrine.
+
+The loop above hides which action fits which distance. Unrolled into a DAG —
+no back-edge, so band and action stay separated from the repeating cycle:
+
+```mermaid
+flowchart TD
+    ROOT["Perceive threat"]:::design --> B1["Outside reach"]:::design
+    ROOT --> B2["Thrown-weapon opportunity"]:::design
+    ROOT --> B3["Hand-weapon reach"]:::design
+    ROOT --> B4["Crowded contact"]:::design
+
+    B1 --> A1["Move / reposition"]:::plausible
+    B1 --> A2["Turn point toward<br/>a newly appearing threat"]:::plausible
+    B1 --> A3["Preserve distance<br/>from a shorter weapon"]:::plausible
+
+    B2 --> A4["Throw"]:::plausible
+    B2 --> A5["Choose retain vs. throw"]:::plausible
+    B2 --> A6["Recover, replace, or<br/>abandon thrown weapon"]:::plausible
+
+    B3 --> A7["Thrust / strike"]:::plausible
+    B3 --> A8["Avoid entangling shaft<br/>with companions or terrain"]:::plausible
+    B3 --> A9["Close enough to use edge<br/>while avoiding opponent's point"]:::plausible
+
+    B4 --> A10["Choose a reachable target"]:::plausible
+    B4 --> A11["Assist / protect<br/>an injured or high-status companion"]:::plausible
+    B4 --> A12["Withdraw"]:::plausible
+
+    classDef design fill:#37474f,color:#fff,stroke:#263238
+    classDef plausible fill:#f9a825,color:#000,stroke:#f57f17
+```
+
+Gray nodes are the "Evaluate distance" abstraction itself, not evidence-tiered.
+Amber leaves are pulled from the "Plausible individual judgments" lists under
+Weapon affordances and from the "Act" step above — nothing new. No edge
+between the four bands: a unit can enter at any one depending on how the
+encounter opens, not in a fixed left-to-right order.
 
 No source proves that historical fighters conceptualized action in these five
 steps. It is a transparent abstraction that avoids invented choreography.

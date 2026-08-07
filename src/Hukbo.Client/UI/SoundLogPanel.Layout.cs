@@ -29,53 +29,55 @@ internal sealed partial class SoundLogPanel
     // Bebas Neue at 22px (the `Title` rung) measured 35. Guessing from pixel
     // size alone (the "12px needs about 15px" rule of thumb) would have
     // undershot both figures.
-    private const int CaptionLineSpacing = 20;
-    private const int TitleLineSpacing = 35;
+    private static int CaptionLineSpacing => UiScaleContext.Pixels(20);
+    private static int TitleLineSpacing => UiScaleContext.Pixels(35);
 
     /// <summary>
     /// Vertical offset of the "SOUND LOG" title's draw position from the
     /// header's top edge. Small and fixed, independent of the line spacing
     /// constants above, so the title never touches the panel's own border.
     /// </summary>
-    private const int HeaderTitleTopOffset = 2;
+    private static int HeaderTitleTopOffset => UiScaleContext.Pixels(2);
 
     /// <summary>
     /// Clearance between the bottom of the title line and the top of the
     /// availability caption line stacked beneath it.
     /// </summary>
-    private const int HeaderLineGap = 2;
+    private static int HeaderLineGap => UiScaleContext.Pixels(2);
 
     /// <summary>
     /// Clearance reserved below the availability caption line before the
     /// header's own bottom edge.
     /// </summary>
-    private const int HeaderBottomPadding = 3;
+    private static int HeaderBottomPadding => UiScaleContext.Pixels(3);
 
     /// <summary>
     /// Vertical offset of the availability caption's draw position from the
     /// header's top edge — directly beneath the title's own line box.
     /// </summary>
-    internal const int HeaderCaptionTopOffset =
+    internal static int HeaderCaptionTopOffset =>
         HeaderTitleTopOffset + TitleLineSpacing + HeaderLineGap;
 
-    internal const int BindingRowHeight = CaptionLineSpacing;
-    internal const int CueRowHeight = CaptionLineSpacing;
-    internal const int MinimumThumbHeight = 18;
+    internal static int BindingRowHeight => CaptionLineSpacing;
+    internal static int CueRowHeight => CaptionLineSpacing;
+    internal static int MinimumThumbHeight => UiScaleContext.Pixels(18);
 
-    private const int Padding = 10;
-    private const int Gap = 6;
+    private static int Padding => UiScaleContext.Pixels(10);
+    private static int Gap => UiScaleContext.Pixels(6);
 
     // Tall enough to stack the Title-rung title line and the Caption-rung
     // availability line beneath it without either one clipping into the
     // panel's own header/path seam. See the derivation note above.
-    private const int HeaderHeight =
+    private static int HeaderHeight =>
         HeaderCaptionTopOffset + CaptionLineSpacing + HeaderBottomPadding;
 
-    private const int PathHeight = CaptionLineSpacing;
-    private const int SectionHeaderHeight = CaptionLineSpacing;
+    private static int PathHeight => CaptionLineSpacing;
+    private static int SectionHeaderHeight => CaptionLineSpacing;
     private const int MinimumCueRowCount = 3;
-    private const int MuteWidth = 54;
-    private const int ScrollbarWidth = 8;
+    private static int MuteWidth => UiScaleContext.Pixels(54);
+    private static int ScrollbarWidth => UiScaleContext.Pixels(8);
+    private static int HeaderPathGap => UiScaleContext.Pixels(2);
+    private static int ScrollbarGap => UiScaleContext.Pixels(4);
     private const int RowsPerWheelDetent = 3;
     private const int MouseWheelDeltaPerDetent = 120;
 
@@ -94,7 +96,9 @@ internal sealed partial class SoundLogPanel
             header.Top,
             muteWidth,
             header.Height);
-        var pathTop = Math.Min(inner.Bottom, header.Bottom + 2);
+        var pathTop = Math.Min(
+            inner.Bottom,
+            header.Bottom + HeaderPathGap);
         var path = new Rectangle(
             inner.Left,
             pathTop,
@@ -107,6 +111,12 @@ internal sealed partial class SoundLogPanel
         // The expected-files list is what tells the owner how to name a file, so
         // it gets the room it needs first — capped only by the cue rows the log
         // must still be able to show.
+        //
+        // `desiredBindingsHeight` caps the viewport, not the list. That is
+        // deliberate and must stay: the list scrolls, so every row is reachable
+        // whatever the viewport height, while removing the cap would let the
+        // expected-files section keep growing on a tall window until the cue
+        // log was left with nothing but its three reserved rows.
         var desiredBindingsHeight =
             SectionHeaderHeight +
             (SoundCatalog.AllSounds.Count * BindingRowHeight);
@@ -126,7 +136,14 @@ internal sealed partial class SoundLogPanel
         var bindingRows = new Rectangle(
             bindings.Left,
             bindingRowsTop,
-            bindings.Width,
+            Math.Max(
+                0,
+                bindings.Width - ScrollbarWidth - ScrollbarGap),
+            Math.Max(0, bindings.Bottom - bindingRowsTop));
+        var bindingScrollbar = new Rectangle(
+            Math.Max(bindings.Left, bindings.Right - ScrollbarWidth),
+            bindingRowsTop,
+            Math.Min(ScrollbarWidth, bindings.Width),
             Math.Max(0, bindings.Bottom - bindingRowsTop));
 
         var cueTop = Math.Min(inner.Bottom, bindings.Bottom + Gap);
@@ -141,7 +158,9 @@ internal sealed partial class SoundLogPanel
         var cueRows = new Rectangle(
             cueList.Left,
             cueRowsTop,
-            Math.Max(0, cueList.Width - ScrollbarWidth - 4),
+            Math.Max(
+                0,
+                cueList.Width - ScrollbarWidth - ScrollbarGap),
             Math.Max(0, cueList.Bottom - cueRowsTop));
         var scrollbar = new Rectangle(
             Math.Max(cueList.Left, cueList.Right - ScrollbarWidth),
@@ -157,7 +176,8 @@ internal sealed partial class SoundLogPanel
             bindingRows,
             cueList,
             cueRows,
-            scrollbar);
+            scrollbar,
+            bindingScrollbar);
     }
 
     private static Rectangle ComputeInnerBounds(Rectangle bounds)
@@ -307,6 +327,38 @@ internal sealed partial class SoundLogPanel
         var direction = scrollWheelDelta > 0 ? -1 : 1;
         return direction * detents * RowsPerWheelDetent;
     }
+
+    /// <summary>
+    /// Holds a scroll offset for the expected-files list inside the range the
+    /// viewport can actually show: never above the first row, and never past
+    /// the point where the last row sits on the bottom line. The result is zero
+    /// whenever every row already fits, so a short list cannot scroll at all.
+    /// </summary>
+    internal static int ClampBindingScroll(
+        int scrollStart,
+        int totalRowCount,
+        int visibleRowCount)
+    {
+        var maximumStart = Math.Max(0, totalRowCount - visibleRowCount);
+        return Math.Clamp(scrollStart, 0, maximumStart);
+    }
+
+    /// <summary>
+    /// Decides which of the panel's two lists a wheel notch moves: the
+    /// innermost scrollable region under the pointer. Over the expected-files
+    /// area the wheel moves the bindings, and everywhere else inside the panel
+    /// it moves the cue log — which is both the region under the pointer over
+    /// the cue list itself and the fallback over the header, the path line, and
+    /// the mute button. The fallback is what stops a notch being swallowed, and
+    /// the panel consumes the notch either way so it never reaches the arena
+    /// camera behind it.
+    /// </summary>
+    internal static SoundLogScrollTarget GetWheelTarget(
+        SoundLogPanelLayout layout,
+        Point pointer) =>
+        layout.BindingsBounds.Contains(pointer)
+            ? SoundLogScrollTarget.Bindings
+            : SoundLogScrollTarget.Cues;
 
     internal static Rectangle GetScrollbarThumb(
         Rectangle trackBounds,

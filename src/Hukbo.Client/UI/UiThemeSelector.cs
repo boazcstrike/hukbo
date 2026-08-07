@@ -1,3 +1,4 @@
+using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -14,6 +15,7 @@ internal sealed class UiThemeSelector
     private readonly IReadOnlyList<UiTheme> _themes;
     private readonly UiThemeSelectorLayout _layout;
     private readonly UiTextRoles _textRoles;
+    private readonly UiSelectorMotion _motion = new();
 
     public UiThemeSelector(
         IReadOnlyList<UiTheme> themes,
@@ -34,13 +36,13 @@ internal sealed class UiThemeSelector
     public Rectangle Bounds { get; set; }
 
     public Rectangle PreviousBounds =>
-        new(Bounds.Left, Bounds.Top, _layout.ArrowWidth, Bounds.Height);
+        new(Bounds.Left, Bounds.Top, GetArrowWidth(), Bounds.Height);
 
     public Rectangle NextBounds =>
         new(
-            Bounds.Right - _layout.ArrowWidth,
+            Bounds.Right - GetArrowWidth(),
             Bounds.Top,
-            _layout.ArrowWidth,
+            GetArrowWidth(),
             Bounds.Height);
 
     public IReadOnlyList<string> ThemeNames =>
@@ -60,6 +62,11 @@ internal sealed class UiThemeSelector
 
     public string GetSelectedMarkerText(string currentId) =>
         $"ACTIVE  -  {GetPositionText(currentId)}";
+
+    public static string GetSelectorLabelText(string currentId) =>
+        currentId == "datu-court"
+            ? "PROVISIONAL RECONSTRUCTION"
+            : "VISUAL THEME";
 
     public string? GetKeyboardSelection(
         Keys key,
@@ -136,6 +143,27 @@ internal sealed class UiThemeSelector
         return new ThemeSelectorInteraction(null, pointerInside);
     }
 
+    /// <summary>
+    /// Advances the shared arrow-hover and marker-pulse motion. Called once
+    /// per visible-menu frame from <see cref="MenuOverlay.Update"/>, before
+    /// the early-returning interaction chain, so a selection reported by any
+    /// other selector never stalls this one's transitions mid-flight.
+    /// </summary>
+    public void AdvanceMotion(
+        InputEdges input,
+        TimeSpan elapsed,
+        MotionIntensity intensity,
+        string currentId)
+    {
+        _motion.AdvanceMotion(
+            input.MousePosition,
+            PreviousBounds,
+            NextBounds,
+            GetSelectedMarkerText(currentId),
+            elapsed,
+            intensity);
+    }
+
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
@@ -150,42 +178,52 @@ internal sealed class UiThemeSelector
             pixel,
             Bounds,
             isFocused ? colors.ActionFocus : colors.PanelBorder,
-            isFocused
-                ? activeTheme.Metrics.FocusThickness
-                : activeTheme.Metrics.BorderThickness);
+            UiScaleContext.Pixels(
+                isFocused
+                    ? activeTheme.Metrics.FocusThickness
+                    : activeTheme.Metrics.BorderThickness));
 
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(_textRoles.SelectorArrow),
             "<",
             PreviousBounds.Center.ToVector2(),
-            colors.TextPrimary);
+            _motion.PreviousArrowColor(colors));
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(_textRoles.SelectorArrow),
             ">",
             NextBounds.Center.ToVector2(),
-            colors.TextPrimary);
+            _motion.NextArrowColor(colors));
 
         var centerX = Bounds.Center.X;
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(_textRoles.SelectorLabel),
-            "VISUAL THEME",
-            new Vector2(centerX, Bounds.Top + _layout.LabelTopOffset),
+            GetSelectorLabelText(activeTheme.Id),
+            new Vector2(
+                centerX,
+                Bounds.Top +
+                    UiScaleContext.Pixels(_layout.LabelTopOffset)),
             colors.TextSecondary);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(_textRoles.SelectorName),
             activeTheme.DisplayName,
-            new Vector2(centerX, Bounds.Top + _layout.NameTopOffset),
+            new Vector2(
+                centerX,
+                Bounds.Top +
+                    UiScaleContext.Pixels(_layout.NameTopOffset)),
             colors.TextPrimary);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(_textRoles.SelectorMarker),
             GetSelectedMarkerText(activeTheme.Id),
-            new Vector2(centerX, Bounds.Top + _layout.MarkerTopOffset),
-            colors.Selection);
+            new Vector2(
+                centerX,
+                Bounds.Top +
+                    UiScaleContext.Pixels(_layout.MarkerTopOffset)),
+            _motion.MarkerColor(colors));
 
         var swatches = new[]
         {
@@ -196,22 +234,32 @@ internal sealed class UiThemeSelector
             colors.Selection,
         };
         var totalWidth =
-            (swatches.Length * _layout.SwatchWidth) +
-            ((swatches.Length - 1) * _layout.SwatchGap);
+            (swatches.Length *
+                UiScaleContext.Pixels(_layout.SwatchWidth)) +
+            ((swatches.Length - 1) *
+                UiScaleContext.Pixels(_layout.SwatchGap));
         var left = centerX - (totalWidth / 2);
         var top =
-            Bounds.Bottom - _layout.Padding - _layout.SwatchHeight;
+            Bounds.Bottom -
+            UiScaleContext.Pixels(_layout.Padding) -
+            UiScaleContext.Pixels(_layout.SwatchHeight);
         for (var index = 0; index < swatches.Length; index++)
         {
             var swatch = new Rectangle(
                 left + (index *
-                    (_layout.SwatchWidth + _layout.SwatchGap)),
+                    (UiScaleContext.Pixels(_layout.SwatchWidth) +
+                        UiScaleContext.Pixels(_layout.SwatchGap))),
                 top,
-                _layout.SwatchWidth,
-                _layout.SwatchHeight);
+                UiScaleContext.Pixels(_layout.SwatchWidth),
+                UiScaleContext.Pixels(_layout.SwatchHeight));
             spriteBatch.Draw(pixel, swatch, swatches[index]);
         }
     }
+
+    private int GetArrowWidth() =>
+        Math.Max(
+            UiScaleContext.Pixels(_layout.ArrowWidth),
+            UiScaleContext.Pixels(_layout.MinimumTargetSize));
 
     private string GetRelativeId(string currentId, int direction)
     {

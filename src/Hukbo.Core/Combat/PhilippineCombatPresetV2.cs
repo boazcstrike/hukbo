@@ -23,7 +23,7 @@ namespace Hukbo.Core.Combat;
 /// </remarks>
 public static class PhilippineCombatPresetV2
 {
-    public const int Version = 2;
+    public const int Version = 3;
 
     public static CombatRuleset Rules { get; } = Build();
 
@@ -116,21 +116,74 @@ public static class PhilippineCombatPresetV2
         // makes it the control: if a battle's character shifts unexpectedly,
         // shielded Kalis warriors are the ones whose behaviour should not
         // have moved at all.
+        // The four ComboXxx fields on every profile below are a true no-op:
+        // ComboOpenChanceBasisPoints = 0 on every row means the roll
+        // `roll < 0` can never succeed, so V2 can never open a chain and its
+        // battles play out identically to before attack combinations
+        // existed. The other three combo fields are unreachable once no
+        // chain can open, but WeaponProfile.Validate() still requires
+        // positive values, so each row borrows that weapon's V3 solo-row
+        // combo values
+        // (the combat preset V3 combinations plan
+        // section 5, "V2's combo values must be a true no-op") rather than
+        // inventing a divergent number.
         var weaponAttributes = new Dictionary<WeaponId, WeaponAttributes>
         {
             [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
-                Profile(damage: 15, reachWorldUnits: 16, cooldownTicks: 7)),
+                Profile(
+                    damage: 15,
+                    reachWorldUnits: 16,
+                    cooldownTicks: 7,
+                    comboOpenChanceBasisPoints: 0,
+                    comboContinueChanceBasisPoints: 3_000,
+                    comboMaxSteps: 2,
+                    comboCooldownTicks: 4)),
 
             [WeaponId.Wasay] = WeaponAttributes.TwoHanded(
-                Profile(damage: 18, reachWorldUnits: 13, cooldownTicks: 8)),
+                Profile(
+                    damage: 18,
+                    reachWorldUnits: 13,
+                    cooldownTicks: 8,
+                    comboOpenChanceBasisPoints: 0,
+                    comboContinueChanceBasisPoints: 2_000,
+                    comboMaxSteps: 2,
+                    comboCooldownTicks: 5)),
 
             [WeaponId.Kalis] = WeaponAttributes.OneHanded(
-                Profile(damage: 11, reachWorldUnits: 13, cooldownTicks: 5),
-                Profile(damage: 10, reachWorldUnits: 12, cooldownTicks: 5)),
+                Profile(
+                    damage: 11,
+                    reachWorldUnits: 13,
+                    cooldownTicks: 5,
+                    comboOpenChanceBasisPoints: 0,
+                    comboContinueChanceBasisPoints: 4_500,
+                    comboMaxSteps: 4,
+                    comboCooldownTicks: 3),
+                Profile(
+                    damage: 10,
+                    reachWorldUnits: 12,
+                    cooldownTicks: 5,
+                    comboOpenChanceBasisPoints: 0,
+                    comboContinueChanceBasisPoints: 4_500,
+                    comboMaxSteps: 4,
+                    comboCooldownTicks: 3)),
 
             [WeaponId.Itak] = WeaponAttributes.OneHanded(
-                Profile(damage: 9, reachWorldUnits: 11, cooldownTicks: 4),
-                Profile(damage: 8, reachWorldUnits: 10, cooldownTicks: 4)),
+                Profile(
+                    damage: 9,
+                    reachWorldUnits: 11,
+                    cooldownTicks: 4,
+                    comboOpenChanceBasisPoints: 0,
+                    comboContinueChanceBasisPoints: 5_500,
+                    comboMaxSteps: 5,
+                    comboCooldownTicks: 2),
+                Profile(
+                    damage: 8,
+                    reachWorldUnits: 10,
+                    cooldownTicks: 4,
+                    comboOpenChanceBasisPoints: 0,
+                    comboContinueChanceBasisPoints: 5_500,
+                    comboMaxSteps: 5,
+                    comboCooldownTicks: 2)),
         };
 
         var armors = new[] { ArmorId.LightOrganic };
@@ -177,7 +230,124 @@ public static class PhilippineCombatPresetV2
             armors,
             shieldMultipliers,
             roster,
-            weaponAttributes);
+            weaponAttributes: weaponAttributes,
+            clashProfile: BuildClashProfile());
+    }
+
+    /// <summary>
+    /// The defensive-interception tuning data for the six-loadout roster.
+    /// PROVISIONAL gameplay tuning throughout; see
+    /// docs/research/WEAPON_CLASH_1500s.md and CLAUDE.md section 7. The
+    /// sixteen legacy weapon-intercept cells and the four legacy void cells
+    /// were authored under preset V1's four-loadout roster, where Kalis and
+    /// Itak always carried a <see cref="ShieldId.TallHardwood"/> shield — see
+    /// the integration design document section 3.1 for the full reasoning.
+    /// They carry across onto the shield state each row's original roster
+    /// entry actually had: Kampilan and Wasay never carried a shield, so their
+    /// rows land on the bare defender key; Kalis and Itak always did, so
+    /// theirs land on the shielded key. The ten new cells — four
+    /// weapon-intercept cells each for shieldless Kalis and shieldless Itak,
+    /// plus one new void cell for each — have no per-pair figure in the
+    /// research at all and are drawn from the loadout-level band design
+    /// section 5 derives: a weapon-intercept band of roughly 0.10 to 0.18
+    /// (1,000 to 1,800 basis points) and a void band of roughly 0.11 to 0.19
+    /// (1,100 to 1,900 basis points), reasoned as a shieldless one-handed
+    /// defender turning more with the weapon and evading more because it has
+    /// nothing else to turn with.
+    /// </summary>
+    private static ClashProfile BuildClashProfile()
+    {
+        var weaponIntercept = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>
+        {
+            // Legacy cells: Kampilan and Wasay defenders, bare key. Values
+            // unchanged from preset V1.
+            [(WeaponId.Kampilan, ShieldId.None, WeaponId.Kampilan)] = 2_200,
+            [(WeaponId.Kampilan, ShieldId.None, WeaponId.Wasay)] = 1_900,
+            [(WeaponId.Kampilan, ShieldId.None, WeaponId.Kalis)] = 1_600,
+            [(WeaponId.Kampilan, ShieldId.None, WeaponId.Itak)] = 2_000,
+
+            [(WeaponId.Wasay, ShieldId.None, WeaponId.Kampilan)] = 1_500,
+            [(WeaponId.Wasay, ShieldId.None, WeaponId.Wasay)] = 1_300,
+            [(WeaponId.Wasay, ShieldId.None, WeaponId.Kalis)] = 1_100,
+            [(WeaponId.Wasay, ShieldId.None, WeaponId.Itak)] = 1_400,
+
+            // Legacy cells: Kalis and Itak defenders, shielded key. Values
+            // unchanged from preset V1, where these two always carried
+            // ShieldId.TallHardwood.
+            [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Kampilan)] = 500,
+            [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Wasay)] = 400,
+            [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Kalis)] = 600,
+            [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Itak)] = 600,
+
+            [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Kampilan)] = 400,
+            [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Wasay)] = 300,
+            [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Kalis)] = 500,
+            [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Itak)] = 500,
+
+            // New cells: shieldless Kalis. Provisional reconstruction, drawn
+            // from the 0.10-to-0.18 (1,000-to-1,800 basis point) weapon band
+            // in design section 5. Retuned once, within the same band, after
+            // PhilippineCombatIntegrationTests measured the shielded-versus-
+            // shieldless survival ratio at 1.145 against a required >1.15 —
+            // T60's acceptance criterion, applied here rather than waiting
+            // for the Phase 5 headless sweep because a unit test already
+            // measures it across the same 20 seeds.
+            [(WeaponId.Kalis, ShieldId.None, WeaponId.Kampilan)] = 1_200,
+            [(WeaponId.Kalis, ShieldId.None, WeaponId.Wasay)] = 1_000,
+            [(WeaponId.Kalis, ShieldId.None, WeaponId.Kalis)] = 1_500,
+            [(WeaponId.Kalis, ShieldId.None, WeaponId.Itak)] = 1_500,
+
+            // New cells: shieldless Itak. Provisional reconstruction, same
+            // band as above, retuned for the same reason.
+            [(WeaponId.Itak, ShieldId.None, WeaponId.Kampilan)] = 1_100,
+            [(WeaponId.Itak, ShieldId.None, WeaponId.Wasay)] = 1_000,
+            [(WeaponId.Itak, ShieldId.None, WeaponId.Kalis)] = 1_400,
+            [(WeaponId.Itak, ShieldId.None, WeaponId.Itak)] = 1_400,
+        };
+
+        var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>
+        {
+            // Legacy cells, carried across per the shield state each weapon's
+            // V1 roster entry actually had.
+            [(WeaponId.Kampilan, ShieldId.None)] = 1_000,
+            [(WeaponId.Wasay, ShieldId.None)] = 900,
+            [(WeaponId.Kalis, ShieldId.TallHardwood)] = 1_000,
+            [(WeaponId.Itak, ShieldId.TallHardwood)] = 1_100,
+
+            // New cells: the two shieldless loadouts. Provisional
+            // reconstruction, drawn from the 0.11-to-0.19 (1,100-to-1,900
+            // basis point) void band in design section 5. Retuned once, see
+            // the weapon-intercept comment above for why.
+            [(WeaponId.Kalis, ShieldId.None)] = 1_350,
+            [(WeaponId.Itak, ShieldId.None)] = 1_450,
+        };
+
+        var hardShareBases = new Dictionary<WeaponId, int>
+        {
+            [WeaponId.Kampilan] = 3_300,
+            [WeaponId.Wasay] = 4_000,
+            [WeaponId.Kalis] = 1_200,
+            [WeaponId.Itak] = 1_800,
+        };
+
+        var hardShareMultipliers = new Dictionary<WeaponId, int>
+        {
+            [WeaponId.Kampilan] = 1_150,
+            [WeaponId.Wasay] = 1_050,
+            [WeaponId.Kalis] = 750,
+            [WeaponId.Itak] = 700,
+        };
+
+        return new ClashProfile(
+            weaponIntercept: weaponIntercept,
+            shieldIntercept: 2_400,
+            voidChannel: voidChannel,
+            hardShareBases: hardShareBases,
+            hardShareMultipliers: hardShareMultipliers,
+            minimumHardShareBasisPoints: 500,
+            maximumHardShareBasisPoints: 6_000,
+            maximumInterceptionBasisPoints: 5_500);
     }
 
     /// <summary>
@@ -187,6 +357,17 @@ public static class PhilippineCombatPresetV2
     private static WeaponProfile Profile(
         int damage,
         int reachWorldUnits,
-        int cooldownTicks) =>
-        new(damage, reachWorldUnits * FixedPoint.Scale, cooldownTicks);
+        int cooldownTicks,
+        int comboOpenChanceBasisPoints,
+        int comboContinueChanceBasisPoints,
+        int comboMaxSteps,
+        int comboCooldownTicks) =>
+        new(
+            damage,
+            reachWorldUnits * FixedPoint.Scale,
+            cooldownTicks,
+            comboOpenChanceBasisPoints,
+            comboContinueChanceBasisPoints,
+            comboMaxSteps,
+            comboCooldownTicks);
 }

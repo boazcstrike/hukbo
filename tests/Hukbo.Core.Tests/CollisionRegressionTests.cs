@@ -20,7 +20,8 @@ namespace Hukbo.Core.Tests;
 /// </para>
 /// <para>
 /// Each test is named for the acceptance row of
-/// <c>docs/plans/2026-07-27-formation-collision-mechanics.md</c> that it locks.
+/// the formation collision mechanics plan
+/// that it locks.
 /// </para>
 /// <para>
 /// The post-tick overlap invariant is checked by brute force over every ordered
@@ -44,8 +45,12 @@ public sealed class CollisionRegressionTests
     /// <summary>
     /// Rows of a hand-built line are spaced exactly one body diameter apart, so
     /// neighbours rest in tangent contact. Tangency is clearance, not collision.
+    /// Nine world units at the enlarged 4.25-world-unit collision radius (task
+    /// C1,
+    /// the collision report and window shell plan); it
+    /// was eight before that change.
     /// </summary>
-    private const int RowSpacingWorld = 8;
+    private const int RowSpacingWorld = 9;
 
     /// <summary>
     /// Acceptance row <c>Head-on</c> / the authoritative post-tick invariant of
@@ -138,7 +143,11 @@ public sealed class CollisionRegressionTests
         var scenario = LineScenario(rows) with { AttackCooldownTicks = 1 };
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
-            BuildOpposingLines(scenario, leftXWorld: 60, rightXWorld: 68, rows));
+            BuildOpposingLines(
+                scenario,
+                leftXRaw: 60 * Scale,
+                rightXRaw: (60 * Scale) + (2 * scenario.BodyRadiusRaw),
+                rows));
         var matchedAttackers = 0;
 
         for (var tick = 0; tick < 5; tick++)
@@ -195,10 +204,15 @@ public sealed class CollisionRegressionTests
 
     /// <summary>
     /// Acceptance row <c>Packed front</c> / decision record section 3. Two bodies
-    /// pressed into contact sit exactly one diameter apart — eight world units —
-    /// against a twelve-world-unit reach, so a packed front must deal damage
-    /// rather than deadlock. This is the row that proves solid contact did not
-    /// strangle combat.
+    /// pressed into contact sit exactly one diameter apart — eight and a half
+    /// world units at the enlarged 4.25-world-unit collision radius (task C1,
+    /// the collision report and window shell plan); it
+    /// was eight before that change — against a twelve-world-unit reach, so a
+    /// packed front must deal damage rather than deadlock. This is the row
+    /// that proves solid contact did not strangle combat. The separation is
+    /// derived from <c>BodyRadiusRaw</c> rather than written out as a whole
+    /// number of world units, so the lines stay in true contact if the radius
+    /// is retuned.
     /// </summary>
     [Fact]
     public void PackedFront_OpposingBodiesInContactStayInsideReachAndDealDamage()
@@ -207,7 +221,11 @@ public sealed class CollisionRegressionTests
         var scenario = LineScenario(rows);
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
-            BuildOpposingLines(scenario, leftXWorld: 60, rightXWorld: 68, rows));
+            BuildOpposingLines(
+                scenario,
+                leftXRaw: 60 * Scale,
+                rightXRaw: (60 * Scale) + (2 * scenario.BodyRadiusRaw),
+                rows));
         var contactTicksWithDamage = 0;
 
         for (var tick = 0; tick < 12; tick++)
@@ -247,7 +265,11 @@ public sealed class CollisionRegressionTests
         var scenario = LineScenario(rows);
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
-            BuildOpposingLines(scenario, leftXWorld: 60, rightXWorld: 100, rows));
+            BuildOpposingLines(
+                scenario,
+                leftXRaw: 60 * Scale,
+                rightXRaw: 100 * Scale,
+                rows));
         var firstDamageTick = 0L;
 
         for (var tick = 0; tick < 40 && firstDamageTick == 0; tick++)
@@ -684,14 +706,18 @@ public sealed class CollisionRegressionTests
             TickLimit: 1_000);
 
     /// <summary>
-    /// Two vertical lines of bodies, one per faction, with rows exactly one body
-    /// diameter apart so that neighbours rest in tangent contact. Entity IDs
+    /// Two vertical lines of bodies, one per faction, spaced
+    /// <see cref="RowSpacingWorld"/> world units apart down each line so that
+    /// neighbours sit just clear of one another. The two X positions are given in
+    /// raw fixed-point units rather than world units, so a caller that wants the
+    /// lines in exact tangent contact can pass a separation of
+    /// <c>2 * scenario.BodyRadiusRaw</c> and get it at any body radius. Entity IDs
     /// ascend down the left line and then down the right one.
     /// </summary>
     private static AgentState[] BuildOpposingLines(
         Scenario scenario,
-        int leftXWorld,
-        int rightXWorld,
+        int leftXRaw,
+        int rightXRaw,
         int rows)
     {
         var agents = new AgentState[rows * 2];
@@ -702,13 +728,13 @@ public sealed class CollisionRegressionTests
             agents[row] = CreateAgent(
                 checked((ulong)row + 1),
                 factionId: 0,
-                checked(leftXWorld * Scale),
+                leftXRaw,
                 yRaw,
                 scenario);
             agents[rows + row] = CreateAgent(
                 checked((ulong)(rows + row) + 1),
                 factionId: 1,
-                checked(rightXWorld * Scale),
+                rightXRaw,
                 yRaw,
                 scenario);
         }

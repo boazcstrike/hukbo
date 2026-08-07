@@ -2,7 +2,7 @@ using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Presentation;
 
-internal enum PawnWeaponRole
+public enum PawnWeaponRole
 {
     Kampilan,
     Wasay,
@@ -61,7 +61,43 @@ internal readonly record struct PawnAppearance(
     Color ClothingColor,
     Color AccentColor,
     Color SkinColor,
-    Color HeadTreatmentColor)
+    Color HeadTreatmentColor,
+    // VIS-010: the resolved weapon-tint catalog entry's stable identifier
+    // (Catalogs.WeaponVisualCatalog), plus the blade and grip colors that
+    // entry carries. A pure function of (EntityId, CombatLoadout) exactly
+    // like every field above it — weapon *identity* stays loadout-only; only
+    // the tint varies with the entity ID (weapon-visuals-design.md, R-W1.3).
+    string WeaponTintId,
+    Color WeaponBladeColor,
+    Color WeaponGripColor,
+    // VIS-011: the resolved weapon-tint's optional rattan lashing band
+    // accent color (Wasay w1's lashedWorn tint only; null for every other
+    // tint). Independent of, and drawn only for, the Wasay's secondary-
+    // equipment head — PawnRenderer never reads this field for the other
+    // three weapons (weapon-visuals-design.md, R-W1.5).
+    Color? WeaponLashingBandColor,
+    // VIS-013: the resolved shield-skin catalog entry's stable identifier
+    // (Catalogs.ShieldVisualCatalog), plus the face tone that entry carries.
+    // A pure function of (EntityId, CombatLoadout) exactly like every field
+    // above it — shield *presence* stays loadout-only (ShieldRole above);
+    // only the face tone varies with the entity ID (shield-visuals-
+    // design.md, R-W2.3). Meaningless, but harmless, for
+    // PawnShieldRole.None: PawnRenderer.DrawShield never draws it because
+    // ShieldBounds is empty for an unshielded warrior.
+    string ShieldSkinId,
+    Color ShieldFaceColor,
+    // VIS-018: the resolved warrior-appearance preset's stable identifier
+    // (Catalogs.AppearancePresets), plus the garment base tone folded into
+    // the torso fill at Low tier (warrior-appearance-design.md zoom table).
+    // A pure function of (EntityId, CombatLoadout, FactionId, Scenario.Seed)
+    // exactly like every field above it. Additive only: every field above
+    // this one is still computed by the same three original salted rolls
+    // (PawnBodySalt/PawnClothingSalt/PawnDetailSalt) exactly as before this
+    // task, so existing stature, build, head-treatment, clothing, accent,
+    // skin, and head-treatment-color outputs are unchanged (R-W6.2 salt
+    // independence).
+    string AppearancePresetId,
+    Color GarmentBaseTone)
 {
     /// <summary>
     /// The pair-form label: the Filipino name, an em dash, and a plain

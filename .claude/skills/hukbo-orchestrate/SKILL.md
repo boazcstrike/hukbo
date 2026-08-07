@@ -112,8 +112,9 @@ documentation, commits, and user-facing prose may not.
    that verifying the decisive ones is cheaper than acting on them.
 3. Record evidence honestly. No agent may flip an interactive smoke-checklist
    row.
-4. Move the finished plan to `docs/archives/` with the "Archived: reference
-   only" banner.
+4. Move the finished plan to `docs/archives/<YYYY-MM-DD>/`, dated for the day
+   of archiving, with the "Archived: reference only" banner. See
+   `docs/archives/README.md` for the layout rules.
 
 ## Known failure modes
 

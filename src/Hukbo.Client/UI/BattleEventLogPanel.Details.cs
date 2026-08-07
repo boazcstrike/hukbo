@@ -28,12 +28,17 @@ internal sealed partial class BattleEventLogPanel
                 spriteBatch,
                 captionFont,
                 "Select an event to inspect every field",
-                layout.DetailsBounds.Center.ToVector2() + new Vector2(0, 6),
+                layout.DetailsBounds.Center.ToVector2() +
+                    new Vector2(0, UiScaleContext.Pixels(6)),
                 theme.Colors.TextSecondary);
             return;
         }
 
-        SynchronizeDetails(selected, layout.DetailsBounds.Width);
+        SynchronizeDetails(
+            selected,
+            layout.DetailsBounds.Width,
+            feed.ScenarioSeed,
+            fonts.GetApproximateAdvancePx(UiFontRole.Body));
         DrawDetailLines(spriteBatch, fonts, layout, selected, theme);
     }
 
@@ -53,14 +58,14 @@ internal sealed partial class BattleEventLogPanel
             pixel,
             layout.DetailsBounds,
             theme.Colors.PanelBorder,
-            1);
+            UiScaleContext.Pixels(1));
         UiPrimitives.DrawText(
             spriteBatch,
             font,
             "SELECTED EVENT",
             new Vector2(
-                layout.DetailsBounds.Left + 9,
-                layout.DetailsBounds.Top + 7),
+                layout.DetailsBounds.Left + UiScaleContext.Pixels(9),
+                layout.DetailsBounds.Top + UiScaleContext.Pixels(7)),
             theme.Colors.TextDisabled);
     }
 
@@ -95,10 +100,18 @@ internal sealed partial class BattleEventLogPanel
         }
     }
 
-    private void SynchronizeDetails(BattleEvent battleEvent, int width)
+    private void SynchronizeDetails(
+        BattleEvent battleEvent,
+        int width,
+        ulong scenarioSeed,
+        int approximateAdvancePx)
     {
+        // The seed joins the cache key for the same reason it joins the row
+        // cache's: the source line now carries a warrior name derived from it.
         if (_cachedDetailsSequence == battleEvent.Sequence &&
-            _cachedDetailsWidth == width)
+            _cachedDetailsWidth == width &&
+            _cachedDetailsAdvancePx == approximateAdvancePx &&
+            _cachedDetailsScenarioSeed == scenarioSeed)
         {
             return;
         }
@@ -110,7 +123,8 @@ internal sealed partial class BattleEventLogPanel
         // narrower Caption rows.
         var maxCharacters = Math.Max(
             12,
-            (width - 18) / UiFontRamp.GetApproximateAdvancePx(UiFontRole.Body));
+            (width - UiScaleContext.Pixels(18)) /
+                approximateAdvancePx);
         _cachedDetails =
         [
             ClipLabel(
@@ -121,7 +135,10 @@ internal sealed partial class BattleEventLogPanel
                 BattleEventFormatter.GetDetailSummaryLine(battleEvent),
                 maxCharacters),
             ClipLabel(
-                $"Source: {BattleEventFormatter.GetActorLabel(battleEvent)}",
+                "Source: " +
+                    BattleEventFormatter.GetActorLabel(
+                        battleEvent,
+                        scenarioSeed),
                 maxCharacters),
             ClipLabel(
                 $"Target: {battleEvent.TargetEntityId?.ToString() ?? "none"}",
@@ -135,5 +152,7 @@ internal sealed partial class BattleEventLogPanel
         ];
         _cachedDetailsSequence = battleEvent.Sequence;
         _cachedDetailsWidth = width;
+        _cachedDetailsAdvancePx = approximateAdvancePx;
+        _cachedDetailsScenarioSeed = scenarioSeed;
     }
 }

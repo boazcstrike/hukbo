@@ -7,8 +7,8 @@ namespace Hukbo.Client.Audio;
 /// Several of the thirteen <see cref="BodyPart"/> values are acoustically
 /// identical to an ear, so they collapse into one class rather than needing
 /// thirteen separate sounds. See
-/// <c>docs/plans/2026-07-27-sound-variant-matrix-design.md</c> for the acoustic
-/// rationale behind each grouping.
+/// the sound variant matrix design for
+/// the acoustic rationale behind each grouping.
 /// </summary>
 internal enum HitClass
 {

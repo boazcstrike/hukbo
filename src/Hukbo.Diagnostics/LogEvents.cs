@@ -33,6 +33,9 @@ public static class LogEvents
     public const string AssetsSoundScanned = "assets.sound.scanned";
     public const string AssetsThemeFallback = "assets.theme.fallback";
     public const string AssetsThemeLoaded = "assets.theme.loaded";
+    public const string AssetsVisualCatalogInvalid = "assets.visual.catalogInvalid";
+    public const string AssetsVisualFallback = "assets.visual.fallback";
+    public const string AssetsVisualVariantMissing = "assets.visual.variantMissing";
 
     // Settings channel.
     public const string SettingsChanged = "settings.changed";
@@ -61,4 +64,10 @@ public static class LogEvents
     public const string InputFocusChanged = "input.focus.changed";
     public const string InputKey = "input.key";
     public const string InputPointer = "input.pointer";
+
+    // Render channel.
+    public const string RenderFrame = "render.frame";
+    public const string RenderStarved = "render.starved";
+    public const string RenderViewportChanged = "render.viewport.changed";
+    public const string RenderWindow = "render.window";
 }

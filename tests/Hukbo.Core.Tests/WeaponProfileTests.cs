@@ -89,22 +89,62 @@ public sealed class WeaponProfileTests
             expected,
             PhilippineCombatPresetV2.Rules.ResolveWeaponGrip(weapon));
 
+    [Fact]
+    public void PresetV3RosterFieldsAllFourWeaponsSoloOnly()
+    {
+        // Roster order is part of the content-hash contract and indexes
+        // Scenario.RosterCounts, so it is pinned rather than described. V3
+        // omits the two paired loadouts V2 fields, per design section 2's
+        // scope boundary.
+        var expected = new CombatLoadout[]
+        {
+            new(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None),
+            new(WeaponId.Wasay, ArmorId.LightOrganic, ShieldId.None),
+            new(WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.None),
+            new(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.None),
+        };
+
+        Assert.Equal(expected, PhilippineCombatPresetV3.Rules.Roster);
+    }
+
     [Theory]
-    // Weapon, shield, damage, reach in world units, cooldown ticks. These are
-    // the six rows of the design's attribute table; the paired Kalis row is
-    // exactly V1's global defaults and is the control.
-    [InlineData(WeaponId.Kampilan, ShieldId.None, 15, 16, 7)]
-    [InlineData(WeaponId.Wasay, ShieldId.None, 18, 13, 8)]
-    [InlineData(WeaponId.Kalis, ShieldId.None, 11, 13, 5)]
-    [InlineData(WeaponId.Kalis, ShieldId.TallHardwood, 10, 12, 5)]
-    [InlineData(WeaponId.Itak, ShieldId.None, 9, 11, 4)]
-    [InlineData(WeaponId.Itak, ShieldId.TallHardwood, 8, 10, 4)]
+    [InlineData(WeaponId.Kampilan, WeaponGrip.TwoHanded)]
+    [InlineData(WeaponId.Wasay, WeaponGrip.TwoHanded)]
+    [InlineData(WeaponId.Kalis, WeaponGrip.OneHanded)]
+    [InlineData(WeaponId.Itak, WeaponGrip.OneHanded)]
+    public void PresetV3DeclaresTheApprovedGrip(
+        WeaponId weapon,
+        WeaponGrip expected) =>
+        Assert.Equal(
+            expected,
+            PhilippineCombatPresetV3.Rules.ResolveWeaponGrip(weapon));
+
+    [Theory]
+    // Weapon, shield, damage, reach in world units, cooldown ticks, combo
+    // open chance, combo continue chance, combo max steps, combo cooldown
+    // ticks. These are the six rows of the design's attribute table; the
+    // paired Kalis row is exactly V1's global defaults and is the control.
+    // Every combo open chance is 0 — V2's combo values are a true no-op, per
+    // the combat preset V3 combinations plan section
+    // 5 — and the other three combo columns borrow that weapon's V3 solo-row
+    // combo values, which is what makes them positive without inventing a
+    // divergent number.
+    [InlineData(WeaponId.Kampilan, ShieldId.None, 15, 16, 7, 0, 3_000, 2, 4)]
+    [InlineData(WeaponId.Wasay, ShieldId.None, 18, 13, 8, 0, 2_000, 2, 5)]
+    [InlineData(WeaponId.Kalis, ShieldId.None, 11, 13, 5, 0, 4_500, 4, 3)]
+    [InlineData(WeaponId.Kalis, ShieldId.TallHardwood, 10, 12, 5, 0, 4_500, 4, 3)]
+    [InlineData(WeaponId.Itak, ShieldId.None, 9, 11, 4, 0, 5_500, 5, 2)]
+    [InlineData(WeaponId.Itak, ShieldId.TallHardwood, 8, 10, 4, 0, 5_500, 5, 2)]
     public void ResolveWeaponProfile_ReturnsTheAuthoredRow(
         WeaponId weapon,
         ShieldId shield,
         int expectedDamage,
         int expectedReachWorldUnits,
-        int expectedCooldown)
+        int expectedCooldown,
+        int expectedComboOpenChanceBasisPoints,
+        int expectedComboContinueChanceBasisPoints,
+        int expectedComboMaxSteps,
+        int expectedComboCooldownTicks)
     {
         var profile = PhilippineCombatPresetV2.Rules.ResolveWeaponProfile(
             weapon,
@@ -115,6 +155,16 @@ public sealed class WeaponProfileTests
             expectedReachWorldUnits * FixedPoint.Scale,
             profile.AttackRangeRaw);
         Assert.Equal(expectedCooldown, profile.AttackCooldownTicks);
+        Assert.Equal(
+            expectedComboOpenChanceBasisPoints,
+            profile.ComboOpenChanceBasisPoints);
+        Assert.Equal(
+            expectedComboContinueChanceBasisPoints,
+            profile.ComboContinueChanceBasisPoints);
+        Assert.Equal(expectedComboMaxSteps, profile.ComboMaxSteps);
+        Assert.Equal(
+            expectedComboCooldownTicks,
+            profile.ComboCooldownTicks);
     }
 
     [Theory]
@@ -168,6 +218,34 @@ public sealed class WeaponProfileTests
                     $"{CombatRuleset.MinimumProfileReachRawExclusive}.");
             }
         }
+    }
+
+    [Fact]
+    public void EnlargedCollisionBodyRaisesTheReachFloorButTheItakPairedProfileStillClearsItByOneAndAHalfWorldUnits()
+    {
+        // Task C1
+        // (the collision report and window shell plan)
+        // moved CollisionRules.DefaultBodyRadiusRaw from four world units to
+        // 4.25, which raises MinimumProfileReachRawExclusive (twice the body
+        // radius) from eight world units to 8.5. Design section 1.2 rejected
+        // a 5.0-unit radius specifically because it would have pushed the
+        // floor to ten world units and rejected the Itak's shield-paired
+        // profile outright, and the deadlock finding recorded against
+        // LastStandFormationTests then ruled out 4.5 as well. This test pins
+        // both sides of that arithmetic so a future retune of either the
+        // radius or the Itak's paired reach fails here instead of silently
+        // eroding the margin.
+        Assert.Equal(
+            (17 * FixedPoint.Scale) / 2,
+            CombatRuleset.MinimumProfileReachRawExclusive);
+
+        var v3 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV3);
+        var itakPaired = v3.ResolveWeaponProfile(WeaponId.Itak, ShieldId.TallHardwood);
+
+        Assert.Equal(10 * FixedPoint.Scale, itakPaired.AttackRangeRaw);
+        Assert.Equal(
+            (3 * FixedPoint.Scale) / 2,
+            itakPaired.AttackRangeRaw - CombatRuleset.MinimumProfileReachRawExclusive);
     }
 
     [Fact]

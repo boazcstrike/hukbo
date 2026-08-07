@@ -962,7 +962,14 @@ public sealed class ClashResolverTests
     /// </summary>
     private static ClashProfile BuildShippedTables()
     {
-        var weaponIntercept = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>
+        // Weapon-versus-weapon values, independent of the defender's shield:
+        // this file writes out design section 3.3's literal tables rather
+        // than reading the preset (see the class remarks), and section 3.1
+        // states the weapon-intercept and void channels are argued from
+        // weapon identity, not shield state. Both shields therefore carry the
+        // identical per-weapon-pair value here, which is what keeps every
+        // pinned golden vector below unaffected by which shield a case names.
+        var weaponInterceptByWeaponPair = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>
         {
             [(WeaponId.Kampilan, WeaponId.Kampilan)] = 2_200,
             [(WeaponId.Kampilan, WeaponId.Wasay)] = 1_900,
@@ -982,16 +989,34 @@ public sealed class ClashResolverTests
             [(WeaponId.Itak, WeaponId.Itak)] = 500,
         };
 
+        var voidByWeapon = new Dictionary<WeaponId, int>
+        {
+            [WeaponId.Kampilan] = 1_000,
+            [WeaponId.Wasay] = 900,
+            [WeaponId.Kalis] = 1_000,
+            [WeaponId.Itak] = 1_100,
+        };
+
+        var weaponIntercept = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>();
+        var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>();
+        foreach (var shield in Enum.GetValues<ShieldId>())
+        {
+            foreach (var (pair, value) in weaponInterceptByWeaponPair)
+            {
+                weaponIntercept[(pair.Defender, shield, pair.Attacker)] = value;
+            }
+
+            foreach (var (weapon, value) in voidByWeapon)
+            {
+                voidChannel[(weapon, shield)] = value;
+            }
+        }
+
         return new ClashProfile(
             weaponIntercept,
             shieldIntercept: 2_400,
-            voidChannel: new Dictionary<WeaponId, int>
-            {
-                [WeaponId.Kampilan] = 1_000,
-                [WeaponId.Wasay] = 900,
-                [WeaponId.Kalis] = 1_000,
-                [WeaponId.Itak] = 1_100,
-            },
+            voidChannel: voidChannel,
             hardShareBases: new Dictionary<WeaponId, int>
             {
                 [WeaponId.Kampilan] = 3_300,
@@ -1022,19 +1047,28 @@ public sealed class ClashResolverTests
         int ceiling)
     {
         var weapons = Enum.GetValues<WeaponId>();
-        var matrix = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>();
+        var shields = Enum.GetValues<ShieldId>();
+
+        var matrix = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>();
+        var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>();
         foreach (var defender in weapons)
         {
-            foreach (var attacker in weapons)
+            foreach (var shield in shields)
             {
-                matrix[(defender, attacker)] = cell(defender, attacker);
+                voidChannel[(defender, shield)] = voidValue(defender);
+
+                foreach (var attacker in weapons)
+                {
+                    matrix[(defender, shield, attacker)] = cell(defender, attacker);
+                }
             }
         }
 
         return new ClashProfile(
             matrix,
             shieldIntercept,
-            weapons.ToDictionary(weapon => weapon, voidValue),
+            voidChannel,
             weapons.ToDictionary(weapon => weapon, hardShareBase),
             weapons.ToDictionary(weapon => weapon, hardShareMultiplier),
             minimumHardShare,

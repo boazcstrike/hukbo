@@ -80,7 +80,7 @@ payload fields.
 | `t` | Simulation tick, or `-1` when there is no tick context. |
 | `ms` | Milliseconds since process start. |
 | `lvl` | `err`, `warn`, `inf`, `dbg`, `trc`. |
-| `ch` | `boot`, `assets`, `settings`, `sim`, `audio`, `input`, `ui`. |
+| `ch` | `boot`, `assets`, `settings`, `sim`, `audio`, `input`, `render`, `ui`. |
 | `ev` | Stable dotted identifier. The machine key. |
 
 ## What each channel tells you
@@ -93,6 +93,36 @@ payload fields.
 | `sim` | Anything about the battle. `sim.mismatch` in a headless run is the single most valuable line in the facility. |
 | `audio` | A cue did not sound, or the mix is wrong. `audio.cue` carries `variant`, `gain`, and `voices`, which no on-screen panel shows. |
 | `input` | A click or a shortcut did nothing. `input.pointer` carries `consumedBy`, which names the surface that swallowed the press, or `arena`, or `none` for a dead click inside the window, or `outside` for a press that landed in another window or on another monitor. |
+| `render` | The spectator reports lag, stutter, or warriors that jump instead of walking. `render.window` is one line per second of wall time; `render.starved` fires at `warn` when the simulation could not keep pace. |
+
+### Answering "the game went laggy"
+
+A slow frame and a starved simulation look identical from the spectator's
+chair and are different defects. The catch-up loop in `AdvanceSimulation`
+runs several ticks in one frame, so the battle can hold its exact tick rate
+while the picture updates twice a second — the warriors move on time, the
+screen does not.
+
+`render.window` closes every second of wall time and carries `frames`,
+`elapsedMs`, `meanMs`, `worstMs`, `worstUpdateMs`, `worstDrawMs`, and
+`simTicks`. `frames` reads directly as frames per second. `worstUpdateMs` and
+`worstDrawMs` are not promised to come from the same frame as `worstMs`: when
+`worstMs` is large and both of the others are small, the time went to present,
+to the driver, or to another process, not to the game's own code.
+
+`render.starved` fires at `warn` only when the frame arrived so late that the
+accumulator clamp dropped whole ticks. Its absence from a laggy session is
+itself the finding — the simulation kept pace and the complaint is frame rate
+or on-screen movement, not tick delivery.
+
+```powershell
+Get-Content $log | ConvertFrom-Json |
+  Where-Object ev -in 'render.window', 'render.starved' |
+  Select-Object ms, ev, frames, meanMs, worstMs, simTicks, starvedFrames
+```
+
+`render.frame` is the per-frame `trc` line behind both, for locating a single
+stall exactly: `./scripts/run.ps1 -Configuration Debug -LogLevel trc -LogChannels render`.
 
 ### The two highest-value lines
 
@@ -168,7 +198,9 @@ instrumentation is in the wrong place.
 Anything that fires more than once a second belongs at `dbg` or below. Per-tick
 lines are `trc`, except that `sim.tick` is promoted to `dbg` on every 256th tick
 (`LogSampling.SimulationTickInterval`) so an ordinary verbose run still carries a
-bisectable skeleton.
+bisectable skeleton. Frame timing takes the same shape from the other side:
+`render.frame` is the per-frame `trc` line and `FrameTimingAggregator` reduces
+it to one `render.window` line per second at `dbg`.
 
 ## Things that are deliberately not true here
 

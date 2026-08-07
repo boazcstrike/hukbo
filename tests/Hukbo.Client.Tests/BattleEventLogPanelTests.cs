@@ -1,8 +1,17 @@
+using Hukbo.Client.Settings;
+using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Tests;
 
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class UiScaleContextCollectionDefinition
+{
+    public const string Name = "UI scale context";
+}
+
+[Collection(UiScaleContextCollectionDefinition.Name)]
 public sealed class BattleEventLogPanelTests
 {
     [Theory]
@@ -139,6 +148,28 @@ public sealed class BattleEventLogPanelTests
     }
 
     [Fact]
+    public void CalculateLayout_ScalesChromeAndRowsAtTwoHundredPercent()
+    {
+        WithScale(
+            UiScale.Percent200,
+            () =>
+            {
+                var bounds = new Rectangle(100, 100, 840, 1280);
+                var layout = BattleEventLogPanel.CalculateLayout(bounds);
+                var firstDetail =
+                    BattleEventLogPanel.GetDetailLineBounds(layout, 0);
+
+                Assert.Equal(60, BattleEventLogPanel.RowHeight);
+                Assert.Equal(36, BattleEventLogPanel.MinimumThumbHeight);
+                Assert.Equal(20, layout.HeaderBounds.Left - bounds.Left);
+                Assert.Equal(70, layout.HeaderBounds.Height);
+                Assert.Equal(52, layout.KindFilterBounds.Height);
+                Assert.Equal(18, firstDetail.Left - layout.DetailsBounds.Left);
+                Assert.Equal(48, firstDetail.Height);
+            });
+    }
+
+    [Fact]
     public void GetKeyboardFocusTarget_UsesListOrSearchAndNeverLatest()
     {
         var layout = BattleEventLogPanel.CalculateLayout(
@@ -256,6 +287,45 @@ public sealed class BattleEventLogPanelTests
                 bounds));
     }
 
+    [Fact]
+    public void GetRowEmphasis_ReturnsZeroAtOrBelowThreshold()
+    {
+        Assert.Equal(
+            0f,
+            BattleEventLogPanel.GetRowEmphasis(
+                sequence: 5,
+                emphasisThreshold: 5,
+                pulseAmount: 0.75f));
+        Assert.Equal(
+            0f,
+            BattleEventLogPanel.GetRowEmphasis(
+                sequence: 4,
+                emphasisThreshold: 5,
+                pulseAmount: 0.75f));
+    }
+
+    [Fact]
+    public void GetRowEmphasis_ReturnsPulseAmountAboveThreshold()
+    {
+        Assert.Equal(
+            0.75f,
+            BattleEventLogPanel.GetRowEmphasis(
+                sequence: 6,
+                emphasisThreshold: 5,
+                pulseAmount: 0.75f));
+    }
+
+    [Fact]
+    public void GetRowEmphasis_ReturnsZeroWhenThresholdIsNull()
+    {
+        Assert.Equal(
+            0f,
+            BattleEventLogPanel.GetRowEmphasis(
+                sequence: 1,
+                emphasisThreshold: null,
+                pulseAmount: 1f));
+    }
+
     private static void AssertInside(Rectangle outer, Rectangle inner)
     {
         Assert.True(inner.Width >= 0);
@@ -264,6 +334,19 @@ public sealed class BattleEventLogPanelTests
         Assert.True(inner.Top >= outer.Top);
         Assert.True(inner.Right <= outer.Right);
         Assert.True(inner.Bottom <= outer.Bottom);
+    }
+
+    private static void WithScale(UiScale scale, Action assertion)
+    {
+        try
+        {
+            UiScaleContext.Set(scale);
+            assertion();
+        }
+        finally
+        {
+            UiScaleContext.Set(UiScale.Percent100);
+        }
     }
 
     private static Hukbo.Core.Simulation.BattleEvent CreateEvent(

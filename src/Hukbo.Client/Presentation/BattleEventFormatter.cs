@@ -5,15 +5,62 @@ namespace Hukbo.Client.Presentation;
 
 internal static class BattleEventFormatter
 {
-    public static string Format(BattleEvent battleEvent) =>
+    public static string Format(BattleEvent battleEvent, ulong scenarioSeed) =>
         $"T{battleEvent.Tick:00000}  " +
-        $"{GetActorLabel(battleEvent)} {GetActionLabel(battleEvent)}";
+        $"{GetActorLabel(battleEvent, scenarioSeed)} " +
+        $"{GetActionLabel(battleEvent)}";
 
-    public static string GetActorLabel(BattleEvent battleEvent) =>
+    /// <summary>
+    /// The full actor label, for the detail pane and the feed's own text
+    /// search: the faction, the warrior's personal name, and the entity
+    /// identifier.
+    /// </summary>
+    public static string GetActorLabel(
+        BattleEvent battleEvent,
+        ulong scenarioSeed) =>
         battleEvent.Kind == BattleEventKind.Outcome
             ? "Battle"
-            : $"{GetFactionLabel(battleEvent.FactionId)} #{battleEvent.SourceEntityId}";
+            : $"{GetFactionLabel(battleEvent.FactionId)} " +
+                GetWarriorLabel(battleEvent, scenarioSeed);
 
+    /// <summary>
+    /// The actor label for a log row, whose column holds roughly fifteen
+    /// characters: the warrior's personal name and entity identifier without
+    /// the faction word. The faction is not lost — the row draws this text in
+    /// the faction's own color, the detail pane below prints a
+    /// <c>Faction:</c> line in full, and the battle report names the faction
+    /// on every line.
+    /// </summary>
+    public static string GetRowActorLabel(
+        BattleEvent battleEvent,
+        ulong scenarioSeed) =>
+        battleEvent.Kind == BattleEventKind.Outcome
+            ? "Battle"
+            : GetWarriorLabel(battleEvent, scenarioSeed);
+
+    /// <summary>
+    /// One warrior as a log line names it. Falls back to the bare identifier
+    /// for an event carrying no faction, since the faction is what selects the
+    /// regional name corpus and guessing one would invent a regional claim.
+    /// </summary>
+    private static string GetWarriorLabel(
+        BattleEvent battleEvent,
+        ulong scenarioSeed) =>
+        battleEvent.FactionId is { } factionId
+            ? WarriorNames.FormatWarrior(
+                battleEvent.SourceEntityId,
+                factionId,
+                scenarioSeed)
+            : $"#{battleEvent.SourceEntityId}";
+
+    /// <summary>
+    /// The action half of a log line. A target stays a bare identifier: the
+    /// event carries the actor's faction but not the target's, and the
+    /// faction is what selects the regional name corpus. Adding a target
+    /// faction to <c>BattleEvent</c> would change the authoritative event
+    /// record — and the event hash — for a cosmetic label, which the
+    /// determinism contract does not permit.
+    /// </summary>
     public static string GetActionLabel(BattleEvent battleEvent)
     {
         var target = battleEvent.TargetEntityId is { } targetId
@@ -67,7 +114,10 @@ internal static class BattleEventFormatter
         {
             AttackResolution.Landed =>
                 $"hit {target}'s {GetBodyPartLabel(hitLocation)} with " +
-                $"{weaponLabel} for {battleEvent.Value}",
+                $"{weaponLabel} for {battleEvent.Value}" +
+                (battleEvent.ComboPosition is { } position
+                    ? $" (combo {position})"
+                    : string.Empty),
             AttackResolution.ShieldBlocked =>
                 $"swung {weaponLabel} at {target} — stopped by the shield",
             AttackResolution.Parried =>

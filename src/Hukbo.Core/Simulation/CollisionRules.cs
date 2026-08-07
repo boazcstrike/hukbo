@@ -54,8 +54,20 @@ public static class CollisionRules
 {
     /// <summary>
     /// The common body radius every living agent uses, in raw fixed-point units.
-    /// Four world units, giving an eight-world-unit diameter that fits inside
-    /// the twelve-world-unit default attack range with slack to spare.
+    /// 4.25 world units (4,352 raw), giving an eight-and-a-half-world-unit
+    /// diameter that fits inside the twelve-world-unit default attack range with
+    /// slack to spare.
     /// </summary>
-    public const int DefaultBodyRadiusRaw = 4 * FixedPoint.Scale;
+    /// <remarks>
+    /// This value is bounded from above by simulation behaviour, not only by the
+    /// static validation guards. A radius of 4.5 world units clears every guard
+    /// arithmetically and still reintroduces a follower-trailing mutual-block
+    /// deadlock: seed 12 of
+    /// <c>LastStandFormationTests.NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwoHundred</c>
+    /// stalls at the tick limit with living counts [9, 9]. That test is the
+    /// regression lock for exactly this class of bug. Measured on 2026-07-28:
+    /// 4.5 deadlocks, 4.25 and 4.125 do not. Do not raise this constant without
+    /// rerunning that test across every seed.
+    /// </remarks>
+    public const int DefaultBodyRadiusRaw = (17 * FixedPoint.Scale) / 4;
 }

@@ -15,7 +15,28 @@ internal readonly record struct SoundLogPanelLayout(
     Rectangle BindingRowsBounds,
     Rectangle CueListBounds,
     Rectangle CueRowsBounds,
-    Rectangle ScrollbarTrackBounds);
+    Rectangle ScrollbarTrackBounds,
+    Rectangle BindingScrollbarTrackBounds);
+
+/// <summary>
+/// Which of the sound log's two scrollable lists a wheel notch moves. The panel
+/// routes the wheel to the list under the pointer, and falls back to the cue
+/// log everywhere else inside the panel so a notch is never swallowed. Cues is
+/// first so that the default value is the fallback.
+/// </summary>
+internal enum SoundLogScrollTarget
+{
+    /// <summary>
+    /// The cue log at the bottom of the panel. Also the fallback for the
+    /// header, the path line, and the mute button.
+    /// </summary>
+    Cues,
+
+    /// <summary>
+    /// The expected-files list in the middle of the panel.
+    /// </summary>
+    Bindings,
+}
 
 /// <summary>
 /// One flattened row of the "EXPECTED FILES" section: either a slot's own

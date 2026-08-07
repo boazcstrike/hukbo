@@ -20,7 +20,8 @@ internal readonly record struct PlainsBackdropFrame(
 /// <summary>
 /// Draw sink for the plains battlefield backdrop: the ground grid then the
 /// scatter decals, both beneath pawns and the arena border. Presentation
-/// only — see docs/plans/2026-07-27-plains-backdrop-design.md. Not unit
+/// only — see
+/// the plains backdrop design. Not unit
 /// tested, matching <c>PawnRenderer.Draw</c>.
 ///
 /// The grid loop calls <see cref="PlainsBackdropGeometry.GetGroundCell"/>, the

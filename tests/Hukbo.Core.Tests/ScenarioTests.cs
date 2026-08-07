@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Core.Tests;
@@ -20,7 +21,7 @@ public sealed class ScenarioTests
         Assert.Equal(20, scenario.TickRate);
         Assert.Equal(10_000, scenario.TickLimit);
         Assert.Equal(
-            CombatPresetId.PrecolonialPhilippinesV2,
+            CombatPresetId.PrecolonialPhilippinesV4,
             scenario.CombatPreset);
     }
 
@@ -32,8 +33,33 @@ public sealed class ScenarioTests
         scenario.Validate();
 
         Assert.Equal(CollisionRules.DefaultBodyRadiusRaw, scenario.BodyRadiusRaw);
-        Assert.Equal(4 * FixedPoint.Scale, scenario.BodyRadiusRaw);
+        Assert.Equal((17 * FixedPoint.Scale) / 4, scenario.BodyRadiusRaw);
         Assert.Equal(CollisionPolicy.Solid, scenario.CollisionPolicy);
+    }
+
+    [Fact]
+    public void TheCanonicalTwoHundredAgentScenarioClearsEveryCollisionGuardAtTheEnlargedRadius()
+    {
+        // Task C3
+        // (the collision report and window shell plan):
+        // re-verifies, in one place, every guard tabulated in design section
+        // 1.4 that could have rejected the 4.25-world-unit body radius --
+        // attack-range clearance and movement-speed clearance
+        // (ValidateCollisionConfiguration), map-dimension bounds, and
+        // body-density placeability (ValidateBodyDensity) -- against the
+        // exact scenario the canonical 200-agent / 10,000-tick / seed-1
+        // workload runs. Scenario.CreateDefault already calls Validate()
+        // once during construction; this Fact calls it again explicitly so
+        // the guard coverage is asserted by name rather than only as a
+        // side effect of construction succeeding.
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200);
+
+        Assert.Equal(1_280, scenario.MapWidth);
+        Assert.Equal(720, scenario.MapHeight);
+        Assert.Equal(200, scenario.TotalAgents);
+        Assert.Equal((17 * FixedPoint.Scale) / 4, scenario.BodyRadiusRaw);
+
+        scenario.Validate();
     }
 
     [Theory]
@@ -188,6 +214,58 @@ public sealed class ScenarioTests
         };
 
         Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateAcceptsIndependentPursuitV1MovementPreset()
+    {
+        var scenario = Scenario.CreateDefault() with
+        {
+            MovementPreset = MovementPresetId.IndependentPursuitV1,
+        };
+
+        scenario.Validate();
+    }
+
+    [Fact]
+    public void ValidateRejectsUnregisteredMovementPreset()
+    {
+        var scenario = Scenario.CreateDefault() with
+        {
+            MovementPreset = (MovementPresetId)99,
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void CreateDefaultSelectsPersistentContingentsV4MovementPreset()
+    {
+        // The shipped default has moved twice: T6 of
+        // the contingent close-latch plan flipped it
+        // from PersistentContingentsV2 to PersistentContingentsV3, and the
+        // cross-contingent scan narrowing flipped it again to
+        // PersistentContingentsV4. Both earlier presets stay registered and
+        // unmodified for a replay that names one explicitly; only the value a
+        // caller gets without naming a preset has moved.
+        var scenario = Scenario.CreateDefault();
+
+        Assert.Equal(
+            MovementPresetId.PersistentContingentsV4,
+            scenario.MovementPreset);
+    }
+
+    [Fact]
+    public void ScenariosDifferingOnlyInMovementPresetAreNotEqual()
+    {
+        var first = Scenario.CreateDefault() with
+        {
+            MovementPreset = MovementPresetId.IndependentPursuitV1,
+        };
+        var second = first with { MovementPreset = (MovementPresetId)99 };
+
+        Assert.NotEqual(first, second);
+        Assert.NotEqual(first.GetHashCode(), second.GetHashCode());
     }
 
     [Fact]
@@ -352,7 +430,7 @@ public sealed class ScenarioTests
     {
         var scenario = Scenario.CreateDefault(totalAgents: 200) with
         {
-            RosterCounts = ImmutableArray.Create(-1, 26, 25, 50, 0, 0),
+            RosterCounts = ImmutableArray.Create(-1, 26, 25, 50),
         };
 
         Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
@@ -363,7 +441,7 @@ public sealed class ScenarioTests
     {
         var scenario = Scenario.CreateDefault(totalAgents: 200) with
         {
-            RosterCounts = ImmutableArray.Create(25, 25, 25, 24, 0, 0),
+            RosterCounts = ImmutableArray.Create(25, 25, 25, 24),
         };
 
         Assert.Throws<ArgumentException>(scenario.Validate);
@@ -467,6 +545,36 @@ public sealed class ScenarioTests
         };
 
         Assert.Throws<ArgumentOutOfRangeException>(withLastStandEnabled.Validate);
+    }
+
+    [Fact]
+    public void ValidateRejectsABodyRadiusWhoseContingentTrailOverflowsAndAcceptsTheDefault()
+    {
+        // The default scenario's small body radius leaves both the
+        // contingent jitter and the contingent trail comfortably inside
+        // Int32, exactly as it does for the last-stand jitter guard above.
+        Scenario.CreateDefault().Validate();
+
+        // With AgentsPerFaction = 1 (totalAgents: 2), the worst-case living
+        // count is 1, so the jitter multiplier
+        // (IntegerSquareRoot(4 * 1) + 1) is the smallest possible value, 3.
+        // At BodyRadiusRaw = 360,000,000 the jitter (1,080,000,000) still
+        // fits an Int32, but the trail
+        // (((3 * 1,080,000,000 + 1) / 2) + (3 * 360,000,000) =
+        // 2,700,000,000) does not. This isolates the trail guard: the
+        // jitter guard alone would not catch this body radius.
+        var oversizedBody = Scenario.CreateDefault(totalAgents: 2) with
+        {
+            BodyRadiusRaw = 360_000_000,
+            AttackRangeRaw = 720_000_000,
+            PerceptionRangeRaw = 720_000_000,
+            MovementSpeedRaw = FixedPoint.Scale,
+            MapWidth = Scenario.MaximumMapDimension,
+            MapHeight = Scenario.MaximumMapDimension,
+            LastStandThresholdAgents = 0,
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(oversizedBody.Validate);
     }
 
     [Fact]

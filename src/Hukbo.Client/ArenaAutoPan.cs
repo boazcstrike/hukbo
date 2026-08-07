@@ -1,8 +1,29 @@
+using Hukbo.Client.Settings;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Simulation;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client;
+
+/// <summary>
+/// The mode-dependent half of the auto-pan policy, resolved once from the
+/// spectator's <see cref="AutoCameraMode"/> so the controller reads plain
+/// numbers rather than branching on the mode at every decision.
+/// </summary>
+/// <param name="IdleGraceSeconds">
+/// How long the screen must hold no fighting at all before a pan may start.
+/// </param>
+/// <param name="DwellSeconds">
+/// How long the camera is held still after a pan settles.
+/// </param>
+/// <param name="OnScreenFraction">
+/// The fraction of the visible rectangle searched for fighting when deciding
+/// whether the spectator can already see a fight. One means the whole screen.
+/// </param>
+internal readonly record struct AutoCameraTuning(
+    float IdleGraceSeconds,
+    float DwellSeconds,
+    float OnScreenFraction);
 
 /// <summary>
 /// Decides where the spectator camera should drift when the fighting has left
@@ -41,6 +62,88 @@ internal static class ArenaAutoPan
     /// How long spectator pan input keeps auto-pan out of the way.
     /// </summary>
     internal const float ManualOverrideSeconds = 2.5f;
+
+    /// <summary>
+    /// How long the screen must be empty of fighting, in
+    /// <see cref="AutoCameraMode.Assisted"/>, before a pan may start.
+    /// </summary>
+    /// <remarks>
+    /// This grace is what stops the assistant chasing noise. An agent is only
+    /// marked <see cref="AgentIntent.Attacking"/> on ticks where its target is
+    /// inside contact distance, and the separation stage pushes bodies apart
+    /// between blows, so the count of visible fighters drops to zero for a
+    /// frame at a time in a fight that is plainly on screen. Sampling that
+    /// value once per frame latched a pan on the flicker.
+    /// </remarks>
+    internal const float AssistedIdleGraceSeconds = 1.2f;
+
+    /// <summary>
+    /// How long the camera is held still after a pan settles, in
+    /// <see cref="AutoCameraMode.Assisted"/>. Without it the frame after a
+    /// settle could start the next pan, and the camera was never still.
+    /// </summary>
+    internal const float AssistedDwellSeconds = 2.5f;
+
+    /// <summary>
+    /// The <see cref="AutoCameraMode.Follow"/> grace. Short on purpose: this
+    /// mode is chosen by a spectator who wants the camera to keep up.
+    /// </summary>
+    internal const float FollowIdleGraceSeconds = 0.35f;
+
+    /// <summary>
+    /// The <see cref="AutoCameraMode.Follow"/> dwell.
+    /// </summary>
+    internal const float FollowDwellSeconds = 0.75f;
+
+    /// <summary>
+    /// How often a pan in flight refreshes its target. Fights move while the
+    /// camera travels, so a target resolved once at departure aims the camera
+    /// at ground the fight has already left.
+    /// </summary>
+    internal const float RetargetIntervalSeconds = 0.6f;
+
+    /// <summary>
+    /// The hard ceiling on a single pan. Whatever the agents do, the camera
+    /// stops travelling after this and takes its dwell.
+    /// </summary>
+    internal const float MaximumPanSeconds = 6f;
+
+    /// <summary>
+    /// Fraction of a visible half-extent a candidate must lie beyond before
+    /// travelling to it is worth the motion. A fight nearer than this is
+    /// already effectively on screen.
+    /// </summary>
+    internal const float MinimumTravelFraction = 0.5f;
+
+    /// <summary>
+    /// Resolves the spectator's mode into the numbers the controller uses.
+    /// <see cref="AutoCameraMode.Off"/> resolves to the assisted tuning; the
+    /// controller returns before reading it, so the value is never used.
+    /// </summary>
+    internal static AutoCameraTuning GetTuning(AutoCameraMode mode) =>
+        mode == AutoCameraMode.Follow
+            ? new AutoCameraTuning(
+                FollowIdleGraceSeconds,
+                FollowDwellSeconds,
+                SettleFraction)
+            : new AutoCameraTuning(
+                AssistedIdleGraceSeconds,
+                AssistedDwellSeconds,
+                1f);
+
+    /// <summary>
+    /// True when <paramref name="target"/> is far enough from
+    /// <paramref name="center"/> that moving the camera earns its keep.
+    /// </summary>
+    internal static bool IsWorthTravelling(
+        Vector2 center,
+        Vector2 target,
+        Vector2 halfExtents)
+    {
+        var offset = target - center;
+        return MathF.Abs(offset.X) > halfExtents.X * MinimumTravelFraction ||
+            MathF.Abs(offset.Y) > halfExtents.Y * MinimumTravelFraction;
+    }
 
     internal static bool IsFighting(in AgentView agent) =>
         agent.IsAlive && agent.Intent == AgentIntent.Attacking;

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Hukbo.Tools.ContingentShape</RootNamespace>
+    <AssemblyName>Hukbo.Tools.ContingentShape</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Hukbo.Core\Hukbo.Core.csproj" />
+  </ItemGroup>
+
+</Project>

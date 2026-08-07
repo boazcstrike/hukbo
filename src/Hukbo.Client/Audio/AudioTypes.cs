@@ -16,6 +16,16 @@ internal enum GameSoundId
     VictoryRed = 6,
     Draw = 7,
     UiClick = 8,
+
+    // The shield-clash slots. One per attacking weapon, because a shield
+    // intercept sounds like the weapon that struck it far more than it sounds
+    // like the shield. These are ordinary classless slots: a shield block has
+    // no meaningful hit location, so they ride the slot-level variant path
+    // rather than the hit-class path the four attack slots use.
+    ClashShieldKampilan = 9,
+    ClashShieldWasay = 10,
+    ClashShieldKalis = 11,
+    ClashShieldItak = 12,
 }
 
 /// <summary>

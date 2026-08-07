@@ -40,7 +40,8 @@ public readonly record struct BattleEvent
         WeaponId? weapon,
         ShieldId? shield,
         BodyPart? hitLocation,
-        AttackResolution? resolution)
+        AttackResolution? resolution,
+        int? comboPosition)
     {
         Sequence = sequence;
         Tick = tick;
@@ -50,47 +51,70 @@ public readonly record struct BattleEvent
         Value = value;
         FactionId = factionId;
         _combatContext = weapon is { } presentWeapon
-            ? ((int)resolution!.Value << ResolutionShift) |
-                ((int)presentWeapon << WeaponShift) |
-                ((int)shield!.Value << ShieldShift) |
-                (int)hitLocation!.Value
+            ? ((long)resolution!.Value << ResolutionShift) |
+                ((long)presentWeapon << WeaponShift) |
+                ((long)shield!.Value << ShieldShift) |
+                (long)hitLocation!.Value |
+                ((long)(comboPosition ?? 0) << ComboPositionShift)
             : CombatContextAbsent;
     }
 
-    private const int CombatContextAbsent = 0;
+    private const long CombatContextAbsent = 0;
     private const int ResolutionShift = 24;
     private const int WeaponShift = 16;
     private const int ShieldShift = 8;
-    private const int FieldMask = 0xFF;
+
+    /// <summary>
+    /// Bits 32-39 of the widened <see cref="_combatContext"/>, immediately
+    /// above the four original byte fields (bits 0-31) and not overlapping
+    /// any of them. Holds the chain position of a landed blow that is part
+    /// of an active attack combination, or <c>0</c> — meaning "not part of a
+    /// chain" — for every other attack. See <see cref="ComboPosition"/>.
+    /// </summary>
+    private const int ComboPositionShift = 32;
+
+    private const long FieldMask = 0xFF;
 
     /// <summary>
     /// <see cref="Resolution"/>, <see cref="Weapon"/>, <see cref="Shield"/>,
-    /// and <see cref="HitLocation"/> packed into one field, or
-    /// <see cref="CombatContextAbsent"/> for an event that carries no combat
-    /// context.
+    /// <see cref="HitLocation"/>, and <see cref="ComboPosition"/> packed into
+    /// one field, or <see cref="CombatContextAbsent"/> for an event that
+    /// carries no combat context.
     /// </summary>
     /// <remarks>
-    /// Four separate nullable enum fields cost eight bytes each and are the
-    /// bulk of per-tick allocation, which
+    /// Five separate nullable fields would cost eight bytes each and would be
+    /// the bulk of per-tick allocation, which
     /// <c>RepeatedCollisionTicksHaveBoundedAllocations</c> budgets. Packed
-    /// this way the four together cost four bytes, so carrying the attack
-    /// resolution as well as the shield left the event the same size it was
-    /// with only two of them.
+    /// this way the five together cost eight bytes — the field widened from
+    /// <c>int</c> to <c>long</c> when the chain-position byte was added,
+    /// which is still far cheaper than five boxed nullables.
     /// <para>
-    /// None of the four enums exceeds 255, so a byte apiece is sufficient and
-    /// the four occupy one <c>int</c> exactly. A test pins that range
-    /// assumption.
+    /// None of the four original enums exceeds 255, so a byte apiece is
+    /// sufficient and the four occupy the low 32 bits exactly. A test pins
+    /// that range assumption. The chain position occupies the next byte,
+    /// bits 32-39; see <see cref="ComboPositionShift"/>.
     /// </para>
     /// <para>
-    /// Absence is tested on the whole field rather than on any one byte, which
-    /// is what makes <see cref="AttackResolution.Landed"/> safe at numeric
-    /// zero: a landed attack contributes nothing to the resolution byte, but
-    /// its weapon byte is always nonzero because <see cref="WeaponId"/> starts
-    /// numbering at one. An event carrying no combat context is the only value
-    /// for which the whole field is zero.
+    /// Absence of the whole combat context is tested on the whole field
+    /// rather than on any one byte, which is what makes
+    /// <see cref="AttackResolution.Landed"/> safe at numeric zero: a landed
+    /// attack contributes nothing to the resolution byte, but its weapon
+    /// byte is always nonzero because <see cref="WeaponId"/> starts
+    /// numbering at one. An event carrying no combat context is the only
+    /// value for which the whole field is zero.
+    /// </para>
+    /// <para>
+    /// The chain-position byte cannot reuse that same whole-field trick,
+    /// because most attacks carry a combat context yet are not part of any
+    /// chain even though their weapon/hit-location/resolution bytes are
+    /// always present. Instead it is independently nullable within an
+    /// already-present combat context: valid chain positions start at
+    /// <c>1</c>, so <c>0</c> in that byte means "not part of a chain",
+    /// checked only after confirming the whole field is not
+    /// <see cref="CombatContextAbsent"/>. See <see cref="ComboPosition"/>.
     /// </para>
     /// </remarks>
-    private readonly int _combatContext;
+    private readonly long _combatContext;
 
     public long Sequence { get; }
 
@@ -151,6 +175,30 @@ public readonly record struct BattleEvent
             : (AttackResolution)((_combatContext >> ResolutionShift) & FieldMask);
 
     /// <summary>
+    /// The position, starting at <c>1</c>, of this landed blow within an
+    /// active attack combination — or <c>null</c> for an attack that is not
+    /// part of any chain, which is most attacks, including every one under a
+    /// combat preset that never opens a chain. Populated only for
+    /// <see cref="BattleEventKind.Attack"/>; always <c>null</c> for a blow
+    /// that did not land, since <see cref="BattleSimulation"/> only ever asks
+    /// this question of a landed blow. This value is folded into the
+    /// headless event hash.
+    /// </summary>
+    public int? ComboPosition
+    {
+        get
+        {
+            if (_combatContext == CombatContextAbsent)
+            {
+                return null;
+            }
+
+            var raw = (int)((_combatContext >> ComboPositionShift) & FieldMask);
+            return raw == 0 ? null : raw;
+        }
+    }
+
+    /// <summary>
     /// Creates a validated <see cref="BattleEventKind.Attack"/> event.
     /// <paramref name="weapon"/>, <paramref name="shield"/>, and
     /// <paramref name="hitLocation"/> are all required and must be defined
@@ -165,6 +213,13 @@ public readonly record struct BattleEvent
     /// <c>BattleSimulation.AddAttackEvent</c>, where the resolution is a
     /// required parameter so the default can never mask a missing wire-up.
     /// </param>
+    /// <param name="comboPosition">
+    /// This blow's position within an active attack combination, or
+    /// <c>null</c> when it is not part of one. Optional and defaulting to
+    /// <c>null</c> for the same reason <paramref name="resolution"/>
+    /// defaults: this factory's many pre-existing call sites do not know
+    /// about attack combinations and must keep compiling unchanged.
+    /// </param>
     public static BattleEvent Attack(
         long sequence,
         long tick,
@@ -175,7 +230,8 @@ public readonly record struct BattleEvent
         WeaponId weapon,
         ShieldId shield,
         BodyPart hitLocation,
-        AttackResolution resolution = AttackResolution.Landed)
+        AttackResolution resolution = AttackResolution.Landed,
+        int? comboPosition = null)
     {
         if (targetEntityId == 0)
         {
@@ -217,6 +273,16 @@ public readonly record struct BattleEvent
                 "An attack event requires a defined resolution.");
         }
 
+        if (comboPosition is { } presentComboPosition && presentComboPosition < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(comboPosition),
+                comboPosition,
+                "A combo position, when present, must be at least 1; " +
+                "0 is reserved to mean \"not part of a chain\" and a " +
+                "combo's first blow is position 1.");
+        }
+
         return new BattleEvent(
             sequence,
             tick,
@@ -228,7 +294,8 @@ public readonly record struct BattleEvent
             weapon,
             shield,
             hitLocation,
-            resolution);
+            resolution,
+            comboPosition);
     }
 
     /// <summary>
@@ -266,6 +333,7 @@ public readonly record struct BattleEvent
             weapon: null,
             shield: null,
             hitLocation: null,
-            resolution: null);
+            resolution: null,
+            comboPosition: null);
     }
 }

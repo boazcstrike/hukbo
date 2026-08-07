@@ -1,7 +1,9 @@
 # Hukbo — Agent Instructions
 
-Read this before touching anything. `AGENTS.md` holds the naming contract and is
-the companion file for non-Claude agents; keep the two consistent.
+Read this before touching anything. `AGENTS.md` is the standalone contract for
+non-Claude agents — naming, commands, non-negotiables, workflow, historical
+policy, do-nots. It stands on its own for tools that never load this file;
+keep the two consistent.
 
 ## 1. Product
 
@@ -169,15 +171,16 @@ Debug logging (full design in
    `docs/development/testing.md`. Compilation, unit tests, or a
    window-opening probe do not let you flip a row to `PASS`. Leave untouched
    rows `PENDING`; report `BLOCKED` honestly.
-5. Move finished plans to `docs/archives/` and add the "Archived: reference only"
-   banner under the title.
+5. Move finished plans to `docs/archives/<YYYY-MM-DD>/`, dated for the day of
+   archiving, and add the "Archived: reference only" banner under the title.
 
 **`docs/archives/` is deprecated by definition.** It is the dump for finished and
 abandoned work, kept only so a past decision can be traced to its reasoning.
 Never execute an archived plan, never treat its versions or tooling references as
 current, and never cite one as justification for a change. Active work lives in
 `docs/plans/`; the live contract is this file, `SIMULATION-GAME-STANDARDS.md`,
-`docs/development/testing.md`, and `.claude/skills/`. See
+`docs/development/testing.md`, and `.claude/skills/`. Archived files are grouped
+into dated subfolders — full rules, including the layout, in
 [docs/archives/README.md](docs/archives/README.md).
 6. Every feature proposal answers the nine questions in
    `SIMULATION-GAME-STANDARDS.md` §10, including: *can a spectator discover this
@@ -234,6 +237,34 @@ Code discovery: use the `tokensave` MCP tools (`tokensave_context`,
 codebase-memory graph before Grep/Glob. Do not spawn Explore agents for code
 research in this repo.
 
+The `codebase-memory-mcp` graph for this repository is the project named
+**`hukbo-main`**. Pass that name to `search_graph`, `query_graph`, `trace_path`,
+`get_code_snippet`, and `get_architecture`. Do not use `hukbo` — that project's
+database is corrupt and locked, and every attempt to re-index over it kills the
+indexing worker. It is scheduled for deletion once no server process holds its
+file handle.
+
+Re-index through the CLI, never through the MCP tool. The MCP-hosted worker
+crashes on this repository; the same operation succeeds as a separate process:
+
+```powershell
+& "$HOME/.local/bin/codebase-memory-mcp.exe" cli index_repository `
+  '{"repo_path":"C:/Users/boazs/webdev/autonomous-arena","name":"hukbo-main","mode":"full"}'
+```
+
+The indexer skips `.claude/`, `.git/`, `artifacts/`, `tools/mix-output/`, and
+every `bin/` and `obj/` on its own, so the four live worktrees under
+`.claude/worktrees/` never pollute the root index. A worktree that needs its own
+graph gets indexed as its own project, keyed by branch. Do not enable
+`persistence`; the `.codebase-memory/graph.db.zst` artifact it writes is a
+stale partial from an earlier crashed run and is not a trustworthy bootstrap.
+
+Two graph servers are installed and both work. `tokensave` stays the default —
+it is the one the user-level rules mandate, it is git-aware, and it carries the
+edit and metrics tools. Reach for `codebase-memory-mcp` when you specifically
+want Cypher through `query_graph`, call-chain tracing through `trace_path`, or
+Leiden cluster detection through `get_architecture`.
+
 Project-local skills in `.claude/skills/` — prefer these over generic advice:
 
 | Skill | Covers |
@@ -256,7 +287,7 @@ Plugins that earn their keep here (see `.claude/settings.json`):
 | `context7` | MonoGame 3.8.5, .NET 10, xunit API facts — check docs, do not answer from memory |
 | `code-review` | `/code-review` on a diff before integrating |
 | `codex` | Second opinion on a determinism bug or a stuck investigation |
-| `caveman` | Agent-to-agent prompts only. **Never** on repository files |
+| `caveman` | **Required** on every agent-to-agent prompt. **Never** on repository files |
 | `ui-ux-pro-max` | HUD, theme, and inspector layout work in `Hukbo.Client/UI` |
 | `last30days` | Genre and community research, as used for `RESEARCHED.md` |
 
@@ -274,7 +305,9 @@ presentation-only), `game-ui-ux` (HUD anchoring, controller focus),
 - Introduce rigid-body physics; distance checks and hitscan are the model.
 - Cache targets, or add any unbounded cache.
 - Save derived caches, render data, or metrics into a snapshot.
-- Add a general-purpose ECS framework before a profiler demands it.
+- Import Arch or another general-purpose ECS without a new profile and design
+  decision. Arch 2.1.0 is a reference implementation only; reuse compatible,
+  measured techniques under `SIMULATION-GAME-STANDARDS.md` section 15.
 - Commit credentials, absolute local paths, `bin/`, `obj/`, or package output.
 - Start terrain, pathfinding, morale, projectile ammunition, persistence
   migrations, multiplayer, or mod APIs before the gate that authorizes them.
@@ -334,8 +367,16 @@ Rules that bind this pipeline:
 - **The canonical gate is not delegated.** `./scripts/verify.ps1` runs once,
   after integration, and its real output is the evidence. No sub-agent's report
   substitutes for it, and no agent may flip a manual smoke-checklist row.
-- Agent-to-agent prompts may be compressed; repository documentation may not.
-  See the rule in section 6.
+- **Coding tasks run on Sonnet.** Every agent that writes or edits code in this
+  repository is dispatched on Sonnet, every time, with no per-task exception.
+  Research and planning agents keep whatever model their own agent file
+  declares; this rule binds the implementation stage. Confirm the roster with
+  `bo agents` before spawning, since an agent's declared model can change.
+- **Every agent prompt is caveman-compressed.** Orchestration is not authorized
+  without it: run the `caveman` skill over each sub-agent prompt before
+  dispatching it, at every stage of the pipeline. Repository documentation,
+  commits, pull requests, and user-facing prose stay in full English — see the
+  rule in section 6.
 
 The `hukbo-orchestrate` skill is the invocable form of this section — the
 worktree setup, the two research groups, the planner audit, the prompt contract,

@@ -11,9 +11,14 @@ namespace Hukbo.Client.UI;
 /// </summary>
 internal sealed partial class BattleEventLogPanel
 {
+    // ScenarioSeed joins the cache key because the actor label now carries a
+    // warrior name derived from it: a new match reuses this cache's rows only
+    // when the seed behind those names is still the same one.
     private readonly record struct FormattedEvent(
         BattleEvent BattleEvent,
         int RowWidth,
+        int ApproximateAdvancePx,
+        ulong ScenarioSeed,
         string Tick,
         string Actor,
         string Action);
@@ -67,7 +72,8 @@ internal sealed partial class BattleEventLogPanel
                 theme,
                 visibleRows[index],
                 index,
-                hoveredIndex);
+                hoveredIndex,
+                fonts.GetApproximateAdvancePx(UiFontRole.Caption));
         }
 
         DrawScrollbar(
@@ -101,13 +107,15 @@ internal sealed partial class BattleEventLogPanel
                 : theme.Colors.PanelBorder,
             KeyboardFocusTarget ==
             BattleEventKeyboardFocusTarget.List
-                ? theme.Metrics.FocusThickness
-                : 1);
+                ? UiScaleContext.Pixels(theme.Metrics.FocusThickness)
+                : UiScaleContext.Pixels(1));
         UiPrimitives.DrawText(
             spriteBatch,
             font,
             "EVENT STREAM",
-            new Vector2(layout.ListBounds.Left + 8, layout.ListBounds.Top + 6),
+            new Vector2(
+                layout.ListBounds.Left + UiScaleContext.Pixels(8),
+                layout.ListBounds.Top + UiScaleContext.Pixels(6)),
             theme.Colors.TextDisabled);
         var statusText = feed.IsPinnedToBottom ? "[LIVE]" : "[INSPECTING]";
         var statusColor = feed.IsPinnedToBottom
@@ -118,8 +126,10 @@ internal sealed partial class BattleEventLogPanel
             font,
             statusText,
             new Vector2(
-                Math.Max(layout.ListBounds.Left + 100, layout.ListBounds.Right - 82),
-                layout.ListBounds.Top + 6),
+                Math.Max(
+                    layout.ListBounds.Left + UiScaleContext.Pixels(100),
+                    layout.ListBounds.Right - UiScaleContext.Pixels(82)),
+                layout.ListBounds.Top + UiScaleContext.Pixels(6)),
             statusColor);
     }
 
@@ -132,7 +142,8 @@ internal sealed partial class BattleEventLogPanel
         UiTheme theme,
         BattleEvent battleEvent,
         int index,
-        int hoveredIndex)
+        int hoveredIndex,
+        int approximateAdvancePx)
     {
         var rowBounds = new Rectangle(
             layout.RowsBounds.Left,
@@ -159,7 +170,7 @@ internal sealed partial class BattleEventLogPanel
             new Rectangle(
                 rowBounds.Left,
                 rowBounds.Top,
-                Math.Min(4, rowBounds.Width),
+                Math.Min(UiScaleContext.Pixels(4), rowBounds.Width),
                 rowBounds.Height),
             GetKindColor(battleEvent.Kind, theme));
         if (isSelected)
@@ -169,9 +180,13 @@ internal sealed partial class BattleEventLogPanel
                 pixel,
                 rowBounds,
                 theme.Colors.ActionFocus,
-                1);
+                UiScaleContext.Pixels(1));
         }
 
+        var emphasis = GetRowEmphasis(
+            battleEvent.Sequence,
+            _newEventThreshold,
+            _newEventPulse.Amount);
         DrawRowText(
             spriteBatch,
             font,
@@ -179,7 +194,10 @@ internal sealed partial class BattleEventLogPanel
             battleEvent,
             rowBounds,
             isSelected,
-            index == hoveredIndex);
+            index == hoveredIndex,
+            feed.ScenarioSeed,
+            approximateAdvancePx,
+            emphasis);
     }
 
     private void DrawRowText(
@@ -189,30 +207,51 @@ internal sealed partial class BattleEventLogPanel
         BattleEvent battleEvent,
         Rectangle rowBounds,
         bool isSelected,
-        bool isHovered)
+        bool isHovered,
+        ulong scenarioSeed,
+        int approximateAdvancePx,
+        float emphasis)
     {
         var formatted = GetFormattedRow(
             battleEvent,
-            Math.Max(8, rowBounds.Width));
+            Math.Max(UiScaleContext.Pixels(8), rowBounds.Width),
+            scenarioSeed,
+            approximateAdvancePx);
         var foregrounds = GetRowForegrounds(
             theme,
             isSelected,
             isHovered,
             battleEvent.FactionId);
-        var tickX = rowBounds.Left + 9;
-        var actorX = tickX + 54;
-        var actionX = actorX + Math.Min(100, Math.Max(65, rowBounds.Width / 3));
+        if (emphasis > 0f)
+        {
+            foregrounds = new BattleEventRowForegrounds(
+                Color.Lerp(foregrounds.Tick, theme.Colors.NewEvent, emphasis),
+                Color.Lerp(
+                    foregrounds.Actor,
+                    theme.Colors.NewEvent,
+                    emphasis),
+                Color.Lerp(
+                    foregrounds.Action,
+                    theme.Colors.NewEvent,
+                    emphasis));
+        }
+
+        var tickX = rowBounds.Left + UiScaleContext.Pixels(9);
+        var actorX = tickX + UiScaleContext.Pixels(54);
+        var actionX = actorX + Math.Min(
+            UiScaleContext.Pixels(100),
+            Math.Max(UiScaleContext.Pixels(65), rowBounds.Width / 3));
         UiPrimitives.DrawText(
             spriteBatch,
             font,
             formatted.Tick,
-            new Vector2(tickX, rowBounds.Top + 8),
+            new Vector2(tickX, rowBounds.Top + UiScaleContext.Pixels(8)),
             foregrounds.Tick);
         UiPrimitives.DrawText(
             spriteBatch,
             font,
             formatted.Actor,
-            new Vector2(actorX, rowBounds.Top + 7),
+            new Vector2(actorX, rowBounds.Top + UiScaleContext.Pixels(7)),
             foregrounds.Actor);
         if (actionX < rowBounds.Right)
         {
@@ -220,7 +259,9 @@ internal sealed partial class BattleEventLogPanel
                 spriteBatch,
                 font,
                 formatted.Action,
-                new Vector2(actionX, rowBounds.Top + 7),
+                new Vector2(
+                    actionX,
+                    rowBounds.Top + UiScaleContext.Pixels(7)),
                 foregrounds.Action);
         }
     }
@@ -250,13 +291,13 @@ internal sealed partial class BattleEventLogPanel
             spriteBatch,
             fonts.Get(UiFontRole.Body),
             title,
-            center - new Vector2(0, 10),
+            center - new Vector2(0, UiScaleContext.Pixels(10)),
             theme.Colors.TextPrimary);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(UiFontRole.Caption),
             hint,
-            center + new Vector2(0, 14),
+            center + new Vector2(0, UiScaleContext.Pixels(14)),
             theme.Colors.TextSecondary);
     }
 
@@ -282,13 +323,17 @@ internal sealed partial class BattleEventLogPanel
 
     private FormattedEvent GetFormattedRow(
         BattleEvent battleEvent,
-        int rowWidth)
+        int rowWidth,
+        ulong scenarioSeed,
+        int approximateAdvancePx)
     {
         for (var index = 0; index < _formattedRows.Count; index++)
         {
             var formattedRow = _formattedRows[index];
             if (formattedRow.BattleEvent == battleEvent &&
-                formattedRow.RowWidth == rowWidth)
+                formattedRow.RowWidth == rowWidth &&
+                formattedRow.ApproximateAdvancePx == approximateAdvancePx &&
+                formattedRow.ScenarioSeed == scenarioSeed)
             {
                 return formattedRow;
             }
@@ -300,17 +345,21 @@ internal sealed partial class BattleEventLogPanel
             }
         }
 
-        var actorCharacters = Math.Max(8, Math.Min(15, rowWidth / 25));
+        var actorCharacters = Math.Max(
+            8,
+            Math.Min(15, rowWidth / UiScaleContext.Pixels(25)));
         var actionCharacters = Math.Max(
             6,
-            (rowWidth - 165) /
-                UiFontRamp.GetApproximateAdvancePx(UiFontRole.Caption));
+            (rowWidth - UiScaleContext.Pixels(165)) /
+                approximateAdvancePx);
         var formatted = new FormattedEvent(
             battleEvent,
             rowWidth,
+            approximateAdvancePx,
+            scenarioSeed,
             $"T{battleEvent.Tick:00000}",
             ClipLabel(
-                BattleEventFormatter.GetActorLabel(battleEvent),
+                BattleEventFormatter.GetRowActorLabel(battleEvent, scenarioSeed),
                 actorCharacters),
             ClipLabel(
                 BattleEventFormatter.GetActionLabel(battleEvent),
@@ -351,6 +400,26 @@ internal sealed partial class BattleEventLogPanel
             BattleEventKind.Outcome => theme.Colors.StatusSuccess,
             _ => theme.Colors.TextSecondary,
         };
+
+    /// <summary>
+    /// Surface A pure helper. Returns <paramref name="pulseAmount"/> when
+    /// <paramref name="sequence"/> is newer than the exclusive
+    /// <paramref name="emphasisThreshold"/>, and zero otherwise — including
+    /// when the threshold is <see langword="null"/>, which is the
+    /// first-observation and no-pulse-yet state.
+    /// </summary>
+    internal static float GetRowEmphasis(
+        long sequence,
+        long? emphasisThreshold,
+        float pulseAmount)
+    {
+        if (emphasisThreshold is not { } threshold || sequence <= threshold)
+        {
+            return 0f;
+        }
+
+        return pulseAmount;
+    }
 
     internal static BattleEventRowForegrounds GetRowForegrounds(
         UiTheme theme,

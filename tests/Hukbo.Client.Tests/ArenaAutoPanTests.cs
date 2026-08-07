@@ -1,3 +1,4 @@
+using Hukbo.Client.Settings;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Simulation;
@@ -162,6 +163,35 @@ public sealed class ArenaAutoPanTests
     }
 
     [Fact]
+    public void IsWorthTravelling_IsFalseForATargetNearTheCentre()
+    {
+        var target = new Vector2(HalfExtents.X * 0.4f, 0f);
+
+        Assert.False(
+            ArenaAutoPan.IsWorthTravelling(Vector2.Zero, target, HalfExtents));
+    }
+
+    [Fact]
+    public void IsWorthTravelling_IsTrueWhenEitherAxisClearsTheThreshold()
+    {
+        var target = new Vector2(0f, HalfExtents.Y * 0.9f);
+
+        Assert.True(
+            ArenaAutoPan.IsWorthTravelling(Vector2.Zero, target, HalfExtents));
+    }
+
+    [Fact]
+    public void GetTuning_GivesFollowASharperGraceAndDwellThanAssisted()
+    {
+        var assisted = ArenaAutoPan.GetTuning(AutoCameraMode.Assisted);
+        var follow = ArenaAutoPan.GetTuning(AutoCameraMode.Follow);
+
+        Assert.True(follow.IdleGraceSeconds < assisted.IdleGraceSeconds);
+        Assert.True(follow.DwellSeconds < assisted.DwellSeconds);
+        Assert.True(follow.OnScreenFraction < assisted.OnScreenFraction);
+    }
+
+    [Fact]
     public void Controller_StaysPutWhenAFighterIsAlreadyOnScreen()
     {
         var controller = new ArenaAutoPanController();
@@ -171,23 +201,72 @@ public sealed class ArenaAutoPanTests
             CreateAgent(2, 900f, 0f, AgentIntent.Attacking),
         ];
 
-        var center = Update(controller, agents, Vector2.Zero);
+        var center = RunFrames(controller, agents, Vector2.Zero, frames: 600);
 
         Assert.Equal(Vector2.Zero, center);
         Assert.False(controller.IsPanning);
     }
 
     [Fact]
-    public void Controller_PansTowardTheFightWhenScreenIsEmpty()
+    public void Controller_HoldsStillThroughTheIdleGrace()
+    {
+        var controller = new ArenaAutoPanController();
+        AgentView[] agents = [CreateAgent(1, 500f, 0f, AgentIntent.Attacking)];
+        var frames = (int)MathF.Floor(
+            ArenaAutoPan.AssistedIdleGraceSeconds * 60f) - 1;
+
+        var center = RunFrames(controller, agents, Vector2.Zero, frames);
+
+        Assert.Equal(Vector2.Zero, center);
+        Assert.False(controller.IsPanning);
+    }
+
+    [Fact]
+    public void Controller_PansTowardTheFightOnceTheIdleGraceElapses()
     {
         var controller = new ArenaAutoPanController();
         AgentView[] agents = [CreateAgent(1, 500f, 0f, AgentIntent.Attacking)];
 
-        var center = Update(controller, agents, Vector2.Zero);
+        var center = RunOutIdleGrace(controller, agents, Vector2.Zero);
 
         Assert.True(controller.IsPanning);
         Assert.True(center.X > 0f);
         Assert.True(center.X < 500f);
+    }
+
+    /// <summary>
+    /// The regression that this whole feature exists for. An agent is only
+    /// marked <see cref="AgentIntent.Attacking"/> on ticks where its target is
+    /// inside contact distance, so a fight plainly on screen still reports no
+    /// fighters on some frames. The assistant must not read those frames as an
+    /// empty screen.
+    /// </summary>
+    [Fact]
+    public void Controller_IgnoresFramesWhereAVisibleFightIsBetweenBlows()
+    {
+        var controller = new ArenaAutoPanController();
+        AgentView[] fighting =
+        [
+            CreateAgent(1, 5f, 0f, AgentIntent.Attacking),
+            CreateAgent(2, 900f, 0f, AgentIntent.Attacking),
+        ];
+        AgentView[] betweenBlows =
+        [
+            CreateAgent(1, 5f, 0f, AgentIntent.Moving),
+            CreateAgent(2, 900f, 0f, AgentIntent.Attacking),
+        ];
+
+        var center = Vector2.Zero;
+        for (var frame = 0; frame < 600; frame++)
+        {
+            center = Update(
+                controller,
+                frame % 2 == 0 ? fighting : betweenBlows,
+                center);
+        }
+
+        Assert.Equal(Vector2.Zero, center);
+        Assert.False(controller.IsPanning);
     }
 
     [Fact]
@@ -200,7 +279,32 @@ public sealed class ArenaAutoPanTests
             CreateAgent(2, 600f, 0f, AgentIntent.Idle),
         ];
 
-        var center = Update(controller, agents, Vector2.Zero);
+        var center = RunFrames(controller, agents, Vector2.Zero, frames: 600);
+
+        Assert.Equal(Vector2.Zero, center);
+        Assert.False(controller.IsPanning);
+    }
+
+    [Fact]
+    public void Controller_DoesNotTravelForAClusterCentredOnTheCamera()
+    {
+        // Zoomed in far enough that a single melee straddles the screen: no
+        // fighter is inside the visible rectangle, but their centroid is the
+        // camera centre already, so there is nowhere worth going.
+        var tightExtents = new Vector2(4f, 4f);
+        var controller = new ArenaAutoPanController();
+        AgentView[] agents =
+        [
+            CreateAgent(1, 0f, 6f, AgentIntent.Attacking),
+            CreateAgent(2, 0f, -6f, AgentIntent.Attacking),
+        ];
+
+        var center = RunFrames(
+            controller,
+            agents,
+            Vector2.Zero,
+            frames: 600,
+            halfExtents: tightExtents);
 
         Assert.Equal(Vector2.Zero, center);
         Assert.False(controller.IsPanning);
@@ -212,7 +316,7 @@ public sealed class ArenaAutoPanTests
         var controller = new ArenaAutoPanController();
         AgentView[] agents = [CreateAgent(1, 500f, 0f, AgentIntent.Attacking)];
 
-        var center = Update(controller, agents, Vector2.Zero);
+        var center = RunOutIdleGrace(controller, agents, Vector2.Zero);
         Assert.True(controller.IsPanning);
 
         for (var frame = 0; frame < 600 && controller.IsPanning; frame++)
@@ -225,6 +329,73 @@ public sealed class ArenaAutoPanTests
     }
 
     [Fact]
+    public void Controller_DwellsAfterSettlingBeforeStartingAnotherPan()
+    {
+        var controller = new ArenaAutoPanController();
+        AgentView[] agents = [CreateAgent(1, 500f, 0f, AgentIntent.Attacking)];
+        var center = RunOutIdleGrace(controller, agents, Vector2.Zero);
+        for (var frame = 0; frame < 600 && controller.IsPanning; frame++)
+        {
+            center = Update(controller, agents, center);
+        }
+
+        Assert.Equal(
+            ArenaAutoPan.AssistedDwellSeconds,
+            controller.DwellRemaining,
+            precision: 3);
+
+        // The fight vanishes the instant the camera settles. Even with the
+        // screen empty and the grace long expired, the dwell holds the camera
+        // still.
+        AgentView[] gone = [CreateAgent(1, 5000f, 0f, AgentIntent.Attacking)];
+        var settled = center;
+        var dwellFrames = (int)MathF.Floor(
+            ArenaAutoPan.AssistedDwellSeconds * 60f) - 1;
+        center = RunFrames(controller, gone, center, dwellFrames);
+
+        Assert.Equal(settled, center);
+        Assert.False(controller.IsPanning);
+    }
+
+    [Fact]
+    public void Controller_GivesUpOnAPanThatOverrunsTheCeiling()
+    {
+        var controller = new ArenaAutoPanController();
+        AgentView[] agents =
+        [
+            CreateAgent(1, 20_000f, 0f, AgentIntent.Attacking),
+        ];
+        var center = RunOutIdleGrace(controller, agents, Vector2.Zero);
+        Assert.True(controller.IsPanning);
+
+        var ceilingFrames =
+            (int)MathF.Ceiling(ArenaAutoPan.MaximumPanSeconds * 60f) + 1;
+        center = RunFrames(controller, agents, center, ceilingFrames);
+
+        Assert.False(controller.IsPanning);
+        Assert.True(center.X < 20_000f);
+        Assert.True(controller.DwellRemaining > 0f);
+    }
+
+    [Fact]
+    public void Controller_FollowsAFightThatMovesWhileTheCameraTravels()
+    {
+        var controller = new ArenaAutoPanController();
+        AgentView[] departed = [CreateAgent(1, 900f, 0f, AgentIntent.Attacking)];
+        var center = RunOutIdleGrace(controller, departed, Vector2.Zero);
+        Assert.True(controller.IsPanning);
+
+        // The melee drifts off the original bearing. A target resolved once at
+        // departure would leave the camera heading at y = 0 forever.
+        AgentView[] moved = [CreateAgent(1, 900f, 900f, AgentIntent.Attacking)];
+        var retargetFrames =
+            (int)MathF.Ceiling(ArenaAutoPan.RetargetIntervalSeconds * 60f) + 2;
+        center = RunFrames(controller, moved, center, retargetFrames);
+
+        Assert.True(center.Y > 0f);
+    }
+
+    [Fact]
     public void Controller_KeepsPanningWhileFighterSitsOutsideSettleMargin()
     {
         var controller = new ArenaAutoPanController();
@@ -234,7 +405,7 @@ public sealed class ArenaAutoPanTests
         var edgeX = HalfExtents.X * 0.85f;
         AgentView[] agents = [CreateAgent(1, 500f, 0f, AgentIntent.Attacking)];
 
-        Update(controller, agents, Vector2.Zero);
+        RunOutIdleGrace(controller, agents, Vector2.Zero);
         Assert.True(controller.IsPanning);
 
         var center = Update(controller, agents, new Vector2(500f - edgeX, 0f));
@@ -248,7 +419,7 @@ public sealed class ArenaAutoPanTests
     {
         var controller = new ArenaAutoPanController();
         AgentView[] agents = [CreateAgent(1, 500f, 0f, AgentIntent.Attacking)];
-        Update(controller, agents, Vector2.Zero);
+        RunOutIdleGrace(controller, agents, Vector2.Zero);
         Assert.True(controller.IsPanning);
 
         var center = Update(
@@ -284,7 +455,7 @@ public sealed class ArenaAutoPanTests
             elapsedSeconds: ArenaAutoPan.ManualOverrideSeconds);
         Assert.Equal(0f, controller.ManualOverrideRemaining, precision: 3);
 
-        var center = Update(controller, agents, Vector2.Zero);
+        var center = RunOutIdleGrace(controller, agents, Vector2.Zero);
 
         Assert.True(controller.IsPanning);
         Assert.True(center.X > 0f);
@@ -295,7 +466,7 @@ public sealed class ArenaAutoPanTests
     {
         var controller = new ArenaAutoPanController();
         AgentView[] agents = [CreateAgent(1, 500f, 0f, AgentIntent.Attacking)];
-        Update(controller, agents, Vector2.Zero);
+        RunOutIdleGrace(controller, agents, Vector2.Zero);
         Assert.True(controller.IsPanning);
 
         var center = Update(
@@ -309,6 +480,74 @@ public sealed class ArenaAutoPanTests
     }
 
     [Fact]
+    public void Controller_NeverMovesTheCameraWhileOff()
+    {
+        var controller = new ArenaAutoPanController();
+        AgentView[] agents = [CreateAgent(1, 500f, 0f, AgentIntent.Attacking)];
+
+        var center = RunFrames(
+            controller,
+            agents,
+            Vector2.Zero,
+            frames: 1200,
+            mode: AutoCameraMode.Off);
+
+        Assert.Equal(Vector2.Zero, center);
+        Assert.False(controller.IsPanning);
+    }
+
+    [Fact]
+    public void Controller_TurningOffMidPanAbandonsTheJourney()
+    {
+        var controller = new ArenaAutoPanController();
+        AgentView[] agents = [CreateAgent(1, 500f, 0f, AgentIntent.Attacking)];
+        var center = RunOutIdleGrace(controller, agents, Vector2.Zero);
+        Assert.True(controller.IsPanning);
+
+        var stopped = Update(
+            controller,
+            agents,
+            center,
+            mode: AutoCameraMode.Off);
+
+        Assert.Equal(center, stopped);
+        Assert.False(controller.IsPanning);
+        Assert.Equal(0f, controller.DwellRemaining, precision: 3);
+    }
+
+    /// <summary>
+    /// Follow judges the screen by the settle rectangle rather than the whole
+    /// screen, so a fight drifting toward the edge pulls the camera back
+    /// where assisted mode would leave it alone.
+    /// </summary>
+    [Fact]
+    public void Controller_FollowRecentresAFightAssistedWouldLeaveAlone()
+    {
+        AgentView[] agents =
+        [
+            CreateAgent(1, HalfExtents.X * 0.9f, 0f, AgentIntent.Attacking),
+        ];
+
+        var assisted = new ArenaAutoPanController();
+        var assistedCenter = RunFrames(
+            assisted,
+            agents,
+            Vector2.Zero,
+            frames: 600);
+
+        var follow = new ArenaAutoPanController();
+        var followCenter = RunFrames(
+            follow,
+            agents,
+            Vector2.Zero,
+            frames: 600,
+            mode: AutoCameraMode.Follow);
+
+        Assert.Equal(Vector2.Zero, assistedCenter);
+        Assert.True(followCenter.X > 0f);
+    }
+
+    [Fact]
     public void Controller_ResetClearsEngagementAndOverride()
     {
         var controller = new ArenaAutoPanController();
@@ -319,23 +558,68 @@ public sealed class ArenaAutoPanTests
 
         Assert.False(controller.IsPanning);
         Assert.Equal(0f, controller.ManualOverrideRemaining, precision: 3);
+        Assert.Equal(0f, controller.DwellRemaining, precision: 3);
     }
 
     private static bool IsSettled(Vector2 center) =>
         MathF.Abs(500f - center.X) <= HalfExtents.X * ArenaAutoPan.SettleFraction;
 
+    /// <summary>
+    /// Runs frames until the idle grace has expired and a pan has begun, so a
+    /// test that is about travelling does not restate the grace every time.
+    /// </summary>
+    private static Vector2 RunOutIdleGrace(
+        ArenaAutoPanController controller,
+        IReadOnlyList<AgentView> agents,
+        Vector2 center,
+        AutoCameraMode mode = AutoCameraMode.Assisted)
+    {
+        var tuning = ArenaAutoPan.GetTuning(mode);
+        var frames = (int)MathF.Ceiling(tuning.IdleGraceSeconds * 60f) + 1;
+        for (var frame = 0; frame < frames && !controller.IsPanning; frame++)
+        {
+            center = Update(controller, agents, center, mode: mode);
+        }
+
+        return center;
+    }
+
+    private static Vector2 RunFrames(
+        ArenaAutoPanController controller,
+        IReadOnlyList<AgentView> agents,
+        Vector2 center,
+        int frames,
+        AutoCameraMode mode = AutoCameraMode.Assisted,
+        Vector2? halfExtents = null)
+    {
+        for (var frame = 0; frame < frames; frame++)
+        {
+            center = Update(
+                controller,
+                agents,
+                center,
+                mode: mode,
+                halfExtents: halfExtents);
+        }
+
+        return center;
+    }
+
     private static Vector2 Update(
         ArenaAutoPanController controller,
         IReadOnlyList<AgentView> agents,
         Vector2 center,
+        AutoCameraMode mode = AutoCameraMode.Assisted,
         bool manualPanApplied = false,
         bool isSuppressed = false,
-        float elapsedSeconds = 1f / 60f) =>
+        float elapsedSeconds = 1f / 60f,
+        Vector2? halfExtents = null) =>
         controller.Update(
             agents,
             center,
-            HalfExtents,
+            halfExtents ?? HalfExtents,
             zoom: 1f,
+            mode,
             manualPanApplied,
             isSuppressed,
             elapsedSeconds);

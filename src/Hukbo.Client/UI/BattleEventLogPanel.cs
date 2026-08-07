@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Hukbo.Core.Simulation;
 using Microsoft.Xna.Framework;
@@ -11,38 +12,38 @@ internal sealed partial class BattleEventLogPanel
 {
     // List rows draw at the Caption rung (measured 20px real line spacing).
     // 30 clears it with headroom for the row highlight and the kind stripe.
-    internal const int RowHeight = 30;
-    internal const int MinimumThumbHeight = 18;
+    internal static int RowHeight => UiScaleContext.Pixels(30);
+    internal static int MinimumThumbHeight => UiScaleContext.Pixels(18);
     internal const int DetailLineCount = 6;
 
-    private const int Padding = 10;
-    private const int Gap = 6;
+    private static int Padding => UiScaleContext.Pixels(10);
+    private static int Gap => UiScaleContext.Pixels(6);
 
     // Carries the Title rung ("BATTLE EVENTS", measured 35px real line
     // spacing). Was 28, which clipped the header face; raised to clear it.
-    private const int HeaderHeight = 35;
+    private static int HeaderHeight => UiScaleContext.Pixels(35);
 
     // Filter chips draw at the Caption rung (measured 20px). 26 clears it.
-    private const int FilterRowHeight = 26;
+    private static int FilterRowHeight => UiScaleContext.Pixels(26);
 
     // "EVENT STREAM" and the live/inspecting badge draw at the Caption rung
     // (measured 20px). 25 clears it.
-    private const int ListHeaderHeight = 25;
-    private const int ScrollbarWidth = 8;
+    private static int ListHeaderHeight => UiScaleContext.Pixels(25);
+    private static int ScrollbarWidth => UiScaleContext.Pixels(8);
     private const int RowsPerWheelDetent = 3;
     private const int MouseWheelDeltaPerDetent = 120;
     private const int MaximumSearchLength = 28;
 
     // "SELECTED EVENT" draws at the Caption rung (measured 20px). 26 clears it.
-    private const int DetailsHeaderHeight = 26;
+    private static int DetailsHeaderHeight => UiScaleContext.Pixels(26);
 
     // Carries BOTH the Body rung (the detail head row, measured 24px real
     // line spacing) and the Caption rung (the remaining detail rows,
     // measured 20px). Must use the larger of the two: was 20, which clipped
     // the head row; raised to 24 so both rungs clear.
-    private const int DetailLineHeight = 24;
-    private const int DetailsBottomPadding = 6;
-    private const int MinimumDetailsHeight =
+    private static int DetailLineHeight => UiScaleContext.Pixels(24);
+    private static int DetailsBottomPadding => UiScaleContext.Pixels(6);
+    private static int MinimumDetailsHeight =>
         DetailsHeaderHeight +
         (DetailLineCount * DetailLineHeight) +
         DetailsBottomPadding;
@@ -53,15 +54,26 @@ internal sealed partial class BattleEventLogPanel
     // minimum grew to clear the Body rung, the literal fell below it and the
     // cap started truncating the sixth detail line. Expressing the headroom
     // relative to the minimum keeps the two from inverting again.
-    private const int DetailsHeadroom = 12;
-    private const int MaximumDetailsHeight =
+    private static int DetailsHeadroom => UiScaleContext.Pixels(12);
+    private static int MaximumDetailsHeight =>
         MinimumDetailsHeight + DetailsHeadroom;
 
     private readonly List<FormattedEvent> _formattedRows = [];
     private Point _pointerPosition;
     private long? _cachedDetailsSequence;
     private int _cachedDetailsWidth;
+    private int _cachedDetailsAdvancePx;
+    private ulong _cachedDetailsScenarioSeed;
     private string[] _cachedDetails = [];
+
+    // Surface A (new-event row emphasis). _highestVisibleSequence is the
+    // highest Sequence observed among visible rows as of the last frame.
+    // _newEventThreshold is the exclusive threshold rows are compared
+    // against while the pulse is active: it is the *previous* highest
+    // sequence, recorded at the moment the highest sequence advanced.
+    private long? _highestVisibleSequence;
+    private long? _newEventThreshold;
+    private UiEmphasisPulse _newEventPulse;
 
     public Rectangle Bounds { get; private set; }
 
@@ -77,7 +89,20 @@ internal sealed partial class BattleEventLogPanel
     public UiInteraction Update(
         InputEdges input,
         BattleEventFeed feed,
-        Rectangle bounds)
+        Rectangle bounds) =>
+        Update(input, feed, bounds, TimeSpan.Zero, MotionIntensity.Off);
+
+    /// <summary>
+    /// Motion-aware overload. Behaves exactly like the three-argument
+    /// overload, and additionally advances the Surface A new-event row
+    /// emphasis pulse using unscaled elapsed time.
+    /// </summary>
+    public UiInteraction Update(
+        InputEdges input,
+        BattleEventFeed feed,
+        Rectangle bounds,
+        TimeSpan elapsed,
+        MotionIntensity motionIntensity)
     {
         Bounds = bounds;
         _pointerPosition = input.MousePosition;
@@ -85,6 +110,8 @@ internal sealed partial class BattleEventLogPanel
         var pointerInside = Bounds.Contains(input.MousePosition);
         var visibleRowCount = GetVisibleRowCount(layout);
         var visibleEntries = feed.GetVisibleEntries(visibleRowCount);
+
+        AdvanceNewEventEmphasis(visibleEntries, elapsed, motionIntensity);
 
         HandlePointerClick(
             input,
@@ -101,6 +128,36 @@ internal sealed partial class BattleEventLogPanel
         }
 
         return new UiInteraction(ClientCommand.None, pointerInside);
+    }
+
+    /// <summary>
+    /// Tracks the highest visible <c>Sequence</c> across frames. When it
+    /// advances, records the previous highest as the exclusive emphasis
+    /// threshold and triggers the pulse; otherwise only decays the pulse.
+    /// </summary>
+    private void AdvanceNewEventEmphasis(
+        ReadOnlySpan<BattleEvent> visibleEntries,
+        TimeSpan elapsed,
+        MotionIntensity motionIntensity)
+    {
+        var isMotionEnabled = UiSecondaryMotion.IsEnabled(motionIntensity);
+        var currentHighest = visibleEntries.Length > 0
+            ? visibleEntries[^1].Sequence
+            : (long?)null;
+
+        if (currentHighest.HasValue &&
+            (!_highestVisibleSequence.HasValue ||
+             currentHighest.Value > _highestVisibleSequence.Value))
+        {
+            _newEventThreshold = _highestVisibleSequence;
+            _newEventPulse.Trigger(isMotionEnabled);
+        }
+
+        _highestVisibleSequence = currentHighest;
+        _newEventPulse.Advance(
+            elapsed,
+            UiSecondaryMotion.NewEventDuration,
+            isMotionEnabled);
     }
 
     public bool HandleEscape(InputEdges input, BattleEventFeed feed)
@@ -153,7 +210,9 @@ internal sealed partial class BattleEventLogPanel
             pixel,
             Bounds,
             theme.Colors.PanelBorder,
-            theme.Metrics.BorderThickness);
+            Math.Max(
+                1,
+                UiScaleContext.Pixels(theme.Metrics.BorderThickness)));
 
         DrawHeader(spriteBatch, pixel, fonts, feed, layout, theme);
         DrawFilters(spriteBatch, pixel, fonts, feed, layout, theme);
@@ -383,7 +442,9 @@ internal sealed partial class BattleEventLogPanel
             spriteBatch,
             titleFont,
             "BATTLE EVENTS",
-            new Vector2(layout.HeaderBounds.Left, layout.HeaderBounds.Top + 4),
+            new Vector2(
+                layout.HeaderBounds.Left,
+                layout.HeaderBounds.Top + UiScaleContext.Pixels(4)),
             theme.Colors.TextPrimary);
         UiPrimitives.DrawText(
             spriteBatch,
@@ -392,8 +453,8 @@ internal sealed partial class BattleEventLogPanel
             new Vector2(
                 Math.Max(
                     layout.HeaderBounds.Left,
-                    layout.LatestBounds.Left - 51),
-                layout.HeaderBounds.Top + 5),
+                    layout.LatestBounds.Left - UiScaleContext.Pixels(51)),
+                layout.HeaderBounds.Top + UiScaleContext.Pixels(5)),
             theme.Colors.TextSecondary);
 
         var latestLabel = feed.NewEventCount > 0
@@ -403,6 +464,7 @@ internal sealed partial class BattleEventLogPanel
             spriteBatch,
             pixel,
             captionFont,
+            fonts.GetApproximateAdvancePx(UiFontRole.Caption),
             layout.LatestBounds,
             latestLabel,
             isActive: feed.IsPinnedToBottom,
@@ -414,6 +476,7 @@ internal sealed partial class BattleEventLogPanel
         SpriteBatch spriteBatch,
         Texture2D pixel,
         SpriteFont font,
+        int approximateAdvancePx,
         Rectangle bounds,
         string label,
         bool isActive,
@@ -442,8 +505,8 @@ internal sealed partial class BattleEventLogPanel
                 ? theme.Colors.ActionFocus
                 : theme.Colors.PanelBorder,
             isEnabled && isFocused
-                ? theme.Metrics.FocusThickness
-                : 1);
+                ? UiScaleContext.Pixels(theme.Metrics.FocusThickness)
+                : UiScaleContext.Pixels(1));
         var textColor = isEnabled
             ? theme.Colors.TextInverse
             : theme.Colors.TextDisabled;
@@ -461,13 +524,15 @@ internal sealed partial class BattleEventLogPanel
 
         var maximumCharacters = Math.Max(
             4,
-            (bounds.Width - 12) /
-                UiFontRamp.GetApproximateAdvancePx(UiFontRole.Caption));
+            (bounds.Width - UiScaleContext.Pixels(12)) /
+                approximateAdvancePx);
         UiPrimitives.DrawText(
             spriteBatch,
             font,
             ClipLabel(label, maximumCharacters),
-            new Vector2(bounds.Left + 7, bounds.Top + 7),
+            new Vector2(
+                bounds.Left + UiScaleContext.Pixels(7),
+                bounds.Top + UiScaleContext.Pixels(7)),
             textColor);
     }
 

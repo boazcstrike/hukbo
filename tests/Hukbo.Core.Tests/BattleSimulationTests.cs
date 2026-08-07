@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Core.Tests;
@@ -141,6 +142,70 @@ public sealed class BattleSimulationTests
     }
 
     /// <summary>
+    /// T8: pins the boundary the property doc on <see cref="BattleSimulation.LastEvents"/>
+    /// actually guards. <see cref="LastEventsRemainsACompletedTickSnapshot"/>
+    /// above proves a caller survives holding a reference across one quiet
+    /// tick; this test proves that grace is an implementation detail of the
+    /// double-buffer scheme (see the field comment above <c>_eventBufferA</c>
+    /// in BattleSimulation.cs), not a guarantee, so no caller may assume a
+    /// retained <see cref="BattleSimulation.LastEvents"/> value stays valid
+    /// past the tick that produced it.
+    /// </summary>
+    /// <remarks>
+    /// Two agents in continuous contact with a one-tick cooldown attack every
+    /// tick, so ticks 1 through 3 are all active and the two backing buffers
+    /// alternate: tick 1 exposes buffer A, tick 2 exposes buffer B (A is
+    /// untouched so far -- this is the one-tick grace the sibling test
+    /// checks), and tick 3 clears buffer A as the very first step of
+    /// <c>AdvanceOneTick</c>, before it even knows whether tick 3 itself will
+    /// produce events. That is the moment a caller who captured
+    /// <c>LastEvents</c> at tick 1 and never re-read it gets betrayed: the
+    /// object identity <c>retainedEvents</c> never changes, but its contents
+    /// silently become tick 3's data. A naive "retain the reference once and
+    /// trust it" implementation of any consumer would fail here, because
+    /// <c>retainedEvents</c> no longer equals the tick-1 snapshot it was
+    /// captured from -- it now equals whatever tick 3 produced, with nothing
+    /// to signal the switch happened.
+    /// </remarks>
+    [Fact]
+    public void RetainedLastEventsReferenceIsNotValidPastTheProducingTick()
+    {
+        var scenario = CreateTestScenario() with
+        {
+            MaximumHitPoints = 1_000_000,
+            DamagePerAttack = 1,
+            AttackCooldownTicks = 1,
+            AttackRangeRaw = 12 * FixedPoint.Scale,
+        };
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            PresetWith(ClashProfile.Neutral),
+            CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
+            CreateAgent(2, factionId: 1, x: 11, y: 10, scenario));
+
+        simulation.AdvanceOneTick();
+        var retainedEvents = simulation.LastEvents;
+        var tickOneEvents = retainedEvents.ToArray();
+        Assert.NotEmpty(tickOneEvents);
+
+        // Tick 2 also produces events, so it writes into the OTHER backing
+        // buffer and exposes that one instead. retainedEvents (a view over
+        // the first buffer) is untouched -- this is the one-tick grace
+        // period the sibling test above exercises.
+        simulation.AdvanceOneTick();
+        Assert.Equal(tickOneEvents, retainedEvents);
+
+        // Tick 3 reuses the first buffer -- the very one retainedEvents is a
+        // view over -- clearing and rewriting it. The reference a caller has
+        // been holding since tick 1 now reflects tick 3.
+        simulation.AdvanceOneTick();
+        var tickThreeEvents = simulation.LastEvents.ToArray();
+        Assert.NotEmpty(tickThreeEvents);
+        Assert.NotEqual(tickOneEvents, retainedEvents);
+        Assert.Equal(tickThreeEvents, retainedEvents);
+    }
+
+    /// <summary>
     /// The property under test is simultaneity, not interception: both blows
     /// have to land for the mutual death to be observable at all. Design section
     /// 5 disposition, resolved through the ruleset seam rather than by a lucky
@@ -231,7 +296,15 @@ public sealed class BattleSimulationTests
     public void RepeatedQuietTicksHaveBoundedAllocations()
     {
         const int measuredTicks = 1_000;
-        const long maximumAllocatedBytes = 300_000;
+
+        // Lowered from 300,000 by T7 of the arch-informed performance hardening
+        // workstream. That ceiling was sized when every event-bearing tick
+        // allocated a fresh List<BattleEvent>; the simulation now owns its
+        // event buffers and reuses them, and this window measures exactly
+        // 0 bytes on every run observed. A ceiling 300,000 times larger than
+        // the thing it measures is a guard that can no longer fire, so it is
+        // retuned here to the measured figure with room for runtime noise.
+        const long maximumAllocatedBytes = 8_192;
         var scenario = CreateTestScenario() with
         {
             TickLimit = measuredTicks + 100,
@@ -268,20 +341,57 @@ public sealed class BattleSimulationTests
     {
         const int measuredTicks = 1_000;
 
-        // Raised from 500,000 when agents began closing to body contact instead
-        // of halting at reach: the crowd now jostles every tick, so far more
-        // Move events are emitted. This ceiling tracks event traffic, which the
-        // collision stage does not own. The window comparison below is the
-        // assertion that actually guards collision storage.
+        // History, kept because it explains why this number moved so far.
+        // The ceiling was raised to 500,000 when agents began closing to body
+        // contact instead of halting at reach, and then to 900,000 at T43,
+        // when the merged BattleEvent packed Weapon, Shield, HitLocation, and
+        // Resolution into one _combatContext int. On that tree this window
+        // measured 815,312 bytes, and every one of those bytes was per-tick
+        // event traffic that the collision stage did not own.
         //
-        // Raised again from 900,000 when BattleEvent widened from 80 to 88 bytes
-        // to carry the nullable attack resolution. The measured figure moved from
-        // about 898,000 to 988,192, the same 9.9 per cent the whole-workload
-        // allocation moved by, and 900,000 had left only a fifth of a per cent of
-        // headroom. The new ceiling restores about eleven per cent so one more
-        // field does not break it, without loosening what the test claims: that
-        // collision ticks allocate a bounded amount rather than growing with time.
-        const long maximumAllocatedBytes = 1_100_000;
+        // T7 of the arch-informed performance hardening workstream removed
+        // that traffic: the simulation now owns its event buffers and reuses
+        // them across ticks, so no event-bearing tick allocates a list. Both
+        // windows below now measure between 0 and 2,064 bytes over 1,000
+        // ticks, observed across thirteen full-suite runs.
+        //
+        // That change also made the assertion this test used to carry ill
+        // posed. It was "the second window must not exceed the first", which
+        // was a sound guard while both windows were roughly 800,000 bytes of
+        // simulation allocation. With both windows near zero, the comparison
+        // ranks two numbers that are dominated by runtime infrastructure
+        // rather than by the simulation -- the same deterministic work reports
+        // a different byte count from run to run -- and it failed about one
+        // full-suite run in three.
+        //
+        // It is replaced by three assertions rather than one, because no single
+        // assertion covers what the old one did once noise entered the
+        // measurement.
+        //
+        // The first two are an absolute ceiling on each window. The old
+        // relative form would have accepted a first window of 899,999 bytes;
+        // these accept at most 16,384 in either. Reinstating a per-tick event
+        // list in this 24-agent scenario would allocate 24 * 2 * 72 = 3,456
+        // bytes a tick, or 3,456,000 across a window, which is 210 times the
+        // ceiling; even a single boxed enumerator per tick would allocate
+        // roughly 46,000 across a window, nearly three times it.
+        //
+        // The third keeps the relative guard, with a tolerance sized from the
+        // measured noise. It is needed because an absolute ceiling alone is
+        // NOT strictly stronger than the old relative form, and it is worth
+        // being exact about why: a regression that allocated, say, 500 bytes
+        // in the first window and 12,000 in the second would have failed the
+        // old zero-tolerance comparison and would pass a 16,384-byte ceiling.
+        // Growth between two identical windows is a real signal and it is kept.
+        //
+        // The tolerance is not strictness thrown away, but it is a genuine
+        // relaxation of the old assertion and is not pretended otherwise. Zero
+        // tolerance is unachievable here: the same deterministic workload
+        // reports different byte counts run to run. The largest run-to-run
+        // increase observed across thirteen full-suite runs was 1,032 bytes,
+        // and 4,096 is four times that.
+        const long maximumAllocatedBytes = 16_384;
+        const long warmWindowGrowthTolerance = 4_096;
         const int agentsPerFaction = 12;
 
         // Crowd two lines into one another so the resolver works every tick:
@@ -346,24 +456,33 @@ public sealed class BattleSimulationTests
 
         Assert.Equal(BattleOutcome.Ongoing, simulation.Outcome);
 
-        // The ceiling is generous because per-tick event traffic dominates it:
-        // twenty-four agents in sustained contact emit far more events than the
-        // two-agent quiet scenario above, and each tick's event list is an
-        // allocation the collision stage does not control.
         Assert.True(
             firstWindowBytes <= maximumAllocatedBytes,
             $"Collision ticks allocated {firstWindowBytes:N0} bytes; " +
             $"expected at most {maximumAllocatedBytes:N0}.");
 
-        // This is the assertion that actually guards the collision buffers.
-        // Grid cells, pair lists, proposal buffers, and resolver scratch are all
-        // reused, so a second identical window must not cost more than the
-        // first. Any growth means something is reallocating per tick.
+        // This is the assertion that guards the reused storage. Grid cells,
+        // pair lists, proposal buffers, resolver scratch, and now the event
+        // buffers are all reused, so a second identical window must stay
+        // inside the same ceiling. Anything reallocating per tick blows
+        // through it by two orders of magnitude, as the note above works out.
         Assert.True(
-            secondWindowBytes <= firstWindowBytes,
+            secondWindowBytes <= maximumAllocatedBytes,
             $"A warm window allocated {secondWindowBytes:N0} bytes after a " +
-            $"first window of {firstWindowBytes:N0}. Collision storage must " +
-            "be reused, growing only when capacity is insufficient.");
+            $"first window of {firstWindowBytes:N0}; expected at most " +
+            $"{maximumAllocatedBytes:N0}. Collision and event storage must be " +
+            "reused, growing only when capacity is insufficient.");
+
+        // The relative guard, kept because an absolute ceiling alone would let
+        // a window that grew several thousand bytes relative to its
+        // predecessor pass unnoticed.
+        Assert.True(
+            secondWindowBytes <= firstWindowBytes + warmWindowGrowthTolerance,
+            $"A warm window allocated {secondWindowBytes:N0} bytes after a " +
+            $"first window of {firstWindowBytes:N0}, a growth of " +
+            $"{secondWindowBytes - firstWindowBytes:N0} bytes against a " +
+            $"tolerance of {warmWindowGrowthTolerance:N0}. Two identical " +
+            "windows must cost the same to within measurement noise.");
     }
 
     [Fact]
@@ -517,10 +636,10 @@ public sealed class BattleSimulationTests
 
     /// <summary>
     /// Acceptance row <c>Battle completion</c> of
-    /// <c>docs/plans/2026-07-27-formation-collision-mechanics.md</c>: the
-    /// canonical two-hundred-agent battle still reaches a decisive result well
-    /// inside its tick limit. Solid bodies must not turn the battle into a
-    /// stalemate that only the limit ends.
+    /// the formation collision mechanics plan:
+    /// the canonical two-hundred-agent battle still reaches a decisive result
+    /// well inside its tick limit. Solid bodies must not turn the battle into
+    /// a stalemate that only the limit ends.
     /// </summary>
     [Fact]
     public void CanonicalTwoHundredAgentBattleTerminatesWithinTheTickLimit()
@@ -609,6 +728,15 @@ public sealed class BattleSimulationTests
         var scenario = CreateTestScenario() with
         {
             AttackRangeRaw = 12 * FixedPoint.Scale,
+            // D2: the clash profile folds into the content hash only when one
+            // was supplied. Preset V1 (CreateTestScenario's default) declares
+            // none, so WithClashProfile(registryRules.ClashProfile) below would
+            // hand it the Neutral fallback explicitly and turn an undeclared
+            // profile into a declared one, moving the content hash the state
+            // hash depends on and breaking the very equivalence this test
+            // checks. Preset V2 already declares a profile, so round-tripping
+            // it through WithClashProfile changes nothing.
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
         };
         // The preset's own profile, for the reason recorded on
         // Create_WithTheInjectedPresetRulesetMatchesTheRegistryPathExactly.
@@ -968,21 +1096,27 @@ public sealed class BattleSimulationTests
     private static ClashProfile BuildAlwaysEvadedProfile()
     {
         var weapons = Enum.GetValues<WeaponId>();
-        var matrix = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>();
+        var shields = Enum.GetValues<ShieldId>();
+
+        var matrix = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>();
+        var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>();
         foreach (var defender in weapons)
         {
-            foreach (var attacker in weapons)
+            foreach (var shield in shields)
             {
-                matrix[(defender, attacker)] = 0;
+                voidChannel[(defender, shield)] = ClashProfile.BasisPointScale;
+                foreach (var attacker in weapons)
+                {
+                    matrix[(defender, shield, attacker)] = 0;
+                }
             }
         }
 
         return new ClashProfile(
             matrix,
             shieldIntercept: 0,
-            voidChannel: weapons.ToDictionary(
-                weapon => weapon,
-                _ => ClashProfile.BasisPointScale),
+            voidChannel: voidChannel,
             hardShareBases: weapons.ToDictionary(weapon => weapon, _ => 0),
             hardShareMultipliers: weapons.ToDictionary(
                 weapon => weapon,
@@ -1000,23 +1134,31 @@ public sealed class BattleSimulationTests
     private static ClashProfile BuildSplitResolutionProfile()
     {
         var weapons = Enum.GetValues<WeaponId>();
-        var matrix = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>();
+        var shields = Enum.GetValues<ShieldId>();
+
+        var matrix = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>();
+        var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>();
         foreach (var defender in weapons)
         {
-            foreach (var attacker in weapons)
+            foreach (var shield in shields)
             {
-                matrix[(defender, attacker)] =
-                    defender == WeaponId.Kalis &&
-                    attacker == WeaponId.Wasay
-                        ? ClashProfile.BasisPointScale
-                        : 0;
+                voidChannel[(defender, shield)] = 0;
+                foreach (var attacker in weapons)
+                {
+                    matrix[(defender, shield, attacker)] =
+                        defender == WeaponId.Kalis &&
+                        attacker == WeaponId.Wasay
+                            ? ClashProfile.BasisPointScale
+                            : 0;
+                }
             }
         }
 
         return new ClashProfile(
             matrix,
             shieldIntercept: 0,
-            voidChannel: weapons.ToDictionary(weapon => weapon, _ => 0),
+            voidChannel: voidChannel,
             hardShareBases: weapons.ToDictionary(
                 weapon => weapon,
                 weapon => weapon == WeaponId.Wasay
@@ -1040,35 +1182,56 @@ public sealed class BattleSimulationTests
     /// All sixteen weapon-intercept cells have no evidentiary confidence
     /// whatsoever.
     /// </remarks>
-    private static ClashProfile BuildShippedClashTables() =>
-        new(
-            new Dictionary<(WeaponId Defender, WeaponId Attacker), int>
+    private static ClashProfile BuildShippedClashTables()
+    {
+        var weaponInterceptByWeaponPair = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>
+        {
+            [(WeaponId.Kampilan, WeaponId.Kampilan)] = 2_200,
+            [(WeaponId.Kampilan, WeaponId.Wasay)] = 1_900,
+            [(WeaponId.Kampilan, WeaponId.Kalis)] = 1_600,
+            [(WeaponId.Kampilan, WeaponId.Itak)] = 2_000,
+            [(WeaponId.Wasay, WeaponId.Kampilan)] = 1_500,
+            [(WeaponId.Wasay, WeaponId.Wasay)] = 1_300,
+            [(WeaponId.Wasay, WeaponId.Kalis)] = 1_100,
+            [(WeaponId.Wasay, WeaponId.Itak)] = 1_400,
+            [(WeaponId.Kalis, WeaponId.Kampilan)] = 500,
+            [(WeaponId.Kalis, WeaponId.Wasay)] = 400,
+            [(WeaponId.Kalis, WeaponId.Kalis)] = 600,
+            [(WeaponId.Kalis, WeaponId.Itak)] = 600,
+            [(WeaponId.Itak, WeaponId.Kampilan)] = 400,
+            [(WeaponId.Itak, WeaponId.Wasay)] = 300,
+            [(WeaponId.Itak, WeaponId.Kalis)] = 500,
+            [(WeaponId.Itak, WeaponId.Itak)] = 500,
+        };
+
+        var voidByWeapon = new Dictionary<WeaponId, int>
+        {
+            [WeaponId.Kampilan] = 1_000,
+            [WeaponId.Wasay] = 900,
+            [WeaponId.Kalis] = 1_000,
+            [WeaponId.Itak] = 1_100,
+        };
+
+        var weaponIntercept = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>();
+        var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>();
+        foreach (var shield in Enum.GetValues<ShieldId>())
+        {
+            foreach (var (pair, value) in weaponInterceptByWeaponPair)
             {
-                [(WeaponId.Kampilan, WeaponId.Kampilan)] = 2_200,
-                [(WeaponId.Kampilan, WeaponId.Wasay)] = 1_900,
-                [(WeaponId.Kampilan, WeaponId.Kalis)] = 1_600,
-                [(WeaponId.Kampilan, WeaponId.Itak)] = 2_000,
-                [(WeaponId.Wasay, WeaponId.Kampilan)] = 1_500,
-                [(WeaponId.Wasay, WeaponId.Wasay)] = 1_300,
-                [(WeaponId.Wasay, WeaponId.Kalis)] = 1_100,
-                [(WeaponId.Wasay, WeaponId.Itak)] = 1_400,
-                [(WeaponId.Kalis, WeaponId.Kampilan)] = 500,
-                [(WeaponId.Kalis, WeaponId.Wasay)] = 400,
-                [(WeaponId.Kalis, WeaponId.Kalis)] = 600,
-                [(WeaponId.Kalis, WeaponId.Itak)] = 600,
-                [(WeaponId.Itak, WeaponId.Kampilan)] = 400,
-                [(WeaponId.Itak, WeaponId.Wasay)] = 300,
-                [(WeaponId.Itak, WeaponId.Kalis)] = 500,
-                [(WeaponId.Itak, WeaponId.Itak)] = 500,
-            },
+                weaponIntercept[(pair.Defender, shield, pair.Attacker)] = value;
+            }
+
+            foreach (var (weapon, value) in voidByWeapon)
+            {
+                voidChannel[(weapon, shield)] = value;
+            }
+        }
+
+        return new ClashProfile(
+            weaponIntercept,
             shieldIntercept: 2_400,
-            voidChannel: new Dictionary<WeaponId, int>
-            {
-                [WeaponId.Kampilan] = 1_000,
-                [WeaponId.Wasay] = 900,
-                [WeaponId.Kalis] = 1_000,
-                [WeaponId.Itak] = 1_100,
-            },
+            voidChannel: voidChannel,
             hardShareBases: new Dictionary<WeaponId, int>
             {
                 [WeaponId.Kampilan] = 3_300,
@@ -1086,6 +1249,7 @@ public sealed class BattleSimulationTests
             minimumHardShareBasisPoints: 500,
             maximumHardShareBasisPoints: 6_000,
             maximumInterceptionBasisPoints: 5_500);
+    }
 
     /// <summary>
     /// A structurally valid ruleset whose roster is one loadout, so it cannot
@@ -1139,6 +1303,13 @@ public sealed class BattleSimulationTests
             BodyRadiusRaw = FixedPoint.Scale / 2,
             MovementSpeedRaw = FixedPoint.Scale / 2,
             AttackCooldownTicks = 1,
+            // This file's rulesets (PresetWith, BuildRulesetWithASingleEntryRoster)
+            // are all built off PhilippineCombatPreset.Rules (V1)'s four-loadout
+            // roster. Scenario.CombatPreset now defaults to V2's six-loadout
+            // roster, so it has to be pinned back to V1 here or
+            // BattleSimulation.AssertRosterMatchesRegisteredPreset rejects every
+            // injected ruleset in this file as a roster mismatch.
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV1,
         };
 
     private static AgentState CreateAgent(
@@ -1259,7 +1430,7 @@ public sealed class BattleSimulationTests
         // branch, not a coincidence of the numbers chosen.
         var scenario = Scenario.CreateDefault(totalAgents: 12) with
         {
-            RosterCounts = ImmutableArray.Create(2, 2, 1, 1, 0, 0),
+            RosterCounts = ImmutableArray.Create(2, 2, 1, 1),
         };
         var simulation = BattleSimulation.Create(scenario);
         var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
@@ -1286,7 +1457,7 @@ public sealed class BattleSimulationTests
         // 0's, so it would give the two factions different armies here.
         var scenario = Scenario.CreateDefault(totalAgents: 12) with
         {
-            RosterCounts = ImmutableArray.Create(2, 2, 1, 1, 0, 0),
+            RosterCounts = ImmutableArray.Create(2, 2, 1, 1),
         };
         var simulation = BattleSimulation.Create(scenario);
 
@@ -1305,12 +1476,35 @@ public sealed class BattleSimulationTests
     }
 
     [Fact]
+    public void EveryAgentsRankMatchesItsResolvedRosterEntrysRank()
+    {
+        // No RosterCounts override, deliberately: with one supplied,
+        // BattleSimulation.Create assigns loadouts by the faction-local
+        // roster-index expansion (see the RosterCountExpansion branch a few
+        // lines above CreateAssignsLoadoutsByFactionLocalIndexWhenRosterCountsAreProvided),
+        // not by CombatRuleset.ResolveLoadout's entityId round-robin this
+        // case checks against. Under V2's roster, where every entry shared
+        // the same default Rank, that mismatch was invisible; V4's roster
+        // gives each entry a distinct RankId, so an omitted RosterCounts
+        // here is load-bearing for the comparison to mean anything.
+        var scenario = Scenario.CreateDefault(totalAgents: 12);
+        var simulation = BattleSimulation.Create(scenario);
+        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
+
+        Assert.All(
+            simulation.Agents,
+            agent => Assert.Equal(
+                rules.ResolveLoadout(agent.EntityId).Rank,
+                agent.Rank));
+    }
+
+    [Fact]
     public void RosterCountsDoNotChangeTheRandomDrawSequenceForSpawnPositions()
     {
         var baseline = Scenario.CreateDefault(seed: 3, totalAgents: 8);
         var withComposition = baseline with
         {
-            RosterCounts = ImmutableArray.Create(1, 1, 1, 1, 0, 0),
+            RosterCounts = ImmutableArray.Create(1, 1, 1, 1),
         };
 
         var baselineSimulation = BattleSimulation.Create(baseline);
@@ -1497,5 +1691,129 @@ public sealed class BattleSimulationTests
                 Assert.NotNull(battleEvent.Weapon);
                 Assert.NotNull(battleEvent.HitLocation);
             });
+    }
+
+    /// <summary>
+    /// Leadership plan L3: <see cref="AgentView.IsLeader"/> is a per-tick,
+    /// recomputed-from-scratch fact wired from
+    /// <see cref="Movement.MovementRules.ScanContingentLeadersAndLivingCounts"/>
+    /// through <c>BattleSimulation.UpdateViews</c>. Every registered
+    /// <see cref="MovementPresetId"/> is exercised, including
+    /// <see cref="MovementPresetId.IndependentPursuitV1"/>, whose contingent
+    /// state machine never runs at all — that preset must show every agent
+    /// with <see cref="AgentView.IsLeader"/> false for the whole battle, not
+    /// merely absent from the per-contingent count, per the design's
+    /// verified-not-assumed note that <c>_contingentLeaderEntityIds</c> stays
+    /// at its all-zero constructor value under V1 and 0 is never a valid
+    /// entity id.
+    /// </summary>
+    /// <remarks>
+    /// Two separate assertions, not one, because the tick pipeline runs
+    /// <c>ResolveContingentStates</c> (the leader scan) before
+    /// <c>GatherAndCommitAttacks</c> (combat): a leader designated at the
+    /// start of a tick can die to combat that same tick, and the view a test
+    /// observes is captured after both, at <c>UpdateViews</c>. That tick's
+    /// view can therefore show zero living leaders in a still-non-empty
+    /// contingent — the fallen leader's own (dead) view still carries
+    /// <see cref="AgentView.IsLeader"/> true until the next tick's scan
+    /// reassigns it, exactly as this plan's L4 task names for the pawn
+    /// marker. What must never happen, on any tick, is <em>two</em> living
+    /// members of the same contingent both reading as leader — that would be
+    /// a genuine double-selection defect, not a same-tick timing artifact —
+    /// so that check runs at every sampled tick. The weaker,
+    /// timing-tolerant check — every contingent that is ever non-empty
+    /// eventually reads exactly one living leader at some sampled tick —
+    /// runs once, over the union of all samples, so a same-tick succession
+    /// gap does not fail the test.
+    /// </remarks>
+    [Fact]
+    public void ExactlyOneLivingLeaderPerNonEmptyContingentAcrossEveryRegisteredMovementPreset()
+    {
+        foreach (var preset in Enum.GetValues<MovementPresetId>())
+        {
+            Assert.True(MovementPresetRegistry.IsRegistered(preset));
+
+            var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+            {
+                MovementPreset = preset,
+                CombatPreset = CombatPresetId.PrecolonialPhilippinesV4,
+            };
+            scenario.Validate();
+            var simulation = BattleSimulation.Create(scenario);
+
+            var everNonEmptyContingents = new HashSet<(int FactionId, int ContingentId)>();
+            var everHadExactlyOneLivingLeaderContingents =
+                new HashSet<(int FactionId, int ContingentId)>();
+
+            // No sample before the first AdvanceOneTick(): the leader scan is
+            // part of the tick pipeline, so before any tick has run,
+            // _contingentLeaderEntityIds still holds its all-zero
+            // constructor value under every preset, contingent-aware or not.
+            for (var tick = 0;
+                tick < 400 && simulation.Outcome == BattleOutcome.Ongoing;
+                tick++)
+            {
+                simulation.AdvanceOneTick();
+
+                if (tick % 25 != 0)
+                {
+                    continue;
+                }
+
+                if (preset == MovementPresetId.IndependentPursuitV1)
+                {
+                    Assert.All(simulation.Agents, agent => Assert.False(agent.IsLeader));
+                    continue;
+                }
+
+                SampleLeadershipCounts(
+                    simulation.Agents,
+                    everNonEmptyContingents,
+                    everHadExactlyOneLivingLeaderContingents);
+            }
+
+            if (preset != MovementPresetId.IndependentPursuitV1)
+            {
+                Assert.NotEmpty(everNonEmptyContingents);
+                Assert.Equal(everNonEmptyContingents, everHadExactlyOneLivingLeaderContingents);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Asserts the hard, always-true invariant (never two living leaders in
+    /// one contingent, on any sampled tick) and records into the two
+    /// caller-owned sets the softer, whole-run invariant described on
+    /// <see cref="ExactlyOneLivingLeaderPerNonEmptyContingentAcrossEveryRegisteredMovementPreset"/>.
+    /// </summary>
+    private static void SampleLeadershipCounts(
+        IReadOnlyList<AgentView> agents,
+        HashSet<(int FactionId, int ContingentId)> everNonEmptyContingents,
+        HashSet<(int FactionId, int ContingentId)> everHadExactlyOneLivingLeaderContingents)
+    {
+        var leaderCountsByContingent = new Dictionary<(int FactionId, int ContingentId), int>();
+        foreach (var agent in agents)
+        {
+            if (!agent.IsAlive)
+            {
+                continue;
+            }
+
+            var key = (agent.FactionId, agent.ContingentId);
+            leaderCountsByContingent.TryGetValue(key, out var count);
+            leaderCountsByContingent[key] = count + (agent.IsLeader ? 1 : 0);
+        }
+
+        foreach (var (key, count) in leaderCountsByContingent)
+        {
+            Assert.True(
+                count <= 1,
+                $"Contingent {key} had {count} simultaneous living leaders.");
+            everNonEmptyContingents.Add(key);
+            if (count == 1)
+            {
+                everHadExactlyOneLivingLeaderContingents.Add(key);
+            }
+        }
     }
 }

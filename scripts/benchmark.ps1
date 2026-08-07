@@ -19,6 +19,18 @@ param(
 
     [string] $LogDirectory,
 
+    # Passed straight through to the headless runner's --preset argument as a
+    # CombatPresetId member name (for example PrecolonialPhilippinesV3) or its
+    # numeric value. Left empty, the runner falls back to Scenario's own
+    # default preset.
+    [string] $Preset,
+
+    # Passed straight through to the headless runner's --movement-preset
+    # argument as a MovementPresetId member name (for example
+    # IndependentPursuitV1) or its numeric value. Left empty, the runner
+    # falls back to Scenario's own default movement preset.
+    [string] $MovementPreset,
+
     [switch] $NoBuild
 )
 
@@ -47,6 +59,14 @@ try {
         '--seed', [string]$Seed,
         '--log-level', $LogLevel
     )
+
+    if (-not [string]::IsNullOrWhiteSpace($Preset)) {
+        $runnerArguments += @('--preset', $Preset)
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($MovementPreset)) {
+        $runnerArguments += @('--movement-preset', $MovementPreset)
+    }
 
     if (-not [string]::IsNullOrWhiteSpace($LogChannels)) {
         $runnerArguments += @('--log-channels', $LogChannels)

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using Hukbo.Client.Presentation.Catalogs;
 using Hukbo.Client.Theming;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -99,27 +100,54 @@ internal sealed partial class ArmyCompositionPanel
     internal const int ApplyControlIndex = CancelControlIndex + 1;
 
     /// <summary>
-    /// One label per roster entry, in declared roster-index order. Pair form
-    /// only — a cultural identification never appears without its plain
-    /// English descriptor (CLAUDE.md section 7).
+    /// One label per roster entry, in declared roster-index order — Datu,
+    /// Maharlika, Timawa, Aliping Namamahay, matching combat preset V4's
+    /// roster. Pair form only — a cultural identification never appears
+    /// without its plain English descriptor (CLAUDE.md section 7). Reused
+    /// directly from <see cref="RankLabelCatalog"/> so this panel and the
+    /// agent inspector never drift onto different wording for the same rank.
     /// </summary>
     /// <remarks>
-    /// Six entries, not six weapons: a one-handed weapon appears twice, once
-    /// solo and once shielded, because the two are different loadouts that
-    /// fight differently. The grip is named so a spectator choosing a
-    /// composition knows which of the two they are fielding.
+    /// Four entries, one per rank, not one per weapon: V4 assigns each rank
+    /// exactly one loadout, so a category and a rank coincide (unlike V2,
+    /// whose six categories were solo/shielded grip variants of a weapon).
+    /// <para>
+    /// The preferred label also names the rank's weapon in a second pair
+    /// (for example "Datu — Chief · Kampilan — Great Blade"), but that
+    /// combined form was measured against the shipped 640px panel and only
+    /// the Datu row fits it: at the Label font's conservative 12px/char
+    /// advance estimate and the row's 460px label box, the combined form
+    /// needs 444px for Datu but 516-612px for the other three rows. Rather
+    /// than show three rows in one format and one row in another, every row
+    /// falls back uniformly to the rank pair alone, which fits every row with
+    /// margin to spare (144-372px of 460px). The weapon identification is not
+    /// dropped from the game — it is still shown, pair-form, in the agent
+    /// inspector — only from this panel's row label.
+    /// </para>
     /// </remarks>
     internal static readonly IReadOnlyList<string> CategoryLabels =
     [
-        "Kampilan — Great Blade",
-        "Wasay — War Axe",
-        "Kalis — Thrusting Blade (solo)",
-        "Kalis — Thrusting Blade (shielded)",
-        "Itak — Work Blade (solo)",
-        "Itak — Work Blade (shielded)",
+        RankLabelCatalog.Datu.Label,
+        RankLabelCatalog.Maharlika.Label,
+        RankLabelCatalog.Timawa.Label,
+        RankLabelCatalog.AlipingNamamahay.Label,
     ];
 
     private readonly UiArmyCompositionLayout _metrics;
+
+    /// <summary>
+    /// One <see cref="UiSelectorMotion"/> per stepper row's minus/plus arrow
+    /// pair — <see cref="ArmyCompositionStepper.CategoryCount"/> category
+    /// pairs plus the separate units-per-team pair, so that hovering one
+    /// row's arrows never bleeds motion into another row's static ones.
+    /// Reused unmodified from the shared selector motion helper (UI-52 T4);
+    /// only the arrow-hover channels are read here, never the marker pulse.
+    /// </summary>
+    private readonly UiSelectorMotion[] _categoryArrowMotion =
+        CreateArrowMotionArray();
+
+    private readonly UiSelectorMotion _unitsPerTeamArrowMotion = new();
+
     private ArmyComposition _draft;
     private ArmyComposition _saved;
     private int _focusedControlIndex;
@@ -133,9 +161,44 @@ internal sealed partial class ArmyCompositionPanel
         _metrics = metrics;
     }
 
+    private static UiSelectorMotion[] CreateArrowMotionArray()
+    {
+        var motion = new UiSelectorMotion[ArmyCompositionStepper.CategoryCount];
+        for (var index = 0; index < motion.Length; index++)
+        {
+            motion[index] = new UiSelectorMotion();
+        }
+
+        return motion;
+    }
+
     public ArmyComposition Draft => _draft;
 
     public ArmyComposition Saved => _saved;
+
+    /// <summary>
+    /// Test seam onto the per-row arrow-hover motion — pure reads of state
+    /// the four-argument <c>Update</c> overload already advanced, so a test
+    /// can assert a resolved colour without constructing a
+    /// <c>SpriteBatch</c>. Not called from <see cref="Draw"/>, which reads
+    /// the same <see cref="UiSelectorMotion"/> instances directly; these
+    /// accessors exist for tests only.
+    /// </summary>
+    internal Color GetCategoryMinusArrowColor(
+        int categoryIndex,
+        UiThemeColors colors) =>
+        _categoryArrowMotion[categoryIndex].PreviousArrowColor(colors);
+
+    internal Color GetCategoryPlusArrowColor(
+        int categoryIndex,
+        UiThemeColors colors) =>
+        _categoryArrowMotion[categoryIndex].NextArrowColor(colors);
+
+    internal Color GetUnitsPerTeamMinusArrowColor(UiThemeColors colors) =>
+        _unitsPerTeamArrowMotion.PreviousArrowColor(colors);
+
+    internal Color GetUnitsPerTeamPlusArrowColor(UiThemeColors colors) =>
+        _unitsPerTeamArrowMotion.NextArrowColor(colors);
 
     public int Unassigned => _draft.Unassigned;
 

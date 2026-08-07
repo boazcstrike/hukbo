@@ -244,6 +244,198 @@ public sealed class HitEffectSystemTests
         Assert.Equal(1, effect.Sequence);
     }
 
+    [Fact]
+    public void BuildPulseLookup_MatchesTheReferenceScanForAnEmptySystem()
+    {
+        var system = new HitEffectSystem(capacity: 8);
+
+        AssertLookupMatchesReferenceScan(system, 0UL, 7UL, ulong.MaxValue);
+    }
+
+    /// <summary>
+    /// The maximum-over-effects behaviour of the reference scan is load-bearing
+    /// and not merely the last effect in the buffer. The replacement path in
+    /// <c>Add</c> overwrites the oldest slot in place, so a full buffer can hold
+    /// the freshest effect at a lower index than a staler one for the same
+    /// entity. Reading the last matching effect rather than the maximum would
+    /// return the weaker value here.
+    /// </summary>
+    [Fact]
+    public void BuildPulseLookup_TakesTheMaximumWhenTheFreshestEffectIsNotLastInTheBuffer()
+    {
+        var system = new HitEffectSystem(capacity: 2);
+        AgentView[] agents = [Agent(7, 100, 200, isAlive: true)];
+
+        system.Ingest([Event(1, BattleEventKind.Damage, 7, 7, 5)], agents);
+        system.Advance(0.03f);
+        system.Ingest([Event(2, BattleEventKind.Damage, 7, 7, 6)], agents);
+        system.Advance(0.01f);
+        system.Ingest([Event(3, BattleEventKind.Damage, 7, 7, 7)], agents);
+
+        var effects = system.ActiveEffects.ToArray();
+        Assert.Equal(2, effects.Length);
+        Assert.True(effects[0].AgeSeconds < effects[1].AgeSeconds);
+
+        var lookup = system.BuildPulseLookup();
+
+        Assert.Equal(1f, lookup.GetPulseStrength(7));
+        Assert.Equal(system.GetPulseStrength(7), lookup.GetPulseStrength(7));
+    }
+
+    /// <summary>
+    /// The lethal-exclusion behaviour of the reference scan is load-bearing:
+    /// the lethal effect below is the fresher of the two and would score a full
+    /// 1 if it counted, so the surviving value can only come from the older,
+    /// non-lethal effect.
+    /// </summary>
+    [Fact]
+    public void BuildPulseLookup_ExcludesTheLethalEffectAndKeepsTheLivingOne()
+    {
+        var system = new HitEffectSystem(capacity: 8);
+        AgentView[] living = [Agent(7, 100, 200, isAlive: true)];
+        AgentView[] dying = [Agent(7, 100, 200, isAlive: false)];
+
+        system.Ingest([Event(1, BattleEventKind.Damage, 7, 7, 5)], living);
+        system.Advance(0.045f);
+        system.Ingest(
+            [
+                Event(2, BattleEventKind.Damage, 7, 7, 40),
+                Event(3, BattleEventKind.Death, 7, null),
+            ],
+            dying);
+
+        var effects = system.ActiveEffects.ToArray();
+        Assert.Equal(2, effects.Length);
+        Assert.False(effects[0].IsLethal);
+        Assert.True(effects[1].IsLethal);
+
+        var lookup = system.BuildPulseLookup();
+
+        Assert.Equal(0.5f, lookup.GetPulseStrength(7), precision: 5);
+        Assert.Equal(system.GetPulseStrength(7), lookup.GetPulseStrength(7));
+    }
+
+    [Fact]
+    public void BuildPulseLookup_ReturnsZeroWhenEveryEffectOnTheEntityIsLethal()
+    {
+        var system = CreateSystemWithHit(isLethal: true);
+
+        var lookup = system.BuildPulseLookup();
+
+        Assert.Equal(0f, lookup.GetPulseStrength(7));
+        AssertLookupMatchesReferenceScan(system, 7UL, 8UL);
+    }
+
+    [Fact]
+    public void BuildPulseLookup_MatchesTheReferenceScanAtEveryAgeAcrossThePulseWindow()
+    {
+        for (var step = 0; step <= 18; step++)
+        {
+            var system = new HitEffectSystem(capacity: 8);
+            AgentView[] agents = [Agent(7, 100, 200, isAlive: true)];
+            system.Ingest([Event(1, BattleEventKind.Damage, 7, 7, 5)], agents);
+            system.Advance(step * 0.01f);
+
+            AssertLookupMatchesReferenceScan(system, 7UL, 8UL);
+        }
+    }
+
+    /// <summary>
+    /// The lookup is built from at most 256 live effects, which is the capacity
+    /// <c>PresentationCoordinator</c> constructs the system with. This fills the
+    /// buffer exactly to that bound with a mixture of ages, lethal and
+    /// non-lethal effects, entities carrying several effects at once, and
+    /// entities whose oldest effects have already decayed past the pulse window
+    /// without expiring.
+    /// </summary>
+    [Fact]
+    public void BuildPulseLookup_MatchesTheReferenceScanForAFullTwoHundredFiftySixEffectBuffer()
+    {
+        const int Capacity = 256;
+        const int AgentCount = 40;
+
+        var system = new HitEffectSystem(capacity: Capacity);
+        var agents = new AgentView[AgentCount];
+        for (var index = 0; index < agents.Length; index++)
+        {
+            agents[index] = Agent(
+                (ulong)index,
+                index * 10,
+                index * 20,
+                isAlive: true);
+        }
+
+        var sequence = 1L;
+        for (var batch = 0; batch < Capacity / 4; batch++)
+        {
+            var events = new List<BattleEvent>();
+            for (var slot = 0; slot < 4; slot++)
+            {
+                var target = (ulong)(((batch * 4) + slot) % AgentCount);
+                events.Add(
+                    Event(sequence++, BattleEventKind.Damage, target, target, 5));
+            }
+
+            if (batch % 5 == 0)
+            {
+                var dying = (ulong)((batch * 4) % AgentCount);
+                events.Add(
+                    Event(sequence++, BattleEventKind.Death, dying, null));
+            }
+
+            system.Ingest(events, agents);
+            system.Advance(0.002f);
+        }
+
+        Assert.Equal(Capacity, system.ActiveEffects.Length);
+
+        AssertLookupMatchesReferenceScan(system, 1_000UL, ulong.MaxValue);
+    }
+
+    /// <summary>
+    /// The lookup is rebuilt from scratch every time and holds nothing from the
+    /// previous build, so there is no staleness rule to get wrong.
+    /// </summary>
+    [Fact]
+    public void BuildPulseLookup_RetainsNothingFromThePreviousBuild()
+    {
+        var system = new HitEffectSystem(capacity: 8);
+        AgentView[] agents = [Agent(7, 100, 200, isAlive: true)];
+
+        system.Ingest([Event(1, BattleEventKind.Damage, 7, 7, 5)], agents);
+        Assert.Equal(1f, system.BuildPulseLookup().GetPulseStrength(7));
+
+        system.Advance(0.18f);
+        Assert.Empty(system.ActiveEffects.ToArray());
+        Assert.Equal(0f, system.BuildPulseLookup().GetPulseStrength(7));
+
+        system.Ingest([Event(2, BattleEventKind.Damage, 7, 7, 6)], agents);
+        Assert.Equal(1f, system.BuildPulseLookup().GetPulseStrength(7));
+
+        system.Clear();
+        Assert.Equal(0f, system.BuildPulseLookup().GetPulseStrength(7));
+    }
+
+    private static void AssertLookupMatchesReferenceScan(
+        HitEffectSystem system,
+        params ulong[] additionalProbes)
+    {
+        var probes = system.ActiveEffects
+            .ToArray()
+            .Select(effect => effect.TargetEntityId)
+            .Concat(additionalProbes)
+            .Distinct()
+            .ToArray();
+
+        var lookup = system.BuildPulseLookup();
+        foreach (var entityId in probes)
+        {
+            Assert.Equal(
+                system.GetPulseStrength(entityId),
+                lookup.GetPulseStrength(entityId));
+        }
+    }
+
     private static HitEffectSystem CreateSystemWithHit(bool isLethal)
     {
         var system = new HitEffectSystem(capacity: 8);

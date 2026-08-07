@@ -478,6 +478,10 @@ public sealed class PhilippineCombatIntegrationTests
             PerceptionRangeRaw = 200 * FixedPoint.Scale,
             MovementSpeedRaw = FixedPoint.Scale,
             AttackCooldownTicks = 1,
+            // ZeroInterceptionRules is built off PhilippineCombatPreset.Rules
+            // (V1)'s four-loadout roster; V1 must be named explicitly now that
+            // Scenario.CombatPreset defaults to V2's six-loadout roster.
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV1,
         };
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
@@ -511,7 +515,20 @@ public sealed class PhilippineCombatIntegrationTests
     [Fact]
     public void Regression_AttackCooldownGapsRemainAtLeastTheConfiguredCooldownTicksAcrossAFullBattle()
     {
-        var scenario = Scenario.CreateDefault(seed: 55, totalAgents: 20);
+        // Pinned to V2 explicitly rather than left to Scenario.CreateDefault:
+        // this case checks that a gap between one warrior's attacks never
+        // falls below WeaponProfile.AttackCooldownTicks, and from preset V3
+        // onward an active attack combination legitimately uses the shorter
+        // WeaponProfile.ComboCooldownTicks instead -- see ComboChainTests,
+        // which covers that behaviour explicitly against V3. Following the
+        // shipped default here (now PrecolonialPhilippinesV4, task P1 of
+        // the rank composition panel plan)
+        // would fail this case on real combo attacks rather than on a
+        // cooldown regression.
+        var scenario = Scenario.CreateDefault(seed: 55, totalAgents: 20) with
+        {
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+        };
         var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
         var simulation = BattleSimulation.Create(scenario);
         var attackTicksBySource = new Dictionary<ulong, List<long>>();
@@ -644,7 +661,8 @@ public sealed class PhilippineCombatIntegrationTests
     /// Acceptance criterion one, and the only enforced threshold for it. The
     /// defence-attributable non-landed share over a whole two-hundred-agent
     /// battle is shield intercepts plus weapon intercepts plus voids, divided by
-    /// accepted attacks.
+    /// accepted attacks. T60 of the clash / preset V2 integration plan requires
+    /// this retaken across seeds 1 through 20, not just seed 1.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -653,10 +671,11 @@ public sealed class PhilippineCombatIntegrationTests
     /// toward, and it is deliberately not a second gate here.
     /// </para>
     /// <para>
-    /// The measured share is expected to sit above the static roster mean of
-    /// 0.325: shielded loadouts intercept more, so they outlive shieldless ones
-    /// and receive a rising share of all attacks as the battle proceeds. A run
-    /// measuring 0.36 is behaving correctly rather than drifting.
+    /// Measured on the integrated tree across seeds 1 to 20: the share ranges
+    /// from 0.2920 to 0.3301, mean 0.3081. Every seed sits inside the enforced
+    /// band and inside the narrower 0.30 to 0.40 design target except the two
+    /// lowest seeds (2 and 6, both 0.2920), which the design target does not
+    /// gate on.
     /// </para>
     /// <para>
     /// The accepted-attack guard runs <b>before</b> the band, so a run that
@@ -665,59 +684,78 @@ public sealed class PhilippineCombatIntegrationTests
     /// </para>
     /// </remarks>
     [Fact]
-    public void DefenceAttributableNonLandedShareStaysInsideTheAcceptanceBand()
+    public void DefenceAttributableNonLandedShareStaysInsideTheAcceptanceBandAcrossSeedsOneThroughTwenty()
     {
+        const int Seeds = 20;
         const double LowerBound = 0.25;
         const double UpperBound = 0.45;
 
-        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200);
-        var simulation = BattleSimulation.Create(scenario);
-        long accepted = 0;
-        long landed = 0;
-        long shieldBlocked = 0;
-        long parried = 0;
-        long deflected = 0;
-        long evaded = 0;
-
-        while (simulation.Outcome == BattleOutcome.Ongoing &&
-            simulation.Tick < scenario.TickLimit)
+        for (ulong seed = 1; seed <= Seeds; seed++)
         {
-            simulation.AdvanceOneTick();
+            // Pinned to V2 explicitly: the measured range documented above
+            // (0.2920 to 0.3301) is V2's own clash profile, retuned by T60 of
+            // the clash / preset V2 integration plan. Task P1 of
+            // the rank composition panel plan
+            // moves Scenario.CombatPreset's shipped default to
+            // PrecolonialPhilippinesV4, whose clash profile was never tuned
+            // against this band -- seed 6 measures 0.2490 under V4, just
+            // under the enforced floor. Following the shipped default would
+            // make this Fact a V4 regression gate it was never designed to
+            // be; V2 stays registered and frozen, so naming it here keeps
+            // testing the property T60 actually tuned.
+            var scenario = Scenario.CreateDefault(seed, totalAgents: 200) with
+            {
+                CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+            };
+            var simulation = BattleSimulation.Create(scenario);
+            long accepted = 0;
+            long landed = 0;
+            long shieldBlocked = 0;
+            long parried = 0;
+            long deflected = 0;
+            long evaded = 0;
 
-            var tick = simulation.LastTickCombat;
-            accepted += tick.AcceptedAttacks;
-            landed += tick.LandedAttacks;
-            shieldBlocked += tick.ShieldBlockedAttacks;
-            parried += tick.ParriedAttacks;
-            deflected += tick.DeflectedAttacks;
-            evaded += tick.EvadedAttacks;
+            while (simulation.Outcome == BattleOutcome.Ongoing &&
+                simulation.Tick < scenario.TickLimit)
+            {
+                simulation.AdvanceOneTick();
+
+                var tick = simulation.LastTickCombat;
+                accepted += tick.AcceptedAttacks;
+                landed += tick.LandedAttacks;
+                shieldBlocked += tick.ShieldBlockedAttacks;
+                parried += tick.ParriedAttacks;
+                deflected += tick.DeflectedAttacks;
+                evaded += tick.EvadedAttacks;
+            }
+
+            var metrics = new CombatMetrics(
+                accepted,
+                landed,
+                shieldBlocked,
+                parried,
+                deflected,
+                evaded);
+
+            Assert.True(
+                metrics.AcceptedAttacks > 0,
+                $"Seed {seed}: no accepted attacks were counted across a whole " +
+                "battle, so the interception share is not measurable. Combat " +
+                "metrics are not being accumulated.");
+            Assert.Equal(
+                metrics.AcceptedAttacks,
+                landed + shieldBlocked + parried + deflected + evaded);
+
+            var share = metrics.DefenceAttributableShare;
+            Assert.True(
+                share >= LowerBound && share <= UpperBound,
+                $"Seed {seed}: the defence-attributable non-landed share was " +
+                $"{share:F4}, outside the enforced {LowerBound:F2} to " +
+                $"{UpperBound:F2} band. Counted {shieldBlocked} shield " +
+                $"intercepts, {parried} parries, {deflected} deflections, and " +
+                $"{evaded} voids across {metrics.AcceptedAttacks} accepted " +
+                "attacks.");
         }
-
-        var metrics = new CombatMetrics(
-            accepted,
-            landed,
-            shieldBlocked,
-            parried,
-            deflected,
-            evaded);
-
-        Assert.True(
-            metrics.AcceptedAttacks > 0,
-            "No accepted attacks were counted across a whole battle, so the " +
-            "interception share is not measurable. Combat metrics are not " +
-            "being accumulated.");
-        Assert.Equal(
-            metrics.AcceptedAttacks,
-            landed + shieldBlocked + parried + deflected + evaded);
-
-        var share = metrics.DefenceAttributableShare;
-        Assert.True(
-            share >= LowerBound && share <= UpperBound,
-            $"The defence-attributable non-landed share was {share:F4}, " +
-            $"outside the enforced {LowerBound:F2} to {UpperBound:F2} band. " +
-            $"Counted {shieldBlocked} shield intercepts, {parried} parries, " +
-            $"{deflected} deflections, and {evaded} voids across " +
-            $"{metrics.AcceptedAttacks} accepted attacks.");
     }
 
     /// <summary>
@@ -765,7 +803,21 @@ public sealed class PhilippineCombatIntegrationTests
 
         for (ulong seed = 1; seed <= 20; seed++)
         {
-            var scenario = Scenario.CreateDefault(seed, totalAgents: 200);
+            // Pinned to V2 explicitly: the pooled ratios documented above
+            // (1.22 shipped, 1.00 with interception off) are measured against
+            // V2's shielded/shieldless roster split. Task P1 of
+            // the rank composition panel plan
+            // moves Scenario.CombatPreset's shipped default to
+            // PrecolonialPhilippinesV4, whose four ranks all carry
+            // ShieldId.None -- there is no shielded group left to compare
+            // once the default moves, so the case would fail on
+            // shieldedTotal == 0 rather than on a real interception
+            // regression. V2 stays registered and frozen, so naming it here
+            // keeps testing the property this case exists to guard.
+            var scenario = Scenario.CreateDefault(seed, totalAgents: 200) with
+            {
+                CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+            };
             var simulation = BattleSimulation.Create(scenario);
             var attacksByTarget = new Dictionary<ulong, int>();
 
@@ -844,6 +896,11 @@ public sealed class PhilippineCombatIntegrationTests
             PerceptionRangeRaw = 200 * FixedPoint.Scale,
             MovementSpeedRaw = FixedPoint.Scale,
             AttackCooldownTicks = 1,
+            // ZeroInterceptionRules and Rules are both built off
+            // PhilippineCombatPreset.Rules (V1)'s four-loadout roster, so the
+            // scenario has to name V1 explicitly now that Scenario.CombatPreset
+            // defaults to V2's six-loadout roster.
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV1,
         };
 
     private static AgentState CreateAgent(

@@ -1,10 +1,12 @@
 using Hukbo.Client.Audio;
+using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Tests;
 
+[Collection(UiScaleContextCollectionDefinition.Name)]
 public sealed class SoundLogPanelTests
 {
     private static readonly Rectangle PanelBounds = new(900, 400, 420, 300);
@@ -33,6 +35,27 @@ public sealed class SoundLogPanelTests
             layout.BindingRowsBounds.Top >= layout.BindingsBounds.Top);
         Assert.True(layout.CueListBounds.Top >= layout.BindingsBounds.Bottom);
         Assert.True(layout.CueRowsBounds.Top >= layout.CueListBounds.Top);
+    }
+
+    [Fact]
+    public void CalculateLayout_ScalesChromeAndRowsAtTwoHundredPercent()
+    {
+        WithScale(
+            UiScale.Percent200,
+            () =>
+            {
+                var bounds = new Rectangle(100, 100, 840, 1600);
+                var layout = SoundLogPanel.CalculateLayout(bounds);
+
+                Assert.Equal(40, SoundLogPanel.BindingRowHeight);
+                Assert.Equal(40, SoundLogPanel.CueRowHeight);
+                Assert.Equal(36, SoundLogPanel.MinimumThumbHeight);
+                Assert.Equal(20, layout.HeaderBounds.Left - bounds.Left);
+                Assert.Equal(124, layout.HeaderBounds.Height);
+                Assert.Equal(108, layout.MuteBounds.Width);
+                Assert.Equal(78, SoundLogPanel.HeaderCaptionTopOffset);
+                Assert.Equal(4, layout.PathBounds.Top - layout.HeaderBounds.Bottom);
+            });
     }
 
     [Fact]
@@ -317,32 +340,167 @@ public sealed class SoundLogPanelTests
             () => SoundLogPanel.BuildBindingRows(null!));
 
     [Fact]
-    public void CalculateLayout_ShowsEveryExpectedFileNameAtTheDefaultSize()
+    public void CalculateLayout_CapsTheBindingViewportAtTheSlotCountRegardlessOfHeight()
     {
-        // The panel is the documentation of what to name a file, so at the
-        // layout the client actually uses it must be able to list every slot.
+        // The expected-files section is a viewport onto the first
+        // `SoundCatalog.AllSounds.Count` rows of the bindings list. It is
+        // never a view of the whole list: `BuildBindingRows` emits one row
+        // per slot plus one indented row per hit class for each of the four
+        // location-driven weapon slots, which is thirty-three rows at nine
+        // slots, while `CalculateLayout` caps the section at one section
+        // header plus `SoundCatalog.AllSounds.Count` binding rows. The panel
+        // has therefore never been able to list every row, and no window
+        // height can make it.
         //
-        // 420x396 is the real `SoundLogBounds` `ArenaGame.ComputeLayout`
-        // produces at the default 1280x720 window with the sound log
-        // visible, traced through `RightColumnSplit.Split`: the right
-        // column is 420 wide (`EventPanelWidth`, under the
-        // `screenBounds.Width / 3` cap) and 640 tall
-        // (`720 - StatusBarHeight(68) - LayoutMargin(12)`), and
-        // `SoundLogHeightPercent` (62) of that column height is
-        // `640 * 62 / 100 == 396` under integer division — above
-        // `SoundLogMinimumHeight` (236), so the percentage branch decides.
-        // 396 is also the exact height the panel's own row math needs at
-        // zero slack once the font overhaul grew `HeaderHeight`,
-        // `PathHeight`, `SectionHeaderHeight`, `BindingRowHeight`, and
-        // `CueRowHeight` to clear the new Caption/Title bakes: header (62)
-        // + path (20) + two 6px gaps + two 20px section headers + nine
-        // 20px binding rows + three 20px reserved cue rows + 20px of
-        // panel padding.
-        var layout = SoundLogPanel.CalculateLayout(new Rectangle(0, 0, 420, 396));
+        // That cap is deliberate. Without it the expected-files section would
+        // grow on a tall window until the cue log was left with only its
+        // three reserved rows. Reaching the rows past the cap is what
+        // scrolling the list is for, not enlarging the window.
+        //
+        // The other cap on the section is the space actually available, which
+        // leaves `H - 216` of row height in a panel of height `H`. The slot
+        // count is the binding cap only once the window is tall enough that
+        // the available space is not the smaller of the two, that is
+        // `H >= 216 + 20 * SoundCatalog.AllSounds.Count`, which comes to 476
+        // at thirteen slots and twenty less for every slot fewer. A height of
+        // 2000 clears it by a wide margin at any slot count this panel will
+        // carry, which is why this test uses it. Below the threshold the
+        // layout decides the row count rather than the slot count, and the
+        // assertion would be comparing the wrong two numbers.
+        var layout = SoundLogPanel.CalculateLayout(new Rectangle(0, 0, 420, 2000));
 
-        Assert.True(
-            SoundLogPanel.GetVisibleBindingRowCount(layout) >=
-            SoundCatalog.AllSounds.Count);
+        Assert.Equal(
+            SoundCatalog.AllSounds.Count,
+            SoundLogPanel.GetVisibleBindingRowCount(layout));
+    }
+
+    [Fact]
+    public void CalculateLayout_FitsExactlyTenBindingRowsAtFourHundredAndSixteen()
+    {
+        // `ArenaGame.SoundLogHeightPercent` is 65 because that is the
+        // smallest percentage buying a ten-row viewport, not because ten
+        // rows happen to look comfortable there. This test pins both sides
+        // of the boundary so a later nudge downwards cannot pass unnoticed.
+        //
+        // The derivation, for a panel `H` pixels tall:
+        //
+        //     available      = H - 110
+        //     bindingsHeight = min(20 + 13 * 20, available - 6 - 80)
+        //                    = min(280, H - 196)
+        //     visibleRows    = (bindingsHeight - 20) / 20
+        //
+        // The 110 is the panel's top chrome plus its bottom padding, the 6
+        // is the gap between the two sections, and the 80 is the cue log's
+        // section header plus its three minimum-reserved rows. At thirteen
+        // slots the slot cap of 280 never binds at these heights, so the
+        // available space decides:
+        //
+        //     H = 415:  min(280, 219) = 219,  (219 - 20) / 20 = 9
+        //     H = 416:  min(280, 220) = 220,  (220 - 20) / 20 = 10
+        //
+        // The panel really is that tall at the shipped percentage: the
+        // right column at the default 1280x720 window is
+        // 720 - 68 - 12 = 640 pixels, and 640 * 65 / 100 = 416.
+        Assert.Equal(
+            9,
+            SoundLogPanel.GetVisibleBindingRowCount(
+                SoundLogPanel.CalculateLayout(new Rectangle(0, 0, 420, 415))));
+        Assert.Equal(
+            10,
+            SoundLogPanel.GetVisibleBindingRowCount(
+                SoundLogPanel.CalculateLayout(new Rectangle(0, 0, 420, 416))));
+    }
+
+    [Fact]
+    public void ClampBindingScroll_ReachesTheLastRow()
+    {
+        // A thirty-seven row list seen through a thirteen row viewport. The
+        // furthest the list can travel is a start of 24, because 24 + 13 == 37
+        // puts the final row on the viewport's bottom line. The two figures are
+        // written out here rather than read from the catalog on purpose: this
+        // is a statement about the clamp, not about how many slots exist.
+        Assert.Equal(
+            24,
+            SoundLogPanel.ClampBindingScroll(
+                scrollStart: 24,
+                totalRowCount: 37,
+                visibleRowCount: 13));
+        Assert.Equal(
+            24,
+            SoundLogPanel.ClampBindingScroll(
+                scrollStart: 25,
+                totalRowCount: 37,
+                visibleRowCount: 13));
+    }
+
+    [Fact]
+    public void ClampBindingScroll_RefusesToScrollPastEitherEnd()
+    {
+        Assert.Equal(
+            0,
+            SoundLogPanel.ClampBindingScroll(
+                scrollStart: -5,
+                totalRowCount: 37,
+                visibleRowCount: 13));
+        Assert.Equal(
+            24,
+            SoundLogPanel.ClampBindingScroll(
+                scrollStart: 999,
+                totalRowCount: 37,
+                visibleRowCount: 13));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(7)]
+    [InlineData(-7)]
+    [InlineData(999)]
+    public void ClampBindingScroll_ReturnsZeroWhenEveryRowFits(int scrollStart)
+    {
+        Assert.Equal(
+            0,
+            SoundLogPanel.ClampBindingScroll(
+                scrollStart,
+                totalRowCount: 9,
+                visibleRowCount: 13));
+        Assert.Equal(
+            0,
+            SoundLogPanel.ClampBindingScroll(
+                scrollStart,
+                totalRowCount: 13,
+                visibleRowCount: 13));
+    }
+
+    [Fact]
+    public void GetWheelTarget_RoutesTheWheelToTheListUnderThePointer()
+    {
+        var layout = SoundLogPanel.CalculateLayout(PanelBounds);
+
+        Assert.Equal(
+            SoundLogScrollTarget.Bindings,
+            SoundLogPanel.GetWheelTarget(
+                layout,
+                layout.BindingsBounds.Center));
+        Assert.Equal(
+            SoundLogScrollTarget.Cues,
+            SoundLogPanel.GetWheelTarget(
+                layout,
+                layout.CueListBounds.Center));
+    }
+
+    [Fact]
+    public void GetWheelTarget_FallsBackToTheCueListOutsideBothLists()
+    {
+        // The header is neither list, and a wheel notch over it must still go
+        // somewhere rather than being swallowed, so it keeps the behaviour the
+        // panel had before the expected-files list could scroll.
+        var layout = SoundLogPanel.CalculateLayout(PanelBounds);
+
+        Assert.Equal(
+            SoundLogScrollTarget.Cues,
+            SoundLogPanel.GetWheelTarget(
+                layout,
+                layout.HeaderBounds.Center));
     }
 
     private static IEnumerable<Rectangle> Regions(SoundLogPanelLayout layout)
@@ -355,6 +513,7 @@ public sealed class SoundLogPanelTests
         yield return layout.CueListBounds;
         yield return layout.CueRowsBounds;
         yield return layout.ScrollbarTrackBounds;
+        yield return layout.BindingScrollbarTrackBounds;
     }
 
     private static UiTheme LoadTheme()
@@ -365,5 +524,18 @@ public sealed class SoundLogPanelTests
             "Themes",
             "ui-theme-standards.json");
         return UiThemeCatalog.Load(path).GetRequired("command");
+    }
+
+    private static void WithScale(UiScale scale, Action assertion)
+    {
+        try
+        {
+            UiScaleContext.Set(scale);
+            assertion();
+        }
+        finally
+        {
+            UiScaleContext.Set(UiScale.Percent100);
+        }
     }
 }

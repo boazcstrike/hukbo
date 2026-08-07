@@ -22,6 +22,14 @@ public sealed class CombatRuleset
     /// </summary>
     private const string ClashProfileParameterName = "clashProfile";
 
+    /// <summary>
+    /// The constructor parameter rank-level validation blames, mirroring
+    /// <see cref="ClashProfileParameterName"/> above for the same reason:
+    /// validation runs in a helper where the parameter itself is out of
+    /// scope, so <c>nameof</c> is unavailable.
+    /// </summary>
+    private const string RankLevelsParameterName = "rankLevels";
+
     private readonly TargetWeightProfile _generalTargets;
     private readonly IReadOnlyDictionary<WeaponId, TargetWeightProfile> _weaponTargets;
     private readonly IReadOnlyList<ArmorId> _armors;
@@ -29,6 +37,7 @@ public sealed class CombatRuleset
     private readonly IReadOnlyList<CombatLoadout> _roster;
     private readonly IReadOnlyDictionary<WeaponId, WeaponAttributes>? _weaponAttributes;
     private readonly ClashProfile? _declaredClashProfile;
+    private readonly IReadOnlyDictionary<RankId, int>? _rankLevels;
     private readonly IReadOnlyDictionary<(WeaponId Weapon, ShieldId Shield), EffectiveWeightTable> _effectiveWeights;
 
     /// <summary>
@@ -54,7 +63,8 @@ public sealed class CombatRuleset
         IReadOnlyDictionary<ShieldId, TargetWeightProfile> shieldMultipliers,
         IReadOnlyList<CombatLoadout> roster,
         IReadOnlyDictionary<WeaponId, WeaponAttributes>? weaponAttributes = null,
-        ClashProfile? clashProfile = null)
+        ClashProfile? clashProfile = null,
+        IReadOnlyDictionary<RankId, int>? rankLevels = null)
     {
         ArgumentNullException.ThrowIfNull(generalTargets);
         ArgumentNullException.ThrowIfNull(weaponTargets);
@@ -127,8 +137,12 @@ public sealed class CombatRuleset
         _weaponAttributes = weaponAttributes is null
             ? null
             : new Dictionary<WeaponId, WeaponAttributes>(weaponAttributes);
+        _rankLevels = rankLevels is null
+            ? null
+            : new Dictionary<RankId, int>(rankLevels);
 
         ValidateWeaponAttributes();
+        ValidateRankLevels();
         _effectiveWeights = BuildEffectiveWeightTables();
         ValidateResolvedTotals();
         ValidateClashProfileCoversTheRoster();
@@ -188,7 +202,8 @@ public sealed class CombatRuleset
             _shieldMultipliers,
             _roster,
             weaponAttributes: _weaponAttributes,
-            clashProfile: profile);
+            clashProfile: profile,
+            rankLevels: _rankLevels);
     }
 
     public int ResolveWeaponWeight(WeaponId weapon, BodyPart bodyPart)
@@ -225,6 +240,50 @@ public sealed class CombatRuleset
     /// therefore its replays — exactly where it was.
     /// </summary>
     public bool HasWeaponProfiles => _weaponAttributes is not null;
+
+    /// <summary>
+    /// Whether this preset declares a per-rank fighter level. False for
+    /// versions 1 through 3, which predate rank and whose warriors all
+    /// resolve to <see cref="Simulation.Scenario.PlaceholderFighterLevel"/>
+    /// instead. A preset that declares none hashes none, which is what keeps
+    /// versions 1 through 3's content hash — and therefore their replays —
+    /// exactly where they were.
+    /// </summary>
+    public bool HasRankLevels => _rankLevels is not null;
+
+    /// <summary>
+    /// The fighter level this preset declares for <paramref name="rank"/>,
+    /// bounding an active attack combination's maximum length alongside
+    /// <see cref="WeaponProfile.ComboMaxSteps"/> exactly as
+    /// <see cref="Simulation.Scenario.PlaceholderFighterLevel"/> does for a
+    /// preset that declares none.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// This preset declares no rank levels; check <see cref="HasRankLevels"/>
+    /// first.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="rank"/> has no declared level in this preset.
+    /// </exception>
+    public int ResolveLevel(RankId rank)
+    {
+        if (_rankLevels is null)
+        {
+            throw new InvalidOperationException(
+                $"Combat preset {Id} declares no rank levels; check " +
+                $"{nameof(HasRankLevels)} before resolving a level.");
+        }
+
+        if (!_rankLevels.TryGetValue(rank, out var level))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(rank),
+                rank,
+                "Unknown rank identity for this combat ruleset.");
+        }
+
+        return level;
+    }
 
     /// <summary>
     /// The largest <see cref="WeaponProfile.DamagePerAttack"/> any profile in
@@ -354,6 +413,46 @@ public sealed class CombatRuleset
         }
     }
 
+    /// <summary>
+    /// Enforces the two configuration invariants a misconfigured rank-level
+    /// table would otherwise express as an agent that resolves to a level
+    /// nobody chose, or a level that cannot bound anything: every declared
+    /// level is at least 1, and every rank the roster actually fields has a
+    /// declared level. Mirrors <see cref="ValidateWeaponAttributes"/>.
+    /// </summary>
+    private void ValidateRankLevels()
+    {
+        if (_rankLevels is null)
+        {
+            return;
+        }
+
+        foreach (var rank in _rankLevels.Keys.OrderBy(id => (int)id))
+        {
+            var level = _rankLevels[rank];
+            if (level < 1)
+            {
+                throw new ArgumentException(
+                    $"Rank {rank} declares level {level}. Every declared " +
+                    "level must be at least 1.",
+                    RankLevelsParameterName);
+            }
+        }
+
+        foreach (var loadout in _roster)
+        {
+            if (!_rankLevels.ContainsKey(loadout.Rank))
+            {
+                throw new ArgumentException(
+                    $"Roster fields rank {loadout.Rank}, which has no " +
+                    "declared level. A preset that declares rank levels " +
+                    "must declare one for every rank its roster actually " +
+                    "fields.",
+                    RankLevelsParameterName);
+            }
+        }
+    }
+
     private static void ValidateWeaponAttribute(
         WeaponId weapon,
         WeaponAttributes attributes)
@@ -463,15 +562,19 @@ public sealed class CombatRuleset
             {
                 try
                 {
-                    ClashProfile.ResolveWeaponIntercept(defender.Weapon, attacker.Weapon);
+                    ClashProfile.ResolveWeaponIntercept(
+                        defender.Weapon,
+                        defender.Shield,
+                        attacker.Weapon);
                     ClashProfile.ResolveHardShareBase(attacker.Weapon);
                 }
                 catch (ArgumentOutOfRangeException exception)
                 {
                     throw new ArgumentException(
                         "The clash profile carries no value for roster " +
-                        $"defender weapon {defender.Weapon} against attacker " +
-                        $"weapon {attacker.Weapon}.",
+                        $"defender weapon {defender.Weapon} with shield " +
+                        $"{defender.Shield} against attacker weapon " +
+                        $"{attacker.Weapon}.",
                         ClashProfileParameterName,
                         exception);
                 }
@@ -479,7 +582,7 @@ public sealed class CombatRuleset
 
             try
             {
-                ClashProfile.ResolveVoid(defender.Weapon);
+                ClashProfile.ResolveVoid(defender.Weapon, defender.Shield);
                 ClashProfile.ResolveHardShareMultiplier(defender.Weapon);
                 ClashProfile.ResolveShieldIntercept(defender.Shield);
             }
@@ -487,7 +590,7 @@ public sealed class CombatRuleset
             {
                 throw new ArgumentException(
                     "The clash profile carries no row for roster weapon " +
-                    $"{defender.Weapon}.",
+                    $"{defender.Weapon} with shield {defender.Shield}.",
                     ClashProfileParameterName,
                     exception);
             }
@@ -545,12 +648,24 @@ public sealed class CombatRuleset
     }
 
     /// <summary>
-    /// Folds all thirty-two clash tuning values into the content hash. Every
-    /// table is read through the profile's ordered accessors, which sort by
-    /// ascending enum value, so two rulesets carrying identical tuning data
-    /// supplied in different dictionary order hash identically. Without that a
-    /// replay would refuse a save that is in fact the same configuration.
+    /// Folds every clash tuning value into the content hash. Every table is
+    /// read through the profile's ordered accessors, which sort by ascending
+    /// enum value, so two rulesets carrying identical tuning data supplied in
+    /// different dictionary order hash identically. Without that a replay
+    /// would refuse a save that is in fact the same configuration.
     /// </summary>
+    /// <remarks>
+    /// Fold order per D3.1: roster (already folded above), weapon attributes
+    /// (already folded above), weapon intercepts, shield scalar, void
+    /// channels, hard-share rows. The weapon-intercept fold carries the
+    /// defender's shield alongside the defender and attacker weapons — the
+    /// key that stops the T13A hole, where a profile differing only in
+    /// whether a cell describes a shielded or a bare defender would otherwise
+    /// hash identically. The void channel folds separately from the
+    /// hard-share rows because the void channel is keyed on
+    /// (weapon, shield) while the hard-share tables stay weapon-keyed; the two
+    /// no longer join into one row per weapon.
+    /// </remarks>
     private void FoldClashProfile(ref ulong hash)
     {
         var cells = ClashProfile.OrderedWeaponIntercepts.ToArray();
@@ -558,18 +673,27 @@ public sealed class CombatRuleset
         foreach (var (key, value) in cells)
         {
             Fnv1a.Add(ref hash, (ulong)key.Defender);
+            Fnv1a.Add(ref hash, (ulong)key.DefenderShield);
             Fnv1a.Add(ref hash, (ulong)key.Attacker);
             Fnv1a.Add(ref hash, (ulong)value);
         }
 
         Fnv1a.Add(ref hash, (ulong)ClashProfile.ShieldInterceptBasisPoints);
 
-        var rows = ClashProfile.OrderedWeaponRows.ToArray();
-        Fnv1a.Add(ref hash, (ulong)rows.Length);
-        foreach (var (weapon, voidChannel, hardShareBase, hardShareMultiplier) in rows)
+        var voidCells = ClashProfile.OrderedVoidChannels.ToArray();
+        Fnv1a.Add(ref hash, (ulong)voidCells.Length);
+        foreach (var (key, value) in voidCells)
+        {
+            Fnv1a.Add(ref hash, (ulong)key.Weapon);
+            Fnv1a.Add(ref hash, (ulong)key.Shield);
+            Fnv1a.Add(ref hash, (ulong)value);
+        }
+
+        var hardShareRows = ClashProfile.OrderedHardShareRows.ToArray();
+        Fnv1a.Add(ref hash, (ulong)hardShareRows.Length);
+        foreach (var (weapon, hardShareBase, hardShareMultiplier) in hardShareRows)
         {
             Fnv1a.Add(ref hash, (ulong)weapon);
-            Fnv1a.Add(ref hash, (ulong)voidChannel);
             Fnv1a.Add(ref hash, (ulong)hardShareBase);
             Fnv1a.Add(ref hash, (ulong)hardShareMultiplier);
         }
@@ -646,6 +770,18 @@ public sealed class CombatRuleset
             Fnv1a.Add(ref hash, (ulong)loadout.Weapon);
             Fnv1a.Add(ref hash, (ulong)loadout.Armor);
             Fnv1a.Add(ref hash, (ulong)loadout.Shield);
+
+            // Contributed only by a preset that declares rank levels, on the
+            // same terms as the weapon-attribute and clash-profile blocks
+            // below: a preset that does not declare levels (V1 through V3)
+            // folds nothing extra per roster entry, which is what keeps its
+            // content hash exactly where it was. Every warrior such a preset
+            // fields resolves to the same RankId.Timawa default in any case,
+            // so folding it unconditionally would only ever hash a constant.
+            if (_rankLevels is not null)
+            {
+                Fnv1a.Add(ref hash, (ulong)loadout.Rank);
+            }
         }
 
         // Both trailing blocks are contributed only by a preset that declares
@@ -690,6 +826,22 @@ public sealed class CombatRuleset
         if (_declaredClashProfile is not null)
         {
             FoldClashProfile(ref hash);
+        }
+
+        // Contributed only by a preset that declares rank levels, on the
+        // same terms as the two blocks above: a preset that declares none
+        // (V1 through V3) mixes nothing here at all — not even a zero
+        // count — which is what leaves its content hash untouched by this
+        // feature.
+        if (_rankLevels is not null)
+        {
+            var rankIds = _rankLevels.Keys.OrderBy(id => (int)id).ToArray();
+            Fnv1a.Add(ref hash, (ulong)rankIds.Length);
+            foreach (var rank in rankIds)
+            {
+                Fnv1a.Add(ref hash, (ulong)rank);
+                Fnv1a.Add(ref hash, (ulong)_rankLevels[rank]);
+            }
         }
 
         return hash;

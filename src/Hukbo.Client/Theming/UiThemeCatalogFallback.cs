@@ -39,6 +39,37 @@ internal sealed partial class UiThemeCatalog
             new Color(231, 199, 84),
             new Color(255, 212, 90),
             new Color(255, 212, 90));
+        // Provisional reconstruction derived from documented Cebu 1521
+        // material and color classes. Exact digital values are presentation
+        // choices, not historical claims.
+        var datuCourtColors = new UiThemeColors(
+            new Color(18, 13, 10),
+            new Color(74, 81, 56),
+            new Color(195, 163, 90),
+            new Color(29, 20, 16),
+            new Color(18, 13, 10, 230),
+            new Color(37, 25, 20),
+            new Color(50, 35, 28),
+            new Color(181, 138, 61),
+            new Color(243, 230, 200),
+            new Color(217, 199, 167),
+            new Color(199, 183, 158),
+            new Color(26, 17, 13),
+            new Color(208, 166, 74),
+            new Color(226, 190, 104),
+            new Color(227, 188, 98),
+            new Color(184, 137, 57),
+            new Color(167, 181, 140),
+            new Color(73, 58, 49),
+            new Color(132, 175, 194),
+            new Color(145, 178, 122),
+            new Color(227, 188, 98),
+            new Color(230, 120, 100),
+            new Color(118, 184, 218),
+            new Color(239, 119, 104),
+            new Color(227, 188, 98),
+            new Color(208, 166, 74),
+            new Color(242, 205, 117));
         var metrics = new UiThemeMetrics(2, 3, 2);
         var names = new[]
         {
@@ -47,6 +78,7 @@ internal sealed partial class UiThemeCatalog
             "Signal",
             "Broadcast",
             "High Contrast",
+            "Cebu 1521 — Provisional",
         };
         var themeIds = new[]
         {
@@ -55,13 +87,18 @@ internal sealed partial class UiThemeCatalog
             "signal",
             "broadcast",
             "high-contrast",
+            "datu-court",
         };
         var themes = themeIds
             .Select((id, index) =>
-                new UiTheme(id, names[index], commandColors, metrics))
+                new UiTheme(
+                    id,
+                    names[index],
+                    id == "datu-court" ? datuCourtColors : commandColors,
+                    metrics))
             .ToArray();
         var standards = new UiThemeStandards(
-            5,
+            6,
             themeIds,
             RuntimeColorRoles,
             RuntimeInteractionStates,
@@ -80,13 +117,15 @@ internal sealed partial class UiThemeCatalog
             ],
             new UiSharedStandards(
                 new UiMenuLayout(
-                    // menu.panelHeight: 660 -> 688. Grows by the same 28px
-                    // delta as subtitleTopOffset below, so the gore selector
-                    // and the helper line keep their original clearance from
-                    // the panel bottom. See ui-theme-standards.json for the
-                    // full derivation.
+                    // menu.panelHeight: 660 -> 688 -> 800 -> 912. Each step
+                    // after 688 makes room for one more settings selector
+                    // stacked below the gore selector: one selector height
+                    // (96) plus one selector gap (14) apiece, plus a small
+                    // margin. The 800 -> 912 step is the auto-camera mode
+                    // selector. See ui-theme-standards.json for the full
+                    // derivation.
                     360,
-                    688,
+                    912,
                     280,
                     44,
                     8,
@@ -118,11 +157,11 @@ internal sealed partial class UiThemeCatalog
                     7,
                     5),
                 new UiArmyCompositionLayout(
-                    420,
+                    640,
                     648,
                     44,
                     8,
-                    260,
+                    148,
                     44),
                 new UiFontAssignments(
                     "Fonts/UiCaption",
@@ -140,6 +179,6 @@ internal sealed partial class UiThemeCatalog
                     UiFontRole.Caption,
                     UiFontRole.Label,
                     UiFontRole.Caption)));
-        return new UiThemeCatalog("command", themes, standards);
+        return new UiThemeCatalog("datu-court", themes, standards);
     }
 }

@@ -20,12 +20,87 @@ public sealed class BattleEventFormatterTests
             ShieldId.None,
             BodyPart.Shoulder);
 
-        var formatted = BattleEventFormatter.Format(battleEvent);
+        var formatted = BattleEventFormatter.Format(battleEvent, scenarioSeed: 1);
+
+        // The actor carries its warrior name; the target stays a bare
+        // identifier because the event records no target faction, and the
+        // faction is what selects the regional name corpus.
+        Assert.Equal(
+            $"T00042  Blue {WarriorNames.FormatWarrior(7, 0, 1)} " +
+            "hit #12's shoulder with Kampilan — Great Blade for 10",
+            formatted);
+    }
+
+    [Fact]
+    public void GetRowActorLabel_DropsTheFactionWordForTheNarrowRowColumn()
+    {
+        var battleEvent = BattleEvent.NonAttack(
+            sequence: 1,
+            tick: 42,
+            BattleEventKind.Death,
+            sourceEntityId: 7,
+            targetEntityId: null,
+            value: 0,
+            factionId: 0);
 
         Assert.Equal(
-            "T00042  Blue #7 hit #12's shoulder with " +
-            "Kampilan — Great Blade for 10",
-            formatted);
+            $"Blue {WarriorNames.FormatWarrior(7, 0, 1)}",
+            BattleEventFormatter.GetActorLabel(battleEvent, scenarioSeed: 1));
+        Assert.Equal(
+            WarriorNames.FormatWarrior(7, 0, 1),
+            BattleEventFormatter.GetRowActorLabel(battleEvent, scenarioSeed: 1));
+    }
+
+    [Fact]
+    public void ActorLabels_NameTheBattleItselfForAnOutcomeEvent()
+    {
+        var outcome = BattleEvent.NonAttack(
+            sequence: 1,
+            tick: 42,
+            BattleEventKind.Outcome,
+            sourceEntityId: 0,
+            targetEntityId: null,
+            value: 0,
+            factionId: 0);
+
+        Assert.Equal(
+            "Battle",
+            BattleEventFormatter.GetActorLabel(outcome, scenarioSeed: 1));
+        Assert.Equal(
+            "Battle",
+            BattleEventFormatter.GetRowActorLabel(outcome, scenarioSeed: 1));
+    }
+
+    /// <summary>
+    /// The row column holds roughly fifteen characters, so the row label has
+    /// to stay inside that budget for every shipped name at a realistic
+    /// roster's entity identifiers — otherwise a name would be drawn
+    /// truncated mid-word.
+    /// </summary>
+    [Fact]
+    public void GetRowActorLabel_FitsTheRowColumnForEveryWarriorInALargeRoster()
+    {
+        for (ulong entityId = 1; entityId <= 500; entityId++)
+        {
+            foreach (var factionId in new[] { 0, 1 })
+            {
+                var battleEvent = BattleEvent.NonAttack(
+                    sequence: (long)entityId,
+                    tick: 1,
+                    BattleEventKind.Death,
+                    entityId,
+                    targetEntityId: null,
+                    value: 0,
+                    factionId);
+                var label = BattleEventFormatter.GetRowActorLabel(
+                    battleEvent,
+                    scenarioSeed: 1);
+
+                Assert.True(
+                    label.Length <= 15,
+                    $"Row label '{label}' is {label.Length} characters.");
+            }
+        }
     }
 
     [Theory]
@@ -149,6 +224,9 @@ public sealed class BattleEventFormatterTests
     public void GetActionLabel_ProducesADistinctLinePerResolution()
     {
         var labels = new List<string>();
+        var expectedWeaponLabel = BattleEventFormatter.GetWeaponLabel(
+            WeaponId.Kampilan,
+            ShieldId.None);
 
         foreach (var resolution in Enum.GetValues<AttackResolution>())
         {
@@ -160,11 +238,17 @@ public sealed class BattleEventFormatterTests
                 damage: resolution == AttackResolution.Landed ? 10 : 0,
                 factionId: 0,
                 WeaponId.Kampilan,
+                ShieldId.None,
                 BodyPart.Shoulder,
                 resolution);
 
             var actionLabel = BattleEventFormatter.GetActionLabel(battleEvent);
 
+            // Every resolution line carries the same pair-form weapon label —
+            // the resolution changes what happened, not what the warrior was
+            // holding. A bare English label would violate the historical
+            // accuracy policy in CLAUDE.md section 7.
+            Assert.Contains(expectedWeaponLabel, actionLabel);
             Assert.DoesNotContain("for 0", actionLabel);
             Assert.DoesNotContain("0 damage", actionLabel);
             if (resolution != AttackResolution.Landed)
@@ -176,6 +260,48 @@ public sealed class BattleEventFormatterTests
         }
 
         Assert.Equal(5, labels.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Theory]
+    [InlineData(AttackResolution.Landed)]
+    [InlineData(AttackResolution.ShieldBlocked)]
+    [InlineData(AttackResolution.Parried)]
+    [InlineData(AttackResolution.Deflected)]
+    [InlineData(AttackResolution.Evaded)]
+    public void GetActionLabel_CarriesThePairFormLabelAndGripSuffixForEveryResolution(
+        AttackResolution resolution)
+    {
+        var shieldedEvent = BattleEvent.Attack(
+            sequence: 1,
+            tick: 1,
+            sourceEntityId: 1,
+            targetEntityId: 2,
+            damage: resolution == AttackResolution.Landed ? 5 : 0,
+            factionId: 0,
+            WeaponId.Kalis,
+            ShieldId.TallHardwood,
+            BodyPart.Chest,
+            resolution);
+
+        var soloEvent = BattleEvent.Attack(
+            sequence: 2,
+            tick: 1,
+            sourceEntityId: 1,
+            targetEntityId: 2,
+            damage: resolution == AttackResolution.Landed ? 5 : 0,
+            factionId: 0,
+            WeaponId.Kalis,
+            ShieldId.None,
+            BodyPart.Chest,
+            resolution);
+
+        var shieldedLabel = BattleEventFormatter.GetActionLabel(shieldedEvent);
+        var soloLabel = BattleEventFormatter.GetActionLabel(soloEvent);
+
+        Assert.Contains("Kalis — Thrusting Blade", shieldedLabel);
+        Assert.Contains("(shielded)", shieldedLabel);
+        Assert.Contains("Kalis — Thrusting Blade", soloLabel);
+        Assert.Contains("(solo)", soloLabel);
     }
 
     /// <summary>
@@ -205,6 +331,7 @@ public sealed class BattleEventFormatterTests
                 damage: 0,
                 factionId: 0,
                 WeaponId.Kampilan,
+                ShieldId.None,
                 BodyPart.Shoulder,
                 resolution);
 
@@ -222,6 +349,7 @@ public sealed class BattleEventFormatterTests
             damage: 10,
             factionId: 0,
             WeaponId.Kampilan,
+            ShieldId.None,
             BodyPart.Shoulder,
             AttackResolution.Landed);
         var damage = BattleEvent.NonAttack(

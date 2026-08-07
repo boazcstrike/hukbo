@@ -181,6 +181,7 @@ public sealed class SwingAnimationSystemTests
             damage: resolution == AttackResolution.Landed ? 10 : 0,
             factionId: 0,
             WeaponId.Kampilan,
+            ShieldId.None,
             BodyPart.Chest,
             resolution);
 

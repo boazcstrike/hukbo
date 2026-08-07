@@ -427,8 +427,8 @@ held on the immutable `Scenario` rather than duplicated per agent.
 
 | Item | Raw value | World units |
 |---|---|---|
-| `BodyRadiusRaw` (common to all agents) | `4096` | 4 |
-| Body diameter, `2 * BodyRadiusRaw` | `8192` | 8 |
+| `BodyRadiusRaw` (common to all agents) | `4352` | 4.25 |
+| Body diameter, `2 * BodyRadiusRaw` | `8704` | 8.5 |
 | `AttackRangeRaw` (default) | `12288` | 12 |
 | `MovementSpeedRaw` (default) | `3072` | 3 |
 
@@ -472,12 +472,13 @@ approach target below.
 
 An advancing agent closes until its body meets its target's body, not merely until its weapon can
 reach. `BuildMovementProposal` subtracts `2 * BodyRadiusRaw` from the centre-to-centre distance, so
-the movement target is **body contact at eight world units**, not attack range at twelve. An agent
-already inside reach keeps walking in.
+the movement target is **body contact at one body diameter**, currently 8.5 world units, not attack
+range at twelve. An agent already inside reach keeps walking in.
 
 This is what makes opposing front ranks touch. An earlier rule stopped an agent as soon as its
-target was inside `AttackRangeRaw`, which left four world units of permanent air between the two
-front ranks for the whole engagement, so cross-faction bodies never met and the collision stage only
+target was inside `AttackRangeRaw`, which left the whole difference between attack range and body
+diameter as permanent air between the two front ranks for the whole engagement — four world units at
+the four-world-unit body radius in force when that rule was replaced, 3.5 at today's radius — so cross-faction bodies never met and the collision stage only
 ever observed allies queueing behind their own line. Attack resolution was not changed by this and
 is still centre-to-centre at `AttackRangeRaw`.
 
@@ -512,6 +513,7 @@ The battle simulation executes these stages, in this order, on every tick:
 ```text
 DecrementCooldowns
 SelectTargetsAndIntents
+ResolveContingentStates      // no-op under IndependentPursuitV1
 GatherMovementProposals      // reads tick-start positions only
 ResolveCollisions            // rebuilds the grid, validates candidates
 CommitMovement               // single commit, emits Move events
@@ -519,6 +521,24 @@ MeasureCollision             // pure observation, writes no agent state
 GatherAndCommitAttacks       // reads resolved positions
 ResolveOutcome
 ```
+
+`ResolveContingentStates` returns on its first line under
+`MovementPresetId.IndependentPursuitV1`, so that preset's tick pipeline is
+unchanged in effect even though the stage now always runs. Under every
+persistent-contingent preset it reads each living agent's
+position, `FactionId`, `ContingentId`, and selected `TargetEntityId`, plus
+`Scenario`'s map dimensions and body radius, to compute — once per contingent
+per tick, into preallocated per-slot arrays sized at construction — each
+living contingent's leader, living member count, member spread around that
+leader, count of members whose selected target lies inside the close radius,
+trail-base geometry, and the two geometric
+gates (map-edge fit and same-faction square overlap) design section 3.5 of
+`docs/plans/2026-07-28-formation-movement-realism-design.md` names gates 5 and
+6. It then resolves each living contingent's `ContingentState` through the
+six-priority-ordered transition table and writes that state onto every one of
+the contingent's living members. The per-slot arrays are working buffers
+recomputed from scratch every tick; only the per-agent `ContingentState` write
+is authoritative state, and it is what `StateHasher.Compute` observes.
 
 `MeasureCollision` derives this tick's counters from committed positions. It writes no agent state
 and nothing it produces is hashed.
@@ -599,8 +619,8 @@ is why the first gated run reported zero contact pairs.
 
 Contact metrics therefore use a proximity band of `BodyRadiusRaw + (MovementSpeedRaw / 2)` per body:
 a pair counts as in contact when the two bodies are within one movement step of touching. At the
-default values that is `5632` raw units per body, so the broad phase pairs bodies whose centres are
-within `11264` raw units. This is the honest reading of "pressed together" for a spectator, and it is
+default values that is `6144` raw units per body, so the broad phase pairs bodies whose centres are
+within `12288` raw units. This is the honest reading of "pressed together" for a spectator, and it is
 stable against the one-raw-unit rounding that truncating integer division produces.
 
 The band is **derived observability only**. No rule consults it: the resolver's own legality tests
@@ -650,7 +670,17 @@ completed-tick render snapshot; collision configuration remains reachable throug
 Because `BodyRadiusRaw`, `CollisionPolicy`, and `MovementResolution` all reach the state hash, and
 because constraining movement changes where agents stand, both the state hash and the event hash
 moved for every seed when this contract shipped. Changing any of those three fields in future
-requires a new preset version and new golden expectations.
+invalidates every recorded golden expectation and requires a deliberate rebaseline, recorded in the
+same commit as the change.
+
+Combat preset versioning does not and cannot cover this. A preset version identifies combat
+content — the weapon roster, the attribute profiles, the target weight tables, the clash tables —
+through `CombatRuleset.ContentHash`, and none of `BodyRadiusRaw`, `CollisionPolicy`, or
+`MovementResolution` feeds that hash: they are `Scenario` fields with defaults supplied by
+`CollisionRules`, not preset fields. Cutting a new preset version whose combat content is
+unchanged would create the appearance of protection while providing none, because an old replay
+naming the unchanged preset would still be replayed under the new collision defaults. The
+obligation this section imposes is the rebaseline above, not a preset bump.
 
 Both hashes moved a second time when the approach target changed from attack range to body contact,
 because that changes where agents stand. Introducing the contact-metric proximity band moved neither,
@@ -659,19 +689,26 @@ because it is derived. The current recorded oracle is in
 
 ### What the rule actually produces
 
-Opposing bodies meet. On the 200-agent, seed-1 acceptance workload the run recorded **5,649
-cross-faction contact pairs** against 57,295 candidate pairs, and the 500-agent report-only workload
-recorded 14,270 against 280,675. The two front ranks close all the way rather than halting with air
-in front of them.
+Opposing bodies meet. The two front ranks close all the way rather than halting with air in front
+of them.
 
 Alongside that, allies still **queue behind their own front line**: a rear agent trying to advance
 into space its own front rank already occupies is refused, holds position, and reports `Blocked`.
-That queueing is what constrains frontage and produces a visible line, and it roughly doubled once
-agents began closing to contact — 14,544 blocked agent-ticks at 200 agents, up from 7,154 under the
-earlier stop-at-reach rule. Both effects are real and both are worth watching; neither is a defect.
+That queueing is what constrains frontage and produces a visible line.
+
+**Superseded, pending re-measurement.** The contact-pair and blocked-agent-tick figures below were
+recorded against the four-world-unit `BodyRadiusRaw` (`CollisionRules.DefaultBodyRadiusRaw`), before
+it moved to 4.25 world units (task C1, `docs/plans/2026-07-28-collision-report-and-shell.md`). The
+larger body changes which candidates are legal and how often contact and blocking fire, so these
+counts no longer describe the shipped default and must be re-measured against a real run before they
+are restated as fact: on the 200-agent, seed-1 acceptance workload the run recorded **5,649
+cross-faction contact pairs** against 57,295 candidate pairs, and the 500-agent report-only workload
+recorded 14,270 against 280,675; queueing roughly doubled once agents began closing to contact —
+14,544 blocked agent-ticks at 200 agents, up from 7,154 under the earlier stop-at-reach rule.
 
 Deepest living-body penetration remained exactly `0` on both workloads, before and after the change
-to the approach target. The solid-disc invariant is not affected by where agents choose to stop.
+to the approach target. The solid-disc invariant is not affected by where agents choose to stop, and
+this property is independent of the superseded figures above.
 
 The recorded figures for both workloads are in
 [docs/development/testing.md](docs/development/testing.md). Anyone tuning the contact model later
@@ -747,3 +784,299 @@ enters the scenario block of `StateHasher.Compute`, `AgentIntent.Regrouping` ent
 through the existing per-agent `Intent` write, and regrouping survivors stand in different places
 than they would under ordinary targeting. The current recorded oracle is in
 [docs/development/testing.md](docs/development/testing.md).
+
+## 14. Defensive resolution contract
+
+This section records the shipped weapon-clash mechanic: the step that decides whether an accepted
+attack actually lands. It is the game-rule statement of the decisions recorded in
+[docs/plans/2026-07-27-clash-preset-v2-integration-design.md](docs/plans/2026-07-27-clash-preset-v2-integration-design.md),
+which remains the authority on why each value was chosen and which alternatives were rejected. This
+section was dropped from the standards document when the original weapon-clash plan was superseded
+by the preset-V2 integration; it is restored here rather than left missing, because the mechanic it
+describes is shipped and authoritative.
+
+### Tick stage
+
+Defensive resolution runs inside `GatherAndCommitAttacks`, immediately after an attack has passed the
+reach and cooldown gates and after `HitLocationResolver.Resolve` has chosen the struck body part, and
+before damage is applied. An attack that fails the reach or cooldown gate never reaches this stage at
+all; only an **accepted** attack is resolved against the clash profile.
+
+### The five outcomes
+
+`AttackResolution` is a five-member enum with pinned numeric values, appended-only per the section 4
+enum-value rule:
+
+| Value | Name | Meaning |
+|---|---|---|
+| `0` | `Landed` | The blow struck as gathered; damage applies. |
+| `1` | `ShieldBlocked` | The defender's shield took the blow. |
+| `2` | `Parried` | The defender's weapon arrested the blow (the hard share of the weapon channel). |
+| `3` | `Deflected` | The defender's weapon brushed the blow aside (the soft share of the weapon channel). |
+| `4` | `Evaded` | The defender stepped off the line entirely; the blow met empty air. |
+
+Only `Landed` applies damage. The other four are mutually exclusive, jointly exhaustive alternatives
+to a landed blow, never summed on top of a separate base probability.
+
+### The `HKBO_CLS` domain tag
+
+`ClashResolver.MixClash` derives a stateless keyed roll from an FNV-1a fold tagged with the ASCII
+constant `HKBO_CLS` (`0x484B424F5F434C53`), folding, in order: the domain tag, the seed, the tick,
+the source entity ID, the target entity ID, the attacking weapon, the defending weapon, and the
+defending shield. This is the same construction `HitLocationResolver` uses under its own `HKBO_HIT`
+tag, over an overlapping input tuple; the distinct tags are what keep the two rolls independent
+rather than correlated draws off the same stream. Neither draws from `SplitMix64` or any other
+shared generator, so adding this stage shifts no pre-existing deterministic behaviour — proven by the
+zero-interception control run, which reproduces the pre-change event stream and state hash tick for
+tick when every clash channel is held at zero.
+
+Every domain tag in the simulation is a fresh, distinct 64-bit ASCII constant folded first into its
+own keyed roll, precisely so that unrelated draws never correlate: `HKBO_CLS` above, `HKBO_HIT` for
+`HitLocationResolver`, the last-stand jitter's `LastStandTag` (`0x484B424F5F4C5354`), the
+collision-priority key's own tag, and — newest — `HKBO_CTG` (`0x484B424F5F435447`), which
+`ContingentOffset.Compute` folds with the seed and entity ID, excluding the tick, to draw each
+persistent contingent's per-member cohesion-square jitter offset. Reusing an existing tag for a new
+roll would correlate the two draws off the same stream; this paragraph is the inventory a new domain
+tag is checked against before it is minted.
+
+### The composition rule
+
+The roll walks a fixed five-way cumulative interval in this order: shield, hard (parry), soft
+(deflect), void, landed. Each channel's width is basis points out of `ClashProfile.BasisPointScale`
+(10,000). The shield, weapon, and void channels are resolved from `ClashProfile`, keyed by
+`(defending weapon, defending shield, attacking weapon)` for the weapon channel and
+`(defending weapon, defending shield)` for the void channel; the weapon channel is then split into
+its hard and soft halves by a per-weapon hard-share base and multiplier, keyed by weapon alone. If the
+summed shield, weapon, and void channels exceed `MaximumInterceptionBasisPoints`, all three are
+rescaled proportionally; the residue left by truncation becomes additional `Landed` probability.
+Every comparison in the interval walk is strictly lower-exclusive, so a zero-width channel — a
+shieldless defender's shield interval, in particular — is stepped over rather than selected.
+
+### The single enforced acceptance band
+
+The defence-attributable share — `(ShieldBlocked + Parried + Deflected + Evaded) / AcceptedAttacks`,
+exposed as `CombatMetrics.DefenceAttributableShare` — is a gate, not a report, on preset V2's shipped
+tables: it must land inside 0.25 to 0.45 across seeds 1 through 20 at 200 agents. No other acceptance
+band on the individual channel values is enforced; the tables may be retuned freely within their
+declared per-cell bands as long as the aggregate share and the termination criterion below both hold.
+
+### The termination criterion
+
+At least 19 of 20 seeds must reach a decisive outcome before the 5,000-tick cap, with a median
+decisive tick at or below 5,000. Preset V2's shipped tables satisfy both the share band and the
+termination criterion; the recorded figures are in
+[docs/development/testing.md](docs/development/testing.md).
+
+### The hashed fields
+
+`AttackResolution` packs into bits 24 through 26 of `BattleEvent`'s combined `_combatContext` `int`
+(`ResolutionShift = 24`), alongside `Weapon` (bits 16-23), `Shield` (bits 8-15), and `HitLocation`
+(bits 0-7). `Landed = 0` contributes nothing to the resolution byte, which is safe only because the
+weapon field is non-zero for every attack event and "absent" is tested on the whole field, not on any
+one byte — a pinned test guards this reasoning. The event stays at 72 bytes and the collision
+allocation ceiling stays at 900,000. `ClashProfile`'s entire tuning surface — the weapon-intercept
+matrix keyed by all three key parts, the shield scalar, the void channel, the hard-share rows, and the
+clamp bounds — folds into `CombatRuleset.ContentHash` conditionally: only a ruleset actually
+constructed with a clash profile folds it, which is what keeps preset V1's pinned content hash
+(`0x59FB4CA563D87A49`) unchanged. `CombatMetrics` reaches neither the state hash nor the event hash;
+it is derived observability data only.
+
+### Spectator channels
+
+| Channel | `Landed` | `ShieldBlocked` | `Parried` | `Deflected` | `Evaded` |
+| --- | --- | --- | --- | --- | --- |
+| Event log line | damage line | "stopped by the shield" | "parried" | "turned aside" | "stepped off the line" |
+| Blood spray | yes | suppressed | suppressed | suppressed | suppressed |
+| Impact ring | yes | absent | absent | absent | absent |
+| Clash cross | absent | yes | yes | yes | absent |
+| Swing pose | stops on target | recoil | recoil | recoil | follows through |
+| Sound cue | weapon impact | `clash-shield-<weapon>` | weapon impact | weapon impact | weapon impact |
+
+A shield block now has a sound channel of its own. It is carried by four classless slots keyed to the
+attacking weapon — `clash-shield-kampilan`, `clash-shield-wasay`, `clash-shield-kalis`, and
+`clash-shield-itak` — and the matching slot replaces the weapon impact cue that a landed blow would
+have played. `ShieldBlocked` is therefore the only one of the five resolutions with a cue of its
+own; the other four still share the single weapon impact cue, as the `Sound cue` row above records.
+The two remaining clash slots, `clash-blade-hard` and `clash-blade-soft`, are deferred by owner
+decision and are not part of this contract.
+
+`Evaded` is still the weakest case: distinguished by one positive channel, the event-log line, and
+three absences. It has no sound channel of its own, because it plays the same weapon impact cue as
+`Landed`, `Parried`, and `Deflected`, so the reason it is the weakest case is unchanged.
+
+### Historical boundary
+
+**Every value in this contract is a gameplay tuning choice, not a historical measurement.** The
+weapon-intercept matrix's sixteen legacy cells and the ten cells added for the shieldless Kalis and
+Itak loadouts are all labelled **Provisional reconstruction** in `PhilippineCombatPresetV2`'s own code
+comments, naming the band each was drawn from. The shield channel is the only defensive channel with
+any sixteenth-century documentary support — anchored only in direction, by documented shield use at
+Mactan and Cole's 1922 account of angled deflection (**Documented, form uncertain**) — and its
+magnitude of 2,400 basis points is invented and stays labelled as such. No value in this section may
+be cited back into `docs/research/HISTORICAL_1500s_WEAPONS.md` or `WEAPON_CLASH_1500s.md` as a
+measurement.
+
+## 15. Performance technique inventory
+
+This section is the durable record of
+the Arch-informed performance hardening design's
+conclusions: which techniques an external research pass over the Arch entity-component-system
+library found usable in Hukbo, which are usable only with a named discipline, and which are
+forbidden and why. The design document carries the reasoning; this section carries the consequence,
+so that a future contributor who reaches for a fast ECS does not have to re-read the design document
+to know what already got decided, and does not re-derive the same argument from scratch — possibly
+wrong.
+
+### Arch is a reference implementation, not a dependency
+
+The upstream reference baseline for this inventory is
+[Arch 2.1.0](https://www.nuget.org/packages/Arch/2.1.0), reviewed on 2026-07-28
+against its [official documentation](https://github.com/genaray/arch.docs) and
+[tagged source](https://github.com/genaray/Arch/tree/v2.1.0). Revalidate claims
+about Arch before changing this inventory to follow a later release.
+
+The research pass read Arch's chunk layout, entity-location storage, query enumerators, command
+buffer, lifecycle and capacity controls, build configuration, and benchmark harness. The objective
+was to identify practices usable inside a deterministic, single-threaded, fixed-schema battle
+simulation without adopting an ECS. **This repository does not adopt Arch, does not add an archetype
+or chunk system, and takes no package dependency on Arch or any extension package.**
+
+Hukbo copies a practice only when it solves a measured local problem and preserves the stronger
+determinism rules in this document. It does not copy Arch's public API, dynamic component model,
+runtime type registry, scheduler, or persistence format. A dense integer lookup, a `ref` accessor, or
+a split data layout is a local implementation technique, not evidence that Hukbo is migrating toward
+an ECS.
+
+The required profiler evidence now exists in
+[docs/research/TICK-STAGE-PROFILE.md](docs/research/TICK-STAGE-PROFILE.md). That profile found collision
+resolution to be the dominant stage and closed the then-proposed dense identifier map, `AgentState`
+layout change, and target-selection spatial acceleration. It did **not** justify Arch, archetypes, or
+chunks. Formation and collision changes can alter that profile, so those stages must be remeasured
+before reopening a closed layout decision. Importing Arch or another ECS would still require its own
+current profile, design document, compatibility review, and deterministic-oracle benchmark.
+
+### Custom entity and memory handling contract
+
+These rules are the Arch-informed practices Hukbo actually follows:
+
+- `BattleSimulation` owns authoritative entity state. A stable `EntityId` identifies an agent;
+  an array index or physical storage slot is only an internal location and never breaks a gameplay
+  tie.
+- Authoritative iteration uses arrays or explicitly ordered collections. Hash containers are lookup
+  aids only and never define update, resolution, event, snapshot, or hash order.
+- Capacity is established from scenario size where possible. Hot-path scratch storage is reused,
+  bounded by the active simulation, and reset by logical count rather than reallocated every tick.
+  Growth must be explicit, overflow-safe, and covered by allocation tests.
+- References, spans, and storage indexes are short-lived views. They may not escape the operation
+  that obtained them or survive a resize, reset, removal, or slot move.
+- Gameplay data may be updated in place during its pinned stage. Entity creation, destruction, or
+  shape changes must be gathered and committed later in one deterministic phase. The current fixed
+  roster has no recurring structural changes, so a general command buffer would add machinery without
+  solving a present problem.
+- Scratch buffers, lookup tables, grids, render projections, and metrics are derived state. They are
+  rebuilt or cleared on reset and are excluded from snapshots and authoritative hashes.
+- Specialised memory layouts, unsafe access, pooling, parallel proposal phases, and new lookup
+  structures require measurements against the existing implementation plus the deterministic oracle.
+
+Status as of 2026-07-28:
+
+| Practice | Hukbo status | Evidence or remaining gate |
+| --- | --- | --- |
+| Stable identity separate from physical storage | Implemented | `EntityId` is the gameplay identity; ordered passes use stable identifiers for ties |
+| Reused, capacity-aware transient storage | Implemented | Simulation scratch/event storage and collision buffers are reused; allocation regression tests guard steady-state ticks |
+| Ordered iteration with lookup-only hashing | Implemented in behavior; one documentation gap remains | `_agentIndexes` is lookup-only and `AgentState[]` is iterated, but the pairing still needs the symbol-level XML comment required below |
+| Deferred structural mutation | Satisfied by the fixed-roster model | No general entity-shape mutation occurs inside authoritative passes; add a deterministic gather/commit phase before introducing any |
+| Data-oriented access patterns | Partially implemented | Stable ordered slots and preallocated stage/scratch buffers are present; `AgentState` remains a reference type, so packed component or structure-of-arrays locality is not implemented and remains measurement-gated |
+| Dense identifier map, `AgentState` layout split, target spatial index | Measured and closed | Gate A found no qualifying bottleneck; reprofile after material formation or collision changes |
+| Collision-stage optimisation | Separate active concern | The existing profile identifies collision as the dominant stage; that finding does not imply an ECS requirement |
+| Parallel authoritative queries | Deliberately omitted | Machine-dependent partitioning and completion order conflict with the pinned single-threaded schedule |
+| Arch package, archetypes, chunks, runtime component registry | Deliberately omitted | No measured need; fixed-schema Hukbo would assume new complexity and determinism risk |
+
+### Portable techniques (allowlist, not an implementation plan)
+
+The table below says whether a technique can be compatible with Hukbo. It does not say the technique is
+implemented, currently beneficial, or authorized. A closed measurement gate takes precedence over an
+entry in this allowlist.
+
+| Technique | Compatible? | Gate or discipline required |
+| --- | --- | --- |
+| Structure-of-arrays with a cache-sized block | Yes | A profile must justify the layout change; block size comes from measured cache size; integer arithmetic only, never a float |
+| Dense `int[]` index in place of a dictionary | Yes | A profile must justify the retained-memory trade; Gate A did not justify it |
+| `ref` returns instead of indexers | Yes, once a value-type agent layout exists | Not authorized by this section; depends on the `AgentState` layout change the design document assesses separately and does not authorize |
+| `MemoryMarshal.CreateSpan` / `Unsafe.Add` | Yes, once a value-type agent layout exists | Requires `AllowUnsafeBlocks`, which is absent from `Directory.Build.props` and needs its own justification, in addition to the same layout change |
+| `[SkipLocalsInit]` on hot accessors | Yes, once a value-type agent layout exists | Same dependency as the two rows above |
+| Dense identifier-to-location addressing by shift and mask | Yes | Power-of-two bucket size; `BitOperations.Log2`, never `Math.Log` or any other floating-point capacity arithmetic |
+| Hash container for lookup only, ordered collection for iteration | Yes — already the local practice | The ordered collection must be the only thing enumerated, and that separation must be documented at the symbol; see the dedicated rule below |
+| Bit-set signature matching for whole-group rejection | Yes | Fixed word order |
+| `ref struct` enumerators | Yes | Cannot be boxed or captured — which is the entire point of using one |
+| Struct callback as a generic type parameter instead of a delegate | Yes | Hand-written per tick stage; never generated |
+| Deferred structural change through a command buffer | Yes | Fixed playback phase order, one ordered pass |
+| Sparse sets for pending-flag membership | Yes | No hashing |
+| Reverse iteration | Yes, with discipline | A descending order is still a total order, but the direction must be pinned by a test; an unpinned refactor can silently move a hash |
+| Swap-remove | Yes, with discipline | Storage position must never break a tie; `EntityId` stays the sort key regardless of where an element physically sits |
+| Pooled or uninitialised buffers | Yes, with discipline | Every slot must be written before it is read, and the invariant must be documented and tested at the symbol — `CollisionResolver.Grow`'s no-copy invariant is the existing model to follow |
+
+The struct-callback row deserves a caveat beyond the table: its measured advantage over a delegate
+comes from the JIT devirtualising and inlining a struct's method call, not from any source generator.
+Hukbo has eight fixed tick stages, not an open-ended set of user-authored systems, so writing the
+shape by hand where it helps is preferable to adding a source-generator dependency, which would bring
+a build dependency, a generated-code review surface, and a new class of golden file to maintain.
+
+### The lookup-only-hash-container rule
+
+A hash container — a `Dictionary`, a `HashSet`, or any structure whose enumeration order is not
+part of its contract — may be used inside `Hukbo.Core` for lookup only. Whatever is actually iterated
+over must be a separate, ordered collection, and the separation between the two must be documented in
+an XML doc comment at the symbol that owns both. This states, as a positive construction rule rather
+than only as a prohibition, what section 4's existing determinism contract already implies: hash-set
+and dictionary iteration order may not affect gameplay. The rule here asks for more than avoiding a
+violation after the fact — it asks that the lookup-only structure and the ordered structure it defers
+to be built as a declared pair from the start.
+
+The repository already practices this in two places, one of which documents it and one of which does
+not yet. `CollisionUniformGrid` keys its cell lookup by a packed integer while the pairs it produces
+come from a separately maintained, ordered list, and the ownership and iteration contract is written
+down at the symbol. `BattleSimulation._agentIndexes` is a `Dictionary<ulong, int>` used for
+identifier-to-slot lookup only and is never enumerated; the `AgentState[]` array it indexes into is the
+thing actually iterated, in storage order. Both are legal because neither hash structure is
+enumerated, but only the grid currently states the pairing at the symbol. This is a documentation
+conformance gap, not a reason to replace the dictionary. Any future lookup-only hash container must
+state and preserve the same separation rather than leaving it as an implicit accident of current call
+sites.
+
+### Techniques deliberately not ported
+
+| Technique | Why it is forbidden here |
+| --- | --- |
+| `World.ParallelQuery`, `JobScheduler`, `[Query(Parallel = true)]` | The partitioner that splits the work does so by processor count, which makes the split machine-dependent, and the resulting chunks complete in an arbitrary order. Arch's own documentation states that a parallel query must not be called from anything but the main thread. This is non-negotiable against the single-threaded authoritative schedule the determinism contract requires |
+| Runtime component-identifier assignment | Arch's component registry hands out identifiers from an incrementing counter the first time a type is touched, via a static constructor, so the identifier a type receives depends on which type the runtime happens to touch first — and those identifiers feed the archetype signature hash. Any identifier-per-type registry adopted here would have to draw from an explicit, committed, ordered table instead, versioned exactly like an enum's numeric values already must be |
+| `QueryDescription.Equals` by hash code only | Equality decided purely by a 32-bit hash mix means a hash collision reproducibly returns the wrong entity set. That is a determinism bug wearing the appearance of a logic bug, which is the worst kind to debug because nothing about the symptom points at the cause |
+| `UnsafeArray`, `UnsafeList`, and other bounds-check-free collections | In a deterministic simulation an `IndexOutOfRangeException` is an asset, not a defect: it is a loud, reproducible failure at an exact tick that points straight at the bug. Removing the bounds check trades that loud failure for a silent out-of-bounds read, which converts a debuggable crash into a silent hash divergence discovered only much later, far from its cause |
+| The archetype and chunk machinery | This machinery pays off when component composition is dynamic and diverse across many entity kinds. A fixed-schema two-faction battle simulation gets the cache-locality win from plain parallel arrays and pays none of the archetype-transition cost, because there is no composition change to transition between |
+| `Arch.System.SourceGenerator` | The generator's measured win is the inlined struct-query call shape, and that shape is hand-writable for Hukbo's eight fixed tick stages without a code-generation dependency, so the generator buys nothing here that hand-written code does not already provide |
+| `Arch.Persistence` | It has no version field and no magic number in its envelope, its layout is fully positional MessagePack, and its own documentation requires component registration order to match exactly across the save boundary with no mechanism to detect a mismatch before deserializing wrong data into the wrong fields. It also pins `MessagePack 2.6.100-alpha`, a version carrying a known security advisory that Arch suppresses through `<NoWarn>NU1902</NoWarn>` — a suppression this repository's `Directory.Build.props` promotes to a build-breaking error instead |
+| Build flags that change behaviour | Arch ships six build configurations whose `#if PURE_ECS` and `#if EVENTS` variants change both public API surface and runtime behaviour. A build flag that changes simulation behaviour means, in effect, a separate state hash per configuration, which is a determinism hazard with no corresponding benefit here |
+
+### Snapshot version and schema requirement
+
+Section 7 already requires a snapshot envelope that records "type/version, scenario/registry hashes,
+tick, RNG identity/state, payload length/checksum, and authoritative state," and requires a
+non-destructive error for an unsupported version rather than a silent misload. This section states the
+sharper form that requirement must take once a real snapshot format is authored under Gate 3: **a
+Hukbo snapshot header must carry a preset version and a schema version as two distinct fields, and a
+mismatch on either one is a hard failure, never a warning and never a best-effort load.** The preset
+version identifies which combat ruleset produced the authoritative state being restored — the same
+versioning already required of any `CombatPresetId` change under the determinism contract in section
+4. The schema version identifies the shape of the envelope itself, independent of which preset wrote
+it. The two move independently: a schema change with no preset change means the same combat rules
+serialized in a different shape, while a preset change with no schema change means the same envelope
+shape now carrying a different ruleset. Collapsing the two into a single field loses that distinction
+and lets a stale save look compatible when it is not.
+
+This requirement answers a specific negative example rather than a hypothetical one. `Arch.Persistence`
+— the persistence add-on for the very library this section otherwise draws techniques from — has no
+version field, no magic number, and a fully positional layout that depends on component registration
+order matching exactly across the save boundary, with nothing to detect or reject a mismatch before it
+silently deserializes the wrong bytes into the wrong fields. That is precisely the failure mode this
+requirement exists to close off before Hukbo authors its own snapshot format, not after a save file has
+already demonstrated the gap.

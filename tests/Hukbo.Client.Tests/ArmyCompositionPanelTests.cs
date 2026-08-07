@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Globalization;
+using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Hukbo.Core.Combat;
 using Microsoft.Xna.Framework;
@@ -21,22 +23,22 @@ public sealed class ArmyCompositionPanelTests
     private static Hukbo.Client.Theming.UiArmyCompositionLayout
         TestArmyCompositionLayout =>
         new(
-            PanelWidth: 420,
+            PanelWidth: 640,
             PanelHeight: 648,
             RowHeight: 44,
             RowGap: 8,
-            StepperWidth: 260,
+            StepperWidth: 148,
             ArrowWidth: 44);
 
     [Fact]
     public void EveryCategoryIsOneRosterEntryOfTheActivePreset()
     {
-        // A category is a roster entry, not a weapon: preset V2 fields a solo
-        // and a shielded loadout for each one-handed weapon. Scenario
-        // validation requires RosterCounts to match the roster length exactly,
-        // so a mismatch here is a battle that refuses to start.
+        // A category is a roster entry: preset V4 fields exactly one loadout
+        // per rank, so a category and a rank coincide. Scenario validation
+        // requires RosterCounts to match the roster length exactly, so a
+        // mismatch here is a battle that refuses to start.
         var rosterLength = CombatPresetRegistry
-            .Get(CombatPresetId.PrecolonialPhilippinesV2)
+            .Get(CombatPresetId.PrecolonialPhilippinesV4)
             .Roster
             .Count;
 
@@ -48,31 +50,25 @@ public sealed class ArmyCompositionPanelTests
     }
 
     [Fact]
-    public void EveryCategoryLabelNamesItsWeaponAndItsGrip()
+    public void EveryCategoryLabelIsPairFormWithNoBareCulturalName()
     {
         var labels = ArmyCompositionPanel.CategoryLabels;
 
-        // Pair form throughout, so no label is a bare cultural name.
+        // Pair form throughout, so no label is a bare cultural name — CLAUDE.md
+        // section 7. An em dash separating a non-empty Filipino term from a
+        // non-empty English descriptor is what "pair form" means here; a bare
+        // name (no " — " at all, or nothing on either side of it) fails this.
         foreach (var label in labels)
         {
             Assert.Contains(" — ", label, StringComparison.Ordinal);
-        }
-
-        // A weapon that appears twice must say which of the two it is, or the
-        // spectator cannot tell the rows apart.
-        foreach (var group in labels.GroupBy(
-            label => label.Split(" (")[0],
-            StringComparer.Ordinal))
-        {
-            if (group.Count() == 1)
-            {
-                continue;
-            }
-
-            Assert.Contains(group, label => label.EndsWith("(solo)", StringComparison.Ordinal));
-            Assert.Contains(
-                group,
-                label => label.EndsWith("(shielded)", StringComparison.Ordinal));
+            var parts = label.Split(" — ", 2, StringSplitOptions.None);
+            Assert.Equal(2, parts.Length);
+            Assert.False(
+                string.IsNullOrWhiteSpace(parts[0]),
+                $"\"{label}\" has no cultural name before the em dash.");
+            Assert.False(
+                string.IsNullOrWhiteSpace(parts[1]),
+                $"\"{label}\" has no English descriptor after the em dash.");
         }
 
         Assert.Equal(
@@ -107,6 +103,77 @@ public sealed class ArmyCompositionPanelTests
                 $"A row ending at {bounds.Bottom} falls past the panel's " +
                 $"bottom margin at {layout.PanelBounds.Bottom - margin}.");
         }
+    }
+
+    [Fact]
+    public void EveryRowLabelFitsItsLabelBoundsUnderTheConservativeAdvanceEstimate()
+    {
+        // EveryLaidOutRowFitsInsideThePanel only checks vertical extents, so a
+        // label that overruns its own box horizontally was invisible to the
+        // suite. The combined rank+weapon pair form was measured against the
+        // shipped 640px panel and only fit the Datu row; the other three rank
+        // labels fall back to the rank pair alone (see the remarks on
+        // ArmyCompositionPanel.CategoryLabels for the measured widths). This
+        // test measures every row's label against its box directly so any
+        // future label change that overruns its box fails here instead of
+        // shipping.
+        var layout = ArmyCompositionPanel.CalculateLayout(
+            new Rectangle(0, 0, 1280, 720),
+            TestArmyCompositionLayout);
+        var advancePx = UiFontRamp.GetApproximateAdvancePx(UiFontRole.Label);
+
+        for (var index = 0; index < layout.CategoryRows.Length; index++)
+        {
+            var label = ArmyCompositionPanel.CategoryLabels[index];
+            var row = layout.CategoryRows[index];
+            Assert.True(
+                label.Length * advancePx <= row.LabelBounds.Width,
+                $"\"{label}\" needs {label.Length * advancePx}px but its " +
+                $"label box is only {row.LabelBounds.Width}px wide.");
+        }
+
+        const string unitsPerTeamLabel = "Units Per Team";
+        Assert.True(
+            unitsPerTeamLabel.Length * advancePx
+                <= layout.UnitsPerTeamRow.LabelBounds.Width,
+            $"\"{unitsPerTeamLabel}\" needs " +
+            $"{unitsPerTeamLabel.Length * advancePx}px but its label box is " +
+            $"only {layout.UnitsPerTeamRow.LabelBounds.Width}px wide.");
+    }
+
+    [Fact]
+    public void EveryValueBoxFitsTheLargestNumberTheStepperCanShow()
+    {
+        // Raising the units-per-team ceiling from 250 to 500 changes what these
+        // boxes have to display. It happens not to change how wide that is,
+        // because 500 is still three digits, and this test is what says so
+        // rather than leaving it to be noticed on screen. It does not replace
+        // the manual window-fit check: the panel's own size is theme data and
+        // is verified by EveryLaidOutRowFitsInsideThePanel and by a human
+        // looking at a real window.
+        var widest = ArmyCompositionStepper.MaximumUnitsPerTeam.ToString(
+            CultureInfo.InvariantCulture);
+        Assert.Equal(3, widest.Length);
+
+        var layout = ArmyCompositionPanel.CalculateLayout(
+            new Rectangle(0, 0, 1280, 720),
+            TestArmyCompositionLayout);
+        var advancePx = UiFontRamp.GetApproximateAdvancePx(UiFontRole.Label);
+        var requiredPx = widest.Length * advancePx;
+
+        foreach (var row in layout.CategoryRows)
+        {
+            Assert.True(
+                requiredPx <= row.ValueBounds.Width,
+                $"A category value of \"{widest}\" needs {requiredPx}px but " +
+                $"its value box is only {row.ValueBounds.Width}px wide.");
+        }
+
+        Assert.True(
+            requiredPx <= layout.UnitsPerTeamRow.ValueBounds.Width,
+            $"A units-per-team value of \"{widest}\" needs {requiredPx}px " +
+            "but its value box is only " +
+            $"{layout.UnitsPerTeamRow.ValueBounds.Width}px wide.");
     }
 
     private static IEnumerable<Rectangle> AllRowBounds(

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Hukbo.Client.Presentation;
 using Hukbo.Core.Determinism;
 using Microsoft.Xna.Framework;
 
@@ -31,7 +32,8 @@ internal readonly record struct PlainsDecal(
 /// <summary>
 /// Pure helpers for the plains battlefield backdrop: ground-grid cell
 /// boundaries and shading, and scatter-decal placement and sizing. Presentation
-/// only — see docs/plans/2026-07-27-plains-backdrop-design.md. Touches only
+/// only — see
+/// the plains backdrop design. Touches only
 /// value types, so it is fully unit tested with no graphics device.
 /// </summary>
 internal static class PlainsBackdropGeometry
@@ -213,18 +215,54 @@ internal static class PlainsBackdropGeometry
         mapBounds.Top + (int)((long)rowIndex * mapBounds.Height / rows);
 
     /// <summary>
-    /// Deterministic ground shade for one cell, hashed from the cell's
-    /// map-space column and row together with the scenario seed so a given
-    /// patch of ground keeps its shade for the whole match regardless of
-    /// camera position or zoom.
+    /// Deterministic hash for one corner-lattice point — an integer
+    /// column/row intersection shared by up to four adjacent ground cells —
+    /// mixed from the scenario seed and
+    /// <see cref="PresentationSalts.GroundCornerLatticeSalt"/>. Returns a
+    /// value in [0, 1) using the same 24-bit unit-interval conversion as
+    /// <see cref="GenerateDecals"/>. Deliberately a distinct salt from
+    /// <see cref="PresentationSalt"/> (battlefield-environment-design.md,
+    /// "Ground shading"; R-W6.2): the two streams must never correlate, and
+    /// the existing decal placement under <see cref="PresentationSalt"/>
+    /// must not shift when this stream is introduced.
+    /// </summary>
+    private static double GetCornerLatticeValue(
+        int latticeColumn,
+        int latticeRow,
+        ulong seed)
+    {
+        var combined = seed ^ PresentationSalts.GroundCornerLatticeSalt ^
+            ((ulong)(uint)latticeColumn * 0x9E3779B97F4A7C15UL) ^
+            ((ulong)(uint)latticeRow * 0xC2B2AE3D27D4EB4FUL);
+        var rng = new SplitMix64(combined);
+        return ToUnitInterval(rng.NextUInt64());
+    }
+
+    /// <summary>
+    /// Deterministic ground shade for one cell, derived from the average of
+    /// the cell's four corner-lattice hashes (battlefield-environment-
+    /// design.md, "Ground shading") rather than an independent per-cell
+    /// hash. Adjacent cells share two of their four lattice corners (the
+    /// shared edge's endpoints), so the resulting shade drifts smoothly
+    /// across neighboring cells — large tonal patches instead of per-cell
+    /// confetti — while staying a pure, allocation-free, camera-independent
+    /// function of (column, row, scenario seed) recomputable every frame.
+    /// The result still indexes <see cref="GroundShadeInterpolation"/>, so
+    /// the shade ladder and the <see cref="MaximumBackdropInterpolation"/>
+    /// ceiling are unchanged.
     /// </summary>
     internal static int GetCellShadeIndex(int column, int row, ulong seed)
     {
-        var combined = seed ^ PresentationSalt ^
-            ((ulong)(uint)column * 0x9E3779B97F4A7C15UL) ^
-            ((ulong)(uint)row * 0xC2B2AE3D27D4EB4FUL);
-        var rng = new SplitMix64(combined);
-        return (int)(rng.NextUInt64() % GroundShadeCount);
+        var topLeft = GetCornerLatticeValue(column, row, seed);
+        var topRight = GetCornerLatticeValue(column + 1, row, seed);
+        var bottomLeft = GetCornerLatticeValue(column, row + 1, seed);
+        var bottomRight = GetCornerLatticeValue(column + 1, row + 1, seed);
+        var average = (topLeft + topRight + bottomLeft + bottomRight) / 4.0;
+
+        return Math.Clamp(
+            (int)(average * GroundShadeCount),
+            0,
+            GroundShadeCount - 1);
     }
 
     private static int ComputeGridDimension(int mapExtent)

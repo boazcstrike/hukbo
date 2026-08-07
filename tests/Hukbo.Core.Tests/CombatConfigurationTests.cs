@@ -164,15 +164,16 @@ public sealed class CombatConfigurationTests
     }
 
     [Fact]
-    public void PhilippinePresetV1_ContentHashMatchesTheApprovedGoldenValue()
+    public void PhilippinePresetV1_ContentHashStaysAtTheFrozenGoldenValue()
     {
-        // Re-baselined for preset version 2. The clash tables and the version
-        // word are both folded into the content hash, so this value had to
-        // move; it was replaced only after the two content-hash behaviour
-        // tests, ContentHash_ChangesWhenAClashValueChanges and
-        // ContentHash_IsIndependentOfClashDictionaryOrder, were passing. The
-        // superseded value was 0x59FB4CA563D87A49UL.
-        Assert.Equal(0x4EAFE27A42DE87B2UL, PhilippineCombatPreset.Rules.ContentHash);
+        // D1/D2 regression guard. Preset V1 is frozen: it declares no weapon
+        // attributes and no clash profile, so neither block is folded into
+        // its content hash -- not even a zero count -- and this value must
+        // never move. If it does, the conditional fold in
+        // CombatRuleset.ComputeContentHash is broken. Preset V2 carries the
+        // clash tables instead; see
+        // PhilippineCombatIntegrationTests for its content hash.
+        Assert.Equal(0x59FB4CA563D87A49UL, PhilippineCombatPreset.Rules.ContentHash);
     }
 
     [Fact]
@@ -197,7 +198,14 @@ public sealed class CombatConfigurationTests
     [Fact]
     public void WithClashProfile_PreservesEveryFieldExceptTheProfile()
     {
-        var source = PhilippineCombatPreset.Rules;
+        // D2: the clash profile folds into the content hash only when one was
+        // supplied. PhilippineCombatPreset (V1) declares none, so the final
+        // assertion below -- round-tripping source.ClashProfile through
+        // WithClashProfile and expecting the same hash -- would turn V1's
+        // undeclared (Neutral fallback) profile into an explicitly declared
+        // one and legitimately move the hash. PhilippineCombatPresetV2
+        // already declares a profile, so the round trip changes nothing.
+        var source = PhilippineCombatPresetV2.Rules;
         var replacement = BuildDistinctClashProfile();
 
         var copy = source.WithClashProfile(replacement);
@@ -257,40 +265,49 @@ public sealed class CombatConfigurationTests
     }
 
     [Fact]
-    public void Preset_ReportsVersionTwo()
+    public void PresetV1_StaysAtVersionOne()
     {
-        // The clash tables are folded into the content hash, so the preset that
-        // carries them is a different preset version. Section 3.6 of the design
-        // keeps the preset identity and changes only its version.
-        Assert.Equal(2, PhilippineCombatPreset.Rules.Version);
+        // D1: preset V1 is frozen and carries no clash profile at all. New
+        // clash behaviour lives on PhilippineCombatPresetV2, which is what
+        // Scenario.CombatPreset defaults to.
+        Assert.Equal(1, PhilippineCombatPreset.Rules.Version);
+        Assert.Same(ClashProfile.Neutral, PhilippineCombatPreset.Rules.ClashProfile);
     }
 
     [Fact]
-    public void Ruleset_DeclaresNonDefaultClashDataForEveryWeaponAndShield()
+    public void PresetV2_DeclaresNonDefaultClashDataForEveryRosterLoadout()
     {
         // Non-zero, not merely present. ClashProfile.Neutral is a complete
         // all-zero profile that answers every accessor, so a presence check
-        // would pass against it and prove nothing.
-        var profile = PhilippineCombatPreset.Rules.ClashProfile;
+        // would pass against it and prove nothing. Iterated over the actual
+        // six-loadout roster rather than the bare WeaponId enum, because D3
+        // keys the weapon-intercept and void tables on (weapon, shield) and a
+        // solo and a shield-paired loadout of the same weapon carry
+        // materially different values.
+        var rules = PhilippineCombatPresetV2.Rules;
+        var profile = rules.ClashProfile;
 
-        foreach (var defender in Enum.GetValues<WeaponId>())
+        foreach (var defender in rules.Roster)
         {
             Assert.True(
-                profile.ResolveVoid(defender) > 0,
-                $"The void channel for defender {defender} is zero.");
+                profile.ResolveVoid(defender.Weapon, defender.Shield) > 0,
+                $"The void channel for defender {defender.Weapon}/{defender.Shield} is zero.");
             Assert.True(
-                profile.ResolveHardShareBase(defender) > 0,
-                $"The hard-share base for attacker {defender} is zero.");
+                profile.ResolveHardShareBase(defender.Weapon) > 0,
+                $"The hard-share base for attacker {defender.Weapon} is zero.");
             Assert.True(
-                profile.ResolveHardShareMultiplier(defender) > 0,
-                $"The hard-share multiplier for defender {defender} is zero.");
+                profile.ResolveHardShareMultiplier(defender.Weapon) > 0,
+                $"The hard-share multiplier for defender {defender.Weapon} is zero.");
 
-            foreach (var attacker in Enum.GetValues<WeaponId>())
+            foreach (var attacker in rules.Roster)
             {
                 Assert.True(
-                    profile.ResolveWeaponIntercept(defender, attacker) > 0,
-                    $"The weapon-intercept cell for defender {defender} " +
-                    $"against attacker {attacker} is zero.");
+                    profile.ResolveWeaponIntercept(
+                        defender.Weapon,
+                        defender.Shield,
+                        attacker.Weapon) > 0,
+                    $"The weapon-intercept cell for defender {defender.Weapon}/" +
+                    $"{defender.Shield} against attacker {attacker.Weapon} is zero.");
             }
         }
 
@@ -305,63 +322,79 @@ public sealed class CombatConfigurationTests
     }
 
     /// <summary>
-    /// All thirty-two shipped tuning values, pinned one row each. Nothing else
-    /// in the plan constrains a transcription error: the naive-reference sweep
-    /// compares two implementations reading the <em>same</em> profile, so a
-    /// wrong digit in any matrix cell is invisible to it.
+    /// The shipped tuning values for preset V2, pinned one row each against
+    /// the three-part (defender weapon, defender shield, attacker weapon) key.
+    /// Nothing else in the plan constrains a transcription error: the
+    /// naive-reference sweep compares two implementations reading the
+    /// <em>same</em> profile, so a wrong digit in any matrix cell is invisible
+    /// to it.
     /// </summary>
     /// <remarks>
     /// <b>PROVISIONAL.</b> Every value here is a gameplay tuning choice, not a
-    /// historical measurement. The research is explicit that all sixteen cells
-    /// of the weapon-intercept matrix have no evidentiary confidence whatsoever;
-    /// only their relative ordering is argued, and weakly.
+    /// historical measurement. The research is explicit that the sixteen
+    /// legacy cells of the weapon-intercept matrix have no evidentiary
+    /// confidence whatsoever; only their relative ordering is argued, and
+    /// weakly. The ten new cells (shieldless Kalis and shieldless Itak) are
+    /// likewise provisional reconstructions; see
+    /// PhilippineCombatPresetV2.BuildClashProfile.
     /// </remarks>
     [Theory]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kampilan, WeaponId.Kampilan, 2_200)]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kampilan, WeaponId.Wasay, 1_900)]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kampilan, WeaponId.Kalis, 1_600)]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kampilan, WeaponId.Itak, 2_000)]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Wasay, WeaponId.Kampilan, 1_500)]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Wasay, WeaponId.Wasay, 1_300)]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Wasay, WeaponId.Kalis, 1_100)]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Wasay, WeaponId.Itak, 1_400)]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kalis, WeaponId.Kampilan, 500)]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kalis, WeaponId.Wasay, 400)]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kalis, WeaponId.Kalis, 600)]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kalis, WeaponId.Itak, 600)]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Itak, WeaponId.Kampilan, 400)]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Itak, WeaponId.Wasay, 300)]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Itak, WeaponId.Kalis, 500)]
-    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Itak, WeaponId.Itak, 500)]
-    [InlineData(ClashValueKind.ShieldIntercept, WeaponId.Kampilan, WeaponId.Kampilan, 2_400)]
-    [InlineData(ClashValueKind.Void, WeaponId.Kampilan, WeaponId.Kampilan, 1_000)]
-    [InlineData(ClashValueKind.Void, WeaponId.Wasay, WeaponId.Kampilan, 900)]
-    [InlineData(ClashValueKind.Void, WeaponId.Kalis, WeaponId.Kampilan, 1_000)]
-    [InlineData(ClashValueKind.Void, WeaponId.Itak, WeaponId.Kampilan, 1_100)]
-    [InlineData(ClashValueKind.HardShareBase, WeaponId.Kampilan, WeaponId.Kampilan, 3_300)]
-    [InlineData(ClashValueKind.HardShareBase, WeaponId.Kampilan, WeaponId.Wasay, 4_000)]
-    [InlineData(ClashValueKind.HardShareBase, WeaponId.Kampilan, WeaponId.Kalis, 1_200)]
-    [InlineData(ClashValueKind.HardShareBase, WeaponId.Kampilan, WeaponId.Itak, 1_800)]
-    [InlineData(ClashValueKind.HardShareMultiplier, WeaponId.Kampilan, WeaponId.Kampilan, 1_150)]
-    [InlineData(ClashValueKind.HardShareMultiplier, WeaponId.Wasay, WeaponId.Kampilan, 1_050)]
-    [InlineData(ClashValueKind.HardShareMultiplier, WeaponId.Kalis, WeaponId.Kampilan, 750)]
-    [InlineData(ClashValueKind.HardShareMultiplier, WeaponId.Itak, WeaponId.Kampilan, 700)]
-    [InlineData(ClashValueKind.MinimumHardShare, WeaponId.Kampilan, WeaponId.Kampilan, 500)]
-    [InlineData(ClashValueKind.MaximumHardShare, WeaponId.Kampilan, WeaponId.Kampilan, 6_000)]
-    [InlineData(ClashValueKind.MaximumInterception, WeaponId.Kampilan, WeaponId.Kampilan, 5_500)]
-    public void Preset_UsesApprovedClashValues(
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kampilan, ShieldId.None, WeaponId.Kampilan, 2_200)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kampilan, ShieldId.None, WeaponId.Wasay, 1_900)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kampilan, ShieldId.None, WeaponId.Kalis, 1_600)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kampilan, ShieldId.None, WeaponId.Itak, 2_000)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Wasay, ShieldId.None, WeaponId.Kampilan, 1_500)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Wasay, ShieldId.None, WeaponId.Wasay, 1_300)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Wasay, ShieldId.None, WeaponId.Kalis, 1_100)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Wasay, ShieldId.None, WeaponId.Itak, 1_400)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Kampilan, 500)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Wasay, 400)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Kalis, 600)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Itak, 600)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Kampilan, 400)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Wasay, 300)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Kalis, 500)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Itak, 500)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kalis, ShieldId.None, WeaponId.Kampilan, 1_200)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kalis, ShieldId.None, WeaponId.Wasay, 1_000)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kalis, ShieldId.None, WeaponId.Kalis, 1_500)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Kalis, ShieldId.None, WeaponId.Itak, 1_500)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Itak, ShieldId.None, WeaponId.Kampilan, 1_100)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Itak, ShieldId.None, WeaponId.Wasay, 1_000)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Itak, ShieldId.None, WeaponId.Kalis, 1_400)]
+    [InlineData(ClashValueKind.WeaponIntercept, WeaponId.Itak, ShieldId.None, WeaponId.Itak, 1_400)]
+    [InlineData(ClashValueKind.ShieldIntercept, WeaponId.Kampilan, ShieldId.None, WeaponId.Kampilan, 2_400)]
+    [InlineData(ClashValueKind.Void, WeaponId.Kampilan, ShieldId.None, WeaponId.Kampilan, 1_000)]
+    [InlineData(ClashValueKind.Void, WeaponId.Wasay, ShieldId.None, WeaponId.Kampilan, 900)]
+    [InlineData(ClashValueKind.Void, WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Kampilan, 1_000)]
+    [InlineData(ClashValueKind.Void, WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Kampilan, 1_100)]
+    [InlineData(ClashValueKind.Void, WeaponId.Kalis, ShieldId.None, WeaponId.Kampilan, 1_350)]
+    [InlineData(ClashValueKind.Void, WeaponId.Itak, ShieldId.None, WeaponId.Kampilan, 1_450)]
+    [InlineData(ClashValueKind.HardShareBase, WeaponId.Kampilan, ShieldId.None, WeaponId.Kampilan, 3_300)]
+    [InlineData(ClashValueKind.HardShareBase, WeaponId.Kampilan, ShieldId.None, WeaponId.Wasay, 4_000)]
+    [InlineData(ClashValueKind.HardShareBase, WeaponId.Kampilan, ShieldId.None, WeaponId.Kalis, 1_200)]
+    [InlineData(ClashValueKind.HardShareBase, WeaponId.Kampilan, ShieldId.None, WeaponId.Itak, 1_800)]
+    [InlineData(ClashValueKind.HardShareMultiplier, WeaponId.Kampilan, ShieldId.None, WeaponId.Kampilan, 1_150)]
+    [InlineData(ClashValueKind.HardShareMultiplier, WeaponId.Wasay, ShieldId.None, WeaponId.Kampilan, 1_050)]
+    [InlineData(ClashValueKind.HardShareMultiplier, WeaponId.Kalis, ShieldId.None, WeaponId.Kampilan, 750)]
+    [InlineData(ClashValueKind.HardShareMultiplier, WeaponId.Itak, ShieldId.None, WeaponId.Kampilan, 700)]
+    [InlineData(ClashValueKind.MinimumHardShare, WeaponId.Kampilan, ShieldId.None, WeaponId.Kampilan, 500)]
+    [InlineData(ClashValueKind.MaximumHardShare, WeaponId.Kampilan, ShieldId.None, WeaponId.Kampilan, 6_000)]
+    [InlineData(ClashValueKind.MaximumInterception, WeaponId.Kampilan, ShieldId.None, WeaponId.Kampilan, 5_500)]
+    public void PresetV2_UsesApprovedClashValues(
         ClashValueKind kind,
         WeaponId defenderWeapon,
+        ShieldId defenderShield,
         WeaponId attackerWeapon,
         int expected)
     {
-        var profile = PhilippineCombatPreset.Rules.ClashProfile;
+        var profile = PhilippineCombatPresetV2.Rules.ClashProfile;
         var actual = kind switch
         {
             ClashValueKind.WeaponIntercept =>
-                profile.ResolveWeaponIntercept(defenderWeapon, attackerWeapon),
+                profile.ResolveWeaponIntercept(defenderWeapon, defenderShield, attackerWeapon),
             ClashValueKind.ShieldIntercept => profile.ShieldInterceptBasisPoints,
-            ClashValueKind.Void => profile.ResolveVoid(defenderWeapon),
+            ClashValueKind.Void => profile.ResolveVoid(defenderWeapon, defenderShield),
             ClashValueKind.HardShareBase =>
                 profile.ResolveHardShareBase(attackerWeapon),
             ClashValueKind.HardShareMultiplier =>
@@ -375,20 +408,23 @@ public sealed class CombatConfigurationTests
     }
 
     /// <summary>
-    /// The cheapest possible check that the tables were entered as designed: the
-    /// four row means of the total-interception matrix in design section 3.3.
+    /// The cheapest possible check that the six roster loadouts' tables were
+    /// entered as designed: the row means of the total-interception matrix,
+    /// keyed by (defender weapon, defender shield).
     /// </summary>
     [Theory]
     [InlineData(WeaponId.Kampilan, ShieldId.None, 2_925)]
     [InlineData(WeaponId.Wasay, ShieldId.None, 2_225)]
     [InlineData(WeaponId.Kalis, ShieldId.TallHardwood, 3_925)]
     [InlineData(WeaponId.Itak, ShieldId.TallHardwood, 3_925)]
-    public void Preset_RowMeansMatchTheDesignedTotalInterceptionMatrix(
+    [InlineData(WeaponId.Kalis, ShieldId.None, 2_650)]
+    [InlineData(WeaponId.Itak, ShieldId.None, 2_675)]
+    public void PresetV2_RowMeansMatchTheDesignedTotalInterceptionMatrix(
         WeaponId defenderWeapon,
         ShieldId defenderShield,
         int expectedMean)
     {
-        var profile = PhilippineCombatPreset.Rules.ClashProfile;
+        var profile = PhilippineCombatPresetV2.Rules.ClashProfile;
         var attackers = Enum.GetValues<WeaponId>();
         var total = 0;
 
@@ -396,8 +432,8 @@ public sealed class CombatConfigurationTests
         {
             total +=
                 profile.ResolveShieldIntercept(defenderShield) +
-                profile.ResolveWeaponIntercept(defenderWeapon, attacker) +
-                profile.ResolveVoid(defenderWeapon);
+                profile.ResolveWeaponIntercept(defenderWeapon, defenderShield, attacker) +
+                profile.ResolveVoid(defenderWeapon, defenderShield);
         }
 
         // Compared as a sum so that an exact expectation is possible without
@@ -429,9 +465,91 @@ public sealed class CombatConfigurationTests
         // fact the same configuration.
         var preset = PhilippineCombatPreset.Rules;
         var ascending = preset.WithClashProfile(
-            BuildOrderedClashProfile(reversed: false));
+            BuildThreePartKeyedClashProfile(reversed: false));
         var descending = preset.WithClashProfile(
-            BuildOrderedClashProfile(reversed: true));
+            BuildThreePartKeyedClashProfile(reversed: true));
+
+        Assert.Equal(ascending.ContentHash, descending.ContentHash);
+    }
+
+    /// <summary>
+    /// T41A / D3.1. Proves the fold reduced from D3's re-key still
+    /// distinguishes a shielded defender from a bare one, and that it stays
+    /// independent of dictionary insertion order for the three-part key.
+    /// Without this case the T13A hole -- <see cref="CombatRuleset.FoldClashProfile"/>
+    /// dropping <c>DefenderShield</c> from the folded bytes -- reopens the
+    /// first time somebody "simplifies" the comparator, and two profiles
+    /// differing only in whether one cell describes a shielded or a bare
+    /// defender would hash identically: a save or replay would then accept a
+    /// materially different configuration as the same one.
+    /// </summary>
+    [Fact]
+    public void ContentHash_DistinguishesAShieldedDefenderCellFromABareDefenderCell()
+    {
+        var preset = PhilippineCombatPreset.Rules;
+        var shieldedDefenderCell = preset.WithClashProfile(
+            BuildSingleCellClashProfile(
+                defenderShield: ShieldId.TallHardwood,
+                matrixCell: 1_234));
+        var bareDefenderCell = preset.WithClashProfile(
+            BuildSingleCellClashProfile(
+                defenderShield: ShieldId.None,
+                matrixCell: 1_234));
+
+        Assert.NotEqual(shieldedDefenderCell.ContentHash, bareDefenderCell.ContentHash);
+    }
+
+    /// <summary>
+    /// T41A / D3.1, the insertion-order half. Same three-part-keyed cells,
+    /// supplied to the dictionary in two different orders, must hash
+    /// identically.
+    /// </summary>
+    [Fact]
+    public void ContentHash_IsIndependentOfInsertionOrderForTheThreePartKey()
+    {
+        var preset = PhilippineCombatPreset.Rules;
+        var forward = preset.WithClashProfile(
+            BuildThreePartKeyedClashProfile(reversed: false));
+        var reversedOrder = preset.WithClashProfile(
+            BuildThreePartKeyedClashProfile(reversed: true));
+
+        Assert.Equal(forward.ContentHash, reversedOrder.ContentHash);
+    }
+
+    [Fact]
+    public void RankLevels_RejectsALevelBelowOne()
+    {
+        Assert.Throws<ArgumentException>(
+            () => BuildRulesetWithRankLevels(
+                new Dictionary<RankId, int> { [RankId.Timawa] = 0 }));
+    }
+
+    [Fact]
+    public void RankLevels_RejectsARosterRankWithNoDeclaredLevel()
+    {
+        Assert.Throws<ArgumentException>(
+            () => BuildRulesetWithRankLevels(
+                new Dictionary<RankId, int> { [RankId.Datu] = 3 },
+                rosterRank: RankId.Timawa));
+    }
+
+    [Fact]
+    public void ContentHash_IsIndependentOfRankLevelDictionaryOrder()
+    {
+        // R4's load-bearing determinism check: identical rank-level data
+        // supplied in opposite key order must hash identically, exactly as
+        // the clash-profile and weapon-attribute dictionaries above already
+        // require.
+        var ascending = BuildRulesetWithRankLevels(new Dictionary<RankId, int>
+        {
+            [RankId.Datu] = 3,
+            [RankId.Timawa] = 2,
+        });
+        var descending = BuildRulesetWithRankLevels(new Dictionary<RankId, int>
+        {
+            [RankId.Timawa] = 2,
+            [RankId.Datu] = 3,
+        });
 
         Assert.Equal(ascending.ContentHash, descending.ContentHash);
     }
@@ -632,19 +750,81 @@ public sealed class CombatConfigurationTests
     }
 
     /// <summary>
+    /// A single-weapon ruleset like <see cref="BuildMinimalRuleset"/> above,
+    /// but declaring <paramref name="rankLevels"/> and fielding
+    /// <paramref name="rosterRank"/> on its one roster entry, for the
+    /// rank-level validation and content-hash tests.
+    /// </summary>
+    private static CombatRuleset BuildRulesetWithRankLevels(
+        IReadOnlyDictionary<RankId, int> rankLevels,
+        RankId rosterRank = RankId.Timawa)
+    {
+        var uniformEntries = Enum.GetValues<BodyPart>()
+            .Select(part => (part, 5))
+            .ToArray();
+        var uniformMultiplierEntries = Enum.GetValues<BodyPart>()
+            .Select(part => (part, 1_000))
+            .ToArray();
+
+        var general = new TargetWeightProfile(uniformEntries);
+        var weaponProfile = new TargetWeightProfile(uniformEntries);
+        var shieldProfile = new TargetWeightProfile(uniformMultiplierEntries);
+
+        return new CombatRuleset(
+            CombatPresetId.PrecolonialPhilippinesV1,
+            version: 1,
+            generalTargets: general,
+            weaponTargets: new Dictionary<WeaponId, TargetWeightProfile>
+            {
+                [WeaponId.Kampilan] = weaponProfile,
+            },
+            armors: [ArmorId.LightOrganic],
+            shieldMultipliers: new Dictionary<ShieldId, TargetWeightProfile>
+            {
+                [ShieldId.None] = shieldProfile,
+            },
+            roster:
+            [
+                new CombatLoadout(
+                    WeaponId.Kampilan,
+                    ArmorId.LightOrganic,
+                    ShieldId.None,
+                    rosterRank),
+            ],
+            rankLevels: rankLevels);
+    }
+
+    /// <summary>
     /// A profile whose tables are uniform apart from one matrix cell value, so
     /// two calls differing only in <paramref name="matrixCell"/> differ in
-    /// exactly sixteen folded words and nothing else.
+    /// exactly one folded cell and nothing else. Every (weapon, shield,
+    /// weapon) triple is populated, which is a superset of any roster's
+    /// coverage requirement.
     /// </summary>
     private static ClashProfile BuildUniformClashProfile(int matrixCell)
     {
         var weapons = Enum.GetValues<WeaponId>();
-        var matrix = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>();
+        var shields = Enum.GetValues<ShieldId>();
+
+        var matrix = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>();
         foreach (var defender in weapons)
         {
-            foreach (var attacker in weapons)
+            foreach (var defenderShield in shields)
             {
-                matrix[(defender, attacker)] = matrixCell;
+                foreach (var attacker in weapons)
+                {
+                    matrix[(defender, defenderShield, attacker)] = matrixCell;
+                }
+            }
+        }
+
+        var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>();
+        foreach (var weapon in weapons)
+        {
+            foreach (var shield in shields)
+            {
+                voidChannel[(weapon, shield)] = 500;
             }
         }
 
@@ -653,7 +833,7 @@ public sealed class CombatConfigurationTests
         return new ClashProfile(
             matrix,
             shieldIntercept: 2_400,
-            voidChannel: rows,
+            voidChannel: voidChannel,
             hardShareBases: rows,
             hardShareMultipliers: rows,
             minimumHardShareBasisPoints: 500,
@@ -662,33 +842,103 @@ public sealed class CombatConfigurationTests
     }
 
     /// <summary>
-    /// One set of clash values supplied to the constructor in ascending or
-    /// descending key order. The two profiles are equal in content and differ
-    /// only in the order the dictionaries were populated.
+    /// T41A. A full cross-product profile uniform at 500 everywhere, except
+    /// one weapon-intercept cell for defender Kalis against attacker Kampilan,
+    /// which is set to <paramref name="matrixCell"/> under
+    /// <paramref name="defenderShield"/>. Two calls with the same
+    /// <paramref name="matrixCell"/> but a different
+    /// <paramref name="defenderShield"/> are identical in every other cell, so
+    /// a hash difference between them proves the fold folds the defender's
+    /// shield rather than dropping it.
     /// </summary>
-    private static ClashProfile BuildOrderedClashProfile(bool reversed)
+    private static ClashProfile BuildSingleCellClashProfile(
+        ShieldId defenderShield,
+        int matrixCell)
+    {
+        var profile = BuildUniformClashProfile(500);
+        var weapons = Enum.GetValues<WeaponId>();
+        var shields = Enum.GetValues<ShieldId>();
+
+        var matrix = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>();
+        foreach (var defender in weapons)
+        {
+            foreach (var shield in shields)
+            {
+                foreach (var attacker in weapons)
+                {
+                    matrix[(defender, shield, attacker)] =
+                        defender == WeaponId.Kalis &&
+                            shield == defenderShield &&
+                            attacker == WeaponId.Kampilan
+                            ? matrixCell
+                            : 500;
+                }
+            }
+        }
+
+        var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>();
+        foreach (var weapon in weapons)
+        {
+            foreach (var shield in shields)
+            {
+                voidChannel[(weapon, shield)] = 500;
+            }
+        }
+
+        var rows = weapons.ToDictionary(weapon => weapon, _ => 500);
+
+        return new ClashProfile(
+            matrix,
+            shieldIntercept: 2_400,
+            voidChannel: voidChannel,
+            hardShareBases: rows,
+            hardShareMultipliers: rows,
+            minimumHardShareBasisPoints: 500,
+            maximumHardShareBasisPoints: 6_000,
+            maximumInterceptionBasisPoints: 5_500);
+    }
+
+    /// <summary>
+    /// One set of clash values, keyed by the full three-part
+    /// (defender weapon, defender shield, attacker weapon) key, supplied to
+    /// the constructor in ascending or descending key order. The two profiles
+    /// are equal in content and differ only in the order the dictionaries
+    /// were populated.
+    /// </summary>
+    private static ClashProfile BuildThreePartKeyedClashProfile(bool reversed)
     {
         var weapons = Enum.GetValues<WeaponId>().OrderBy(weapon => (int)weapon).ToArray();
+        var shields = Enum.GetValues<ShieldId>().OrderBy(shield => (int)shield).ToArray();
         if (reversed)
         {
             weapons = [.. weapons.Reverse()];
+            shields = [.. shields.Reverse()];
         }
 
-        var matrix = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>();
-        var voidChannel = new Dictionary<WeaponId, int>();
+        var matrix = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>();
+        var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>();
         var hardShareBases = new Dictionary<WeaponId, int>();
         var hardShareMultipliers = new Dictionary<WeaponId, int>();
 
         foreach (var defender in weapons)
         {
-            voidChannel[defender] = 900 + (int)defender;
             hardShareBases[defender] = 1_200 + (int)defender;
             hardShareMultipliers[defender] = 700 + (int)defender;
 
-            foreach (var attacker in weapons)
+            foreach (var defenderShield in shields)
             {
-                matrix[(defender, attacker)] =
-                    (((int)defender * 10) + (int)attacker) * 10;
+                voidChannel[(defender, defenderShield)] =
+                    900 + ((int)defender * 10) + (int)defenderShield;
+
+                foreach (var attacker in weapons)
+                {
+                    matrix[(defender, defenderShield, attacker)] =
+                        ((int)defender * 1_000) +
+                        ((int)defenderShield * 100) +
+                        ((int)attacker * 10);
+                }
             }
         }
 
@@ -711,12 +961,27 @@ public sealed class CombatConfigurationTests
     private static ClashProfile BuildDistinctClashProfile()
     {
         var weapons = Enum.GetValues<WeaponId>();
-        var matrix = new Dictionary<(WeaponId Defender, WeaponId Attacker), int>();
+        var shields = Enum.GetValues<ShieldId>();
+
+        var matrix = new Dictionary<
+            (WeaponId Defender, ShieldId DefenderShield, WeaponId Attacker), int>();
         foreach (var defender in weapons)
         {
-            foreach (var attacker in weapons)
+            foreach (var defenderShield in shields)
             {
-                matrix[(defender, attacker)] = 100 + (int)attacker;
+                foreach (var attacker in weapons)
+                {
+                    matrix[(defender, defenderShield, attacker)] = 100 + (int)attacker;
+                }
+            }
+        }
+
+        var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>();
+        foreach (var weapon in weapons)
+        {
+            foreach (var shield in shields)
+            {
+                voidChannel[(weapon, shield)] = 100 + (int)weapon;
             }
         }
 
@@ -725,7 +990,7 @@ public sealed class CombatConfigurationTests
         return new ClashProfile(
             weaponIntercept: matrix,
             shieldIntercept: 1_111,
-            voidChannel: rows,
+            voidChannel: voidChannel,
             hardShareBases: rows,
             hardShareMultipliers: rows,
             minimumHardShareBasisPoints: 500,

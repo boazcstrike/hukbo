@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 
 namespace Hukbo.Core.Simulation;
 
@@ -53,9 +54,49 @@ public sealed record Scenario(
     /// The combat ruleset this battle is fought under. Defaults to the
     /// newest preset; earlier ones stay registered and unmodified so a
     /// replay recorded against one remains reproducible by naming it here.
+    /// The shipped default has moved on from
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV2"/> to
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV4"/>, the preset that
+    /// assigns each roster entry a <see cref="RankId"/> and a per-rank
+    /// fighter level, so a spectator's default battle now carries the
+    /// visible rank the composition panel and agent inspector present.
+    /// <c>PrecolonialPhilippinesV1</c>, <c>V2</c>, and <c>V3</c> all stay
+    /// registered and byte-identical for a replay that names one of them
+    /// explicitly.
     /// </summary>
     public CombatPresetId CombatPreset { get; init; } =
-        CombatPresetId.PrecolonialPhilippinesV2;
+        CombatPresetId.PrecolonialPhilippinesV4;
+
+    /// <summary>
+    /// The movement preset this battle is fought under. Defaults to the
+    /// newest preset; earlier ones stay registered and unmodified so a
+    /// replay recorded against one remains reproducible by naming it here.
+    /// Task T6 of the contingent close-latch plan
+    /// flipped the shipped default from <see cref="MovementPresetId.PersistentContingentsV2"/>
+    /// to <see cref="MovementPresetId.PersistentContingentsV3"/> -- the
+    /// rule-3 close latch and the contact-count denominator that plan
+    /// landed. The shipped default has since moved on again, to
+    /// <see cref="MovementPresetId.PersistentContingentsV4"/>, which narrows
+    /// movement gate 6's cross-contingent scan to contingents that could
+    /// actually be granted cohesion -- the remedy design section 3.5
+    /// pre-analysed and section 13 question 8 reserved for the user, adopted
+    /// after section 10.3's inertness bar failed on seed 11 with chain denial
+    /// established as the cause. <c>PersistentContingentsV2</c> and
+    /// <c>PersistentContingentsV3</c> both stay registered and byte-identical
+    /// for a replay that names one of them explicitly.
+    /// </summary>
+    public MovementPresetId MovementPreset { get; init; } =
+        MovementPresetId.PersistentContingentsV4;
+
+    /// <summary>
+    /// Every warrior's level, until a leveling system exists. Set once, at
+    /// spawn, onto <see cref="AgentState.Level"/> and never mutated
+    /// afterward. Bounds an active attack combination's maximum length
+    /// alongside <see cref="Combat.WeaponProfile.ComboMaxSteps"/> — see
+    /// <c>BattleSimulation.GatherAndCommitAttacks</c>. Must be at least
+    /// <c>1</c>.
+    /// </summary>
+    public int PlaceholderFighterLevel { get; init; } = 1;
 
     /// <summary>
     /// Per-battle warrior counts, one entry per roster index in
@@ -108,6 +149,8 @@ public sealed record Scenario(
             CollisionPolicy == other.CollisionPolicy &&
             LastStandThresholdAgents == other.LastStandThresholdAgents &&
             CombatPreset == other.CombatPreset &&
+            MovementPreset == other.MovementPreset &&
+            PlaceholderFighterLevel == other.PlaceholderFighterLevel &&
             RosterCountsSpan.SequenceEqual(other.RosterCountsSpan);
     }
 
@@ -130,6 +173,8 @@ public sealed record Scenario(
         hash.Add(CollisionPolicy);
         hash.Add(LastStandThresholdAgents);
         hash.Add(CombatPreset);
+        hash.Add(MovementPreset);
+        hash.Add(PlaceholderFighterLevel);
         foreach (var count in RosterCountsSpan)
         {
             hash.Add(count);
@@ -205,12 +250,26 @@ public sealed record Scenario(
             MaximumTickLimit,
             nameof(AttackCooldownTicks));
 
+        ValidateInRange(
+            PlaceholderFighterLevel,
+            1,
+            MaximumCombatValue,
+            nameof(PlaceholderFighterLevel));
+
         if (!CombatPresetRegistry.IsRegistered(CombatPreset))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(CombatPreset),
                 CombatPreset,
                 "Combat preset must be a registered value.");
+        }
+
+        if (!MovementPresetRegistry.IsRegistered(MovementPreset))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(MovementPreset),
+                MovementPreset,
+                "Movement preset must be a registered value.");
         }
 
         if (!RosterCounts.IsDefaultOrEmpty)
@@ -284,6 +343,40 @@ public sealed record Scenario(
                 "Body radius is too large: with the last stand enabled, the " +
                 "rally jitter span (8 * BodyRadiusRaw + 1) would overflow " +
                 "Int32.");
+        }
+
+        // A contingent can in principle hold every living member of a
+        // faction, so AgentsPerFaction is the worst-case living headcount
+        // the persistent-contingent cohesion path could ever compute a
+        // jitter and trail for. Checked here, up front, rather than left to
+        // throw from inside a tick the first time a contingent actually
+        // reaches that size.
+        if (!FormationRules.IsBodyRadiusWithinContingentJitterRange(
+            BodyRadiusRaw,
+            AgentsPerFaction))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(BodyRadiusRaw),
+                BodyRadiusRaw,
+                "Body radius is too large: the worst-case contingent jitter " +
+                "(BodyRadiusRaw * (IntegerSquareRoot(4 * AgentsPerFaction) + " +
+                "1)) would overflow Int32.");
+        }
+
+        var worstCaseContingentJitterRaw = FormationRules.ComputeContingentJitterRaw(
+            BodyRadiusRaw,
+            AgentsPerFaction);
+
+        if (!FormationRules.IsBodyRadiusWithinContingentTrailRange(
+            BodyRadiusRaw,
+            worstCaseContingentJitterRaw))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(BodyRadiusRaw),
+                BodyRadiusRaw,
+                "Body radius is too large: the worst-case contingent trail " +
+                "distance (((3 * jitterRaw + 1) / 2) + (3 * BodyRadiusRaw)) " +
+                "would overflow Int32.");
         }
 
         _ = checked(AgentsPerFaction * 2);

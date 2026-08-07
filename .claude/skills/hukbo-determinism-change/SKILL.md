@@ -16,8 +16,10 @@ They fail independently. Know which one moved before diagnosing.
 
 The event hash folds exactly these fields per event, in this order:
 `Sequence`, `Tick`, `Kind`, `SourceEntityId`, `TargetEntityId ?? 0`, `Value`,
-`FactionId`, `Weapon`, and `HitLocation` (with `ulong.MaxValue` as the null
-sentinel for `FactionId`, `Weapon`, and `HitLocation`).
+`FactionId`, `Weapon`, `Shield`, `HitLocation`, and `Resolution` (with
+`ulong.MaxValue` as the null sentinel for `FactionId`, `Weapon`, `Shield`,
+`HitLocation`, and `Resolution`). `Shield` and `Resolution` were added by the
+weapon-clash-on-preset-V2 integration; see the recorded baseline below.
 
 Consequence: **reordering or renumbering `BattleEvent` fields or `Kind` values
 moves the event hash without touching a single unit of state.** Adding an event
@@ -64,25 +66,60 @@ Related rules from `CLAUDE.md` §5 that cause most real failures:
 
 ## Recorded baseline
 
-From `docs/development/testing.md`, seed 1, 200 agents, one final verified run of
-the weapon identity and attributes change (combat preset V2):
+`docs/development/testing.md` is the source of truth for this baseline. It moves every time a task
+re-records it and this skill file is a periodic snapshot copied from it; if the two ever disagree,
+believe `docs/development/testing.md`, not the table below.
+
+From `docs/development/testing.md`'s record of T6 in
+the contingent close-latch plan, seed 1, 200 agents, run after T6 flipped
+`Scenario.MovementPreset`'s shipped default from `PersistentContingentsV2` to
+`PersistentContingentsV3`:
 
 | Field | Value |
 | --- | --- |
-| Outcome | `Faction0Victory` at tick 1209 |
-| State hash | `C669281B67CF8871` |
-| Event hash | `CF8C3EDBC59C3319` |
-| Allocated | 66,391,224 bytes |
+| Outcome | `Faction1Victory` at tick 1334 (`faction0Survivors 0`, `faction1Survivors 1`) |
+| State hash | `0682C6BCED57224D` |
+| Event hash | `C0379769F4483553` |
+| Allocated | 461,888 bytes (`coreAllocatedBytes 118896`) |
 
-The 500-agent stress workload, report only, from the same build:
-`Faction1Victory` with 0 faction-0 and 7 faction-1 survivors, state hash
-`DA4AA823020FAB3C`, event hash `B6FA93AB66696485`, deterministic with no
-mismatch tick.
+**This supersedes the `PersistentContingentsV2` pair — `Faction0Victory` at tick 1064
+(`faction0Survivors 8`, `faction1Survivors 0`), state hash `C79B76AE81C300CB`, event hash
+`8E819FF7B378FEFD`**, which was the seed-1, 200-agent baseline before this workstream (T1 through
+T9 of the contingent close-latch plan) flipped the shipped default. The hashes,
+outcome, and survivor counts all moved because transition rule 3 of the contingent state machine
+now counts members in contact instead of taking a minimum distance, and `PersistentContingentsV3`
+is the first registered preset to carry a non-zero close fraction (`1, 2`) rather than the `(0, 1)`
+every other preset still carries — a real behaviour change, not a representational one. A replay
+run with `-MovementPreset PersistentContingentsV2` named explicitly still reproduces the older,
+frozen pair, and `-MovementPreset IndependentPursuitV1` still reproduces its own frozen pair
+unchanged; see `docs/development/testing.md` for those separate, unmoved records.
+
+Both frozen presets are held down by a per-tick trajectory digest fixture under
+`tests/Hukbo.Core.Tests/Fixtures/` — `seed-1-200-agents-movement-v1-digest.json` for
+`IndependentPursuitV1`, `seed-1-200-agents-movement-v2-digest.json` for
+`PersistentContingentsV2` — replayed byte-identically by `MovementPresetFreezeTests`. That fixture,
+not the pinned `ContentHash` literal in `MovementPresetRegistryTests`, is what makes a preset's
+*simulated behaviour* freezable: `MovementRuleset.ContentHash` never reaches the state hash at all,
+so a matching literal only proves a preset's declared fields have not moved, not that a tick-by-tick
+replay would still match. `PersistentContingentsV3` has no digest fixture of its own — it is the
+preset currently receiving new behaviour, not one being held frozen.
+
+Registered movement presets are now three: `IndependentPursuitV1 = 1`, `PersistentContingentsV2 =
+2`, `PersistentContingentsV3 = 3`.
+
+The 500-agent stress workload below, report only, is from the earlier
+weapon-clash-on-preset-V2 build the superseded pair above came from, not
+re-measured against either movement-preset default flip (T15, then T6): `Faction0Victory` with 11
+faction-0 and 0 faction-1 survivors, state hash `A4C8B82F2A445691`, event hash
+`A5C77685987DBA49`, deterministic with no mismatch tick.
 
 Pinned content hashes, asserted in `DeterminismTests`: preset V1
-`0x59FB4CA563D87A49`, preset V2 `0xE653F1802A447662`. V1 stays registered and
+`0x59FB4CA563D87A49`, preset V2 `0x10AB1CC226AB3636`. V1 stays registered and
 unmodified, so a replay recorded against it remains reproducible by naming it
-in `Scenario.CombatPreset`; `Scenario` itself now defaults to V2.
+in `Scenario.CombatPreset`; `Scenario` itself now defaults to V2. V1's clash
+profile stays null (D1, D2): `ClashProfile` is never folded into V1's content
+hash at all, which is what keeps this constant unchanged across the clash
+integration.
 
 ### Superseded hashes — dead values, do not target
 
@@ -93,6 +130,9 @@ history instead of mistaken for a live baseline.
 
 | Dead baseline | State hash | Event hash |
 | --- | --- | --- |
+| 200 agents, weapon-clash-on-preset-V2 integration (pre-T15 default), tick 1710 | `71211929A44A16CA` | `A2DC3ECA3F7345ED` |
+| 200 agents, weapon identity and attributes run (preset V2), tick 1209 | `C669281B67CF8871` | `CF8C3EDBC59C3319` |
+| 500 agents, weapon identity and attributes run (preset V2) | `DA4AA823020FAB3C` | `B6FA93AB66696485` |
 | 200 agents, collision priority fairness run (preset V1), tick 1154 | `5BEBA7A68F69BE0D` | `D379B60B2E30FFFC` |
 | 500 agents, collision priority fairness run (preset V1), tick 2668 | `FE44ADA93E0E202A` | `9C8EF5CB79810560` |
 | 200 agents, last-stand run, tick 1176 | `BBB40D2240720DC8` | `2A6BAEA1E3567046` |
@@ -143,6 +183,14 @@ one always-winning faction, verified by
 `SeedsOneThroughTwentyProduceVictoriesForBothFactions` inside the ordinary Core
 suite.
 
+The weapon-identity tick-1209 pair is superseded by the weapon-clash
+integration, which adds a defensive-resolution step before damage applies:
+damage is no longer certain once an attack is accepted, `AttackResolution`
+enters the event as a fifth packed field, and preset V2 (the scenario
+default) now folds a clash profile into its content hash — all authoritative
+changes, so both hashes moved. See `SIMULATION-GAME-STANDARDS.md` §14 for the
+mechanic's full contract.
+
 If your change moves any of these, update `docs/development/testing.md`
 explicitly and say which hash moved and why. Do not let a new number appear
 silently.
@@ -161,6 +209,8 @@ mixers.
 | `Scenario.CollisionPolicy` | immutable scenario | Hashed as its integer value so the contact rule is authoritative and legible in a saved scenario. Exactly one value, `Solid`, is accepted. |
 | `Scenario.LastStandThresholdAgents` | immutable scenario | The per-faction living-count trigger for last-stand rallying. Changing it changes which ticks redirect survivors onto their own leader, and therefore both hashes for any seed where the threshold matters. |
 | `AgentIntent.Regrouping` | enum, appended after `Dead` | Enters the state hash through the existing per-agent `Intent` write. Numeric values are pinned and append-only; reordering or renumbering moves the hash for every seed with a last stand. |
+| `AttackResolution` | enum, packed into `BattleEvent._combatContext` at `ResolutionShift = 24` | Enters the event hash on every attack event. Five pinned numeric values (`Landed = 0` through `Evaded = 4`); reordering or renumbering moves the event hash for any battle with an accepted attack. |
+| `ClashProfile`'s full tuning surface (weapon intercept, shield scalar, void channel, hard-share rows, clamp bounds) | `CombatRuleset.ContentHash`, folded only when a profile was supplied | A preset declaring no clash profile (V1) folds nothing at all, not even a zero count — that is what keeps V1's content hash unchanged. A preset that declares one (V2) moves its content hash on any table edit. |
 
 The uniform grid, the collision pair and proposal buffers, and the aggregate
 collision counters are **derived**. They are never hashed, never snapshotted, and

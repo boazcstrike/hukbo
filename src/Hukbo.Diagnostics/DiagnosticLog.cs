@@ -354,6 +354,44 @@ public sealed class DiagnosticLog : IDisposable
         }
     }
 
+    public void Write(
+        LogLevel level,
+        LogChannel channel,
+        string eventId,
+        string name1,
+        LogValue value1,
+        string name2,
+        LogValue value2,
+        string name3,
+        LogValue value3,
+        string name4,
+        LogValue value4,
+        string name5,
+        LogValue value5,
+        string name6,
+        LogValue value6,
+        string name7,
+        LogValue value7)
+    {
+        if (!IsEnabledFor(level, channel))
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            BeginLine(level, channel, eventId);
+            AppendField(name1, value1);
+            AppendField(name2, value2);
+            AppendField(name3, value3);
+            AppendField(name4, value4);
+            AppendField(name5, value5);
+            AppendField(name6, value6);
+            AppendField(name7, value7);
+            EndLine(level);
+        }
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {

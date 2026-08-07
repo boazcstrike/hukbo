@@ -196,6 +196,31 @@ $defaultPrompts = @{
         Duration = 0.5
         Trim     = $true
     }
+    # A shield block is the same four weapons hitting a light wooden board
+    # instead of a body, so these prompts are the opposite of the four above:
+    # dry wood rather than wet meat, and no metal at all. Generate them with
+    # -PromptInfluence 0.5 rather than the 0.4 default, because the negative
+    # is the whole point of the slot.
+    'clash-shield-kampilan' = @{
+        Prompt   = 'one heavy two-handed blade slamming hard into a large light wooden shield, loud close impact, deep board thud with a sharp woody bite in front of it, dry rattan-bound plank, dry packed earth, open air, very short, no ring, no metal, no reverb, no music, no voice'
+        Duration = 0.5
+        Trim     = $true
+    }
+    'clash-shield-wasay'    = @{
+        Prompt   = 'one heavy axe head slamming hard into a large light wooden shield, loud close impact, sharp blunt crack with splitting wood fibres, dry plank break, dry packed earth, open air, very short, no ring, no metal, no reverb, no music, no voice'
+        Duration = 0.5
+        Trim     = $true
+    }
+    'clash-shield-kalis'    = @{
+        Prompt   = 'one narrow blade point punching into a light wooden shield, tight woody punch skidding off the board face with a thin rattan buzz, dry packed earth, open air, very short, no ring, no metal, no reverb, no music, no voice'
+        Duration = 0.5
+        Trim     = $true
+    }
+    'clash-shield-itak'     = @{
+        Prompt   = 'one short light blade tapping a large light wooden shield, quick shallow dry woody clack on a thin plank, dry packed earth, open air, very short, no ring, no metal, no reverb, no music, no voice'
+        Duration = 0.5
+        Trim     = $true
+    }
     'death'                  = @{
         Prompt   = 'a body collapsing onto dry packed earth, dull heavy thud with a short scrape of cloth and gear, no music, no voice'
         Duration = 0.7

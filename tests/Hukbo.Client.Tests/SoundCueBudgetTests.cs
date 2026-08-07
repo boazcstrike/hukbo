@@ -56,7 +56,7 @@ public sealed class SoundCueBudgetTests
     }
 
     [Fact]
-    public void DefaultLimits_AllowAtMostThreeOfOneSlotAndEightInTotal()
+    public void DefaultLimits_CapOneSlotAndTheFrameAtTheDeclaredMaxima()
     {
         var budget = new SoundCueBudget();
         var perSound = 0;

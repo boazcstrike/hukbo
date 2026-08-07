@@ -436,7 +436,7 @@ Interpretation limits:
 The allocation curve is almost perfectly linear because each active
 simulation creates a tick event list with a backing array sized to twice the
 agent count. Existing deferred debt is recorded in
-`docs/plans/2026-07-27-battle-event-allocation-packing.md`.
+the battle event allocation packing plan.
 
 ### Gaps between standards and source
 
@@ -535,10 +535,24 @@ Retain Hukbo's deterministic pipeline and introduce scale in this order:
 7. use presentation LOD independently; and
 8. parallelize proposal gathering only after the data and algorithms are ready.
 
-The companion planning documents are:
+The companion planning documents were:
 
 - `docs/plans/2026-07-27-large-scale-simulation-architecture-design.md`
 - `docs/plans/2026-07-27-large-scale-simulation-architecture.md`
+
+**Both were deleted on 2026-07-28 at commit `fea96d4`, whose whole message is
+"docs(plans): delete". They were not archived, so neither has a path under
+`docs/archives/` and neither can be opened from a working tree.** They are
+recoverable from history if the reasoning is ever needed:
+
+```
+git show fea96d4^:docs/plans/2026-07-27-large-scale-simulation-architecture.md
+git show fea96d4^:docs/plans/2026-07-27-large-scale-simulation-architecture-design.md
+```
+
+The paths above are left written out rather than corrected because there is no
+correct path to point them at; recording what happened to them is the only
+honest repair. This document is the surviving statement of the architecture.
 
 Detailed research on formation semantics, body contact, collision resolution,
 and the Requirements-to-Task-Planner handoff is maintained separately in

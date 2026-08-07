@@ -13,10 +13,17 @@ namespace Hukbo.Client.UI;
 /// </summary>
 internal sealed partial class SoundLogPanel
 {
-    private const int StatusColumnWidth = 74;
+    private static int StatusColumnWidth => UiScaleContext.Pixels(74);
     private const string Ellipsis = "...";
 
     private Point _pointerPosition;
+
+    // The expected-files rows are produced by the pure static BuildBindingRows
+    // from an IReadOnlyList<SoundBinding> the audio layer owns, so there is no
+    // mutable model to host the offset the way SoundCueLog hosts the cue log's.
+    // The panel keeps it instead, clamped against a list it does not own,
+    // exactly as BattleReportPanel keeps _scrollStart for its leaderboard.
+    private int _bindingScrollStart;
 
     public Rectangle Bounds { get; private set; }
 
@@ -43,10 +50,33 @@ internal sealed partial class SoundLogPanel
             director.ToggleMute();
         }
 
+        // The viewport height can change between one frame and the next, so the
+        // bindings offset is re-clamped here as well as in Draw.
+        var totalBindingRowCount =
+            BuildBindingRows(director.Player.Bindings).Count;
+        var visibleBindingRowCount = GetVisibleBindingRowCount(layout);
+        _bindingScrollStart = ClampBindingScroll(
+            _bindingScrollStart,
+            totalBindingRowCount,
+            visibleBindingRowCount);
+
         var rowDelta = GetScrollRowDelta(input.ScrollWheelDelta);
         if (rowDelta != 0)
         {
-            director.Log.Scroll(rowDelta, GetVisibleCueRowCount(layout));
+            // The wheel moves the list under the pointer, and the panel
+            // consumes the notch either way so it never reaches the camera.
+            if (GetWheelTarget(layout, input.MousePosition) ==
+                SoundLogScrollTarget.Bindings)
+            {
+                _bindingScrollStart = ClampBindingScroll(
+                    _bindingScrollStart + rowDelta,
+                    totalBindingRowCount,
+                    visibleBindingRowCount);
+            }
+            else
+            {
+                director.Log.Scroll(rowDelta, GetVisibleCueRowCount(layout));
+            }
         }
 
         return new UiInteraction(ClientCommand.None, true);
@@ -69,13 +99,39 @@ internal sealed partial class SoundLogPanel
             pixel,
             bounds,
             theme.Colors.PanelBorder,
-            theme.Metrics.BorderThickness);
+            Math.Max(
+                1,
+                UiScaleContext.Pixels(theme.Metrics.BorderThickness)));
 
         var titleFont = fonts.Get(UiFontRole.Title);
         var captionFont = fonts.Get(UiFontRole.Caption);
-        DrawHeader(spriteBatch, pixel, titleFont, captionFont, director, layout, theme);
-        DrawBindings(spriteBatch, captionFont, director, layout, theme);
-        DrawCues(spriteBatch, pixel, captionFont, director, layout, theme);
+        var captionAdvancePx =
+            fonts.GetApproximateAdvancePx(UiFontRole.Caption);
+        DrawHeader(
+            spriteBatch,
+            pixel,
+            titleFont,
+            captionFont,
+            captionAdvancePx,
+            director,
+            layout,
+            theme);
+        DrawBindings(
+            spriteBatch,
+            pixel,
+            captionFont,
+            captionAdvancePx,
+            director,
+            layout,
+            theme);
+        DrawCues(
+            spriteBatch,
+            pixel,
+            captionFont,
+            captionAdvancePx,
+            director,
+            layout,
+            theme);
     }
 
     private void DrawHeader(
@@ -83,6 +139,7 @@ internal sealed partial class SoundLogPanel
         Texture2D pixel,
         SpriteFont titleFont,
         SpriteFont captionFont,
+        int captionAdvancePx,
         SoundDirector director,
         SoundLogPanelLayout layout,
         UiTheme theme)
@@ -140,14 +197,18 @@ internal sealed partial class SoundLogPanel
             captionFont,
             ClipPathTail(
                 director.Player.DirectoryPath,
-                GetMaximumCharacters(layout.PathBounds.Width)),
+                GetMaximumCharacters(
+                    layout.PathBounds.Width,
+                    captionAdvancePx)),
             new Vector2(layout.PathBounds.Left, layout.PathBounds.Top),
             theme.Colors.TextSecondary);
     }
 
-    private static void DrawBindings(
+    private void DrawBindings(
         SpriteBatch spriteBatch,
+        Texture2D pixel,
         SpriteFont font,
+        int captionAdvancePx,
         SoundDirector director,
         SoundLogPanelLayout layout,
         UiTheme theme)
@@ -161,17 +222,26 @@ internal sealed partial class SoundLogPanel
 
         var rows = BuildBindingRows(director.Player.Bindings);
         var visibleRowCount = GetVisibleBindingRowCount(layout);
+        _bindingScrollStart = ClampBindingScroll(
+            _bindingScrollStart,
+            rows.Count,
+            visibleRowCount);
         if (visibleRowCount <= 0 || rows.Count == 0)
         {
             return;
         }
 
-        var hasOverflow = rows.Count > visibleRowCount;
-        var drawnRowCount = hasOverflow ? visibleRowCount - 1 : rows.Count;
-        for (var index = 0; index < drawnRowCount; index++)
+        // Every viewport row carries real content. There is no "+N more" line:
+        // the list scrolls, so the rows past the viewport are reached with the
+        // wheel and the thumb below is the affordance that says so — the same
+        // arrangement the cue log in this panel already uses.
+        var drawnRowCount = Math.Min(
+            visibleRowCount,
+            rows.Count - _bindingScrollStart);
+        for (var offset = 0; offset < drawnRowCount; offset++)
         {
-            var row = rows[index];
-            var rowBounds = GetBindingRowBounds(layout, index);
+            var row = rows[_bindingScrollStart + offset];
+            var rowBounds = GetBindingRowBounds(layout, offset);
             var nameWidth = Math.Max(
                 0,
                 rowBounds.Width - StatusColumnWidth);
@@ -180,7 +250,9 @@ internal sealed partial class SoundLogPanel
                 font,
                 ClipText(
                     row.Label,
-                    GetMaximumCharacters(nameWidth)),
+                    GetMaximumCharacters(
+                        nameWidth,
+                        captionAdvancePx)),
                 new Vector2(rowBounds.Left, rowBounds.Top),
                 theme.Colors.TextPrimary);
             UiPrimitives.DrawText(
@@ -188,29 +260,37 @@ internal sealed partial class SoundLogPanel
                 font,
                 row.StatusText,
                 new Vector2(
-                    rowBounds.Right - StatusColumnWidth + 4,
+                    rowBounds.Right -
+                    StatusColumnWidth +
+                    UiScaleContext.Pixels(4),
                     rowBounds.Top),
                 GetBindingStatusColor(theme.Colors, row.Status));
         }
 
-        if (!hasOverflow)
+        if (rows.Count <= visibleRowCount)
         {
             return;
         }
 
-        var overflowBounds = GetBindingRowBounds(layout, drawnRowCount);
-        UiPrimitives.DrawText(
-            spriteBatch,
-            font,
-            $"+{rows.Count - drawnRowCount} more (enlarge the panel)",
-            new Vector2(overflowBounds.Left, overflowBounds.Top),
-            theme.Colors.TextSecondary);
+        spriteBatch.Draw(
+            pixel,
+            layout.BindingScrollbarTrackBounds,
+            theme.Colors.PanelAlternate);
+        spriteBatch.Draw(
+            pixel,
+            GetScrollbarThumb(
+                layout.BindingScrollbarTrackBounds,
+                rows.Count,
+                visibleRowCount,
+                _bindingScrollStart),
+            theme.Colors.ActionDefault);
     }
 
     private static void DrawCues(
         SpriteBatch spriteBatch,
         Texture2D pixel,
         SpriteFont font,
+        int captionAdvancePx,
         SoundDirector director,
         SoundLogPanelLayout layout,
         UiTheme theme)
@@ -251,7 +331,9 @@ internal sealed partial class SoundLogPanel
                 font,
                 ClipText(
                     SoundCueFormatter.Format(cue),
-                    GetMaximumCharacters(rowBounds.Width)),
+                    GetMaximumCharacters(
+                        rowBounds.Width,
+                        captionAdvancePx)),
                 new Vector2(rowBounds.Left, rowBounds.Top),
                 GetCueStatusColor(theme.Colors, cue.Status));
         }
@@ -275,11 +357,12 @@ internal sealed partial class SoundLogPanel
             theme.Colors.ActionDefault);
     }
 
-    private static int GetMaximumCharacters(int availableWidth) =>
+    private static int GetMaximumCharacters(
+        int availableWidth,
+        int approximateAdvancePx) =>
         Math.Max(
             0,
-            availableWidth /
-                UiFontRamp.GetApproximateAdvancePx(UiFontRole.Caption));
+            availableWidth / approximateAdvancePx);
 
     /// <summary>
     /// Trims text to fit a row, keeping the start.

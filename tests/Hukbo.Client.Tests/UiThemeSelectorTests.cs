@@ -8,7 +8,7 @@ namespace Hukbo.Client.Tests;
 public sealed class UiThemeSelectorTests
 {
     [Fact]
-    public void ExposesFiveOrderedNamesAndVisibleSelectedMarker()
+    public void ExposesSixOrderedNamesAndVisibleSelectedMarker()
     {
         var selector = CreateSelector();
 
@@ -19,9 +19,45 @@ public sealed class UiThemeSelectorTests
                 "Signal",
                 "Broadcast",
                 "High Contrast",
+                "Cebu 1521 — Provisional",
             ],
             selector.ThemeNames);
-        Assert.Equal("ACTIVE  -  1 / 5", selector.GetSelectedMarkerText("command"));
+        Assert.Equal("ACTIVE  -  1 / 6", selector.GetSelectedMarkerText("command"));
+        Assert.Equal(
+            "ACTIVE  -  6 / 6",
+            selector.GetSelectedMarkerText("datu-court"));
+        Assert.Equal(
+            "PROVISIONAL RECONSTRUCTION",
+            UiThemeSelector.GetSelectorLabelText("datu-court"));
+    }
+
+    [Fact]
+    public void ProvisionalMarkerFitsTheArrowSafeMinimumViewportColumn()
+    {
+        var catalog = LoadCatalog();
+        var menu = new MenuOverlay(catalog.Themes, catalog.Standards);
+        var selector = new UiThemeSelector(catalog.Themes, catalog.Standards)
+        {
+            Bounds = menu.GetControlBounds(
+                new Rectangle(0, 0, 1024, 720))[0],
+        };
+        var marker = selector.GetSelectedMarkerText("datu-court");
+        var safeWidth = selector.NextBounds.Left -
+            selector.PreviousBounds.Right;
+        var estimatedWidth = marker.Length *
+            UiFontRamp.GetApproximateAdvancePx(
+                catalog.Standards.Shared.TextRoles.SelectorMarker);
+
+        Assert.True(
+            estimatedWidth <= safeWidth,
+            $"Marker needs {estimatedWidth}px but the arrow-safe column " +
+            $"offers {safeWidth}px.");
+
+        var evidenceLabel = UiThemeSelector.GetSelectorLabelText("datu-court");
+        var evidenceWidth = evidenceLabel.Length *
+            UiFontRamp.GetApproximateAdvancePx(
+                catalog.Standards.Shared.TextRoles.SelectorLabel);
+        Assert.True(evidenceWidth <= selector.Bounds.Width);
     }
 
     [Fact]
@@ -29,8 +65,8 @@ public sealed class UiThemeSelectorTests
     {
         var selector = CreateSelector();
 
-        Assert.Equal("high-contrast", selector.GetPreviousId("command"));
-        Assert.Equal("command", selector.GetNextId("high-contrast"));
+        Assert.Equal("datu-court", selector.GetPreviousId("command"));
+        Assert.Equal("command", selector.GetNextId("datu-court"));
     }
 
     [Theory]
@@ -58,7 +94,7 @@ public sealed class UiThemeSelectorTests
         selector.Bounds = new Rectangle(100, 100, 280, 96);
 
         Assert.Equal(
-            "high-contrast",
+            "datu-court",
             selector.GetPointerSelection(
                 selector.PreviousBounds.Center,
                 true,
@@ -78,12 +114,17 @@ public sealed class UiThemeSelectorTests
 
     private static UiThemeSelector CreateSelector()
     {
+        var catalog = LoadCatalog();
+        return new UiThemeSelector(catalog.Themes, catalog.Standards);
+    }
+
+    private static UiThemeCatalog LoadCatalog()
+    {
         var path = Path.Combine(
             AppContext.BaseDirectory,
             "Content",
             "Themes",
             "ui-theme-standards.json");
-        var catalog = UiThemeCatalog.Load(path);
-        return new UiThemeSelector(catalog.Themes, catalog.Standards);
+        return UiThemeCatalog.Load(path);
     }
 }

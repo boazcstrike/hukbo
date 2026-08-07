@@ -71,6 +71,32 @@ public sealed class SoundCatalogTests
         }
     }
 
+    [Fact]
+    public void EveryDefinedWeapon_HasAShieldClashSlot()
+    {
+        // The same safety net as EveryDefinedWeapon_HasAnAttackSlot, aimed at
+        // the shield-block branch. Each weapon owns its own clash slot and
+        // nothing substitutes across weapons, so a weapon added without one
+        // would be silent on every shield block with nothing going red. This
+        // is what goes red instead.
+        foreach (var weapon in Enum.GetValues<WeaponId>())
+        {
+            var blockedEvent = BattleEvent.Attack(
+                sequence: 1,
+                tick: 1,
+                sourceEntityId: 1,
+                targetEntityId: 2,
+                damage: 0,
+                factionId: 0,
+                weapon,
+                ShieldId.None,
+                BodyPart.Chest,
+                AttackResolution.ShieldBlocked);
+
+            Assert.NotNull(SoundCueMapper.Map(blockedEvent));
+        }
+    }
+
     // The status parameter is an int because xunit requires public test
     // methods and SoundBindingStatus is internal to Hukbo.Client.
     [Theory]
@@ -117,6 +143,10 @@ public sealed class SoundCatalogTests
     [InlineData((int)GameSoundId.VictoryRed, false)]
     [InlineData((int)GameSoundId.Draw, false)]
     [InlineData((int)GameSoundId.UiClick, false)]
+    [InlineData((int)GameSoundId.ClashShieldKampilan, false)]
+    [InlineData((int)GameSoundId.ClashShieldWasay, false)]
+    [InlineData((int)GameSoundId.ClashShieldKalis, false)]
+    [InlineData((int)GameSoundId.ClashShieldItak, false)]
     public void IsHitLocationDriven_IsTrueOnlyForTheFourWeaponSlots(
         int sound,
         bool expected) =>

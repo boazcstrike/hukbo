@@ -182,6 +182,16 @@ public sealed class CollisionPriorityTests
     [Fact]
     public void TheContestSequenceFollowsThePerTickShuffle()
     {
+        // Regenerated for task C5 (docs/plans/2026-07-28-collision-report-and-
+        // shell.md): CollisionRules.DefaultBodyRadiusRaw moved from four world
+        // units to 4.25 (design doc section 1.3, retuned down from 4.5 after
+        // the deadlock finding recorded against LastStandFormationTests),
+        // which also moved the allies' starting gap below from eight world
+        // units to 8.5 to keep the starting placement legal (see the comment
+        // on the scenario setup). Captured from a real run of this Fact with
+        // the widened gap; the first eleven resolutions are unchanged from the
+        // four-world-unit recording, and only the last moves from Moved to
+        // Slid.
         MovementResolution[] expected =
         [
             MovementResolution.Slid,
@@ -195,7 +205,7 @@ public sealed class CollisionPriorityTests
             MovementResolution.Moved,
             MovementResolution.Moved,
             MovementResolution.Moved,
-            MovementResolution.Moved,
+            MovementResolution.Slid,
         ];
         var scenario = new Scenario(
             Seed: 3,
@@ -204,10 +214,19 @@ public sealed class CollisionPriorityTests
             AgentsPerFaction: 2,
             TickRate: 20,
             TickLimit: 1_000);
+        // The two allies start exactly one body diameter apart vertically --
+        // legally touching, not overlapping -- so under the enlarged 4.25-
+        // world-unit radius (task C1) the gap widens from eight world units to
+        // 8.5 to keep the starting placement legal. CreateForTesting does not
+        // validate initial placement, so an unwidened gap here would silently
+        // start the two allies overlapped and poison every result that
+        // follows. The gap must be exactly one diameter and no more: any slack
+        // lets both allies move freely and the contest this Fact measures
+        // stops happening at all.
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
             Agent(1, factionId: 0, 60 * FixedPoint.Scale, 46 * FixedPoint.Scale, scenario),
-            Agent(2, factionId: 0, 60 * FixedPoint.Scale, 54 * FixedPoint.Scale, scenario),
+            Agent(2, factionId: 0, 60 * FixedPoint.Scale, (109 * FixedPoint.Scale) / 2, scenario),
             Agent(3, factionId: 1, 190 * FixedPoint.Scale, 50 * FixedPoint.Scale, scenario));
 
         var actual = new List<MovementResolution>(expected.Length);

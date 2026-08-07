@@ -3,7 +3,9 @@ using System.Text.Json;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
+using Hukbo.Headless;
 
 namespace Hukbo.Core.Tests;
 
@@ -28,8 +30,31 @@ public sealed class DeterminismTests
     /// <c>main</c>; the superseded value was <c>0xDC7F2E7A107C885A</c> at tick
     /// 1081. It is the value the capture harness recorded, not a golden edited
     /// to match output: the per-tick digest guard proves the same run row by row.
+    /// Recaptured again for
+    /// the combat preset V3 combinations plan task 4:
+    /// <c>StateHasher.Compute</c> now folds three new per-agent words
+    /// (<c>Level</c>, <c>ComboStepsRemaining</c>, <c>ComboTargetEntityId</c>) for
+    /// every <c>CombatPresetId</c>, including this fixture's
+    /// <c>PrecolonialPhilippinesV1</c> control run, so the wider hash no longer
+    /// matches the pre-combo build's narrower one even though the run itself is
+    /// byte-for-byte the same battle. The superseded value was
+    /// <c>0x5BEBA7A68F69BE0D</c>, still at terminal tick 1154.
+    /// Recaptured a third time for task T5b of
+    /// the formation and movement realism plan: T4
+    /// folded <c>Scenario.MovementPreset</c> and the two new per-agent
+    /// contingent words into <c>StateHasher.Compute</c> for every
+    /// <c>CombatPresetId</c>,
+    /// including this fixture's <c>PrecolonialPhilippinesV1</c> control run,
+    /// which this fixture's own scenario runs at its default
+    /// <c>MovementPreset</c> and default (zero) <c>ContingentId</c> /
+    /// <c>ContingentState</c> for every agent -- so the hash moves even though
+    /// nothing about this control run's behaviour does. The per-tick event
+    /// fold, event count, and final per-agent rows were reconfirmed
+    /// unchanged before the fixture's <c>stateHash</c> column was rewritten;
+    /// see that task for the confirmation method. The superseded value was
+    /// <c>0xFD85207FF329F02D</c>, still at terminal tick 1154.
     /// </summary>
-    private const ulong PreClashTerminalStateHash = 0x5BEBA7A68F69BE0DUL;
+    private const ulong PreClashTerminalStateHash = 0xAE3BEC9EE7BCEDFCUL;
 
     private const string PreClashDigestFileName =
         "seed-1-200-agents-preclash-digest.json";
@@ -42,7 +67,18 @@ public sealed class DeterminismTests
         var right = BattleSimulation.Create(scenario);
         var sawAttackEvent = false;
 
-        for (var tick = 0; tick < 2_000 && left.Outcome == BattleOutcome.Ongoing; tick++)
+        // The loop bound tracks the scenario's own TickLimit rather than a
+        // second hardcoded figure. It was 2,000 -- comfortably above the
+        // frozen IndependentPursuitV1 preset's own pinned seed-1 tick count
+        // of 1,710 -- until T15 of
+        // the formation and movement realism plan
+        // flipped the shipped default to PersistentContingentsV2, whose
+        // contingent cohesion cycle (up to 240 ticks per duty window)
+        // legitimately extends how long an arbitrary seed can take to reach
+        // a terminal outcome, well inside the 10,000-tick TickLimit the
+        // design's own
+        // twenty-seed liveness sweep is measured against.
+        for (var tick = 0; tick < scenario.TickLimit && left.Outcome == BattleOutcome.Ongoing; tick++)
         {
             left.AdvanceOneTick();
             right.AdvanceOneTick();
@@ -89,27 +125,337 @@ public sealed class DeterminismTests
         var first = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
         var second = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
 
-        // Re-baselined for preset version 2, in step with the golden in
-        // CombatConfigurationTests. The superseded value was
-        // 0x59FB4CA563D87A49UL, which survives above as PreClashContentHash
-        // for a different purpose entirely: it is the argument the control run
-        // passes to the state hasher, not a golden.
-        Assert.Equal(0x4EAFE27A42DE87B2UL, first.ContentHash);
+        // D1/D2 regression guard: preset V1 is frozen, declares no weapon
+        // attributes and no clash profile, and neither block is folded into
+        // its content hash -- not even a zero count -- so this value must
+        // never move. It is also PreClashContentHash above, used for a
+        // different purpose entirely: the argument the control run passes to
+        // the state hasher, not a golden pinned here for its own sake.
+        Assert.Equal(0x59FB4CA563D87A49UL, first.ContentHash);
         Assert.Equal(first.ContentHash, second.ContentHash);
     }
 
     [Fact]
     public void PresetV2ContentHash_IsPinnedAndDistinctFromV1()
     {
-        // Pinned so that an accidental edit to a V2 weight, profile, grip, or
-        // roster entry fails here rather than silently invalidating every V2
-        // replay. Changing a V2 value on purpose means a new preset version,
-        // not a new literal in this test.
+        // Pinned so that an accidental edit to a V2 weight, profile, grip,
+        // roster entry, or clash table fails here rather than silently
+        // invalidating every V2 replay. Changing a V2 value on purpose means a
+        // new preset version, not a new literal in this test. Re-baselined for
+        // the clash integration: V2 now folds a full clash profile (D1), which
+        // moved this value. The superseded value was 0xE653F1802A447662UL,
+        // captured before the six-loadout roster carried clash tables. Moved
+        // again to 0x10AB1CC226AB3636UL after the T60 retune of the
+        // shieldless Kalis/Itak cells in PhilippineCombatPresetV2.BuildClashProfile,
+        // per the plan's retune-invalidates-T23/T41/T46 sequencing rule.
         var v1 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
         var v2 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV2);
 
-        Assert.Equal(0xE653F1802A447662UL, v2.ContentHash);
+        Assert.Equal(0x10AB1CC226AB3636UL, v2.ContentHash);
         Assert.NotEqual(v1.ContentHash, v2.ContentHash);
+    }
+
+    /// <summary>
+    /// Task 4 of
+    /// the combat preset V3 combinations plan.
+    /// Pinned so that an accidental edit to a V3 weapon attribute, grip,
+    /// roster entry, or combo field fails here rather than silently
+    /// invalidating every V3 replay. V3 fields only the four solo loadouts
+    /// V2 already carries
+    /// (Kampilan, Wasay, solo Kalis, solo Itak) with V2's own damage/reach/
+    /// cooldown/target-weight/grip/clash values for those four weapons, plus
+    /// the combo table, so its content hash is expected to differ from both
+    /// V1 (no weapon attributes at all) and V2 (six loadouts, not four).
+    /// </summary>
+    [Fact]
+    public void PresetV3ContentHash_IsPinnedAndDistinctFromV1AndV2()
+    {
+        var v1 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
+        var v2 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV2);
+        var v3 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV3);
+
+        Assert.Equal(0xCD790E489293B304UL, v3.ContentHash);
+        Assert.NotEqual(v1.ContentHash, v3.ContentHash);
+        Assert.NotEqual(v2.ContentHash, v3.ContentHash);
+    }
+
+    /// <summary>
+    /// Group R, task R5 of
+    /// the warrior rank plan. Preset V4
+    /// assigns a <see cref="RankId"/> to each of V3's four solo roster
+    /// entries and declares a per-rank fighter level table, which is folded
+    /// into <c>ComputeContentHash</c> only because V4 is the first preset to
+    /// pass a non-null <c>rankLevels</c> argument. Pinned so an accidental
+    /// change to the roster, the rank levels, or the fold order fails here.
+    /// </summary>
+    [Fact]
+    public void PresetV4ContentHash_IsPinnedAndDistinctFromV1V2AndV3()
+    {
+        var v1 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
+        var v2 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV2);
+        var v3 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV3);
+        var v4 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV4);
+
+        Assert.Equal(0x4E3E4F8C0A3822E0UL, v4.ContentHash);
+        Assert.NotEqual(v1.ContentHash, v4.ContentHash);
+        Assert.NotEqual(v2.ContentHash, v4.ContentHash);
+        Assert.NotEqual(v3.ContentHash, v4.ContentHash);
+    }
+
+    /// <summary>
+    /// Group R, task R5 of
+    /// the warrior rank plan. A small, fast
+    /// seed-1 workload run through the same headless path
+    /// <see cref="PresetV3_SeedOneStateAndEventHashArePinned"/> uses, pinned
+    /// against preset V4 so an accidental change to the rank fold in
+    /// <c>StateHasher.Compute</c>, the V4 roster, or the V4 rank levels
+    /// fails here rather than only in the much slower benchmark.
+    /// </summary>
+    [Fact]
+    public void PresetV4_SeedOneStateAndEventHashArePinned()
+    {
+        const ulong Seed = 1;
+        const int Agents = 20;
+        const int Ticks = 200;
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+        string[] arguments =
+        [
+            "--agents", Agents.ToString(CultureInfo.InvariantCulture),
+            "--ticks", Ticks.ToString(CultureInfo.InvariantCulture),
+            "--seed", Seed.ToString(CultureInfo.InvariantCulture),
+            "--preset", nameof(CombatPresetId.PrecolonialPhilippinesV4),
+            "--movement-preset", nameof(MovementPresetId.IndependentPursuitV1),
+        ];
+        var exitCode = HeadlessRunner.Run(arguments, output, error);
+        Assert.Equal(0, exitCode);
+
+        using var report = JsonDocument.Parse(output.ToString());
+        var stateHash = report.RootElement.GetProperty("stateHash").GetString();
+        var eventHash = report.RootElement.GetProperty("eventHash").GetString();
+
+        // Captured from a real run of this exact command against this build:
+        // `dotnet run --project src/Hukbo.Headless -c Release --no-build --
+        // --agents 20 --ticks 200 --seed 1 --preset PrecolonialPhilippinesV4
+        // --movement-preset IndependentPursuitV1`.
+        Assert.Equal("2BBEDD668CC38FD6", stateHash);
+        Assert.Equal("228818712E5AE6C6", eventHash);
+    }
+
+    /// <summary>
+    /// Task 4 of
+    /// the combat preset V3 combinations plan. A
+    /// small, fast seed-1 workload run through the same headless path
+    /// <see cref="CombatMetrics_ReachesNeitherHash"/> uses, pinned against
+    /// preset V3 so an accidental change anywhere in the V3 attack-
+    /// combination state machine, the V3 roster, or the shared StateHasher/
+    /// event-hash fold fails here rather than only in the much slower
+    /// 200-agent/10,000-tick benchmark. Not a substitute for that benchmark
+    /// -- see docs/development/testing.md for the recorded seed-1,
+    /// 200-agent, 10,000-tick V3 result -- but this Fact runs on every
+    /// <c>dotnet test</c> invocation.
+    /// </summary>
+    [Fact]
+    public void PresetV3_SeedOneStateAndEventHashArePinned()
+    {
+        const ulong Seed = 1;
+        const int Agents = 20;
+        const int Ticks = 200;
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+        string[] arguments =
+        [
+            "--agents", Agents.ToString(CultureInfo.InvariantCulture),
+            "--ticks", Ticks.ToString(CultureInfo.InvariantCulture),
+            "--seed", Seed.ToString(CultureInfo.InvariantCulture),
+            "--preset", nameof(CombatPresetId.PrecolonialPhilippinesV3),
+            // Named explicitly rather than left to whatever
+            // Scenario.MovementPreset defaults to. This Fact exists to isolate
+            // the V3 attack-combination axis -- see the type-level remarks --
+            // and task T15 of
+            // the formation and movement realism plan
+            // makes the shipped default PersistentContingentsV2, which changes
+            // real movement behaviour rather than merely moving a
+            // representational hash. Following the default here would let a
+            // future movement-axis regression move this Fact's pinned values
+            // for a reason that has nothing to do with what it exists to
+            // guard.
+            "--movement-preset", nameof(MovementPresetId.IndependentPursuitV1),
+        ];
+        var exitCode = HeadlessRunner.Run(arguments, output, error);
+        Assert.Equal(0, exitCode);
+
+        using var report = JsonDocument.Parse(output.ToString());
+        var stateHash = report.RootElement.GetProperty("stateHash").GetString();
+        var eventHash = report.RootElement.GetProperty("eventHash").GetString();
+
+        // Recaptured on the merge of branch formation-movement-realism into
+        // main. Two independent changes moved these values since the previous
+        // capture, and neither is a regression:
+        //
+        //   1. CollisionRules.DefaultBodyRadiusRaw moved from four world units
+        //      to 4.25 on main (task C5, design doc
+        //      2026-07-28-collision-report-and-shell-design.md section 1.3),
+        //      which moves both hashes because it moves real positions.
+        //   2. StateHasher.Compute on the branch now folds
+        //      Scenario.MovementPreset and two new per-agent words
+        //      (ContingentId, ContingentState) for every scenario, including
+        //      this preset-V3 control run, which moves the state hash
+        //      representationally.
+        //
+        // Captured from a real run of this exact command on the merge result:
+        // `dotnet run --project src/Hukbo.Headless -c Release --no-build --
+        // --agents 20 --ticks 200 --seed 1 --preset PrecolonialPhilippinesV3
+        // --movement-preset IndependentPursuitV1`.
+        //
+        // Superseded values, in the order they were superseded. Against the
+        // original four-world-unit radius before the movement fold:
+        // "C2728456AEB9F760" (state) and "E30AD003EFDDD267" (event). Against
+        // the 4.5-world-unit radius, which was abandoned when it reintroduced
+        // the last-stand deadlock: "3633AE94D42A49D6" (state) and
+        // "DA8A604E5FC575BA" (event). Against the 4.25-world-unit radius on
+        // main, before the movement fold: "9F82DB470782B330" (state) and
+        // "71E7B6746D00C5D1" (event). On the branch, at the four-world-unit
+        // radius with the movement fold: "09851F8966D124D9" (state) and
+        // "E30AD003EFDDD267" (event).
+        Assert.Equal("BD2E2055DC1E29A9", stateHash);
+        Assert.Equal("71E7B6746D00C5D1", eventHash);
+    }
+
+    /// <summary>
+    /// Task T15 of
+    /// the formation and movement realism plan. A
+    /// small, fast seed-1 workload run through the same headless path
+    /// <see cref="PresetV3_SeedOneStateAndEventHashArePinned"/> uses, pinned
+    /// against <see cref="MovementPresetId.PersistentContingentsV2"/> -- the
+    /// preset T15 makes the shipped default -- so an accidental change
+    /// anywhere in the contingent state machine, the cohesion movement
+    /// branch, the arrival taper, or the shared StateHasher/event-hash fold
+    /// fails here rather than only in the much slower 200-agent/10,000-tick
+    /// benchmark. Not a substitute for that benchmark -- see
+    /// docs/development/testing.md for the recorded seed-1, 200-agent,
+    /// 10,000-tick result -- but this Fact runs on every
+    /// <c>dotnet test</c> invocation.
+    /// </summary>
+    [Fact]
+    public void PersistentContingentsV2_SeedOneStateAndEventHashArePinned()
+    {
+        const ulong Seed = 1;
+        const int Agents = 20;
+        const int Ticks = 200;
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+        string[] arguments =
+        [
+            "--agents", Agents.ToString(CultureInfo.InvariantCulture),
+            "--ticks", Ticks.ToString(CultureInfo.InvariantCulture),
+            "--seed", Seed.ToString(CultureInfo.InvariantCulture),
+            "--movement-preset", nameof(MovementPresetId.PersistentContingentsV2),
+        ];
+        var exitCode = HeadlessRunner.Run(arguments, output, error);
+        Assert.Equal(0, exitCode);
+
+        using var report = JsonDocument.Parse(output.ToString());
+        var stateHash = report.RootElement.GetProperty("stateHash").GetString();
+        var eventHash = report.RootElement.GetProperty("eventHash").GetString();
+
+        // Originally captured for task T15 of
+        // the formation and movement realism plan,
+        // the task that flips Scenario.MovementPreset's shipped default to
+        // PersistentContingentsV2.
+        //
+        // Recaptured on the merge of that branch into main, for one reason and
+        // not a regression: the branch was developed while
+        // CollisionRules.DefaultBodyRadiusRaw was four world units, and main had
+        // already moved it to 4.25. This Fact tracks the shipped default, so it
+        // follows the radius rather than pinning it. That is the opposite of
+        // MovementPresetFreezeTests, which pins the captured radius because its
+        // fixtures are frozen oracles of a past build; the difference is
+        // deliberate and each file states its own reason.
+        //
+        // Recaptured again by task P1 of
+        // the rank composition panel plan,
+        // which flips Scenario.CombatPreset's own shipped default from
+        // PrecolonialPhilippinesV2 to PrecolonialPhilippinesV4. This Fact
+        // leaves --preset unnamed on the arguments above precisely so it
+        // tracks that default too, matching the "follows rather than pins"
+        // rationale already stated for the body radius.
+        //
+        // Captured from a real run of this exact command against this build:
+        // `dotnet run --project src/Hukbo.Headless -c Release --no-build --
+        // --agents 20 --ticks 200 --seed 1 --movement-preset
+        // PersistentContingentsV2`.
+        //
+        // Superseded values, in the order they were superseded. Against the
+        // PrecolonialPhilippinesV2 combat default: "62F0E17B85D5D590" (state)
+        // and "96A77A6AEEE24BB4" (event). Against the four-world-unit radius
+        // before that: "96D59BDBCDD05293" (state) and "12C14F63B4BA1E3B"
+        // (event).
+        Assert.Equal("41201454CCBADC75", stateHash);
+        Assert.Equal("514D986A2BD633E8", eventHash);
+    }
+
+    /// <summary>
+    /// T45. <c>CombatMetrics</c> is a per-tick counter of resolutions,
+    /// accumulated only by <c>HeadlessRunner.Execute</c> for the report; it is
+    /// never read by <see cref="BattleSimulation.ComputeStateHash()"/> and
+    /// never folded into the event hash alongside the ordinary event fields.
+    /// This is the "before" (a bare <see cref="BattleSimulation"/>, which never
+    /// builds a <c>CombatMetricsAccumulator</c> at all) against the "after" (the
+    /// full headless pipeline, which builds and serializes one every tick) for
+    /// the same seed and scenario: if <c>CombatMetrics</c> had leaked into
+    /// authoritative state, the two paths would diverge. Captured fresh on this
+    /// merged tree rather than trusting the clash branch's own pair, per design
+    /// section 6.
+    /// </summary>
+    [Fact]
+    public void CombatMetrics_ReachesNeitherHash()
+    {
+        const ulong Seed = 1234;
+        const int Agents = 20;
+        const int Ticks = 200;
+
+        var bareScenario = Scenario.CreateDefault(Seed, Agents) with
+        {
+            TickLimit = Ticks,
+        };
+        bareScenario.Validate();
+        var bareSimulation = BattleSimulation.Create(bareScenario);
+        while (bareSimulation.Outcome == BattleOutcome.Ongoing &&
+            bareSimulation.Tick < bareScenario.TickLimit)
+        {
+            bareSimulation.AdvanceOneTick();
+        }
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+        string[] arguments =
+        [
+            "--agents", Agents.ToString(CultureInfo.InvariantCulture),
+            "--ticks", Ticks.ToString(CultureInfo.InvariantCulture),
+            "--seed", Seed.ToString(CultureInfo.InvariantCulture),
+        ];
+        var exitCode = HeadlessRunner.Run(arguments, output, error);
+        Assert.Equal(0, exitCode);
+
+        using var report = JsonDocument.Parse(output.ToString());
+        var headlessStateHash = report.RootElement.GetProperty("stateHash").GetString();
+        var combatMetrics = report.RootElement.GetProperty("combatMetrics");
+
+        // The "after" path actually built a non-trivial CombatMetrics: this
+        // scenario is not clash-neutral, so some accepted attack besides a
+        // landed one must have occurred, or this comparison would prove
+        // nothing about whether the metrics leaked into the hash.
+        Assert.True(
+            combatMetrics.GetProperty("acceptedAttacks").GetInt64() > 0,
+            "Expected at least one accepted attack in this run.");
+
+        Assert.Equal(
+            bareSimulation.ComputeStateHash().ToString("X16", CultureInfo.InvariantCulture),
+            headlessStateHash);
     }
 
     [Fact]
@@ -228,13 +574,16 @@ public sealed class DeterminismTests
             attackCooldownTicks: scenario.AttackCooldownTicks,
             loadout: loadout);
 
+        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
+
         return StateHasher.Compute(
             scenario,
             tick: 1,
             BattleOutcome.Ongoing,
             eventSequence: 0,
             agents: [agent],
-            contentHash: CombatPresetRegistry.Get(scenario.CombatPreset).ContentHash);
+            contentHash: rules.ContentHash,
+            hasRankLevels: rules.HasRankLevels);
     }
 
     /// <summary>
@@ -445,7 +794,17 @@ public sealed class DeterminismTests
         var simulation = BattleSimulation.CreateForTesting(
             scenario,
             CreateAgent(lowerRowEntityId, 0, 60 * FixedPoint.Scale, 46 * FixedPoint.Scale, scenario),
-            CreateAgent(upperRowEntityId, 0, 60 * FixedPoint.Scale, 54 * FixedPoint.Scale, scenario),
+            // 54.5, not 54: exactly one body diameter (8.5 world units at the
+            // enlarged 4.25-world-unit collision radius, task C1,
+            // the collision report and window shell plan)
+            // above the lower row. CreateForTesting does not validate initial
+            // placement, so an unwidened eight-unit gap here would start the
+            // two allies illegally overlapped and poison the contest this
+            // test exists to check. The gap must be exactly one diameter and
+            // no more: the two bodies have to start legally tangent for the
+            // contest to happen at all, and any slack lets both allies move
+            // freely instead of competing for the same ground.
+            CreateAgent(upperRowEntityId, 0, 60 * FixedPoint.Scale, (109 * FixedPoint.Scale) / 2, scenario),
             CreateAgent(3, 1, 100 * FixedPoint.Scale, 50 * FixedPoint.Scale, scenario));
 
         simulation.AdvanceOneTick();
@@ -659,6 +1018,29 @@ public sealed class DeterminismTests
         var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
         {
             TickLimit = 10_000,
+            // The pre-clash digest fixture was captured against preset V1
+            // (PrecolonialPhilippinesV1), the four-loadout roster, before
+            // Scenario.CombatPreset defaulted to V2. The control run has to
+            // name V1 explicitly, or it silently proves neutrality against a
+            // different preset's six-loadout roster and per-weapon attributes
+            // than the one the fixture actually recorded.
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV1,
+            // The fixture was also captured before CollisionRules
+            // .DefaultBodyRadiusRaw moved from four world units to 4.5
+            // (design doc 2026-07-28-collision-report-and-shell-design.md
+            // section 1.3). Pinning the old radius explicitly here, rather
+            // than reading the current default, keeps this control run
+            // holding every quantity but the clash profile constant, which
+            // is the whole point of the comparison it makes.
+            BodyRadiusRaw = 4 * FixedPoint.Scale,
+            // Likewise for the movement axis: the fixture was captured under
+            // IndependentPursuitV1, before Scenario.MovementPreset defaulted
+            // to PersistentContingentsV2 in T15 of
+            // the formation and movement realism plan.
+            // The control run has to name V1 explicitly, or it silently
+            // replays the frozen digest against a preset that moves every
+            // agent's trajectory.
+            MovementPreset = MovementPresetId.IndependentPursuitV1,
         };
         scenario.Validate();
 
@@ -671,6 +1053,20 @@ public sealed class DeterminismTests
 
         return BattleSimulation.Create(scenario, rules);
     }
+
+    /// <summary>
+    /// The pre-clash digest fixture recorded <c>WeaponId.Itak</c>'s name at
+    /// capture time under its prior identifier, <c>Bolo</c>, before the V2
+    /// weapon-identity rename (design section 2.1) renumbered no value and
+    /// changed no behaviour -- only the enum member's name. Translating the
+    /// legacy label here, rather than editing the committed fixture or its
+    /// pinned hashes, keeps the fixture's own recorded provenance intact while
+    /// still comparing the name a fixture row actually identifies. No other
+    /// weapon name differs: Kampilan, Wasay, and Kalis already carried their
+    /// current names by the commit the digest was captured from.
+    /// </summary>
+    private static string TranslateLegacyWeaponName(string legacyName) =>
+        legacyName == "Bolo" ? nameof(WeaponId.Itak) : legacyName;
 
     private static void AssertFinalAgentsMatch(
         PreClashDigest digest,
@@ -693,7 +1089,9 @@ public sealed class DeterminismTests
             Assert.Equal(expected.TargetEntityId, agent.TargetEntityId ?? 0);
             Assert.Equal(expected.Intent, agent.Intent.ToString());
             Assert.Equal(expected.IsAlive, agent.IsAlive);
-            Assert.Equal(expected.Weapon, agent.Loadout.Weapon.ToString());
+            Assert.Equal(
+                TranslateLegacyWeaponName(expected.Weapon),
+                agent.Loadout.Weapon.ToString());
             Assert.Equal(expected.Armor, agent.Loadout.Armor.ToString());
             Assert.Equal(expected.Shield, agent.Loadout.Shield.ToString());
             Assert.Equal(
@@ -849,5 +1247,156 @@ public sealed class DeterminismTests
         Assert.Equal(1, snapshot.Tick);
         Assert.Equal(firstAgent, snapshot.Agents[0]);
         Assert.NotEqual(snapshot.StateHash, simulation.ComputeStateHash());
+    }
+
+    /// <summary>
+    /// Task F0 of docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt.md.
+    /// The same lockstep, every-tick comparison
+    /// <see cref="TwoIndependentSameSeedRunsAgreeOnOrderedEventsAndStateHashEveryTick"/>
+    /// makes for the shipped default, but under
+    /// <see cref="MovementPresetId.EquipmentRelativeFootworkV7"/>, whose
+    /// pressure interrupt writes three new per-agent fields and folds four new
+    /// ruleset values into the state hash. A divergence introduced by the
+    /// interrupt's scratch arrays, its cooldown and combo writes, or the
+    /// conditional <c>StateHasher</c> block would surface here at the tick it
+    /// first appeared rather than only in the terminal hash.
+    /// </summary>
+    /// <remarks>
+    /// The loop is bounded by an explicit tick count rather than by
+    /// <see cref="BattleOutcome.Ongoing"/>, which is what the two tests above
+    /// use. V7 does not terminate: every cell of the calibration matrix in
+    /// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md ended
+    /// <see cref="BattleOutcome.Draw"/> at the 10,000-tick limit, so an
+    /// outcome-driven loop would run the full limit twice over on every
+    /// <c>dotnet test</c> invocation and prove nothing the bounded window does
+    /// not.
+    /// </remarks>
+    /// <remarks>
+    /// The agent count and the seed are not free choices. The interrupt fires
+    /// rarely -- section 4 of the calibration record measures 129 firings
+    /// across all six rows of the whole 10,000-tick seed-1 200-agent cell --
+    /// and at 60 agents it does not fire inside this window at all, which the
+    /// closing assertion caught when this test was first written against that
+    /// size. Seed 2 at 200 agents is the densest cell in the matrix, at 360
+    /// firings, and is chosen so the compared window reliably contains some.
+    /// </remarks>
+    [Fact]
+    public void EquipmentRelativeFootworkV7_SameSeedRunsAgreeOnEventsAndStateHashEveryTick()
+    {
+        const int ComparedTicks = 1_500;
+
+        var scenario = Scenario.CreateDefault(seed: 2, totalAgents: 200) with
+        {
+            MovementPreset = MovementPresetId.EquipmentRelativeFootworkV7,
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+        };
+        var left = BattleSimulation.Create(scenario);
+        var right = BattleSimulation.Create(scenario);
+        var sawInterruptFire = false;
+
+        Assert.Equal(left.ComputeStateHash(), right.ComputeStateHash());
+
+        for (var tick = 0;
+            tick < ComparedTicks && left.Outcome == BattleOutcome.Ongoing;
+            tick++)
+        {
+            left.AdvanceOneTick();
+            right.AdvanceOneTick();
+
+            sawInterruptFire |= left.Agents.Any(
+                agent => agent.IsAlive && agent.BrokeOffUnderPressure);
+
+            if (!left.LastEvents.SequenceEqual(right.LastEvents))
+            {
+                Assert.Fail(
+                    $"Ordered events first diverged at tick {left.Tick}: the " +
+                    $"first run emitted {left.LastEvents.Count} events and the " +
+                    $"second emitted {right.LastEvents.Count}.");
+            }
+
+            var leftHash = left.ComputeStateHash();
+            var rightHash = right.ComputeStateHash();
+
+            if (leftHash != rightHash)
+            {
+                Assert.Fail(
+                    $"State hash first diverged at tick {left.Tick}: " +
+                    $"0x{leftHash:X16} against 0x{rightHash:X16}.");
+            }
+        }
+
+        Assert.Equal(left.Tick, right.Tick);
+        Assert.Equal(left.Outcome, right.Outcome);
+
+        // The interrupt must actually have fired somewhere in the compared
+        // window, or this test would agree just as happily about a V7 that
+        // never took its own branch, and would therefore be asserting
+        // determinism over the V6 code path under a V7 name.
+        Assert.True(
+            sawInterruptFire,
+            $"No warrior broke off under pressure in the first {ComparedTicks} " +
+            "ticks, so this run never exercised the V7 branch it exists to " +
+            "cover.");
+    }
+
+    /// <summary>
+    /// Task F0 of docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt.md.
+    /// Two independent headless runs of one seed under V7 agree on the state
+    /// hash, the event hash, the outcome, and the survivor counts. This is the
+    /// <c>CLAUDE.md</c> section 5 contract -- same seed plus same build gives
+    /// an identical state hash, event hash, winner, and ordered event stream --
+    /// asserted through the same runner the canonical gate's determinism
+    /// workload uses, so it covers the whole path rather than
+    /// <c>BattleSimulation</c> alone.
+    /// </summary>
+    [Fact]
+    public void EquipmentRelativeFootworkV7_RepeatedHeadlessRunsAgree()
+    {
+        var first = RunV7Headless();
+        var second = RunV7Headless();
+
+        Assert.Equal(
+            first.RootElement.GetProperty("stateHash").GetString(),
+            second.RootElement.GetProperty("stateHash").GetString());
+        Assert.Equal(
+            first.RootElement.GetProperty("eventHash").GetString(),
+            second.RootElement.GetProperty("eventHash").GetString());
+        Assert.Equal(
+            first.RootElement.GetProperty("outcome").GetString(),
+            second.RootElement.GetProperty("outcome").GetString());
+        Assert.Equal(
+            first.RootElement.GetProperty("faction0Survivors").GetInt32(),
+            second.RootElement.GetProperty("faction0Survivors").GetInt32());
+        Assert.Equal(
+            first.RootElement.GetProperty("faction1Survivors").GetInt32(),
+            second.RootElement.GetProperty("faction1Survivors").GetInt32());
+
+        // The runner's own two-run comparison, which is the check the gate's
+        // determinism workload reports on.
+        Assert.True(first.RootElement.GetProperty("deterministic").GetBoolean());
+        Assert.True(second.RootElement.GetProperty("deterministic").GetBoolean());
+
+        first.Dispose();
+        second.Dispose();
+    }
+
+    private static JsonDocument RunV7Headless()
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+        string[] arguments =
+        [
+            "--agents", "20",
+            "--ticks", "400",
+            "--seed", "1",
+            "--preset", nameof(CombatPresetId.PrecolonialPhilippinesV2),
+            "--movement-preset",
+            nameof(MovementPresetId.EquipmentRelativeFootworkV7),
+        ];
+
+        var exitCode = HeadlessRunner.Run(arguments, output, error);
+        Assert.Equal(0, exitCode);
+
+        return JsonDocument.Parse(output.ToString());
     }
 }

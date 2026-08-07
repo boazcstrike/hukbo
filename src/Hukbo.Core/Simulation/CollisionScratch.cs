@@ -65,6 +65,20 @@ internal sealed class CollisionScratch
 {
     private readonly int[] _blockedStreakTicks;
 
+    /// <summary>
+    /// How many times each agent has given up on a rally aim point. Monotonic:
+    /// it never falls, even when the agent escapes and its streak resets.
+    /// </summary>
+    /// <remarks>
+    /// A generation derived from the current streak alone was tried first and
+    /// measured insufficient. An agent that escaped returned to generation 0 and
+    /// to its original aim point, walked back into the same ally, and re-locked;
+    /// over 200 seeds that halved the stall rate rather than removing it. Making
+    /// the generation monotonic means a rejected aim point stays rejected.
+    /// </remarks>
+    private readonly int[] _stallGenerations;
+
+
     internal CollisionScratch(Scenario scenario, int agentCount)
     {
         // A solid resolver guarantees every living pair ends the tick at or
@@ -83,6 +97,7 @@ internal sealed class CollisionScratch
         Bodies = new List<CollisionBody>(agentCount);
         Requests = new List<CollisionMoveRequest>(agentCount);
         _blockedStreakTicks = new int[agentCount];
+        _stallGenerations = new int[agentCount];
     }
 
     /// <summary>
@@ -121,6 +136,27 @@ internal sealed class CollisionScratch
     }
 
     /// <summary>
+    /// How many consecutive ticks this agent has now been blocked for, ending
+    /// with the tick just resolved. Zero whenever it last moved.
+    /// </summary>
+    /// <remarks>
+    /// This was bookkeeping for the <see cref="LongestBlockedStreakTicks"/>
+    /// metric until the rally stall escape began reading it. It is now an input
+    /// to movement intent, through
+    /// <see cref="FormationRules.ComputeStallGeneration"/>, so it is gameplay
+    /// state rather than observation and belongs in any future snapshot.
+    /// </remarks>
+    internal int BlockedStreakTicks(int agentIndex) =>
+        _blockedStreakTicks[agentIndex];
+
+    /// <summary>
+    /// Which rally aim point this agent is entitled to. See
+    /// <see cref="_stallGenerations"/>.
+    /// </summary>
+    internal int StallGeneration(int agentIndex) =>
+        _stallGenerations[agentIndex];
+
+    /// <summary>
     /// Extends or ends one agent's blocked streak and keeps the running maximum.
     /// </summary>
     internal void RecordBlocked(int agentIndex, bool isBlocked)
@@ -133,6 +169,15 @@ internal sealed class CollisionScratch
 
         var streak = checked(_blockedStreakTicks[agentIndex] + 1);
         _blockedStreakTicks[agentIndex] = streak;
+
+        // One generation per unbroken run of blocked ticks. The streak itself is
+        // left alone, so LongestBlockedStreakTicks keeps reporting the true
+        // longest run rather than a value capped by this rule.
+        if (streak % FormationRules.StallEscapeStreakTicks == 0)
+        {
+            _stallGenerations[agentIndex] =
+                checked(_stallGenerations[agentIndex] + 1);
+        }
         LongestBlockedStreakTicks = Math.Max(LongestBlockedStreakTicks, streak);
     }
 }
