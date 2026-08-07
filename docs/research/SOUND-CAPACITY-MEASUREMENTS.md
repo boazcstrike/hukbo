@@ -352,6 +352,115 @@ agents at 1x peaking at +1.6 dBFS with two flattened samples. The intermediate
 value 0.72 was also measured and still left those two samples. 0.65 is the
 value that clears every case.
 
+### 7.2b RU-20: 26-slot parity re-measurement (2026-08-08)
+
+RU-09 grew the client's sound catalog from 13 slots to 26
+(`src/Hukbo.Client/Audio/AudioTypes.cs`'s `GameSoundId`): 4 clash-shield slots
+that predate RU-09 but were never implemented in this harness, plus 13 new
+ranged-weapon slots (3 release, 3 attack, 3 clash-shield, 3 miss, 1 unreachable
+misfire). Per section 8.3, the harness is a replica of `SoundCueMapper`,
+`SoundCatalog`, `HitClassCatalog`, `SoundLibrary`, and `SoundVariantSelector`
+and had drifted out of parity with the client on all four required dimensions:
+it covered 9 of 26 slots, never checked `AttackResolution` so a shield-blocked
+attack still played the plain weapon-attack sound, and its file-resolution
+logic recognized only numbered `<prefix>NN.wav` variants with no hit-class
+fallback chain and no bare-file (`<slot>.wav`) fallback — meaning victory,
+draw, and UI-click, all of which ship as bare singles, never produced a cue in
+any measurement this harness had produced before this change.
+
+`tools/Hukbo.Tools.MixAnalysis/CueSchedule.cs`, `Mixer.cs`, and `Program.cs`
+were rewritten to close all four gaps: the full 26-slot `SlotBaseNames` table
+in `GameSoundId` order, a `MapSlot`/`MapAttackSlot`/`MapShieldClashSlot`/
+`MapReleaseSlot`/`MapMissSlot` family that mirrors `SoundCueMapper` exactly
+(including the `ShieldBlocked` and ranged-`Evaded` routing the old code
+skipped), a `HitClassCatalog`-equivalent fallback chain, and a two-stage
+numbered-match-then-fallback-then-bare-file resolver equivalent to
+`SoundLibrary.ResolveVariants`. `Mixer.cs` gained per-slot peak tracking:
+`MixResult.GetSlotPeakDbfs(slot)` reports the finished (post-limiter) buffer's
+peak while that slot has a voice sounding, and `WorstSlot()` names the loudest
+one.
+
+**Mapping parity** was verified by code-level correspondence against the
+client sources read in full (`SoundCueMapper.cs`, `SoundCatalog.cs`,
+`HitClass.cs`, `SoundLibrary.cs`, `SoundVariantSelector.cs`), not by a shared
+test — the client's mapping types are `internal` to the windowed
+`Hukbo.Client` assembly and unreachable from a `tools/` console project. All
+26 slots, the shield-clash and ranged-miss routing rules, the six-class
+fallback chain, and the `SplitMix64`-based variant draw (identical mixing
+constant `0x9E3779B97F4A7C15`, identical `tick`/`sourceEntityId` seed
+derivation) were confirmed line-for-line to match.
+
+**Re-measured at 500 agents, seed 1, `Scenario.CreateDefault`** — melee-only
+`PrecolonialPhilippinesV4`, the only preset with an emission site today. The
+battle ran to a different length than the original 2026-07-27 measurement
+(2 263 ticks here against 2 668 originally) because `Hukbo.Core`'s combat
+resolution has changed in the intervening weeks (weapon-movement foundation,
+movement-matrix consolidation, and related merges to `main`); **these figures
+are a fresh baseline, not a like-for-like re-run of 7.2/7.2a**, and should not
+be diffed against those tables cell-for-cell.
+
+| Policy | Played | Suppressed | Peak voices | Peak dBFS | Clipped samples |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `today` (3/8, gain 0.8) | 5 730 | 572 | 46 | +10.0 | 28 084 |
+| `uncapped-same-gain` | 6 302 | 0 | 54 | +12.6 | 41 035 |
+| `uncapped-compensated` | 6 302 | 0 | 54 | +2.7 | 23 |
+| `uncapped-compensated-limited` | 6 302 | 0 | 54 | +2.7 | 23 |
+| `shipped-after-change` (16/64, gain 0.8) | 6 302 | 0 | 54 | +2.7 | 23 |
+| `shipped-gain-0.72` (16/64, gain 0.72) | 6 302 | 0 | 54 | +1.8 | 11 |
+| **`shipped-gain-0.65` (16/64, gain 0.65 — the shipped policy)** | **6 302** | **0** | **54** | **+0.9** | **8** |
+
+6 302 cues demanded; per-slot breakdown: `attack-kampilan` 1 414,
+`attack-kalis` 1 665, `attack-itak` 1 733, `attack-wasay` 990, `death` 499,
+`victory-blue` 1. **All 4 clash-shield slots and all 13 ranged slots read
+zero** — confirmed structural, not a harness gap: V4's roster fields every
+combatant with `ShieldId.None`
+(`src/Hukbo.Core/Combat/PhilippineCombatPresetV4.cs`, "only the `ShieldId.None`
+row is ever resolved"), so no `AttackResolution.ShieldBlocked` ever occurs, and
+RU-17 (the projectile pool that would emit `Release`/`Miss` events) has not
+landed on this base — `BattleEvent.Weapon` stays `null` for both event kinds
+by construction, so `MapReleaseSlot`/`MapMissSlot` structurally return -1
+regardless of mapping correctness.
+
+**Worst slot in every policy is `attack-kampilan`**, at the same dBFS as the
+render's global peak — it is the highest-volume weapon slot and is sounding at
+the moment the mix peaks.
+
+**Release-cue concentration (the 3 ranged release slots specifically):**
+
+| Slot | Cues demanded | Peak dBFS (any policy) |
+| --- | ---: | ---: |
+| 13 `release-bangkaw` | 0 | −∞ (never played) |
+| 14 `release-busog` | 0 | −∞ (never played) |
+| 15 `release-arquebus` | 0 | −∞ (never played) |
+
+Cannot be measured on this base. No ranged `.wav` file exists on disk (RU-31
+has not run) and no code path emits a `Release` event yet (RU-17 not landed),
+so the three release slots are structurally silent in every run this harness
+can produce today. The mapping code that would route them
+(`MapReleaseSlot`/`SoundCueMapper.MapRelease`) is verified correct by
+inspection; only the live measurement is blocked.
+
+**Does the 16-per-slot cap bind?** No, not under this load. `shipped-gain-0.65`
+(cap 16 per slot, 64 total) suppresses 0 of 6 302 demanded cues; only the
+deliberately tight `today` policy (cap 3/8) suppresses anything (572). Peak
+concurrent voices (54) stays well under the 64 total cap. No measured evidence
+calls for a raised cap, and none can be produced for the 13 ranged slots until
+RU-17/RU-19/RU-31 land and a real ranged load exists to measure.
+
+**A fresh finding, outside this task's authority to fix:** at the shipped
+policy (cap 16/64, `CueVolume` 0.65 — chosen in section 7.2a specifically
+because it cleared every case), this rebuild measures +0.9 dBFS and 8 clipped
+samples at 500 agents/1x, where section 7.2a recorded −0.2 dBFS and 0 clipped
+samples for the same nominal policy. Peak voices also rose, 54 against 41. The
+cause is the same `Hukbo.Core` drift noted above — more simultaneous melee
+voices are possible in the current build — not a defect in this harness. This
+is a `CueVolume`/gain question, not a per-slot budget question, and is out of
+this task's file scope (`SoundCueBudgetTests.cs` may not be edited and no
+budget or gain value may be changed here); it is reported for the orchestrator
+to weigh against RU-31, since it moves the melee-only baseline from
+comfortably under full scale to just over it, before any of the 13 new ranged
+slots have contributed a single cue.
+
 ### 7.3 What this establishes
 
 **The shipped game already overloads its own output.** Not at some hypothetical
@@ -457,20 +566,27 @@ Invocation: `dotnet run -c Release [audioDirectory] [volume]`.
 dependency at all — it reads and writes WAV data itself, so it opens no audio
 device and can run anywhere.
 
-It reads the shipped clips, groups them into variant lists by file-name prefix,
-runs a real `BattleSimulation`, and resolves each mapped event to the exact file
-the client would have chosen. It then sums the clip sample data into a
-floating-point buffer at the true trigger times under each of the four policies
-in section 7.1, measures peak amplitude and the count of samples beyond full
-scale, and writes each render to a WAV.
+It reads the shipped clips, runs a real `BattleSimulation`, and resolves each
+mapped event to the exact file the client would have chosen. It then sums the
+clip sample data into a floating-point buffer at the true trigger times under
+each of the seven named policies in section 7.1/7.2b, measures peak amplitude
+(both overall and per slot), the count of samples beyond full scale, and
+writes each render to a WAV.
 
-Its slot mapping, hit-class mapping, fallback chain, and variant draw are
-**replicas** of `SoundCueMapper`, `HitClassCatalog`, and `SoundVariantSelector`,
-because those types are `internal` to the windowed `Hukbo.Client` assembly. The
+Its slot mapping (all 26 `GameSoundId` slots, including the shield-blocked and
+ranged-miss routing rules), hit-class mapping, fallback chain, and variant draw
+are **replicas** of `SoundCueMapper`, `SoundCatalog`, `HitClassCatalog`,
+`SoundLibrary`, and `SoundVariantSelector`, because those types are `internal`
+to the windowed `Hukbo.Client` assembly. The file-resolution algorithm
+(`CueSchedule.ResolveFile` and its helpers) performs the same two-stage
+numbered-match-then-fallback-chain-then-bare-file resolution
+`SoundLibrary.ResolveVariants` performs, not a simplified prefix grouping. The
 variant draw uses the same `SplitMix64` from `Hukbo.Core` as the client, so the
-file chosen for a given tick and entity is identical rather than merely similar.
-**If the client's mapping changes, this harness must change with it**, or its
-figures quietly stop describing the game.
+file chosen for a given tick and entity is identical rather than merely
+similar. **If the client's mapping changes, this harness must change with
+it**, or its figures quietly stop describing the game — see section 7.2b for
+the most recent parity update, made when RU-09's ranged slots grew the catalog
+from 13 to 26 members and this harness had drifted to covering only 9.
 
 Invocation: `dotnet run -c Release <audioDirectory> <outputDirectory> <agents> <seed> <speed>`.
 
@@ -525,6 +641,15 @@ Not established, and deliberately left open:
 - **Whether variant coverage is complete.** A slot with no file for a given hit
   class is silent by design. Whether every weapon and hit-class pair currently
   resolves to a `Ready` binding was not audited here.
+- **Whether the 13 ranged slots (release, ranged attack, ranged clash-shield,
+  ranged miss) hold up under a real load.** Section 7.2b's harness is proven
+  correct against the client's mapping by code-level inspection, but no
+  ranged `.wav` file exists yet and no emission site fires a `Release` or
+  `Miss` event on this base, so every ranged slot measures zero cues in every
+  run this harness can produce. This is a code-discipline finding, not a
+  loudness one, and it gates the ElevenLabs generation task (RU-31): the
+  measurement RU-31 needs cannot exist until RU-17 (projectile emission) and
+  RU-19 (sound-director wiring) land and real ranged files are on disk.
 
 ## 10. Provenance
 
