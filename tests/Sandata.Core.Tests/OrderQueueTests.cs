@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
 
 namespace Sandata.Core.Tests;
@@ -49,10 +50,12 @@ public sealed class OrderQueueTests
         long[] submittedTargetTicks, long[] expectedOrderSequence)
     {
         var queue = OrderQueue.Empty;
+        var grid = NewOpenGrid();
+        var wallBuckets = NoWalls(grid);
         foreach (var targetTick in submittedTargetTicks)
         {
-            (queue, _) = queue.Submit(
-                targetTick, factionId: 0, ImmutableArray<ulong>.Empty, OrderKind.Hold);
+            (queue, _, _) = queue.SubmitValidated(
+                targetTick, factionId: 0, ImmutableArray<ulong>.Empty, OrderKind.Hold, grid, wallBuckets);
         }
 
         var applied = queue.InApplicationOrder();
@@ -196,15 +199,21 @@ public sealed class OrderQueueTests
     public void Submit_StoresAddresseesAscending_RegardlessOfSubmittedOrder(ulong[] submittedAddressees)
     {
         var queue = OrderQueue.Empty;
+        var grid = NewOpenGrid();
+        var wallBuckets = NoWalls(grid);
 
-        (_, var submitted) = queue.Submit(
+        (_, var submitted, var rejection) = queue.SubmitValidated(
             targetTick: 1,
             factionId: 0,
             ImmutableArray.Create(submittedAddressees),
-            OrderKind.Hold);
+            OrderKind.Hold,
+            grid,
+            wallBuckets);
 
+        Assert.Null(rejection);
+        Assert.NotNull(submitted);
         Assert.Equal(
-            new ulong[] { 2, 5, 17, 30, 100 }, submitted.Addressees.ToArray());
+            new ulong[] { 2, 5, 17, 30, 100 }, submitted!.Addressees.ToArray());
     }
 
     public static IEnumerable<object[]> UnorderedAddresseeLists()
@@ -230,14 +239,25 @@ public sealed class OrderQueueTests
         var nodes = ImmutableArray.Create(
             new OrderPathNode(10, 20), new OrderPathNode(30, 40), new OrderPathNode(50, 60));
 
-        (queue, var first) = queue.Submit(
-            targetTick: 5, factionId: 0, ImmutableArray<ulong>.Empty, OrderKind.MoveAlongPath, nodes);
-        (queue, var second) = queue.Submit(
-            targetTick: 5, factionId: 1, ImmutableArray<ulong>.Empty, OrderKind.Hold);
+        // Widened to 20x20 cells (80x80 world units) so every node in
+        // `nodes` — up to (50, 60) — is in bounds; the default 10x10 grid
+        // used elsewhere in this file is too small for this fixture's own
+        // path, now that SubmitValidated runs bounds validation on it.
+        var grid = NewOpenGrid(widthCells: 20, heightCells: 20);
+        var wallBuckets = NoWalls(grid);
 
-        Assert.Equal(0, first.OrderId);
+        (queue, var first, var firstRejection) = queue.SubmitValidated(
+            targetTick: 5, factionId: 0, ImmutableArray<ulong>.Empty, OrderKind.MoveAlongPath, grid, wallBuckets, nodes);
+        (queue, var second, var secondRejection) = queue.SubmitValidated(
+            targetTick: 5, factionId: 1, ImmutableArray<ulong>.Empty, OrderKind.Hold, grid, wallBuckets);
+
+        Assert.Null(firstRejection);
+        Assert.Null(secondRejection);
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.Equal(0, first!.OrderId);
         Assert.Equal(0, first.OrderSequence);
-        Assert.Equal(1, second.OrderId);
+        Assert.Equal(1, second!.OrderId);
         Assert.Equal(1, second.OrderSequence);
         Assert.Equal(nodes, first.PathNodes);
         Assert.Empty(second.PathNodes);
@@ -245,4 +265,99 @@ public sealed class OrderQueueTests
 
     private static Order MakeOrder(long orderId, long orderSequence, long targetTick) =>
         new(orderId, orderSequence, targetTick, FactionId: 0, OrderKind.Hold);
+
+    private static NavGrid NewOpenGrid(int widthCells = 10, int heightCells = 10)
+    {
+        var grid = new NavGrid(width: widthCells, height: heightCells);
+        Array.Fill(grid.Passability, NavCellFlags.Open);
+        return grid;
+    }
+
+    private static WallBuckets NoWalls(NavGrid grid) => WallBuckets.Build(grid, [], [], [], []);
+
+    /// <summary>
+    /// Task 58's wiring requirement: <see cref="OrderQueue.SubmitValidated"/>
+    /// runs design section 16's four rejection rules at the submission
+    /// boundary, not as an uncalled helper. An empty, open grid with no
+    /// walls accepts every rule except the node-count one, which a
+    /// single-node path deliberately fails, isolating the wiring itself from
+    /// any one rule's own logic (already covered fixture by fixture in
+    /// <c>OrderValidationTests</c>).
+    /// </summary>
+    [Fact]
+    public void SubmitValidated_RejectedOrder_DoesNotEnterTheQueueButConsumesIdAndSequence()
+    {
+        var grid = NewOpenGrid();
+        var wallBuckets = NoWalls(grid);
+        var queue = OrderQueue.Empty;
+
+        var (queueAfterRejection, submitted, rejection) = queue.SubmitValidated(
+            targetTick: 5,
+            factionId: 0,
+            ImmutableArray<ulong>.Empty,
+            OrderKind.MoveAlongPath,
+            grid,
+            wallBuckets,
+            ImmutableArray.Create(new OrderPathNode(0, 0)));
+
+        Assert.Null(submitted);
+        Assert.NotNull(rejection);
+        Assert.Equal(0, rejection!.OrderId);
+        Assert.Equal(OrderRejectReason.InvalidNodeCount, rejection.Reason);
+        Assert.Empty(queueAfterRejection.Orders);
+
+        // Design section 16 says the rejection event "carries the order
+        // id" — an id had to be assigned to carry, even though the order
+        // never entered Orders. Both counters advance exactly as an
+        // accepted Submit would advance them, so the next accepted
+        // submission draws OrderId 1, not the rejected attempt's 0 again.
+        Assert.Equal(1, queueAfterRejection.NextOrderId);
+        Assert.Equal(1, queueAfterRejection.NextOrderSequence);
+
+        var (queueAfterAcceptance, secondSubmitted, secondRejection) = queueAfterRejection.SubmitValidated(
+            targetTick: 6,
+            factionId: 0,
+            ImmutableArray<ulong>.Empty,
+            OrderKind.Hold,
+            grid,
+            wallBuckets);
+
+        Assert.Null(secondRejection);
+        Assert.NotNull(secondSubmitted);
+        Assert.Equal(1, secondSubmitted!.OrderId);
+        Assert.Equal(1, secondSubmitted.OrderSequence);
+        Assert.Single(queueAfterAcceptance.Orders);
+    }
+
+    /// <summary>
+    /// The accepted path through <see cref="OrderQueue.SubmitValidated"/>
+    /// must behave exactly like the existing, unmodified <see cref="OrderQueue.Submit"/>
+    /// — same dense id assignment, same verbatim path storage — so a caller
+    /// migrating from one to the other sees no behavioural change for a
+    /// valid order.
+    /// </summary>
+    [Fact]
+    public void SubmitValidated_AcceptedMoveAlongPath_StoresOrderIdenticallyToSubmit()
+    {
+        var grid = NewOpenGrid();
+        var wallBuckets = NoWalls(grid);
+        var nodes = ImmutableArray.Create(new OrderPathNode(0, 0), new OrderPathNode(4, 0));
+
+        var (queue, submitted, rejection) = OrderQueue.Empty.SubmitValidated(
+            targetTick: 3,
+            factionId: 1,
+            ImmutableArray<ulong>.Empty,
+            OrderKind.MoveAlongPath,
+            grid,
+            wallBuckets,
+            nodes);
+
+        Assert.Null(rejection);
+        Assert.NotNull(submitted);
+        Assert.Equal(0, submitted!.OrderId);
+        Assert.Equal(0, submitted.OrderSequence);
+        Assert.Equal(nodes, submitted.PathNodes);
+        Assert.Single(queue.Orders);
+        Assert.Equal(submitted, queue.Orders[0]);
+    }
 }
