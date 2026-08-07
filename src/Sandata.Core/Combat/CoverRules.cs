@@ -59,6 +59,23 @@ namespace Sandata.Core.Combat;
 /// and receives no reduction.
 /// </para>
 /// <para>
+/// <b>The arc test applies to both postures.</b> Design section 9 states
+/// "fire from the flank or rear ignores cover entirely" before it introduces
+/// crouching, and that sentence is absolute — it is not narrowed to standing
+/// operators by anything the design says afterward. Crouching lowers an
+/// operator's profile behind whatever the object already blocks; it does not
+/// make the object itself bigger or turn it to face a new direction. A
+/// shooter positioned outside the object's protected arc is not behind the
+/// object at all from the defender's position, so there is nothing there to
+/// crouch behind, and <see cref="ReductionPercent"/> tests
+/// <see cref="IsWithinProtectedArc"/> before it looks at
+/// <see cref="CoverState.Posture"/>, returning zero outside the arc for
+/// either posture. Only once a shot is confirmed to arrive from inside the
+/// arc does posture decide whether it survives at
+/// <see cref="StandingCoverReductionPercent"/> or
+/// <see cref="CrouchedCoverReductionPercent"/>.
+/// </para>
+/// <para>
 /// <b>The rounding rule, pinned once here for both percentages.</b> Every
 /// percentage reduction in this type is computed as
 /// <c>value * (100 - percent) / 100</c> using C#'s ordinary integer division,
@@ -85,8 +102,11 @@ public static class CoverRules
 
     /// <summary>
     /// The percentage of damage and of hit chance removed for a crouched
-    /// operator affiliated with a cover object, applied regardless of the
-    /// direction the shot arrives from.
+    /// operator affiliated with a cover object, when the incoming shot's
+    /// direction falls inside the covering object's protected arc. Outside
+    /// the arc a crouched operator is exactly as exposed as a standing one —
+    /// zero — because "fire from the flank or rear ignores cover entirely"
+    /// is unconditional; see <see cref="ReductionPercent"/>.
     /// </summary>
     /// <remarks>
     /// Design section 9 calls crouched cover "near-total protection" and "a
@@ -96,7 +116,8 @@ public static class CoverRules
     /// retune it once the weapon-damage numbers it interacts with exist.
     /// Ninety-five was chosen so a crouched operator is not literally
     /// invulnerable (a magazine's worth of hits can still, rarely, kill one)
-    /// while remaining far safer than the standing 50 percent case.
+    /// while remaining far safer than the standing 50 percent case, in the
+    /// direction the crouching operator is actually sheltered from.
     /// </remarks>
     public const int CrouchedCoverReductionPercent = 95;
 
@@ -114,10 +135,10 @@ public static class CoverRules
     /// <paramref name="shooterY"/> at a defender standing at
     /// <paramref name="defenderX"/>, <paramref name="defenderY"/> arrives from
     /// inside the protected arc described by <paramref name="arcCentreBam"/>
-    /// and <paramref name="arcHalfBam"/>. This is the standing-cover test:
-    /// callers checking a crouched operator do not need it, because crouched
-    /// protection is not arc-gated — see
-    /// <see cref="CrouchedCoverReductionPercent"/>.
+    /// and <paramref name="arcHalfBam"/>. This same test gates both postures:
+    /// a shot from outside the arc is the flank-and-rear case, which ignores
+    /// cover entirely whether the defender is standing or crouched — see
+    /// <see cref="ReductionPercent"/>.
     /// </summary>
     /// <param name="arcCentreBam">
     /// The direction the covering object's protected arc faces.
@@ -152,10 +173,11 @@ public static class CoverRules
     /// <paramref name="cover"/>, for a shot travelling from
     /// <paramref name="shooterX"/>, <paramref name="shooterY"/> to
     /// <paramref name="defenderX"/>, <paramref name="defenderY"/>. Zero when
-    /// the defender is not affiliated with any cover object, when the
-    /// defender is standing and the shot arrives from outside the object's
-    /// protected arc (the flank-and-rear bypass), or, symmetrically, whatever
-    /// non-zero percentage applies when the defender is protected.
+    /// the defender is not affiliated with any cover object, or when the shot
+    /// arrives from outside the object's protected arc regardless of posture
+    /// (the flank-and-rear bypass); otherwise <see cref="StandingCoverReductionPercent"/>
+    /// while standing or <see cref="CrouchedCoverReductionPercent"/> while
+    /// crouched.
     /// </summary>
     public static int ReductionPercent(
         CoverState cover,
@@ -169,21 +191,23 @@ public static class CoverRules
             return 0;
         }
 
-        if (cover.Posture == CoverPosture.Crouched)
-        {
-            // Crouched protection is not arc-gated: an operator fully tucked
-            // behind the object is treated as sheltered from every incoming
-            // direction, not only the object's facing. See the class remarks
-            // and CrouchedCoverReductionPercent's remarks for why this is a
-            // deliberate reading of "near-total protection" rather than the
-            // standing rule applied with a bigger number.
-            return CrouchedCoverReductionPercent;
-        }
-
+        // The arc test is checked first and applies to both postures: "fire
+        // from the flank or rear ignores cover entirely" is unconditional in
+        // design section 9, and it comes before that section introduces
+        // crouching at all. A shot from outside the arc means the shooter is
+        // not on the side of the object the defender is sheltered by, so
+        // there is nothing between them for either posture to hide behind.
         var withinArc = IsWithinProtectedArc(
             cover.ArcCentreBam, cover.ArcHalfBam, shooterX, shooterY, defenderX, defenderY);
 
-        return withinArc ? StandingCoverReductionPercent : 0;
+        if (!withinArc)
+        {
+            return 0;
+        }
+
+        return cover.Posture == CoverPosture.Crouched
+            ? CrouchedCoverReductionPercent
+            : StandingCoverReductionPercent;
     }
 
     /// <summary>

@@ -26,11 +26,13 @@ public enum CoverPosture
 
     /// <summary>
     /// Tucked down behind the covering object. A crouched operator cannot
-    /// produce a fire proposal (see <see cref="CoverRules.CanProduceFireProposal"/>)
+    /// produce a fire proposal (see <see cref="CoverRules.CanProduceFireProposal"/>),
     /// and, while affiliated with a cover object, receives near-total
-    /// protection regardless of the direction fire arrives from — see the
-    /// remarks on <see cref="CoverRules.CrouchedCoverReductionPercent"/> for
-    /// why that protection is not arc-gated the way standing cover is.
+    /// protection whenever incoming fire arrives from inside the object's
+    /// protected arc — see <see cref="CoverRules.CrouchedCoverReductionPercent"/>.
+    /// Outside that arc a crouched operator is exactly as exposed as a
+    /// standing one, because the flank-and-rear bypass in
+    /// <see cref="CoverRules.ReductionPercent"/> is unconditional on posture.
     /// </summary>
     Crouched = 1,
 }

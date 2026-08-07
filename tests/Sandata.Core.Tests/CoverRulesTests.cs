@@ -138,21 +138,59 @@ public sealed class CoverRulesTests
     }
 
     [Fact]
-    public void CrouchedOperator_IsNearImmune_RegardlessOfArcDirection()
+    public void CrouchedOperator_InsideTheArc_IsNearImmune()
     {
-        // The shooter is due west of the defender — the rear case that a
-        // standing operator behind this same east-facing object would get no
-        // protection from at all. A crouched operator is protected anyway.
+        // The shooter is dead ahead of the object's east-facing arc — inside
+        // it, the same direction that gives a standing operator the ordinary
+        // 50 percent. A crouched operator inside the arc gets the near-total
+        // figure instead.
+        var cover = CrouchedBehind(EastCentre, NarrowHalfWidth);
+
+        var reduction = CoverRules.ReductionPercent(
+            cover, shooterX: 100, shooterY: 0, defenderX: 0, defenderY: 0);
+
+        Assert.Equal(CoverRules.CrouchedCoverReductionPercent, reduction);
+
+        var survivingDamage = CoverRules.ApplyToDamage(
+            rawDamage: 100, cover, shooterX: 100, shooterY: 0, defenderX: 0, defenderY: 0);
+        Assert.Equal(5, survivingDamage);
+    }
+
+    [Fact]
+    public void RearFireAgainstACrouchedOperator_GetsZeroReduction()
+    {
+        // This is the case that would have passed under the earlier,
+        // corrected reading of the design doc: a shooter due west of the
+        // defender is dead behind this east-facing object's arc. "Fire from
+        // the flank or rear ignores cover entirely" is unconditional on
+        // posture, so a crouched operator caught from the rear is exactly as
+        // exposed as a standing one — zero reduction, not near-total.
         var cover = CrouchedBehind(EastCentre, NarrowHalfWidth);
 
         var reduction = CoverRules.ReductionPercent(
             cover, shooterX: -100, shooterY: 0, defenderX: 0, defenderY: 0);
 
-        Assert.Equal(CoverRules.CrouchedCoverReductionPercent, reduction);
+        Assert.Equal(0, reduction);
 
         var survivingDamage = CoverRules.ApplyToDamage(
             rawDamage: 100, cover, shooterX: -100, shooterY: 0, defenderX: 0, defenderY: 0);
-        Assert.Equal(5, survivingDamage);
+        Assert.Equal(100, survivingDamage);
+    }
+
+    [Theory]
+    [InlineData(100L, 0L)]    // due east
+    [InlineData(-100L, 0L)]   // due west
+    [InlineData(0L, 100L)]    // due south
+    [InlineData(0L, -100L)]   // due north
+    [InlineData(70L, -70L)]   // an arbitrary diagonal
+    public void ArcHalfWidth32768_StillProtectsACrouchedOperatorFromEveryDirection(long dx, long dy)
+    {
+        var arcCentreBam = new Bam16(12_345);
+        const ushort fullCoverageHalfWidth = 32_768;
+        var cover = CrouchedBehind(arcCentreBam, fullCoverageHalfWidth);
+
+        Assert.Equal(CoverRules.CrouchedCoverReductionPercent, CoverRules.ReductionPercent(
+            cover, shooterX: dx, shooterY: dy, defenderX: 0, defenderY: 0));
     }
 
     [Fact]
