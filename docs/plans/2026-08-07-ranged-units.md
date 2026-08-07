@@ -641,6 +641,16 @@ quoted without its configuration is not evidence.
 | Base, before the package | `f02d012` | 0 red / 2614 | 0 red / 3121 |
 | Wave 1 merged, `AgentIntent` pin extended | `59c4556` | 18 red / 2618 | 11 red / 3121 |
 | Wave 2 merged, RU-06 still outstanding | `04de103` | 10 red / 2627 | 34 red / 3214 |
+| Wave 2 complete, RU-06 merged | `d69ab00` | 10 red / 2631 | 34 red / 3214 |
+| Wave 3 merged, RU-12 still outstanding | `f0f25f4` | 10 red / 2644 | 21 red / 3248 |
+
+At `f0f25f4` the remaining Client failures are exactly `PawnGeometryTests` (11) and
+`ConservativePawnCullTests` (10), both RU-22's in wave 5, and the remaining Core
+failures are `CombatConfigurationTests` (7) and `WeaponProfileTests` (2), both
+RU-12's, plus the leader fact that RU-21 and RU-30 close by registering V8 and V9.
+The seed-1 shipped-default `stateHash 1B73FC5923879AA0` and
+`eventHash AC55684F24D39344` are unchanged at every point in this table, which is
+the standing evidence that nothing in the package has reached a hash.
 
 Wave 2 introduced no cross-branch interaction failure: the merged counts equal the
 counts each branch reported alone. Wave 1 did — the `AgentIntent` pin — which is
