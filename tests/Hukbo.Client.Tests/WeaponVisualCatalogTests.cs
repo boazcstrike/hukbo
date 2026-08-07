@@ -228,6 +228,14 @@ public sealed class WeaponVisualCatalogTests
         Assert.Equal(WeaponVisualCatalog.ItakI1, WeaponVisualCatalog.PawnSilhouette(PawnWeaponRole.Itak));
     }
 
+    [Fact]
+    public void PawnSilhouette_ReturnsEveryRangedWeaponsOwnSilhouetteAsOfRU10()
+    {
+        Assert.Equal(WeaponVisualCatalog.BangkawB1, WeaponVisualCatalog.PawnSilhouette(PawnWeaponRole.Bangkaw));
+        Assert.Equal(WeaponVisualCatalog.BusogB1, WeaponVisualCatalog.PawnSilhouette(PawnWeaponRole.Busog));
+        Assert.Equal(WeaponVisualCatalog.ArquebusA1, WeaponVisualCatalog.PawnSilhouette(PawnWeaponRole.Arquebus));
+    }
+
     // --- R-W1.3: the tint-selection stream is pure, stable, and total ---
 
     [Fact]
@@ -259,14 +267,18 @@ public sealed class WeaponVisualCatalogTests
     [InlineData(PawnWeaponRole.Wasay)]
     [InlineData(PawnWeaponRole.Kalis)]
     [InlineData(PawnWeaponRole.Itak)]
+    [InlineData(PawnWeaponRole.Bangkaw)]
+    [InlineData(PawnWeaponRole.Busog)]
+    [InlineData(PawnWeaponRole.Arquebus)]
     public void SelectTint_NeverFallsThroughToTheModelCategoryDefaultForAnyDefinedWeapon(
         PawnWeaponRole weapon)
     {
-        // As of VIS-011 every defined PawnWeaponRole ships its own tints, so
-        // ModelCategoryDefaultTint (fallback step 3) is unreachable through
-        // SelectTint for any of them — it stays alive only as a distinct,
-        // testable chain step under the fallback tests' delegate doubles
-        // below, exactly like ShieldVisualCatalog.Default.
+        // As of VIS-011/RU-10 every defined PawnWeaponRole ships its own
+        // tints, so ModelCategoryDefaultTint (fallback step 3) is
+        // unreachable through SelectTint for any of them — it stays alive
+        // only as a distinct, testable chain step under the fallback
+        // tests' delegate doubles below, exactly like
+        // ShieldVisualCatalog.Default.
         for (ulong entityId = 0; entityId < 200; entityId++)
         {
             Assert.NotEqual(
@@ -292,6 +304,14 @@ public sealed class WeaponVisualCatalogTests
         Assert.NotEmpty(WeaponVisualCatalog.GetTints(PawnWeaponRole.Wasay));
         Assert.NotEmpty(WeaponVisualCatalog.GetTints(PawnWeaponRole.Kalis));
         Assert.NotEmpty(WeaponVisualCatalog.GetTints(PawnWeaponRole.Itak));
+    }
+
+    [Fact]
+    public void GetTints_IsNonEmptyForEveryRangedWeaponAsOfRU10()
+    {
+        Assert.NotEmpty(WeaponVisualCatalog.GetTints(PawnWeaponRole.Bangkaw));
+        Assert.NotEmpty(WeaponVisualCatalog.GetTints(PawnWeaponRole.Busog));
+        Assert.NotEmpty(WeaponVisualCatalog.GetTints(PawnWeaponRole.Arquebus));
     }
 
     // --- R-W1.8: at most three tints per weapon ---
@@ -1173,7 +1193,507 @@ public sealed class WeaponVisualCatalogTests
         Assert.Equal(WeaponVisualCatalog.ItakTintPlainOchre, resolution.Entry);
     }
 
-    // --- R-X.3: all four weapons stay mutually distinguishable by
+    // =====================================================================
+    // RU-10: Bangkaw, Busog, and Arquebus — structure, evidence, selection,
+    // and fallback coverage mirroring the melee weapon suites above. No
+    // geometry: RU-10 owns the catalog only (ranged-units.md row RU-10).
+    // =====================================================================
+
+    // --- Bangkaw: structure, evidence, labels ---
+
+    [Fact]
+    public void BangkawSilhouettes_HasExactlyOneEntry()
+    {
+        Assert.Single(WeaponVisualCatalog.BangkawSilhouettes);
+        Assert.Equal(WeaponVisualCatalog.BangkawB1, WeaponVisualCatalog.BangkawSilhouettes[0]);
+    }
+
+    [Fact]
+    public void AllBangkawEntries_HaveWellFormedDistinctIds()
+    {
+        string[] ids =
+        [
+            WeaponVisualCatalog.BangkawB1.Catalog.Id,
+            WeaponVisualCatalog.BangkawTintDarkShaft.Catalog.Id,
+            WeaponVisualCatalog.BangkawTintOchreShaft.Catalog.Id,
+        ];
+
+        foreach (var id in ids)
+        {
+            Assert.True(
+                VisualCatalogGrammar.IsWellFormedId(id),
+                $"'{id}' is not a well-formed catalog identifier.");
+        }
+
+        Assert.Equal(ids.Length, ids.Distinct().Count());
+    }
+
+    [Fact]
+    public void EveryBangkawEntry_IsTaggedWithTheBangkawWeaponRole()
+    {
+        Assert.Equal(PawnWeaponRole.Bangkaw, WeaponVisualCatalog.BangkawB1.Weapon);
+        Assert.Equal(PawnWeaponRole.Bangkaw, WeaponVisualCatalog.BangkawTintDarkShaft.Weapon);
+        Assert.Equal(PawnWeaponRole.Bangkaw, WeaponVisualCatalog.BangkawTintOchreShaft.Weapon);
+    }
+
+    [Fact]
+    public void EveryBangkawEntry_CarriesADefinedEvidenceTierAndANonEmptyNote()
+    {
+        var entries = WeaponVisualCatalog.BangkawSilhouettes
+            .Select(entry => entry.Catalog)
+            .Concat(WeaponVisualCatalog.GetTints(PawnWeaponRole.Bangkaw).Select(entry => entry.Catalog));
+
+        foreach (var entry in entries)
+        {
+            Assert.True(Enum.IsDefined(entry.EvidenceTier));
+            Assert.False(string.IsNullOrWhiteSpace(entry.Notes));
+        }
+    }
+
+    [Fact]
+    public void BangkawB1_CarriesTheDocumentedEvidenceTier()
+    {
+        // Pigafetta records bamboo spears — some iron-tipped — thrown and
+        // reused at Mactan in 1521, and his own vocabulary names the
+        // weapon (bancan/bangcao) with a zero-year gap.
+        Assert.Equal(VisualEvidenceTier.Documented, WeaponVisualCatalog.BangkawB1.Catalog.EvidenceTier);
+    }
+
+    [Fact]
+    public void BangkawTints_CarryThePresentationOnlyEvidenceTier()
+    {
+        Assert.Equal(VisualEvidenceTier.PresentationOnly, WeaponVisualCatalog.BangkawTintDarkShaft.Catalog.EvidenceTier);
+        Assert.Equal(VisualEvidenceTier.PresentationOnly, WeaponVisualCatalog.BangkawTintOchreShaft.Catalog.EvidenceTier);
+    }
+
+    [Fact]
+    public void EveryBangkawEntry_UsesTheUnchangedPairFormLabel()
+    {
+        const string expectedLabel = "Bangkaw — Long Spear";
+
+        foreach (var entry in WeaponVisualCatalog.BangkawSilhouettes)
+        {
+            Assert.Equal(expectedLabel, entry.Catalog.DisplayLabel);
+        }
+
+        foreach (var tint in WeaponVisualCatalog.GetTints(PawnWeaponRole.Bangkaw))
+        {
+            Assert.Equal(expectedLabel, tint.Catalog.DisplayLabel);
+        }
+    }
+
+    [Fact]
+    public void OnlyBangkawB1_IsPawnSelectable()
+    {
+        Assert.True(WeaponVisualCatalog.BangkawB1.PawnSelectable);
+    }
+
+    // --- Bangkaw: tint-selection stream ---
+
+    [Fact]
+    public void SelectTint_IsStableAcrossRepeatedCallsForTheSameEntityId_Bangkaw()
+    {
+        var first = WeaponVisualCatalog.SelectTint(19, PawnWeaponRole.Bangkaw);
+        var second = WeaponVisualCatalog.SelectTint(19, PawnWeaponRole.Bangkaw);
+
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void SelectTint_ForBangkawAlwaysReturnsOneOfTheTwoCatalogedTints()
+    {
+        WeaponTintEntry[] allowed =
+        [
+            WeaponVisualCatalog.BangkawTintDarkShaft,
+            WeaponVisualCatalog.BangkawTintOchreShaft,
+        ];
+
+        for (ulong entityId = 0; entityId < 200; entityId++)
+        {
+            Assert.Contains(WeaponVisualCatalog.SelectTint(entityId, PawnWeaponRole.Bangkaw), allowed);
+        }
+    }
+
+    [Fact]
+    public void GetTints_ForBangkawReturnsBothTintsInIndexOrder()
+    {
+        var tints = WeaponVisualCatalog.GetTints(PawnWeaponRole.Bangkaw);
+
+        Assert.Equal(2, tints.Count);
+        Assert.Equal(WeaponVisualCatalog.BangkawTintDarkShaft, tints[0]);
+        Assert.Equal(WeaponVisualCatalog.BangkawTintOchreShaft, tints[1]);
+    }
+
+    // --- Bangkaw: fallback totality ---
+
+    [Fact]
+    public void FallbackChain_Step1SpecificVariantResolvesToTheSelectedBangkawTint()
+    {
+        var selected = WeaponVisualCatalog.SelectTint(5, PawnWeaponRole.Bangkaw);
+
+        var resolution = VisualFallbackResolver.Resolve(
+            () => selected,
+            () => WeaponVisualCatalog.BangkawTintDarkShaft,
+            () => WeaponVisualCatalog.ModelCategoryDefaultTint,
+            _ => true);
+
+        Assert.Equal(VisualFallbackStep.SpecificVariant, resolution.Step);
+        Assert.Equal(selected, resolution.Entry);
+    }
+
+    [Fact]
+    public void FallbackChain_Step2FamilyDefaultResolvesWhenTheSpecificBangkawVariantIsMissing()
+    {
+        var resolution = VisualFallbackResolver.Resolve(
+            () => (WeaponTintEntry?)null,
+            () => WeaponVisualCatalog.BangkawTintDarkShaft,
+            () => WeaponVisualCatalog.ModelCategoryDefaultTint,
+            _ => true);
+
+        Assert.Equal(VisualFallbackStep.FamilyDefault, resolution.Step);
+        Assert.Equal(WeaponVisualCatalog.BangkawTintDarkShaft, resolution.Entry);
+    }
+
+    // --- Busog: structure, evidence, labels ---
+
+    [Fact]
+    public void BusogSilhouettes_HasExactlyOneEntry()
+    {
+        Assert.Single(WeaponVisualCatalog.BusogSilhouettes);
+        Assert.Equal(WeaponVisualCatalog.BusogB1, WeaponVisualCatalog.BusogSilhouettes[0]);
+    }
+
+    [Fact]
+    public void AllBusogEntries_HaveWellFormedDistinctIds()
+    {
+        string[] ids =
+        [
+            WeaponVisualCatalog.BusogB1.Catalog.Id,
+            WeaponVisualCatalog.BusogTintPaleStave.Catalog.Id,
+            WeaponVisualCatalog.BusogTintDarkStave.Catalog.Id,
+        ];
+
+        foreach (var id in ids)
+        {
+            Assert.True(
+                VisualCatalogGrammar.IsWellFormedId(id),
+                $"'{id}' is not a well-formed catalog identifier.");
+        }
+
+        Assert.Equal(ids.Length, ids.Distinct().Count());
+    }
+
+    [Fact]
+    public void EveryBusogEntry_IsTaggedWithTheBusogWeaponRole()
+    {
+        Assert.Equal(PawnWeaponRole.Busog, WeaponVisualCatalog.BusogB1.Weapon);
+        Assert.Equal(PawnWeaponRole.Busog, WeaponVisualCatalog.BusogTintPaleStave.Weapon);
+        Assert.Equal(PawnWeaponRole.Busog, WeaponVisualCatalog.BusogTintDarkStave.Weapon);
+    }
+
+    [Fact]
+    public void EveryBusogEntry_CarriesADefinedEvidenceTierAndANonEmptyNote()
+    {
+        var entries = WeaponVisualCatalog.BusogSilhouettes
+            .Select(entry => entry.Catalog)
+            .Concat(WeaponVisualCatalog.GetTints(PawnWeaponRole.Busog).Select(entry => entry.Catalog));
+
+        foreach (var entry in entries)
+        {
+            Assert.True(Enum.IsDefined(entry.EvidenceTier));
+            Assert.False(string.IsNullOrWhiteSpace(entry.Notes));
+        }
+    }
+
+    [Fact]
+    public void BusogB1_CarriesTheDocumentedEvidenceTier()
+    {
+        // Pigafetta's own 1521 Visayan vocabulary records bossugh (bosog),
+        // inherited from Proto-Austronesian busuʀ — a zero-year gap to the
+        // depicted period, the strongest name attestation in the package.
+        Assert.Equal(VisualEvidenceTier.Documented, WeaponVisualCatalog.BusogB1.Catalog.EvidenceTier);
+    }
+
+    [Fact]
+    public void BusogTints_CarryThePresentationOnlyEvidenceTier()
+    {
+        Assert.Equal(VisualEvidenceTier.PresentationOnly, WeaponVisualCatalog.BusogTintPaleStave.Catalog.EvidenceTier);
+        Assert.Equal(VisualEvidenceTier.PresentationOnly, WeaponVisualCatalog.BusogTintDarkStave.Catalog.EvidenceTier);
+    }
+
+    [Fact]
+    public void EveryBusogEntry_UsesTheUnchangedPairFormLabel()
+    {
+        const string expectedLabel = "Busog — War Bow";
+
+        foreach (var entry in WeaponVisualCatalog.BusogSilhouettes)
+        {
+            Assert.Equal(expectedLabel, entry.Catalog.DisplayLabel);
+        }
+
+        foreach (var tint in WeaponVisualCatalog.GetTints(PawnWeaponRole.Busog))
+        {
+            Assert.Equal(expectedLabel, tint.Catalog.DisplayLabel);
+        }
+    }
+
+    [Fact]
+    public void OnlyBusogB1_IsPawnSelectable()
+    {
+        Assert.True(WeaponVisualCatalog.BusogB1.PawnSelectable);
+    }
+
+    // --- Busog: tint-selection stream ---
+
+    [Fact]
+    public void SelectTint_IsStableAcrossRepeatedCallsForTheSameEntityId_Busog()
+    {
+        var first = WeaponVisualCatalog.SelectTint(19, PawnWeaponRole.Busog);
+        var second = WeaponVisualCatalog.SelectTint(19, PawnWeaponRole.Busog);
+
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void SelectTint_ForBusogAlwaysReturnsOneOfTheTwoCatalogedTints()
+    {
+        WeaponTintEntry[] allowed =
+        [
+            WeaponVisualCatalog.BusogTintPaleStave,
+            WeaponVisualCatalog.BusogTintDarkStave,
+        ];
+
+        for (ulong entityId = 0; entityId < 200; entityId++)
+        {
+            Assert.Contains(WeaponVisualCatalog.SelectTint(entityId, PawnWeaponRole.Busog), allowed);
+        }
+    }
+
+    [Fact]
+    public void GetTints_ForBusogReturnsBothTintsInIndexOrder()
+    {
+        var tints = WeaponVisualCatalog.GetTints(PawnWeaponRole.Busog);
+
+        Assert.Equal(2, tints.Count);
+        Assert.Equal(WeaponVisualCatalog.BusogTintPaleStave, tints[0]);
+        Assert.Equal(WeaponVisualCatalog.BusogTintDarkStave, tints[1]);
+    }
+
+    [Fact]
+    public void BothBusogTints_ShareTheExactSameArrowPointAccentColor()
+    {
+        // Arrows are documented as hardwood-tipped, never iron (Artieda);
+        // only the stave tone varies between the two tints, matching R-X.3
+        // for the melee weapons above.
+        Assert.Equal(
+            WeaponVisualCatalog.BusogTintPaleStave.BladeColor,
+            WeaponVisualCatalog.BusogTintDarkStave.BladeColor);
+    }
+
+    // --- Busog: fallback totality ---
+
+    [Fact]
+    public void FallbackChain_Step1SpecificVariantResolvesToTheSelectedBusogTint()
+    {
+        var selected = WeaponVisualCatalog.SelectTint(5, PawnWeaponRole.Busog);
+
+        var resolution = VisualFallbackResolver.Resolve(
+            () => selected,
+            () => WeaponVisualCatalog.BusogTintPaleStave,
+            () => WeaponVisualCatalog.ModelCategoryDefaultTint,
+            _ => true);
+
+        Assert.Equal(VisualFallbackStep.SpecificVariant, resolution.Step);
+        Assert.Equal(selected, resolution.Entry);
+    }
+
+    [Fact]
+    public void FallbackChain_Step2FamilyDefaultResolvesWhenTheSpecificBusogVariantIsMissing()
+    {
+        var resolution = VisualFallbackResolver.Resolve(
+            () => (WeaponTintEntry?)null,
+            () => WeaponVisualCatalog.BusogTintPaleStave,
+            () => WeaponVisualCatalog.ModelCategoryDefaultTint,
+            _ => true);
+
+        Assert.Equal(VisualFallbackStep.FamilyDefault, resolution.Step);
+        Assert.Equal(WeaponVisualCatalog.BusogTintPaleStave, resolution.Entry);
+    }
+
+    // --- Arquebus: structure, evidence, labels ---
+
+    [Fact]
+    public void ArquebusSilhouettes_HasExactlyOneEntry()
+    {
+        Assert.Single(WeaponVisualCatalog.ArquebusSilhouettes);
+        Assert.Equal(WeaponVisualCatalog.ArquebusA1, WeaponVisualCatalog.ArquebusSilhouettes[0]);
+    }
+
+    [Fact]
+    public void AllArquebusEntries_HaveWellFormedDistinctIds()
+    {
+        string[] ids =
+        [
+            WeaponVisualCatalog.ArquebusA1.Catalog.Id,
+            WeaponVisualCatalog.ArquebusTintFreshBarrel.Catalog.Id,
+            WeaponVisualCatalog.ArquebusTintWornBarrel.Catalog.Id,
+        ];
+
+        foreach (var id in ids)
+        {
+            Assert.True(
+                VisualCatalogGrammar.IsWellFormedId(id),
+                $"'{id}' is not a well-formed catalog identifier.");
+        }
+
+        Assert.Equal(ids.Length, ids.Distinct().Count());
+    }
+
+    [Fact]
+    public void EveryArquebusEntry_IsTaggedWithTheArquebusWeaponRole()
+    {
+        Assert.Equal(PawnWeaponRole.Arquebus, WeaponVisualCatalog.ArquebusA1.Weapon);
+        Assert.Equal(PawnWeaponRole.Arquebus, WeaponVisualCatalog.ArquebusTintFreshBarrel.Weapon);
+        Assert.Equal(PawnWeaponRole.Arquebus, WeaponVisualCatalog.ArquebusTintWornBarrel.Weapon);
+    }
+
+    [Fact]
+    public void EveryArquebusEntry_CarriesADefinedEvidenceTierAndANonEmptyNote()
+    {
+        var entries = WeaponVisualCatalog.ArquebusSilhouettes
+            .Select(entry => entry.Catalog)
+            .Concat(WeaponVisualCatalog.GetTints(PawnWeaponRole.Arquebus).Select(entry => entry.Catalog));
+
+        foreach (var entry in entries)
+        {
+            Assert.True(Enum.IsDefined(entry.EvidenceTier));
+            Assert.False(string.IsNullOrWhiteSpace(entry.Notes));
+        }
+    }
+
+    [Fact]
+    public void ArquebusA1_CarriesTheDocumentedFormUncertainEvidenceTier()
+    {
+        // Escalante Alvarado (c. 1543-45) and Legazpi's 1567 specimen
+        // establish local possession; the exact form and how common the
+        // weapon was remain uncertain.
+        Assert.Equal(VisualEvidenceTier.DocumentedFormUncertain, WeaponVisualCatalog.ArquebusA1.Catalog.EvidenceTier);
+    }
+
+    [Fact]
+    public void ArquebusTints_CarryThePresentationOnlyEvidenceTier()
+    {
+        Assert.Equal(VisualEvidenceTier.PresentationOnly, WeaponVisualCatalog.ArquebusTintFreshBarrel.Catalog.EvidenceTier);
+        Assert.Equal(VisualEvidenceTier.PresentationOnly, WeaponVisualCatalog.ArquebusTintWornBarrel.Catalog.EvidenceTier);
+    }
+
+    // --- CLAUDE.md section 7: "Arquebus" is not a cultural identification,
+    // so it never carries an em-dash pair or a Filipino name — this is the
+    // deliberate exception the naming policy documents, not an omission. ---
+
+    [Fact]
+    public void EveryArquebusEntry_UsesTheUnchangedUnpairedImportedLabel()
+    {
+        const string expectedLabel = "Imported Arquebus";
+
+        foreach (var entry in WeaponVisualCatalog.ArquebusSilhouettes)
+        {
+            Assert.Equal(expectedLabel, entry.Catalog.DisplayLabel);
+            Assert.DoesNotContain("—", entry.Catalog.DisplayLabel, StringComparison.Ordinal);
+        }
+
+        foreach (var tint in WeaponVisualCatalog.GetTints(PawnWeaponRole.Arquebus))
+        {
+            Assert.Equal(expectedLabel, tint.Catalog.DisplayLabel);
+        }
+    }
+
+    [Fact]
+    public void OnlyArquebusA1_IsPawnSelectable()
+    {
+        Assert.True(WeaponVisualCatalog.ArquebusA1.PawnSelectable);
+    }
+
+    // --- Arquebus: tint-selection stream ---
+
+    [Fact]
+    public void SelectTint_IsStableAcrossRepeatedCallsForTheSameEntityId_Arquebus()
+    {
+        var first = WeaponVisualCatalog.SelectTint(19, PawnWeaponRole.Arquebus);
+        var second = WeaponVisualCatalog.SelectTint(19, PawnWeaponRole.Arquebus);
+
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void SelectTint_ForArquebusAlwaysReturnsOneOfTheTwoCatalogedTints()
+    {
+        WeaponTintEntry[] allowed =
+        [
+            WeaponVisualCatalog.ArquebusTintFreshBarrel,
+            WeaponVisualCatalog.ArquebusTintWornBarrel,
+        ];
+
+        for (ulong entityId = 0; entityId < 200; entityId++)
+        {
+            Assert.Contains(WeaponVisualCatalog.SelectTint(entityId, PawnWeaponRole.Arquebus), allowed);
+        }
+    }
+
+    [Fact]
+    public void GetTints_ForArquebusReturnsBothTintsInIndexOrder()
+    {
+        var tints = WeaponVisualCatalog.GetTints(PawnWeaponRole.Arquebus);
+
+        Assert.Equal(2, tints.Count);
+        Assert.Equal(WeaponVisualCatalog.ArquebusTintFreshBarrel, tints[0]);
+        Assert.Equal(WeaponVisualCatalog.ArquebusTintWornBarrel, tints[1]);
+    }
+
+    [Fact]
+    public void ArquebusWornBarrelTint_DiffersFromFreshBarrelOnlyInBladeColor()
+    {
+        // R-W1.2: tints vary color and tone only. Both share the exact
+        // same stock (grip) color; only the barrel color differs.
+        Assert.Equal(
+            WeaponVisualCatalog.ArquebusTintFreshBarrel.GripColor,
+            WeaponVisualCatalog.ArquebusTintWornBarrel.GripColor);
+        Assert.NotEqual(
+            WeaponVisualCatalog.ArquebusTintFreshBarrel.BladeColor,
+            WeaponVisualCatalog.ArquebusTintWornBarrel.BladeColor);
+    }
+
+    // --- Arquebus: fallback totality ---
+
+    [Fact]
+    public void FallbackChain_Step1SpecificVariantResolvesToTheSelectedArquebusTint()
+    {
+        var selected = WeaponVisualCatalog.SelectTint(5, PawnWeaponRole.Arquebus);
+
+        var resolution = VisualFallbackResolver.Resolve(
+            () => selected,
+            () => WeaponVisualCatalog.ArquebusTintFreshBarrel,
+            () => WeaponVisualCatalog.ModelCategoryDefaultTint,
+            _ => true);
+
+        Assert.Equal(VisualFallbackStep.SpecificVariant, resolution.Step);
+        Assert.Equal(selected, resolution.Entry);
+    }
+
+    [Fact]
+    public void FallbackChain_Step2FamilyDefaultResolvesWhenTheSpecificArquebusVariantIsMissing()
+    {
+        var resolution = VisualFallbackResolver.Resolve(
+            () => (WeaponTintEntry?)null,
+            () => WeaponVisualCatalog.ArquebusTintFreshBarrel,
+            () => WeaponVisualCatalog.ModelCategoryDefaultTint,
+            _ => true);
+
+        Assert.Equal(VisualFallbackStep.FamilyDefault, resolution.Step);
+        Assert.Equal(WeaponVisualCatalog.ArquebusTintFreshBarrel, resolution.Entry);
+    }
+
+    // --- R-X.3: all seven weapons stay mutually distinguishable by
     // silhouette at every tier — a proxy for that here is that no two
     // weapons' pawn silhouettes share a catalog identifier or a display
     // label collision that would blur their identity. ---
@@ -1187,6 +1707,9 @@ public sealed class WeaponVisualCatalogTests
             WeaponVisualCatalog.WasayW1.Catalog.Id,
             WeaponVisualCatalog.KalisL1.Catalog.Id,
             WeaponVisualCatalog.ItakI1.Catalog.Id,
+            WeaponVisualCatalog.BangkawB1.Catalog.Id,
+            WeaponVisualCatalog.BusogB1.Catalog.Id,
+            WeaponVisualCatalog.ArquebusA1.Catalog.Id,
         ];
 
         Assert.Equal(ids.Length, ids.Distinct().Count());

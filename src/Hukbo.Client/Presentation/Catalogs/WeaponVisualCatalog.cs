@@ -647,6 +647,276 @@ internal static class WeaponVisualCatalog
         ItakTintWornField,
     ];
 
+    // ================= Bangkaw silhouette (RU-10) =================
+
+    /// <summary>
+    /// B1 — the long thrown spear: dark palm or rattan shaft, oversized
+    /// leaf-shaped steel point, carried diagonally beyond the body
+    /// (ranged-units-design.md section 8.4). The only pawn-scale Bangkaw
+    /// silhouette; <see cref="PawnSilhouette"/> always returns this entry
+    /// for <see cref="PawnWeaponRole.Bangkaw"/>. Documented: Pigafetta,
+    /// wounded at Mactan on 27 April 1521, records bamboo spears — some
+    /// iron-tipped — thrown and reused four to six times; his 1521 Visayan
+    /// vocabulary records bancan, identified with bangcao. Visayan and
+    /// Mindanao term; Tagalog is sibat, so the name is not generalized
+    /// across the archipelago.
+    /// </summary>
+    public static readonly WeaponSilhouetteEntry BangkawB1 = new(
+        new VisualCatalogEntry(
+            "weapon.bangkaw.b1",
+            0,
+            "Bangkaw — Long Spear",
+            VisualEvidenceTier.Documented,
+            VisualScopeTag.NotApplicable,
+            "Mactan, 27 April 1521. Pigafetta records bamboo spears, some " +
+            "iron-tipped, hurled at the landing party and picked up and " +
+            "thrown again four to six times; his own vocabulary records " +
+            "bancan (bangcao). Visayan and Mindanao term, not Tagalog " +
+            "(sibat). Dark palm or rattan shaft, oversized leaf-shaped " +
+            "steel point, carried diagonally beyond the body. The only " +
+            "pawn-scale Bangkaw silhouette.",
+            VisualDetailTier.Low),
+        PawnWeaponRole.Bangkaw,
+        PawnSelectable: true);
+
+    /// <summary>
+    /// Every declared Bangkaw silhouette, in catalog order. Exactly one
+    /// entry — no later or alternate form is documented for this weapon.
+    /// </summary>
+    public static IReadOnlyList<WeaponSilhouetteEntry> BangkawSilhouettes { get; } =
+    [
+        BangkawB1,
+    ];
+
+    // ================= Bangkaw tints (RU-10) =================
+
+    /// <summary>
+    /// The dark-shaft tint: an iron-blue-black point over a charred-wood
+    /// shaft. Presentation-only; no historical claim.
+    /// </summary>
+    public static readonly WeaponTintEntry BangkawTintDarkShaft = new(
+        new VisualCatalogEntry(
+            "weapon.bangkaw.tint.darkShaft",
+            0,
+            "Bangkaw — Long Spear",
+            VisualEvidenceTier.PresentationOnly,
+            VisualScopeTag.NotApplicable,
+            "Presentation-only; no historical claim. Iron-blue-black " +
+            "point, charred-wood shaft — a dark-shaft material read, not " +
+            "a distinct weapon.",
+            VisualDetailTier.Low),
+        PawnWeaponRole.Bangkaw,
+        BladeColor: DyePalette.IronBlueBlack,
+        GripColor: CharredWoodBrown);
+
+    /// <summary>
+    /// The ochre-shaft tint: a worn-iron-grey point over a
+    /// palm-rattan-ochre shaft. Presentation-only; no historical claim.
+    /// </summary>
+    public static readonly WeaponTintEntry BangkawTintOchreShaft = new(
+        new VisualCatalogEntry(
+            "weapon.bangkaw.tint.ochreShaft",
+            1,
+            "Bangkaw — Long Spear",
+            VisualEvidenceTier.PresentationOnly,
+            VisualScopeTag.NotApplicable,
+            "Presentation-only; no historical claim. Worn-iron-grey " +
+            "point, palm-rattan-ochre shaft — a fresh-cut palm/rattan " +
+            "material read, not a distinct weapon.",
+            VisualDetailTier.Low),
+        PawnWeaponRole.Bangkaw,
+        BladeColor: IronWornGrey,
+        GripColor: PalmRattanOchre);
+
+    private static readonly IReadOnlyList<WeaponTintEntry> BangkawTints =
+    [
+        BangkawTintDarkShaft,
+        BangkawTintOchreShaft,
+    ];
+
+    // ================= Busog silhouette (RU-10) =================
+
+    /// <summary>
+    /// B1 — the war bow: tall bow arc outside the torso silhouette, pale
+    /// reed arrows, dark points, clearly visible back quiver (ranged-units-
+    /// design.md section 8.4). The only pawn-scale Busog silhouette;
+    /// <see cref="PawnSilhouette"/> always returns this entry for
+    /// <see cref="PawnWeaponRole.Busog"/>. Documented: Pigafetta records
+    /// the poisoned arrow that struck Magellan through the leg at Mactan
+    /// in 1521; his own 1521 Visayan vocabulary records bossugh
+    /// (bosog), descending from Proto-Austronesian busuʀ, with a zero-year
+    /// gap to the depicted period.
+    /// </summary>
+    public static readonly WeaponSilhouetteEntry BusogB1 = new(
+        new VisualCatalogEntry(
+            "weapon.busog.b1",
+            0,
+            "Busog — War Bow",
+            VisualEvidenceTier.Documented,
+            VisualScopeTag.NotApplicable,
+            "Mactan, 27 April 1521. Pigafetta records the poisoned arrow " +
+            "that struck Magellan through the right leg; his own " +
+            "vocabulary records bossugh (bosog), inherited from " +
+            "Proto-Austronesian busuʀ, zero years from the depicted " +
+            "period. Tall bow arc outside the torso silhouette, pale reed " +
+            "arrows with hardwood (not iron) points, clearly visible back " +
+            "quiver. The only pawn-scale Busog silhouette.",
+            VisualDetailTier.Low),
+        PawnWeaponRole.Busog,
+        PawnSelectable: true);
+
+    /// <summary>
+    /// Every declared Busog silhouette, in catalog order. Exactly one
+    /// entry — no later or alternate form is documented for this weapon.
+    /// </summary>
+    public static IReadOnlyList<WeaponSilhouetteEntry> BusogSilhouettes { get; } =
+    [
+        BusogB1,
+    ];
+
+    // ================= Busog tints (RU-10) =================
+
+    /// <summary>
+    /// The pale-stave tint: a charred-wood arrow-point accent over a
+    /// warm-ochre stave — the "pale reed" read the research names.
+    /// Presentation-only; no historical claim. Both Busog tints share the
+    /// same arrow-point accent (arrows are documented as hardwood-tipped,
+    /// never iron); only the stave tone varies, matching the tint
+    /// discipline every other weapon family in this catalog follows.
+    /// </summary>
+    public static readonly WeaponTintEntry BusogTintPaleStave = new(
+        new VisualCatalogEntry(
+            "weapon.busog.tint.paleStave",
+            0,
+            "Busog — War Bow",
+            VisualEvidenceTier.PresentationOnly,
+            VisualScopeTag.NotApplicable,
+            "Presentation-only; no historical claim. Charred-wood " +
+            "arrow-point accent, warm-ochre stave — the \"pale reed\" " +
+            "material read, not a distinct weapon.",
+            VisualDetailTier.Low),
+        PawnWeaponRole.Busog,
+        BladeColor: CharredWoodBrown,
+        GripColor: GripWarmOchre);
+
+    /// <summary>
+    /// The dark-stave tint: the same charred-wood arrow-point accent over
+    /// a palm-rattan-ochre stave. Presentation-only; no historical claim.
+    /// </summary>
+    public static readonly WeaponTintEntry BusogTintDarkStave = new(
+        new VisualCatalogEntry(
+            "weapon.busog.tint.darkStave",
+            1,
+            "Busog — War Bow",
+            VisualEvidenceTier.PresentationOnly,
+            VisualScopeTag.NotApplicable,
+            "Presentation-only; no historical claim. Charred-wood " +
+            "arrow-point accent, palm-rattan-ochre stave — a darker-stave " +
+            "material read, not a distinct weapon.",
+            VisualDetailTier.Low),
+        PawnWeaponRole.Busog,
+        BladeColor: CharredWoodBrown,
+        GripColor: PalmRattanOchre);
+
+    private static readonly IReadOnlyList<WeaponTintEntry> BusogTints =
+    [
+        BusogTintPaleStave,
+        BusogTintDarkStave,
+    ];
+
+    // ================= Arquebus silhouette (RU-10) =================
+
+    /// <summary>
+    /// A1 — the imported matchlock: long timber stock, dark iron barrel,
+    /// horizontal pose, small glowing matchcord (ranged-units-design.md
+    /// section 8.4; the matchcord itself is an appearance layer, not part
+    /// of this silhouette). The only pawn-scale Arquebus silhouette;
+    /// <see cref="PawnSilhouette"/> always returns this entry for
+    /// <see cref="PawnWeaponRole.Arquebus"/>. Documented, form uncertain:
+    /// Escalante Alvarado records a few arquebuses in local hands near
+    /// Sarangani and Mindanao around 1543-45; Legazpi shipped a physical
+    /// Chinese arquebus from Cebu in 1567. No local name for the weapon was
+    /// located in any source consulted — "Arquebus" is a European term
+    /// contemporary with the period, not a cultural identification, so the
+    /// pair-form label rule does not engage (<see cref="PawnAppearance.WeaponLabel"/>
+    /// carries the plain, unpaired "Imported Arquebus" for this role). The
+    /// `IMPORTED` badge itself is UI, drawn elsewhere, not part of this
+    /// catalog entry.
+    /// </summary>
+    public static readonly WeaponSilhouetteEntry ArquebusA1 = new(
+        new VisualCatalogEntry(
+            "weapon.arquebus.a1",
+            0,
+            "Imported Arquebus",
+            VisualEvidenceTier.DocumentedFormUncertain,
+            VisualScopeTag.NotApplicable,
+            "Escalante Alvarado, writing in 1548 about Sarangani and " +
+            "Mindanao circa 1543-45: \"a few arquebuses.\" Legazpi shipped " +
+            "a physical Chinese arquebus from Cebu on 15 July 1567, " +
+            "writing that local users carried such guns more to terrify " +
+            "than to kill. No local name was located; the label carries " +
+            "no Filipino term and no em-dash pair, deliberately, per " +
+            "CLAUDE.md section 7. Long timber stock, dark iron barrel, " +
+            "horizontal pose. The only pawn-scale Arquebus silhouette.",
+            VisualDetailTier.Low),
+        PawnWeaponRole.Arquebus,
+        PawnSelectable: true);
+
+    /// <summary>
+    /// Every declared Arquebus silhouette, in catalog order. Exactly one
+    /// entry — no later or alternate form is documented for this weapon.
+    /// </summary>
+    public static IReadOnlyList<WeaponSilhouetteEntry> ArquebusSilhouettes { get; } =
+    [
+        ArquebusA1,
+    ];
+
+    // ================= Arquebus tints (RU-10) =================
+
+    /// <summary>
+    /// The fresh-barrel tint: an iron-blue-black barrel over a
+    /// charred-wood stock. Presentation-only; no historical claim.
+    /// </summary>
+    public static readonly WeaponTintEntry ArquebusTintFreshBarrel = new(
+        new VisualCatalogEntry(
+            "weapon.arquebus.tint.freshBarrel",
+            0,
+            "Imported Arquebus",
+            VisualEvidenceTier.PresentationOnly,
+            VisualScopeTag.NotApplicable,
+            "Presentation-only; no historical claim. Iron-blue-black " +
+            "barrel, charred-wood stock — a fresh-iron material read, " +
+            "not a distinct weapon.",
+            VisualDetailTier.Low),
+        PawnWeaponRole.Arquebus,
+        BladeColor: DyePalette.IronBlueBlack,
+        GripColor: CharredWoodBrown);
+
+    /// <summary>
+    /// The worn-barrel tint: the same charred-wood stock under a
+    /// worn-iron-grey barrel. Presentation-only; no historical claim.
+    /// </summary>
+    public static readonly WeaponTintEntry ArquebusTintWornBarrel = new(
+        new VisualCatalogEntry(
+            "weapon.arquebus.tint.wornBarrel",
+            1,
+            "Imported Arquebus",
+            VisualEvidenceTier.PresentationOnly,
+            VisualScopeTag.NotApplicable,
+            "Presentation-only; no historical claim. Worn-iron-grey " +
+            "barrel, charred-wood stock — a worn-iron material read, " +
+            "not a distinct weapon.",
+            VisualDetailTier.Low),
+        PawnWeaponRole.Arquebus,
+        BladeColor: IronWornGrey,
+        GripColor: CharredWoodBrown);
+
+    private static readonly IReadOnlyList<WeaponTintEntry> ArquebusTints =
+    [
+        ArquebusTintFreshBarrel,
+        ArquebusTintWornBarrel,
+    ];
+
     // ================= Fallback step 3: model-category default =================
 
     /// <summary>
@@ -701,6 +971,9 @@ internal static class WeaponVisualCatalog
             PawnWeaponRole.Wasay => WasayW1,
             PawnWeaponRole.Kalis => KalisL1,
             PawnWeaponRole.Itak => ItakI1,
+            PawnWeaponRole.Bangkaw => BangkawB1,
+            PawnWeaponRole.Busog => BusogB1,
+            PawnWeaponRole.Arquebus => ArquebusA1,
             _ => throw new ArgumentOutOfRangeException(nameof(weapon), weapon, null),
         };
 
@@ -717,6 +990,9 @@ internal static class WeaponVisualCatalog
             PawnWeaponRole.Wasay => WasayTints,
             PawnWeaponRole.Kalis => KalisTints,
             PawnWeaponRole.Itak => ItakTints,
+            PawnWeaponRole.Bangkaw => BangkawTints,
+            PawnWeaponRole.Busog => BusogTints,
+            PawnWeaponRole.Arquebus => ArquebusTints,
             _ => throw new ArgumentOutOfRangeException(nameof(weapon), weapon, null),
         };
 

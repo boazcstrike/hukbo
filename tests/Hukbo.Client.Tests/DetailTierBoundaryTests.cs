@@ -93,6 +93,21 @@ public sealed class DetailTierBoundaryTests
             yield return silhouette.Catalog;
         }
 
+        foreach (var silhouette in WeaponVisualCatalog.BangkawSilhouettes)
+        {
+            yield return silhouette.Catalog;
+        }
+
+        foreach (var silhouette in WeaponVisualCatalog.BusogSilhouettes)
+        {
+            yield return silhouette.Catalog;
+        }
+
+        foreach (var silhouette in WeaponVisualCatalog.ArquebusSilhouettes)
+        {
+            yield return silhouette.Catalog;
+        }
+
         // Every defined PawnWeaponRole's tints, matching
         // AgentInspectorContentTests.AllWeaponTintIds' own enumeration.
         foreach (var weapon in Enum.GetValues<PawnWeaponRole>())
@@ -160,12 +175,13 @@ public sealed class DetailTierBoundaryTests
     [Fact]
     public void AllCatalogEntryIds_CoversEveryShippedEntryAcrossEveryCatalog()
     {
-        // 60 today: 18 weapon (7 silhouettes + 10 tints + 1 model-category
-        // default), 6 shield (4 skins + family default + model-category
-        // default), 1 backdrop, 35 appearance. A hard count, not a floor, so
-        // a future catalog addition updates this test deliberately rather
-        // than silently expanding the "every shipped element" claim below it.
-        Assert.Equal(60, EntryTiersById.Count);
+        // 69 today: 27 weapon (10 silhouettes: 7 melee + 3 RU-10 ranged;
+        // 16 tints: 10 melee + 6 RU-10 ranged; 1 model-category default),
+        // 6 shield (4 skins + family default + model-category default),
+        // 1 backdrop, 35 appearance. A hard count, not a floor, so a future
+        // catalog addition updates this test deliberately rather than
+        // silently expanding the "every shipped element" claim below it.
+        Assert.Equal(69, EntryTiersById.Count);
     }
 
     // --- Grass zoom band boundaries (R-W5.6): the exact pinned 0.3/2.0
