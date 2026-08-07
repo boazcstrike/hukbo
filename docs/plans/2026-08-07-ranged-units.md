@@ -651,7 +651,7 @@ one.
 
 One thing RU-12 raised that turned out fine: it could not check whether registering
 V5 disturbed the goldens in `DeterminismTests.cs`, because that file was outside its
-scope. The merged run answers it — `DeterminismTests` passes in full at `4a5f4e0`,
+scope. The merged run answers it — `DeterminismTests` passes in full at `434ff73`,
 so V5's registration moved no pinned value. That is expected rather than lucky,
 since V1 through V4 are untouched and V5 has no golden of its own until RU-26.
 
@@ -672,6 +672,11 @@ quoted without its configuration is not evidence.
 | Wave 2 merged, RU-06 still outstanding | `04de103` | 10 red / 2627 | 34 red / 3214 |
 | Wave 2 complete, RU-06 merged | `d69ab00` | 10 red / 2631 | 34 red / 3214 |
 | Wave 3 merged, RU-12 still outstanding | `f0f25f4` | 10 red / 2644 | 21 red / 3248 |
+| Wave 3 complete, RU-12 merged | `434ff73` | **2 red** / 2644 | 21 red / 3248 |
+
+At `434ff73` only two Core failures remain: `RU-39`'s ranged-fields-zero fact, and
+the leader fact that RU-21 and RU-30 close by registering V8 and V9. `DeterminismTests`
+passes in full, 22 of 22, so registering V5 disturbed no pinned golden.
 
 At `f0f25f4` the remaining Client failures are exactly `PawnGeometryTests` (11) and
 `ConservativePawnCullTests` (10), both RU-22's in wave 5, and the remaining Core
@@ -744,7 +749,7 @@ citation into volume III that the source entry does not yet enumerate.
 | RU-09 | Done on branch `ru-09` at `84b78dc`, merged into `ranged-units` |
 | RU-10 | Done on branch `ru-10` at `42002d7`, merged into `ranged-units` — took the Client window to 34, see the second correction in section 3 |
 | RU-11 | Done on branch `ru-11` at `3208c86`, merged into `ranged-units` |
-| RU-12 | In progress on branch `ru-12` |
+| RU-12 | Done on branch `ru-12` at `9ab3b3e`, merged into `ranged-units` — took Core from 10 red to 2; exposed RU-39 |
 | RU-13 | Done on branch `ru-13` at `e4bf289` — both hashes unchanged; end-to-end ranged path untested until V5 is registered |
 | RU-14 | Done on branch `ru-14` at `1eb93d5` — closed the `SoundCatalogTests` pair |
 | RU-15 | Done on branch `ru-15` at `3e7c33a` and `2fac60d` — `-List` now reports 13 present of 26 instead of 4 |
