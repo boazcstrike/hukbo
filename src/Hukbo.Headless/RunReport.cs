@@ -60,10 +60,13 @@ public sealed record RunReport(
     MovementBehaviorMetrics MovementMetrics = default,
     // The two preset identities that actually produced this run: whatever
     // Scenario.CombatPreset and Scenario.MovementPreset resolved to, after
-    // CreateDefault and any --preset/--movement-preset override. Defaulted to
-    // the enums' zero members so a report built by hand or read from an older
-    // file still deserializes; the runner always populates both with the
-    // scenario's real, validated values -- never a guess and never silently
-    // substituted.
+    // CreateDefault and any --preset/--movement-preset override. Both default
+    // to 0, which is deliberately not a defined member of either enum --
+    // CombatPresetId starts at 1 and MovementPresetId's lowest defined value
+    // is 2 -- so a report built by hand or read from an older file still
+    // deserializes, and the unpopulated value reads as visibly unpopulated
+    // rather than silently claiming a real preset. The runner always
+    // populates both from the validated scenario's real values, so 0
+    // appears here only in a report that was never produced by a run.
     CombatPresetId CombatPreset = default,
     MovementPresetId MovementPreset = default);
