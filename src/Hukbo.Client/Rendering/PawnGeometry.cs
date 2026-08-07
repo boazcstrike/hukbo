@@ -118,7 +118,8 @@ internal readonly record struct PawnLayout(
 /// <see cref="PawnGeometry.Create"/> constructions every frame — one through
 /// <c>PawnRenderer.GetBounds</c>, which threw away everything except
 /// <see cref="PawnLayout.VisualBounds"/>, and one for the layout itself
-/// (redundancy R1 in <c>docs/plans/gpu-render/2026-07-28-gpu-render.md</c>).
+/// (redundancy R1 in
+/// <c>docs/archives/2026-08-07/gpu-render/2026-07-28-gpu-render.md</c>).
 /// <see cref="PawnGeometry.CreateWithPoseBlindBounds"/> keeps both results
 /// but builds the second one from only the subset of the layout that
 /// actually reaches the union: the ground ring, torso, head, head treatment,

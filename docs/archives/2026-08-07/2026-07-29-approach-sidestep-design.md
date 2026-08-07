@@ -1,5 +1,9 @@
 # Approach sidestep for a pursuing warrior blocked by a comrade — design
 
+> **Archived: reference only.** This document is finished work, kept so the
+> decision can be traced back to its reasoning. Do not execute it and do not
+> cite it as the reason to change anything.
+
 Status: implemented and measured. The results are in section 10, and they do not
 meet the acceptance criterion the plan document set: thirteen stalls became five
 rather than zero. Section 10.1 establishes why, and the reason lies in the
@@ -7,7 +11,7 @@ escape's trigger rather than in anything this document designed.
 
 ## 1. Why this document exists
 
-`docs/plans/2026-07-28-rally-stall-escape.md` fixed one half of a deadlock and
+`docs/archives/2026-08-07/2026-07-28-rally-stall-escape.md` fixed one half of a deadlock and
 left the other half standing. This document designs the second half, and it
 exists as its own document because the first one is already shipped and its
 reasoning should not be edited after the fact.

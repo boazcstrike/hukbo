@@ -1,10 +1,14 @@
 # Tall Hardwood Shield movement — session report
 
+> **Archived: reference only.** This document is finished work, kept so the
+> decision can be traced back to its reasoning. Do not execute it and do not
+> cite it as the reason to change anything.
+
 Date: 2026-07-30
 Branch: `movement-shield`, based on `main` at `5afae08`.
-Executes: [`docs/archives/2026-07-31/movement/tall-hardwood-shield.md`](../archives/2026-07-31/movement/tall-hardwood-shield.md)
+Executes: [`docs/archives/2026-07-31/movement/tall-hardwood-shield.md`](../../archives/2026-07-31/movement/tall-hardwood-shield.md)
 under the prompt in
-[`docs/prompts/2026-07-30-weapon-movement-weapon-template.md`](../prompts/2026-07-30-weapon-movement-weapon-template.md).
+[`docs/prompts/2026-07-30-weapon-movement-weapon-template.md`](../../prompts/2026-07-30-weapon-movement-weapon-template.md).
 Consumes the handoff in
 [`2026-07-30-weapon-movement-foundation-report.md`](2026-07-30-weapon-movement-foundation-report.md)
 section 8.

@@ -9,7 +9,7 @@ namespace Hukbo.Core.Movement.Profiles;
 /// on — any later retuning of this row belongs to that session and, once the
 /// V6 digest ships, requires appending a new preset version rather than
 /// editing this one. Values are the single authority of
-/// docs/plans/2026-07-30-weapon-movement-foundation-design.md section 13,
+/// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation-design.md section 13,
 /// superseding any figure quoted in the weapon plans. This row's forward
 /// pace sits exactly at the inclusive 10,000 basis-point maximum, which is
 /// why the profile's pace bound is inclusive at the top.

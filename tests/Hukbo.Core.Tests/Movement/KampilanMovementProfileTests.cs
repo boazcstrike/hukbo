@@ -9,7 +9,7 @@ namespace Hukbo.Core.Tests.Movement;
 /// Every value asserted here is a provisional reconstruction: gameplay tuning;
 /// no historical measurement. The evidence ledger and the approved calibration
 /// ranges live in docs/research/movement/kampilan.md; the row itself is fixed
-/// by docs/plans/2026-07-30-weapon-movement-foundation-design.md section 13,
+/// by docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation-design.md section 13,
 /// which supersedes any figure quoted in
 /// the kampilan movement plan.
 /// </summary>

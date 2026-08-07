@@ -1,9 +1,13 @@
 # Leader rank — design
 
+> **Archived: reference only.** This document is finished work, kept so the
+> decision can be traced back to its reasoning. Do not execute it and do not
+> cite it as the reason to change anything.
+
 Date: 2026-07-29
 Status: design only. This document does not authorize implementation.
-Evidence base: [`docs/research/ARMY-COMPOSITION.md`](../research/ARMY-COMPOSITION.md),
-[`docs/research/HISTORICAL_1500s_RANKS.md`](../research/HISTORICAL_1500s_RANKS.md)
+Evidence base: [`docs/research/ARMY-COMPOSITION.md`](../../research/ARMY-COMPOSITION.md),
+[`docs/research/HISTORICAL_1500s_RANKS.md`](../../research/HISTORICAL_1500s_RANKS.md)
 Parent design: [`2026-07-29-warrior-standing-design.md`](2026-07-29-warrior-standing-design.md)
 §6.3, which this document expands into the full leadership account.
 

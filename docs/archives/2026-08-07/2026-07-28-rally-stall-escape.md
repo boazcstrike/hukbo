@@ -1,7 +1,11 @@
 # Rally stall escape — plan
 
-**Evidence:** [`docs/research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md`](../research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md).
-**Design context:** [`2026-07-28-follower-trailing-deadlock-design.md`](2026-07-28-follower-trailing-deadlock-design.md).
+> **Archived: reference only.** This document is finished work, kept so the
+> decision can be traced back to its reasoning. Do not execute it and do not
+> cite it as the reason to change anything.
+
+**Evidence:** [`docs/research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md`](../../research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md).
+**Design context:** [`2026-07-28-follower-trailing-deadlock-design.md`](../../plans/2026-07-28-follower-trailing-deadlock-design.md).
 
 **Date:** 2026-07-28. Written against `main` at `9a00e38`.
 

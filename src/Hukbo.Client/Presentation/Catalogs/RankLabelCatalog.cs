@@ -173,7 +173,7 @@ internal static class RankLabelCatalog
     /// "Namamahay" that <c>docs/research/HISTORICAL_1500s_RANKS.md</c>'s
     /// cleared-terms table lists. That was a deliberate decision taken on
     /// 2026-07-29 and recorded in
-    /// <c>docs/plans/2026-07-29-warrior-standing-design.md</c>: the fuller
+    /// <c>docs/archives/2026-08-07/2026-07-29-warrior-standing-design.md</c>: the fuller
     /// form is what the source actually says, and shortening it drops the
     /// <em>alipin</em> element that places the class in the dependent
     /// family at all. The descriptor still avoids the Spanish "slave"

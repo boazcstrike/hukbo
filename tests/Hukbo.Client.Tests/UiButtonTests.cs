@@ -1,6 +1,7 @@
 using Hukbo.Client;
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Settings;
+using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Microsoft.Xna.Framework;
 
@@ -119,5 +120,119 @@ public sealed class UiButtonTests
         Assert.Equal(new Rectangle(10, 21, 84, 33), visualBounds);
         Assert.Equal(new Rectangle(10, 20, 84, 34), hitBounds);
         Assert.True(hitBounds.Contains(visualBounds));
+    }
+
+    [Fact]
+    public void ActiveAmount_RisesWhileActiveAndFallsExactlyToZeroWhenNot()
+    {
+        var motion = new UiButtonMotion();
+
+        motion.Advance(
+            isHovered: false,
+            isFocused: false,
+            isPressed: false,
+            UiSecondaryMotion.ActiveStripDuration,
+            MotionIntensity.Full,
+            isActive: true);
+
+        Assert.Equal(1f, motion.ActiveAmount);
+        Assert.True(motion.IsActiveSettled);
+
+        motion.Advance(
+            isHovered: false,
+            isFocused: false,
+            isPressed: false,
+            UiSecondaryMotion.ActiveStripDuration,
+            MotionIntensity.Full,
+            isActive: false);
+
+        Assert.Equal(0f, motion.ActiveAmount);
+        Assert.True(motion.IsActiveSettled);
+    }
+
+    [Fact]
+    public void ActiveAmount_OffMotionSnapsInASingleCall()
+    {
+        var motion = new UiButtonMotion();
+
+        motion.Advance(
+            isHovered: false,
+            isFocused: false,
+            isPressed: false,
+            TimeSpan.Zero,
+            MotionIntensity.Off,
+            isActive: true);
+
+        Assert.Equal(1f, motion.ActiveAmount);
+        Assert.True(motion.IsActiveSettled);
+    }
+
+    [Fact]
+    public void ActiveAmount_MidTransitionLeavesTheStripUnsettled()
+    {
+        var motion = new UiButtonMotion();
+        motion.Advance(
+            isHovered: false,
+            isFocused: false,
+            isPressed: false,
+            TimeSpan.Zero,
+            MotionIntensity.Off,
+            isActive: true);
+
+        var halfDuration = TimeSpan.FromTicks(
+            UiSecondaryMotion.ActiveStripDuration.Ticks / 2);
+        motion.Advance(
+            isHovered: false,
+            isFocused: false,
+            isPressed: false,
+            halfDuration,
+            MotionIntensity.Full,
+            isActive: false);
+
+        Assert.False(motion.IsActiveSettled);
+        Assert.InRange(motion.ActiveAmount, 0.05f, 0.95f);
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(1f)]
+    [InlineData(0.5f)]
+    public void GetActiveStripColor_LerpsFromPanelBorderToSelection(
+        float activeAmount)
+    {
+        var colors = new UiThemeColors(
+            CanvasBackground: Color.Black,
+            ArenaSurface: Color.Black,
+            ArenaBorder: Color.Black,
+            StatusSurface: Color.White,
+            OverlayScrim: Color.White,
+            PanelSurface: Color.Black,
+            PanelAlternate: Color.Black,
+            PanelBorder: Color.Red,
+            TextPrimary: Color.White,
+            TextSecondary: Color.White,
+            TextDisabled: Color.Gray,
+            TextInverse: Color.White,
+            ActionDefault: Color.White,
+            ActionHover: Color.White,
+            ActionFocus: Color.White,
+            ActionPressed: Color.White,
+            ActionActive: Color.White,
+            ActionDisabled: Color.Gray,
+            StatusInfo: Color.White,
+            StatusSuccess: Color.White,
+            StatusWarning: Color.White,
+            StatusDanger: Color.White,
+            TeamA: Color.White,
+            TeamB: Color.White,
+            OtherFaction: Color.White,
+            Selection: Color.Blue,
+            NewEvent: Color.White);
+
+        var color = UiButton.GetActiveStripColor(colors, activeAmount);
+
+        Assert.Equal(
+            Color.Lerp(colors.PanelBorder, colors.Selection, activeAmount),
+            color);
     }
 }

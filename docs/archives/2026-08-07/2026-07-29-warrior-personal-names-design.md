@@ -1,10 +1,14 @@
 # Warrior personal names — design
 
+> **Archived: reference only.** This document is finished work, kept so the
+> decision can be traced back to its reasoning. Do not execute it and do not
+> cite it as the reason to change anything.
+
 Date: 2026-07-29
 
 Status: implemented. This document is the design record for the naming
 feature that ships in `Hukbo.Client`; the research it rests on is
-[docs/names/HISTORICAL_1500s_PERSONAL_NAMES.md](../names/HISTORICAL_1500s_PERSONAL_NAMES.md).
+[docs/names/HISTORICAL_1500s_PERSONAL_NAMES.md](../../names/HISTORICAL_1500s_PERSONAL_NAMES.md).
 
 ## 1. What this adds
 

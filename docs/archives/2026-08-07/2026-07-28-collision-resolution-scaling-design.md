@@ -1,9 +1,18 @@
 # Collision resolution scaling — design
 
-**Status:** Design complete, no plan document, nothing implemented. Per
-`CLAUDE.md` section 6, a `-design.md`
-document does not authorize implementation. No line of `Hukbo.Core` may change
-on the strength of this file alone.
+> **Archived: reference only.** This document is finished work, kept so the
+> decision can be traced back to its reasoning. Do not execute it and do not
+> cite it as the reason to change anything.
+
+**Status:** Implemented. The status line that stood here originally said
+"design complete, no plan document, nothing implemented", and that was true only
+on the day it was written. The plan document that followed is
+[`2026-07-28-collision-resolution-scaling.md`](2026-07-28-collision-resolution-scaling.md),
+and it was carried out: `CollisionUniformGrid` gained the strict-overlap query,
+the coincidence query, and slot removal, and `CollisionResolver` was rebuilt
+around two instances of it. The central claim below held. Every recorded state
+hash and event hash at 200, 500, 1,000, and 2,000 agents came back
+byte-identical, and the measured timing table is in section 3a of the plan.
 
 **Date:** 2026-07-28.
 
@@ -14,7 +23,7 @@ and the contact-band metrics are all left exactly as they are.
 
 **Central claim:** the collision stage can be made to scale far better than it
 does today *without changing a single committed position*. Every hash recorded
-in [`docs/development/testing.md`](../development/testing.md) must come back
+in [`docs/development/testing.md`](../../development/testing.md) must come back
 byte-identical afterward. A hash that moves is a defect in the implementation,
 not a reason to cut a new preset version.
 
@@ -26,7 +35,7 @@ produced "points at collision resolution as the next candidate for attention;
 that stage is explicitly out of scope for this plan and needs its own design
 document before anyone touches it." The plans index carried the same sentence
 until it was deleted on 2026-07-28, and
-[`docs/research/TICK-STAGE-PROFILE.md`](../research/TICK-STAGE-PROFILE.md)
+[`docs/research/TICK-STAGE-PROFILE.md`](../../research/TICK-STAGE-PROFILE.md)
 ends with "This is a finding to record, not work to start."
 
 This is that document. It starts nothing either; it establishes what the
@@ -295,9 +304,14 @@ already passes every contract the repository actually holds itself to.
 
 **What should decide it:** whether the campaign layer, the 4x speed target, or
 a larger supported battle size is close enough to matter. If the answer is
-"not yet," the correct outcome is to leave this document in `docs/plans/` as an
-approved design with no plan behind it — exactly the state the preset V3 and
-shields designs are in — and revisit it when a real requirement lands.
+"not yet," the correct outcome is to leave this document as an approved design
+with no plan behind it — exactly the state the preset V3 and shields designs
+are in — and revisit it when a real requirement lands.
+
+That question was answered on the day this design was written: the answer was
+"yes, now", the plan document was written the same day, and the work shipped.
+This section is kept as the record of the deliberation, not as an open
+question.
 
 ## 9. What a plan document would have to verify
 

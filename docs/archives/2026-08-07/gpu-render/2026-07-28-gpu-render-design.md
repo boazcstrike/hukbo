@@ -168,7 +168,7 @@ battle, because the simulation cannot supply the ticks.
 `docs/development/TICK-STAGE-PROFILE.md` line 90 attributes the bulk of that to
 one stage: `ResolveCollisions` is 63.11 percent of `AdvanceOneTick` at 200
 agents, 70.11 percent at 1,000, and 74.77 percent at 2,000. There is a separate
-design document at `docs/plans/2026-07-28-collision-resolution-scaling-design.md`
+design document at `docs/archives/2026-08-07/2026-07-28-collision-resolution-scaling-design.md`
 that addresses exactly this. **That work is a neighbouring concern and this
 design does not absorb it, does not depend on it, and does not authorize it.**
 It is named here only so that a reader who asks "why stop at 1,000?" gets the
@@ -758,7 +758,7 @@ If either clause fails, **Phase 3 is not built.** The specific actions are:
   submission — the overrun is characterised and routed to whichever span Phase 1
   named. If that span is the simulation's influence on the frame rather than the
   renderer's, it belongs to the collision-resolution concern in
-  `docs/plans/2026-07-28-collision-resolution-scaling-design.md` and not to this
+  `docs/archives/2026-08-07/2026-07-28-collision-resolution-scaling-design.md` and not to this
   design. This document does not authorize that work either; it hands over a
   measurement and stops.
 

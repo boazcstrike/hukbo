@@ -1,4 +1,5 @@
 using System.Globalization;
+using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -8,11 +9,25 @@ namespace Hukbo.Client.UI;
 
 internal sealed partial class ArmyCompositionPanel
 {
+    /// <summary>
+    /// Static form used by callers that never advance motion — delegates
+    /// with <see cref="TimeSpan.Zero"/> and <see cref="MotionIntensity.Off"/>,
+    /// which <see cref="UiTransition.AdvanceTo"/> always snaps under, so the
+    /// arrows render exactly as before this overload existed.
+    /// </summary>
     public ArmyCompositionInteraction Update(
         InputEdges input,
-        Rectangle screenBounds)
+        Rectangle screenBounds) =>
+        Update(input, screenBounds, TimeSpan.Zero, MotionIntensity.Off);
+
+    public ArmyCompositionInteraction Update(
+        InputEdges input,
+        Rectangle bounds,
+        TimeSpan elapsed,
+        MotionIntensity motionIntensity)
     {
-        var layout = CalculateLayout(screenBounds, _metrics);
+        var layout = CalculateLayout(bounds, _metrics);
+        AdvanceArrowMotion(input, layout, elapsed, motionIntensity);
         var pointerInsidePanel = layout.PanelBounds.Contains(
             input.MousePosition);
 
@@ -66,6 +81,43 @@ internal sealed partial class ArmyCompositionPanel
         return new ArmyCompositionInteraction(
             ArmyCompositionPanelResult.None,
             pointerInsidePanel);
+    }
+
+    /// <summary>
+    /// Advances every stepper row's arrow-hover motion toward the current
+    /// pointer position. Bounds are read from <paramref name="layout"/>
+    /// rather than recomputed, so the arrow hit rectangles this frame's
+    /// click handling uses are exactly the ones this frame's colours were
+    /// derived from. The marker text is a constant empty string — this
+    /// reuse only reads the two arrow-hover channels, never the pulse that
+    /// <see cref="UiSelectorMotion"/> also carries for a selector's active
+    /// marker, so nothing here can ever trigger it.
+    /// </summary>
+    private void AdvanceArrowMotion(
+        InputEdges input,
+        ArmyCompositionPanelLayout layout,
+        TimeSpan elapsed,
+        MotionIntensity motionIntensity)
+    {
+        for (var index = 0; index < layout.CategoryRows.Length; index++)
+        {
+            var row = layout.CategoryRows[index];
+            _categoryArrowMotion[index].AdvanceMotion(
+                input.MousePosition,
+                row.MinusBounds,
+                row.PlusBounds,
+                string.Empty,
+                elapsed,
+                motionIntensity);
+        }
+
+        _unitsPerTeamArrowMotion.AdvanceMotion(
+            input.MousePosition,
+            layout.UnitsPerTeamRow.MinusBounds,
+            layout.UnitsPerTeamRow.PlusBounds,
+            string.Empty,
+            elapsed,
+            motionIntensity);
     }
 
     private ArmyCompositionInteraction? HandlePointerClick(
@@ -141,6 +193,7 @@ internal sealed partial class ArmyCompositionPanel
                     count,
                     _draft.UnitsPerTeam),
                 index == _focusedControlIndex,
+                _categoryArrowMotion[index],
                 theme);
         }
 
@@ -157,6 +210,7 @@ internal sealed partial class ArmyCompositionPanel
             ArmyCompositionStepper.IsUnitsPerTeamIncrementDisabled(
                 _draft.UnitsPerTeam),
             _focusedControlIndex == UnitsPerTeamControlIndex,
+            _unitsPerTeamArrowMotion,
             theme);
 
         var unassignedColor = Unassigned == 0
@@ -218,6 +272,7 @@ internal sealed partial class ArmyCompositionPanel
         bool isDecrementDisabled,
         bool isIncrementDisabled,
         bool isFocused,
+        UiSelectorMotion motion,
         UiTheme theme)
     {
         var colors = theme.Colors;
@@ -238,6 +293,7 @@ internal sealed partial class ArmyCompositionPanel
             "-",
             isDecrementDisabled,
             isFocused,
+            motion.PreviousArrowColor(colors),
             theme);
         UiPrimitives.DrawCenteredText(
             spriteBatch,
@@ -253,11 +309,27 @@ internal sealed partial class ArmyCompositionPanel
             "+",
             isIncrementDisabled,
             isFocused,
+            motion.NextArrowColor(colors),
             theme);
     }
 
-    // At-limit arrows use ActionDisabled AND a dimmed glyph: colour alone
-    // never carries the meaning that a stepper has hit its bound.
+    /// <summary>
+    /// At-limit arrows use ActionDisabled AND a dimmed glyph: colour alone
+    /// never carries the meaning that a stepper has hit its bound. A
+    /// disabled arrow also never animates — <paramref name="enabledArrowColor"/>
+    /// is only read in the enabled branch, so an at-limit arrow stays pinned
+    /// to ActionDisabled no matter how the motion behind it has advanced.
+    /// Pure so a test can assert the pin without a <c>SpriteBatch</c>.
+    /// </summary>
+    internal static Color ResolveArrowColor(
+        bool isDisabled,
+        Color enabledArrowColor,
+        UiThemeColors colors)
+    {
+        ArgumentNullException.ThrowIfNull(colors);
+        return isDisabled ? colors.ActionDisabled : enabledArrowColor;
+    }
+
     private static void DrawArrow(
         SpriteBatch spriteBatch,
         Texture2D pixel,
@@ -266,13 +338,14 @@ internal sealed partial class ArmyCompositionPanel
         string glyph,
         bool isDisabled,
         bool isFocused,
+        Color enabledArrowColor,
         UiTheme theme)
     {
         var colors = theme.Colors;
         spriteBatch.Draw(
             pixel,
             bounds,
-            isDisabled ? colors.ActionDisabled : colors.ActionDefault);
+            ResolveArrowColor(isDisabled, enabledArrowColor, colors));
         if (isFocused && !isDisabled)
         {
             UiPrimitives.DrawBorder(

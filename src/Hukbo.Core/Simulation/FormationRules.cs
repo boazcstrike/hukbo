@@ -154,7 +154,7 @@ public static class FormationRules
     /// zero: an offset below that redraws the aim point without changing
     /// whether the approach is blocked, which spends a stall generation for
     /// nothing. See
-    /// <c>docs/plans/2026-07-29-approach-sidestep-design.md</c> section 4.2.
+    /// <c>docs/archives/2026-08-07/2026-07-29-approach-sidestep-design.md</c> section 4.2.
     /// </remarks>
     public const int ApproachSidestepMinimumMultiplier = 2;
 

@@ -101,6 +101,13 @@ public sealed partial class ArenaGame : Game
     private readonly AgentInspectorPanel _inspectorPanel = new();
     private readonly BattleEventLogPanel _eventLogPanel = new();
     private readonly SoundLogPanel _soundLogPanel = new();
+
+    /// <summary>
+    /// Surface E — status-badge emphasis (UI-52). Observed once per frame in
+    /// <see cref="Update"/>, unconditionally, so a frame where the pointer is
+    /// consumed elsewhere still decays the pulse; read by <see cref="DrawStatus"/>.
+    /// </summary>
+    private readonly UiStatusBadgeMotion _statusBadgeMotion = new();
     private readonly SoundDirector _soundDirector;
     private readonly MatchSummaryPanel _summaryPanel = new();
     private readonly BattleReportPanel _battleReportPanel = new();
@@ -729,7 +736,9 @@ public sealed partial class ArenaGame : Game
         {
             var panelInteraction = _armyCompositionPanel.Update(
                 _input,
-                screenBounds);
+                screenBounds,
+                gameTime.ElapsedGameTime,
+                _motionManager.Value);
             pointerConsumed = panelInteraction.PointerConsumed;
             consumedBy = pointerConsumed ? "armyComposition" : consumedBy;
             ApplyArmyCompositionResult(panelInteraction.Result);
@@ -879,7 +888,9 @@ public sealed partial class ArenaGame : Game
                 interaction = _eventLogPanel.Update(
                     _input,
                     _presentation.EventFeed,
-                    layout.EventBounds);
+                    layout.EventBounds,
+                    gameTime.ElapsedGameTime,
+                    _motionManager.Value);
                 pointerConsumed = interaction.PointerConsumed;
                 consumedBy = pointerConsumed ? "eventLog" : consumedBy;
             }
@@ -899,7 +910,9 @@ public sealed partial class ArenaGame : Game
                 interaction = _inspectorPanel.Update(
                     _input,
                     _presentation.Selection.Resolve(_simulation.Agents),
-                    layout.InspectorBounds);
+                    layout.InspectorBounds,
+                    gameTime.ElapsedGameTime,
+                    _motionManager.Value);
                 pointerConsumed = interaction.PointerConsumed;
                 consumedBy = pointerConsumed ? "inspector" : consumedBy;
             }
@@ -916,6 +929,15 @@ public sealed partial class ArenaGame : Game
                 pointerConsumed,
                 (float)gameTime.ElapsedGameTime.TotalSeconds);
         }
+
+        // Unconditional: must decay every frame even when a higher-priority
+        // surface consumed the pointer above, so the badge never stalls
+        // mid-pulse (UI-52 surface E).
+        _statusBadgeMotion.Observe(
+            _simulation.Outcome,
+            _presentation.Playback.IsPlaying,
+            gameTime.ElapsedGameTime,
+            _motionManager.Value);
 
         LogPointer(consumedBy);
         LogFocusChange();

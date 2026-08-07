@@ -17,6 +17,7 @@ internal sealed class UiButtonMotion
     private UiTransition _hover;
     private UiTransition _focus;
     private UiTransition _press;
+    private UiTransition _active;
     private MotionIntensity _intensity;
 
     public float HoverAmount => _hover.Value;
@@ -24,6 +25,16 @@ internal sealed class UiButtonMotion
     public float FocusAmount => _focus.Value;
 
     public float PressAmount => _press.Value;
+
+    public float ActiveAmount => _active.Value;
+
+    /// <summary>
+    /// True once the active-strip channel has reached its target. Used to
+    /// widen the control-bar strip's draw condition so a deactivation fades
+    /// out over <see cref="UiSecondaryMotion.ActiveStripDuration"/> instead
+    /// of disappearing on the frame <c>IsActive</c> turns false.
+    /// </summary>
+    public bool IsActiveSettled => _active.IsSettled;
 
     public int DecorativePressInset =>
         _intensity == MotionIntensity.Full && PressAmount > 0f
@@ -47,7 +58,8 @@ internal sealed class UiButtonMotion
         bool isFocused,
         bool isPressed,
         TimeSpan elapsed,
-        MotionIntensity intensity)
+        MotionIntensity intensity,
+        bool isActive = false)
     {
         _intensity = Enum.IsDefined(intensity)
             ? intensity
@@ -69,6 +81,11 @@ internal sealed class UiButtonMotion
             elapsed,
             PressDuration,
             isMotionEnabled);
+        _active.AdvanceTo(
+            isActive ? 1f : 0f,
+            elapsed,
+            UiSecondaryMotion.ActiveStripDuration,
+            isMotionEnabled);
     }
 
     public void Reset()
@@ -76,6 +93,7 @@ internal sealed class UiButtonMotion
         _hover = default;
         _focus = default;
         _press = default;
+        _active = default;
         _intensity = MotionIntensity.Off;
     }
 }

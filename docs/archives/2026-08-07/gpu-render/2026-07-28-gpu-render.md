@@ -454,7 +454,7 @@ are never started.
   submission — the overrun is characterised and routed to whichever span Phase 1
   named. If that span turns out to be the simulation's influence on the frame
   rather than the renderer's, it belongs to the neighbouring concern in
-  `docs/plans/2026-07-28-collision-resolution-scaling-design.md`. **This plan
+  `docs/archives/2026-08-07/2026-07-28-collision-resolution-scaling-design.md`. **This plan
   does not authorize that work either.** It hands over a measurement and stops.
 - The design document's section 8 is archived with the recorded measurement that
   closed it, so the next person to propose instancing finds the numbers rather

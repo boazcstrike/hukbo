@@ -1033,7 +1033,13 @@ public sealed partial class ArenaGame
             Math.Min(
                 UiScaleContext.Pixels(StatusBarHeight),
                 screenBounds.Height));
-        spriteBatch.Draw(pixel, statusBounds, theme.Colors.StatusSurface);
+        spriteBatch.Draw(
+            pixel,
+            statusBounds,
+            UiStatusBadgeMotion.GetBarColor(
+                theme.Colors.StatusSurface,
+                theme.Colors.StatusInfo,
+                _statusBadgeMotion.Amount));
 
         var textBounds = CalculateStatusTextBounds(
             screenBounds,

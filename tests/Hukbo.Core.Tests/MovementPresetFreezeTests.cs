@@ -41,7 +41,7 @@ namespace Hukbo.Core.Tests;
 /// <description>
 /// <c>PersistentContingentsV3</c>, <c>PersistentContingentsV4</c>, and
 /// <c>PersistentContingentsV5</c>, captured by
-/// docs/plans/2026-07-30-weapon-movement-foundation.md task T1, before a
+/// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T1, before a
 /// single line of the weapon-relative-movement workstream existed. That
 /// workstream adds <c>EquipmentRelativeFootworkV6</c> and touches the
 /// simulation pipeline every legacy preset runs through, so every later
@@ -52,7 +52,7 @@ namespace Hukbo.Core.Tests;
 /// <item>
 /// <description>
 /// <c>EquipmentRelativeFootworkV6</c>, captured by
-/// docs/plans/2026-07-30-weapon-movement-foundation.md task T12, from the
+/// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T12, from the
 /// build that completed the weapon-relative-movement foundation. Unlike the
 /// legacy fixtures it freezes a brand-new opt-in preset at the moment it
 /// shipped, so any later change that moves the V6 trajectory -- a profile
@@ -158,7 +158,7 @@ public sealed class MovementPresetFreezeTests
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
     /// -- match the fixture exactly. See
-    /// docs/plans/2026-07-30-weapon-movement-foundation.md task T1: this
+    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T1: this
     /// fixture is the oracle every later task in that plan replays against
     /// before it is allowed to touch the shared movement pipeline.
     /// </summary>
@@ -179,7 +179,7 @@ public sealed class MovementPresetFreezeTests
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
     /// -- match the fixture exactly. See
-    /// docs/plans/2026-07-30-weapon-movement-foundation.md task T1: this
+    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T1: this
     /// fixture is the oracle every later task in that plan replays against
     /// before it is allowed to touch the shared movement pipeline.
     /// </summary>
@@ -200,7 +200,7 @@ public sealed class MovementPresetFreezeTests
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
     /// -- match the fixture exactly. See
-    /// docs/plans/2026-07-30-weapon-movement-foundation.md task T1: this
+    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T1: this
     /// fixture is the oracle every later task in that plan replays against
     /// before it is allowed to touch the shared movement pipeline.
     /// </summary>
@@ -221,7 +221,7 @@ public sealed class MovementPresetFreezeTests
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
     /// -- match the fixture exactly. See
-    /// docs/plans/2026-07-30-weapon-movement-foundation.md task T12: this
+    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T12: this
     /// fixture freezes the opt-in preset's trajectory at the commit that
     /// completed the weapon-relative-movement foundation, with the control
     /// run selecting <c>CombatPresetId.PrecolonialPhilippinesV2</c>
