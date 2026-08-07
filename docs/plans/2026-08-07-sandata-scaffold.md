@@ -104,6 +104,28 @@ own; where a task looks like it needs one, the design section is named in the
 | 54 | 11 | Documentation | Record the measured numbers from task 53 in `docs/development/testing.md` under a dated Sandata section, and add the manual smoke-checklist rows from design section 13 as `PENDING`. Update `README.md`, `AGENTS.md`, and `CLAUDE.md` for the two-game layout, the new projects, the `-Game` script parameter, and the `Hukbo.Shared.Core` boundary. Full, normal English throughout. | `docs/development/testing.md`, `README.md`, `AGENTS.md`, `CLAUDE.md` | Every measured figure in the new testing section is traceable to task 53's captured output. Every smoke row is `PENDING` and none is `PASS`. `CLAUDE.md` section 3's layout block lists all eleven projects, and its section 5 states the Sandata determinism additions. `SourceHygieneTests`' recorded-artifact fact still passes. | 52, 53 | |
 | 55 | 12 | Canonical gate | Run `./scripts/verify.ps1` once, after everything above is integrated, and paste the real output. **Not delegated to any agent.** No sub-agent report substitutes for it. | none | The gate passes all five stages and the pasted output shows the Hukbo 200-agent, 10,000-tick, seed-1 workload producing the recorded baseline hashes unchanged. Then `./scripts/verify.ps1 -Game Sandata` is run and its output pasted separately. | 54 | |
 
+### Task 56 — geometry reconciliation (added 2026-08-07, wave 3)
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 56 | 3 | Geometry reconciliation | Wave 2 ran tasks 4 and 6 in separate worktrees, and each was told not to depend on a file it could not see. The result is three private implementations of the cross-product sign test, in `ExactPredicates.cs`, `RayBox.cs`, and `Polygon.cs`. Collapse them onto `ExactPredicates.Orient` as the single definition, and settle the calling convention: flat `long` coordinates are the house style, so correct design section 6 rather than introducing a `Point` struct that would need its own equality, hashing, and ordering rules to stay deterministic. Change no behaviour and no test expectation. | `src/Sandata.Core/Geometry/ExactPredicates.cs`, `src/Sandata.Core/Geometry/RayBox.cs`, `src/Sandata.Core/Geometry/Polygon.cs`, `docs/plans/2026-08-07-sandata-scaffold-design.md` | Exactly one method in `src/Sandata.Core/Geometry/` computes a cross product, proven by a test that greps the folder and asserts a single definition. All 171 existing Sandata tests still pass unchanged — not one expectation is edited. Design section 6 states flat `long` coordinates and no longer mentions `Point` or `Box`. | 4, 6 | |
+
+This is the price of the eight-agent fan-out, and it was the right trade: the
+alternative was serialising tasks 4 and 6 behind one another to save a
+reconciliation that costs far less than the wait would have. Recorded here so
+the duplication is closed deliberately rather than discovered later.
+
+### Wave 2 note: task 9's ruleset constants are provisional
+
+Design sections 4 and 9 pin the tick rate at 50 Hz and the millisecond-to-tick
+conversion exactly, but give no numeric value for `PathLatencyTicks`,
+`GroupCohesionRadius`, `LoweredWallDistanceWu`, or `AimToleranceBam`. Task 9
+chose 10, 96, 24, and 1024 as documented placeholders, each naming the later
+task that revises it — 27, 28, 32, and 23 respectively. Those four tasks must
+each either confirm the placeholder against a measurement or replace it, and
+must move `SandataRuleset.ContentHash` when they do. The currently pinned hash
+is `8955292433887190872`.
+
 ### Open item from wave 2: there is no `Point` type
 
 Design section 6 writes geometry signatures in terms of a `Point`, but no such
