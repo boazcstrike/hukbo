@@ -15,6 +15,9 @@ public sealed class SoundCueMapperTests
         WeaponId.Kalis,
         (int)GameSoundId.AttackKalis)]
     [InlineData(WeaponId.Itak, (int)GameSoundId.AttackItak)]
+    [InlineData(WeaponId.Bangkaw, (int)GameSoundId.AttackBangkaw)]
+    [InlineData(WeaponId.Busog, (int)GameSoundId.AttackBusog)]
+    [InlineData(WeaponId.Arquebus, (int)GameSoundId.AttackArquebus)]
     public void Map_ReturnsTheWeaponSlotForAnAttack(
         WeaponId weapon,
         int expected) =>
@@ -37,6 +40,9 @@ public sealed class SoundCueMapperTests
     [InlineData(WeaponId.Wasay, (int)GameSoundId.ClashShieldWasay)]
     [InlineData(WeaponId.Kalis, (int)GameSoundId.ClashShieldKalis)]
     [InlineData(WeaponId.Itak, (int)GameSoundId.ClashShieldItak)]
+    [InlineData(WeaponId.Bangkaw, (int)GameSoundId.ClashShieldBangkaw)]
+    [InlineData(WeaponId.Busog, (int)GameSoundId.ClashShieldBusog)]
+    [InlineData(WeaponId.Arquebus, (int)GameSoundId.ClashShieldArquebus)]
     public void Map_RoutesAShieldBlockToTheMatchingClashSlot(
         WeaponId weapon,
         int expected) =>
@@ -55,6 +61,54 @@ public sealed class SoundCueMapperTests
         Assert.Equal(
             GameSoundId.AttackKampilan,
             SoundCueMapper.Map(AttackWith(WeaponId.Kampilan, resolution)));
+
+    // The Evaded fix: a ranged weapon's missed shot sounds like a shot
+    // spending itself in the air, not like the weapon reaching a body, so it
+    // diverts to the weapon's miss- slot rather than sharing the impact cue
+    // the melee theory above pins. Added beside that theory, not in place of
+    // it.
+    [Theory]
+    [InlineData(WeaponId.Bangkaw, (int)GameSoundId.MissBangkaw)]
+    [InlineData(WeaponId.Busog, (int)GameSoundId.MissBusog)]
+    [InlineData(WeaponId.Arquebus, (int)GameSoundId.MissArquebus)]
+    public void Map_RoutesAnEvadedRangedAttackToTheWeaponsMissSlot(
+        WeaponId weapon,
+        int expected) =>
+        Assert.Equal(
+            (GameSoundId)expected,
+            SoundCueMapper.Map(
+                AttackWith(weapon, AttackResolution.Evaded)));
+
+    [Theory]
+    [InlineData(WeaponId.Bangkaw, (int)GameSoundId.ReleaseBangkaw)]
+    [InlineData(WeaponId.Busog, (int)GameSoundId.ReleaseBusog)]
+    [InlineData(WeaponId.Arquebus, (int)GameSoundId.ReleaseArquebus)]
+    public void MapRelease_ReturnsTheWeaponsReleaseSlot(
+        WeaponId weapon,
+        int expected) =>
+        Assert.Equal((GameSoundId)expected, SoundCueMapper.MapRelease(weapon));
+
+    [Theory]
+    [InlineData(WeaponId.Kampilan)]
+    [InlineData(WeaponId.Wasay)]
+    [InlineData(WeaponId.Kalis)]
+    [InlineData(WeaponId.Itak)]
+    public void MapRelease_IsSilentForAMeleeWeapon(WeaponId weapon) =>
+        Assert.Null(SoundCueMapper.MapRelease(weapon));
+
+    [Fact]
+    public void Map_LeavesAReleaseEventSilentBecauseItCarriesNoWeaponYet() =>
+        // BattleEventKind.Release is a non-attack event, so its Weapon is
+        // always null by construction; the launching weapon can only be
+        // resolved by a future caller with the source agent's loadout, which
+        // is why MapRelease is exposed for that caller to use directly.
+        Assert.Null(
+            SoundCueMapper.Map(NonAttack(BattleEventKind.Release, factionId: 0)));
+
+    [Fact]
+    public void Map_LeavesAMissEventSilentBecauseItCarriesNoWeaponYet() =>
+        Assert.Null(
+            SoundCueMapper.Map(NonAttack(BattleEventKind.Miss, factionId: 0)));
 
     [Fact]
     public void Map_ReturnsTheDeathSlotForADeath() =>

@@ -900,6 +900,7 @@ it is derived observability data only.
 | Clash cross | absent | yes | yes | yes | absent |
 | Swing pose | stops on target | recoil | recoil | recoil | follows through |
 | Sound cue | weapon impact | `clash-shield-<weapon>` | weapon impact | weapon impact | weapon impact |
+| Sound cue (ranged weapon) | weapon impact | `clash-shield-<weapon>` | weapon impact | weapon impact | `miss-<weapon>` |
 
 A shield block now has a sound channel of its own. It is carried by four classless slots keyed to the
 attacking weapon — `clash-shield-kampilan`, `clash-shield-wasay`, `clash-shield-kalis`, and
@@ -909,9 +910,17 @@ own; the other four still share the single weapon impact cue, as the `Sound cue`
 The two remaining clash slots, `clash-blade-hard` and `clash-blade-soft`, are deferred by owner
 decision and are not part of this contract.
 
-`Evaded` is still the weakest case: distinguished by one positive channel, the event-log line, and
-three absences. It has no sound channel of its own, because it plays the same weapon impact cue as
-`Landed`, `Parried`, and `Deflected`, so the reason it is the weakest case is unchanged.
+`Evaded` is still the weakest case for a melee weapon: distinguished by one positive channel, the
+event-log line, and three absences. A melee weapon's `Evaded` has no sound channel of its own,
+because it plays the same weapon impact cue as `Landed`, `Parried`, and `Deflected` — so a melee
+blow that meets empty air still plays a flesh impact, honestly recorded here as the shipped, deliberate
+scope of the ranged-units package rather than an oversight. **`Evaded` on one of the three ranged
+weapons — Bangkaw, Busog, Arquebus — is the one exception**, added by the `Sound cue (ranged weapon)`
+row above: it takes that weapon's own `miss-` slot instead, because a loosed shot that finds no
+target sounds like a shot spending itself in the air, not like a body being struck. Every other
+resolution, and every other channel in the table, is identical for a ranged weapon and a melee one;
+only the ranged `Evaded` sound cue differs, and `SoundCueMapper.MapAttack` is the single place that
+difference is decided.
 
 ### Historical boundary
 
