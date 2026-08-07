@@ -280,6 +280,71 @@ public sealed class AgentInspectorContentTests
         Assert.Equal(labels.Length, labels.Distinct(StringComparer.Ordinal).Count());
     }
 
+    // ===== RU-16: AgentIntent.Holding as a first-class inspector reason code =====
+
+    [Theory]
+    [InlineData(AgentIntent.Idle, "Intent: Idle")]
+    [InlineData(AgentIntent.Moving, "Intent: Moving")]
+    [InlineData(AgentIntent.Attacking, "Intent: Attacking")]
+    [InlineData(AgentIntent.Dead, "Intent: Dead")]
+    [InlineData(AgentIntent.Regrouping, "Intent: Regrouping")]
+    [InlineData(AgentIntent.Holding, "Intent: Holding at range")]
+    public void FormatIntentLineLabelsEveryIntentIncludingHolding(
+        AgentIntent intent,
+        string expected)
+    {
+        var line = AgentInspectorContent.FormatIntentLine(intent);
+
+        Assert.Equal(expected, line);
+    }
+
+    [Fact]
+    public void EveryAgentIntentHasADistinctSpectatorLabel()
+    {
+        var labels = Enum.GetValues<AgentIntent>()
+            .Select(AgentInspectorContent.GetIntentLabel)
+            .ToArray();
+
+        Assert.Equal(labels.Length, labels.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    /// <summary>
+    /// RU-16's own risk-8 defence: a ranged warrior deliberately holding at
+    /// range must not read like a warrior stuck by
+    /// <see cref="MovementResolution.Blocked"/> collision. The two rows
+    /// come from independent <see cref="AgentView"/> fields (Intent,
+    /// MovementResolution) with different line prefixes, so they can never
+    /// collide, but this test pins the exact text so a future edit cannot
+    /// quietly reconverge them.
+    /// </summary>
+    [Fact]
+    public void FormatIntentLine_HoldingReadsDistinctFromMovementBlockedLine()
+    {
+        var holdingLine = AgentInspectorContent.FormatIntentLine(AgentIntent.Holding);
+        var blockedLine = AgentInspectorContent.FormatMovementLine(MovementResolution.Blocked);
+
+        Assert.NotEqual(holdingLine, blockedLine);
+        Assert.DoesNotContain("Blocked", holdingLine, StringComparison.Ordinal);
+        Assert.Equal("Intent: Holding at range", holdingLine);
+        Assert.Equal("Movement: Blocked", blockedLine);
+    }
+
+    [Fact]
+    public void BuildLowerLines_ForAHoldingAgent_RendersTheHoldingIntentLineFirst()
+    {
+        var holdingAgent = CreateAgentView(WeaponId.Kalis, ShieldId.TallHardwood) with
+        {
+            Intent = AgentIntent.Holding,
+        };
+
+        var lines = AgentInspectorContent.BuildLowerLines(
+            holdingAgent,
+            "Kalis — Thrusting Blade",
+            "Documented");
+
+        Assert.Equal("Intent: Holding at range", lines[0]);
+    }
+
     [Fact]
     public void EveryLowerLineFitsInsideTheReservedRowBudget()
     {
@@ -541,6 +606,32 @@ public sealed class AgentInspectorContentTests
     [InlineData(PawnWeaponRole.Wasay)]
     [InlineData(PawnWeaponRole.Itak)]
     public void BuildWeaponVariantLines_ForWasayAndItak_NeverCarriesALaterOrProvisionalForm(
+        PawnWeaponRole weapon)
+    {
+        var tintId = WeaponVisualCatalog.GetTints(weapon)[0].Catalog.Id;
+
+        var lines = AgentInspectorContent.BuildWeaponVariantLines(
+            weapon,
+            tintId);
+
+        Assert.DoesNotContain(
+            lines,
+            line => line.Contains(
+                "later or provisional form",
+                StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// RU-16, plan section 3's "second correction": the three ranged arms
+    /// added to <c>GetLaterOrProvisionalForms</c> return empty, an evidence
+    /// claim rather than an unexamined default, so no ranged weapon's
+    /// variant lines ever mention a later or provisional form.
+    /// </summary>
+    [Theory]
+    [InlineData(PawnWeaponRole.Bangkaw)]
+    [InlineData(PawnWeaponRole.Busog)]
+    [InlineData(PawnWeaponRole.Arquebus)]
+    public void BuildWeaponVariantLines_ForTheThreeRangedWeapons_NeverCarriesALaterOrProvisionalForm(
         PawnWeaponRole weapon)
     {
         var tintId = WeaponVisualCatalog.GetTints(weapon)[0].Catalog.Id;
