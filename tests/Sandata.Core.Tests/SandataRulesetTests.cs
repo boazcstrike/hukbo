@@ -32,6 +32,28 @@ public sealed class SandataRulesetTests
     /// FNV-1a fold moves this value, that is a new preset version with a new
     /// recorded expectation, not a fix to this test.
     /// </summary>
+    /// <remarks>
+    /// Task 63 revisited this pin. The plan's wave-2 note left
+    /// <see cref="SandataRuleset.PathLatencyTicks"/>,
+    /// <see cref="SandataRuleset.GroupCohesionRadius"/>,
+    /// <see cref="SandataRuleset.LoweredWallDistanceWu"/>, and
+    /// <see cref="SandataRuleset.AimToleranceBam"/> as task 9's placeholders,
+    /// naming tasks 27, 28, 32, and 23 to confirm or replace each one and
+    /// move this hash if they did. Those four verdicts were never recorded
+    /// anywhere in the plan, so task 63 re-derived each value directly from
+    /// its consuming code and tests — see the remarks on
+    /// <see cref="SandataRuleset"/> and on each of the four properties — and
+    /// found no evidence in any of them for a different number. This pin is
+    /// therefore unchanged: the hash moves if and only if a value moves, and
+    /// none did. Revising <see cref="SandataRuleset.ModernTacticalV1"/> in
+    /// place, rather than adding a new <see cref="SandataPresetId"/> member,
+    /// remains the right call for a future change that does move a value,
+    /// because no golden replay, no save file, and no recorded Sandata
+    /// baseline references this preset yet — design section 16 states
+    /// explicitly that no golden mission hash exists — so there is no
+    /// earlier artifact for a version bump to protect. That stops being true
+    /// the moment one is recorded.
+    /// </remarks>
     [Fact]
     public void ModernTacticalV1_ContentHashIsPinned()
     {
