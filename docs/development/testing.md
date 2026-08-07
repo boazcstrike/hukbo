@@ -3062,34 +3062,44 @@ was taken (viewport 1280×720, client bounds 1280×720, equal), then the user
 declined the 150% reading, having no use for the remedy it would have gated.
 T30 is therefore also closed as declined, and row 75 above is marked
 `DECLINED` rather than left `PENDING`. T31 (archive both plan documents) was
-completed: both files now live at
-[docs/archives/2026-07-27-font-text-quality-design.md](../archives/2026-07-27-font-text-quality-design.md)
-and
-[docs/archives/2026-07-27-font-text-quality.md](../archives/2026-07-27-font-text-quality.md),
+completed: both files were moved out of `docs/plans/` into `docs/archives/`,
 each bannered, with every stale `docs/plans/...` cross-reference in the
-repository repointed to the new path.
+repository repointed. Both archived files were later removed from the
+repository by the archive prune of 2026-07-26 through 2026-07-31, so this
+section is now the only surviving record of the font and text quality work.
 
-`./scripts/verify.ps1` could **not** be run for this closeout. `dotnet format`
-fails before reaching this change: `main` at `ff5b73a`, the commit this work
-branched from, already fails to build six test files —
-`tests/Hukbo.Client.Tests/BattleEventFormatterTests.cs`,
-`ClashEffectSystemTests.cs`, `SwingPoseResolverTests.cs`,
-`SwingAnimationSystemTests.cs`, and
-`tests/Hukbo.Core.Tests/BattleEventTests.cs`, `HeadlessRunnerTests.cs` — each
-with `CS1503` errors passing `BodyPart` where `ShieldId` is now expected and
-`AttackResolution` where `BodyPart` is now expected at `BattleEvent.Attack`'s
-call sites. This break is pre-existing on `main`, unrelated to the font work,
-and lands inside `tests/Hukbo.Core.Tests`, which the font plan's scope
-boundary forbids this workstream from touching. As a substitute, `dotnet
-build src/Hukbo.Client/Hukbo.Client.csproj --configuration Release` was run
-directly and succeeded with 0 warnings and 0 errors, confirming the client
-project — the only project this closeout's five changed files
-(`docs/development/testing.md`, `docs/research/FONT_CANDIDATES.md`,
-`src/Hukbo.Client/Content/Fonts/README.md`,
-`src/Hukbo.Client/Theming/UiFontRamp.cs`,
-`tests/Hukbo.Client.Tests/UiThemeCatalogTests.cs`, all doc-comment or prose
-path fixes) can affect — still compiles. The canonical gate must be re-run in
-full once the `BattleEvent.Attack` signature break is fixed.
+At the time this closeout was first written, `./scripts/verify.ps1` could not
+be run: `main` at `ff5b73a`, the commit this work branched from, already failed
+to build six test files with `CS1503` errors at `BattleEvent.Attack`'s call
+sites. That break was pre-existing, unrelated to the font work, and has since
+been fixed on `main`.
+
+The gate was therefore re-run before this branch was integrated. On 2026-08-07,
+after merging `main` into this branch and resolving the conflicts left by the
+archive prune, `./scripts/verify.ps1 -SkipBootstrap` was run at the root of the
+`font-text-quality-t29-31` worktree and printed exactly:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+The Release build produced 0 warnings and 0 errors. `Hukbo.Core.Tests` reported
+2614 total, 2614 passed, 0 failed; `Hukbo.Client.Tests` reported 3121 total,
+3121 passed, 0 failed. The seed-1, 200-agent, 10,000-tick headless workload's
+`RunReport` recorded `measuredTicks` `981`, outcome `Faction1Victory`,
+`faction0Survivors` `0`, `faction1Survivors` `6`, `eventHash`
+`AC55684F24D39344`, `stateHash` `1B73FC5923879AA0`, `deterministic` `true`, and
+`firstMismatchTick` `null`.
+
+This run verifies the merged tree, not the font change in isolation — every
+code file this workstream touched was resolved in `main`'s favour during the
+merge, so what remains on this branch is this documentation section and the
+`DECLINED` state of row 75. The manual rows above stay `PENDING`: no person
+watched a live window for this run.
 
 ## Superseded: the amended collision run
 
