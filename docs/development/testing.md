@@ -757,7 +757,66 @@ allocation figures from the headless runner's own instrumentation; no peak
 working set was measured, so the working-set table under T7 stands unrefreshed
 and superseded.
 
-## Latest non-interactive result — movement V7 pressure interrupt, task F3, 2026-08-06
+## Latest non-interactive result — leader character presentation, task L8, 2026-08-07
+
+`./scripts/verify.ps1 -SkipBootstrap` on the integrated `leader-character` branch
+at `29284d7`, after tasks L1 through L7 landed. This is the single canonical
+gate run task L8 requires, and it was not delegated. Every task in this
+workstream is scoped to `Hukbo.Client` presentation — leader appearance preset
+selection, cache key composition, the on-sprite leader mark, the pawn quad
+budget, and the inspector's leadership line. No file under `src/Hukbo.Core` was
+edited.
+
+```
+[PASS] Canonical repository verification completed.
+
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+```
+
+The determinism workload's own report, from the same run:
+
+```
+outcome: Faction1Victory
+faction0Survivors: 0
+faction1Survivors: 6
+eventHash: AC55684F24D39344
+stateHash: 1B73FC5923879AA0
+deterministic: true
+firstMismatchTick: null
+coreAllocatedBytes: 161168
+```
+
+`./scripts/format.ps1 -Verify`:
+
+```
+[PASS] Formatted 0 421 files.
+```
+
+`./scripts/test.ps1 -Configuration Release`:
+
+```
+Hukbo.Core.Tests 2614/2614 passed
+Hukbo.Client.Tests 3018/3018 passed
+```
+
+**`eventHash AC55684F24D39344` and `stateHash 1B73FC5923879AA0` are byte-identical
+to the seed-1 baseline already recorded immediately below, under "Previous
+non-interactive result — movement V7 pressure interrupt, task F3, 2026-08-06".**
+That equality is the single most important fact in this record: it is the
+evidence that this workstream's presentation-only changes never touched
+`Hukbo.Core`, exactly as the plan's scope statement requires. A moved hash here
+would mean the simulation had been reached by mistake, not a new baseline to
+record.
+
+**The interactive smoke rows added under "Leader identification smoke (Client
+presentation)" below remain `PENDING`.** No compilation, unit test run, or
+canonical gate result — including the one recorded in this section — proves
+anything about a spectator's ability to identify a leader on a real
+battlefield. Those rows can only be flipped by a human at an interactive
+Windows desktop who has actually watched the screen; this record is not that
+review, and does not claim to be.
+
+## Previous non-interactive result — movement V7 pressure interrupt, task F3, 2026-08-06
 
 `./scripts/verify.ps1 -SkipBootstrap` on the integrated `v7-pressure-interrupt`
 branch, after `main` was merged in and after tasks F0, F1, and F2 landed. This
@@ -2996,6 +3055,52 @@ below remains `PENDING`, and the display-scaling measurement task (gated,
 separate, and requiring a human at an interactive Windows desktop) remains
 untouched by this run.
 
+### Font plan closeout — T29–T31, 2026-07-28
+
+T29 (display scaling, measure only) was closed as declined: the 100% reading
+was taken (viewport 1280×720, client bounds 1280×720, equal), then the user
+declined the 150% reading, having no use for the remedy it would have gated.
+T30 is therefore also closed as declined, and row 75 above is marked
+`DECLINED` rather than left `PENDING`. T31 (archive both plan documents) was
+completed: both files were moved out of `docs/plans/` into `docs/archives/`,
+each bannered, with every stale `docs/plans/...` cross-reference in the
+repository repointed. Both archived files were later removed from the
+repository by the archive prune of 2026-07-26 through 2026-07-31, so this
+section is now the only surviving record of the font and text quality work.
+
+At the time this closeout was first written, `./scripts/verify.ps1` could not
+be run: `main` at `ff5b73a`, the commit this work branched from, already failed
+to build six test files with `CS1503` errors at `BattleEvent.Attack`'s call
+sites. That break was pre-existing, unrelated to the font work, and has since
+been fixed on `main`.
+
+The gate was therefore re-run before this branch was integrated. On 2026-08-07,
+after merging `main` into this branch and resolving the conflicts left by the
+archive prune, `./scripts/verify.ps1 -SkipBootstrap` was run at the root of the
+`font-text-quality-t29-31` worktree and printed exactly:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+The Release build produced 0 warnings and 0 errors. `Hukbo.Core.Tests` reported
+2614 total, 2614 passed, 0 failed; `Hukbo.Client.Tests` reported 3121 total,
+3121 passed, 0 failed. The seed-1, 200-agent, 10,000-tick headless workload's
+`RunReport` recorded `measuredTicks` `981`, outcome `Faction1Victory`,
+`faction0Survivors` `0`, `faction1Survivors` `6`, `eventHash`
+`AC55684F24D39344`, `stateHash` `1B73FC5923879AA0`, `deterministic` `true`, and
+`firstMismatchTick` `null`.
+
+This run verifies the merged tree, not the font change in isolation — every
+code file this workstream touched was resolved in `main`'s favour during the
+merge, so what remains on this branch is this documentation section and the
+`DECLINED` state of row 75. The manual rows above stay `PENDING`: no person
+watched a live window for this run.
+
 ## Superseded: the amended collision run
 
 Every figure in this section comes from one final verified run of the **amended**
@@ -3820,7 +3925,7 @@ window-opening probe do not.
 | 72. Theme cycling | All six themes render text at the active UI scale with correct contrast, and no theme reveals a clipped or misaligned label the others hide. | Not run | PENDING |
 | 73. Window resize and automatic scale tiers | With UI Scale set to Auto, resizing selects 100% at 1280x720, 125% at 1920x1080, 150% at 2560x1440, and 200% at 3840x2160. Each tier stays crisp, re-lays out without clipping, and keeps every menu control visible. | Not run | PENDING |
 | 74. Subpixel blur is gone | Panning, zooming, and pausing produce no shimmering or swimming text. | Not run | PENDING |
-| 75. Display scaling | Record the appearance at 100% and at 150% Windows scaling. Feeds the separate, gated display-scaling measurement task; not itself a pass/fail row for the font ramp. | Not run | PENDING |
+| 75. Display scaling | Record the appearance at 100% and at 150% Windows scaling. Fed the separate, gated display-scaling measurement task. | The 100% reading was taken during implementation (viewport 1280×720, client bounds 1280×720, equal). The user declined the 150% reading on 2026-07-28, having no use for the display-scaling remedy this row was gating. | DECLINED |
 
 ### Responsive menu, startup display, and UI motion smoke
 
@@ -4711,6 +4816,26 @@ do not. Leave untouched rows `PENDING`; report `BLOCKED` honestly.
 Phase 3's rows GR-6 through GR-10 are deliberately absent. They covered the
 instanced backend, which the NO-GO verdict closed and which does not exist.
 
+### Leader identification smoke (leader character plan L7)
+
+**No interactive run was performed for this change. Every row below is
+`PENDING`.** The automated tests prove preset gating, the cache key, the mark
+geometry, the quad accounting, and the inspector row. None of them prove that a
+person watching a battle can pick a leader out.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| LC-1 | Start a battle and watch it at default zoom without clicking anything | Roughly sixteen warriors carry a mark above their head whose shape differs from every other pawn's outline, not merely its colour | | PENDING |
+| LC-2 | Zoom all the way out to the Low detail tier | The leader marks are still findable; they do not vanish into the mass or read as rendering noise | | PENDING |
+| LC-3 | Zoom in on one marked warrior in the Visayan-block faction | It wears datu kit — gold-edged head wrap, gold earrings and necklace, a draped shoulder cloth, a red waist sash — and its immediate neighbours do not | | PENDING |
+| LC-4 | Zoom in on one marked warrior in the Tagalog-block faction | It wears chief or leader kit; if it is the red-chinina row, the red jacket is the single clearest cue at that zoom | | PENDING |
+| LC-5 | Zoom in on a marked warrior in a Northern Luzon or generic-levy faction | It looks like its neighbours; the above-head mark plus the inspector are the only identification. This is the designed outcome, not a defect | | PENDING |
+| LC-6 | Watch until a marked warrior dies | Exactly one other warrior in the contingent picks up the mark, and its appearance changes once, cleanly, without flickering back and forth on subsequent frames | | PENDING |
+| LC-7 | Click the marked warrior | The inspector states that it is leading, and further down names the appearance preset with its scope, tag, and evidence tier — for example "Visayan Datu", Visayan, Documented, form uncertain | | PENDING |
+| LC-8 | Click the marked warrior, then hover a second one, while a third is breaking off under pressure | The leader mark, the selection ring, and the break-off band are all visible and none overlaps another | | PENDING |
+| LC-9 | Click a warrior in a battle running the frozen `IndependentPursuitV1` preset, where `ContingentState` is always `None` | No leadership row appears, because no leader is elected under this preset — if one somehow is elected, the row appears rather than being silently dropped | | PENDING |
+| LC-10 | Watch a full battle to the end and open the battle report | The report is unchanged; its "Leaderboard" still ranks kills and makes no claim about contingent leadership | | PENDING |
+| LC-11 | Run the same seed twice and compare the same warrior at the same tick in both runs | Identical appearance and identical leader marks; nothing about who leads or how they look differs between the two runs | | PENDING |
 ### Movement gait animation smoke (2026-08-07)
 
 **No interactive run was performed for this change.** Every row below is

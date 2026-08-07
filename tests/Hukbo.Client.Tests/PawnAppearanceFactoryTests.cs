@@ -759,12 +759,105 @@ public sealed class PawnAppearanceFactoryTests
             for (ulong seed = 0; seed < 20; seed++)
             {
                 var appearance = PawnAppearanceFactory.Create(
-                    7, WeaponId.Kalis, ShieldId.None, factionId, seed);
+                    7,
+                    WeaponId.Kalis,
+                    ShieldId.None,
+                    factionId: factionId,
+                    scenarioSeed: seed);
 
                 Assert.Contains(
                     appearance.AppearancePresetId,
                     AppearancePresets.All.Select(preset => preset.Catalog.Id));
             }
         }
+    }
+
+    [Fact]
+    public void Create_LeaderAndNonLeaderResolveDifferentPresetsInTheVisayanBlockButShareEveryOtherField() =>
+        AssertLeaderAndNonLeaderResolveDifferentPresetsButShareEveryOtherField(VisualScopeTag.Visayan);
+
+    [Fact]
+    public void Create_LeaderAndNonLeaderResolveDifferentPresetsInTheTagalogBlockButShareEveryOtherField() =>
+        AssertLeaderAndNonLeaderResolveDifferentPresetsButShareEveryOtherField(VisualScopeTag.Tagalog);
+
+    // Not itself a [Theory]: VisualScopeTag is an internal enum, and a public
+    // Theory method taking it as a parameter fails to build (CS0051,
+    // inconsistent accessibility) the moment InlineData forces the parameter
+    // itself public. The two Facts above are the accessible surface; this is
+    // the shared body.
+    private static void AssertLeaderAndNonLeaderResolveDifferentPresetsButShareEveryOtherField(
+        VisualScopeTag block)
+    {
+        // leader-character-design.md section 4.1: the Visayan and Tagalog
+        // blocks each ship at least one Status.Leader row (Vis15, Tag13,
+        // Tag15) held in a pool disjoint from Status.General, so isLeader
+        // must change AppearancePresetId (and, because every shipped
+        // preset resolves to recipe D1 — Bare-Chested, GarmentBaseTone
+        // follows skin only, so it is unaffected) while leaving every
+        // field the entity-ID-only rolls above SelectPreset produce
+        // untouched — stature, build, skin, clothing, accent, head
+        // treatment, weapon tint, and shield skin all read entityId
+        // directly and never isLeader.
+        var (factionId, scenarioSeed) = FindFactionAndSeedForBlock(block);
+
+        for (ulong entityId = 0; entityId < 50; entityId++)
+        {
+            var nonLeader = PawnAppearanceFactory.Create(
+                entityId,
+                WeaponId.Kalis,
+                ShieldId.None,
+                isLeader: false,
+                factionId: factionId,
+                scenarioSeed: scenarioSeed);
+            var leader = PawnAppearanceFactory.Create(
+                entityId,
+                WeaponId.Kalis,
+                ShieldId.None,
+                isLeader: true,
+                factionId: factionId,
+                scenarioSeed: scenarioSeed);
+
+            Assert.NotEqual(nonLeader.AppearancePresetId, leader.AppearancePresetId);
+
+            Assert.Equal(nonLeader.StatureMultiplier, leader.StatureMultiplier);
+            Assert.Equal(nonLeader.BuildMultiplier, leader.BuildMultiplier);
+            Assert.Equal(nonLeader.HeadTreatment, leader.HeadTreatment);
+            Assert.Equal(nonLeader.ClothingColor, leader.ClothingColor);
+            Assert.Equal(nonLeader.AccentColor, leader.AccentColor);
+            Assert.Equal(nonLeader.SkinColor, leader.SkinColor);
+            Assert.Equal(nonLeader.HeadTreatmentColor, leader.HeadTreatmentColor);
+            Assert.Equal(nonLeader.WeaponTintId, leader.WeaponTintId);
+            Assert.Equal(nonLeader.WeaponBladeColor, leader.WeaponBladeColor);
+            Assert.Equal(nonLeader.WeaponGripColor, leader.WeaponGripColor);
+            Assert.Equal(nonLeader.WeaponLashingBandColor, leader.WeaponLashingBandColor);
+            Assert.Equal(nonLeader.ShieldSkinId, leader.ShieldSkinId);
+            Assert.Equal(nonLeader.ShieldFaceColor, leader.ShieldFaceColor);
+        }
+    }
+
+    /// <summary>
+    /// Walks the same faction/seed space
+    /// <see cref="Create_AppearancePresetIdAlwaysResolvesToAShippedPresetAcrossEveryFactionAndSeed"/>
+    /// already covers and returns the first pair <see cref="AppearancePresets.SelectBlock"/>
+    /// resolves to <paramref name="block"/>, so this test never hard-codes a
+    /// faction/seed pair against the block-assignment stream's own internal
+    /// mix.
+    /// </summary>
+    private static (int FactionId, ulong ScenarioSeed) FindFactionAndSeedForBlock(
+        VisualScopeTag block)
+    {
+        for (var factionId = 0; factionId < 4; factionId++)
+        {
+            for (ulong seed = 0; seed < 50; seed++)
+            {
+                if (AppearancePresets.SelectBlock(seed, factionId) == block)
+                {
+                    return (factionId, seed);
+                }
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"No (factionId, scenarioSeed) pair in the searched range resolves {block}.");
     }
 }

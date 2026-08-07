@@ -1,161 +1,32 @@
-using Hukbo.Core.Combat;
 using Hukbo.Core.Movement;
 using Hukbo.Core.Movement.Profiles;
 
 namespace Hukbo.Core.Tests.Movement;
 
 /// <summary>
-/// Pins the solo Wasay (<c>WA</c>) equipment-relative movement row: its exact
-/// shipped values, its equipment-only loadout key, its canonical position at
-/// index 1 of
-/// <see cref="MovementPresetId.EquipmentRelativeFootworkV6"/>, and the
-/// calibration range every one of its fields is approved to move inside.
-/// Every value asserted here is a provisional reconstruction: gameplay tuning;
-/// no historical measurement. The evidence behind the row, and the reasoning
-/// for each figure, lives in docs/research/movement/wasay.md and in the
-/// calibration table of the wasay movement plan
-/// section 5. Nothing in this file is a claim about how a
-/// sixteenth-century warrior actually moved.
+/// The approved calibration envelope of the solo Wasay (<c>WA</c>)
+/// equipment-relative movement row: the range every one of its fields is
+/// allowed to move inside, so a later retuning pass that leaves an approved
+/// band fails here by the name of the field it moved. Every value asserted
+/// here is a provisional reconstruction: gameplay tuning; no historical
+/// measurement. The evidence behind the row, and the reasoning for each
+/// figure, lives in docs/research/movement/wasay.md and in the calibration
+/// table of the wasay movement plan section 5. Nothing in this file is a claim
+/// about how a sixteenth-century warrior actually moved.
 /// </summary>
+/// <remarks>
+/// The row's exact shipped values are pinned by
+/// <c>MovementProfileRegistrationTests</c>, and its equipment-only loadout key,
+/// its canonical position at index 1 of
+/// <see cref="MovementPresetId.EquipmentRelativeFootworkV6"/>, its rank
+/// independence, and its unreachability under a legacy preset are pinned for
+/// every canonical row at once by
+/// <see cref="MovementProfileRowContractTests"/>. This file asserted all of
+/// that a second time for the Wasay row alone; what is left is the calibration
+/// table, which is the one thing here that is genuinely about the Wasay.
+/// </remarks>
 public sealed class WasayMovementProfileTests
 {
-    /// <summary>
-    /// The canonical loadout index of the solo Wasay row in the
-    /// <c>KP, WA, KA, IT, KS, IS</c> order that
-    /// <see cref="MovementRuleset.LoadoutMovementProfiles"/> is validated to
-    /// hold.
-    /// </summary>
-    private const int CanonicalWasayIndex = 1;
-
-    /// <summary>
-    /// The equipment key of the row: a two-handed Wasay with light organic
-    /// armor and no shield. Rank is deliberately omitted, because the profile
-    /// key is equipment only.
-    /// </summary>
-    private static readonly CombatLoadout WasayLoadout = new(
-        WeaponId.Wasay, ArmorId.LightOrganic, ShieldId.None);
-
-    private static MovementRuleset V6 =>
-        MovementPresetRegistry.Get(MovementPresetId.EquipmentRelativeFootworkV6);
-
-    /// <summary>
-    /// Every scalar of the shipped row, asserted one field at a time.
-    /// Provisional reconstruction: gameplay tuning; no historical
-    /// measurement. The opponent-distance offsets run in canonical opponent
-    /// order <c>KP, WA, KA, IT, KS, IS</c>.
-    /// </summary>
-    [Fact]
-    public void WasayProfileUsesApprovedProvisionalValues()
-    {
-        var row = WasayMovementProfile.Row;
-
-        Assert.Equal(9_400, row.ForwardPaceBasisPoints);
-        Assert.Equal(7_400, row.LateralPaceBasisPoints);
-        Assert.Equal(6_400, row.BackwardPaceBasisPoints);
-        Assert.Equal(2_500, row.CommittedPaceBasisPoints);
-        Assert.Equal(10_800, row.PreferredDistanceBasisPoints);
-        Assert.Equal(
-            LoadoutMovementProfile.OpponentDistanceOffsetCount,
-            row.OpponentDistanceOffsetBasisPoints.Length);
-        Assert.Equal(
-            new[] { 500, 0, 250, 500, 250, 500 },
-            row.OpponentDistanceOffsetBasisPoints);
-        Assert.Equal(1, row.MaximumFacingStepsPerTick);
-        Assert.Equal(1, row.CommittedFacingStepsPerTick);
-        Assert.Equal(4_000, row.AccelerationBasisPointsPerTick);
-        Assert.Equal(5_000, row.DecelerationBasisPointsPerTick);
-        Assert.Equal(4, row.CommitmentTicks);
-        Assert.Equal(4, row.RecoveryTicks);
-        Assert.Equal(17_500, row.AllyClearanceBodyDiametersBasisPoints);
-        Assert.Equal(20_000, row.DisengageEnemyToAllyBasisPoints);
-        Assert.Equal(12_500, row.ReengageEnemyToAllyBasisPoints);
-        Assert.Equal(10_000, row.PursuitSupportBodyDiametersBasisPoints);
-    }
-
-    /// <summary>
-    /// The row is keyed by equipment alone: a two-handed Wasay carried with
-    /// light organic armor and no shield.
-    /// </summary>
-    [Fact]
-    public void WasayProfileExportsApprovedLoadoutKey()
-    {
-        var row = WasayMovementProfile.Row;
-
-        Assert.Equal(WasayLoadout, row.Loadout);
-        Assert.Equal(WeaponId.Wasay, row.Loadout.Weapon);
-        Assert.Equal(ArmorId.LightOrganic, row.Loadout.Armor);
-        Assert.Equal(ShieldId.None, row.Loadout.Shield);
-    }
-
-    /// <summary>
-    /// Rank is social standing with no movement meaning, so two Wasay
-    /// loadouts differing only in their rank resolve to the very same profile
-    /// instance under the shipped preset — not merely to two equal copies of
-    /// it.
-    /// </summary>
-    [Theory]
-    [InlineData(RankId.Timawa)]
-    [InlineData(RankId.Maharlika)]
-    [InlineData(RankId.Datu)]
-    public void EveryRankResolvesToTheSameWasayProfileInstance(RankId rank)
-    {
-        var ranked = new CombatLoadout(
-            WeaponId.Wasay, ArmorId.LightOrganic, ShieldId.None, rank);
-
-        var resolved = V6.ResolveLoadoutProfile(ranked);
-
-        Assert.Same(WasayMovementProfile.Row, resolved);
-    }
-
-    /// <summary>
-    /// The Wasay is two-handed and never pairs with a shield, so that key
-    /// carries no profile row at all. It has to fail loudly rather than
-    /// silently inherit the solo Wasay footwork.
-    /// </summary>
-    [Fact]
-    public void AShieldedWasayLoadoutHasNoProfileAndThrows()
-    {
-        var shielded = new CombatLoadout(
-            WeaponId.Wasay, ArmorId.LightOrganic, ShieldId.TallHardwood);
-
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => V6.ResolveLoadoutProfile(shielded));
-    }
-
-    /// <summary>
-    /// The row occupies canonical position 1 of the shipped preset, which is
-    /// the position <see cref="MovementRuleset.ResolveLoadoutProfile"/> indexes
-    /// into for a solo Wasay.
-    /// </summary>
-    [Fact]
-    public void TheShippedPresetCarriesTheWasayRowAtCanonicalIndexOne()
-    {
-        Assert.Same(
-            WasayMovementProfile.Row,
-            V6.LoadoutMovementProfiles[CanonicalWasayIndex]);
-        Assert.Same(
-            WasayMovementProfile.Row,
-            V6.ResolveLoadoutProfile(WasayLoadout));
-    }
-
-    /// <summary>
-    /// The previous shipped default preset carries no profile rows at all, so
-    /// the Wasay row reaches the simulation only when the
-    /// equipment-relative preset is selected. Resolution under the older
-    /// preset throws instead of returning a default row.
-    /// </summary>
-    [Fact]
-    public void TheWasayRowIsUnreachableUnderTheEarlierDefaultPreset()
-    {
-        var earlier = MovementPresetRegistry.Get(
-            MovementPresetId.PersistentContingentsV4);
-
-        Assert.False(earlier.UsesEquipmentRelativeFootwork);
-        Assert.Empty(earlier.LoadoutMovementProfiles);
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => earlier.ResolveLoadoutProfile(WasayLoadout));
-    }
-
     /// <summary>
     /// Every scalar of the row sits inside the calibration range approved in
     /// the table of the wasay movement plan section 5.

@@ -398,6 +398,146 @@ public sealed class SourceHygieneTests
         Assert.Empty(offenders);
     }
 
+    /// <summary>
+    /// L3. The only two places that ask the presentation layer for a
+    /// <c>PawnAppearance</c> from live battle state — the render loop's cache
+    /// lookup and the inspector panel's direct factory call — must pass the
+    /// agent's real, current leadership value. Both parameters compile happily
+    /// with a stray literal <c>false</c> (<c>PawnAppearanceCache.Resolve</c>'s
+    /// <c>isLeader</c> is required but accepts any <see langword="bool"/>
+    /// expression; <c>PawnAppearanceFactory.Create</c>'s <c>isLeader</c> is a
+    /// trailing optional parameter that a dropped argument silently defaults to
+    /// <see langword="false"/>), so neither call site fails to build if it
+    /// regresses. This test reads the two files as text and fails loudly if
+    /// either call site's leadership argument is anything other than the
+    /// agent's own <c>IsLeader</c> property.
+    /// </summary>
+    [Fact]
+    public void RenderAndInspectorCallSitesPassRealLeadershipIntoAppearanceResolution()
+    {
+        var root = GetRepositoryRoot();
+
+        var arenaPath = Path.Combine(
+            root, "src", "Hukbo.Client", "ArenaGame.Rendering.cs");
+        var arenaArguments = SplitTopLevelArguments(
+            ExtractCallArguments(
+                File.ReadAllText(arenaPath),
+                "_presentation.PawnAppearances.Resolve("));
+
+        Assert.Equal(5, arenaArguments.Length);
+        Assert.Equal("agent.IsLeader", arenaArguments[^1], StringComparer.Ordinal);
+
+        var inspectorPath = Path.Combine(
+            root, "src", "Hukbo.Client", "UI", "AgentInspectorPanel.cs");
+        var inspectorArguments = SplitTopLevelArguments(
+            ExtractCallArguments(
+                File.ReadAllText(inspectorPath),
+                "PawnAppearanceFactory.Create("));
+
+        Assert.Equal(4, inspectorArguments.Length);
+        Assert.Equal(
+            "selected.IsLeader", inspectorArguments[^1], StringComparer.Ordinal);
+
+        // The metrics probe builds its own appearance rather than reading the
+        // renderer's cache, and the comment above it promises the two passes
+        // "count the same quads". That promise only holds while both passes
+        // see the same leadership, so the probe's own two call sites are
+        // scanned here for the same reason the render path is.
+        var arenaSource = File.ReadAllText(arenaPath);
+
+        var probeArguments = SplitTopLevelArguments(
+            ExtractCallArguments(arenaSource, "PawnAppearanceFactory.Create("));
+
+        Assert.Equal(4, probeArguments.Length);
+        Assert.Equal(
+            "agent.IsLeader", probeArguments[^1], StringComparer.Ordinal);
+
+        var quadCountArguments = SplitTopLevelArguments(
+            ExtractCallArguments(arenaSource, "PawnQuadCount.Count("));
+
+        Assert.Equal(4, quadCountArguments.Length);
+        Assert.Equal(
+            "isLeader: agent.IsLeader",
+            quadCountArguments[^1],
+            StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Locates a call by its literal invocation text (ending in the opening
+    /// parenthesis, e.g. <c>"Foo.Bar("</c>) and returns the raw text between
+    /// that parenthesis and its balanced closing one, so a scan can inspect
+    /// the argument list even when it spans multiple lines.
+    /// </summary>
+    private static string ExtractCallArguments(string source, string anchor)
+    {
+        var anchorIndex = source.IndexOf(anchor, StringComparison.Ordinal);
+        Assert.True(
+            anchorIndex >= 0,
+            "Could not find call site \"" + anchor + "\" in the scanned source.");
+        Assert.True(
+            source.IndexOf(anchor, anchorIndex + 1, StringComparison.Ordinal) < 0,
+            "Call site \"" + anchor +
+            "\" appears more than once; this scan assumes exactly one.");
+
+        var cursor = anchorIndex + anchor.Length;
+        var argumentsStart = cursor;
+        var depth = 1;
+
+        while (depth > 0)
+        {
+            var character = source[cursor];
+            if (character == '(')
+            {
+                depth++;
+            }
+            else if (character == ')')
+            {
+                depth--;
+            }
+
+            if (depth > 0)
+            {
+                cursor++;
+            }
+        }
+
+        return source[argumentsStart..cursor];
+    }
+
+    /// <summary>
+    /// Splits a raw argument-list string on commas at nesting depth zero, so a
+    /// nested call's own commas (there are none in the two call sites this
+    /// scan reads today, but a future one might add one) do not get mistaken
+    /// for argument separators.
+    /// </summary>
+    private static string[] SplitTopLevelArguments(string argumentsText)
+    {
+        var arguments = new List<string>();
+        var depth = 0;
+        var start = 0;
+
+        for (var index = 0; index < argumentsText.Length; index++)
+        {
+            var character = argumentsText[index];
+            if (character == '(')
+            {
+                depth++;
+            }
+            else if (character == ')')
+            {
+                depth--;
+            }
+            else if (character == ',' && depth == 0)
+            {
+                arguments.Add(argumentsText[start..index].Trim());
+                start = index + 1;
+            }
+        }
+
+        arguments.Add(argumentsText[start..].Trim());
+        return arguments.ToArray();
+    }
+
     private static IEnumerable<string> EnumeratePresentationVariationFiles(
         string root)
     {

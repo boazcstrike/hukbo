@@ -1259,6 +1259,101 @@ public sealed class AgentInspectorContentTests
         Assert.Null(line);
     }
 
+    /// <summary>
+    /// Leader rank plan L6: <see cref="AgentInspectorContent.FormatLeadershipLine"/>
+    /// states leadership with the word "leading" — never "chief" or
+    /// "commander" — matching the discipline
+    /// <see cref="AgentInspectorContent.FormatContingentLine"/>'s own suffix
+    /// already follows.
+    /// </summary>
+    [Fact]
+    public void FormatLeadershipLineStatesLeadingAndCarriesNoDisallowedWord()
+    {
+        var line = AgentInspectorContent.FormatLeadershipLine();
+
+        Assert.Contains("leading", line, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("chief", line, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("commander", line, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Leader rank plan L6 (bug fix): before this row existed, a leader
+    /// elected under <see cref="ContingentState.None"/> — the frozen
+    /// <c>IndependentPursuitV1</c> preset, or any preset before its
+    /// contingent stage first resolves — had no leadership indication
+    /// anywhere in the inspector, because
+    /// <see cref="AgentInspectorContent.FormatContingentLine"/> returns
+    /// <see langword="null"/> for that state and its "(leading)" suffix goes
+    /// with it.
+    /// </summary>
+    [Fact]
+    public void LowerLinesStateLeadershipWhenContingentStateIsNone()
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                contingentState: ContingentState.None,
+                isLeader: true),
+            "Kalis — Thrusting Blade",
+            "Documented");
+
+        Assert.Contains(AgentInspectorContent.FormatLeadershipLine(), lines);
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("Contingent:", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A non-leader under <see cref="ContingentState.None"/> gets neither the
+    /// contingent row nor the new standalone leadership row — the bug fix
+    /// must not fire for every agent under a legacy preset, only for the one
+    /// the simulation actually elected.
+    /// </summary>
+    [Fact]
+    public void LowerLinesOmitLeadershipRowWhenContingentStateIsNoneAndAgentIsNotLeader()
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                contingentState: ContingentState.None,
+                isLeader: false),
+            "Kalis — Thrusting Blade",
+            "Documented");
+
+        Assert.DoesNotContain(AgentInspectorContent.FormatLeadershipLine(), lines);
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("Contingent:", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The standalone leadership row and the contingent row's "(leading)"
+    /// suffix are mutually exclusive: a leader with a real contingent state
+    /// gets the suffix on the contingent row and never a second,
+    /// separate row.
+    /// </summary>
+    [Theory]
+    [InlineData(ContingentState.Hold)]
+    [InlineData(ContingentState.Advance)]
+    public void LowerLinesNeverCarryBothTheLeadershipRowAndTheLeadingSuffix(
+        ContingentState state)
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                contingentId: 3,
+                contingentState: state,
+                isLeader: true),
+            "Kalis — Thrusting Blade",
+            "Documented");
+
+        Assert.DoesNotContain(AgentInspectorContent.FormatLeadershipLine(), lines);
+        Assert.Single(lines, line => line.Contains("leading", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData(ContingentState.Hold)]
     [InlineData(ContingentState.Advance)]

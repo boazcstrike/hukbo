@@ -10,17 +10,25 @@ using Hukbo.Core.Simulation;
 namespace Hukbo.Core.Tests.Movement;
 
 /// <summary>
-/// The tall-hardwood-shield slice of the movement scenario matrix, run as
-/// whole battles. The matrix itself (<see cref="MovementScenarioMatrix"/>)
-/// only enumerates cells; this class consumes the shielded ones: the eleven
-/// shield-containing unordered 1v1 pairs run as mirrored duels across the
-/// approved seed set under a twin-rerun determinism check, the 176
-/// shield-containing team matchups run as mirrored 2v2 battles at seed one,
-/// and the focused geometries, group cases, asymmetric counts, and roster
-/// preservation cases pin the movement shape of the shielded Kalis
-/// (<c>KS</c>) and shielded Itak (<c>IS</c>) rows.
+/// The tall-hardwood-shield movement scenarios, run as whole battles: the
+/// focused geometries, group cases, asymmetric counts, and roster preservation
+/// cases that pin the movement shape of the shielded Kalis (<c>KS</c>) and
+/// shielded Itak (<c>IS</c>) rows.
 /// </summary>
 /// <remarks>
+/// <para>
+/// The shield slice of the movement scenario matrix used to run here — the
+/// eleven shield-containing 1v1 pairs across the approved seed set and the 176
+/// shield-containing team matchups at seed one, both under this suite's
+/// twin-rerun determinism contract. The Itak and Kalis suites each held an
+/// overlapping slice of the same 231-cell matrix under contracts of their own,
+/// so most cells ran two or three times and each run applied only part of the
+/// union. Every cell now runs exactly once, under the union of all three
+/// contracts, in <see cref="MovementMatrixContractTests"/>, which carries this
+/// suite's <c>RunToCompletion</c> evidence recorder forward as the shared one.
+/// What remains here is what is genuinely about the shield rows rather than
+/// about the matrix.
+/// </para>
 /// <para>
 /// Every threshold, pace, distance, and count boundary consumed here is a
 /// <strong>provisional reconstruction: gameplay tuning; no historical
@@ -130,22 +138,6 @@ public sealed class TallHardwoodMovementScenarioTests
     /// <summary>The second team member's row in the 2v2 geometry.</summary>
     private const int TeamSecondMemberYRaw = 53_248;
 
-    private const int OneVersusOneTicks = 600;
-
-    private const int TeamMatchupTicks = 200;
-
-    /// <summary>
-    /// The eleven shield-containing unordered 1v1 cells, and the 176
-    /// shield-containing team matchups, as
-    /// <c>MovementScenarioMatrixTests.OneVersusOnePairs_FlagExactlyTheShieldedCellsAsRequiringV2</c>
-    /// and its team counterpart already count them from the other side.
-    /// </summary>
-    private const int ShieldOneVersusOneCellCount = 11;
-
-    private const int ShieldTeamMatchupCellCount = 176;
-
-    private static readonly ulong[] ApprovedSeeds = [1, 2, 3, 5, 8];
-
     private static readonly CombatLoadout ShieldedKalis =
         new(WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.TallHardwood);
 
@@ -169,256 +161,6 @@ public sealed class TallHardwoodMovementScenarioTests
 
     private static CombatRuleset CombatRules =>
         CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV2);
-
-    // ----- The shielded 1v1 slice: eleven of the twenty-one cells -----
-
-    /// <summary>
-    /// Of the 21 unordered 1v1 cells, exactly eleven contain a shielded
-    /// loadout. Four unshielded loadouts give <c>C(4,2) + 4 = 10</c>
-    /// unshielded cells, so <c>21 - 10 = 11</c>. <c>KS-IS</c> is one unordered
-    /// cell, not two, which is why the count is eleven rather than twelve.
-    /// The slice is asserted for its count, its uniqueness, its two shielded
-    /// mirrors, and its canonical enumeration order before any simulation
-    /// runs, and it is selected through the matrix's own
-    /// <c>RequiresPrecolonialPhilippinesV2</c> predicate rather than a
-    /// hand-rolled index check.
-    /// </summary>
-    [Fact]
-    public void TheShieldOneVersusOneSliceCountsElevenUniqueCellsInCanonicalOrder()
-    {
-        var all = MovementScenarioMatrix.EnumerateOneVersusOnePairs();
-        var cells = all
-            .Where(pair => pair.RequiresPrecolonialPhilippinesV2)
-            .ToList();
-
-        Assert.Equal(ShieldOneVersusOneCellCount, cells.Count);
-        Assert.Equal(ShieldOneVersusOneCellCount, cells.Distinct().Count());
-
-        // Both shielded mirrors are present, and exactly one KS-IS cell.
-        Assert.Contains(cells, pair =>
-            pair.IsMirror &&
-            pair.FirstLoadoutIndex == ShieldedKalisMovementIndex);
-        Assert.Contains(cells, pair =>
-            pair.IsMirror &&
-            pair.FirstLoadoutIndex == ShieldedItakMovementIndex);
-        Assert.Single(
-            cells,
-            pair =>
-                pair.FirstLoadoutIndex == ShieldedKalisMovementIndex &&
-                pair.SecondLoadoutIndex == ShieldedItakMovementIndex);
-
-        // Canonical ordering: every cell is normalised i <= j, and the slice
-        // is a subsequence of the full canonical enumeration in order.
-        Assert.All(cells, pair => Assert.True(
-            pair.FirstLoadoutIndex <= pair.SecondLoadoutIndex,
-            $"Cell ({pair.FirstLoadoutIndex},{pair.SecondLoadoutIndex}) is " +
-            "not normalised to canonical i <= j order."));
-        Assert.Equal(
-            all.Where(pair => pair.RequiresPrecolonialPhilippinesV2).ToList(),
-            cells);
-    }
-
-    public static TheoryData<int, int> ShieldOneVersusOneCells()
-    {
-        var data = new TheoryData<int, int>();
-        foreach (var pair in MovementScenarioMatrix.EnumerateOneVersusOnePairs())
-        {
-            if (pair.RequiresPrecolonialPhilippinesV2)
-            {
-                data.Add(pair.FirstLoadoutIndex, pair.SecondLoadoutIndex);
-            }
-        }
-
-        return data;
-    }
-
-    /// <summary>
-    /// Every shield-containing 1v1 cell runs a mirrored duel on each of the
-    /// approved seeds <c>1, 2, 3, 5, 8</c>, twice per seed from an identical
-    /// construction, and the two runs agree on the state hash, the ordered
-    /// event stream, and the outcome. The per-tick movement contract holds
-    /// throughout: no agent exceeds the per-axis speed baseline, no agent's
-    /// Euclidean step exceeds the baseline by more than the documented
-    /// one-raw-unit integer-lattice truncation headroom, every footwork phase
-    /// and posture is a declared member, and no lifecycle timer goes negative.
-    /// The isolation invariant is the twin run itself: the repeat construction
-    /// is built and advanced after the subject run has finished, so a cell
-    /// that leaked state across runs would diverge. The progress invariant is
-    /// the no-progress streak — a cell that neither terminates nor moves nor
-    /// emits an event for the whole budget is a defect, not a slow test.
-    /// </summary>
-    [Theory]
-    [MemberData(nameof(ShieldOneVersusOneCells))]
-    public void EveryShieldOneVersusOneCellReplaysIdenticallyOnEveryApprovedSeed(
-        int firstIndex,
-        int secondIndex)
-    {
-        foreach (var seed in ApprovedSeeds)
-        {
-            var scenario = CreateScenario(seed);
-            var cellName = $"{CellName(firstIndex, secondIndex)} seed {seed}";
-
-            AgentState[] Build() =>
-            [
-                CreateAgent(
-                    1,
-                    factionId: 0,
-                    MapCenterXRaw - MirrorOffsetXRaw,
-                    MirrorYRaw,
-                    scenario,
-                    MovementScenarioMatrix.CanonicalLoadouts[firstIndex]),
-                CreateAgent(
-                    2,
-                    factionId: 1,
-                    MapCenterXRaw + MirrorOffsetXRaw,
-                    MirrorYRaw,
-                    scenario,
-                    MovementScenarioMatrix.CanonicalLoadouts[secondIndex]),
-            ];
-
-            var run = RunToCompletion(scenario, Build(), OneVersusOneTicks);
-            var repeat = RunToCompletion(scenario, Build(), OneVersusOneTicks);
-
-            AssertRunContract(run, repeat, cellName, OneVersusOneTicks);
-        }
-    }
-
-    // ----- The shielded team-matchup slice: 176 of the 231 cells -----
-
-    /// <summary>
-    /// Of the 231 team matchups, exactly 176 contain a shielded loadout. The
-    /// ten shield-free two-member compositions over <c>KP, WA, KA, IT</c>
-    /// give <c>C(10,2) + 10 = 55</c> shield-free matchups, so
-    /// <c>231 - 55 = 176</c>. Counted, deduplicated, checked for the twenty-one
-    /// team mirrors that contain a shield, and checked for canonical
-    /// enumeration order before any simulation runs.
-    /// </summary>
-    [Fact]
-    public void TheShieldTeamMatchupSliceCountsOneHundredSeventySixUniqueCellsInCanonicalOrder()
-    {
-        var all = MovementScenarioMatrix.EnumerateTeamMatchups();
-        var cells = all
-            .Where(matchup => matchup.RequiresPrecolonialPhilippinesV2)
-            .ToList();
-
-        Assert.Equal(ShieldTeamMatchupCellCount, cells.Count);
-        Assert.Equal(ShieldTeamMatchupCellCount, cells.Distinct().Count());
-
-        // Eleven of the twenty-one team compositions contain a shield, and a
-        // matchup of one against itself is a mirror, so eleven of the
-        // twenty-one team mirrors fall inside the slice.
-        var shieldedCompositions = MovementScenarioMatrix
-            .EnumerateTeamCompositions()
-            .Where(team => team.ContainsShieldedLoadout)
-            .ToList();
-        Assert.Equal(ShieldOneVersusOneCellCount, shieldedCompositions.Count);
-        var mirrors = cells.Where(matchup => matchup.IsMirror).ToList();
-        Assert.Equal(ShieldOneVersusOneCellCount, mirrors.Count);
-        Assert.Equal(
-            shieldedCompositions,
-            mirrors.Select(matchup => matchup.FirstTeam).ToList());
-
-        // Canonical ordering: each team is normalised i <= j, and the slice
-        // is a subsequence of the full canonical enumeration in order.
-        Assert.All(cells, matchup =>
-        {
-            Assert.True(
-                matchup.FirstTeam.FirstMemberIndex <=
-                matchup.FirstTeam.SecondMemberIndex,
-                "The first team is not normalised to canonical order.");
-            Assert.True(
-                matchup.SecondTeam.FirstMemberIndex <=
-                matchup.SecondTeam.SecondMemberIndex,
-                "The second team is not normalised to canonical order.");
-        });
-        Assert.Equal(
-            all.Where(m => m.RequiresPrecolonialPhilippinesV2).ToList(),
-            cells);
-    }
-
-    public static TheoryData<int, int, int, int> ShieldTeamMatchupCells()
-    {
-        var data = new TheoryData<int, int, int, int>();
-        foreach (var matchup in MovementScenarioMatrix.EnumerateTeamMatchups())
-        {
-            if (matchup.RequiresPrecolonialPhilippinesV2)
-            {
-                data.Add(
-                    matchup.FirstTeam.FirstMemberIndex,
-                    matchup.FirstTeam.SecondMemberIndex,
-                    matchup.SecondTeam.FirstMemberIndex,
-                    matchup.SecondTeam.SecondMemberIndex);
-            }
-        }
-
-        return data;
-    }
-
-    /// <summary>
-    /// Every shield-containing team matchup runs a mirrored 2v2 twice from an
-    /// identical construction and holds the same per-tick movement contract,
-    /// determinism, and progress invariants as the 1v1 slice.
-    /// </summary>
-    /// <remarks>
-    /// This slice runs at seed one only, deliberately. The full approved seed
-    /// set across 176 cells at two runs per cell would put 1,760 simulations
-    /// inside one file inside the canonical gate, which the gate does not need
-    /// and should not pay for: the seed sweep is exercised end to end by the
-    /// eleven 1v1 cells above, which do run all five seeds, and the property
-    /// this slice adds is combinatorial coverage of team composition rather
-    /// than seed coverage.
-    /// </remarks>
-    [Theory]
-    [MemberData(nameof(ShieldTeamMatchupCells))]
-    public void EveryShieldTeamMatchupCellReplaysIdenticallyAtSeedOne(
-        int firstTeamFirstIndex,
-        int firstTeamSecondIndex,
-        int secondTeamFirstIndex,
-        int secondTeamSecondIndex)
-    {
-        var scenario = CreateScenario();
-        var loadouts = MovementScenarioMatrix.CanonicalLoadouts;
-        var cellName =
-            $"{CellName(firstTeamFirstIndex, firstTeamSecondIndex)} vs " +
-            CellName(secondTeamFirstIndex, secondTeamSecondIndex);
-
-        AgentState[] Build() =>
-        [
-            CreateAgent(
-                1,
-                factionId: 0,
-                MapCenterXRaw - MirrorOffsetXRaw,
-                TeamFirstMemberYRaw,
-                scenario,
-                loadouts[firstTeamFirstIndex]),
-            CreateAgent(
-                2,
-                factionId: 0,
-                MapCenterXRaw - MirrorOffsetXRaw,
-                TeamSecondMemberYRaw,
-                scenario,
-                loadouts[firstTeamSecondIndex]),
-            CreateAgent(
-                3,
-                factionId: 1,
-                MapCenterXRaw + MirrorOffsetXRaw,
-                TeamFirstMemberYRaw,
-                scenario,
-                loadouts[secondTeamFirstIndex]),
-            CreateAgent(
-                4,
-                factionId: 1,
-                MapCenterXRaw + MirrorOffsetXRaw,
-                TeamSecondMemberYRaw,
-                scenario,
-                loadouts[secondTeamSecondIndex]),
-        ];
-
-        var run = RunToCompletion(scenario, Build(), TeamMatchupTicks);
-        var repeat = RunToCompletion(scenario, Build(), TeamMatchupTicks);
-
-        AssertRunContract(run, repeat, cellName, TeamMatchupTicks);
-    }
 
     // ----- Focused matchup geometries -----
 
@@ -457,8 +199,8 @@ public sealed class TallHardwoodMovementScenarioTests
     /// <remarks>
     /// This is the shield-owned counterpart of
     /// <c>MovementPipelineIntegrationTests</c>' general band coverage and of
-    /// <c>ItakMovementProfileTests.TheShieldedItakEffectivePreferredDistanceCoversEveryOpponentColumn</c>,
-    /// which pins the shielded Itak column values as literals from the
+    /// <see cref="MovementProfileRowContractTests.TheEffectivePreferredDistanceCoversEveryOpponentColumn"/>,
+    /// which pins all thirty-six row-by-column values as literals from the
     /// profile side. Here the same quantity is observed end to end through a
     /// whole tick pipeline. Every value is a provisional reconstruction:
     /// gameplay tuning; no historical measurement

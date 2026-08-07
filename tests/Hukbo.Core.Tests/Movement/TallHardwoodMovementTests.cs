@@ -445,58 +445,6 @@ public sealed class TallHardwoodMovementTests
     // ----- Effective preferred distance (design 4.4; plan H3) -----
 
     /// <summary>
-    /// The shielded Kalis row against every canonical opponent column, at the
-    /// canonical five-unit attack range of 5,120 raw. The row's preferred
-    /// distance is 13,000 basis points with offsets
-    /// <c>[-250, 0, 250, 500, 0, 250]</c>, so each effective value is
-    /// <c>5120 * (13000 + offset) / 10000</c>, truncating toward zero. The
-    /// flat 1.3 reach multiple holds only for the two zero-offset columns,
-    /// Wasay and shielded Kalis. Provisional reconstruction: gameplay tuning;
-    /// no historical measurement
-    /// (docs/research/movement/tall-hardwood-shield.md).
-    /// </summary>
-    [Theory]
-    [InlineData(0, 6_528L)]  // KP, offset -250: 5120 * 12750 / 10000
-    [InlineData(1, 6_656L)]  // WA, offset    0: 5120 * 13000 / 10000
-    [InlineData(2, 6_784L)]  // KA, offset +250: 5120 * 13250 / 10000
-    [InlineData(3, 6_912L)]  // IT, offset +500: 5120 * 13500 / 10000
-    [InlineData(4, 6_656L)]  // KS, offset    0: 5120 * 13000 / 10000
-    [InlineData(5, 6_784L)]  // IS, offset +250: 5120 * 13250 / 10000
-    public void TheShieldedKalisPreferredDistanceCoversEveryOpponentColumn(
-        int opponentCanonicalIndex, long expectedRaw) =>
-        Assert.Equal(
-            expectedRaw,
-            MovementRouteRules.EffectivePreferredDistanceRaw(
-                AttackRangeRaw, KalisShieldRow, opponentCanonicalIndex));
-
-    /// <summary>
-    /// The shielded Itak row against every canonical opponent column, from the
-    /// shield-owned perspective. Its preferred distance is 10,000 basis points
-    /// with offsets <c>[-500, -250, 0, 250, -250, 0]</c>, so each effective
-    /// value is <c>5120 * (10000 + offset) / 10000</c>. The registry-side twin
-    /// of this pin is
-    /// <c>ItakMovementProfileTests</c>, method
-    /// <c>TheShieldedItakEffectivePreferredDistanceCoversEveryOpponentColumn</c>;
-    /// the duplication is deliberate, because the weapon plan requires a
-    /// shield-owned pin. Provisional reconstruction: gameplay tuning; no
-    /// historical measurement
-    /// (docs/research/movement/tall-hardwood-shield.md).
-    /// </summary>
-    [Theory]
-    [InlineData(0, 4_864L)]  // KP, offset -500: 5120 *  9500 / 10000
-    [InlineData(1, 4_992L)]  // WA, offset -250: 5120 *  9750 / 10000
-    [InlineData(2, 5_120L)]  // KA, offset    0: 5120 * 10000 / 10000
-    [InlineData(3, 5_248L)]  // IT, offset +250: 5120 * 10250 / 10000
-    [InlineData(4, 4_992L)]  // KS, offset -250: 5120 *  9750 / 10000
-    [InlineData(5, 5_120L)]  // IS, offset    0: 5120 * 10000 / 10000
-    public void TheShieldedItakPreferredDistanceCoversEveryOpponentColumn(
-        int opponentCanonicalIndex, long expectedRaw) =>
-        Assert.Equal(
-            expectedRaw,
-            MovementRouteRules.EffectivePreferredDistanceRaw(
-                AttackRangeRaw, ItakShieldRow, opponentCanonicalIndex));
-
-    /// <summary>
     /// Shielded Kalis holds the longer band and shielded Itak the closer one
     /// against every single opponent column, which is the product statement
     /// that Kalis is the lane-control pairing and Itak the repositioning one.

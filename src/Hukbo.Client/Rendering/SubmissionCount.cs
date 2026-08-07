@@ -60,6 +60,14 @@ internal static class PawnQuadCount
     private const int DeadMarkQuadCount = 2;
 
     /// <summary>
+    /// <c>PawnRenderer.DrawLeaderMark</c> (leader rank plan L4): one filled
+    /// base band (<c>spriteBatch.Draw</c>) plus two stroked rising arms
+    /// (<c>DrawLine</c>), per <c>PawnRenderer.GetLeaderMarkGlyph</c>'s own
+    /// doc comment — "The three quads <c>DrawLeaderMark</c> submits".
+    /// </summary>
+    private const int LeaderMarkQuadCount = 3;
+
+    /// <summary>
     /// The quad count <c>PawnRenderer.Draw</c> emits for one composed pawn
     /// under these exact inputs, walked in the renderer's own documented
     /// layer order (integration design section 5). A quad here is one
@@ -73,11 +81,19 @@ internal static class PawnQuadCount
     /// <see cref="VisualFallbackStep.ModelCategoryDefault"/> every existing
     /// caller resolves at.
     /// </param>
+    /// <param name="isLeader">
+    /// Mirrors <c>PawnRenderer.Draw</c>'s own <c>isLeader</c> branch (leader
+    /// rank plan L4): whether <c>DrawLeaderMark</c> fires this frame, adding
+    /// <see cref="LeaderMarkQuadCount"/> quads. Trailing optional, defaulting
+    /// to <c>false</c>, so every call site written before the leader mark
+    /// existed keeps its current meaning without edits.
+    /// </param>
     public static int Count(
         PawnLayout layout,
         PawnAppearance appearance,
         PawnVisualState state,
-        VisualFallbackStep torsoResolutionStep = VisualFallbackStep.ModelCategoryDefault)
+        VisualFallbackStep torsoResolutionStep = VisualFallbackStep.ModelCategoryDefault,
+        bool isLeader = false)
     {
         var total = 0;
 
@@ -102,6 +118,11 @@ internal static class PawnQuadCount
         total += CountSwingTrail(layout.SwingTrail);
         total += WeaponQuadCount;
         total += CountStateMark(state);
+
+        if (isLeader)
+        {
+            total += LeaderMarkQuadCount;
+        }
 
         return total;
     }

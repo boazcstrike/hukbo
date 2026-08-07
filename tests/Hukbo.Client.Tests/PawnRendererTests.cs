@@ -303,20 +303,20 @@ public sealed class PawnRendererTests
     // ------------------------------------------------------------------
 
     /// <summary>
-    /// Pins <c>GetLeaderMarkBounds</c> against the arithmetic
-    /// <c>DrawLeaderMark</c> carried inline before this task extracted it, so
-    /// the extraction cannot have moved the existing leader marker.
+    /// Pins <c>GetLeaderMarkBounds</c> against the widened slot leader rank
+    /// plan L4 moved it to: full head width, height
+    /// <c>max(2, headHeight / 4)</c>, gap <c>max(1, headHeight / 8)</c>,
+    /// centred on the head. E.g. a 6x7 head at (100, 250) gives width 6,
+    /// height <c>max(2, 7/4=1) = 2</c>, gap <c>max(1, 7/8=0) = 1</c>, centre x
+    /// 103, so x = 103 - 6/2 = 100 and y = 250 - 1 - 2 = 247. The prior
+    /// arithmetic this replaced was width/2, height/6, floored at 2/1.
     /// </summary>
     [Theory]
-    // width/2, height/6, gap height/8, floored at 2/1/1 and centred on the
-    // head, exactly as the inline body did: e.g. a 6x7 head at (100, 250)
-    // gives width 3, height 1, gap 1, centre x 103, so x = 103 - 3/2 = 102
-    // and y = 250 - 1 - 1 = 248.
-    [InlineData(0, 0, 12, 14, 3, -3, 6, 2)]
-    [InlineData(100, 250, 6, 7, 102, 248, 3, 1)]
-    [InlineData(-40, -120, 25, 30, -34, -128, 12, 5)]
-    [InlineData(0, 0, 1, 1, -1, -2, 2, 1)]
-    public void GetLeaderMarkBounds_MatchesTheInlineArithmeticItReplaced(
+    [InlineData(0, 0, 12, 14, 0, -4, 12, 3)]
+    [InlineData(100, 250, 6, 7, 100, 247, 6, 2)]
+    [InlineData(-40, -120, 25, 30, -40, -130, 25, 7)]
+    [InlineData(0, 0, 1, 1, 0, -3, 1, 2)]
+    public void GetLeaderMarkBounds_MatchesTheWidenedSlotArithmetic(
         int headX,
         int headY,
         int headWidth,
@@ -331,6 +331,64 @@ public sealed class PawnRendererTests
         Assert.Equal(
             new Rectangle(expectedX, expectedY, expectedWidth, expectedHeight),
             PawnRenderer.GetLeaderMarkBounds(headBounds));
+    }
+
+    /// <summary>
+    /// The height floor moved from 1 to 2 specifically so the slot has room
+    /// for a base band and a rising arm above it, rather than collapsing back
+    /// into the one-pixel-tall band the chevron replaces. Every head taller
+    /// than four pixels clears <c>headHeight / 4 &gt;= 2</c> without help from
+    /// the floor, so this asserts the outcome rather than the arithmetic
+    /// already pinned above.
+    /// </summary>
+    [Fact]
+    public void GetLeaderMarkBounds_IsTallerThanOnePixelForEveryTallHead()
+    {
+        foreach (var headBounds in HeadBoundsGrid)
+        {
+            if (headBounds.Height <= 4)
+            {
+                continue;
+            }
+
+            var mark = PawnRenderer.GetLeaderMarkBounds(headBounds);
+
+            Assert.True(
+                mark.Height > 1,
+                $"leader mark {mark} was not taller than one pixel for head {headBounds}");
+        }
+    }
+
+    /// <summary>
+    /// The chevron <c>DrawLeaderMark</c> now submits — a base band plus two
+    /// rising arms sharing an apex — stays entirely inside the slot
+    /// <c>GetLeaderMarkBounds</c> reserves, over the full head grid. This is
+    /// what lets every break-off/leader/selection non-overlap test above keep
+    /// reasoning about the slot rectangle alone rather than about the three
+    /// quads drawn inside it.
+    /// </summary>
+    [Fact]
+    public void GetLeaderMarkGlyph_StaysInsideTheLeaderSlot()
+    {
+        foreach (var headBounds in HeadBoundsGrid)
+        {
+            var slot = PawnRenderer.GetLeaderMarkBounds(headBounds);
+            var glyph = PawnRenderer.GetLeaderMarkGlyph(headBounds);
+
+            Assert.True(slot.Contains(glyph.Base), $"base {glyph.Base} escaped slot {slot}");
+            AssertPointInSlot(glyph.LeftArmStart);
+            AssertPointInSlot(glyph.LeftArmEnd);
+            AssertPointInSlot(glyph.RightArmStart);
+            AssertPointInSlot(glyph.RightArmEnd);
+
+            void AssertPointInSlot(Vector2 point)
+            {
+                Assert.True(
+                    point.X >= slot.Left && point.X <= slot.Right &&
+                    point.Y >= slot.Top && point.Y <= slot.Bottom,
+                    $"point {point} escaped slot {slot} for head {headBounds}");
+            }
+        }
     }
 
     /// <summary>
