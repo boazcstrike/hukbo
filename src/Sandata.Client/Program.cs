@@ -12,19 +12,16 @@ namespace Sandata.Client;
 /// which itself mirrors <c>Hukbo.Headless.HeadlessRunner</c>.
 /// </summary>
 /// <remarks>
-/// <para>
-/// There is no <c>SandataGame</c> window yet — plan task 33 adds the MonoGame
-/// shell. This entry point exists to prove the argument, logging, and
-/// exit-code contract now, so task 33 builds on a tested shape instead of
-/// inventing its own. A successful run therefore opens no window; it only
-/// parses arguments, opens the debug log, and reports that fact.
-/// </para>
-/// <para>
-/// Task 33's file list does not name this file, even though it is the file
-/// that will eventually have to construct and run <c>SandataGame</c>. That
-/// is recorded as an open question for whoever plans task 33's work, not
-/// resolved here.
-/// </para>
+/// Plan task 33 adds <c>SandataGame</c> — the MonoGame window, game loop,
+/// spectator camera, and world renderer — and this entry point now
+/// constructs and runs it, the same way <c>Hukbo.Client.Program</c>
+/// constructs and runs <c>ArenaGame</c>. Every argument-parsing, logging, and
+/// exit-code behavior task 14 established above is unchanged: a bad argument
+/// still returns <see cref="ExitArgumentError"/> before any window opens, an
+/// unhandled exception from <c>SandataGame.Run()</c> is still caught here and
+/// mapped to <see cref="ExitUnhandledException"/>, and the boot/stop/crash
+/// log lines still bracket the run exactly as they did when this method had
+/// no window to open.
 /// </remarks>
 internal static class Program
 {
@@ -97,10 +94,10 @@ internal static class Program
                 "path",
                 filePath);
 
-            standardOutput.WriteLine(
-                "Sandata.Client: argument parsing and logging only; " +
-                "no window yet (docs/plans/2026-08-07-sandata-scaffold.md " +
-                "task 33).");
+            using (var game = new SandataGame(log))
+            {
+                game.Run();
+            }
 
             log.Write(
                 LogLevel.Information,
