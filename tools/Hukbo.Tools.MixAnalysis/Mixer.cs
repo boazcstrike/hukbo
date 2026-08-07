@@ -31,7 +31,8 @@ internal readonly record struct MixResult(
     int PeakVoices,
     float PeakAmplitude,
     long ClippedSamples,
-    long TotalSamples)
+    long TotalSamples,
+    float[] PerSlotPeakAmplitude)
 {
     public double PeakDbfs => PeakAmplitude <= 0
         ? double.NegativeInfinity
@@ -40,6 +41,34 @@ internal readonly record struct MixResult(
     public double ClippedPercent => TotalSamples == 0
         ? 0
         : 100.0 * ClippedSamples / TotalSamples;
+
+    /// <summary>
+    /// The finished-mix peak while <paramref name="slot"/> had at least one
+    /// voice sounding — how loud the bus gets while that slot is playing, not
+    /// merely the clip's own amplitude.
+    /// </summary>
+    public double GetSlotPeakDbfs(int slot)
+    {
+        var amplitude = PerSlotPeakAmplitude[slot];
+        return amplitude <= 0 ? double.NegativeInfinity : 20.0 * Math.Log10(amplitude);
+    }
+
+    /// <summary>The slot with the highest recorded peak, or -1 if none played.</summary>
+    public int WorstSlot()
+    {
+        var worst = -1;
+        var worstAmplitude = 0f;
+        for (var slot = 0; slot < PerSlotPeakAmplitude.Length; slot++)
+        {
+            if (PerSlotPeakAmplitude[slot] > worstAmplitude)
+            {
+                worstAmplitude = PerSlotPeakAmplitude[slot];
+                worst = slot;
+            }
+        }
+
+        return worst;
+    }
 }
 
 internal static class Mixer
@@ -80,6 +109,11 @@ internal static class Mixer
         var activeUntil = new List<int>();
         var peakVoices = 0;
 
+        // Every played cue's (slot, startFrame, endFrame), so the per-slot
+        // peak can be measured against the finished buffer after the limiter
+        // (if any) has run, rather than against each clip in isolation.
+        var playedRanges = new List<(int Slot, int StartFrame, int EndFrame)>();
+
         foreach (var cue in cues)
         {
             var frameIndex = (long)(cue.Tick * framesPerTick);
@@ -118,6 +152,7 @@ internal static class Mixer
 
             Overlay(buffer, clip, startFrame, channels, gain);
             activeUntil.Add(startFrame + clip.FrameCount);
+            playedRanges.Add((cue.Slot, startFrame, startFrame + clip.FrameCount));
             played++;
         }
 
@@ -142,6 +177,8 @@ internal static class Mixer
             }
         }
 
+        var perSlotPeak = MeasureSlotPeaks(buffer, channels, playedRanges);
+
         return new MixResult(
             policy.Label,
             buffer,
@@ -150,7 +187,41 @@ internal static class Mixer
             peakVoices,
             peak,
             clipped,
-            buffer.Length);
+            buffer.Length,
+            perSlotPeak);
+    }
+
+    /// <summary>
+    /// For each slot, the highest magnitude the finished (post-limiter)
+    /// buffer reaches during any frame the slot has a voice sounding.
+    /// </summary>
+    private static float[] MeasureSlotPeaks(
+        float[] buffer,
+        int channels,
+        List<(int Slot, int StartFrame, int EndFrame)> playedRanges)
+    {
+        var frames = buffer.Length / channels;
+        var perSlotPeak = new float[CueSchedule.SlotCount];
+
+        foreach (var (slot, startFrame, endFrame) in playedRanges)
+        {
+            var clampedStart = Math.Max(0, startFrame);
+            var clampedEnd = Math.Min(frames, endFrame);
+            for (var frame = clampedStart; frame < clampedEnd; frame++)
+            {
+                var offset = frame * channels;
+                for (var channel = 0; channel < channels; channel++)
+                {
+                    var magnitude = MathF.Abs(buffer[offset + channel]);
+                    if (magnitude > perSlotPeak[slot])
+                    {
+                        perSlotPeak[slot] = magnitude;
+                    }
+                }
+            }
+        }
+
+        return perSlotPeak;
     }
 
     private static void Overlay(

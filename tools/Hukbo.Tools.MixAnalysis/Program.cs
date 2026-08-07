@@ -63,36 +63,30 @@ if (clips.Values.Any(clip => clip.SampleRate != sampleRate || clip.Channels != c
 Console.WriteLine($"loaded {clips.Count} clips at {sampleRate} Hz, {channels} channels, " +
     $"mean {clips.Values.Average(clip => clip.DurationSeconds) * 1000:F0} ms");
 
-var variantsByPrefix = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
-foreach (var fileName in clips.Keys.Order(StringComparer.Ordinal))
-{
-    var stem = Path.GetFileNameWithoutExtension(fileName);
-    var lastDash = stem.LastIndexOf('-');
-    if (lastDash <= 0 || !int.TryParse(
-            stem.AsSpan(lastDash + 1),
-            NumberStyles.None,
-            CultureInfo.InvariantCulture,
-            out _))
-    {
-        continue;
-    }
-
-    var prefix = stem[..(lastDash + 1)];
-    if (!variantsByPrefix.TryGetValue(prefix, out var list))
-    {
-        list = new List<string>();
-        variantsByPrefix[prefix] = list;
-    }
-
-    ((List<string>)list).Add(fileName);
-}
-
 // ---------------------------------------------------------------------------
-// Build the cue schedule from a real battle.
+// Build the cue schedule from a real battle. CueSchedule replicates
+// SoundCueMapper/SoundCatalog/HitClassCatalog/SoundLibrary/SoundVariantSelector
+// against the raw clip set directly, so it performs the same numbered-match,
+// fallback-chain, and bare-file resolution the client's library performs,
+// rather than a simplified prefix grouping.
 // ---------------------------------------------------------------------------
 const int TickRate = 20;
-var (cues, ticksRun, outcome) = CueSchedule.Build(agents, seed, 10_000, variantsByPrefix);
+var (cues, ticksRun, outcome) = CueSchedule.Build(agents, seed, 10_000, clips);
 Console.WriteLine($"battle ran {ticksRun} ticks, outcome {outcome}, {cues.Count} cues demanded");
+Console.WriteLine();
+
+var cuesBySlot = new int[CueSchedule.SlotCount];
+foreach (var cue in cues)
+{
+    cuesBySlot[cue.Slot]++;
+}
+
+Console.WriteLine("cues demanded per slot (26-slot catalog):");
+for (var slot = 0; slot < CueSchedule.SlotCount; slot++)
+{
+    Console.WriteLine($"  {slot,2}  {CueSchedule.SlotName(slot),-22} {cuesBySlot[slot],6}");
+}
+
 Console.WriteLine();
 
 // ---------------------------------------------------------------------------
@@ -137,6 +131,28 @@ foreach (var policy in policies)
         $"{result.Label,-28}  {result.CuesPlayed,6}  {result.CuesSuppressed,10}  " +
         $"{result.PeakVoices,10}  {result.PeakDbfs,9:F1}  {result.ClippedSamples,14}  " +
         $"{result.ClippedPercent,7:F3}%");
+
+    var worstSlot = result.WorstSlot();
+    if (worstSlot >= 0)
+    {
+        Console.WriteLine(
+            $"    worst slot: {worstSlot,2} {CueSchedule.SlotName(worstSlot),-22} " +
+            $"{result.GetSlotPeakDbfs(worstSlot),9:F1} dBFS");
+    }
+
+    // The three ranged release slots are reported explicitly on every
+    // policy, whether or not they carried a cue this run, because a release
+    // cue fires on 100% of shots and concentrates on one slot per weapon —
+    // the slot likeliest to clip once ranged combat lands.
+    int[] releaseSlots = [13, 14, 15];
+    foreach (var releaseSlot in releaseSlots)
+    {
+        var slotPeak = result.GetSlotPeakDbfs(releaseSlot);
+        var slotCues = cuesBySlot[releaseSlot];
+        Console.WriteLine(
+            $"    release slot: {releaseSlot,2} {CueSchedule.SlotName(releaseSlot),-22} " +
+            $"{slotCues,6} cues demanded  peak {slotPeak,9:F1} dBFS");
+    }
 
     var fileName = $"{agents}-agents-{speed:F0}x-{result.Label}.wav";
     WavFile.Write(
