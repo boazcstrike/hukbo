@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using Hukbo.Diagnostics;
 
 namespace Sandata.Headless;
@@ -42,7 +43,14 @@ internal static class Program
         "Usage: sandata-headless [--help] " +
         "[--log-level off|err|warn|inf|dbg|trc] " +
         "[--log-channels all|<comma-separated>] " +
-        "[--log-dir <directory>]";
+        "[--log-dir <directory>] " +
+        "[--nav-map-density <0-80>] [--nav-changed-cells <0-2000>] " +
+        "[--nav-seekers <1-256>] [--nav-query-distance <4-4096>] " +
+        "[--nav-replan-rate <0-100>] [--nav-seed <uint64>] " +
+        "[--nav-ticks <positive integer>] [--nav-fixture-path <path>]. " +
+        "The five --nav-map-density/--nav-changed-cells/--nav-seekers/" +
+        "--nav-query-distance/--nav-replan-rate flags together trigger the " +
+        "navigation benchmark and, when used, all five are required.";
 
     private static int Main(string[] args) =>
         Run(args, Console.Out, Console.Error);
@@ -71,6 +79,16 @@ internal static class Program
             standardError.WriteLine($"Argument error: {error}");
             standardError.WriteLine(UsageText);
             return ExitArgumentError;
+        }
+
+        // The navigation benchmark, when requested, runs and returns here,
+        // before the debug log ever opens: plan task 50 requires the wall
+        // clock measurement inside NavBenchmark.Run to stay strictly
+        // outside anything that could itself add timed I/O around it.
+        var navBenchmarkExitCode = TryRunNavBenchmark(options, standardOutput, standardError);
+        if (navBenchmarkExitCode is not null)
+        {
+            return navBenchmarkExitCode.Value;
         }
 
         // Command-line switches outrank the environment, matching
@@ -145,6 +163,111 @@ internal static class Program
     }
 
     /// <summary>
+    /// Dispatches to <see cref="NavBenchmark.Run"/> when the navigation
+    /// benchmark was requested, printing its report as JSON to
+    /// <paramref name="standardOutput"/> and returning the exit code the
+    /// process should return. Returns <see langword="null"/> when none of
+    /// the five matrix flags were supplied at all, meaning the benchmark
+    /// was not requested and the caller should continue with the ordinary
+    /// boot-log flow.
+    /// </summary>
+    /// <remarks>
+    /// A request is "some but not all five matrix flags present" is an
+    /// argument error naming every flag still missing, never a benchmark
+    /// run with an unstated value silently filled in — the same
+    /// no-default-hides-a-missing-value rule <see cref="NavBenchmarkOptions.Create"/>
+    /// itself enforces, applied here at the command-line layer too.
+    /// </remarks>
+    private static int? TryRunNavBenchmark(
+        HeadlessOptions options, TextWriter standardOutput, TextWriter standardError)
+    {
+        var anyProvided =
+            options.NavMapDensityPercent is not null ||
+            options.NavChangedCellCount is not null ||
+            options.NavConcurrentSeekers is not null ||
+            options.NavQueryDistanceWu is not null ||
+            options.NavReplanningRatePercent is not null;
+
+        if (!anyProvided)
+        {
+            return null;
+        }
+
+        var missingFlags = new List<string>();
+        if (options.NavMapDensityPercent is null)
+        {
+            missingFlags.Add("--nav-map-density");
+        }
+
+        if (options.NavChangedCellCount is null)
+        {
+            missingFlags.Add("--nav-changed-cells");
+        }
+
+        if (options.NavConcurrentSeekers is null)
+        {
+            missingFlags.Add("--nav-seekers");
+        }
+
+        if (options.NavQueryDistanceWu is null)
+        {
+            missingFlags.Add("--nav-query-distance");
+        }
+
+        if (options.NavReplanningRatePercent is null)
+        {
+            missingFlags.Add("--nav-replan-rate");
+        }
+
+        if (missingFlags.Count > 0)
+        {
+            standardError.WriteLine(
+                "Argument error: the navigation benchmark requires all five matrix " +
+                "flags; missing: " + string.Join(", ", missingFlags) + ".");
+            standardError.WriteLine(UsageText);
+            return ExitArgumentError;
+        }
+
+        NavBenchmarkOptions navOptions;
+        try
+        {
+            navOptions = NavBenchmarkOptions.Create(
+                options.NavMapDensityPercent!.Value,
+                options.NavChangedCellCount!.Value,
+                options.NavConcurrentSeekers!.Value,
+                options.NavQueryDistanceWu!.Value,
+                options.NavReplanningRatePercent!.Value);
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            standardError.WriteLine($"Argument error: {exception.Message}");
+            return ExitArgumentError;
+        }
+
+        string fixturePath;
+        try
+        {
+            fixturePath = NavBenchmark.ResolveFixturePath(options.NavFixturePath);
+        }
+        catch (FileNotFoundException exception)
+        {
+            standardError.WriteLine($"Argument error: {exception.Message}");
+            return ExitArgumentError;
+        }
+
+        var report = NavBenchmark.Run(navOptions, fixturePath, options.NavSeed, options.NavTickCount);
+        var json = JsonSerializer.Serialize(
+            report,
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = true,
+            });
+        standardOutput.WriteLine(json);
+        return ExitSuccess;
+    }
+
+    /// <summary>
     /// Parses the arguments this entry point accepts. Kept deliberately small
     /// — there is no scenario or mission yet for a flag to configure — and
     /// grows as later tasks add work for this runner to do.
@@ -159,6 +282,14 @@ internal static class Program
         LogLevel? logLevel = null;
         LogChannel? logChannels = null;
         string? logDirectory = null;
+        int? navMapDensityPercent = null;
+        int? navChangedCellCount = null;
+        int? navConcurrentSeekers = null;
+        int? navQueryDistanceWu = null;
+        int? navReplanningRatePercent = null;
+        var navSeed = HeadlessOptions.DefaultNavSeed;
+        var navTickCount = HeadlessOptions.DefaultNavTickCount;
+        string? navFixturePath = null;
         var encounteredArguments = new HashSet<string>(StringComparer.Ordinal);
 
         for (var index = 0; index < arguments.Count; index += 2)
@@ -226,16 +357,132 @@ internal static class Program
 
                     logDirectory = value;
                     break;
+
+                case "--nav-map-density":
+                    if (!TryParseNonNegativeInt(value, out navMapDensityPercent))
+                    {
+                        options = default!;
+                        error = "'--nav-map-density' must be a non-negative integer.";
+                        return false;
+                    }
+
+                    break;
+
+                case "--nav-changed-cells":
+                    if (!TryParseNonNegativeInt(value, out navChangedCellCount))
+                    {
+                        options = default!;
+                        error = "'--nav-changed-cells' must be a non-negative integer.";
+                        return false;
+                    }
+
+                    break;
+
+                case "--nav-seekers":
+                    if (!TryParseNonNegativeInt(value, out navConcurrentSeekers))
+                    {
+                        options = default!;
+                        error = "'--nav-seekers' must be a non-negative integer.";
+                        return false;
+                    }
+
+                    break;
+
+                case "--nav-query-distance":
+                    if (!TryParseNonNegativeInt(value, out navQueryDistanceWu))
+                    {
+                        options = default!;
+                        error = "'--nav-query-distance' must be a non-negative integer.";
+                        return false;
+                    }
+
+                    break;
+
+                case "--nav-replan-rate":
+                    if (!TryParseNonNegativeInt(value, out navReplanningRatePercent))
+                    {
+                        options = default!;
+                        error = "'--nav-replan-rate' must be a non-negative integer.";
+                        return false;
+                    }
+
+                    break;
+
+                case "--nav-seed":
+                    if (!ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out navSeed))
+                    {
+                        options = default!;
+                        error = "'--nav-seed' must be a non-negative 64-bit integer.";
+                        return false;
+                    }
+
+                    break;
+
+                case "--nav-ticks":
+                    if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out navTickCount) ||
+                        navTickCount <= 0)
+                    {
+                        options = default!;
+                        error = "'--nav-ticks' must be a positive integer.";
+                        return false;
+                    }
+
+                    break;
+
+                case "--nav-fixture-path":
+                    if (string.IsNullOrWhiteSpace(value))
+                    {
+                        options = default!;
+                        error = "'--nav-fixture-path' must be a nonempty path.";
+                        return false;
+                    }
+
+                    navFixturePath = value;
+                    break;
             }
         }
 
-        options = new HeadlessOptions(logLevel, logChannels, logDirectory);
+        options = new HeadlessOptions(
+            logLevel,
+            logChannels,
+            logDirectory,
+            navMapDensityPercent,
+            navChangedCellCount,
+            navConcurrentSeekers,
+            navQueryDistanceWu,
+            navReplanningRatePercent,
+            navSeed,
+            navTickCount,
+            navFixturePath);
         error = string.Empty;
         return true;
     }
 
+    /// <summary>
+    /// Parses a base-10, non-negative integer, matching every
+    /// <c>--nav-*</c> matrix flag's own textual contract: no leading sign,
+    /// no thousands separator. Range validation against each flag's
+    /// specific bounds is <see cref="NavBenchmarkOptions.Create"/>'s job,
+    /// not this method's — this only rejects a value that cannot be an
+    /// integer at all.
+    /// </summary>
+    private static bool TryParseNonNegativeInt(string value, out int? parsed)
+    {
+        if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var result))
+        {
+            parsed = null;
+            return false;
+        }
+
+        parsed = result;
+        return true;
+    }
+
     private static bool IsSupportedArgument(string argument) =>
-        argument is "--log-level" or "--log-channels" or "--log-dir";
+        argument is "--log-level" or "--log-channels" or "--log-dir" or
+            "--nav-map-density" or "--nav-changed-cells" or "--nav-seekers" or
+            "--nav-query-distance" or "--nav-replan-rate" or "--nav-seed" or
+            "--nav-ticks" or "--nav-fixture-path";
 
     /// <summary>
     /// Opens the debug log with the file name shape
@@ -297,7 +544,55 @@ internal static class Program
 }
 
 /// <summary>The parsed command-line configuration for one headless run.</summary>
+/// <param name="NavMapDensityPercent">
+/// Parsed <c>--nav-map-density</c>, or <see langword="null"/> if not
+/// supplied. One of the five navigation benchmark matrix flags; see
+/// <c>Program.TryRunNavBenchmark</c> for the all-five-or-none rule.
+/// </param>
+/// <param name="NavChangedCellCount">Parsed <c>--nav-changed-cells</c>, or <see langword="null"/> if not supplied.</param>
+/// <param name="NavConcurrentSeekers">Parsed <c>--nav-seekers</c>, or <see langword="null"/> if not supplied.</param>
+/// <param name="NavQueryDistanceWu">Parsed <c>--nav-query-distance</c>, or <see langword="null"/> if not supplied.</param>
+/// <param name="NavReplanningRatePercent">Parsed <c>--nav-replan-rate</c>, or <see langword="null"/> if not supplied.</param>
+/// <param name="NavSeed">
+/// Parsed <c>--nav-seed</c>, defaulting to <see cref="DefaultNavSeed"/>.
+/// Not one of the five matrix parameters plan task 50 names — it is an
+/// operational reproducibility setting, so unlike the five it is safe to
+/// default rather than require.
+/// </param>
+/// <param name="NavTickCount">
+/// Parsed <c>--nav-ticks</c>, defaulting to <see cref="DefaultNavTickCount"/>.
+/// Also not one of the five matrix parameters.
+/// </param>
+/// <param name="NavFixturePath">
+/// Parsed <c>--nav-fixture-path</c>, or <see langword="null"/> to fall back
+/// to repository-root discovery — see <see cref="NavBenchmark.ResolveFixturePath"/>.
+/// </param>
 internal sealed record HeadlessOptions(
     LogLevel? LogLevel,
     LogChannel? LogChannels,
-    string? LogDirectory);
+    string? LogDirectory,
+    int? NavMapDensityPercent = null,
+    int? NavChangedCellCount = null,
+    int? NavConcurrentSeekers = null,
+    int? NavQueryDistanceWu = null,
+    int? NavReplanningRatePercent = null,
+    ulong NavSeed = HeadlessOptions.DefaultNavSeed,
+    int NavTickCount = HeadlessOptions.DefaultNavTickCount,
+    string? NavFixturePath = null)
+{
+    /// <summary>
+    /// PROVISIONAL default for <see cref="NavSeed"/> when <c>--nav-seed</c>
+    /// is not supplied — matches <c>Hukbo.Headless</c>'s own default seed of
+    /// 1, so a navigation benchmark run with no seed flag is reproducible
+    /// the same way an unflagged Hukbo determinism run is.
+    /// </summary>
+    public const ulong DefaultNavSeed = 1;
+
+    /// <summary>
+    /// PROVISIONAL default for <see cref="NavTickCount"/> when
+    /// <c>--nav-ticks</c> is not supplied. Not a measured value — chosen to
+    /// keep an unflagged benchmark run's wall-clock duration short while
+    /// still producing enough tick-stage samples for a meaningful p99.
+    /// </summary>
+    public const int DefaultNavTickCount = 500;
+}
