@@ -9,9 +9,11 @@ namespace Sandata.Client.Tests;
 
 /// <summary>
 /// Covers task 33's done-when bar: <see cref="WorldRenderer"/>'s pure
-/// geometry helpers, pinned against the <c>angle-house</c> fixture (design
-/// section 12, <c>tests/Sandata.Core.Tests/Fixtures/angle-house.hkmap</c>) at
-/// three zoom levels, plus the requirement that a non-orthogonal wall (the
+/// geometry helpers for walls, doors, cover objects, and objectives — all
+/// four record kinds task 33's own scope names — pinned against the
+/// <c>angle-house</c> fixture (design section 12,
+/// <c>tests/Sandata.Core.Tests/Fixtures/angle-house.hkmap</c>) at three zoom
+/// levels, plus the requirement that a non-orthogonal wall (the
 /// fixture's 26.57-degree <c>WALL 120 120 320 220 2</c>) produces a
 /// <see cref="WorldRenderer.DrawShapeKind.Rotated"/> block rather than an
 /// axis-aligned one.
@@ -72,6 +74,10 @@ public sealed class WorldRendererGeometryTests
         records.OfType<CoverRecord>()
             .Single(c => c.MinX == minX && c.MinY == minY);
 
+    private static ObjectiveRecord FindObjective(ImmutableArray<MapRecord> records, int index) =>
+        records.OfType<ObjectiveRecord>()
+            .Single(o => o.Index == index);
+
     [Theory]
     [InlineData(0.5f, 478, 180, 4, 360)]
     [InlineData(1.0f, 316, 0, 8, 720)]
@@ -124,6 +130,26 @@ public sealed class WorldRendererGeometryTests
         var camera = CreateCamera(zoom);
 
         var worldShape = WorldRenderer.CreateCoverWorldShape(cover);
+        var screenShape = WorldRenderer.ToScreenShape(worldShape, camera, ContentBounds);
+
+        Assert.Equal(WorldRenderer.DrawShapeKind.AxisAligned, screenShape.Kind);
+        Assert.Equal(
+            new Rectangle(expectedX, expectedY, expectedWidth, expectedHeight),
+            screenShape.AxisAlignedBounds);
+    }
+
+    [Theory]
+    [InlineData(0.5f, 706, 216, 48, 48)]
+    [InlineData(1.0f, 772, 72, 96, 96)]
+    [InlineData(2.0f, 904, -216, 192, 192)]
+    public void ObjectivePointProducesThePinnedAxisAlignedRectangle(
+        float zoom, int expectedX, int expectedY, int expectedWidth, int expectedHeight)
+    {
+        var records = LoadAngleHouseFixture();
+        var objective = FindObjective(records, 0);
+        var camera = CreateCamera(zoom);
+
+        var worldShape = WorldRenderer.CreateObjectiveWorldShape(objective);
         var screenShape = WorldRenderer.ToScreenShape(worldShape, camera, ContentBounds);
 
         Assert.Equal(WorldRenderer.DrawShapeKind.AxisAligned, screenShape.Kind);
