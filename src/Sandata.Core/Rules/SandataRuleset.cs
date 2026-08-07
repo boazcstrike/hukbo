@@ -37,12 +37,30 @@ public enum MsToTickConversionRule
 /// <see cref="GroupCohesionRadius"/>, <see cref="LoweredWallDistanceWu"/>,
 /// and <see cref="AimToleranceBam"/> are provisional reconstructions of
 /// gameplay tuning, not measurements — design sections 4, 7, 8, and 9 name
-/// the mechanism each one drives and record that its exact value is
-/// measured, not derived, by a later task (paths: task 27's benchmark;
-/// cohesion: task 28's grouping; wall distance: task 32's lowered rule; aim
-/// tolerance: task 23's timing chain). Changing any one of the six fields
-/// below is a new preset value under <see cref="SandataPresetId"/>, per
-/// design section 4 and <c>CLAUDE.md</c> section 5.
+/// the mechanism each one drives. Changing any one of the six fields below
+/// is a new preset value under <see cref="SandataPresetId"/>, per design
+/// section 4 and <c>CLAUDE.md</c> section 5.
+/// </para>
+/// <para>
+/// <b>Task 63 re-derived all four provisionals from their consuming code
+/// and kept every one unchanged.</b> Tasks 27, 28, 32, and 23 were each
+/// forbidden this file to avoid a three-way collision on this type's pinned
+/// hash and were asked to report a verdict instead; no such verdict was
+/// ever recorded anywhere in the plan. Task 63 therefore read the code and
+/// tests each constant actually feeds — <c>PathService</c> and
+/// <c>PathServiceTests</c>; <c>SquadGrouping</c> and
+/// <c>SquadGroupingTests</c>; <c>WeaponLoweredRules</c> and
+/// <c>WeaponLoweredRulesTests</c>; <c>WeaponChain</c>,
+/// <c>Bam16.ShortestArc</c>, and <c>WeaponChainTests</c> — and found no
+/// numeric requirement, range, or pinned expectation anywhere in that code
+/// that a different value would satisfy and the placeholder does not.
+/// <c>GroupCohesionRadius</c> and <c>AimToleranceBam</c> in particular are
+/// not consumed by any comparison in the codebase yet: <c>SquadGrouping</c>
+/// takes an already-formed candidate pair list rather than applying the
+/// radius itself, and nothing yet compares <c>Bam16.ShortestArc</c> against
+/// this field. All four remain exactly what they were at task 9: provisional
+/// reconstructions with no measurement behind them, not historical or
+/// physical facts. <see cref="ContentHash"/> is unchanged by this finding.
 /// </para>
 /// <para>
 /// <see cref="AimToleranceBam"/> is a raw Bam16 magnitude — <c>ushort</c>,
@@ -121,16 +139,27 @@ public sealed class SandataRuleset
     /// becoming valid, regardless of how many searches the machine actually
     /// completed. Never a per-tick budget — design section 4 and section 7
     /// record why a budget is the branch that lets scheduling decide an
-    /// outcome. A provisional reconstruction of gameplay tuning; task 27's
-    /// path service measures and, if needed, revises it.
+    /// outcome. A provisional reconstruction of gameplay tuning, not a
+    /// historical or measured fact. Task 63 read <c>PathService</c> and
+    /// <c>PathServiceTests</c> and found the constructor accepts any
+    /// non-negative value with no test pinning a particular one — the
+    /// benchmark workload design section 7 names as the eventual measurement
+    /// site (task 50/53) has not run — so no change is justified and this
+    /// value is unchanged from task 9.
     /// </summary>
     public int PathLatencyTicks { get; }
 
     /// <summary>
     /// The distance, in world units, within which two operators of the same
     /// faction are unioned into one squad by the union-find grouping in
-    /// design section 8. A provisional reconstruction of gameplay tuning;
-    /// task 28's squad grouping measures and, if needed, revises it.
+    /// design section 8. A provisional reconstruction of gameplay tuning,
+    /// not a historical or measured fact. Task 63 read <c>SquadGrouping.Compute</c>
+    /// and <c>SquadGroupingTests</c> and found that method takes an
+    /// already-formed candidate pair list rather than applying this radius
+    /// itself — nothing in <c>Sandata.Core</c> today compares a distance
+    /// against this field, so there is no consuming code to derive a
+    /// different value from. No change is justified and this value is
+    /// unchanged from task 9.
     /// </summary>
     public int GroupCohesionRadius { get; }
 
@@ -138,8 +167,13 @@ public sealed class SandataRuleset
     /// The distance, in world units, from a wall segment within which an
     /// operator's weapon is forced lowered, unless the weapon is exempt.
     /// Design section 9 calls this the one conditional that generates the
-    /// whole product. A provisional reconstruction of gameplay tuning; task
-    /// 32's weapon-lowered rule measures and, if needed, revises it.
+    /// whole product. A provisional reconstruction of gameplay tuning, not a
+    /// historical or measured fact. Task 63 read <c>WeaponLoweredRules.IsForcedLowered</c>
+    /// and <c>WeaponLoweredRulesTests</c> and found the method requires only
+    /// a non-negative value and exercises it with its own local test
+    /// constants, never this field's specific number — no boundary or
+    /// relation in that code favours a different value, so no change is
+    /// justified and this value is unchanged from task 9.
     /// </summary>
     public int LoweredWallDistanceWu { get; }
 
@@ -148,7 +182,15 @@ public sealed class SandataRuleset
     /// within which the weapon-chain <c>Turning</c> phase in design section 9
     /// considers a target's shortest arc close enough to the aim point to
     /// advance to <c>Aiming</c>. A provisional reconstruction of gameplay
-    /// tuning; task 23's timing chain measures and, if needed, revises it.
+    /// tuning, not a historical or measured fact. Task 63 read
+    /// <c>WeaponChain</c>, <c>Bam16.ShortestArc</c>, and
+    /// <c>WeaponChainTests</c> and found <c>WeaponChain.Advance</c> takes the
+    /// already-decided <c>arcWithinTolerance</c> boolean from its caller
+    /// rather than comparing <c>Bam16.ShortestArc</c> against this field
+    /// itself — that comparison has no call site yet anywhere in
+    /// <c>Sandata.Core</c>, so there is no consuming code to derive a
+    /// different value from. No change is justified and this value is
+    /// unchanged from task 9.
     /// </summary>
     public ushort AimToleranceBam { get; }
 
