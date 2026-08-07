@@ -134,6 +134,9 @@ internal static class PawnAppearanceFactory
             WeaponId.Wasay => PawnWeaponRole.Wasay,
             WeaponId.Kalis => PawnWeaponRole.Kalis,
             WeaponId.Itak => PawnWeaponRole.Itak,
+            WeaponId.Bangkaw => PawnWeaponRole.Bangkaw,
+            WeaponId.Busog => PawnWeaponRole.Busog,
+            WeaponId.Arquebus => PawnWeaponRole.Arquebus,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(weapon),
                 weapon,
