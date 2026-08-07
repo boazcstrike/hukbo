@@ -666,3 +666,62 @@ real navmesh's precomputed winding behaves. The reasoning and the discarded
 alternative are recorded in `Funnel.cs`. It also ports DotRecast's exact-equality
 deduplication against the last emitted point, without which the last commit
 emits a spurious trailing duplicate.
+
+### Wave 5 complete, 2026-08-07
+
+All eight tasks — 26, 27, 28, 29, 30, 31, 32, and 33 — merged into
+`sandata-scaffold`, each from its own worktree, with no merge conflicts. The
+disjoint file-set audit held again across eight parallel agents.
+
+Counts after the final merge, run directly against the Sandata projects because
+`test.ps1` still covers only the Hukbo suites until task 41:
+
+- `Sandata.Core.Tests`: `Failed: 0, Passed: 725, Skipped: 0, Total: 725`
+- `Sandata.Client.Tests`: `Failed: 0, Passed: 41, Skipped: 0, Total: 41`
+
+The canonical gate was run by the integrating thread after integration, not
+delegated:
+
+```
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+  "eventHash": "AC55684F24D39344",
+  "stateHash": "1B73FC5923879AA0",
+  "deterministic": true,
+```
+
+The seed-1 workload still reproduces the baseline recorded against untouched
+`main`. Five waves of a second game have now moved no Hukbo hash.
+
+Two tasks were sent back once each before merging, both for a real defect rather
+than a style preference:
+
+- **Task 30** made crouched cover protection unconditional on direction. Design
+  section 9 says "fire from the flank or rear ignores cover entirely" before it
+  introduces crouching at all, and crouching behind cover is a cover benefit, so
+  the arc gate binds both postures. The arc test now precedes the posture branch,
+  and a test pins that rear fire against a crouched operator gets no reduction —
+  the case that passed under the original reading.
+- **Task 33** shipped an objective draw path with no pinned geometry test. Its
+  "What" column named objectives; only its "Done when" list forgot them. The
+  test now pins objective geometry at the same three zoom levels as walls, doors,
+  and cover.
+
+Task 33 also closed the wave-3 defect where task 13's theme JSON never reached
+the build output. `Content/Themes/sandata-theme-standards.json` is now in
+`bin/Release/net10.0/win-x64/Content/Themes/`, so the packaged build no longer
+depends on tests happening to find the file through the repository root.
+
+**One duplication accepted deliberately.** `SandataCamera` could not reuse
+`Hukbo.Client.SpectatorCamera`: that type and the `InputEdges` it depends on are
+both `internal` to `Hukbo.Client`, and reaching them meant editing a forbidden
+tree. The pan, zoom-clamp, fit, and world-to-screen formulas were ported
+unchanged and `Update` was rewritten against raw keyboard and scroll state, with
+the reasoning recorded in the type. Extracting a shared camera later is a
+candidate for a tier-2 move, and the tier-1 lesson applies to it in full: compile
+the candidate in isolation before calling it a rename.
+
+**Nothing in wave 5 was rewritten by the answer to question 1.** The user chose
+both autonomous bots and hand-drawn player paths, and every wave-5 task stood
+exactly as written. The order layer's own tasks are 57 through 63.
