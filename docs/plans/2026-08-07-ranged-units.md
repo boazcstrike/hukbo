@@ -651,7 +651,7 @@ one.
 
 One thing RU-12 raised that turned out fine: it could not check whether registering
 V5 disturbed the goldens in `DeterminismTests.cs`, because that file was outside its
-scope. The merged run answers it — `DeterminismTests` passes in full at `434ff73`,
+scope. The merged run answers it — `DeterminismTests` passes in full at `2f785f1`,
 so V5's registration moved no pinned value. That is expected rather than lucky,
 since V1 through V4 are untouched and V5 has no golden of its own until RU-26.
 
@@ -672,9 +672,9 @@ quoted without its configuration is not evidence.
 | Wave 2 merged, RU-06 still outstanding | `04de103` | 10 red / 2627 | 34 red / 3214 |
 | Wave 2 complete, RU-06 merged | `d69ab00` | 10 red / 2631 | 34 red / 3214 |
 | Wave 3 merged, RU-12 still outstanding | `f0f25f4` | 10 red / 2644 | 21 red / 3248 |
-| Wave 3 complete, RU-12 merged | `434ff73` | **2 red** / 2644 | 21 red / 3248 |
+| Wave 3 complete, RU-12 merged | `2f785f1` | **2 red** / 2644 | 21 red / 3248 |
 
-At `434ff73` only two Core failures remain: `RU-39`'s ranged-fields-zero fact, and
+At `2f785f1` only two Core failures remain: `RU-39`'s ranged-fields-zero fact, and
 the leader fact that RU-21 and RU-30 close by registering V8 and V9. `DeterminismTests`
 passes in full, 22 of 22, so registering V5 disturbed no pinned golden.
 
