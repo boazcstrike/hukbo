@@ -427,4 +427,157 @@ public sealed class SquadGroupingTests
         SquadGrouping.Compute(entityIds, isAlive, factions, pairs, results);
         return results;
     }
+
+    // ------------------------------------------------------------------
+    // Task 74's first rule: the position-aware overload, which is the one
+    // that gates union on GroupCohesionRadius rather than unioning every
+    // same-faction candidate pair unconditionally.
+    // ------------------------------------------------------------------
+
+    /// <summary>Mirrors <c>SandataRuleset.ModernTacticalV1.GroupCohesionRadius</c>; not read from the ruleset.</summary>
+    private const int GroupCohesionRadiusRaw = 96;
+
+    private static SquadSlot[] ComputeWithPositions(
+        ReadOnlySpan<ulong> entityIds,
+        ReadOnlySpan<bool> isAlive,
+        ReadOnlySpan<int> factions,
+        ReadOnlySpan<int> xRaw,
+        ReadOnlySpan<int> yRaw,
+        int groupCohesionRadiusRaw,
+        IReadOnlyList<SandataCollisionPair> pairs)
+    {
+        var results = new SquadSlot[entityIds.Length];
+        SquadGrouping.Compute(entityIds, isAlive, factions, xRaw, yRaw, groupCohesionRadiusRaw, pairs, results);
+        return results;
+    }
+
+    /// <summary>
+    /// Two operators exactly <see cref="GroupCohesionRadiusRaw"/> apart union
+    /// into one group; the same pair moved one raw unit further apart does
+    /// not — both sides of the boundary, proven in the same fact so neither
+    /// can drift out of sync with the other.
+    /// </summary>
+    [Fact]
+    public void CohesionRadius_ExactlyAtTheRadius_Unions_OneRawUnitBeyond_DoesNot()
+    {
+        ulong[] entityIds = [1, 2];
+        var isAlive = new[] { true, true };
+        var factions = new[] { 0, 0 };
+        var pairs = new[] { SandataCollisionPair.Create(1, 2) };
+        int[] yRaw = [0, 0];
+
+        var atRadius = ComputeWithPositions(
+            entityIds, isAlive, factions, [0, GroupCohesionRadiusRaw], yRaw, GroupCohesionRadiusRaw, pairs);
+        Assert.Equal(atRadius[0].GroupId, atRadius[1].GroupId);
+
+        var beyondRadius = ComputeWithPositions(
+            entityIds, isAlive, factions, [0, GroupCohesionRadiusRaw + 1], yRaw, GroupCohesionRadiusRaw, pairs);
+        Assert.NotEqual(beyondRadius[0].GroupId, beyondRadius[1].GroupId);
+    }
+
+    /// <summary>
+    /// The same fixed pair of positions, straddling the radius, produces two
+    /// different groupings under two different radii — the property that
+    /// makes <c>SandataRuleset.GroupCohesionRadius</c> actually load-bearing
+    /// rather than an unread constant. An implementation that
+    /// still ignores the parameter fails this fact even if it happens to
+    /// pass the exact-boundary fact above with a hard-coded threshold.
+    /// </summary>
+    [Fact]
+    public void ChangingTheCohesionRadiusAlone_ChangesGroupingForAStraddlingFixture()
+    {
+        ulong[] entityIds = [1, 2];
+        var isAlive = new[] { true, true };
+        var factions = new[] { 0, 0 };
+        var pairs = new[] { SandataCollisionPair.Create(1, 2) };
+        int[] xRaw = [0, 100];
+        int[] yRaw = [0, 0];
+
+        var narrowRadius = ComputeWithPositions(entityIds, isAlive, factions, xRaw, yRaw, groupCohesionRadiusRaw: 50, pairs);
+        Assert.NotEqual(narrowRadius[0].GroupId, narrowRadius[1].GroupId);
+
+        var wideRadius = ComputeWithPositions(entityIds, isAlive, factions, xRaw, yRaw, groupCohesionRadiusRaw: 150, pairs);
+        Assert.Equal(wideRadius[0].GroupId, wideRadius[1].GroupId);
+    }
+
+    /// <summary>
+    /// A candidate pair between two different factions is never unioned even
+    /// when the two operators stand well inside the cohesion radius — the
+    /// existing same-faction rule survives the radius gate rather than being
+    /// replaced by it.
+    /// </summary>
+    [Fact]
+    public void PairsAcrossFactionsWithinTheCohesionRadius_AreStillNeverUnioned()
+    {
+        ulong[] entityIds = [1, 2];
+        var isAlive = new[] { true, true };
+        var factions = new[] { 0, 1 };
+        var pairs = new[] { SandataCollisionPair.Create(1, 2) };
+
+        var results = ComputeWithPositions(
+            entityIds, isAlive, factions, [0, 0], [0, 0], GroupCohesionRadiusRaw, pairs);
+
+        Assert.NotEqual(results[0].GroupId, results[1].GroupId);
+    }
+
+    /// <summary>
+    /// Permuting the candidate pair list still produces an identical
+    /// grouping once the radius gate is applied, the same property
+    /// <see cref="PermutingPairOrderChangesNothing"/> proves for the
+    /// unconditional overload.
+    /// </summary>
+    [Fact]
+    public void CohesionRadius_PermutingPairOrder_ChangesNothing()
+    {
+        ulong[] entityIds = [1, 2, 3];
+        var isAlive = new[] { true, true, true };
+        var factions = new[] { 0, 0, 0 };
+        int[] xRaw = [0, 40, 80];
+        int[] yRaw = [0, 0, 0];
+        const int radius = 50;
+
+        var orderOne = new[] { SandataCollisionPair.Create(1, 2), SandataCollisionPair.Create(2, 3) };
+        var orderTwo = new[] { SandataCollisionPair.Create(2, 3), SandataCollisionPair.Create(1, 2) };
+
+        var resultsOne = ComputeWithPositions(entityIds, isAlive, factions, xRaw, yRaw, radius, orderOne);
+        var resultsTwo = ComputeWithPositions(entityIds, isAlive, factions, xRaw, yRaw, radius, orderTwo);
+
+        Assert.Equal(resultsOne, resultsTwo);
+    }
+
+    [Fact]
+    public void ComputeWithPositions_MismatchedXRawLength_Throws()
+    {
+        ulong[] entityIds = [1, 2];
+        var isAlive = new[] { true, true };
+        var factions = new[] { 0, 0 };
+        var pairs = Array.Empty<SandataCollisionPair>();
+
+        Assert.Throws<ArgumentException>(() =>
+            ComputeWithPositions(entityIds, isAlive, factions, [0], [0, 0], GroupCohesionRadiusRaw, pairs));
+    }
+
+    [Fact]
+    public void ComputeWithPositions_MismatchedYRawLength_Throws()
+    {
+        ulong[] entityIds = [1, 2];
+        var isAlive = new[] { true, true };
+        var factions = new[] { 0, 0 };
+        var pairs = Array.Empty<SandataCollisionPair>();
+
+        Assert.Throws<ArgumentException>(() =>
+            ComputeWithPositions(entityIds, isAlive, factions, [0, 0], [0], GroupCohesionRadiusRaw, pairs));
+    }
+
+    [Fact]
+    public void ComputeWithPositions_NegativeGroupCohesionRadius_Throws()
+    {
+        ulong[] entityIds = [1, 2];
+        var isAlive = new[] { true, true };
+        var factions = new[] { 0, 0 };
+        var pairs = Array.Empty<SandataCollisionPair>();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            ComputeWithPositions(entityIds, isAlive, factions, [0, 0], [0, 0], -1, pairs));
+    }
 }

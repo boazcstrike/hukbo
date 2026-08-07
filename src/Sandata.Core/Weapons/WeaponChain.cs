@@ -1,3 +1,5 @@
+using Sandata.Core.Mathematics;
+
 namespace Sandata.Core.Weapons;
 
 /// <summary>
@@ -125,6 +127,47 @@ public readonly record struct WeaponChainAdvanceResult(
 public static class WeaponChain
 {
     /// <summary>
+    /// Design section 9's <see cref="WeaponChainPhase.Turning"/> completion
+    /// test, <c>|ShortestArc| &lt;= AimToleranceBam</c>: <see langword="true"/>
+    /// when the shortest signed arc from <paramref name="currentAimBam"/> to
+    /// <paramref name="targetAimBam"/> has an absolute magnitude no greater
+    /// than <paramref name="aimToleranceBam"/>. Nothing in <see cref="Advance"/>
+    /// computes this comparison — it takes the already-decided
+    /// <c>arcWithinTolerance</c> boolean as a parameter — so this is the
+    /// method a caller runs once per tick to produce that boolean, passing
+    /// <c>SandataRuleset.AimToleranceBam</c> in as
+    /// <paramref name="aimToleranceBam"/> the same way <c>PathService</c> and
+    /// <c>WeaponLoweredRules</c> take their own ruleset constants as plain
+    /// parameters rather than reading <c>SandataRuleset</c> themselves.
+    /// </summary>
+    /// <param name="currentAimBam">The operator's current aim point.</param>
+    /// <param name="targetAimBam">The target's angle from the operator.</param>
+    /// <param name="aimToleranceBam">
+    /// The raw <see cref="Bam16"/> magnitude within which the arc counts as
+    /// close enough — <c>SandataRuleset.AimToleranceBam</c> in the caller's
+    /// possession.
+    /// </param>
+    /// <remarks>
+    /// <see cref="Bam16.ShortestArc"/> already resolves the wrap at raw angle
+    /// zero into a signed <see cref="short"/> before this method ever sees
+    /// the value, so an arc that crosses that boundary compares identically
+    /// to an equivalent arc that does not — the naive alternative, plain
+    /// unwrapped subtraction of the two raw angles, does not have that
+    /// property and would fail exactly that case. The magnitude is taken by
+    /// widening the <see cref="short"/> result to <see cref="int"/> before
+    /// negating, so the one value a <see cref="short"/> cannot represent
+    /// positively — <see cref="short.MinValue"/>, an exact half turn — does
+    /// not overflow. The comparison itself is a plain integer <c>&lt;=</c>:
+    /// no floating point anywhere and no epsilon.
+    /// </remarks>
+    public static bool IsArcWithinTolerance(Bam16 currentAimBam, Bam16 targetAimBam, ushort aimToleranceBam)
+    {
+        int shortestArc = Bam16.ShortestArc(currentAimBam, targetAimBam);
+        var magnitude = shortestArc < 0 ? -shortestArc : shortestArc;
+        return magnitude <= aimToleranceBam;
+    }
+
+    /// <summary>
     /// Advances one operator's weapon-chain state by exactly one tick. See
     /// the remarks on <see cref="WeaponChain"/> for the full written order.
     /// </summary>
@@ -151,7 +194,8 @@ public static class WeaponChain
     /// is within <c>SandataRuleset.AimToleranceBam</c>, so
     /// <see cref="WeaponChainPhase.Turning"/> should complete. Evaluated by
     /// the caller, which holds the aim and target angles this chain does
-    /// not.
+    /// not — ordinarily by calling <see cref="IsArcWithinTolerance"/> once
+    /// per tick and passing its result straight through.
     /// </param>
     /// <param name="readyTicks">
     /// The tick form of the definition's authored <c>ReadyMs</c>, from

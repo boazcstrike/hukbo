@@ -1,3 +1,4 @@
+using Sandata.Core.Mathematics;
 using Sandata.Core.Weapons;
 
 namespace Sandata.Core.Tests;
@@ -439,5 +440,104 @@ public sealed class WeaponChainTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(
             () => CyclicFireAccumulator.Advance(0, TickRate, cyclicRpm));
+    }
+
+    // ------------------------------------------------------------------
+    // WeaponChain.IsArcWithinTolerance — task 74's second rule: design
+    // section 9's |ShortestArc| <= AimToleranceBam comparison, which
+    // previously had no call site anywhere in Sandata.Core.
+    // ------------------------------------------------------------------
+
+    /// <summary>Mirrors <c>SandataRuleset.ModernTacticalV1.AimToleranceBam</c>; not read from the ruleset.</summary>
+    private const ushort AimToleranceBam = 1024;
+
+    /// <summary>
+    /// Both directions around the ring, both sides of the boundary: exactly
+    /// <see cref="AimToleranceBam"/> away compares within tolerance, and one
+    /// raw unit further does not, whether the arc is positive or negative.
+    /// </summary>
+    [Theory]
+    [InlineData(1024, true)]
+    [InlineData(1025, false)]
+    [InlineData(-1024, true)]
+    [InlineData(-1025, false)]
+    public void IsArcWithinTolerance_AtExactlyTheTolerance_TrueAndOneRawUnitBeyond_False(
+        int arcOffset, bool expected)
+    {
+        var currentAimBam = new Bam16(0);
+        var targetAimBam = new Bam16(unchecked((ushort)arcOffset));
+
+        Assert.Equal(expected, WeaponChain.IsArcWithinTolerance(currentAimBam, targetAimBam, AimToleranceBam));
+    }
+
+    /// <summary>
+    /// The same boundary proven through <see cref="WeaponChain.Advance"/>'s
+    /// <see cref="WeaponChainPhase.Turning"/> transition: feeding
+    /// <see cref="WeaponChain.IsArcWithinTolerance"/>'s own result in as
+    /// <c>arcWithinTolerance</c> transitions to <see cref="WeaponChainPhase.Aiming"/>
+    /// exactly at <see cref="AimToleranceBam"/> and holds at
+    /// <see cref="WeaponChainPhase.Turning"/> one raw unit beyond it.
+    /// </summary>
+    [Theory]
+    [InlineData(1024, true)]
+    [InlineData(1025, false)]
+    public void Turning_TransitionsExactlyAtAimTolerance_NotOneRawUnitBeyond(int arcOffset, bool expectedWithinTolerance)
+    {
+        var currentAimBam = new Bam16(0);
+        var targetAimBam = new Bam16(unchecked((ushort)arcOffset));
+        var withinTolerance = WeaponChain.IsArcWithinTolerance(currentAimBam, targetAimBam, AimToleranceBam);
+        Assert.Equal(expectedWithinTolerance, withinTolerance);
+
+        var result = WeaponChain.Advance(
+            WeaponChainPhase.Turning, remainingTicks: 0,
+            forceLowered: false, raiseRequested: true, arcWithinTolerance: withinTolerance,
+            readyTicks: 4, aimTicks: 9, resetTicks: 6);
+
+        Assert.Equal(
+            expectedWithinTolerance ? WeaponChainPhase.Aiming : WeaponChainPhase.Turning,
+            result.Phase);
+    }
+
+    /// <summary>
+    /// A signed arc of exactly zero — the aim point and the target already
+    /// coincide — is trivially within any non-negative tolerance, including
+    /// a tolerance of zero.
+    /// </summary>
+    [Fact]
+    public void IsArcWithinTolerance_ZeroArc_IsWithinZeroTolerance()
+    {
+        var aimBam = new Bam16(12_345);
+
+        Assert.True(WeaponChain.IsArcWithinTolerance(aimBam, aimBam, aimToleranceBam: 0));
+    }
+
+    /// <summary>
+    /// An arc that wraps across raw angle zero compares identically to an
+    /// equivalent arc that does not, because <see cref="Bam16.ShortestArc"/>
+    /// already resolves the wrap before <see cref="WeaponChain.IsArcWithinTolerance"/>
+    /// ever sees the value. A naive, unwrapped subtraction of the two raw
+    /// angles does not have that property: it reports this same arc as tens
+    /// of thousands of raw units, not 16, and would fail the very tolerance
+    /// check the correct implementation passes.
+    /// </summary>
+    [Fact]
+    public void IsArcWithinTolerance_ArcWrappingAcrossZero_ComparesIdenticallyToAnEquivalentNonWrappingArc()
+    {
+        const ushort tolerance = 20;
+
+        // The true shortest arc from 10 to 65,530 is -16 (16 raw units
+        // backward through the zero boundary), not the 65,520-unit forward
+        // distance a naive, unwrapped subtraction would compute.
+        var wrapping = WeaponChain.IsArcWithinTolerance(new Bam16(10), new Bam16(65_530), tolerance);
+
+        // The same 16-unit backward arc, entirely inside the ring with no
+        // wrap at all.
+        var nonWrapping = WeaponChain.IsArcWithinTolerance(new Bam16(100), new Bam16(84), tolerance);
+
+        Assert.True(wrapping);
+        Assert.Equal(nonWrapping, wrapping);
+
+        var naiveUnwrappedDelta = 65_530 - 10;
+        Assert.True(naiveUnwrappedDelta > tolerance);
     }
 }
