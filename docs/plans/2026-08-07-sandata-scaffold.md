@@ -763,3 +763,65 @@ Task 67 joins wave 5b. It is the third task to own `PathService.cs` in sequence 
 27 wrote it, 65 changed what it publishes, 67 changes how — and each held it
 alone. That is the file-ownership rule working as intended rather than three
 agents discovering each other in a merge.
+
+### Wave 5b complete, 2026-08-07
+
+Tasks 64, 65, 66, and 67 merged into `sandata-scaffold`, no conflicts. Wave 5b
+existed because wave 5 exposed four defects that every wave-6 task would
+otherwise have built on top of, and all four are now closed.
+
+- `Sandata.Core.Tests`: `Failed: 0, Passed: 765, Skipped: 0, Total: 765`
+- `Sandata.Client.Tests`: `Failed: 0, Passed: 41, Skipped: 0, Total: 41`
+
+Gate, run by the integrating thread:
+
+```
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+Seed-1 workload, captured separately so the hashes appear in full:
+
+```
+  "outcome": "Faction1Victory",
+  "eventHash": "AC55684F24D39344",
+  "stateHash": "1B73FC5923879AA0",
+  "deterministic": true,
+```
+
+Still byte-identical to untouched `main`.
+
+**What each task settled.**
+
+Task 64 widened exactly four identifiers to `ulong` — the operator's entity id,
+the remembered enemy's entity id, the group id, and the next-entity-id counter —
+and pinned in a reflection test why faction ids, door ids, cell indices, and
+stream ids stay `int`. A faction id is a two-valued selector, a cell index is a
+`NavGrid` node index and `NavGrid` uses `int`, and neither shares an identifier
+space with an operator. `SquadSlotIndex` is gone from the operator record.
+`WorldUnits.FromFixedPoint` floors by arithmetic shift, matching
+`NavGrid.WorldToCellCoordinate` exactly, and is cross-checked against
+`IntegerMath.FloorDiv` across the whole `int` range rather than at a handful of
+points. No pinned constant moved.
+
+Task 66 folds the enum member itself for a system tag, matching how every other
+Sandata enum reaching a hash is folded, and reported that the accuracy draw
+necessarily moved as a result. No expectation needed editing because
+`AccuracyRulesTests` pins reproducibility and the dispersion bound rather than a
+literal draw value — but the report said the draw moved rather than treating an
+untouched test file as proof that it had not. That distinction is the whole
+point of the reporting rule.
+
+Task 67 is the one worth remembering. See the amendment above it: the funnel
+could not straighten a single-cell corridor, line-of-sight smoothing does, and
+the acceptance criterion is now the taut path as literal coordinates —
+`(2,2)` to `(38,14)`, exactly two points, across open ground. `Funnel.StringPull`
+remains in the tree with its licence and its tests, called only from
+`FunnelTests`, marked off the v0.1 publish path.
+
+**The pattern across waves 5 and 5b.** Every defect found in this run was found
+because an agent hit a wall its file list would not let it climb, and reported
+the wall instead of climbing it: the unowned `NavGrid` member, the unowned
+smoothing step, the two identifier types, the missing world-unit conversion, the
+undeclared system tags, and the design's own slot-index contradiction. The file
+list is not overhead. It is the instrument.
