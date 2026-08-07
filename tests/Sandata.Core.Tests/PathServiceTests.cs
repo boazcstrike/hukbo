@@ -103,11 +103,15 @@ public sealed class PathServiceTests
 
         // Advancing past both the ignored request's and the accepted
         // request's would-be publish tick must still resolve toward the
-        // first goal, never the second.
+        // first goal, never the second. Asserted against the raw corridor,
+        // not GetCurrentPath: task 65 changed GetCurrentPath's element type
+        // from a cell index to a funnel-smoothed PathPoint, so "does this
+        // path end at the first goal's cell" is now a GetCurrentCorridor
+        // question.
         service.Advance(5, grid, blocked);
         Assert.Equal(PathReasonCode.PathValid, service.GetReasonCode(1));
-        var path = service.GetCurrentPath(1);
-        Assert.Equal(firstGoal, path[^1]);
+        var corridor = service.GetCurrentCorridor(1);
+        Assert.Equal(firstGoal, corridor[^1]);
     }
 
     [Fact]
@@ -173,17 +177,98 @@ public sealed class PathServiceTests
         resumed.RequestPath(storedRequest.GroupId, storedRequest.StartCellIndex, storedRequest.GoalCellIndex, storedRequest.RequestTick);
         resumed.Advance(storedRequest.RequestTick + 4, grid, blocked);
 
+        // The core task 65 assertion: recomputing from the stored request
+        // alone reproduces the identical smoothed polyline, not merely an
+        // equivalent corridor.
         Assert.Equal(originalPath.AsSpan().ToArray(), resumed.GetCurrentPath(7).AsSpan().ToArray());
 
         // And an entirely independent, direct call to the search this
         // service is built on, driven from nothing but the same stored
-        // request tuple, must agree exactly as well.
+        // request tuple, must agree with the raw corridor PathService
+        // smoothed — GetCurrentPath itself no longer holds cell indices to
+        // compare a direct NavSearch call against, so this half moves to
+        // GetCurrentCorridor.
         var directPath = new List<int>();
         var directOutcome = new NavSearch().TryFindPath(
             grid, storedRequest.StartCellIndex, storedRequest.GoalCellIndex, blocked, directPath, []);
 
         Assert.Equal(NavSearchOutcome.PathFound, directOutcome);
-        Assert.Equal(originalPath.AsSpan().ToArray(), directPath);
+        Assert.Equal(original.GetCurrentCorridor(7).AsSpan().ToArray(), directPath);
+    }
+
+    /// <summary>
+    /// Plan task 65's restated acceptance criterion (docs/plans/2026-08-07-sandata-scaffold.md,
+    /// "What task 26 proved about the funnel, and what that means for task
+    /// 65"): a single-file, one-cell-wide corridor cannot generally collapse
+    /// to a straight segment, so this fixture is a fully open 10-by-4-cell
+    /// region with no walls at all — every one of its 40 cells is passable —
+    /// crossing a start-to-goal offset of (9, 3) cells, the same 3:1,
+    /// 18.4-degree slope <c>FunnelTests</c> pins. A* is free to use diagonal
+    /// steps everywhere in this region, and still returns a corridor whose
+    /// tail is a run of due-east, axis-aligned single-cell steps (grid
+    /// movement is discrete; a 3:1 slope is not a pure diagonal). The
+    /// published path must be materially straighter than that corridor: it
+    /// asserts a vertex count strictly lower than the corridor's cell count,
+    /// and it asserts that none of the published polyline's own segments is
+    /// axis-aligned, even though the corridor it came from holds several.
+    /// </summary>
+    [Fact]
+    public void PublishedPath_AcrossAnOpenRegionWiderThanOneCell_IsMaterallyStraighterThanItsCorridor()
+    {
+        var (grid, blocked, start, goal) = BuildGrid(
+        [
+            "S.........",
+            "..........",
+            "..........",
+            ".........G",
+        ]);
+
+        var service = new PathService(pathLatencyTicks: 1);
+        service.RequestPath(groupId: 1, start, goal, requestTick: 0);
+        service.Advance(0, grid, blocked);
+        service.Advance(1, grid, blocked);
+
+        var corridor = service.GetCurrentCorridor(1);
+        var path = service.GetCurrentPath(1);
+
+        Assert.False(corridor.IsEmpty);
+        Assert.False(path.IsEmpty);
+
+        // The corridor itself is a real staircase: it holds at least one
+        // axis-aligned step, confirming the fixture actually exercises the
+        // defect the funnel exists to fix rather than starting from an
+        // already-straight input.
+        var corridorHasAnAxisAlignedStep = false;
+        for (var i = 1; i < corridor.Length; i++)
+        {
+            var deltaX = grid.CellX(corridor[i]) - grid.CellX(corridor[i - 1]);
+            var deltaY = grid.CellY(corridor[i]) - grid.CellY(corridor[i - 1]);
+            if (deltaX == 0 || deltaY == 0)
+            {
+                corridorHasAnAxisAlignedStep = true;
+                break;
+            }
+        }
+
+        Assert.True(corridorHasAnAxisAlignedStep, "Fixture must produce a corridor with at least one axis-aligned step.");
+
+        // The published polyline is materially straighter: fewer vertices
+        // than the corridor had cells, ...
+        Assert.True(
+            path.Length < corridor.Length,
+            $"Published path ({path.Length} vertices) must hold fewer points than its corridor ({corridor.Length} cells).");
+
+        // ... and none of its own segments is the axis-aligned step the
+        // corridor had — the exact defect design section 7 introduced the
+        // funnel to prevent.
+        for (var i = 1; i < path.Length; i++)
+        {
+            var deltaX = path[i].X - path[i - 1].X;
+            var deltaY = path[i].Y - path[i - 1].Y;
+            Assert.False(
+                deltaX == 0 || deltaY == 0,
+                $"Published path segment {i - 1}->{i} ({path[i - 1]} -> {path[i]}) must not be axis-aligned.");
+        }
     }
 
     [Fact]
