@@ -107,6 +107,73 @@ public sealed class PresentationCoordinatorTests
             coordinator.BattleReportAccumulator.Snapshot(1).Leaderboard);
     }
 
+    /// <summary>
+    /// RU-38. The live call site at <c>PresentationCoordinator.cs:140</c>
+    /// must pass <c>IngestTick</c>'s own <c>agents</c> parameter through to
+    /// <see cref="BattleReportAccumulator.Ingest"/>, or
+    /// <see cref="FactionReportTotals.HoldingCount"/> reads zero forever no
+    /// matter how many warriors are actually holding — RU-16 shipped that
+    /// field structurally complete and fully unit-tested but functionally
+    /// dead, because <c>agents</c> defaulted to <see langword="null"/> at
+    /// the accumulator and the live call site never supplied it. Asserted
+    /// through <see cref="PresentationCoordinator.Report"/>, never by
+    /// calling <see cref="PresentationCoordinator.BattleReportAccumulator"/>
+    /// directly — a direct call bypasses the exact wiring this task exists
+    /// to close.
+    /// </summary>
+    [Fact]
+    public void ProcessTerminal_ReportsNonZeroHoldingCountForAFactionWithAHoldingWarrior()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        AgentView[] agents =
+        [
+            CreateAgent(1) with { Intent = AgentIntent.Holding },
+            CreateAgent(2) with { FactionId = 1 },
+        ];
+
+        coordinator.IngestTick([AttackEvent(1, 1, 2)], agents, default);
+        coordinator.ProcessTerminal(
+            BattleOutcome.Faction0Victory,
+            agents,
+            tick: 1,
+            tickRate: 20,
+            seed: 1);
+
+        var faction0 = Assert.Single(
+            coordinator.Report!.Factions, f => f.FactionId == 0);
+        Assert.Equal(1, faction0.HoldingCount);
+    }
+
+    /// <summary>
+    /// Mirrors
+    /// <see cref="ProcessTerminal_ReportsNonZeroHoldingCountForAFactionWithAHoldingWarrior"/>
+    /// with an all-<see cref="AgentIntent.Idle"/> roster, so the wiring is
+    /// proven to report a real zero rather than one that would read zero
+    /// with or without the roster attached.
+    /// </summary>
+    [Fact]
+    public void ProcessTerminal_ReportsZeroHoldingCountWhenNoWarriorIsHolding()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        AgentView[] agents =
+        [
+            CreateAgent(1),
+            CreateAgent(2) with { FactionId = 1 },
+        ];
+
+        coordinator.IngestTick([AttackEvent(1, 1, 2)], agents, default);
+        coordinator.ProcessTerminal(
+            BattleOutcome.Faction0Victory,
+            agents,
+            tick: 1,
+            tickRate: 20,
+            seed: 1);
+
+        Assert.All(
+            coordinator.Report!.Factions,
+            faction => Assert.Equal(0, faction.HoldingCount));
+    }
+
     [Fact]
     public void IngestTick_ForwardsEveryBatchToFeedAndHitEffects()
     {
