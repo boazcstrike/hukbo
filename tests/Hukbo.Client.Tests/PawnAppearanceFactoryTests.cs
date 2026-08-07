@@ -48,15 +48,17 @@ public sealed class PawnAppearanceFactoryTests
     }
 
     [Fact]
-    public void Create_MapsAllFourWeaponIdsToDistinctSilhouettes()
+    public void Create_MapsAllSevenWeaponIdsToDistinctSilhouettes()
     {
-        var roles = Enum.GetValues<WeaponId>()
+        var weaponIds = Enum.GetValues<WeaponId>();
+        var roles = weaponIds
             .Select(weapon => PawnAppearanceFactory
                 .Create(1, weapon, ShieldId.None)
                 .WeaponRole)
             .ToHashSet();
 
-        Assert.Equal(Enum.GetValues<WeaponId>().Length, roles.Count);
+        Assert.Equal(7, weaponIds.Length);
+        Assert.Equal(weaponIds.Length, roles.Count);
     }
 
     [Fact]
@@ -123,18 +125,34 @@ public sealed class PawnAppearanceFactoryTests
         // The pair form is what CLAUDE.md section 7 permits: a cultural
         // identification appears only alongside a plain English descriptor,
         // never bare. This is the assertion that catches a label regressing
-        // to just "Kampilan".
+        // to just "Kampilan". The Imported Arquebus is the one weapon that
+        // makes no cultural-name claim at all (PawnAppearance.WeaponLabel's
+        // own remark: "not a cultural identification, so the pair-form rule
+        // does not engage") — it is exempted by an explicit, counted
+        // allow-list rather than by silently falling through the split
+        // check, so a future weapon added without a dash still fails loud.
+        string[] weaponsWithNoCulturalNameClaim = ["Imported Arquebus"];
+        var exemptedCount = 0;
+
         foreach (var weapon in Enum.GetValues<WeaponId>())
         {
             var label = PawnAppearanceFactory
                 .Create(0, weapon, ShieldId.None)
                 .WeaponLabel;
 
+            if (weaponsWithNoCulturalNameClaim.Contains(label))
+            {
+                exemptedCount++;
+                continue;
+            }
+
             var parts = label.Split(" — ");
             Assert.Equal(2, parts.Length);
             Assert.NotEmpty(parts[0]);
             Assert.NotEmpty(parts[1]);
         }
+
+        Assert.Equal(weaponsWithNoCulturalNameClaim.Length, exemptedCount);
     }
 
     [Fact]
