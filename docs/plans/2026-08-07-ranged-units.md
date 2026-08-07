@@ -370,15 +370,58 @@ evidence lives rather than where a summary lives. It owes, at minimum:
   then on a mixed roster.
 - The task status table.
 
+### RU-02's verification finding: CONFIRMED, with one correction to this plan
+
+The attribution was confirmed against Blair and Robertson, *The Philippine
+Islands, 1493-1803*, Volume III, read as the Project Gutenberg plain-text
+edition 13616 at `https://www.gutenberg.org/cache/epub/13616/pg13616.txt`
+(484,486 bytes). The finding was then independently re-checked by the
+orchestrator against both the live source and the same local copy, rather than
+being accepted on the task agent's report alone.
+
+The date holds in three independent places in the volume. Its contents page
+lists "Relation of the Western Islands called Filipinas. Diego de Artieda"
+under the year heading `Documents of 1573`. Its preface reads "A Spanish
+captain, Diego de Artieda, writes (1573) a 'Relation of the Western Islands.'"
+And the in-body document group headed `Documents of 1573` contains the relation
+as its third document.
+
+The passage holds by position. The paragraph carrying the lance, cutlass or
+dagger, bow, reed-arrow, and blow-gun descriptions sits at text lines 4547 to
+4566, which falls inside Artieda's relation (it opens at line 4290 with
+"Captain Artieda, who went to those islands for the king, wrote this
+relation") and inside the 1573 document group (lines 3959 to 5027). A negative
+control confirms the alternative is impossible: the volume's entire
+`Documents of 1569` block, lines 484 to 1310, contains no occurrence of lance,
+cutlass, dagger, blowgun, arrow, or bow.
+
+**This plan's RU-02 row contained an error, and the task agent was right to
+refuse part of it.** The row asked that the volume-III date span at line 210 of
+`docs/research/HISTORICAL_1500s_WEAPONS.md` be "corrected to match", implying
+that `1569-1576` was wrong. It is not wrong: that span is the volume's own
+title page, and its contents run from `Documents of 1569` through
+`Documents of 1575-76`. Changing those digits would have introduced a new
+error into a historical-accuracy document in the course of fixing an old one.
+The span was therefore kept, and the source entry was rewritten instead so that
+it no longer implies the weapon descriptions come from anywhere in that span.
+The entry now records which descriptions the Artieda paragraph carries and
+states explicitly that none of the volume's 1569 documents describes weapons.
+
+One related citation was left alone deliberately. The javelin row at line 42
+cites a Luzon account of palm-wood lances, which corresponds to a
+`Documents of 1571-72` passage in the same volume rather than to Artieda. It is
+accurate as written, so it was not changed, but it is a second distinct
+citation into volume III that the source entry does not yet enumerate.
+
 ### Task status
 
 | Task | Status |
 | --- | --- |
-| RU-01 | Not started |
-| RU-02 | Not started |
+| RU-01 | Done on branch `ru-01` at `21cd148`, not yet integrated |
+| RU-02 | Done on branch `ru-02` at `6320ef1`, not yet integrated — CONFIRMED, see the finding above |
 | RU-03 | Not started |
-| RU-04 | Not started |
-| RU-05 | Not started |
+| RU-04 | Done on branch `ru-04` at `a7cebde`, not yet integrated |
+| RU-05 | Done on branch `ru-05` at `8b1a88e` and `2c7f854`, not yet integrated |
 | RU-06 | Not started |
 | RU-07 | Not started |
 | RU-08 | Not started |
