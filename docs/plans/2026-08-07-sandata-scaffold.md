@@ -86,8 +86,8 @@ own; where a task looks like it needs one, the design section is named in the
 | 36 | 6 | Damage, death, and mission outcome | Simultaneous damage application, instant death with no downed state, and mission outcome resolution. Deaths resolve in ascending entity id after all damage is accumulated, so two mutual kills both land. | `src/Sandata.Core/Combat/DamageResolution.cs`, `src/Sandata.Core/Combat/OutcomeRules.cs`, `src/Sandata.Core/Combat/MissionOutcome.cs`, `tests/Sandata.Core.Tests/DamageResolutionTests.cs` | `DamageResolutionTests` passes: two operators killing each other on the same tick both die; damage from three sources accumulates before any death is resolved; the outcome is decided only after every death; and no code path produces a downed or bleeding state. | 17, 31 | |
 | 37 | 6 | Operator geometry and persistent aim | `OperatorGeometry.Create` returning an `OperatorLayout` record of rectangles, points, and angles, with the fifteen layers in design section 11 and `Rectangle.Empty` for any layer that contributes nothing. Carries `WeaponAimBam` from the simulation plus a presentation-only smoothing term excluded from snapshot equality. Pure — no `GraphicsDevice`. | `src/Sandata.Client/Rendering/OperatorGeometry.cs`, `src/Sandata.Client/Rendering/OperatorLayout.cs`, `src/Sandata.Client/Rendering/OperatorRenderer.cs`, `tests/Sandata.Client.Tests/OperatorGeometryTests.cs` | `OperatorGeometryTests` passes: every layer's bounds pinned at three detail tiers, absent layers are `Rectangle.Empty`, the weapon rotates continuously about the grip anchor across a full turn without springing back, the muzzle anchor equals the weapon line tip, and the smoothing term is absent from the layout's equality members. | 13 | |
 | 38 | 6 | HUD and operator inspector | Roster strip, contact list, alert indicator, mission clock and tick counter, event log retaining at most 200 ordered events, spectator control bar, and the operator inspector showing intent, reason code, chain phase and remaining ticks, cover state and arc, group id, slot index, and both the decision position and the resolution position. Pure layout helpers, tested without a graphics device. | `src/Sandata.Client/UI/RosterStrip.cs`, `src/Sandata.Client/UI/ContactList.cs`, `src/Sandata.Client/UI/AlertIndicator.cs`, `src/Sandata.Client/UI/MissionClock.cs`, `src/Sandata.Client/UI/SandataEventLog.cs`, `src/Sandata.Client/UI/SandataControlBar.cs`, `src/Sandata.Client/UI/OperatorInspector.cs`, `tests/Sandata.Client.Tests/HudLayoutTests.cs`, `tests/Sandata.Client.Tests/OperatorInspectorTests.cs` | Both pass. `HudLayoutTests` pins every element's rectangle at three window sizes and asserts the event log discards the oldest beyond 200. `OperatorInspectorTests` asserts every listed field is present and that the alert indicator differs by shape as well as colour across all three levels. | 13, 33 | |
-| 39 | 6 | Sound player wiring and the tail-aware budget | Resolve a `ShotFired` event to a slot by the mapping in design section 10, select a variant with the existing `SoundVariantSelector`, and play through a Sandata budget that holds a reservation for `TailTicks` rather than one frame. Automatic fire plays one loop instance plus one tail instance per shooter, never one per round. Budget constants marked provisional in comments until task 49 measures them. | `src/Sandata.Client/Audio/SandataSoundPlayer.cs`, `src/Sandata.Client/Audio/SandataSoundBudget.cs`, `src/Sandata.Client/Audio/ShotSlotResolver.cs`, `tests/Sandata.Client.Tests/ShotSlotResolverTests.cs`, `tests/Sandata.Client.Tests/SandataSoundBudgetTests.cs` | Both pass. `ShotSlotResolverTests` asserts the slot chosen for every fire mode at every environment, and that the resolver is reachable only from the client. `SandataSoundBudgetTests` asserts a reservation is held for exactly `TailTicks`, that sustained automatic fire from eight shooters holds sixteen instances rather than one per round, and that the same tick and entity id always select the same variant. | 24, 33 | |
-| 40 | 6 | Audio manifest generator and `sfx.ps1` batch mode | Create `scripts/sfx-manifest.ps1` with **no network code in it at all**: it enumerates the 484-slot matrix from the catalog, emits a manifest listing every file name, prompt, duration, and trim threshold, prints the credit and dollar estimate, and stops. Separately add a batch mode and per-family trim thresholds to `sfx.ps1` so gunshot families use 1 to 2 percent rather than the 5 percent melee default. | `scripts/sfx-manifest.ps1`, `scripts/sfx.ps1`, `tests/Sandata.Client.Tests/SoundManifestTests.cs` | `./scripts/sfx-manifest.ps1` writes a manifest with exactly the row count the catalog declares, and a grep of that script for any HTTP verb, `Invoke-RestMethod`, `Invoke-WebRequest`, or `ELEVENLABS` returns nothing. `SoundManifestTests` asserts the manifest's per-slot variant counts equal the catalog's declared counts. **This task does not call ElevenLabs and does not generate a single file.** | 24 | |
+| 39 | 6 | Sound player wiring and the tail-aware budget | Resolve a `ShotFired` event to a slot by the mapping in design section 10, select a variant with the existing `SoundVariantSelector`, and play through a Sandata budget that holds a reservation for `TailTicks` rather than one frame. Automatic fire plays one loop instance plus one tail instance per shooter, never one per round. Budget constants marked provisional in comments until task 53 measures them (**corrected 2026-08-07**: this row said task 49, which is the tick pipeline; task 53 is the measurement task, as the risk register and task 54's row both already said). | `src/Sandata.Client/Audio/SandataSoundPlayer.cs`, `src/Sandata.Client/Audio/SandataSoundBudget.cs`, `src/Sandata.Client/Audio/ShotSlotResolver.cs`, `tests/Sandata.Client.Tests/ShotSlotResolverTests.cs`, `tests/Sandata.Client.Tests/SandataSoundBudgetTests.cs` | Both pass. `ShotSlotResolverTests` asserts the slot chosen for every fire mode at every environment, and that the resolver is reachable only from the client. `SandataSoundBudgetTests` asserts a reservation is held for exactly `TailTicks`, that sustained automatic fire from eight shooters holds sixteen instances rather than one per round, and that the same tick and entity id always select the same variant. | 24, 33 | |
+| 40 | 6 | Audio manifest generator and `sfx.ps1` batch mode | Create `scripts/sfx-manifest.ps1` with **no network code in it at all**: it enumerates the slot matrix from the catalog (**corrected 2026-08-07**: 106 rows expanding to 524 variant files, not the 484 this row originally stated), emits a manifest listing every file name, prompt, duration, and trim threshold, prints the credit and dollar estimate, and stops. Separately add a batch mode and per-family trim thresholds to `sfx.ps1` so gunshot families use 1 to 2 percent rather than the 5 percent melee default. | `scripts/sfx-manifest.ps1`, `scripts/sfx.ps1`, `tests/Sandata.Client.Tests/SoundManifestTests.cs` | `./scripts/sfx-manifest.ps1` writes a manifest with exactly the row count the catalog declares, and a grep of that script for any HTTP verb, `Invoke-RestMethod`, `Invoke-WebRequest`, or `ELEVENLABS` returns nothing. `SoundManifestTests` asserts the manifest's per-slot variant counts equal the catalog's declared counts. **This task does not call ElevenLabs and does not generate a single file.** | 24 | |
 | 41 | 6 | Script game-target table | Create `scripts/_gametargets.ps1` with `Get-GameTarget`, and add `-Game` with `[ValidateSet('Hukbo','Sandata')]` defaulting to `'Hukbo'` to `run.ps1`, `test.ps1`, `benchmark.ps1`, and `package.ps1`, replacing their hardcoded paths with table lookups. `build.ps1`, `format.ps1`, and `bootstrap.ps1` are not touched — they operate on the solution. | `scripts/_gametargets.ps1`, `scripts/run.ps1`, `scripts/test.ps1`, `scripts/benchmark.ps1`, `scripts/package.ps1`, `tests/Hukbo.Client.Tests/ScriptTargetTests.cs` | `ScriptTargetTests` passes: the `Hukbo` branch of `_gametargets.ps1` contains the four exact literal project paths the scripts hardcoded before this change, and no remaining script body contains a hardcoded `src/Hukbo.` or `tests/Hukbo.` project path. `./scripts/test.ps1 -Configuration Release` with no `-Game` argument runs the same two Hukbo test projects and passes. | 14 | |
 | 42 | 7 | Single-file collapse | When clearance at the leader's cell drops below the formation half-width, every slot's lateral offset goes to zero and the squad becomes single file; it re-expands on the far side. No state, no timer, no special case inside the pathfinder. | `src/Sandata.Core/Squads/FormationCollapse.cs`, `tests/Sandata.Core.Tests/FormationCollapseTests.cs` | `FormationCollapseTests` passes: on the `angle-house` fixture a four-slot group collapses at the entry door and re-expands inside; the collapse fires at exactly the clearance threshold and not one unit either side; and a reflection test asserts no collapse state is stored on `MissionState`. | 19, 34 | |
 | 43 | 7 | Local avoidance: propose, prioritise, commit | Proposals accumulate into a write-only buffer with no unit seeing another's. Commit order is the total key `(groupId, slotIndex, entityId)`. A blocked unit tries one 22.5-degree sidestep, side chosen by a rule pinned on entity id parity, then waits a tick. **Never a force, never an impulse, never a push-apart.** | `src/Sandata.Core/Movement/LocalAvoidance.cs`, `src/Sandata.Core/Movement/MovementProposal.cs`, `src/Sandata.Core/Movement/SidestepRules.cs`, `tests/Sandata.Core.Tests/LocalAvoidanceTests.cs` | `LocalAvoidanceTests` passes: eight units funnelling into one doorway all pass through with no overlap and no deadlock within a pinned tick count; permuting the proposal insertion order changes nothing; the sidestep side is deterministic for a given entity id; and a scan of the movement folder finds no accumulation of a force or velocity vector. | 16, 28, 34 | |
@@ -863,3 +863,90 @@ The rule is proven generically and is not yet wired to the actual door type.
 Whichever task wires sensing into the pipeline has to connect it, and the fact
 that a passing test does not prove the door path works is exactly the sort of
 thing that is invisible six weeks later.
+
+### Wave 6 complete, 2026-08-07
+
+Tasks 34 through 41 merged into `sandata-scaffold`, eight parallel worktrees, no
+conflicts. Counts through the supported entry point, which task 41 made possible:
+
+```
+./scripts/test.ps1 -Configuration Release -Game Sandata
+Total tests: 836
+     Passed: 836
+Total tests: 138
+     Passed: 138
+[PASS] Release repository tests completed.
+```
+
+**Three document errors this wave found and corrected.**
+
+Task 40 measured the sound catalog instead of trusting the prose and found that
+the plan, the design, and the research consolidation all say the matrix is 484
+slots. The catalog as built declares **106 slot rows expanding to 524 individual
+variant files**. The 484 traces to the research consolidation's own summing
+table, which predates task 24's implementation, so the design inherited it and
+the plan inherited it from the design. All three are corrected in place; the
+research table is left as written with a correction note beneath it so the error
+stays traceable rather than being erased.
+
+The corrected cost is **104,800 credits at zero rejects** — not the 96,800 the
+design stated — which still fits the Creator tier at 22 USD. At a realistic 50
+percent reject rate it is 209,600 credits and needs the Pro tier at 99 USD. The
+manifest states plainly that whether credits scale with requested duration is
+**UNVERIFIED**, and that if they do, every row longer than half a second costs
+more than the estimate says.
+
+Task 39 found that this plan's row 39 says "until task 49 measures them" while
+the risk register and task 54's row both say task 53. Task 49 is the tick
+pipeline and 53 is the measurement task, so 53 is right; row 39 is corrected.
+
+**Nothing was generated and nothing was spent.** `scripts/sfx-manifest.ps1`
+contains no network call — verified independently by the integrating thread, not
+only by the task that wrote it — and the script ends by printing where the
+manifest is and that a person has to authorise the spend. `sfx.ps1` gained batch
+mode and per-family trim thresholds and was never executed.
+
+**Provisional constants this wave introduced**, all marked at their site and none
+presented as measured: `SandataSoundBudget.DefaultMaximumInstances` (task 53
+measures the real MonoGame pool ceiling), and task 39's environment-selection
+boundaries `CloseRangeMaxWu = 200` and `DistantRangeMinWu = 800`, which are its
+own reasoned rule derived from the firearm catalog's range-band scale rather than
+a design value. Task 39 also found that `SoundSlot` already carries a per-row
+`TailTicks` from task 24 and used it rather than inventing a second tail
+constant.
+
+### A third client duplication, and the extraction question it raises
+
+Task 39 could not reach `SoundVariantSelector`: `Hukbo.Client` grants
+`InternalsVisibleTo` to `Hukbo.Client.Tests` only. It ported the SplitMix64 mix
+with the same golden-gamma constant and documented why. That is the third time a
+Sandata client task has been forced to copy a Hukbo client internal — the
+spectator camera in task 33, the rotated-block draw in task 37, and now the
+variant selector.
+
+Three duplications is the point at which the question stops being hypothetical:
+whether a `Hukbo.Shared.Client` tier-2 extraction is worth doing, or whether
+`Hukbo.Client` should simply grant `InternalsVisibleTo` to `Sandata.Client`. The
+grant is one line and no code motion; the extraction is cleaner and carries the
+tier-1 hazard in full, since an assembly-level attribute or a same-namespace
+dependency travels with a moved file and neither is visible to an import scan.
+**This is a decision, not a task, and it is deliberately left open here rather
+than settled by whoever next hits the wall.**
+
+### The HUD exists and nothing draws it: task 69
+
+Task 38 built every HUD element as a pure layout helper taking its bounds as a
+parameter, because `SandataGame.cs` belonged to task 33 and was closed by then.
+Task 37 built the operator geometry the same way. Both are correct and neither is
+on screen: no task owns composing the HUD, wiring the renderer and the sound
+player into the game loop, and drawing any of it.
+
+This is the fifth unowned step this session — after `NavGrid`'s passability
+array, the client csproj, the corridor smoothing call, and the RNG system tags —
+and the pattern is now unmistakable. A file-level disjointness audit cannot catch
+a missing *call*, and four of the five were missing calls or missing
+declarations rather than missing files.
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 69 | 7 | Client composition | Compose the HUD from task 38's elements, wire task 37's operator geometry and task 39's sound player into the game loop, and draw all of it through the existing world renderer and theme. The layout helpers stay pure and untouched; this task owns only the composition and the call sites. Where an element needs a value the simulation does not yet expose, pass a documented placeholder rather than reaching into `Sandata.Core`. | `src/Sandata.Client/SandataGame.cs`, `src/Sandata.Client/UI/HudComposer.cs`, `tests/Sandata.Client.Tests/HudComposerTests.cs` | `HudComposerTests` passes with no graphics device: the composed rectangles do not overlap at three window sizes, every element from design section 11's HUD list is present exactly once, and the composer degrades sanely at the smallest supported window rather than producing negative or inverted rectangles. Whether any of it actually appears on screen stays a manual smoke row that only a human at a desktop may flip. | 33, 37, 38, 39 | |

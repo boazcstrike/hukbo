@@ -1493,8 +1493,12 @@ class already does, rather than inheriting the melee default.
 
 ### Generation is gated, and the gate is a hard stop
 
-ElevenLabs bills sound effects at 200 credits per generation. The 484-slot matrix
-is 96,800 credits at zero rejects. The Creator tier at 22 USD per month provides
+ElevenLabs bills sound effects at 200 credits per generation. The catalog as
+built declares 106 slot rows expanding to 524 individual variant files, which is
+104,800 credits at zero rejects. (Corrected 2026-08-07: this paragraph and the
+research consolidation both said 484, a figure that predates task 24's actual
+catalog. Task 40 derived the real counts from the compiled catalog and reported
+the discrepancy rather than reconciling to the document.) The Creator tier at 22 USD per month provides
 121,000 credits. The project's own skill documentation records real take-quality
 variance, with one run peaking at 93 percent usable and another under 1 percent,
 so a realistic run with a 30 to 50 percent reject rate needs 650 to 750
@@ -2082,8 +2086,8 @@ the logger and the logger is shared. New `ev` identifiers are `const` members on
 
 ### `sfx.ps1`
 
-`sfx.ps1` gains a batch mode and per-family trim thresholds so a 484-slot run is
-not 484 process launches, and it gains nothing else. It remains the only script
+`sfx.ps1` gains a batch mode and per-family trim thresholds so a 524-file run is
+not 524 process launches, and it gains nothing else. It remains the only script
 that talks to a network service, it remains an authoring tool outside every
 pipeline, and it still reads `ELEVENLABS_API_KEY` from the environment or the
 untracked `.env` file. The key never belongs in a tracked file, in output, or in

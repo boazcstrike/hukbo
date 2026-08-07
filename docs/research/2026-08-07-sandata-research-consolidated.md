@@ -515,6 +515,13 @@ Eight report families rather than 38 weapons is what makes this tractable.
 | Casings | rifle and pistol x concrete and dirt x 6 | 24 |
 | **Total** | | **484** |
 
+**Correction, 2026-08-07.** This total is wrong against the catalog that was
+actually built. `SandataSoundCatalog` declares 106 slot rows expanding to 524
+individual variant files. Task 40 measured both numbers from the compiled
+catalog and traced the 484 back to this table, which predates the
+implementation. The catalog is authoritative; this table is kept as written so
+the error stays traceable.
+
 Environments are close-dry, indoor tail, outdoor tail, distant, and suppressed.
 Mechanism groups are AK, AR, bullpup, and pistol.
 
