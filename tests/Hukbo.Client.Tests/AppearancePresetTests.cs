@@ -535,6 +535,96 @@ public sealed class AppearancePresetTests
         }
     }
 
+    // --- Leader-gated selection (L1: leadership must decide the pool) ---
+
+    [Fact]
+    public void SelectPreset_LeaderTrueForVisayanAlwaysResolvesVis15()
+    {
+        // The Visayan block's leader pool holds exactly one row (VIS-15),
+        // so the weighted walk resolves it for every probed entity id
+        // regardless of the roll.
+        for (ulong entityId = 0; entityId < 200; entityId++)
+        {
+            var resolved = AppearancePresets.SelectPreset(
+                entityId, VisualScopeTag.Visayan, PawnWeaponRole.Kalis, isLeader: true);
+
+            Assert.Equal(AppearancePresetsVisayan.Vis15.Catalog.Id, resolved.Catalog.Id);
+        }
+    }
+
+    [Fact]
+    public void SelectPreset_LeaderTrueForTagalogResolvesOnlyTag13OrTag15()
+    {
+        var allowedIds = new HashSet<string>(
+            [
+                AppearancePresetsTagalog.Tag13.Catalog.Id,
+                AppearancePresetsTagalog.Tag15.Catalog.Id,
+            ],
+            StringComparer.Ordinal);
+
+        for (ulong entityId = 0; entityId < 200; entityId++)
+        {
+            var resolved = AppearancePresets.SelectPreset(
+                entityId, VisualScopeTag.Tagalog, PawnWeaponRole.Kalis, isLeader: true);
+
+            Assert.Contains(resolved.Catalog.Id, allowedIds);
+        }
+    }
+
+    [Fact]
+    public void SelectPreset_NonLeaderNeverResolvesToAnyOfTheThreeLeaderRows()
+    {
+        var leaderIds = new HashSet<string>(
+            [
+                AppearancePresetsVisayan.Vis15.Catalog.Id,
+                AppearancePresetsTagalog.Tag13.Catalog.Id,
+                AppearancePresetsTagalog.Tag15.Catalog.Id,
+            ],
+            StringComparer.Ordinal);
+        var blocks = new[] { VisualScopeTag.Visayan, VisualScopeTag.Tagalog };
+
+        foreach (var block in blocks)
+        {
+            foreach (var weapon in Enum.GetValues<PawnWeaponRole>())
+            {
+                for (ulong entityId = 0; entityId < 200; entityId++)
+                {
+                    var resolved = AppearancePresets.SelectPreset(entityId, block, weapon, isLeader: false);
+
+                    Assert.DoesNotContain(resolved.Catalog.Id, leaderIds);
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void SelectPreset_LeaderTrueForCagayanFallsBackToTheGeneralPoolRatherThanLev01()
+    {
+        // Northern Luzon ships no chief row at all (deliberately), so its
+        // leader pool is empty and SelectPreset must fall back to the
+        // block's general pool — still a Cagayan row — rather than all the
+        // way to Lev01.
+        for (ulong entityId = 0; entityId < 200; entityId++)
+        {
+            var resolved = AppearancePresets.SelectPreset(
+                entityId, VisualScopeTag.Cagayan, PawnWeaponRole.Kalis, isLeader: true);
+
+            Assert.Equal(VisualScopeTag.Cagayan, resolved.Block);
+        }
+    }
+
+    [Fact]
+    public void SelectPreset_DefaultIsLeaderFalseMatchesAnExplicitFalseCall()
+    {
+        // The trailing optional parameter must not silently change today's
+        // three-argument call sites' meaning.
+        var withDefault = AppearancePresets.SelectPreset(42, VisualScopeTag.Tagalog, PawnWeaponRole.Kalis);
+        var withExplicitFalse = AppearancePresets.SelectPreset(
+            42, VisualScopeTag.Tagalog, PawnWeaponRole.Kalis, isLeader: false);
+
+        Assert.Equal(withExplicitFalse.Catalog.Id, withDefault.Catalog.Id);
+    }
+
     // --- Recipe construction guards ---
 
     [Fact]
@@ -575,6 +665,23 @@ public sealed class AppearancePresetTests
             AppearancePresets.Lev01.Recipe,
             AppearancePresetLoadoutCompatibility.Any,
             RarityWeight: 0));
+    }
+
+    [Fact]
+    public void AppearancePresetEntry_StatusDefaultsToGeneralWhenUnspecified()
+    {
+        Assert.Equal(AppearancePresetStatus.General, AppearancePresets.Lev01.Status);
+    }
+
+    [Fact]
+    public void AppearancePresetEntry_RejectsAnUndefinedStatus()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new AppearancePresetEntry(
+            AppearancePresets.Lev01.Catalog,
+            VisualScopeTag.UnscopedGeneric,
+            AppearancePresets.Lev01.Recipe,
+            AppearancePresetLoadoutCompatibility.Any,
+            Status: (AppearancePresetStatus)99));
     }
 
     // --- Test helpers ---

@@ -432,4 +432,23 @@ public sealed class AppearancePresetsVisayanTests
                 $"{preset.Catalog.Id} selection probability {probability:P2} exceeds the 2% target.");
         }
     }
+
+    // --- Leader status gate (L1) ---
+
+    [Fact]
+    public void OnlyVis15CarriesLeaderStatus_EveryOtherPresetIsGeneral()
+    {
+        // Vis13 and Vis14 are elite rows, not leader rows: prominence and
+        // wealth, not office, so they stay General even though they share
+        // Vis15's small RarityWeight (leader-character-design.md section
+        // 4.1: "the elite rows ... stay in the general pool").
+        foreach (var preset in AppearancePresetsVisayan.All)
+        {
+            var expected = preset.Catalog.Id == AppearancePresetsVisayan.Vis15.Catalog.Id
+                ? AppearancePresetStatus.Leader
+                : AppearancePresetStatus.General;
+
+            Assert.Equal(expected, preset.Status);
+        }
+    }
 }

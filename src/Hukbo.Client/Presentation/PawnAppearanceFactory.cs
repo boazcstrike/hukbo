@@ -20,6 +20,24 @@ internal static class PawnAppearanceFactory
     // Weapon and shield roles come only from the authoritative Core loadout.
     // Entity ID drives stature, build, clothing, skin, and head treatment
     // only — it must never influence equipment identity.
+    /// <param name="isLeader">
+    /// Whether the simulation has currently elected this entity as its
+    /// contingent's leader (<c>AgentView.IsLeader</c>). Forwarded to
+    /// <see cref="AppearancePresets.SelectPreset"/> only — it changes which
+    /// preset pool is walked and therefore
+    /// <see cref="PawnAppearance.AppearancePresetId"/> and
+    /// <see cref="PawnAppearance.GarmentBaseTone"/>, never
+    /// <paramref name="entityId"/>'s stature, build, skin, clothing, accent,
+    /// head treatment, weapon tint, or shield skin, which are all rolled
+    /// above this call and do not read it. Defaults to
+    /// <see langword="false"/> so the many call sites that build an
+    /// appearance for a purpose other than leadership (geometry, quad-count,
+    /// and cull tests among them) keep compiling unchanged; a caller that
+    /// does know the real value — <see cref="PawnAppearanceCache.Resolve"/>
+    /// chief among them — must forward it rather than lean on this default,
+    /// because an omitted argument here is indistinguishable from a
+    /// deliberate "not a leader".
+    /// </param>
     /// <param name="factionId">
     /// VIS-018: the pawn's faction, feeding the appearance-preset block-
     /// assignment stream (<see cref="AppearancePresets.SelectBlock"/>).
@@ -38,6 +56,7 @@ internal static class PawnAppearanceFactory
         ulong entityId,
         WeaponId weapon,
         ShieldId shield,
+        bool isLeader = false,
         int factionId = 0,
         ulong scenarioSeed = 0)
     {
@@ -70,9 +89,11 @@ internal static class PawnAppearanceFactory
         // (AppearanceBlockAssignmentSalt, AppearancePresetSelectionSalt)
         // never touch PawnBodySalt/PawnClothingSalt/PawnDetailSalt, so
         // bodyMix/clothingMix/detailMix and everything derived from them
-        // above are unaffected by this block.
+        // above are unaffected by this block. isLeader chooses which of
+        // SelectPreset's two pools is walked (leader-character-design.md
+        // section 4.1); it introduces no new salt of its own.
         var block = AppearancePresets.SelectBlock(scenarioSeed, factionId);
-        var preset = AppearancePresets.SelectPreset(entityId, block, weaponRole);
+        var preset = AppearancePresets.SelectPreset(entityId, block, weaponRole, isLeader);
         var skinColor = SelectSkinColor(detailMix);
 
         // The garment base tone folded into the torso fill at Low tier

@@ -195,6 +195,39 @@ public sealed class PawnQuadCountTests
             PawnQuadCount.Count(kalisLayout, kalis, PawnVisualState.Normal));
     }
 
+    /// <summary>
+    /// <c>PawnRenderer.DrawLeaderMark</c> (leader rank plan L4, wired through
+    /// <c>PawnRenderer.Draw</c>'s <c>isLeader</c> branch): a filled base band
+    /// plus two stroked rising arms, per <c>GetLeaderMarkGlyph</c>'s own doc
+    /// comment — "The three quads <c>DrawLeaderMark</c> submits" — a fixed +3
+    /// over the same layout's non-leader count, at every detail tier, since
+    /// the leader mark has no tier gate of its own. A differential assertion,
+    /// exercised at all three tiers, rather than a fourth absolute pin, so it
+    /// stays correct even if some other element's count changes.
+    /// </summary>
+    [Theory]
+    [InlineData(LowTierZoom)]
+    [InlineData(MediumTierZoom)]
+    [InlineData(HighTierZoom)]
+    public void Count_AddsExactlyThreeForTheLeaderMark(float zoom)
+    {
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan, ShieldId.None);
+        var layout = PawnGeometry.Create(Vector2.Zero, zoom, appearance);
+
+        var nonLeader = PawnQuadCount.Count(
+            layout,
+            appearance,
+            PawnVisualState.Normal,
+            isLeader: false);
+        var leader = PawnQuadCount.Count(
+            layout,
+            appearance,
+            PawnVisualState.Normal,
+            isLeader: true);
+
+        Assert.Equal(nonLeader + 3, leader);
+    }
+
     [Fact]
     public void Count_TorsoPlaceholderDrawsExactlyOneQuadInsteadOfTheTorsoCapsule()
     {

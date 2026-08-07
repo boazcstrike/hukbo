@@ -54,7 +54,7 @@ public sealed class PawnAppearanceCacheTests
 
                 Assert.Equal(
                     PawnAppearanceFactory.Create(entityId, weapon, shield),
-                    cache.Resolve(ordinal, entityId, weapon, shield));
+                    cache.Resolve(ordinal, entityId, weapon, shield, isLeader: false));
             }
         }
     }
@@ -82,7 +82,7 @@ public sealed class PawnAppearanceCacheTests
             ordinal++)
         {
             var (entityId, weapon, shield) = Agent(ordinal);
-            cache.Resolve(ordinal, entityId, weapon, shield);
+            cache.Resolve(ordinal, entityId, weapon, shield, isLeader: false);
         }
 
         Assert.Equal(PawnAppearanceCache.Capacity, cache.Fill);
@@ -97,7 +97,7 @@ public sealed class PawnAppearanceCacheTests
 
             Assert.Equal(
                 PawnAppearanceFactory.Create(entityId, weapon, shield),
-                cache.Resolve(ordinal, entityId, weapon, shield));
+                cache.Resolve(ordinal, entityId, weapon, shield, isLeader: false));
         }
 
         var (outOfRangeId, outOfRangeWeapon, outOfRangeShield) = Agent(3);
@@ -111,7 +111,8 @@ public sealed class PawnAppearanceCacheTests
                 -1,
                 outOfRangeId,
                 outOfRangeWeapon,
-                outOfRangeShield));
+                outOfRangeShield,
+                isLeader: false));
 
         Assert.Equal(PawnAppearanceCache.Capacity, cache.Fill);
 
@@ -189,28 +190,28 @@ public sealed class PawnAppearanceCacheTests
         var recorder = new SpriteBatchRenderMetricsRecorder();
         var cache = new PawnAppearanceCache(recorder);
 
-        cache.Resolve(0, 7UL, WeaponId.Kampilan, ShieldId.TallHardwood);
+        cache.Resolve(0, 7UL, WeaponId.Kampilan, ShieldId.TallHardwood, isLeader: false);
 
         Assert.Equal(
             PawnAppearanceFactory.Create(
                 9UL,
                 WeaponId.Kampilan,
                 ShieldId.TallHardwood),
-            cache.Resolve(0, 9UL, WeaponId.Kampilan, ShieldId.TallHardwood));
+            cache.Resolve(0, 9UL, WeaponId.Kampilan, ShieldId.TallHardwood, isLeader: false));
 
         Assert.Equal(
             PawnAppearanceFactory.Create(
                 9UL,
                 WeaponId.Kalis,
                 ShieldId.TallHardwood),
-            cache.Resolve(0, 9UL, WeaponId.Kalis, ShieldId.TallHardwood));
+            cache.Resolve(0, 9UL, WeaponId.Kalis, ShieldId.TallHardwood, isLeader: false));
 
         Assert.Equal(
             PawnAppearanceFactory.Create(
                 9UL,
                 WeaponId.Kalis,
                 ShieldId.None),
-            cache.Resolve(0, 9UL, WeaponId.Kalis, ShieldId.None));
+            cache.Resolve(0, 9UL, WeaponId.Kalis, ShieldId.None, isLeader: false));
 
         var snapshot = recorder.Snapshot();
 
@@ -218,6 +219,58 @@ public sealed class PawnAppearanceCacheTests
         // slot; the other three overwrote an occupied one.
         Assert.Equal(0, snapshot.AppearanceCacheHits);
         Assert.Equal(4, snapshot.AppearanceCacheMisses);
+        Assert.Equal(1, snapshot.AppearanceCacheFills);
+        Assert.Equal(1, cache.Fill);
+    }
+
+    /// <summary>
+    /// The half of the key declaration that L2 owns end to end: leadership.
+    /// Resolving the same ordinal and the same entity/weapon/shield triple
+    /// first as a non-leader and then as a leader must miss — never hand back
+    /// the non-leader appearance recorded a moment earlier — and the slot it
+    /// overwrites was already occupied, so <see cref="PawnAppearanceCache.Fill"/>
+    /// must not rise a second time. This is the scenario a leader's death and
+    /// the next survivor's promotion produce mid-battle
+    /// (<c>MovementRules.ScanContingentLeadersAndLivingCounts</c>).
+    /// </summary>
+    [Fact]
+    public void PromotingTheSameOrdinalToLeaderMissesAndReturnsTheLeaderAppearance()
+    {
+        var recorder = new SpriteBatchRenderMetricsRecorder();
+        var cache = new PawnAppearanceCache(recorder);
+
+        var asNonLeader = cache.Resolve(
+            0,
+            9UL,
+            WeaponId.Kalis,
+            ShieldId.TallHardwood,
+            isLeader: false);
+
+        Assert.Equal(1, cache.Fill);
+
+        var asLeader = cache.Resolve(
+            0,
+            9UL,
+            WeaponId.Kalis,
+            ShieldId.TallHardwood,
+            isLeader: true);
+
+        Assert.Equal(
+            PawnAppearanceFactory.Create(
+                9UL,
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                isLeader: true),
+            asLeader);
+        Assert.NotEqual(asNonLeader, asLeader);
+
+        var snapshot = recorder.Snapshot();
+
+        Assert.Equal(0, snapshot.AppearanceCacheHits);
+        Assert.Equal(2, snapshot.AppearanceCacheMisses);
+
+        // The ordinal 0 slot was already occupied by the non-leader read, so
+        // the leader read overwrites it rather than filling a new slot.
         Assert.Equal(1, snapshot.AppearanceCacheFills);
         Assert.Equal(1, cache.Fill);
     }
@@ -291,7 +344,7 @@ public sealed class PawnAppearanceCacheTests
         for (var ordinal = 0; ordinal < agents; ordinal++)
         {
             var (entityId, weapon, shield) = Agent(ordinal);
-            cache.Resolve(ordinal, entityId, weapon, shield);
+            cache.Resolve(ordinal, entityId, weapon, shield, isLeader: false);
         }
     }
 
