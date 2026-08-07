@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Reflection;
 using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
 
@@ -123,14 +124,19 @@ public sealed class OrderQueueTests
         var lowerSequenceHigherId = MakeOrder(orderId: 9, orderSequence: 3, targetTick: 100);
         var higherSequenceLowerId = MakeOrder(orderId: 2, orderSequence: 7, targetTick: 100);
 
-        var queueLowerFirst = OrderQueue.Empty with
-        {
-            Orders = ImmutableArray.Create(lowerSequenceHigherId, higherSequenceLowerId),
-        };
-        var queueHigherFirst = OrderQueue.Empty with
-        {
-            Orders = ImmutableArray.Create(higherSequenceLowerId, lowerSequenceHigherId),
-        };
+        // These two hand-crafted orders deliberately decorrelate OrderId
+        // from OrderSequence, which SubmitValidated's dense-counter
+        // assignment cannot produce; built through the named, non-validating
+        // resume door instead (task 72), exactly as it would be after a
+        // snapshot round trip of orders SubmitValidated already accepted.
+        var queueLowerFirst = OrderQueue.RestoreForResume(
+            nextOrderId: 10,
+            nextOrderSequence: 8,
+            ImmutableArray.Create(lowerSequenceHigherId, higherSequenceLowerId));
+        var queueHigherFirst = OrderQueue.RestoreForResume(
+            nextOrderId: 10,
+            nextOrderSequence: 8,
+            ImmutableArray.Create(higherSequenceLowerId, lowerSequenceHigherId));
 
         var expected = new[] { lowerSequenceHigherId, higherSequenceLowerId };
 
@@ -178,7 +184,12 @@ public sealed class OrderQueueTests
 
         Assert.DoesNotContain(shuffledStorage, order => order is null);
 
-        var queue = OrderQueue.Empty with { Orders = ImmutableArray.Create(shuffledStorage) };
+        // Built through the named, non-validating resume door (task 72)
+        // rather than a direct `with { Orders = ... }`, matching how this
+        // shuffled-storage fixture would actually arrive after a snapshot
+        // round trip of orders SubmitValidated already accepted.
+        var queue = OrderQueue.RestoreForResume(
+            nextOrderId: count, nextOrderSequence: count, ImmutableArray.Create(shuffledStorage));
 
         var applied = queue.InApplicationOrder();
 
@@ -275,6 +286,9 @@ public sealed class OrderQueueTests
 
     private static WallBuckets NoWalls(NavGrid grid) => WallBuckets.Build(grid, [], [], [], []);
 
+    private static WallBuckets OneWall(NavGrid grid, long ax, long ay, long bx, long by) =>
+        WallBuckets.Build(grid, [ax], [ay], [bx], [by]);
+
     /// <summary>
     /// Task 58's wiring requirement: <see cref="OrderQueue.SubmitValidated"/>
     /// runs design section 16's four rejection rules at the submission
@@ -359,5 +373,144 @@ public sealed class OrderQueueTests
         Assert.Equal(nodes, submitted.PathNodes);
         Assert.Single(queue.Orders);
         Assert.Equal(submitted, queue.Orders[0]);
+    }
+
+    /// <summary>
+    /// Task 72's own acceptance criterion, verbatim: "no public member other
+    /// than <c>SubmitValidated</c> and the named restore path can add an
+    /// order to a queue." This walks <see cref="OrderQueue"/>'s writable
+    /// surface by shape rather than by name — every public property whose
+    /// type can hold an <see cref="Order"/>, and every public method whose
+    /// return type is or contains <see cref="OrderQueue"/> — so it would
+    /// also catch a differently named order-holding property or a new
+    /// order-producing method added later, not just a regression of
+    /// <see cref="OrderQueue.Orders"/> itself back to a public setter. The
+    /// plan's "second bypassable door" finding names exactly this failure
+    /// shape: "a second constructor, an <c>init</c> accessor on a record, a
+    /// <c>with</c> expression, a public collection property."
+    /// </summary>
+    [Fact]
+    public void OrderQueue_PublicWritableSurface_OnlyReachesSubmitValidatedAndRestoreForResume()
+    {
+        var queueType = typeof(OrderQueue);
+
+        var publicSettablePropertiesThatCanHoldAnOrder = queueType
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(property => property.PropertyType == typeof(Order) || property.PropertyType == typeof(ImmutableArray<Order>))
+            .Where(property => property.GetSetMethod(nonPublic: false) is not null)
+            .Select(property => property.Name)
+            .ToArray();
+
+        Assert.Empty(publicSettablePropertiesThatCanHoldAnOrder);
+
+        var publicMethodNamesProducingAQueue = queueType
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(method => !method.Name.Contains('<', StringComparison.Ordinal))
+            .Where(method => ProducesAnOrderQueue(method.ReturnType))
+            .Select(method => method.Name)
+            .Distinct()
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            new[] { nameof(OrderQueue.RestoreForResume), nameof(OrderQueue.SubmitValidated) },
+            publicMethodNamesProducingAQueue);
+    }
+
+    /// <summary>
+    /// True when <paramref name="returnType"/> is <see cref="OrderQueue"/>
+    /// itself, or a <see cref="ValueTuple"/> carrying one as one of its
+    /// elements — the shape <see cref="OrderQueue.SubmitValidated"/> returns
+    /// (<c>(OrderQueue Queue, Order? Submitted, OrderRejection? Rejection)</c>).
+    /// </summary>
+    private static bool ProducesAnOrderQueue(Type returnType)
+    {
+        if (returnType == typeof(OrderQueue))
+        {
+            return true;
+        }
+
+        return returnType.IsGenericType
+            && returnType.FullName is not null
+            && returnType.FullName.StartsWith("System.ValueTuple", StringComparison.Ordinal)
+            && returnType.GetGenericArguments().Any(argument => argument == typeof(OrderQueue));
+    }
+
+    /// <summary>
+    /// Task 72: <see cref="OrderQueue.RestoreForResume"/> performs no
+    /// validation, proven the hard way — not merely that a valid order
+    /// round-trips, but that an order <see cref="OrderQueue.SubmitValidated"/>
+    /// would actively reject under the current nav bake still comes back
+    /// unchanged. A wrong implementation that revalidates on restore fails
+    /// this test and only this test: every other fact in this file exercises
+    /// orders that pass validation, so an accidentally revalidating
+    /// implementation would still pass every one of them.
+    /// </summary>
+    [Fact]
+    public void RestoreForResume_DoesNotValidate_AnOrderSubmitValidatedWouldReject_ComesBackIntact()
+    {
+        // A vertical wall at x = 20 spanning the whole grid height; a path
+        // segment straight through it at y = 20 is a textbook
+        // SegmentCrossesWall rejection -- confirmed against
+        // SubmitValidated itself below, not assumed.
+        var grid = NewOpenGrid(widthCells: 10, heightCells: 10);
+        var wallBuckets = OneWall(grid, ax: 20, ay: 0, bx: 20, by: 40);
+        var wallCrossingPathNodes = ImmutableArray.Create(new OrderPathNode(10, 20), new OrderPathNode(30, 20));
+
+        var (_, _, rejection) = OrderQueue.Empty.SubmitValidated(
+            targetTick: 1,
+            factionId: 0,
+            ImmutableArray<ulong>.Empty,
+            OrderKind.MoveAlongPath,
+            grid,
+            wallBuckets,
+            wallCrossingPathNodes);
+
+        Assert.NotNull(rejection);
+        Assert.Equal(OrderRejectReason.SegmentCrossesWall, rejection!.Reason);
+
+        // The same order, as it would have been stored had it been submitted
+        // and accepted before the nav bake changed underneath it -- exactly
+        // the scenario the restore door exists for.
+        var wallCrossingOrder = new Order(OrderId: 0, OrderSequence: 0, TargetTick: 1, FactionId: 0, OrderKind.MoveAlongPath)
+        {
+            Addressees = ImmutableArray<ulong>.Empty,
+            PathNodes = wallCrossingPathNodes,
+        };
+
+        var restored = OrderQueue.RestoreForResume(
+            nextOrderId: 1, nextOrderSequence: 1, ImmutableArray.Create(wallCrossingOrder));
+
+        Assert.Single(restored.Orders);
+        Assert.Equal(wallCrossingOrder, restored.Orders[0]);
+        Assert.Equal(wallCrossingPathNodes, restored.Orders[0].PathNodes);
+    }
+
+    /// <summary>
+    /// A queue built entirely through submission, then handed through the
+    /// resume door with its own counters and its own order array, equals the
+    /// original by full record equality. <see cref="OrderQueue.Equals(OrderQueue?)"/>
+    /// compares <see cref="OrderQueue.NextOrderId"/> and
+    /// <see cref="OrderQueue.NextOrderSequence"/> alongside
+    /// <see cref="OrderQueue.Orders"/>, so this proves the round trip carries
+    /// both counters, not just the order array.
+    /// </summary>
+    [Fact]
+    public void RestoreForResume_RoundTripsAQueueBuiltBySubmission_IncludingBothCounters()
+    {
+        var grid = NewOpenGrid();
+        var wallBuckets = NoWalls(grid);
+        var queue = OrderQueue.Empty;
+
+        (queue, _, _) = queue.SubmitValidated(
+            targetTick: 1, factionId: 0, ImmutableArray<ulong>.Empty, OrderKind.Hold, grid, wallBuckets);
+        (queue, _, _) = queue.SubmitValidated(
+            targetTick: 2, factionId: 1, ImmutableArray<ulong>.Empty, OrderKind.Sync, grid, wallBuckets);
+
+        var restored = OrderQueue.RestoreForResume(queue.NextOrderId, queue.NextOrderSequence, queue.Orders);
+
+        Assert.Equal(queue, restored);
+        Assert.Equal(queue.NextOrderId, restored.NextOrderId);
+        Assert.Equal(queue.NextOrderSequence, restored.NextOrderSequence);
     }
 }
