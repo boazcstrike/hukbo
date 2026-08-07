@@ -3,12 +3,12 @@ using System.Collections.Immutable;
 namespace Sandata.Core.Navigation;
 
 /// <summary>
-/// One vertex of a funnel-smoothed path polyline, in raw world units — the
-/// same unit <see cref="Funnel.StringPull"/> writes and <see cref="NavGrid"/>
-/// measures cells in. Not a <c>FixedPoint</c> value: the nav grid and the
-/// funnel both work in plain integer world units, matching
-/// <see cref="NavGrid.CellSizeWu"/>, so this type carries the coordinate
-/// pair verbatim rather than re-scaling it.
+/// One vertex of a line-of-sight-smoothed path polyline, in raw world units —
+/// the same unit <see cref="PathSmoothing.Smooth"/> writes and
+/// <see cref="NavGrid"/> measures cells in. Not a <c>FixedPoint</c> value:
+/// the nav grid and the smoothing pass both work in plain integer world
+/// units, matching <see cref="NavGrid.CellSizeWu"/>, so this type carries the
+/// coordinate pair verbatim rather than re-scaling it.
 /// </summary>
 /// <param name="X">The vertex's X coordinate, in world units.</param>
 /// <param name="Y">The vertex's Y coordinate, in world units.</param>
@@ -27,16 +27,22 @@ public readonly record struct PathPoint(long X, long Y);
 ///
 /// <para>
 /// <b>Two shapes are published, and they are not the same thing.</b>
-/// <see cref="GetCurrentPath"/> returns the funnel-smoothed polyline — design
-/// section 7's "Shape": "a funnel string-pull snaps the resulting corridor to
-/// the real vector wall geometry" — which is what a mover should actually
-/// walk. <see cref="GetCurrentCorridor"/> returns the raw ordered nav grid
-/// cell-index corridor <see cref="NavSearch.TryFindPath"/> found before the
-/// funnel touched it, for a caller that genuinely wants cells rather than a
-/// walkable line. Both are derived, never hashed, never snapshotted — design
-/// section 4's "Published path polylines and their cumulative arclengths"
-/// under "What is derived and never hashed" — and both are recomputed from
-/// the same authoritative <see cref="PathRequest"/> on every resume.
+/// <see cref="GetCurrentPath"/> returns the line-of-sight-smoothed polyline —
+/// design section 7's 2026-08-07 amendment, "greedy line-of-sight smoothing,
+/// over the corridor, using the wall bucket index this design already
+/// builds" — which is what a mover should actually walk. Its predecessor,
+/// <see cref="Funnel.StringPull"/>, is still ported and tested but is not on
+/// this publish path: a grid A* corridor is a chain of single-cell-wide
+/// portals, and the funnel cannot straighten what such a narrow portal never
+/// gave it room to straighten, per the amendment's measurement.
+/// <see cref="GetCurrentCorridor"/> returns the raw ordered nav grid
+/// cell-index corridor <see cref="NavSearch.TryFindPath"/> found before
+/// smoothing touched it, for a caller that genuinely wants cells rather than
+/// a walkable line. Both are derived, never hashed, never snapshotted —
+/// design section 4's "Published path polylines and their cumulative
+/// arclengths" under "What is derived and never hashed" — and both are
+/// recomputed from the same authoritative <see cref="PathRequest"/> on every
+/// resume.
 /// </para>
 ///
 /// <para>
@@ -165,10 +171,16 @@ public sealed class PathService
     /// <see cref="NavSearch.TryFindPath"/>'s own contract. Not retained past
     /// this call.
     /// </param>
-    /// <exception cref="ArgumentNullException"><paramref name="grid"/> is <see langword="null"/>.</exception>
-    public void Advance(long currentTick, NavGrid grid, ReadOnlySpan<bool> blocked)
+    /// <param name="wallBuckets">
+    /// The wall segment index a published path's line-of-sight smoothing
+    /// queries against, per <see cref="PathSmoothing.Smooth"/>. Not retained
+    /// past this call.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="grid"/> or <paramref name="wallBuckets"/> is <see langword="null"/>.</exception>
+    public void Advance(long currentTick, NavGrid grid, ReadOnlySpan<bool> blocked, WallBuckets wallBuckets)
     {
         ArgumentNullException.ThrowIfNull(grid);
+        ArgumentNullException.ThrowIfNull(wallBuckets);
 
         foreach (var group in _groups)
         {
@@ -188,7 +200,7 @@ public sealed class PathService
                 continue;
             }
 
-            Publish(group, grid);
+            Publish(group, grid, wallBuckets);
         }
     }
 
@@ -207,7 +219,7 @@ public sealed class PathService
     /// then calling <see cref="NavSearch.TryFindPath"/> again with this
     /// request's <see cref="PathRequest.StartCellIndex"/> and
     /// <see cref="PathRequest.GoalCellIndex"/> and running
-    /// <see cref="Funnel.StringPull"/> over the resulting corridor,
+    /// <see cref="PathSmoothing.Smooth"/> over the resulting corridor,
     /// reproduces the identical smoothed polyline this service published
     /// from it.
     /// </summary>
@@ -226,27 +238,27 @@ public sealed class PathService
     }
 
     /// <summary>
-    /// The group's current published path, as a funnel-smoothed polyline of
-    /// world-unit vertices from its start position to its goal position
-    /// inclusive, oldest first — the shape a mover should actually walk, per
-    /// design section 7. Empty when the group has never published a path, or
-    /// when its most recently published search found the goal unreachable —
-    /// see <see cref="GetReasonCode"/> to tell those two apart, and to tell
-    /// either apart from a path that is merely still awaiting its latency.
-    /// See <see cref="GetCurrentCorridor"/> for the raw cell sequence this
-    /// polyline was smoothed from.
+    /// The group's current published path, as a line-of-sight-smoothed
+    /// polyline of world-unit vertices from its start position to its goal
+    /// position inclusive, oldest first — the shape a mover should actually
+    /// walk, per design section 7's 2026-08-07 amendment. Empty when the
+    /// group has never published a path, or when its most recently published
+    /// search found the goal unreachable — see <see cref="GetReasonCode"/> to
+    /// tell those two apart, and to tell either apart from a path that is
+    /// merely still awaiting its latency. See <see cref="GetCurrentCorridor"/>
+    /// for the raw cell sequence this polyline was smoothed from.
     /// </summary>
     public ImmutableArray<PathPoint> GetCurrentPath(int groupId) => FindGroup(groupId)?.CurrentPath ?? ImmutableArray<PathPoint>.Empty;
 
     /// <summary>
     /// The group's current published path as the raw ordered sequence of nav
     /// grid cell indices <see cref="NavSearch.TryFindPath"/> found, from its
-    /// start cell to its goal cell inclusive, before the funnel string-pull
-    /// smoothed it into <see cref="GetCurrentPath"/>'s polyline. Kept
-    /// available for a caller that genuinely wants cells rather than a
-    /// walkable line. Empty and non-empty exactly when
-    /// <see cref="GetCurrentPath"/> is — both are published together by
-    /// <see cref="Publish"/> from the same search result.
+    /// start cell to its goal cell inclusive, before line-of-sight smoothing
+    /// turned it into <see cref="GetCurrentPath"/>'s polyline. Kept available
+    /// for a caller that genuinely wants cells rather than a walkable line.
+    /// Empty and non-empty exactly when <see cref="GetCurrentPath"/> is —
+    /// both are published together by <see cref="Publish"/> from the same
+    /// search result.
     /// </summary>
     public ImmutableArray<int> GetCurrentCorridor(int groupId) => FindGroup(groupId)?.CurrentCorridor ?? ImmutableArray<int>.Empty;
 
@@ -294,18 +306,18 @@ public sealed class PathService
     /// <summary>
     /// Publishes <paramref name="group"/>'s search result — a found path
     /// becomes both <see cref="GroupState.CurrentCorridor"/> (the raw cells)
-    /// and, funnel-smoothed via <see cref="SmoothCorridor"/>,
+    /// and, line-of-sight-smoothed via <see cref="SmoothCorridor"/>,
     /// <see cref="GroupState.CurrentPath"/> (the polyline
     /// <see cref="GetCurrentPath"/> returns); an unreachable result clears
     /// both. Instance rather than static because smoothing reuses this
     /// service's own scratch buffers.
     /// </summary>
-    private void Publish(GroupState group, NavGrid grid)
+    private void Publish(GroupState group, NavGrid grid, WallBuckets wallBuckets)
     {
         if (group.PendingOutcome == NavSearchOutcome.PathFound)
         {
             group.CurrentCorridor = group.PendingPath;
-            group.CurrentPath = SmoothCorridor(group.PendingPath, grid);
+            group.CurrentPath = SmoothCorridor(group.PendingPath, grid, wallBuckets);
         }
         else
         {
@@ -319,7 +331,7 @@ public sealed class PathService
     }
 
     /// <summary>
-    /// Runs <see cref="Funnel.StringPull"/> over <paramref name="corridor"/>,
+    /// Runs <see cref="PathSmoothing.Smooth"/> over <paramref name="corridor"/>,
     /// growing this service's reused <see cref="_scratchSmoothedX"/> and
     /// <see cref="_scratchSmoothedY"/> arrays on demand — never shrinking
     /// them, and never reallocating on a call a previous, larger corridor
@@ -328,18 +340,15 @@ public sealed class PathService
     /// <see cref="_scratchExpandedCells"/> are already reused across calls.
     /// </summary>
     /// <remarks>
-    /// The requested capacity is <c>corridor.Length + 2</c>. Walking
-    /// <see cref="Funnel.StringPull"/>'s own loop proves this can never be
-    /// exceeded: one point for the initial apex, at most one committed point
-    /// per portal transition (the loop visits exactly <c>corridor.Length</c>
-    /// portals and <c>i</c> only ever advances, so no portal is revisited),
-    /// and one for the unconditional final endpoint append. A capacity this
-    /// size therefore never triggers <see cref="Funnel.StringPull"/>'s
-    /// early-stop truncation.
+    /// The requested capacity is <c>corridor.Length</c> exactly:
+    /// <see cref="PathSmoothing.Smooth"/>'s own remarks prove its output can
+    /// never hold more points than the corridor holds cells, so this never
+    /// under-sizes the call and never allocates more than the true worst
+    /// case requires.
     /// </remarks>
-    private ImmutableArray<PathPoint> SmoothCorridor(ImmutableArray<int> corridor, NavGrid grid)
+    private ImmutableArray<PathPoint> SmoothCorridor(ImmutableArray<int> corridor, NavGrid grid, WallBuckets wallBuckets)
     {
-        var capacity = corridor.Length + 2;
+        var capacity = corridor.Length;
         if (_scratchSmoothedX.Length < capacity)
         {
             _scratchSmoothedX = new long[capacity];
@@ -348,7 +357,7 @@ public sealed class PathService
 
         var outputX = _scratchSmoothedX.AsSpan(0, capacity);
         var outputY = _scratchSmoothedY.AsSpan(0, capacity);
-        var count = Funnel.StringPull(corridor.AsSpan(), outputX, outputY, grid);
+        var count = PathSmoothing.Smooth(corridor.AsSpan(), outputX, outputY, grid, wallBuckets);
 
         var builder = ImmutableArray.CreateBuilder<PathPoint>(count);
         for (var i = 0; i < count; i++)

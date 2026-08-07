@@ -26,18 +26,19 @@ public sealed class PathServiceTests
         ]);
         const long requestTick = 10;
         const int latency = 3;
+        var soloWallBuckets = WallBuckets.Build(soloGrid, [], [], [], []);
 
         var soloService = new PathService(latency);
         soloService.RequestPath(groupId: 1, start, goal, requestTick);
 
         for (var tick = requestTick; tick < requestTick + latency; tick++)
         {
-            soloService.Advance(tick, soloGrid, soloBlocked);
+            soloService.Advance(tick, soloGrid, soloBlocked, soloWallBuckets);
             Assert.True(soloService.GetCurrentPath(1).IsEmpty, $"tick {tick} must not publish yet");
             Assert.Equal(PathReasonCode.AwaitingLatency, soloService.GetReasonCode(1));
         }
 
-        soloService.Advance(requestTick + latency, soloGrid, soloBlocked);
+        soloService.Advance(requestTick + latency, soloGrid, soloBlocked, soloWallBuckets);
         var soloPath = soloService.GetCurrentPath(1);
         Assert.False(soloPath.IsEmpty);
         Assert.Equal(PathReasonCode.PathValid, soloService.GetReasonCode(1));
@@ -56,6 +57,7 @@ public sealed class PathServiceTests
             ".....",
             "....G",
         ]);
+        var crowdedWallBuckets = WallBuckets.Build(crowdedGrid, [], [], [], []);
         var crowdedService = new PathService(latency);
         for (var groupId = 1; groupId <= 8; groupId++)
         {
@@ -64,14 +66,14 @@ public sealed class PathServiceTests
 
         for (var tick = requestTick; tick < requestTick + latency; tick++)
         {
-            crowdedService.Advance(tick, crowdedGrid, crowdedBlocked);
+            crowdedService.Advance(tick, crowdedGrid, crowdedBlocked, crowdedWallBuckets);
             for (var groupId = 1; groupId <= 8; groupId++)
             {
                 Assert.True(crowdedService.GetCurrentPath(groupId).IsEmpty, $"group {groupId} at tick {tick} must not publish yet");
             }
         }
 
-        crowdedService.Advance(requestTick + latency, crowdedGrid, crowdedBlocked);
+        crowdedService.Advance(requestTick + latency, crowdedGrid, crowdedBlocked, crowdedWallBuckets);
         for (var groupId = 1; groupId <= 8; groupId++)
         {
             var path = crowdedService.GetCurrentPath(groupId);
@@ -93,6 +95,7 @@ public sealed class PathServiceTests
             "....G",
         ]);
         var secondGoal = grid.CellIndex(4, 0);
+        var wallBuckets = WallBuckets.Build(grid, [], [], [], []);
 
         var service = new PathService(pathLatencyTicks: 5);
         service.RequestPath(groupId: 1, start, goalCellIndex: firstGoal, requestTick: 0);
@@ -105,10 +108,9 @@ public sealed class PathServiceTests
         // request's would-be publish tick must still resolve toward the
         // first goal, never the second. Asserted against the raw corridor,
         // not GetCurrentPath: task 65 changed GetCurrentPath's element type
-        // from a cell index to a funnel-smoothed PathPoint, so "does this
-        // path end at the first goal's cell" is now a GetCurrentCorridor
-        // question.
-        service.Advance(5, grid, blocked);
+        // from a cell index to a smoothed PathPoint, so "does this path end
+        // at the first goal's cell" is now a GetCurrentCorridor question.
+        service.Advance(5, grid, blocked, wallBuckets);
         Assert.Equal(PathReasonCode.PathValid, service.GetReasonCode(1));
         var corridor = service.GetCurrentCorridor(1);
         Assert.Equal(firstGoal, corridor[^1]);
@@ -126,18 +128,19 @@ public sealed class PathServiceTests
             "..###",
         ]);
 
+        var wallBuckets = WallBuckets.Build(grid, [], [], [], []);
         var service = new PathService(pathLatencyTicks: 2);
 
         // Before any request: nothing to hold a reason against at all.
         Assert.Equal(PathReasonCode.NoDestinationRequested, service.GetReasonCode(42));
 
         service.RequestPath(groupId: 1, start, goal, requestTick: 0);
-        service.Advance(0, grid, blocked);
+        service.Advance(0, grid, blocked, wallBuckets);
         Assert.Equal(PathReasonCode.AwaitingLatency, service.GetReasonCode(1));
         Assert.True(service.GetCurrentPath(1).IsEmpty);
 
-        service.Advance(1, grid, blocked);
-        service.Advance(2, grid, blocked);
+        service.Advance(1, grid, blocked, wallBuckets);
+        service.Advance(2, grid, blocked, wallBuckets);
 
         Assert.True(service.GetCurrentPath(1).IsEmpty);
         Assert.Equal(PathReasonCode.Unreachable, service.GetReasonCode(1));
@@ -157,11 +160,12 @@ public sealed class PathServiceTests
             "....#G",
         ]);
 
+        var wallBuckets = WallBuckets.Build(grid, [], [], [], []);
         var original = new PathService(pathLatencyTicks: 4);
         original.RequestPath(groupId: 7, start, goal, requestTick: 100);
         for (var tick = 100L; tick <= 104; tick++)
         {
-            original.Advance(tick, grid, blocked);
+            original.Advance(tick, grid, blocked, wallBuckets);
         }
 
         var originalPath = original.GetCurrentPath(7);
@@ -175,7 +179,7 @@ public sealed class PathServiceTests
         // reconstruct the same path once its latency has elapsed.
         var resumed = new PathService(pathLatencyTicks: 4);
         resumed.RequestPath(storedRequest.GroupId, storedRequest.StartCellIndex, storedRequest.GoalCellIndex, storedRequest.RequestTick);
-        resumed.Advance(storedRequest.RequestTick + 4, grid, blocked);
+        resumed.Advance(storedRequest.RequestTick + 4, grid, blocked, wallBuckets);
 
         // The core task 65 assertion: recomputing from the stored request
         // alone reproduces the identical smoothed polyline, not merely an
@@ -223,10 +227,11 @@ public sealed class PathServiceTests
             ".........G",
         ]);
 
+        var wallBuckets = WallBuckets.Build(grid, [], [], [], []);
         var service = new PathService(pathLatencyTicks: 1);
         service.RequestPath(groupId: 1, start, goal, requestTick: 0);
-        service.Advance(0, grid, blocked);
-        service.Advance(1, grid, blocked);
+        service.Advance(0, grid, blocked, wallBuckets);
+        service.Advance(1, grid, blocked, wallBuckets);
 
         var corridor = service.GetCurrentCorridor(1);
         var path = service.GetCurrentPath(1);
