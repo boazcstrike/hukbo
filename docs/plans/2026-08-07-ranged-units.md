@@ -133,6 +133,45 @@ why RU-34 and RU-35 now exist:
 | `ClashResolverTests` (5), `HitLocationResolverTests` (1), `PhilippineCombatIntegrationTests` (2) | **RU-34, added** | **No — no task listed any of those three files** |
 | `PawnAppearanceFactoryTests` (5), `ConservativePawnCullTests` (1) | **RU-35, added** | **No — and `PawnAppearanceFactory.cs` itself was unowned** |
 
+### Second correction, recorded after RU-10 landed: the Client baseline is 34, not 11
+
+RU-10 added the three `PawnWeaponRole` members its row required, touching only its
+five authorized files, and the Client suite went from eleven red to **thirty-four**.
+Measured independently of the task agent on branch `ru-10` at `42002d7`. Thirty-two
+of the thirty-four are the same `ArgumentOutOfRangeException` from an exhaustive
+`switch` over `PawnWeaponRole` that grew from four members to seven; the other two
+are the known `SoundCatalogTests` pair. The new baseline by class:
+
+| Class | Red | Change | Owner |
+| --- | --- | --- | --- |
+| `PawnGeometryTests` | 11 | +8 | RU-22 |
+| `ConservativePawnCullTests` | 10 | +9 | **RU-22 and RU-35 together — see below** |
+| `AgentInspectorContentTests` | 6 | +6 | **RU-16, scope amended below** |
+| `PawnAppearanceFactoryTests` | 5 | unchanged | RU-35 |
+| `SoundCatalogTests` | 2 | unchanged | RU-14 |
+
+Two ownership corrections follow from it, and both were made before the affected
+tasks were dispatched rather than after they got stuck.
+
+**`ConservativePawnCullTests.cs` moves from RU-35 to RU-22.** Its failures throw
+from two different places — `PawnAppearanceFactory.ToWeaponRole`, which is RU-35's,
+and `PawnGeometry.CreateWeaponLayout`, which is RU-22's — confirmed by reading the
+stack traces. RU-35 therefore cannot make that file green no matter how completely
+it does its own job, and a task whose acceptance criterion is unreachable is a task
+that will report BLOCKED after doing correct work. RU-22 owns `PawnGeometry.cs` and
+already carries the cull radius as an explicit concern, so the file belongs with it.
+RU-35 keeps `PawnAppearanceFactory.cs` and `PawnAppearanceFactoryTests.cs`.
+
+**RU-16 gains three arms in `AgentInspectorContent.GetLaterOrProvisionalForms`**
+(`AgentInspectorContent.cs:797-817`). That switch is exhaustive over
+`PawnWeaponRole` with a throwing default, and it is the same designed safety net as
+everywhere else in this window. RU-16 already owns that file for the `Holding`
+reason code, so folding three arms into it is strictly better than a new task
+contending for the same file. None of the three ranged weapons has a later or
+provisional form to show, so each arm returns an empty sequence — but that is an
+evidence claim under `CLAUDE.md` section 7, and RU-16 must state it as one rather
+than treating an empty return as a default.
+
 **A thirtieth red test exists that no single branch could see.**
 `BattleSimulationTests.AgentIntentNumericValuesArePinned` pins each
 `AgentIntent` member's numeric value and then pins the member count at five.
@@ -226,7 +265,7 @@ no sub-agent's report substitutes for its real output.
 | RU-33 | The canonical gate, run once after integration. Not delegated to any sub-agent, and no sub-agent's report substitutes for its real output. | — | `./scripts/verify.ps1` output pasted verbatim into section 9, together with the two determinism workloads' `stateHash`, `eventHash`, `deterministic`, and `firstMismatchTick`. | RU-01 through RU-32 | `./scripts/verify.ps1` |
 | RU-34 | **Added 2026-08-07, after RU-03 exposed that no task owned these files.** Make three `Hukbo.Core.Tests` suites roster-aware instead of enum-exhaustive. `ClashResolverTests` (five red facts), `HitLocationResolverTests.WeaponOverrides_CanChangeTheResolvedBodyPartForTheSameTuple`, and `PhilippineCombatIntegrationTests` (two red facts) each sweep `Enum.GetValues<WeaponId>()` and feed every value into a ruleset built from `PrecolonialPhilippinesV1` or `V2`. **Those four presets are frozen and will never gain a ranged arm, so no amount of work on V5 can turn these green** — the sweep itself is what has to change, from "every value the enum defines" to "every weapon this ruleset's own roster actually declares". The coverage intent must survive: a sweep that silently skips a weapon a ruleset *does* declare is a weakened test and is forbidden by `CLAUDE.md` section 5. Derive the weapon set from the ruleset under test, do not hard-code a list of four, so that adding an eighth weapon later fails loudly in the right place rather than here. | `tests/Hukbo.Core.Tests/ClashResolverTests.cs`, `tests/Hukbo.Core.Tests/HitLocationResolverTests.cs`, `tests/Hukbo.Core.Tests/PhilippineCombatIntegrationTests.cs` | All eight of those facts pass with the three ranged `WeaponId` members defined and unregistered in V1 through V4; each sweep still covers every weapon its ruleset declares, verified by asserting the swept count equals the roster count rather than by inspection; no assertion is deleted, loosened, or marked `Skip`. | RU-03 | `dotnet test` on the three named files |
 | RU-36 | **Added 2026-08-07. Found by RU-07, and it needs a decision before RU-12 builds V5.** `CombatRuleset.AddProfile` (`CombatRuleset.cs:641-648`) folds exactly three fields into the preset content hash — `DamagePerAttack`, `AttackRangeRaw`, `AttackCooldownTicks`. RU-07's three ranged fields are **not** folded, and neither are the pre-existing combo fields. The consequence is not cosmetic: RU-24 calibrates the ranged tuning and RU-26 pins V5's content hash, so under the current fold a calibration pass changes how the game plays while the content hash stays byte-identical. The content hash is what decides whether a saved replay is the same configuration, so two genuinely different tunings would be declared identical and a replay recorded under the old values would be accepted and then diverge. **The obstacle is that the naive fix breaks a frozen invariant:** folding three more values unconditionally changes the content hash of V1 through V4, which this plan requires to stay byte-identical. The candidate resolution is to fold the three ranged values **only when the profile declares any of them non-zero**, so an all-zero melee profile hashes exactly as it does today and V1 through V4 are preserved, while V5 becomes sensitive to its own ranged tuning. Conditional folding has bitten this repository before — check how the V7 work handled it and match that precedent or state why it does not apply. The pre-existing unfolded combo fields are **not** in scope; note them and leave them. | `src/Hukbo.Core/Combat/CombatRuleset.cs`, `tests/Hukbo.Core.Tests/DeterminismTests.cs` | V1 through V4's pinned content hashes are byte-identical to their current values; two V5 rulesets differing only in a ranged tuning value produce **different** content hashes, proven by a test that constructs both; an all-zero melee profile folds exactly as before, proven against a pinned literal. | RU-07, and it must land before RU-12 pins anything | `dotnet test` on `tests/Hukbo.Core.Tests/DeterminismTests.cs` and `WeaponProfileTests.cs` |
-| RU-35 | **Added 2026-08-07, same cause as RU-34.** `PawnAppearanceFactory.ToWeaponRole` (`PawnAppearanceFactory.cs:130`) is a total switch over `WeaponId` that throws `ArgumentOutOfRangeException` on `Bangkaw`, and **no task in this plan owned that file** — RU-10 owns the catalog and `PawnAppearance.cs`, RU-22 owns `PawnGeometry.cs`. Add the three arms mapping the ranged weapons to the `PawnWeaponRole` members RU-10 introduces, and repair the five red `PawnAppearanceFactoryTests` facts plus `ConservativePawnCullTests.GeometryAppearances_CoverEverythingTheFactoryCanProduce`. `Create_MapsAllFourWeaponIdsToDistinctSilhouettes` is named for a four-weapon roster and must be renamed and widened to seven rather than left asserting a stale number. The two policy facts — `WeaponLabels_NeverUseTheRejectedPanabasName` and `WeaponLabels_NeverCarryACulturalNameWithoutItsDescriptor` — enforce `CLAUDE.md` section 7 and must keep enforcing it across all seven weapons, not just the original four. | `src/Hukbo.Client/Presentation/PawnAppearanceFactory.cs`, `tests/Hukbo.Client.Tests/PawnAppearanceFactoryTests.cs`, `tests/Hukbo.Client.Tests/ConservativePawnCullTests.cs` | All seven `WeaponId` values resolve to a `PawnWeaponRole` without throwing; the six named facts pass; the distinct-silhouette fact covers seven weapons and still requires distinctness; both naming-policy facts pass for the three new weapons. | RU-10 (introduces the `PawnWeaponRole` members this maps onto) | `dotnet test` on `tests/Hukbo.Client.Tests/PawnAppearanceFactoryTests.cs` and `ConservativePawnCullTests.cs` |
+| RU-35 | **Added 2026-08-07, same cause as RU-34.** `PawnAppearanceFactory.ToWeaponRole` (`PawnAppearanceFactory.cs:130`) is a total switch over `WeaponId` that throws `ArgumentOutOfRangeException` on `Bangkaw`, and **no task in this plan owned that file** — RU-10 owns the catalog and `PawnAppearance.cs`, RU-22 owns `PawnGeometry.cs`. Add the three arms mapping the ranged weapons to the `PawnWeaponRole` members RU-10 introduces, and repair the five red `PawnAppearanceFactoryTests` facts plus `ConservativePawnCullTests.GeometryAppearances_CoverEverythingTheFactoryCanProduce`. `Create_MapsAllFourWeaponIdsToDistinctSilhouettes` is named for a four-weapon roster and must be renamed and widened to seven rather than left asserting a stale number. The two policy facts — `WeaponLabels_NeverUseTheRejectedPanabasName` and `WeaponLabels_NeverCarryACulturalNameWithoutItsDescriptor` — enforce `CLAUDE.md` section 7 and must keep enforcing it across all seven weapons, not just the original four. | `src/Hukbo.Client/Presentation/PawnAppearanceFactory.cs`, `tests/Hukbo.Client.Tests/PawnAppearanceFactoryTests.cs` — **`ConservativePawnCullTests.cs` was reassigned to RU-22 on 2026-08-07, see the second correction in section 3** | All seven `WeaponId` values resolve to a `PawnWeaponRole` without throwing; the five `PawnAppearanceFactoryTests` facts pass; the distinct-silhouette fact covers seven weapons and still requires distinctness; both naming-policy facts pass for the three new weapons. | RU-10 (introduces the `PawnWeaponRole` members this maps onto) | `dotnet test` on `tests/Hukbo.Client.Tests/PawnAppearanceFactoryTests.cs` and `ConservativePawnCullTests.cs` |
 
 ### PARALLEL-SAFE and SERIAL, per task
 
