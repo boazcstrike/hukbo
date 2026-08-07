@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
 using Sandata.Core.Mathematics;
+using Sandata.Core.Orders;
 
 namespace Sandata.Core.Simulation;
 
@@ -266,11 +267,12 @@ public sealed record OperatorState(
 /// below.
 /// </para>
 /// <para>
-/// This type holds five <see cref="ImmutableArray{T}"/> collections, so —
-/// exactly like <c>Hukbo.Core.Simulation.Scenario</c> and
-/// <see cref="OperatorState"/> above — it overrides
-/// <c>Equals</c>/<c>GetHashCode</c> rather than relying on the record
-/// default.
+/// This type holds five <see cref="ImmutableArray{T}"/> collections plus
+/// <see cref="OrderAssignments"/> below (task 61 of
+/// docs/plans/2026-08-07-sandata-scaffold.md), so — exactly like
+/// <c>Hukbo.Core.Simulation.Scenario</c> and <see cref="OperatorState"/>
+/// above — it overrides <c>Equals</c>/<c>GetHashCode</c> rather than relying
+/// on the record default.
 /// </para>
 /// </remarks>
 public sealed record MissionState(
@@ -300,6 +302,30 @@ public sealed record MissionState(
     public ImmutableArray<RngStreamState> RngStreams { get; init; } =
         ImmutableArray<RngStreamState>.Empty;
 
+    /// <summary>
+    /// Design section 16's "Order records and the queue": "The queue is
+    /// authoritative state. It is snapshotted and it folds into the state
+    /// hash." Task 61 (docs/plans/2026-08-07-sandata-scaffold.md) adds this
+    /// property; <see cref="Determinism.SandataStateHasher"/> folds it after
+    /// every field that predates this task, and only when it differs from
+    /// <see cref="Orders.OrderQueue.Empty"/> — see that type's own remarks
+    /// for why.
+    /// </summary>
+    public OrderQueue OrderQueue { get; init; } = OrderQueue.Empty;
+
+    /// <summary>
+    /// One entry per operator that currently follows an authored polyline —
+    /// design section 16's "per-operator assignment." Ordered ascending by
+    /// <see cref="OrderAssignment.EntityId"/>, the same convention every
+    /// other collection on this type follows. An operator with no entry here
+    /// has no <see cref="Orders.OrderAssignment"/> and follows its squad slot
+    /// target instead (design section 16, "The two path sources"). Task 61
+    /// adds this property; <see cref="Determinism.SandataStateHasher"/> folds
+    /// it after <see cref="OrderQueue"/>, and only when it is non-empty.
+    /// </summary>
+    public ImmutableArray<OrderAssignment> OrderAssignments { get; init; } =
+        ImmutableArray<OrderAssignment>.Empty;
+
     public bool Equals(MissionState? other)
     {
         if (other is null)
@@ -321,7 +347,9 @@ public sealed record MissionState(
             FactionAlertsSpan.SequenceEqual(other.FactionAlertsSpan) &&
             DoorsSpan.SequenceEqual(other.DoorsSpan) &&
             GroupsSpan.SequenceEqual(other.GroupsSpan) &&
-            RngStreamsSpan.SequenceEqual(other.RngStreamsSpan);
+            RngStreamsSpan.SequenceEqual(other.RngStreamsSpan) &&
+            OrderQueue.Equals(other.OrderQueue) &&
+            OrderAssignmentsSpan.SequenceEqual(other.OrderAssignmentsSpan);
     }
 
     public override int GetHashCode()
@@ -357,6 +385,12 @@ public sealed record MissionState(
             hash.Add(rngStream);
         }
 
+        hash.Add(OrderQueue);
+        foreach (var assignment in OrderAssignmentsSpan)
+        {
+            hash.Add(assignment);
+        }
+
         return hash.ToHashCode();
     }
 
@@ -374,4 +408,7 @@ public sealed record MissionState(
 
     private ReadOnlySpan<RngStreamState> RngStreamsSpan =>
         RngStreams.IsDefault ? ReadOnlySpan<RngStreamState>.Empty : RngStreams.AsSpan();
+
+    private ReadOnlySpan<OrderAssignment> OrderAssignmentsSpan =>
+        OrderAssignments.IsDefault ? ReadOnlySpan<OrderAssignment>.Empty : OrderAssignments.AsSpan();
 }
