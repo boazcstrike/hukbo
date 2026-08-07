@@ -4474,6 +4474,22 @@ public sealed class BattleSimulation
                 agent.ContingentId);
             var isLeader = agent.EntityId == _contingentLeaderEntityIds[slot];
             var view = agent.ToView(isLeader);
+
+            // Derived projection only — design section 8.1. Reads the
+            // attack-cooldown pair the tick has already produced and the
+            // weapon already resolved at spawn; nothing new is stored,
+            // hashed, or snapshotted, and nothing here queries anything the
+            // tick would not otherwise make.
+            var (rangedPhase, rangedPhaseTicksRemaining) = RangedPhaseProjection.Derive(
+                agent.Loadout.Weapon,
+                agent.AttackCooldownRemaining,
+                agent.AttackCooldownTicks);
+            view = view with
+            {
+                RangedPhase = rangedPhase,
+                RangedPhaseTicksRemaining = rangedPhaseTicksRemaining,
+            };
+
             if (appliesPressureInterrupt && agent.IsAlive)
             {
                 // The running value, on every tick rather than only on a tick
