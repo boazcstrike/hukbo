@@ -22,6 +22,8 @@ public sealed class SourceHygieneTests
     [
         Path.Combine("src", "Hukbo.Client", "Program.cs"),
         Path.Combine("src", "Hukbo.Headless", "Program.cs"),
+        Path.Combine("src", "Sandata.Client", "Program.cs"),
+        Path.Combine("src", "Sandata.Headless", "Program.cs"),
     ];
 
     [Fact]
