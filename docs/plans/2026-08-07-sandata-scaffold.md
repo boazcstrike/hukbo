@@ -104,6 +104,36 @@ own; where a task looks like it needs one, the design section is named in the
 | 54 | 11 | Documentation | Record the measured numbers from task 53 in `docs/development/testing.md` under a dated Sandata section, and add the manual smoke-checklist rows from design section 13 as `PENDING`. Update `README.md`, `AGENTS.md`, and `CLAUDE.md` for the two-game layout, the new projects, the `-Game` script parameter, and the `Hukbo.Shared.Core` boundary. Full, normal English throughout. | `docs/development/testing.md`, `README.md`, `AGENTS.md`, `CLAUDE.md` | Every measured figure in the new testing section is traceable to task 53's captured output. Every smoke row is `PENDING` and none is `PASS`. `CLAUDE.md` section 3's layout block lists all eleven projects, and its section 5 states the Sandata determinism additions. `SourceHygieneTests`' recorded-artifact fact still passes. | 52, 53 | |
 | 55 | 12 | Canonical gate | Run `./scripts/verify.ps1` once, after everything above is integrated, and paste the real output. **Not delegated to any agent.** No sub-agent report substitutes for it. | none | The gate passes all five stages and the pasted output shows the Hukbo 200-agent, 10,000-tick, seed-1 workload producing the recorded baseline hashes unchanged. Then `./scripts/verify.ps1 -Game Sandata` is run and its output pasted separately. | 54 | |
 
+### Open item from wave 2: there is no `Point` type
+
+Design section 6 writes geometry signatures in terms of a `Point`, but no such
+type exists anywhere in the repository and no task creates one. Task 4 hit this
+first and implemented `ClassifySegments` with the flat `long` coordinate
+parameters `Orient` already uses, rather than introducing a shared type inside a
+worktree that the other seven wave-2 agents could not see. That was the right
+call in isolation, but it leaves a decision outstanding.
+
+Tasks 6, 20, and 26 all consume geometry and will each face the same question.
+Before wave 3 begins, one of two things has to be true: either Sandata declares
+a `Point` value type in `src/Sandata.Core/Geometry/` and every geometry
+signature takes it, or flat `long` coordinates are confirmed as the house style
+and design section 6 is corrected to match. Flat coordinates are the cheaper
+answer and the one already implemented, and they avoid a struct that would need
+its own equality, hashing, and ordering rules to stay deterministic.
+
+The cost of leaving this open is two geometry modules with different calling
+conventions that a later task has to reconcile.
+
+### Wave 2 note: `test.ps1` does not yet run the Sandata suites
+
+`scripts/test.ps1:15-16` names the two Hukbo test projects explicitly, so a
+wave-2 agent running `./scripts/test.ps1` sees 5,663 passing tests and none of
+them are its own. Task 41 adds the `-Game` parameter that fixes this. Until it
+lands, any task adding tests under `tests/Sandata.Core.Tests` or
+`tests/Sandata.Client.Tests` must run `dotnet test` against that project
+directly and report that number separately, and the integrating thread must
+re-run both Sandata suites after every merge rather than trusting the aggregate.
+
 ### Task 1 deviations, recorded 2026-08-07
 
 Task 1 was written expecting the tier-1 move to change zero lines outside the
