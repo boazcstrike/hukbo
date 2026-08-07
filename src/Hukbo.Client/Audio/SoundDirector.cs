@@ -34,6 +34,7 @@ internal sealed class SoundDirector
     private readonly SoundCueBudget _budget;
     private readonly SoundVoiceLedger _voices = new();
     private readonly DiagnosticLog _diagnostics;
+    private readonly Dictionary<ulong, AgentView> _agentsById = [];
 
     public SoundDirector(
         int logCapacity,
@@ -115,16 +116,37 @@ internal sealed class SoundDirector
     }
 
     /// <summary>
-    /// Processes one tick's events in emission order.
+    /// Processes one tick's events in emission order. <paramref name="agents"/>
+    /// is the same view list <see cref="Presentation.PresentationCoordinator"/>
+    /// already holds; it is required because a classless
+    /// <see cref="BattleEventKind.Release"/> event cannot name its own weapon
+    /// — <see cref="BattleEvent.NonAttack"/> forces every combat-context field
+    /// to <see langword="null"/> by construction, per ranged-units design
+    /// section 5.3 — so the launching weapon is read from the source agent's
+    /// <see cref="Combat.CombatLoadout.Weapon"/> instead. <c>UpdateViews</c>
+    /// writes a view for every agent including the dead, so the lookup still
+    /// succeeds for a launcher killed the same tick; an entity absent from
+    /// <paramref name="agents"/> simply produces no cue.
     /// </summary>
-    public void Ingest(IReadOnlyList<BattleEvent> events)
+    public void Ingest(IReadOnlyList<BattleEvent> events, IReadOnlyList<AgentView> agents)
     {
         ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(agents);
+
+        _agentsById.Clear();
+        for (var index = 0; index < agents.Count; index++)
+        {
+            var agent = agents[index];
+            _agentsById[agent.EntityId] = agent;
+        }
 
         for (var index = 0; index < events.Count; index++)
         {
             var battleEvent = events[index];
-            if (SoundCueMapper.Map(battleEvent) is { } sound)
+            var sound = battleEvent.Kind == BattleEventKind.Release
+                ? ResolveReleaseSound(battleEvent)
+                : SoundCueMapper.Map(battleEvent);
+            if (sound is { } resolvedSound)
             {
                 // Derive the hit class from the slot that was mapped, never
                 // from the event. Do not revert this to reading
@@ -138,13 +160,38 @@ internal sealed class SoundDirector
                 // and how the director asks for it.
                 // Ingest_UsesANullHitClassForAShieldBlockDespiteTheHitLocation
                 // is the guard.
-                var hitClass = SoundCatalog.IsHitLocationDriven(sound)
+                var hitClass = SoundCatalog.IsHitLocationDriven(resolvedSound)
                     ? HitClassCatalog.FromBodyPart(battleEvent.HitLocation!.Value)
                     : (HitClass?)null;
-                Resolve(sound, hitClass, battleEvent.Tick, battleEvent.SourceEntityId);
+                Resolve(resolvedSound, hitClass, battleEvent.Tick, battleEvent.SourceEntityId);
             }
         }
     }
+
+    /// <summary>
+    /// Resolves the launching weapon for a classless
+    /// <see cref="BattleEventKind.Release"/> event from the source agent's
+    /// view rather than from the event, then hands it to
+    /// <see cref="SoundCueMapper.MapRelease"/>, the hook RU-14 exposed for
+    /// exactly this caller. Returns <see langword="null"/> — no cue, no
+    /// throw — when the source entity is absent from the view list.
+    /// </summary>
+    private GameSoundId? ResolveReleaseSound(BattleEvent battleEvent) =>
+        _agentsById.TryGetValue(battleEvent.SourceEntityId, out var launcher)
+            ? SoundCueMapper.MapRelease(launcher.Loadout.Weapon)
+            : null;
+
+    /// <summary>
+    /// Convenience overload for a caller with no view list, such as a test
+    /// that never emits a <see cref="BattleEventKind.Release"/> event and so
+    /// never needs one. Equivalent to <see cref="Ingest(IReadOnlyList{BattleEvent}, IReadOnlyList{AgentView})"/>
+    /// with an empty view list. This exists to keep pre-existing tests
+    /// unmodified; the one production caller,
+    /// <c>ArenaGame.Update</c>, always calls the two-argument overload and
+    /// always passes the real roster.
+    /// </summary>
+    public void Ingest(IReadOnlyList<BattleEvent> events) =>
+        Ingest(events, []);
 
     /// <summary>
     /// Requests a cue that no simulation event produced, such as a UI click.

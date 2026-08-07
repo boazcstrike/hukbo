@@ -343,8 +343,100 @@ public sealed class SoundDirectorTests
 
         Assert.Throws<ArgumentNullException>(() => director.Ingest(null!));
         Assert.Throws<ArgumentNullException>(
+            () => director.Ingest(null!, []));
+        Assert.Throws<ArgumentNullException>(
+            () => director.Ingest([], null!));
+        Assert.Throws<ArgumentNullException>(
             () => director.AttachPlayer(null!));
     }
+
+    // --- RU-19: Release events resolve their weapon from the agent view. ---
+
+    [Fact]
+    public void Ingest_ResolvesAReleaseEventsWeaponFromTheSourceAgentsLoadout()
+    {
+        // RU-14 exposed SoundCueMapper.MapRelease(WeaponId?) as internal for
+        // exactly this caller: a Release event's BattleEvent.Weapon is always
+        // null by construction (BattleEvent.NonAttack forces every
+        // combat-context field to null), so the weapon has to come from the
+        // launching agent's own view instead of from the event.
+        var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
+        var director = new SoundDirector(logCapacity: 64, player);
+        var launcher = BusogAgent(entityId: 7);
+
+        director.BeginFrame(elapsedSeconds: 1.0);
+        director.Ingest([Release(entityId: 7)], [launcher]);
+
+        var played = Assert.Single(player.Played);
+        Assert.Equal(GameSoundId.ReleaseBusog, played.Sound);
+        // A release slot is not hit-location driven (SoundCatalogTests pins
+        // this), so the director must still ask for a null hit class even
+        // though it now derives the weapon from the view list.
+        Assert.Null(played.HitClass);
+    }
+
+    [Fact]
+    public void Ingest_IgnoresAReleaseEventWhoseSourceIsAbsentFromTheViewList()
+    {
+        // A launcher killed the same tick it fires is still findable, because
+        // UpdateViews writes a view for every agent including the dead — see
+        // ranged-units design section 5.3. This test covers the other case:
+        // an entity ID the view list never carried at all. That must resolve
+        // to silence, not a throw, exactly like an unmapped weapon already
+        // does in SoundCueMapper.
+        var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
+        var director = new SoundDirector(logCapacity: 64, player);
+
+        director.BeginFrame(elapsedSeconds: 1.0);
+        var exception = Record.Exception(
+            () => director.Ingest([Release(entityId: 7)], []));
+
+        Assert.Null(exception);
+        Assert.Empty(player.Played);
+        Assert.Empty(director.Log.Entries);
+    }
+
+    [Fact]
+    public void Ingest_StillIgnoresAMeleeWeaponsReleaseEvent()
+    {
+        // MapRelease only maps the three ranged weapons; a melee launcher
+        // resolving through the view list must stay silent rather than throw
+        // or fall back to a shared cue.
+        var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
+        var director = new SoundDirector(logCapacity: 64, player);
+        var launcher = BusogAgent(entityId: 7) with
+        {
+            Loadout = new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None),
+        };
+
+        director.BeginFrame(elapsedSeconds: 1.0);
+        director.Ingest([Release(entityId: 7)], [launcher]);
+
+        Assert.Empty(player.Played);
+    }
+
+    private static BattleEvent Release(ulong entityId) =>
+        BattleEvent.NonAttack(
+            sequence: 1,
+            tick: 5,
+            BattleEventKind.Release,
+            sourceEntityId: entityId,
+            targetEntityId: null,
+            value: 12,
+            factionId: 0);
+
+    private static AgentView BusogAgent(ulong entityId) =>
+        new(
+            EntityId: entityId,
+            FactionId: 0,
+            XRaw: 0,
+            YRaw: 0,
+            HitPoints: 10,
+            MaximumHitPoints: 10,
+            TargetEntityId: null,
+            Intent: AgentIntent.Idle,
+            IsAlive: true,
+            Loadout: new CombatLoadout(WeaponId.Busog, ArmorId.LightOrganic, ShieldId.None));
 
     private static BattleEvent Attack(long sequence, WeaponId weapon) =>
         Attack(sequence, weapon, BodyPart.Chest);
