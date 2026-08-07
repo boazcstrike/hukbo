@@ -590,3 +590,28 @@ Task 65 joins task 64 in wave 5b. Their file sets are disjoint — 64 owns the
 mission record and the hasher, 65 owns the path service — and both must be green
 before wave 6 starts, because task 34's arclength work consumes exactly the
 polyline task 65 changes and exactly the identifiers task 64 widens.
+
+### A fourth unowned declaration: the RNG system tags
+
+Design section 4 names four random streams — `Accuracy`, `Reaction`, `Sidestep`,
+and `SpawnJitter` — and says a stream derives from
+`(missionSeed, systemTag, entityId or eventId)` so that adding a draw in one
+system cannot shift an unrelated outcome. No task declares that enum. Task 17
+noticed the gap and documented it in `MissionState.cs`; task 31 hit it from the
+other side and needed a real value to fold, so it declared a private
+`AccuracyStreamTag` constant, documented it as a stand-in, and asked whichever
+task declares the enum to confirm the value.
+
+That is the right behaviour and it leaves a determinism-relevant identity
+sitting in a private field of one combat file. A stream tag is not an
+implementation detail: it is part of what makes a draw reproducible, and three
+more systems need theirs before the pipeline is wired.
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 66 | 5b | Declare the RNG system tags | Declare the four v0.1 system tags from design section 4 as one append-only enum with explicit numeric values, beside the rest of Sandata's determinism code. Adopt it in `AccuracyRules`, replacing the private stand-in constant, and state in the XML doc that adding a tag is append-only because changing an existing value re-keys every draw that system makes. | `src/Sandata.Core/Determinism/SandataSystemTag.cs`, `src/Sandata.Core/Combat/AccuracyRules.cs`, `tests/Sandata.Core.Tests/SandataSystemTagTests.cs`, `tests/Sandata.Core.Tests/AccuracyRulesTests.cs` | `SandataSystemTagTests` pins every member's numeric value as a literal and asserts the four members are exactly the ones design section 4 names. `AccuracyRulesTests` still passes; if adopting the enum changes the accuracy draw for a given seed and entity id, the task says so explicitly rather than silently re-pinning — the existing expectations were pinned against the stand-in constant, and a moved draw is a real finding about which value the tag stream should carry. | 31 | |
+
+Wave 5b now holds tasks 64, 65, and 66. Their file sets are disjoint: 64 owns
+the mission record, the hasher, and the new world-unit helper; 65 owns the path
+service; 66 owns the system-tag enum and the accuracy rules. All three must be
+green before wave 6 starts.
