@@ -5,8 +5,13 @@ committed to yet. It is a decision list, not a naming contract — the naming
 contract is [README.md](README.md), and a slot only becomes real once it is added
 to `SoundCatalog.AllSounds`.
 
-Nothing still listed here exists in code today. `GameSoundId` has thirteen
-members and the catalog lists the same thirteen. Of the clash outcomes, only a
+Nothing still listed here exists in code today. `GameSoundId` has twenty-six
+members and the catalog lists the same twenty-six: the thirteen original
+melee slots, plus thirteen ranged slots the ranged-units package added to
+the catalog on 2026-08-07. As of this writing none of those thirteen ranged
+slots has a generated file yet — see [README.md](README.md) for the naming
+contract and `./scripts/sfx.ps1 -List` for which of the twenty-six slots
+currently have a file. Of the clash outcomes, only a
 shield block has a sound of its own: the four `clash-shield-<weapon>` slots
 shipped on 2026-07-30 and have been taken off this list. A blow caught or
 brushed aside by another weapon still makes no sound at all, which is the
