@@ -44,6 +44,17 @@ namespace Sandata.Core.Orders;
 /// <c>Equals</c>/<c>GetHashCode</c> rather than relying on the record
 /// default, which would compare the backing array by reference.
 /// </para>
+/// <para>
+/// <b>Exactly two doors add an order to this type: <see cref="SubmitValidated"/>
+/// and <see cref="RestoreForResume"/>.</b> An earlier defect (the plan's task
+/// 72 row, "A second bypassable door on <c>OrderQueue</c>") let
+/// <c>queue with { Orders = ... }</c> inject arbitrary, unvalidated orders
+/// because <see cref="Orders"/>'s <see langword="init"/> accessor was
+/// <see langword="public"/>. <see cref="Orders"/>'s remarks explain the
+/// accessibility this type narrowed it to and why; <see cref="RestoreForResume"/>'s
+/// remarks explain why snapshot resume needs a second, non-validating door
+/// rather than reusing <see cref="SubmitValidated"/>.
+/// </para>
 /// </remarks>
 public sealed record OrderQueue(long NextOrderId, long NextOrderSequence)
 {
@@ -56,7 +67,30 @@ public sealed record OrderQueue(long NextOrderId, long NextOrderSequence)
     /// that need the applied order call <see cref="InApplicationOrder"/>
     /// instead of reading this property directly.
     /// </summary>
-    public ImmutableArray<Order> Orders { get; init; } = ImmutableArray<Order>.Empty;
+    /// <remarks>
+    /// <b>The <see langword="init"/> accessor is <see langword="internal"/>,
+    /// not <see langword="public"/>.</b> A fully <see langword="private"/>
+    /// accessor was considered and rejected for this task specifically: it
+    /// would also close the door for <c>OrderStateHashTests.cs</c>'s
+    /// pre-existing <c>QueueOf</c> helper and one direct construction, a file
+    /// this task's brief explicitly forbids editing, and breaking that file's
+    /// compilation would take the whole <c>Sandata.Core.Tests</c> assembly
+    /// down with it — including every test this task itself adds.
+    /// <see langword="internal"/> is the narrowing that actually holds
+    /// without that cost: <c>Sandata.Core</c>'s <c>AssemblyInfo.cs</c> grants
+    /// <c>[assembly: InternalsVisibleTo("Sandata.Core.Tests")]</c> and
+    /// nothing else, so this accessor is reachable only from
+    /// <c>Sandata.Core</c> itself and from that one declared test friend —
+    /// never from <c>Sandata.Client</c>, <c>Sandata.Headless</c>, or any
+    /// other assembly, which is the actual "arbitrary caller" the original
+    /// defect named. Restricting a member to one declared test friend via
+    /// <c>InternalsVisibleTo</c> is not a new idea in this repository —
+    /// <c>ShotSlotResolver</c>'s own remarks describe <c>Hukbo.Client</c>
+    /// granting <c>InternalsVisibleTo</c> to <c>Hukbo.Client.Tests</c> alone
+    /// and nowhere else — this member applies the same
+    /// one-friend-assembly discipline to a property instead of a type.
+    /// </remarks>
+    public ImmutableArray<Order> Orders { get; internal init; } = ImmutableArray<Order>.Empty;
 
     /// <summary>
     /// The total comparator stage 1 applies the queue under: ascending
@@ -107,10 +141,14 @@ public sealed record OrderQueue(long NextOrderId, long NextOrderSequence)
     /// This is the unvalidated storage primitive. Design section 16: "An
     /// order is validated when it is submitted" — so this member is
     /// deliberately <see langword="private"/>, and <see cref="SubmitValidated"/>
-    /// is the only public door into this type. <see cref="SubmitValidated"/>
-    /// calls this method for every accepted order, including every kind
-    /// other than <see cref="OrderKind.MoveAlongPath"/>, which design section
-    /// 16's four rejection rules do not apply to.
+    /// and <see cref="RestoreForResume"/> are the only two doors into this
+    /// type that can add an order — see this type's own remarks for why
+    /// there are exactly two, not one. <see cref="SubmitValidated"/> calls
+    /// this method for every accepted order, including every kind other
+    /// than <see cref="OrderKind.MoveAlongPath"/>, which design section 16's
+    /// four rejection rules do not apply to; <see cref="RestoreForResume"/>
+    /// never calls this method, because a restored order was already
+    /// validated once, at its original submission.
     /// </remarks>
     /// <param name="targetTick">The tick the order takes effect.</param>
     /// <param name="factionId">The faction this order addresses.</param>
@@ -259,6 +297,67 @@ public sealed record OrderQueue(long NextOrderId, long NextOrderSequence)
         var (queue, submitted) = Submit(targetTick, factionId, addressees, kind, pathNodes);
         return (queue, submitted, null);
     }
+
+    /// <summary>
+    /// Rebuilds an <see cref="OrderQueue"/> from already-validated, previously
+    /// stored state, with no validation of its own. This is the second and
+    /// only other door into this type besides <see cref="SubmitValidated"/> —
+    /// see this type's own remarks for why there are exactly two.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Resume-only.</b> This method's anticipated caller is
+    /// <see cref="Simulation.MissionSnapshot.ToState"/>, restoring the queue a
+    /// running mission had at the moment it was snapshotted. Every
+    /// <see cref="Order"/> <paramref name="orders"/> carries was already
+    /// checked by <see cref="SubmitValidated"/> at the moment it was
+    /// originally submitted, before that mission was ever snapshotted; this
+    /// method's job is to place that already-accepted state back into a live
+    /// <see cref="OrderQueue"/>, not to decide acceptance a second time. It
+    /// is not a submission path, and a caller that wants to submit a new
+    /// order — including one built from data that merely resembles a stored
+    /// order — must call <see cref="SubmitValidated"/> instead.
+    /// </para>
+    /// <para>
+    /// <b>Why revalidating on restore would be wrong.</b> Design section 16,
+    /// "An authored polyline is authoritative, not derived": "An authored
+    /// polyline is player input. It is stored verbatim in the snapshot and
+    /// folds into the state hash. It is never recomputed, never re-smoothed,
+    /// and never replaced by a search result. On resume it is restored
+    /// exactly as it was drawn." A <see cref="OrderKind.MoveAlongPath"/>
+    /// order that <see cref="OrderValidation.ValidateMoveAlongPath"/> would
+    /// reject under today's nav bake can still be a perfectly legitimate
+    /// stored order, because the bake in effect at resume is not necessarily
+    /// the bake in effect at the order's original submission — the same
+    /// design section names exactly this failure mode: "an authored path
+    /// recomputed on resume is a defect that would let the nav bake state at
+    /// load time rewrite a decision the player made an hour earlier."
+    /// Calling <see cref="OrderValidation.ValidateMoveAlongPath"/> again here
+    /// would do precisely that: reject, on resume, an order the player's
+    /// original submission legitimately passed.
+    /// </para>
+    /// </remarks>
+    /// <param name="nextOrderId">
+    /// The stored <see cref="NextOrderId"/> counter, restored verbatim.
+    /// </param>
+    /// <param name="nextOrderSequence">
+    /// The stored <see cref="NextOrderSequence"/> counter, restored verbatim.
+    /// </param>
+    /// <param name="orders">
+    /// The stored <see cref="Orders"/> array, restored verbatim and in its
+    /// original storage order; this method does not sort, filter, or
+    /// otherwise transform it.
+    /// </param>
+    /// <returns>
+    /// A new <see cref="OrderQueue"/> whose <see cref="NextOrderId"/>,
+    /// <see cref="NextOrderSequence"/>, and <see cref="Orders"/> exactly
+    /// match the three arguments given.
+    /// </returns>
+    public static OrderQueue RestoreForResume(long nextOrderId, long nextOrderSequence, ImmutableArray<Order> orders) =>
+        new(nextOrderId, nextOrderSequence)
+        {
+            Orders = orders.IsDefault ? ImmutableArray<Order>.Empty : orders,
+        };
 
     /// <summary>
     /// Every submitted order, sorted ascending by

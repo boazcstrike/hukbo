@@ -29,6 +29,16 @@ namespace Sandata.Core.Simulation;
 /// <see cref="OrderQueue"/> round-trips through this type completely
 /// unchanged — this file does no smoothing, no re-baking, and no
 /// re-derivation of either array.
+/// <para>
+/// Task 72 of the same plan closed a second, unrelated door on
+/// <see cref="Orders.OrderQueue.Orders"/> that let a caller inject orders
+/// without going through <see cref="Orders.OrderQueue.SubmitValidated"/>.
+/// <see cref="ToState"/> below rebuilds <see cref="MissionState.OrderQueue"/>
+/// through <see cref="Orders.OrderQueue.RestoreForResume"/> — the named,
+/// non-validating door that task added specifically for this call site — so
+/// this file's own resume path is never the exception to "exactly two doors"
+/// that a future reader would have to go looking for.
+/// </para>
 /// </remarks>
 public sealed record MissionSnapshot(
     long Tick,
@@ -65,7 +75,11 @@ public sealed record MissionSnapshot(
     /// assignment shares the same backing array, which is safe because both
     /// types treat the array as immutable), so the result compares equal to
     /// the original state under <see cref="MissionState.Equals(MissionState?)"/>
-    /// without re-deriving anything.
+    /// without re-deriving anything. <see cref="MissionState.OrderQueue"/>
+    /// is rebuilt through <see cref="Orders.OrderQueue.RestoreForResume"/>
+    /// rather than assigned directly — see this type's own remarks for why
+    /// that is the named, non-validating door this call site is required to
+    /// use.
     /// </summary>
     public MissionState ToState() => new(Tick, Phase, Winner, NextEntityId, NextEventSequence)
     {
@@ -74,7 +88,7 @@ public sealed record MissionSnapshot(
         Doors = Doors,
         Groups = Groups,
         RngStreams = RngStreams,
-        OrderQueue = OrderQueue,
+        OrderQueue = Orders.OrderQueue.RestoreForResume(OrderQueue.NextOrderId, OrderQueue.NextOrderSequence, OrderQueue.Orders),
         OrderAssignments = OrderAssignments,
     };
 }
