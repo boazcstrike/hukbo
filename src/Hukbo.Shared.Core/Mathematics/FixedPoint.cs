@@ -104,4 +104,65 @@ public readonly record struct FixedPoint : IComparable<FixedPoint>
 
     public static bool operator >=(FixedPoint left, FixedPoint right) =>
         left.RawValue >= right.RawValue;
+
+    /// <summary>
+    /// Multiplies two fixed-point values: the wide raw product is divided by
+    /// <see cref="Scale"/> and cast back to <see langword="int"/>.
+    /// <para>
+    /// Behavioural contract: the division by <see cref="Scale"/> is ordinary
+    /// C# integer division, which truncates toward zero rather than rounding.
+    /// A fractional raw result of exactly one half truncates toward zero the
+    /// same as any other fraction — for example a raw product of 1,536 over a
+    /// scale of 1,024 truncates to 1, and a raw product of -1,536 truncates to
+    /// -1, not -2.
+    /// </para>
+    /// <para>
+    /// The whole expression is <see langword="checked"/>, so a result whose
+    /// magnitude does not fit in <see langword="int"/> throws
+    /// <see cref="OverflowException"/> rather than wrapping silently.
+    /// </para>
+    /// </summary>
+    public static FixedPoint operator *(FixedPoint left, FixedPoint right) =>
+        FromRaw(checked((int)((long)left.RawValue * right.RawValue / Scale)));
+
+    /// <summary>
+    /// Divides two fixed-point values: the left raw value is scaled up by
+    /// <see cref="Scale"/> before dividing by the right raw value, so the
+    /// result stays in the same fixed-point representation.
+    /// <para>
+    /// Behavioural contract: the division is ordinary C# integer division,
+    /// which truncates toward zero rather than rounding. A quotient whose
+    /// exact value would end in one half truncates toward zero the same as
+    /// any other fraction — for example scaled numerator 1,024 divided by 3
+    /// truncates to 341, and -1,024 divided by 3 truncates to -341, not -342.
+    /// </para>
+    /// <para>
+    /// The whole expression is <see langword="checked"/>, so a result whose
+    /// magnitude does not fit in <see langword="int"/> throws
+    /// <see cref="OverflowException"/>. Dividing by a <paramref name="right"/>
+    /// whose <see cref="RawValue"/> is zero throws
+    /// <see cref="DivideByZeroException"/> — the CLR's own integer division
+    /// raises this on its own, and it is never silently clamped or treated as
+    /// infinity.
+    /// </para>
+    /// </summary>
+    public static FixedPoint operator /(FixedPoint left, FixedPoint right) =>
+        FromRaw(checked((int)(((long)left.RawValue * Scale) / right.RawValue)));
+
+    /// <summary>
+    /// The non-negative square root of <paramref name="value"/>, exact to the
+    /// nearest raw unit. Wraps <see cref="IntegerSquareRoot"/> — the same
+    /// exact bitwise restoring algorithm the collision code already relies
+    /// on — pre-multiplying by <see cref="Scale"/> first so the returned
+    /// value stays in the same Q22.10 representation rather than losing all
+    /// of its fractional precision.
+    /// <para>
+    /// A negative <paramref name="value"/> is rejected: the pre-multiplied
+    /// input is negative, and the checked unsigned cast inside
+    /// <see cref="IntegerSquareRoot"/> throws <see cref="OverflowException"/>
+    /// rather than returning a meaningless result.
+    /// </para>
+    /// </summary>
+    public static FixedPoint Sqrt(FixedPoint value) =>
+        FromRaw(checked((int)IntegerSquareRoot((long)value.RawValue * Scale)));
 }
