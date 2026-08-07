@@ -564,6 +564,39 @@ the gap and correctly stopped. RU-37 closes it, and **it must land before RU-30*
 whose entire acceptance criterion is a benchmark-measured collapse in the
 lane-not-clear counter.
 
+### F-A's result: the standoff is a single-cause failure, and F-B targets that cause
+
+With RU-37 wiring RU-06's counters through the headless runner, F-A now reports
+real numbers. Measured on `EquipmentRelativeFootworkV6`, 200 agents, seed 1,
+10,000 ticks, and reproduced independently by the orchestrator:
+
+| Counter | Value | Share of refusals |
+| --- | --- | --- |
+| `routeRefusalLaneNotClear` | **692,700** | 99.993% |
+| `routeRefusalDirectCandidateOmitted` | 50 | 0.007% |
+| `routeRefusalNoCandidatesBuilt` | 0 | none |
+| `routeRefusalStepEndpointRejected` | 0 | none |
+| Sum | **692,750** | equals `refuseAgentTicks` exactly |
+
+This is a stronger result than the plan expected, and it is worth stating plainly
+because it changes how F-B should be judged. The plan split `refuseAgentTicks` four
+ways on the assumption that several rejection reasons shared the blame. They do
+not. Two of the four never fire at all across ten thousand ticks, a third fires
+fifty times, and `IsLaneClearOfAllies` accounts for essentially every refusal in
+the run. The standoff is a single-cause failure.
+
+That cause is precisely the predicate RU-30 rewrites, so F-A has confirmed F-B's
+premise rather than merely measuring around it. It also sharpens RU-30's acceptance
+criterion: the "collapse" that row asks for is a collapse in a counter whose
+baseline is now known exactly, **692,700**, and a V9 run that does not move that
+number substantially has falsified the diagnosis rather than under-delivered on a
+tuning target.
+
+One caution against over-reading it. These counters are agent-ticks in a refused
+state, not distinct decisions, so a single warrior stuck for a thousand ticks
+contributes a thousand. The number establishes *which* predicate refuses and how
+overwhelmingly, not how many separate warriors were affected.
+
 ### Integration baselines, measured after each wave
 
 Every count below is from a real `dotnet test` run in `Release` on the
