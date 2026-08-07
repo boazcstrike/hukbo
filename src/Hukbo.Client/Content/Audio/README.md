@@ -29,15 +29,36 @@ ten of them are on screen at once.
 | `clash-shield-wasay.wav` | A blow from a Wasay — War Axe is stopped by a shield |
 | `clash-shield-kalis.wav` | A blow from a Kalis — Thrusting Blade is stopped by a shield |
 | `clash-shield-itak.wav` | A blow from an Itak — Work Blade is stopped by a shield |
+| `release-bangkaw.wav` | A Bangkaw — Long Spear leaves the thrower's hand |
+| `release-busog.wav` | An arrow leaves a Busog — War Bow |
+| `release-arquebus.wav` | An Imported Arquebus fires |
+| `attack-bangkaw.wav` | A thrown Bangkaw — Long Spear lands on its target |
+| `attack-busog.wav` | An arrow from a Busog — War Bow lands on its target |
+| `attack-arquebus.wav` | A shot from an Imported Arquebus lands on its target |
+| `clash-shield-bangkaw.wav` | A blow from a Bangkaw — Long Spear is stopped by a shield |
+| `clash-shield-busog.wav` | A blow from a Busog — War Bow is stopped by a shield |
+| `clash-shield-arquebus.wav` | A blow from an Imported Arquebus is stopped by a shield |
+| `miss-bangkaw.wav` | A thrown Bangkaw — Long Spear misses its target |
+| `miss-busog.wav` | An arrow from a Busog — War Bow misses its target |
+| `miss-arquebus.wav` | A shot from an Imported Arquebus misses its target |
+| `misfire-arquebus.wav` | An Imported Arquebus fails to fire |
 
 The rows are in the order the sound log lists them, which is the order the
 catalog declares.
 
-Each of the four weapons has its own clash slot, and the game never substitutes
-one for another. A shield block by a War Axe plays the War Axe slot or nothing
-at all: if that slot has no file, the cue stays silent and the sound log reports
-the slot as `MISSING` rather than reaching for another weapon's take. A wrong
-weapon would be invisible in the log, whereas silence is not.
+Each of the seven attack weapons and each of the seven clash-shield weapons has
+its own slot, and the game never substitutes one for another. A shield block by
+a War Axe plays the War Axe slot or nothing at all: if that slot has no file,
+the cue stays silent and the sound log reports the slot as `MISSING` rather than
+reaching for another weapon's take. A wrong weapon would be invisible in the
+log, whereas silence is not.
+
+The three ranged weapons — the Bangkaw, the Busog, and the Arquebus — add a
+release slot for the moment a shot leaves the weapon and, for the Arquebus
+alone, a misfire slot for the weapon failing to fire at all. A miss slot plays
+when a ranged attack is evaded; the four melee weapons have no miss slot and
+keep using their shared weapon-impact sound for an evaded blow, which is a
+known, deliberate limitation rather than an oversight.
 
 Matching ignores letter case, so `Death.WAV` works too.
 
@@ -52,18 +73,19 @@ counts upward from `01`. So `clash-shield-kampilan-01.wav` is the first take of
 the Great Blade's shield-clash slot. One digit, three digits, and `00` are all
 unrecognised, and a file named that way is ignored.
 
-The four attack slots carry one extra token, because they also vary by where the
-blow landed: `<slot>-<class>-NN.wav`, as in `attack-kampilan-skull-01.wav`. The
-other nine slots, the four clash slots among them, have no hit class and use the
-plain `<slot>-NN.wav` form.
+The seven attack slots carry one extra token, because they also vary by where
+the blow landed: `<slot>-<class>-NN.wav`, as in `attack-kampilan-skull-01.wav`
+and `attack-bangkaw-ribcage-01.wav`. The other nineteen slots, the seven clash
+slots among them, have no hit class and use the plain `<slot>-NN.wav` form.
 
 Case is ignored here too, so `Clash-Shield-Kampilan-01.WAV` resolves to the same
 take.
 
 A bare `<slot>.wav` still works and is used when a slot has no numbered take at
-all, but nothing in the shipped set relies on it. That is why
-`./scripts/sfx.ps1 -List`, which probes only the bare name, reports a slot as
-missing even when all of its numbered takes are present.
+all, but nothing in the shipped set relies on it. `./scripts/sfx.ps1 -List`
+counts a slot as present under the same rule the game uses — a bare file or any
+numbered take, class-scoped or not — so it reports a slot present as soon as one
+real take exists, whichever form it takes.
 
 ## Generating a file
 
