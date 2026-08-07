@@ -172,6 +172,12 @@ public sealed class HudComposerTests
 
     private static WallBuckets NoWalls(NavGrid grid) => WallBuckets.Build(grid, [], [], [], []);
 
+    // Matches OrderValidationTests.OneWall — a single wall segment, used
+    // below to build a genuinely rejectable path (SegmentCrossesWall) rather
+    // than only exercising the accepted case.
+    private static WallBuckets OneWall(NavGrid grid, long ax, long ay, long bx, long by) =>
+        WallBuckets.Build(grid, [ax], [ay], [bx], [by]);
+
     [Fact]
     public void TryAddPathNode_APointerDownInsideAnyComposedPanelNeverBecomesAPathNode()
     {
@@ -248,5 +254,147 @@ public sealed class HudComposerTests
         Assert.Equal(submittedOrder.OrderId, orderQueueEntry.OrderId);
         Assert.Equal(targetTick, orderQueueEntry.TargetTick);
         Assert.False(orderQueueEntry.IsRejected);
+    }
+
+    // ==================== Task 73: SubmitDrawnPath ====================
+
+    private static PathDrawState TwoNodeDrawnPath()
+    {
+        var state = PathDrawState.CreateEmpty();
+        state = PathDrawTool.AddNode(state, new DrawnPathNode(10, 20));
+        state = PathDrawTool.AddNode(state, new DrawnPathNode(30, 20));
+        return state;
+    }
+
+    /// <summary>
+    /// A drawn path submitted with a non-empty, deliberately unsorted
+    /// selection produces exactly one <see cref="OrderKind.MoveAlongPath"/>
+    /// order whose addressees come back ascending. Built unsorted rather than
+    /// pre-sorted: an implementation that passed the selection through
+    /// verbatim, bypassing <see cref="OrderQueue"/>'s own sort, would fail
+    /// the ascending assertion below.
+    /// </summary>
+    [Fact]
+    public void SubmitDrawnPath_ANonEmptySelectionSubmitsExactlyOneOrderWithAscendingAddressees()
+    {
+        var grid = NewOpenGrid(10, 10);
+        var wallBuckets = NoWalls(grid);
+        var state = TwoNodeDrawnPath();
+        var unsortedAddressees = ImmutableArray.Create<ulong>(30, 5, 100, 2, 17);
+
+        var (postSubmitState, queue, orderQueueEntries) = SandataGame.SubmitDrawnPath(
+            state,
+            unsortedAddressees,
+            targetTick: 7,
+            factionId: 0,
+            OrderQueue.Empty,
+            grid,
+            wallBuckets,
+            ImmutableArray<OrderQueueView.Entry>.Empty);
+
+        var storedOrder = Assert.Single(queue.Orders);
+        Assert.Equal(OrderKind.MoveAlongPath, storedOrder.Kind);
+        Assert.Equal(new ulong[] { 2, 5, 17, 30, 100 }, storedOrder.Addressees.ToArray());
+
+        var orderQueueEntry = Assert.Single(orderQueueEntries);
+        Assert.False(orderQueueEntry.IsRejected);
+        Assert.Equal(storedOrder.OrderId, orderQueueEntry.OrderId);
+
+        // Post-submission state, on the accepted path: a fresh, empty drawn
+        // path, so the next frame does not render a phantom polyline.
+        Assert.Empty(postSubmitState.Nodes);
+    }
+
+    /// <summary>
+    /// An empty selection submits nothing at all — not an order with no
+    /// addressees. The queue comes back byte-for-byte unchanged (same order
+    /// count, same <see cref="OrderQueue.NextOrderId"/>, same
+    /// <see cref="OrderQueue.NextOrderSequence"/>) and the drawn path is left
+    /// exactly as it was, so a spectator who pressed submit before finishing
+    /// a selection keeps the path they already drew. A naive implementation
+    /// that submits an addressee-less order anyway would still pass a bare
+    /// order-count check but fails the counter assertions below, since
+    /// <see cref="OrderQueue.SubmitValidated"/> always advances both counters
+    /// for anything it actually stores.
+    /// </summary>
+    [Fact]
+    public void SubmitDrawnPath_AnEmptySelectionSubmitsNothing()
+    {
+        var grid = NewOpenGrid(10, 10);
+        var wallBuckets = NoWalls(grid);
+        var state = TwoNodeDrawnPath();
+
+        // A non-empty starting queue, so "unchanged" is a meaningful claim
+        // rather than trivially true of OrderQueue.Empty.
+        var (queueBefore, _, _) = SandataGame.ReleaseGoCode(
+            'A',
+            ImmutableArray.Create(1UL),
+            targetTick: 1,
+            factionId: 0,
+            OrderQueue.Empty,
+            grid,
+            wallBuckets,
+            ImmutableArray<GoCodePanel.GoCodeEntry>.Empty,
+            ImmutableArray<OrderQueueView.Entry>.Empty);
+        var existingOrderQueueEntries = ImmutableArray.Create(
+            OrderQueueView.FromSubmittedOrder(queueBefore.Orders[0]));
+
+        var (postSubmitState, queueAfter, orderQueueEntriesAfter) = SandataGame.SubmitDrawnPath(
+            state,
+            ImmutableArray<ulong>.Empty,
+            targetTick: 7,
+            factionId: 0,
+            queueBefore,
+            grid,
+            wallBuckets,
+            existingOrderQueueEntries);
+
+        Assert.Equal(queueBefore.Orders.Length, queueAfter.Orders.Length);
+        Assert.Equal(queueBefore.NextOrderId, queueAfter.NextOrderId);
+        Assert.Equal(queueBefore.NextOrderSequence, queueAfter.NextOrderSequence);
+        Assert.Equal(existingOrderQueueEntries.Length, orderQueueEntriesAfter.Length);
+
+        // The drawn path is untouched, not reset — nothing was submitted.
+        Assert.Equal(state.Nodes.ToArray(), postSubmitState.Nodes.ToArray());
+    }
+
+    /// <summary>
+    /// A path that crosses a wall is genuinely rejected by
+    /// <see cref="OrderValidation.ValidateMoveAlongPath"/>'s
+    /// <see cref="OrderRejectReason.SegmentCrossesWall"/> rule, and the
+    /// specific reason code — not merely a generic rejection marker — is
+    /// retrievable from the order queue view's entry. Same wall geometry
+    /// <c>OrderValidationTests.ValidateMoveAlongPath_SegmentCrossesWall_ReturnsSegmentCrossesWall</c>
+    /// uses: a vertical wall at x = 20 spanning the grid, crossed by a
+    /// horizontal path segment at y = 20.
+    /// </summary>
+    [Fact]
+    public void SubmitDrawnPath_ARejectedSubmissionSurfacesItsReasonCodeInTheOrderQueueView()
+    {
+        var grid = NewOpenGrid(10, 10);
+        var wallBuckets = OneWall(grid, ax: 20, ay: 0, bx: 20, by: 40);
+        var state = PathDrawState.CreateEmpty();
+        state = PathDrawTool.AddNode(state, new DrawnPathNode(10, 20));
+        state = PathDrawTool.AddNode(state, new DrawnPathNode(30, 20));
+
+        var (postSubmitState, queueAfter, orderQueueEntries) = SandataGame.SubmitDrawnPath(
+            state,
+            ImmutableArray.Create(1UL),
+            targetTick: 3,
+            factionId: 0,
+            OrderQueue.Empty,
+            grid,
+            wallBuckets,
+            ImmutableArray<OrderQueueView.Entry>.Empty);
+
+        Assert.Empty(queueAfter.Orders);
+
+        var entry = Assert.Single(orderQueueEntries);
+        Assert.True(entry.IsRejected);
+        Assert.Equal(OrderRejectReason.SegmentCrossesWall, entry.RejectReason);
+
+        // Post-submission state, on the rejected path too: PathDrawTool.Submit
+        // resets on either outcome, so a rejected drawing does not linger.
+        Assert.Empty(postSubmitState.Nodes);
     }
 }

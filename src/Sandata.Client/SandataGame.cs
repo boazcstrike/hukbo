@@ -372,6 +372,7 @@ internal sealed class SandataGame : Game
 
         UpdateDragCapture(mouseState);
         UpdatePathDrawing(mouseState);
+        UpdatePathSubmission(keyboardState);
         UpdateGoCodeReleases(keyboardState);
 
         _previousMouseState = mouseState;
@@ -443,6 +444,37 @@ internal sealed class SandataGame : Game
 
         var worldPositionWu = _camera.ScreenToWorld(mouseState.Position, windowBounds);
         _pathDrawState = TryAddPathNode(_pathDrawState, mouseState.Position, worldPositionWu, panelBounds);
+    }
+
+    /// <summary>
+    /// Task 73's submission wiring for the in-world path-drawing layer: the
+    /// Enter key, pressed and not yet released, submits the in-progress drawn
+    /// path via <see cref="SubmitDrawnPath"/>, addressed to the multi-select
+    /// state's current selection. The Enter key is this task's own
+    /// input-mapping decision — design section 11 and section 16 name no
+    /// physical input for path submission, the same gap task 71 already
+    /// documented for the right mouse button that draws a node.
+    /// </summary>
+    private void UpdatePathSubmission(KeyboardState keyboardState)
+    {
+        var wasPressed = _previousKeyboardState.IsKeyDown(Keys.Enter);
+        var isPressed = keyboardState.IsKeyDown(Keys.Enter);
+        if (!isPressed || wasPressed)
+        {
+            return;
+        }
+
+        var addressees = ToAddressees(_multiSelect.SelectedEntityIds);
+
+        (_pathDrawState, _orderQueue, _orderQueueEntries) = SubmitDrawnPath(
+            _pathDrawState,
+            addressees,
+            PlaceholderOrderTargetTick,
+            PlaceholderOrderFactionId,
+            _orderQueue,
+            _navGrid,
+            _wallBuckets,
+            _orderQueueEntries);
     }
 
     /// <summary>
@@ -636,6 +668,88 @@ internal sealed class SandataGame : Game
         }
 
         return (updatedQueue, goCodeEntries, orderQueueEntries);
+    }
+
+    /// <summary>
+    /// Submits the in-progress drawn path <paramref name="state"/> holds, as
+    /// one <see cref="OrderKind.MoveAlongPath"/> order addressed to
+    /// <paramref name="addressees"/>, through <see cref="UI.PathDrawTool.Submit"/>
+    /// — the only production caller <see cref="UI.PathDrawTool.Submit"/> had
+    /// none of before task 73 — and folds the result into the order queue
+    /// view's own entry list, the same "accepted marks it observed, rejected
+    /// still becomes an observable entry" shape <see cref="ReleaseGoCode"/>
+    /// already establishes for a go-code release.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>An empty <paramref name="addressees"/> submits nothing at all</b> —
+    /// not an order with no addressees. <see cref="OrderQueue.SubmitValidated"/>
+    /// has no rule that rejects an empty addressee set for
+    /// <see cref="OrderKind.MoveAlongPath"/> (design section 16's four
+    /// rejection rules are all about the polyline, never the addressee set),
+    /// so an implementation that passed an empty set through unconditionally
+    /// would silently create a real, accepted, un-addressed order — one no
+    /// operator is ever assigned to and one that still consumes
+    /// <see cref="OrderQueue.NextOrderId"/> and
+    /// <see cref="OrderQueue.NextOrderSequence"/> for nothing. This method
+    /// refuses that case before calling <see cref="UI.PathDrawTool.Submit"/>
+    /// at all: <paramref name="queue"/>, its counters, and
+    /// <paramref name="existingOrderQueueEntries"/> all come back byte-for-byte
+    /// unchanged, and — because nothing was submitted — <paramref name="state"/>
+    /// also comes back unchanged rather than being reset to empty, so a
+    /// spectator who pressed Enter before finishing a marquee selection keeps
+    /// the path they already drew and can select operators and try again
+    /// without redrawing it.
+    /// </para>
+    /// <para>
+    /// <b>Post-submission state, on either outcome.</b> When
+    /// <paramref name="addressees"/> is non-empty, <see cref="UI.PathDrawTool.Submit"/>
+    /// always returns a fresh, empty <see cref="PathDrawState"/> — whether the
+    /// order was accepted or rejected — so this method never leaves a stale
+    /// drawn path on screen that would otherwise render as a phantom path
+    /// next frame.
+    /// </para>
+    /// </remarks>
+    internal static (
+        PathDrawState State,
+        OrderQueue Queue,
+        ImmutableArray<OrderQueueView.Entry> OrderQueueEntries) SubmitDrawnPath(
+        PathDrawState state,
+        ImmutableArray<ulong> addressees,
+        long targetTick,
+        int factionId,
+        OrderQueue queue,
+        NavGrid grid,
+        WallBuckets wallBuckets,
+        ImmutableArray<OrderQueueView.Entry> existingOrderQueueEntries)
+    {
+        ArgumentNullException.ThrowIfNull(queue);
+        ArgumentNullException.ThrowIfNull(grid);
+        ArgumentNullException.ThrowIfNull(wallBuckets);
+
+        var orderQueueEntries = existingOrderQueueEntries.IsDefault
+            ? ImmutableArray<OrderQueueView.Entry>.Empty
+            : existingOrderQueueEntries;
+
+        if (addressees.IsDefaultOrEmpty)
+        {
+            return (state, queue, orderQueueEntries);
+        }
+
+        var (updatedState, updatedQueue, submitted, rejection) = PathDrawTool.Submit(
+            state, queue, targetTick, factionId, addressees, grid, wallBuckets);
+
+        if (submitted is not null)
+        {
+            orderQueueEntries = orderQueueEntries.Add(OrderQueueView.FromSubmittedOrder(submitted));
+        }
+        else if (rejection is not null)
+        {
+            orderQueueEntries = orderQueueEntries.Add(
+                OrderQueueView.FromRejection(rejection, OrderKind.MoveAlongPath, targetTick));
+        }
+
+        return (updatedState, updatedQueue, orderQueueEntries);
     }
 
     /// <summary>

@@ -1626,7 +1626,7 @@ suppression bracket, selection ring.
 | Order queue view | left column, below the go-code panel | every order the spectator has submitted, and — for a rejected one — the specific reason it failed validation | **built** — task 71 gives task 62's helper its call site |
 | Spectator control bar | bottom-centre | pause, step one tick, speed, restart | **built**, reusing Hukbo's control-bar shape |
 | Fire cone overlay | in-world | per-operator vision cone, `FireConeFill` and `FireConeEdge`, at every detail tier | **built** |
-| Order path overlay | in-world | the polyline and waypoints for a selected group | **scaffolded** — renders a path when one exists, has no editor |
+| Order path overlay | in-world | the polyline and waypoints for a selected group | **built** — task 71 gave it a live in-world editor; task 73 wired submission, so the drawn path routes through `OrderQueue.SubmitValidated` as one `MoveAlongPath` order addressed to the current multi-select, and a rejection surfaces in the order queue view rather than vanishing silently |
 | Breach-point marker | in-world | map-declared breachable wall faces | **scaffolded** — drawn, not interactive |
 | Minimap | top-left | none exists anywhere in the client today | **scaffolded** — a bordered panel drawing the nav grid's passability at one pixel per cell, no interaction |
 | Multi-select marquee | in-world | drag rectangle over friendlies | **scaffolded** — `AgentSelection` is single-entity only today, so Sandata gets its own multi-select state as a pure record with tests, and the pointer path that drives it |
