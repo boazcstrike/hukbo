@@ -28,15 +28,26 @@ internal enum SandataMovementResolution
     Held,
 
     /// <summary>
-    /// The desired position would overlap an already-committed body, so the
-    /// entity committed at its start position instead.
+    /// The desired position would overlap another body, so the entity
+    /// committed at its own start position instead, once that start
+    /// position was itself confirmed clear. See the remarks on
+    /// <see cref="SandataCollisionResolver.CommitOne"/> for what happens on
+    /// the rare path where the start position is not clear either — that
+    /// path never reports <see cref="Blocked"/>, it reports
+    /// <see cref="Separated"/>, so every occurrence of this value is a
+    /// position this method independently verified was free of every other
+    /// body at commit time.
     /// </summary>
     Blocked,
 
     /// <summary>
-    /// The entity's position exactly coincided with an already-committed
-    /// body, so it committed at a deterministic offset from that position
-    /// instead of either.
+    /// A fixed, deterministic ring search found this entity's committed
+    /// position rather than either of its own proposed points. This
+    /// happens in two situations, both documented on
+    /// <see cref="SandataCollisionResolver.CommitOne"/>: the desired
+    /// position exactly coincided with another body, or the desired
+    /// position was rejected and the entity's own start position was, at
+    /// that moment, also occupied by another body.
     /// </summary>
     Separated,
 }
@@ -77,14 +88,24 @@ internal readonly record struct SandataCollisionMoveResult(
 /// </para>
 /// <para>
 /// <b>Commit, sequentially.</b> Walking the prioritised order, each request is
-/// tested against every already-committed body this tick, never against
-/// another still-pending proposal. A desired position that does not overlap
-/// anything committed so far is accepted outright. A desired position that
-/// exactly coincides with an already-committed body is repaired by
+/// tested against the real, current position of every other body in the
+/// tick — not only the ones already committed. Before every single request is
+/// tested, <see cref="_committedGrid"/> is rebuilt from <see cref="_liveBodies"/>,
+/// a table that starts as every request's own start position and is updated,
+/// in place, to that request's settled committed position the instant it is
+/// decided. This is what makes the grid a true "who is standing where right
+/// now" index at every step: an entity that has not had its own turn yet is
+/// still represented by its real start position, and an entity that already
+/// committed is represented by its real committed position, never by a stale
+/// value from before the tick began. A desired position that does not overlap
+/// anything in that current index is accepted outright. A desired position
+/// that exactly coincides with another body is repaired by
 /// <see cref="TrySeparate"/>, walking the fixed direction order east, west,
 /// north, south at one body diameter per step until a clear position is
-/// found. Any other overlap holds the entity at its start position rather
-/// than moving it into the collision.
+/// found. Any other overlap falls through to the entity's own start position —
+/// but only once that start position is itself confirmed clear against the
+/// same current index; see the remarks on <see cref="CommitOne"/> for the
+/// written rule covering the case where it is not.
 /// </para>
 /// <para>
 /// Never a force, an impulse, or a push-apart: every accepted position is
@@ -94,11 +115,20 @@ internal readonly record struct SandataCollisionMoveResult(
 /// <c>CLAUDE.md</c> section 9 forbids.
 /// </para>
 /// <para>
-/// The resolver owns one <see cref="SandataCollisionGrid"/> as its committed
-/// index and clears it at the start of every <see cref="Resolve"/> call rather
-/// than allocating a fresh one, and it reuses one scratch index array across
-/// calls, so a warm tick allocates nothing beyond the result list the caller
-/// asked for.
+/// The resolver owns one <see cref="SandataCollisionGrid"/> as its working
+/// index and one <see cref="List{T}"/> of <see cref="SandataCollisionBody"/>
+/// as <see cref="_liveBodies"/>, and reuses both, plus one scratch priority
+/// index array, across calls, so a warm tick — one whose request count has
+/// been seen before, so none of the three needs to grow — allocates nothing
+/// beyond the result list the caller asked for. Rebuilding the grid ahead of
+/// every request, rather than seeding it once and incrementally removing one
+/// body per turn, costs this resolver O(n) grid work per request instead of
+/// O(1): <see cref="SandataCollisionGrid"/> exposes no way to remove a single
+/// body once inserted, only <see cref="SandataCollisionGrid.Clear"/> and
+/// re-insertion of everything. That is an accepted trade against Sandata's
+/// own stated scale — an indoor operator squad, not a battlefield roster —
+/// the same trade this file already makes for its insertion sort over a
+/// faster comparison-sort algorithm.
 /// </para>
 /// </remarks>
 internal sealed class SandataCollisionResolver
@@ -106,6 +136,20 @@ internal sealed class SandataCollisionResolver
     private readonly SandataCollisionGrid _committedGrid;
     private readonly int _bodyRadiusRaw;
     private readonly List<SandataCollisionMoveResult> _results = [];
+
+    /// <summary>
+    /// One entry per request in the current <see cref="Resolve"/> call, indexed
+    /// the same way as the caller's own <c>requests</c> list (not by priority
+    /// order). Every entry starts as that request's own start position and is
+    /// overwritten, in place, with the request's settled committed position as
+    /// soon as it is decided — which is this resolver's stand-in for "remove
+    /// the body's stale entry and insert its real one" on a grid type that
+    /// supports neither a targeted remove nor a targeted update. See the class
+    /// remarks for why this table, rebuilt into <see cref="_committedGrid"/>
+    /// ahead of every single request, replaces the seed-once-and-incrementally-
+    /// remove shape a grid with a remove primitive would have supported.
+    /// </summary>
+    private readonly List<SandataCollisionBody> _liveBodies = [];
 
     private int[] _priorityOrder = new int[16];
 
@@ -133,8 +177,8 @@ internal sealed class SandataCollisionResolver
     {
         ArgumentNullException.ThrowIfNull(requests);
 
-        _committedGrid.Clear();
         _results.Clear();
+        _liveBodies.Clear();
 
         var count = requests.Count;
 
@@ -148,19 +192,95 @@ internal sealed class SandataCollisionResolver
         for (var index = 0; index < count; index++)
         {
             _priorityOrder[index] = index;
+
+            // Every entity's live position starts as its own start position:
+            // this is the seed step. An entity nobody has reached yet keeps
+            // this exact value for the rest of the call, so every later
+            // request sees it as a real, occupied position — closing the
+            // hole where the highest-priority request used to see an empty
+            // grid.
+            _liveBodies.Add(new SandataCollisionBody(requests[index].EntityId, requests[index].StartXRaw, requests[index].StartYRaw, IsAlive: true));
         }
 
         SortPriorityOrder(requests, count);
 
         for (var orderPosition = 0; orderPosition < count; orderPosition++)
         {
-            var request = requests[_priorityOrder[orderPosition]];
-            _results.Add(CommitOne(request));
+            var requestIndex = _priorityOrder[orderPosition];
+            var request = requests[requestIndex];
+
+            // Rebuild the working grid from the live table before testing
+            // this request, so it is checked against everyone's real current
+            // position: already-processed entities at their settled commit,
+            // everyone else still at their real start.
+            _committedGrid.Clear();
+
+            for (var bodyIndex = 0; bodyIndex < count; bodyIndex++)
+            {
+                _committedGrid.Insert(_liveBodies[bodyIndex]);
+            }
+
+            var result = CommitOne(request);
+
+            // This is the "remove" half of the seed-and-remove shape: the
+            // request's own turn is done, so its live entry stops being its
+            // start position and becomes its real, settled commit for every
+            // request still to come.
+            _liveBodies[requestIndex] = new SandataCollisionBody(result.EntityId, result.CommittedXRaw, result.CommittedYRaw, IsAlive: true);
+
+            _results.Add(result);
         }
 
         return _results;
     }
 
+    /// <summary>
+    /// Decides one request's settled position against <see cref="_committedGrid"/>
+    /// as it stands for this request's own turn — see <see cref="Resolve"/> for
+    /// how that grid is kept current. Does not mutate the grid or
+    /// <see cref="_liveBodies"/> itself; the caller commits the result.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The written rule for an occupied start position.</b> The desired
+    /// position is tried first, then, if it is rejected, the entity's own
+    /// start position is tried as a fallback — but that fallback is only ever
+    /// committed once this method has independently confirmed the start
+    /// position is itself clear of every other body at this moment. An
+    /// entity's start position can be occupied at fallback time even though
+    /// it was that entity's own real position moments ago, because a
+    /// higher-priority entity processed earlier in this same call can have
+    /// committed onto it — see the class remarks on <see cref="_liveBodies"/>
+    /// for exactly how that becomes visible here. When the start position is
+    /// occupied, this method does not commit into it: doing so would recreate
+    /// the exact overlap this resolver exists to prevent. Instead it repairs
+    /// the position with the same fixed, deterministic ring search
+    /// (<see cref="TrySeparate"/>) already used for an exact coincidence at
+    /// the desired position, walking east, west, north, south outward from the
+    /// entity's own start position this time rather than its desired one, and
+    /// reports <see cref="SandataMovementResolution.Separated"/> rather than
+    /// <see cref="SandataMovementResolution.Blocked"/>. If that search also
+    /// exhausts its bounded ring count without finding daylight — the same
+    /// "caller defect, not a case this method papers over" bound documented on
+    /// <see cref="TrySeparate"/> itself — this method has no remaining
+    /// non-overlapping candidate to offer and commits into the occupied start
+    /// position as an absolute last resort, the one place in this resolver
+    /// where the no-overlap invariant is not guaranteed. That last resort has
+    /// never been observed to trigger against any fixture in this codebase;
+    /// it exists so this method always returns a value rather than throwing
+    /// out of an already-degenerate scene.
+    /// </para>
+    /// <para>
+    /// A partial overlap at the desired position — one that is not an exact
+    /// coincidence — never reaches <see cref="TrySeparate"/> at the desired
+    /// position at all; it falls straight through to the start-position check
+    /// above. That is sufficient for correctness, not an oversight: once the
+    /// start-position check and its own separation fallback are both in
+    /// place, a partial overlap can no longer produce an overlapping commit,
+    /// because the entity either holds at its own already-clear start or is
+    /// separated away from it.
+    /// </para>
+    /// </remarks>
     private SandataCollisionMoveResult CommitOne(in SandataCollisionMoveRequest request)
     {
         var isMoving = request.DesiredXRaw != request.StartXRaw || request.DesiredYRaw != request.StartYRaw;
@@ -168,22 +288,27 @@ internal sealed class SandataCollisionResolver
         if (!_committedGrid.AnyOverlapUnchecked(request.DesiredXRaw, request.DesiredYRaw, _bodyRadiusRaw, request.EntityId))
         {
             var resolution = isMoving ? SandataMovementResolution.Moved : SandataMovementResolution.Held;
-            return CommitAt(request.EntityId, request.DesiredXRaw, request.DesiredYRaw, resolution);
+            return new SandataCollisionMoveResult(request.EntityId, request.DesiredXRaw, request.DesiredYRaw, resolution);
         }
 
         if (_committedGrid.AnyCoincidentUnchecked(request.DesiredXRaw, request.DesiredYRaw, request.EntityId) &&
-            TrySeparate(request.DesiredXRaw, request.DesiredYRaw, request.EntityId, out var separatedXRaw, out var separatedYRaw))
+            TrySeparate(request.DesiredXRaw, request.DesiredYRaw, request.EntityId, out var separatedFromDesiredXRaw, out var separatedFromDesiredYRaw))
         {
-            return CommitAt(request.EntityId, separatedXRaw, separatedYRaw, SandataMovementResolution.Separated);
+            return new SandataCollisionMoveResult(request.EntityId, separatedFromDesiredXRaw, separatedFromDesiredYRaw, SandataMovementResolution.Separated);
         }
 
-        return CommitAt(request.EntityId, request.StartXRaw, request.StartYRaw, SandataMovementResolution.Blocked);
-    }
+        if (!_committedGrid.AnyOverlapUnchecked(request.StartXRaw, request.StartYRaw, _bodyRadiusRaw, request.EntityId))
+        {
+            return new SandataCollisionMoveResult(request.EntityId, request.StartXRaw, request.StartYRaw, SandataMovementResolution.Blocked);
+        }
 
-    private SandataCollisionMoveResult CommitAt(ulong entityId, int xRaw, int yRaw, SandataMovementResolution resolution)
-    {
-        _committedGrid.Insert(new SandataCollisionBody(entityId, xRaw, yRaw, IsAlive: true));
-        return new SandataCollisionMoveResult(entityId, xRaw, yRaw, resolution);
+        if (TrySeparate(request.StartXRaw, request.StartYRaw, request.EntityId, out var separatedFromStartXRaw, out var separatedFromStartYRaw))
+        {
+            return new SandataCollisionMoveResult(request.EntityId, separatedFromStartXRaw, separatedFromStartYRaw, SandataMovementResolution.Separated);
+        }
+
+        // Absolute last resort: see the written rule in the remarks above.
+        return new SandataCollisionMoveResult(request.EntityId, request.StartXRaw, request.StartYRaw, SandataMovementResolution.Blocked);
     }
 
     /// <summary>

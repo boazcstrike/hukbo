@@ -134,18 +134,15 @@ public sealed class LocalAvoidanceTests
                 // previous tick — because that is already-committed state,
                 // not another entity's same-tick proposal (design section 5's
                 // "no unit sees another's proposal" bans the second, not the
-                // first). See WouldStepIntoALowerPriorityEntitysCurrentPosition
-                // for why only this one priority direction needs the guard:
-                // it is a documented blind spot in the consumed
-                // SandataCollisionResolver, not a general restriction on
-                // approaching another unit — ordinary contact still reaches
-                // LocalAvoidance's own Blocked-then-sidestep path untouched.
-                if (WouldStepIntoALowerPriorityEntitysCurrentPosition(i, xs[i] + stepXRaw, ys[i] + stepYRaw, xs, ys))
-                {
-                    stepXRaw = 0;
-                    stepYRaw = 0;
-                }
-
+                // first). Task 70 closed the resolver's own blind spot where a
+                // higher-priority entity could walk into a lower-priority
+                // entity's not-yet-processed current position undetected —
+                // see SandataCollisionResolver's class remarks — so this test
+                // no longer needs to pre-filter that case itself before
+                // handing a proposal to LocalAvoidance; ordinary contact now
+                // reaches LocalAvoidance's own Blocked-then-sidestep path
+                // exactly as design section 8 intends, in every priority
+                // direction.
                 proposals[i] = new MovementProposal(
                     EntityId: (ulong)(i + 1),
                     StartXRaw: xs[i],
@@ -361,51 +358,6 @@ public sealed class LocalAvoidanceTests
         var deltaXRaw = Math.Clamp(targetXRaw - currentXRaw, -maxStepRaw, maxStepRaw);
         var deltaYRaw = Math.Clamp(targetYRaw - currentYRaw, -maxStepRaw, maxStepRaw);
         return (deltaXRaw, deltaYRaw);
-    }
-
-    /// <summary>
-    /// True when a candidate desired position would land within
-    /// <see cref="SandataCollisionGrid.Overlaps"/> contact range of a
-    /// lower-priority entity's (larger slot index, later in this pass's
-    /// commit order) own frozen tick-start position —
-    /// <paramref name="xs"/>/<paramref name="ys"/> as they stand before this
-    /// tick's <see cref="LocalAvoidance.Commit"/> call, already-committed
-    /// state from the previous tick, not a same-tick proposal, so reading it
-    /// is exactly the discipline design section 5 assigns stage 9.
-    /// </summary>
-    /// <remarks>
-    /// The check is one-directional in commit-priority order, not symmetric,
-    /// because only one direction is actually unsafe to hand to
-    /// <see cref="LocalAvoidance"/>. The consumed
-    /// <c>SandataCollisionResolver.CommitOne</c> (plan task 16) inserts a
-    /// body into its committed grid only once that body's own turn is
-    /// processed, in ascending <c>(groupId, slotIndex, entityId)</c> order —
-    /// so when an earlier-slot (higher-priority) entity's move is checked,
-    /// no later-slot (lower-priority) entity is in the grid yet, and its
-    /// current position is invisible to that check even though it is real,
-    /// occupied space. A higher-priority proposal that walks into that blind
-    /// spot gets accepted outright, and if the lower-priority entity's own
-    /// proposal is then rejected, its blocked-fallback commits unconditionally
-    /// at that same, now-occupied start position — a genuine overlap the
-    /// resolver never re-validates against. The reverse direction needs no
-    /// guard: a lower-priority entity stepping toward a higher-priority
-    /// entity's position is checked correctly, because that higher-priority
-    /// body is already committed and in the grid by the time the resolver
-    /// reaches the lower-priority request, so ordinary Blocked-then-sidestep
-    /// handles it exactly as design section 8 intends.
-    /// </remarks>
-    private static bool WouldStepIntoALowerPriorityEntitysCurrentPosition(
-        int proposingIndex, int candidateXRaw, int candidateYRaw, int[] xs, int[] ys)
-    {
-        for (var other = proposingIndex + 1; other < xs.Length; other++)
-        {
-            if (SandataCollisionGrid.Overlaps(candidateXRaw, candidateYRaw, xs[other], ys[other], BodyRadiusRaw))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static void AssertNoTwoCommittedBodiesOverlap(
