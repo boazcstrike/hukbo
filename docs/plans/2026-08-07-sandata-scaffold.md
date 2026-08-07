@@ -286,3 +286,37 @@ in a wave write the same file catches collisions but says nothing about files
 that *no* task owns. A plan can be perfectly disjoint and still be unbuildable.
 Any future wave audit should check both directions: no file claimed twice, and
 every file named in a "What" column claimed once.
+
+### Task 56 scope grew: a second duplicated table, and a signature to reconcile
+
+Task 11 was told its acceptance test must assert the file "contains no `Trig`
+call". The intent behind that wording was to forbid a **cosine comparison** for
+cone containment, which is the real hazard — Hukbo's sector vectors are not
+unit length, the error differs per sector, and such a test also overflows
+`long`. The wording did not say that. Read literally and correctly, it forced
+`ConeBoundaryTable` to declare its own independent 257-entry quarter-wave sine
+table rather than calling the one task 5 had already written and pinned.
+
+The containment logic is right — two half-plane cross products, magnitude never
+used. Only the table is redundant. Task 56 therefore also:
+
+- folds `ConeBoundaryTable`'s sine table onto `Trig`'s single pinned table, and
+- rewrites the offending assertion so it forbids what was actually meant: no
+  cosine-comparison containment test, no use of a vector's magnitude in a
+  containment decision. An assertion banning a *call* bans the wrong thing.
+
+Both tables were independently derived from the mathematical definition rather
+than from each other, so folding them is a deletion, not a reconciliation of two
+disagreeing sources. Confirm they are element-for-element equal before removing
+either; if they differ, that difference is a real bug in one of them and must be
+resolved before the fold.
+
+Separately, task 11 added a `long rangeSquared` parameter to
+`VisionCone.Contains`, which design section 6's signature omits even though a
+cone needs a range. Task 56's design-correction pass covers this alongside the
+`Point` and `Box` removal.
+
+**The lesson for future prompts.** An acceptance criterion should name the
+property that must hold, not the symbol that must be absent. "No cosine
+comparison" is checkable and correct; "no `Trig` call" is checkable and wrong,
+and it produced real duplicated state that a later task now has to unwind.
