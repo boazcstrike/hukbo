@@ -687,6 +687,48 @@ Two rules bind the table:
   view is released at the end of stage 9, and a test asserts that no type
   reachable from stages 10 to 14 holds a reference to it.
 
+### Amendment, 2026-08-07: the alert level had no transition rule
+
+Design section 4 makes the per-faction alert level authoritative and hashed,
+section 11 gives it three theme roles and an indicator that differs by shape as
+well as colour, and the HUD list marks it built. Nothing anywhere said what
+moves it from one level to the next. Task 35 declared the enum, implemented no
+transitions, and reported that no row and no criterion named one rather than
+inventing a rule inside a sensing file. It was right to stop: an invented alert
+rule is a gameplay decision smuggled in as an implementation detail.
+
+The rule, stated here so it is a decision rather than an accident:
+
+- **`Calm` becomes `Raised`** when any living operator of that faction gains an
+  identified contact, or hears a sound of a kind that carries intent — gunfire,
+  breaking glass, or a death scream — whose radius reaches it.
+- **`Raised` becomes `Breach`** when any operator of that faction dies, or a
+  breachable wall on that faction's side is breached.
+- **The level never decreases within a mission.** A decay timer is the obvious
+  next idea and it is deliberately not in v0.1: a monotonic level needs no
+  duration constant, no per-faction timer in the hash, and no answer to the
+  question of what a squad "forgetting" a breach would mean while the breached
+  door is still open in front of it.
+
+**Where it happens in the tick.** The transition is evaluated during sensing,
+stage 5, against the frozen tick-start view, so it is order-independent like
+every other sensing result. It is *committed* after the frozen view is released,
+which means intent selection at stage 8 reads the previous tick's alert level.
+That is the correct reading and not a compromise: an alert level that changed
+underneath the units evaluating against it would make the outcome depend on
+which unit was processed first, which is exactly what section 5's seam exists to
+prevent. The visible artifact is a one-tick delay between the shot being heard
+and the squad reacting to it, which is legible on screen and defensible as
+behaviour.
+
+**A note on the hearing radii.** Task 35 found that four of the sound radii are
+documented in the design or the research consolidation and five are not:
+gunfire, breaking glass, the death scream, and both contact-tier range
+boundaries were invented, marked provisional in code, and reported as invented.
+They are placeholders that a tuning pass has to revisit, and the only reason
+they are acceptable now is that they are marked as such at every site rather
+than presented as measurements.
+
 ---
 
 ## 6. Math additions

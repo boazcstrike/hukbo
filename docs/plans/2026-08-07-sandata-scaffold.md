@@ -825,3 +825,41 @@ the wall instead of climbing it: the unowned `NavGrid` member, the unowned
 smoothing step, the two identifier types, the missing world-unit conversion, the
 undeclared system tags, and the design's own slot-index contradiction. The file
 list is not overhead. It is the instrument.
+
+### The alert level is hashed, drawn, and never changes: task 68
+
+Task 35 declared `AlertLevel` and implemented no transitions, reporting that no
+task row and no acceptance criterion named one. Checking the design confirmed the
+gap is upstream: section 4 makes the level authoritative and hashed, section 11
+gives it three theme roles and an indicator that differs by shape as well as
+colour, and nothing in the document says what moves it. The state was hashed,
+drawn, and inert.
+
+Design section 5 now carries the rule and, more importantly, the tick placement:
+the transition is evaluated during sensing against the frozen tick-start view and
+committed after that view is released, so intent selection reads the previous
+tick's level. An alert level that changed underneath the units evaluating against
+it would make the outcome depend on processing order, which is the failure the
+tick seam exists to prevent. The visible cost is a one-tick delay between hearing
+a shot and reacting to it.
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 68 | 7 | Alert level transitions | Implement design section 5's 2026-08-07 amendment: `Calm` to `Raised` on an identified contact or on hearing gunfire, breaking glass, or a death scream; `Raised` to `Breach` on a friendly death or a wall breach; never decreasing within a mission. Evaluated against the frozen tick-start view, committed after it is released. Pure functions over parameters — `AlertLevel.cs` and `MissionState.cs` are read-only here, and this task declares no new hashed field. | `src/Sandata.Core/Sensing/AlertRules.cs`, `tests/Sandata.Core.Tests/AlertRulesTests.cs` | `AlertRulesTests` passes: each trigger raises exactly one level and no more; a trigger for a level already reached changes nothing; the level never decreases across a long synthetic tick sequence including a quiet stretch; permuting the order of the operators evaluated changes nothing; and a test asserts that a level committed this tick is not visible to a reader of the frozen view. | 35, 36 | |
+
+**The provisional radii task 35 reported.** Four of the sound radii come from the
+design or the research consolidation: bolt cutter 72 wu, smoke 160 wu, hammer or
+crowbar 192 wu, breacher shotgun 400 wu. Five were invented and are marked
+provisional at every site: gunfire 352 wu, breaking glass 416 wu, death scream
+480 wu, the identify boundary 96 wu, and the detect boundary 256 wu. The only
+thing making them acceptable is that they are labelled rather than presented as
+measurements. A tuning pass owns them, and until it runs, no document should
+quote them as though they were derived.
+
+**One generalisation to watch.** Task 35 satisfied "a door opened out of sight is
+not observed until seen" with a generic `ObserveOrRemember` helper demonstrated
+on a bare boolean, because `DoorState` and `MissionState` were forbidden to it.
+The rule is proven generically and is not yet wired to the actual door type.
+Whichever task wires sensing into the pipeline has to connect it, and the fact
+that a passing test does not prove the door path works is exactly the sort of
+thing that is invisible six weeks later.
