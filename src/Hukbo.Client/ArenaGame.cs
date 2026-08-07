@@ -1546,7 +1546,7 @@ public sealed partial class ArenaGame : Game
                 _simulation.LastEvents,
                 _simulation.Agents,
                 _simulation.LastTickCombatByFaction);
-            _soundDirector.Ingest(_simulation.LastEvents);
+            _soundDirector.Ingest(_simulation.LastEvents, _simulation.Agents);
             LogTick();
             _simulationAccumulator -= secondsPerTick;
         }
