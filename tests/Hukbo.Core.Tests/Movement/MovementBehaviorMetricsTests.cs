@@ -1,3 +1,4 @@
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Core.Tests.Movement;
@@ -24,6 +25,10 @@ public sealed class MovementBehaviorMetricsTests
         Assert.Equal(0L, metrics.FacingStepsTurned);
         Assert.Equal(0L, metrics.DisengagementEntries);
         Assert.Equal(0L, metrics.ConflictDenials);
+        Assert.Equal(0L, metrics.RouteRefusalNoCandidatesBuilt);
+        Assert.Equal(0L, metrics.RouteRefusalStepEndpointRejected);
+        Assert.Equal(0L, metrics.RouteRefusalDirectCandidateOmitted);
+        Assert.Equal(0L, metrics.RouteRefusalLaneNotClear);
     }
 
     [Fact]
@@ -166,6 +171,52 @@ public sealed class MovementBehaviorMetricsTests
     }
 
     [Fact]
+    public void RecordRouteRefusalReasonTotals_RejectsANegativeArgument()
+    {
+        var accumulator = default(MovementBehaviorMetricsAccumulator);
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+            () => accumulator.RecordRouteRefusalReasonTotals(-1, 0, 0, 0));
+
+        Assert.Equal("noCandidatesBuiltTotal", exception.ParamName);
+    }
+
+    [Fact]
+    public void RecordRouteRefusalReasonTotals_RecordsTheLatestCumulativeTotals()
+    {
+        var accumulator = default(MovementBehaviorMetricsAccumulator);
+
+        accumulator.RecordRouteRefusalReasonTotals(1, 2, 3, 4);
+        accumulator.RecordRouteRefusalReasonTotals(5, 6, 7, 8);
+
+        var metrics = accumulator.ToMetrics();
+
+        Assert.Equal(5L, metrics.RouteRefusalNoCandidatesBuilt);
+        Assert.Equal(6L, metrics.RouteRefusalStepEndpointRejected);
+        Assert.Equal(7L, metrics.RouteRefusalDirectCandidateOmitted);
+        Assert.Equal(8L, metrics.RouteRefusalLaneNotClear);
+    }
+
+    [Fact]
+    public void RecordRouteRefusalReasonTotals_DoesNotDisturbTheRunningTotals()
+    {
+        var accumulator = default(MovementBehaviorMetricsAccumulator);
+        accumulator.AddTick(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
+        accumulator.RecordConflictDenialTotal(13);
+
+        accumulator.RecordRouteRefusalReasonTotals(1, 2, 3, 4);
+
+        var metrics = accumulator.ToMetrics();
+
+        Assert.Equal(5L, metrics.RefuseAgentTicks);
+        Assert.Equal(13L, metrics.ConflictDenials);
+        Assert.Equal(1L, metrics.RouteRefusalNoCandidatesBuilt);
+        Assert.Equal(2L, metrics.RouteRefusalStepEndpointRejected);
+        Assert.Equal(3L, metrics.RouteRefusalDirectCandidateOmitted);
+        Assert.Equal(4L, metrics.RouteRefusalLaneNotClear);
+    }
+
+    [Fact]
     public void Reset_RestoresTheStateOfAFreshlyConstructedAccumulator()
     {
         var accumulator = default(MovementBehaviorMetricsAccumulator);
@@ -246,5 +297,54 @@ public sealed class MovementBehaviorMetricsTests
         var second = accumulator.ToMetrics();
 
         Assert.Equal(first, second);
+    }
+
+    /// <summary>
+    /// The RU-06 (F-A) acceptance measurement: on the same 200-agent,
+    /// seed-1, 10,000-tick <c>EquipmentRelativeFootworkV6</c> run
+    /// <c>./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1
+    /// -MovementPreset EquipmentRelativeFootworkV6</c> would drive, the four
+    /// <see cref="BattleSimulation"/> route-refusal-reason counters sum to
+    /// exactly the run's own agent-tick count of
+    /// <see cref="Movement.FootworkPhase.Refuse"/>, counted independently
+    /// here from each tick's <see cref="AgentView"/> the same way
+    /// <c>HeadlessRunner.ObserveMovementTick</c> counts it, rather than
+    /// against a hand-typed constant — a mismatch here means an exit site
+    /// double-counted or missed a call, not that the recorded baseline moved.
+    /// </summary>
+    [Fact]
+    public void BattleSimulationV6_RouteRefusalReasonsSumToTheObservedRefuseAgentTicks()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            TickLimit = 10_000,
+            MovementPreset = MovementPresetId.EquipmentRelativeFootworkV6,
+        };
+        var simulation = BattleSimulation.Create(scenario);
+        var observedRefuseAgentTicks = 0L;
+
+        for (var tick = 0;
+             tick < 10_000 && simulation.Outcome == BattleOutcome.Ongoing;
+             tick++)
+        {
+            simulation.AdvanceOneTick();
+
+            foreach (var view in simulation.Agents)
+            {
+                if (view.IsAlive && view.FootworkPhase == FootworkPhase.Refuse)
+                {
+                    observedRefuseAgentTicks++;
+                }
+            }
+        }
+
+        var sum = checked(
+            simulation.RouteRefusalNoCandidatesBuilt +
+            simulation.RouteRefusalStepEndpointRejected +
+            simulation.RouteRefusalDirectCandidateOmitted +
+            simulation.RouteRefusalLaneNotClear);
+
+        Assert.Equal(observedRefuseAgentTicks, sum);
+        Assert.True(observedRefuseAgentTicks > 0);
     }
 }
