@@ -1,0 +1,409 @@
+# Ranged units — plan
+
+Design: [`2026-08-07-ranged-units-design.md`](2026-08-07-ranged-units-design.md).
+Branch: `ranged-units`, in `.claude/worktrees/ranged-units`, based on `main` at
+`ae7bf04`.
+
+## 1. What this package is
+
+Hukbo's warriors all fight at arm's length. This package adds warriors who fight
+at a distance. Concretely it adds three ranged weapons — `Bangkaw — Long Spear`
+in its thrown role, `Busog — War Bow`, and the `Imported Arquebus` — a projectile
+that takes a measurable number of ticks to arrive, a movement rule that lets a
+warrior deliberately stop short of contact and stay there, procedural pose
+animation for the drawing and loosing of each weapon, sixty generated sound
+files, and two narrowly scoped pieces of work on the battle-termination standoff.
+
+It is a battle-layer change and nothing else. No campaign state, no economy, no
+map generation, and no morale model is introduced, and `Hukbo.Core` gains no
+reference to MonoGame, the filesystem, the wall clock, or `Hukbo.Diagnostics`.
+
+Everything this plan schedules is specified in the design document. Where this
+plan and the design disagree about *what* is being built, the design wins and the
+disagreement is a defect in this plan. Where they disagree about *the order* work
+happens in and *which files* a given agent may touch, this plan wins, because
+that is what a plan is for.
+
+## 2. Authorization
+
+**The design document does not authorize implementation. This plan does.**
+
+`CLAUDE.md` section 6 makes that split explicit: a design document is written
+first and states what a feature is, and an ordered plan document has to follow it
+before any code is written. The design document says so in its own first
+paragraph. This document is that plan, and from here on an implementing agent is
+authorized to write code — but only the code its own task row names, only in the
+files its own task row names.
+
+Two standing prohibitions were lifted by the user on 2026-08-07 for this package
+and for nothing else:
+
+- `SIMULATION-GAME-STANDARDS.md:27` lists projectiles and ammunition among the
+  deferred layers. **The projectile half is lifted. The ammunition half is
+  not.**
+- `CLAUDE.md` section 9 forbids starting projectile ammunition before an
+  authorizing gate. **That clause survives intact**; ammunition, quiver sizes,
+  and resupply stay out of scope and are recorded in section 8 below.
+
+Terrain, cover, pathfinding, morale, diplomacy, needs, economy, persistent
+worlds, multiplayer, and mods stay exactly as deferred as they were, and
+rigid-body physics stays forbidden. RU-01 is the task that makes the written
+record of what is deferred true again.
+
+## 3. The known-red window, and why the tree goes red on purpose
+
+The moment RU-03 appends three members to `WeaponId`, two tests in
+`tests/Hukbo.Client.Tests/SoundCatalogTests.cs` go red and stay red:
+`EveryDefinedWeapon_HasAnAttackSlot` and `EveryDefinedWeapon_HasAShieldClashSlot`
+(`SoundCatalogTests.cs:51-98`). They enumerate `Enum.GetValues<WeaponId>()` and
+fail until `SoundCatalog` and `SoundCueMapper` have an arm for every new weapon.
+Their own comments say this is the designed safety net rather than a defect, and
+the design document restates it in section 9.7.
+
+Three consequences bind every agent working this plan.
+
+1. **The window closes at RU-14.** Between RU-03 and RU-14 the client suite is
+   expected to be red on exactly those two tests and on nothing else. An agent
+   that finds a *third* red test in that window has found a real regression.
+2. **Nobody weakens or skips those two tests to get green.** `CLAUDE.md` section
+   5 forbids weakening a test, a warning, or an analyzer to get green, and these
+   two are the mechanism by which a new weapon cannot ship silently mute.
+3. **Nothing is integrated to `main` while the window is open.** The canonical
+   gate (RU-33) runs once, at the end, and it must be green in full.
+
+`WeaponVisualCatalogTests` behaves the same way for the visual catalog
+(`:262` fails if a defined weapon falls through to a category default), which
+RU-10 closes.
+
+## 4. Task list
+
+Thirty-three tasks. Each row names its files, and **the files named in a row are
+the only files that row's agent may edit.** A task marked PARALLEL-SAFE has a
+file set disjoint from every other task in its wave. A task marked SERIAL shares
+at least one file with a task that must land before or after it, and its
+"Depends on" column says which and why.
+
+`./scripts/verify.ps1` is the canonical gate. It appears on exactly one row,
+RU-33, and it runs once after integration. It is not delegated to a sub-agent and
+no sub-agent's report substitutes for its real output.
+
+| Task | What | Files | Done when | Depends on | Verified by |
+| --- | --- | --- | --- | --- | --- |
+| RU-01 | Correct two stale documentation figures and one stale deferral list. The enforced per-tick allocation ceiling is **16,384 bytes per 1,000 warm ticks with a 4,096-byte growth tolerance at 12 agents per faction** (`tests/Hukbo.Core.Tests/BattleSimulationTests.cs:393-395`); the 900,000-byte figure recorded at `SIMULATION-GAME-STANDARDS.md:877` and repeated at `docs/development/testing.md:1997` is stale by a factor of fifty-five and an implementer who reads it will believe there is room for a per-projectile heap object. Also amend the deferred-layer list at `SIMULATION-GAME-STANDARDS.md:27` and `CLAUDE.md` section 9 (mirrored in `AGENTS.md`) so that projectiles and projectile flight time read as authorized for this package while ammunition, terrain, cover, pathfinding, and morale read as still deferred. Where the 900,000 figure appears inside a dated historical run record rather than as a live claim, annotate it as superseded rather than rewriting the record. | `SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, `CLAUDE.md`, `AGENTS.md` | No live sentence in either document states 900,000 bytes as the current ceiling; both state 16,384 / 4,096 and cite `BattleSimulationTests.cs:393-395`; the deferral lists in all three documents distinguish projectiles from ammunition and name this package as the authorization. | — | `Select-String -Path SIMULATION-GAME-STANDARDS.md,docs/development/testing.md -Pattern '900,?000'` returns only lines explicitly labelled as superseded historical measurements |
+| RU-02 | **Verify first, then correct.** The weapon descriptions at `docs/research/HISTORICAL_1500s_WEAPONS.md` lines 41, 43, 44 and 46 are attributed to "a 1569 relation" / "a 1569 account", and line 210 describes volume III as covering "1569-1576". A research agent reported that these descriptions are Diego de Artieda's *Relation of the Western Islands Called Filipinas*, which Blair and Robertson volume III dates **1573**. **That report was never independently confirmed and this task must confirm it before editing anything.** Read Blair and Robertson volume III (Project Gutenberg 13616) and `docs/research/ranged/2026-08-07-RANGED-WEAPONS-EVIDENCE.md`, and establish from a source actually read that the lance, bow, dagger, and blowgun descriptions at those four lines are Artieda's and that Blair and Robertson date the document 1573. **If the attribution cannot be confirmed from a source you actually read, edit nothing and report BLOCKED naming the check that failed. Guessing a date into a historical-accuracy document is a worse outcome than leaving the error in place.** | `docs/research/HISTORICAL_1500s_WEAPONS.md` | Either: every one of the five sites names Artieda's *Relation of the Western Islands Called Filipinas* with the Blair and Robertson date of 1573, the source consulted is named in the task report, and the volume-III span at line 210 is corrected to match; or the task is reported BLOCKED with the specific verification that failed and the file is unchanged. | — | `Select-String -Path docs/research/HISTORICAL_1500s_WEAPONS.md -Pattern '1569'` returns no line attributing a weapon description to a 1569 relation; the named source appears in section 9 of this plan |
+| RU-03 | The three ranged `WeaponId` members and the three new preset identities, appended so no existing numeric value moves. `Bangkaw = 5`, `Busog = 6`, `Arquebus = 7` on `WeaponId`, each with a doc comment carrying its confidence tier and its earliest attestation exactly as the four existing members do. `CombatPresetId.PrecolonialPhilippinesV5` with a doc comment naming exactly what it changes relative to V4 and stating that V1 through V4 stay registered and unmodified. Two new `MovementPresetId` values after `EquipmentRelativeFootworkV7 = 7`: `RangedStandoffV8 = 8` for the hold rule and `MonotoneAllyClearanceV9 = 9` for F-B. Enum values only — no registry arm, no preset body. | `src/Hukbo.Core/Combat/CombatIdentity.cs`, `src/Hukbo.Core/Movement/MovementPresetId.cs` | The solution builds; the three `WeaponId` members and all three preset identities exist with doc comments; no existing enum value has moved. The two `SoundCatalogTests` weapon-coverage tests are now red, which is expected — see section 3. | — | `./scripts/format.ps1 -Verify` and a Release build; `dotnet test` on `Hukbo.Core.Tests` |
+| RU-04 | `AgentIntent.Holding = 5`, `BattleEventKind.Release = 5`, and `BattleEventKind.Miss = 6`, all appended. `Release` carries the flight time in ticks in its `Value`; `Miss` carries zero. Both are non-attack kinds and must be constructible through `BattleEvent.NonAttack`, which forces all combat context to null — do not relax `NonAttack`. The `Holding` doc comment states, as a contract, that it has exactly one producer, means "this warrior is at the distance it wants to fight from and is deliberately not advancing", and may never be written by a rejection, a collision, a blocked proposal, or a failed route search. No emission site is added by this task. | `src/Hukbo.Core/Simulation/AgentIntent.cs`, `src/Hukbo.Core/Simulation/BattleEvent.cs`, `tests/Hukbo.Core.Tests/BattleEventTests.cs` | `BattleEventTests.cs:288`'s every-non-attack-kind-is-constructible fact covers `Release` and `Miss` and passes; `BattleSimulationTests.cs:1661`'s rule that non-attack events carry no weapon and no hit location still passes; no existing enum value has moved; no state hash or event hash changes, because nothing emits either kind yet. | — | `dotnet test` on `tests/Hukbo.Core.Tests/BattleEventTests.cs` |
+| RU-05 | Preset selection for the headless runner and the benchmark script, so a determinism or benchmark workload can be run on a named combat preset and a named movement preset instead of only on `Scenario.CreateDefault`. Add the two options, thread them into scenario construction, and echo the two chosen preset identities into `RunReport` so a recorded run states which presets produced it. This is the task that makes RU-06's F-A measurement and RU-29's ranged determinism workload possible at all. | `src/Hukbo.Headless/Program.cs`, `src/Hukbo.Headless/HeadlessRunner.cs`, `src/Hukbo.Headless/RunReport.cs`, `scripts/benchmark.ps1` | `./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1` with no preset options reproduces the recorded seed-1 baseline byte for byte; the same command naming `PersistentContingentsV4` and `PrecolonialPhilippinesV4` explicitly produces the identical report; an unregistered preset name exits non-zero with a named error rather than falling back to a default. | — | `./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1`, with the report's `stateHash` and `eventHash` compared against the recorded baseline |
+| RU-06 | **F-A.** Split `refuseAgentTicks` into four rejection-reason counters — no candidates built, step endpoint rejected, direct candidate omitted, lane not clear — incremented at the four exit sites in `TryProposeEquipmentRoute` (`BattleSimulation.cs:2056`, `:2062`, `:2068`, `:2079`) and surfaced on `MovementBehaviorMetrics` and in `RunReport`. `MovementBehaviorMetrics` is derived observability that reaches neither hash, so **no new preset version is required and no pinned artifact may move**. This is the measurement F-B is judged by, which is why it comes first. | `src/Hukbo.Core/Simulation/MovementBehaviorMetrics.cs`, `src/Hukbo.Core/Simulation/BattleSimulation.cs`, `src/Hukbo.Headless/RunReport.cs`, `tests/Hukbo.Core.Tests/Movement/MovementBehaviorMetricsTests.cs` | A 200-agent, seed-1, 10,000-tick run on `EquipmentRelativeFootworkV6` reports four counters that **sum to exactly 1,140,221**, reproducing the recorded `refuseAgentTicks`; the seed-1 `stateHash` and `eventHash` on the shipped default are unchanged from the recorded baseline. | RU-05 (owns `RunReport.cs`; F-A adds fields to it) | `./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1` on `EquipmentRelativeFootworkV6`, with the four counters and their sum recorded in section 9 |
+| RU-07 | `WeaponProfile` gains three ranged fields — a projectile speed, a standoff distance in raw fixed-point world units, and a per-weapon flight-tick ceiling — all zero for a melee weapon. `CombatRuleset` validates them at construction: a roster entry whose weapon is ranged must declare all three; a standoff distance must sit strictly inside that weapon's own `AttackRangeRaw`, because a warrior standing beyond its own reach can never shoot and one standing exactly at its reach is one collision nudge from being unable to; a melee entry must declare all three as zero. Values are `PROVISIONAL` gameplay tuning, commented as such, and none of them may be cited back into `docs/research/HISTORICAL_1500s_WEAPONS.md` as a measurement. | `src/Hukbo.Core/Combat/WeaponProfile.cs`, `src/Hukbo.Core/Combat/CombatRuleset.cs`, `tests/Hukbo.Core.Tests/WeaponProfileTests.cs` | A ranged profile missing any of the three throws at construction with a named message; a standoff distance at or beyond the profile's own reach throws; a melee profile with a non-zero standoff throws; all four existing presets still construct and `WeaponProfileTests.cs:252`, `:272`, and `:290` are unmodified and pass. | RU-03 | `dotnet test` on `tests/Hukbo.Core.Tests/WeaponProfileTests.cs` |
+| RU-08 | Feed formatter cases for `Release` and `Miss`, so the battle event log renders both. `BattleEventFormatterTests` requires the feed to render every event kind, so a missing case is a red test rather than a blank row. The release line states that a shot has left the weapon and how many ticks it will be in the air; the miss line states that the shot spent itself without landing. | `src/Hukbo.Client/Presentation/BattleEventFormatter.cs`, `tests/Hukbo.Client.Tests/BattleEventFormatterTests.cs` | Every `BattleEventKind` including the two new ones renders a non-empty, distinct line; the 200-event feed cap is untouched. | RU-04 | `dotnet test` on `tests/Hukbo.Client.Tests/BattleEventFormatterTests.cs` |
+| RU-09 | Thirteen new `GameSoundId` members, appended so no existing value moves, and their thirteen `SoundCatalog` entries: `release-bangkaw`, `release-busog`, `release-arquebus`, `attack-bangkaw`, `attack-busog`, `attack-arquebus`, `clash-shield-bangkaw`, `clash-shield-busog`, `clash-shield-arquebus`, `miss-bangkaw`, `miss-busog`, `miss-arquebus`, `misfire-arquebus`. `GetBaseName` gains thirteen arms; `IsHitLocationDriven` is extended to the three new `attack-` slots and to nothing else. The `attack-` prefix on the three impact slots is load-bearing and must not be renamed to `impact-`: `scripts/sfx.ps1`'s `-Class` guard at `:626-628` tests that literal string prefix, so renaming would silently disable the guard for the only slots that need it. | `src/Hukbo.Client/Audio/AudioTypes.cs`, `src/Hukbo.Client/Audio/SoundCatalog.cs`, `tests/Hukbo.Client.Tests/SoundCatalogTests.cs` | The catalog holds twenty-six slots; `GetFileName_IsUniqueLowercaseKebabWavForEverySlot` passes for all twenty-six; `IsHitLocationDriven` is true for exactly the seven attack slots and false for the other nineteen; the two weapon-coverage tests are still red pending RU-14, and no other client test is. | RU-03, RU-04 | `dotnet test` on `tests/Hukbo.Client.Tests/SoundCatalogTests.cs` |
+| RU-10 | Three new `PawnWeaponRole` members and their `WeaponVisualCatalog` entries: a tint list, an own silhouette, an evidence tier, an evidence note, and a pair-form label for each of the three weapons — `Bangkaw — Long Spear`, `Busog — War Bow`, and `Imported Arquebus` with its `IMPORTED` badge. The catalog is where `CLAUDE.md` section 7's naming policy is mechanically enforced, so every entry carries a defined tier and a non-empty note. Also carry whatever `AppearanceRosterContractTests` and `DetailTierBoundaryTests` need for the three new entries to classify and to stay visually differentiable. **This task adds no geometry**; the four `PawnGeometry` switch expressions are RU-22's. | `src/Hukbo.Client/Presentation/PawnAppearance.cs`, `src/Hukbo.Client/Presentation/Catalogs/WeaponVisualCatalog.cs`, `tests/Hukbo.Client.Tests/WeaponVisualCatalogTests.cs`, `tests/Hukbo.Client.Tests/AppearanceRosterContractTests.cs`, `tests/Hukbo.Client.Tests/DetailTierBoundaryTests.cs` | `WeaponVisualCatalogTests.cs:262` passes — no defined weapon falls through to a category default; `:289` finds a non-empty tint list and `:224` an own silhouette for each of the three; the per-weapon evidence-tier facts at `:141` and `:589-601` cover all seven weapons; `DetailTierBoundaryTests.cs:161`'s sweep classifies the three new entries. | RU-03 | `dotnet test` on `tests/Hukbo.Client.Tests/WeaponVisualCatalogTests.cs` and `AppearanceRosterContractTests.cs` |
+| RU-11 | The Client-side in-flight projectile store: a fixed-capacity, tick-advanced store fed by `Release` events, holding the origin, the target entity, the launch tick, and the flight-tick count, and exposing an interpolated screen-space endpoint pair per live projectile. It is presentation only — the simulation holds its own authoritative pool and this copy exists to be drawn. It is advanced by tick rather than by a clock, so it survives pause and playback speed with no scaling, exactly as the gait system does. Entries are dropped on arrival, on round reset, and when the store is full. New files only; no wiring into `ArenaGame` (that is RU-25). | `src/Hukbo.Client/Presentation/ProjectileFlightSystem.cs` (new), `src/Hukbo.Client/Rendering/ProjectileFlight.cs` (new), `tests/Hukbo.Client.Tests/ProjectileFlightSystemTests.cs` (new) | Ingesting a `Release` event with a flight of N adds one entry that is live for N ticks and gone on the N+1th; the store never grows past its capacity and allocates nothing per ingest; `Clear` on round reset empties it; two ingests of the same tick do not double-count. | RU-04 | `dotnet test` on `tests/Hukbo.Client.Tests/ProjectileFlightSystemTests.cs` |
+| RU-12 | The V5 combat preset. A whole new file with **every value restated rather than referenced**, in the discipline `PhilippineCombatPresetV4.cs:14-17` states — V4's four melee rows and its shared target-weight profile restated verbatim, plus three ranged rows. All three ranged rows are `WeaponGrip.TwoHanded` with `ShieldId.None`, which satisfies the three existing grip rules with no test change. New arms in both switches of `CombatPresetRegistry` — `IsRegistered` and `Get`. Ranged reach is expressed as a multiple of the longest melee reach — 3x for the Bangkaw, 5x for the Busog, 7x for the Arquebus — and the shot intervals preserve the ordering Bangkaw < Busog << Arquebus. **Every one of those numbers is a provisional starting point that RU-24 owns calibrating; none is a historical measurement and none may be cited as one.** | `src/Hukbo.Core/Combat/PhilippineCombatPresetV5.cs` (new), `src/Hukbo.Core/Combat/CombatPresetRegistry.cs`, `tests/Hukbo.Core.Tests/CombatConfigurationTests.cs` | `CombatPresetRegistry.Get(PrecolonialPhilippinesV5)` returns a seven-entry ruleset instead of throwing; `WeaponProfileTests.cs:32` passes; V1 through V4's content hashes are byte-identical to their pinned values; pairing V5 with `EquipmentRelativeFootworkV6` or `V7` throws at construction, which is the correct outcome and needs no new guard. | RU-07 | `dotnet test` on `tests/Hukbo.Core.Tests/CombatConfigurationTests.cs` and `WeaponProfileTests.cs` |
+| RU-13 | `AgentView.RangedPhase` and `AgentView.RangedPhaseTicksRemaining`, both **derived projections and both hash-neutral**. A six-member `RangedPhase` enum with `None = 0` so `default` is neutral: `None`, `Ready`, `Load`, `Draw`, `Release`, `Recover`. `UpdateViews` derives both from the pair `(AttackCooldownRemaining, AttackCooldownTicks)` the tick has already produced, with per-weapon phase shares. **Nothing new is stored, nothing new is hashed, nothing new is snapshotted**, and the derivation may not query anything the tick would not otherwise make. This is a deliberate divergence from the pose research, which asked for real per-agent state; section 8.1 of the design explains it and "what could make this design wrong" item 2 records the bet. | `src/Hukbo.Core/Simulation/AgentView.cs`, `src/Hukbo.Core/Simulation/RangedPhase.cs` (new), `src/Hukbo.Core/Simulation/BattleSimulation.cs`, `tests/Hukbo.Core.Tests/AgentViewTests.cs` | A melee agent's view reports `RangedPhase.None` at every cooldown value; a ranged agent's view walks `Release`, `Recover`, `Load`, `Draw`, `Ready` as its cooldown counts down and reports a strictly decreasing `RangedPhaseTicksRemaining` within a phase; the seed-1 200-agent 10,000-tick `stateHash` and `eventHash` are unchanged from the recorded baseline, which is the evidence that this is a projection and not state. | RU-06 (shares `BattleSimulation.cs`; RU-06 lands first — see section 5) | `dotnet test` on `tests/Hukbo.Core.Tests/AgentViewTests.cs`, plus `./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1` showing an unchanged baseline |
+| RU-14 | The audio routing, including **the `Evaded` fix**. Three arms in `MapWeapon`, three in `MapShieldClash`, a branch that maps a `Release` event to the launching weapon's release slot, and a new `MapMiss` covering both of its triggers: the `Miss` event of RU-04, and an `Evaded` resolution **for a ranged attacker only**. Melee weapons keep the shared impact cue — this is the design's scope and it is deliberate, because fixing melee too would rewrite a shipped behaviour that `SIMULATION-GAME-STANDARDS.md:884-905` describes and that `SoundCueMapperTests.cs:52` pins with `[InlineData(AttackResolution.Evaded)]`. **That inline datum stays and stays passing for the four melee weapons**, and a new ranged case is added beside it. In `SIMULATION-GAME-STANDARDS.md` section 14, add a **ranged row** to the spectator-channel table rather than editing the melee row, and record honestly that a melee blow meeting empty air still plays a flesh impact. | `src/Hukbo.Client/Audio/SoundCueMapper.cs`, `tests/Hukbo.Client.Tests/SoundCueMapperTests.cs`, `SIMULATION-GAME-STANDARDS.md` | Every one of the seven `WeaponId` values maps to an attack slot and to a shield-clash slot, closing the known-red window of section 3; an `Evaded` resolution on a ranged weapon maps to that weapon's `miss-` slot; an `Evaded` resolution on each of the four melee weapons still maps to the weapon impact slot and `SoundCueMapperTests.cs:52` is unmodified; the standards table carries a ranged row and the melee row is untouched. | RU-01 (shares `SIMULATION-GAME-STANDARDS.md`), RU-04, RU-09 | `dotnet test` on `tests/Hukbo.Client.Tests/SoundCueMapperTests.cs` and `SoundCatalogTests.cs` |
+| RU-15 | Authoring-tool support for sixty generations, before a person spends money. Thirteen default-prompt entries in `scripts/sfx.ps1`; an optional nested per-hit-class prompt table on a hit-location driven slot, resolved at `:584-590`, so the twenty-one class-scoped ranged files become reviewable table rows rather than command-line strings typed by hand; and the `-List` counting fix — `-List` currently probes the bare `<slot>.wav` (`:558-564`), so it already reports nine of thirteen shipped slots as `MISSING`, and at twenty-six slots it would report twenty-two of twenty-six as `MISSING` after every file had been generated and paid for. Count matching files with the same prefix rules the game uses. Also update the two audio documents that are the naming contract a person reads. `sfx.ps1` is an authoring tool that no test and no gate touches; do not add it to any pipeline, and never write `ELEVENLABS_API_KEY` into a tracked file, into output, or into a commit message. | `scripts/sfx.ps1`, `src/Hukbo.Client/Content/Audio/README.md`, `src/Hukbo.Client/Content/Audio/PENDING-SOUNDS.md` | `./scripts/sfx.ps1 -List` reports every shipped slot that has at least one variant file as present, and reports `MISSING` only for slots with no file at all; `-Class` is accepted on the seven `attack-` slots and rejected by name on the other nineteen; the per-class prompt table resolves a prompt for each of the twenty-one class-scoped ranged files; no network call is made by this task. | RU-09 | `./scripts/sfx.ps1 -List` (no generation, no spend) |
+| RU-16 | The `Holding` reason code where a spectator can read it. The agent inspector shows `AgentIntent.Holding` as a first-class reason code beside the existing five, reading "holding at range" and distinguishable from "blocked". A per-faction count of holding warriors is added to the battle report, since no live per-faction intent readout exists today. This is one of the two defences against risk 8 — a feature that looks like the standoff bug it hides — and it is not optional. | `src/Hukbo.Client/UI/AgentInspectorContent.cs`, `tests/Hukbo.Client.Tests/AgentInspectorContentTests.cs`, `src/Hukbo.Client/Presentation/BattleReport.cs`, `src/Hukbo.Client/Presentation/BattleReportAccumulator.cs`, `tests/Hukbo.Client.Tests/BattleReportAccumulatorTests.cs` | An agent view carrying `AgentIntent.Holding` renders a distinct inspector line; an agent whose movement was `Blocked` renders the existing blocked line and never the holding one; the battle report carries a per-faction holding count. | RU-04 | `dotnet test` on `tests/Hukbo.Client.Tests/AgentInspectorContentTests.cs` |
+| RU-17 | **The projectile pool.** A `readonly record struct` — source entity, target entity, launch tick, ticks remaining, origin X and Y raw, weapon, and the damage recorded at launch, every field an integer or a small enum and nothing a reference — in a flat array sized once at construction from a new `Scenario.MaximumProjectilesInFlight`, with a live count, append at the count, and order-preserving compaction on removal. Iteration by index, never by enumerator. **A launch at the ceiling is refused, the shot does not occur, the cooldown is not charged, and a derived counter records the refusal.** New pass A0 at the head of `GatherAndCommitAttacks` advances every countdown and resolves arrivals through `HitLocationResolver.Resolve` and `ClashResolver.Resolve` **folding the launch tick, not the impact tick**, buffering into `_attackProposals` exactly as the melee path does; a projectile whose target died emits `Miss` and is removed. The gather pass gains one branch: a ranged weapon launches instead of resolving, emits `Release` carrying the flight ticks, and charges its cooldown on launch. `BattleSnapshot` gains the pool. `StateHasher.Compute` gains **one conditional tail after the per-agent loop**, gated on a ruleset capability ("this combat ruleset fields at least one ranged weapon") in the shape of the rank-levels gate at `StateHasher.cs:136-139` — a ruleset with no ranged entry folds nothing at all, not even a zero. No new tick stage. No new `AttackResolution` value. No new random-stream domain tag. No line of sight, no friendly fire, no ammunition. A code comment at the launch site records that a Phase 1 projectile passes through allies and through every enemy but its target. | `src/Hukbo.Core/Simulation/Projectile.cs` (new), `src/Hukbo.Core/Simulation/BattleSimulation.cs`, `src/Hukbo.Core/Simulation/BattleSnapshot.cs`, `src/Hukbo.Core/Determinism/StateHasher.cs`, `src/Hukbo.Core/Simulation/Scenario.cs` | A projectile launched on tick N resolves on tick N + flight and on no other tick; the clash roll at impact equals the roll the same tuple produces at the launch tick; a launch at the pool ceiling is refused with no cooldown charged and the refusal counted; a V4 scenario's seed-1 `stateHash` and `eventHash` are byte-identical to the recorded baseline; a warm 1,000-tick window with projectiles in flight allocates nothing. | RU-12, RU-13 (shares `BattleSimulation.cs`) | `dotnet test` on `Hukbo.Core.Tests`; `./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1` on V4 showing an unchanged baseline |
+| RU-18 | `RangedPose`, `RangedGeometry`, and `RangedPoseResolver` — new files only, in the pure-helper shape `SwingPoseResolver` and `GaitPoseResolver` share. `RangedPose` is an `internal readonly record struct` whose `default` is neutral. `RangedGeometry` is an `internal static class` of keyframe mathematics over value types, differentiated per weapon: the Bangkaw cocks back past the shoulder with a negative torso lean and its weapon line shortens or vanishes through `Recover`; the Busog holds a near-vertical stave that barely rotates while a `DrawTension` channel rises through `Draw`, holds, and **snaps to zero on `Release`**; the Arquebus spends most of its long interval in a multi-beat `Load` and **holds** its `Release`. `RangedPoseResolver.Resolve` fills a caller-owned dictionary and never allocates one; an agent with no ranged action gets **no entry, never a neutral one**; `TryGetPose` exists so the draw loop's lookup is covered by a test; and the resolver **must** copy `SwingPoseResolver`'s early-out when nothing is active rather than `GaitPoseResolver`'s omission of it. Also a pure, tested helper deciding that a ranged pose suppresses the swing pose for that pawn on that frame. Every pose constant is commented as a provisional reconstruction for gameplay legibility, not a measurement. No animation store — the phase arrives on the view every tick. | `src/Hukbo.Client/Rendering/RangedPose.cs` (new), `src/Hukbo.Client/Rendering/RangedGeometry.cs` (new), `src/Hukbo.Client/Rendering/RangedPoseResolver.cs` (new), `tests/Hukbo.Client.Tests/RangedGeometryTests.cs` (new), `tests/Hukbo.Client.Tests/RangedPoseResolverTests.cs` (new) | Each of the three weapons resolves a visibly distinct pose at each of the five phases; `RangedPhase.None` resolves no entry; resolving twice into one buffer replaces rather than accumulates; the resolver returns immediately when no agent has a ranged phase; the swing-suppression helper returns true exactly when a ranged pose exists for that pawn. | RU-13 (the `AgentView` projection fields must exist), RU-10 | `dotnet test` on `tests/Hukbo.Client.Tests/RangedGeometryTests.cs` and `RangedPoseResolverTests.cs` |
+| RU-19 | `SoundDirector` takes the agent view list alongside the event list, so a classless `Release` event can resolve its weapon from the source agent's `AgentView.Loadout`. `UpdateViews` writes a view for every agent including the dead, so the lookup succeeds even for a launcher killed on the same tick. **Do not relax `BattleEvent.NonAttack` to carry a weapon on a release event** — that is the rejected option in design section 5.3, and this signature change is the adopted one. The one guard that matters more than any other test in this area is `SoundDirectorTests.Ingest_UsesANullHitClassForAShieldBlockDespiteTheHitLocation` (`:41-74`): the director derives the hit class from `IsHitLocationDriven`, never from the event, and every new classless ranged slot depends on it. | `src/Hukbo.Client/Audio/SoundDirector.cs`, `tests/Hukbo.Client.Tests/SoundDirectorTests.cs` | A `Release` event from a Busog-armed agent produces the `release-busog` cue with a null hit class; the same event from an agent absent from the view list produces no cue and does not throw; `SoundDirectorTests.cs:41-74` is unmodified and passes. | RU-14 | `dotnet test` on `tests/Hukbo.Client.Tests/SoundDirectorTests.cs` |
+| RU-20 | Update the mix-analysis harness's replica mapping to match the client's twenty-six-slot mapping and **re-run it at 500 agents**, recording the peak level and the per-slot peak. `docs/research/SOUND-CAPACITY-MEASUREMENTS.md:468-473` requires that if the client's mapping changes this harness changes with it, and adding thirteen slots changes it. The measured headroom at 500 agents is **−0.2 dBFS**, in exactly the configuration that forced `CueVolume` down from 0.8 to 0.65, and the release cue fires on one hundred per cent of shots and lands on one slot per weapon — a concentration the melee mix does not have. **This is the task that must produce a number before anyone pays for sixty files.** If the per-slot cap of sixteen binds, the fix is a raised `DefaultMaximumPerSound`, which moves `SoundCueBudgetTests.cs:59-79` and is a deliberate measured change recorded here, not a guess. | `tools/Hukbo.Tools.MixAnalysis/CueSchedule.cs`, `tools/Hukbo.Tools.MixAnalysis/Mixer.cs`, `tools/Hukbo.Tools.MixAnalysis/Program.cs`, `docs/research/SOUND-CAPACITY-MEASUREMENTS.md` | The harness's slot list, hit-class mapping, fallback chain, and variant draw match the client's for all twenty-six slots; a 500-agent rendering completes and its peak dBFS, its per-slot peak, its total cue count, and its suppression count are recorded in section 9 of this plan. | RU-14 | `dotnet run` on `tools/Hukbo.Tools.MixAnalysis` at 500 agents, with the numbers pasted into section 9 |
+| RU-21 | **The hold arm**, and the `RangedStandoffV8` movement preset that carries it. The preset is registered as a **verbatim restatement of `PersistentContingentsV4`'s values plus one rule**, with `usesEquipmentRelativeFootwork: false` and `appliesPressureInterrupt: false`, following the restate-rather-than-edit precedent at `MovementPresetRegistry.cs:163-169`. The rule has three parts, all in the legacy body of `GatherMovementProposals` and **not** in the equipment-relative pipeline: an agent whose target is beyond its weapon's standoff distance builds an ordinary pursuit proposal with `stopShortRaw` set to that standoff distance instead of `2 * BodyRadiusRaw`; an agent whose target is **at or inside** the standoff distance **proposes no movement at all** and is assigned `AgentIntent.Holding`; and a melee weapon, whose standoff distance is zero, behaves byte-identically to V4. `AgentIntent.Holding` gets **exactly one producer in the whole codebase** — the hold arm — and is never written by a rejection, a collision, a blocked proposal, or a failed route search. `PersistentContingentsV4` is not touched and stays the shipped default. | `src/Hukbo.Core/Simulation/BattleSimulation.cs`, `src/Hukbo.Core/Movement/MovementPresetRegistry.cs`, `src/Hukbo.Core/Movement/MovementRuleset.cs`, `tests/Hukbo.Core.Tests/Movement/RangedStandoffTests.cs` (new) | Under `RangedStandoffV8` a melee-only roster produces the same trajectories, the same `stateHash`, and the same `eventHash` as `PersistentContingentsV4` on seed 1; a ranged warrior whose target is inside its standoff distance reports `AgentIntent.Holding`, proposes nothing, and does not move; a warrior whose proposal was rejected reports `Moving`, never `Holding`; a holding warrior never accumulates a blocked streak and the stall escape never fires on it. | RU-17 (shares `BattleSimulation.cs`), RU-07 | `dotnet test` on `tests/Hukbo.Core.Tests/Movement/RangedStandoffTests.cs` |
+| RU-22 | `PawnGeometry` learns the three new weapon roles and the third pose. Three new arms in each of the four `switch` expressions over `PawnWeaponRole` — the start, end, and padding switches in `CreateWeaponLayout` (`:1496-1522`), `CreateWeaponThickness` (`:1547-1562`), and `CreateSecondaryBounds` (`:1591-1612`) — noting that the first four throw `ArgumentOutOfRangeException` on an unrecognised role, so a missed arm is a runtime throw rather than a compile error. A third nullable pose parameter threaded to `CompletePosedLayout` and summed into `CreateBodyAnchor`'s existing two lean contributions, which is additive and needs no mutual-exclusion rule for gait. **At most one new rectangle per ranged pawn**, reusing the existing `SecondaryEquipmentBounds` slot the Wasay's axe head already proves out — the bow's stave is the weapon line and the nocked arrow is the secondary rectangle. **The maximum extension any ranged pose reaches must fit inside the existing weapon-line envelope**: the Kalis's upward reach of 24.2 units sizes `ConservativePawnCull`'s radius, and the cull actually in the path is pose-blind on purpose, so a longer line lets a pawn escape its own cull rectangle and be clipped at the panel edge. | `src/Hukbo.Client/Rendering/PawnGeometry.cs`, `tests/Hukbo.Client.Tests/PawnGeometryTests.cs` | Every pinned rectangle in `PawnGeometryTests` is unchanged; `PawnGeometryTests.cs:2089` and `:2338` still show the cull rectangle not moving with the pose; every ranged pose at every phase stays inside the existing weapon-line envelope; no `PawnWeaponRole` value throws from any of the four switches. | RU-18 | `dotnet test` on `tests/Hukbo.Client.Tests/PawnGeometryTests.cs` |
+| RU-23 | Quad and cull accounting, moved deliberately with the arithmetic stated. The per-pawn High-tier baseline is pinned at exactly 24 quads (`PawnQuadCountTests.cs:57-69`) against a 20,000-quad frame ceiling with 3,968 quads of headroom at 500 units. One new rectangle on a ranged pawn only takes the all-ranged worst case to `25 x 500 + 4,032 = 16,532`, leaving 3,468 quads. **No trail-equivalent may be added** — the swing trail's six stroked quads are the only thing in the budget with that shape. In-flight projectiles are counted separately against the whole-frame estimate, one line each at a bounded population, and that arithmetic is owed explicitly rather than folded into the per-pawn figure. Confirm `ConservativePawnCullTests`' brute-force sweep still contains every pawn's real bounds now that three weapon roles exist. Per the anti-density-creep rule at `SubmissionCount.cs:412-421`, the new pinned values and their arithmetic go in the commit message. | `src/Hukbo.Client/Rendering/SubmissionCount.cs`, `src/Hukbo.Client/Rendering/RenderBudgetEstimate.cs`, `src/Hukbo.Client/Rendering/ConservativePawnCull.cs`, `tests/Hukbo.Client.Tests/PawnQuadCountTests.cs`, `tests/Hukbo.Client.Tests/RenderBudgetEstimateTests.cs`, `tests/Hukbo.Client.Tests/ConservativePawnCullTests.cs` | The quad count asserted for each pawn configuration equals what the renderer submits for it; the 200-unit and 500-unit whole-frame estimates include the bounded projectile population and stay under 20,000; `ConservativePawnCullTests` passes over the full catalog cross-product with seven weapon roles. | RU-22 | `dotnet test` on `tests/Hukbo.Client.Tests/PawnQuadCountTests.cs`, `RenderBudgetEstimateTests.cs`, and `ConservativePawnCullTests.cs` |
+| RU-24 | **Calibration, before any golden is pinned.** Tune the V5 ranged rows and the `RangedStandoffV8` standoff fraction against the two quantitative acceptance bands and the termination bar, using a calibration harness in the test project because the headless runner cannot reach `AgentState`. The bands: `CombatMetrics.DefenceAttributableShare` inside **0.25 to 0.45** across seeds 1 through 20 at 200 agents (`PhilippineCombatIntegrationTests.cs:687`), and shielded roster entries still absorbing more blows before dying than shieldless ones (`:797`). The termination bar: at least 19 of 20 seeds decisive before the 5,000-tick cap with a median decisive tick at or below 5,000, each faction winning at least four of twenty seeds, and the ten-cell matrix of seeds {1, 2, 3, 5, 8} at 200 and 500 agents compared against the recorded V4 baseline of 1,279 to 4,405 ticks. The tuning levers, in order: the ranged roster share, the standoff distance as a fraction of reach, the shot intervals, and the ranged cells in the weapon-intercept matrix. **The bands are the acceptance criterion and may not be widened**; every ranged clash cell is marked `PROVISIONAL` because not one sixteenth-century sentence describes a Philippine projectile striking a Philippine shield. | `src/Hukbo.Core/Combat/PhilippineCombatPresetV5.cs`, `src/Hukbo.Core/Movement/MovementPresetRegistry.cs`, `tests/Hukbo.Core.Tests/RangedCalibrationHarness.cs` (new) | The harness reports a defence-attributable share inside 0.25 to 0.45 for all twenty seeds, the shielded-absorbs-more relationship holding for all twenty, at least 19 of 20 seeds decisive before 5,000 ticks with a median at or below 5,000, both factions winning at least four seeds, and a ten-cell matrix whose terminal ticks are recorded beside the V4 baseline. All values that moved are marked `PROVISIONAL` in source. | RU-12, RU-21 (shares both files) | `dotnet test` on `tests/Hukbo.Core.Tests/RangedCalibrationHarness.cs`, with the twenty-seed table and the ten-cell matrix pasted into section 9 |
+| RU-25 | Client wiring, so a spectator can actually reach the feature. A `_rangedPoses` buffer beside `_gaitPoses`, resolved once per frame into a caller-owned dictionary; the draw-loop lookup beside the two existing `TryGetPose` calls, applying the ranged-pose-suppresses-swing rule; the projectile store ingested once per tick and its lines drawn at the same detail tier as the weapon line rather than gated off at Low, because at Low tier the projectile may be the only thing that says a ranged unit exists; `SoundDirector` fed the agent view list alongside the events; and **`ArenaGame.BuildScenario` naming `PrecolonialPhilippinesV5` and `RangedStandoffV8`**, because a feature a spectator cannot reach fails acceptance question 1 outright. The headless default and `Scenario.CreateDefault` stay on V4 — this task does not flip the shipped default. | `src/Hukbo.Client/ArenaGame.cs`, `src/Hukbo.Client/ArenaGame.Rendering.cs`, `src/Hukbo.Client/Presentation/PresentationCoordinator.cs`, `tests/Hukbo.Client.Tests/PresentationCoordinatorTests.cs` | A tick ingest reaches the projectile store exactly once; the draw path allocates nothing new per frame; the probe pass and the draw pass still cull identically; the client's scenario reports the two ranged presets; `Scenario.CreateDefault` is unchanged. | RU-11, RU-18, RU-19, RU-21, RU-22 | `dotnet test` on `tests/Hukbo.Client.Tests/PresentationCoordinatorTests.cs`; `./scripts/run.ps1 -Configuration Debug -LogLevel dbg` and the resulting `artifacts/logs/*.jsonl` read back |
+| RU-26 | The preset goldens, captured from real runs after calibration has settled. V5's content hash pinned as a literal and asserted distinct from V1 through V4, in the shape of `DeterminismTests.cs:192`. V5's seed-1 state and event hashes at 20 agents and 200 ticks, in the shape of `:215`, **with the exact command that produced them recorded in the test's comment**. And the **zero-ranged inert control**: a V5 scenario whose `RosterCounts` give every ranged entry zero warriors reproduces V4's seed-1 state and event hashes exactly, in the shape of `ZeroInterceptionProfile_ReproducesTheRecordedStateHash` (`:997`). The control is the cheapest possible proof that the conditional hash gate is on a capability the scenario can switch off, and it is the test that fails loudly if a ranged fold leaks into a melee-only run. `Scenario.Validate` already permits a per-entry roster count of zero, so no validation change is needed. | `tests/Hukbo.Core.Tests/DeterminismTests.cs` | All three pins pass against literals captured from real headless runs; V1 through V4's pinned content hashes and seed-1 hashes are unmodified; `CombatMetrics_ReachesNeitherHash` still passes. | RU-24 | `dotnet test` on `tests/Hukbo.Core.Tests/DeterminismTests.cs` |
+| RU-27 | The frozen trajectory digest for `RangedStandoffV8`, in the shape of `MovementPresetFreezeTests.cs:187`. V1 through V7 keep their existing digests byte-identical. | `tests/Hukbo.Core.Tests/MovementPresetFreezeTests.cs` | V8 has its own pinned digest captured from a real run; every existing preset digest is unmodified and passes. | RU-24 | `dotnet test` on `tests/Hukbo.Core.Tests/MovementPresetFreezeTests.cs` |
+| RU-28 | The behavioural pins for the projectile, in one new test file so they do not collide with the existing suites. Flight time: a projectile launched on tick N resolves on tick N + flight and on no other tick. Launch-tick roll: the clash roll for an impact equals the roll the same tuple produces at the launch tick. Pool ceiling: a launch at the ceiling is refused, no cooldown is charged, and the refusal is counted. Order independence: a battle with projectiles resolves identically under every agent storage order, in the shape of `BattleSimulationTests.cs:966` and `DeterminismTests.cs:690`. Simultaneity: two projectiles arriving on the same tick that together kill a defender both have their blow recorded, exactly as two melee attackers already do. Dead-attacker delivery: a projectile launched by an agent that dies mid-flight still delivers its recorded damage. Allocation: a warm 1,000-tick window **with projectiles in flight** stays inside 16,384 bytes with the 4,096-byte growth tolerance. Save and resume: a snapshot taken with a projectile mid-flight resumes to an identical state hash. | `tests/Hukbo.Core.Tests/RangedProjectileTests.cs` (new) | All eight pins pass; the allocation pin is run on a ranged roster rather than a melee one; the save-and-resume pin covers a mid-flight projectile. | RU-24 | `dotnet test` on `tests/Hukbo.Core.Tests/RangedProjectileTests.cs` |
+| RU-29 | Close the gate's blind spot. A ranged sibling of the twenty-seed termination and both-factions-win tests (`BattleSimulationTests.cs:566`, `:571`) in its own file, run on `PrecolonialPhilippinesV5` and `RangedStandoffV8`; and **a second determinism workload in the canonical gate on the ranged presets**, so the gate exercises the feature instead of running V4 while the Client runs V5. This is the same blind spot that let `EquipmentRelativeFootworkV6` and `V7` draw every seed while the gate stayed green, and the design records it as risk 9. | `tests/Hukbo.Core.Tests/RangedTerminationTests.cs` (new), `scripts/verify.ps1` | At least 19 of 20 seeds are decisive before the 5,000-tick cap on the ranged presets with a median at or below 5,000; each faction wins at least four of the twenty; `./scripts/verify.ps1` runs two determinism workloads, the existing V4 one and a ranged one, and fails if either is non-deterministic. | RU-24 | `dotnet test` on `tests/Hukbo.Core.Tests/RangedTerminationTests.cs`; the gate's own output at RU-33 |
+| RU-30 | **F-B.** Make ally clearance a monotonicity constraint instead of a state constraint. `IsLaneClearOfAllies` (`BattleSimulation.cs:2453`) currently rejects a candidate endpoint on its **absolute** distance to every ally, never tests the actor's own current position, and therefore makes an already-violating configuration absorbing: standing still is always legal and the rule punishes movement out of the violation rather than the violation itself. Change the predicate to reject only when the candidate moves the actor **closer** to an ally it is already too close to — `reject if separation < required AND separation < currentSeparationToThatAlly` — which is the shape `ShouldOmitDirectCandidate` already uses twelve lines earlier at `:2416`, with the documented convention that exact equality keeps the candidate. Hoist the actor's own tick-start separation out of the candidate loop; it does not depend on the candidate. This changes end-of-tick positions, so it ships as `MonotoneAllyClearanceV9` with a new registry row and its own frozen digest. V6 and V7 keep their content hashes and digests; `PersistentContingentsV4` is not touched. Every existing `IsLaneClearOfAllies` unit test asserting the absolute rule stays true for V6 and V7 and gains a preset-scoped sibling rather than an edit. **Measured on melee-only rosters first**, so F-B's effect is not confounded with the ranged change; only then on a mixed roster. | `src/Hukbo.Core/Simulation/BattleSimulation.cs`, `src/Hukbo.Core/Movement/MovementPresetRegistry.cs`, `tests/Hukbo.Core.Tests/MovementPresetFreezeTests.cs`, `tests/Hukbo.Core.Tests/Movement/LaneClearanceTests.cs` (new) | On a melee-only roster under V9, F-A's lane-not-clear counter **collapses** relative to the V6 measurement — if it does not, the diagnosis was wrong and that is the finding; at least 19 of 20 seeds decisive before the 5,000-tick cap with a median at or below 5,000; the ten-cell matrix recorded beside the V6 baseline for terminal tick, outcome, accepted attacks, and attack-capable agent-ticks; V6 and V7 digests and content hashes unmodified; the mixed-roster measurement recorded separately from the melee-only one. | RU-06 (its counters are how this is measured), RU-21 and RU-24 (share `MovementPresetRegistry.cs`), RU-17 (shares `BattleSimulation.cs`), RU-27 (shares `MovementPresetFreezeTests.cs`) | `dotnet test` on `tests/Hukbo.Core.Tests/Movement/LaneClearanceTests.cs`; `./scripts/benchmark.ps1` across the ten-cell matrix, with the counters and terminal ticks pasted into section 9 |
+| RU-31 | **PAID. A HUMAN RUNS THIS. NO AGENT GENERATES SOUNDS.** Generate the sixty sound files with `./scripts/sfx.ps1`, twenty per weapon: `release-<weapon>` at 5 / 6 / 7 takes, `attack-<weapon>` at 9 / 8 / 6 takes across the six hit classes (with `ribcage` present for every weapon, because it is the universal fallback target and a hit-location driven slot without it can resolve `Missing`), `clash-shield-<weapon>` at 3 / 3 / 3, `miss-<weapon>` at 3 / 3 / 2, and `misfire-arquebus` at 2. This task **spends money** on the ElevenLabs text-to-sound-effects API and it is the one task in this plan that talks to a network service. It is scheduled last among the audio work for a load-bearing reason: eighteen of the sixty files cannot be triggered at all until `BattleEventKind.Release` exists, is emitted, and is carried by the mapper, and three more depend on decisions in RU-14. Three operational facts: the API refuses anything under 0.5 seconds, so a short impact is generated long and trimmed; a take peaking below ten per cent of full scale is rejected without writing anything, so re-running the same command is safe and is usually all that is needed; and the script retries a rate-limit response six times with exponential backoff. **No test walks the audio folder to check that a file there is a file the game will read, and no automated test can confirm a sound was heard** — a misnamed file is ignored silently and sixty files can pass the entire gate while being inaudible. Verification is a person listening, and its result is a smoke-checklist row. `ELEVENLABS_API_KEY` comes from the environment or the untracked `.env` and never appears in a tracked file, in output, or in a commit message. | `src/Hukbo.Client/Content/Audio/*.wav` (sixty new files) | Sixty correctly named uncompressed PCM WAV files exist in `src/Hukbo.Client/Content/Audio/`; `./scripts/sfx.ps1 -List` reports every one of the twenty-six slots as present; the game loads without a missing-cue warning; a person has heard at least one take from each of the thirteen new slots. | RU-04, RU-14, RU-15, RU-19, RU-20 (the mix headroom must be measured before the spend), RU-25 | `./scripts/sfx.ps1 -List`, then a human at an interactive desktop; the result is a `PENDING` row in `docs/development/testing.md` that only that human may flip |
+| RU-32 | The manual smoke-checklist rows for this package, added to the interactive checklist and **shipped as `PENDING`**. They must cover, at minimum: a projectile visible in flight; the gap between the release cue and the impact cue being audible as the flight time; each of the three five-phase draw sequences reading as that weapon; a ranged warrior visibly stopping while its melee comrades walk in past it; the inspector reading "holding at range" rather than "blocked"; a missed shot not playing a flesh impact; the three new silhouettes distinguishable at each detail tier including Low; the arquebus reading as rare, loud, and distinctive; **and a row that explicitly asks whether an arrow passing through the friendly front rank looks wrong**, because that is the one effect in Phase 1 a spectator cannot discover and it must be looked at deliberately. Under `CLAUDE.md` section 6 rule 4, **no compilation, unit test, or window-opening probe may flip any of these rows to `PASS`, and no agent may flip one at all.** The plan owes the rows; it does not owe the results. | `docs/development/testing.md` | Rows exist, each describes what a person must look at and what they should expect to see or hear, and every one is `PENDING`. | RU-01 (shares the file), RU-25, RU-31 | A human at an interactive desktop |
+| RU-33 | The canonical gate, run once after integration. Not delegated to any sub-agent, and no sub-agent's report substitutes for its real output. | — | `./scripts/verify.ps1` output pasted verbatim into section 9, together with the two determinism workloads' `stateHash`, `eventHash`, `deterministic`, and `firstMismatchTick`. | RU-01 through RU-32 | `./scripts/verify.ps1` |
+
+### PARALLEL-SAFE and SERIAL, per task
+
+The table above is fixed at six columns, so each task's concurrency marking is
+recorded here instead. **PARALLEL-SAFE** means the task's file set is disjoint
+from every other task dispatched in the same wave. **SERIAL** means the task
+shares at least one file with another task in the plan and may never be
+dispatched beside it.
+
+- **PARALLEL-SAFE:** RU-02, RU-03, RU-04, RU-05, RU-07, RU-08, RU-09, RU-10,
+  RU-11, RU-15, RU-16, RU-18, RU-19, RU-20, RU-22, RU-23, RU-25, RU-26, RU-27,
+  RU-28, RU-29, RU-31.
+- **SERIAL:** RU-01 (first owner of `SIMULATION-GAME-STANDARDS.md` and
+  `docs/development/testing.md`), RU-06, RU-13, RU-17, RU-21 and RU-30 (the
+  `BattleSimulation.cs` chain), RU-12 and RU-24 (`PhilippineCombatPresetV5.cs`),
+  RU-14 (`SIMULATION-GAME-STANDARDS.md`), RU-32
+  (`docs/development/testing.md`), RU-33 (the gate, run by the orchestrator).
+
+A SERIAL task is still dispatched inside a wave and still runs at the same time
+as the PARALLEL-SAFE tasks in that wave. What the marking forbids is dispatching
+two tasks from the same chain together, which section 5's second table
+enumerates file by file.
+
+## 5. Execution waves
+
+Ten waves. The ceiling is eight parallel agents; the widest wave here is six. No
+wave starts before every task in the wave above it has actually reported.
+
+| Wave | Tasks | Parallel? | Note |
+| --- | --- | --- | --- |
+| 1 | RU-01, RU-02, RU-03, RU-04, RU-05 | PARALLEL-SAFE, five agents | Four disjoint documentation and enum tasks plus the headless option. RU-03 satisfies ordering constraint 1 — the three `WeaponId` members and the V5 preset identity land before anything references a ranged weapon. RU-04 satisfies ordering constraint 2 — the two `BattleEventKind` members land before any audio work. RU-01 is first in the `SIMULATION-GAME-STANDARDS.md` and `docs/development/testing.md` chains. |
+| 2 | RU-06, RU-07, RU-08, RU-09, RU-10, RU-11 | PARALLEL-SAFE, six agents | RU-06 is F-A and is the first owner of `BattleSimulation.cs`; ordering constraint 5 puts it before F-B, and putting it at the head of the file's chain costs nothing because it is the cheapest task in that file and moves no hash. |
+| 3 | RU-12, RU-13, RU-14, RU-15, RU-16 | PARALLEL-SAFE, five agents | RU-13 is the second owner of `BattleSimulation.cs`. RU-14 closes the known-red window of section 3 and is the second owner of `SIMULATION-GAME-STANDARDS.md`. |
+| 4 | RU-17, RU-18, RU-19, RU-20 | PARALLEL-SAFE, four agents | RU-17 is the third owner of `BattleSimulation.cs` and is the largest single task in the plan. RU-18 satisfies ordering constraint 6 — the pose work starts only after RU-13 has put the projection fields on `AgentView`. RU-20 satisfies ordering constraint 4 — the mix harness is updated and re-run here, four waves before anyone pays for a sound file. |
+| 5 | RU-21, RU-22 | PARALLEL-SAFE, two agents | RU-21 is the fourth owner of `BattleSimulation.cs`. This is the narrowest wave and it is the plan's critical path. |
+| 6 | RU-23, RU-24, RU-25 | PARALLEL-SAFE, three agents | RU-24 is calibration and it deliberately runs **before** any golden is pinned, because calibration moves the values a golden would capture. |
+| 7 | RU-26, RU-27, RU-28, RU-29 | PARALLEL-SAFE, four agents | Four disjoint test files. Every golden in this wave is captured from a real run after RU-24 settled the values. |
+| 8 | RU-30 | SERIAL, one agent | F-B. It shares `BattleSimulation.cs` with RU-17 and RU-21, `MovementPresetRegistry.cs` with RU-21 and RU-24, and `MovementPresetFreezeTests.cs` with RU-27, so it cannot run beside any of them. Ordering constraint 5 also requires F-A's counters to exist first, and they are what F-B is measured by. |
+| 9 | RU-31, RU-32 | RU-31 is a human, RU-32 is an agent | RU-31 is the paid ElevenLabs generation and only a person runs it. RU-32 adds the smoke rows and is the second owner of `docs/development/testing.md`. Their files are disjoint, so RU-32 does not wait on RU-31 finishing, only on it starting. |
+| 10 | RU-33 | SERIAL, the orchestrator | The canonical gate. Not delegated. |
+
+### Files touched by more than one task, and why they are serialized
+
+Six files are genuinely touched twice or more. In every case the tasks are made
+sequential rather than parallel, and this is the list an orchestrator checks
+before dispatching a wave.
+
+| File | Tasks, in order | Why it could not be made disjoint |
+| --- | --- | --- |
+| `src/Hukbo.Core/Simulation/BattleSimulation.cs` | RU-06 → RU-13 → RU-17 → RU-21 → RU-30 | This is the tick pipeline. F-A's counters sit in `TryProposeEquipmentRoute`, the ranged phase projection in `UpdateViews`, the projectile pool in `GatherAndCommitAttacks`, the hold arm in `GatherMovementProposals`, and F-B in `IsLaneClearOfAllies` — five different methods in one 4,000-line file. Splitting the file is a refactor this package has no mandate for, and it would move a great deal of code in a change that must not move a hash for the wrong reason. **This chain is the plan's critical path and it is five waves long.** |
+| `src/Hukbo.Core/Movement/MovementPresetRegistry.cs` | RU-21 → RU-24 → RU-30 | Two new preset rows and a calibration pass over one of them. A registry is a single switch; two agents in it conflict by construction. |
+| `SIMULATION-GAME-STANDARDS.md` | RU-01 → RU-14 | RU-01 corrects the stale allocation ceiling and the deferral list; RU-14 adds the ranged row to the spectator-channel table. Different sections, same file. RU-01 goes first because an implementer who reads the stale allocation figure will design the wrong projectile representation. |
+| `docs/development/testing.md` | RU-01 → RU-32 | RU-01 corrects the stale allocation figure at `:1997`; RU-32 appends the smoke rows at the end. Different sections, same file. |
+| `src/Hukbo.Core/Combat/PhilippineCombatPresetV5.cs` | RU-12 → RU-24 | RU-12 creates the preset with provisional values; RU-24 calibrates them. Calibration cannot precede the file existing, and the goldens cannot precede calibration. |
+| `tests/Hukbo.Core.Tests/MovementPresetFreezeTests.cs` | RU-27 → RU-30 | One digest for `RangedStandoffV8` and one for `MonotoneAllyClearanceV9`, in one test file. |
+| `src/Hukbo.Headless/RunReport.cs` | RU-05 → RU-06 | RU-05 adds the preset echo, RU-06 adds F-A's four counters. Both are field additions to one record. |
+
+## 6. Verification criteria for the package
+
+The package is done when all of the following are true and their real output is
+recorded in section 9. An argument that a criterion *should* hold is not
+evidence; the command's output is.
+
+**The gate.**
+
+- `./scripts/verify.ps1` passes every stage, and its verbatim output is in
+  section 9.
+- The gate runs **two** determinism workloads, the existing 200-agent /
+  10,000-tick / seed-1 V4 one and a ranged sibling, and both report
+  `deterministic: true` with a null `firstMismatchTick`.
+- No test was weakened, no analyzer suppressed, no warning downgraded, and no
+  pinned golden re-pinned to make a red test green.
+
+**Determinism.**
+
+- V1 through V4's pinned combat content hashes and seed-1 hashes are
+  byte-identical to their recorded values.
+- V1 through V7's movement content hashes and frozen trajectory digests are
+  byte-identical to their recorded values.
+- `PersistentContingentsV4` and `PrecolonialPhilippinesV4` on seed 1 reproduce
+  the recorded baseline `stateHash` and `eventHash` exactly.
+- The zero-ranged inert control passes: a V5 scenario with zero warriors in
+  every ranged roster entry reproduces V4's seed-1 state and event hashes.
+- V5 and `RangedStandoffV8` have their own pinned goldens, each captured from a
+  real run whose exact command is recorded in the test's comment.
+- Repeating the ranged workload on the same seed and the same build produces an
+  identical state hash, event hash, winner, and ordered event stream.
+
+**Budgets.**
+
+- A warm 1,000-tick window with projectiles in flight allocates no more than
+  16,384 bytes, with the 4,096-byte growth tolerance, at 12 agents per faction.
+- The whole-frame quad estimate at 500 units, including the bounded in-flight
+  projectile population, stays under the 20,000-quad ceiling.
+- `ConservativePawnCullTests` passes over the full catalog cross-product with
+  seven weapon roles, and no ranged pose extends a weapon line beyond the
+  existing envelope.
+- The 500-agent mix rendering's peak level and per-slot peak are recorded, and
+  if the sixteen-cue per-slot cap binds, the raised limit is recorded with its
+  measurement rather than guessed.
+
+**Acceptance bands.**
+
+- `CombatMetrics.DefenceAttributableShare` is inside 0.25 to 0.45 across seeds 1
+  through 20 at 200 agents on the ranged presets. **The band is not widened.**
+- Shielded roster entries still absorb more blows before dying than shieldless
+  ones across seeds 1 through 20.
+- At least 19 of 20 seeds are decisive before the 5,000-tick cap on the ranged
+  presets, with a median decisive tick at or below 5,000, and each faction wins
+  at least four of the twenty.
+- F-A's four counters sum to exactly 1,140,221 on the recorded V6 workload.
+- F-B's lane-not-clear counter collapses relative to that V6 measurement. If it
+  does not, the diagnosis was wrong, and that is a finding to record rather than
+  a number to tune toward.
+
+**Honesty.**
+
+- Every smoke-checklist row this package adds is `PENDING` unless a human at an
+  interactive desktop watched the screen and flipped it.
+- Every range, shot interval, standoff fraction, roster share, ranged clash
+  cell, and pose constant is marked `PROVISIONAL` in source and is not cited
+  anywhere as a historical measurement.
+- RU-02 either names the source it verified or reports BLOCKED. A date guessed
+  into a historical-accuracy document fails this criterion outright.
+
+## 7. Rollback: what to do if the new presets' goldens cannot be made to pass
+
+There are two different failures hiding under "the goldens will not pass", and
+the response to each is different. Diagnose which one you have before doing
+anything.
+
+### Failure A — an old preset's golden moved
+
+`PrecolonialPhilippinesV1` through `V4`, or `PersistentContingentsV1` through
+`EquipmentRelativeFootworkV7`, no longer reproduce their pinned content hashes,
+trajectory digests, or seed-1 hashes.
+
+**This is a bug in this package, always, without exception.** Every one of those
+presets is supposed to be byte-identical after this work, and the whole point of
+restating values rather than referencing them, of appending enum members rather
+than reordering them, and of gating the new hash tail on a capability rather than
+on a preset ID is that an older preset's fold cannot move.
+
+**Do not re-pin. Revert to the last commit where the old golden passed and find
+the change that moved it.** The likely causes, in the order worth checking:
+
+1. The conditional state-hash tail is gated on something a melee-only ruleset can
+   still satisfy, so a melee run folds the projectile section. The zero-ranged
+   inert control (RU-26) is the test that catches this, and if it is red this is
+   your answer.
+2. An enum value was inserted rather than appended, or a doc-comment edit
+   reordered members.
+3. A "shared" value was referenced from V5 instead of restated, so tuning V5
+   reached back into V4.
+4. The ranged phase projection in `UpdateViews` (RU-13) wrote state instead of
+   deriving it, or made a query the tick would not otherwise make.
+
+### Failure B — a new preset's golden cannot be made stable, or its bands cannot be met
+
+V5 or `RangedStandoffV8` produces a hash that changes between runs, or
+calibration (RU-24) cannot find values that hold the defence-attributable share
+inside 0.25 to 0.45 while keeping 19 of 20 seeds decisive.
+
+**Two things must not happen, and they are the tempting ones.** Do not re-pin a
+golden to whatever the run produced in order to go green — a golden captured to
+match a broken run records the breakage. And do not widen an acceptance band, and
+in particular do not adopt F-F, the survivor-count tiebreak, to make termination
+numbers pass: it is excluded by the design on three grounds, it would decide
+battles on noise, and it is the fix that hides the bug applied to the feature most
+likely to produce it.
+
+The escalation ladder, in order, stopping at the first rung that works:
+
+1. **Tune, within RU-24's remit.** The levers are the ranged roster share, the
+   standoff distance as a fraction of reach, the shot intervals, and the ranged
+   cells in the weapon-intercept matrix. All four are labelled gameplay values,
+   so moving them costs nothing historically. Record what moved and why.
+2. **Shrink the ranged roster share hard.** The evidence supports a ranged
+   minority, so a small share is not historically embarrassing. Note that this
+   has its own failure mode, recorded as "what could make this design wrong"
+   item 3: a feature a spectator rarely sees fails acceptance question 1 for a
+   different reason.
+3. **Ship V5 without the hold rule.** `PrecolonialPhilippinesV5` on
+   `PersistentContingentsV4` is a legal pairing. Ranged weapons would then close
+   to body contact and shoot from there, which is a much weaker feature — a
+   bowman indistinguishable from a spearman — but it is a shippable one, and it
+   isolates whether the termination failure came from the hold rule or from the
+   longer reach. If this rung is taken, RU-32's smoke rows about a warrior
+   visibly stopping are removed rather than left as rows nothing can satisfy.
+4. **Do not ship the ranged presets as the Client default.** Leave
+   `ArenaGame.BuildScenario` on V4, keep V5 and V8 registered and reachable by
+   explicit selection, and record in section 9 that the feature exists but is not
+   the default battle. This is honest, it is reversible, and it keeps the work
+   available for the next session. It fails acceptance question 1, so it is a
+   held position rather than a finished one.
+5. **Revert the movement preset only.** F-B (RU-30) and the hold rule (RU-21)
+   are independent of each other and of sections 4 through 9 of the design;
+   nothing in the ranged simulation depends on the standoff being fixed. Either
+   can be dropped without dropping the other or the ranged work.
+
+At every rung, the state of the world goes in section 9 with the numbers that
+produced the decision. A rollback recorded with its measurement is a result; a
+rollback recorded as "it did not work" is a lost session.
+
+## 8. Deferred to Phase 2 — not tasks
+
+Nothing in this section has a task ID, a wave, or a file list, and no agent
+working this plan may build any of it. Each entry is specified in section 11 of
+the design document, which records what it is, why it is deferred, and what would
+have to be true before it is taken up.
+
+| Deferred | Why it is not a task here | What would unblock it |
+| --- | --- | --- |
+| **Line of sight** | User decision: Phase 1 ships hitscan with flight time and no blocking of any kind. Nothing anywhere in the codebase asks what lies between two points, and a segment query needs a new traversal, a new deterministic order, and its own naive reference oracle alongside `NaiveCollisionPairs.cs`. | Phase 1 shipping and being measured. When it is built it goes in `SelectTargetsAndIntents`'s existing pass as an O(n) point-to-segment scan, not as an extension of the uniform grid, with a "first blocker along the segment" total order tie-breaking on `EntityId`. |
+| **Friendly fire** | It depends entirely on line of sight — without a blocking rule there is nothing for a projectile to strike on the way — so it cannot ship first. The target scan hard-excludes same-faction candidates at `BattleSimulation.cs:1015`. | Line of sight, plus its own design document. It moves the defence-attributable band, the both-factions-win test, and every intuition about roster balance. |
+| **Ammunition** | `CLAUDE.md` section 9 forbids it before an authorizing gate, and the user's 2026-08-07 decision lifted the projectile clause and not the ammunition one. The sources also give nothing to build on: no quantity, no quiver capacity, no resupply, and no statement that a force ran out. | A separate authorization. This is the deferral with the highest historical cost in the package — the best-attested detail about the thrown spear, picking up the same shaft four to six times at Mactan, is an ammunition behaviour. |
+| **Regional rosters and scenario place tags** | `Scenario` has no place, no date, and no regional constraint, and `RosterCounts` applies the same proportions to both factions. | Its own design. Until then the *bangkaw* label is Visayan-anchored and used archipelago-wide, which is a known and labelled imprecision. |
+| **The Sumpit — Blowgun** | Dropped by user decision on the evidence: the word appears in none of the Blair and Robertson volumes consulted, and every sixteenth-century attestation of the weapon places it at Palawan or Cagayan Sulu rather than in the Visayan and Manila-area engagements the game depicts. | A dated documentary attestation of the word, and the regional scenario tags above, so it appears where it is attested and nowhere else. |
+
+Also deferred, and equally not tasks: **poison** on projectiles; **the melee
+sidearm**, which is the design's own first choice for what to build next and is
+the single best-attested behavioural fact about missile-armed men in this record;
+**the melee `Evaded` cue**, which RU-14 deliberately does not fix; **a morale or
+terror model**; **the Bronze Verso**; **thrown stones, mud, and fire-hardened
+stakes**; **an arquebus misfire mechanic**, whose two generated sound files have
+no Phase 1 trigger and are a recorded, deliberate spend; **a projectile
+identifier linking a release to its impact** in the event stream, for which bits
+40 through 63 of `BattleEvent._combatContext` are free; and **a sprite-frame
+animation pipeline**, already backlogged at `docs/plans/TODO.md:41-55`.
+
+## 9. Results
+
+Nothing here yet. This section is filled in as tasks report, and it is where the
+evidence lives rather than where a summary lives. It owes, at minimum:
+
+- The verbatim `./scripts/verify.ps1` output from RU-33.
+- Both determinism workloads' `stateHash`, `eventHash`, `deterministic`, and
+  `firstMismatchTick`.
+- RU-02's verification finding: the source actually read, or the BLOCKED report.
+- RU-06's four rejection-reason counters and their sum on the V6 workload.
+- RU-20's 500-agent mix numbers: peak dBFS, per-slot peak, total cues,
+  suppressions.
+- RU-24's twenty-seed calibration table and ten-cell matrix beside the V4
+  baseline of 1,279 to 4,405 ticks.
+- RU-30's lane-not-clear counter before and after, on melee-only rosters and
+  then on a mixed roster.
+- The task status table.
+
+### Task status
+
+| Task | Status |
+| --- | --- |
+| RU-01 | Not started |
+| RU-02 | Not started |
+| RU-03 | Not started |
+| RU-04 | Not started |
+| RU-05 | Not started |
+| RU-06 | Not started |
+| RU-07 | Not started |
+| RU-08 | Not started |
+| RU-09 | Not started |
+| RU-10 | Not started |
+| RU-11 | Not started |
+| RU-12 | Not started |
+| RU-13 | Not started |
+| RU-14 | Not started |
+| RU-15 | Not started |
+| RU-16 | Not started |
+| RU-17 | Not started |
+| RU-18 | Not started |
+| RU-19 | Not started |
+| RU-20 | Not started |
+| RU-21 | Not started |
+| RU-22 | Not started |
+| RU-23 | Not started |
+| RU-24 | Not started |
+| RU-25 | Not started |
+| RU-26 | Not started |
+| RU-27 | Not started |
+| RU-28 | Not started |
+| RU-29 | Not started |
+| RU-30 | Not started |
+| RU-31 | Not started |
+| RU-32 | Not started |
+| RU-33 | Not started |

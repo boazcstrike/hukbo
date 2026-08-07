@@ -37,3 +37,19 @@ is not authorized work; it is a reminder that the question was decided
   to the frame loop. The full measured baseline, both seeds, and what a future
   change has to beat are in
   [`2026-07-30-formation-blocking-baseline.md`](2026-07-30-formation-blocking-baseline.md).
+
+## From the ranged units package (2026-08-07)
+
+- **Sprite-frame animation pipeline.** Hand-authored image frames per action,
+  built through `Content.mgcb` into `.xnb` and played back as an index into an
+  array, as an alternative to the procedural pose resolvers the client uses
+  today. This would be a genuinely new asset pipeline: an art budget, a build
+  step, one frame set per weapon and per facing, and a renderer that draws
+  textured quads rather than the vector limb geometry in
+  `src/Hukbo.Client/Rendering/PawnGeometry.cs`. It also runs against the v0.1
+  guidance in `SIMULATION-GAME-STANDARDS.md` line 18, which chose dots
+  specifically to avoid an asset and animation pipeline before the simulation
+  is fun. Deferred by user decision on 2026-08-07 when the ranged unit package
+  was scoped: the four ranged weapons get procedural pose resolvers in the
+  shape of `src/Hukbo.Client/Rendering/SwingPoseResolver.cs` instead. Revisit
+  only as its own design document, never as a sub-task of a gameplay feature.
