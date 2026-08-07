@@ -9,6 +9,28 @@ public enum BattleEventKind
     Damage = 2,
     Death = 3,
     Outcome = 4,
+
+    /// <summary>
+    /// A ranged shot has left its launcher. Non-attack: constructed only
+    /// through <see cref="BattleEvent.NonAttack"/>, so
+    /// <see cref="BattleEvent.Weapon"/>, <see cref="BattleEvent.Shield"/>,
+    /// <see cref="BattleEvent.HitLocation"/>, and
+    /// <see cref="BattleEvent.Resolution"/> are always <c>null</c>.
+    /// <see cref="BattleEvent.Value"/> carries the flight time in ticks. No
+    /// emission site exists yet.
+    /// </summary>
+    Release = 5,
+
+    /// <summary>
+    /// A ranged shot spent itself without landing. Non-attack: constructed
+    /// only through <see cref="BattleEvent.NonAttack"/>, so
+    /// <see cref="BattleEvent.Weapon"/>, <see cref="BattleEvent.Shield"/>,
+    /// <see cref="BattleEvent.HitLocation"/>, and
+    /// <see cref="BattleEvent.Resolution"/> are always <c>null</c>.
+    /// <see cref="BattleEvent.Value"/> is always <c>0</c>. No emission site
+    /// exists yet.
+    /// </summary>
+    Miss = 6,
 }
 
 /// <summary>
