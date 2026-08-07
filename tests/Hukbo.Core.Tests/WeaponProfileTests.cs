@@ -352,6 +352,175 @@ public sealed class WeaponProfileTests
         // own global value of 10.
         Assert.Equal(18, PhilippineCombatPresetV2.Rules.MaximumProfileDamagePerAttack);
 
+    [Fact]
+    public void EveryProfileOfEveryRegisteredPresetDeclaresAllRangedFieldsZero()
+    {
+        // Every weapon in every currently registered preset (V1 through V4)
+        // is melee. RU-12's PrecolonialPhilippinesV5 is what will first field
+        // a non-zero declaration and it is deliberately not registered yet,
+        // so this loop only ever sees the melee case.
+        foreach (var id in Enum.GetValues<CombatPresetId>())
+        {
+            if (!CombatPresetRegistry.IsRegistered(id))
+            {
+                continue;
+            }
+
+            var rules = CombatPresetRegistry.Get(id);
+            if (!rules.HasWeaponProfiles)
+            {
+                continue;
+            }
+
+            foreach (var loadout in rules.Roster)
+            {
+                var profile = rules.ResolveWeaponProfile(
+                    loadout.Weapon,
+                    loadout.Shield);
+
+                Assert.Equal(0, profile.ProjectileSpeedRaw);
+                Assert.Equal(0, profile.StandoffDistanceRaw);
+                Assert.Equal(0, profile.FlightTickCeiling);
+            }
+        }
+    }
+
+    [Theory]
+    // Exactly one of the three ranged fields declared, the other two left at
+    // the melee default of zero. Any one non-zero field is enough to mark the
+    // profile as an attempted ranged declaration, so each case must throw.
+    [InlineData(0, 5, 3)]
+    [InlineData(4, 0, 3)]
+    [InlineData(4, 5, 0)]
+    public void RangedProfileDeclaringOnlySomeOfTheThreeFieldsThrows(
+        int projectileSpeedWorldUnits,
+        int standoffWorldUnits,
+        int flightTickCeiling)
+    {
+        var exception = Assert.Throws<ArgumentException>(() => BuildRuleset(
+            attributes: new Dictionary<WeaponId, WeaponAttributes>
+            {
+                [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                    RangedProfile(
+                        15,
+                        reachWorldUnits: 16,
+                        cooldownTicks: 7,
+                        projectileSpeedWorldUnits,
+                        standoffWorldUnits,
+                        flightTickCeiling)),
+            }));
+
+        Assert.Contains(
+            "declares a ranged weapon",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StandoffDistanceAtTheProfilesOwnReachThrows()
+    {
+        // Sixteen world units of reach, sixteen of standoff: exactly at the
+        // boundary, which the row deliberately excludes rather than allows.
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+            () => BuildRuleset(
+                attributes: new Dictionary<WeaponId, WeaponAttributes>
+                {
+                    [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                        RangedProfile(
+                            15,
+                            reachWorldUnits: 16,
+                            cooldownTicks: 7,
+                            projectileSpeedWorldUnits: 4,
+                            standoffWorldUnits: 16,
+                            flightTickCeiling: 30)),
+                }));
+
+        Assert.Contains(
+            "one collision nudge",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StandoffDistanceBeyondTheProfilesOwnReachThrows()
+    {
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+            () => BuildRuleset(
+                attributes: new Dictionary<WeaponId, WeaponAttributes>
+                {
+                    [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                        RangedProfile(
+                            15,
+                            reachWorldUnits: 16,
+                            cooldownTicks: 7,
+                            projectileSpeedWorldUnits: 4,
+                            standoffWorldUnits: 20,
+                            flightTickCeiling: 30)),
+                }));
+
+        Assert.Contains(
+            "beyond its own reach",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RangedProfileWithAllThreeDeclaredAndStandoffStrictlyInsideReachConstructs()
+    {
+        var rules = BuildRuleset(
+            attributes: new Dictionary<WeaponId, WeaponAttributes>
+            {
+                [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                    RangedProfile(
+                        15,
+                        reachWorldUnits: 16,
+                        cooldownTicks: 7,
+                        projectileSpeedWorldUnits: 4,
+                        standoffWorldUnits: 12,
+                        flightTickCeiling: 30)),
+            });
+
+        var profile = rules.ResolveWeaponProfile(WeaponId.Kampilan, ShieldId.None);
+        Assert.Equal(4 * FixedPoint.Scale, profile.ProjectileSpeedRaw);
+        Assert.Equal(12 * FixedPoint.Scale, profile.StandoffDistanceRaw);
+        Assert.Equal(30, profile.FlightTickCeiling);
+    }
+
+    [Fact]
+    public void MeleeProfileWithAllThreeRangedFieldsZeroConstructs()
+    {
+        // Every existing preset weapon is melee and relies on this: the
+        // default zero for all three ranged fields must remain a valid,
+        // no-op declaration so presets V1 through V4 keep constructing
+        // untouched.
+        var rules = BuildRuleset(
+            attributes: new Dictionary<WeaponId, WeaponAttributes>
+            {
+                [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                    Profile(15, 16, 7)),
+            });
+
+        var profile = rules.ResolveWeaponProfile(WeaponId.Kampilan, ShieldId.None);
+        Assert.Equal(0, profile.ProjectileSpeedRaw);
+        Assert.Equal(0, profile.StandoffDistanceRaw);
+        Assert.Equal(0, profile.FlightTickCeiling);
+    }
+
+    private static WeaponProfile RangedProfile(
+        int damage,
+        int reachWorldUnits,
+        int cooldownTicks,
+        int projectileSpeedWorldUnits,
+        int standoffWorldUnits,
+        int flightTickCeiling) =>
+        new(
+            damage,
+            reachWorldUnits * FixedPoint.Scale,
+            cooldownTicks,
+            ProjectileSpeedRaw: projectileSpeedWorldUnits * FixedPoint.Scale,
+            StandoffDistanceRaw: standoffWorldUnits * FixedPoint.Scale,
+            FlightTickCeiling: flightTickCeiling);
+
     private static WeaponProfile Profile(
         int damage,
         int reachWorldUnits,
