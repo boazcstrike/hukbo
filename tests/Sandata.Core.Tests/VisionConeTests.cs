@@ -1,4 +1,3 @@
-using Hukbo.Diagnostics;
 using Sandata.Core.Geometry;
 using Sandata.Core.Mathematics;
 
@@ -8,10 +7,30 @@ namespace Sandata.Core.Tests;
 /// Golden vectors for <see cref="VisionCone.Contains"/>: on-boundary
 /// inclusion on both edges, a point just outside each edge excluded, a
 /// point behind the apex excluded, a reflex cone wider than 180 degrees
-/// handled, the range cutoff, and the source-scan proof required by task 11
-/// of the Sandata scaffold plan that this file's implementation never
-/// multiplies two normalised vectors together and never calls into
-/// <c>Sandata.Core.Mathematics.Trig</c>.
+/// handled, the range cutoff, and a property test proving the actual
+/// hazard task 11 of the Sandata scaffold plan exists to avoid is absent.
+///
+/// Reconciled 2026-08-07 by task 56: this file originally proved that
+/// absence by scanning <c>VisionCone.cs</c>'s source text for the literal
+/// token <c>Trig</c>. That scan forbade a symbol name, not a hazard, and it
+/// would have kept passing even if <see cref="VisionCone.Contains"/> were
+/// rewritten as a cosine comparison against unnormalised boundary vectors
+/// fetched through a differently named helper. The real hazard is that
+/// Hukbo's facing sector vectors are not unit length — 946^2 + 392^2 is
+/// 1,048,580 against 1024^2's 1,048,576, and the error differs per sector —
+/// so a cosine comparison against them silently changes cone shape with
+/// facing, and normalising them would square an already-squared magnitude,
+/// overflowing <see cref="long"/> at this game's map scale. A half-plane
+/// cross-product test has neither problem, because its sign depends only on
+/// direction, never on the boundary vector's magnitude. The property test
+/// below, <c>AngularContainment_IsInvariantToPositiveScalingOfTheCandidateOffset</c>,
+/// operationalises exactly that difference: scaling the candidate offset by
+/// a positive integer (and scaling <c>rangeSquared</c> by the square of the
+/// same factor, to hold the range decision fixed) must not change the
+/// angular verdict, which is a property a magnitude- or cosine-based test
+/// would not generally hold, because normalising an integer vector and
+/// comparing it to a scaled cosine threshold accumulates scale-dependent
+/// rounding that a pure sign test never does.
 /// </summary>
 /// <remarks>
 /// Every expected value below was computed independently of
@@ -126,44 +145,35 @@ public sealed class VisionConeTests
     }
 
     /// <summary>
-    /// The proof named by the plan's "Done when" column: nothing in
-    /// <c>VisionCone.cs</c> multiplies two normalised vectors together (the
-    /// cosine-comparison shape this type exists to avoid) or calls into
-    /// <c>Trig</c>. A cosine comparison of this kind always shows up as a
-    /// call to a normalising or trigonometric helper — <c>Normalize</c>,
-    /// <c>Trig.Sin</c>, or <c>Trig.Cos</c> — because there is no way to
-    /// scale a vector to unit length using only the raw integer arithmetic
-    /// this file is otherwise built from. Their absence is therefore a
-    /// direct proof of the algorithm's shape, not a coincidental fact about
-    /// naming.
+    /// The property-based proof described in this file's class remarks:
+    /// scaling the candidate offset by a positive integer, while scaling
+    /// <c>rangeSquared</c> by the square of the same factor to hold the
+    /// range decision fixed, must never change the angular verdict. Each
+    /// row below is a fixture already exercised as a single point above —
+    /// well inside, exactly on the left edge, one BAM unit beyond the left
+    /// edge, and behind the apex — checked again across several scale
+    /// factors including the identity factor 1, which recovers the
+    /// single-point fixture exactly.
     /// </summary>
-    [Fact]
-    public void VisionConeSource_NeverNormalisesAndNeverCallsTrig()
+    [Theory]
+    [InlineData(100L, 0L, 250_000L, true)]                // well inside, directly ahead
+    [InlineData(46_341L, -46_341L, 5_000_000_000L, true)] // exactly on the left edge
+    [InlineData(46_336L, -46_345L, 5_000_000_000L, false)] // one BAM unit beyond the left edge
+    [InlineData(-100L, 0L, 250_000L, false)]              // behind the apex
+    public void AngularContainment_IsInvariantToPositiveScalingOfTheCandidateOffset(
+        long dx, long dy, long rangeSquaredBase, bool expected)
     {
-        var root = GetRepositoryRoot();
-        var path = Path.Combine(root, "src", "Sandata.Core", "Geometry", "VisionCone.cs");
+        foreach (var scale in new long[] { 1, 2, 3, 5, 11 })
+        {
+            var scaledRangeSquared = checked(rangeSquaredBase * scale * scale);
+            var actual = VisionCone.Contains(
+                NarrowCentre,
+                NarrowHalfWidth,
+                scaledRangeSquared,
+                checked(dx * scale),
+                checked(dy * scale));
 
-        var offendingLines = File.ReadAllLines(path)
-            .Select((line, index) => (Line: line, Number: index + 1))
-            .Where(entry => !entry.Line.TrimStart().StartsWith("//", StringComparison.Ordinal))
-            .Where(entry =>
-                entry.Line.Contains("Trig", StringComparison.Ordinal) ||
-                entry.Line.Contains("Normalize", StringComparison.Ordinal) ||
-                entry.Line.Contains("Normalise", StringComparison.Ordinal))
-            .Select(entry => entry.Number)
-            .ToArray();
-
-        Assert.Empty(offendingLines);
-    }
-
-    private static string GetRepositoryRoot()
-    {
-        var root = LogPaths.FindRepositoryRoot(AppContext.BaseDirectory);
-        Assert.True(
-            root is not null,
-            "No ancestor of " + AppContext.BaseDirectory + " contains " +
-            LogPaths.RepositoryMarkerFileName +
-            ", so VisionCone.cs cannot be located for the source scan.");
-        return root!;
+            Assert.Equal(expected, actual);
+        }
     }
 }
