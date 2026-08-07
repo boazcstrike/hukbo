@@ -41,6 +41,15 @@ internal readonly record struct UnitReportRow(
 /// <c>Hukbo.Core</c> tracks no per-entity counters. A renderer must not present
 /// the second group as carrying the authority of the first.
 /// </remarks>
+/// <param name="HoldingCount">
+/// RU-16, risk 8's second defence: how many of this faction's living
+/// warriors carried <see cref="AgentIntent.Holding"/> as of the
+/// most recent tick <see cref="BattleReportAccumulator.Ingest"/> was handed
+/// the agent roster. Unlike <see cref="Combat"/> above, this is a live
+/// per-tick snapshot, not a battle-long sum — holding is a momentary state,
+/// not an event to accumulate. Stays <c>0</c> for a caller that never
+/// passes the roster to <see cref="BattleReportAccumulator.Ingest"/>.
+/// </param>
 internal readonly record struct FactionReportTotals(
     int FactionId,
     int TotalKills,
@@ -49,7 +58,8 @@ internal readonly record struct FactionReportTotals(
     int Survivors,
     ulong? TopKillerEntityId,
     int TopKillerKills,
-    CombatMetrics Combat);
+    CombatMetrics Combat,
+    int HoldingCount);
 
 /// <summary>
 /// One landed attack singled out as a battle highlight — either the first

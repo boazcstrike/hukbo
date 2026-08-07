@@ -58,15 +58,33 @@ internal sealed class BattleReportAccumulator
     // numbers in this class that are not inferred; see the class remarks.
     private readonly CombatMetrics[] _factionCombat = new CombatMetrics[2];
 
+    // RU-16, risk 8's second defence: live per-faction count of
+    // AgentIntent.Holding warriors, replaced (not summed) on every Ingest
+    // call that is handed the agent roster — Holding is a momentary
+    // per-tick state, so the terminal Snapshot reports it as of the last
+    // tick observed, never accumulated across the battle. Index 0 is
+    // faction 0, index 1 is faction 1, matching _factionCombat above.
+    private readonly int[] _holdingCounts = new int[2];
+
     /// <summary>
     /// Folds one tick's events into the running counters. Never retains
     /// <paramref name="events"/> beyond this call: the simulation
     /// double-buffers that list, so holding a reference to it across ticks
     /// would be a correctness bug, not merely a style concern.
     /// </summary>
+    /// <param name="agents">
+    /// RU-16: the current tick's agent roster, read only to recompute the
+    /// live per-faction <see cref="AgentIntent.Holding"/> count on
+    /// <see cref="FactionReportTotals.HoldingCount"/> — never retained past
+    /// this call, matching <paramref name="events"/> above. Defaulted to
+    /// <see langword="null"/>, which leaves the previous count in place,
+    /// so a caller that has not yet been updated to pass the roster still
+    /// compiles and behaves exactly as before this task.
+    /// </param>
     public void Ingest(
         IReadOnlyList<BattleEvent> events,
-        FactionCombatMetrics tickCombatByFaction)
+        FactionCombatMetrics tickCombatByFaction,
+        IReadOnlyList<AgentView>? agents = null)
     {
         ArgumentNullException.ThrowIfNull(events);
 
@@ -76,6 +94,11 @@ internal sealed class BattleReportAccumulator
         // so summing here cannot disagree with the simulation.
         AddFactionCombat(0, tickCombatByFaction.Faction0);
         AddFactionCombat(1, tickCombatByFaction.Faction1);
+
+        if (agents is not null)
+        {
+            UpdateHoldingCounts(agents);
+        }
 
         foreach (var battleEvent in events)
         {
@@ -92,6 +115,32 @@ internal sealed class BattleReportAccumulator
     }
 
     /// <summary>
+    /// Replaces the running <see cref="_holdingCounts"/> with a fresh count
+    /// over <paramref name="agents"/> — <see cref="AgentIntent.Holding"/> is
+    /// a momentary per-tick state, not an event to sum, so each call
+    /// overwrites rather than adds. A dead agent never counts: death
+    /// cleanup does not reliably clear <see cref="AgentView.Intent"/> on
+    /// every preset, and a corpse cannot be holding at range regardless of
+    /// what its stale intent field reads.
+    /// </summary>
+    private void UpdateHoldingCounts(IReadOnlyList<AgentView> agents)
+    {
+        Array.Clear(_holdingCounts);
+        foreach (var agent in agents)
+        {
+            if (!agent.IsAlive || agent.Intent != AgentIntent.Holding)
+            {
+                continue;
+            }
+
+            if (agent.FactionId >= 0 && agent.FactionId < _holdingCounts.Length)
+            {
+                _holdingCounts[agent.FactionId]++;
+            }
+        }
+    }
+
+    /// <summary>
     /// Clears every accumulated counter and highlight. Called on every round
     /// reset, alongside the presentation coordinator's other clears.
     /// </summary>
@@ -101,6 +150,7 @@ internal sealed class BattleReportAccumulator
         _firstBlood = null;
         _decisiveKill = null;
         Array.Clear(_factionCombat);
+        Array.Clear(_holdingCounts);
     }
 
     /// <summary>
@@ -334,6 +384,12 @@ internal sealed class BattleReportAccumulator
                 ? _factionCombat[factionId]
                 : default;
 
+            // RU-16: the live per-faction Holding count, same bounds guard
+            // as combat above.
+            var holdingCount = factionId >= 0 && factionId < _holdingCounts.Length
+                ? _holdingCounts[factionId]
+                : 0;
+
             factions.Add(new FactionReportTotals(
                 factionId,
                 totalKills,
@@ -344,7 +400,8 @@ internal sealed class BattleReportAccumulator
                 survivors,
                 topKillerEntityId,
                 Math.Max(0, topKillerKills),
-                combat));
+                combat,
+                holdingCount));
         }
 
         return factions;
