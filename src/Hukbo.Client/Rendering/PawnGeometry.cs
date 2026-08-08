@@ -390,6 +390,18 @@ internal static class PawnGeometry
     /// so a caller may pass either, exactly as <paramref name="swingPose"/>
     /// already allows.
     /// </param>
+    /// <param name="rangedPose">
+    /// The pose one in-flight ranged draw cycle (<see cref="RangedPhase"/>)
+    /// puts this pawn's torso lean in, or <c>null</c> for a pawn with no
+    /// ranged pose active. Only <see cref="RangedPose.TorsoLeanX"/> and
+    /// <see cref="RangedPose.TorsoLeanY"/> reach the layout, summed
+    /// additively alongside <paramref name="swingPose"/>'s and
+    /// <paramref name="gaitPose"/>'s own lean — the weapon-angle and
+    /// extension channels are <paramref name="swingPose"/>'s alone, per
+    /// <see cref="RangedPose"/>'s own remarks. A neutral pose produces the
+    /// same lean contribution as no pose at all, so a caller may pass
+    /// either.
+    /// </param>
     public static PawnLayout Create(
         Vector2 footAnchor,
         float cameraZoom,
@@ -399,7 +411,8 @@ internal static class PawnGeometry
         float armorWidthFactor = 1f,
         bool hasSash = false,
         int adornmentAccentMarkCount = 0,
-        GaitPose? gaitPose = null)
+        GaitPose? gaitPose = null,
+        RangedPose? rangedPose = null)
     {
         var proportions = CreateProportions(
             footAnchor,
@@ -417,7 +430,8 @@ internal static class PawnGeometry
             armorWidthFactor,
             hasSash,
             adornmentAccentMarkCount,
-            gaitPose ?? default);
+            gaitPose ?? default,
+            rangedPose ?? default);
     }
 
     /// <summary>
@@ -451,7 +465,8 @@ internal static class PawnGeometry
         float armorWidthFactor = 1f,
         bool hasSash = false,
         int adornmentAccentMarkCount = 0,
-        GaitPose? gaitPose = null)
+        GaitPose? gaitPose = null,
+        RangedPose? rangedPose = null)
     {
         var prefix = PoseBlindPrefix.Create(
             footAnchor,
@@ -463,7 +478,7 @@ internal static class PawnGeometry
             adornmentAccentMarkCount);
 
         return new PosedPawnGeometry(
-            prefix.CompletePosedLayout(swingPose, gaitPose),
+            prefix.CompletePosedLayout(swingPose, gaitPose, rangedPose),
             prefix.PoseBlindVisualBounds);
     }
 
@@ -599,6 +614,11 @@ internal static class PawnGeometry
         /// a pawn standing still, exactly as on
         /// <see cref="PawnGeometry.Create"/>.
         /// </param>
+        /// <param name="rangedPose">
+        /// The pose one in-flight ranged draw cycle puts this pawn's lean in,
+        /// or <c>null</c> for a pawn with no ranged pose active, exactly as
+        /// on <see cref="PawnGeometry.Create"/>.
+        /// </param>
         /// <remarks>
         /// Nothing stops a caller finishing the same prefix more than once
         /// with different poses: the prefix is a value, the stage is pure, and
@@ -606,7 +626,8 @@ internal static class PawnGeometry
         /// </remarks>
         public PawnLayout CompletePosedLayout(
             SwingPose? swingPose = null,
-            GaitPose? gaitPose = null) =>
+            GaitPose? gaitPose = null,
+            RangedPose? rangedPose = null) =>
             CreateLayout(
                 _proportions,
                 _footAnchor,
@@ -615,7 +636,8 @@ internal static class PawnGeometry
                 _armorWidthFactor,
                 _hasSash,
                 _adornmentAccentMarkCount,
-                gaitPose ?? default);
+                gaitPose ?? default,
+                rangedPose ?? default);
     }
 
     /// <summary>
@@ -736,14 +758,15 @@ internal static class PawnGeometry
         float armorWidthFactor,
         bool hasSash,
         int adornmentAccentMarkCount,
-        GaitPose gaitPose)
+        GaitPose gaitPose,
+        RangedPose rangedPose)
     {
         var apparentScale = proportions.ApparentScale;
         var detailTier = proportions.DetailTier;
 
         // The feet stay planted, so the ground ring keeps the foot anchor
         // while everything the warrior can lean moves with the torso.
-        var bodyAnchor = CreateBodyAnchor(footAnchor, apparentScale, pose, gaitPose);
+        var bodyAnchor = CreateBodyAnchor(footAnchor, apparentScale, pose, gaitPose, rangedPose);
         var torsoBounds = CreateTorso(bodyAnchor, proportions);
         var legs = CreateLegsAndFeet(
             bodyAnchor,
@@ -875,13 +898,15 @@ internal static class PawnGeometry
     /// A neutral pose leans by nothing and rotates by nothing, which is
     /// exactly what <c>swingPose: null</c> means to <see cref="Create"/>, and
     /// <c>default(GaitPose)</c> is documented as the same "standing still"
-    /// neutral for the legs. This is deliberately the neutral-stance leg
-    /// footprint rather than a stride envelope larger than it: the actual
-    /// gait phase is never read here, which is what keeps two different
-    /// phases at one position producing an identical result, and reading
-    /// <see langword="default"/> unconditionally is what keeps this
-    /// bit-identical to <c>PawnRenderer.GetBounds</c>, which never forwards a
-    /// gait pose at all.
+    /// neutral for the legs; <c>default(RangedPose)</c> is the same
+    /// "no ranged pose active" neutral for the third lean channel
+    /// <see cref="CreateBodyAnchor"/> now sums. This is deliberately the
+    /// neutral-stance leg footprint rather than a stride envelope larger
+    /// than it: the actual gait phase is never read here, which is what
+    /// keeps two different phases at one position producing an identical
+    /// result, and reading <see langword="default"/> unconditionally is what
+    /// keeps this bit-identical to <c>PawnRenderer.GetBounds</c>, which never
+    /// forwards a gait pose or a ranged pose at all.
     /// </remarks>
     private static Rectangle CreatePoseBlindVisualBounds(
         in PawnProportions proportions,
@@ -892,7 +917,7 @@ internal static class PawnGeometry
         var apparentScale = proportions.ApparentScale;
         var detailTier = proportions.DetailTier;
 
-        var bodyAnchor = CreateBodyAnchor(footAnchor, apparentScale, default, default);
+        var bodyAnchor = CreateBodyAnchor(footAnchor, apparentScale, default, default, default);
         var torsoBounds = CreateTorso(bodyAnchor, proportions);
         var headBounds = CreateHead(bodyAnchor, torsoBounds, proportions);
         var headTreatmentBounds = CreateHeadTreatment(headBounds, proportions);
@@ -939,17 +964,23 @@ internal static class PawnGeometry
     /// body on the foot anchor exactly. Sums the swing pose's lean with the
     /// gait pose's own <see cref="GaitPose.TorsoLeanX"/>/
     /// <see cref="GaitPose.TorsoLeanY"/> (nonzero only at
-    /// <see cref="GaitMode.Run"/>), the same way the two are independent,
-    /// additive channels on the pose types themselves.
+    /// <see cref="GaitMode.Run"/>) and with the ranged pose's own
+    /// <see cref="RangedPose.TorsoLeanX"/>/<see cref="RangedPose.TorsoLeanY"/>
+    /// (the Bangkaw's cocked-back <see cref="RangedPhase.Draw"/> keyframe,
+    /// among others) — three independent, additive channels on the pose
+    /// types themselves, needing no mutual-exclusion rule between the gait
+    /// and ranged leans the way <see cref="ApplySwing"/> needs one between a
+    /// swing pose and a ranged pose's weapon-angle/extension channels.
     /// </summary>
     private static Vector2 CreateBodyAnchor(
         Vector2 footAnchor,
         float apparentScale,
         SwingPose pose,
-        GaitPose gaitPose) =>
+        GaitPose gaitPose,
+        RangedPose rangedPose) =>
         footAnchor + new Vector2(
-            (pose.TorsoLeanX + gaitPose.TorsoLeanX) * apparentScale,
-            (pose.TorsoLeanY + gaitPose.TorsoLeanY) * apparentScale);
+            (pose.TorsoLeanX + gaitPose.TorsoLeanX + rangedPose.TorsoLeanX) * apparentScale,
+            (pose.TorsoLeanY + gaitPose.TorsoLeanY + rangedPose.TorsoLeanY) * apparentScale);
 
     private static Rectangle CreateTorso(
         Vector2 bodyAnchor,
@@ -1493,6 +1524,16 @@ internal static class PawnGeometry
         // CreateSecondaryBounds supplies. The Kalis is narrow with a long
         // reach; the Itak reuses the short broad-dagger silhouette; the
         // Kampilan is unchanged.
+        //
+        // PROVISIONAL RECONSTRUCTION (CLAUDE.md section 7): the Bangkaw,
+        // Busog, and Arquebus lines below are gameplay-legibility choices,
+        // not historical measurements. Each is sized so that its neutral
+        // (unposed) line, and its posed line at every RangedGeometry
+        // keyframe, stays inside the envelope the Kalis already sets for
+        // ConservativePawnCull (24.2 units up, 19.2 right, 11 left, 1.2
+        // down at apparent scale 1) — see docs/plans/2026-08-07-ranged-units.md
+        // row RU-22. Enlarging the cull radius to fit a longer line is not an
+        // option; the line was sized to the radius instead.
         var start = role switch
         {
             PawnWeaponRole.Itak => Offset(footAnchor, 1f, -7f, scale),
@@ -1500,6 +1541,16 @@ internal static class PawnGeometry
             PawnWeaponRole.Wasay => Offset(footAnchor, 1f, -5f, scale),
             PawnWeaponRole.Kalis =>
                 Offset(footAnchor, 1f, -7f, scale),
+            // Bangkaw: spear grip held forward of the body, matching the
+            // Itak/Kampilan grip height.
+            PawnWeaponRole.Bangkaw => Offset(footAnchor, 1f, -6f, scale),
+            // Busog: bow grip (the hand that holds the stave) sits low,
+            // near the hip.
+            PawnWeaponRole.Busog => Offset(footAnchor, 1f, -5f, scale),
+            // Arquebus: stock held at the shoulder, lower than a bladed
+            // weapon's grip since the barrel — not the grip — carries the
+            // reach.
+            PawnWeaponRole.Arquebus => Offset(footAnchor, 1f, -6f, scale),
             _ => throw new ArgumentOutOfRangeException(nameof(role), role, null),
         };
         var end = role switch
@@ -1510,6 +1561,16 @@ internal static class PawnGeometry
                 Offset(footAnchor, 12f, -18f, scale),
             PawnWeaponRole.Kalis =>
                 Offset(footAnchor, 14f, -21f, scale),
+            // Bangkaw: the spear shaft's neutral tip, short of the Kampilan's
+            // reach so RangedGeometry's Release keyframe (its largest
+            // extension of the three ranged weapons) still fits the cull
+            // envelope once rotated and extended.
+            PawnWeaponRole.Bangkaw => Offset(footAnchor, 9f, -15f, scale),
+            // Busog: the stave's upper tip, nearly vertical from the grip.
+            PawnWeaponRole.Busog => Offset(footAnchor, 2f, -16f, scale),
+            // Arquebus: the muzzle end, held roughly level with the grip
+            // rather than swept far above it.
+            PawnWeaponRole.Arquebus => Offset(footAnchor, 10f, -9f, scale),
             _ => throw new ArgumentOutOfRangeException(nameof(role), role, null),
         };
         var weaponPadding = role switch
@@ -1518,6 +1579,9 @@ internal static class PawnGeometry
             PawnWeaponRole.Kampilan => 4.2f * scale,
             PawnWeaponRole.Wasay => 4.4f * scale,
             PawnWeaponRole.Kalis => 3.2f * scale,
+            PawnWeaponRole.Bangkaw => 2.6f * scale,
+            PawnWeaponRole.Busog => 2.0f * scale,
+            PawnWeaponRole.Arquebus => 2.4f * scale,
             _ => throw new ArgumentOutOfRangeException(nameof(role), role, null),
         };
         end = ApplySwing(start, end, pose);
@@ -1555,6 +1619,15 @@ internal static class PawnGeometry
                 PawnWeaponRole.Kampilan => 2.8f * scale,
                 PawnWeaponRole.Wasay => 1.9f * scale,
                 PawnWeaponRole.Kalis => 1.6f * scale,
+                // PROVISIONAL RECONSTRUCTION: a spear shaft, drawn thinner
+                // than every bladed weapon.
+                PawnWeaponRole.Bangkaw => 1.8f * scale,
+                // PROVISIONAL RECONSTRUCTION: a bow stave, the thinnest line
+                // on any pawn.
+                PawnWeaponRole.Busog => 1.3f * scale,
+                // PROVISIONAL RECONSTRUCTION: a barrel, drawn thicker than
+                // any bladed weapon so it reads as a firearm at a glance.
+                PawnWeaponRole.Arquebus => 2.6f * scale,
                 _ => throw new ArgumentOutOfRangeException(
                     nameof(role),
                     role,
@@ -1608,6 +1681,21 @@ internal static class PawnGeometry
                 Math.Max(2, ToSize(5f * scale)),
                 Math.Max(2, ToSize(5.2f * scale))),
 
+            // PROVISIONAL RECONSTRUCTION: the Busog's nocked arrow. The
+            // stave itself is the weapon line (WeaponBounds); this is the
+            // shaft laid across the grip, the one new rectangle this row is
+            // permitted (RU-22, mirroring the Wasay's head — an existing
+            // SecondaryEquipmentBounds slot, not a new one). Anchored to
+            // footAnchor rather than to weaponEnd because the nock sits at
+            // the draw hand near the grip, not at the stave's tip.
+            PawnWeaponRole.Busog => BoundsFromLine(
+                Offset(footAnchor, -2f, -5f, scale),
+                Offset(footAnchor, 4f, -7f, scale),
+                1f * scale),
+
+            // The Bangkaw and Arquebus draw no secondary rectangle: the
+            // spear shaft and the barrel are fully represented by the
+            // weapon line itself.
             _ => Rectangle.Empty,
         };
 
