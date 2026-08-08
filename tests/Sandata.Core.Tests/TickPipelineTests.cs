@@ -13,6 +13,7 @@ using Sandata.Core.Orders;
 using Sandata.Core.Rules;
 using Sandata.Core.Sensing;
 using Sandata.Core.Simulation;
+using Sandata.Headless;
 using Sandata.Core.Weapons;
 
 namespace Sandata.Core.Tests;
@@ -1501,6 +1502,59 @@ public sealed class TickPipelineTests
         Assert.Equal(4352, bodyRadiusRaw);
         Assert.Equal(2 * bodyRadiusRaw, cellSizeRaw);
         Assert.Equal(8704, cellSizeRaw);
+    }
+
+    /// <summary>
+    /// Task 86's own required proof: the re-spaced seed-1 headless fixture's
+    /// operators must clear one designed body diameter (8,704 raw = 2 *
+    /// <c>CollisionBodyRadiusRaw</c>) at minimum pairwise separation, so
+    /// operators no longer start overlapping now that the collision body
+    /// radius is the designed size rather than the old invented one. Calls
+    /// the real <see cref="HeadlessRunner.BuildOpenGrid"/> and
+    /// <see cref="HeadlessRunner.BuildInitialState"/> directly — both
+    /// promoted from <see langword="private"/> to <see langword="internal"/>
+    /// for exactly this proof, reachable here through
+    /// <c>Sandata.Headless.csproj</c>'s existing
+    /// <c>InternalsVisibleTo("Sandata.Core.Tests")</c> grant — rather than
+    /// reimplementing the placement formula in the test. Uses the same
+    /// operator count and seed (200, 1) the canonical gate's headless
+    /// determinism workload and this repo's default benchmark both run.
+    /// </summary>
+    [Fact]
+    public void HeadlessFixture_MinimumPairwiseSeparation_ClearsOneBodyDiameter()
+    {
+        const int operatorCount = 200;
+        const ulong seed = 1UL;
+        const int bodyDiameterRaw = 8704; // 2 * CollisionBodyRadiusRaw (4,352 raw), task 86
+
+        var (_, _, packingSide) = HeadlessRunner.BuildOpenGrid(operatorCount);
+        var state = HeadlessRunner.BuildInitialState(operatorCount, seed, packingSide);
+        var operators = state.Operators;
+
+        var minSquaredRaw = long.MaxValue;
+        for (var i = 0; i < operators.Length; i++)
+        {
+            for (var j = i + 1; j < operators.Length; j++)
+            {
+                var dx = (long)(operators[i].PositionX.RawValue - operators[j].PositionX.RawValue);
+                var dy = (long)(operators[i].PositionY.RawValue - operators[j].PositionY.RawValue);
+                var squaredRaw = (dx * dx) + (dy * dy);
+                if (squaredRaw < minSquaredRaw)
+                {
+                    minSquaredRaw = squaredRaw;
+                }
+            }
+        }
+
+        Assert.True(
+            minSquaredRaw >= (long)bodyDiameterRaw * bodyDiameterRaw,
+            $"minimum pairwise separation squared {minSquaredRaw} raw is under the body-diameter-squared " +
+            $"threshold {(long)bodyDiameterRaw * bodyDiameterRaw} raw — operators would start overlapping.");
+
+        // Pinned exact measurement at this operator count and seed: the
+        // worst-case jitter bound (12 wu pitch minus the jitter's 2 wu
+        // worst-case shrink) is actually reached, 10 wu (10,240 raw).
+        Assert.Equal(10_240L * 10_240L, minSquaredRaw);
     }
 
     /// <summary>
