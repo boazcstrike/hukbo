@@ -269,6 +269,50 @@ public sealed class DeterminismTests
     }
 
     /// <summary>
+    /// RU-26. A small, fast seed-1 workload run through the same headless
+    /// path <see cref="PresetV4_SeedOneStateAndEventHashArePinned"/> uses,
+    /// pinned against preset V5 so an accidental change to the ranged
+    /// combat state machine, the V5 roster, or the shared StateHasher/
+    /// event-hash fold fails here rather than only in the much slower
+    /// benchmark. Run under
+    /// <see cref="MovementPresetId.PersistentContingentsV4"/> rather than
+    /// V4's <see cref="MovementPresetId.IndependentPursuitV1"/> because
+    /// ranged standoff behaviour is only exercised under a movement preset
+    /// that lets a contingent hold formation at range.
+    /// </summary>
+    [Fact]
+    public void PresetV5_SeedOneStateAndEventHashArePinned()
+    {
+        const ulong Seed = 1;
+        const int Agents = 20;
+        const int Ticks = 200;
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+        string[] arguments =
+        [
+            "--agents", Agents.ToString(CultureInfo.InvariantCulture),
+            "--ticks", Ticks.ToString(CultureInfo.InvariantCulture),
+            "--seed", Seed.ToString(CultureInfo.InvariantCulture),
+            "--preset", nameof(CombatPresetId.PrecolonialPhilippinesV5),
+            "--movement-preset", nameof(MovementPresetId.PersistentContingentsV4),
+        ];
+        var exitCode = HeadlessRunner.Run(arguments, output, error);
+        Assert.Equal(0, exitCode);
+
+        using var report = JsonDocument.Parse(output.ToString());
+        var stateHash = report.RootElement.GetProperty("stateHash").GetString();
+        var eventHash = report.RootElement.GetProperty("eventHash").GetString();
+
+        // Captured from a real run of this exact command against this build:
+        // `./src/Hukbo.Headless/bin/Release/net10.0/Hukbo.Headless.exe
+        // --agents 20 --ticks 200 --seed 1 --preset PrecolonialPhilippinesV5
+        // --movement-preset PersistentContingentsV4`.
+        Assert.Equal("DFD7751E249243E3", stateHash);
+        Assert.Equal("E8C1D6B300075418", eventHash);
+    }
+
+    /// <summary>
     /// Task 4 of
     /// the combat preset V3 combinations plan. A
     /// small, fast seed-1 workload run through the same headless path
