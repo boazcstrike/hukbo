@@ -1,3 +1,4 @@
+using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.Presentation;
@@ -20,6 +21,32 @@ internal sealed class HitEffectSystem
 
     public ReadOnlySpan<HitEffect> ActiveEffects =>
         _effects.AsSpan(0, _count);
+
+    /// <summary>
+    /// Starts the impact ring owned by one atomic contact bundle. Aggregate
+    /// Damage events never reach this path, so multiple landed attacks retain
+    /// their individual damage and only the dispatcher-owned lethal contact
+    /// receives the lethal treatment.
+    /// </summary>
+    public void StartContact(
+        AttackContactBundle contact,
+        AgentView defender)
+    {
+        if (contact.Resolution != AttackResolution.Landed)
+        {
+            return;
+        }
+
+        Add(
+            new HitEffect(
+                contact.Sequence,
+                contact.DefenderEntityId,
+                defender.XRaw,
+                defender.YRaw,
+                contact.Damage,
+                contact.IsLethal,
+                AgeSeconds: 0f));
+    }
 
     public void Ingest(
         IReadOnlyList<BattleEvent> events,
