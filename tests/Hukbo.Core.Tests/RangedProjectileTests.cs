@@ -82,6 +82,70 @@ public sealed class RangedProjectileTests
     }
 
     /// <summary>
+    /// Acceptance: two projectiles that arrive on the same tick against the
+    /// same target both land and both contribute to the damage total, the
+    /// ranged mirror of
+    /// <c>PhilippineCombatIntegrationTests.MutualLethalAttacksStillProduceADrawWhenBothLand</c>.
+    /// The target's hit points are sized so that neither shot alone is
+    /// lethal and only the sum is, which is what proves the second arrival
+    /// was not silently dropped because the first had already resolved --
+    /// exactly the property <c>DamageIsAccumulatedBeforeMutualDeathResolution</c>
+    /// proves for two melee blows.
+    /// </summary>
+    [Fact]
+    public void TwoProjectilesArrivingTheSameTickBothLandAndBothContributeDamage()
+    {
+        var rules = RangedRulesetWithClashProfile(ClashProfile.Neutral);
+        var scenario = CreateRangedTestScenario(maximumProjectilesInFlight: 4) with
+        {
+            MaximumHitPoints = 15,
+        };
+
+        var simulation = BattleSimulation.CreateForTesting(
+            scenario,
+            rules,
+            CreateAgent(1, factionId: 0, x: 0, y: 0, scenario, rules, BangkawLoadout),
+            CreateAgent(2, factionId: 0, x: 2, y: 0, scenario, rules, BangkawLoadout),
+            CreateAgent(3, factionId: 1, x: 40, y: 0, scenario, rules, OutOfReachMeleeLoadout));
+
+        simulation.AdvanceOneTick();
+
+        var releases = simulation.LastEvents
+            .Where(battleEvent => battleEvent.Kind == BattleEventKind.Release)
+            .ToArray();
+        Assert.Equal(2, releases.Length);
+
+        for (var tick = 0; tick < 9; tick++)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        simulation.AdvanceOneTick();
+        Assert.Equal(11, simulation.Tick);
+
+        var attacks = simulation.LastEvents
+            .Where(battleEvent => battleEvent.Kind == BattleEventKind.Attack)
+            .ToArray();
+        Assert.Equal(2, attacks.Length);
+        Assert.All(
+            attacks,
+            attack => Assert.Equal(AttackResolution.Landed, attack.Resolution));
+        Assert.All(
+            attacks,
+            attack => Assert.Equal(3UL, attack.TargetEntityId));
+
+        var damageEvent = Assert.Single(
+            simulation.LastEvents,
+            battleEvent =>
+                battleEvent.Kind == BattleEventKind.Damage &&
+                battleEvent.TargetEntityId == 3);
+        Assert.Equal(20, damageEvent.Value); // Two landed Bangkaw shots, 10 each.
+
+        var target = Assert.Single(simulation.Agents, agent => agent.EntityId == 3);
+        Assert.False(target.IsAlive);
+    }
+
+    /// <summary>
     /// Six Bangkaw-armed warriors, three per faction, close enough that both
     /// sides' shots are in reach from the first tick. Mirrors the shape of
     /// <c>BattleSimulationTests.BuildCrowdedRoster</c> and
