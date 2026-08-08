@@ -4527,3 +4527,204 @@ Two things follow, and the second is the more interesting one.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 89 | 12 | Find out why an operator with a published group path stops after one world unit | A fixture that populates `MissionState.Groups` with an outstanding request, runs past `SandataRuleset.PathLatencyTicks`, and ticks on, moves its operator roughly one world unit in the first thirty ticks and then holds position for the next thirty — measured, not inferred. Candidate causes, none confirmed: the diagonal arclength quantization task 87 names; `SquadGrouping` deriving a different `GroupId` once the operator has moved, so `PathService.GetCurrentPath(slot.GroupId)` no longer finds the published path; `FormationCollapse` gating the slot to single file; or the leader projection reaching the end of a short polyline. **Diagnose before changing anything**, and report the cause rather than patching the symptom. | `tests/Sandata.Core.Tests/TickPipelineTests.cs`, and whichever single production file the diagnosis names, reported before it is edited | The cause is named with file and line and reproduced by a test. If it is a defect, the fix lands with a test asserting sustained movement over a stated number of ticks, on the displacement rather than on "the position changed". If it is correct behaviour, the reason is written at the code that produces it. | 84, 52a | |
 | 90 | 12 | Prove a published path is recomputed on resume, not restored | Task 52a's save-and-resume test snapshots an authored order, whose polyline is stored state; design section 4's rule is about the *derived* polyline of an autonomous group path, and no test exercises it. Once task 89 has an operator that keeps walking a published path, snapshot mid-walk and resume into a fresh `SandataSimulation`, which begins with an empty `PathService`. The resumed run must match the never-stopped one tick for tick **through a window in which the operator is demonstrably still moving** — assert that movement inside the compared window, not merely at some point in the run, or the test repeats this one's mistake. | `tests/Sandata.Core.Tests/DeterminismEquivalenceTests.cs` | The comparison window contains real movement, proved by an assertion inside the test rather than by a probe outside it, and the resumed run matches. Breaking the recomputation makes it fail, with the failure recorded. | 89 | |
+
+### Task 54 complete, and the four documents that pointed at files which no longer exist — 2026-08-09
+
+`docs/development/testing.md`, `README.md`, `AGENTS.md`, and `CLAUDE.md` now
+describe a repository that builds two games. Every figure below was re-derived
+from the merged tree during this session rather than carried forward, and doing
+that is what caught most of what follows.
+
+The audit was run in both directions before anything was written. Task 54's four
+documents are claimed by nothing else; task 55 claims no file at all; tasks 87,
+88, 89, and 90 all want `SandataSimulation.cs` or its test file and are serial
+with one another and with nothing here. Every step in task 54's "What" column is
+claimed exactly once, and the row's own count was the first thing the audit
+found wrong.
+
+#### The row says eleven projects and there are twelve
+
+`Hukbo.slnx` lists twelve, a search for `.csproj` under `src` and `tests`
+returns twelve, and the layout blocks now list twelve: `Hukbo.Shared.Core`,
+`Hukbo.Core`, `Hukbo.Client`, `Hukbo.Headless`, `Hukbo.Diagnostics`,
+`Sandata.Core`, `Sandata.Client`, `Sandata.Headless`, and the four test
+projects.
+
+#### Two documents pointed at source files that do not exist
+
+`CLAUDE.md` section 5 and `AGENTS.md`'s non-negotiables both told the reader to
+use `Hukbo.Core/Determinism/SplitMix64.cs` and
+`Hukbo.Core/Mathematics/FixedPoint.cs`. Neither path exists.
+`src/Hukbo.Core/Mathematics/` is not a directory at all, and
+`src/Hukbo.Core/Determinism/` holds only `StateHasher.cs`; both files moved to
+`Hukbo.Shared.Core` when the tier-1 extraction landed in an early Sandata wave.
+
+Nothing failed to compile and no test went red, because a path inside a Markdown
+bullet is not checked by anything. This is the same shape as task 79d-2a's two
+surviving prose references to a deleted constant, and it is one more figure in
+this wave that a reading of the tree corrected. Both now read
+`src/Hukbo.Shared.Core/...` and name the project the rule actually lives in.
+
+#### A test cited a sentence in `CLAUDE.md` that had never been written
+
+`GoldenReplayTests`' class remarks justified its eight-operator, forty-tick
+fixture by quoting `CLAUDE.md` section 4: "Sandata's core suite already takes
+about 45 seconds". `CLAUDE.md` contained no such sentence and, before this task,
+did not mention Sandata anywhere at all. The quotation was of a document that
+task 54 had not yet written.
+
+The figure was also stale twice over — the suite has been recorded at 45, then
+56, then about 60 seconds by three different sessions, and measures 37.77
+seconds warm today. The remarks now point at section 4 without quoting a number,
+so the citation is true and cannot rot the same way again. That edit is one doc
+comment in a test file outside the row's four-document grant, made by the
+integrating thread and recorded here rather than left to be found later.
+
+#### `main` moved underneath this session, and a test count moved with it
+
+The session began at `de687b4`. Partway through, another session merged
+`codex/attack-animation-v2`, and `main` became `9e28a65` while this work was in
+progress. The uncommitted documentation edits survived intact: `git diff HEAD`
+on `docs/development/testing.md` reports insertions and zero deletions, so the
+other session's sixty-one lines of attack-animation smoke observations are all
+present underneath this task's additions.
+
+What did not survive was a figure. `Hukbo.Client.Tests` was measured at **3,152**
+before the merge and is **3,270** after it, and the first figure had already been
+written into two of these documents. The 118 new tests are the attack-animation
+work's, not this task's.
+
+The false hypothesis was worth eliminating rather than assuming: a documentation
+edit that changed test *discovery* would have been a far more interesting
+problem. It was ruled out by listing discovered tests, then stashing the four
+documents, listing again, and comparing — 3,105 discovered entries both ways,
+identical. Discovery is unaffected by these documents; the count moved because
+the tree did.
+
+**Re-derive a count immediately before writing it down, not once at the start of
+a session.** A figure measured an hour earlier in a repository with concurrent
+sessions is a figure from a different commit.
+
+#### Sandata's suite is slow in one place, not seven, and it is not half
+
+Three sessions have carried the sentence "roughly half of it is one test case"
+alongside "tasks 82 and 83 added seven test cases that run the benchmark". The
+first half understates it and the second half is wrong about which tests those
+are.
+
+Per-test durations from a full Release run:
+
+| Test | Duration |
+| --- | --- |
+| `NavBenchmarkOptionTests.ChangedCellRunStaysAboveTheSuccessfulSearchFloorThroughoutTheRun(tickCount: 2000)` | **36 s** |
+| the same theory at `tickCount: 200` | 3 s |
+| the same theory at `tickCount: 1` | 0.152 s |
+| `DeterminismEquivalenceTests.AFreshlyConstructedSimulation_MatchesAnAlreadyRunningOne...` | 0.121 s |
+| every other test in the suite | under 0.09 s |
+
+The whole suite is 37.77 seconds warm. **One `InlineData` value on one theory is
+thirty-six of them.** Nothing else in the file is expensive: the golden replay
+tests task 52b was careful to keep cheap cost 44 and 39 milliseconds, and the
+four determinism equivalence tests together cost about a fifth of a second.
+
+#### The decision task 55 carried, taken
+
+**The benchmark test cases stay in the suite. They do not move to `tools/`.**
+
+The reasoning that made this look like an architecture question does not survive
+the measurement. There is no cluster of seven expensive cases trading off
+against gate speed; there is one assertion endpoint. It is a regression lock on
+a defect this same wave found and fixed — under the old per-tick fresh-draw
+behaviour the successful-search fraction decayed as the tick count grew, and
+`tickCount: 2000` is the point at which that decay was unmistakable. Thirty-six
+seconds on a locally run gate that already spends over a minute elsewhere is
+affordable, and moving a regression lock out of the suite to buy it back would
+trade a guard that runs for a hand-run one nobody runs.
+
+**What is deliberately not decided here** is whether `InlineData(2000)` could be
+reduced to a cheaper endpoint without weakening the lock. It probably could —
+two hundred ticks is already two hundred mutation steps against a 160-by-180
+grid — but "probably" is exactly the kind of claim this wave has been wrong
+about repeatedly. Proving it means reverting the defect and confirming the
+smaller endpoint still fails, which is a break-proof, which is a task. It is
+filed as task 91.
+
+#### What the documents now say, and one thing they deliberately do not
+
+`CLAUDE.md` gained a Sandata subsection in section 1, Sandata naming in section
+2, a twelve-project layout with the reference graph and the tier-1 rule in
+section 3, the `-Game` parameter in section 4, Sandata's determinism additions
+in section 5, and four Sandata entries in section 9. `AGENTS.md` gained the same
+material in its standalone form, because it must be complete for tools that
+never read `CLAUDE.md`. `README.md` gained a section on the second game, the
+`-Game` commands, a twelve-project architecture diagram, four enforced
+boundaries rather than two, the Sandata documentation links, and a corrected
+test badge.
+
+`docs/development/testing.md` gained a Sandata section carrying the seed-1
+baseline, the suite counts warm and inside the gate, task 53's audio-pool and
+navigation-matrix figures, the two largest remaining allocators, and the eight
+smoke rows.
+
+**Task 53's raw output is cited to this plan document and not to a file.** Both
+measurement runs wrote under `artifacts/`, which `.gitignore` excludes, so those
+files exist on one workstation and in no clone. `SourceHygieneTests` carries a
+fact written for exactly this mistake in Hukbo's render baselines; rather than
+repeat the mistake in a form that fact does not scan for, the new section names
+the section titled "Task 53 complete, after tasks 82 and 83" as the transcript
+of record and says plainly that no such file travels with the repository.
+
+**Every one of the eight Sandata smoke rows is `PENDING` and none may be flipped
+by an agent.** SD-5, the sustained-automatic-fire audio row, cannot be attempted
+at all: Sandata ships no sound files, its catalog is 106 slots expanding to 524
+variants at roughly 104,800 ElevenLabs credits, and that spend is not
+authorised. It stays `PENDING` with the reason stated rather than becoming
+`BLOCKED`, because the blocker is upstream of the smoke run and the row must not
+be quietly forgotten once the audio question is answered.
+
+The allocation figure is recorded as a magnitude. Two further runs this session
+reported 42,184,440,712 and 42,184,446,456 bytes against the previously recorded
+42,184,446,424 and 42,184,447,672. All four mean "about 42.18 GB".
+
+#### One task this creates
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 91 | 12 | Find the cheapest endpoint that still locks task 83's connectivity defect | `NavBenchmarkOptionTests.ChangedCellRunStaysAboveTheSuccessfulSearchFloorThroughoutTheRun` costs thirty-six seconds at `InlineData(2000)` and is, on its own, the overwhelming majority of Sandata's core suite runtime; the same theory costs three seconds at 200 and 0.15 seconds at 1. Task 55 decided the case stays in the suite and explicitly did not decide whether its endpoint can shrink. Restore task 83's per-tick fresh-random-draw behaviour behind a temporary local edit, run the theory at descending endpoints, and find the smallest tick count at which the successful-search fraction still falls below the floor. If a materially cheaper endpoint fails under the reverted defect, replace 2000 with it and record both the failing output at the new endpoint and the passing output after the revert. If nothing below 2000 fails, say so and leave the case exactly as it is — **a cheaper endpoint that cannot detect the defect is worse than a slow one that can**, and reporting "no cheaper endpoint works" is a successful outcome for this task. | `tests/Sandata.Core.Tests/NavBenchmarkOptionTests.cs`, and `src/Sandata.Headless/NavBenchmark.cs` for the temporary revert only, which must not appear in any commit | The smallest defect-detecting endpoint is named with its measured failure output, or the absence of one is stated with the endpoints tried. The merged branch contains no trace of the reverted defect. The suite's total runtime before and after is recorded. | 55 | |
+
+Task 91 wants neither `SandataSimulation.cs` nor its test file, so it is the one
+remaining row that could run beside task 87, 88, 89, or 90.
+
+### Task 55 complete — both gates run, both green — 2026-08-09
+
+Run by the integrating thread on `main` at `9e28a65`, not delegated, both
+outputs pasted in full into `docs/development/testing.md`.
+
+`./scripts/verify.ps1` with no flags, exit code 0: prerequisites and locked
+restore, formatting, a Release solution build with zero warnings and zero
+errors, `Hukbo.Core.Tests` 2,376 of 2,376 passing in 29.49 seconds,
+`Hukbo.Client.Tests` 3,270 of 3,270 passing in 2.07 seconds, and the 200-agent,
+10,000-tick, seed-1 workload reporting `stateHash` `1B73FC5923879AA0`,
+`eventHash` `AC55684F24D39344`, `outcome` `Faction1Victory`, survivors 0 and 6,
+and `deterministic: true`. **Both recorded Hukbo baseline hashes are
+unchanged**, which is the first time they have been confirmed in four sessions.
+
+`./scripts/verify.ps1 -Game Sandata`, exit code 0, the same five stages against
+Sandata's two suites and Sandata's workload: `Sandata.Core.Tests` 1,104 of 1,104
+passing in 1.0803 minutes, `Sandata.Client.Tests` 199 of 199 passing in 0.5005
+seconds, and the seed-1 workload reporting `stateHash` `BDD56EBD06F76674`,
+`eventHash` `7C1B37876769DEC7`, `outcome` `Ongoing`, survivors 70 and 64, and
+`deterministic: true`. **This is the first recorded run of Sandata's gate.**
+
+The two runs are recorded as two results and are never added together. A green
+default gate is not evidence about Sandata, which is now stated in all four
+documents and in this plan.
+
+One figure worth carrying: Sandata's core suite costs 1.08 minutes inside the
+gate against 37.77 seconds warm. Both are real, and the gate figure is the one
+to quote, because it is what the suite costs immediately after a full Release
+build.
+
+`Hukbo.Client.Tests` was re-run after the two gate-result sections were appended
+to `docs/development/testing.md`, since `SourceHygieneTests` reads that file:
+3,270 of 3,270 passing.
