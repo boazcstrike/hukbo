@@ -396,6 +396,29 @@ public sealed partial class ArenaGame : Game
     }
 
     /// <summary>
+    /// Starts battle playback directly, bypassing the spectator's own play
+    /// control. No-op unless the render-probe opt-in is active, so normal
+    /// startup is unchanged: a launched client still opens paused, exactly as
+    /// it does today.
+    /// </summary>
+    /// <remarks>
+    /// Attack-animation-v2, task 10. The probe used to measure a paused
+    /// battle, where no warrior ever reaches another and no attack pose is
+    /// ever held, so every station's window described the neutral pawn path
+    /// and none of them described the articulated attack path this task exists
+    /// to bound. This starts the same authoritative simulation the spectator
+    /// would start by pressing play; it synthesizes no Core event, alters no
+    /// cadence, and touches nothing outside the probe's own opt-in.
+    /// </remarks>
+    public void SetProbePlaybackStarted()
+    {
+        if (_renderProbeEnabled)
+        {
+            _presentation.Playback.Play();
+        }
+    }
+
+    /// <summary>
     /// Turns the graphics device's wait for the display's vertical retrace on
     /// or off for the rest of this game's life. No-op unless the render-probe
     /// opt-in is active, so a normal run keeps the constructor's
