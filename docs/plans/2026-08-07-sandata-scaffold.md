@@ -4105,3 +4105,49 @@ gate.
 
 Remaining order for the wave: task 79d-2, then 52, then 54, then 55, with 87 and
 88 after them.
+
+### Task 79d-2 is split in two before dispatch — 2026-08-09
+
+The second wave-12 audit widened task 79d-2's grant from one file to seven,
+because the cover parameter is required rather than optional and there are
+thirty-nine construction sites to update. Counting the row's own files as well,
+the grant is twelve. That is too large for one brief, and the reason is recorded
+rather than assumed: an implementer in an earlier session was killed by the
+600-second watchdog while still exploring a large file, and this wave's two
+completed rows each held two or three files and each still needed integrator
+correction.
+
+The split is by *reachability*, not by file count, so that neither half is a
+parameter that does nothing:
+
+| # | Task | Files |
+| --- | --- | --- |
+| 79d-2a | Stage 12 reads `OperatorState.Firearm` instead of the hoisted `DefaultFirearmId` at `SandataSimulation.cs:698`, and the miss coverage task 86 removed is restored on the pistol curve that change makes reachable | `SandataSimulation.cs` (stage 12 only), `TickPipelineTests.cs`, `MissionEventFeedTests.cs` |
+| 79d-2b | The per-`CaliberFamily` damage table, cover as a required constructor parameter across all seven construction-site files, and the deletion of `ProvisionalDamagePerHitPoints` | `SandataSimulation.cs` (stage 12 and the constructor), `Combat/CaliberDamage.cs` (new), `Combat/DamageResolution.cs`, `TickPipelineTests.cs`, `DamageResolutionTests.cs`, `CoverRulesTests.cs`, plus the six call-site files the audit named |
+
+They share stage 12 and would have been serial in either arrangement, so the
+split costs one batch and buys two briefs an agent can finish. 79d-2a runs first
+because 79d-2b's own acceptance criterion — two operators carrying different
+caliber families dealing different damage on an identical hit — is unreachable
+while stage 12 ignores the loadout, which is exactly the trap the second audit
+warned about when it said keying a damage table off `DefaultFirearmId` would
+satisfy the letter of the row while changing nothing.
+
+Three facts confirmed against the merged tree before the split, since the tree
+has moved twice since the second audit:
+
+- The thirty-nine construction sites are still spread over seven files, and
+  `TickPipelineTests.cs` now holds **29** of them, not the 26 the third audit
+  recorded or the 30 the second one did. Tasks 84 and 81 added the difference.
+- `FirearmDefinition` already carries a `Caliber` field of type `CaliberFamily`
+  (`src/Sandata.Core/Weapons/FirearmDefinition.cs:95`), and `CaliberFamily`
+  declares exactly eight members, `Cal762X39 = 0` through `Cal58X21 = 7`
+  (`src/Sandata.Core/Weapons/CaliberFamily.cs`). So 79d-2b's "eight values, keyed
+  the way design section 10 keys the audio report families" needs no new
+  classification work and no edit to `FirearmDefinition` or `FirearmCatalog`.
+- `CoverRules.ApplyToDamage` and `CoverRules.IsWithinProtectedArc` both take
+  bare shooter and defender coordinates rather than an operator
+  (`src/Sandata.Core/Combat/CoverRules.cs:155` and `:243`), and stage 12 already
+  calls `ApplyToDamage` with `CoverState.NotInCover`. The work in 79d-2b is
+  building a real `CoverState` from the map's `CoverRecord` values, not
+  rewriting the call.
