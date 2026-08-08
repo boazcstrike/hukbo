@@ -952,6 +952,69 @@ public sealed class TickPipelineTests
         Assert.Equal((int)WeaponChainPhase.Turning, stillTurningOperator.WeaponChainPhase);
     }
 
+    /// <summary>
+    /// Task 79c (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12
+    /// audit's corrected obligation): <see cref="OperatorState.Firearm"/>
+    /// genuinely drives stage 11 through <see
+    /// cref="SandataSimulation.RunTick"/> — not by calling <see
+    /// cref="SandataSimulation.AdvanceWeaponChain"/> directly. Two otherwise
+    /// identical single-operator fixtures differ only in <c>Firearm</c>: an
+    /// <see cref="FirearmId.Ak47"/> rifle and a <see
+    /// cref="FirearmId.Beretta92Fs"/> pistol. Chosen deliberately — <see
+    /// cref="FirearmCatalog"/>'s <c>Rifle(...)</c>/<c>Pistol(...)</c> factory
+    /// methods give every rifle row and every pistol row identical timing
+    /// fields within its own class, so any two rifles (or any two pistols)
+    /// would tie on every field stage 11 reads. Only a rifle-versus-pistol
+    /// pair genuinely differs in <c>ReadyMs</c> (405 vs 80), <c>AimBaseMs</c>
+    /// (335 vs 165), <c>AimPerBamMs</c> (5 vs 3), <c>ResetMs</c> (150 vs
+    /// 120), and <c>TurnBamPerTick</c> (2,048 vs 4,096).
+    /// <para>
+    /// The opposing-faction operator at 90 world units is inside <see
+    /// cref="ContactMemory.IdentifyRangeWu"/> (96), exactly mirroring <see
+    /// cref="RunTick_AimToleranceBamThreshold_CompletesTurningOnlyWhenResidualArcFitsInside"/>'s
+    /// own fixture, so stage 8 selects <see cref="OperatorIntent.Engage"/>
+    /// and <c>raiseRequested</c> is <see langword="true"/> on the very first
+    /// tick. Operator 1 starts <see cref="WeaponChainPhase.Lowered"/>
+    /// (<see cref="BuildOperator"/>'s default), so <see
+    /// cref="WeaponChain.Advance"/> walks it straight into <see
+    /// cref="WeaponChainPhase.Raising"/> within the same call, seeding
+    /// <c>WeaponChainRemainingTicks</c> fresh from <c>readyTicks</c> — <see
+    /// cref="TickConversion.ToTicks"/>'s pinned <c>(ms * TickRate + 500) /
+    /// 1000</c> rule at the ruleset's 50 Hz gives 20 ticks for the rifle's
+    /// 405 ms and 4 ticks for the pistol's 80 ms. That is the observed
+    /// divergence: two operators, identical in every other field, land in
+    /// the same phase with different remaining-tick counts after the same
+    /// single <see cref="SandataSimulation.RunTick"/> call, solely because
+    /// their <see cref="OperatorState.Firearm"/> differs.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void RunTick_OperatorsWithDifferentFirearms_AdvanceDifferentWeaponChainTiming()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+        var ruleset = SandataRuleset.ModernTacticalV1;
+
+        MissionState BuildFixture(FirearmId firearm) => BuildState(ImmutableArray.Create(
+            BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0) with { Firearm = firearm },
+            BuildOperator(2, faction: 1, positionXWu: 90, positionYWu: 0)));
+
+        var simRifle = new SandataSimulation(mission, ruleset, grid, wallBuckets, BuildFixture(FirearmId.Ak47));
+        simRifle.RunTick(0);
+        var rifleOperator = simRifle.State.Operators.Single(op => op.EntityId == 1UL);
+
+        var simPistol = new SandataSimulation(mission, ruleset, grid, wallBuckets, BuildFixture(FirearmId.Beretta92Fs));
+        simPistol.RunTick(0);
+        var pistolOperator = simPistol.State.Operators.Single(op => op.EntityId == 1UL);
+
+        Assert.Equal((int)WeaponChainPhase.Raising, rifleOperator.WeaponChainPhase);
+        Assert.Equal((int)WeaponChainPhase.Raising, pistolOperator.WeaponChainPhase);
+        Assert.Equal(20, rifleOperator.WeaponChainRemainingTicks);
+        Assert.Equal(4, pistolOperator.WeaponChainRemainingTicks);
+        Assert.NotEqual(rifleOperator.WeaponChainRemainingTicks, pistolOperator.WeaponChainRemainingTicks);
+    }
+
     // ---- 7. ADDITIVE ORDER LAYER ---------------------------------------
 
     /// <summary>
