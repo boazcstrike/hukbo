@@ -233,14 +233,16 @@ public sealed class ConservativePawnCullTests
         }
 
         // The 432 in the old literal was every PawnWeaponRole (hardcoded 4,
-        // now derived from the enum for the same reason as above) x 2
-        // shield roles x 3 statures x 3 builds x 6 shield skins —
-        // GeometryAppearances' own cross-product — times 3 armor factors x
-        // 2 sash states x 3 accent counts x 14 zooms x 4 anchors. Asserted
-        // so a silently shrunken axis list cannot pass this test by
-        // covering less.
+        // now derived from the enum for the same reason as above) x every
+        // PawnShieldRole (hardcoded 2, now also derived from the enum —
+        // RU-41, the identical rot RU-22 repaired for PawnWeaponRole) x 3
+        // statures x 3 builds x 6 shield skins — GeometryAppearances' own
+        // cross-product — times 3 armor factors x 2 sash states x 3 accent
+        // counts x 14 zooms x 4 anchors. Asserted so a silently shrunken
+        // axis list cannot pass this test by covering less.
         Assert.Equal(
-            (Enum.GetValues<PawnWeaponRole>().Length * 2 * 3 * 3 * 6) * 3 * 2 * 3 * 14 * 4,
+            (Enum.GetValues<PawnWeaponRole>().Length *
+                Enum.GetValues<PawnShieldRole>().Length * 3 * 3 * 6) * 3 * 2 * 3 * 14 * 4,
             cases);
     }
 
