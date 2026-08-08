@@ -3442,3 +3442,84 @@ join the tier-1 shared assembly is a tier-2 extraction question, and design
 section 3 is explicit that tier 2 becomes its own design document once Sandata's
 collision has run a full gate. It has not. The duplication is recorded here as
 the price of that, not resolved.
+
+### Task 85 complete, and the redundant rewrite it refused to write — 2026-08-08
+
+Merged at `fe233f1`. `OrderStateHashTests.PreTask61BaselineHash` and
+`MissionEventFeedTests.PreTask76BaselineHash` are gone, and both properties they
+guarded are now asserted by comparing two computed hashes.
+`MissionStateTests.PreTask79cBaselineHash` remains as the single deliberate
+canary, with a comment saying it is the only absolute state-hash literal in C#
+and that task 52's golden-replay baselines belong in
+`tests/Sandata.Core.Tests/Fixtures/seed-1-baseline.json` rather than beside it.
+
+The single-pin claim was re-checked by the integrating thread with a broader
+search than the one the implementer ran — every `[0-9][0-9_]{6,}UL` literal in
+`tests/Sandata.Core.Tests/**/*.cs`, rather than the two known values. Four
+literals survive. One is `PreTask79cBaselineHash`. The other three are content
+hashes, not state hashes: `AngleHouseFixtureTests.cs:136`'s `MapContentHash`,
+`FirearmCatalogTests.cs:120`'s `FirearmRuleset.ModernTacticalV1.ContentHash`, and
+`SandataRulesetTests.cs:61`'s `SandataRuleset.ContentHash`. Those three are
+supposed to be absolute — a content hash pinned to a recorded value is the
+mechanism by which a preset change becomes a new preset version, and it is the
+opposite of the habit this task removed.
+
+Test method counts per file are unchanged at 15, 7, and 26, confirmed by
+counting `[Fact]` and `[Theory]` attributes on both sides of the merge. Nothing
+was dropped in the rewrite. Both suites are green at 1,085 core and 199 client.
+
+#### The one deviation, and why it was the right call
+
+Task 85's row asked for `PreTask76BaselineHash`'s test to be rewritten as "the
+state with an empty feed against the same state with events appended". The
+implementer reported that writing exactly that would produce a tautological
+duplicate of `StateHash_DoesNotMove_WhenTheEventFeedGainsEvents`, which already
+sits in the same file and already does precisely that comparison — and the row's
+own text names that test as the pattern to follow, so the row was asking for a
+copy of the thing it was pointing at.
+
+It replaced the pinned test with
+`StateHash_DoesNotMove_AfterTheEventFeedEvictsPastItsRetentionCap` instead, which
+exercises a path no existing test reached: the feed's 200-event retention cap
+evicting older entries. That is a stricter statement of the same property — the
+hasher does not read the feed, not even when the feed mutates by discarding.
+
+This is the fourth time in this wave an agent has contradicted its brief with
+evidence and been right. The implementer flagged it for review rather than
+deviating quietly, which is the behaviour the brief asked for.
+
+One claim in that report is worth stating more carefully than the report did. The
+implementer described the new test as "independently breakable", but its own
+break-proof shows the sibling test failing under the same injected break. The new
+test is not independent of the sibling in that sense; what it adds is a distinct
+code path through the retention cap, not a distinct failure mode. The coverage is
+genuinely wider and the wording was stronger than the evidence.
+
+#### Break-proofs, which are the actual acceptance criterion
+
+A rewrite that cannot fail is worth nothing, so each property was broken in
+`src/` on purpose, the failure recorded, and the break reverted:
+
+| Property | The break | Failure |
+| --- | --- | --- |
+| An empty order queue folds nothing | `FoldOrderQueue`'s gate changed from `queue.Equals(OrderQueue.Empty)` to `ReferenceEquals(queue, OrderQueue.Empty)` | `Assert.Equal() Failure: Values differ / Expected: 3159438799659597482 / Actual: 16164427518677148266` |
+| A queue with advanced counters is not the empty queue | the same gate changed to `queue.Orders.IsEmpty` | `Assert.NotEqual() Failure: Values are equal / Expected: Not 3159438799659597482 / Actual: 3159438799659597482` |
+| `Compute` never reads the event feed | an unconditional `SandataHash.Fold(ref hash, state.EventFeed.Events.Length)` added to `Compute` | `Assert.Equal() Failure: Values differ / Expected: 15784416212425839146 / Actual: 13828696414860078466` |
+
+`git diff --name-only main..HEAD -- src/` returned zero files on the branch
+before the integrator's own edit, so every break was genuinely reverted.
+
+#### A stale cross-reference the task exposed, fixed by the integrator
+
+`SandataStateHasher.cs`'s remarks on the order-fold gate named
+`OrderStateHashTests.StateHash_WithEmptyOrderQueueAndNoAssignments_MatchesThePreTask61Hasher`
+and said it "pins that value directly". The implementer found it, correctly
+refused to edit a production file outside its grant, and reported it. The
+integrating thread made the edit at `e8eee11`: the remarks now name both
+rewritten tests, say they compare two computed hashes rather than pinning a
+literal, and cite this task.
+
+That the comment survived at all is a small instance of the same pattern this
+wave keeps finding. The guarantee the hasher documents was true; the artifact it
+named as the proof of that guarantee had been the wrong kind of proof since task
+61 wrote it.
