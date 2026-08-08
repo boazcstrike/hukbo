@@ -94,9 +94,9 @@ public sealed class TickPipelineTests
     /// applies it — not a pipeline defect, a fixture gap this file corrects
     /// explicitly rather than silently.
     /// </summary>
-    private static NavGrid BuildGrid()
+    private static NavGrid BuildGrid(int width = 32, int height = 32)
     {
-        var grid = new NavGrid(width: 32, height: 32);
+        var grid = new NavGrid(width: width, height: height);
         Array.Fill(grid.Passability, NavCellFlags.Open);
         return grid;
     }
@@ -1721,14 +1721,15 @@ public sealed class TickPipelineTests
     /// <see cref="SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange"/>
     /// below. See the task-86 report for the full derivation.
     /// <para>
-    /// The name says "while stage 12 hardcodes the rifle" because that is
-    /// the load-bearing precondition, not a detail.
-    /// <c>SandataSimulation.ProposeFire</c> resolves its
-    /// <see cref="FirearmDefinition"/> from the private
-    /// <c>DefaultFirearmId</c> once, outside the per-shooter loop, so every
-    /// shot in this game currently uses AK-47 dispersion no matter what
-    /// <see cref="OperatorState.Firearm"/> says. Task 79d-2 is the row that
-    /// changes that, and it is the row that has to revisit this test.
+    /// The name says "while stage 12 hardcodes the rifle" for history, not
+    /// current behavior: task 79d-2a moved <c>SandataSimulation.ProposeFire</c>'s
+    /// <see cref="FirearmDefinition"/> resolution inside the per-shooter loop,
+    /// keyed on each shot's own <see cref="OperatorState.Firearm"/>, the same
+    /// shape stage 11 already used. Neither fixture below sets
+    /// <see cref="OperatorState.Firearm"/>, so both still default to
+    /// <see cref="FirearmId.Ak47"/> and this test's outcome is unchanged by
+    /// that fix — it is named for the geometry finding it pins, not for the
+    /// now-closed loadout gap.
     /// </para>
     /// </summary>
     [Theory]
@@ -1763,10 +1764,9 @@ public sealed class TickPipelineTests
     }
 
     /// <summary>
-    /// Task 86 finding replacing the removed
-    /// <c>RunTick_Miss_EmitsExactlyOneShotFiredAndOneShotMissedEvent</c>: at
-    /// the designed <c>CollisionBodyRadiusRaw</c> (4,352 raw), a miss is
-    /// mathematically unreachable for the AK-47 loadout through
+    /// Task 86 finding, still true after task 79d-2a: at the designed
+    /// <c>CollisionBodyRadiusRaw</c> (4,352 raw), a miss is mathematically
+    /// unreachable for an <see cref="FirearmId.Ak47"/> loadout through
     /// <see cref="SandataSimulation.RunTick"/>, because
     /// <see cref="AccuracyRules.DrawAngularErrorBam"/>'s drawn magnitude
     /// never exceeds the private <c>SubtendedHalfAngleBam(rangeWu)</c>
@@ -1778,33 +1778,31 @@ public sealed class TickPipelineTests
     /// range within <c>DetectRangeWu</c>. Solving dispersion(R) =
     /// half-angle(R) continuously puts the crossover at roughly 345 wu —
     /// past <c>DetectRangeWu</c> — so no in-range geometry can ever draw a
-    /// miss for this weapon. This is a genuine contradiction of the
-    /// original task-79d-1 assumption that shooter-id tuning alone
-    /// preserves both a hit and a miss path; it is reported, not hidden,
-    /// per the task-86 brief's evidence-contradicts-brief rule. This test
-    /// pins the impossibility as a regression check: if a future change to
-    /// <c>CollisionBodyRadiusRaw</c>, the AK-47's dispersion constants, or
-    /// <c>DetectRangeWu</c> ever reopens a reachable miss, this test fails
-    /// and the removed <c>RunTick</c>-level miss coverage must return.
+    /// miss for this weapon. This pins the impossibility as a regression
+    /// check: if a future change to <c>CollisionBodyRadiusRaw</c>, the
+    /// AK-47's dispersion constants, or <c>DetectRangeWu</c> ever reopens a
+    /// reachable rifle miss, this test fails.
     /// <para>
-    /// Two separate things block a reachable miss today and only one of them
-    /// is geometric. The first is the crossover above. The second is that
-    /// <c>ProposeFire</c> resolves its <see cref="FirearmDefinition"/> from
-    /// the private <c>DefaultFirearmId</c> rather than from the shooter's
-    /// <see cref="OperatorState.Firearm"/>, so the rifle's dispersion curve
-    /// is the only one any shot can use — a pistol loadout changes nothing
-    /// in stage 12. That matters because the pistol's curve is far wider:
-    /// <c>PistolDispersionAtZeroWu</c> 64 and <c>PistolDispersionAtMaxWu</c>
-    /// 512 over a <c>PistolMaxEffectiveWu</c> of 320 put its crossover at
-    /// roughly 157 wu, comfortably inside
-    /// <see cref="ContactMemory.DetectRangeWu"/> and inside
-    /// <c>PistolSingleBandMaxWu</c> 320. <b>The miss path therefore becomes
-    /// reachable the moment task 79d-2 wires the loadout into stage 12</b>,
-    /// and restoring a <c>RunTick</c>-level miss test with a pistol shooter
-    /// at a range between roughly 160 and 256 wu is an obligation on that
-    /// row. Until then <c>EmitShotMissedEvent</c> is a production path no
-    /// test executes, which is recorded here rather than left to be
-    /// discovered.
+    /// Task 86 found two separate things blocking a reachable miss, only one
+    /// of them geometric. The first is the crossover above, and it still
+    /// holds. The second was that <c>ProposeFire</c> resolved every shot's
+    /// <see cref="FirearmDefinition"/> from a hardcoded rifle default rather
+    /// than the shooter's own <see cref="OperatorState.Firearm"/>, so a
+    /// pistol loadout changed nothing in stage 12 — <see cref="FirearmId.Beretta92Fs"/>'s
+    /// far wider dispersion curve (crossover roughly 157 wu, comfortably
+    /// inside <see cref="ContactMemory.DetectRangeWu"/>) was unreachable from
+    /// any <see cref="SandataSimulation.RunTick"/> call. Task 79d-2a closed
+    /// that second gap: <c>ProposeFire</c> now resolves
+    /// <see cref="FirearmDefinition"/> per shot from
+    /// <see cref="OperatorState.Firearm"/>, the same shape stage 11 already
+    /// used, so a pistol shooter's dispersion is real in stage 12. That makes
+    /// the pistol-miss path reachable, and
+    /// <see cref="RunTick_PistolMissesAndRifleHitsAtTheSameTwoHundredWorldUnitRange"/>
+    /// and <see cref="RunTick_Miss_EmitsExactlyOneShotFiredAndOneShotMissedEvent"/>
+    /// below restore that <c>RunTick</c>-level miss coverage — the exact
+    /// obligation this doc comment used to describe as still open.
+    /// <c>EmitShotMissedEvent</c> is no longer a production path with zero
+    /// test coverage.
     /// </para>
     /// </summary>
     [Fact]
@@ -1958,6 +1956,141 @@ public sealed class TickPipelineTests
             entityId: shooterEntityId, faction: 0, positionXWu: 0, positionYWu: 0,
             weaponChainPhase: (int)WeaponChainPhase.Aiming, weaponChainRemainingTicks: 1);
         var target = BuildOperator(entityId: 100_000, faction: 1, positionXWu: 90, positionYWu: 0);
+        var state = BuildState(ImmutableArray.Create(shooter, target));
+
+        return new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+    }
+
+    /// <summary>
+    /// Task 79d-2a, deliverable B: the same range and shooter entity id, run
+    /// twice with different <see cref="OperatorState.Firearm"/> loadouts,
+    /// prove <c>ProposeFire</c> now reads the per-shot loadout rather than a
+    /// hardcoded rifle default — a <see cref="FirearmId.Beretta92Fs"/>
+    /// shooter misses where an otherwise-identical
+    /// <see cref="FirearmId.Ak47"/> shooter hits, reached only through
+    /// <see cref="SandataSimulation.RunTick"/>, never by calling
+    /// <c>ProposeFire</c> directly. 200 wu and shooter entity id 25 are a
+    /// concrete deterministic pair found by probing
+    /// <c>AccuracyRules.DrawAngularErrorBam</c> against both weapons'
+    /// dispersion curves at that range: the pistol's wider curve draws past
+    /// its target's subtended half-angle there while the rifle's narrower
+    /// curve does not. Both outcomes are asserted on the observable event
+    /// kinds and on the target's <see cref="OperatorState.Health"/>, not on
+    /// "the two runs differ" — see
+    /// <see cref="RunTick_Miss_EmitsExactlyOneShotFiredAndOneShotMissedEvent"/>
+    /// for the exact-count restatement of the miss half alone.
+    /// </summary>
+    [Fact]
+    public void RunTick_PistolMissesAndRifleHitsAtTheSameTwoHundredWorldUnitRange()
+    {
+        var pistolSim = BuildRangedFiringFixture(FirearmId.Beretta92Fs, rangeWu: 200, shooterEntityId: 25);
+        var rifleSim = BuildRangedFiringFixture(FirearmId.Ak47, rangeWu: 200, shooterEntityId: 25);
+
+        pistolSim.RunTick(0);
+        rifleSim.RunTick(0);
+
+        var pistolEvents = pistolSim.State.EventFeed.Events;
+        Assert.Equal(1, pistolEvents.Count(e => e.Kind == MissionEventKind.ShotFired));
+        Assert.Equal(0, pistolEvents.Count(e => e.Kind == MissionEventKind.ShotHit));
+        Assert.Equal(1, pistolEvents.Count(e => e.Kind == MissionEventKind.ShotMissed));
+        var pistolTarget = pistolSim.State.Operators.Single(o => o.EntityId == RangedFixtureTargetEntityId);
+        Assert.Equal(100, pistolTarget.Health);
+
+        var rifleEvents = rifleSim.State.EventFeed.Events;
+        Assert.Equal(1, rifleEvents.Count(e => e.Kind == MissionEventKind.ShotFired));
+        Assert.Equal(1, rifleEvents.Count(e => e.Kind == MissionEventKind.ShotHit));
+        Assert.Equal(0, rifleEvents.Count(e => e.Kind == MissionEventKind.ShotMissed));
+        var rifleTarget = rifleSim.State.Operators.Single(o => o.EntityId == RangedFixtureTargetEntityId);
+        Assert.True(rifleTarget.Health < 100, $"rifle hit should reduce target health below 100, was {rifleTarget.Health}");
+    }
+
+    /// <summary>
+    /// Task 79d-1, done-when criterion 2's miss half, restored per task
+    /// 79d-2a's obligation (see
+    /// <see cref="SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange"/>'s
+    /// remarks): the same exact-count shape as
+    /// <see cref="RunTick_Hit_EmitsExactlyOneShotFiredAndOneShotHitEvent"/>,
+    /// using the pistol half of
+    /// <see cref="RunTick_PistolMissesAndRifleHitsAtTheSameTwoHundredWorldUnitRange"/>'s
+    /// fixture.
+    /// </summary>
+    [Fact]
+    public void RunTick_Miss_EmitsExactlyOneShotFiredAndOneShotMissedEvent()
+    {
+        var sim = BuildRangedFiringFixture(FirearmId.Beretta92Fs, rangeWu: 200, shooterEntityId: 25);
+
+        sim.RunTick(0);
+
+        var events = sim.State.EventFeed.Events;
+        Assert.Equal(2, events.Length);
+        Assert.Equal(1, events.Count(e => e.Kind == MissionEventKind.ShotFired));
+        Assert.Equal(0, events.Count(e => e.Kind == MissionEventKind.ShotHit));
+        Assert.Equal(1, events.Count(e => e.Kind == MissionEventKind.ShotMissed));
+    }
+
+    private const int RangedFixtureTargetEntityId = 200_000;
+
+    /// <summary>
+    /// Shared fixture for the task 79d-2a pistol-miss/rifle-hit pair: the
+    /// shooter sits <paramref name="rangeWu"/> world units <b>east</b> of the
+    /// target, at (<paramref name="rangeWu"/>, 0), so the target is directly
+    /// opposite the shooter's default <see cref="Facing16.East"/> facing.
+    /// Both positions stay non-negative and inside a grid widened to fit
+    /// <paramref name="rangeWu"/> — <see cref="NavGrid.CellSizeWu"/> is 4
+    /// world units per cell, and <see cref="BuildGrid"/>'s default 32-cell
+    /// width only covers 128 wu, short of the 200 wu this fixture needs. The
+    /// shooter's <see cref="OperatorState.ContactMemory"/> is pre-seeded with
+    /// a stale <see cref="ContactTier.Identified"/> entry for the target from
+    /// tick 0.
+    /// <para>
+    /// This is deliberate, not an oversight: <see cref="IntentSelection.Select"/>
+    /// only selects <see cref="OperatorIntent.Engage"/> when
+    /// <c>BestContactTier == ContactTier.Identified</c>, which real sensing
+    /// only ever grants within <see cref="ContactMemory.IdentifyRangeWu"/>
+    /// (96 wu) — too close for the 200 wu range this fixture needs. Placing
+    /// the target behind the shooter's vision cone
+    /// (<c>VisionConeHalfWidthBam</c>, 90° half-width) means stage 5's
+    /// <see cref="ContactMemory.Update"/> never observes it from the
+    /// shooter's side this tick, so the pre-seeded entry survives unchanged
+    /// as a ghost (that method's documented "carried forward unchanged"
+    /// rule) and stage 9 still selects <see cref="OperatorIntent.Engage"/>
+    /// from it. The target's own sensing of the shooter is real and mutual —
+    /// the shooter sits inside the target's East-facing cone — the same
+    /// harmless mutual-visibility shape <see cref="BuildFiringFixture"/>
+    /// already relies on at 90 wu; the target's own weapon chain starts
+    /// <see cref="WeaponChainPhase.Lowered"/>, so it never fires back within
+    /// one tick. Stage 12's actual shot geometry is unaffected by the ghost:
+    /// <c>ProposeFire</c> always reads the target's real, live committed
+    /// position from <see cref="MissionState.Operators"/>, never the contact
+    /// memory, so the resolved range is the true <paramref name="rangeWu"/>
+    /// this fixture places the target at. The shooter's weapon chain is
+    /// seeded directly into <see cref="WeaponChainPhase.Aiming"/> with one
+    /// remaining tick, the same shortcut <see cref="BuildFiringFixture"/>
+    /// uses, so stage 11 fires on tick 0 without simulating the full
+    /// ready/turn/aim sequence.
+    /// </para>
+    /// </summary>
+    private static SandataSimulation BuildRangedFiringFixture(FirearmId firearm, int rangeWu, int shooterEntityId)
+    {
+        var gridWidthCells = (rangeWu / NavGrid.CellSizeWu) + 8;
+        var grid = BuildGrid(width: gridWidthCells, height: 8);
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+        var ruleset = SandataRuleset.ModernTacticalV1;
+
+        var shooter = BuildOperator(
+            entityId: shooterEntityId, faction: 0, positionXWu: rangeWu, positionYWu: 0,
+            weaponChainPhase: (int)WeaponChainPhase.Aiming, weaponChainRemainingTicks: 1) with
+        {
+            Firearm = firearm,
+            ContactMemory = ImmutableArray.Create(new ContactMemoryEntry(
+                EnemyEntityId: (ulong)RangedFixtureTargetEntityId,
+                LastKnownCellIndex: 0,
+                ContactTier: (int)ContactTier.Identified,
+                LastSeenTick: 0)),
+        };
+        var target = BuildOperator(
+            entityId: RangedFixtureTargetEntityId, faction: 1, positionXWu: 0, positionYWu: 0);
         var state = BuildState(ImmutableArray.Create(shooter, target));
 
         return new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
