@@ -200,37 +200,20 @@ public sealed class MissionEventFeedTests
             new RngStreamState(1, 1, 111UL, 222UL)),
     };
 
-    /// <summary>
-    /// Identical to <c>OrderStateHashTests.PreTask61BaselineHash</c>, for the
-    /// identical fixture. <see cref="SandataStateHasher.Compute"/> was not
-    /// edited by task 76 (confirmed by reading the file in full before and
-    /// after this task's changes) and never reads
-    /// <see cref="MissionState.EventFeed"/>, so this value is unchanged from
-    /// task 61's own pin — this constant exists under its own name only so a
-    /// future reader searching for "what did task 76 pin" finds an answer
-    /// here rather than having to already know it is task 61's value.
-    /// </summary>
-    // Moved at task 79c, from 5_550_901_129_500_655_850UL, for the reason
-    // recorded beside OrderStateHashTests.PreTask61BaselineHash: task 79c
-    // appends the operator's Firearm to FoldOperator. What this test guards
-    // is unaffected — Compute still never reads MissionState.EventFeed, and
-    // StateHash_DoesNotMove_WhenTheEventFeedGainsEvents below is the
-    // assertion that actually proves it, independently of any literal.
-    private const ulong PreTask76BaselineHash = 3_159_438_799_659_597_482UL;
-
-    [Fact]
-    public void StateHash_OfPinnedFixtureWithDefaultEventFeed_MatchesThePreTask76Baseline()
-    {
-        var mission = BuildPinnedMission();
-        var ruleset = SandataRuleset.ModernTacticalV1;
-        var state = BuildPinnedState();
-
-        Assert.Equal(MissionEventFeed.Empty, state.EventFeed);
-
-        var hash = SandataStateHasher.Compute(mission, state, ruleset);
-
-        Assert.Equal(PreTask76BaselineHash, hash);
-    }
+    // Task 85 (docs/plans/2026-08-07-sandata-scaffold.md, wave-12 audit's
+    // "Task 52's golden baseline against task 85's single-pin rule"): this
+    // file used to pin an absolute literal (PreTask76BaselineHash, identical
+    // to OrderStateHashTests' former PreTask61BaselineHash for the identical
+    // fixture) to guard one relational property — SandataStateHasher.Compute
+    // never reads MissionState.EventFeed — and every unrelated fold change
+    // broke the literal even though the property never moved.
+    // StateHash_DoesNotMove_WhenTheEventFeedGainsEvents below already proved
+    // that property with two live-computed hashes; the test that follows it
+    // goes one step further and proves the property survives the feed's own
+    // 200-event retention cap, which a narrower "empty feed" comparison could
+    // never exercise. The one remaining absolute state-hash literal in this
+    // test assembly is MissionStateTests.PreTask79cBaselineHash, the
+    // deliberate canary.
 
     [Fact]
     public void StateHash_DoesNotMove_WhenTheEventFeedGainsEvents()
@@ -249,6 +232,38 @@ public sealed class MissionEventFeedTests
 
         Assert.Equal(baselineHash, hashWithEvents);
         Assert.NotEqual(baselineState.EventFeed, stateWithEvents.EventFeed);
+    }
+
+    /// <summary>
+    /// The property above holds even once <see cref="MissionEventFeed.Append"/>
+    /// has evicted events past <see cref="MissionEventFeed.MaxRetainedEvents"/>
+    /// — a scenario the single-append test above cannot exercise. Appending
+    /// past the cap changes <see cref="MissionState.EventFeed"/> in a way an
+    /// empty-feed-vs-literal comparison never could, so this is the test that
+    /// actually stands in for the old absolute pin's coverage.
+    /// </summary>
+    [Fact]
+    public void StateHash_DoesNotMove_AfterTheEventFeedEvictsPastItsRetentionCap()
+    {
+        var mission = BuildPinnedMission();
+        var ruleset = SandataRuleset.ModernTacticalV1;
+        var baselineState = BuildPinnedState();
+
+        var feed = baselineState.EventFeed;
+        for (var i = 0; i < MissionEventFeed.MaxRetainedEvents + 5; i++)
+        {
+            feed = feed.Append(MissionEvent.OrderRejected(i, baselineState.Tick, orderId: i, OrderRejectReason.InvalidNodeCount));
+        }
+
+        var stateAfterEviction = baselineState with { EventFeed = feed };
+
+        Assert.Equal(MissionEventFeed.MaxRetainedEvents, stateAfterEviction.EventFeed.Events.Length);
+        Assert.NotEqual(baselineState.EventFeed, stateAfterEviction.EventFeed);
+
+        var baselineHash = SandataStateHasher.Compute(mission, baselineState, ruleset);
+        var hashAfterEviction = SandataStateHasher.Compute(mission, stateAfterEviction, ruleset);
+
+        Assert.Equal(baselineHash, hashAfterEviction);
     }
 
     // ---- 5. Snapshot round trip reproduces the same event hash and -------
