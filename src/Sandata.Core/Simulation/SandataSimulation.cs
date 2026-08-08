@@ -930,7 +930,7 @@ public sealed class SandataSimulation
     /// 180 degrees total. <b>PROVISIONAL</b>: no field on <see cref="SandataRuleset"/>
     /// names a cone width (its confirmed field list is <c>TickRate</c>,
     /// <c>MsToTickConversionRuleId</c>, <c>PathLatencyTicks</c>,
-    /// <c>GroupCohesionRadius</c>, <c>LoweredWallDistanceWu</c>,
+    /// <c>GroupCohesionRadiusWu</c>, <c>LoweredWallDistanceWu</c>,
     /// <c>AimToleranceBam</c>), so this is a placeholder pending a real
     /// tuning pass, exactly like <see cref="CollisionCellSizeRaw"/> above.
     /// </summary>

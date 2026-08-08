@@ -80,7 +80,7 @@ public enum TickStage
     /// <summary>
     /// Derives this tick's squad membership, leadership, and marching-order
     /// slot for every operator via <c>Squads.SquadGrouping.Compute</c>,
-    /// gated by <c>SandataRuleset.GroupCohesionRadius</c>. Purely derived,
+    /// gated by <c>SandataRuleset.GroupCohesionRadiusWu</c>. Purely derived,
     /// per design section 8 — nothing here is written back into
     /// <c>MissionState</c>.
     /// </summary>
