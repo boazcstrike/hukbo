@@ -4344,3 +4344,85 @@ sharper here:
 - **A green suite is not a finished task.** The only reliable check is the one
   the wave has been running all along: re-derive the counts. 1,095 was the base
   count, and a task that adds no test has added no evidence.
+
+### Task 52b complete, and the event hash both baselines share — 2026-08-09
+
+Merged at `ab57dc0`. `GoldenReplayTests` pins two seed-1 baselines, and every hash
+literal lives in `tests/Sandata.Core.Tests/Fixtures/seed-1-baseline.json` rather
+than in the `.cs` file, so task 85's guarantee — exactly one absolute state-hash
+literal in C# under `tests/Sandata.Core.Tests/` — survives intact. A search of the
+test file for a sixteen-character hex literal returns nothing.
+
+Both missions are the same fixture: seed 1, eight operators in a four-against-four
+packing built through `HeadlessRunner.BuildOpenGrid` and
+`HeadlessRunner.BuildInitialState`, ticked forty times. Forty ticks rather than
+the workload's ten thousand, because Sandata's core suite already runs about
+forty-five seconds and a second ten-thousand-tick run would have doubled it. The
+two tests cost about ten seconds; the suite now runs about fifty-six.
+
+The second mission submits two real orders through `SandataSimulation.SubmitOrder`
+at tick 0 — a `MoveAlongPath` for one faction's operator and a `Hold` for the
+other's — both accepted. Submitting them through the door rather than injecting
+them into state is what makes the baseline a statement about the order layer at
+all.
+
+**The failure message names the first mismatch tick**, which the row required and
+which is the difference between a golden test that costs a minute to diagnose and
+one that costs a day. A real failure, captured during the break-proof:
+
+```
+Golden replay diverged: state hash at tick 0 was 2EE5D7F78DBCAB16,
+expected D81CEB0CBE66B3D8 (first mismatch tick = 0).
+39 further ticks were not compared.
+```
+
+Neither mission is degenerate, and this was asserted rather than assumed: each
+run emits sixteen events including eight `ShotFired`, and three operators end
+below full health. The order baseline additionally re-runs an empty-order
+companion and asserts the two state hashes differ, which is the direct proof that
+the orders changed the run rather than being accepted and ignored.
+
+Break-proofs, both reverted with an empty `src/` diff afterwards: folding an extra
+value into `SandataStateHasher.Compute` fails both baselines at tick 0, and
+folding one into `MissionEventFeed.FoldEvent` fails the event-hash assertion while
+every per-tick state hash still matches — which is the two-independent-hashes
+property demonstrating itself.
+
+#### Both baselines carry the same event hash, and that is a finding
+
+`FinalEventHashHex` is `74E008E940AB05A5` for the empty-order mission and for the
+order mission alike, while their state hashes differ from tick 0 onward. The
+implementer noticed this and reported it rather than passing over it.
+
+It is not a bug in the test, and the cause is structural rather than
+coincidental. `MissionEventKind` declares exactly four members — `OrderRejected`,
+`ShotFired`, `ShotHit`, `ShotMissed`. **An order that is accepted emits no event
+at all**, and movement emits none either, so the only way an order can reach the
+event stream is by changing which shots resolve. Over forty ticks, with the
+per-tick movement clamp at 1.6 world units, one operator walking a short polyline
+does not change any shot's outcome — every rifle inside sensing range hits
+regardless.
+
+Two consequences, stated rather than filed away:
+
+- **The order baseline's event half proves nothing that the empty one does not.**
+  Its state half does the work. Design section 16's requirement for two baselines
+  is met, but it is met on one of the two hashes, and a future reader comparing
+  the fixture's two `FinalEventHashHex` values should know why they are equal
+  rather than assume the file is wrong.
+- **A player's accepted order leaves no trace in the authoritative event stream.**
+  Design section 16 promises that rejection is observable and says nothing about
+  acceptance. Whether an accepted order should emit an event is a design question
+  — the event feed is what a replay and a spectator read, and an order layer whose
+  successful commands are invisible to it cannot be reconstructed from the stream
+  alone. **This is added to the open questions and is not settled here.**
+
+One deviation, correctly reported: `HeadlessRunner.BuildMission` is `private
+static`, unlike `BuildOpenGrid` and `BuildInitialState` which task 86 promoted to
+`internal`. Rather than widen a production type's visibility from outside its
+grant, the implementer wrote a local equivalent in the test file and said so. That
+is the right call at a grant boundary and it leaves a small duplication worth
+folding away if a third test project ever needs the same mission.
+
+`Sandata.Core.Tests` is at **1,100** and `Sandata.Client.Tests` at 199, both
+re-derived from the merged tree.
