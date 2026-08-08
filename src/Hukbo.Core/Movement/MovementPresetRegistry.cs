@@ -476,6 +476,55 @@ public static class MovementPresetRegistry
         incomingDamageWeightBasisPoints: 0,
         allyCollapseWeightBasisPoints: 0);
 
+    /// <summary>
+    /// The monotone-ally-clearance preset (RU-30, F-B). A verbatim
+    /// restatement of <see cref="EquipmentRelativeFootworkV6Ruleset"/> --
+    /// every field, including <c>usesEquipmentRelativeFootwork: true</c> and
+    /// all six per-loadout movement profile rows -- not of
+    /// <see cref="PersistentContingentsV4Ruleset"/>, because
+    /// <c>BattleSimulation.IsLaneClearOfAllies</c> is reachable only from
+    /// <c>TryProposeEquipmentRoute</c>, which
+    /// <c>BattleSimulation.GatherMovementProposals</c> only calls when
+    /// <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/> is
+    /// <see langword="true"/>. Registering V9 on V4's legacy field values
+    /// would compile but never reach the new monotone rule at all, silently
+    /// making the fix inert. The single behavioural difference from V6 is
+    /// gated entirely on preset identity inside
+    /// <c>IsLaneClearOfAllies</c> itself, not on any field this ruleset
+    /// carries, exactly the way <see cref="RangedStandoffV8Ruleset"/>'s own
+    /// standoff behaviour is gated on preset identity rather than a field.
+    /// </summary>
+    private static readonly MovementRuleset MonotoneAllyClearanceV9Ruleset = new(
+        id: MovementPresetId.MonotoneAllyClearanceV9,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: true,
+        usesEquipmentRelativeFootwork: true,
+        immediateRadiusBodyDiametersBasisPoints: 25_000,
+        supportRadiusBodyDiametersBasisPoints: 60_000,
+        loadoutMovementProfiles:
+        [
+            KampilanMovementProfile.Row,
+            WasayMovementProfile.Row,
+            KalisMovementProfile.Row,
+            ItakMovementProfile.Row,
+            TallHardwoodMovementProfiles.KalisRow,
+            TallHardwoodMovementProfiles.ItakRow,
+        ],
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0);
+
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
         {
@@ -487,6 +536,7 @@ public static class MovementPresetRegistry
             MovementPresetId.EquipmentRelativeFootworkV6 => true,
             MovementPresetId.EquipmentRelativeFootworkV7 => true,
             MovementPresetId.RangedStandoffV8 => true,
+            MovementPresetId.MonotoneAllyClearanceV9 => true,
             _ => false,
         };
 
@@ -501,6 +551,7 @@ public static class MovementPresetRegistry
             MovementPresetId.EquipmentRelativeFootworkV6 => EquipmentRelativeFootworkV6Ruleset,
             MovementPresetId.EquipmentRelativeFootworkV7 => EquipmentRelativeFootworkV7Ruleset,
             MovementPresetId.RangedStandoffV8 => RangedStandoffV8Ruleset,
+            MovementPresetId.MonotoneAllyClearanceV9 => MonotoneAllyClearanceV9Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,
