@@ -1180,6 +1180,18 @@ internal static class PawnGeometry
             return default;
         }
 
+        // A settled guard pose draws no arms. AttackAnimationSystem keeps a
+        // timeline in its store once it reaches readiness — that phase is the
+        // design's weapon-specific guarded stance, not an expiry — so without
+        // this every warrior that had ever landed a blow would carry four arm
+        // quads for the rest of the battle, and the design's "at most four
+        // extra quads per active Medium or High pawn" would silently become a
+        // per-pawn cost.
+        if (pose.Phase == AttackAnimationPhase.Readiness)
+        {
+            return default;
+        }
+
         var scale = proportions.ApparentScale;
         var padding = MathF.Max(ArmMinimumHalfWidthPixels, ArmHalfWidthUnits * scale);
         var shoulderY = torsoBounds.Top + (torsoBounds.Height * ShoulderHeightShare);

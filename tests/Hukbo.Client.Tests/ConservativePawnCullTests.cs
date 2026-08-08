@@ -343,8 +343,8 @@ public sealed class ConservativePawnCullTests
 
         var slack = ConservativePawnCull.RadiusPixels(zoom) - worst;
 
-        // Measured against the posed worst case: 2.62 pixels at minimum zoom,
-        // 1.99 at default fit, 1.74 at maximum zoom. Flat, not proportional —
+        // Measured against the posed worst case, reaction lean included.
+        // Flat, not proportional —
         // the radius does not get looser as the spectator zooms in, which is
         // exactly where a cull has to be tight.
         Assert.InRange(slack, 0f, 3f);
@@ -703,6 +703,22 @@ public sealed class ConservativePawnCullTests
                 directionX: directionX,
                 directionY: directionY));
 
+        // The draw path passes a reaction offset alongside the pose
+        // (ArenaGame.ResolveReactionOffset), so the containment proof has to
+        // carry one too. The largest a reaction can be is a lethal landed
+        // blow at contact, which is what is used here.
+        var reaction = new DefenderReaction(
+            Sequence: 1,
+            AttackerEntityId: 2,
+            DefenderEntityId: 7,
+            XRaw: 0,
+            YRaw: 0,
+            directionX,
+            directionY,
+            AttackResolution.Landed,
+            IsLethal: true,
+            AgeSeconds: 0f);
+
         return PawnGeometry.PoseBlindPrefix
             .Create(
                 anchor,
@@ -712,7 +728,7 @@ public sealed class ConservativePawnCullTests
                 AppearanceComponentCatalog.MaxArmorWidthFactor,
                 hasSash: true,
                 AppearanceComponentCatalog.MaxAccentMarksPerPawn)
-            .CompleteAttackPosedLayout(pose)
+            .CompleteAttackPosedLayout(pose, gaitPose: null, reaction.ResolveOffset())
             .VisualBounds;
     }
 

@@ -1144,11 +1144,6 @@ internal static class PawnRenderer
     }
 
     /// <summary>
-    /// Strokes the arc the layout already computed. There is no trail formula
-    /// here: the pivot, radius, and both angles arrive from
-    /// <see cref="PawnGeometry"/>, and this method only walks between them.
-    /// </summary>
-    /// <summary>
     /// The four arm strokes an actively attacking warrior draws, in the same
     /// bare skin tone the feet already use. At most four quads, and none at
     /// all when the layout carries no arms — which is every pawn that is not
@@ -1192,6 +1187,11 @@ internal static class PawnRenderer
             thickness);
     }
 
+    /// <summary>
+    /// Strokes the arc the layout already computed. There is no trail formula
+    /// here: the pivot, radius, and both angles arrive from
+    /// <see cref="PawnGeometry"/>, and this method only walks between them.
+    /// </summary>
     private static void DrawSwingTrail(
         SpriteBatch spriteBatch,
         Texture2D pixel,

@@ -501,4 +501,44 @@ public sealed class AttackPoseRenderingTests
             union.Contains(part),
             $"{name} {part} escapes the visual bounds {union}.");
     }
+
+    /// <summary>
+    /// The settled guard pose carries no arms. A timeline stays in the
+    /// animation store once it reaches readiness — that phase is the design's
+    /// weapon-specific guarded stance rather than an expiry — so without this
+    /// every warrior that had ever landed a blow would keep four arm quads for
+    /// the rest of the battle and the design's per-active-attacker ceiling
+    /// would quietly become a per-pawn cost.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Weapons))]
+    public void Arms_AreEmptyOnceThePoseHasSettledIntoReadiness(WeaponId weapon)
+    {
+        var settled = Posed(
+            weapon,
+            HighZoom,
+            shield: ShieldId.TallHardwood,
+            ageSeconds: 5f,
+            awaitingDrawAcknowledgement: false);
+
+        Assert.True(settled.Arms.IsEmpty);
+        Assert.True(settled.SwingTrail.IsEmpty);
+    }
+
+    /// <summary>
+    /// A pose still in recovery keeps its arms: the ceiling applies to a
+    /// settled warrior, not to one mid-blow.
+    /// </summary>
+    [Fact]
+    public void Arms_SurviveThroughRecovery()
+    {
+        var profile = AttackMotionCatalog.Resolve(WeaponId.Wasay);
+        var recovering = Posed(
+            WeaponId.Wasay,
+            HighZoom,
+            ageSeconds: profile.RecoverySeconds * 0.5f,
+            awaitingDrawAcknowledgement: false);
+
+        Assert.False(recovering.Arms.IsEmpty);
+    }
 }

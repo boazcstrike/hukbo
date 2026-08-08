@@ -69,12 +69,6 @@ internal sealed class PresentationCoordinator
     public BloodEffectSystem Blood { get; }
 
     /// <summary>
-    /// The legacy in-flight weapon swings, retained for compatibility while
-    /// the attack renderer migrates. The live event route no longer ingests
-    /// or advances this store.
-    /// </summary>
-
-    /// <summary>
     /// The crosses where two weapons, or a weapon and a shield, met.
     /// </summary>
     public ClashEffectSystem ClashEffects { get; }

@@ -115,7 +115,7 @@ internal static class ConservativePawnCull
     /// travel with it (attack-animation-v2 design section 11). The worst case
     /// is the Kalis, which owns both the longest neutral reach and the largest
     /// extension envelope, on an evaded follow-through: measured at
-    /// <c>36.875</c> units per unit of apparent scale over every weapon,
+    /// <c>38.6</c> units per unit of apparent scale, reaction lean included, over every weapon,
     /// shield, resolution, sixty-four headings, and every zoom sample, by
     /// <c>ConservativePawnCullTests.Radius_ExceedsTheWorstCaseExtentByAFlatFewPixels</c>.
     /// </para>
@@ -125,12 +125,16 @@ internal static class ConservativePawnCull
     /// animation phase — but it is now derived from the largest extent a posed
     /// pawn can reach rather than a neutral one. That is what keeps a warrior
     /// striking at the edge of the panel from being culled while its weapon
-    /// would have been on screen. The cost is a wider pre-cull:
+    /// would have been on screen. A struck defender's reaction lean rides on
+    /// top of that — a lethal landed blow displaces the body by a further
+    /// <c>1.32</c> units of apparent scale, and it can point the same way the
+    /// weapon does — so the coefficient covers the sum of the two rather than
+    /// the weapon alone. The cost is a wider pre-cull:
     /// <c>ConservativePawnCullTests.AdmittedFraction_IsRecordedForEachCameraStation</c>
     /// records what it actually admits.
     /// </para>
     /// </remarks>
-    private const float RadiusUnitsPerApparentScale = 37.6f;
+    private const float RadiusUnitsPerApparentScale = 38.8f;
 
     /// <summary>
     /// The scale-independent term of the radius, in pixels: three pixels of
