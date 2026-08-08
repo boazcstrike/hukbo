@@ -1651,8 +1651,16 @@ overall share is a different question, and it was in the acceptance criteria.
 V5 that expands to `[63, 63, 14, 31, 16, 11, 8, 13, 31]`. The three ranged rows are 16, 11
 and 8, so the ranged share is **35 of 250, or 14.0 per cent — not the 25 per cent RU-24 and
 RU-45 calibrated against.** The cause is upstream of RU-43's mapping and is not a defect in
-it: calibration wants Timawa at 54 per cent of the army, and an even four-way rank split
+it: calibration wants Timawa at 44 per cent of the army, and an even four-way rank split
 gives it 25.
+
+**Correction, recorded 2026-08-09 while re-establishing the baseline: that sentence
+originally said 54 per cent, and the number is 44.** Summing `DefaultRosterWeights`
+(`RangedCalibrationHarness.cs:576`, `[19, 19, 10, 9, 11, 8, 6, 9, 9]`) over the rows
+carrying `RankId.Timawa` — Kalis 10, Bangkaw 11, Busog 8, Arquebus 6, and Kalis with a
+shield 9 — gives 44 of 100, against Datu 19, Maharlika 19, and AlipingNamamahay 18. The
+54 was never derived from the weights table and would have sent whoever implements the
+composition change to the wrong rank split.
 
 That matters because every band those two tasks measured was measured at 25 per cent
 ranged. So the orchestrator re-ran the calibration harness at the composition the shipped
