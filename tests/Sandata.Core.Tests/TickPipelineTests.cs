@@ -765,26 +765,28 @@ public sealed class TickPipelineTests
     }
 
     /// <summary>
-    /// <see cref="SandataRuleset.PathLatencyTicks"/>: reading
-    /// <see cref="SandataSimulation.RunTick"/>'s stage 7 call site
-    /// (<c>AdvancePathService</c>) and every method it calls confirms this
-    /// worktree never calls <c>PathService.RequestPath</c> for any group —
-    /// the field reaches only <c>PathService</c>'s constructor and
-    /// <c>PathService.Advance</c>, neither of which this worktree's fixed,
-    /// no-request-source pipeline can make observably branch on its value.
-    /// <b>Blocked precondition:</b> proving this constant load-bearing would
-    /// need a fixture that gets an outstanding path request into
-    /// <see cref="PathService"/>, and no call site anywhere in
-    /// <see cref="SandataSimulation"/> can construct one — see
-    /// <c>AdvancePathService</c>'s own remarks, which state the same fact.
+    /// <see cref="SandataRuleset.PathLatencyTicks"/>, for a fixture whose
+    /// <see cref="MissionState.Groups"/> stays empty throughout — the fixture
+    /// this test recorded before task 79a, when <c>AdvancePathService</c>
+    /// never called <c>PathService.RequestPath</c> for any group at all. Task
+    /// 79a's edit only submits a request for a group that actually appears in
+    /// <see cref="MissionState.Groups"/> with <see cref="GroupPathState.HasOutstandingRequest"/>
+    /// set; this fixture never populates that array, so
+    /// <c>AdvancePathService</c>'s per-group loop still has nothing to act on
+    /// and this test's original claim — <c>PathLatencyTicks</c> alone cannot
+    /// move this particular fixture's outcome — still holds. See
+    /// <c>RunTick_OutstandingGroupPathRequest_PublishesAtExactlyRequestTickPlusLatencyAndIsNotReissued</c>
+    /// below for the fixture that now does put an outstanding request into
+    /// <see cref="MissionState.Groups"/> and proves <c>PathLatencyTicks</c> is
+    /// load-bearing.
     /// </summary>
     /// <remarks>
-    /// What this test proves instead: two <see cref="SandataRuleset"/>
-    /// instances differing only in <c>PathLatencyTicks</c> produce byte-for-byte
+    /// What this test proves: two <see cref="SandataRuleset"/> instances
+    /// differing only in <c>PathLatencyTicks</c> produce byte-for-byte
     /// identical <see cref="SandataSimulation.State"/> after several ticks of
-    /// an otherwise ordinary fixture — full record equality, not merely the
-    /// state hash, because <see cref="SandataRuleset.ContentHash"/> folds
-    /// <c>PathLatencyTicks</c> directly (<see cref="SandataStateHasher.Compute"/>
+    /// an otherwise ordinary, group-less fixture — full record equality, not
+    /// merely the state hash, because <see cref="SandataRuleset.ContentHash"/>
+    /// folds <c>PathLatencyTicks</c> directly (<see cref="SandataStateHasher.Compute"/>
     /// folds <c>ruleset.ContentHash</c> last), so comparing
     /// <see cref="SandataSimulation.LastStateHash"/> instead would report a
     /// difference this constant itself never causes.
@@ -1016,5 +1018,96 @@ public sealed class TickPipelineTests
         Assert.NotNull(simResumed.LastStateHash);
         Assert.NotNull(simFresh.LastStateHash);
         Assert.NotEqual(simResumed.LastStateHash, simFresh.LastStateHash);
+    }
+
+    // ---- 7. STAGE 7, PATH REQUEST DRAIN -----------------------------------
+
+    /// <summary>
+    /// Task 79a: <see cref="SandataSimulation"/>'s stage 7 call site
+    /// (<c>AdvancePathService</c>) now drains <see cref="MissionState.Groups"/>
+    /// into <see cref="PathService.RequestPath"/> instead of never calling it
+    /// (wave 9's <c>RunTick_PathLatencyTicksDifference_LeavesStateIdentical</c>
+    /// recorded that gap; its own doc comment is corrected alongside this
+    /// test). This is the first fixture to make
+    /// <see cref="SandataRuleset.PathLatencyTicks"/> observably change
+    /// <see cref="SandataSimulation.RunTick"/>'s output for a group that
+    /// actually has a destination.
+    /// </summary>
+    /// <remarks>
+    /// <b>Why <see cref="OperatorIntent"/>, not <c>PathService.GetCurrentPath</c>
+    /// directly.</b> <see cref="SandataSimulation"/> exposes no accessor to its
+    /// private <c>_pathService</c> field, and this task's edit is scoped to
+    /// <c>AdvancePathService</c>'s own body only — adding one would touch a
+    /// different part of the file. <see cref="SandataSimulation.PendingIntents"/>
+    /// is instead the public, <see cref="SandataSimulation.RunTick"/>-driven
+    /// proxy: with a solo operator (no contact, no suppression, no breach
+    /// point — every higher-priority branch in <c>IntentSelection.Select</c>'s
+    /// cascade stays false), stage 8 selects <see cref="OperatorIntent.Advance"/>
+    /// exactly when stage 7 published <see cref="PathReasonCode.PathValid"/>
+    /// for that operator's group, and <see cref="OperatorIntent.Hold"/>
+    /// exactly when it is still <see cref="PathReasonCode.AwaitingLatency"/> —
+    /// the same empty-then-non-empty transition
+    /// <c>PathService.GetCurrentPath</c> would show, one layer further out.
+    /// <see cref="MissionState.Groups"/> itself, directly on the public
+    /// <see cref="SandataSimulation.State"/>, is what proves the second half:
+    /// the request is cleared on the exact publish tick and never re-issued.
+    /// </remarks>
+    [Fact]
+    public void RunTick_OutstandingGroupPathRequest_PublishesAtExactlyRequestTickPlusLatencyAndIsNotReissued()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var startCell = grid.CellIndex(0, 0);
+        var goalCell = grid.CellIndex(5, 0);
+
+        const int pathLatencyTicks = 3;
+        var ruleset = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: pathLatencyTicks,
+            groupCohesionRadiusWu: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 0, positionYWu: 0);
+        var groupState = new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: goalCell,
+            HasOutstandingRequest: true,
+            StartCellIndex: startCell,
+            GoalCellIndex: goalCell,
+            RequestTick: 0);
+        var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
+
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+
+        for (var tick = 0; tick < pathLatencyTicks; tick++)
+        {
+            sim.RunTick(tick);
+
+            var group = Assert.Single(sim.State.Groups);
+            Assert.True(group.HasOutstandingRequest, $"tick {tick}: must not publish before RequestTick + PathLatencyTicks");
+
+            var intent = Assert.Single(sim.PendingIntents);
+            Assert.Equal(OperatorIntent.Hold, intent.Intent);
+        }
+
+        sim.RunTick(pathLatencyTicks);
+
+        var publishedGroup = Assert.Single(sim.State.Groups);
+        Assert.False(publishedGroup.HasOutstandingRequest, "request must clear on the exact publish tick");
+
+        var publishedIntent = Assert.Single(sim.PendingIntents);
+        Assert.Equal(OperatorIntent.Advance, publishedIntent.Intent);
+
+        // Not re-issued: a later tick leaves the already-published request
+        // cleared rather than resubmitting it.
+        sim.RunTick(pathLatencyTicks + 1);
+        var laterGroup = Assert.Single(sim.State.Groups);
+        Assert.False(laterGroup.HasOutstandingRequest);
+        var laterIntent = Assert.Single(sim.PendingIntents);
+        Assert.Equal(OperatorIntent.Advance, laterIntent.Intent);
     }
 }
