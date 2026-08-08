@@ -104,6 +104,9 @@ public sealed class MovementPresetFreezeTests
     private const string EquipmentRelativeFootworkV7DigestFileName =
         "seed-1-200-agents-movement-v7-digest.json";
 
+    private const string RangedStandoffV8DigestFileName =
+        "seed-1-200-agents-movement-v8-digest.json";
+
     /// <summary>
     /// Replays the frozen seed-1, two-hundred-agent trajectory tick by tick
     /// under the default scenario -- <c>IndependentPursuitV1</c> is the only
@@ -265,6 +268,29 @@ public sealed class MovementPresetFreezeTests
         var digest = LoadDigest(EquipmentRelativeFootworkV7DigestFileName);
         var simulation = CreateControlRun(
             MovementPresetId.EquipmentRelativeFootworkV7);
+
+        ReplayAndAssertDigest(digest, simulation);
+        AssertFinalContingentFieldsMatch(digest, simulation);
+    }
+
+    /// <summary>
+    /// Replays the frozen seed-1, two-hundred-agent trajectory tick by tick
+    /// under <c>RangedStandoffV8</c> and asserts every tick row and the
+    /// final per-agent rows -- including the real
+    /// <see cref="AgentView.ContingentId"/> and
+    /// <see cref="AgentView.ContingentState"/> values this preset populates
+    /// -- match the fixture exactly. See RU-27,
+    /// docs/plans/2026-08-07-ranged-units.md: this fixture freezes the
+    /// ranged-standoff preset's trajectory in the same shape every earlier
+    /// preset in this file already uses, with the control run selecting
+    /// <c>CombatPresetId.PrecolonialPhilippinesV2</c> explicitly, the same
+    /// way every other freeze test here does.
+    /// </summary>
+    [Fact]
+    public void RangedStandoffV8_ReproducesTheFrozenTrajectoryDigest()
+    {
+        var digest = LoadDigest(RangedStandoffV8DigestFileName);
+        var simulation = CreateControlRun(MovementPresetId.RangedStandoffV8);
 
         ReplayAndAssertDigest(digest, simulation);
         AssertFinalContingentFieldsMatch(digest, simulation);
@@ -515,4 +541,110 @@ public sealed class MovementPresetFreezeTests
         ulong TerminalStateHash,
         IReadOnlyList<MovementTickRow> Ticks,
         IReadOnlyList<MovementAgentRow> FinalAgents);
+
+#if HUKBO_CALIBRATION
+    /// <summary>
+    /// RU-27's capture routine for a movement preset's frozen trajectory
+    /// digest fixture, gated exactly the way
+    /// <c>RangedCalibrationHarness</c>'s own invocation type is
+    /// (tests/Hukbo.Core.Tests/RangedCalibrationHarness.cs:508-581):
+    /// reachable only from a <c>[Fact]</c> compiled behind the
+    /// <c>HUKBO_CALIBRATION</c> preprocessor symbol, which no script and no
+    /// gate stage defines, so it adds zero tests to any ordinary build.
+    /// Every digest fixture up to and including V7 was captured by a
+    /// temporary xunit fact written for that one capture and deleted
+    /// afterward (see each fixture's own
+    /// <c>provenance.harnessDisposition</c> field); this routine stays
+    /// committed instead, so the next preset's digest can be captured the
+    /// same way without reinventing it. Run once, from a clean Release
+    /// build, against the preset to capture:
+    ///
+    /// <code>
+    /// dotnet test tests/Hukbo.Core.Tests/Hukbo.Core.Tests.csproj -c Release ^
+    ///   -p:DefineConstants=HUKBO_CALIBRATION ^
+    ///   --filter FullyQualifiedName~CaptureRangedStandoffV8Digest ^
+    ///   --logger "console;verbosity=detailed"
+    /// </code>
+    ///
+    /// Prints one JSON document to stdout, in the exact shape
+    /// <see cref="LoadDigest"/> reads back (<c>terminalTick</c>,
+    /// <c>outcome</c>, <c>faction0Survivors</c>, <c>faction1Survivors</c>,
+    /// <c>terminalStateHash</c>, <c>ticks</c>, <c>finalAgents</c>): commit it
+    /// verbatim as the new preset's
+    /// <c>tests/Hukbo.Core.Tests/Fixtures/seed-1-200-agents-movement-v&lt;N&gt;-digest.json</c>.
+    /// </summary>
+    [Fact]
+    public void CaptureRangedStandoffV8Digest()
+    {
+        var simulation = CreateControlRun(MovementPresetId.RangedStandoffV8);
+
+        Console.WriteLine(CaptureDigestJson(simulation));
+    }
+
+    /// <summary>
+    /// Runs <paramref name="simulation"/> to its own termination -- it stops
+    /// advancing on its own once <see cref="BattleSimulation.Outcome"/>
+    /// leaves <see cref="BattleOutcome.Ongoing"/>, the same guard
+    /// <c>RangedCalibrationHarness.RunOneSeed</c> relies on -- recording the
+    /// same per-tick event fold and state hash <see cref="ReplayAndAssertDigest"/>
+    /// checks, then serializes the whole trajectory in the shape
+    /// <see cref="LoadDigest"/> parses.
+    /// </summary>
+    private static string CaptureDigestJson(BattleSimulation simulation)
+    {
+        var tickRows = new List<object>();
+        while (simulation.Outcome == BattleOutcome.Ongoing)
+        {
+            simulation.AdvanceOneTick();
+
+            var fold = Fnv1a.OffsetBasis;
+            var count = 0;
+            foreach (var battleEvent in simulation.LastEvents)
+            {
+                HeadlessRunner.AddEventToHash(ref fold, battleEvent);
+                count++;
+            }
+
+            tickRows.Add(new
+            {
+                tick = simulation.Tick,
+                eventCount = count,
+                eventFold = fold.ToString("X16", CultureInfo.InvariantCulture),
+                stateHash = simulation.ComputeStateHash()
+                    .ToString("X16", CultureInfo.InvariantCulture),
+            });
+        }
+
+        var finalAgents = simulation.Agents.Select(agent => new
+        {
+            entityId = agent.EntityId,
+            xRaw = agent.XRaw,
+            yRaw = agent.YRaw,
+            hitPoints = agent.HitPoints,
+            intent = agent.Intent.ToString(),
+            movementResolution = agent.MovementResolution.ToString(),
+            loadout = agent.Loadout.ToString(),
+            contingentId = agent.ContingentId,
+            contingentState = (int)agent.ContingentState,
+        });
+
+        var document = new
+        {
+            terminalTick = simulation.Tick,
+            outcome = simulation.Outcome.ToString(),
+            faction0Survivors = simulation.Agents.Count(
+                agent => agent.IsAlive && agent.FactionId == 0),
+            faction1Survivors = simulation.Agents.Count(
+                agent => agent.IsAlive && agent.FactionId == 1),
+            terminalStateHash = simulation.ComputeStateHash()
+                .ToString("X16", CultureInfo.InvariantCulture),
+            ticks = tickRows,
+            finalAgents,
+        };
+
+        return JsonSerializer.Serialize(
+            document,
+            new JsonSerializerOptions { WriteIndented = true });
+    }
+#endif
 }
