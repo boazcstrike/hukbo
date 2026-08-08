@@ -20,6 +20,23 @@ public readonly record struct NavBenchmarkPercentiles(
     double P99Milliseconds);
 
 /// <summary>
+/// How many standalone <see cref="NavSearch.TryFindPath"/> probe queries a
+/// benchmark run recorded for each possible <see cref="NavSearchOutcome"/>,
+/// over every probe query the run issued — the initial per-seeker query
+/// before the tick loop and every subsequent per-tick replan query. Task 82:
+/// before this type existed, <see cref="NavBenchmark.TimeProbeQuery"/>
+/// discarded <see cref="NavSearch.TryFindPath"/>'s return value entirely, so
+/// a run whose queries were all <see cref="NavSearchOutcome.Unreachable"/> —
+/// which returns almost immediately, having proved a negative — was
+/// indistinguishable from a run that found real paths quickly.
+/// <see cref="PathFoundQueryCount"/> plus <see cref="UnreachableQueryCount"/>
+/// always equals the report's total probe count.
+/// </summary>
+public readonly record struct NavBenchmarkOutcomeBreakdown(
+    long PathFoundQueryCount,
+    long UnreachableQueryCount);
+
+/// <summary>
 /// The full result of one navigation benchmark run: the matrix parameters
 /// and operational settings the run used, and the six percentiles plan
 /// task 50 requires — <c>p50</c>/<c>p95</c>/<c>p99</c> for a standalone
@@ -27,6 +44,21 @@ public readonly record struct NavBenchmarkPercentiles(
 /// <see cref="PathService.Advance"/> tick-stage call, six numbers in total
 /// across the two <see cref="NavBenchmarkPercentiles"/> fields below.
 /// </summary>
+/// <remarks>
+/// Task 82 appends three fields after the original ten-field, four-metric
+/// shape above, so a reader of the old shape keeps working:
+/// <see cref="ProbeOutcomeBreakdown"/>, and a second, narrower percentile
+/// set — <see cref="SuccessfulAStarQuerySampleCount"/> and
+/// <see cref="SuccessfulAStarQueryPercentiles"/> — computed only over probe
+/// queries whose <see cref="NavSearchOutcome"/> was
+/// <see cref="NavSearchOutcome.PathFound"/>. <see cref="AStarQuerySampleCount"/>
+/// and <see cref="AStarQueryPercentiles"/> keep their original meaning,
+/// unchanged: every probe query, found or not. Only the successful-search
+/// percentiles answer "how fast does this benchmark's navigation search
+/// run" — the all-queries percentiles can be dominated by fast
+/// <see cref="NavSearchOutcome.Unreachable"/> failures and are not a
+/// navigation performance number on their own.
+/// </remarks>
 public sealed record NavBenchmarkReport(
     int MapDensityPercent,
     int ChangedCellCount,
@@ -41,7 +73,10 @@ public sealed record NavBenchmarkReport(
     long AStarQuerySampleCount,
     NavBenchmarkPercentiles AStarQueryPercentiles,
     long TickStageSampleCount,
-    NavBenchmarkPercentiles TickStagePercentiles);
+    NavBenchmarkPercentiles TickStagePercentiles,
+    NavBenchmarkOutcomeBreakdown ProbeOutcomeBreakdown,
+    long SuccessfulAStarQuerySampleCount,
+    NavBenchmarkPercentiles SuccessfulAStarQueryPercentiles);
 
 /// <summary>
 /// Runs the navigation benchmark workload SIMULATION-GAME-STANDARDS.md
@@ -204,12 +239,36 @@ public static class NavBenchmark
         var scratchExpanded = new List<int>();
 
         var aStarSamples = new List<double>();
+        var successfulAStarSamples = new List<double>();
         var tickStageSamples = new List<double>(tickCount);
+        var pathFoundQueryCount = 0L;
+        var unreachableQueryCount = 0L;
+
+        void RecordProbe(int startCellIndex, int goalCellIndex)
+        {
+            var (elapsedMilliseconds, outcome) = TimeProbeQuery(
+                probeSearch, grid, startCellIndex, goalCellIndex, blocked, scratchPath, scratchExpanded);
+            aStarSamples.Add(elapsedMilliseconds);
+
+            switch (outcome)
+            {
+                case NavSearchOutcome.PathFound:
+                    pathFoundQueryCount++;
+                    successfulAStarSamples.Add(elapsedMilliseconds);
+                    break;
+                case NavSearchOutcome.Unreachable:
+                    unreachableQueryCount++;
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        $"Unhandled {nameof(NavSearchOutcome)} value '{outcome}'.");
+            }
+        }
 
         foreach (var seeker in seekers)
         {
             pathService.RequestPath(seeker.GroupId, seeker.Start, seeker.Goal, requestTick: 0);
-            aStarSamples.Add(TimeProbeQuery(probeSearch, grid, seeker.Start, seeker.Goal, blocked, scratchPath, scratchExpanded));
+            RecordProbe(seeker.Start, seeker.Goal);
         }
 
         for (var tick = 0; tick < tickCount; tick++)
@@ -228,7 +287,7 @@ public static class NavBenchmark
                 }
 
                 pathService.RequestPath(seeker.GroupId, seeker.Start, seeker.Goal, tick);
-                aStarSamples.Add(TimeProbeQuery(probeSearch, grid, seeker.Start, seeker.Goal, blocked, scratchPath, scratchExpanded));
+                RecordProbe(seeker.Start, seeker.Goal);
             }
 
             var stageStart = Stopwatch.GetTimestamp();
@@ -237,6 +296,7 @@ public static class NavBenchmark
         }
 
         var sortedAStar = aStarSamples.Order().ToArray();
+        var sortedSuccessfulAStar = successfulAStarSamples.Order().ToArray();
         var sortedTickStage = tickStageSamples.Order().ToArray();
 
         return new NavBenchmarkReport(
@@ -259,10 +319,16 @@ public static class NavBenchmark
             new NavBenchmarkPercentiles(
                 Percentile(sortedTickStage, 0.50),
                 Percentile(sortedTickStage, 0.95),
-                Percentile(sortedTickStage, 0.99)));
+                Percentile(sortedTickStage, 0.99)),
+            new NavBenchmarkOutcomeBreakdown(pathFoundQueryCount, unreachableQueryCount),
+            sortedSuccessfulAStar.Length,
+            new NavBenchmarkPercentiles(
+                Percentile(sortedSuccessfulAStar, 0.50),
+                Percentile(sortedSuccessfulAStar, 0.95),
+                Percentile(sortedSuccessfulAStar, 0.99)));
     }
 
-    private static double TimeProbeQuery(
+    private static (double ElapsedMilliseconds, NavSearchOutcome Outcome) TimeProbeQuery(
         NavSearch search,
         NavGrid grid,
         int startCellIndex,
@@ -272,8 +338,9 @@ public static class NavBenchmark
         List<int> scratchExpanded)
     {
         var start = Stopwatch.GetTimestamp();
-        search.TryFindPath(grid, startCellIndex, goalCellIndex, blocked, scratchPath, scratchExpanded);
-        return Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        var outcome = search.TryFindPath(grid, startCellIndex, goalCellIndex, blocked, scratchPath, scratchExpanded);
+        var elapsedMilliseconds = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        return (elapsedMilliseconds, outcome);
     }
 
     /// <summary>
