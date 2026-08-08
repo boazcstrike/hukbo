@@ -1041,6 +1041,59 @@ wired yet — nothing outside `src/Hukbo.Client/Presentation/` references either
 `AttackAnimationSystem` or `AttackContactDispatcher` — so today the defect shows only as
 two red tests, exactly as RU-42's did not show at all.
 
+### RU-36 is decided: conditional fold. And a ninth known-wrong row, found while preparing RU-24
+
+The user selected **option 1, the conditional fold**, on 2026-08-08, after three waves and
+four asks. `CombatRuleset.AddProfile` (`CombatRuleset.cs:641-647`) folds
+`ProjectileSpeedRaw`, `StandoffDistanceRaw`, and `FlightTickCeiling` into the preset
+content hash **only for a profile that declares them**, and writes nothing at all — not a
+zero, not a count — for a profile that does not. That is the shape
+`MovementRuleset.cs:647-663` already uses for V7's pressure-interrupt weights, and it is
+the shape `ComputeContentHash` already uses twice more in this very file, for
+`_weaponAttributes` at `:798` and `_declaredClashProfile` at `:826`, both of which carry
+comments explaining that a preset which declares nothing mixes nothing so that version
+1's content hash and every replay recorded against it stay where they are. The predicate
+is not new either: `WeaponProfile.cs:152-154` and
+`BattleSimulation.DetermineHasRangedWeapon` (`:1080-1096`) already test the same fields.
+
+V1 through V4 keep their pinned literals at `DeterminismTests.cs:134`, `:154`, `:177`,
+and `:199`. No preset version is bumped. V5 has no pinned content hash yet, and RU-36
+must not add one — RU-26 owns that pin and lands after RU-24 has finished moving the
+values, so that the literal is captured once from a real run rather than captured, moved,
+and re-pinned.
+
+**The ninth known-wrong row is RU-24's own file list.** The row says to tune the
+"`RangedStandoffV8` standoff fraction" and names
+`src/Hukbo.Core/Movement/MovementPresetRegistry.cs` as one of the three files its agent
+may edit. There is nothing in V8 to tune. `RangedStandoffV8Ruleset`
+(`MovementPresetRegistry.cs:456-477`) restates every one of `PersistentContingentsV4`'s
+tunables verbatim and declares no field of its own, which its own remarks state plainly;
+`MovementRuleset` contains no field with "standoff" in its name at all. The standoff
+distance is read from the weapon profile, not the movement ruleset:
+`BattleSimulation.cs:1725-1728` gates on `Scenario.MovementPreset ==
+MovementPresetId.RangedStandoffV8` and then reads
+`ResolveAttackerWeaponProfile(agent.Loadout).StandoffDistanceRaw`.
+
+So the standoff lever is `standoffWorldUnits` on the three `RangedProfile` declarations in
+`PhilippineCombatPresetV5.cs:242`, `:254`, and `:267`, where all three weapons currently
+sit at exactly 0.75 of their reach — Bangkaw 36 of 48, Busog 60 of 80, Arquebus 84 of 112.
+An implementer who follows the row literally will go looking for a knob that does not
+exist and add one to `MovementRuleset`, which would move the content hash of every
+movement preset from V1 to V7 unless it were itself conditionally folded. That is the
+exact mess option 1 was chosen to avoid, arriving through a different door. RU-24's agent
+is told this and is forbidden to touch `MovementPresetRegistry.cs`.
+
+One more thing RU-24 does not own, recorded so the next wave does not look for it in the
+wrong place. The first tuning lever is the ranged roster share, and that is not preset
+data. With `Scenario.RosterCounts` left empty the simulation falls back to
+`rules.ResolveLoadout(entityId)` (`BattleSimulation.cs:571-574`), which spreads warriors
+evenly across all seven roster entries — so every V5 measurement recorded so far,
+including the V5/V8 cell of the hash matrix, was taken at three ranged entries of seven.
+RU-24 varies the share inside its harness to find a workable value, but the place that
+value has to be written down so the running game uses it is `ArenaGame.BuildScenario`,
+which is RU-43, and the ranged termination tests, which are RU-29. Both already depend on
+RU-24.
+
 ### Task status
 
 | Task | Status |
