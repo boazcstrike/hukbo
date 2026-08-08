@@ -3999,3 +3999,109 @@ Task 87 wants `SandataSimulation.cs` and therefore cannot run beside task 81 or
 task 79d-2. It is not on the critical path for either, so it is placed after task
 54 rather than inserted into the remaining batch order, and the wave's ordering
 stands: task 81, then 79d-2, then 52, then 54, then 55, with 87 after them.
+
+### Task 81 complete, and the 81 percent it was not allowed to touch — 2026-08-09
+
+Merged at `5d0e1f8`. The row's stated cause was measured before anything was cut,
+exactly as this wave's first audit required, and the measurement changed what got
+cut.
+
+**The row was half right and half wrong, and both halves matter.** It blamed
+stage 3's two `SandataCollisionGrid` constructions. The first audit rebutted that
+on the grounds that the class already reuses its internal arrays across `Rebuild`
+calls — which is true of the class and irrelevant to the call site, because
+`RunTick` constructed two *fresh instances* every tick and so never reached the
+reuse the class offers. Stage 3 was in fact the largest allocator inside the
+grant, at 382,452 bytes per simulation-tick. The rebuttal was right about
+`SandataCollisionGrid` and wrong about the consequence, and only a measurement
+could have separated the two.
+
+#### What was measured
+
+`GC.GetAllocatedBytesForCurrentThread()` deltas around each of `RunTick`'s
+fourteen stages, at 200 operators and seed 1, over 300 measured ticks after 50
+warm-up ticks. The instrumentation was temporary and is gone: `git diff` on the
+merged branch contains no `GetAllocatedBytesForCurrentThread` and no measurement
+scaffolding, confirmed by searching the whole source tree rather than by reading
+the report.
+
+| Stage | Bytes per simulation-tick, before | After |
+| --- | --- | --- |
+| 3 — collision grids and the tick-start view | 382,452 | ~21,595 |
+| 7 — path service | one `bool[CellCount]` per tick | 0 |
+| 9 — movement proposals | 26,033 | 13,777 |
+
+#### What was cut
+
+- `SandataSimulation` now holds `_contactGrid` and `_cohesionGrid` as readonly
+  fields built once in the constructor, and stage 3 rebuilds them in place. The
+  cohesion grid's cell size depends only on `SandataRuleset.GroupCohesionRadiusWu`,
+  which is fixed for the lifetime of a simulation, so sizing it once is sound.
+- `AdvancePathService` reuses a `_pathBlockedCells` array instead of allocating
+  `new bool[_navGrid.CellCount]` every tick. This one carries no stale-state
+  hazard and does not merely claim not to: `PathService.Advance` takes its
+  blocked cells as a `ReadOnlySpan<bool>`, so nothing downstream can write into
+  the buffer and the compiler is what enforces it rather than a comment.
+- `ComputeMovementProposals` sizes its `ImmutableArray.CreateBuilder` to
+  `view.Count`, which is the exact upper bound since the loop adds at most one
+  proposal per operator, so the builder no longer regrows by doubling.
+
+`SandataCollisionGrid.cs` was in the grant and ended with a zero net diff — it
+was edited only to break-proof the new test, and the break was reverted.
+
+#### The result, and the honest shape of it
+
+The seed-1 workload's `allocatedBytes` went from roughly **48.64 GB** to
+**42.18 GB** over ten thousand ticks, re-run by the integrating thread on `main`
+after the merge at 42,184,446,424 bytes. That is about a 13 percent cut, and
+per simulation-tick at 200 operators it is 2.43 MB down to 2.11 MB.
+
+Both hashes are unchanged — `stateHash` `BDD56EBD06F76674`, `eventHash`
+`7C1B37876769DEC7`, 70 and 64 survivors, `deterministic: true` — which is the
+proof that a pure allocation change changed no outcome.
+
+Neither figure is quoted as an exact byte count anywhere, and the reason is
+recorded in this wave's third audit: two runs of an identical tree differ by
+thousands of bytes. The implementer's own report said 42,184,447,672 and the
+integrator's re-run said 42,184,446,424, a difference of 1,248 bytes on the same
+commit.
+
+#### The two largest allocators are outside the grant, and the task stopped
+
+This is the finding, and the row's three-file grant is why it is a finding rather
+than a fix. The per-stage table named two allocations that dwarf everything task
+81 was allowed to touch:
+
+| Site | Bytes per simulation-tick | Shape |
+| --- | --- | --- |
+| `src/Sandata.Core/Navigation/LineOfSight.cs:59` | 1,761,332 | `new int[grid.Width + grid.Height + 1]` per call, at roughly 4,684 calls per tick |
+| `src/Sandata.Core/Sensing/ContactMemory.cs:207` | 456,130 | `new ContactMemoryEntry[maxCount]` per operator per tick |
+
+Both line numbers were confirmed against the merged tree rather than taken from
+the report. The implementer stopped and reported instead of widening its own
+scope, which is what the brief asked for and the second time in this wave an
+agent has been right to refuse.
+
+One caution about the arithmetic, stated rather than smoothed over. Those two
+figures sum to 2.22 MB, which is more than the 2.11 MB per simulation-tick the
+benchmark reports after the cuts, so the harness's denominator and the
+benchmark's are not the same measurement — the harness instrumented one
+simulation directly while the benchmark's figure covers the two `HeadlessRunner`
+constructs and ticks per benchmark tick, plus everything outside `RunTick`. The
+**ranking** is what this table is good for, and the ranking is unambiguous: line
+of sight is the dominant allocator in the tick by a wide margin and contact
+memory is second. The exact fractions are not, and no percentage from this
+measurement should be quoted as a result.
+
+#### One task this creates
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 88 | 12 | Cut the two allocators task 81 was not allowed to reach | `LineOfSight` allocates `new int[grid.Width + grid.Height + 1]` on every call at `src/Sandata.Core/Navigation/LineOfSight.cs:59`, roughly 4,684 times per tick, and `ContactMemory` allocates `new ContactMemoryEntry[maxCount]` per operator per tick at `src/Sandata.Core/Sensing/ContactMemory.cs:207`. Task 81 measured both and stopped at its grant boundary. Give each a caller-supplied scratch buffer rather than an internal cache: the ray buffer's bound is a pure function of the grid it is handed, and the contact-memory buffer's bound is the same `maxCount` the method already computes, so both can be passed in by the one stage that calls them. **No cache that outlives a tick, and no buffer stored on a type that reaches a snapshot or a hash** — `SIMULATION-GAME-STANDARDS.md` section 11 and `CLAUDE.md` section 9 both bind here. Re-measure per stage before and after with the same temporary harness discipline task 81 used, and delete the harness before committing. | `src/Sandata.Core/Navigation/LineOfSight.cs`, `src/Sandata.Core/Sensing/ContactMemory.cs`, `src/Sandata.Core/Simulation/SandataSimulation.cs` (stages 3 and 5 only), `tests/Sandata.Core.Tests/LineOfSightTests.cs`, `tests/Sandata.Core.Tests/ContactMemoryTests.cs` | The seed-1 workload's `allocatedBytes` falls materially again, with the before and after both recorded as magnitudes rather than exact counts. Both hashes, both survivor counts, and `deterministic: true` are unchanged. A test proves a reused scratch buffer carries nothing from its previous use into the next result, asserted on the result's content rather than on the buffer's identity. | 81 | |
+
+Task 88 wants `SandataSimulation.cs` and so cannot run beside task 79d-2 or task
+87. It goes after task 54 alongside task 87, since neither is on the path to the
+gate.
+
+Remaining order for the wave: task 79d-2, then 52, then 54, then 55, with 87 and
+88 after them.
