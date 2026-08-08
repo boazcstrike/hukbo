@@ -452,4 +452,111 @@ public sealed class NavBenchmarkOptionTests
             }
         }
     }
+
+    /// <summary>
+    /// The floor task 83's brief requires named: the fraction of probe
+    /// queries that find a path, at the "stress-connected" matrix row from
+    /// <c>docs/plans/2026-08-07-sandata-scaffold.md</c>'s VERIFY section
+    /// (density 10, changed cells 50, 32 seekers, 2,048-wu queries, 25
+    /// percent replanning). Before task 83's fix, that exact row measured
+    /// 8.1 percent found (1,293 of 16,011) because <c>ApplyChangedCells</c>
+    /// redrew fresh random indices across the whole grid every tick and
+    /// random-walked the map toward disconnection. After the fix this row
+    /// measures roughly 93 to 94 percent found, stable across tick counts
+    /// (verified by hand: 100% at 1 tick, 93.2% at 200, 93.6% at 1,000,
+    /// 93.7% at 1,500 and 2,000). 90 percent sits comfortably above the old
+    /// defect's 8.1 percent and comfortably below every measured post-fix
+    /// value, so a regression back toward the random-walk defect trips this
+    /// floor while ordinary run-to-run variance does not.
+    /// </summary>
+    private const double SuccessfulSearchFloorFraction = 0.90;
+
+    /// <summary>
+    /// Task 83's fixed changed-cell set: <c>ChooseChangedCells</c> draws
+    /// <see cref="NavBenchmarkOptions.ChangedCellCount"/> indices once, from
+    /// the same open-cell collection <c>PlaceSeekerPair</c> already draws
+    /// seekers from, and <c>ApplyChangedCells</c> toggles that same fixed
+    /// array on every tick. Toggling a fixed set an even number of times
+    /// nets to zero change for every cell it contains (each cell's per-tick
+    /// contribution is constant, so two applications of it cancel), so a
+    /// run of even length must return <see cref="NavBenchmarkReport.FinalBlockedCellCount"/>
+    /// to exactly the pre-loop, changed-cell-free baseline — the opposite of
+    /// the old per-tick-fresh-random-draw defect, which drifted further from
+    /// that baseline as tick count grew. A run of odd length differs from
+    /// the baseline by whichever cells were drawn an odd number of times,
+    /// proving the map actually moved to its second configuration rather
+    /// than never changing at all.
+    /// </summary>
+    [Fact]
+    public void ChangedCellRunOscillatesBetweenExactlyTwoConfigurationsAcross2000Ticks()
+    {
+        var fixturePath = NavBenchmark.ResolveFixturePath(null);
+        var baselineOptions = NavBenchmarkOptions.Create(
+            mapDensityPercent: 10,
+            changedCellCount: 0,
+            concurrentSeekers: 1,
+            queryDistanceWu: 64,
+            replanningRatePercent: 0);
+        var churnOptions = NavBenchmarkOptions.Create(
+            mapDensityPercent: 10,
+            changedCellCount: 50,
+            concurrentSeekers: 1,
+            queryDistanceWu: 64,
+            replanningRatePercent: 0);
+
+        // changedCellCount is 0 here, so the tick loop never mutates
+        // passability; tickCount is otherwise irrelevant to the resulting
+        // blocked-cell count and is kept small only for speed.
+        var baselineReport = NavBenchmark.Run(baselineOptions, fixturePath, seed: 1, tickCount: 1);
+        var evenReport = NavBenchmark.Run(churnOptions, fixturePath, seed: 1, tickCount: 2000);
+        var oddReport = NavBenchmark.Run(churnOptions, fixturePath, seed: 1, tickCount: 2001);
+        var secondEvenReport = NavBenchmark.Run(churnOptions, fixturePath, seed: 1, tickCount: 2002);
+
+        Assert.Equal(baselineReport.FinalBlockedCellCount, evenReport.FinalBlockedCellCount);
+        Assert.Equal(baselineReport.FinalBlockedCellCount, secondEvenReport.FinalBlockedCellCount);
+        Assert.NotEqual(baselineReport.FinalBlockedCellCount, oddReport.FinalBlockedCellCount);
+    }
+
+    /// <summary>
+    /// Task 83's acceptance criterion on connectivity: the successful-search
+    /// fraction of a changed-cell run inside the usable density range (0 to
+    /// 20 percent per the density sweep in
+    /// <c>docs/plans/2026-08-07-sandata-scaffold.md</c>) must stay above
+    /// <see cref="SuccessfulSearchFloorFraction"/> for the whole run, not
+    /// only at its end. Each sampled tick count below is a fresh, independent
+    /// <see cref="NavBenchmark.Run"/> call with identical options and seed,
+    /// standing in for "how connected is the map at this point in the run" —
+    /// under the old per-tick-fresh-random-draw defect this fraction would
+    /// fall as tick count grows, since every extra tick pushed the map
+    /// further toward the roughly-half-blocked noise field the density sweep
+    /// found disconnects the fixture. Under the fix the map only ever
+    /// occupies the same two configurations, so the fraction should stay
+    /// essentially flat across all three sampled points, including the full
+    /// 2,000-tick run the brief requires.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(200)]
+    [InlineData(2000)]
+    public void ChangedCellRunStaysAboveTheSuccessfulSearchFloorThroughoutTheRun(int tickCount)
+    {
+        var fixturePath = NavBenchmark.ResolveFixturePath(null);
+        var options = NavBenchmarkOptions.Create(
+            mapDensityPercent: 10,
+            changedCellCount: 50,
+            concurrentSeekers: 32,
+            queryDistanceWu: 2048,
+            replanningRatePercent: 25);
+
+        var report = NavBenchmark.Run(options, fixturePath, seed: 1, tickCount);
+
+        Assert.True(report.AStarQuerySampleCount > 0);
+        var foundFraction =
+            (double)report.ProbeOutcomeBreakdown.PathFoundQueryCount / report.AStarQuerySampleCount;
+
+        Assert.True(
+            foundFraction >= SuccessfulSearchFloorFraction,
+            $"Found fraction {foundFraction:P1} at tickCount={tickCount} fell below the " +
+            $"{SuccessfulSearchFloorFraction:P0} floor.");
+    }
 }

@@ -58,6 +58,15 @@ public readonly record struct NavBenchmarkOutcomeBreakdown(
 /// run" — the all-queries percentiles can be dominated by fast
 /// <see cref="NavSearchOutcome.Unreachable"/> failures and are not a
 /// navigation performance number on their own.
+///
+/// Task 83 appends <see cref="FinalBlockedCellCount"/>: the number of
+/// <see cref="NavCellFlags.Blocked"/> cells in <see cref="NavGrid.Passability"/>
+/// once the run's tick loop finishes. With the fixed changed-cell set
+/// <see cref="NavBenchmark.ApplyChangedCells"/> now toggles, this count is
+/// determined entirely by <see cref="TickCount"/>'s parity — see that
+/// method's remarks — so a test can prove the map oscillates between two
+/// configurations rather than drifting by running the same options and seed
+/// for two tick counts of matching parity and asserting equal counts.
 /// </remarks>
 public sealed record NavBenchmarkReport(
     int MapDensityPercent,
@@ -76,7 +85,8 @@ public sealed record NavBenchmarkReport(
     NavBenchmarkPercentiles TickStagePercentiles,
     NavBenchmarkOutcomeBreakdown ProbeOutcomeBreakdown,
     long SuccessfulAStarQuerySampleCount,
-    NavBenchmarkPercentiles SuccessfulAStarQueryPercentiles);
+    NavBenchmarkPercentiles SuccessfulAStarQueryPercentiles,
+    long FinalBlockedCellCount);
 
 /// <summary>
 /// Runs the navigation benchmark workload SIMULATION-GAME-STANDARDS.md
@@ -233,6 +243,8 @@ public static class NavBenchmark
             seekers[index] = ((ulong)(index + 1), start, goal);
         }
 
+        var changedCellIndices = ChooseChangedCells(openCells, options.ChangedCellCount, ref rng);
+
         var pathService = new PathService(SandataRuleset.ModernTacticalV1.PathLatencyTicks);
         var probeSearch = new NavSearch();
         var scratchPath = new List<int>();
@@ -273,9 +285,9 @@ public static class NavBenchmark
 
         for (var tick = 0; tick < tickCount; tick++)
         {
-            if (options.ChangedCellCount > 0)
+            if (changedCellIndices.Length > 0)
             {
-                ApplyChangedCells(grid, options.ChangedCellCount, ref rng);
+                ApplyChangedCells(grid, changedCellIndices);
                 RefreshBlocked(grid, blocked);
             }
 
@@ -298,6 +310,15 @@ public static class NavBenchmark
         var sortedAStar = aStarSamples.Order().ToArray();
         var sortedSuccessfulAStar = successfulAStarSamples.Order().ToArray();
         var sortedTickStage = tickStageSamples.Order().ToArray();
+
+        var finalBlockedCellCount = 0L;
+        foreach (var flags in grid.Passability)
+        {
+            if (flags == NavCellFlags.Blocked)
+            {
+                finalBlockedCellCount++;
+            }
+        }
 
         return new NavBenchmarkReport(
             options.MapDensityPercent,
@@ -325,7 +346,8 @@ public static class NavBenchmark
             new NavBenchmarkPercentiles(
                 Percentile(sortedSuccessfulAStar, 0.50),
                 Percentile(sortedSuccessfulAStar, 0.95),
-                Percentile(sortedSuccessfulAStar, 0.99)));
+                Percentile(sortedSuccessfulAStar, 0.99)),
+            finalBlockedCellCount);
     }
 
     private static (double ElapsedMilliseconds, NavSearchOutcome Outcome) TimeProbeQuery(
@@ -374,21 +396,79 @@ public static class NavBenchmark
     }
 
     /// <summary>
-    /// Toggles <paramref name="changedCellCount"/> randomly chosen cells
-    /// between <see cref="NavCellFlags.Open"/> and
-    /// <see cref="NavCellFlags.Blocked"/>, run once per benchmark tick to
-    /// simulate ongoing map change. A door cell is left untouched — its
-    /// passability is governed by door state, not by this synthetic churn.
-    /// The same cell may be chosen, and toggled back, more than once within
-    /// one call; that is an accepted property of independent per-pick
-    /// sampling, not a bug to work around.
+    /// Chooses <paramref name="changedCellCount"/> cell indices once, at
+    /// seeker-placement time, so <see cref="ApplyChangedCells"/> can toggle
+    /// the same fixed set on every tick instead of redrawing it. Task 83:
+    /// the previous implementation drew <paramref name="changedCellCount"/>
+    /// fresh indices from the whole grid — <see cref="NavGrid.CellCount"/>,
+    /// including cells no door in the fixture would ever touch — on every
+    /// single tick, which random-walks the map toward a roughly
+    /// half-blocked noise field within a few hundred ticks (measured: the
+    /// density sweep in <c>docs/plans/2026-08-07-sandata-scaffold.md</c>
+    /// puts the disconnection threshold between 30 and 40 percent blocked).
+    /// Design doc section 5 stage 4: "Doors are the only runtime nav
+    /// mutation in v0.1. Rebake is local, not global." — a door has a fixed
+    /// location and alternates between exactly two states, so the changed
+    /// cells this benchmark uses to stand in for doors must too.
+    ///
+    /// Draws come from <paramref name="openCells"/> — the same open-cell
+    /// collection <see cref="PlaceSeekerPair"/> already draws seekers from
+    /// — rather than <see cref="NavGrid.CellCount"/>, so every chosen cell
+    /// is genuinely part of the authored layout's connectivity instead of
+    /// an arbitrary interior cell that happens to be open. Because
+    /// <paramref name="openCells"/> only ever contains
+    /// <see cref="NavCellFlags.Open"/> cells (built by
+    /// <see cref="CollectOpenCells"/>), a <see cref="NavCellFlags.Door"/>
+    /// cell can never be chosen here; <see cref="ApplyChangedCells"/> still
+    /// skips one defensively, matching <see cref="NavCellFlags.Door"/>'s own
+    /// contract that its passability is governed by door state, not by this
+    /// synthetic churn.
+    ///
+    /// Draws are independent and with replacement, exactly as the previous
+    /// per-tick draw's own sampling was: the same cell index may appear more
+    /// than once in the returned array. That is still not a bug to work
+    /// around — a cell drawn an even number of times nets to "left alone"
+    /// every tick once <see cref="ApplyChangedCells"/> is called with the
+    /// fixed array, and a cell drawn an odd number of times nets to "flipped
+    /// every tick", so the map's oscillation between exactly two
+    /// configurations holds regardless of how many times any one index
+    /// repeats.
     /// </summary>
-    private static void ApplyChangedCells(NavGrid grid, int changedCellCount, ref SplitMix64 rng)
+    private static int[] ChooseChangedCells(List<int> openCells, int changedCellCount, ref SplitMix64 rng)
     {
-        var passability = grid.Passability;
+        if (changedCellCount <= 0)
+        {
+            return [];
+        }
+
+        var chosen = new int[changedCellCount];
         for (var i = 0; i < changedCellCount; i++)
         {
-            var cellIndex = rng.NextInt(grid.CellCount);
+            chosen[i] = openCells[rng.NextInt(openCells.Count)];
+        }
+
+        return chosen;
+    }
+
+    /// <summary>
+    /// Toggles every cell in <paramref name="changedCellIndices"/> between
+    /// <see cref="NavCellFlags.Open"/> and <see cref="NavCellFlags.Blocked"/>,
+    /// run once per benchmark tick against the same fixed set
+    /// <see cref="ChooseChangedCells"/> chose once at placement time, so the
+    /// map oscillates between exactly two configurations — the fixture's own
+    /// baked-plus-density passability, and that same passability with every
+    /// net-odd-occurrence index in <paramref name="changedCellIndices"/>
+    /// flipped — instead of random-walking further from the authored layout
+    /// on every tick. A door cell is left untouched — its passability is
+    /// governed by door state, not by this synthetic churn — though
+    /// <paramref name="changedCellIndices"/> never contains one; see
+    /// <see cref="ChooseChangedCells"/>'s remarks.
+    /// </summary>
+    private static void ApplyChangedCells(NavGrid grid, IReadOnlyList<int> changedCellIndices)
+    {
+        var passability = grid.Passability;
+        foreach (var cellIndex in changedCellIndices)
+        {
             var current = passability[cellIndex];
             if (current == NavCellFlags.Door)
             {
