@@ -3859,3 +3859,143 @@ step is claimed twice and none is unclaimed.
 `scripts/verify.ps1` does carry a `-Game` parameter, defaulting to `Hukbo`
 (`scripts/verify.ps1:14`), so task 55's second half is a command that exists
 rather than one that has to be written first.
+
+### Task 84 complete, and the integrator's own remedy that froze a leader — 2026-08-09
+
+Merged at `5e1ed19`. Stage 9 now converts design section 4's sprint figure into a
+per-tick raw step and clamps every operator's proposed movement to it, once,
+after both the ordered and the autonomous branch have chosen a desired point.
+
+`SprintSpeedWuPerSecond` is a `const int` carrying the design's 80 world units
+per second; the per-tick cap is derived per instance as
+`(SprintSpeedWuPerSecond * FixedPoint.Scale) / _ruleset.TickRate`, which is
+**1,638 raw** at the shipped tick rate of 50. That shape was chosen by this
+wave's third audit because `TickRate` is an instance property rather than a
+compile-time constant, and it matches how the same file already converts every
+weapon timing. No `SandataRuleset` field was added, and
+`SandataRuleset.ContentHash` `8_955_292_433_887_190_872` did not move.
+
+**The seed-1 workload's hashes did not move, and that is the deliverable rather
+than a disappointment.** The audit predicted it: nothing in that fixture ever
+moves, so a movement clamp is a no-op across all ten thousand ticks. The run
+re-verified on `main` after the merge reports `stateHash` `BDD56EBD06F76674`,
+`eventHash` `7C1B37876769DEC7`, 70 and 64 survivors, `outcome: Ongoing`,
+`deterministic: true` — every value unchanged.
+
+Counts re-derived from the merged tree rather than from any report:
+`Sandata.Core.Tests` 1,088 to **1,092**, four tests added;
+`Sandata.Client.Tests` 199, unchanged. `TickPipelineTests.cs` went from 25 to 29
+`[Fact]`/`[Theory]` attributes and from 26 to 29 `new SandataSimulation(`
+construction sites — which task 79d-2 should note, since its call-site table now
+reads 29 for that file rather than the 26 this wave's third audit recorded or the
+30 its second one did.
+
+#### The lookahead decision in the brief was wrong, and it deadlocked a leader
+
+The third audit decided that `FormationLookaheadWu` should become the per-tick
+step rounded up to the next whole world unit, which is 2, reasoning that any
+lookahead at or above the step is absorbed by the new clamp anyway. The
+implementer built exactly that, discovered it stalls, reported the mechanism
+precisely, and was right.
+
+`PolylineArclength.Build` stores each segment's length as a truncated integer
+square root — an (8, 8) segment measures 11, not 8·√2 ≈ 11.31 — and
+`ProjectArclength` and `PolylineArclength.SampleAt` then divide by that truncated
+length in opposite directions. The round trip from a world position to an
+arclength and back therefore loses up to about two world units on a diagonal
+segment. At a lookahead of 2 that loss consumes the entire lookahead: a leader
+standing at (4, 4) projects to arclength 2, samples arclength 4, and lands back
+on (4, 4) — its own position. The clamp has nothing to move toward and the
+leader is frozen there for the rest of the mission. The fixed point existed
+before task 84 and was invisible, because an unclamped commit stepped straight
+over it in a single stride.
+
+The lookahead is back at task 79b's 8, still marked provisional, now with the
+floor it has to clear stated at its declaration rather than left to be
+rediscovered.
+
+**This is the fifth time in this wave that a remedy stated in a brief turned out
+to be a claim, and the second time the integrating thread was the one stating
+it.** The first was task 86's "restore the miss test with a pistol loadout",
+which stage 12's hardcoded firearm made impossible. This one is worse in one
+respect: it was written into the plan document as a decision taken so that no
+implementer would have to invent a rounding rule, and the reasoning it carried —
+"any value at or above the step is absorbed by the clamp" — reads as though it
+had been checked. It had not. It was checked against the clamp and not against
+the arclength arithmetic the value actually feeds.
+
+#### Two further defects, found while correcting the first
+
+**The clamp could exceed its own cap.** `ClampToMovementSpeed` divided by
+`IntegerSqrt(distanceSq)`, which truncates, so the scale factor came out slightly
+too large and a step could land just past the bound the method exists to enforce
+— measured at 1,638.06 raw against a cap of 1,638, on a (-1,554, -518) step. The
+divisor now rounds up when the square is inexact, which puts the error on the
+undershoot side: a tick occasionally travels one raw unit less than it could, and
+the bound is never broken. Both the implementer's own non-leader test and the
+rewritten polyline test caught this the moment the lookahead changed, which is
+the strongest argument for the audit's insistence on asserting the magnitude
+rather than the difference.
+
+**The invariant test could not fail.** `MovementSpeedRaw_NeverExceedsTheCollisionBodyRadius`
+re-derived both constants locally — `(80L * FixedPoint.Scale) / TickRate` and
+`(17L * FixedPoint.Scale) / 4` — so it would have passed no matter what
+`SandataSimulation` actually used, which is the precise opposite of an invariant
+test's purpose. It now reads `SprintSpeedWuPerSecond` and `CollisionBodyRadiusRaw`
+out of the production type by reflection, the way this file's task 86 constants
+test already did.
+
+#### A test that pinned the deadlock as expected behaviour
+
+The implementer's rewrite of task 79b's polyline test was named
+`RunTick_UnassignedOperatorInGroupWithPublishedPath_WalksTheFirstSegmentThenHitsAQuantizationDeadlock`,
+and its final assertion required the operator to still be at (4, 4) ten ticks
+later. The analysis in its remarks was correct and genuinely useful. The test was
+not: it asserted a degenerate outcome as the expected one, and in doing so it
+discarded both properties the test had existed since task 79b to prove — that the
+opening move lands on the first segment rather than on the goal, and that the
+operator later sits on the corridor's own Y rather than on the spawn-to-goal
+beeline's.
+
+**This is the third time this wave that a measurement or an assertion could not
+distinguish success from its own degenerate case**, after the navigation
+benchmark's discarded search outcome and its randomised changed cells. It arrives
+here in the sharpest form yet, because this one was not an oversight — the
+degeneracy was understood, described accurately, and then written into a test
+name.
+
+The replacement, `RunTick_UnassignedOperatorInGroupWithPublishedPath_WalksTheBentPolylineAtTheDesignedSpeed`,
+keeps both original properties, adds the per-tick displacement bound, and adds
+the assertion a stall cannot satisfy: the operator must arrive at the goal. Its
+first-move pin of raw 3,206 on both axes was derived from the polyline's own
+arithmetic before the test was run — sample arclength 8 on a segment stored as
+11 gives (7, 7), a displacement of 5,120 raw per axis whose magnitude is 7,240,
+scaled to 2,048 + 5,120·1,638/7,240 = 3,206 — and the run then agreed with the
+derivation.
+
+#### Break-proofs
+
+Each new assertion was broken on purpose in `src/`, the failure recorded, and the
+break reverted. `git status --porcelain` was empty of `src/` changes afterwards
+and the suite returned to 1,092 passing.
+
+| Break | Result |
+| --- | --- |
+| `movementSpeedRaw` replaced with `int.MaxValue / 4`, disabling the clamp | 4 failures: the ordered, autonomous-leader, non-leader-slot, and rewritten polyline tests |
+| `SprintSpeedWuPerSecond` changed from 80 to 213, the largest value the invariant still admits plus one | `MovementSpeedRaw_NeverExceedsTheCollisionBodyRadius` fails on the constant it reads by reflection, plus the three displacement tests |
+
+An earlier attempt to break the clamp by returning early from
+`ClampToMovementSpeed` could not even compile: `TreatWarningsAsErrors` turns the
+resulting unreachable code into `error CS0162`. Worth knowing for the next
+break-proof — the break has to change behaviour without leaving dead code.
+
+#### One task this creates
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 87 | 12 | Make an arclength survive a diagonal round trip | `PolylineArclength.Build` stores each segment's length as `FixedPoint.IntegerSquareRoot`'s truncated result (`src/Sandata.Core/Squads/PolylineArclength.cs:134`), and `PolylineArclength.SampleAt` (line 208) and `SandataSimulation.ProjectArclength` then divide by that truncated length in opposite directions. Position to arclength to position loses up to about two world units on a diagonal segment, which is why `FormationLookaheadWu` cannot be reduced to the per-tick step without freezing a leader in place. Carry enough precision through the round trip that it is exact to within one raw unit — for example by storing cumulative lengths in raw fixed-point units rather than whole world units, which is the same representation every other distance in `Sandata.Core` already uses. No floating point, no `Math.Sqrt`, and the segment-length comparator's total order must not change. | `src/Sandata.Core/Squads/PolylineArclength.cs`, `src/Sandata.Core/Simulation/SandataSimulation.cs` (`ProjectArclength` and `FormationLookaheadWu` only), `tests/Sandata.Core.Tests/SlotTargetsTests.cs`, `tests/Sandata.Core.Tests/TickPipelineTests.cs` | A test proves that for a polyline with axis-aligned, diagonal, and oblique segments, every vertex and every interior point sampled from an arclength projects back to that same arclength within one raw unit. A test proves a leader walks the bent polyline without stalling at a lookahead equal to the per-tick step, which is the reduction task 84 could not make. The seed-1 workload's hashes are unchanged, since nothing in that fixture has a path. | 84 | |
+
+Task 87 wants `SandataSimulation.cs` and therefore cannot run beside task 81 or
+task 79d-2. It is not on the critical path for either, so it is placed after task
+54 rather than inserted into the remaining batch order, and the wave's ordering
+stands: task 81, then 79d-2, then 52, then 54, then 55, with 87 after them.
