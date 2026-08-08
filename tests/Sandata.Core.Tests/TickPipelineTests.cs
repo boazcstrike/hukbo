@@ -1469,6 +1469,41 @@ public sealed class TickPipelineTests
     }
 
     /// <summary>
+    /// Task 86 regression pin: <c>CollisionBodyRadiusRaw</c> must stay the
+    /// designed value —
+    /// <c>Hukbo.Core/Simulation/CollisionRules.cs:72</c>'s
+    /// <c>DefaultBodyRadiusRaw</c>
+    /// (4,352 raw = 4.25 wu), restated in <see cref="SandataSimulation"/>
+    /// per design section 4 of
+    /// docs/plans/2026-08-07-sandata-scaffold-design.md, not the invented
+    /// 32 raw task 86 replaced. <c>CollisionCellSizeRaw</c> must stay
+    /// exactly twice that (8,704 raw), the tightest cell
+    /// <see cref="SandataCollisionGrid"/>'s own three-by-three neighbour
+    /// scan tolerates. Reflection is required — both are <c>private
+    /// const</c>, same convention this file already uses for other private
+    /// members.
+    /// </summary>
+    [Fact]
+    public void CollisionBodyRadiusAndCellSize_MatchTheDesignedValues()
+    {
+        var radiusField = typeof(SandataSimulation).GetField(
+            "CollisionBodyRadiusRaw", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException(
+                "SandataSimulation.CollisionBodyRadiusRaw not found by reflection.");
+        var cellSizeField = typeof(SandataSimulation).GetField(
+            "CollisionCellSizeRaw", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException(
+                "SandataSimulation.CollisionCellSizeRaw not found by reflection.");
+
+        var bodyRadiusRaw = (int)radiusField.GetValue(null)!;
+        var cellSizeRaw = (int)cellSizeField.GetValue(null)!;
+
+        Assert.Equal(4352, bodyRadiusRaw);
+        Assert.Equal(2 * bodyRadiusRaw, cellSizeRaw);
+        Assert.Equal(8704, cellSizeRaw);
+    }
+
+    /// <summary>
     /// Task 79d-1, done-when criterion 3: once a shot is emitted the event
     /// hash must move off <see cref="SandataHash.Begin"/>'s bare FNV-1a
     /// offset basis — the value the feed starts at before any event folds
