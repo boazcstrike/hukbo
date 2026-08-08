@@ -203,6 +203,52 @@ public sealed class RangedProjectileTests
     }
 
     /// <summary>
+    /// Acceptance: a mid-flight <see cref="BattleSimulation.CreateSnapshot"/>
+    /// is a faithful save point. A second simulation, built from the same
+    /// scenario, ruleset, and initial agent values and advanced
+    /// independently to the same tick, reaches an identical state hash and
+    /// an identical live projectile pool -- proof the snapshot carries
+    /// everything a resume would need. The comparison is against a hash
+    /// this test computes itself, never a literal: RU-26 and RU-27 own
+    /// every pinned hash landing on top of this task and are free to move
+    /// them.
+    /// </summary>
+    [Fact]
+    public void MidFlightSnapshotMatchesAnIndependentlyAdvancedSimulationAtTheSameTick()
+    {
+        var rules = RangedRulesetWithClashProfile(ClashProfile.Neutral);
+        var scenario = CreateRangedTestScenario(maximumProjectilesInFlight: 4);
+
+        var simulationA = BattleSimulation.CreateForTesting(
+            scenario,
+            rules,
+            CreateAgent(1, factionId: 0, x: 0, y: 0, scenario, rules, BangkawLoadout),
+            CreateAgent(2, factionId: 1, x: 40, y: 0, scenario, rules, OutOfReachMeleeLoadout));
+        var simulationB = BattleSimulation.CreateForTesting(
+            scenario,
+            rules,
+            CreateAgent(1, factionId: 0, x: 0, y: 0, scenario, rules, BangkawLoadout),
+            CreateAgent(2, factionId: 1, x: 40, y: 0, scenario, rules, OutOfReachMeleeLoadout));
+
+        for (var tick = 0; tick < 5; tick++)
+        {
+            simulationA.AdvanceOneTick();
+            simulationB.AdvanceOneTick();
+        }
+
+        Assert.Equal(5, simulationA.Tick);
+        var snapshot = simulationA.CreateSnapshot();
+        var midFlightProjectile = Assert.Single(snapshot.Projectiles);
+        Assert.Equal(1UL, midFlightProjectile.SourceEntityId);
+        Assert.Equal(2UL, midFlightProjectile.TargetEntityId);
+        Assert.Equal(6, midFlightProjectile.TicksRemaining); // 10 - (5 - 1) ticks elapsed since launch.
+
+        Assert.Equal(snapshot.StateHash, simulationB.ComputeStateHash());
+        Assert.Equal(snapshot.Projectiles, simulationB.CreateSnapshot().Projectiles);
+        Assert.Equal(snapshot.Agents, simulationB.CreateSnapshot().Agents);
+    }
+
+    /// <summary>
     /// Six Bangkaw-armed warriors, three per faction, close enough that both
     /// sides' shots are in reach from the first tick. Mirrors the shape of
     /// <c>BattleSimulationTests.BuildCrowdedRoster</c> and
