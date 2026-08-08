@@ -447,9 +447,7 @@ built, and is one of the repository's open design questions.
 Client presentation tests never construct an `ArenaGame`, a graphics device, a
 sprite batch, or a window, and never depend on GPU, audio, focus, network, or
 the wall clock. That is what lets Hukbo's 3 270 presentation tests finish in
-about two seconds. Sandata's 1 104 core tests take about 38 seconds, roughly
-half of that in the handful of cases that run its navigation benchmark end to
-end.
+about two seconds, and Sandata's 1 106 core tests in about four and a half.
 
 ## Debug logging
 

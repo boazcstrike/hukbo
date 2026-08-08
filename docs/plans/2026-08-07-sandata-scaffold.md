@@ -4728,3 +4728,171 @@ build.
 `Hukbo.Client.Tests` was re-run after the two gate-result sections were appended
 to `docs/development/testing.md`, since `SourceHygieneTests` reads that file:
 3,270 of 3,270 passing.
+
+### Task 87 complete, and the row's own precision figure was unreachable — 2026-08-09
+
+Merged. Every length `PolylineArclength` produces is now raw fixed point. The
+vertices `Build` is handed are still whole world units, because that is what
+`PathService` publishes; everything derived from them is scaled by
+`FixedPoint.Scale` **before** the square root rather than after it. That single
+change moves the truncation from one part in eleven to one part in forty-eight
+thousand.
+
+`ArclengthSample`'s coordinates, direction and length, `SlotTargets.ComputeTarget`'s
+offsets and result, and `ProjectArclength`'s query position and return value all
+moved with it. The published polyline itself is untouched.
+
+#### The grant was too small for the row's own acceptance criterion
+
+The row granted `PolylineArclength.cs`, `SandataSimulation.cs` restricted to
+"`ProjectArclength` and `FormationLookaheadWu` only", `SlotTargetsTests.cs`, and
+`TickPipelineTests.cs`. Storing cumulative lengths in raw, which is what the row
+suggested, does **not** on its own make the round trip exact: `SampleAt` still
+returned whole-world-unit coordinates and `ProjectArclength` still took a
+whole-world-unit query position, and each of those throws away more precision
+than the segment length ever did. Meeting the criterion required
+`SlotTargets.cs` and the stage 9 call site as well.
+
+This is the same shape as task 79d-2's grant widening and it was widened
+deliberately, by the integrating thread, with no other row running. The row's
+file list is recorded as insufficient rather than quietly obeyed.
+
+#### `Int128` in two places, for a reason that only appears at raw scale
+
+`ProjectArclength`'s projection numerator is on the order of the squared map
+extent. In world units that is about 1.7 × 10⁷ and multiplying it by a
+coordinate is harmless; at raw scale it is about 10¹³ and the same multiplication
+overflows a signed 64-bit integer on a map only a few thousand world units
+across. Two products are widened to `Int128`, whose quotient is back inside
+`long` by construction since the clamped numerator never exceeds the
+denominator. `Hukbo.Core`'s `MovementContextQuery` already widens the same way
+for the same reason, so this introduces no new technique, and `Int128` is exact
+integer arithmetic carrying none of the cross-version hazard that bans `double`
+from `Sandata.Core`.
+
+#### `FormationLookaheadWu` is gone, which is the reduction task 84 could not make
+
+The leader's sample now sits exactly one per-tick step ahead of its own
+projection. Anything larger is absorbed by `ClampToMovementSpeed` and buys
+nothing; anything smaller throttles the leader below the designed sprint speed.
+One step is therefore not a tuning parameter at all — it is
+`SprintSpeedWuPerSecond` divided by the tick rate, and it moves when either of
+those does. Task 79b's provisional 8 world units, and the floor task 84 had to
+write under it after freezing a leader at (4, 4), are both deleted.
+
+#### The row asked for one raw unit and one raw unit is not reachable
+
+Measured worst-case round-trip drift over 97 probes is exactly **2 raw units**,
+and the test pins 2 rather than 1. Three truncating divisions sit on that round
+trip: the segment length is a truncated integer square root, `SampleAt`
+truncates the interpolated coordinate, and `ProjectArclength` truncates the
+projection back. Each can lose a raw unit and they do not cancel. One is not
+reachable without rounding-to-nearest at every step.
+
+**The row said "exact to within one raw unit" and the integrating thread wrote
+that row.** It was written without checking it against the three roundings it
+has to survive. Two raw units is 2/1024 of a world unit against a per-tick step
+of 1,638 raw, so the property the task exists for is intact — but the figure was
+a claim, and it is now a measurement.
+
+#### The break-proofs found a defect in the new tests, not in the new code
+
+Three breaks, each reverted, with `git diff` on `src/` empty afterwards.
+
+| Break | Result |
+| --- | --- |
+| Segment length taken in world units and scaled afterwards — task 87's defect, restored exactly | `RunTick_...WalksTheBentPolylineAtTheDesignedSpeed` fails alone, 3,206 against 3,205, and after the pin below was added, `Build_DiagonalSegmentLength_...` fails too, 11,585 against 11,264 |
+| Query position rounded back to whole world units before projecting | `ProjectArclength_RoundTrips...` fails alone, worst drift 1,448 raw — 1.41 world units, the loss the row described |
+
+The first break is the interesting one. It was expected to fail the two new
+precision tests and **it failed neither.**
+
+The round trip is insensitive to the stored segment length being wrong, because
+`SampleAt` and `ProjectArclength` divide by the *same* length in opposite
+directions and the error cancels exactly. And the "sample stays on the segment"
+test is insensitive to it too, because interpolation scales both components by
+the same ratio: a truncated length moves the sample *along* the segment without
+ever moving it *off* the segment.
+
+So the two tests written to prove task 87's headline property proved a different
+property, and only the pre-existing walk test caught the headline one — by a
+margin of one raw unit. A third test was added in response,
+`Build_DiagonalSegmentLength_IsTheRawRootNotTheScaledWorldUnitRoot`, which pins
+the (8, 8) segment at 11,585 raw against the 11,264 the old arithmetic produces.
+It fails immediately and alone under that break.
+
+Both surviving tests now carry a "what this test does not bind, established by
+breaking it" paragraph naming the test that does bind it. **A test that passes
+under the break it was written for is worth more as a corrected doc comment than
+as a deleted test**, but only if the correction is written down.
+
+#### The seed-1 workload is unchanged, as predicted
+
+`stateHash` `BDD56EBD06F76674`, `eventHash` `7C1B37876769DEC7`, 70 and 64
+survivors, `deterministic: true`. Nothing in that fixture has a published path,
+so none of this code executes there. `Sandata.Core.Tests` went 1,104 to 1,107.
+
+### Task 91 complete, and the endpoint that was 95 percent of a suite — 2026-08-09
+
+Merged. `Sandata.Core.Tests` drops from **1,107 tests in 38 seconds to 1,106 in
+4.5**.
+
+Task 83's defect — redrawing the changed-cell set every tick instead of toggling
+a fixed one — was restored behind a temporary local edit, and
+`ChangedCellRunStaysAboveTheSuccessfulSearchFloorThroughoutTheRun` was swept
+across descending endpoints to measure what each one actually detects.
+
+| Tick count | Found fraction under the restored defect | Detects it? |
+| --- | --- | --- |
+| 2,000 | 5.8 % | yes |
+| 800 | 14.4 % | yes |
+| 400 | 28.9 % | yes |
+| 200 | 56.9 % | yes |
+| 100 | 75.4 % | yes |
+| 50 | 86.7 % | yes |
+| 38 | 88.9 % | yes, by 1.1 points |
+| 34 and below | above the floor | **no** |
+
+On the fixed code the same run reports 93.7 percent at 2,000 ticks and 93.2
+percent at 200, taking 35 seconds and 3 seconds respectively.
+
+**200 catches the defect by 33 points of margin in 3 seconds; 2,000 catches it
+by 84 points in 35.** Twelve times the cost to move a decisive measurement to a
+more decisive one, and to move the healthy reading by half a point. The
+2,000-tick endpoint is removed and the theory keeps 1 and 200.
+
+38 was **not** chosen despite being the cheapest endpoint that works. A
+1.1-point margin is a lock a later fixture change could silently unlatch, and
+the task's own instruction was that a cheaper endpoint which cannot detect the
+defect is worse than a slow one that can. The same reasoning applies a little
+above the threshold.
+
+What is genuinely lost is the assertion that the found fraction holds up after a
+full-length run. That loss is smaller than it looks: under the fix the map
+oscillates between exactly two configurations by tick parity, so 200 and 2,000
+are the *same configuration* and differ only in sample count. The full-length
+property has its own test —
+`ChangedCellRunOscillatesBetweenExactlyTwoConfigurationsAcross2000Ticks` reaches
+tick 2,002 in 82 milliseconds, because it uses one seeker and no replanning —
+and that test, not this one, is what proves the map does not drift.
+
+The temporary revert never entered a commit: `git diff` on `src/` was empty
+before the branch was committed, and the merged diff is one test file.
+
+#### Both gates, run after Batch A
+
+`./scripts/verify.ps1 -Game Sandata`, exit 0: `Sandata.Core.Tests` 1,106 of
+1,106 in 4.52 seconds, `Sandata.Client.Tests` 199 of 199 in 0.49 seconds, and
+the seed-1 workload reporting `stateHash` `BDD56EBD06F76674`, `eventHash`
+`7C1B37876769DEC7`, 70 and 64 survivors, `deterministic: true` — unchanged
+through both tasks.
+
+`./scripts/verify.ps1` with no flags, exit 0: `Hukbo.Core.Tests` 2,376 of 2,376,
+`Hukbo.Client.Tests` 3,270 of 3,270, and the 200-agent workload reporting
+`stateHash` `1B73FC5923879AA0`, `eventHash` `AC55684F24D39344`,
+`deterministic: true`.
+
+The suite-duration figures written into `CLAUDE.md`, `README.md`, and
+`docs/development/testing.md` earlier the same day were corrected in place
+rather than left standing, since task 91 invalidated all three within hours of
+task 54 recording them.

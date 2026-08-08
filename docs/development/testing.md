@@ -142,16 +142,26 @@ a red Hukbo one.
 
 ### Test suites, measured 2026-08-09
 
-| Suite | Tests | Warm run | Inside `verify.ps1 -Game Sandata` |
-| --- | --- | --- | --- |
-| `Sandata.Core.Tests` | 1,104 | 37.77 s | 1.08 min |
-| `Sandata.Client.Tests` | 199 | 0.49 s | 0.50 s |
+| Suite | Tests | Inside `verify.ps1 -Game Sandata` |
+| --- | --- | --- |
+| `Sandata.Core.Tests` | 1,106 | 4.52 s |
+| `Sandata.Client.Tests` | 199 | 0.49 s |
 
-Both columns are real and the difference between them is not noise. The warm
-figure is a repeat run with everything already built and cached; the gate figure
-is what the suite costs immediately after a full Release solution build, which
-is the number that matters when deciding what belongs in a gate. Quote the
-slower one.
+**These figures replace the ones recorded earlier the same day**, and the reason
+they moved is worth keeping. The core suite was 1,104 tests in 37.77 seconds
+warm and 1.08 minutes inside the gate. Thirty-six of those seconds were one
+`InlineData` value on one theory that ran the navigation benchmark for 2,000
+ticks; every other test in the project cost under 121 milliseconds. Task 91
+measured what that endpoint actually detected, found that a 200-tick endpoint
+detects the same defect by 33 points of margin instead of 84, and removed the
+2,000-tick case. Tasks 87 and 91 together moved the count from 1,104 to 1,106.
+
+The lesson generalises past this suite: **get per-test durations before
+reasoning about what a suite costs.** `dotnet test --logger
+'console;verbosity=normal'` prints a bracketed duration per test. Three sessions
+carried the belief that "seven benchmark test cases" were responsible and that
+they were "roughly half" the runtime; both halves of that were wrong, and one
+sorted list of durations settled it.
 
 For comparison, the canonical Hukbo gate run on the same machine and the same
 day reports `Hukbo.Core.Tests` at 2,376 tests in 29.49 s and
@@ -160,12 +170,10 @@ presentation tests runs in about two seconds because none of them constructs a
 graphics device or a window; Sandata's slowness is entirely the benchmark cases
 and not a presentation problem.
 
-Sandata's core suite is slow by this repository's standards, and the reason is
-recorded rather than absorbed: roughly half of that 38 seconds is spent in the
-seven test cases that run the navigation benchmark itself, one of which is a
-2,000-tick, 32-seeker, 2,048-world-unit row. Whether those cases belong in a
-gate at all, or belong beside `tools/` as hand-run measurement, is an open
-question and not a settled one.
+Whether the benchmark cases belong in the suite at all was settled by task 55:
+they stay. Task 91 then removed the one endpoint that made the question look
+expensive. What remains of the navigation benchmark inside the suite runs in
+about three seconds and locks a defect the same wave found and fixed.
 
 ### The seed-1 headless workload, measured 2026-08-09
 
