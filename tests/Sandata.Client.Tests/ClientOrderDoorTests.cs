@@ -58,7 +58,7 @@ public sealed class ClientOrderDoorTests
 
         var initialState = new MissionState(Tick: 0, Phase: 1, Winner: -1, NextEntityId: 1, NextEventSequence: 0);
 
-        return new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState);
+        return new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState, ImmutableArray<CoverRecord>.Empty);
     }
 
     /// <summary>
@@ -211,7 +211,7 @@ public sealed class ClientOrderDoorTests
                 new MissionFactionSetup(FactionId: 1, OperatorCount: spawns.Count(spawn => spawn.Faction == 1))),
             rulesetId: SandataPresetId.ModernTacticalV1);
         var initialState = BuildInitialStateFromSpawns(spawns);
-        var simulation = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState);
+        var simulation = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState, ImmutableArray<CoverRecord>.Empty);
 
         Assert.Equal(spawns.Length, simulation.State.Operators.Length);
     }

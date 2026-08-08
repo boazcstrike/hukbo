@@ -3,6 +3,7 @@ using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
 using Sandata.Core.Determinism;
 using Sandata.Core.Events;
+using Sandata.Core.Maps;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
@@ -75,7 +76,7 @@ public sealed class MissionEventFeedTests
     {
         var grid = BuildGrid();
         var wallBuckets = NoWalls(grid);
-        var sim = new SandataSimulation(BuildMission(), SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildEmptyState());
+        var sim = new SandataSimulation(BuildMission(), SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildEmptyState(), ImmutableArray<CoverRecord>.Empty);
 
         var (_, submitted, rejection) = SubmitAlwaysRejectedOrder(sim, targetTick: 5);
 
@@ -98,7 +99,7 @@ public sealed class MissionEventFeedTests
     {
         var grid = BuildGrid();
         var wallBuckets = NoWalls(grid);
-        var sim = new SandataSimulation(BuildMission(), SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildEmptyState());
+        var sim = new SandataSimulation(BuildMission(), SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildEmptyState(), ImmutableArray<CoverRecord>.Empty);
 
         const int totalSubmissions = 250;
         for (var i = 0; i < totalSubmissions; i++)
@@ -124,7 +125,7 @@ public sealed class MissionEventFeedTests
     {
         var grid = BuildGrid();
         var wallBuckets = NoWalls(grid);
-        var sim = new SandataSimulation(BuildMission(), SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildEmptyState());
+        var sim = new SandataSimulation(BuildMission(), SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildEmptyState(), ImmutableArray<CoverRecord>.Empty);
 
         const int totalSubmissions = 250;
         for (var i = 0; i < totalSubmissions; i++)
@@ -274,7 +275,7 @@ public sealed class MissionEventFeedTests
     {
         var grid = BuildGrid();
         var wallBuckets = NoWalls(grid);
-        var sim = new SandataSimulation(BuildMission(), SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildEmptyState());
+        var sim = new SandataSimulation(BuildMission(), SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildEmptyState(), ImmutableArray<CoverRecord>.Empty);
 
         for (var i = 0; i < 5; i++)
         {
@@ -301,8 +302,8 @@ public sealed class MissionEventFeedTests
         var gridB = BuildGrid();
         var wallBucketsB = NoWalls(gridB);
 
-        var simA = new SandataSimulation(BuildMission(), SandataRuleset.ModernTacticalV1, gridA, wallBucketsA, BuildEmptyState());
-        var simB = new SandataSimulation(BuildMission(), SandataRuleset.ModernTacticalV1, gridB, wallBucketsB, BuildEmptyState());
+        var simA = new SandataSimulation(BuildMission(), SandataRuleset.ModernTacticalV1, gridA, wallBucketsA, BuildEmptyState(), ImmutableArray<CoverRecord>.Empty);
+        var simB = new SandataSimulation(BuildMission(), SandataRuleset.ModernTacticalV1, gridB, wallBucketsB, BuildEmptyState(), ImmutableArray<CoverRecord>.Empty);
 
         for (var tick = 0; tick < 12; tick++)
         {

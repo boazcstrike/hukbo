@@ -269,6 +269,7 @@ internal sealed class SandataGame : Game
     private readonly ImmutableArray<WallRecord> _wallRecords;
     private readonly ImmutableArray<DoorRecord> _doorRecords;
     private readonly ImmutableArray<SpawnRecord> _spawnRecords;
+    private readonly ImmutableArray<CoverRecord> _coverRecords;
     private readonly ImmutableArray<WorldRenderer.DrawShape> _breachMarkerWorldShapes;
     private readonly SandataCamera _camera;
     private readonly SandataTheme _theme;
@@ -305,6 +306,7 @@ internal sealed class SandataGame : Game
         _wallRecords = FindWalls(_mapRecords);
         _doorRecords = FindDoors(_mapRecords);
         _spawnRecords = FindSpawns(_mapRecords);
+        _coverRecords = FindCovers(_mapRecords);
         _breachMarkerWorldShapes = BreachMarkerOverlay.CreateWorldShapes(_mapRecords);
 
         var operatorCount = 0;
@@ -370,7 +372,8 @@ internal sealed class SandataGame : Game
             rulesetId: SandataPresetId.ModernTacticalV1);
 
         var initialState = BuildInitialState(_spawnRecords);
-        _simulation = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, _navGrid, _wallBuckets, initialState);
+        _simulation = new SandataSimulation(
+            mission, SandataRuleset.ModernTacticalV1, _navGrid, _wallBuckets, initialState, _coverRecords);
 
         // Task 39 built SandataSoundPlayer and SandataSoundBudget but
         // deliberately left the MonoGame-backed ISandataSoundOutput to a
@@ -1398,6 +1401,28 @@ internal sealed class SandataGame : Game
             if (record is SpawnRecord spawn)
             {
                 builder.Add(spawn);
+            }
+        }
+
+        return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Task 79d-2b: the parsed <c>COVER</c> records this client's map carries,
+    /// in the same "filter <see cref="_mapRecords"/> once, at construction"
+    /// shape as <see cref="FindSpawns"/> — fed to <see cref="SandataSimulation"/>
+    /// so stage 12's damage resolution can look cover up from the real map
+    /// instead of the constant <see cref="CoverState.NotInCover"/> every shot
+    /// resolved against before this task.
+    /// </summary>
+    private static ImmutableArray<CoverRecord> FindCovers(ImmutableArray<MapRecord> records)
+    {
+        var builder = ImmutableArray.CreateBuilder<CoverRecord>();
+        foreach (var record in records)
+        {
+            if (record is CoverRecord cover)
+            {
+                builder.Add(cover);
             }
         }
 

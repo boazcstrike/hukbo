@@ -7,6 +7,7 @@ using Sandata.Core.Collision;
 using Sandata.Core.Combat;
 using Sandata.Core.Determinism;
 using Sandata.Core.Events;
+using Sandata.Core.Maps;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
@@ -150,7 +151,7 @@ public sealed class TickPipelineTests
         var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 0, positionYWu: 0);
         var state = BuildState(ImmutableArray.Create(op));
 
-        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         var pathNodes = ImmutableArray.Create(
             new OrderPathNode(0, 0),
@@ -279,8 +280,8 @@ public sealed class TickPipelineTests
             BuildOperator(3, faction: 0, positionXWu: 20, positionYWu: 0),
             BuildOperator(4, faction: 0, positionXWu: 0, positionYWu: 0));
 
-        var simA = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildState(leftToRight));
-        var simB = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildState(rightToLeft));
+        var simA = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildState(leftToRight), ImmutableArray<CoverRecord>.Empty);
+        var simB = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildState(rightToLeft), ImmutableArray<CoverRecord>.Empty);
 
         simA.RunTick(0);
         simB.RunTick(0);
@@ -541,8 +542,8 @@ public sealed class TickPipelineTests
             BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0, aimAngle: new Bam16(2548)),
             BuildOperator(2, faction: 1, positionXWu: 90, positionYWu: 0)));
 
-        var simA = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture());
-        var simB = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture());
+        var simA = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
+        var simB = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
 
         for (var tick = 0; tick < 20; tick++)
         {
@@ -598,7 +599,7 @@ public sealed class TickPipelineTests
             BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
             BuildOperator(2, faction: 0, positionXWu: 50, positionYWu: 0)));
 
-        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
         sim.RunTick(0);
 
         var proposalOne = sim.PendingMovementProposals.Single(p => p.EntityId == 1UL);
@@ -631,14 +632,14 @@ public sealed class TickPipelineTests
             BuildOperator(2, faction: 0, positionXWu: separationWu, positionYWu: 0)));
 
         var simAtRadius = new SandataSimulation(
-            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(96));
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(96), ImmutableArray<CoverRecord>.Empty);
         simAtRadius.RunTick(0);
         var atRadiusOne = simAtRadius.PendingMovementProposals.Single(p => p.EntityId == 1UL);
         var atRadiusTwo = simAtRadius.PendingMovementProposals.Single(p => p.EntityId == 2UL);
         Assert.Equal(atRadiusOne.GroupId, atRadiusTwo.GroupId);
 
         var simBeyondRadius = new SandataSimulation(
-            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(97));
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(97), ImmutableArray<CoverRecord>.Empty);
         simBeyondRadius.RunTick(0);
         var beyondOne = simBeyondRadius.PendingMovementProposals.Single(p => p.EntityId == 1UL);
         var beyondTwo = simBeyondRadius.PendingMovementProposals.Single(p => p.EntityId == 2UL);
@@ -668,7 +669,7 @@ public sealed class TickPipelineTests
             BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
             BuildOperator(2, faction: 1, positionXWu: 20, positionYWu: 0)));
 
-        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
         sim.RunTick(0);
 
         var proposalOne = sim.PendingMovementProposals.Single(p => p.EntityId == 1UL);
@@ -713,13 +714,13 @@ public sealed class TickPipelineTests
             loweredWallDistanceWu: 24,
             aimToleranceBam: 1024);
 
-        var simNarrow = new SandataSimulation(mission, rulesetNarrow, grid, wallBuckets, BuildFixture());
+        var simNarrow = new SandataSimulation(mission, rulesetNarrow, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simNarrow.RunTick(0);
         var narrowOne = simNarrow.PendingMovementProposals.Single(p => p.EntityId == 1UL);
         var narrowTwo = simNarrow.PendingMovementProposals.Single(p => p.EntityId == 2UL);
         Assert.NotEqual(narrowOne.GroupId, narrowTwo.GroupId);
 
-        var simWide = new SandataSimulation(mission, rulesetWide, grid, wallBuckets, BuildFixture());
+        var simWide = new SandataSimulation(mission, rulesetWide, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simWide.RunTick(0);
         var wideOne = simWide.PendingMovementProposals.Single(p => p.EntityId == 1UL);
         var wideTwo = simWide.PendingMovementProposals.Single(p => p.EntityId == 2UL);
@@ -758,7 +759,7 @@ public sealed class TickPipelineTests
             loweredWallDistanceWu: 24,
             aimToleranceBam: 1024);
 
-        var sim = new SandataSimulation(mission, rulesetWideCohesion, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, rulesetWideCohesion, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
         sim.RunTick(0);
 
         var proposalOne = sim.PendingMovementProposals.Single(p => p.EntityId == 1UL);
@@ -821,8 +822,8 @@ public sealed class TickPipelineTests
             BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
             BuildOperator(2, faction: 1, positionXWu: 90, positionYWu: 0)));
 
-        var simLow = new SandataSimulation(mission, rulesetLow, grid, wallBuckets, BuildFixture());
-        var simHigh = new SandataSimulation(mission, rulesetHigh, grid, wallBuckets, BuildFixture());
+        var simLow = new SandataSimulation(mission, rulesetLow, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
+        var simHigh = new SandataSimulation(mission, rulesetHigh, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
 
         for (var tick = 0; tick < 5; tick++)
         {
@@ -878,13 +879,13 @@ public sealed class TickPipelineTests
             loweredWallDistanceWu: 7,
             aimToleranceBam: 1024);
 
-        var simInclusive = new SandataSimulation(mission, rulesetInclusive, grid, wallBuckets, BuildFixture());
+        var simInclusive = new SandataSimulation(mission, rulesetInclusive, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simInclusive.RunTick(0);
         var forcedOperator = Assert.Single(simInclusive.State.Operators);
         Assert.Equal((int)WeaponChainPhase.Lowered, forcedOperator.WeaponChainPhase);
         Assert.Equal(0, forcedOperator.WeaponChainRemainingTicks);
 
-        var simJustOutside = new SandataSimulation(mission, rulesetJustOutside, grid, wallBuckets, BuildFixture());
+        var simJustOutside = new SandataSimulation(mission, rulesetJustOutside, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simJustOutside.RunTick(0);
         var raisingOperator = Assert.Single(simJustOutside.State.Operators);
         Assert.Equal((int)WeaponChainPhase.Raising, raisingOperator.WeaponChainPhase);
@@ -944,12 +945,12 @@ public sealed class TickPipelineTests
             loweredWallDistanceWu: 24,
             aimToleranceBam: 400);
 
-        var simWide = new SandataSimulation(mission, rulesetWide, grid, wallBuckets, BuildFixture());
+        var simWide = new SandataSimulation(mission, rulesetWide, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simWide.RunTick(0);
         var completedOperator = simWide.State.Operators.Single(op => op.EntityId == 1UL);
         Assert.Equal((int)WeaponChainPhase.Aiming, completedOperator.WeaponChainPhase);
 
-        var simNarrow = new SandataSimulation(mission, rulesetNarrow, grid, wallBuckets, BuildFixture());
+        var simNarrow = new SandataSimulation(mission, rulesetNarrow, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simNarrow.RunTick(0);
         var stillTurningOperator = simNarrow.State.Operators.Single(op => op.EntityId == 1UL);
         Assert.Equal((int)WeaponChainPhase.Turning, stillTurningOperator.WeaponChainPhase);
@@ -1003,11 +1004,11 @@ public sealed class TickPipelineTests
             BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0) with { Firearm = firearm },
             BuildOperator(2, faction: 1, positionXWu: 90, positionYWu: 0)));
 
-        var simRifle = new SandataSimulation(mission, ruleset, grid, wallBuckets, BuildFixture(FirearmId.Ak47));
+        var simRifle = new SandataSimulation(mission, ruleset, grid, wallBuckets, BuildFixture(FirearmId.Ak47), ImmutableArray<CoverRecord>.Empty);
         simRifle.RunTick(0);
         var rifleOperator = simRifle.State.Operators.Single(op => op.EntityId == 1UL);
 
-        var simPistol = new SandataSimulation(mission, ruleset, grid, wallBuckets, BuildFixture(FirearmId.Beretta92Fs));
+        var simPistol = new SandataSimulation(mission, ruleset, grid, wallBuckets, BuildFixture(FirearmId.Beretta92Fs), ImmutableArray<CoverRecord>.Empty);
         simPistol.RunTick(0);
         var pistolOperator = simPistol.State.Operators.Single(op => op.EntityId == 1UL);
 
@@ -1065,9 +1066,9 @@ public sealed class TickPipelineTests
             nextOrderId: 1, nextOrderSequence: 1, ImmutableArray<Order>.Empty);
 
         var simResumed = new SandataSimulation(
-            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(resumedQueue));
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(resumedQueue), ImmutableArray<CoverRecord>.Empty);
         var simFresh = new SandataSimulation(
-            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(OrderQueue.Empty));
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(OrderQueue.Empty), ImmutableArray<CoverRecord>.Empty);
 
         for (var tick = 0; tick < 5; tick++)
         {
@@ -1147,7 +1148,7 @@ public sealed class TickPipelineTests
             RequestTick: 0);
         var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
 
-        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         for (var tick = 0; tick < pathLatencyTicks; tick++)
         {
@@ -1274,7 +1275,7 @@ public sealed class TickPipelineTests
             RequestTick: 0);
         var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
 
-        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         // Request tick: path not yet published, so stage 9 still holds.
         sim.RunTick(0);
@@ -1367,7 +1368,7 @@ public sealed class TickPipelineTests
         var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 0, positionYWu: 0);
         var state = BuildState(ImmutableArray.Create(op));
 
-        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         // Two far nodes, neither at the spawn point: an authored path needs
         // at least two nodes (Order.MaxAuthoredPathNodeCount's own lower
@@ -1456,7 +1457,7 @@ public sealed class TickPipelineTests
             RequestTick: 0);
         var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
 
-        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         var movementSpeedRaw = (80L * FixedPoint.Scale) / ruleset.TickRate;
 
@@ -1542,7 +1543,7 @@ public sealed class TickPipelineTests
             with
         { Groups = ImmutableArray.Create(groupState) };
 
-        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         var movementSpeedRaw = (80L * FixedPoint.Scale) / ruleset.TickRate;
 
@@ -1690,7 +1691,7 @@ public sealed class TickPipelineTests
             Groups = ImmutableArray.Create(groupState),
         };
 
-        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         sim.RunTick(0);
         sim.RunTick(pathLatencyTicks);
@@ -1958,7 +1959,8 @@ public sealed class TickPipelineTests
         var target = BuildOperator(entityId: 100_000, faction: 1, positionXWu: 90, positionYWu: 0);
         var state = BuildState(ImmutableArray.Create(shooter, target));
 
-        return new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        return new SandataSimulation(
+            mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
     }
 
     /// <summary>
@@ -2070,7 +2072,12 @@ public sealed class TickPipelineTests
     /// ready/turn/aim sequence.
     /// </para>
     /// </summary>
-    private static SandataSimulation BuildRangedFiringFixture(FirearmId firearm, int rangeWu, int shooterEntityId)
+    private static SandataSimulation BuildRangedFiringFixture(
+        FirearmId firearm,
+        int rangeWu,
+        int shooterEntityId,
+        ImmutableArray<CoverRecord> coverRecords = default,
+        bool targetIsCrouched = false)
     {
         var gridWidthCells = (rangeWu / NavGrid.CellSizeWu) + 8;
         var grid = BuildGrid(width: gridWidthCells, height: 8);
@@ -2090,10 +2097,15 @@ public sealed class TickPipelineTests
                 LastSeenTick: 0)),
         };
         var target = BuildOperator(
-            entityId: RangedFixtureTargetEntityId, faction: 1, positionXWu: 0, positionYWu: 0);
+            entityId: RangedFixtureTargetEntityId, faction: 1, positionXWu: 0, positionYWu: 0) with
+        {
+            IsCrouched = targetIsCrouched,
+        };
         var state = BuildState(ImmutableArray.Create(shooter, target));
 
-        return new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        return new SandataSimulation(
+            mission, ruleset, grid, wallBuckets, state,
+            coverRecords.IsDefault ? ImmutableArray<CoverRecord>.Empty : coverRecords);
     }
 
     /// <summary>
@@ -2141,4 +2153,162 @@ public sealed class TickPipelineTests
         Assert.DoesNotContain(
             grid.Pairs, pair => pair.LowEntityId == 1 || pair.HighEntityId == 2);
     }
+
+    /// <summary>
+    /// Task 79d-2b: the damage a hit deals is keyed on the shooter's own
+    /// <see cref="FirearmDefinition.Caliber"/>, so two shooters whose
+    /// firearms belong to different caliber families deal different damage
+    /// on an otherwise identical hit. Everything else about the two fixtures
+    /// is the same — the same range, the same geometry, the same shooter
+    /// entity id and therefore the same <c>Accuracy</c> draw, the same
+    /// target — so the loadout is the only variable, which is what makes
+    /// this a test of the caliber table rather than of the geometry. Before
+    /// this task every hit dealt one flat constant regardless of loadout,
+    /// and this test could not have distinguished the two.
+    /// </summary>
+    /// <remarks>
+    /// The two expected health values are computed from
+    /// <see cref="CaliberDamage.RawDamage"/> itself rather than written as
+    /// literals, so the test follows the table if a future tuning pass moves
+    /// it, and still fails if stage 12 stops reading the table at all. What
+    /// is pinned as a literal is the relation the table's own remarks
+    /// promise: 7.62x39 does strictly more damage than 5.56x45. Both
+    /// shooters are rifles at 100 world units, inside
+    /// <see cref="ContactMemory.DetectRangeWu"/>, where
+    /// <see cref="SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange"/>
+    /// establishes that a rifle cannot miss, so both shots land and the only
+    /// difference reaching the target's health is the caliber.
+    /// </remarks>
+    [Fact]
+    public void RunTick_TwoShootersOfDifferentCaliberFamilies_DealDifferentDamageOnAnIdenticalHit()
+    {
+        var softerCaliberDamage = CaliberDamage.RawDamage(CaliberFamily.Cal556X45);
+        var harderCaliberDamage = CaliberDamage.RawDamage(CaliberFamily.Cal762X39);
+
+        Assert.True(
+            harderCaliberDamage > softerCaliberDamage,
+            "the caliber table's own remarks promise 7.62x39 above 5.56x45");
+
+        var harderSim = BuildRangedFiringFixture(FirearmId.Ak47, rangeWu: 100, shooterEntityId: 25);
+        var softerSim = BuildRangedFiringFixture(FirearmId.M4, rangeWu: 100, shooterEntityId: 25);
+
+        var fullHealth = harderSim.State.Operators
+            .Single(o => o.EntityId == RangedFixtureTargetEntityId).Health;
+
+        harderSim.RunTick(0);
+        softerSim.RunTick(0);
+
+        var harderTarget = harderSim.State.Operators.Single(o => o.EntityId == RangedFixtureTargetEntityId);
+        var softerTarget = softerSim.State.Operators.Single(o => o.EntityId == RangedFixtureTargetEntityId);
+
+        Assert.Equal(fullHealth - harderCaliberDamage, harderTarget.Health);
+        Assert.Equal(fullHealth - softerCaliberDamage, softerTarget.Health);
+    }
+
+    /// <summary>
+    /// Task 79d-2b: a target standing inside a cover record's protected arc
+    /// takes the cover-modified damage, and a target inside the same
+    /// rectangle but with the shot arriving from outside the arc takes the
+    /// unmodified value — design section 9's flank-and-rear bypass, reached
+    /// through <see cref="SandataSimulation.RunTick"/> rather than by calling
+    /// <see cref="CoverRules"/> directly, which is the whole point: before
+    /// this task the map's `COVER` records never reached the simulation at
+    /// all and stage 12 resolved every shot against
+    /// <see cref="CoverState.NotInCover"/>.
+    /// </summary>
+    /// <remarks>
+    /// Both fixtures place the same cover rectangle over the target's
+    /// position and differ only in the record's arc. The protecting record
+    /// uses an <c>ArcHalfBam</c> of 32,768, which
+    /// <see cref="Sandata.Core.Maps.CoverRecord"/>'s own documentation
+    /// defines as covering "from every direction", so it protects whatever
+    /// bearing the shooter occupies without this test having to encode a
+    /// bearing convention. The bypassing record uses a half-width of one BAM
+    /// centred on 16,384, a quarter turn away from either bearing a shooter
+    /// due east of the target can occupy under any convention, so the shot
+    /// arrives from outside the arc no matter how the cone measures its
+    /// angles. The expected damage values come from
+    /// <see cref="CaliberDamage.RawDamage"/> and
+    /// <see cref="CoverRules.ApplyPercentageReduction"/>'s stated arithmetic
+    /// rather than from a run.
+    /// </remarks>
+    [Fact]
+    public void RunTick_TargetInsideACoverArc_TakesReducedDamageWhileAFlankingShotIgnoresTheCover()
+    {
+        var rawDamage = CaliberDamage.RawDamage(CaliberFamily.Cal762X39);
+
+        var protectingCover = ImmutableArray.Create(new CoverRecord(
+            LineNumber: 1, MinX: 0, MinY: 0, MaxX: 8, MaxY: 8,
+            ArcCentreBam: 0, ArcHalfBam: 32768, Height: 1));
+        var bypassedCover = ImmutableArray.Create(new CoverRecord(
+            LineNumber: 1, MinX: 0, MinY: 0, MaxX: 8, MaxY: 8,
+            ArcCentreBam: 16384, ArcHalfBam: 1, Height: 1));
+
+        var coveredSim = BuildRangedFiringFixture(
+            FirearmId.Ak47, rangeWu: 100, shooterEntityId: 25, coverRecords: protectingCover);
+        var flankedSim = BuildRangedFiringFixture(
+            FirearmId.Ak47, rangeWu: 100, shooterEntityId: 25, coverRecords: bypassedCover);
+
+        var fullHealth = coveredSim.State.Operators
+            .Single(o => o.EntityId == RangedFixtureTargetEntityId).Health;
+
+        coveredSim.RunTick(0);
+        flankedSim.RunTick(0);
+
+        var coveredTarget = coveredSim.State.Operators.Single(o => o.EntityId == RangedFixtureTargetEntityId);
+        var flankedTarget = flankedSim.State.Operators.Single(o => o.EntityId == RangedFixtureTargetEntityId);
+
+        // Standing in cover: the raw damage loses
+        // CoverRules.StandingCoverReductionPercent, truncating toward zero.
+        var expectedCoveredDamage =
+            (rawDamage * (100 - CoverRules.StandingCoverReductionPercent)) / 100;
+
+        Assert.Equal(fullHealth - expectedCoveredDamage, coveredTarget.Health);
+        Assert.Equal(fullHealth - rawDamage, flankedTarget.Health);
+        Assert.True(
+            coveredTarget.Health > flankedTarget.Health,
+            "cover inside its own arc must leave the target better off than a flanking shot");
+    }
+
+    /// <summary>
+    /// Task 79d-2b: the posture <see cref="SandataSimulation"/> passes into
+    /// the target's <see cref="CoverState"/> comes from that operator's own
+    /// <see cref="OperatorState.IsCrouched"/> flag, so a crouched target in
+    /// the same cover takes
+    /// <see cref="CoverRules.CrouchedCoverReductionPercent"/> rather than
+    /// <see cref="CoverRules.StandingCoverReductionPercent"/>. Without this
+    /// the posture half of the cover lookup could be hardcoded to standing
+    /// and every other cover assertion in this file would still pass.
+    /// </summary>
+    [Fact]
+    public void RunTick_CrouchedTargetInCover_TakesTheCrouchedReductionRatherThanTheStandingOne()
+    {
+        var rawDamage = CaliberDamage.RawDamage(CaliberFamily.Cal762X39);
+
+        var cover = ImmutableArray.Create(new CoverRecord(
+            LineNumber: 1, MinX: 0, MinY: 0, MaxX: 8, MaxY: 8,
+            ArcCentreBam: 0, ArcHalfBam: 32768, Height: 1));
+
+        var crouchedSim = BuildRangedFiringFixture(
+            FirearmId.Ak47, rangeWu: 100, shooterEntityId: 25,
+            coverRecords: cover, targetIsCrouched: true);
+
+        var fullHealth = crouchedSim.State.Operators
+            .Single(o => o.EntityId == RangedFixtureTargetEntityId).Health;
+
+        crouchedSim.RunTick(0);
+
+        var crouchedTarget = crouchedSim.State.Operators.Single(o => o.EntityId == RangedFixtureTargetEntityId);
+
+        var expectedCrouchedDamage =
+            (rawDamage * (100 - CoverRules.CrouchedCoverReductionPercent)) / 100;
+        var expectedStandingDamage =
+            (rawDamage * (100 - CoverRules.StandingCoverReductionPercent)) / 100;
+
+        Assert.Equal(fullHealth - expectedCrouchedDamage, crouchedTarget.Health);
+        Assert.True(
+            expectedCrouchedDamage < expectedStandingDamage,
+            "the crouched reduction must be the stronger of the two for this test to mean anything");
+    }
+
 }
