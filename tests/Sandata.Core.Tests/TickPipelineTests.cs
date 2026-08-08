@@ -1388,11 +1388,22 @@ public sealed class TickPipelineTests
     /// for every reachable id by
     /// <see cref="SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange"/>
     /// below. See the task-86 report for the full derivation.
+    /// <para>
+    /// The name says "while stage 12 hardcodes the rifle" because that is
+    /// the load-bearing precondition, not a detail.
+    /// <c>SandataSimulation.ProposeFire</c> resolves its
+    /// <see cref="FirearmDefinition"/> from the private
+    /// <c>DefaultFirearmId</c> once, outside the per-shooter loop, so every
+    /// shot in this game currently uses AK-47 dispersion no matter what
+    /// <see cref="OperatorState.Firearm"/> says. Task 79d-2 is the row that
+    /// changes that, and it is the row that has to revisit this test.
+    /// </para>
     /// </summary>
     [Theory]
     [InlineData(2)]
     [InlineData(25)]
-    public void RunTick_SameGeometryAnyShooterEntityId_AlwaysHits(int shooterEntityId)
+    public void RunTick_SameGeometryAnyShooterEntityId_AlwaysHitsWhileStage12HardcodesTheRifle(
+        int shooterEntityId)
     {
         var sim = BuildFiringFixture(shooterEntityId);
 
@@ -1443,6 +1454,26 @@ public sealed class TickPipelineTests
     /// <c>CollisionBodyRadiusRaw</c>, the AK-47's dispersion constants, or
     /// <c>DetectRangeWu</c> ever reopens a reachable miss, this test fails
     /// and the removed <c>RunTick</c>-level miss coverage must return.
+    /// <para>
+    /// Two separate things block a reachable miss today and only one of them
+    /// is geometric. The first is the crossover above. The second is that
+    /// <c>ProposeFire</c> resolves its <see cref="FirearmDefinition"/> from
+    /// the private <c>DefaultFirearmId</c> rather than from the shooter's
+    /// <see cref="OperatorState.Firearm"/>, so the rifle's dispersion curve
+    /// is the only one any shot can use — a pistol loadout changes nothing
+    /// in stage 12. That matters because the pistol's curve is far wider:
+    /// <c>PistolDispersionAtZeroWu</c> 64 and <c>PistolDispersionAtMaxWu</c>
+    /// 512 over a <c>PistolMaxEffectiveWu</c> of 320 put its crossover at
+    /// roughly 157 wu, comfortably inside
+    /// <see cref="ContactMemory.DetectRangeWu"/> and inside
+    /// <c>PistolSingleBandMaxWu</c> 320. <b>The miss path therefore becomes
+    /// reachable the moment task 79d-2 wires the loadout into stage 12</b>,
+    /// and restoring a <c>RunTick</c>-level miss test with a pistol shooter
+    /// at a range between roughly 160 and 256 wu is an obligation on that
+    /// row. Until then <c>EmitShotMissedEvent</c> is a production path no
+    /// test executes, which is recorded here rather than left to be
+    /// discovered.
+    /// </para>
     /// </summary>
     [Fact]
     public void SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange()
