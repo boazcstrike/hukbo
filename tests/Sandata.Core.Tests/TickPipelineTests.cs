@@ -1110,4 +1110,202 @@ public sealed class TickPipelineTests
         var laterIntent = Assert.Single(sim.PendingIntents);
         Assert.Equal(OperatorIntent.Advance, laterIntent.Intent);
     }
+
+    // ---- 8. STAGE 9, AUTONOMOUS BRANCH -------------------------------------
+
+    /// <summary>
+    /// Task 79b (second pass, after coordinator rejection): closes the gap
+    /// task 79a opened — an unassigned operator (no <see
+    /// cref="OrderAssignment"/>) whose group now has a published path (<see
+    /// cref="RunTick_OutstandingGroupPathRequest_PublishesAtExactlyRequestTickPlusLatencyAndIsNotReissued"/>
+    /// proves that publish transition on its own) must actually walk along
+    /// that path, not toward the path's own end. The rejected first pass
+    /// used a straight spawn-to-goal path, on which "walk toward the
+    /// polyline" and "walk toward the goal" are the same motion and so
+    /// could not tell <c>leaderArclength</c>'s two candidate values apart;
+    /// this fixture instead forces a genuinely bent, multi-vertex smoothed
+    /// polyline — a non-axis-aligned start/goal cell pair (so raw A* zigzags
+    /// rather than reducing to one segment) plus a real <see
+    /// cref="WallBuckets"/> wall segment placed to block the funnel
+    /// smoother's line-of-sight shortcut back to a straight line — so the
+    /// two candidates diverge sharply on the very first tick after publish.
+    /// Reached only through <see cref="SandataSimulation.RunTick"/>,
+    /// observed only through the committed <see
+    /// cref="SandataSimulation.State"/> position — never
+    /// <c>ComputeMovementProposals</c> directly.
+    /// </summary>
+    /// <remarks>
+    /// With cell size 4 (<see cref="NavGrid.CellSizeWu"/>), start cell
+    /// (0, 0) and goal cell (6, 3) sit at world-unit centres (2, 2) and
+    /// (26, 14); a wall segment running the full grid height at x = 14
+    /// forces the funnel-smoothed path through the vertices (2, 2),
+    /// (10, 10), (14, 14), (18, 14), (26, 14) instead of a straight line
+    /// (confirmed empirically against the real <see
+    /// cref="Sandata.Core.Navigation.PathService"/> output before this test
+    /// was written). <see cref="Movement.LocalAvoidance.Commit"/> moves an
+    /// unblocked proposal straight to its desired point every tick, with no
+    /// speed cap of its own, so the very first published tick's committed
+    /// position <i>is</i> that tick's <c>ComputeMovementProposals</c>
+    /// target. If <c>leaderArclength</c> were pinned to
+    /// <see cref="PolylineArclength.TotalLength"/> (the rejected value),
+    /// that target would be the polyline's final vertex — the goal itself,
+    /// raw (26,624, 14,336) — on this very first tick, regardless of the
+    /// operator's own position. This test's first assertion, raw
+    /// (7,168, 7,168), is a point on the first segment toward (10, 10), far
+    /// short of the goal and off the straight spawn-to-goal line entirely;
+    /// it fails under the rejected pinned value, and passes only when
+    /// <c>leaderArclength</c> is genuinely derived from the leader's own
+    /// projected position. This was confirmed directly: temporarily pinning
+    /// <c>leaderArclength</c> back to <c>arclength.TotalLength</c> and
+    /// rerunning this fixture's own tick sequence made every tick from the
+    /// first published one onward land on raw (26,624, 14,336) — an instant
+    /// jump straight to the goal — before the pin was reverted.
+    /// </remarks>
+    [Fact]
+    public void RunTick_UnassignedOperatorInGroupWithPublishedPath_FollowsTheBentPolylineNotTheGoal()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = WallBuckets.Build(grid, [14L], [-100L], [14L], [100L]);
+        var mission = BuildMission();
+
+        var startCell = grid.CellIndex(0, 0);
+        var goalCell = grid.CellIndex(6, 3);
+
+        const int pathLatencyTicks = 1;
+        var ruleset = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: pathLatencyTicks,
+            groupCohesionRadiusWu: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        // Spawns on the path's own start vertex (2, 2) — the world-unit
+        // centre of cell (0, 0) — so the very first projection has a known,
+        // exact starting arclength of zero.
+        var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 2, positionYWu: 2);
+        var groupState = new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: goalCell,
+            HasOutstandingRequest: true,
+            StartCellIndex: startCell,
+            GoalCellIndex: goalCell,
+            RequestTick: 0);
+        var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
+
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+
+        // Request tick: path not yet published, so stage 9 still holds.
+        sim.RunTick(0);
+        var stillAtSpawn = Assert.Single(sim.State.Operators);
+        Assert.Equal(2 * FixedPoint.Scale, stillAtSpawn.PositionX.RawValue);
+        Assert.Equal(2 * FixedPoint.Scale, stillAtSpawn.PositionY.RawValue);
+
+        // Publish tick: stage 7 publishes the path before stage 9 runs, so
+        // this same tick's proposal already targets a point on it. Exact
+        // raw (7,168, 7,168) — see remarks above for why this value, and
+        // not the goal, is what a correct projection-based leaderArclength
+        // produces here.
+        sim.RunTick(pathLatencyTicks);
+        var afterFirstMove = Assert.Single(sim.State.Operators);
+        Assert.Equal(7 * FixedPoint.Scale, afterFirstMove.PositionX.RawValue);
+        Assert.Equal(7 * FixedPoint.Scale, afterFirstMove.PositionY.RawValue);
+
+        // Two ticks further on (each RunTick call performs exactly one
+        // movement step, so the intermediate tick must actually be run, not
+        // skipped over), the leader has walked past the polyline's (14, 14)
+        // corner and onto the final, horizontal segment toward the goal —
+        // Y pinned at 14 while X still trails the goal's 26. A straight
+        // spawn-to-goal beeline would read Y = 10 (not 14) at X = 19 (slope
+        // 12/24 from (2, 2) to (26, 14)); landing on the corridor's own Y
+        // instead is this fixture's second, independent confirmation that
+        // motion follows the polyline's actual shape.
+        sim.RunTick(pathLatencyTicks + 1);
+        sim.RunTick(pathLatencyTicks + 2);
+        var afterCorner = Assert.Single(sim.State.Operators);
+        Assert.Equal(19 * FixedPoint.Scale, afterCorner.PositionX.RawValue);
+        Assert.Equal(14 * FixedPoint.Scale, afterCorner.PositionY.RawValue);
+    }
+
+    /// <summary>
+    /// Task 79b: a group whose leader's actual position sits in a real
+    /// one-cell-wide corridor — <see cref="NavGrid.Passability"/> is baked
+    /// with the corridor's flanking rows blocked, so the clearance field
+    /// this fixture's <see cref="SandataSimulation"/> instance bakes in its
+    /// own constructor genuinely drops below the production
+    /// <c>FormationHalfWidthWu</c> (6 world units: a leader clearance of 10
+    /// chamfer units converts to 4 world units, strictly under 6) at the
+    /// leader's own cell — not a fixture that reaches the collapsed
+    /// assertion without an actual clearance drop. The follower's lateral
+    /// offset (nonzero, design section 8's arclength formula, when
+    /// expanded) must therefore land on zero.
+    /// </summary>
+    [Fact]
+    public void RunTick_GroupLeaderInNarrowCorridor_CollapsesFollowerLateralOffsetToZero()
+    {
+        var grid = BuildGrid();
+
+        // A one-cell-wide corridor along row y = 5, columns x = 0 through 9:
+        // both flanking rows blocked across the same span, so every corridor
+        // cell in that span sits exactly one orthogonal chamfer step (10)
+        // from the nearest blocked cell — the pinned collapsing value
+        // FormationCollapseTests already exercises for the same
+        // FormationHalfWidthWu-scale threshold.
+        for (var x = 0; x < 10; x++)
+        {
+            grid.Passability[grid.CellIndex(x, 4)] = NavCellFlags.Blocked;
+            grid.Passability[grid.CellIndex(x, 6)] = NavCellFlags.Blocked;
+        }
+
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var startCell = grid.CellIndex(0, 5);
+        var goalCell = grid.CellIndex(9, 5);
+
+        const int pathLatencyTicks = 1;
+        var ruleset = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: pathLatencyTicks,
+            groupCohesionRadiusWu: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        // Leader (entity 1, lowest id) sits at the corridor cell's own
+        // centre, (10, 22) world units — cell (2, 5) — well inside the
+        // blocked-flank span above. The follower (entity 2) stands right
+        // beside it, inside the same cohesion radius, so both derive into
+        // one group with entity 1 as leader and slot 0, entity 2 as slot 1.
+        var leader = BuildOperator(entityId: 1, faction: 0, positionXWu: 10, positionYWu: 22);
+        var follower = BuildOperator(entityId: 2, faction: 0, positionXWu: 12, positionYWu: 22);
+
+        var groupState = new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: goalCell,
+            HasOutstandingRequest: true,
+            StartCellIndex: startCell,
+            GoalCellIndex: goalCell,
+            RequestTick: 0);
+        var state = BuildState(ImmutableArray.Create(leader, follower)) with
+        {
+            Groups = ImmutableArray.Create(groupState),
+        };
+
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+
+        sim.RunTick(0);
+        sim.RunTick(pathLatencyTicks);
+
+        var followerProposal = Assert.Single(
+            sim.PendingMovementProposals.Where(p => p.EntityId == 2));
+
+        // The published path is a straight horizontal segment at Y = 22
+        // world units (cell row 5's own centre) end to end, so its local
+        // direction is purely along X; any nonzero lateral offset would
+        // move the follower's target off that exact Y. Landing back on it
+        // is what "every slot's lateral offset is zero" means here.
+        const int corridorCentreYRaw = 22 * FixedPoint.Scale;
+        Assert.Equal(corridorCentreYRaw, followerProposal.DesiredYRaw);
+    }
 }
