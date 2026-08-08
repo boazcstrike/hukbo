@@ -1110,4 +1110,159 @@ public sealed class TickPipelineTests
         var laterIntent = Assert.Single(sim.PendingIntents);
         Assert.Equal(OperatorIntent.Advance, laterIntent.Intent);
     }
+
+    // ---- 8. STAGE 9, AUTONOMOUS BRANCH -------------------------------------
+
+    /// <summary>
+    /// Task 79b: closes the gap task 79a opened — an unassigned operator (no
+    /// <see cref="OrderAssignment"/>) whose group now has a published path
+    /// (<see cref="RunTick_OutstandingGroupPathRequest_PublishesAtExactlyRequestTickPlusLatencyAndIsNotReissued"/>
+    /// proves that publish transition on its own) must actually walk along
+    /// that path rather than hold at its spawn position forever. Reached
+    /// only through <see cref="SandataSimulation.RunTick"/>, observed only
+    /// through the committed <see cref="SandataSimulation.State"/> position —
+    /// never <c>ComputeMovementProposals</c> directly.
+    /// </summary>
+    [Fact]
+    public void RunTick_UnassignedOperatorInGroupWithPublishedPath_MovesMeasurablyAlongThePolyline()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var startCell = grid.CellIndex(0, 0);
+        var goalCell = grid.CellIndex(5, 0);
+
+        const int pathLatencyTicks = 3;
+        var ruleset = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: pathLatencyTicks,
+            groupCohesionRadiusWu: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 0, positionYWu: 0);
+        var groupState = new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: goalCell,
+            HasOutstandingRequest: true,
+            StartCellIndex: startCell,
+            GoalCellIndex: goalCell,
+            RequestTick: 0);
+        var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
+
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+
+        for (var tick = 0; tick < pathLatencyTicks; tick++)
+        {
+            sim.RunTick(tick);
+
+            var stillAtSpawn = Assert.Single(sim.State.Operators);
+            Assert.Equal(0, stillAtSpawn.PositionX.RawValue);
+            Assert.Equal(0, stillAtSpawn.PositionY.RawValue);
+        }
+
+        // Publish tick: stage 7 publishes the path before stage 9 runs, so
+        // the very same tick's movement proposal already targets a point on
+        // it — this method's whole point is that stage 9 no longer holds
+        // once a path exists.
+        sim.RunTick(pathLatencyTicks);
+
+        var moved = Assert.Single(sim.State.Operators);
+
+        // Solo operator: its own group's published path runs from cell
+        // (0, 0) to cell (5, 0) over an all-open grid, so the smoothed
+        // polyline heads strictly toward +X. A one-cell nudge (one
+        // FixedPoint.Scale-quarter) would not distinguish "moved" from
+        // "rounded"; requiring at least half a cell (2 world units, raw
+        // 2,048) is what "measurably further along the polyline, not merely
+        // different" means here.
+        const int halfCellRaw = (NavGrid.CellSizeWu / 2) * FixedPoint.Scale;
+        Assert.True(
+            moved.PositionX.RawValue >= halfCellRaw,
+            $"expected the operator to have advanced at least half a cell toward the published path's goal; actual raw X was {moved.PositionX.RawValue}");
+    }
+
+    /// <summary>
+    /// Task 79b: a group whose leader's actual position sits in a real
+    /// one-cell-wide corridor — <see cref="NavGrid.Passability"/> is baked
+    /// with the corridor's flanking rows blocked, so the clearance field
+    /// this fixture's <see cref="SandataSimulation"/> instance bakes in its
+    /// own constructor genuinely drops below the production
+    /// <c>FormationHalfWidthWu</c> (6 world units: a leader clearance of 10
+    /// chamfer units converts to 4 world units, strictly under 6) at the
+    /// leader's own cell — not a fixture that reaches the collapsed
+    /// assertion without an actual clearance drop. The follower's lateral
+    /// offset (nonzero, design section 8's arclength formula, when
+    /// expanded) must therefore land on zero.
+    /// </summary>
+    [Fact]
+    public void RunTick_GroupLeaderInNarrowCorridor_CollapsesFollowerLateralOffsetToZero()
+    {
+        var grid = BuildGrid();
+
+        // A one-cell-wide corridor along row y = 5, columns x = 0 through 9:
+        // both flanking rows blocked across the same span, so every corridor
+        // cell in that span sits exactly one orthogonal chamfer step (10)
+        // from the nearest blocked cell — the pinned collapsing value
+        // FormationCollapseTests already exercises for the same
+        // FormationHalfWidthWu-scale threshold.
+        for (var x = 0; x < 10; x++)
+        {
+            grid.Passability[grid.CellIndex(x, 4)] = NavCellFlags.Blocked;
+            grid.Passability[grid.CellIndex(x, 6)] = NavCellFlags.Blocked;
+        }
+
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var startCell = grid.CellIndex(0, 5);
+        var goalCell = grid.CellIndex(9, 5);
+
+        const int pathLatencyTicks = 1;
+        var ruleset = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: pathLatencyTicks,
+            groupCohesionRadiusWu: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        // Leader (entity 1, lowest id) sits at the corridor cell's own
+        // centre, (10, 22) world units — cell (2, 5) — well inside the
+        // blocked-flank span above. The follower (entity 2) stands right
+        // beside it, inside the same cohesion radius, so both derive into
+        // one group with entity 1 as leader and slot 0, entity 2 as slot 1.
+        var leader = BuildOperator(entityId: 1, faction: 0, positionXWu: 10, positionYWu: 22);
+        var follower = BuildOperator(entityId: 2, faction: 0, positionXWu: 12, positionYWu: 22);
+
+        var groupState = new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: goalCell,
+            HasOutstandingRequest: true,
+            StartCellIndex: startCell,
+            GoalCellIndex: goalCell,
+            RequestTick: 0);
+        var state = BuildState(ImmutableArray.Create(leader, follower)) with
+        {
+            Groups = ImmutableArray.Create(groupState),
+        };
+
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+
+        sim.RunTick(0);
+        sim.RunTick(pathLatencyTicks);
+
+        var followerProposal = Assert.Single(
+            sim.PendingMovementProposals.Where(p => p.EntityId == 2));
+
+        // The published path is a straight horizontal segment at Y = 22
+        // world units (cell row 5's own centre) end to end, so its local
+        // direction is purely along X; any nonzero lateral offset would
+        // move the follower's target off that exact Y. Landing back on it
+        // is what "every slot's lateral offset is zero" means here.
+        const int corridorCentreYRaw = 22 * FixedPoint.Scale;
+        Assert.Equal(corridorCentreYRaw, followerProposal.DesiredYRaw);
+    }
 }

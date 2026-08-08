@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
 using Sandata.Core.Collision;
@@ -49,6 +50,18 @@ public sealed class SandataSimulation
     private readonly PathService _pathService;
 
     /// <summary>
+    /// The chamfer clearance value at every <see cref="_navGrid"/> cell —
+    /// <see cref="Navigation.ClearanceField.Build"/>'s output, baked once
+    /// here from the same static <see cref="NavGrid.Passability"/> array
+    /// stage 5's contact queries already read, and never rebuilt: this
+    /// worktree has no dynamic-door source (<see cref="AdvancePathService"/>'s
+    /// own remarks), so nothing ever changes a cell's passability after
+    /// construction. Stage 9's autonomous branch indexes this array at the
+    /// leader's cell to feed <see cref="Squads.FormationCollapse"/>.
+    /// </summary>
+    private readonly int[] _clearanceField;
+
+    /// <summary>
     /// Stage 10's collision-and-avoidance resolver, constructed once and
     /// reused every tick — <see cref="Movement.LocalAvoidance"/> carries no
     /// per-tick state of its own beyond the resolver it wraps, so there is
@@ -90,6 +103,18 @@ public sealed class SandataSimulation
         // a constructor parameter and deliberately does not read the
         // ruleset itself, so this caller passes ruleset.PathLatencyTicks.
         _pathService = new PathService(ruleset.PathLatencyTicks);
+
+        // NavCellFlags is byte-backed with literal values 0 (Blocked), 1
+        // (Open), 2 (Door) — the same "0 blocked, nonzero open" convention
+        // ClearanceField.Build documents, so this reinterpret cast carries
+        // no narrowing and no semantic mismatch. Built once, here, since the
+        // grid never changes after construction (see _clearanceField).
+        _clearanceField = new int[navGrid.CellCount];
+        ClearanceField.Build(
+            MemoryMarshal.Cast<NavCellFlags, byte>(navGrid.Passability),
+            _clearanceField,
+            navGrid.Width,
+            navGrid.Height);
 
         State = initialState;
     }
@@ -1214,12 +1239,20 @@ public sealed class SandataSimulation
     /// section 8's <see langword="ulong"/> "minimum entity id") now passes to
     /// <see cref="PathService.GetReasonCode"/> unchanged — task 78 widened
     /// <c>PathService</c>'s whole group-identity surface to
-    /// <see langword="ulong"/>, so no narrowing happens here. It remains
-    /// inert this wave for an unrelated reason: <see cref="AdvancePathService"/>
-    /// never calls <see cref="PathService.RequestPath"/> for any group, so
-    /// <see cref="PathService.GetReasonCode"/> answers
-    /// <see cref="PathReasonCode.NoDestinationRequested"/> for every group id
-    /// regardless.
+    /// <see langword="ulong"/>, so no narrowing happens here.
+    /// <see cref="AdvancePathService"/> now drains every
+    /// <see cref="MissionState.Groups"/> entry whose
+    /// <see cref="GroupPathState.HasOutstandingRequest"/> is
+    /// <see langword="true"/> into <see cref="PathService.RequestPath"/> each
+    /// tick (task 79a), so <see cref="PathService.GetReasonCode"/> now
+    /// answers whatever that group's live pathfinding state actually is.
+    /// <see cref="PathReasonCode.NoDestinationRequested"/> is the answer only
+    /// for a group id <see cref="MissionState.Groups"/> never named at all —
+    /// no autonomous destination-request source populates that array in this
+    /// worktree, so a fixture that never sets it still sees this stage
+    /// select every unassigned operator's intent as if nothing had been
+    /// requested, which remains this stage's only honest behavior absent
+    /// that source.
     /// </remarks>
     private ImmutableArray<IntentSelectionResult> SelectIntents(
         TickStartView view, ReadOnlySpan<SquadSlot> slots, SensingOutcome sensing)
@@ -1273,6 +1306,38 @@ public sealed class SandataSimulation
     private static int RawFromWorldUnits(long worldUnits) => checked((int)(worldUnits << 10));
 
     /// <summary>
+    /// The squad's shared formation half-width, in world units, that
+    /// <see cref="Squads.FormationCollapse.IsCollapsed"/> compares against
+    /// the leader's clearance. <b>PROVISIONAL</b> — no
+    /// <see cref="SandataRuleset"/> field carries this value: adding one
+    /// would move that type's pinned <see cref="SandataRuleset.ContentHash"/>
+    /// literal, an explicitly reviewed change this task does not make, so
+    /// this is a placeholder pending a real tuning pass and a ruleset field
+    /// of its own.
+    /// </summary>
+    private const long FormationHalfWidthWu = 6;
+
+    /// <summary>
+    /// How far behind the leader, in world units, each row of trailing
+    /// slots marches — <see cref="FormationSlotOffsetsWu"/>'s per-row trail
+    /// offset. <b>PROVISIONAL</b> — <see cref="SquadSlot"/> carries only a
+    /// <see cref="SquadSlot.SlotIndex"/>, no stored per-operator offset
+    /// (design section 8: "Stored per operator: ... Nothing else."), so
+    /// this task derives one deterministically from that index rather than
+    /// inventing per-operator state; the step size itself is an
+    /// unvalidated placeholder.
+    /// </summary>
+    private const long FormationTrailStepWu = 8;
+
+    /// <summary>
+    /// Each row's sideways displacement from the leader's own path, in
+    /// world units, before <see cref="Squads.FormationCollapse"/> may zero
+    /// it. <b>PROVISIONAL</b> for the same reason as
+    /// <see cref="FormationTrailStepWu"/>.
+    /// </summary>
+    private const long FormationLateralStepWu = 4;
+
+    /// <summary>
     /// Stage 9. Call-site obligation: chooses each living operator's
     /// movement source (an authored <see cref="OrderAssignment"/> or the
     /// autonomous squad slot — <see cref="OrderAssignment"/>'s own presence
@@ -1294,26 +1359,36 @@ public sealed class SandataSimulation
     /// group's own shared path, not an individual operator's authored one.
     /// </para>
     /// <para>
-    /// <b>Autonomous branch, and the formation-collapse gap this task
-    /// reports rather than forces.</b> Design section 8's slot-target formula
-    /// (<see cref="SlotTargets.ComputeTarget"/>) needs the operator's group's
-    /// own shared published path, sampled by arclength, to place a target;
-    /// <see cref="FormationCollapse"/>'s formation half-width gate needs that
-    /// same live path's leader-clearance context to mean anything. No group
-    /// ever has a published path this wave: <see cref="AdvancePathService"/>
-    /// never calls <see cref="PathService.RequestPath"/> for any group (no
-    /// autonomous destination-request source exists in this worktree), so
-    /// <see cref="PathService.GetCurrentPath"/> is empty for every group,
-    /// every tick — the same fact <see cref="TickStage.PathService"/>'s own
-    /// remarks already state. With no path to sample, <see cref="SlotTargets"/>
-    /// and <see cref="FormationCollapse"/> have nothing to compute against, so
-    /// this task does not call either for the autonomous branch; an
-    /// unassigned operator's honest desired position this wave is its own
-    /// current position — hold — until a future task wires an autonomous
-    /// destination-request source into stage 7.
+    /// <b>Autonomous branch.</b> An operator with no
+    /// <see cref="OrderAssignment"/> asks its own group's
+    /// <see cref="_pathService"/> for <see cref="PathService.GetCurrentPath"/>
+    /// — empty until <see cref="AdvancePathService"/> has actually published
+    /// one for that group, in which case this method falls back to holding
+    /// at the operator's own current position, exactly as it did before this
+    /// task. Once a path is published, this method builds a
+    /// <see cref="PolylineArclength"/> over it and treats the whole path's
+    /// own <see cref="PolylineArclength.TotalLength"/> as every slot's
+    /// shared "leader arclength" — <see cref="SlotTargets.ComputeTarget"/>'s
+    /// own remarks state that value is "not required to be
+    /// <c>path.TotalLength</c>", only whatever arclength corresponds to the
+    /// leader's current progress along the path; no live leader-progress
+    /// tracker exists in this worktree, so this method uses the path's own
+    /// end, which is simple, a pure function of the already-published,
+    /// already-deterministic path, and pulls an unassigned operator toward
+    /// its group's destination the moment a path exists. Each slot's trail
+    /// and lateral offset come from <see cref="FormationSlotOffsetsWu"/>, a
+    /// pure function of <see cref="SquadSlot.SlotIndex"/> — the only
+    /// per-operator formation-shape input this worktree stores (design
+    /// section 8: "Stored per operator: ... Nothing else."). The lateral
+    /// component is then gated through <see cref="FormationCollapse.LateralOffset"/>
+    /// using the clearance this method looks up at the leader's own cell via
+    /// <see cref="FindLeaderClearance"/>, so a leader standing where the
+    /// clearance field reads below <see cref="FormationHalfWidthWu"/> forces
+    /// every slot in the group to single file for that tick, per design
+    /// section 8's "Doorway collapse falls out of the clearance field."
     /// </para>
     /// </remarks>
-    private static ImmutableArray<MovementProposal> ComputeMovementProposals(
+    private ImmutableArray<MovementProposal> ComputeMovementProposals(
         TickStartView view, ReadOnlySpan<SquadSlot> slots, MissionState state)
     {
         var count = view.Count;
@@ -1355,8 +1430,28 @@ public sealed class SandataSimulation
             }
             else
             {
-                desiredXRaw = startXRaw;
-                desiredYRaw = startYRaw;
+                var path = _pathService.GetCurrentPath(slot.GroupId);
+
+                if (path.IsDefaultOrEmpty || slot.LeaderEntityId is not { } leaderEntityId)
+                {
+                    desiredXRaw = startXRaw;
+                    desiredYRaw = startYRaw;
+                }
+                else
+                {
+                    var arclength = PolylineArclength.Build(path);
+                    var leaderArclength = arclength.TotalLength;
+                    var (trailOffsetWu, lateralOffsetWu) = FormationSlotOffsetsWu(slot.SlotIndex ?? 0);
+                    var leaderClearance = FindLeaderClearance(view, leaderEntityId);
+                    var gatedLateralOffsetWu = FormationCollapse.LateralOffset(
+                        leaderClearance, FormationHalfWidthWu, lateralOffsetWu);
+
+                    var target = SlotTargets.ComputeTarget(
+                        arclength, leaderArclength, trailOffsetWu, gatedLateralOffsetWu);
+
+                    desiredXRaw = RawFromWorldUnits(target.X);
+                    desiredYRaw = RawFromWorldUnits(target.Y);
+                }
             }
 
             builder.Add(new MovementProposal(
@@ -1365,6 +1460,66 @@ public sealed class SandataSimulation
         }
 
         return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Derives one slot's trail and lateral offsets, in world units, purely
+    /// from its zero-based <see cref="SquadSlot.SlotIndex"/> — the only
+    /// per-operator formation-shape input this worktree stores (design
+    /// section 8, quoted on <see cref="FormationTrailStepWu"/>). Slot 0 (the
+    /// leader itself) rides its own path with no offset at all. Every later
+    /// slot packs two to a row, alternating left and right of the leader's
+    /// centreline by the index's own parity, one
+    /// <see cref="FormationTrailStepWu"/> further back per row — a pure
+    /// function of a value design section 8 already guarantees is a stable
+    /// total order (ascending living entity id), so two evaluations of the
+    /// same slot index always agree.
+    /// </summary>
+    private static (long TrailOffsetWu, long LateralOffsetWu) FormationSlotOffsetsWu(int slotIndex)
+    {
+        if (slotIndex <= 0)
+        {
+            return (0, 0);
+        }
+
+        var row = (slotIndex + 1) / 2;
+        var trailOffsetWu = row * FormationTrailStepWu;
+        var lateralOffsetWu = slotIndex % 2 == 1 ? FormationLateralStepWu : -FormationLateralStepWu;
+
+        return (trailOffsetWu, lateralOffsetWu);
+    }
+
+    /// <summary>
+    /// Looks up the group leader's own clearance-field value:
+    /// <paramref name="view"/>'s frozen position for
+    /// <paramref name="leaderEntityId"/>, converted to a nav cell via
+    /// <see cref="NavGrid.WorldToCellCoordinate"/>, indexed into
+    /// <see cref="_clearanceField"/>. A living operator's own
+    /// <see cref="SquadSlot.LeaderEntityId"/> is guaranteed non-null and
+    /// present in <paramref name="view"/> — the operator's own component
+    /// always has at least itself alive — so the two defensive fallbacks
+    /// below (<see cref="ClearanceField.BlockedClearance"/> for a missing
+    /// index or an out-of-grid cell) exist only to keep this method total
+    /// without throwing, not because either path is expected to run.
+    /// </summary>
+    private int FindLeaderClearance(TickStartView view, ulong leaderEntityId)
+    {
+        var leaderIndex = view.IndexOf(leaderEntityId);
+
+        if (leaderIndex < 0)
+        {
+            return ClearanceField.BlockedClearance;
+        }
+
+        var cellX = NavGrid.WorldToCellCoordinate(view.PositionXWu(leaderIndex));
+        var cellY = NavGrid.WorldToCellCoordinate(view.PositionYWu(leaderIndex));
+
+        if (!_navGrid.TryGetCellIndex(cellX, cellY, out var cellIndex))
+        {
+            return ClearanceField.BlockedClearance;
+        }
+
+        return _clearanceField[cellIndex];
     }
 
     /// <summary>
