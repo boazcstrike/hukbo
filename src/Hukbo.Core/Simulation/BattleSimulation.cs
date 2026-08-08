@@ -2251,6 +2251,14 @@ public sealed class BattleSimulation
         var mapWidthRaw = checked(Scenario.MapWidth * FixedPoint.Scale);
         var mapHeightRaw = checked(Scenario.MapHeight * FixedPoint.Scale);
 
+        // Hoisted out of the candidate loop below because it depends only on
+        // the scenario's registered preset, never on the candidate: RU-30
+        // (F-B) reaches the monotone lane-clearance rule under exactly one
+        // preset identity, the same way BattleSimulation.cs's ranged-standoff
+        // branch gates on Scenario.MovementPreset == RangedStandoffV8.
+        var usesMonotoneAllyClearance =
+            Scenario.MovementPreset == MovementPresetId.MonotoneAllyClearanceV9;
+
         // WeaponMovementRules.FinalizeFootwork only turns a failed route into
         // FootworkPhase.Refuse for these three provisional phases; a failed
         // Commit/Recover/Regroup/Disengage route keeps its own phase and
@@ -2352,7 +2360,7 @@ public sealed class BattleSimulation
             }
 
             if (!IsLaneClearOfAllies(
-                index, agent, endpoint, actorClearanceSquared))
+                index, agent, endpoint, actorClearanceSquared, usesMonotoneAllyClearance))
             {
                 if (finalizesRefuseOnFailure && candidateIndex == count - 1)
                 {
@@ -2770,13 +2778,32 @@ public sealed class BattleSimulation
     /// radii. Exact equality is clear, matching the collision stage's
     /// strict-less tangency convention. No neighbours are stored and
     /// nothing allocates.
+    ///
+    /// <paramref name="isMonotone"/> -- <see langword="true"/> only under
+    /// <see cref="MovementPresetId.MonotoneAllyClearanceV9"/> -- narrows that
+    /// absolute rule to a monotonicity constraint (design section 10.3, plan
+    /// task RU-30, F-B): a candidate whose endpoint is still inside a given
+    /// ally's clearance radius is rejected only when it also moves the actor
+    /// strictly closer to that same ally than the actor's own tick-start
+    /// position already was. An actor already standing inside an ally's
+    /// clearance radius may hold, sidestep, or retreat; only a step that
+    /// tightens that specific, pre-existing violation is refused. This is
+    /// what F-A's root-cause finding named: the absolute rule punished
+    /// movement out of a violation, not the violation itself. V1 through V8
+    /// are unaffected -- <paramref name="isMonotone"/> is <see langword="false"/>
+    /// for every one of them, so this method's decision is byte-identical to
+    /// the rule above for every preset except V9.
     /// </summary>
     private bool IsLaneClearOfAllies(
         int selfIndex,
         AgentState agent,
         (int XRaw, int YRaw) endpoint,
-        Int128 actorClearanceSquared)
+        Int128 actorClearanceSquared,
+        bool isMonotone)
     {
+        var actorXRaw = agent.XRaw;
+        var actorYRaw = agent.YRaw;
+
         for (var otherIndex = 0; otherIndex < _agentStates.Length; otherIndex++)
         {
             if (otherIndex == selfIndex)
@@ -2796,7 +2823,25 @@ public sealed class BattleSimulation
                     _movementRules.ResolveLoadoutProfile(ally.Loadout)));
             var separation = (Int128)CollisionGeometry.SquaredDistance(
                 endpoint.XRaw, endpoint.YRaw, ally.XRaw, ally.YRaw);
-            if (separation < required)
+            if (separation >= required)
+            {
+                continue;
+            }
+
+            if (!isMonotone)
+            {
+                return false;
+            }
+
+            // Actor's tick-start separation to this same ally. Depends only
+            // on the actor's fixed tick-start position (hoisted above, out
+            // of this per-ally loop's repeated field reads) and the ally's
+            // own tick-start position -- never on the candidate endpoint --
+            // so it is the monotonicity baseline every candidate this call's
+            // caller tries is compared against.
+            var currentSeparation = (Int128)CollisionGeometry.SquaredDistance(
+                actorXRaw, actorYRaw, ally.XRaw, ally.YRaw);
+            if (separation < currentSeparation)
             {
                 return false;
             }
