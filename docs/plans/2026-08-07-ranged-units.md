@@ -1682,6 +1682,54 @@ would have concluded the shield had stopped working and gone looking for a regre
 does not exist. It is filed as RU-47, which makes the verdict report the plan's criterion
 and keeps the 1.15 margin visible as the labelled observation it always was.
 
+### RU-47, and RU-33: the canonical gate, run once, green in full
+
+RU-47 merged. The band (b) verdict is now driven by `shieldedMean > shieldlessMean`, the
+plan's own criterion, while `shieldedMean > shieldlessMean * 1.15` survives as a separate,
+explicitly labelled `observation(>1.15x)` column and a summary line that states it is not
+part of the verdict. Both runs now report PASS: 20 of 20 clearing the margin at the
+calibrated share, 18 of 20 at the shipped one, with seed 5 at 1.10 and seed 16 at exactly
+1.15 named as the two below it. The gated block still adds no test to an ordinary build —
+Core remains 2,433.
+
+**RU-33 was run once, by the orchestrator, on the integration commit, and never delegated.**
+Real output, every stage:
+
+```
+[PASS] .NET SDK: 10.0.302
+[PASS] packages.lock.json present for all 21 projects.
+[PASS] Required prerequisites and repository configuration are present.
+[PASS] Locked package restore completed.
+Formatted 0 of 707 files.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+  "outcome": "Faction1Victory",
+  "eventHash": "AC55684F24D39344",
+  "stateHash": "1B73FC5923879AA0",
+  "deterministic": true,
+  "combatPreset": 4,
+  "movementPreset": 4
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+  "outcome": "Faction1Victory",
+  "eventHash": "F709A345E2F7370E",
+  "stateHash": "C8023D3B5BEB005E",
+  "deterministic": true,
+  "combatPreset": 5,
+  "movementPreset": 8
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+**The gate ran two determinism workloads, and the second one is the ranged path.**
+`combatPreset 5, movementPreset 8` reproduces `C8023D3B5BEB005E` / `F709A345E2F7370E`,
+byte-identical to the values recorded in this document, with `deterministic: true`. That is
+RU-29's whole purpose discharged: before this package, a completely broken projectile path
+left the gate green, because the gate only ever ran V4 while the Client ran V5.
+
+The V4 workload is untouched at `1B73FC5923879AA0` / `AC55684F24D39344` — the same pair it
+has reported since before this package began.
+
 ### Task status
 
 | Task | Status |
@@ -1718,7 +1766,7 @@ and keeps the 1.15 margin visible as the labelled observation it always was.
 | RU-30 | **Done on branch `ru-30` at `9369509`, merged into `ranged-units` — but its acceptance bar is NOT met.** The monotone predicate lands, V9 is registered, the leader fact closes, and **both suites are fully green for the first time in this package**. The diagnosis is confirmed: `routeRefusalLaneNotClear` falls from 347,375 to 38,209 at 200 agents, and termination goes from V6 drawing 0 of 20 seeds to V9 resolving 14 of 20. **The row requires 19 of 20.** Five seeds short, so a second cause remains beyond ally clearance. The ten-cell matrix was reported BLOCKED on prompt compression and is genuinely outstanding. See the RU-30 result in section 9 |
 | RU-31 | Not started |
 | RU-32 | **Done on branch `ru-32` at `0be7425`, merged into `ranged-units`.** Eleven rows, `RG-1` through `RG-11`, every one `PENDING`. The diff is a pure addition of 53 lines — zero deletions, so no existing row's status or wording moved. `RG-11` ships with no pass/fail criterion, as an open question about an arrow passing through the friendly front rank. The section states plainly that the draw phases have never been observed at runtime because the one real Debug run never advanced a tick, and which rows cannot be attempted until RU-31's sound files exist. **The rows are delivered; the results are not, and no agent may supply them** |
-| RU-33 | Not started |
+| RU-33 | **Done — the canonical gate is GREEN IN FULL**, run once by the orchestrator on the integration commit, never delegated. Every stage passes: prerequisites, locked restore, format at 0 of 707 files reformatted, Release build, Release tests, and **two** determinism workloads. The second is the ranged one — `combatPreset 5, movementPreset 8`, `deterministic: true`, reproducing `C8023D3B5BEB005E` / `F709A345E2F7370E`. V4's workload is unmoved at `1B73FC5923879AA0` / `AC55684F24D39344`. Full output in section 9 |
 | RU-34 | Done on branch `ru-34` at `7b80c24`, merged into `ranged-units` — took Core from 18 red to 10 |
 | RU-35 | Done on branch `ru-35` at `47b0719` — Client 34 red to 29 |
 | RU-36 | **Done on branch `ru-36` at `d63a368`, merged into `ranged-units`.** The user selected option 1, the conditional fold, on 2026-08-08 after four asks across three waves. V1 through V4 hold their pinned literals and no preset version was bumped; V5's state hash moved and V5's event hash did not, which is the measured proof the fold changed the digest without changing gameplay. See the RU-36 result in section 9. Three relational facts added, no literal pinned — V5's content-hash literal is still RU-26's to capture after RU-24 |
@@ -1732,4 +1780,4 @@ and keeps the 1.15 margin visible as the labelled observation it always was.
 | RU-44 | **Done on branch `ru-44` at `ed34239`, merged into `ranged-units` at `58180ac`. Added 2026-08-08, found by the orchestrator when re-measuring the wave 7 baseline.** The Client suite is green again at 0 failed of 3328, verified independently of the task agent on the integration branch, and the whole six-cell hash matrix reproduced byte-for-byte afterwards, as a Client-only change must. Three families were added rather than one — `OverhandThrow = 4`, `DrawAndRelease = 5`, `BracedDischarge = 6` — on the ground that a hurl, a bowstring release, and a firearm discharge are structurally distinct motions, which also keeps the file's existing one-family-per-weapon shape. The `TrailEligible` judgment call went the way the row anticipated: the blanket `Assert.True` over every `WeaponId` became seven explicit per-weapon pins, four `true` and three `false`, because a trail is the visible sweep of an edge through the air and none of the three ranged releases sweeps one. That is a stricter pin than the blanket assertion it replaced, since each weapon now fails on its own if its flag flips. The four melee profiles were not touched. Original statement of the defect follows. `AttackMotionCatalog.Resolve` (`src/Hukbo.Client/Presentation/AttackMotionCatalog.cs:74-80`) switches over `WeaponId` with arms for the four melee weapons and a throwing default, and it arrived from `main` with the `attack-animation-v2` package after this package had already widened `WeaponId` to seven members. Two facts in `tests/Hukbo.Client.Tests/Presentation/AttackMotionCatalogTests.cs` fail with `Expected: 7 Actual: 4`. The task is to add an `AttackMotionFamily` member and an `AttackMotionProfile` for each of `Bangkaw`, `Busog`, and `Arquebus`, give `Resolve` three real arms, keep the throwing default, and extend the test file's weapon-to-family map and `ShieldCompatible` pins. Every choreography value is a **Provisional reconstruction** under `CLAUDE.md` section 7; the physical weapon classes are Documented and the motions are not. One judgment call is delegated to the implementer and must be reported rather than buried: the bounded-data loop asserts `TrailEligible` is true for every `WeaponId`, which was written when all four weapons swung, so a ranged weapon whose release draws no trail requires that assertion to become per-weapon pins rather than a blanket one. Files: `src/Hukbo.Client/Presentation/AttackMotionCatalog.cs`, `src/Hukbo.Client/Presentation/AttackMotionFamily.cs`, `tests/Hukbo.Client.Tests/Presentation/AttackMotionCatalogTests.cs`. Depends on nothing in this package; must land before RU-33. |
 | RU-45 | **Done on branch `ru-45` at `c0bc314`, merged into `ranged-units`.** Band (b) is measurable and passes 20 of 20 at a ratio of 1.16 to 1.40; band (a) improved to 0.2766–0.3151 rather than degrading. The roster is nine entries. Note the harness asserts a 1.15x margin that no plan row requires — see section 9. Added 2026-08-08 by user decision. Makes RU-24's band (b) measurable by giving `PhilippineCombatPresetV5` a shielded roster entry, following V2's one-handed pairing precedent — the roster goes from seven entries to nine, plus the fourteen weapon-intercept cells and two void-channel entries the new `TallHardwood` defender keys require, because both `ClashProfile` lookups throw on a missing key rather than defaulting to zero. Re-measures all five bands, with band (a) now moving toward its 0.45 ceiling rather than its floor. Ripples into RU-43, whose four-category panel now maps onto nine roster entries, and RU-29, which must read `Rules.Roster.Count` rather than carry a literal. Files: `src/Hukbo.Core/Combat/PhilippineCombatPresetV5.cs`, `tests/Hukbo.Core.Tests/RangedCalibrationHarness.cs`. Depends on RU-24; must land before RU-26 and RU-27 pin anything. |
 | RU-46 | **Done on branch `ru-46` at `75a557f`, merged into `ranged-units`. Returned once** — its first pass tightened the counts but asserted nothing about the ranged presets or the guard, so the pin could not fail for the reason it exists. Second pass added both, and the orchestrator mutation-tested it: deleting `Preset = 'PrecolonialPhilippinesV5'` from `verify.ps1` turns it red. Added 2026-08-09. Updates `tests/Hukbo.Client.Tests/ScriptDefaultsTests.cs`, which pins the text shape of `scripts/verify.ps1` and went red when RU-29 correctly added the gate's second, ranged determinism workload. The script is right; the pins describe a contract that deliberately changed. Required to tighten rather than loosen — exactly two benchmark invocations, the first unguarded and canonical, the second naming both ranged presets inside its `-Game` guard, pass-through count pinned at a literal 3. `scripts/verify.ps1` is read-only to it. File: `tests/Hukbo.Client.Tests/ScriptDefaultsTests.cs`. Depends on RU-29. |
-| RU-47 | **In progress on branch `ru-47` at `3414b53`, added 2026-08-09.** The calibration harness's band (b) verdict asserts a 1.15x margin RU-45 invented, not the plan's "absorb more" criterion, and consequently prints `FAIL` at the composition the shipped game actually produces even though all twenty ratios exceed 1.0. RU-47 makes the verdict report the plan's criterion and keeps the 1.15 margin as a labelled observation. Not a weakening: the criterion is unchanged and the stricter number stays visible. File: `tests/Hukbo.Core.Tests/RangedCalibrationHarness.cs`. Depends on RU-45 and RU-43. |
+| RU-47 | **Done on branch `ru-47` at `4ec40a4`, merged into `ranged-units`. Added 2026-08-09.** The calibration harness's band (b) verdict asserts a 1.15x margin RU-45 invented, not the plan's "absorb more" criterion, and consequently prints `FAIL` at the composition the shipped game actually produces even though all twenty ratios exceed 1.0. RU-47 makes the verdict report the plan's criterion and keeps the 1.15 margin as a labelled observation. Not a weakening: the criterion is unchanged and the stricter number stays visible. File: `tests/Hukbo.Core.Tests/RangedCalibrationHarness.cs`. Depends on RU-45 and RU-43. |
