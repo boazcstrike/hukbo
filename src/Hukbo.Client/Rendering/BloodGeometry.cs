@@ -427,6 +427,27 @@ internal static class BloodGeometry
             WeaponId.Kalis =>
                 new WeaponSprayProfile(4, 0.45f, 20f, 7f, 1.2f),
             WeaponId.Itak => new WeaponSprayProfile(5, 0.95f, 11f, 4f, 1.4f),
+
+            // PROVISIONAL tuning, not a historical or medical measurement.
+            // All three are punctures delivered from a distance rather than
+            // cuts delivered in contact, so they read narrower than any melee
+            // arc; the arquebus is the exception, because a heavy lead ball
+            // is the most destructive impact in the roster. The thrown spear
+            // sits between the Kalis and the Kampilan, the arrow is the
+            // smallest spray in the game, and the ball is the widest and
+            // heaviest.
+            //
+            // These arms exist at all because the switch had none: it
+            // covered the melee four and threw
+            // ArgumentOutOfRangeException on every ranged hit that drew
+            // blood, which crashed the client at tick 66 of a V5/V8 battle.
+            // The ranged package never touched this file — its plan does not
+            // mention blood anywhere.
+            WeaponId.Bangkaw =>
+                new WeaponSprayProfile(4, 0.55f, 18f, 6.5f, 1.3f),
+            WeaponId.Busog => new WeaponSprayProfile(3, 0.4f, 16f, 5.5f, 1f),
+            WeaponId.Arquebus =>
+                new WeaponSprayProfile(7, 1.5f, 14f, 7f, 2.2f),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(weapon),
                 weapon,

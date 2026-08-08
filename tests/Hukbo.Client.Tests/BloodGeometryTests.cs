@@ -317,6 +317,31 @@ public sealed class BloodGeometryTests
             () => layout.GetStrand(layout.VisibleStrandCount));
     }
 
+    /// <summary>
+    /// The regression guard for the second half of the 2026-08-09 client
+    /// crash. <c>GetSprayProfile</c> covered the melee four and threw
+    /// <see cref="ArgumentOutOfRangeException"/> on every ranged hit that
+    /// drew blood, which killed the client at tick 66 of a V5/V8 battle. The
+    /// ranged package never touched this file; its plan does not mention
+    /// blood at all. Every weapon in the roster must lay out a burst.
+    /// </summary>
+    [Theory]
+    [InlineData(WeaponId.Kampilan)]
+    [InlineData(WeaponId.Wasay)]
+    [InlineData(WeaponId.Kalis)]
+    [InlineData(WeaponId.Itak)]
+    [InlineData(WeaponId.Bangkaw)]
+    [InlineData(WeaponId.Busog)]
+    [InlineData(WeaponId.Arquebus)]
+    public void Create_LaysOutABurstForEveryWeaponInTheRoster(WeaponId weapon)
+    {
+        var layout = BloodGeometry.Create(Burst(weapon: weapon), cameraZoom: 1f);
+
+        Assert.True(layout.DropletCount > 0);
+        Assert.True(layout.Travel > 0f);
+        Assert.True(layout.Thickness > 0f);
+    }
+
     private static BloodBurst Burst(
         long sequence = 12,
         ulong sourceEntityId = 3,
