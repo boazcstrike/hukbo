@@ -59,7 +59,7 @@ public sealed class PathServiceTests
         ]);
         var crowdedWallBuckets = WallBuckets.Build(crowdedGrid, [], [], [], []);
         var crowdedService = new PathService(latency);
-        for (var groupId = 1; groupId <= 8; groupId++)
+        for (ulong groupId = 1; groupId <= 8; groupId++)
         {
             crowdedService.RequestPath(groupId, start, goal, requestTick);
         }
@@ -67,14 +67,14 @@ public sealed class PathServiceTests
         for (var tick = requestTick; tick < requestTick + latency; tick++)
         {
             crowdedService.Advance(tick, crowdedGrid, crowdedBlocked, crowdedWallBuckets);
-            for (var groupId = 1; groupId <= 8; groupId++)
+            for (ulong groupId = 1; groupId <= 8; groupId++)
             {
                 Assert.True(crowdedService.GetCurrentPath(groupId).IsEmpty, $"group {groupId} at tick {tick} must not publish yet");
             }
         }
 
         crowdedService.Advance(requestTick + latency, crowdedGrid, crowdedBlocked, crowdedWallBuckets);
-        for (var groupId = 1; groupId <= 8; groupId++)
+        for (ulong groupId = 1; groupId <= 8; groupId++)
         {
             var path = crowdedService.GetCurrentPath(groupId);
             Assert.False(path.IsEmpty);

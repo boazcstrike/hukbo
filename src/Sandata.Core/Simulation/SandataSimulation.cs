@@ -4,6 +4,7 @@ using Hukbo.Core.Movement;
 using Sandata.Core.Collision;
 using Sandata.Core.Combat;
 using Sandata.Core.Determinism;
+using Sandata.Core.Events;
 using Sandata.Core.Geometry;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Movement;
@@ -134,6 +135,15 @@ public sealed class SandataSimulation
     /// <see cref="ApplyOrders"/> starting on the tick <see cref="RunTick"/>
     /// is next called for a tick equal to <paramref name="targetTick"/>.
     /// </summary>
+    /// <remarks>
+    /// Task 76 (docs/plans/2026-08-07-sandata-scaffold.md): when
+    /// <see cref="OrderQueue.SubmitValidated"/> reports a rejection, this
+    /// method emits a <see cref="MissionEventKind.OrderRejected"/> event
+    /// through <see cref="EmitOrderRejectedEvent"/> before returning — design
+    /// section 16, "An order is validated when it is submitted, not when it
+    /// is applied, so the player learns immediately." The event is emitted
+    /// here, at submission, not deferred to stage 14.
+    /// </remarks>
     public (OrderQueue Queue, Order? Submitted, OrderRejection? Rejection) SubmitOrder(
         long targetTick,
         int factionId,
@@ -144,8 +154,35 @@ public sealed class SandataSimulation
         var result = State.OrderQueue.SubmitValidated(
             targetTick, factionId, addressees, kind, _navGrid, _wallBuckets, pathNodes);
 
-        State = State with { OrderQueue = result.Queue };
+        var state = State with { OrderQueue = result.Queue };
+        if (result.Rejection is { } rejection)
+        {
+            state = EmitOrderRejectedEvent(state, rejection);
+        }
+
+        State = state;
         return result;
+    }
+
+    /// <summary>
+    /// Task 76's event-emission call site for a rejected order — design
+    /// section 16: "A rejected order emits an authoritative event carrying
+    /// the order id and a reason code. It is not silently dropped." Assigns
+    /// the event <paramref name="state"/>'s current
+    /// <see cref="MissionState.NextEventSequence"/> and advances that
+    /// counter by one, the same "assign then advance" shape every other
+    /// authoritative counter in this class already follows.
+    /// </summary>
+    private static MissionState EmitOrderRejectedEvent(MissionState state, OrderRejection rejection)
+    {
+        var missionEvent = MissionEvent.OrderRejected(
+            state.NextEventSequence, state.Tick, rejection.OrderId, rejection.Reason);
+
+        return state with
+        {
+            NextEventSequence = state.NextEventSequence + 1,
+            EventFeed = state.EventFeed.Append(missionEvent),
+        };
     }
 
     /// <summary>
@@ -176,7 +213,10 @@ public sealed class SandataSimulation
         var bodies = BuildCollisionBodies(State);
         var grid = new SandataCollisionGrid(CollisionCellSizeRaw);
         grid.Rebuild(bodies, CollisionBodyRadiusRaw);
-        var view = CaptureTickStartView(State, grid);
+        var cohesionRadiusRaw = RawFromWorldUnits(_ruleset.GroupCohesionRadiusWu);
+        var cohesionGrid = new SandataCollisionGrid(CohesionCollisionCellSizeRaw(cohesionRadiusRaw));
+        cohesionGrid.RebuildWithinRange(bodies, cohesionRadiusRaw);
+        var view = CaptureTickStartView(State, grid, cohesionGrid);
 
         // Stage 4.
         State = ApplyDoorMutations(State);
@@ -541,11 +581,10 @@ public sealed class SandataSimulation
     /// not" standard this task's other stages follow.
     /// </para>
     /// <para>
-    /// <see cref="AccuracyRules.DrawAngularErrorBam"/> takes an
-    /// <see langword="int"/> entity id while <see cref="OperatorState.EntityId"/>
-    /// is <see langword="ulong"/> — narrowed with <c>unchecked</c>, the same
-    /// real, inert type-domain mismatch task 49a found at
-    /// <c>PathService</c>/<c>SquadSlot.GroupId</c>.
+    /// <see cref="AccuracyRules.DrawAngularErrorBam"/> takes a
+    /// <see langword="ulong"/> entity id, matching
+    /// <see cref="OperatorState.EntityId"/> exactly — task 78 widened it, so
+    /// this call site no longer narrows.
     /// </para>
     /// </remarks>
     internal ImmutableArray<DamageInstance> ProposeFire()
@@ -593,7 +632,7 @@ public sealed class SandataSimulation
             // though nothing downstream yet resolves it into a hit or a miss
             // — see this method's remarks.
             _ = AccuracyRules.DrawAngularErrorBam(
-                _mission.Seed, unchecked((int)shooter.EntityId), dispersionBam);
+                _mission.Seed, shooter.EntityId, dispersionBam);
 
             var damage = CoverRules.ApplyToDamage(
                 ProvisionalDamagePerHitPoints, CoverState.NotInCover,
@@ -691,14 +730,17 @@ public sealed class SandataSimulation
     /// whichever scheduled tick's value it last computed.
     /// </summary>
     /// <remarks>
-    /// <b>Events are not implemented.</b> Stage 14's call-site obligation
-    /// names only <see cref="SandataStateHasher.Compute"/>; its other named
-    /// job, "emit ordered events," has no real destination in this worktree —
-    /// no <c>Events</c>-shaped collection and no <c>BattleEvent</c>-like type
-    /// exist anywhere in <c>Sandata.Core</c> (confirmed by a full-project
-    /// search returning zero matches). Inventing one is out of this task's
-    /// scope; the state-hash half of this stage is implemented, the
-    /// event-emission half is not.
+    /// <b>Event emission does not happen here.</b> Task 76
+    /// (docs/plans/2026-08-07-sandata-scaffold.md) adds
+    /// <see cref="Events.MissionEventFeed"/> and its first producer, a
+    /// rejected-order event emitted by <see cref="SubmitOrder"/> at
+    /// submission time — design section 16: "An order is validated when it
+    /// is submitted, not when it is applied." No stage currently emits an
+    /// event during <see cref="RunTick"/> itself; a later task (79d) is
+    /// expected to add stage 12/13 event emission for shot and hit outcomes
+    /// once fire resolution is real. This method's own job stays exactly
+    /// what it was: compute and store <see cref="LastStateHash"/> on a
+    /// scheduled tick.
     /// </remarks>
     internal void ComputeStateHash(long currentTick)
     {
@@ -728,6 +770,28 @@ public sealed class SandataSimulation
     /// reason as <see cref="CollisionCellSizeRaw"/>.
     /// </summary>
     private const int CollisionBodyRadiusRaw = 32;
+
+    /// <summary>
+    /// The cell edge length, in raw fixed-point units, for the second
+    /// collision grid stage 3 builds solely to source
+    /// <see cref="ComputeSquadGrouping"/>'s candidate pairs. Unlike
+    /// <see cref="CollisionCellSizeRaw"/> this is not a constant: task 77
+    /// found that a fixed 256-raw-unit cell (roughly a quarter world unit)
+    /// cannot host a cohesion-radius query, because
+    /// <see cref="SandataRuleset.GroupCohesionRadiusWu"/> defaults to 96
+    /// world units — 98,304 raw, four orders of magnitude past that cell
+    /// edge — and <see cref="SandataCollisionGrid.RebuildWithinRange"/>'s own
+    /// remarks require a cell at least as wide as the range being queried, or
+    /// its 3-by-3 neighbour scan silently misses pairs sitting in a cell
+    /// beyond that ring. This helper sizes the second grid's cell to the
+    /// actual per-tick radius instead, so the query is complete at any
+    /// configured <see cref="SandataRuleset.GroupCohesionRadiusWu"/>, not
+    /// only the shipped default. <see cref="Math.Max(int, int)"/> floors the
+    /// result at 1 raw unit so a (nonsensical but not rejected) zero radius
+    /// never produces a zero-or-negative cell size.
+    /// </summary>
+    private static int CohesionCollisionCellSizeRaw(int cohesionRadiusRaw) =>
+        Math.Max(cohesionRadiusRaw, 1);
 
     /// <summary>
     /// Stage 1. Applies every order whose <see cref="Order.TargetTick"/>
@@ -841,12 +905,15 @@ public sealed class SandataSimulation
     }
 
     /// <summary>
-    /// Stage 3. Rebuilds this tick's collision uniform grid (already done by
-    /// <see cref="RunTick"/> before calling this method) and freezes the
-    /// tick-start view stages 5 through 9 read.
+    /// Stage 3. Rebuilds this tick's two collision uniform grids (already
+    /// done by <see cref="RunTick"/> before calling this method — physical
+    /// contact via <paramref name="grid"/>, squad cohesion range via
+    /// <paramref name="cohesionGrid"/>) and freezes the tick-start view
+    /// stages 5 through 9 read.
     /// </summary>
-    private static TickStartView CaptureTickStartView(MissionState state, SandataCollisionGrid grid) =>
-        new(state, grid.Pairs);
+    private static TickStartView CaptureTickStartView(
+        MissionState state, SandataCollisionGrid grid, SandataCollisionGrid cohesionGrid) =>
+        new(state, grid.Pairs, cohesionGrid.Pairs);
 
     /// <summary>
     /// Stage 4. No door-trigger source (a breach action, a switch) exists
@@ -862,7 +929,7 @@ public sealed class SandataSimulation
     /// 180 degrees total. <b>PROVISIONAL</b>: no field on <see cref="SandataRuleset"/>
     /// names a cone width (its confirmed field list is <c>TickRate</c>,
     /// <c>MsToTickConversionRuleId</c>, <c>PathLatencyTicks</c>,
-    /// <c>GroupCohesionRadius</c>, <c>LoweredWallDistanceWu</c>,
+    /// <c>GroupCohesionRadiusWu</c>, <c>LoweredWallDistanceWu</c>,
     /// <c>AimToleranceBam</c>), so this is a placeholder pending a real
     /// tuning pass, exactly like <see cref="CollisionCellSizeRaw"/> above.
     /// </summary>
@@ -1038,9 +1105,19 @@ public sealed class SandataSimulation
     /// <summary>
     /// Stage 6. Call-site obligation: derives one <see cref="SquadSlot"/> per
     /// tick-start-view entry via <see cref="SquadGrouping.Compute"/>'s one
-    /// overload, gated by <see cref="SandataRuleset.GroupCohesionRadius"/>.
-    /// Purely derived — nothing here is written back into
-    /// <see cref="MissionState"/>, per that method's own remarks.
+    /// overload, gated by <see cref="SandataRuleset.GroupCohesionRadiusWu"/>
+    /// converted to raw fixed-point via <see cref="RawFromWorldUnits"/> (the
+    /// ruleset field is documented in world units; <c>SquadGrouping</c>'s
+    /// parameter is raw — task 77 found stage 6 passing the world-unit value
+    /// straight through with no conversion, silently shrinking the default
+    /// 96-world-unit radius to about 0.094 world units). Candidates come from
+    /// <see cref="TickStartView.CohesionPairs"/>, the range query stage 3
+    /// built specifically for this radius — never
+    /// <see cref="TickStartView.Pairs"/>, which is filtered to physical body
+    /// contact and can only narrow a candidate list, never widen it, so it
+    /// can never surface two operators standing world units apart. Purely
+    /// derived — nothing here is written back into <see cref="MissionState"/>,
+    /// per that method's own remarks.
     /// </summary>
     private void ComputeSquadGrouping(TickStartView view, Span<SquadSlot> slots)
     {
@@ -1058,9 +1135,11 @@ public sealed class SandataSimulation
             yRaw[i] = view.PositionYRaw(i);
         }
 
+        var groupCohesionRadiusRaw = RawFromWorldUnits(_ruleset.GroupCohesionRadiusWu);
+
         SquadGrouping.Compute(
             view.EntityIds, isAlive, factions, xRaw, yRaw,
-            _ruleset.GroupCohesionRadius, view.Pairs, slots);
+            groupCohesionRadiusRaw, view.CohesionPairs, slots);
     }
 
     /// <summary>
@@ -1094,15 +1173,15 @@ public sealed class SandataSimulation
     /// <see cref="IntentSelectionInput.IsAtBreachPoint"/> is hardcoded
     /// <see langword="false"/>: <b>PROVISIONAL</b>, no breach-point source
     /// exists in this worktree. <see cref="SquadSlot.GroupId"/> (design
-    /// section 8's <see langword="ulong"/> "minimum entity id") is narrowed
-    /// to the <see langword="int"/> <see cref="PathService.GetReasonCode"/>
-    /// actually takes — a real type-domain mismatch between the two this
-    /// task did not introduce and is out of scope to fix. It is inert this
-    /// wave: <see cref="AdvancePathService"/> never calls
-    /// <see cref="PathService.RequestPath"/> for any group, so
+    /// section 8's <see langword="ulong"/> "minimum entity id") now passes to
+    /// <see cref="PathService.GetReasonCode"/> unchanged — task 78 widened
+    /// <c>PathService</c>'s whole group-identity surface to
+    /// <see langword="ulong"/>, so no narrowing happens here. It remains
+    /// inert this wave for an unrelated reason: <see cref="AdvancePathService"/>
+    /// never calls <see cref="PathService.RequestPath"/> for any group, so
     /// <see cref="PathService.GetReasonCode"/> answers
     /// <see cref="PathReasonCode.NoDestinationRequested"/> for every group id
-    /// regardless of the narrowing's exact numeric result.
+    /// regardless.
     /// </remarks>
     private ImmutableArray<IntentSelectionResult> SelectIntents(
         TickStartView view, ReadOnlySpan<SquadSlot> slots, SensingOutcome sensing)
@@ -1126,7 +1205,7 @@ public sealed class SandataSimulation
                 }
             }
 
-            var groupId = unchecked((int)slots[i].GroupId);
+            var groupId = slots[i].GroupId;
             var pathReasonCode = _pathService.GetReasonCode(groupId);
 
             inputs[i] = new IntentSelectionInput(

@@ -7,11 +7,17 @@ namespace Sandata.Core.Squads;
 /// tick's operator roster, without storing any of it anywhere. Design section
 /// 8 of <c>docs/plans/2026-08-07-sandata-scaffold-design.md</c>, "Grouping is
 /// derived, not stored": groups form by deterministic union-find, with path
-/// compression and union by size, over the candidate contact-pair list —
-/// each pair already normalised to (lower entity ID, higher entity ID) and
-/// the whole list sorted ascending, the shape
-/// <c>SandataCollisionGrid.Pairs</c> already produces — restricted to pairs
-/// whose two operators share a faction. A component's identity is the
+/// compression and union by size, over a candidate pair list — each pair
+/// already normalised to (lower entity ID, higher entity ID) and the whole
+/// list sorted ascending, the shape <c>SandataCollisionGrid.Pairs</c>
+/// already produces — restricted to pairs whose two operators share a
+/// faction. That candidate list must itself be drawn from a query at (or
+/// beyond) the cohesion radius, never from a physical-contact broad phase:
+/// <c>SandataSimulation</c>'s stage 3 builds it from a second
+/// <c>SandataCollisionGrid.RebuildWithinRange</c> call sized to
+/// <c>SandataRuleset.GroupCohesionRadiusWu</c>, precisely because a
+/// candidate list this method receives can only narrow, never widen — see
+/// that method's own remarks. A component's identity is the
 /// minimum entity ID it has ever contained; its leader is the lowest living
 /// entity ID it currently contains. Both are recomputed from nothing on
 /// every call, which is what lets a death re-derive a leader on the same
@@ -42,11 +48,14 @@ internal static class SquadGrouping
     /// <param name="xRaw">Parallel to <paramref name="entityIds"/>: that operator's world X position, in raw fixed-point units.</param>
     /// <param name="yRaw">Parallel to <paramref name="entityIds"/>: that operator's world Y position, in raw fixed-point units.</param>
     /// <param name="groupCohesionRadiusRaw">
-    /// The distance, in raw world units, within which two same-faction
-    /// operators are unioned — <c>SandataRuleset.GroupCohesionRadius</c> in
-    /// the caller's possession. The comparison is inclusive: two operators
-    /// exactly this distance apart are unioned, matching the collision
-    /// broad phase's own inclusive <c>IsContact</c> convention.
+    /// The distance, in raw fixed-point units, within which two same-faction
+    /// operators are unioned. <c>SandataRuleset.GroupCohesionRadiusWu</c> is
+    /// the caller's source of truth for this value, but it is stored in
+    /// world units — the caller converts explicitly before passing it here,
+    /// this parameter's own <c>Raw</c> suffix is not decorative. The
+    /// comparison is inclusive: two operators exactly this distance apart
+    /// are unioned, matching the collision broad phase's own inclusive
+    /// <c>IsContact</c> convention.
     /// </param>
     /// <param name="pairs">
     /// The candidate contact pairs for this tick — a broad-phase shortlist
