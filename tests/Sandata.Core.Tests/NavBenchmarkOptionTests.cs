@@ -4,6 +4,45 @@ using Sandata.Headless;
 namespace Sandata.Core.Tests;
 
 /// <summary>
+/// A tiny <c>.hkmap</c> fixture, distinct from <c>angle-house</c>, built for
+/// task 82's outcome-breakdown coverage: two 160-by-160-world-unit rooms
+/// side by side inside one sealed perimeter, split by a solid interior
+/// <c>WALL</c> with no <c>DOOR</c> anywhere along it, so the two rooms share
+/// no passable cell at all in the baked nav grid — a real, deliberately
+/// built disconnection, not a hoped-for side effect of a map-density
+/// percentage. Carries no <c>OBJECTIVE</c> record, so <c>MapValidator</c>'s
+/// faction-0-reachability rule (which only runs when at least one objective
+/// exists) never applies to it.
+/// </summary>
+file static class DisconnectedRoomsFixture
+{
+    public const string Text =
+        "HKMAP 1\n" +
+        "NAME nav-unreachable-fixture\n" +
+        "GRID 320 160 4\n" +
+        "WALL 0 0 0 160 1\n" +
+        "WALL 0 0 320 0 1\n" +
+        "WALL 0 160 320 160 1\n" +
+        "WALL 320 0 320 160 1\n" +
+        "WALL 160 0 160 160 1\n" +
+        "SPAWN 0 40 80 0\n" +
+        "SPAWN 1 280 80 0\n" +
+        "END\n";
+
+    /// <summary>
+    /// Writes <see cref="Text"/> to a fresh temporary file and returns its
+    /// path. The caller owns deletion; <see cref="NavBenchmark.Run"/> only
+    /// reads the path it is given.
+    /// </summary>
+    public static string WriteToTempFile()
+    {
+        var path = Path.GetTempFileName();
+        File.WriteAllText(path, Text);
+        return path;
+    }
+}
+
+/// <summary>
 /// The test bar for plan task 50: <c>NavBenchmarkOptions</c> validates each
 /// of its five navigation-benchmark matrix parameters against its own named
 /// range and refuses to build with any one of them missing, and
@@ -324,5 +363,93 @@ public sealed class NavBenchmarkOptionTests
         Assert.True(report.AStarQueryPercentiles.P95Milliseconds <= report.AStarQueryPercentiles.P99Milliseconds);
         Assert.True(report.TickStagePercentiles.P50Milliseconds <= report.TickStagePercentiles.P95Milliseconds);
         Assert.True(report.TickStagePercentiles.P95Milliseconds <= report.TickStagePercentiles.P99Milliseconds);
+    }
+
+    /// <summary>
+    /// Task 82's reproduction of the defect the wave-12 matrix run exposed:
+    /// a benchmark configuration whose seekers can never reach their goal
+    /// must report that plainly, rather than a fast p50 that looks like a
+    /// pass. <see cref="DisconnectedRoomsFixture"/> guarantees this by
+    /// construction — two rooms with no shared passable cell — rather than
+    /// hoping a map-density percentage happens to disconnect
+    /// <c>angle-house</c>. <see cref="NavBenchmarkOptions.MaxQueryDistanceWu"/>
+    /// is used as the target distance so <c>PlaceSeekerPair</c>'s
+    /// closest-to-target search always prefers whichever of its candidate
+    /// draws is farthest from the start cell — a candidate in the opposite,
+    /// unreachable room every time, for every one of the six seekers, at
+    /// this fixture and seed.
+    /// </summary>
+    [Fact]
+    public void AllGoalsUnreachableReportsZeroSuccessfulSearches()
+    {
+        var fixturePath = DisconnectedRoomsFixture.WriteToTempFile();
+        try
+        {
+            var options = NavBenchmarkOptions.Create(
+                mapDensityPercent: 0,
+                changedCellCount: 0,
+                concurrentSeekers: 6,
+                queryDistanceWu: NavBenchmarkOptions.MaxQueryDistanceWu,
+                replanningRatePercent: 0);
+
+            var report = NavBenchmark.Run(options, fixturePath, seed: 1, tickCount: 1);
+
+            Assert.Equal(6, report.AStarQuerySampleCount);
+            Assert.Equal(0, report.ProbeOutcomeBreakdown.PathFoundQueryCount);
+            Assert.Equal(6, report.ProbeOutcomeBreakdown.UnreachableQueryCount);
+            Assert.Equal(0, report.SuccessfulAStarQuerySampleCount);
+            Assert.Equal(0, report.SuccessfulAStarQueryPercentiles.P50Milliseconds);
+            Assert.Equal(0, report.SuccessfulAStarQueryPercentiles.P95Milliseconds);
+            Assert.Equal(0, report.SuccessfulAStarQueryPercentiles.P99Milliseconds);
+        }
+        finally
+        {
+            File.Delete(fixturePath);
+        }
+    }
+
+    /// <summary>
+    /// No probe query may go unaccounted for: the successful-search sample
+    /// count plus every failure count in <see cref="NavBenchmarkReport.ProbeOutcomeBreakdown"/>
+    /// must equal the report's total probe count. Checked against both the
+    /// degenerate, all-unreachable fixture and the ordinary, mostly
+    /// reachable <c>angle-house</c> fixture, so the accounting invariant is
+    /// proven independent of how many queries actually found a path.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ProbeOutcomeBreakdownAccountsForEveryProbeQuery(bool useDisconnectedFixture)
+    {
+        var fixturePath = useDisconnectedFixture
+            ? DisconnectedRoomsFixture.WriteToTempFile()
+            : NavBenchmark.ResolveFixturePath(null);
+        try
+        {
+            var options = NavBenchmarkOptions.Create(
+                mapDensityPercent: 0,
+                changedCellCount: 0,
+                concurrentSeekers: useDisconnectedFixture ? 6 : 3,
+                queryDistanceWu: useDisconnectedFixture ? NavBenchmarkOptions.MaxQueryDistanceWu : 64,
+                replanningRatePercent: 0);
+
+            var report = NavBenchmark.Run(options, fixturePath, seed: 1, tickCount: 1);
+
+            var accountedFor =
+                report.SuccessfulAStarQuerySampleCount +
+                report.ProbeOutcomeBreakdown.UnreachableQueryCount;
+
+            Assert.Equal(report.AStarQuerySampleCount, accountedFor);
+            Assert.Equal(
+                report.ProbeOutcomeBreakdown.PathFoundQueryCount,
+                report.SuccessfulAStarQuerySampleCount);
+        }
+        finally
+        {
+            if (useDisconnectedFixture)
+            {
+                File.Delete(fixturePath);
+            }
+        }
     }
 }
