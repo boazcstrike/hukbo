@@ -6,6 +6,7 @@ using Hukbo.Core.Movement;
 using Sandata.Core.Collision;
 using Sandata.Core.Combat;
 using Sandata.Core.Determinism;
+using Sandata.Core.Events;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
@@ -1370,5 +1371,112 @@ public sealed class TickPipelineTests
         // is what "every slot's lateral offset is zero" means here.
         const int corridorCentreYRaw = 22 * FixedPoint.Scale;
         Assert.Equal(corridorCentreYRaw, followerProposal.DesiredYRaw);
+    }
+
+    /// <summary>
+    /// Task 79d-1, done-when criterion 1: builds a shot at fixed geometry
+    /// (shooter at (0,0), target at (90,0) world units, same mission seed,
+    /// weapon chain seeded to fire on tick 0) and shows one shooter entity
+    /// id produces a hit while another produces a miss.
+    /// </summary>
+    /// <remarks>
+    /// The RNG draw is isolated to the shooter's <c>EntityId</c>:
+    /// <see cref="AccuracyRules.DrawAngularErrorBam"/> is keyed on
+    /// <c>(missionSeed, entityId)</c>, and this fixture holds
+    /// <c>missionSeed</c>, both operators' positions, and the firearm
+    /// (hence dispersion) fixed across both runs — only the shooter's
+    /// <c>EntityId</c> differs (2 vs. 25), so only the draw differs. Both
+    /// ids were found by an exhaustive probe over ids 2..500 at this exact
+    /// geometry and seed, run only through <see cref="SandataSimulation.RunTick"/>
+    /// (never by calling <c>ProposeFire</c> directly or predicting the draw
+    /// offline) — id 2 is the first miss, id 25 is the first hit.
+    /// </remarks>
+    [Theory]
+    [InlineData(2, false)]
+    [InlineData(25, true)]
+    public void RunTick_SameGeometryDifferentShooterEntityId_AngularErrorDrawDecidesHitOrMiss(
+        int shooterEntityId, bool expectHit)
+    {
+        var sim = BuildFiringFixture(shooterEntityId);
+
+        sim.RunTick(0);
+
+        var events = sim.State.EventFeed.Events;
+        Assert.Single(events, e => e.Kind == MissionEventKind.ShotFired);
+        Assert.Single(events, e => e.Kind == (expectHit ? MissionEventKind.ShotHit : MissionEventKind.ShotMissed));
+        Assert.DoesNotContain(events, e => e.Kind == (expectHit ? MissionEventKind.ShotMissed : MissionEventKind.ShotHit));
+    }
+
+    /// <summary>Task 79d-1, done-when criterion 2, restated as an explicit count check.</summary>
+    [Fact]
+    public void RunTick_Hit_EmitsExactlyOneShotFiredAndOneShotHitEvent()
+    {
+        var sim = BuildFiringFixture(shooterEntityId: 25);
+
+        sim.RunTick(0);
+
+        var events = sim.State.EventFeed.Events;
+        Assert.Equal(2, events.Length);
+        Assert.Equal(1, events.Count(e => e.Kind == MissionEventKind.ShotFired));
+        Assert.Equal(1, events.Count(e => e.Kind == MissionEventKind.ShotHit));
+        Assert.Equal(0, events.Count(e => e.Kind == MissionEventKind.ShotMissed));
+    }
+
+    /// <summary>Task 79d-1, done-when criterion 2, restated as an explicit count check.</summary>
+    [Fact]
+    public void RunTick_Miss_EmitsExactlyOneShotFiredAndOneShotMissedEvent()
+    {
+        var sim = BuildFiringFixture(shooterEntityId: 2);
+
+        sim.RunTick(0);
+
+        var events = sim.State.EventFeed.Events;
+        Assert.Equal(2, events.Length);
+        Assert.Equal(1, events.Count(e => e.Kind == MissionEventKind.ShotFired));
+        Assert.Equal(1, events.Count(e => e.Kind == MissionEventKind.ShotMissed));
+        Assert.Equal(0, events.Count(e => e.Kind == MissionEventKind.ShotHit));
+    }
+
+    /// <summary>
+    /// Task 79d-1, done-when criterion 3: once a shot is emitted the event
+    /// hash must move off <see cref="SandataHash.Begin"/>'s bare FNV-1a
+    /// offset basis — the value the feed starts at before any event folds
+    /// in (see <see cref="MissionEventFeed.Empty"/>).
+    /// </summary>
+    [Fact]
+    public void RunTick_ShotEmitted_EventHashMovesOffTheFnv1aOffsetBasis()
+    {
+        var sim = BuildFiringFixture(shooterEntityId: 25);
+
+        sim.RunTick(0);
+
+        Assert.NotEmpty(sim.State.EventFeed.Events);
+        Assert.NotEqual(SandataHash.Begin(), sim.State.EventFeed.Hash);
+    }
+
+    /// <summary>
+    /// Shared fixture for the 79d-1 hit/miss tests: an opposing-faction pair
+    /// 90 world units apart on the x axis, with the shooter's weapon chain
+    /// seeded directly into <see cref="WeaponChainPhase.Aiming"/> with one
+    /// remaining tick so stage 11 fires on tick 0 without simulating the
+    /// full ready/turn/aim sequence. Sensing is still real: the 90 wu
+    /// separation is within <c>ContactMemory.IdentifyRangeWu</c> (96), so
+    /// stage 5 commits a genuine <c>ContactMemory</c> entry stage 11 reads
+    /// to populate the real target id consumed by stage 12.
+    /// </summary>
+    private static SandataSimulation BuildFiringFixture(int shooterEntityId)
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+        var ruleset = SandataRuleset.ModernTacticalV1;
+
+        var shooter = BuildOperator(
+            entityId: shooterEntityId, faction: 0, positionXWu: 0, positionYWu: 0,
+            weaponChainPhase: (int)WeaponChainPhase.Aiming, weaponChainRemainingTicks: 1);
+        var target = BuildOperator(entityId: 100_000, faction: 1, positionXWu: 90, positionYWu: 0);
+        var state = BuildState(ImmutableArray.Create(shooter, target));
+
+        return new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
     }
 }
