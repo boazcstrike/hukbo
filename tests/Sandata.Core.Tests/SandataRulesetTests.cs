@@ -35,7 +35,7 @@ public sealed class SandataRulesetTests
     /// <remarks>
     /// Task 63 revisited this pin. The plan's wave-2 note left
     /// <see cref="SandataRuleset.PathLatencyTicks"/>,
-    /// <see cref="SandataRuleset.GroupCohesionRadius"/>,
+    /// <see cref="SandataRuleset.GroupCohesionRadiusWu"/>,
     /// <see cref="SandataRuleset.LoweredWallDistanceWu"/>, and
     /// <see cref="SandataRuleset.AimToleranceBam"/> as task 9's placeholders,
     /// naming tasks 27, 28, 32, and 23 to confirm or replace each one and
@@ -73,7 +73,7 @@ public sealed class SandataRulesetTests
     [InlineData(RulesetField.TickRate)]
     [InlineData(RulesetField.MsToTickConversionRuleId)]
     [InlineData(RulesetField.PathLatencyTicks)]
-    [InlineData(RulesetField.GroupCohesionRadius)]
+    [InlineData(RulesetField.GroupCohesionRadiusWu)]
     [InlineData(RulesetField.LoweredWallDistanceWu)]
     [InlineData(RulesetField.AimToleranceBam)]
     public void ChangingAnySingleField_MovesTheContentHash(RulesetField field)
@@ -96,7 +96,7 @@ public sealed class SandataRulesetTests
         TickRate,
         MsToTickConversionRuleId,
         PathLatencyTicks,
-        GroupCohesionRadius,
+        GroupCohesionRadiusWu,
         LoweredWallDistanceWu,
         AimToleranceBam,
     }
@@ -108,7 +108,7 @@ public sealed class SandataRulesetTests
                 baseline.TickRate + 1,
                 baseline.MsToTickConversionRuleId,
                 baseline.PathLatencyTicks,
-                baseline.GroupCohesionRadius,
+                baseline.GroupCohesionRadiusWu,
                 baseline.LoweredWallDistanceWu,
                 baseline.AimToleranceBam),
             RulesetField.MsToTickConversionRuleId =>
@@ -123,35 +123,35 @@ public sealed class SandataRulesetTests
                     baseline.TickRate,
                     (MsToTickConversionRule)((int)baseline.MsToTickConversionRuleId + 1),
                     baseline.PathLatencyTicks,
-                    baseline.GroupCohesionRadius,
+                    baseline.GroupCohesionRadiusWu,
                     baseline.LoweredWallDistanceWu,
                     baseline.AimToleranceBam),
             RulesetField.PathLatencyTicks => new SandataRuleset(
                 baseline.TickRate,
                 baseline.MsToTickConversionRuleId,
                 baseline.PathLatencyTicks + 1,
-                baseline.GroupCohesionRadius,
+                baseline.GroupCohesionRadiusWu,
                 baseline.LoweredWallDistanceWu,
                 baseline.AimToleranceBam),
-            RulesetField.GroupCohesionRadius => new SandataRuleset(
+            RulesetField.GroupCohesionRadiusWu => new SandataRuleset(
                 baseline.TickRate,
                 baseline.MsToTickConversionRuleId,
                 baseline.PathLatencyTicks,
-                baseline.GroupCohesionRadius + 1,
+                baseline.GroupCohesionRadiusWu + 1,
                 baseline.LoweredWallDistanceWu,
                 baseline.AimToleranceBam),
             RulesetField.LoweredWallDistanceWu => new SandataRuleset(
                 baseline.TickRate,
                 baseline.MsToTickConversionRuleId,
                 baseline.PathLatencyTicks,
-                baseline.GroupCohesionRadius,
+                baseline.GroupCohesionRadiusWu,
                 baseline.LoweredWallDistanceWu + 1,
                 baseline.AimToleranceBam),
             RulesetField.AimToleranceBam => new SandataRuleset(
                 baseline.TickRate,
                 baseline.MsToTickConversionRuleId,
                 baseline.PathLatencyTicks,
-                baseline.GroupCohesionRadius,
+                baseline.GroupCohesionRadiusWu,
                 baseline.LoweredWallDistanceWu,
                 (ushort)(baseline.AimToleranceBam + 1)),
             _ => throw new ArgumentOutOfRangeException(

@@ -226,19 +226,30 @@ public sealed class TickPipelineTests
     /// which iteration-order slot — it was assigned.
     /// </para>
     /// <para>
-    /// <b>Gap, stated plainly:</b> no order is submitted in this fixture, and
-    /// the four bodies stand far enough apart (raw distance far past
-    /// <c>GroupCohesionRadius</c>'s default 96) that none ever senses or
-    /// groups with another. <c>IntentSelection</c> therefore selects no
-    /// engagement or movement for any of them, so every proposal's delta is
-    /// zero in both arrangements. This proves the pipeline does not crash,
-    /// misassign, or otherwise diverge under a genuinely permuted id-to-body
-    /// mapping, but it is a structural check — presence, count, and a
-    /// zero-delta value — not a proof that a *non-trivial* movement outcome
-    /// is order independent. That stronger claim would need a fixture that
-    /// drives at least one operator into <c>Engage</c> or <c>Advance</c>,
-    /// which Test 6's <c>AimToleranceBam</c> case below finds is itself
-    /// harder than it looks.
+    /// <b>Gap, stated plainly:</b> no order is submitted in this fixture, so
+    /// <c>MovementProposal.DesiredXRaw/DesiredYRaw</c> stay equal to
+    /// <c>StartXRaw/StartYRaw</c> for every operator regardless of squad
+    /// membership — <c>ComputeMovementProposals</c>'s autonomous-movement
+    /// branch (no <see cref="Sandata.Core.Orders.OrderAssignment"/>) holds
+    /// position, and grouping alone never drives a delta. <b>Corrected,
+    /// task 77:</b> this comment previously claimed the four bodies (0, 20,
+    /// 40, 60 world units apart, all faction 0) stood "far enough apart" to
+    /// never group, reading <c>GroupCohesionRadius</c>'s default 96 as if it
+    /// were already the correct raw-unit interpretation that task 77 found
+    /// broken. Under the fixed world-unit conversion every pair here is well
+    /// inside the true 96-world-unit radius and does union into one squad in
+    /// both arrangements — this test does not assert <c>GroupId</c> and does
+    /// not need to, since the claim it makes is about the movement delta,
+    /// which is genuinely zero either way. <c>IntentSelection</c> selects no
+    /// engagement for any of them (no opposing-faction contact in range), so
+    /// every proposal's delta is zero in both arrangements. This proves the
+    /// pipeline does not crash, misassign, or otherwise diverge under a
+    /// genuinely permuted id-to-body mapping, but it is a structural check —
+    /// presence, count, and a zero-delta value — not a proof that a
+    /// *non-trivial* movement outcome is order independent. That stronger
+    /// claim would need a fixture that drives at least one operator into
+    /// <c>Engage</c> or <c>Advance</c>, which Test 6's <c>AimToleranceBam</c>
+    /// case below finds is itself harder than it looks.
     /// </para>
     /// </remarks>
     [Fact]
@@ -472,8 +483,9 @@ public sealed class TickPipelineTests
     {
         var state = BuildState(ImmutableArray<OperatorState>.Empty);
         var pairs = Array.Empty<SandataCollisionPair>();
+        var cohesionPairs = Array.Empty<SandataCollisionPair>();
 
-        var view = new TickStartView(state, pairs);
+        var view = new TickStartView(state, pairs, cohesionPairs);
         view.Release();
 
         const string expectedMessage =
@@ -543,61 +555,37 @@ public sealed class TickPipelineTests
     // ---- 6. THE FOUR RULESET CONSTANTS ---------------------------------
 
     /// <summary>
-    /// <see cref="SandataRuleset.GroupCohesionRadius"/>: design section 8
+    /// <see cref="SandataRuleset.GroupCohesionRadiusWu"/>: design section 8
     /// documents it as a world-unit radius — "operators within
     /// <c>GroupCohesionRadius</c> world units of each other in the same
     /// faction are unioned" — so two same-faction operators 50 world units
-    /// apart, well inside the default 96-world-unit radius, should union
-    /// into one squad. Running the full pipeline instead shows they never
-    /// do: each keeps its own <see cref="Sandata.Core.Movement.MovementProposal.GroupId"/>
-    /// equal to its own entity id (the union-find "solo group" outcome
-    /// <see cref="Sandata.Core.Squads.SquadGrouping"/> assigns any entity no
-    /// candidate pair ever names).
+    /// apart, well inside the default 96-world-unit radius, union into one
+    /// squad. <b>Task 77, superseding the test this replaces.</b> The
+    /// previous version of this test, named
+    /// <c>RunTick_TwoSameFactionOperatorsFiftyWorldUnitsApart_AreNotGroupedDespiteDocumentedRadius</c>,
+    /// asserted the opposite and documented two compounding defects as the
+    /// reason: <c>SandataSimulation.ComputeSquadGrouping</c> passed
+    /// <c>_ruleset.GroupCohesionRadius</c> straight into
+    /// <c>SquadGrouping.Compute</c>'s raw-fixed-point parameter with no
+    /// world-unit-to-raw conversion (so the effective radius was about 0.094
+    /// world units, not 96), and its candidate pair list came from
+    /// <c>TickStartView.Pairs</c>, the physical-contact broad phase, which
+    /// can never surface two operators standing world units apart regardless
+    /// of any radius value. Both are fixed: <see cref="SandataRuleset.GroupCohesionRadiusWu"/>
+    /// states its own unit and <c>ComputeSquadGrouping</c> now converts it
+    /// via <c>RawFromWorldUnits</c> before comparing, and stage 3 builds a
+    /// second <see cref="Sandata.Core.Collision.SandataCollisionGrid"/> sized
+    /// to that radius via <c>RebuildWithinRange</c>, exposed as
+    /// <see cref="TickStartView.CohesionPairs"/>, which
+    /// <c>ComputeSquadGrouping</c> now reads instead. This test proves the
+    /// fixed behaviour through <see cref="SandataSimulation.RunTick"/>, not
+    /// by calling <see cref="Sandata.Core.Squads.SquadGrouping.Compute"/>
+    /// directly with a hand-fed pair list — see this file's own remarks on
+    /// why a fixture-supplied candidate list cannot prove the production call
+    /// chain.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>Two compounding defects, both confirmed by reading the code this
-    /// call site actually runs, not by inspection alone.</b>
-    /// </para>
-    /// <para>
-    /// <b>Defect: unit mismatch.</b> <c>SandataSimulation.ComputeSquadGrouping</c>
-    /// passes <c>_ruleset.GroupCohesionRadius</c> — documented, and defaulted
-    /// to 96, in world units — straight into
-    /// <c>SquadGrouping.Compute</c>'s <c>groupCohesionRadiusRaw</c> parameter,
-    /// which that method squares and compares directly against squared raw
-    /// fixed-point position deltas (scale 1,024 raw units per world unit).
-    /// No conversion is applied — <c>SandataSimulation</c> already has one,
-    /// its own private <c>RawFromWorldUnits</c> helper, used correctly by
-    /// stage 9, but stage 6 never calls it. The default radius therefore
-    /// behaves as roughly 96 raw units, about 0.094 world units, not the
-    /// documented 96 world units — operators would need to stand almost
-    /// exactly on top of each other for this comparison alone to pass.
-    /// </para>
-    /// <para>
-    /// <b>Defect: the candidate pair list is pre-filtered to physical
-    /// contact, far tighter than any cohesion radius could reach.</b>
-    /// <c>ComputeSquadGrouping</c> only ever unions a pair that already
-    /// appears in <c>TickStartView.Pairs</c>, which stage 3 fills from
-    /// <c>SandataCollisionGrid.Pairs</c> — documented as "every unordered
-    /// pair of living bodies in contact", built at
-    /// <c>CollisionBodyRadiusRaw = 32</c> raw units (about 0.031 world
-    /// units) per body, so two bodies appear as a candidate pair at all only
-    /// within about 64 raw units (about 0.063 world units) of each other.
-    /// Because that bound is already smaller than the buggy raw-unit
-    /// interpretation of the default radius (96), the
-    /// <c>GroupCohesionRadius</c> comparison in
-    /// <c>SquadGrouping.ComputeCore</c> is, at the shipped default value,
-    /// dead weight: any pair that reaches it at all already satisfies it.
-    /// Fixing only the unit-conversion defect above would not, by itself,
-    /// let two operators several world units apart ever group — the
-    /// candidate list itself would still need to widen far beyond a
-    /// physical-contact broad phase for design section 8's stated behaviour
-    /// to be reachable at any interesting distance. Both facts are reported
-    /// here; neither production file is touched.
-    /// </para>
-    /// </remarks>
     [Fact]
-    public void RunTick_TwoSameFactionOperatorsFiftyWorldUnitsApart_AreNotGroupedDespiteDocumentedRadius()
+    public void RunTick_TwoSameFactionOperatorsFiftyWorldUnitsApart_AreGroupedNowThatTheRadiusIsHonoured()
     {
         var grid = BuildGrid();
         var wallBuckets = NoWalls(grid);
@@ -613,8 +601,167 @@ public sealed class TickPipelineTests
         var proposalOne = sim.PendingMovementProposals.Single(p => p.EntityId == 1UL);
         var proposalTwo = sim.PendingMovementProposals.Single(p => p.EntityId == 2UL);
 
+        Assert.Equal(proposalOne.GroupId, proposalTwo.GroupId);
+        Assert.Equal(1UL, proposalOne.GroupId);
+    }
+
+    /// <summary>
+    /// Boundary of <see cref="SandataRuleset.GroupCohesionRadiusWu"/>, proven
+    /// through <see cref="SandataSimulation.RunTick"/> at the ruleset's own
+    /// world-unit granularity: exactly at the default 96-world-unit radius
+    /// the two operators union (inclusive — matching
+    /// <see cref="Sandata.Core.Squads.SquadGrouping.Compute"/>'s own
+    /// documented inclusive comparison and
+    /// <see cref="Sandata.Core.Collision.SandataCollisionGrid.IsContact"/>'s
+    /// same convention for physical contact), and one world unit further out
+    /// — 97 world units — they do not.
+    /// </summary>
+    [Fact]
+    public void RunTick_AtTheCohesionRadiusOperatorsGroup_OneWorldUnitBeyondTheyDoNot()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        MissionState BuildFixture(int separationWu) => BuildState(ImmutableArray.Create(
+            BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
+            BuildOperator(2, faction: 0, positionXWu: separationWu, positionYWu: 0)));
+
+        var simAtRadius = new SandataSimulation(
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(96));
+        simAtRadius.RunTick(0);
+        var atRadiusOne = simAtRadius.PendingMovementProposals.Single(p => p.EntityId == 1UL);
+        var atRadiusTwo = simAtRadius.PendingMovementProposals.Single(p => p.EntityId == 2UL);
+        Assert.Equal(atRadiusOne.GroupId, atRadiusTwo.GroupId);
+
+        var simBeyondRadius = new SandataSimulation(
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(97));
+        simBeyondRadius.RunTick(0);
+        var beyondOne = simBeyondRadius.PendingMovementProposals.Single(p => p.EntityId == 1UL);
+        var beyondTwo = simBeyondRadius.PendingMovementProposals.Single(p => p.EntityId == 2UL);
+        Assert.NotEqual(beyondOne.GroupId, beyondTwo.GroupId);
+        Assert.Equal(1UL, beyondOne.GroupId);
+        Assert.Equal(2UL, beyondTwo.GroupId);
+    }
+
+    /// <summary>
+    /// Two operators within <see cref="SandataRuleset.GroupCohesionRadiusWu"/>
+    /// of each other but in different factions never union — the candidate
+    /// pair exists (<see cref="TickStartView.CohesionPairs"/> is a plain
+    /// distance query with no faction filter of its own), but
+    /// <see cref="Sandata.Core.Squads.SquadGrouping.ComputeCore"/> skips a
+    /// candidate whose two operators disagree on faction before ever
+    /// comparing distance, so this proves the faction gate survives the
+    /// fixed candidate source and is not merely bypassed by it.
+    /// </summary>
+    [Fact]
+    public void RunTick_TwoDifferentFactionOperatorsWithinRadius_AreNeverGrouped()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var state = BuildState(ImmutableArray.Create(
+            BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
+            BuildOperator(2, faction: 1, positionXWu: 20, positionYWu: 0)));
+
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state);
+        sim.RunTick(0);
+
+        var proposalOne = sim.PendingMovementProposals.Single(p => p.EntityId == 1UL);
+        var proposalTwo = sim.PendingMovementProposals.Single(p => p.EntityId == 2UL);
+
+        Assert.NotEqual(proposalOne.GroupId, proposalTwo.GroupId);
         Assert.Equal(1UL, proposalOne.GroupId);
         Assert.Equal(2UL, proposalTwo.GroupId);
+    }
+
+    /// <summary>
+    /// Changing only <see cref="SandataRuleset.GroupCohesionRadiusWu"/> — no
+    /// other input, same fixture, same tick — changes whether two
+    /// same-faction operators 50 world units apart group, proven through
+    /// <see cref="SandataSimulation.RunTick"/> with two independently
+    /// constructed <see cref="SandataRuleset"/> instances.
+    /// </summary>
+    [Fact]
+    public void RunTick_ChangingTheRulesetCohesionRadiusAlone_ChangesWhetherOperatorsGroup()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        MissionState BuildFixture() => BuildState(ImmutableArray.Create(
+            BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
+            BuildOperator(2, faction: 0, positionXWu: 50, positionYWu: 0)));
+
+        var rulesetNarrow = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: 10,
+            groupCohesionRadiusWu: 10,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        var rulesetWide = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: 10,
+            groupCohesionRadiusWu: 60,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        var simNarrow = new SandataSimulation(mission, rulesetNarrow, grid, wallBuckets, BuildFixture());
+        simNarrow.RunTick(0);
+        var narrowOne = simNarrow.PendingMovementProposals.Single(p => p.EntityId == 1UL);
+        var narrowTwo = simNarrow.PendingMovementProposals.Single(p => p.EntityId == 2UL);
+        Assert.NotEqual(narrowOne.GroupId, narrowTwo.GroupId);
+
+        var simWide = new SandataSimulation(mission, rulesetWide, grid, wallBuckets, BuildFixture());
+        simWide.RunTick(0);
+        var wideOne = simWide.PendingMovementProposals.Single(p => p.EntityId == 1UL);
+        var wideTwo = simWide.PendingMovementProposals.Single(p => p.EntityId == 2UL);
+        Assert.Equal(wideOne.GroupId, wideTwo.GroupId);
+    }
+
+    /// <summary>
+    /// Proves the cohesion candidate source is correct beyond one physical
+    /// collision cell — <c>CollisionCellSizeRaw</c> is 256 raw units, about a
+    /// quarter of one world unit, so any world-unit-scale separation already
+    /// clears it, but this fixture makes the margin explicit: two operators
+    /// 200 world units apart (204,800 raw units, roughly 800 physical
+    /// collision cells) under a custom 250-world-unit cohesion radius still
+    /// group. A candidate source built by reusing the physical-contact grid
+    /// (fixed 256-raw-unit cell, per <see cref="SandataCollisionGrid.RebuildWithinRange"/>'s
+    /// own remarks on why that reuse is unsafe) would silently miss this
+    /// pair; the per-tick cohesion grid, whose cell size stage 3 derives from
+    /// the radius itself, does not.
+    /// </summary>
+    [Fact]
+    public void RunTick_OperatorsSeparatedByManyPhysicalCollisionCells_StillGroupWithinACustomWideCohesionRadius()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var state = BuildState(ImmutableArray.Create(
+            BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
+            BuildOperator(2, faction: 0, positionXWu: 200, positionYWu: 0)));
+
+        var rulesetWideCohesion = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: 10,
+            groupCohesionRadiusWu: 250,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        var sim = new SandataSimulation(mission, rulesetWideCohesion, grid, wallBuckets, state);
+        sim.RunTick(0);
+
+        var proposalOne = sim.PendingMovementProposals.Single(p => p.EntityId == 1UL);
+        var proposalTwo = sim.PendingMovementProposals.Single(p => p.EntityId == 2UL);
+
+        Assert.Equal(proposalOne.GroupId, proposalTwo.GroupId);
     }
 
     /// <summary>
@@ -653,7 +800,7 @@ public sealed class TickPipelineTests
             tickRate: 50,
             msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
             pathLatencyTicks: 10,
-            groupCohesionRadius: 96,
+            groupCohesionRadiusWu: 96,
             loweredWallDistanceWu: 24,
             aimToleranceBam: 1024);
 
@@ -661,7 +808,7 @@ public sealed class TickPipelineTests
             tickRate: 50,
             msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
             pathLatencyTicks: 9999,
-            groupCohesionRadius: 96,
+            groupCohesionRadiusWu: 96,
             loweredWallDistanceWu: 24,
             aimToleranceBam: 1024);
 
@@ -714,7 +861,7 @@ public sealed class TickPipelineTests
             tickRate: 50,
             msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
             pathLatencyTicks: 10,
-            groupCohesionRadius: 96,
+            groupCohesionRadiusWu: 96,
             loweredWallDistanceWu: 8,
             aimToleranceBam: 1024);
 
@@ -722,7 +869,7 @@ public sealed class TickPipelineTests
             tickRate: 50,
             msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
             pathLatencyTicks: 10,
-            groupCohesionRadius: 96,
+            groupCohesionRadiusWu: 96,
             loweredWallDistanceWu: 7,
             aimToleranceBam: 1024);
 
@@ -780,7 +927,7 @@ public sealed class TickPipelineTests
             tickRate: 50,
             msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
             pathLatencyTicks: 10,
-            groupCohesionRadius: 96,
+            groupCohesionRadiusWu: 96,
             loweredWallDistanceWu: 24,
             aimToleranceBam: 600);
 
@@ -788,7 +935,7 @@ public sealed class TickPipelineTests
             tickRate: 50,
             msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
             pathLatencyTicks: 10,
-            groupCohesionRadius: 96,
+            groupCohesionRadiusWu: 96,
             loweredWallDistanceWu: 24,
             aimToleranceBam: 400);
 

@@ -454,11 +454,11 @@ public sealed class SquadGroupingTests
 
     // ------------------------------------------------------------------
     // Task 74's first rule: the position-aware overload, which is the one
-    // that gates union on GroupCohesionRadius rather than unioning every
+    // that gates union on GroupCohesionRadiusWu rather than unioning every
     // same-faction candidate pair unconditionally.
     // ------------------------------------------------------------------
 
-    /// <summary>Mirrors <c>SandataRuleset.ModernTacticalV1.GroupCohesionRadius</c>; not read from the ruleset.</summary>
+    /// <summary>Mirrors <c>SandataRuleset.ModernTacticalV1.GroupCohesionRadiusWu</c>, converted to raw; not read from the ruleset.</summary>
     private const int GroupCohesionRadiusRaw = 96;
 
     private static SquadSlot[] ComputeWithPositions(
@@ -502,7 +502,7 @@ public sealed class SquadGroupingTests
     /// <summary>
     /// The same fixed pair of positions, straddling the radius, produces two
     /// different groupings under two different radii — the property that
-    /// makes <c>SandataRuleset.GroupCohesionRadius</c> actually load-bearing
+    /// makes <c>SandataRuleset.GroupCohesionRadiusWu</c> actually load-bearing
     /// rather than an unread constant. An implementation that
     /// still ignores the parameter fails this fact even if it happens to
     /// pass the exact-boundary fact above with a hard-coded threshold.
