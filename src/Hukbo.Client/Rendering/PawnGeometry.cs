@@ -76,7 +76,12 @@ internal readonly record struct SwingTrail(
 /// built from the pose-invariant leg proportions plus the gait pose the same
 /// way the weapon line is built from the swing pose;
 /// <see cref="Rectangle.Empty"/> at <see cref="PawnDetailTier.Low"/>, where
-/// the ground ring already carries the footprint.
+/// the ground ring already carries the footprint. <see cref="RangedDrawTension"/>
+/// (RU-42) is <see cref="RangedPose.DrawTension"/> carried straight through
+/// onto the layout, read only by <c>PawnRenderer</c>'s Busog
+/// <c>DrawWeapon</c> arm to bow the drawn string; zero for every other role
+/// and for a pawn with no ranged pose active, matching every other
+/// "zero/empty when absent" field on this record.
 /// </summary>
 internal readonly record struct PawnLayout(
     Vector2 FootAnchor,
@@ -106,7 +111,8 @@ internal readonly record struct PawnLayout(
     Rectangle LeftLegBounds,
     Rectangle RightLegBounds,
     Rectangle LeftFootBounds,
-    Rectangle RightFootBounds);
+    Rectangle RightFootBounds,
+    float RangedDrawTension);
 
 /// <summary>
 /// GPU-013. Both answers the arena render loop needs about one pawn, from
@@ -392,15 +398,19 @@ internal static class PawnGeometry
     /// </param>
     /// <param name="rangedPose">
     /// The pose one in-flight ranged draw cycle (<see cref="RangedPhase"/>)
-    /// puts this pawn's torso lean in, or <c>null</c> for a pawn with no
-    /// ranged pose active. Only <see cref="RangedPose.TorsoLeanX"/> and
-    /// <see cref="RangedPose.TorsoLeanY"/> reach the layout, summed
+    /// puts this pawn in, or <c>null</c> for a pawn with no ranged pose
+    /// active. <see cref="RangedPose.TorsoLeanX"/> and
+    /// <see cref="RangedPose.TorsoLeanY"/> reach the layout summed
     /// additively alongside <paramref name="swingPose"/>'s and
-    /// <paramref name="gaitPose"/>'s own lean — the weapon-angle and
-    /// extension channels are <paramref name="swingPose"/>'s alone, per
-    /// <see cref="RangedPose"/>'s own remarks. A neutral pose produces the
-    /// same lean contribution as no pose at all, so a caller may pass
-    /// either.
+    /// <paramref name="gaitPose"/>'s own lean; <see cref="RangedPose.WeaponAngleRadians"/>
+    /// and <see cref="RangedPose.ExtensionRatio"/> reach the weapon line
+    /// through the same <see cref="ApplySwing"/> call
+    /// <paramref name="swingPose"/>'s own two channels do, per
+    /// <see cref="RangedPose"/>'s own remarks — safe because
+    /// <c>RangedPoseResolver.SuppressesSwing</c> guarantees a caller never
+    /// hands both a live swing pose and a live ranged pose for the same
+    /// pawn on the same frame. A neutral pose produces the same layout
+    /// contribution as no pose at all, so a caller may pass either.
     /// </param>
     public static PawnLayout Create(
         Vector2 footAnchor,
@@ -615,7 +625,7 @@ internal static class PawnGeometry
         /// <see cref="PawnGeometry.Create"/>.
         /// </param>
         /// <param name="rangedPose">
-        /// The pose one in-flight ranged draw cycle puts this pawn's lean in,
+        /// The pose one in-flight ranged draw cycle puts this pawn in,
         /// or <c>null</c> for a pawn with no ranged pose active, exactly as
         /// on <see cref="PawnGeometry.Create"/>.
         /// </param>
@@ -811,7 +821,8 @@ internal static class PawnGeometry
             apparentScale,
             appearance.WeaponRole,
             detailTier,
-            pose);
+            pose,
+            rangedPose);
 
         // The shield is deliberately not posed. A swing moves the weapon arm;
         // the off-hand block stays where the torso puts it, so a spectator can
@@ -876,7 +887,8 @@ internal static class PawnGeometry
             legs.LeftLeg,
             legs.RightLeg,
             legs.LeftFoot,
-            legs.RightFoot);
+            legs.RightFoot,
+            rangedPose.DrawTension);
     }
 
     /// <summary>
@@ -899,8 +911,10 @@ internal static class PawnGeometry
     /// exactly what <c>swingPose: null</c> means to <see cref="Create"/>, and
     /// <c>default(GaitPose)</c> is documented as the same "standing still"
     /// neutral for the legs; <c>default(RangedPose)</c> is the same
-    /// "no ranged pose active" neutral for the third lean channel
-    /// <see cref="CreateBodyAnchor"/> now sums. This is deliberately the
+    /// "no ranged pose active" neutral both for the third lean channel
+    /// <see cref="CreateBodyAnchor"/> sums and for the weapon-angle and
+    /// extension channels <see cref="ApplySwing"/> now reads from it. This
+    /// is deliberately the
     /// neutral-stance leg footprint rather than a stride envelope larger
     /// than it: the actual gait phase is never read here, which is what
     /// keeps two different phases at one position producing an identical
@@ -926,6 +940,7 @@ internal static class PawnGeometry
             apparentScale,
             appearance.WeaponRole,
             detailTier,
+            default,
             default);
         var shieldBounds = CreateShieldBounds(
             proportions,
@@ -1517,7 +1532,8 @@ internal static class PawnGeometry
         float scale,
         PawnWeaponRole role,
         PawnDetailTier detailTier,
-        SwingPose pose)
+        SwingPose pose,
+        RangedPose rangedPose)
     {
         // The Wasay is a haft, not a blade: a thinner shaft than the old
         // broad chopper carrying a distinct head at the far end, which
@@ -1584,7 +1600,7 @@ internal static class PawnGeometry
             PawnWeaponRole.Arquebus => 2.4f * scale,
             _ => throw new ArgumentOutOfRangeException(nameof(role), role, null),
         };
-        end = ApplySwing(start, end, pose);
+        end = ApplySwing(start, end, pose, rangedPose);
         var bounds = BoundsFromLine(start, end, weaponPadding);
 
         // The Wasay's head is what distinguishes an axe from a blade, so it
@@ -1640,23 +1656,44 @@ internal static class PawnGeometry
     /// the line is bit-for-bit the static one.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// RU-42: takes both <paramref name="pose"/> and
+    /// <paramref name="rangedPose"/> and sums their <c>WeaponAngleRadians</c>
+    /// and <c>ExtensionRatio</c> channels before rotating, exactly the "same
+    /// two channels... into the same <c>ApplySwing</c> call" the design
+    /// (<c>docs/plans/2026-08-07-ranged-units-design.md</c> section 8.3) and
+    /// <see cref="RangedPose"/>'s own remarks call for, rather than being
+    /// summed as a separate step. This is safe as a sum rather than a
+    /// mutual-exclusion branch only because <c>RangedPoseResolver.SuppressesSwing</c>
+    /// already guarantees a caller never hands this method a live swing pose
+    /// together with a live ranged pose for the same pawn on the same frame —
+    /// the non-active one is always the zero-valued <see langword="default"/>.
+    /// </para>
+    /// <para>
     /// The rotation is applied to the drawn line only; the pawn silhouette is
     /// not mirrored for a warrior striking to its left, so a leftward swing
     /// reads as an overhead sweep rather than as a blade ending on the target.
     /// Mirroring the silhouette needs a facing this pose does not carry, and
     /// is outside what this task was asked to change.
+    /// </para>
     /// </remarks>
-    private static Vector2 ApplySwing(Vector2 start, Vector2 end, SwingPose pose)
+    private static Vector2 ApplySwing(
+        Vector2 start,
+        Vector2 end,
+        SwingPose pose,
+        RangedPose rangedPose)
     {
         var reach = end - start;
-        var cosine = MathF.Cos(pose.WeaponAngleRadians);
-        var sine = MathF.Sin(pose.WeaponAngleRadians);
+        var angleRadians = pose.WeaponAngleRadians + rangedPose.WeaponAngleRadians;
+        var cosine = MathF.Cos(angleRadians);
+        var sine = MathF.Sin(angleRadians);
         var rotated = new Vector2(
             (reach.X * cosine) - (reach.Y * sine),
             (reach.X * sine) + (reach.Y * cosine));
+        var extensionRatio = pose.ExtensionRatio + rangedPose.ExtensionRatio;
         var extension = MathF.Max(
             0f,
-            1f + (pose.ExtensionRatio * ExtensionReach));
+            1f + (extensionRatio * ExtensionReach));
 
         return start + (rotated * extension);
     }

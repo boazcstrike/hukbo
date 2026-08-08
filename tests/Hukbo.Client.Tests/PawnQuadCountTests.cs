@@ -74,16 +74,21 @@ public sealed class PawnQuadCountTests
     /// same High-tier, unshielded, unarmored baseline as
     /// <see cref="Count_PinsTheHighTierUnshieldedUnarmoredNormalPawn"/>.
     /// Bangkaw and Arquebus draw no secondary rectangle
-    /// (<c>PawnGeometry.CreateSecondaryBounds</c>'s catch-all arm), so both
-    /// match the 24-quad baseline exactly. Busog draws its nocked arrow
-    /// through the same <c>SecondaryEquipmentBounds</c> slot the Wasay's axe
-    /// head already occupies — the one new rectangle RU-22 was permitted —
-    /// so it pins one quad higher at 25, the arithmetic the RU-23 plan row
-    /// (`docs/plans/2026-08-07-ranged-units.md`) states directly.
+    /// (<c>PawnGeometry.CreateSecondaryBounds</c>'s catch-all arm) and their
+    /// <c>DrawWeapon</c> arm is a single <c>DrawBlade</c> call like every
+    /// melee role, so both match the 24-quad baseline exactly. Busog draws
+    /// its nocked arrow through the same <c>SecondaryEquipmentBounds</c> slot
+    /// the Wasay's axe head already occupies (RU-22's one new rectangle, +1),
+    /// and RU-42 gave its <c>DrawWeapon</c> arm a second call —
+    /// <c>DrawBowstring</c>, two stroked segments so the string can bend with
+    /// <c>RangedPose.DrawTension</c> — over the single <c>DrawBlade</c> call
+    /// every other role uses (+2). Busog therefore pins three quads higher
+    /// than the baseline, at 27, superseding the RU-23 plan row's 25 (which
+    /// predates RU-42's bowstring).
     /// </summary>
     [Theory]
     [InlineData(WeaponId.Bangkaw, 24)]
-    [InlineData(WeaponId.Busog, 25)]
+    [InlineData(WeaponId.Busog, 27)]
     [InlineData(WeaponId.Arquebus, 24)]
     public void Count_PinsTheHighTierUnshieldedUnarmoredRangedPawn(
         WeaponId weaponId,

@@ -36,11 +36,15 @@ internal static class PawnQuadCount
     internal const int SwingTrailSegments = 6;
 
     /// <summary>
-    /// <c>PawnRenderer.DrawWeapon</c>/<c>DrawBlade</c>: a grip line, a blade
-    /// line, and a highlight line, for every weapon role — geometry (gripEnd,
-    /// widthMultiplier) differs by role, quad count does not.
+    /// <c>PawnRenderer.DrawWeapon</c>: a grip line, a blade line, and a
+    /// highlight line via <c>DrawBlade</c> for every role (geometry —
+    /// gripEnd, widthMultiplier — differs by role, quad count does not), plus
+    /// two bowstring segments via <c>DrawBowstring</c> for
+    /// <see cref="PawnWeaponRole.Busog"/> only (RU-42): the Busog is the only
+    /// role whose weapon-line quad count differs from the rest.
     /// </summary>
-    private const int WeaponQuadCount = 3;
+    private static int WeaponQuadCount(PawnWeaponRole role) =>
+        role == PawnWeaponRole.Busog ? 5 : 3;
 
     /// <summary>
     /// <c>PawnRenderer.DrawHeadTreatment</c>: every one of the three
@@ -116,7 +120,7 @@ internal static class PawnQuadCount
 
         total += CountAdornments(layout);
         total += CountSwingTrail(layout.SwingTrail);
-        total += WeaponQuadCount;
+        total += WeaponQuadCount(appearance.WeaponRole);
         total += CountStateMark(state);
 
         if (isLeader)
@@ -452,13 +456,19 @@ internal static class RenderBudgetEstimate
     // only one any of the three new PawnWeaponRole members adds (Bangkaw and
     // Arquebus draw no secondary rectangle at all). That raises the 24-quad
     // High-tier baseline to 25 for the worst case where every visible unit is
-    // a Busog:
+    // a Busog.
     //
-    //   (25 quads/pawn x 200 units) + 4,032 backdrop =  9,032 quads
-    //   (25 quads/pawn x 500 units) + 4,032 backdrop = 16,532 quads
+    // RU-42: PawnRenderer.DrawWeapon's Busog arm gained a DrawBowstring call
+    // (two stroked line segments — WeaponQuadCount is now role-dependent,
+    // 5 for Busog vs 3 for every other role) so the bowstring can bend with
+    // RangedPose.DrawTension. That raises the Busog worst case by 2, from 25
+    // to 27:
     //
-    // Both stay under the ceilings below with margin (2,968 quads of headroom
-    // at 200 units, 3,468 at 500), so — same rule as above — the ceilings are
+    //   (27 quads/pawn x 200 units) + 4,032 backdrop =  9,432 quads
+    //   (27 quads/pawn x 500 units) + 4,032 backdrop = 17,532 quads
+    //
+    // Both stay under the ceilings below with margin (2,568 quads of headroom
+    // at 200 units, 2,468 at 500), so — same rule as above — the ceilings are
     // left unmoved. In-flight projectiles are not folded into this per-pawn
     // term: they are a separate, bounded population
     // (Scenario.MaximumProjectilesInFlight, default 512) counted against the
@@ -466,11 +476,11 @@ internal static class RenderBudgetEstimate
     // stroked line, the same "one quad per live instance" convention
     // BackdropQuadCount.TrampleMarks and .Decals already use):
     //
-    //   9,032 + (512 x 1 projectile quad)  =  9,544 quads (200 units)
-    //   16,532 + (512 x 1 projectile quad) = 17,044 quads (500 units)
+    //   9,432 + (512 x 1 projectile quad)  =  9,944 quads (200 units)
+    //   17,532 + (512 x 1 projectile quad) = 18,044 quads (500 units)
     //
-    // Both still fit under the unmoved ceilings (2,456 quads of headroom at
-    // 200 units, 2,956 at 500). No projectile renderer exists yet
+    // Both still fit under the unmoved ceilings (2,056 quads of headroom at
+    // 200 units, 1,956 at 500). No projectile renderer exists yet
     // (tools/... and src/Hukbo.Client/Rendering have no ProjectileRenderer.cs
     // as of this task), so this budget is provisioned ahead of that renderer
     // landing rather than measured against it; RenderBudgetEstimateTests
