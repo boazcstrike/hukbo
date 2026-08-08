@@ -1,7 +1,9 @@
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using Hukbo.Diagnostics;
+using Sandata.Core.Maps;
 
 namespace Sandata.Client;
 
@@ -94,7 +96,8 @@ internal static class Program
                 "path",
                 filePath);
 
-            using (var game = new SandataGame(log))
+            var mapRecords = LoadStartupMap(log);
+            using (var game = new SandataGame(log, mapRecords))
             {
                 game.Run();
             }
@@ -232,6 +235,59 @@ internal static class Program
 
     private static bool IsSupportedArgument(string argument) =>
         argument is "--log-level" or "--log-channels" or "--log-dir";
+
+    /// <summary>
+    /// Loads, tokenizes, and validates the fixture the
+    /// <c>Sandata.Client.csproj</c> linked <c>Content</c> item copies to
+    /// <c>Maps/angle-house.hkmap</c> under the published output. A load
+    /// failure never crashes the client: it is caught here, logged at
+    /// <see cref="LogLevel.Error"/> on <see cref="LogChannel.Assets"/>, and
+    /// this method returns <see langword="default"/> so
+    /// <see cref="SandataGame"/> falls back to its own existing empty-map
+    /// behavior (see that constructor's own doc comment: "an empty array is
+    /// a valid, empty world, not an error").
+    /// </summary>
+    /// <remarks>
+    /// <c>LogEvents.cs</c> (<c>Hukbo.Diagnostics</c>) has no constant for a
+    /// map-load failure specifically, and this task's file list does not
+    /// include that file, so a new one cannot be added here. This reuses
+    /// <see cref="LogEvents.AssetsVisualCatalogInvalid"/> — the closest
+    /// existing "a declarative asset file failed validation" shape on the
+    /// Assets channel — the same way <c>SandataGame.LoadTheme</c> already
+    /// reuses one event id for both the success and the failure path of a
+    /// single load operation. Recorded as a discrepancy against the ideal
+    /// fix (a dedicated <c>assets.map.loadFailed</c> constant) rather than
+    /// worked around silently.
+    /// </remarks>
+    private static ImmutableArray<MapRecord> LoadStartupMap(DiagnosticLog log)
+    {
+        var mapPath = Path.Combine(AppContext.BaseDirectory, "Maps", "angle-house.hkmap");
+
+        try
+        {
+            var mapText = File.ReadAllText(mapPath);
+            var records = MapTokenizer.Tokenize(mapText);
+            MapValidator.Validate(records);
+            return records;
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+                UnauthorizedAccessException or
+                MapLoadException)
+        {
+            log.Write(
+                LogLevel.Error,
+                LogChannel.Assets,
+                LogEvents.AssetsVisualCatalogInvalid,
+                "path",
+                mapPath,
+                "reason",
+                exception.GetType().Name,
+                "msg",
+                exception.Message);
+            return default;
+        }
+    }
 
     /// <summary>
     /// Opens the debug log with the file name shape

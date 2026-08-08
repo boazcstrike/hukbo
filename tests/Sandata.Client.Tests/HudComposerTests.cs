@@ -7,6 +7,8 @@ using Sandata.Client.Rendering;
 using Sandata.Client.UI;
 using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
+using Sandata.Core.Rules;
+using Sandata.Core.Simulation;
 
 namespace Sandata.Client.Tests;
 
@@ -178,6 +180,27 @@ public sealed class HudComposerTests
     private static WallBuckets OneWall(NavGrid grid, long ax, long ay, long bx, long by) =>
         WallBuckets.Build(grid, [ax], [ay], [bx], [by]);
 
+    // Task 80's own copy of PathDrawToolTests.NewSimulation — that file is
+    // not this task's to edit either, so this is this file's own fixture for
+    // the SandataSimulation ReleaseGoCode/SubmitDrawnPath now require in
+    // place of a bare OrderQueue.
+    private static SandataSimulation NewSimulation(NavGrid grid, WallBuckets wallBuckets)
+    {
+        var mission = new Mission(
+            formatVersion: Mission.CurrentFormatVersion,
+            seed: 1UL,
+            mapContentHash: 1UL,
+            tickPolicy: new MissionTickPolicy(TickLimit: 100, StateHashCadenceTicks: 1),
+            factionSetups: ImmutableArray.Create(
+                new MissionFactionSetup(FactionId: 0, OperatorCount: 1),
+                new MissionFactionSetup(FactionId: 1, OperatorCount: 1)),
+            rulesetId: SandataPresetId.ModernTacticalV1);
+
+        var initialState = new MissionState(Tick: 0, Phase: 1, Winner: -1, NextEntityId: 1, NextEventSequence: 0);
+
+        return new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState);
+    }
+
     [Fact]
     public void TryAddPathNode_APointerDownInsideAnyComposedPanelNeverBecomesAPathNode()
     {
@@ -228,21 +251,20 @@ public sealed class HudComposerTests
     {
         var grid = NewOpenGrid();
         var wallBuckets = NoWalls(grid);
+        var simulation = NewSimulation(grid, wallBuckets);
         var addressees = ImmutableArray.Create(1UL, 2UL);
         const long targetTick = 42;
 
-        var (queue, goCodeEntries, orderQueueEntries) = SandataGame.ReleaseGoCode(
+        var (goCodeEntries, orderQueueEntries) = SandataGame.ReleaseGoCode(
             letter: 'A',
             addressees,
             targetTick,
             factionId: 0,
-            OrderQueue.Empty,
-            grid,
-            wallBuckets,
+            simulation,
             existingGoCodeEntries: ImmutableArray<GoCodePanel.GoCodeEntry>.Empty,
             existingOrderQueueEntries: ImmutableArray<OrderQueueView.Entry>.Empty);
 
-        var submittedOrder = Assert.Single(queue.Orders);
+        var submittedOrder = Assert.Single(simulation.State.OrderQueue.Orders);
         Assert.Equal(OrderKind.GoCodeRelease, submittedOrder.Kind);
         Assert.Equal(targetTick, submittedOrder.TargetTick);
 
@@ -279,20 +301,19 @@ public sealed class HudComposerTests
     {
         var grid = NewOpenGrid(10, 10);
         var wallBuckets = NoWalls(grid);
+        var simulation = NewSimulation(grid, wallBuckets);
         var state = TwoNodeDrawnPath();
         var unsortedAddressees = ImmutableArray.Create<ulong>(30, 5, 100, 2, 17);
 
-        var (postSubmitState, queue, orderQueueEntries) = SandataGame.SubmitDrawnPath(
+        var (postSubmitState, orderQueueEntries) = SandataGame.SubmitDrawnPath(
             state,
             unsortedAddressees,
             targetTick: 7,
             factionId: 0,
-            OrderQueue.Empty,
-            grid,
-            wallBuckets,
+            simulation,
             ImmutableArray<OrderQueueView.Entry>.Empty);
 
-        var storedOrder = Assert.Single(queue.Orders);
+        var storedOrder = Assert.Single(simulation.State.OrderQueue.Orders);
         Assert.Equal(OrderKind.MoveAlongPath, storedOrder.Kind);
         Assert.Equal(new ulong[] { 2, 5, 17, 30, 100 }, storedOrder.Addressees.ToArray());
 
@@ -322,33 +343,32 @@ public sealed class HudComposerTests
     {
         var grid = NewOpenGrid(10, 10);
         var wallBuckets = NoWalls(grid);
+        var simulation = NewSimulation(grid, wallBuckets);
         var state = TwoNodeDrawnPath();
 
         // A non-empty starting queue, so "unchanged" is a meaningful claim
-        // rather than trivially true of OrderQueue.Empty.
-        var (queueBefore, _, _) = SandataGame.ReleaseGoCode(
+        // rather than trivially true of an empty OrderQueue.
+        var (_, _) = SandataGame.ReleaseGoCode(
             'A',
             ImmutableArray.Create(1UL),
             targetTick: 1,
             factionId: 0,
-            OrderQueue.Empty,
-            grid,
-            wallBuckets,
+            simulation,
             ImmutableArray<GoCodePanel.GoCodeEntry>.Empty,
             ImmutableArray<OrderQueueView.Entry>.Empty);
+        var queueBefore = simulation.State.OrderQueue;
         var existingOrderQueueEntries = ImmutableArray.Create(
             OrderQueueView.FromSubmittedOrder(queueBefore.Orders[0]));
 
-        var (postSubmitState, queueAfter, orderQueueEntriesAfter) = SandataGame.SubmitDrawnPath(
+        var (postSubmitState, orderQueueEntriesAfter) = SandataGame.SubmitDrawnPath(
             state,
             ImmutableArray<ulong>.Empty,
             targetTick: 7,
             factionId: 0,
-            queueBefore,
-            grid,
-            wallBuckets,
+            simulation,
             existingOrderQueueEntries);
 
+        var queueAfter = simulation.State.OrderQueue;
         Assert.Equal(queueBefore.Orders.Length, queueAfter.Orders.Length);
         Assert.Equal(queueBefore.NextOrderId, queueAfter.NextOrderId);
         Assert.Equal(queueBefore.NextOrderSequence, queueAfter.NextOrderSequence);
@@ -373,21 +393,20 @@ public sealed class HudComposerTests
     {
         var grid = NewOpenGrid(10, 10);
         var wallBuckets = OneWall(grid, ax: 20, ay: 0, bx: 20, by: 40);
+        var simulation = NewSimulation(grid, wallBuckets);
         var state = PathDrawState.CreateEmpty();
         state = PathDrawTool.AddNode(state, new DrawnPathNode(10, 20));
         state = PathDrawTool.AddNode(state, new DrawnPathNode(30, 20));
 
-        var (postSubmitState, queueAfter, orderQueueEntries) = SandataGame.SubmitDrawnPath(
+        var (postSubmitState, orderQueueEntries) = SandataGame.SubmitDrawnPath(
             state,
             ImmutableArray.Create(1UL),
             targetTick: 3,
             factionId: 0,
-            OrderQueue.Empty,
-            grid,
-            wallBuckets,
+            simulation,
             ImmutableArray<OrderQueueView.Entry>.Empty);
 
-        Assert.Empty(queueAfter.Orders);
+        Assert.Empty(simulation.State.OrderQueue.Orders);
 
         var entry = Assert.Single(orderQueueEntries);
         Assert.True(entry.IsRejected);
