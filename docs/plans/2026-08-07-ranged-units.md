@@ -1270,6 +1270,82 @@ time: neither may pin a hash literal, since RU-26 and RU-27 own every literal an
 afterwards, and neither may hardcode the roster length at seven while RU-45 is moving it
 to nine.
 
+### RU-45 and RU-28's results, both reproduced independently
+
+**RU-45 made band (b) real, and band (a) improved rather than degraded.** The roster is
+nine entries: the original seven byte-identical and in order, with
+`(Kalis, LightOrganic, TallHardwood, Timawa)` and
+`(Itak, LightOrganic, TallHardwood, AlipingNamamahay)` appended at the same rank as each
+weapon's shieldless row, so rank is not a hidden second variable in the comparison.
+Fourteen intercept cells and two void-channel entries were added.
+
+One thing about those values looks wrong at a glance and is not, so it is recorded here to
+save the next reader the same double-take. **The new shielded cells are numerically lower
+than the shieldless ones** — Kalis with a shield intercepts a Bangkaw at 700 where the
+shieldless Kalis row reads 1,750. That is V2's own design inherited intact, not an
+inversion: a shielded defender's protection arrives mostly through the separate
+`shieldIntercept` channel, which V5 sets at 2,400 basis points, so the weapon channel is
+deliberately reduced. The four melee columns are `PhilippineCombatPresetV2.cs:278-286`
+verbatim and the two void entries are `V2:315-316` verbatim; the three ranged columns are
+new, derived by applying V2's own shielded-to-shieldless ratio — about 0.40 for Kalis and
+0.36 for Itak — to V5's post-RU-24 shieldless cells. Those ratios were checked against V2
+and hold to within a percentage point, so the ranged columns sit on the same footing as
+the melee ones rather than on a fresh invention.
+
+Re-measured by the orchestrator, not taken from the report:
+
+| Band | Before RU-45 | After RU-45 |
+| --- | --- | --- |
+| (a) share inside 0.25–0.45 | PASS, 0.2528–0.2853 | **PASS, 0.2766–0.3151** |
+| (b) shielded absorb more | **BLOCKED, unmeasurable** | **PASS, 20 of 20** |
+| (c) decisive before 5,000 | PASS, 20 of 20, median 1,489 | PASS, 20 of 20, median 1,415 |
+| (d) each faction wins four | PASS, 13 / 7 | PASS, 14 / 6 |
+| (e) ten-cell matrix | PASS | PASS, 1,126–2,727 ticks |
+
+Band (a) moved up into the middle of its range as predicted and is now further from the
+0.25 floor than it was, with seed 13's old 0.0028 margin gone. Band (b) measures shielded
+entries absorbing 13.4 to 15.4 blows against shieldless 10.7 to 11.9, a ratio between 1.16
+and 1.40 — which lands close to the 13.3-against-16.3 figure
+`PhilippineCombatIntegrationTests.cs:793-800` reasons from, on a preset that reached it by
+a different route.
+
+**One thing in the harness is stricter than the plan and should not be mistaken for a plan
+requirement.** RU-45's band (b) check asserts `shieldedMean > shieldlessMean * 1.15`
+rather than simply greater. The plan says "absorb more". A fifteen per cent margin is a
+tightening, not a widening, and it passes — but it is the harness's own choice, and a
+later task that reads 1.15 as the contract will be reading something no plan row says.
+
+**RU-28 added four pins and audited the four that already existed.** All four existing
+pins in `ProjectileTests.cs` do pin what their names claim, with no gap found, and the
+allocation pin does run on a ranged roster — both agents carry `WeaponId.Bangkaw` against
+a `PrecolonialPhilippinesV5` scenario, so it is a live ranged duel rather than a melee one
+mislabelled. The four new pins are storage-order independence across three orders,
+same-tick simultaneity where two arrivals together kill a target neither would kill alone,
+delivery by a shooter zeroed mid-flight, and a mid-flight snapshot compared against an
+independently advanced simulation. The save-and-resume pin compares two hashes both
+computed live in the test and never a literal, which is what kept it out of RU-26's and
+RU-27's territory.
+
+Measured on the integration branch with everything merged:
+
+| Combat | Movement | `stateHash` | `eventHash` |
+| --- | --- | --- | --- |
+| V4 | V4 | `1B73FC5923879AA0` | `AC55684F24D39344` |
+| V5 | V4 | `47EDD2F7515E291D` | `656D132F9F211D54` |
+| V4 | V6 | `24EA6F2183A3D05B` | `2B8DE43B3CAAEF92` |
+| V4 | V7 | `B6B0AB6C575D2FE6` | `3298D40F15FC43DE` |
+| V4 | V8 | `43458DD43FA3F564` | `AC55684F24D39344` |
+| V5 | V8 | `C8023D3B5BEB005E` | `F709A345E2F7370E` |
+
+All four V4-combat cells are still byte-identical, five merges into this wave. The V5/V4
+cell is the one RU-45 flagged as not measured and left for the orchestrator; it is measured
+here. **These six values are final for the wave and are what RU-26 and RU-27 pin** — no
+task remaining in the package moves a hash except RU-30, which registers V9 and touches no
+V4 or V5 cell.
+
+Core stands at 1 failed, 2,421 passed, 2,422 total; Client at 0 of 3,328; format passes.
+RU-28 reported honestly that it had not run `format.ps1`; the orchestrator ran it.
+
 ### Task status
 
 | Task | Status |
@@ -1301,7 +1377,7 @@ to nine.
 | RU-25 | Done on branch `ru-25` at `900dff7` and `ffcabe3`, merged into `ranged-units`. The client now runs `PrecolonialPhilippinesV5` + `RangedStandoffV8`; `Scenario.CreateDefault` and the headless default are untouched on V4. **Its own acceptance is only partly demonstrable: `run.ps1` throws on the first ranged pawn (RU-42), so the projectile draw path has never executed.** Two findings recorded as RU-42's widening and RU-43. |
 | RU-26 | Not started |
 | RU-27 | Not started |
-| RU-28 | In progress on branch `ru-28` at `739681d`. **Its row is stale — the eleventh known-wrong row.** `ProjectileTests.cs` already carries four of its eight pins; the real scope is the remaining four plus an audit of the four that exist. See section 9 |
+| RU-28 | **Done on branch `ru-28` at `9e95864`, merged into `ranged-units`.** Its row was the eleventh known-wrong one: `ProjectileTests.cs` already carried four of its eight pins, so the real scope was the remaining four plus an audit of the existing four. All four existing pins hold with no gap, and the allocation pin does run on a ranged roster. Four new pins added, no hash literal among them. See the result in section 9 |
 | RU-29 | Not started |
 | RU-30 | Not started |
 | RU-31 | Not started |
@@ -1318,4 +1394,4 @@ to nine.
 | RU-42 | **Done on branch `ru-42` at `b372670`, merged into `ranged-units`.** The game launches again: a real `run.ps1 -Configuration Debug` run built a 500-agent `PrecolonialPhilippinesV5` scenario and rendered for 52 seconds at 185 fps with zero `err` lines, where before it threw on the first ranged pawn. `WeaponQuadCount` became role-dependent — `5` for Busog, `3` for every other role — because the Busog's arm gained a two-segment `DrawBowstring` so the string can bend with `DrawTension`, and RU-23's Busog pin moved from 25 to **27** as a result. Whole-frame worst case is now 9,944 quads at 200 units and 18,044 at 500; **the 500-unit margin has fallen from 3,468 to 1,956 across RU-23 and RU-42, so the next feature wanting a per-pawn quad owes a fresh measurement rather than an assumption.** One limit on the evidence, not stated by the implementing agent and found by reading the log: `simTicks` was `0` on all 52 frame lines, so the battle never advanced. Ranged pawns were drawn, which is what proves the crash fixed, but every `RangedPhase` stayed neutral — so `WeaponAngleRadians`, `ExtensionRatio`, and `DrawTension` have never been non-zero at runtime and are proven by unit test alone. Whether the five phases actually read as distinct on screen is still open, and it is still RU-32's row and RU-13's bet to settle. Original statement of the defect follows. **Found by RU-23; it blocked RU-25's whole reason for existing.** `PawnRenderer.DrawWeapon` (`src/Hukbo.Client/Rendering/PawnRenderer.cs:1202-1250`) switches over `PawnWeaponRole` with arms for `Itak`, `Kampilan`, `Wasay`, and `Kalis` only, and a `default` arm that throws `ArgumentOutOfRangeException`. It has no arm for `Bangkaw`, `Busog`, or `Arquebus`. The moment RU-25 points `ArenaGame.BuildScenario` at `PrecolonialPhilippinesV5`, the first frame that draws a ranged pawn throws. No task row in this plan owned that switch: RU-22 owned `PawnGeometry.cs`'s four switches and RU-35 owned `PawnAppearanceFactory.cs`'s, and `PawnRenderer.cs` fell between them. This is the same unowned-exhaustive-switch mechanism that section 3 recorded twice already, but it is worse than those, because no test caught it — the Client suite is green at 3,297 with the defect present. `PawnQuadCount.Count` is an independent documentation-driven counting seam that never calls the renderer, so it happily counts `WeaponQuadCount = 3` for a weapon the renderer refuses to draw. That is also why **RU-23's acceptance criterion "the quad count asserted for each pawn configuration equals what the renderer submits for it" is met for the four melee roles and unmet for the three ranged ones**, and why RU-23's 24 / 25 / 24 pins are provisional on this task: a bow or an arquebus whose arm submits a number of quads other than three moves them. The task is to give `DrawWeapon` three real arms, reconcile the quads each submits against `WeaponQuadCount` (making it role-dependent if it must be), and re-pin RU-23's figures against whatever the renderer actually issues. Files: `src/Hukbo.Client/Rendering/PawnRenderer.cs`, `src/Hukbo.Client/Rendering/SubmissionCount.cs`, `tests/Hukbo.Client.Tests/PawnQuadCountTests.cs`. Depends on RU-23 and RU-18 (`RangedPoseResolver` supplies the draw geometry); must land before RU-25 can be smoke-tested and before RU-32's rows can be looked at. **Widened 2026-08-08 after RU-25 merged.** `RangedPose` carries six fields — `Phase`, `WeaponAngleRadians`, `ExtensionRatio`, `TorsoLeanX`, `TorsoLeanY`, `DrawTension` — and only the two torso-lean channels reach the layout, summed into `CreateBodyAnchor` at `PawnGeometry.cs:982-983`. `WeaponAngleRadians`, `ExtensionRatio`, and `DrawTension` are consumed by nothing at all. `PawnGeometry.cs:396-397` documents the limitation honestly, so this is a known partial wiring rather than a silent dead feature, but the consequence is load-bearing and RU-25 made it visible: RU-25 suppresses the swing pose through `RangedPoseResolver.SuppressesSwing`, whose own doc comment justifies suppression on the grounds that *"both poses write the same weapon-line rotation and reach channels into the one weapon line a pawn has"* — and the ranged pose does not write the weapon line. So a warrior in any ranged phase currently draws with a torso lean and an otherwise **neutral** weapon line, and the five draw phases would be largely indistinguishable from one another on screen. RU-42 therefore also owns consuming the three unread channels in the ranged `DrawWeapon` arms. Until it does, RU-32's row "each of the three five-phase draw sequences reading as that weapon" cannot pass, and **RU-13's recorded bet cannot be judged** — the phases would read as arbitrary for a reason that has nothing to do with whether deriving them from the attack cooldown was the right call. |
 | RU-43 | **Not started — added 2026-08-08, found and self-reported by RU-25.** The army-composition sliders are inert while V5 is active. `BuildScenario` (`ArenaGame.cs:1402`) no longer sets `RosterCounts = ToRosterCounts(composition)`, because `Settings.ArmyComposition` is fixed at four categories (`ClientSettings.cs:65`) while V5's ruleset fields a seven-entry roster, and `Scenario.Validate` (`Scenario.cs:310`) throws when `RosterCounts.Length != rules.Roster.Count`. Filling it would have traded an unreachable feature for a game that fails to launch, so RU-25 left it unset and `BattleSimulation.Create` falls back to `CombatRuleset.ResolveLoadout`'s cyclic assignment (`BattleSimulation.cs:571-574`), which is what actually guarantees a ranged loadout reaches the roster at all. That was the right call under RU-25's file list and it is not a defect in RU-25. It is, however, a spectator-facing control that silently does nothing, which fails acceptance question 1 exactly as squarely as the problem RU-25 was written to fix. The task is to decide and implement how a four-category composition panel maps onto V5's seven-entry roster — widen `ArmyComposition` to seven categories, or map four onto seven — and restore `RosterCounts`. **Sequencing:** the ranged roster share is RU-24's first tuning lever, so RU-24 settles what the share should be and RU-43 makes the panel able to express it. Files: `src/Hukbo.Client/ArenaGame.cs`, `src/Hukbo.Client/Settings/ClientSettings.cs`, `src/Hukbo.Client/UI/ArmyCompositionPanel.cs`, and their tests. Depends on RU-24. |
 | RU-44 | **Done on branch `ru-44` at `ed34239`, merged into `ranged-units` at `58180ac`. Added 2026-08-08, found by the orchestrator when re-measuring the wave 7 baseline.** The Client suite is green again at 0 failed of 3328, verified independently of the task agent on the integration branch, and the whole six-cell hash matrix reproduced byte-for-byte afterwards, as a Client-only change must. Three families were added rather than one — `OverhandThrow = 4`, `DrawAndRelease = 5`, `BracedDischarge = 6` — on the ground that a hurl, a bowstring release, and a firearm discharge are structurally distinct motions, which also keeps the file's existing one-family-per-weapon shape. The `TrailEligible` judgment call went the way the row anticipated: the blanket `Assert.True` over every `WeaponId` became seven explicit per-weapon pins, four `true` and three `false`, because a trail is the visible sweep of an edge through the air and none of the three ranged releases sweeps one. That is a stricter pin than the blanket assertion it replaced, since each weapon now fails on its own if its flag flips. The four melee profiles were not touched. Original statement of the defect follows. `AttackMotionCatalog.Resolve` (`src/Hukbo.Client/Presentation/AttackMotionCatalog.cs:74-80`) switches over `WeaponId` with arms for the four melee weapons and a throwing default, and it arrived from `main` with the `attack-animation-v2` package after this package had already widened `WeaponId` to seven members. Two facts in `tests/Hukbo.Client.Tests/Presentation/AttackMotionCatalogTests.cs` fail with `Expected: 7 Actual: 4`. The task is to add an `AttackMotionFamily` member and an `AttackMotionProfile` for each of `Bangkaw`, `Busog`, and `Arquebus`, give `Resolve` three real arms, keep the throwing default, and extend the test file's weapon-to-family map and `ShieldCompatible` pins. Every choreography value is a **Provisional reconstruction** under `CLAUDE.md` section 7; the physical weapon classes are Documented and the motions are not. One judgment call is delegated to the implementer and must be reported rather than buried: the bounded-data loop asserts `TrailEligible` is true for every `WeaponId`, which was written when all four weapons swung, so a ranged weapon whose release draws no trail requires that assertion to become per-weapon pins rather than a blanket one. Files: `src/Hukbo.Client/Presentation/AttackMotionCatalog.cs`, `src/Hukbo.Client/Presentation/AttackMotionFamily.cs`, `tests/Hukbo.Client.Tests/Presentation/AttackMotionCatalogTests.cs`. Depends on nothing in this package; must land before RU-33. |
-| RU-45 | **In progress on branch `ru-45` at `739681d`, added 2026-08-08 by user decision.** Makes RU-24's band (b) measurable by giving `PhilippineCombatPresetV5` a shielded roster entry, following V2's one-handed pairing precedent — the roster goes from seven entries to nine, plus the fourteen weapon-intercept cells and two void-channel entries the new `TallHardwood` defender keys require, because both `ClashProfile` lookups throw on a missing key rather than defaulting to zero. Re-measures all five bands, with band (a) now moving toward its 0.45 ceiling rather than its floor. Ripples into RU-43, whose four-category panel now maps onto nine roster entries, and RU-29, which must read `Rules.Roster.Count` rather than carry a literal. Files: `src/Hukbo.Core/Combat/PhilippineCombatPresetV5.cs`, `tests/Hukbo.Core.Tests/RangedCalibrationHarness.cs`. Depends on RU-24; must land before RU-26 and RU-27 pin anything. |
+| RU-45 | **Done on branch `ru-45` at `c0bc314`, merged into `ranged-units`.** Band (b) is measurable and passes 20 of 20 at a ratio of 1.16 to 1.40; band (a) improved to 0.2766–0.3151 rather than degrading. The roster is nine entries. Note the harness asserts a 1.15x margin that no plan row requires — see section 9. Added 2026-08-08 by user decision. Makes RU-24's band (b) measurable by giving `PhilippineCombatPresetV5` a shielded roster entry, following V2's one-handed pairing precedent — the roster goes from seven entries to nine, plus the fourteen weapon-intercept cells and two void-channel entries the new `TallHardwood` defender keys require, because both `ClashProfile` lookups throw on a missing key rather than defaulting to zero. Re-measures all five bands, with band (a) now moving toward its 0.45 ceiling rather than its floor. Ripples into RU-43, whose four-category panel now maps onto nine roster entries, and RU-29, which must read `Rules.Roster.Count` rather than carry a literal. Files: `src/Hukbo.Core/Combat/PhilippineCombatPresetV5.cs`, `tests/Hukbo.Core.Tests/RangedCalibrationHarness.cs`. Depends on RU-24; must land before RU-26 and RU-27 pin anything. |
