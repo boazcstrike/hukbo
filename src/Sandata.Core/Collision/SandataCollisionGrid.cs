@@ -157,15 +157,19 @@ internal sealed class SandataCollisionGrid
     internal int CellSizeRaw { get; }
 
     /// <summary>
-    /// Every unordered pair of living bodies in contact after the last
-    /// <see cref="Rebuild"/>, sorted ascending by
+    /// Every unordered pair of living bodies matched by the last
+    /// <see cref="Rebuild"/> (physical contact, sum-of-radii) or
+    /// <see cref="RebuildWithinRange"/> (a plain centre-to-centre distance,
+    /// used for a broad-phase candidate list at a radius that has nothing to
+    /// do with body size — see that method's remarks), sorted ascending by
     /// <see cref="SandataCollisionPair.CompareTo"/> with each pair present
     /// exactly once.
     /// </summary>
     /// <remarks>
     /// The list is owned by the grid and is overwritten by the next
-    /// <see cref="Rebuild"/> or <see cref="Clear"/>. Callers read it within the
-    /// tick that produced it and never retain it.
+    /// <see cref="Rebuild"/>, <see cref="RebuildWithinRange"/>, or
+    /// <see cref="Clear"/>. Callers read it within the tick that produced it
+    /// and never retain it.
     /// </remarks>
     internal IReadOnlyList<SandataCollisionPair> Pairs => _pairs;
 
@@ -197,14 +201,60 @@ internal sealed class SandataCollisionGrid
         ArgumentNullException.ThrowIfNull(bodies);
         ValidateBodyRadius(bodyRadiusRaw);
 
+        IndexBodies(bodies);
+        GeneratePairs(bodyRadiusRaw);
+    }
+
+    /// <summary>
+    /// Runs the broad phase against a plain centre-to-centre distance instead
+    /// of the sum-of-radii contact formula <see cref="Rebuild"/> uses: two
+    /// living bodies are paired when they are at most <paramref name="rangeRaw"/>
+    /// apart, inclusive, regardless of body size. This is the entry point a
+    /// caller that needs candidates at an arbitrary radius — for example
+    /// squad cohesion, which has nothing to do with physical contact — uses
+    /// instead of <see cref="Rebuild"/>. Discards the previous contents the
+    /// same way <see cref="Rebuild"/> does.
+    /// </summary>
+    /// <remarks>
+    /// <b>The caller picks the cell size, not this method.</b> A cell size
+    /// smaller than <paramref name="rangeRaw"/> would let two bodies within
+    /// range land more than one cell apart, which the fixed three-by-three
+    /// neighbourhood cannot see — the same reasoning
+    /// <see cref="ValidateBodyRadius"/> applies to a body diameter, here
+    /// generalised to a plain distance. A cohesion radius can be far larger
+    /// than the physical-contact grid's own cell size, so a caller building a
+    /// second index for a range query must size that grid's constructor
+    /// argument to fit the range it intends to query, never reuse a grid
+    /// instance built for physical contact.
+    /// </remarks>
+    /// <param name="bodies">The bodies to index. Dead bodies are skipped rather than rejected.</param>
+    /// <param name="rangeRaw">The inclusive match distance, in raw units.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="bodies"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="rangeRaw"/> is negative or exceeds <see cref="CellSizeRaw"/>.
+    /// </exception>
+    internal void RebuildWithinRange(IReadOnlyList<SandataCollisionBody> bodies, int rangeRaw)
+    {
+        ArgumentNullException.ThrowIfNull(bodies);
+        ValidateRange(rangeRaw);
+
+        IndexBodies(bodies);
+        GeneratePairsWithinRange(rangeRaw);
+    }
+
+    /// <summary>
+    /// The indexing half shared by <see cref="Rebuild"/> and
+    /// <see cref="RebuildWithinRange"/>: discard, then insert every body in
+    /// caller order.
+    /// </summary>
+    private void IndexBodies(IReadOnlyList<SandataCollisionBody> bodies)
+    {
         Clear();
 
         for (var index = 0; index < bodies.Count; index++)
         {
             Insert(bodies[index]);
         }
-
-        GeneratePairs(bodyRadiusRaw);
     }
 
     /// <summary>
@@ -532,6 +582,72 @@ internal sealed class SandataCollisionGrid
     }
 
     /// <summary>
+    /// The <see cref="RebuildWithinRange"/> counterpart of
+    /// <see cref="GeneratePairs"/>: sorts the occupied cells, then walks each
+    /// cell's bodies against its three-by-three neighbourhood, emitting a
+    /// pair only from the body with the lower entity ID, exactly as
+    /// <see cref="GeneratePairs"/> does — the only difference is the match
+    /// predicate below, a plain inclusive distance rather than a sum of
+    /// radii.
+    /// </summary>
+    private void GeneratePairsWithinRange(int rangeRaw)
+    {
+        _pairs.Clear();
+
+        if (_bodyCount < 2)
+        {
+            return;
+        }
+
+        // Squared once, outside the per-body walk, for the same reason
+        // SquadGrouping.ComputeCore squares its own radius once: comparing
+        // squared distance to a squared range avoids a square root and stays
+        // integer-only. Widened to long so a large range or a large map
+        // coordinate cannot overflow the multiply.
+        var rangeSquaredRaw = checked((long)rangeRaw * rangeRaw);
+
+        Array.Copy(_occupiedCellKeys, _traversalOrder, _occupiedCellCount);
+        Array.Sort(_traversalOrder, 0, _occupiedCellCount);
+
+        for (var orderIndex = 0; orderIndex < _occupiedCellCount; orderIndex++)
+        {
+            var key = _traversalOrder[orderIndex];
+            var hashIndex = FindExistingHashSlot(key);
+            var slot = _hashHeadSlot[hashIndex];
+
+            while (slot != NoSlot)
+            {
+                var body = _bodies[slot];
+                AppendRangeMatchesOf(body, CellCoordinate(body.XRaw), CellCoordinate(body.YRaw), rangeSquaredRaw);
+                slot = _nextSlotInCell[slot];
+            }
+        }
+
+        _pairs.Sort();
+    }
+
+    private void AppendRangeMatchesOf(in SandataCollisionBody body, int cellX, int cellY, long rangeSquaredRaw)
+    {
+        foreach (var offset in NeighbourOffsets)
+        {
+            var slot = FirstSlotInCell(cellX + offset.X, cellY + offset.Y);
+
+            while (slot != NoSlot)
+            {
+                var other = _bodies[slot];
+
+                if (other.EntityId > body.EntityId &&
+                    SquaredDistance(body.XRaw, body.YRaw, other.XRaw, other.YRaw) <= rangeSquaredRaw)
+                {
+                    _pairs.Add(SandataCollisionPair.Create(body.EntityId, other.EntityId));
+                }
+
+                slot = _nextSlotInCell[slot];
+            }
+        }
+    }
+
+    /// <summary>
     /// Rejects a radius the grid cannot serve. A cell narrower than one body
     /// diameter would let two contacting bodies land more than one cell apart,
     /// which the three-by-three neighbourhood would miss.
@@ -546,6 +662,29 @@ internal sealed class SandataCollisionGrid
                 nameof(bodyRadiusRaw),
                 bodyRadiusRaw,
                 "A collision grid cell must be at least one body diameter wide.");
+        }
+    }
+
+    /// <summary>
+    /// Rejects a query range the grid cannot serve. A cell narrower than the
+    /// range itself would let two bodies within range land more than one
+    /// cell apart, which the three-by-three neighbourhood would miss — the
+    /// same requirement <see cref="ValidateBodyRadius"/> enforces for a body
+    /// diameter, generalised here to a plain distance instead of a sum of
+    /// radii. The caller — see <see cref="RebuildWithinRange"/>'s remarks —
+    /// is responsible for constructing a grid whose cell size actually fits
+    /// the range it intends to query.
+    /// </summary>
+    private void ValidateRange(int rangeRaw)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(rangeRaw);
+
+        if (rangeRaw > CellSizeRaw)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(rangeRaw),
+                rangeRaw,
+                "A collision grid cell must be at least as wide as the query range.");
         }
     }
 

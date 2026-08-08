@@ -34,7 +34,7 @@ public enum MsToTickConversionRule
 /// <see cref="TickRate"/> and <see cref="MsToTickConversionRuleId"/> are
 /// pinned by design section 4 — 50 Hz and the half-away-from-zero rule —
 /// and are not gameplay tuning. <see cref="PathLatencyTicks"/>,
-/// <see cref="GroupCohesionRadius"/>, <see cref="LoweredWallDistanceWu"/>,
+/// <see cref="GroupCohesionRadiusWu"/>, <see cref="LoweredWallDistanceWu"/>,
 /// and <see cref="AimToleranceBam"/> are provisional reconstructions of
 /// gameplay tuning, not measurements — design sections 4, 7, 8, and 9 name
 /// the mechanism each one drives. Changing any one of the six fields below
@@ -63,6 +63,22 @@ public enum MsToTickConversionRule
 /// physical facts. <see cref="ContentHash"/> is unchanged by this finding.
 /// </para>
 /// <para>
+/// <b>Amendment, task 77.</b> Task 63's finding above that
+/// <c>GroupCohesionRadius</c> "is not consumed by any comparison in the
+/// codebase" was itself evidence of two compounding defects, not proof the
+/// field was inert by design: <c>SandataSimulation.ComputeSquadGrouping</c>
+/// passed this field straight into <c>SquadGrouping.Compute</c>'s raw
+/// fixed-point parameter with no unit conversion, and the candidate pair
+/// list it fed that comparison was pre-narrowed to physical body contact, a
+/// bound tighter than any cohesion radius could ever reach. Renaming this
+/// field to <see cref="GroupCohesionRadiusWu"/> states the unit explicitly,
+/// the same convention <see cref="LoweredWallDistanceWu"/> already follows,
+/// and the call site now converts to raw units explicitly and reads a
+/// second, cohesion-radius-sized candidate list — see
+/// <c>SandataSimulation.RunTick</c>'s stage 3 and stage 6 remarks. The
+/// stored value is unchanged; only its name and its call-site handling are.
+/// </para>
+/// <para>
 /// <see cref="AimToleranceBam"/> is a raw Bam16 magnitude — <c>ushort</c>,
 /// 65,536 to the full turn — rather than the <c>Bam16</c> type itself.
 /// <c>Bam16</c> is declared by a separate, parallel task with no dependency
@@ -83,7 +99,7 @@ public sealed class SandataRuleset
         tickRate: 50,
         msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
         pathLatencyTicks: 10,
-        groupCohesionRadius: 96,
+        groupCohesionRadiusWu: 96,
         loweredWallDistanceWu: 24,
         aimToleranceBam: 1024);
 
@@ -91,7 +107,7 @@ public sealed class SandataRuleset
         int tickRate,
         MsToTickConversionRule msToTickConversionRuleId,
         int pathLatencyTicks,
-        int groupCohesionRadius,
+        int groupCohesionRadiusWu,
         int loweredWallDistanceWu,
         ushort aimToleranceBam)
     {
@@ -107,13 +123,13 @@ public sealed class SandataRuleset
         // adds a second rule and a dispatcher on this value is the task that
         // adds the defined-ness check.
         ArgumentOutOfRangeException.ThrowIfNegative(pathLatencyTicks);
-        ArgumentOutOfRangeException.ThrowIfNegative(groupCohesionRadius);
+        ArgumentOutOfRangeException.ThrowIfNegative(groupCohesionRadiusWu);
         ArgumentOutOfRangeException.ThrowIfNegative(loweredWallDistanceWu);
 
         TickRate = tickRate;
         MsToTickConversionRuleId = msToTickConversionRuleId;
         PathLatencyTicks = pathLatencyTicks;
-        GroupCohesionRadius = groupCohesionRadius;
+        GroupCohesionRadiusWu = groupCohesionRadiusWu;
         LoweredWallDistanceWu = loweredWallDistanceWu;
         AimToleranceBam = aimToleranceBam;
         ContentHash = ComputeContentHash();
@@ -153,15 +169,17 @@ public sealed class SandataRuleset
     /// The distance, in world units, within which two operators of the same
     /// faction are unioned into one squad by the union-find grouping in
     /// design section 8. A provisional reconstruction of gameplay tuning,
-    /// not a historical or measured fact. Task 63 read <c>SquadGrouping.Compute</c>
-    /// and <c>SquadGroupingTests</c> and found that method takes an
-    /// already-formed candidate pair list rather than applying this radius
-    /// itself — nothing in <c>Sandata.Core</c> today compares a distance
-    /// against this field, so there is no consuming code to derive a
-    /// different value from. No change is justified and this value is
-    /// unchanged from task 9.
+    /// not a historical or measured fact; the stored number is unchanged
+    /// from task 9. <b>World units, not raw fixed-point units</b> — the
+    /// <c>Wu</c> suffix states that explicitly, the same convention
+    /// <see cref="LoweredWallDistanceWu"/> already follows, precisely because
+    /// task 74 stored this value correctly but task 77 found the call site
+    /// passing it straight into a raw-fixed-point comparison with no
+    /// conversion. A caller comparing this field against a raw fixed-point
+    /// position must convert first — <c>SandataSimulation.ComputeSquadGrouping</c>
+    /// is the reference call site.
     /// </summary>
-    public int GroupCohesionRadius { get; }
+    public int GroupCohesionRadiusWu { get; }
 
     /// <summary>
     /// The distance, in world units, from a wall segment within which an
@@ -198,7 +216,7 @@ public sealed class SandataRuleset
     /// FNV-1a over exactly the six fields above, folded through
     /// <see cref="SandataHash"/> in the fixed declaration order
     /// <see cref="TickRate"/>, <see cref="MsToTickConversionRuleId"/>,
-    /// <see cref="PathLatencyTicks"/>, <see cref="GroupCohesionRadius"/>,
+    /// <see cref="PathLatencyTicks"/>, <see cref="GroupCohesionRadiusWu"/>,
     /// <see cref="LoweredWallDistanceWu"/>, <see cref="AimToleranceBam"/>.
     /// Changing that order, adding a field, or removing one is a new preset
     /// version with new golden expectations — the same rule
@@ -213,7 +231,7 @@ public sealed class SandataRuleset
         SandataHash.Fold(ref hash, TickRate);
         SandataHash.Fold(ref hash, (long)MsToTickConversionRuleId);
         SandataHash.Fold(ref hash, PathLatencyTicks);
-        SandataHash.Fold(ref hash, GroupCohesionRadius);
+        SandataHash.Fold(ref hash, GroupCohesionRadiusWu);
         SandataHash.Fold(ref hash, LoweredWallDistanceWu);
         SandataHash.Fold(ref hash, AimToleranceBam);
         return hash;

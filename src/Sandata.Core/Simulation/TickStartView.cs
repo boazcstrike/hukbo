@@ -26,9 +26,14 @@ namespace Sandata.Core.Simulation;
 /// <see cref="Collision.SandataCollisionGrid"/> need and the world-unit domain
 /// <see cref="Navigation.NavGrid"/>, <see cref="Navigation.WallBuckets"/>, and
 /// every rule built on them need, so no stage-5-through-9 caller repeats that
-/// conversion; and it carries this tick's collision broad-phase candidate
-/// pairs (<see cref="Pairs"/>), computed once from the same frozen positions,
-/// so stage 6 never has to rebuild the broad phase itself. Enforcing "stages
+/// conversion; and it carries two independent collision broad-phase candidate
+/// lists, both computed once from the same frozen positions so no later stage
+/// has to rebuild either broad phase itself: <see cref="Pairs"/>, physical
+/// body contact, and <see cref="CohesionPairs"/>, a second query at squad
+/// cohesion range — a materially different radius, so a materially different
+/// grid, per <see cref="Collision.SandataCollisionGrid.RebuildWithinRange"/>'s
+/// own remarks on why a caller may never reuse a physical-contact grid
+/// instance for a range query. Enforcing "stages
 /// 10 through 14 may never read this data" is the other half of the reason:
 /// <see cref="Release"/> makes every accessor below throw
 /// <see cref="InvalidOperationException"/> once called, so a stage-10-or-later
@@ -61,18 +66,24 @@ internal sealed class TickStartView
     private readonly ImmutableArray<int> _suppressionCounter;
     private readonly ImmutableArray<ImmutableArray<ContactMemoryEntry>> _contactMemory;
     private readonly IReadOnlyList<SandataCollisionPair> _pairs;
+    private readonly IReadOnlyList<SandataCollisionPair> _cohesionPairs;
     private bool _released;
 
     /// <summary>
     /// Captures one frozen snapshot from <paramref name="state"/>'s current
-    /// operator roster and <paramref name="pairs"/>, this tick's collision
-    /// broad-phase candidate list already computed against those same
-    /// positions.
+    /// operator roster, <paramref name="pairs"/> — this tick's physical-contact
+    /// collision broad-phase candidate list — and <paramref name="cohesionPairs"/>
+    /// — this tick's squad-cohesion-radius candidate list — both already
+    /// computed against those same positions.
     /// </summary>
-    internal TickStartView(MissionState state, IReadOnlyList<SandataCollisionPair> pairs)
+    internal TickStartView(
+        MissionState state,
+        IReadOnlyList<SandataCollisionPair> pairs,
+        IReadOnlyList<SandataCollisionPair> cohesionPairs)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(pairs);
+        ArgumentNullException.ThrowIfNull(cohesionPairs);
 
         var operators = state.Operators;
         var count = operators.IsDefaultOrEmpty ? 0 : operators.Length;
@@ -121,6 +132,7 @@ internal sealed class TickStartView
         _suppressionCounter = suppressionCounter.MoveToImmutable();
         _contactMemory = contactMemory.MoveToImmutable();
         _pairs = pairs;
+        _cohesionPairs = cohesionPairs;
     }
 
     /// <summary>How many living-and-dead operators this snapshot holds — the whole roster, not only the living.</summary>
@@ -154,6 +166,24 @@ internal sealed class TickStartView
         {
             EnsureNotReleased();
             return _pairs;
+        }
+    }
+
+    /// <summary>
+    /// This tick's squad-cohesion-radius candidate pairs — stage 6's
+    /// candidate source, gated by <c>SandataRuleset.GroupCohesionRadiusWu</c>
+    /// — computed once from the same positions this snapshot froze, from a
+    /// query the physical-contact <see cref="Pairs"/> broad phase cannot
+    /// answer because a cohesion radius is a different, usually far larger,
+    /// distance than physical body contact. Not itself index-aligned to
+    /// <see cref="EntityIds"/> — see <see cref="Collision.SandataCollisionPair"/>.
+    /// </summary>
+    internal IReadOnlyList<SandataCollisionPair> CohesionPairs
+    {
+        get
+        {
+            EnsureNotReleased();
+            return _cohesionPairs;
         }
     }
 
