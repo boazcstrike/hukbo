@@ -911,19 +911,34 @@ public sealed class SandataSimulation
 
     /// <summary>
     /// The uniform collision grid's cell edge length, in raw fixed-point
-    /// units. <b>PROVISIONAL</b> — no ruleset field carries this value; no
-    /// production caller of <see cref="SandataCollisionGrid"/> existed before
-    /// this task to pin one, so this is a placeholder pending a real tuning
-    /// pass.
+    /// units: one body diameter, the tightest cell that still keeps
+    /// <see cref="SandataCollisionGrid"/>'s fixed three-by-three neighbour
+    /// scan complete. That rule is not this task's invention — it is
+    /// <see cref="SandataCollisionGrid"/>'s own enforced precondition:
+    /// <c>ValidateBodyRadius</c> throws whenever twice the body radius
+    /// exceeds the cell size, and <c>RebuildWithinRange</c>'s remarks state
+    /// the same requirement generalised to a plain range. This value is
+    /// therefore <c>2 * CollisionBodyRadiusRaw</c> exactly, 8,704 raw
+    /// (8.5 wu), not an independently chosen number.
     /// </summary>
-    private const int CollisionCellSizeRaw = 256;
+    private const int CollisionCellSizeRaw = 2 * CollisionBodyRadiusRaw;
 
     /// <summary>
     /// The operator body radius, in raw fixed-point units, used to rebuild
-    /// this tick's collision broad phase. <b>PROVISIONAL</b> for the same
-    /// reason as <see cref="CollisionCellSizeRaw"/>.
+    /// this tick's collision broad phase. Design section 4's unit table
+    /// (docs/plans/2026-08-07-sandata-scaffold-design.md, "Units, and why
+    /// they are chosen") names this value as
+    /// <c>Hukbo.Core/Simulation/CollisionRules.cs:72</c>'s
+    /// <c>DefaultBodyRadiusRaw</c>, <c>(17 * FixedPoint.Scale) / 4</c> =
+    /// 4,352 raw = 4.25 wu = 0.266 m, unchanged from Hukbo. That file's own
+    /// <c>&lt;remarks&gt;</c> record it as measured, not guessed: 4.5 wu
+    /// deadlocked Hukbo's collision resolver, 4.25 and 4.125 did not, and
+    /// 4.25 was kept. <c>Sandata.Core</c> may not take a
+    /// <c>ProjectReference</c> on <c>Hukbo.Core</c> (design section 3), so
+    /// the value is restated here rather than shared; see the wave-12 audit
+    /// for the open tier-2 extraction question that duplication raises.
     /// </summary>
-    private const int CollisionBodyRadiusRaw = 32;
+    private const int CollisionBodyRadiusRaw = 4352;
 
     /// <summary>
     /// The cell edge length, in raw fixed-point units, for the second
@@ -1084,8 +1099,10 @@ public sealed class SandataSimulation
     /// names a cone width (its confirmed field list is <c>TickRate</c>,
     /// <c>MsToTickConversionRuleId</c>, <c>PathLatencyTicks</c>,
     /// <c>GroupCohesionRadiusWu</c>, <c>LoweredWallDistanceWu</c>,
-    /// <c>AimToleranceBam</c>), so this is a placeholder pending a real
-    /// tuning pass, exactly like <see cref="CollisionCellSizeRaw"/> above.
+    /// <c>AimToleranceBam</c>), and design section 4 does not supply one
+    /// either — section 6's row for <see cref="VisionCone.Contains"/>
+    /// specifies the predicate's shape and never a half-width — so this
+    /// remains a placeholder pending a real tuning pass.
     /// </summary>
     private const ushort VisionConeHalfWidthBam = (ushort)(Bam16.UnitsPerTurn / 4);
 
