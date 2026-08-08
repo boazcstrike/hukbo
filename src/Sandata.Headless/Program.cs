@@ -11,23 +11,15 @@ namespace Sandata.Headless;
 /// <c>Hukbo.Headless.HeadlessRunner</c>'s argument-parsing shape and
 /// exit-code contract (plan task 14 of
 /// docs/plans/2026-08-07-sandata-scaffold.md), collapsed into this one file
-/// because that task's file list does not include a separate runner class.
+/// because that task's file list did not include a separate runner class.
+/// Task 51 adds that runner (<see cref="HeadlessRunner"/>) and this file's
+/// dispatch to it: when <c>--agents</c>, <c>--ticks</c>, and <c>--seed</c>
+/// are all supplied, this entry point runs the seeded determinism workload
+/// and prints its <see cref="RunReport"/> as JSON instead of the placeholder
+/// boot-only message. Supplying none of the three keeps that placeholder
+/// behavior, so an operator can still probe logging and argument handling
+/// alone.
 /// </summary>
-/// <remarks>
-/// <para>
-/// There is no <c>Mission</c> or simulation in <c>Sandata.Core</c> yet — plan
-/// task 51 adds the real determinism runner. This entry point exists to prove
-/// the argument, logging, and exit-code contract now, so task 51 builds on a
-/// tested shape instead of inventing its own. A successful run therefore does
-/// no simulation work; it only parses arguments, opens the debug log, and
-/// reports that fact.
-/// </para>
-/// <para>
-/// Exit code 3, reserved on <c>Hukbo.Headless.HeadlessRunner</c> for a
-/// determinism mismatch, is not used here: there is nothing yet to mismatch.
-/// Task 51 is expected to add it.
-/// </para>
-/// </remarks>
 internal static class Program
 {
     /// <summary>The run parsed its arguments, logged, and returned normally.</summary>
@@ -39,8 +31,19 @@ internal static class Program
     /// <summary>The supplied arguments could not be parsed.</summary>
     public const int ExitArgumentError = 2;
 
+    /// <summary>
+    /// The determinism workload ran to completion but the two simulations it
+    /// compared disagreed at some tick — see <see cref="RunReport.FirstMismatchTick"/>
+    /// in the JSON report this run printed for exactly which one. Matches
+    /// <c>Hukbo.Headless.HeadlessRunner</c>'s own exit code 3 for the same
+    /// condition.
+    /// </summary>
+    public const int ExitDeterminismMismatch = 3;
+
     private const string UsageText =
         "Usage: sandata-headless [--help] " +
+        "[--agents <positive-even-count>] [--ticks <positive-count>] " +
+        "[--seed <uint64>] [--output <json-path>] " +
         "[--log-level off|err|warn|inf|dbg|trc] " +
         "[--log-channels all|<comma-separated>] " +
         "[--log-dir <directory>] " +
@@ -50,7 +53,10 @@ internal static class Program
         "[--nav-ticks <positive integer>] [--nav-fixture-path <path>]. " +
         "The five --nav-map-density/--nav-changed-cells/--nav-seekers/" +
         "--nav-query-distance/--nav-replan-rate flags together trigger the " +
-        "navigation benchmark and, when used, all five are required.";
+        "navigation benchmark and, when used, all five are required. " +
+        "The three --agents/--ticks/--seed flags together trigger the " +
+        "determinism workload and, when any one is used, all three are " +
+        "required.";
 
     private static int Main(string[] args) =>
         Run(args, Console.Out, Console.Error);
@@ -91,6 +97,19 @@ internal static class Program
             return navBenchmarkExitCode.Value;
         }
 
+        var determinismMissingFlags = MissingDeterminismFlags(options);
+        if (determinismMissingFlags.Count is > 0 and < 3)
+        {
+            standardError.WriteLine(
+                "Argument error: the determinism workload requires all three " +
+                "--agents/--ticks/--seed flags; missing: " +
+                string.Join(", ", determinismMissingFlags) + ".");
+            standardError.WriteLine(UsageText);
+            return ExitArgumentError;
+        }
+
+        var runDeterminismWorkload = determinismMissingFlags.Count == 0;
+
         // Command-line switches outrank the environment, matching
         // Hukbo.Headless: a one-off diagnostic run should never require
         // mutating the shell.
@@ -116,10 +135,9 @@ internal static class Program
                 "path",
                 filePath);
 
-            standardOutput.WriteLine(
-                "Sandata.Headless: argument parsing and logging only; " +
-                "no mission runner yet (docs/plans/2026-08-07-sandata-scaffold.md " +
-                "task 51).");
+            var exitCode = runDeterminismWorkload
+                ? RunDeterminismWorkload(options, standardOutput, log)
+                : RunBootOnly(standardOutput);
 
             log.Write(
                 LogLevel.Information,
@@ -129,7 +147,7 @@ internal static class Program
                 "exit",
                 "uptimeMs",
                 (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
-            return ExitSuccess;
+            return exitCode;
         }
         catch (Exception exception)
         {
@@ -268,9 +286,114 @@ internal static class Program
     }
 
     /// <summary>
-    /// Parses the arguments this entry point accepts. Kept deliberately small
-    /// — there is no scenario or mission yet for a flag to configure — and
-    /// grows as later tasks add work for this runner to do.
+    /// Every <c>--agents</c>/<c>--ticks</c>/<c>--seed</c> flag name that
+    /// <paramref name="options"/> did not supply, in that order — empty when
+    /// all three, or none, were supplied. The all-or-none dispatch rule this
+    /// feeds mirrors <see cref="TryRunNavBenchmark"/>'s own rule for its five
+    /// matrix flags: a caller that supplies some but not all of a required
+    /// group gets a named list of what is missing, never a silently
+    /// defaulted value.
+    /// </summary>
+    private static List<string> MissingDeterminismFlags(HeadlessOptions options)
+    {
+        var missing = new List<string>();
+        if (options.AgentCount is null)
+        {
+            missing.Add("--agents");
+        }
+
+        if (options.TickCount is null)
+        {
+            missing.Add("--ticks");
+        }
+
+        if (options.Seed is null)
+        {
+            missing.Add("--seed");
+        }
+
+        // The caller (Run) treats an empty list as "all three supplied, run
+        // the workload" and a full list of three as "none supplied, stay on
+        // the boot-only path" — both are fine outcomes. Only a list of one
+        // or two is the error case: some but not all of the required group,
+        // which would otherwise let the missing ones quietly fall back to a
+        // default the caller never asked for.
+        return missing;
+    }
+
+    /// <summary>
+    /// The placeholder boot-only report this entry point printed before task
+    /// 51 added <see cref="HeadlessRunner"/> — still reachable today when
+    /// none of <c>--agents</c>/<c>--ticks</c>/<c>--seed</c> is supplied, so a
+    /// bare invocation can still probe argument parsing and logging alone
+    /// without paying for a mission run.
+    /// </summary>
+    private static int RunBootOnly(TextWriter standardOutput)
+    {
+        standardOutput.WriteLine(
+            "Sandata.Headless: argument parsing and logging only; no " +
+            "--agents/--ticks/--seed supplied, so no mission ran " +
+            "(docs/plans/2026-08-07-sandata-scaffold.md task 51).");
+        return ExitSuccess;
+    }
+
+    /// <summary>
+    /// Runs <see cref="HeadlessRunner.Execute(int, int, ulong, DiagnosticLog)"/>
+    /// with the parsed <c>--agents</c>/<c>--ticks</c>/<c>--seed</c> (and
+    /// optional <c>--output</c>) options, prints the resulting
+    /// <see cref="RunReport"/> as indented, camelCase JSON to
+    /// <paramref name="standardOutput"/>, mirrors it to
+    /// <c>--output</c> when supplied, and returns
+    /// <see cref="ExitDeterminismMismatch"/> when the two simulations it ran
+    /// disagreed or <see cref="ExitSuccess"/> otherwise.
+    /// </summary>
+    private static int RunDeterminismWorkload(
+        HeadlessOptions options, TextWriter standardOutput, DiagnosticLog log)
+    {
+        var report = HeadlessRunner.Execute(
+            options.AgentCount!.Value, options.TickCount!.Value, options.Seed!.Value, log);
+        var json = JsonSerializer.Serialize(
+            report,
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = true,
+            });
+        standardOutput.WriteLine(json);
+
+        if (options.OutputPath is not null)
+        {
+            var outputPath = Path.GetFullPath(options.OutputPath);
+            var directory = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(
+                outputPath,
+                json + Environment.NewLine,
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        }
+
+        return DetermineDeterminismExitCode(report);
+    }
+
+    /// <summary>
+    /// The exit-code half of <see cref="RunDeterminismWorkload"/>'s contract,
+    /// pulled out to its own pure, internal method so a test can assert
+    /// <see cref="ExitDeterminismMismatch"/>'s documented condition —
+    /// "the determinism workload ran to completion but the two simulations
+    /// it compared disagreed" — directly against a <see cref="RunReport"/>,
+    /// without needing a CLI seam to force a real mismatch through
+    /// <c>Program.Run</c> itself.
+    /// </summary>
+    internal static int DetermineDeterminismExitCode(RunReport report) =>
+        report.Deterministic ? ExitSuccess : ExitDeterminismMismatch;
+
+    /// <summary>
+    /// Parses the arguments this entry point accepts. Grows as later tasks
+    /// add work for this runner to do.
     /// </summary>
     internal static bool TryParseArguments(
         IReadOnlyList<string> arguments,
@@ -282,6 +405,10 @@ internal static class Program
         LogLevel? logLevel = null;
         LogChannel? logChannels = null;
         string? logDirectory = null;
+        int? agentCount = null;
+        int? tickCount = null;
+        ulong? seed = null;
+        string? outputPath = null;
         int? navMapDensityPercent = null;
         int? navChangedCellCount = null;
         int? navConcurrentSeekers = null;
@@ -356,6 +483,55 @@ internal static class Program
                     }
 
                     logDirectory = value;
+                    break;
+
+                case "--agents":
+                    if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedAgentCount) ||
+                        parsedAgentCount <= 0 || (parsedAgentCount & 1) != 0 ||
+                        parsedAgentCount > HeadlessRunner.MaxOperatorCount)
+                    {
+                        options = default!;
+                        error =
+                            "'--agents' must be a positive even integer no greater than " +
+                            $"{HeadlessRunner.MaxOperatorCount}.";
+                        return false;
+                    }
+
+                    agentCount = parsedAgentCount;
+                    break;
+
+                case "--ticks":
+                    if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedTickCount) ||
+                        parsedTickCount <= 0)
+                    {
+                        options = default!;
+                        error = "'--ticks' must be a positive integer.";
+                        return false;
+                    }
+
+                    tickCount = parsedTickCount;
+                    break;
+
+                case "--seed":
+                    if (!ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedSeed))
+                    {
+                        options = default!;
+                        error = "'--seed' must be a non-negative 64-bit integer.";
+                        return false;
+                    }
+
+                    seed = parsedSeed;
+                    break;
+
+                case "--output":
+                    if (string.IsNullOrWhiteSpace(value))
+                    {
+                        options = default!;
+                        error = "'--output' must be a nonempty file path.";
+                        return false;
+                    }
+
+                    outputPath = value;
                     break;
 
                 case "--nav-map-density":
@@ -446,6 +622,10 @@ internal static class Program
             logLevel,
             logChannels,
             logDirectory,
+            agentCount,
+            tickCount,
+            seed,
+            outputPath,
             navMapDensityPercent,
             navChangedCellCount,
             navConcurrentSeekers,
@@ -480,6 +660,7 @@ internal static class Program
 
     private static bool IsSupportedArgument(string argument) =>
         argument is "--log-level" or "--log-channels" or "--log-dir" or
+            "--agents" or "--ticks" or "--seed" or "--output" or
             "--nav-map-density" or "--nav-changed-cells" or "--nav-seekers" or
             "--nav-query-distance" or "--nav-replan-rate" or "--nav-seed" or
             "--nav-ticks" or "--nav-fixture-path";
@@ -544,6 +725,17 @@ internal static class Program
 }
 
 /// <summary>The parsed command-line configuration for one headless run.</summary>
+/// <param name="AgentCount">
+/// Parsed <c>--agents</c>, or <see langword="null"/> if not supplied. One of
+/// the three determinism-workload flags; see
+/// <c>Program.MissingDeterminismFlags</c> for the all-three-or-none rule.
+/// </param>
+/// <param name="TickCount">Parsed <c>--ticks</c>, or <see langword="null"/> if not supplied.</param>
+/// <param name="Seed">Parsed <c>--seed</c>, or <see langword="null"/> if not supplied.</param>
+/// <param name="OutputPath">
+/// Parsed <c>--output</c>, or <see langword="null"/> to print the
+/// determinism workload's <see cref="RunReport"/> to stdout only.
+/// </param>
 /// <param name="NavMapDensityPercent">
 /// Parsed <c>--nav-map-density</c>, or <see langword="null"/> if not
 /// supplied. One of the five navigation benchmark matrix flags; see
@@ -571,6 +763,10 @@ internal sealed record HeadlessOptions(
     LogLevel? LogLevel,
     LogChannel? LogChannels,
     string? LogDirectory,
+    int? AgentCount = null,
+    int? TickCount = null,
+    ulong? Seed = null,
+    string? OutputPath = null,
     int? NavMapDensityPercent = null,
     int? NavChangedCellCount = null,
     int? NavConcurrentSeekers = null,
