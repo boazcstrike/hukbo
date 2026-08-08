@@ -1293,6 +1293,268 @@ public sealed class TickPipelineTests
         Assert.Equal(14 * FixedPoint.Scale, afterCorner.PositionY.RawValue);
     }
 
+    // ---- 9. TASK 84, MOVEMENT SPEED CLAMP ----------------------------------
+
+    /// <summary>
+    /// Task 84: an ordered operator (an <see cref="OrderAssignment"/> whose
+    /// single path node sits far from the operator's own spawn point) must
+    /// take more than one <see cref="SandataSimulation.RunTick"/> call to
+    /// arrive, and no single tick's displacement may exceed the per-tick
+    /// speed cap <see cref="SandataSimulation.ComputeMovementProposals"/>
+    /// derives from design section 4's 5 m/s sprint. This asserts the
+    /// displacement magnitude every tick, not merely that the position
+    /// changed, so an unclamped implementation (one <c>RunTick</c> jumping
+    /// straight to the waypoint) fails it immediately.
+    /// </summary>
+    [Fact]
+    public void RunTick_OrderedOperatorFarFromWaypoint_ClampsPerTickDisplacementToDesignedSprintSpeed()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+        var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 0, positionYWu: 0);
+        var state = BuildState(ImmutableArray.Create(op));
+
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state);
+
+        // Two far nodes, neither at the spawn point: an authored path needs
+        // at least two nodes (Order.MaxAuthoredPathNodeCount's own lower
+        // bound, OrderValidation.ValidateMoveAlongPath), and
+        // CurrentNodeIndex is never advanced anywhere in production code
+        // today (confirmed by search - it is written once, at order
+        // submission, and never written again), so node 0 is the operator's
+        // target for this whole test and must not equal the spawn point.
+        var pathNodes = ImmutableArray.Create(new OrderPathNode(40, 0), new OrderPathNode(60, 0));
+        var (_, _, rejection) = sim.SubmitOrder(
+            targetTick: 0,
+            factionId: 0,
+            addressees: ImmutableArray.Create(1UL),
+            kind: OrderKind.MoveAlongPath,
+            pathNodes: pathNodes);
+        Assert.Null(rejection);
+
+        // Design section 4: 5 m/s sprint = 80 wu/s, truncated to raw at
+        // ModernTacticalV1's own TickRate - independently re-derived here
+        // from public building blocks, not copied from the production
+        // constant this test assembly cannot see.
+        var movementSpeedRaw = (80L * FixedPoint.Scale) / SandataRuleset.ModernTacticalV1.TickRate;
+
+        var previousXRaw = 0L;
+        var reachedWaypoint = false;
+        var ticksRun = 0;
+
+        for (var tick = 0; tick < 60 && !reachedWaypoint; tick++)
+        {
+            sim.RunTick(tick);
+            ticksRun++;
+
+            var current = Assert.Single(sim.State.Operators).PositionX.RawValue;
+            var deltaX = current - previousXRaw;
+
+            Assert.True(deltaX >= 0, $"tick {tick}: operator moved backward away from a forward waypoint");
+            Assert.True(
+                deltaX * deltaX <= movementSpeedRaw * movementSpeedRaw,
+                $"tick {tick}: displacement {deltaX} raw exceeds the per-tick cap {movementSpeedRaw} raw");
+
+            previousXRaw = current;
+            reachedWaypoint = current == 40L * FixedPoint.Scale;
+        }
+
+        Assert.True(reachedWaypoint, "operator must eventually reach the authored waypoint");
+        Assert.True(ticksRun > 1, "a 40 wu waypoint must take more than one tick at the designed sprint speed");
+    }
+
+    /// <summary>
+    /// Task 84: the same displacement bound as the ordered-branch test
+    /// above, proven for the autonomous branch - a group leader following a
+    /// published path with no <see cref="OrderAssignment"/> of its own. The
+    /// published path here is a straight, axis-aligned line (open grid, no
+    /// walls) so segment length and arclength projection are both exact
+    /// integer divisions with no truncation loss; this test is about the
+    /// speed clamp, not <see cref="PolylineArclength"/>'s own quantization
+    /// behaviour on a diagonal segment (see the rewritten bent-polyline
+    /// test's remarks for that separate, reported defect).
+    /// </summary>
+    [Fact]
+    public void RunTick_AutonomousLeaderFarAlongPublishedPath_ClampsPerTickDisplacementToDesignedSprintSpeed()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var startCell = grid.CellIndex(0, 0);
+        var goalCell = grid.CellIndex(25, 0);
+
+        const int pathLatencyTicks = 1;
+        var ruleset = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: pathLatencyTicks,
+            groupCohesionRadiusWu: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 2, positionYWu: 2);
+        var groupState = new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: goalCell,
+            HasOutstandingRequest: true,
+            StartCellIndex: startCell,
+            GoalCellIndex: goalCell,
+            RequestTick: 0);
+        var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
+
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+
+        var movementSpeedRaw = (80L * FixedPoint.Scale) / ruleset.TickRate;
+
+        var previousXRaw = 2L * FixedPoint.Scale;
+        var previousYRaw = 2L * FixedPoint.Scale;
+
+        for (var tick = 0; tick <= pathLatencyTicks + 20; tick++)
+        {
+            sim.RunTick(tick);
+
+            var current = Assert.Single(sim.State.Operators);
+            var deltaX = current.PositionX.RawValue - previousXRaw;
+            var deltaY = current.PositionY.RawValue - previousYRaw;
+
+            Assert.True(
+                (deltaX * deltaX) + (deltaY * deltaY) <= movementSpeedRaw * movementSpeedRaw,
+                $"tick {tick}: displacement ({deltaX}, {deltaY}) raw exceeds the per-tick cap {movementSpeedRaw} raw");
+
+            previousXRaw = current.PositionX.RawValue;
+            previousYRaw = current.PositionY.RawValue;
+        }
+
+        // 21 ticks at <= 1,638 raw/tick cannot cover the 100 wu (102,400
+        // raw) gap to the goal - the bound above is not vacuously true.
+        var final = Assert.Single(sim.State.Operators);
+        Assert.True(
+            final.PositionX.RawValue < 102 * FixedPoint.Scale,
+            "leader must not have already reached a 100 wu goal after 21 clamped ticks");
+        Assert.True(
+            final.PositionX.RawValue > 2 * FixedPoint.Scale,
+            "leader must actually have moved from its spawn point across 21 ticks");
+    }
+
+    /// <summary>
+    /// Task 84: the second, distinct case its brief names - a non-leader
+    /// squad slot (entity 2, <see cref="SquadSlot.SlotIndex"/> 1) starting
+    /// away from its own formation position must walk into it across
+    /// multiple ticks, never teleport there in one. The leader (entity 1,
+    /// the lowest id, per this file's own <see
+    /// cref="RunTick_GroupLeaderInNarrowCorridor_CollapsesFollowerLateralOffsetToZero"/>
+    /// convention) and follower both start on a straight, axis-aligned
+    /// published path, 12 world units apart - close enough to share one
+    /// cohesion group (<see cref="SandataRuleset.GroupCohesionRadiusWu"/> 96),
+    /// far enough apart that their collision bodies (<c>CollisionBodyRadiusRaw</c>
+    /// 4,352 raw, 4.25 wu each) do not already overlap and confound this
+    /// test's own read of <see cref="SandataSimulation.State"/> with
+    /// collision-resolution effects unrelated to task 84's clamp. The
+    /// slot's target depends only on the leader's own position, not the
+    /// follower's, so this spacing does not change it: trail 8 wu behind,
+    /// lateral 4 wu offset (<see cref="SandataSimulation.FormationSlotOffsetsWu"/>)
+    /// places the target well outside the one-tick (1,638 raw, about 1.6 wu)
+    /// cap regardless of where the follower itself starts.
+    /// </summary>
+    [Fact]
+    public void RunTick_NonLeaderSlotFarFromFormationPosition_DoesNotTeleportIntoPlace()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var startCell = grid.CellIndex(0, 0);
+        var goalCell = grid.CellIndex(25, 0);
+
+        const int pathLatencyTicks = 1;
+        var ruleset = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: pathLatencyTicks,
+            groupCohesionRadiusWu: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        var leader = BuildOperator(entityId: 1, faction: 0, positionXWu: 22, positionYWu: 2);
+        var follower = BuildOperator(entityId: 2, faction: 0, positionXWu: 34, positionYWu: 2);
+        var groupState = new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: goalCell,
+            HasOutstandingRequest: true,
+            StartCellIndex: startCell,
+            GoalCellIndex: goalCell,
+            RequestTick: 0);
+        var state = BuildState(ImmutableArray.Create(leader, follower))
+            with { Groups = ImmutableArray.Create(groupState) };
+
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+
+        var movementSpeedRaw = (80L * FixedPoint.Scale) / ruleset.TickRate;
+
+        sim.RunTick(0); // request tick: path not yet published, both hold.
+
+        var beforeFollower = sim.State.Operators.Single(o => o.EntityId == 2UL);
+        Assert.Equal(34 * FixedPoint.Scale, beforeFollower.PositionX.RawValue);
+        Assert.Equal(2 * FixedPoint.Scale, beforeFollower.PositionY.RawValue);
+
+        sim.RunTick(pathLatencyTicks); // publish tick: slot target is now real.
+
+        var afterFirstMove = sim.State.Operators.Single(o => o.EntityId == 2UL);
+        var deltaX = afterFirstMove.PositionX.RawValue - beforeFollower.PositionX.RawValue;
+        var deltaY = afterFirstMove.PositionY.RawValue - beforeFollower.PositionY.RawValue;
+
+        Assert.True(
+            (deltaX * deltaX) + (deltaY * deltaY) <= movementSpeedRaw * movementSpeedRaw,
+            $"first published tick displacement ({deltaX}, {deltaY}) raw exceeds the per-tick cap {movementSpeedRaw} raw");
+        Assert.True(deltaX != 0 || deltaY != 0, "follower must actually start moving toward its formation slot");
+
+        // The proposal itself (before any collision resolution downstream
+        // of stage 9 - out of task 84's grant, and irrelevant to whether
+        // the clamp did its job) already shows the target is still far off:
+        // the trail (8 wu behind the leader's own arclength) and lateral
+        // (4 wu) offsets place the slot's true target tens of world units
+        // from the follower's spawn point, so one clamped ~1.6 wu step
+        // could not have reached it. A second tick's proposal must show the
+        // same bounded, nonzero step, proving the clamp - not a one-tick
+        // snap - governs every tick this walk takes, not only the first.
+        sim.RunTick(pathLatencyTicks + 1);
+        var followerProposal2 = sim.PendingMovementProposals.Single(p => p.EntityId == 2UL);
+        var deltaX2 = followerProposal2.DesiredXRaw - followerProposal2.StartXRaw;
+        var deltaY2 = followerProposal2.DesiredYRaw - followerProposal2.StartYRaw;
+
+        Assert.True(
+            ((long)deltaX2 * deltaX2) + ((long)deltaY2 * deltaY2) <= movementSpeedRaw * movementSpeedRaw,
+            $"second tick's proposed displacement ({deltaX2}, {deltaY2}) raw exceeds the per-tick cap {movementSpeedRaw} raw");
+        Assert.True(deltaX2 != 0 || deltaY2 != 0, "follower must still be closing on its formation slot on the second tick");
+    }
+
+    /// <summary>
+    /// Task 84: pins the two constants the clamp's own safety property
+    /// depends on - per-tick movement must never exceed the collision body
+    /// radius, or two operators closing on each other could pass through
+    /// in a single tick. Both sides are re-derived from public building
+    /// blocks (<see cref="FixedPoint.Scale"/>, a ruleset instance's own
+    /// <see cref="SandataRuleset.TickRate"/>) rather than read off the
+    /// production type's private constants, which <see
+    /// cref="InternalsVisibleToAttribute"/> does not expose to this
+    /// assembly; the literal pins below fail this test if either design
+    /// value drifts, exactly as required.
+    /// </summary>
+    [Fact]
+    public void MovementSpeedRaw_NeverExceedsTheCollisionBodyRadius()
+    {
+        var movementSpeedRaw = (80L * FixedPoint.Scale) / SandataRuleset.ModernTacticalV1.TickRate;
+        var collisionBodyRadiusRaw = (17L * FixedPoint.Scale) / 4;
+
+        Assert.Equal(1_638L, movementSpeedRaw);
+        Assert.Equal(4_352L, collisionBodyRadiusRaw);
+        Assert.True(
+            movementSpeedRaw <= collisionBodyRadiusRaw,
+            "per-tick movement must never exceed the collision body radius");
+    }
+
     /// <summary>
     /// Task 79b: a group whose leader's actual position sits in a real
     /// one-cell-wide corridor — <see cref="NavGrid.Passability"/> is baked
