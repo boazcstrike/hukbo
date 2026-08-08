@@ -2718,3 +2718,107 @@ degenerate configuration as its best result.
 Task 82 runs before task 54, because task 54's whole job is recording numbers and
 three of the six rows above are not yet numbers worth recording. The audio
 figures are unaffected by any of this and stand as measured.
+
+### Task 53 re-run after task 82, and the second benchmark defect it found — 2026-08-08
+
+Task 82 merged at `414c9c1` and the six-row matrix was re-run against it. The
+figures in the previous section stand as the record of what the broken benchmark
+reported; everything below supersedes them as the record of what the workload
+actually does. Task 54 carries the numbers from *this* section into
+`docs/development/testing.md`.
+
+#### What fraction of each row ever found a path
+
+| Row | Density % | Changed cells | Seekers | Query wu | Replan % | Probes | Found | Found % |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| baseline | 20 | 0 | 4 | 512 | 5 | 408 | 408 | 100.0 |
+| dense | 40 | 0 | 4 | 512 | 5 | 408 | 0 | 0.0 |
+| doors-moving | 20 | 50 | 4 | 512 | 10 | 793 | 66 | 8.3 |
+| many-seekers | 20 | 0 | 16 | 512 | 5 | 1,603 | 1,603 | 100.0 |
+| long-queries | 20 | 0 | 4 | 2,048 | 5 | 408 | 408 | 100.0 |
+| worst-case | 40 | 200 | 32 | 2,048 | 25 | 15,864 | 0 | 0.0 |
+
+The three rows called trustworthy in the previous section were the right three,
+and the assessment of the other three was too generous: `dense` is not partly
+degenerate, it is **entirely** degenerate at zero successful searches out of 408.
+It reported the second-best p50 in the whole matrix.
+
+Successful-search percentiles for the rows that have any, which are the only
+navigation performance numbers this hardware has produced:
+
+| Row | Successful p50 / p95 / p99 (ms) |
+| --- | --- |
+| baseline | 0.8861 / 1.3273 / 1.7880 |
+| doors-moving | 1.2540 / 1.8782 / 4.9456 |
+| many-seekers | 0.8169 / 1.6261 / 2.0530 |
+| long-queries | 2.1426 / 2.8909 / 3.6742 |
+
+#### The map-density parameter has a cliff between 30 and 40 percent
+
+A density sweep was run to find it, since a matrix whose rows silently fall off a
+connectivity cliff is not a matrix. All rows at zero changed cells, four seekers,
+512-world-unit queries, 5 percent replanning, 2,000 ticks:
+
+| Density % | Probes | Found | Found % | Successful p50 / p95 / p99 (ms) |
+| --- | --- | --- | --- | --- |
+| 0 | 418 | 418 | 100.0 | 0.8215 / 3.9979 / 4.4503 |
+| 10 | 408 | 408 | 100.0 | 0.5895 / 1.2473 / 1.6271 |
+| 20 | 408 | 408 | 100.0 | 0.8861 / 1.3273 / 1.7880 |
+| 30 | 408 | 206 | 50.5 | 1.2055 / 1.5904 / 1.7153 |
+| 40 | 408 | 0 | 0.0 | — |
+
+`angle-house` is an indoor map that is already walled. The density parameter
+blocks additional cells on top of that, so 40 percent extra blocking severs it
+completely and 30 percent severs half the seeker pairs. **The usable density
+range on this fixture is 0 to 20 percent**, and any future matrix row above that
+is measuring disconnection rather than pathfinding.
+
+#### The changed-cell parameter randomises the map instead of moving doors
+
+Two more rows were run inside the usable density range, and they still came back
+mostly unreachable:
+
+| Row | Density % | Changed cells | Seekers | Query wu | Replan % | Probes | Found | Found % | Successful p50 / p95 / p99 (ms) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| doors-light | 10 | 20 | 4 | 512 | 10 | 798 | 173 | 21.7 | 1.0413 / 1.7029 / 4.0855 |
+| stress-connected | 10 | 50 | 32 | 2,048 | 25 | 16,011 | 1,293 | 8.1 | 1.3470 / 3.1114 / 3.9579 |
+
+That is not a density problem, and the cause is in the code rather than in the
+parameters. `NavBenchmark.ApplyChangedCells` (`src/Sandata.Headless/NavBenchmark.cs:386-402`)
+draws `changedCellCount` **fresh random cell indices across the whole grid on
+every tick** and toggles each between `Open` and `Blocked`, skipping only
+`NavCellFlags.Door`. It is an unbiased random toggle over 28,800 cells, so the
+map random-walks away from its authored layout toward a roughly half-blocked
+noise field and then stays there. The density sweep above shows that anything
+past about 30 percent blocked is disconnected, so within a few hundred ticks
+every seeker pair is severed no matter how small the changed-cell count is. Only
+the rate of arrival differs.
+
+That is the wrong model twice over. Design section 5, stage 4 says **"Doors are
+the only runtime nav mutation in v0.1"** and that the rebake is local rather than
+global. A door is a fixed location toggling between two states; it is not an
+arbitrary interior cell being randomised, and a nav rebake in this game never
+touches a cell that is not part of a door. As written, the changed-cell
+parameter cannot measure what
+`SIMULATION-GAME-STANDARDS.md` section 11 asks it to measure — replanning cost
+against dynamic blockers — because after a short warm-up there is nothing left to
+replan through.
+
+This is the same shape as the defect task 82 fixed, one level further in. Task 82
+made the benchmark *report* that its queries were failing. This one is why they
+fail.
+
+#### One task this finding creates
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 83 | 12 | Make the benchmark's changed cells behave like doors | `NavBenchmark.ApplyChangedCells` (`NavBenchmark.cs:386-402`) redraws `changedCellCount` random cell indices across the whole grid every tick and toggles each one, so the map random-walks to a roughly half-blocked noise field and every seeker pair is severed within a few hundred ticks — the density sweep recorded above puts the disconnection threshold between 30 and 40 percent blocked. Design section 5, stage 4: "Doors are the only runtime nav mutation in v0.1", and the rebake is local. Choose the changed-cell set **once**, at placement time, from cells that are genuinely part of the authored layout's connectivity, and toggle that same fixed set each tick so the map oscillates between two known configurations instead of degrading. | `src/Sandata.Headless/NavBenchmark.cs`, `tests/Sandata.Core.Tests/NavBenchmarkOptionTests.cs` | A test proves a 2,000-tick run with a nonzero changed-cell count ends with the same set of cells blocked-or-open as some tick early in the run, rather than a monotonically degrading one. A test proves the successful-search fraction of a changed-cell run inside the usable density range stays above a stated floor for the whole run instead of collapsing. The `doors-light` and `stress-connected` rows above are re-run and their successful-search percentiles recorded here. | 82 | |
+
+Task 83, like task 82, runs before task 54. The audio measurements in the
+previous section are untouched by any of this and stand as measured.
+
+**The usable matrix, as it stands today**, is density 0 to 20 with zero changed
+cells. Within it the numbers are coherent and unremarkable: roughly 0.6 to 0.9 ms
+at p50 for a 512-world-unit query on a 160-by-180-cell grid, about 2.1 ms for a
+2,048-world-unit one, and moving from four concurrent seekers to sixteen barely
+moves p50 because the searches are independent of one another.
