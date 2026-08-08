@@ -3156,3 +3156,289 @@ anything.
 
 Ordering for the rest of the wave: task 86, then task 84, then task 81, then task
 52. All four want `SandataSimulation.cs` and none may run beside another.
+
+### The second wave-12 audit, run before the remaining eight rows — 2026-08-08
+
+Eight rows are left: 86, 84, 81, 79d-2, 52, 85, 54, and 55. Both directions of
+the audit were run over them against `main` at `13f67ad` before any agent was
+dispatched. The file-level half passed. The surface-level half produced six
+findings, one of which is large enough that it changes what task 86 can honestly
+deliver.
+
+Everything below is re-derived from the merged tree rather than taken from the
+wave's own record, because the record itself says every count in this document is
+re-derived and this wave has twice caught a report that was wrong.
+
+**The baseline, measured now.** `./scripts/test.ps1 -Configuration Release -Game Sandata`
+reports 1,085 tests passed in `Sandata.Core.Tests` and 199 passed in
+`Sandata.Client.Tests`, with zero failures in either. The seed-1 workload
+reports:
+
+```
+{"seed":1,"operatorsPerFaction":100,"requestedTicks":10000,"measuredTicks":10000,
+ "allocatedBytes":65782309192,"outcome":"Ongoing",
+ "faction0Survivors":98,"faction1Survivors":92,
+ "eventHash":"270364E265A3A8A7","stateHash":"6D4AEA08BEFEFA92",
+ "deterministic":true,"firstMismatchTick":null}
+```
+
+All three absolute pins — `OrderStateHashTests.PreTask61BaselineHash`,
+`MissionEventFeedTests.PreTask76BaselineHash`, and
+`MissionStateTests.PreTask79cBaselineHash` — carry
+`3_159_438_799_659_597_482UL` on disk today. The graph tools `CLAUDE.md`
+section 8 mandates are not available in this session, so discovery for this audit
+was done with `Grep` and `Read` over the working tree; that is a deviation worth
+recording rather than passing over silently.
+
+#### The seed-1 fixture cannot hold operators of the designed size
+
+This is the finding that matters. Task 86's row asks for the seed-1 workload to
+be re-run and its new survivor counts recorded, and expects them to move. They
+will move, but not for a reason anyone would want to record as a result.
+
+`HeadlessRunner.BuildOpenGrid` sizes the nav grid as
+`side = ceil(sqrt(operatorCount))`, which is 15 cells for the 200-operator
+workload, and `HeadlessRunner.BuildInitialState` then places one operator per nav
+cell at that cell's centre with a jitter of at most one world unit.
+`NavGrid.CellSizeWu` is 4. **The operators are therefore four world units apart.**
+
+The designed body radius is 4.25 world units, so the designed body *diameter* is
+8.5 world units. Every operator in the seed-1 fixture would overlap all four of
+its orthogonal neighbours by more than half a body the instant task 86 lands, and
+design section 8 forbids the one mechanism that would push them apart: "Never a
+force, never an impulse, never a push-apart." A blocked unit tries one
+22.5-degree sidestep and then waits. Two hundred mutually overlapping bodies on a
+60-by-60-world-unit grid is not a configuration that resolves; it is a
+configuration in which nothing can move at all.
+
+Three consequences follow, and none of them is optional:
+
+- Task 86 cannot record a meaningful post-change survivor count from a fixture
+  that is geometrically invalid the moment the change lands. Recording it anyway
+  would produce exactly the class of number this wave has already thrown away
+  twice — a measurement whose degenerate case and whose success case look
+  identical.
+- Task 81 measures per-tick allocation. A run in which every operator overlaps
+  four neighbours emits a far larger collision pair list than a correctly spaced
+  one, so an allocation table taken against the broken fixture would name the
+  wrong stage.
+- Task 52 records the golden baselines. A baseline recorded from a fixture that
+  has to be re-spaced afterwards is a baseline that has to be recorded twice.
+
+**Task 86's file grant therefore gains `src/Sandata.Headless/HeadlessRunner.cs`,
+and its scope gains the fixture spacing.** The alternative — a separate task
+after it — costs an extra batch and buys nothing, because the two changes are
+meaningless apart and both move the same two hashes.
+
+The obligation is stated narrowly on purpose. The implementer measures the
+minimum pairwise separation in the current fixture and reports it; re-spaces the
+placement so that separation is at least one body diameter, deriving the new
+pitch from `CollisionBodyRadiusRaw` and `NavGrid.CellSizeWu` rather than choosing
+a number; and changes nothing else about the fixture — not the operator count,
+not the jitter rule, not the faction split, not the RNG draw order. The jitter
+draw in particular must keep consuming exactly the same number of `SplitMix64`
+values in exactly the same order, or the change stops being a spacing change and
+becomes an unrelated RNG-stream change hiding inside one.
+
+#### Task 85 conflicts with nothing that is left
+
+The note recorded above at task 79c's completion says task 85 "is **not** free to
+run beside anything", naming `MissionEventFeedTests.cs` as writable to task 79d-1
+and `TickPipelineTests.cs` as writable to tasks 81 and 84. The first half was
+true and is now spent: task 79d-1 is merged. The second half was never true.
+Task 85's row grants three files — `OrderStateHashTests.cs`,
+`MissionEventFeedTests.cs`, and `MissionStateTests.cs` — and `TickPipelineTests.cs`
+is not among them.
+
+Checked against every remaining row rather than against memory: tasks 86, 84, 81,
+and 79d-2 grant `TickPipelineTests.cs`; task 79d-2 additionally grants
+`DamageResolutionTests.cs` and `CoverRulesTests.cs`; task 52 grants
+`DeterminismEquivalenceTests.cs`, `GoldenReplayTests.cs`, and
+`Fixtures/seed-1-baseline.json`; task 54 grants documentation only. None of them
+touches any of task 85's three files.
+
+Task 85 is also semantically independent of everything above it. Its three pins
+are digests of a constructed `MissionState` fixture, not of a run, so only a
+change to the *fold* moves them — and no remaining task changes the fold. Task 85
+pairs with task 86 in batch 1.
+
+This is the second time in two waves that a claim about task 85's conflicts has
+been wrong, once in each direction. The lesson is the same one this wave has now
+recorded three times in three different disguises: a statement written into the
+plan is a claim, and it needs its own reading of the thing it describes.
+
+#### Task 84's per-tick step is not an integer, and the rounding rule is a decision
+
+Task 84's amended row says to derive the per-tick movement step from design
+section 4: a 5 m/s sprint is 80 world units per second, which at `TickRate` 50 is
+1.6 world units per tick. That derivation is correct and it does not land on an
+integer in either unit. At `FixedPoint.Scale` 1024, 1.6 world units is 1,638.4
+raw, and the constant has to be an integer.
+
+The design supplies the speed and does not supply the rounding, so an implementer
+told only to "derive it" will invent one. The rule is written here instead:
+`MovementStepRaw = (80 * FixedPoint.Scale) / TickRate`, evaluated in integer
+arithmetic, which truncates toward zero to **1,638 raw**. Truncation rather than
+rounding half away from zero is chosen because design section 4's own conversion
+rule for weapon timings is the only rounding rule the game has, it is explicitly
+scoped to milliseconds, and borrowing it for a distance would create a second
+pinned rule that nothing states. Truncating also keeps the invariant
+`MovementSpeedRaw <= BodyRadiusRaw` on the safe side of the boundary rather than
+the unsafe one.
+
+Task 84 must also state, at the declaration, that 1,638 raw is derived from the
+design's 5 m/s sprint figure and is therefore the *sprint* bound rather than a
+walking pace, because design section 4 offers no second speed and the game has no
+gait model.
+
+#### Task 79d-2 needs a constructor parameter and seven call sites it does not have
+
+`SandataSimulation`'s constructor takes five parameters —
+`Mission`, `SandataRuleset`, `NavGrid`, `WallBuckets`, `MissionState` — and cover
+is in none of them, exactly as the first wave-12 audit recorded. What that audit
+did not do is count the call sites. There are seven files:
+
+| File | Sites |
+| --- | --- |
+| `src/Sandata.Client/SandataGame.cs` | 1 |
+| `src/Sandata.Headless/HeadlessRunner.cs` | 2 |
+| `tests/Sandata.Client.Tests/ClientOrderDoorTests.cs` | 2 |
+| `tests/Sandata.Client.Tests/HudComposerTests.cs` | 1 |
+| `tests/Sandata.Client.Tests/PathDrawToolTests.cs` | 1 |
+| `tests/Sandata.Core.Tests/MissionEventFeedTests.cs` | 6 |
+| `tests/Sandata.Core.Tests/TickPipelineTests.cs` | 30 |
+
+Only the last is in task 79d-2's grant.
+
+The parameter is **required, not optional with a default**. An optional cover
+parameter would mean a caller that omits it gets a simulation in which cover
+silently does nothing — which is this repository's recurring "a validated door
+beside an open unvalidated one" hazard for the sixth time, and the one shape of
+defect no file-level audit ever catches. A required parameter turns every missed
+call site into a compile error.
+
+Task 79d-2's grant therefore gains all six additional files. It runs alone, and
+it may not run beside task 85, because the `MissionEventFeedTests.cs` overlap
+that the earlier note claimed is real for the first time.
+
+One thing this makes visible and does not fix: `HeadlessRunner` synthesises its
+mission and loads no map, so the seed-1 workload carries no `CoverRecord` values
+at all. Cover is therefore unobservable in the workload and is provable only
+through `TickPipelineTests`. That is acceptable — it is the same situation
+`WallBuckets.Build(grid, [], [], [], [])` already puts walls in — but task 79d-2
+must pass an empty cover set at those two sites rather than inventing fixture
+cover, and must say so.
+
+#### Stage 12 still reads a hardcoded firearm
+
+`ProposeFire` resolves its weapon definition at `SandataSimulation.cs:655` with
+`FirearmCatalog.Rows[(int)DefaultFirearmId]`, and `DefaultFirearmId` is the
+`FirearmId.Ak47` constant at line 352. Task 79c gave `OperatorState` a `Firearm`
+field and wired it into stage 11's chain advance; stage 12 never learned about
+it, and the constant's own doc comment at line 342 says only that
+`AdvanceWeaponChain` no longer uses it.
+
+So the loadout task 79c added is half-connected, and task 79d-2 is the row that
+finishes it: keying a caliber damage table off `DefaultFirearmId` would satisfy
+the letter of "read it through the shooter's loadout" while changing nothing.
+Task 79d-2's own acceptance criterion — two operators carrying different caliber
+families dealing different damage on an identical hit — is decisive against that,
+and the brief names the line so the point is not left to be discovered.
+
+#### Task 52's golden baseline against task 85's single-pin rule
+
+Task 85 requires that exactly one absolute state-hash literal remain in
+`tests/Sandata.Core.Tests/`. Task 52 records two golden baselines, each carrying
+a state hash and an event hash. Read literally, task 52 breaks task 85's
+guarantee four times over the moment it lands, and task 85 runs first.
+
+The two rows are not actually in conflict; the rule needs its scope written
+down. Task 85's canary is about the *operator fold* — a digest of a constructed
+fixture that fires when any state field changes shape. Task 52's baselines are
+about a *run* — a seed, a build, and an ordered order stream reproducing an
+outcome. They guard different properties and the second is the entire point of a
+golden replay.
+
+The scoping rule, decided here so neither implementer has to guess:
+
+- Task 85's criterion reads: exactly one absolute state-hash literal remains **in
+  a `.cs` file** under `tests/Sandata.Core.Tests/`, and that one is
+  `PreTask79cBaselineHash`. The search it records must be scoped to `.cs`.
+- Task 52's baselines live in `tests/Sandata.Core.Tests/Fixtures/seed-1-baseline.json`,
+  which its own row already names, and `GoldenReplayTests` reads them from that
+  file rather than declaring constants.
+- `PreTask79cBaselineHash`'s comment says it is the only absolute pin in C# and
+  that the golden replay's baselines live in the fixture JSON, so the next person
+  to append a fold finds both halves of the picture from either end.
+
+#### Task 81's stated "before" figure is stale
+
+Task 81's row cites 65,679,126,648 bytes from task 51's first workload. The same
+workload on the merged tree reports **65,782,309,192**. Task 81 records the
+figure it measures on the tree it starts from — which will be the post-task-84
+tree, not this one — as its "before", and cites this section only as evidence
+that the row's number had already drifted.
+
+The arithmetic in the first wave-12 audit is right and worth restating so nobody
+re-derives it wrong: `HeadlessRunner.Execute` constructs and ticks **two**
+simulations per benchmark tick, `left` and `right`, so 65.78 GB over 10,000 ticks
+is 6.58 MB per benchmark tick and 3.29 MB per simulation-tick at 200 operators.
+
+#### Task 54's project count, re-derived
+
+`Hukbo.slnx` lists twelve projects: `Hukbo.Client`, `Hukbo.Core`,
+`Hukbo.Diagnostics`, `Hukbo.Headless`, `Hukbo.Shared.Core`, `Sandata.Client`,
+`Sandata.Core`, `Sandata.Headless`, `Hukbo.Client.Tests`, `Hukbo.Core.Tests`,
+`Sandata.Client.Tests`, and `Sandata.Core.Tests`. The first wave-12 audit's
+correction of task 54's "eleven" to twelve is confirmed independently.
+
+#### Task 86's provisional-marker sweep overlaps two other rows
+
+Task 86 is told to re-check every `<b>PROVISIONAL</b>` marker in
+`SandataSimulation.cs` against design section 4. There are nine marked constants
+and four marked prose passages, and two of the constants belong to other rows:
+`FormationLookaheadWu` is task 84's to replace, and `ProvisionalDamagePerHitPoints`
+is task 79d-2's to delete. Task 86 may correct their *comments* and may not
+change their *values* or remove them.
+
+Checked ahead of time so no implementer has to decide it: design section 4
+supplies the body radius and, through the sprint figure, the movement step. It
+supplies nothing for `VisionConeHalfWidthBam` — design section 6's row for
+`VisionCone.Contains` specifies the predicate's shape and never a half-width —
+and nothing for `FormationHalfWidthWu`, `FormationTrailStepWu`, or
+`FormationLateralStepWu`, which design section 8 describes structurally without
+numbers. Those four markers are correct as they stand and task 86 leaves them,
+which is a finding to state rather than an omission to notice later.
+
+#### The batch plan for the rest of the wave
+
+| Batch | Tasks | Why |
+| --- | --- | --- |
+| 1 | 86 and 85 | Disjoint file sets, verified above; 85 is independent of every hash 86 moves |
+| 2 | 84 | Stage 9; needs 86's radius for its invariant to mean anything |
+| 3 | 81 | Whole-file allocation work; measures against the post-84 tree |
+| 4 | 79d-2 | Stage 12, the constructor, and six call-site files |
+| 5 | 52 | Golden baselines, recorded after every hash-moving task above |
+| 6 | 54 | Documentation, after every number it records exists |
+
+Task 55 is the canonical gate and is not delegated.
+
+#### What is still nobody's to settle
+
+Unchanged from the first wave-12 audit and restated because two of these rows sit
+next to them: **what an autonomous squad wants** and **what decides an operator's
+loadout** are both undesigned, and no implementer may fill either in. Task 79d-2
+sits directly beside the second of those and adds damage keyed on the loadout
+field task 79c defaulted; it does not gain the right to decide what sets that
+field.
+
+One new question joins the open list. Task 86 restates
+`CollisionRules.DefaultBodyRadiusRaw`'s value in `Sandata.Core` with its
+provenance in a comment, because design section 3 forbids `Sandata.Core` a
+`ProjectReference` on `Hukbo.Core` and the constant lives in
+`Hukbo.Core/Simulation/`, not in `Hukbo.Shared.Core`. That leaves the two games
+carrying the same physical constant in two places. Whether that constant should
+join the tier-1 shared assembly is a tier-2 extraction question, and design
+section 3 is explicit that tier 2 becomes its own design document once Sandata's
+collision has run a full gate. It has not. The duplication is recorded here as
+the price of that, not resolved.
