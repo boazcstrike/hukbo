@@ -358,9 +358,24 @@ internal static class RangedCalibrationHarness
             return;
         }
 
+        // Two different bars appear on every row, and they are not the same
+        // thing. `criterion(>1x)` is the plan's acceptance test verbatim —
+        // docs/plans/2026-08-07-ranged-units.md band (b): "shielded roster
+        // entries still absorbing more blows than shieldless". The verdict
+        // line below is computed from this column only. `observation(>1.15x)`
+        // is a stricter margin RU-45 added on top, never stated by the plan;
+        // it is kept because it is genuinely informative headroom signal, not
+        // because it gates anything. The two diverge at the shipped default
+        // roster composition (HUKBO_RANGED_ROSTER_WEIGHTS=63,63,14,31,16,11,
+        // 8,13,31): every seed clears the plan's >1x criterion there, but two
+        // seeds (one of them exactly at the boundary) fall under the 1.15x
+        // margin. A FAIL derived from the margin column would misreport a
+        // configuration the plan calls passing.
         report.AppendLine(
-            "seed  shieldedMean  shieldlessMean  ratio  holds(>1.15x)");
-        var allHold = true;
+            "seed  shieldedMean  shieldlessMean  ratio  criterion(>1x)  " +
+            "observation(>1.15x)");
+        var allMeetCriterion = true;
+        var marginHoldCount = 0;
         foreach (var result in seedResults)
         {
             var shieldedMean = result.ShieldedTotal == 0
@@ -369,19 +384,29 @@ internal static class RangedCalibrationHarness
             var shieldlessMean = result.ShieldlessTotal == 0
                 ? 0
                 : (double)result.ShieldlessReceived / result.ShieldlessTotal;
-            var holds = shieldedMean > shieldlessMean * 1.15;
-            allHold &= holds;
+            var meetsCriterion = shieldedMean > shieldlessMean;
+            var meetsMargin = shieldedMean > shieldlessMean * 1.15;
+            allMeetCriterion &= meetsCriterion;
+            marginHoldCount += meetsMargin ? 1 : 0;
 
             report.Append(CultureInfo.InvariantCulture,
                 $"{result.Seed,4}  " +
                 $"{shieldedMean.ToString("F2", CultureInfo.InvariantCulture),12}  " +
                 $"{shieldlessMean.ToString("F2", CultureInfo.InvariantCulture),14}  " +
                 $"{(shieldlessMean == 0 ? 0 : shieldedMean / shieldlessMean).ToString("F2", CultureInfo.InvariantCulture),5}  " +
-                $"{(holds ? "yes" : "NO")}\n");
+                $"{(meetsCriterion ? "yes" : "NO"),14}  " +
+                $"{(meetsMargin ? "yes" : "no"),20}\n");
         }
 
         report.Append(CultureInfo.InvariantCulture,
-            $"band b verdict: {(allHold ? "PASS" : "FAIL")}\n");
+            $"band b margin observation (not the verdict, informational " +
+            $"only): {marginHoldCount} of {seedResults.Count} seeds clear " +
+            $"the stricter 1.15x margin\n");
+        report.Append(CultureInfo.InvariantCulture,
+            $"band b verdict: {(allMeetCriterion ? "PASS" : "FAIL")} — the " +
+            $"plan's criterion is shieldedMean strictly greater than " +
+            $"shieldlessMean (ratio > 1.0x); the 1.15x column above is an " +
+            $"observation, not part of this verdict\n");
         report.AppendLine();
     }
 
