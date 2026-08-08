@@ -34,6 +34,20 @@ public sealed partial class ArenaGame
         1_000_000.0 / Stopwatch.Frequency;
 
     /// <summary>
+    /// RU-25. The wooden-shaft tint drawn for every in-flight
+    /// <see cref="ProjectileFlight"/>, provisional gameplay presentation
+    /// rather than a historical measurement (CLAUDE.md section 7).
+    /// </summary>
+    private static readonly Color ProjectileShaftColor = new(214, 178, 122);
+
+    /// <summary>
+    /// RU-25. Screen-space pixel thickness of a drawn projectile shaft,
+    /// unscaled by camera zoom, matching <see cref="ClashEffectRenderer"/>'s
+    /// own fixed-thickness lines.
+    /// </summary>
+    private const float ProjectileShaftThickness = 2f;
+
+    /// <summary>
     /// GPU-004. The instant the current arena span opened, moved forward by
     /// every boundary crossing inside <see cref="DrawArenaLayer"/>. Meaningful
     /// only while the render probe is enabled and only for the duration of one
@@ -734,6 +748,63 @@ public sealed partial class ArenaGame
             spriteBatch,
             pixel,
             theme);
+        DrawProjectiles(spriteBatch, pixel, arenaBounds);
+    }
+
+    /// <summary>
+    /// RU-25. Draws every live <see cref="ProjectileFlight"/> as a shaft
+    /// from its launch point to its current interpolated position — the
+    /// same fixed-thickness pixel-stretch primitive
+    /// <see cref="ClashEffectRenderer"/> uses for its crosses. Drawn at
+    /// every detail configuration, never gated behind a low-detail switch:
+    /// this line may be the only thing telling a spectator a ranged unit
+    /// exists at all (RU-25 map, "Low tier projectile may only telling
+    /// spectator ranged unit exists").
+    /// </summary>
+    private void DrawProjectiles(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        Rectangle arenaBounds)
+    {
+        foreach (ref readonly var flight in _presentation.Projectiles.LiveFlights)
+        {
+            var origin = _camera.WorldToScreen(
+                new Vector2(
+                    flight.OriginXRaw / (float)FixedPoint.Scale,
+                    flight.OriginYRaw / (float)FixedPoint.Scale),
+                arenaBounds);
+            var current = _camera.WorldToScreen(
+                new Vector2(
+                    flight.CurrentXRaw / (float)FixedPoint.Scale,
+                    flight.CurrentYRaw / (float)FixedPoint.Scale),
+                arenaBounds);
+            DrawProjectileShaft(spriteBatch, pixel, origin, current);
+        }
+    }
+
+    private static void DrawProjectileShaft(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        Vector2 start,
+        Vector2 end)
+    {
+        var delta = end - start;
+        var length = delta.Length();
+        if (length <= float.Epsilon)
+        {
+            return;
+        }
+
+        spriteBatch.Draw(
+            pixel,
+            start,
+            sourceRectangle: null,
+            ProjectileShaftColor,
+            MathF.Atan2(delta.Y, delta.X),
+            new Vector2(0f, 0.5f),
+            new Vector2(length, ProjectileShaftThickness),
+            SpriteEffects.None,
+            layerDepth: 0f);
     }
 
     private void DrawMapSurface(
@@ -958,10 +1029,25 @@ public sealed partial class ArenaGame
             // of a full scan of the live-effect buffer per pawn. Same value,
             // same position in the same left-to-right argument order.
             var hitPulseStrength = hitPulses.GetPulseStrength(agent.EntityId);
-            var swingPose = SwingPoseResolver.TryGetPose(
-                _swingPoses,
+
+            // RU-25. A ranged pose and a swing pose write the same
+            // weapon-line rotation and reach channels into the one weapon
+            // line a pawn has (RangedPoseResolver.SuppressesSwing), so a
+            // pawn mid-draw, mid-aim, or mid-release never also resolves a
+            // swing pose here.
+            var rangedPose = RangedPoseResolver.TryGetPose(
+                _rangedPoses,
                 agent.EntityId,
-                out var pose)
+                out var resolvedRangedPose)
+                ? resolvedRangedPose
+                : (RangedPose?)null;
+            var swingPose = !RangedPoseResolver.SuppressesSwing(
+                _rangedPoses,
+                agent.EntityId) &&
+                SwingPoseResolver.TryGetPose(
+                    _swingPoses,
+                    agent.EntityId,
+                    out var pose)
                 ? pose
                 : (SwingPose?)null;
             var gaitPose = GaitPoseResolver.TryGetPose(
@@ -977,7 +1063,10 @@ public sealed partial class ArenaGame
             // inputs, same layout, same pixels as the PawnGeometry.Create call
             // this replaces — PawnGeometryTests pins that too. Deliberately
             // not counted as a second invocation; see the note at stage one.
-            var pawnLayout = pawnPrefix.CompletePosedLayout(swingPose, gaitPose);
+            var pawnLayout = pawnPrefix.CompletePosedLayout(
+                swingPose,
+                gaitPose,
+                rangedPose);
 
             CloseArenaGeometrySpan();
 

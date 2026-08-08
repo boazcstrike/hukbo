@@ -10,6 +10,7 @@ using Hukbo.Client.Rendering;
 using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
+using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
@@ -157,6 +158,16 @@ public sealed partial class ArenaGame : Game
     /// (movement-gait-animation-design.md section 4).
     /// </summary>
     private readonly Dictionary<ulong, GaitPose> _gaitPoses = [];
+
+    /// <summary>
+    /// Reused each frame, mirroring <see cref="_swingPoses"/> and
+    /// <see cref="_gaitPoses"/>. The mapping into it lives in
+    /// <see cref="RangedPoseResolver"/>, which needs no animation store of its
+    /// own: <see cref="Hukbo.Core.Simulation.AgentView.RangedPhase"/> and
+    /// <see cref="Hukbo.Core.Simulation.AgentView.RangedPhaseTicksRemaining"/>
+    /// already arrive derived on every tick's agent views.
+    /// </summary>
+    private readonly Dictionary<ulong, RangedPose> _rangedPoses = [];
     private readonly DiagnosticLog _log;
 
     /// <summary>
@@ -322,8 +333,20 @@ public sealed partial class ArenaGame : Game
         _renderMetricsRecorder = _renderProbeEnabled
             ? new SpriteBatchRenderMetricsRecorder()
             : NullRenderMetricsRecorder.Instance;
+
+        // Computed ahead of the scenario field below, purely to size the
+        // coordinator's projectile store from the real
+        // Scenario.MaximumProjectilesInFlight rather than a duplicated
+        // literal. initialSettings.Composition is exactly what
+        // _activeComposition becomes two statements below, so this mirrors
+        // the same BuildScenario call that produces _scenario itself; the
+        // repeated call is a pure, allocation-cheap read, not a second
+        // source of truth.
+        var startupScenarioForCapacity = scenarioOverride ??
+            BuildScenario(_matchSeries.CurrentSeed, initialSettings.Composition);
         _presentation = new PresentationCoordinator(
             EventHistoryCapacity,
+            projectileCapacity: startupScenarioForCapacity.MaximumProjectilesInFlight,
             renderMetricsRecorder: _renderMetricsRecorder);
 
         // A restored preference takes effect from tick zero, so the spectator
@@ -676,6 +699,7 @@ public sealed partial class ArenaGame : Game
             _simulation.Agents,
             _motionManager.Value,
             _gaitPoses);
+        RangedPoseResolver.Resolve(_simulation.Agents, _rangedPoses);
         var screenBounds = GraphicsDevice.Viewport.Bounds;
         _fonts?.SelectScale(
             _configuredUiScale,
@@ -1336,12 +1360,36 @@ public sealed partial class ArenaGame : Game
             composition.CategoryCounts[3]);
     }
 
+    // RU-25: the client's own scenario, not Scenario.CreateDefault's shipped
+    // default, is what carries the ranged package: PrecolonialPhilippinesV5
+    // is the only combat preset with ranged attack rules registered, and it
+    // is only ever paired with RangedStandoffV8 (never with
+    // EquipmentRelativeFootworkV6 or V7), the only movement preset with the
+    // ranged standoff rule that keeps a holding archer from being walked in
+    // on by its own melee comrades. CreateDefault stays V4/V4 so the
+    // headless determinism baseline and every other caller are unaffected.
+    //
+    // RosterCounts is deliberately left unset (its own record default)
+    // rather than filled from ToRosterCounts(composition): V5's ruleset
+    // fields a 7-entry roster, and Settings.ArmyComposition — the panel the
+    // spectator drives — is fixed at 4 categories
+    // (Settings.ArmyComposition.CategoryCount). Scenario.Validate throws the
+    // moment a shorter RosterCounts array is paired with V5's roster count,
+    // so filling it here would trade an unreachable feature for a game that
+    // fails to launch. Leaving it unset makes BattleSimulation.Create fall
+    // back to CombatRuleset.ResolveLoadout's cyclic assignment across all
+    // seven V5 entries (BattleSimulation.cs:571-573), which is what actually
+    // guarantees a ranged loadout reaches the roster. The composition
+    // panel's category sliders are inert while V5 is active as a result;
+    // widening ArmyComposition to a 7-category shape is out of scope here —
+    // ArmyCompositionPanel and ClientSettings.cs are not RU-25 files.
     private static Scenario BuildScenario(
         ulong seed,
         Settings.ArmyComposition composition) =>
         Scenario.CreateDefault(seed, composition.UnitsPerTeam * 2) with
         {
-            RosterCounts = ToRosterCounts(composition),
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV5,
+            MovementPreset = MovementPresetId.RangedStandoffV8,
         };
 
     private void RequestExit()
@@ -1545,7 +1593,8 @@ public sealed partial class ArenaGame : Game
             _presentation.IngestTick(
                 _simulation.LastEvents,
                 _simulation.Agents,
-                _simulation.LastTickCombatByFaction);
+                _simulation.LastTickCombatByFaction,
+                _simulation.Tick);
             _soundDirector.Ingest(_simulation.LastEvents, _simulation.Agents);
             LogTick();
             _simulationAccumulator -= secondsPerTick;
