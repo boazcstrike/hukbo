@@ -1525,6 +1525,67 @@ mutation redone, and the failure observed. **A mutation test that does not verif
 mutation actually landed is worth nothing**, and it fails in the direction that manufactures
 false confidence.
 
+### RU-30: the diagnosis is confirmed, the fix is large, and its acceptance bar is still not met
+
+RU-30 merged. **Both suites are fully green for the first time in this package** — Core 0
+failed of 2,433, Client 0 failed of 3,328, format passes. The leader fact that had been red
+since RU-03 opened the known-red window closed exactly where section 3 predicted, by
+registering `MonotoneAllyClearanceV9`.
+
+The predicate is what the row asked for. `IsLaneClearOfAllies` now takes an `isMonotone`
+flag set from `Scenario.MovementPreset == MovementPresetId.MonotoneAllyClearanceV9`, and
+inside the per-ally loop a candidate that violates clearance is rejected outright under
+V1–V8 but under V9 only when it also moves the actor **closer** to that ally than its own
+tick-start separation. The actor's tick-start position is hoisted out of the loop. V9 is
+registered as a verbatim restatement of V6's tunables, which makes the V6-to-V9 comparison
+a clean single-variable experiment: the only difference between them is this predicate.
+
+**The orchestrator re-measured everything, because the task reverted its own measurement
+harness before reporting.** All six matrix hashes are byte-identical, so nothing this
+change touched reached a shipped preset. Measured at 200 agents, seed 1, V4 combat, 5,000
+ticks:
+
+| | `EquipmentRelativeFootworkV6` | `MonotoneAllyClearanceV9` |
+| --- | --- | --- |
+| `routeRefusalLaneNotClear` | 347,375 | **38,209** |
+| `refuseAgentTicks` | 347,425 | 38,466 |
+| seed-1 outcome | `Draw` at the cap | `Faction0Victory` at tick 1,422 |
+
+**The counter collapses by a factor of nine and the diagnosis is confirmed.** This is the
+first direct evidence that the standoff was caused by the absolute clearance rule making an
+already-violating configuration absorbing, rather than by anything about pressure,
+interception, or attack rate. `FootworkPhase.Refuse` was a clearance rejection all along.
+
+Across seeds 1 through 20 at 200 agents, V4 combat, 5,000-tick cap:
+
+| Preset | Decisive | Draws at cap |
+| --- | --- | --- |
+| V6 | **0 of 20** | 20 |
+| V9 | **14 of 20** | 6 |
+
+V6 draws every single seed — the failure this package inherited. V9 resolves fourteen of
+twenty, with decisive ticks between 1,365 and 2,712.
+
+**And that is not the bar.** RU-30's acceptance requires at least 19 of 20 seeds decisive
+before the 5,000-tick cap. Fourteen is a large improvement over zero and it is still five
+seeds short. The task reported its own figure of 13 of 20 on a differently shaped run and
+did not label it a failure; the orchestrator's independent figure is 14 of 20, and the
+verdict either way is the same. **RU-30's primary acceptance criterion is NOT met, and no
+amount of re-running changes that.**
+
+Nothing regresses as a result. `MonotoneAllyClearanceV9` is opt-in, `PersistentContingentsV4`
+remains the shipped default, and every frozen digest and pinned hash held. The unmet bar is
+a statement about how much of the standoff F-B removes, not about damage to anything
+shipped. What it means is that the standoff has a second cause beyond ally clearance, still
+unidentified, and that closing the remaining six seeds is new work rather than a retune.
+
+**One acceptance item was not delivered at all.** The ten-cell matrix beside the V6 baseline
+— terminal tick, outcome, accepted attacks, and attack-capable agent-ticks — was reported
+BLOCKED on the grounds that its definition did not survive prompt compression. Given that a
+roster weighting arrived in another brief this same session with a digit missing, that is
+credible rather than an excuse, but the item is genuinely outstanding and is not evidence
+that exists somewhere unread.
+
 ### Task status
 
 | Task | Status |
@@ -1558,7 +1619,7 @@ false confidence.
 | RU-27 | **Done on branch `ru-27` at `efd3366`, merged into `ranged-units`.** V8 has a frozen digest of 1,005 tick rows; V1 through V7 fixtures are untouched and still pass. Its row understated the file list — the fixture had to be created too, the thirteenth known-wrong row. A gated capture routine was kept committed for the next preset. See section 9 |
 | RU-28 | **Done on branch `ru-28` at `9e95864`, merged into `ranged-units`.** Its row was the eleventh known-wrong one: `ProjectileTests.cs` already carried four of its eight pins, so the real scope was the remaining four plus an audit of the existing four. All four existing pins hold with no gap, and the allocation pin does run on a ranged roster. Four new pins added, no hash literal among them. See the result in section 9 |
 | RU-29 | **Done on branch `ru-29` at `e2f9c6a`, merged into `ranged-units`.** The gate now runs a second, ranged determinism workload, guarded so `-Game Sandata` skips it. Twenty-seed ranged termination test added with a guard fact tying the roster weights to `Rules.Roster.Count`. **The agent's own benchmark evidence was invalid — positional arguments meant it measured V4, not V5; re-run correctly by the orchestrator. See section 9** |
-| RU-30 | Not started |
+| RU-30 | **Done on branch `ru-30` at `9369509`, merged into `ranged-units` — but its acceptance bar is NOT met.** The monotone predicate lands, V9 is registered, the leader fact closes, and **both suites are fully green for the first time in this package**. The diagnosis is confirmed: `routeRefusalLaneNotClear` falls from 347,375 to 38,209 at 200 agents, and termination goes from V6 drawing 0 of 20 seeds to V9 resolving 14 of 20. **The row requires 19 of 20.** Five seeds short, so a second cause remains beyond ally clearance. The ten-cell matrix was reported BLOCKED on prompt compression and is genuinely outstanding. See the RU-30 result in section 9 |
 | RU-31 | Not started |
 | RU-32 | Not started |
 | RU-33 | Not started |
