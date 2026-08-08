@@ -525,6 +525,65 @@ public sealed class PresentationCoordinatorTests
     }
 
     /// <summary>
+    /// RU-25. <see cref="PresentationCoordinator.IngestTick"/> must forward
+    /// its own <c>tick</c> argument to
+    /// <see cref="PresentationCoordinator.Projectiles"/> alongside the same
+    /// events and agents every other system here receives — the wiring gap
+    /// that left every ranged-package presentation system built but
+    /// unreachable from the frame loop until this task.
+    /// </summary>
+    [Fact]
+    public void IngestTick_ForwardsTheTickAndReleaseEventsToProjectiles()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        AgentView[] agents =
+        [
+            CreateAgentAt(1, xRaw: 0, yRaw: 0),
+            CreateAgentAt(2, xRaw: 5000, yRaw: 0),
+        ];
+
+        coordinator.IngestTick(
+            [ReleaseEvent(1, sourceEntityId: 1, targetEntityId: 2, flightTicks: 4)],
+            agents,
+            default,
+            tick: 10);
+
+        var flight = Assert.Single(coordinator.Projectiles.LiveFlights.ToArray());
+        Assert.Equal(10, flight.LaunchTick);
+        Assert.Equal(4, flight.FlightTicks);
+        Assert.Equal(2ul, flight.TargetEntityId);
+    }
+
+    /// <summary>
+    /// Mirrors <see cref="ResetFor_ClearsTheGaitStore"/> for the projectile
+    /// store: its declared lifetime is one battle, so both round-reset
+    /// commands must empty it.
+    /// </summary>
+    [Theory]
+    [InlineData((int)ClientCommand.NextRound)]
+    [InlineData((int)ClientCommand.FullReset)]
+    public void ResetFor_ClearsTheProjectileStore(int commandValue)
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        AgentView[] agents =
+        [
+            CreateAgentAt(1, xRaw: 0, yRaw: 0),
+            CreateAgentAt(2, xRaw: 5000, yRaw: 0),
+        ];
+        coordinator.IngestTick(
+            [ReleaseEvent(1, sourceEntityId: 1, targetEntityId: 2, flightTicks: 4)],
+            agents,
+            default,
+            tick: 1);
+
+        Assert.NotEmpty(coordinator.Projectiles.LiveFlights.ToArray());
+
+        coordinator.ResetFor((ClientCommand)commandValue);
+
+        Assert.Empty(coordinator.Projectiles.LiveFlights.ToArray());
+    }
+
+    /// <summary>
     /// The spectator's <see cref="MotionIntensity"/> setting must reach gait
     /// resolution: <see cref="GaitPoseResolver.Resolve"/>'s
     /// <c>MotionIntensity.Off</c> path always resolves the neutral standing
@@ -682,5 +741,19 @@ public sealed class PresentationCoordinatorTests
             sourceEntityId: targetEntityId,
             targetEntityId: targetEntityId,
             value: 10,
+            factionId: null);
+
+    private static BattleEvent ReleaseEvent(
+        long sequence,
+        ulong sourceEntityId,
+        ulong? targetEntityId,
+        int flightTicks) =>
+        BattleEvent.NonAttack(
+            sequence,
+            tick: sequence,
+            BattleEventKind.Release,
+            sourceEntityId,
+            targetEntityId,
+            value: flightTicks,
             factionId: null);
 }

@@ -1368,12 +1368,26 @@ public sealed partial class ArenaGame : Game
     // ranged standoff rule that keeps a holding archer from being walked in
     // on by its own melee comrades. CreateDefault stays V4/V4 so the
     // headless determinism baseline and every other caller are unaffected.
+    //
+    // RosterCounts is deliberately left unset (its own record default)
+    // rather than filled from ToRosterCounts(composition): V5's ruleset
+    // fields a 7-entry roster, and Settings.ArmyComposition — the panel the
+    // spectator drives — is fixed at 4 categories
+    // (Settings.ArmyComposition.CategoryCount). Scenario.Validate throws the
+    // moment a shorter RosterCounts array is paired with V5's roster count,
+    // so filling it here would trade an unreachable feature for a game that
+    // fails to launch. Leaving it unset makes BattleSimulation.Create fall
+    // back to CombatRuleset.ResolveLoadout's cyclic assignment across all
+    // seven V5 entries (BattleSimulation.cs:571-573), which is what actually
+    // guarantees a ranged loadout reaches the roster. The composition
+    // panel's category sliders are inert while V5 is active as a result;
+    // widening ArmyComposition to a 7-category shape is out of scope here —
+    // ArmyCompositionPanel and ClientSettings.cs are not RU-25 files.
     private static Scenario BuildScenario(
         ulong seed,
         Settings.ArmyComposition composition) =>
         Scenario.CreateDefault(seed, composition.UnitsPerTeam * 2) with
         {
-            RosterCounts = ToRosterCounts(composition),
             CombatPreset = CombatPresetId.PrecolonialPhilippinesV5,
             MovementPreset = MovementPresetId.RangedStandoffV8,
         };
