@@ -3034,5 +3034,10 @@ repository and is simply not used consistently.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 85 | 12 | Turn the absolute state-hash pins into invariant assertions | `OrderStateHashTests.PreTask61BaselineHash` and `MissionEventFeedTests.PreTask76BaselineHash` pin an absolute fixture digest to guard properties that are actually relational: "an empty order queue folds nothing" and "`Compute` never reads the event feed". Any legitimate change to the operator fold breaks both and invites a one-character re-pin. Rewrite each as a comparison between two computed hashes — the state with an empty queue against a state whose queue was never populated, and the state with an empty feed against the same state with events appended — following `StateHash_DoesNotMove_WhenTheEventFeedGainsEvents`, which already does it correctly in the same file. Keep exactly one absolute pin in the suite, `PreTask79cBaselineHash`, as the deliberate canary that fires when any state fold changes, and say in its comment that it is the only one and why. | `tests/Sandata.Core.Tests/OrderStateHashTests.cs`, `tests/Sandata.Core.Tests/MissionEventFeedTests.cs`, `tests/Sandata.Core.Tests/MissionStateTests.cs` | Both rewritten tests pass, and both still fail if their guarded property is genuinely broken — proved by temporarily breaking each property and recording the failure. Exactly one absolute state-hash literal remains in `tests/Sandata.Core.Tests/`, confirmed by search, and the search used is recorded. | 79c | |
 
-Task 85 touches only test files and no file any task-79 split or task 81 or 84
-wants, so it can run beside any of them.
+Task 85 touches only test files, but it is **not** free to run beside anything:
+`MissionEventFeedTests.cs` is writable to task 79d-1, and `TickPipelineTests.cs`
+is writable to tasks 81 and 84. This correction is itself the file-level half of
+the audit doing its job — the sentence originally written here claimed task 85
+conflicted with nothing, and that claim was wrong the moment task 79d-1 was
+dispatched with the same test file in its grant. Task 85 runs after task 79d-1
+merges, and not beside task 81 or task 84.
