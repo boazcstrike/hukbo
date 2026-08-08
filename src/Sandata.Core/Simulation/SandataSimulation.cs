@@ -1452,6 +1452,58 @@ public sealed class SandataSimulation
     private static int RawFromWorldUnits(long worldUnits) => checked((int)(worldUnits << 10));
 
     /// <summary>
+    /// Sprint speed per design section 4 ("Units, and why they are
+    /// chosen"): 5 m/s doubles to 80 world units per second. Not itself a
+    /// per-tick raw step - <see cref="SandataRuleset.TickRate"/> is a
+    /// per-instance property, not a compile-time constant (line 145 of
+    /// that file), so the actual per-tick cap is derived fresh from
+    /// <see cref="_ruleset"/> inside <see cref="ComputeMovementProposals"/>,
+    /// the same shape stage 6 already uses for
+    /// <c>readyTicks</c>/<c>resetTicks</c>/<c>aimTicks</c> at lines 447,
+    /// 448, and 485.
+    /// </summary>
+    private const int SprintSpeedWuPerSecond = 80;
+
+    /// <summary>
+    /// Clamps a stage 9 desired point to at most
+    /// <paramref name="movementSpeedRaw"/> raw units of displacement from
+    /// the start point - design section 4's per-tick speed cap. Applied
+    /// once, in <see cref="ComputeMovementProposals"/>, after both the
+    /// ordered and autonomous branches have already picked a target, never
+    /// per-branch, so an ordered operator's authored waypoint and an
+    /// autonomous operator's formation slot are both walked toward across
+    /// ticks rather than reached in one -
+    /// <see cref="Movement.LocalAvoidance.Commit"/> applies no speed cap of
+    /// its own, moving a proposal straight to its desired point subject
+    /// only to collision blocking, so this is the only place stage 9
+    /// enforces a per-tick distance limit. Uses <see cref="IntegerSqrt"/>
+    /// for the displacement's magnitude; <c>Math.Sqrt</c> is banned in this
+    /// project (see <see cref="IntegerSqrt"/>'s own remarks).
+    /// </summary>
+    private static (int X, int Y) ClampToMovementSpeed(
+        int startXRaw, int startYRaw, int desiredXRaw, int desiredYRaw, int movementSpeedRaw)
+    {
+        var dx = (long)desiredXRaw - startXRaw;
+        var dy = (long)desiredYRaw - startYRaw;
+        var distanceSq = (dx * dx) + (dy * dy);
+
+        if (distanceSq <= (long)movementSpeedRaw * movementSpeedRaw)
+        {
+            return (desiredXRaw, desiredYRaw);
+        }
+
+        var distance = IntegerSqrt(distanceSq);
+        if (distance <= 0)
+        {
+            return (desiredXRaw, desiredYRaw);
+        }
+
+        var clampedX = startXRaw + checked((int)((dx * movementSpeedRaw) / distance));
+        var clampedY = startYRaw + checked((int)((dy * movementSpeedRaw) / distance));
+        return (clampedX, clampedY);
+    }
+
+    /// <summary>
     /// The squad's shared formation half-width, in world units, that
     /// <see cref="Squads.FormationCollapse.IsCollapsed"/> compares against
     /// the leader's clearance. <b>PROVISIONAL</b> — no
@@ -1484,19 +1536,24 @@ public sealed class SandataSimulation
     private const long FormationLateralStepWu = 4;
 
     /// <summary>
-    /// How far ahead of the leader's own projected position, in world
+    /// How far ahead of the leader's own projected position, in whole world
     /// units, the leader's sample point sits — without this, a leader whose
-    /// target is its own projection onto the path never moves.
-    /// <b>PROVISIONAL</b> — no movement-speed or per-tick step constant
-    /// exists anywhere under <c>Movement/</c> (<see cref="Movement.LocalAvoidance"/>,
-    /// <see cref="MovementProposal"/>, and <see cref="Movement.SidestepRules"/>
-    /// carry none) to derive this from, and <see cref="Movement.LocalAvoidance.Commit"/>
-    /// applies no speed cap of its own — it moves a proposal straight to its
-    /// desired point, subject only to collision blocking — so this constant
-    /// is, in effect, the leader's per-tick step size along its own path
-    /// until a real movement-speed source is designed.
+    /// target is its own projection onto the path never moves. A per-tick
+    /// step now has a source, <see cref="SprintSpeedWuPerSecond"/>, but
+    /// <see cref="SlotTargets.ComputeTarget"/>'s arclength domain is whole
+    /// world units, and 1.6 wu (the step at this file's design-scoped
+    /// <see cref="SandataRuleset.TickRate"/> of 50) is not expressible
+    /// there. Rounding the step up — not down — to the next whole world
+    /// unit keeps this lookahead at least as far ahead as the leader can
+    /// actually walk in one tick: a lookahead at or above the per-tick step
+    /// is absorbed by <see cref="ClampToMovementSpeed"/> every tick
+    /// regardless, while a lookahead below the step would throttle the
+    /// leader below its designed sprint speed. It is
+    /// <see cref="ClampToMovementSpeed"/>'s clamp, not this value, that
+    /// decides how far the leader actually travels in a tick.
     /// </summary>
-    private const long FormationLookaheadWu = 8;
+    private static long DeriveFormationLookaheadWu(int movementSpeedRaw) =>
+        (movementSpeedRaw + FixedPoint.Scale - 1) / FixedPoint.Scale;
 
     /// <summary>
     /// Stage 9. Call-site obligation: chooses each living operator's
@@ -1540,8 +1597,8 @@ public sealed class SandataSimulation
     /// moves an entity straight to its proposal's desired point every tick
     /// with no speed cap of its own, projecting the leader's own current
     /// position back onto its own path would leave the leader's target
-    /// pinned to wherever it already stands; <see cref="FormationLookaheadWu"/>
-    /// adds a small constant arclength past that projection so the leader
+    /// pinned to wherever it already stands; <see cref="DeriveFormationLookaheadWu"/>
+    /// adds a small arclength past that projection so the leader
     /// (slot 0, whose trail and lateral offsets are both zero) still has
     /// somewhere ahead of it to walk toward, each tick, clamped to the
     /// path's own <see cref="PolylineArclength.TotalLength"/> so it never
@@ -1557,6 +1614,17 @@ public sealed class SandataSimulation
     /// every slot in the group to single file for that tick, per design
     /// section 8's "Doorway collapse falls out of the clearance field."
     /// </para>
+    /// <para>
+    /// <b>Speed clamp.</b> Both branches above only choose a desired point;
+    /// neither one is speed-limited on its own, and <see cref="Movement.LocalAvoidance.Commit"/>
+    /// applies no cap of its own either. This method converts design
+    /// section 4's sprint speed into a per-tick raw step once, from
+    /// <see cref="_ruleset"/>, then calls <see cref="ClampToMovementSpeed"/>
+    /// once per operator after the ordered/autonomous branch above has run,
+    /// never inside either branch, so an ordered operator walks toward a
+    /// far waypoint across many ticks and a non-leader slot walks into its
+    /// formation position rather than starting there.
+    /// </para>
     /// </remarks>
     private ImmutableArray<MovementProposal> ComputeMovementProposals(
         TickStartView view, ReadOnlySpan<SquadSlot> slots, MissionState state)
@@ -1564,6 +1632,16 @@ public sealed class SandataSimulation
         var count = view.Count;
         var assignments = state.OrderAssignments;
         var builder = ImmutableArray.CreateBuilder<MovementProposal>();
+
+        // Design section 4: 5 m/s sprint = 80 wu/s. Truncating (not
+        // rounding) keeps this <= CollisionBodyRadiusRaw on the safe side -
+        // the game's only rounding rule (design section 4) is scoped to
+        // milliseconds, not this conversion. _ruleset.TickRate is a
+        // per-instance property, so this is computed here rather than as a
+        // compile-time constant, once per call rather than per operator
+        // since it does not vary across this tick's operators.
+        var movementSpeedRaw = (SprintSpeedWuPerSecond * FixedPoint.Scale) / _ruleset.TickRate;
+        var formationLookaheadWu = DeriveFormationLookaheadWu(movementSpeedRaw);
 
         for (var i = 0; i < count; i++)
         {
@@ -1616,7 +1694,7 @@ public sealed class SandataSimulation
                         : ProjectArclength(
                             path, arclength, view.PositionXWu(leaderIndex), view.PositionYWu(leaderIndex));
                     var leaderArclength = Math.Min(
-                        leaderPositionArclength + FormationLookaheadWu, arclength.TotalLength);
+                        leaderPositionArclength + formationLookaheadWu, arclength.TotalLength);
                     var (trailOffsetWu, lateralOffsetWu) = FormationSlotOffsetsWu(slot.SlotIndex ?? 0);
                     var leaderClearance = FindLeaderClearance(view, leaderEntityId);
                     var gatedLateralOffsetWu = FormationCollapse.LateralOffset(
@@ -1629,6 +1707,9 @@ public sealed class SandataSimulation
                     desiredYRaw = RawFromWorldUnits(target.Y);
                 }
             }
+
+            (desiredXRaw, desiredYRaw) = ClampToMovementSpeed(
+                startXRaw, startYRaw, desiredXRaw, desiredYRaw, movementSpeedRaw);
 
             builder.Add(new MovementProposal(
                 entityId, startXRaw, startYRaw, desiredXRaw, desiredYRaw,
