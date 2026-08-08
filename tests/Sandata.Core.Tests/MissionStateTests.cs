@@ -357,7 +357,7 @@ public sealed class MissionStateTests
             SandataRuleset.ModernTacticalV1.TickRate + 1,
             SandataRuleset.ModernTacticalV1.MsToTickConversionRuleId,
             SandataRuleset.ModernTacticalV1.PathLatencyTicks,
-            SandataRuleset.ModernTacticalV1.GroupCohesionRadius,
+            SandataRuleset.ModernTacticalV1.GroupCohesionRadiusWu,
             SandataRuleset.ModernTacticalV1.LoweredWallDistanceWu,
             SandataRuleset.ModernTacticalV1.AimToleranceBam);
 
