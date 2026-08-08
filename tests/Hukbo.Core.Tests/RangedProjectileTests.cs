@@ -146,6 +146,63 @@ public sealed class RangedProjectileTests
     }
 
     /// <summary>
+    /// Acceptance: a shooter that dies mid-flight still delivers the shot it
+    /// already loosed. <see cref="BattleSimulation"/>'s arrival pass reads
+    /// the launching warrior's FactionId, Loadout, and EntityId from
+    /// whatever <see cref="AgentState"/> is still stored at that index --
+    /// even a corpse -- and gates delivery on the <em>target's</em> liveness
+    /// only. The shooter is killed directly, not through a
+    /// <see cref="BattleEventKind.Death"/> event, the same pattern
+    /// <c>PhilippineCombatIntegrationTests.DeadAgentsNeverSelectTargetsMoveOrAttack</c>
+    /// uses. A third, distant ally keeps the shooter's faction from being
+    /// wiped so the battle keeps advancing to the arrival tick.
+    /// </summary>
+    [Fact]
+    public void ProjectileLaunchedByAgentThatDiesMidFlightStillDeliversRecordedDamage()
+    {
+        var rules = RangedRulesetWithClashProfile(ClashProfile.Neutral);
+        var scenario = CreateRangedTestScenario(maximumProjectilesInFlight: 4);
+
+        var shooter = CreateAgent(1, factionId: 0, x: 0, y: 0, scenario, rules, BangkawLoadout);
+        var target = CreateAgent(
+            2, factionId: 1, x: 40, y: 0, scenario, rules, OutOfReachMeleeLoadout);
+        // Far enough from both combatants that, at MovementSpeedRaw's crawl,
+        // it cannot close within either one's reach across the 11 ticks this
+        // case advances -- it exists only to keep faction 0 from being wiped
+        // when the shooter's hit points are zeroed below.
+        var ally = CreateAgent(3, factionId: 0, x: 490, y: 490, scenario, rules, BangkawLoadout);
+
+        var simulation = BattleSimulation.CreateForTesting(scenario, rules, shooter, target, ally);
+
+        simulation.AdvanceOneTick();
+        Assert.Single(
+            simulation.LastEvents,
+            battleEvent =>
+                battleEvent.Kind == BattleEventKind.Release &&
+                battleEvent.SourceEntityId == 1UL);
+
+        shooter.HitPoints = 0;
+
+        for (var tick = 0; tick < 9; tick++)
+        {
+            simulation.AdvanceOneTick();
+        }
+
+        simulation.AdvanceOneTick();
+        Assert.Equal(11, simulation.Tick);
+
+        var attack = Assert.Single(
+            simulation.LastEvents,
+            battleEvent => battleEvent.Kind == BattleEventKind.Attack);
+        Assert.Equal(1UL, attack.SourceEntityId);
+        Assert.Equal(2UL, attack.TargetEntityId);
+        Assert.Equal(AttackResolution.Landed, attack.Resolution);
+
+        var targetView = Assert.Single(simulation.Agents, agent => agent.EntityId == 2);
+        Assert.Equal(990, targetView.HitPoints); // 1,000 - Bangkaw's 10 damage.
+    }
+
+    /// <summary>
     /// Six Bangkaw-armed warriors, three per faction, close enough that both
     /// sides' shots are in reach from the first tick. Mirrors the shape of
     /// <c>BattleSimulationTests.BuildCrowdedRoster</c> and
