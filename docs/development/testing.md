@@ -84,6 +84,275 @@ not prove a sound was audible, that it arrived at the right moment, or that it
 sounded right. Smoke rows below still require a human at an interactive desktop;
 see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
+## Canonical gate result — Hukbo, 2026-08-09
+
+`./scripts/verify.ps1` with no flags, all five stages, exit code 0, at
+`9e28a65`:
+
+```
+[PASS] Platform: Windows x64
+[PASS] PowerShell: 7.6.4
+[PASS] .NET SDK: 10.0.302
+[PASS] packages.lock.json present for all 973 projects.
+[PASS] MonoGame packages are centrally pinned: 3.8.5
+[PASS] Required prerequisites and repository configuration are present.
+[PASS] Locked package restore completed.
+[PASS] Formatting verification completed.
+Build succeeded.  0 Warning(s)  0 Error(s)
+[PASS] Release solution build completed.
+Hukbo.Core.Tests     Total tests: 2376   Passed: 2376   Total time: 29.4877 Seconds
+Hukbo.Client.Tests   Total tests: 3270   Passed: 3270   Total time:  2.0697 Seconds
+[PASS] Release repository tests completed.
+measuredTicks 981   outcome Faction1Victory   survivors 0 / 6
+stateHash 1B73FC5923879AA0   eventHash AC55684F24D39344   deterministic true
+p50 0.1297 ms   p95 0.9696 ms   p99 1.3251 ms   max 15.3551 ms
+coreAllocatedBytes 154976   allocatedBytes 480936
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+Both recorded seed-1 baseline hashes are unchanged. This run was made after the
+attack-animation V2 work merged, which is where the Client suite's growth from
+3,152 to 3,270 tests comes from; it is not a Sandata change and none of the
+documentation edits made on this day altered test discovery in either suite,
+which was confirmed by listing discovered tests with and without them.
+
+## Sandata — recorded baselines and measurement runs, 2026-08-09
+
+This repository builds two games. Everything above and below this section, unless
+it names Sandata, is about Hukbo. This section is Sandata's, and it is separate
+on purpose: the two games have independent simulations, independent hashes, and
+independent gate invocations, and a result from one is never evidence about the
+other.
+
+### How Sandata is run
+
+```powershell
+./scripts/run.ps1 -Game Sandata                          # launch it
+./scripts/test.ps1 -Configuration Release -Game Sandata  # both Sandata suites
+./scripts/benchmark.ps1 -Game Sandata -Seed 1            # the headless workload
+./scripts/verify.ps1 -Game Sandata                       # the five gate stages
+```
+
+**`./scripts/verify.ps1` with no `-Game` flag runs Hukbo only.** It never builds
+or runs a line of Sandata, so a green default gate says nothing whatever about
+this game. The default gate stays on the Hukbo workload alone until Sandata's
+seed-1 baseline has settled, so that a red Sandata run can never be mistaken for
+a red Hukbo one.
+
+### Test suites, measured 2026-08-09
+
+| Suite | Tests | Warm run | Inside `verify.ps1 -Game Sandata` |
+| --- | --- | --- | --- |
+| `Sandata.Core.Tests` | 1,104 | 37.77 s | 1.08 min |
+| `Sandata.Client.Tests` | 199 | 0.49 s | 0.50 s |
+
+Both columns are real and the difference between them is not noise. The warm
+figure is a repeat run with everything already built and cached; the gate figure
+is what the suite costs immediately after a full Release solution build, which
+is the number that matters when deciding what belongs in a gate. Quote the
+slower one.
+
+For comparison, the canonical Hukbo gate run on the same machine and the same
+day reports `Hukbo.Core.Tests` at 2,376 tests in 29.49 s and
+`Hukbo.Client.Tests` at 3,270 tests in 2.07 s. Every one of Hukbo's 3,270
+presentation tests runs in about two seconds because none of them constructs a
+graphics device or a window; Sandata's slowness is entirely the benchmark cases
+and not a presentation problem.
+
+Sandata's core suite is slow by this repository's standards, and the reason is
+recorded rather than absorbed: roughly half of that 38 seconds is spent in the
+seven test cases that run the navigation benchmark itself, one of which is a
+2,000-tick, 32-seeker, 2,048-world-unit row. Whether those cases belong in a
+gate at all, or belong beside `tools/` as hand-run measurement, is an open
+question and not a settled one.
+
+### The seed-1 headless workload, measured 2026-08-09
+
+```
+BO | Microsoft Windows 10.0.26200 (X64) | 20 logical processors | .NET 10.0.10
+```
+
+`./scripts/benchmark.ps1 -Game Sandata -Seed 1`, which is 200 operators — 100
+per faction — over 10,000 ticks:
+
+```
+measuredTicks 10000   outcome Ongoing   survivors 70 / 64
+stateHash BDD56EBD06F76674   eventHash 7C1B37876769DEC7   deterministic true
+p50 2.6761 ms   p95 3.8265 ms   p99 4.8984 ms   max 64.1713 ms
+durationMilliseconds 28393.9   allocatedBytes ~42.18 GB
+```
+
+`SandataRuleset.ContentHash` is `8_955_292_433_887_190_872`, pinned by
+`SandataRulesetTests`.
+
+**The allocation figure is a magnitude and must never be recorded as an exact
+byte count.** It is not part of the determinism contract and it is not
+bit-reproducible: three runs of identical trees during this wave reported
+42,184,447,672, then 42,184,446,424, then 42,184,440,712 bytes. Those differ by
+thousands of bytes and mean the same thing. The figure to carry forward is
+"about 42.18 GB over ten thousand ticks, down from about 48.64 GB before the
+per-stage allocation work". A fourth run the same day reported
+42,184,446,456 bytes, which makes the point again.
+
+### Canonical gate result — Sandata, 2026-08-09
+
+`./scripts/verify.ps1 -Game Sandata`, all five stages, exit code 0:
+
+```
+[PASS] Platform: Windows x64
+[PASS] PowerShell: 7.6.4
+[PASS] .NET SDK: 10.0.302
+[PASS] packages.lock.json present for all 973 projects.
+[PASS] MonoGame packages are centrally pinned: 3.8.5
+[PASS] Required prerequisites and repository configuration are present.
+[PASS] Locked package restore completed.
+[PASS] Formatting verification completed.
+Build succeeded.  0 Warning(s)  0 Error(s)
+[PASS] Release solution build completed.
+Sandata.Core.Tests     Total tests: 1104   Passed: 1104   Total time: 1.0803 Minutes
+Sandata.Client.Tests   Total tests:  199   Passed:  199   Total time: 0.5005 Seconds
+[PASS] Release repository tests completed.
+measuredTicks 10000   outcome Ongoing   survivors 70 / 64
+stateHash BDD56EBD06F76674   eventHash 7C1B37876769DEC7   deterministic true
+p50 2.6383 ms   p95 4.6475 ms   p99 6.8726 ms   max 64.1272 ms
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+This is the first time Sandata's gate has been run and recorded. It proves the
+five stages and the seed-1 digest; it proves nothing interactive, and every row
+in the Sandata smoke checklist below stays `PENDING`.
+
+**Two things this workload does not prove**, both established by measurement
+during wave 12 and both worth knowing before anyone reads an unchanged hash as
+a result:
+
+- **Nothing in it ever moves.** The fixture publishes no group paths and carries
+  no orders, so every operator proposes its own current position on every tick.
+  A change to movement speed, formation, or collision is therefore invisible to
+  these hashes, and an unchanged hash after such a change is the expected
+  outcome rather than a disappointment.
+- **It carries no cover and one loadout.** The runner loads no map, so no cover
+  record exists, and every operator carries the default firearm. A change to the
+  cover or caliber tables cannot move these hashes either.
+
+Both are why Sandata's behavioural evidence lives in `TickPipelineTests` and in
+the golden replay fixture rather than in this workload.
+
+### Golden replay and determinism equivalence
+
+Sandata's pinned digests live in
+`tests/Sandata.Core.Tests/Fixtures/seed-1-baseline.json`, not in any `.cs` file.
+Exactly one absolute state-hash literal is permitted in C# under
+`tests/Sandata.Core.Tests/`, and it is already spent on
+`MissionStateTests.PreTask79cBaselineHash`.
+
+`GoldenReplayTests` pins two seed-1 baselines over eight operators and forty
+ticks: one mission with an empty order stream and one with two real orders
+submitted through `SandataSimulation.SubmitOrder`. Both are asserted to be
+non-degenerate — each emits sixteen events including eight shots fired, and
+three operators end below full health — and the failure message names the first
+mismatch tick.
+
+`DeterminismEquivalenceTests` adds four relational tests that pin no absolute
+hash: a same-seed repeat in process, a cold-cache run whose derived structures
+are all rebuilt from scratch at the midpoint, a save-and-resume round trip, and
+a run with logging off compared against the same run at `trc`. Each calls a
+shared activity check that requires events emitted and total health below its
+starting value, so neither side can pass by standing still.
+
+One clause of Sandata's determinism contract is **not** proven by any of these,
+and it is recorded here rather than assumed discharged: design section 4's rule
+that a *derived* published path polyline is recomputed from its stored request
+on resume. The merged save-and-resume test snapshots an authored order, whose
+polyline is stored state, so it proves the round trip and not the
+recomputation. Nothing suggests the recomputation is wrong; it simply has no
+test yet.
+
+### Task 53's measurement runs, 2026-08-08
+
+These are the figures from the third and final run of the navigation matrix,
+after two real defects in the harness itself were found and fixed. The two
+earlier tables are kept in the plan document as the record of those defects and
+are not measurements of anything.
+
+```
+BO | Microsoft Windows 10.0.26200 (X64) | 20 logical processors | .NET 10.0.10
+```
+
+**Audio instance pool.** The 257th concurrent `SoundEffectInstance` throws
+`InstancePlayLimitException`, so 256 is the usable pool.
+`SandataSoundBudget.DefaultMaximumInstances` was moved from a provisional 64 to
+the measured 256. Eight shooters sustaining automatic fire for ten seconds held
+sixteen instances — one loop and one tail each — with fourteen tail cues fired,
+zero refused, and no exception.
+
+The constant equals the measured ceiling rather than sitting below it. That is
+deliberate and it carries a precondition: this budget refuses the same 257th
+reservation MonoGame would have thrown on, so no headroom is needed **only while
+every played instance is reserved here first**. Every cue path on
+`SandataSoundPlayer` goes through `TryReserve` before playing today. A future
+play path that bypasses the budget reintroduces exactly the exception the
+constant exists to prevent.
+
+**Navigation matrix.** The `angle-house` fixture bakes to a 160-by-180-cell nav
+grid. Seed 1, 2,000 ticks per row.
+
+| Row | Density % | Changed cells | Seekers | Query wu | Replan % | Probes | Found % | Successful p50 / p95 / p99 (ms) | Stage 7 p50 / p95 / p99 (ms) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| baseline | 20 | 0 | 4 | 512 | 5 | 408 | 100.0 | 0.9376 / 1.5742 / 1.8825 | 0.0001 / 1.1056 / 1.6790 |
+| many-seekers | 20 | 0 | 16 | 512 | 5 | 1,603 | 100.0 | 0.7900 / 1.5222 / 1.8724 | 0.0672 / 1.7753 / 2.8294 |
+| long-queries | 20 | 0 | 4 | 2,048 | 5 | 408 | 100.0 | 1.5465 / 2.9441 / 3.2198 | 0.0001 / 2.4036 / 3.2181 |
+| doors-light | 10 | 20 | 4 | 512 | 10 | 820 | 100.0 | 0.5794 / 1.2112 / 1.3738 | 0.0001 / 0.9457 / 1.3047 |
+| stress-connected | 10 | 50 | 32 | 2,048 | 25 | 15,937 | 93.7 | 1.3415 / 4.8988 / 6.0748 | 3.8829 / 11.5732 / 15.9489 |
+
+What those numbers say:
+
+- A single A\* query over 512 world units costs well under a millisecond at p50
+  and under two at p99.
+- Quadrupling the query distance to 2,048 world units roughly doubles the cost,
+  which is the expected shape for grid A\* over a bounded indoor map.
+- Going from four concurrent seekers to sixteen barely moves p50, because the
+  searches are independent. What it moves is the stage-7 total, which is their
+  sum.
+- **The stress row is the one worth watching.** Thirty-two seekers replanning at
+  25 percent put stage 7 at 3.88 ms p50 and 15.95 ms p99. One tick at the
+  ruleset's 50 Hz is 20 ms, so that row spends most of a tick budget in one
+  stage. It is far past anything the design anticipates — the cost table there
+  is written for sixteen operators and four groups — and it is not a
+  configuration the game runs. It is recorded because a measured ceiling is
+  worth more than an assumed one.
+- The 6.3 percent of stress-row queries that fail are genuine: at 50 toggling
+  cells and 32 seekers, some goals sit behind a cell that is blocked in the
+  toggled configuration. That is a real dynamic-blocker case, which is what the
+  row was written to measure.
+
+**Where the raw capture lives, stated honestly.** Both runs wrote their raw
+output under `artifacts/`, which `.gitignore` excludes, so those files exist on
+the measuring workstation and in no clone of this repository. The transcript of
+record is the plan document,
+`docs/plans/2026-08-07-sandata-scaffold.md`, in the section titled "Task 53
+complete, after tasks 82 and 83". Nothing here should be read as a citation to a
+file a fresh clone can open, because there is no such file.
+
+### The largest remaining allocators, measured and not yet cut
+
+Per-stage instrumentation at 200 operators and seed 1, over 300 measured ticks
+after 50 warm-up ticks, ranked two allocation sites well above everything the
+allocation task was allowed to touch:
+
+| Site | Bytes per simulation-tick | Shape |
+| --- | --- | --- |
+| `src/Sandata.Core/Navigation/LineOfSight.cs` | 1,761,332 | one `int[]` sized to the grid per call, at roughly 4,684 calls per tick |
+| `src/Sandata.Core/Sensing/ContactMemory.cs` | 456,130 | one array per operator per tick |
+
+Use this table for its **ranking**, which is unambiguous, and not for its
+fractions. Those two figures sum to more than the benchmark's own per-tick
+total, because the harness instrumented one simulation directly while the
+benchmark figure covers two constructed simulations plus everything outside the
+tick. No percentage derived from this measurement should be quoted as a result.
+
 ## Render performance measurement — full matrix (VIS-036), 2026-07-28
 
 **Status: partially measured. The agent-count and camera-station axes were
@@ -3632,6 +3901,42 @@ Run `./scripts/run.ps1` on an interactive Windows desktop. This repository uses
 local-only verification: there is no hosted-CI substitute for this direct
 interaction pass. Compilation, automated tests, a window-opening probe, or
 synthetic input do not make a manual row pass.
+
+Every subsection below except the first is Hukbo's, and is run with
+`./scripts/run.ps1`. The Sandata rows immediately below are run with
+`./scripts/run.ps1 -Game Sandata`.
+
+### Sandata smoke (design section 13)
+
+**No interactive run has been performed for Sandata at all.** Every row below is
+`PENDING`, and no agent may flip one. These eight rows are the complete list of
+things Sandata's design records as checkable only by a person at a desktop; the
+automated suites prove the geometry, the funnel output, the collapse threshold,
+the lowered-weapon rule at its exact boundary, the theme contrast pairs, and the
+sound-slot lookup, and none of them proves that any of it reads correctly on a
+screen.
+
+Run with the debug log on — `./scripts/run.ps1 -Game Sandata -Configuration
+Debug` — so that a row recorded `FAIL` or `BLOCKED` can be handed to someone
+else with `artifacts/logs/sandata-<utc>-<pid>.jsonl` attached.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| SD-1 | Launch, then zoom from the closest tier out to the furthest | The window opens, the map draws, and the operators stay legible at every zoom level | | PENDING |
+| SD-2 | Watch a squad path across the 26.57-degree diagonal wall | The funnel path visibly follows the wall as a straight line rather than a staircase | | PENDING |
+| SD-3 | Send a squad through the entry door and on into the room behind it | The squad visibly collapses to single file at the door and re-expands inside | | PENDING |
+| SD-4 | Watch a rifle operator cross a doorway, then a pistol operator cross the same one | The rifle operator lowers the weapon and re-raises it; the pistol operator does not | | PENDING |
+| SD-5 | Hold sustained automatic fire from the maximum operator count | Automatic fire sounds continuous rather than machine-gun-stuttered, and no audio drops out | | PENDING |
+| SD-6 | Look at a fire cone at every detail tier, zoomed in and out | The cone reads at every tier and does not fade with zoom | | PENDING |
+| SD-7 | View friendly, hostile, and unknown contacts in every shipped theme, then again with colour removed | The three are distinguishable at a glance in every theme, and remain distinguishable by shape alone | | PENDING |
+| SD-8 | Click an operator that is holding position | The inspector explains the hold: reason code, path state, and weapon chain phase | | PENDING |
+
+**SD-5 cannot be attempted yet, and its status stays `PENDING` rather than
+becoming `BLOCKED`, because the blocker is upstream of the smoke run.** Sandata
+ships no sound files: its catalog is 106 slots expanding to 524 variant files,
+roughly 104,800 ElevenLabs credits, and that spend is not authorized. The row is
+listed in full so that it is not quietly forgotten once the audio question is
+answered.
 
 ### Weapon identity and attributes smoke (preset V2)
 
