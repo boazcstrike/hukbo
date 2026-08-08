@@ -1586,6 +1586,52 @@ roster weighting arrived in another brief this same session with a digit missing
 credible rather than an excuse, but the item is genuinely outstanding and is not evidence
 that exists somewhere unread.
 
+### Two decisions taken on RU-30's result, and what is left
+
+The user took both open questions on 2026-08-09.
+
+**V9 is accepted as it stands, with its bar recorded as unmet.** Fourteen decisive seeds of
+twenty against a required nineteen is a large, verified improvement over V6's zero, the
+preset is opt-in, `PersistentContingentsV4` remains the shipped default, and every frozen
+digest and pinned hash held. Closing the remaining six seeds needs a fresh investigation
+into a second cause, which is a different shape of work from anything left in this package.
+**Nothing here should be read as the standoff being solved.** It is diagnosed, and most of
+it is removed.
+
+**The ten-cell matrix is dropped rather than respecified.** The termination table and the
+refusal-counter collapse already carry the finding; the matrix would have added per-cell
+detail without changing the conclusion. It is not outstanding work and should not be
+revived as though it were.
+
+Two tasks were then dispatched together, on disjoint files: RU-43 restores the
+army-composition sliders, and RU-32 writes this package's manual smoke-checklist rows.
+
+**RU-43's row was stale in two ways and would have misled an implementer twice.** It says
+V5's roster is seven entries when RU-45 made it nine, and it cites `ArenaGame.cs:1402` for
+`BuildScenario`, which actually sits at `:1386` with `ToRosterCounts` at `:1324`. That is
+the fifteenth wrong row, in the file that has already cost this package an entire agent run
+to the stall watchdog.
+
+**And the row never mentions the fact that decides the whole design: the four composition
+categories are ranks, not weapons.** Datu, Maharlika, Timawa, AlipingNamamahay. Under V4
+that was accidentally one rank per roster entry, which is the only reason a four-category
+panel ever worked. Under V5 it is not: Timawa now covers five of the nine entries — Kalis,
+Bangkaw, Busog, Arquebus, and Kalis with a shield — and AlipingNamamahay covers two. A
+four-to-nine mapping is therefore not a widening exercise, it is a question about how a
+rank's warriors distribute across the entries that carry that rank.
+
+RU-43 was told to keep the four rank sliders and split each rank's count across its entries
+in the proportions RU-24 and RU-45 calibrated, by largest remainder, deriving everything
+from `rules.Roster` so that a four-entry preset still produces exactly what it produces
+today. The reason to specify that rather than leave it open is narrow and load-bearing: an
+even split within a rank would change the ranged share and silently invalidate every band
+those two tasks measured.
+
+**RU-31 is not dispatched and will not be.** Its own row reads "PAID. A HUMAN RUNS THIS. NO
+AGENT GENERATES SOUNDS." It spends money on the ElevenLabs API, it is the only task in this
+plan that talks to a network service, and its verification is a person listening. It stays
+for the user.
+
 ### Task status
 
 | Task | Status |
