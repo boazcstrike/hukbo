@@ -303,11 +303,32 @@ public sealed class MovementSourceTests
         ulong[] orderedAssignedEntityIds = [2];
         ulong[] unorderedAssignedEntityIds = [];
 
+        // SquadGrouping.Compute now always takes positions and a cohesion
+        // radius. This fact has never had positions of its own to give —
+        // it exists to prove grouping is decoupled from order assignment,
+        // not to say anything about distance — so both calls below place
+        // every entity at the same coincident position (0, 0) and pass the
+        // same generous radius. With every position identical, the squared
+        // distance between any pair is always zero, so any non-negative
+        // radius unions every same-faction candidate pair regardless of its
+        // value; using the same radius and positions on both calls is what
+        // keeps the ordered/unordered comparison below meaningful, since
+        // that comparison must isolate the presence of an OrderAssignment
+        // as the only variable.
+        int[] coincidentPositions = [0, 0, 0];
+        const int unconditionalUnionRadiusRaw = 1_000_000;
+
         var orderedResults = new SquadSlot[entityIds.Length];
-        SquadGrouping.Compute(entityIds, isAlive, factions, pairs, orderedResults);
+        SquadGrouping.Compute(
+            entityIds, isAlive, factions,
+            coincidentPositions, coincidentPositions, unconditionalUnionRadiusRaw,
+            pairs, orderedResults);
 
         var unorderedResults = new SquadSlot[entityIds.Length];
-        SquadGrouping.Compute(entityIds, isAlive, factions, pairs, unorderedResults);
+        SquadGrouping.Compute(
+            entityIds, isAlive, factions,
+            coincidentPositions, coincidentPositions, unconditionalUnionRadiusRaw,
+            pairs, unorderedResults);
 
         var orderedGroupIdForEntityTwo = orderedResults[1].GroupId;
         var unorderedGroupIdForEntityTwo = unorderedResults[1].GroupId;

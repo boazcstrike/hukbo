@@ -1777,3 +1777,295 @@ Task 74 is the one to schedule deliberately rather than opportunistically. It is
 the first task in this project that will change simulation behaviour on purpose,
 and it touches four subsystems that currently agree with each other only because
 none of them consults the value that is supposed to govern them.
+
+### The wave-10 audit, run before dispatch — 2026-08-08
+
+Wave 10 is tasks 49, 50, 72, 73, and 74. Both directions of the audit were run
+over their rows before any agent was dispatched. The file-level check passed: no
+file is claimed by two tasks. It then found three things a file-level check
+cannot see, and two of them are decisions rather than observations, so they are
+recorded here at the time they were taken rather than after the wave.
+
+#### Task 74 is re-scoped: two of its four constants are not defects
+
+Task 74's row, written during wave 9, says to wire all four ruleset constants
+into the code that should consume them. Reading the code first showed that two of
+the four are already correct by design.
+
+`PathService` does not read `SandataRuleset` on purpose, and the reason is
+written at the site: the latency "is a ruleset constant in the caller's
+possession... so it stays usable in a test or a tool that has no ruleset to
+hand." `WeaponLoweredRules` has the same shape for `LoweredWallDistanceWu`. Both
+take their value as a parameter, which is this codebase's established convention
+for handing a ruleset constant to a `Sandata.Core` type.
+
+So for those two the gap is not in the consumer. It is that **no caller passes
+the ruleset's value**, and the caller is the tick pipeline. That half moves to
+task 49's call-site obligations, and task 74 was explicitly forbidden both files.
+
+What remains in task 74 is the two genuine deviations, where the design states a
+rule and no code implements it at all: design section 8's cohesion-radius union
+in `SquadGrouping`, and design section 9's `|ShortestArc| <= AimToleranceBam`
+comparison feeding `WeaponChain.Advance`.
+
+This is worth recording as a general caution. Wave 9 established that all four
+constants were unread, which was true. The inference that all four were therefore
+defects was not, and it survived into a task row. **A finding and its remedy are
+separate claims, and the remedy needs its own reading of the code.**
+
+#### Task 49 cannot run beside tasks 72 and 74
+
+Their file sets are disjoint, so the file-level audit passed them for the same
+wave. They still cannot run in parallel.
+
+Task 49 is the first production caller of the order queue, of squad grouping, and
+of the weapon chain. Task 72 changes the order queue's writable surface and task
+74 changes both of the other two. Whichever merged second would carry a call site
+written against a surface that had moved underneath it — a conflict created on
+purpose, exactly what the disjointness rule exists to prevent, and invisible to
+that rule because no file is shared.
+
+Wave 10 therefore runs as two batches: 50, 72, 73, and 74 together, then task 49
+alone against the merged result. This is the third wave in a row to need a
+second batch, and the reason differs each time. Wave 7's was the eight-agent
+ceiling, wave 9's was a missing dependency, and wave 10's is an API surface two
+tasks move and a third consumes.
+
+**The audit question that catches this one is not "which files does each task
+own" but "which surfaces does each task move, and who calls them".**
+
+#### Task 50 could not reach its own acceptance criterion
+
+Its row says the benchmark is exposed "behind headless flags" and its file list
+names no `Program.cs`. `Sandata.Headless/Program.cs` parses only `--help` and the
+log flags today, so as scoped the benchmark would have been unreachable from any
+command line and its "runs to completion and prints all six percentiles"
+criterion unsatisfiable.
+
+`Program.cs` was granted to task 50 for its navigation-benchmark flags only. Task
+51 still owns the determinism workload flags next wave, and task 50 was told not
+to add them and not to "fix" the known `Unsupported argument '--agents'` failure,
+which remains expected rather than a defect.
+
+### Wave 10 complete, 2026-08-08
+
+Six tasks — 49, 50, 72, 73, 74, and the new 75 — all merged into
+`sandata-wave10`, each from its own worktree, with no merge conflicts. The wave
+ran as the two batches the pre-dispatch audit required: 50, 72, 73, and 74
+together, then task 49 alone against the merged result. Task 75 was created and
+finished inside the wave, after task 50's benchmark work surfaced a crash on the
+project's own map fixture.
+
+This record was reconstructed after the session that wrote it. Git Bash failed on
+every command, including a bare `true`, with
+``/usr/bin/bash: -c: line 77: unexpected EOF while looking for matching `'``,
+so the record could not be appended or committed, and the prepared text was lost
+when the scratchpad holding it was swept. Everything below was re-verified
+against the merged tree rather than restated from a report: the counts come from
+a fresh run of the supported entry point, the gate output from a fresh run of the
+gate, and the code claims from the files named beside them.
+
+Counts through the supported entry point, re-run on the merged branch:
+
+```
+./scripts/test.ps1 -Configuration Release -Game Sandata
+Total tests: 1042
+     Passed: 1042
+Total tests: 195
+     Passed: 195
+[PASS] Release repository tests completed.
+```
+
+The Sandata core suite moved from 985 to 1042 and the client suite from 192 to
+195. The shape of the change, from `git diff --stat` against the merge base
+`40e5b59`, is 22 files, 5,263 insertions and 37 deletions, of which
+`SandataSimulation.cs` is 1,292 new lines and `TickPipelineTests.cs` is 873.
+
+The canonical gate was run by the integrating thread after integration, not
+delegated:
+
+```
+[PASS] Locked package restore completed.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Total tests: 2376
+     Passed: 2376
+Total tests: 3131
+     Passed: 3131
+[PASS] Release repository tests completed.
+  "outcome": "Faction1Victory",
+  "eventHash": "AC55684F24D39344",
+  "stateHash": "1B73FC5923879AA0",
+  "deterministic": true,
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+Still byte-identical to untouched `main` in what it produces. Ten waves of a
+second game have now moved no Hukbo hash.
+
+#### A stage that runs is not a stage that works
+
+Sandata now has the fourteen-stage tick pipeline design section 5 specifies, in
+`src/Sandata.Core/Simulation/SandataSimulation.cs`, building warning-clean. Five
+of those stages are honestly degenerate, and task 49's author marked every one of
+them at the site as well as in the report. That marking is the reason they are
+recorded here as known gaps rather than discovered later as bugs.
+
+- **Stage 7 never calls `PathService.RequestPath`.** No destination-request
+  source exists anywhere in the pipeline, so no group ever holds a live path.
+  The only production call to `RequestPath` in the repository is in
+  `src/Sandata.Headless/NavBenchmark.cs`, which is a measurement harness.
+- **Stage 9's autonomous branch holds position**, for the same missing input.
+  Formation collapse is therefore structurally unreachable rather than absent —
+  the code implementing it is right and nothing feeds it.
+- **Stage 11 hardcodes a weapon.** `SandataSimulation.cs:284` declares
+  `private const FirearmId DefaultFirearmId = FirearmId.Ak47`, because
+  `OperatorState` carries no loadout field.
+- **Stage 12 does not resolve fire.** Every shot hits, damage is an invented flat
+  `ProvisionalDamagePerHitPoints = 25` (`SandataSimulation.cs:292`, applied at
+  `:599`), cover is always `CoverState.NotInCover`, and the result of
+  `AccuracyRules.DrawAngularErrorBam` is discarded outright.
+- **Stage 14 emits no events.** The state hash is real and computed on the
+  documented cadence. The event half is unimplemented because `Sandata.Core`
+  declares no event type at all.
+
+Do not read the pipeline's existence as the game being playable.
+
+#### Task 74 did not close what it appeared to close
+
+This is the wave's most consequential finding, and it is a finding about how
+acceptance criteria were written rather than about the agent that satisfied them.
+
+Task 74 added a cohesion-radius gate to `SquadGrouping.Compute`, with boundary
+tests on both sides of the radius and a test proving that changing the radius
+changes the grouping. It also removed the ungated legacy overload, so the gate
+cannot be bypassed. Every acceptance criterion in its row passed. Task 49c then
+tested the same constant *through the pipeline* and proved it does nothing. Two
+causes compound:
+
+- **A unit mismatch.** `SandataRuleset.GroupCohesionRadius` is documented "in
+  world units". `SquadGrouping.Compute`'s parameter is named
+  `groupCohesionRadiusRaw` and is treated as raw fixed-point.
+  `SandataSimulation.cs:1063` passes the first into the second, so a default of
+  96 world units behaves as roughly 0.094.
+- **The gate sits downstream of the decision it is supposed to make.**
+  `view.Pairs` comes from `SandataCollisionGrid.Rebuild(bodies, bodyRadiusRaw)`,
+  already filtered to physical contact. A downstream gate can only narrow a
+  candidate list, never widen it. Even with the units fixed, two operators fifty
+  world units apart never reach the comparison, because they were never
+  candidates.
+
+Task 74's tests passed because their fixtures supplied the candidate pair list
+directly instead of reaching it through the collision grid. **A criterion a
+fixture can satisfy without exercising the production call chain is not a
+criterion.** The previous session's integrating thread wrote those criteria and
+approved that test shape, so this is a defect in the row, not in the work. Task
+77 below fixes both halves in one change.
+
+#### Score on wave 9's "all four ruleset constants are read by nothing"
+
+Half closed, not closed.
+
+- `AimToleranceBam` — **proven load-bearing** through the pipeline.
+- `LoweredWallDistanceWu` — **proven load-bearing**, and inclusive at the
+  threshold.
+- `PathLatencyTicks` — **blocked, and correctly reported as blocked.** Nothing
+  calls `RequestPath`, so there is nothing to observe. The test written instead
+  proves inertness, and deliberately compares full record equality rather than
+  the state hash, because `SandataRuleset.ContentHash` folds `PathLatencyTicks`
+  and a hash comparison would have diverged for the wrong reason and looked like
+  success.
+- `GroupCohesionRadius` — **proven not to work**, as above.
+
+`SandataRuleset.ContentHash` did not move in this wave and stays
+`8_955_292_433_887_190_872`.
+
+#### `Sandata.Core` has no event type at all
+
+This blocks three separate things that are each recorded as built or specified:
+design section 5's stage 14, design section 16's order-rejection event, and
+design section 11's event log. It is task 76 below, and it is the first row of
+wave 11 because two other rows want a destination for what they observe.
+
+#### Two identifier narrowings survived task 64's widening pass
+
+Both are at subsystem boundaries, both are bridged with `unchecked((int)...)`,
+and both are inert today only because no group holds a path and no shot resolves:
+
+- `SandataSimulation.cs:1129` — `SquadSlot.GroupId` into `PathService`.
+- `SandataSimulation.cs:596` — `OperatorState.EntityId` into
+  `AccuracyRules.DrawAngularErrorBam`.
+
+A source scan for `unchecked((int)` over `src/` returns exactly these two.
+Task 64 widened the identifiers themselves and did not reach every consumer.
+Task 78 below closes them and pins the absence by scan rather than by
+inspection.
+
+#### A crash latent since task 20, found by a benchmark and fixed by task 75
+
+`GridRay.Traverse` threw whenever a ray's origin cell lay outside the grid, and
+`tests/Sandata.Core.Tests/Fixtures/angle-house.hkmap` authors its perimeter walls
+exactly on the map edge, so `WallBuckets.Build` threw on the project's own
+fixture — the same call `Sandata.Client.SandataGame` makes at startup. Task 75
+fixed it by clamping only the broad-phase traversal through a new
+`ClampToInterior` helper, leaving `GridRay`'s guard intact and the exact narrow
+phase in `LineOfSight` receiving true unclamped coordinates. That follows
+`OrderValidation`'s established precedent in this codebase rather than inventing
+a second convention.
+
+The row, recorded here because the task was created after the wave was
+dispatched and never had one:
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 75 | 10 | Boundary walls crash the nav index | `WallBuckets.Build` throws `ArgumentOutOfRangeException` for any wall endpoint on the map's outer boundary, because that world-unit value floors to the cell one past the last row or column and `GridRay.Traverse` rejects an out-of-bounds origin. `angle-house.hkmap`'s four perimeter walls all touch a boundary, so building the nav index from real fixture data always failed. Clamp the broad phase only; the stored segments keep their true coordinates so the exact narrow phase is unaffected. | `src/Sandata.Core/Navigation/WallBuckets.cs`, `tests/Sandata.Core.Tests/WallBucketsTests.cs` | A test builds the index from `angle-house.hkmap` without throwing. A test proves a segment with both endpoints outside the grid is still stored unclamped and still classified exactly. | — | Merged as `3a59fac`; 215 new lines of tests in `WallBucketsTests.cs`. |
+
+#### What this wave cost, and the five habits that paid for themselves
+
+Task 49 stalled seven times on the 600-second watchdog. Every stall was in a read
+phase and none was while writing. A single grep producing a 121-line
+`path:line:declaration` index of the subsystems it had to call, handed over as a
+scratch file the agent deletes before committing, unblocked it every time.
+**For any task that calls many subsystems, supply the call surface at dispatch
+rather than making the agent discover it.**
+
+**Split coarse rows.** Task 49 cost eight agent runs as one row and completed as
+three — pipeline scaffold and stages, then stage implementation, then the tests.
+The granularity rule is not satisfied by a row that fits in a table; it is
+satisfied by a row an agent can finish.
+
+**Tell agents to commit as they go.** Long tasks survive stalls only if partial
+work is already committed. This saved real work twice this wave.
+
+**Audit both directions before dispatching, not after.** No file claimed twice,
+*and* every step named in a "What" column claimed exactly once. The file-level
+half is easy and catches little: it passed tasks 49, 72, and 74 for the same
+batch, and the surface-level half is what caught that task 49 is the first
+caller of both surfaces the other two move. It also caught that task 50 had been
+given no `Program.cs` and so could not reach its own acceptance criterion.
+
+**Verify every report against disk.** Reports get the file set and the pass or
+fail right and the counts wrong, consistently — five instances now across waves 7
+to 10. Quote `git diff --stat` against the merge base and the runner's own
+totals, never a report's figures.
+
+**Watch for bypassable call sites, not only missing ones.** Three have now been
+found in three consecutive waves: `OrderQueue.Submit` left public beside
+`SubmitValidated`, `OrderQueue.Orders` with a public `init` on a record (closed
+by task 72 this wave), and a legacy `SquadGrouping.Compute` overload with the
+radius disabled (removed by task 74). All three passed every acceptance
+criterion they were given.
+
+#### Four tasks this wave created
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 76 | 11 | An authoritative event feed for `Sandata.Core` | `Sandata.Core` declares no event type, which blocks design section 5's stage 14, design section 16's order-rejection event, and design section 11's event log. Declare the event record and the ordered feed, retain at most 200 as CLAUDE.md section 5 requires of Hukbo, and fold the feed into the state hash after every field the hasher already covers. Give stage 14 and `OrderQueue`'s rejection path a real destination. | `src/Sandata.Core/Events/` (new), `src/Sandata.Core/Simulation/SandataSimulation.cs` (stage 14 only), `src/Sandata.Core/Orders/OrderQueue.cs` (rejection emission only), and the corresponding test files | A test pins the pre-change state hash of a mission with an empty feed, proving the fold was appended and not interleaved. A test proves the feed retains exactly 200 and drops the oldest. A test proves a rejected order emits exactly one event carrying its reason code. Stage 14 produces an event hash that changes when the ordered event stream changes and not otherwise. | 49, 72 | |
+| 77 | 11 | Make the cohesion radius govern grouping where candidates are formed | `SandataRuleset.GroupCohesionRadius` is documented in world units and passed into `SquadGrouping.Compute`'s raw fixed-point `groupCohesionRadiusRaw` at `SandataSimulation.cs:1063`, so 96 world units behaves as roughly 0.094. The gate is also downstream of `SandataCollisionGrid.Rebuild`, which has already filtered to physical contact, so it can only narrow a candidate list it should be widening. Move the decision to the candidate source or give grouping its own candidate query, and resolve the unit mismatch in the same change by putting the unit in the field's name as `LoweredWallDistanceWu` already does. | `src/Sandata.Core/Squads/SquadGrouping.cs`, `src/Sandata.Core/Simulation/SandataRuleset.cs`, `src/Sandata.Core/Simulation/SandataSimulation.cs` (stage 10 call site only), `tests/Sandata.Core.Tests/SquadGroupingTests.cs`, `tests/Sandata.Core.Tests/TickPipelineTests.cs` | Task 49c's `RunTick_TwoSameFactionOperatorsFiftyWorldUnitsApart_AreNotGroupedDespiteDocumentedRadius` is inverted and passes — reached through `RunTick`, never through a hand-supplied pair list. A test proves two operators just outside the radius are not grouped, also through `RunTick`. `SandataRuleset.ContentHash` moves, and its new value is recorded here with the reason. | 74 | |
+| 78 | 11 | Widen the two remaining identifier narrowings | `SquadSlot.GroupId` into `PathService` (`SandataSimulation.cs:1129`) and `OperatorState.EntityId` into `AccuracyRules.DrawAngularErrorBam` (`SandataSimulation.cs:596`) are both bridged with `unchecked((int)...)`. Task 64's widening pass did not reach these consumers. Widen the consumers rather than the call sites. | `src/Sandata.Core/Navigation/PathService.cs`, `src/Sandata.Core/Combat/AccuracyRules.cs`, `src/Sandata.Core/Simulation/SandataSimulation.cs` (the two call sites only), `src/Sandata.Headless/NavBenchmark.cs`, and the corresponding test files | A test asserts by source scan over `src/` that no `unchecked((int)` cast of an entity or group identifier remains, rather than asserting it by inspection. Every existing `PathService` and `AccuracyRules` fact still passes. No hash moves. | 49 | |
+| 79 | 11 | Give stage 7 a destination source and stage 12 a hit test | Stage 7 never calls `PathService.RequestPath` because nothing requests a destination, which also holds stage 9's autonomous branch at position. Stage 12 resolves no fire: every shot hits, damage is a flat provisional 25, cover is always `NotInCover`, and `AccuracyRules.DrawAngularErrorBam`'s result is discarded. **This row must be split before dispatch — it is at least three tasks, and is written as one only so the shared cause stays visible.** | To be assigned per split row | Per split row. Stage 7's part is done when a group with an issued `MoveAlongPath` order holds a live path within `PathLatencyTicks`, proven through `RunTick`, which also unblocks wave 9's fourth constant. Stage 12's part is done when the drawn angular error decides the outcome and a miss is observable. | 76, 77 | |
+
+Task 76 and task 78 are disjoint and can run together. **Task 77 must not run
+beside anything that calls squad grouping.** Task 79's split parts depend on 77
+for the grouping surface and on 76 for somewhere to emit what they resolve.
