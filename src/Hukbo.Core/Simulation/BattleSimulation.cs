@@ -1709,6 +1709,56 @@ public sealed class BattleSimulation
             if (agent.Intent == AgentIntent.Moving &&
                 agent.TargetEntityId is { } enemyTargetId)
             {
+                var target = _agentStates[_agentIndexes[enemyTargetId]];
+
+                // Ranged standoff. Confined to RangedStandoffV8 so every other
+                // registered preset — PersistentContingentsV4 included — takes
+                // the unmodified path below regardless of which combat preset
+                // supplied the roster. A melee weapon's StandoffDistanceRaw is
+                // always 0, so a melee-only roster under V8 falls through this
+                // block untouched and is byte-identical to V4. Checked ahead of
+                // contingent cohesion below: cohesion's aim-point pursuit would
+                // otherwise close a held ranged warrior straight onto its
+                // target's body-contact ring, since that branch runs for every
+                // preset other than IndependentPursuitV1 and never consults
+                // StandoffDistanceRaw.
+                if (Scenario.MovementPreset == MovementPresetId.RangedStandoffV8)
+                {
+                    var standoffRaw =
+                        ResolveAttackerWeaponProfile(agent.Loadout).StandoffDistanceRaw;
+                    if (standoffRaw != 0)
+                    {
+                        if (SquaredDistance(agent, target) <=
+                            checked((long)standoffRaw * standoffRaw))
+                        {
+                            // At or inside the weapon's standoff distance: the
+                            // warrior deliberately holds rather than closing to
+                            // body contact. No proposal is written —
+                            // _movementProposals[index] is already null from the
+                            // Array.Clear above — so the collision stage
+                            // resolves it to MovementResolution.None rather than
+                            // Blocked, and the blocked streak never starts.
+                            agent.Intent = AgentIntent.Holding;
+                            continue;
+                        }
+
+                        var rangedStallGeneration = _collision.StallGeneration(index);
+                        _movementProposals[index] = rangedStallGeneration == 0
+                            ? BuildMovementProposal(
+                                agent,
+                                target.XRaw,
+                                target.YRaw,
+                                target.EntityId,
+                                standoffRaw)
+                            : BuildSidesteppingPursuitProposal(
+                                agent,
+                                target,
+                                rangedStallGeneration,
+                                standoffRaw);
+                        continue;
+                    }
+                }
+
                 if (cohesionActive &&
                     TryResolveContingentCohesionAimPoint(
                         agent,
@@ -1738,8 +1788,6 @@ public sealed class BattleSimulation
                         leaderEntityId);
                     continue;
                 }
-
-                var target = _agentStates[_agentIndexes[enemyTargetId]];
 
                 // The pursuit-path stall escape. At generation 0 — every agent
                 // in every battle that is merely crowded — this is the same
@@ -3368,11 +3416,20 @@ public sealed class BattleSimulation
     /// The pursuer's current stall generation, which the caller has already
     /// established is non-zero.
     /// </param>
+    /// <param name="stopShortRaw">
+    /// Overrides the stopping distance used when the offset resolves to zero
+    /// and this falls back to closing straight on <paramref name="target"/>.
+    /// <see langword="null"/> keeps the original two-body-radius stop; a
+    /// ranged pursuer beyond its standoff distance passes that distance here
+    /// instead, so a stalled ranged agent's fallback still stops at standoff
+    /// rather than walking in to body contact.
+    /// </param>
     /// <returns>The pursuer's movement proposal against the offset aim point.</returns>
     private (int XRaw, int YRaw, ulong TargetId) BuildSidesteppingPursuitProposal(
         AgentState agent,
         AgentState target,
-        int stallGeneration)
+        int stallGeneration,
+        int? stopShortRaw = null)
     {
         var deltaXRaw = (long)target.XRaw - agent.XRaw;
         var deltaYRaw = (long)target.YRaw - agent.YRaw;
@@ -3390,7 +3447,10 @@ public sealed class BattleSimulation
 
         if (offsetXRaw == 0 && offsetYRaw == 0)
         {
-            return BuildMovementProposal(agent, target);
+            return stopShortRaw is { } directStopShortRaw
+                ? BuildMovementProposal(
+                    agent, target.XRaw, target.YRaw, target.EntityId, directStopShortRaw)
+                : BuildMovementProposal(agent, target);
         }
 
         // Saturated and clamped the same way BuildRegroupingProposal handles its
@@ -3407,7 +3467,9 @@ public sealed class BattleSimulation
             mapHeightRaw,
             Scenario.BodyRadiusRaw);
 
-        return BuildMovementProposal(agent, aimXRaw, aimYRaw, target.EntityId);
+        return stopShortRaw is { } aimStopShortRaw
+            ? BuildMovementProposal(agent, aimXRaw, aimYRaw, target.EntityId, aimStopShortRaw)
+            : BuildMovementProposal(agent, aimXRaw, aimYRaw, target.EntityId);
     }
 
     private (int XRaw, int YRaw, ulong TargetId)? BuildRegroupingProposal(
