@@ -1385,6 +1385,48 @@ Two constraints were given to all three agents, because they run concurrently: o
 may write a hash literal, and none of them may write the roster length as a literal, since
 it has already changed size once inside this package.
 
+### RU-27 and RU-29 landed, and one agent's verification command was malformed
+
+Both merged. Core stands at 1 failed, 2,424 passed, 2,425 total — the baseline 2,422 plus
+RU-27's one fact and RU-29's two, which is exactly what each branch measured on its own.
+Format passes.
+
+**RU-27** captured the V8 digest through a `#if HUKBO_CALIBRATION` routine added to
+`MovementPresetFreezeTests.cs` at `:545-649`, kept committed rather than deleted after use
+so the next preset does not have to reinvent it. The fixture is 201,531 bytes with 1,005
+tick rows and 200 final-agent rows, seed 1 terminating at tick 1,005 in a faction 0
+victory, and its `provenance` block matches V7's shape and names the commit it was
+captured at. The seven existing fixtures are untouched — the diff contains exactly one
+file under `Fixtures/` — and all seven earlier freeze facts still pass.
+
+**RU-29's gate change is correct, but the evidence it offered for it was not.** The block
+added to `scripts/verify.ps1` passes `Preset = 'PrecolonialPhilippinesV5'` and
+`MovementPreset = 'RangedStandoffV8'` as named parameters inside an
+`if ($Game -eq 'Hukbo')` guard, so `-Game Sandata` never reaches presets that do not exist
+in that target. That is right. What was wrong is the run it pasted as proof: the command
+was `./scripts/benchmark.ps1 200 10000 1 PrecolonialPhilippinesV5 -MovementPreset
+RangedStandoffV8`, with the values bound positionally, so `PrecolonialPhilippinesV5` was
+consumed as the output path and `--preset` never reached the runner. It benchmarked the
+default V4 combat preset under V8 movement and reported `43458DD43FA3F564` /
+`AC55684F24D39344` — which is precisely the V4/V8 row of the matrix, and precisely not
+what the task exists to exercise. It also left an untracked 1,932-byte file named
+`PrecolonialPhilippinesV5` in the worktree root, which is what made the mistake visible in
+`git status` before the hashes were even compared.
+
+Re-run properly by the orchestrator, the ranged workload returns `C8023D3B5BEB005E` /
+`F709A345E2F7370E` with `deterministic: true` — the V5/V8 values, so the gate does now
+exercise the ranged path. The stray artifact was deleted. **A green report from a command
+that silently bound its arguments to the wrong parameters is the same class of failure
+this package keeps producing in code: it runs, it exits zero, and it proves nothing.**
+
+RU-29's roster handling is sound. It carries the nine weights as a literal array but pairs
+them with a guard fact, `RosterShareWeightsMatchThePresetRosterLength`, asserting the
+array length equals `PhilippineCombatPresetV5.Rules.Roster.Count`, so the array cannot
+quietly fall out of step with a roster that has already changed size once in this package.
+The agent also reported that the weighting in its brief arrived corrupted — the `6` for
+the Arquebus was missing — and that it read the real values from the calibration harness
+instead. That is the brief's naming of an on-disk source of truth working as intended.
+
 ### Task status
 
 | Task | Status |
@@ -1415,9 +1457,9 @@ it has already changed size once inside this package.
 | RU-24 | **Done on branch `ru-24` at `9aab100`, merged into `ranged-units`.** Bands (a), (c), (d), and (e) all pass, re-measured independently by the orchestrator rather than taken from the report. Band (b) is **BLOCKED and unmeetable by tuning** — V5's roster fields no shield on any entry, so there is nothing shielded to compare; it is the tenth known-wrong row and needs a user decision, not a retune. Only lever 4 moved: the ranged intercept cells, uniformly, marked `PROVISIONAL` in source. The chosen roster share `[19, 19, 19, 18, 11, 8, 6]` lives only in the harness and **must be carried into RU-43 and RU-29**. See the RU-24 result in section 9 |
 | RU-25 | Done on branch `ru-25` at `900dff7` and `ffcabe3`, merged into `ranged-units`. The client now runs `PrecolonialPhilippinesV5` + `RangedStandoffV8`; `Scenario.CreateDefault` and the headless default are untouched on V4. **Its own acceptance is only partly demonstrable: `run.ps1` throws on the first ranged pawn (RU-42), so the projectile draw path has never executed.** Two findings recorded as RU-42's widening and RU-43. |
 | RU-26 | Not started |
-| RU-27 | Not started |
+| RU-27 | **Done on branch `ru-27` at `efd3366`, merged into `ranged-units`.** V8 has a frozen digest of 1,005 tick rows; V1 through V7 fixtures are untouched and still pass. Its row understated the file list — the fixture had to be created too, the thirteenth known-wrong row. A gated capture routine was kept committed for the next preset. See section 9 |
 | RU-28 | **Done on branch `ru-28` at `9e95864`, merged into `ranged-units`.** Its row was the eleventh known-wrong one: `ProjectileTests.cs` already carried four of its eight pins, so the real scope was the remaining four plus an audit of the existing four. All four existing pins hold with no gap, and the allocation pin does run on a ranged roster. Four new pins added, no hash literal among them. See the result in section 9 |
-| RU-29 | Not started |
+| RU-29 | **Done on branch `ru-29` at `e2f9c6a`, merged into `ranged-units`.** The gate now runs a second, ranged determinism workload, guarded so `-Game Sandata` skips it. Twenty-seed ranged termination test added with a guard fact tying the roster weights to `Rules.Roster.Count`. **The agent's own benchmark evidence was invalid — positional arguments meant it measured V4, not V5; re-run correctly by the orchestrator. See section 9** |
 | RU-30 | Not started |
 | RU-31 | Not started |
 | RU-32 | Not started |
