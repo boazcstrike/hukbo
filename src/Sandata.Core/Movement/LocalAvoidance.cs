@@ -74,6 +74,35 @@ namespace Sandata.Core.Movement;
 /// the property design section 8 and <c>CLAUDE.md</c> section 9 actually ban,
 /// not the word "force" or "velocity" as a token.
 /// </para>
+/// <para>
+/// <b>"Waits a tick" becomes "waits forever" when the blocker never moves.</b>
+/// Task 89 of <c>docs/plans/2026-08-07-sandata-scaffold.md</c> measured this,
+/// and it is a property of the composition rather than a defect in any one
+/// piece. Both candidates this type offers are pure functions of the
+/// proposal: the desired point stage 9 computed, and
+/// <see cref="SidestepRules.Sidestep"/>'s single fixed rotation of that same
+/// delta, to the side <c>entityId</c> parity picks. When a body stands still
+/// on a group's published path, the stalled unit's start position, the
+/// published polyline, and therefore its next proposal are all identical on
+/// the following tick — so both candidates are rejected again, and again,
+/// with nothing in the simulation able to change any input. Head on, a
+/// 22.5-degree turn cannot clear a body whose radius (4,352 raw) is larger
+/// than the step that turns (1,638 raw at the shipped tick rate).
+/// </para>
+/// <para>
+/// Design section 8 states the sidestep rule in full and says nothing about a
+/// blocker that never moves; no path is re-requested after publication and no
+/// operator is ever entered into the nav search's <c>blocked</c> span, so
+/// nothing upstream re-routes either. Whether a blocked mover should re-plan
+/// around a static body is therefore an open design question and is not
+/// decided here.
+/// <c>TickPipelineTests.RunTick_StationaryBodyOnThePublishedPath_StallsTheLeaderBecauseItsOneSidestepIsBlockedToo</c>
+/// reproduces the stall, and
+/// <c>TickPipelineTests.RunTick_AutonomousLeaderWithAClearRoute_WalksThePublishedPathToItsGoal</c>
+/// is the control that proves the same path is walked end to end once the
+/// route is clear — so the cause is this stage and not stage 9's arclength
+/// arithmetic, its derived grouping, or its formation gating.
+/// </para>
 /// </remarks>
 internal sealed class LocalAvoidance
 {
