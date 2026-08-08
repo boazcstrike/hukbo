@@ -2197,3 +2197,190 @@ open questions the user has not answered, and an implementer must not settle it.
 
 Task 79a and 79c are disjoint and can run together. 79b depends on 79a, 79d
 depends on 79c, and both want task 76's feed to emit into.
+
+### Wave 11 complete, 2026-08-08
+
+Four tasks — 76, 77, 78, and the long-outstanding 51 — all merged into `main`,
+each from its own worktree, with no merge conflicts. The wave ran as the three
+batches the pre-dispatch audit required, because `SandataSimulation.cs` was a
+single-writer bottleneck: task 76 alone, then 77 beside 51, then 78. Task 79 was
+split into four rows before dispatch and none of them ran; they are wave 12.
+
+Counts through the supported entry point, run by the integrating thread on
+merged `main`:
+
+```
+./scripts/test.ps1 -Configuration Release -Game Sandata
+Total tests: 1066
+     Passed: 1066
+Total tests: 195
+     Passed: 195
+[PASS] Release repository tests completed.
+```
+
+The Sandata core suite moved from 1042 to 1066 and the client suite stayed at
+195, which is right — no task this wave touched `Sandata.Client`. The arithmetic
+closes exactly, and each figure was re-derived from the merged tree rather than
+taken from a report: task 76 added 7 (1049), task 77 added 4 (1053), task 51
+added 9 (1062), task 78 added 4 (1066).
+
+The canonical gate, run by the integrating thread after integration:
+
+```
+[PASS] Locked package restore completed.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Total tests: 2376
+     Passed: 2376
+Total tests: 3131
+     Passed: 3131
+[PASS] Release repository tests completed.
+  "outcome": "Faction1Victory",
+  "eventHash": "AC55684F24D39344",
+  "stateHash": "1B73FC5923879AA0",
+  "deterministic": true,
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+Eleven waves of a second game have moved no Hukbo hash.
+
+**The gate's totals did not change this wave, and that is not a mistake.** The
+default gate runs the Hukbo projects only, exactly as design section 14 says it
+will until Sandata has a recorded baseline. Sandata's 1,066 core tests are not in
+it. Anyone reading `[PASS] Canonical repository verification completed.` as
+covering Sandata is reading it wrong; `-Game Sandata` is a separate run and it
+was made separately above.
+
+#### Sandata ran its own determinism workload for the first time
+
+Task 51's runner exists, and this is its real output on merged `main`:
+
+```
+./scripts/benchmark.ps1 -Game Sandata -Seed 1
+  "seed": 1,
+  "operatorsPerFaction": 100,
+  "measuredTicks": 10000,
+  "tickPercentiles": {
+    "p50Milliseconds": 4.0214,
+    "p95Milliseconds": 6.0804,
+    "p99Milliseconds": 7.5789,
+    "maximumMilliseconds": 59.6075
+  },
+  "allocatedBytes": 65679126648,
+  "outcome": "Ongoing",
+  "eventHash": "CBF29CE484222325",
+  "stateHash": "00EC034D18941D36",
+  "deterministic": true,
+  "firstMismatchTick": null
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+```
+
+Neither hash is pinned anywhere and neither should be until task 52 records a
+golden baseline; task 51 was explicitly forbidden a literal, because task 77 ran
+in its own batch and could have moved every Sandata hash underneath it.
+
+Two numbers in that report are findings rather than results.
+
+**The event hash is `CBF29CE484222325`, which is the FNV-1a offset basis.** Not
+one event was emitted across ten thousand ticks. That is consistent — task 76
+wired exactly one producer, the order-rejection path, and this workload submits
+no orders — but it means the event half of the determinism contract is asserted
+by construction and not yet by a run. Task 79d is what will first exercise it.
+
+**The workload allocated 65,679,126,648 bytes over 10,000 ticks**, about 6.5 MB
+per tick at 200 operators. Stage 3 now constructs two collision grids per tick
+and several stages allocate their own arrays. `SIMULATION-GAME-STANDARDS.md`'s
+per-tick allocation budget exists for exactly this, and nothing in Sandata has
+ever been measured against it before, because until this wave there was no
+runner to measure with. It is task 81 below.
+
+#### Task 76 built the feed; the corrected fold was the right call
+
+The audit's correction held up in implementation. `MissionEventFeed` retains at
+most 200 events and carries a `Hash` that accumulates over the full stream, so
+the cap cannot truncate it; `SandataStateHasher` was not touched at all, which
+was verified as an empty diff rather than asserted. The feed's `Events` property
+is `{ get; private init; }`, so `with { Events = ... }` cannot inject an event —
+the lesson from task 72's bypassable door applied without being asked for.
+
+`PreTask76BaselineHash` came out equal to `PreTask61BaselineHash`
+(`5_550_901_129_500_655_850`), which is exactly right and is itself the proof:
+adding the feed moved no state hash, because the feed is not in it.
+
+#### The fourth bypassable door, found while verifying task 76
+
+`SandataSimulation.SubmitOrder` is the door that emits the rejection event. It is
+not the door the client uses. `src/Sandata.Client/SandataGame.cs:649` and
+`src/Sandata.Client/UI/PathDrawTool.cs:182` both call `OrderQueue.SubmitValidated`
+directly, so on the real client path a rejected order still vanishes with no
+event — design section 16's "it is not silently dropped" is satisfied in
+`Sandata.Core` and false in the game.
+
+This is not task 76's failure: `Sandata.Client` was forbidden to it, correctly,
+and the client does not construct a `SandataSimulation` at all yet, so there is
+currently no simulation door for it to call. It is task 80 below.
+
+That makes four consecutive waves in which a validating entry point shipped
+beside an open one — `OrderQueue.Submit`, `OrderQueue.Orders`, the ungated
+`SquadGrouping.Compute` overload, and now `SubmitValidated` reachable from
+presentation code. The check keeps paying for itself: whenever a task adds a
+door that does something extra, ask who else can reach the same state without it.
+
+#### Task 77 corrected its own brief, and was right to
+
+The brief said this task would move `SandataRuleset.ContentHash`, because it
+renames a field. It does not. `SandataHash.Fold` folds by value and not by
+property name, and the stored value of 96 did not change, so the pinned literal
+`8_955_292_433_887_190_872` is identical before and after. The agent verified
+that by running the pinned test rather than inventing a replacement number, and
+reported the discrepancy against its own instructions.
+
+The instruction was written by the integrating thread and it was wrong. This is
+the same shape as wave 10's caution about the four ruleset constants, pointed the
+other way: **a remedy stated in a brief is a claim, and it needs its own reading
+of the code before an agent is told to satisfy it.** An agent that had obeyed the
+brief instead of the code would have re-pinned a hash that never moved.
+
+The fix itself moves the decision to where candidates are formed, as the audit
+required. A second `SandataCollisionGrid`, sized from the cohesion radius, is
+built at stage 3 and queried by the new `RebuildWithinRange`; stage 6 reads it
+through `TickStartView.CohesionPairs`, beside the untouched physical-contact
+`Pairs`. `ValidateRange` refuses a query wider than a cell, which is what keeps
+the 3×3 neighbour scan complete at any radius — the hazard that would otherwise
+have silently dropped pairs, since the physical grid's provisional 256-raw cell
+is four orders of magnitude smaller than the 98,304-raw cohesion radius.
+
+Task 49c's `RunTick_TwoSameFactionOperatorsFiftyWorldUnitsApart_AreNotGroupedDespiteDocumentedRadius`
+is inverted and passes through `RunTick`, and the boundary is inclusive at the
+radius, matching `SandataCollisionGrid.IsContact`'s existing convention.
+
+#### Task 78 proved the RNG stream did not move, rather than assuming it
+
+Widening `AccuracyRules.DrawAngularErrorBam`'s entity id from `int` to `ulong`
+changes what the hash folds, and that method feeds a deterministic draw. The task
+captured three concrete draws from the pre-change code through a temporary
+`ITestOutputHelper` fact, deleted it, and pinned the recorded values against the
+widened method: `(12345, 7, 256) → -122`, `(999, 42, 171) → -147`, and
+`(55, 3, 32767) → 30472`. A widening that had moved a stream would be a preset
+version change, not a refactor, and this is the evidence that it was not.
+
+`grep -rn 'unchecked((int)' src/` now returns nothing, and a source-scan fact,
+`SandataSourceHygieneTests.SourceTreeNeverNarrowsAnIdentifierWithAnUncheckedIntCast`,
+holds it that way.
+
+Task 78 also hit `main` moving underneath it mid-run, when task 51 merged. It
+correctly reported that its two-dot `git diff main..HEAD` had become misleading
+and gave its merge base explicitly instead. That is the right reflex and it is
+worth naming: when a wave runs in batches, a branch's two-dot diff against `main`
+stops meaning what it looks like as soon as another batch lands.
+
+#### Two tasks this wave created
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 80 | 12 | Route client order submission through the simulation door | `SandataGame.cs:649` and `UI/PathDrawTool.cs:182` call `OrderQueue.SubmitValidated` directly, so a rejection on the real client path emits no event and design section 16's "not silently dropped" is false outside `Sandata.Core`. The client also constructs no `SandataSimulation` at all, so the door it should be calling is not reachable yet. Give the client a simulation to submit into and route both call sites through `SandataSimulation.SubmitOrder`. | `src/Sandata.Client/SandataGame.cs`, `src/Sandata.Client/UI/PathDrawTool.cs`, `tests/Sandata.Client.Tests/` | A test proves a rejected client submission produces exactly one `OrderRejected` event in the simulation's feed, reached through the client's own submission path and not by calling `SubmitOrder` directly. A test asserts no `Sandata.Client` type calls `OrderQueue.SubmitValidated`, by source scan rather than inspection. | 76 | |
+| 81 | 12 | Measure and cut Sandata's per-tick allocation | Task 51's first workload allocated 65,679,126,648 bytes over 10,000 ticks at 200 operators, roughly 6.5 MB per tick, against `SIMULATION-GAME-STANDARDS.md` section 11's per-tick allocation budget. Stage 3 constructs two `SandataCollisionGrid` instances per tick and several stages allocate per-tick arrays. Reuse the grids and the scratch buffers across ticks rather than reallocating, without introducing any cache that outlives a tick's meaning or reaches a hash. | `src/Sandata.Core/Simulation/SandataSimulation.cs`, `src/Sandata.Core/Collision/SandataCollisionGrid.cs`, `tests/Sandata.Core.Tests/TickPipelineTests.cs` | The same seed-1 workload reports a materially lower `allocatedBytes`, with the before and after figures both recorded here. Every existing state hash and the workload's `deterministic: true` are unchanged, proving the reuse changed no outcome. A test proves a reused grid holds nothing from the previous tick. | 51 | |
+
+Task 80 and task 81 are disjoint from each other. Task 81 shares
+`SandataSimulation.cs` with every task-79 split, so it does not run beside them.
