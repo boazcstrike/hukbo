@@ -1,8 +1,9 @@
 # Attack animation V2 — design
 
 Date: 2026-08-08
-Status: approved for planning. The companion implementation plan is still
-required before code changes begin.
+Status: approved. The companion implementation plan is
+`docs/plans/2026-08-08-attack-animation-v2.md`; code changes begin only by
+executing that plan.
 
 ## 1. Goal
 
@@ -121,6 +122,15 @@ reaction, lethal-contact hold, and contact sound request. A bundle is released
 to all of those channels together. Event-feed and battle-report ingestion may
 remain immediate because they are semantic records rather than audiovisual
 contact feedback.
+
+Each `Attack` event already carries its own resolution and damage value, so its
+hit, blood, clash, reaction, and weapon sound come from that event alone. The
+later `Damage` event is an aggregate semantic record and does not spawn another
+contact effect. When a same-tick `Death` follows several landed attacks against
+one target, the lethal hold and death sound attach exactly once to the
+highest-sequence landed attack bundle for that target. Earlier contributing
+attacks remain ordinary landed contacts. This rule also applies independently
+per target for mutual deaths and is stable across catch-up updates.
 
 The five-bundle limit is fixed and proportional to the scenario's agent
 capacity; it is not a growing queue. A custom tick rate or future combat preset
