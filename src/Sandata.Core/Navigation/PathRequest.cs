@@ -32,7 +32,10 @@ namespace Sandata.Core.Navigation;
 /// The requesting group's identity. Design section 8 derives group identity
 /// as the minimum living entity id in the group's union-find component; this
 /// record does not care how the caller derived it, only that it is stable
-/// for the group's lifetime.
+/// for the group's lifetime. <see langword="ulong"/> to match
+/// <see cref="Squads.SquadSlot.GroupId"/> and
+/// <see cref="Simulation.OperatorState.EntityId"/> exactly, so no caller
+/// narrows a group identity to reach this record.
 /// </param>
 /// <param name="StartCellIndex">
 /// The nav grid cell index the group was at when this request was made. Not
@@ -45,7 +48,7 @@ namespace Sandata.Core.Navigation;
 /// machine actually completed in between.
 /// </param>
 public readonly record struct PathRequest(
-    int GroupId,
+    ulong GroupId,
     int StartCellIndex,
     int GoalCellIndex,
     long RequestTick);

@@ -581,11 +581,10 @@ public sealed class SandataSimulation
     /// not" standard this task's other stages follow.
     /// </para>
     /// <para>
-    /// <see cref="AccuracyRules.DrawAngularErrorBam"/> takes an
-    /// <see langword="int"/> entity id while <see cref="OperatorState.EntityId"/>
-    /// is <see langword="ulong"/> — narrowed with <c>unchecked</c>, the same
-    /// real, inert type-domain mismatch task 49a found at
-    /// <c>PathService</c>/<c>SquadSlot.GroupId</c>.
+    /// <see cref="AccuracyRules.DrawAngularErrorBam"/> takes a
+    /// <see langword="ulong"/> entity id, matching
+    /// <see cref="OperatorState.EntityId"/> exactly — task 78 widened it, so
+    /// this call site no longer narrows.
     /// </para>
     /// </remarks>
     internal ImmutableArray<DamageInstance> ProposeFire()
@@ -633,7 +632,7 @@ public sealed class SandataSimulation
             // though nothing downstream yet resolves it into a hit or a miss
             // — see this method's remarks.
             _ = AccuracyRules.DrawAngularErrorBam(
-                _mission.Seed, unchecked((int)shooter.EntityId), dispersionBam);
+                _mission.Seed, shooter.EntityId, dispersionBam);
 
             var damage = CoverRules.ApplyToDamage(
                 ProvisionalDamagePerHitPoints, CoverState.NotInCover,
@@ -1174,15 +1173,15 @@ public sealed class SandataSimulation
     /// <see cref="IntentSelectionInput.IsAtBreachPoint"/> is hardcoded
     /// <see langword="false"/>: <b>PROVISIONAL</b>, no breach-point source
     /// exists in this worktree. <see cref="SquadSlot.GroupId"/> (design
-    /// section 8's <see langword="ulong"/> "minimum entity id") is narrowed
-    /// to the <see langword="int"/> <see cref="PathService.GetReasonCode"/>
-    /// actually takes — a real type-domain mismatch between the two this
-    /// task did not introduce and is out of scope to fix. It is inert this
-    /// wave: <see cref="AdvancePathService"/> never calls
-    /// <see cref="PathService.RequestPath"/> for any group, so
+    /// section 8's <see langword="ulong"/> "minimum entity id") now passes to
+    /// <see cref="PathService.GetReasonCode"/> unchanged — task 78 widened
+    /// <c>PathService</c>'s whole group-identity surface to
+    /// <see langword="ulong"/>, so no narrowing happens here. It remains
+    /// inert this wave for an unrelated reason: <see cref="AdvancePathService"/>
+    /// never calls <see cref="PathService.RequestPath"/> for any group, so
     /// <see cref="PathService.GetReasonCode"/> answers
     /// <see cref="PathReasonCode.NoDestinationRequested"/> for every group id
-    /// regardless of the narrowing's exact numeric result.
+    /// regardless.
     /// </remarks>
     private ImmutableArray<IntentSelectionResult> SelectIntents(
         TickStartView view, ReadOnlySpan<SquadSlot> slots, SensingOutcome sensing)
@@ -1206,7 +1205,7 @@ public sealed class SandataSimulation
                 }
             }
 
-            var groupId = unchecked((int)slots[i].GroupId);
+            var groupId = slots[i].GroupId;
             var pathReasonCode = _pathService.GetReasonCode(groupId);
 
             inputs[i] = new IntentSelectionInput(

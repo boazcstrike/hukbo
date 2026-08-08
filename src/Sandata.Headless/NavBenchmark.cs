@@ -191,11 +191,11 @@ public static class NavBenchmark
                 "the navigation benchmark cannot place any seeker.");
         }
 
-        var seekers = new (int GroupId, int Start, int Goal)[options.ConcurrentSeekers];
+        var seekers = new (ulong GroupId, int Start, int Goal)[options.ConcurrentSeekers];
         for (var index = 0; index < seekers.Length; index++)
         {
             var (start, goal) = PlaceSeekerPair(grid, openCells, options.QueryDistanceWu, ref rng);
-            seekers[index] = (index + 1, start, goal);
+            seekers[index] = ((ulong)(index + 1), start, goal);
         }
 
         var pathService = new PathService(SandataRuleset.ModernTacticalV1.PathLatencyTicks);
