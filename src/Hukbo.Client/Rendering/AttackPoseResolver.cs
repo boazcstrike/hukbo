@@ -23,7 +23,9 @@ internal readonly record struct AttackPose(
     Vector2 TrailEnd,
     float TrailStrength,
     Vector2 ShieldHand,
-    bool HasShield);
+    bool HasShield,
+    AttackResolution Resolution,
+    bool IsLethal);
 
 /// <summary>
 /// Transforms target-local attack geometry into a true 360-degree world-space
@@ -109,7 +111,9 @@ internal static class AttackPoseResolver
             weaponTip,
             geometry.TrailStrength,
             shieldHand,
-            hasShield);
+            hasShield,
+            animation.Resolution,
+            animation.IsLethal);
     }
 
     private static bool ResolveShieldOverlay(

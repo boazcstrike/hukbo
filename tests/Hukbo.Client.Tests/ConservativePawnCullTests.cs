@@ -596,6 +596,73 @@ public sealed class ConservativePawnCullTests
     }
 
     /// <summary>
+    /// A struck defender leans away from the contact, which moves its torso,
+    /// head, legs, and arms without moving its planted feet. The radius has to
+    /// contain that too, and it is measured against the largest reaction any
+    /// resolution can produce rather than against a chosen one.
+    /// </summary>
+    [Fact]
+    public void Bounds_ContainAStruckDefendersReactionLean()
+    {
+        var appearance = PawnAppearanceFactory.Create(
+            0,
+            WeaponId.Kalis,
+            ShieldId.TallHardwood);
+        var pose = AttackPoseResolver.Resolve(
+            AttackGeometryTests.Animation(WeaponId.Kalis, directionX: 1f));
+
+        foreach (var resolution in Enum.GetValues<AttackResolution>())
+        {
+            foreach (var isLethal in new[] { false, true })
+            {
+                for (var step = 0; step < 16; step++)
+                {
+                    var angle = step * (MathF.Tau / 16f);
+                    var reaction = new DefenderReaction(
+                        Sequence: 1,
+                        AttackerEntityId: 2,
+                        DefenderEntityId: 7,
+                        XRaw: 0,
+                        YRaw: 0,
+                        DirectionX: MathF.Cos(angle),
+                        DirectionY: MathF.Sin(angle),
+                        resolution,
+                        isLethal,
+                        AgeSeconds: 0f);
+
+                    foreach (var zoom in ZoomSamples)
+                    {
+                        foreach (var anchor in AnchorSamples)
+                        {
+                            var exact = PawnGeometry.PoseBlindPrefix
+                                .Create(
+                                    anchor,
+                                    zoom,
+                                    appearance,
+                                    scaleMultiplier: 1f,
+                                    AppearanceComponentCatalog.MaxArmorWidthFactor,
+                                    hasSash: true,
+                                    AppearanceComponentCatalog.MaxAccentMarksPerPawn)
+                                .CompleteAttackPosedLayout(
+                                    pose,
+                                    gaitPose: null,
+                                    reaction.ResolveOffset())
+                                .VisualBounds;
+
+                            AssertContains(
+                                ConservativePawnCull.Bounds(anchor, zoom),
+                                exact,
+                                appearance,
+                                zoom,
+                                anchor);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Sixteen headings rather than the eight cardinal and intercardinal ones
     /// the pose tests use: the extent is largest between the axes, so the
     /// off-axis samples are the ones that actually constrain the radius.

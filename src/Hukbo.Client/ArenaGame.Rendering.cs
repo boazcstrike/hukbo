@@ -478,7 +478,10 @@ public sealed partial class ArenaGame
                 out var pose)
                 ? pose
                 : (AttackPose?)null;
-            var layout = pawnPrefix.CompleteAttackPosedLayout(attackPose);
+            var layout = pawnPrefix.CompleteAttackPosedLayout(
+                attackPose,
+                gaitPose: null,
+                ResolveReactionOffset(agent.EntityId));
             var state = GetPawnVisualState(
                 agent.EntityId,
                 selectedEntityId,
@@ -982,7 +985,8 @@ public sealed partial class ArenaGame
             // not counted as a second invocation; see the note at stage one.
             var pawnLayout = pawnPrefix.CompleteAttackPosedLayout(
                 attackPose,
-                gaitPose);
+                gaitPose,
+                ResolveReactionOffset(agent.EntityId));
 
             CloseArenaGeometrySpan();
 
@@ -1028,6 +1032,18 @@ public sealed partial class ArenaGame
             : entityId == hoveredEntityId
                 ? PawnVisualState.Hovered
                 : PawnVisualState.Normal;
+
+    /// <summary>
+    /// The presentation-only body displacement a warrior struck this contact
+    /// window is drawn at, or <c>default</c> for everyone else. Read at the
+    /// posed stage only: the pose-blind cull rectangle above is built from the
+    /// authoritative foot anchor, so a reaction can never change which pawns
+    /// are drawn — only how the ones already drawn are posed.
+    /// </summary>
+    private (float X, float Y) ResolveReactionOffset(ulong entityId) =>
+        _presentation.DefenderReactions.TryGetReaction(entityId, out var reaction)
+            ? reaction.ResolveOffset()
+            : default;
 
     private void DrawStatus(
         SpriteBatch spriteBatch,

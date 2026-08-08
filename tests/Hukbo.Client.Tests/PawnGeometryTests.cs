@@ -175,7 +175,9 @@ public sealed class PawnGeometryTests
                     TrailEnd: direction,
                     TrailStrength: 1f,
                     ShieldHand: Vector2.Zero,
-                    HasShield: false);
+                    HasShield: false,
+                    AttackResolution.Landed,
+                    IsLethal: false);
 
                 var layout = prefix.CompleteAttackPosedLayout(pose);
                 var actual = Vector2.Normalize(

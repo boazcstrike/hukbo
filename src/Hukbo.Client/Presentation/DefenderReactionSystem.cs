@@ -22,7 +22,79 @@ internal readonly record struct DefenderReaction(
     /// <summary>PROVISIONAL duration matching the attack timeline's hold.</summary>
     public const float LethalHoldSeconds = AttackAnimation.LethalHoldSeconds;
 
+    /// <summary>
+    /// How much further a lethal contact carries the same resolution's
+    /// response. PROVISIONAL presentation choreography.
+    /// </summary>
+    private const float LethalReactionScale = 1.55f;
+
     public float LifetimeSeconds => IsLethal ? 0.28f : 0.18f;
+
+    /// <summary>
+    /// The presentation-only displacement this defender is drawn at, in pawn
+    /// units before apparent scale, in world axes. Largest at contact and
+    /// exactly zero once <see cref="LifetimeSeconds"/> has elapsed, so the
+    /// defender always returns to the authoritative position it never left.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The five outcomes are separated the way design section 8 separates
+    /// them, from the defender's side of the same contact: a landed blow
+    /// drives the defender back along the attack line; a shield braces into
+    /// it, which is the only outcome that travels toward the attacker; a parry
+    /// redirects hard across the line; a deflection is the shallow version of
+    /// the same redirection; and an evasion steps off the line altogether.
+    /// </para>
+    /// <para>
+    /// Every magnitude here is PROVISIONAL presentation choreography. None of
+    /// it is a measured historical quantity, and none of it reaches the
+    /// simulation: this value is added at the draw anchor and discarded, never
+    /// written back to a position, a target, or a hash.
+    /// </para>
+    /// </remarks>
+    public (float X, float Y) ResolveOffset()
+    {
+        var decay = ResolveDecay();
+        if (decay <= 0f)
+        {
+            return (0f, 0f);
+        }
+
+        var (along, lateral) = Resolution switch
+        {
+            AttackResolution.Landed => (0.85f, 0.10f),
+            AttackResolution.ShieldBlocked => (-0.30f, 0.20f),
+            AttackResolution.Parried => (0.18f, -0.72f),
+            AttackResolution.Deflected => (0.34f, 0.40f),
+            AttackResolution.Evaded => (0.12f, 0.66f),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(Resolution),
+                Resolution,
+                null),
+        };
+
+        var scale = decay * (IsLethal ? LethalReactionScale : 1f);
+        var alongScaled = along * scale;
+        var lateralScaled = lateral * scale;
+
+        // The perpendicular of the attack direction, so the lateral channel
+        // redirects across the line the blow arrived on rather than across
+        // screen space.
+        return (
+            (DirectionX * alongScaled) - (DirectionY * lateralScaled),
+            (DirectionY * alongScaled) + (DirectionX * lateralScaled));
+    }
+
+    /// <summary>
+    /// Cubic ease-out from one at contact to exactly zero at expiry. Cubic
+    /// rather than linear so the displacement reads as a struck body settling
+    /// rather than sliding back at a constant rate.
+    /// </summary>
+    private float ResolveDecay()
+    {
+        var remaining = 1f - Math.Clamp(AgeSeconds / LifetimeSeconds, 0f, 1f);
+        return remaining * remaining * remaining;
+    }
 }
 
 /// <summary>

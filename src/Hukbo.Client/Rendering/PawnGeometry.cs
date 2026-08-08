@@ -1,5 +1,6 @@
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Presentation.Catalogs;
+using Hukbo.Core.Combat;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Rendering;
@@ -32,13 +33,22 @@ internal enum PawnDetailTier
 /// Trail opacity, zero when no trail is drawn at all.
 /// </param>
 /// <param name="Thickness">Stroke thickness in pixels.</param>
+/// <param name="Emphasis">
+/// How hard this contact reads, as a multiplier on the drawn opacity. One for
+/// an ordinary landed blow; larger for a lethal one; smaller for a blow that
+/// never met anything. A separate channel from <paramref name="Strength"/>
+/// deliberately: strength is where the trail is in its own fade, emphasis is
+/// what the blow was, and collapsing the two would make a fresh whiff read as
+/// hard as a fresh kill.
+/// </param>
 internal readonly record struct SwingTrail(
     Vector2 Pivot,
     float Radius,
     float StartAngleRadians,
     float EndAngleRadians,
     float Strength,
-    float Thickness)
+    float Thickness,
+    float Emphasis = 1f)
 {
     public bool IsEmpty => Strength <= 0f || Radius <= 0f;
 }
@@ -259,6 +269,12 @@ internal static class PawnGeometry
     /// the distance from the grip to the weapon tip.
     /// </summary>
     private const float SupportGripShareAlongHaft = 0.28f;
+
+    /// <summary>
+    /// How much harder a lethal contact's trail reads than the same outcome
+    /// survived. PROVISIONAL presentation choreography.
+    /// </summary>
+    private const float LethalTrailEmphasis = 1.35f;
 
     private const float TrailSweepRadians = 0.85f;
 
@@ -736,9 +752,19 @@ internal static class PawnGeometry
         /// <see cref="CompletePosedLayout"/>. An active attack plants the
         /// stance, damping this stride rather than discarding it.
         /// </param>
+        /// <param name="reactionOffset">
+        /// The presentation-only displacement a contact reaction puts this
+        /// pawn's body in, in pawn units before apparent scale
+        /// (<c>DefenderReaction.ResolveOffset</c>), or <c>default</c> for a
+        /// pawn nobody has just struck. A third additive lean channel
+        /// alongside the attack pose's and the gait pose's own, so the feet
+        /// stay planted on the authoritative position while the struck body
+        /// recoils and settles back onto it.
+        /// </param>
         public PawnLayout CompleteAttackPosedLayout(
             AttackPose? attackPose = null,
-            GaitPose? gaitPose = null) =>
+            GaitPose? gaitPose = null,
+            (float X, float Y) reactionOffset = default) =>
             CreateLayout(
                 _proportions,
                 _footAnchor,
@@ -750,7 +776,8 @@ internal static class PawnGeometry
                 _hasSash,
                 _adornmentAccentMarkCount,
                 gaitPose ?? default,
-                attackPose);
+                attackPose,
+                reactionOffset);
     }
 
     private static SwingPose ToSwingPose(
@@ -909,14 +936,20 @@ internal static class PawnGeometry
         bool hasSash,
         int adornmentAccentMarkCount,
         GaitPose gaitPose,
-        AttackPose? attackPose = null)
+        AttackPose? attackPose = null,
+        (float X, float Y) reactionOffset = default)
     {
         var apparentScale = proportions.ApparentScale;
         var detailTier = proportions.DetailTier;
 
         // The feet stay planted, so the ground ring keeps the foot anchor
         // while everything the warrior can lean moves with the torso.
-        var bodyAnchor = CreateBodyAnchor(footAnchor, apparentScale, pose, gaitPose);
+        var bodyAnchor = CreateBodyAnchor(
+            footAnchor,
+            apparentScale,
+            pose,
+            gaitPose,
+            reactionOffset);
         var torsoBounds = CreateTorso(bodyAnchor, proportions);
         var legs = CreateLegsAndFeet(
             bodyAnchor,
@@ -1034,7 +1067,7 @@ internal static class PawnGeometry
             placeholderBounds,
             selectionBounds,
             visualBounds,
-            CreateSwingTrail(weapon, apparentScale, detailTier, pose),
+            CreateSwingTrail(weapon, apparentScale, detailTier, pose, attackPose),
             legs.LeftLeg,
             legs.RightLeg,
             legs.LeftFoot,
@@ -1370,10 +1403,11 @@ internal static class PawnGeometry
         Vector2 footAnchor,
         float apparentScale,
         SwingPose pose,
-        GaitPose gaitPose) =>
+        GaitPose gaitPose,
+        (float X, float Y) reactionOffset = default) =>
         footAnchor + new Vector2(
-            (pose.TorsoLeanX + gaitPose.TorsoLeanX) * apparentScale,
-            (pose.TorsoLeanY + gaitPose.TorsoLeanY) * apparentScale);
+            (pose.TorsoLeanX + gaitPose.TorsoLeanX + reactionOffset.X) * apparentScale,
+            (pose.TorsoLeanY + gaitPose.TorsoLeanY + reactionOffset.Y) * apparentScale);
 
     private static Rectangle CreateTorso(
         Vector2 bodyAnchor,
@@ -1587,7 +1621,8 @@ internal static class PawnGeometry
         WeaponLayout weapon,
         float scale,
         PawnDetailTier detailTier,
-        SwingPose pose)
+        SwingPose pose,
+        AttackPose? attackPose = null)
     {
         if (detailTier == PawnDetailTier.Low || pose.TrailStrength <= 0f)
         {
@@ -1614,7 +1649,38 @@ internal static class PawnGeometry
             endAngle - sweep,
             endAngle,
             pose.TrailStrength,
-            MathF.Max(1f, TrailThickness * scale));
+            MathF.Max(1f, TrailThickness * scale),
+            ResolveTrailEmphasis(attackPose));
+    }
+
+    /// <summary>
+    /// How hard the trail reads for the outcome that produced it. A lethal
+    /// blow is the hardest, an evasion the faintest — a weapon that met
+    /// nothing leaves the least behind it — and everything else sits between.
+    /// PROVISIONAL presentation choreography; the magnitudes carry no combat
+    /// or historical meaning.
+    /// </summary>
+    private static float ResolveTrailEmphasis(AttackPose? attackPose)
+    {
+        if (attackPose is not { } pose)
+        {
+            return 1f;
+        }
+
+        var outcome = pose.Resolution switch
+        {
+            AttackResolution.Landed => 1f,
+            AttackResolution.ShieldBlocked => 0.82f,
+            AttackResolution.Parried => 0.74f,
+            AttackResolution.Deflected => 0.88f,
+            AttackResolution.Evaded => 0.62f,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(attackPose),
+                pose.Resolution,
+                null),
+        };
+
+        return pose.IsLethal ? outcome * LethalTrailEmphasis : outcome;
     }
 
     /// <summary>

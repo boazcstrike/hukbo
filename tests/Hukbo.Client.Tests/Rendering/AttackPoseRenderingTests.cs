@@ -175,6 +175,62 @@ public sealed class AttackPoseRenderingTests
         Assert.True(settled.SwingTrail.IsEmpty);
     }
 
+    /// <summary>
+    /// The trail says what the blow was, not only that one happened. A lethal
+    /// landed contact reads hardest, an evasion faintest, and every outcome
+    /// differs from every other.
+    /// </summary>
+    [Fact]
+    public void Trail_EmphasisSeparatesEveryOutcomeAndTheLethalCase()
+    {
+        var emphases = Enum.GetValues<AttackResolution>()
+            .Select(resolution => (
+                Resolution: resolution,
+                Emphasis: PosedTrail(resolution).Emphasis))
+            .ToArray();
+
+        Assert.Equal(
+            emphases.Length,
+            emphases.Select(entry => MathF.Round(entry.Emphasis, 4)).Distinct().Count());
+
+        var landed = PosedTrail(AttackResolution.Landed).Emphasis;
+        var evaded = PosedTrail(AttackResolution.Evaded).Emphasis;
+        var lethal = PosedTrail(AttackResolution.Landed, isLethal: true).Emphasis;
+
+        Assert.True(evaded < landed, "an evasion read as hard as a landed blow.");
+        Assert.True(landed < lethal, "a lethal blow read no harder than a survived one.");
+    }
+
+    /// <summary>
+    /// A pawn that is not attacking has no trail at all, so it has no outcome
+    /// to emphasise either — the whole value stays at its neutral default.
+    /// </summary>
+    [Fact]
+    public void Trail_IsWhollyNeutralWithoutAnAttackPose()
+    {
+        var trail = Neutral(WeaponId.Kampilan, HighZoom).SwingTrail;
+
+        Assert.True(trail.IsEmpty);
+        Assert.Equal(default, trail);
+    }
+
+    private static SwingTrail PosedTrail(
+        AttackResolution resolution,
+        bool isLethal = false)
+    {
+        var animation = AttackGeometryTests.Animation(
+            WeaponId.Kampilan,
+            resolution) with
+        {
+            IsLethal = isLethal,
+        };
+
+        return PawnGeometry.PoseBlindPrefix
+            .Create(Anchor, HighZoom, Appearance(WeaponId.Kampilan, ShieldId.None))
+            .CompleteAttackPosedLayout(AttackPoseResolver.Resolve(animation))
+            .SwingTrail;
+    }
+
     [Fact]
     public void Trail_IsOmittedAtLowDetail()
     {

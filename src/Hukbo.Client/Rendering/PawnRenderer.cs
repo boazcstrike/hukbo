@@ -1212,7 +1212,10 @@ internal static class PawnRenderer
                 pixel,
                 previous,
                 current,
-                SwingTrailColor * (trail.Strength * along * 0.55f),
+                SwingTrailColor * Math.Clamp(
+                    trail.Strength * trail.Emphasis * along * 0.55f,
+                    0f,
+                    1f),
                 trail.Thickness);
             previous = current;
         }
