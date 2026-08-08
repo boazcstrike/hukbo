@@ -4,6 +4,7 @@ using System.Reflection;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
 using Sandata.Core.Collision;
+using Sandata.Core.Combat;
 using Sandata.Core.Determinism;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Navigation;
@@ -294,5 +295,194 @@ public sealed class TickPipelineTests
             Assert.Equal(0, deltaXA);
             Assert.Equal(0, deltaYA);
         }
+    }
+
+    // ---- 3. NO LEAKED VIEW ------------------------------------------------
+
+    /// <summary>
+    /// Design section 5's second binding rule is that stages 10 through 14
+    /// never read <see cref="TickStartView"/> — the frozen snapshot stage 9
+    /// releases before they run. Walks every one of the five stage-10-to-14
+    /// internal methods' parameter types, and the type graph reachable from
+    /// each through generic arguments, array element types, and — for types
+    /// this solution itself declares — instance fields, asserting none ever
+    /// reaches <see cref="TickStartView"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>What this proves, and what it does not.</b> None of the five
+    /// methods below takes a <see cref="TickStartView"/> parameter at all —
+    /// true by inspection before this test ever runs — so on its own that
+    /// fact would be a vacuous, "check the type never appears in a place it
+    /// was never going to appear" test. <see
+    /// cref="TypeGraphWalk_DetectsATickStartViewCarriedInAWrappingType"/> is
+    /// the positive control that keeps this one honest: it proves the exact
+    /// same walker used here can detect a <see cref="TickStartView"/> that
+    /// is smuggled inside a wrapping type's field rather than passed
+    /// directly, so a method here passing, say, a struct that happens to
+    /// carry a <see cref="TickStartView"/> field would fail this test rather
+    /// than passing it by accident.
+    /// </para>
+    /// <para>
+    /// <b>Gap, stated plainly:</b> this walk only descends into types
+    /// declared in this solution's own assemblies (<c>Sandata.Core</c>,
+    /// <c>Hukbo.Core</c>, <c>Hukbo.Shared.Core</c>, and this test assembly,
+    /// so the positive control below is itself reachable) — not into every .NET
+    /// base class library type's private fields, which would make the walk
+    /// slow, noisy, and prone to false positives from framework internals no
+    /// caller can ever observe. It also only proves the five methods'
+    /// *parameter lists* never reach <see cref="TickStartView"/>, not that
+    /// their method bodies never construct or capture one some other way —
+    /// reading the five bodies directly already confirms none does, but that
+    /// confirmation is a source read, not something this reflection walk
+    /// itself checks.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void StageTenThroughFourteenMethods_NeverReachTickStartViewInTheirParameterTypeGraph()
+    {
+        var simulationType = typeof(SandataSimulation);
+        var stageMethodNames = new[]
+        {
+            "ResolveLocalAvoidanceAndCollision", // stage 10
+            "AdvanceWeaponChain",                 // stage 11
+            "ProposeFire",                        // stage 12
+            "ResolveDamage",                      // stage 13
+            "ComputeStateHash",                   // stage 14
+        };
+
+        foreach (var methodName in stageMethodNames)
+        {
+            var method = simulationType.GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.True(method is not null, $"Expected an internal instance method named '{methodName}' on {simulationType}.");
+
+            foreach (var parameter in method!.GetParameters())
+            {
+                var visited = new HashSet<Type>();
+                var reachesView = TypeGraphReachesTickStartView(parameter.ParameterType, visited);
+
+                Assert.False(
+                    reachesView,
+                    $"{methodName}'s parameter '{parameter.Name}' of type {parameter.ParameterType} reaches {nameof(TickStartView)}.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// A type that deliberately carries a <see cref="TickStartView"/> field,
+    /// used only as the positive control for
+    /// <see cref="StageTenThroughFourteenMethods_NeverReachTickStartViewInTheirParameterTypeGraph"/>
+    /// — never passed to any real stage method.
+    /// </summary>
+    private sealed class WrapsATickStartView
+    {
+        internal readonly TickStartView? View;
+
+        internal WrapsATickStartView(TickStartView? view)
+        {
+            View = view;
+        }
+    }
+
+    /// <summary>
+    /// Positive control: proves <see cref="TypeGraphReachesTickStartView"/>
+    /// actually detects a <see cref="TickStartView"/> reachable through a
+    /// wrapping type's field, and returns false for an unrelated type, so
+    /// the stage-method walk above cannot be passing vacuously.
+    /// </summary>
+    [Fact]
+    public void TypeGraphWalk_DetectsATickStartViewCarriedInAWrappingType()
+    {
+        Assert.True(TypeGraphReachesTickStartView(typeof(WrapsATickStartView), new HashSet<Type>()));
+        Assert.False(TypeGraphReachesTickStartView(typeof(ImmutableArray<DamageInstance>), new HashSet<Type>()));
+    }
+
+    /// <summary>
+    /// Depth-first search for <see cref="TickStartView"/> starting from
+    /// <paramref name="type"/> itself, then its generic arguments, its array
+    /// element type, and — only when <paramref name="type"/> belongs to one
+    /// of this solution's own assemblies — its declared instance fields.
+    /// <paramref name="visited"/> prevents revisiting a type already ruled
+    /// out, which also breaks any cycle a self-referential type could form.
+    /// </summary>
+    private static bool TypeGraphReachesTickStartView(Type type, HashSet<Type> visited)
+    {
+        if (!visited.Add(type))
+        {
+            return false;
+        }
+
+        if (type == typeof(TickStartView))
+        {
+            return true;
+        }
+
+        if (type.IsGenericType)
+        {
+            foreach (var argument in type.GetGenericArguments())
+            {
+                if (TypeGraphReachesTickStartView(argument, visited))
+                {
+                    return true;
+                }
+            }
+        }
+
+        if (type.IsArray && type.GetElementType() is { } elementType &&
+            TypeGraphReachesTickStartView(elementType, visited))
+        {
+            return true;
+        }
+
+        var assemblyName = type.Assembly.GetName().Name;
+        var isOwnAssembly = assemblyName is "Sandata.Core" or "Hukbo.Core" or "Hukbo.Shared.Core" or "Sandata.Core.Tests";
+
+        if (!isOwnAssembly)
+        {
+            return false;
+        }
+
+        foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+        {
+            if (TypeGraphReachesTickStartView(field.FieldType, visited))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // ---- 4. VIEW LIFETIME --------------------------------------------------
+
+    /// <summary>
+    /// <see cref="TickStartView"/>'s invalidation contract, proven directly.
+    /// The real snapshot <see cref="SandataSimulation.RunTick"/> captures at
+    /// stage 3 and releases at stage 9 is a local variable inside that
+    /// method — unreachable from any test through the pipeline itself, since
+    /// nothing on <see cref="SandataSimulation"/>'s public or internal
+    /// surface hands it back out. This constructs one directly with its
+    /// internal constructor instead, releases it, and asserts that
+    /// accessors throw exactly the exception <see cref="TickStartView"/>'s
+    /// own <c>EnsureNotReleased</c> promises — the property that matters,
+    /// proven without needing an observation point inside <c>RunTick</c>.
+    /// </summary>
+    [Fact]
+    public void TickStartView_AccessorsThrowInvalidOperationExceptionOnceReleased()
+    {
+        var state = BuildState(ImmutableArray<OperatorState>.Empty);
+        var pairs = Array.Empty<SandataCollisionPair>();
+
+        var view = new TickStartView(state, pairs);
+        view.Release();
+
+        const string expectedMessage =
+            "TickStartView was released after stage 9 and may not be read by stage 10 or later.";
+
+        var countException = Assert.Throws<InvalidOperationException>(() => { _ = view.Count; });
+        Assert.Equal(expectedMessage, countException.Message);
+
+        var indexOfException = Assert.Throws<InvalidOperationException>(() => view.IndexOf(1UL));
+        Assert.Equal(expectedMessage, indexOfException.Message);
     }
 }
