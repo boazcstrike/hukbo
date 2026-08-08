@@ -1094,6 +1094,50 @@ value has to be written down so the running game uses it is `ArenaGame.BuildScen
 which is RU-43, and the ranged termination tests, which are RU-29. Both already depend on
 RU-24.
 
+### RU-36 landed, and its measured signature is the proof it was scoped correctly
+
+RU-36 merged into `ranged-units` from branch `ru-36` at `d63a368`. The fold sits in
+`CombatRuleset.AddProfile`, guarded by `isRangedDeclaration`, copied verbatim from the
+`WeaponProfile.cs:152-154` predicate so the hash's notion of "ranged" cannot drift from
+the constructor's. The flag itself is not folded, for the reason V7 already recorded:
+inside the branch it is always true, so it would contribute a constant and discriminate
+nothing.
+
+Three facts were added to `CombatConfigurationTests.cs` and Core rose from 2,415 to 2,418.
+None of them pins a literal. One asserts a ranged profile hashes differently from the same
+profile with its three ranged values zeroed, which fails if the fold is dropped entirely.
+One changes each of the three fields in turn while holding the other two, which fails if
+the fold carries only one or two of them. One re-establishes dictionary-order independence
+for a melee-only pair, which fails if the guard broke the existing ordering guarantee.
+
+The measured result after merging is the interesting part, because it is the signature a
+correct conditional fold has to produce and nothing else does:
+
+| Combat | Movement | `stateHash` | moved? | `eventHash` | moved? |
+| --- | --- | --- | --- | --- | --- |
+| V4 | V4 | `1B73FC5923879AA0` | no | `AC55684F24D39344` | no |
+| V5 | V4 | `8719AA720AE66F91` | **yes**, was `CA230133F128B1A9` | `6953A1C982A3014C` | no |
+| V4 | V6 | `24EA6F2183A3D05B` | no | `2B8DE43B3CAAEF92` | no |
+| V4 | V7 | `B6B0AB6C575D2FE6` | no | `3298D40F15FC43DE` | no |
+| V4 | V8 | `43458DD43FA3F564` | no | `AC55684F24D39344` | no |
+| V5 | V8 | `932B7A4F490D139B` | **yes**, was `216412BC51B838E3` | `B7DAB19F52CB0D67` | no |
+
+Every cell whose combat preset is V4 is byte-identical, which is what "a melee profile
+mixes nothing here at all" has to mean if it means anything. Both V5 state hashes moved,
+because `BattleSimulation.ComputeStateHash` seeds itself with `_rules.ContentHash`
+(`BattleSimulation.cs:800`) and V5 is the only preset that declares a ranged profile.
+**Both V5 event hashes are unchanged**, which is the load-bearing observation: the event
+hash is the ordered event stream, so an unchanged event hash across a changed state hash
+says the fold altered the digest and did not alter one tick of gameplay. That is exactly
+the claim the fold makes about itself, measured rather than asserted.
+
+Neither of the two new V5 state hashes is a golden. RU-24 retunes the values the fold now
+carries, so both will move again before the day is out, and RU-26 captures the literals
+once afterwards from a real run.
+
+Core stands at 1 failed, 2,417 passed, 2,418 total on the integration branch; the single
+failure is still the leader fact RU-30 owns. Client is 0 of 3,328. Format passes.
+
 ### Task status
 
 | Task | Status |
@@ -1133,7 +1177,7 @@ RU-24.
 | RU-33 | Not started |
 | RU-34 | Done on branch `ru-34` at `7b80c24`, merged into `ranged-units` — took Core from 18 red to 10 |
 | RU-35 | Done on branch `ru-35` at `47b0719` — Client 34 red to 29 |
-| RU-36 | Not started — added 2026-08-07, found by RU-07, **awaiting a decision from the user**, must precede RU-26's pins |
+| RU-36 | **Done on branch `ru-36` at `d63a368`, merged into `ranged-units`.** The user selected option 1, the conditional fold, on 2026-08-08 after four asks across three waves. V1 through V4 hold their pinned literals and no preset version was bumped; V5's state hash moved and V5's event hash did not, which is the measured proof the fold changed the digest without changing gameplay. See the RU-36 result in section 9. Three relational facts added, no literal pinned — V5's content-hash literal is still RU-26's to capture after RU-24 |
 | RU-37 | Done on branch `ru-37` at `719fbe7` — F-A reports real counters; see the F-A result in section 9 |
 | RU-38 | Done on branch `ru-38` at `215bff1`, merged into `ranged-units` — `HoldingCount` now reads a real roster in the running game |
 | RU-39 | Done on branch `ru-39` at `53105bd` and `b622c76`, merged into `ranged-units` — Core is down from two red to one; the second commit exists because the first rescoping was tautological, see the wave 4 result in section 9 |
