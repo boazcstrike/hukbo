@@ -271,20 +271,37 @@ $defaultPrompts = @{
             ribcage   = 'one long spear point driving deep into a chest, heavy wet punch through ribs with a dull crack, no music, no voice'
             gut       = 'one long spear point sinking into a belly, soft deep wet puncture with no bone, no music, no voice'
             limb      = 'one long spear point punching through a shoulder, wet puncture with a hard joint catch, no music, no voice'
-            extremity = 'one long spear point grazing a forearm, quick shallow wet puncture, no music, no voice'
+            # 'grazing' and 'quick shallow' are the same quiet instruction
+            # that made attack-busog's original prompts unusable, so this
+            # one arm is rewritten with the loudness stated. The other five
+            # Bangkaw classes are left exactly as they were: no take of any
+            # of them has been rejected, and rewriting an untested prompt
+            # trades a known quantity for a guess.
+            extremity = 'one long spear point striking a forearm hard, loud short wet puncture with a sharp tick of bone, upfront and dry, no music, no voice'
         }
     }
+    # Rewritten 2026-08-09 after two consecutive takes of the original
+    # ribcage prompt came back at 2.8% and 2.3% of full scale and were
+    # rejected by the quiet guard. The cause was the wording rather than
+    # bad luck: 'thin' and 'soft thud' are instructions to be quiet, and
+    # the model followed them. Each prompt below keeps the same physical
+    # event and states the loudness explicitly instead. The duration also
+    # moves from the API's 0.5-second floor to 0.8, which gives the model
+    # room to put an attack transient somewhere other than the first
+    # frame; trimming still cuts the result back to the audible part, so
+    # the written file stays as short as it always was. The rewritten
+    # ribcage prompt landed at 100% peak on its first take.
     'attack-busog'          = @{
-        Prompt       = 'one thin arrow sinking deep into a chest, sharp wet puncture through ribs with a soft thud, no music, no voice'
-        Duration     = 0.5
+        Prompt       = 'one arrow slamming into a chest at close range, loud sharp wet puncture cracking through ribs, hard close impact, upfront and dry, no music, no voice'
+        Duration     = 0.8
         Trim         = $true
         ClassPrompts = @{
-            skull     = 'one thin arrow punching into the side of a skull, sharp brittle crack with a short wet thud, no music, no voice'
-            neck      = 'one thin arrow piercing a neck, quick thin wet puncture with a short choked gasp, no music, no voice'
-            ribcage   = 'one thin arrow sinking deep into a chest, sharp wet puncture through ribs with a soft thud, no music, no voice'
-            gut       = 'one thin arrow burying into a belly, soft deep wet puncture with no bone, no music, no voice'
-            limb      = 'one thin arrow punching through a thigh, quick wet puncture with a dull muscle thud, no music, no voice'
-            extremity = 'one thin arrow grazing a forearm, light quick wet puncture, no music, no voice'
+            skull     = 'one arrow punching hard into the side of a skull at close range, loud brittle crack with a heavy wet thud, upfront and dry, no music, no voice'
+            neck      = 'one arrow driving through a neck at close range, loud wet puncture with a short choked gasp, upfront and dry, no music, no voice'
+            ribcage   = 'one arrow slamming into a chest at close range, loud sharp wet puncture cracking through ribs, hard close impact, upfront and dry, no music, no voice'
+            gut       = 'one arrow burying deep into a belly at close range, loud deep wet puncture with no bone, upfront and dry, no music, no voice'
+            limb      = 'one arrow punching through a thigh at close range, loud wet puncture with a hard muscle thud, upfront and dry, no music, no voice'
+            extremity = 'one arrow striking a forearm at close range, loud short wet puncture with a hard tick of bone, upfront and dry, no music, no voice'
         }
     }
     'attack-arquebus'       = @{
@@ -297,7 +314,10 @@ $defaultPrompts = @{
             ribcage   = 'one heavy lead ball punching deep into a chest, heavy wet impact through ribs with a dull crack, brief distant powder echo, no music, no voice'
             gut       = 'one heavy lead ball sinking into a belly, deep wet heavy impact with no bone, brief distant powder echo, no music, no voice'
             limb      = 'one heavy lead ball smashing through a thigh, heavy wet impact with a hard bone crack, brief distant powder echo, no music, no voice'
-            extremity = 'one heavy lead ball grazing a forearm, quick heavy wet impact, brief distant powder echo, no music, no voice'
+            # Same single-arm rewrite as Bangkaw's, and for the same
+            # reason: 'grazing' reads as quiet even with 'heavy' next to
+            # it. The other five Arquebus classes are untouched.
+            extremity = 'one heavy lead ball striking a forearm hard, loud short wet impact with a sharp bone crack, brief distant powder echo, upfront and dry, no music, no voice'
         }
     }
     'clash-shield-bangkaw'  = @{
