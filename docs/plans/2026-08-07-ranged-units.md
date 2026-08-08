@@ -1138,6 +1138,94 @@ once afterwards from a real run.
 Core stands at 1 failed, 2,417 passed, 2,418 total on the integration branch; the single
 failure is still the leader fact RU-30 owns. Client is 0 of 3,328. Format passes.
 
+### RU-24's result, reproduced independently, and a tenth known-wrong row
+
+RU-24 merged from branch `ru-24` at `9aab100`. Every band below was re-measured by the
+orchestrator rather than accepted from the task agent's report, by compiling the harness
+with `-p:DefineConstants=HUKBO_CALIBRATION` and running it directly. Every figure matched.
+
+**Only one of the four tuning levers moved, and it was the fourth.** The ranged weapon
+profiles are untouched: Bangkaw stays at damage 10, reach 48, cooldown 25, speed 8,
+standoff 36, flight 10, and Busog and Arquebus likewise. All three standoffs are still
+exactly 0.75 of reach, and the shot intervals still read 25, 45, and 240. What moved is
+the ranged half of the weapon-intercept matrix, uniformly: the twelve melee-defender
+versus ranged-attacker cells by two and a half times, and the twenty-one ranged-defender
+cells by three. A uniform scale preserves every ordering the hand-authored values
+established, within each row and across rows, and both blocks carry a `RU-24 CALIBRATION
+PASS, PROVISIONAL` comment recording the pre-tuning measurement and stating that this is
+a gameplay tuning choice rather than a historical measurement.
+
+The reasoning the agent recorded for skipping the first three levers is worth keeping,
+because it is the sort of thing that gets re-derived expensively: melee weapons fire on
+four-to-eight-tick cooldowns against the ranged weapons' twenty-five to two hundred and
+forty, so most of the attack volume landing on the ranged quarter of the roster passes
+through the ranged-defender cells. Those cells were measuring eleven to twenty-one per
+cent defended. Raising the ranged population share would have pushed *more* volume through
+them and moved the pooled figure further below the floor, not toward it.
+
+Measured, all twenty seeds at two hundred agents:
+
+| Band | Result |
+| --- | --- |
+| (a) `DefenceAttributableShare` inside 0.25–0.45 | **PASS, 20 of 20.** Range 0.2528 to 0.2853 |
+| (b) shielded entries absorb more blows than shieldless | **BLOCKED — see below** |
+| (c) 19 of 20 decisive before 5,000 ticks, median at or below 5,000 | **PASS.** 20 of 20 decisive, median 1,489 |
+| (d) each faction wins at least four of twenty | **PASS.** Faction 0 wins 13, faction 1 wins 7 |
+| (e) ten-cell matrix beside the V4 baseline | **PASS.** 1,264 to 2,416 ticks against V4's 1,279 to 4,405 |
+
+Band (a) passes across the whole seed range but sits in its lower third, between 0.2528
+and 0.2853 against a floor of 0.25. The narrower 0.30 to 0.40 that
+`PhilippineCombatIntegrationTests.cs:683-692` calls the design target is not met, and that
+file is explicit that the narrower range is deliberately not a second gate — so this
+passes the criterion it was given. It is worth recording that seed 13 sits 0.0028 above
+the floor, which is close enough that a later change touching clash channels should
+re-run this harness rather than assume the margin.
+
+**The tenth known-wrong row is RU-24's own band (b), and it cannot be met by tuning.**
+`PhilippineCombatPresetV5`'s roster carries `ShieldId.None` on all seven entries
+(`PhilippineCombatPresetV5.cs:300-306`), because it restates V4's roster verbatim and V4's
+own roster had already dropped every shield `PrecolonialPhilippinesV2` carried
+(`PhilippineCombatPresetV4.cs:219-222`). There is no shielded roster entry to measure, so
+the shielded total is zero for every roster share the harness can build. The band was
+written by carrying the relationship from the V2-era integration test at
+`PhilippineCombatIntegrationTests.cs:793-800` into a plan whose target preset has no
+shields, and it was unmeetable the day it was written. Nothing regressed: the shield
+interception channel and the tall-hardwood multipliers still exist in the ruleset and are
+still exercised by the tests that build their own rosters; they are simply unreachable
+from V5's roster, exactly as they are unreachable from V4's today. Making the band
+measurable means giving a V5 roster entry a shield, which changes gameplay and both
+hashes and is a design decision rather than a calibration lever. **It is not in RU-24's
+scope and is left open for the user.**
+
+The roster share RU-24 settled on is `[19, 19, 19, 18, 11, 8, 6]` in roster order,
+apportioned by largest remainder, which is a twenty-five per cent ranged quarter weighted
+toward the Bangkaw. It lives only in the harness's `DefaultRosterWeights`. **RU-24 could
+not write it into the running game and did not try** — that is RU-43's job in
+`ArenaGame.BuildScenario` and RU-29's in the ranged termination fixtures, and both must
+carry this weighting forward or they will measure a different battle than the one
+calibrated here.
+
+Measured on the integration branch after merging, with RU-36 also present:
+
+| Combat | Movement | `stateHash` | `eventHash` |
+| --- | --- | --- | --- |
+| V4 | V4 | `1B73FC5923879AA0` | `AC55684F24D39344` |
+| V5 | V4 | `B510FE49839A03B1` | `50D772D4142AF729` |
+| V4 | V6 | `24EA6F2183A3D05B` | `2B8DE43B3CAAEF92` |
+| V4 | V7 | `B6B0AB6C575D2FE6` | `3298D40F15FC43DE` |
+| V4 | V8 | `43458DD43FA3F564` | `AC55684F24D39344` |
+| V5 | V8 | `3E003AD847691E00` | `7DAFA4F0959A2503` |
+
+Every V4-combat cell is still byte-identical. Both V5 cells moved on both hashes this
+time, because the intercept retune changes gameplay and not merely the digest. The two V5
+event hashes match what RU-24 measured on its own branch, while the two V5 state hashes do
+not — RU-24 branched before RU-36 merged, so its state hashes lacked the ranged fold.
+That the event hashes agree across the two branches and the state hashes differ by exactly
+the fold is a consistency check on both tasks at once.
+
+**These six values are the ones RU-26 and RU-27 pin.** Core stands at 1 failed, 2,417
+passed, 2,418 total; Client at 0 of 3,328; format passes.
+
 ### Task status
 
 | Task | Status |
@@ -1165,7 +1253,7 @@ failure is still the leader fact RU-30 owns. Client is 0 of 3,328. Format passes
 | RU-21 | Done on branch `ru-21` at `0281e5f`, merged into `ranged-units` — `RangedStandoffV8` registered, `AgentIntent.Holding` has exactly one producer at `BattleSimulation.cs:1741`. Its "same `stateHash` as V4" criterion is unachievable by construction; see the wave 5 result in section 9 |
 | RU-22 | Done on branch `ru-22` at `6ff87ab` and `532ae4c`, merged into `ranged-units` — **the Client suite is green, 0 failed of 3293.** Two stale cardinality pins now derive their role factor from the enum rather than carrying a literal |
 | RU-23 | Done on branch `ru-23` at `59319b2`, merged into `ranged-units` — Busog pins one quad higher at 25, Bangkaw and Arquebus at 24; the projectile population is counted separately at one quad each against `Scenario.MaximumProjectilesInFlight`. **Its renderer-parity criterion holds for the four melee roles only; see RU-42.** |
-| RU-24 | Not started |
+| RU-24 | **Done on branch `ru-24` at `9aab100`, merged into `ranged-units`.** Bands (a), (c), (d), and (e) all pass, re-measured independently by the orchestrator rather than taken from the report. Band (b) is **BLOCKED and unmeetable by tuning** — V5's roster fields no shield on any entry, so there is nothing shielded to compare; it is the tenth known-wrong row and needs a user decision, not a retune. Only lever 4 moved: the ranged intercept cells, uniformly, marked `PROVISIONAL` in source. The chosen roster share `[19, 19, 19, 18, 11, 8, 6]` lives only in the harness and **must be carried into RU-43 and RU-29**. See the RU-24 result in section 9 |
 | RU-25 | Done on branch `ru-25` at `900dff7` and `ffcabe3`, merged into `ranged-units`. The client now runs `PrecolonialPhilippinesV5` + `RangedStandoffV8`; `Scenario.CreateDefault` and the headless default are untouched on V4. **Its own acceptance is only partly demonstrable: `run.ps1` throws on the first ranged pawn (RU-42), so the projectile draw path has never executed.** Two findings recorded as RU-42's widening and RU-43. |
 | RU-26 | Not started |
 | RU-27 | Not started |
