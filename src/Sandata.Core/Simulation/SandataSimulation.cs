@@ -338,13 +338,16 @@ public sealed class SandataSimulation
     }
 
     /// <summary>
-    /// The default firearm every operator advances against in
-    /// <see cref="AdvanceWeaponChain"/> and <see cref="ProposeFire"/>.
-    /// <b>PROVISIONAL — no per-operator loadout.</b> <see cref="OperatorState"/>
-    /// carries no <c>FirearmId</c> field, so this task cannot look up a real
-    /// per-operator weapon; every operator uses this one row of
-    /// <see cref="FirearmCatalog.Rows"/> instead. Honest degeneracy, not a
-    /// stand-in for a real loadout system.
+    /// The firearm <see cref="ProposeFire"/> still advances every operator
+    /// against. <b>PROVISIONAL — <see cref="AdvanceWeaponChain"/> no longer
+    /// uses this constant.</b> Task 79c (docs/plans/2026-08-07-sandata-
+    /// scaffold.md, the wave-12 audit's corrected obligation) added
+    /// <see cref="OperatorState.Firearm"/>, and stage 11 below now reads that
+    /// per-operator field instead of this one shared default. Stage 12
+    /// (<see cref="ProposeFire"/>) is task 79d's territory, not this task's,
+    /// so it keeps reading this constant unchanged; the value also doubles
+    /// as <see cref="OperatorState.Firearm"/>'s own default, so behaviour is
+    /// unchanged for every caller that does not set the new field.
     /// </summary>
     private const FirearmId DefaultFirearmId = FirearmId.Ak47;
 
@@ -406,6 +409,15 @@ public sealed class SandataSimulation
     /// <see langword="false"/> for the whole tick — the chain holds at
     /// <see cref="WeaponChainPhase.Turning"/> rather than firing at nothing.
     /// </para>
+    /// <para>
+    /// <b>Per-operator loadout.</b> Task 79c
+    /// (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12 audit's
+    /// corrected obligation): each operator's own
+    /// <see cref="OperatorState.Firearm"/> selects its
+    /// <see cref="FirearmCatalog"/> row, looked up once per operator inside
+    /// the loop below rather than once for the whole tick, so two operators
+    /// carrying different firearms advance different timing chains.
+    /// </para>
     /// </remarks>
     internal void AdvanceWeaponChain()
     {
@@ -416,9 +428,6 @@ public sealed class SandataSimulation
             return;
         }
 
-        var definition = FirearmCatalog.Rows[(int)DefaultFirearmId];
-        var readyTicks = TickConversion.ToTicks(definition.ReadyMs, _ruleset.TickRate);
-        var resetTicks = TickConversion.ToTicks(definition.ResetMs, _ruleset.TickRate);
         var intents = PendingIntents;
 
         var updated = ImmutableArray.CreateBuilder<OperatorState>(operators.Length);
@@ -433,6 +442,10 @@ public sealed class SandataSimulation
                 updated.Add(op);
                 continue;
             }
+
+            var definition = FirearmCatalog.Rows[(int)op.Firearm];
+            var readyTicks = TickConversion.ToTicks(definition.ReadyMs, _ruleset.TickRate);
+            var resetTicks = TickConversion.ToTicks(definition.ResetMs, _ruleset.TickRate);
 
             var positionXWu = WorldUnits.FromFixedPoint(op.PositionX);
             var positionYWu = WorldUnits.FromFixedPoint(op.PositionY);
@@ -587,19 +600,25 @@ public sealed class SandataSimulation
     /// <see cref="AccuracyRules.Dispersion"/> and
     /// <see cref="AccuracyRules.DrawAngularErrorBam"/> are both called with
     /// real arguments, from the real <c>Accuracy</c> RNG stream keyed on
-    /// <see cref="Mission.Seed"/> and the shooter's entity id — proving that
-    /// wiring correct even though nothing downstream yet gates hit or miss on
-    /// the draw (see below). <see cref="CoverRules.ApplyToDamage"/> is called
-    /// for real, against <see cref="CoverState.NotInCover"/> (see next).
+    /// <see cref="Mission.Seed"/> and the shooter's entity id. Task 79d-1
+    /// (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12 audit's
+    /// corrected obligation) makes that draw decide hit or miss: it is
+    /// compared against the target's subtended half-angle at the measured
+    /// range, computed by <see cref="SubtendedHalfAngleBam"/> from
+    /// <see cref="CollisionBodyRadiusRaw"/> and <paramref name="rangeWu"/> —
+    /// see that method's remarks for the exact unit conversion. A miss skips
+    /// the <see cref="DamageInstance"/> entirely; a hit produces the same one
+    /// this method always produced before this task.
+    /// <see cref="CoverRules.ApplyToDamage"/> is called for real, against
+    /// <see cref="CoverState.NotInCover"/> (see next), only for a hit.
     /// </para>
     /// <para>
-    /// <b>PROVISIONAL — no hit geometry, no per-weapon damage, no per-operator
-    /// cover.</b> Three genuine data-model gaps meet in this method:
-    /// <see cref="FirearmDefinition"/> carries no damage-per-round field at
-    /// all, nothing in this worktree resolves an angular error draw against a
-    /// target's hitbox to decide hit or miss, and no per-operator
+    /// <b>Still PROVISIONAL — no per-weapon damage, no per-operator
+    /// cover.</b> Two genuine data-model gaps remain, both task 79d-2's
+    /// territory: <see cref="FirearmDefinition"/> carries no
+    /// damage-per-round field at all, and no per-operator
     /// <see cref="CoverState"/> field exists on <see cref="OperatorState"/>.
-    /// Consequently every proposed shot always hits, for the invented flat
+    /// Consequently every hit deals the invented flat
     /// <see cref="ProvisionalDamagePerHitPoints"/>, and every target resolves
     /// as <see cref="CoverState.NotInCover"/>. These are honest placeholders,
     /// not tuned combat values — the same "degenerate is fine, dishonest is
@@ -610,6 +629,18 @@ public sealed class SandataSimulation
     /// <see langword="ulong"/> entity id, matching
     /// <see cref="OperatorState.EntityId"/> exactly — task 78 widened it, so
     /// this call site no longer narrows.
+    /// </para>
+    /// <para>
+    /// <b>Events.</b> Every shot this method resolves — hit or miss — emits
+    /// <see cref="MissionEventKind.ShotFired"/>, immediately followed by
+    /// <see cref="MissionEventKind.ShotHit"/> or
+    /// <see cref="MissionEventKind.ShotMissed"/>, through the same "assign
+    /// then advance <see cref="MissionState.NextEventSequence"/>" shape
+    /// <see cref="EmitOrderRejectedEvent"/> already uses. A shot skipped by
+    /// the continues above — shooter or target not found, or target already
+    /// dead this tick — emits nothing, matching this method's pre-79d-1
+    /// behaviour of producing no <see cref="DamageInstance"/> for those
+    /// cases either.
     /// </para>
     /// </remarks>
     internal ImmutableArray<DamageInstance> ProposeFire()
@@ -622,7 +653,8 @@ public sealed class SandataSimulation
 
         var operators = State.Operators;
         var definition = FirearmCatalog.Rows[(int)DefaultFirearmId];
-        var builder = ImmutableArray.CreateBuilder<DamageInstance>(firedShots.Length);
+        var damageBuilder = ImmutableArray.CreateBuilder<DamageInstance>(firedShots.Length);
+        var state = State;
 
         foreach (var shot in firedShots)
         {
@@ -653,20 +685,117 @@ public sealed class SandataSimulation
             var dispersionBam = AccuracyRules.Dispersion(
                 rangeWu, definition.DispersionAtZeroWu, definition.DispersionAtMaxWu, definition.MaxEffectiveWu);
 
-            // The draw is taken for real, from the real Accuracy stream, even
-            // though nothing downstream yet resolves it into a hit or a miss
-            // — see this method's remarks.
-            _ = AccuracyRules.DrawAngularErrorBam(
+            var angularErrorBam = AccuracyRules.DrawAngularErrorBam(
                 _mission.Seed, shooter.EntityId, dispersionBam);
 
-            var damage = CoverRules.ApplyToDamage(
-                ProvisionalDamagePerHitPoints, CoverState.NotInCover,
-                shooterXWu, shooterYWu, targetXWu, targetYWu);
+            var halfAngleBam = SubtendedHalfAngleBam(rangeWu);
+            var isHit = Math.Abs(angularErrorBam) <= halfAngleBam;
 
-            builder.Add(new DamageInstance(shooter.EntityId, target.EntityId, damage));
+            state = EmitShotFiredEvent(state, shooter.EntityId);
+
+            if (isHit)
+            {
+                var damage = CoverRules.ApplyToDamage(
+                    ProvisionalDamagePerHitPoints, CoverState.NotInCover,
+                    shooterXWu, shooterYWu, targetXWu, targetYWu);
+
+                damageBuilder.Add(new DamageInstance(shooter.EntityId, target.EntityId, damage));
+                state = EmitShotHitEvent(state, shooter.EntityId);
+            }
+            else
+            {
+                state = EmitShotMissedEvent(state, shooter.EntityId);
+            }
         }
 
-        return builder.ToImmutable();
+        State = state;
+        return damageBuilder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Task 79d-1's hit-resolution geometry: the half-angle, in raw
+    /// <see cref="Bam16"/> units, that the target's collision body subtends
+    /// as seen from the shooter at <paramref name="rangeWu"/> — the standard
+    /// small-body approximation <c>atan(radius / range)</c>, computed exactly
+    /// by <see cref="Cordic.Atan2"/> rather than a banned floating-point
+    /// arctangent. <see cref="ProposeFire"/> compares this against the
+    /// magnitude of the drawn angular error: within it is a hit, beyond it a
+    /// miss.
+    /// </summary>
+    /// <remarks>
+    /// <b>The unit trap this method exists to avoid.</b>
+    /// <see cref="CollisionBodyRadiusRaw"/> is already a raw
+    /// <see cref="FixedPoint"/> value (scale 1,024 per world unit) — it is
+    /// the numerator as-is, never divided down. <paramref name="rangeWu"/>,
+    /// by contrast, is a whole world-unit integer (the same one
+    /// <see cref="AccuracyRules.Dispersion"/> takes), so it is the one that
+    /// must be scaled up to match, via <see cref="RawFromWorldUnits"/> —
+    /// exactly the inverse of the direction <see cref="WorldUnits.FromFixedPoint"/>
+    /// converts positions in, a few lines above this call site. Converting
+    /// <see cref="CollisionBodyRadiusRaw"/> down to world units instead would
+    /// floor a 32-raw radius (already well under one world unit) straight to
+    /// zero, making every shot at any nonzero range miss regardless of the
+    /// drawn error — silently off by exactly the 1,024 this remark warns
+    /// about.
+    /// </remarks>
+    /// <param name="rangeWu">
+    /// The measured engagement range, in whole world units, as
+    /// <see cref="IntegerSqrt"/> already produces it for this method's only
+    /// caller. Never negative.
+    /// </param>
+    private static int SubtendedHalfAngleBam(int rangeWu) =>
+        Cordic.Atan2(CollisionBodyRadiusRaw, RawFromWorldUnits(rangeWu));
+
+    /// <summary>
+    /// Task 79d-1's event-emission call site for a fired shot — the same
+    /// "assign then advance <see cref="MissionState.NextEventSequence"/>"
+    /// shape <see cref="EmitOrderRejectedEvent"/> already uses. Emitted once
+    /// per shot <see cref="ProposeFire"/> resolves, before the hit-or-miss
+    /// outcome event.
+    /// </summary>
+    private static MissionState EmitShotFiredEvent(MissionState state, ulong shooterEntityId)
+    {
+        var missionEvent = MissionEvent.ShotFired(state.NextEventSequence, state.Tick, shooterEntityId);
+
+        return state with
+        {
+            NextEventSequence = state.NextEventSequence + 1,
+            EventFeed = state.EventFeed.Append(missionEvent),
+        };
+    }
+
+    /// <summary>
+    /// Task 79d-1's event-emission call site for a shot that connects — the
+    /// same "assign then advance <see cref="MissionState.NextEventSequence"/>"
+    /// shape <see cref="EmitOrderRejectedEvent"/> already uses. Emitted
+    /// immediately after <see cref="EmitShotFiredEvent"/>, for the same shot.
+    /// </summary>
+    private static MissionState EmitShotHitEvent(MissionState state, ulong shooterEntityId)
+    {
+        var missionEvent = MissionEvent.ShotHit(state.NextEventSequence, state.Tick, shooterEntityId);
+
+        return state with
+        {
+            NextEventSequence = state.NextEventSequence + 1,
+            EventFeed = state.EventFeed.Append(missionEvent),
+        };
+    }
+
+    /// <summary>
+    /// Task 79d-1's event-emission call site for a shot that goes wide — the
+    /// same "assign then advance <see cref="MissionState.NextEventSequence"/>"
+    /// shape <see cref="EmitOrderRejectedEvent"/> already uses. Emitted
+    /// immediately after <see cref="EmitShotFiredEvent"/>, for the same shot.
+    /// </summary>
+    private static MissionState EmitShotMissedEvent(MissionState state, ulong shooterEntityId)
+    {
+        var missionEvent = MissionEvent.ShotMissed(state.NextEventSequence, state.Tick, shooterEntityId);
+
+        return state with
+        {
+            NextEventSequence = state.NextEventSequence + 1,
+            EventFeed = state.EventFeed.Append(missionEvent),
+        };
     }
 
     /// <summary>
