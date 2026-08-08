@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Settings;
 using Hukbo.Core.Combat;
 
 namespace Hukbo.Client.Rendering;
@@ -58,6 +59,7 @@ internal static class AttackGeometry
             0.18f +
             ((profile.VisualExtensionEnvelope - 1f) * 1.4f) +
             (profile.RecoilStrength * 0.08f);
+        var policy = ResolveMotionPolicy(animation.MotionIntensity);
         var contactTorsoLateral = -contactLateral * 0.34f;
         var contactTorsoRotation = -contactAngle * 0.28f * rotationScale;
 
@@ -67,13 +69,48 @@ internal static class AttackGeometry
             WeaponLateralOffset: Lerp(contactLateral, 0f, recovery),
             TrailAngleRadians: Lerp(contactTrailAngle, 0f, recovery),
             TrailStrength: profile.TrailEligible
-                ? EaseTrailFade(animation.RecoveryProgress)
+                ? EaseTrailFade(animation.RecoveryProgress) * policy.TrailScale
                 : 0f,
-            TorsoForwardOffset: Lerp(contactTorsoForward, 0f, recovery),
-            TorsoLateralOffset: Lerp(contactTorsoLateral, 0f, recovery),
-            TorsoRotationRadians: Lerp(contactTorsoRotation, 0f, recovery),
+            TorsoForwardOffset:
+                Lerp(contactTorsoForward, 0f, recovery) * policy.BodyScale,
+            TorsoLateralOffset:
+                Lerp(contactTorsoLateral, 0f, recovery) * policy.BodyScale,
+            TorsoRotationRadians:
+                Lerp(contactTorsoRotation, 0f, recovery) * policy.BodyScale,
             StanceWeight: 1f - recovery);
     }
+
+    /// <summary>
+    /// How much of the nonessential motion the spectator's accessibility
+    /// setting keeps (design section 10). Direction, contact, reach, and
+    /// outcome are deliberately not scaled by any of the three: a reduced or
+    /// disabled setting may never hide whether a blow landed, was blocked, was
+    /// parried, was deflected, or missed. What it scales is the body
+    /// exaggeration and the trail, which carry no combat meaning of their own.
+    /// </summary>
+    internal static MotionPolicy ResolveMotionPolicy(MotionIntensity intensity) =>
+        intensity switch
+        {
+            MotionIntensity.Full => new MotionPolicy(1f, 1f),
+            MotionIntensity.Reduced => new MotionPolicy(0.65f, 0.55f),
+            MotionIntensity.Off => new MotionPolicy(0.35f, 0f),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(intensity),
+                intensity,
+                null),
+        };
+
+    /// <param name="BodyScale">
+    /// How much of the torso lean and counter-rotation survives.
+    /// </param>
+    /// <param name="TrailScale">
+    /// How much of the trail survives. Zero at
+    /// <see cref="MotionIntensity.Off"/>, where the afterimage is removed
+    /// entirely.
+    /// </param>
+    internal readonly record struct MotionPolicy(
+        float BodyScale,
+        float TrailScale);
 
     /// <summary>
     /// Smoothstep recovery keeps zero slope at contact and readiness, avoiding

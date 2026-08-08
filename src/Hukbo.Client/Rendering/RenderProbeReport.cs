@@ -327,7 +327,13 @@ public sealed record RenderProbeStationResult(
     int AppearanceCacheFillsMaximum,
     double AppearanceCacheFillsP50,
     double AppearanceCacheFillsP95,
-    double AppearanceCacheFillsP99);
+    double AppearanceCacheFillsP99,
+
+    // Attack-animation-v2, task 10. The largest number of warriors holding an
+    // active attack pose on any frame of this station's window. Zero means the
+    // station never drew an attack, so its quad and frame numbers describe the
+    // neutral path only.
+    int ActiveAttackPosesMaximum = 0);
 
 /// <summary>
 /// Pure percentile and delta arithmetic over a station's captured
@@ -481,9 +487,15 @@ public static class RenderProbeStatistics
         var appearanceCacheHitsMaximum = 0;
         var appearanceCacheMissesMaximum = 0;
         var appearanceCacheFillsMaximum = 0;
+        var activeAttackPosesMaximum = 0;
 
         foreach (var sample in samples)
         {
+            if (sample.ActiveAttackPoses > activeAttackPosesMaximum)
+            {
+                activeAttackPosesMaximum = sample.ActiveAttackPoses;
+            }
+
             var metrics = sample.Metrics;
             if (metrics.Quads > quadsMaximum)
             {
@@ -601,6 +613,7 @@ public static class RenderProbeStatistics
             appearanceCacheFillsMaximum,
             Percentile(sortedAppearanceCacheFills, 0.50),
             Percentile(sortedAppearanceCacheFills, 0.95),
-            Percentile(sortedAppearanceCacheFills, 0.99));
+            Percentile(sortedAppearanceCacheFills, 0.99),
+            activeAttackPosesMaximum);
     }
 }

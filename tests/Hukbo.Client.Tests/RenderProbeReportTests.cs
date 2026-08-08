@@ -597,4 +597,33 @@ public sealed class RenderProbeReportTests
             (result.AppearanceCacheHitsP50 + result.AppearanceCacheMissesP50);
         Assert.Equal(1.0, medianFrameHitRate);
     }
+
+    /// <summary>
+    /// Attack-animation-v2, task 10. A station's window reports the largest
+    /// number of warriors that held an active attack pose on any one of its
+    /// frames, so a render budget measured from a window that never drew an
+    /// attack is visibly identifiable as such rather than being mistaken for
+    /// an attack budget.
+    /// </summary>
+    [Fact]
+    public void Summarize_RecordsThePeakActiveAttackPoseCount()
+    {
+        var metrics = CreateMetrics(0, 0, 0, 0, 0);
+        var withAttacks = RenderProbeStatistics.Summarize(
+            "attacking",
+            [
+                new RenderProbeSample(1.0, metrics, 0, 0, 0, 0, 3),
+                new RenderProbeSample(1.0, metrics, 0, 0, 0, 0, 11),
+                new RenderProbeSample(1.0, metrics, 0, 0, 0, 0, 7),
+            ]);
+        var withoutAttacks = RenderProbeStatistics.Summarize(
+            "neutral",
+            [
+                new RenderProbeSample(1.0, metrics, 0, 0, 0, 0),
+                new RenderProbeSample(1.0, metrics, 0, 0, 0, 0),
+            ]);
+
+        Assert.Equal(11, withAttacks.ActiveAttackPosesMaximum);
+        Assert.Equal(0, withoutAttacks.ActiveAttackPosesMaximum);
+    }
 }

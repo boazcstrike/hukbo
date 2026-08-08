@@ -367,7 +367,8 @@ public sealed partial class ArenaGame
                 GC.CollectionCount(0),
                 GC.CollectionCount(1),
                 GC.CollectionCount(2),
-                allocatedBytes));
+                allocatedBytes,
+                _attackPoses.Count));
         }
 
         if (_isFrameTimingMeasured || _isFrameTraceLogged)
