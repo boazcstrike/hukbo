@@ -1,5 +1,11 @@
 # Ranged units — session handoff, 2026-08-08
 
+> **Superseded on 2026-08-09 by
+> [`2026-08-09-ranged-units-handoff.md`](2026-08-09-ranged-units-handoff.md).**
+> This document is frozen at wave 4. Every count, commit, and status in it is
+> stale, and the package has since reached its goal. Read it only for durable
+> reasoning about decisions that were taken here.
+
 This document exists so that a fresh agent with no memory of the previous session
 can resume the ranged-units package without re-deriving anything. Read it before
 executing any row of `docs/plans/2026-08-07-ranged-units.md`, because several of

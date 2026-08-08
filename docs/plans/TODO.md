@@ -53,3 +53,26 @@ is not authorized work; it is a reminder that the question was decided
   was scoped: the four ranged weapons get procedural pose resolvers in the
   shape of `src/Hukbo.Client/Rendering/SwingPoseResolver.cs` instead. Revisit
   only as its own design document, never as a sub-task of a gameplay feature.
+
+- **Projectile props and embedded projectiles.** A ranged shot currently draws
+  as a stretched pixel from the launch point to the projectile's current
+  position, so it reads as a line growing behind the thrower rather than as an
+  object in the air. The proposal replaces that with a per-weapon in-flight
+  prop, and then leaves the projectile embedded in the body part or shield it
+  struck so that it rides with the pawn. Requested by the user on 2026-08-09
+  after the first successful ranged battle, and parked the same day: the
+  package's own goal had been reached, and this is a new feature rather than a
+  fix to one. The full design, including the two features' separation, the
+  quad-budget arithmetic that constrains both, the bounded ring buffer that
+  keeps the embedded population from becoming the unbounded cache `CLAUDE.md`
+  section 9 forbids, and five open decisions that must be answered before a
+  plan is written, is in
+  [`2026-08-09-projectile-props-design.md`](2026-08-09-projectile-props-design.md).
+  Two things a future session should not have to rediscover. The in-flight prop
+  is the small half — it fixes the reported complaint on its own, costs roughly
+  1,024 quads against 1,956 of headroom, and needs none of the open decisions
+  answered. And this is the feature `src/Hukbo.Client/Rendering/SubmissionCount.cs`
+  warns about by name: the 500-unit margin fell from 3,468 to 1,956 across
+  RU-23 and RU-42, and the next feature wanting a per-pawn quad owes a fresh
+  measurement rather than an assumption. `HUKBO_RENDER_PROBE=1` with
+  `tools/Hukbo.Tools.RenderProbe` is how that measurement gets taken.

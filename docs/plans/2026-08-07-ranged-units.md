@@ -1738,6 +1738,83 @@ left the gate green, because the gate only ever ran V4 while the Client ran V5.
 The V4 workload is untouched at `1B73FC5923879AA0` / `AC55684F24D39344` — the same pair it
 has reported since before this package began.
 
+### 2026-08-09: RU-31 was generated, and the first battle that actually ran found three defects the gate cannot see
+
+The baseline at `6ebb5f3` was re-established independently before anything was
+touched. The canonical gate passed in full — 0 of 707 files reformatted, Core
+2,433 of 2,433, Client 3,333 of 3,333 — and all seven registered preset
+combinations reproduced their recorded hashes byte for byte at 200 agents,
+10,000 ticks, seed 1. The five cells the gate does not run were measured with
+named parameters, and no stray output file appeared, which is the signature the
+positional-argument mistake leaves behind.
+
+**One recorded number was wrong.** This document said calibration wants Timawa at
+54 per cent of the army. Summing `DefaultRosterWeights` over the five rows
+carrying `RankId.Timawa` gives 44. Corrected in place, because it is the number
+that would drive the rank split if the default composition is ever moved onto the
+calibrated proportions.
+
+**RU-31 was run by the user, and all sixty takes exist.** Two changes were made to
+support it, neither of which generates audio. The `attack-busog` prompts were
+rewritten: two consecutive takes of the original ribcage prompt came back at 2.8
+and 2.3 per cent of full scale and were rejected by the quiet guard, and the cause
+was the wording rather than luck — "thin arrow" and "soft thud" are instructions
+to be quiet, and the model followed them. The rewritten prompt landed at 100 per
+cent peak on its first take. The `extremity` arm of `attack-bangkaw` and
+`attack-arquebus` carried the same "grazing / quick shallow" trap and got the same
+treatment; every other prompt was left alone, because no take of any of them had
+been rejected. `scripts/sfx-ranged.ps1` was added to drive the sixty takes,
+skipping files that exist and retrying only a quiet-guard rejection. Of 58 takes
+requested, 17 needed a retry and one — `miss-bangkaw-01` — exhausted its
+attempts and landed on a later re-roll at 29.6 per cent. `./scripts/sfx.ps1 -List`
+now reports zero missing slots.
+
+**Then the game was played, and it crashed three times before it survived.** All
+three were the same defect shape this document has now recorded nine times: an
+exhaustive switch over a weapon that nobody extended when the ranged three
+landed. All three were invisible to every automated check, and the reason is
+structural rather than accidental — **the headless gate never formats an event,
+never opens an inspector, and never draws blood.** That whole layer sits outside
+it, and each defect was found only by a person pressing play.
+
+| Defect | Site | Why nothing caught it |
+| --- | --- | --- |
+| `ArgumentOutOfRangeException (Parameter 'weapon') Actual value was Arquebus` | `BattleEventFormatter.GetWeaponLabel` restated the four melee labels in a switch of its own | Every prior test in that file passed a melee weapon |
+| The same exception from underneath the fix for the first | `CombatPresetRegistry.TryResolveGrip` took the first preset declaring any weapon profiles and demanded an answer; that preset is melee-only | Both callers are presentation; no gameplay code reads it |
+| The same exception again, same tick | `BloodGeometry.GetSprayProfile` had no arm for any ranged weapon | **This plan does not contain the word "blood" anywhere.** No task ever owned the file |
+
+All three crashed at tick 66, because that is the tick the first ranged blow
+lands in a V5/V8 battle. The labels for all seven weapons already existed,
+correct and complete, on `PawnAppearance.WeaponLabel` — including the deliberate
+bare `Imported Arquebus` that the historical-accuracy policy calls for — so the
+formatter now resolves through that one switch instead of keeping a second copy.
+`CombatRuleset` gained a non-throwing `TryResolveWeaponGrip`. `BloodGeometry`
+gained three spray profiles, marked PROVISIONAL, and the blood fix was proven by
+mutation: stashing the file back to its previous state fails the new theory on
+exactly Bangkaw, Busog and Arquebus and passes the melee four.
+
+**Rather than wait for a fourth crash, every weapon-keyed switch in
+`Hukbo.Client` was swept**, anchored on both `Itak =>` and `Kampilan =>` arms and
+again at file level. Five further candidates turned up and all five are already
+complete: `PawnAppearance`'s evidence notes and tier, `AgentInspectorContent`'s
+silhouette forms, `PawnGeometry`'s secondary bounds — which falls through to
+`Rectangle.Empty` deliberately — `AttackMotionCatalog`, and
+`WeaponVisualCatalog`. The eight files that know `BattleEventKind.Death` but not
+`Release` or `Miss` filter by kind rather than switching exhaustively, so an
+unmatched kind is ignored rather than thrown on.
+
+The gate was re-run in full after each fix. Both hashes are unmoved —
+`1B73FC5923879AA0` / `AC55684F24D39344` at V4/V4 and `C8023D3B5BEB005E` /
+`F709A345E2F7370E` at V5/V8 — and the Client suite went from 3,333 to 3,348 as
+the two regression guards landed. No hash could have moved: nothing changed
+reaches a simulation.
+
+**The battle then ran.** That is the first time in this package a ranged battle
+has been played to a working state by a person, and it is what the eleven RG rows
+were waiting on. It also produced the first genuine feature request against the
+ranged visuals, which is parked in `docs/plans/TODO.md` and designed in
+`docs/plans/2026-08-09-projectile-props-design.md`.
+
 ### Task status
 
 | Task | Status |
@@ -1772,7 +1849,7 @@ has reported since before this package began.
 | RU-28 | **Done on branch `ru-28` at `9e95864`, merged into `ranged-units`.** Its row was the eleventh known-wrong one: `ProjectileTests.cs` already carried four of its eight pins, so the real scope was the remaining four plus an audit of the existing four. All four existing pins hold with no gap, and the allocation pin does run on a ranged roster. Four new pins added, no hash literal among them. See the result in section 9 |
 | RU-29 | **Done on branch `ru-29` at `e2f9c6a`, merged into `ranged-units`.** The gate now runs a second, ranged determinism workload, guarded so `-Game Sandata` skips it. Twenty-seed ranged termination test added with a guard fact tying the roster weights to `Rules.Roster.Count`. **The agent's own benchmark evidence was invalid — positional arguments meant it measured V4, not V5; re-run correctly by the orchestrator. See section 9** |
 | RU-30 | **Done on branch `ru-30` at `9369509`, merged into `ranged-units` — but its acceptance bar is NOT met.** The monotone predicate lands, V9 is registered, the leader fact closes, and **both suites are fully green for the first time in this package**. The diagnosis is confirmed: `routeRefusalLaneNotClear` falls from 347,375 to 38,209 at 200 agents, and termination goes from V6 drawing 0 of 20 seeds to V9 resolving 14 of 20. **The row requires 19 of 20.** Five seeds short, so a second cause remains beyond ally clearance. The ten-cell matrix was reported BLOCKED on prompt compression and is genuinely outstanding. See the RU-30 result in section 9 |
-| RU-31 | Not started |
+| RU-31 | **Generated 2026-08-09 by the user, who ran every command. No agent generated a sound.** All sixty takes exist and `./scripts/sfx.ps1 -List` reports zero missing of twenty-six slots. `scripts/sfx-ranged.ps1` drove the run; `scripts/sfx.ps1`'s `attack-busog` prompts and two `extremity` arms were rewritten first, because their wording was instructing the model to produce inaudible takes. 17 of 58 takes needed a quiet-guard retry. **Not closed: its acceptance requires a person to have heard at least one take from each of the thirteen new slots, and that has not been recorded.** The files being present is not the criterion |
 | RU-32 | **Done on branch `ru-32` at `0be7425`, merged into `ranged-units`.** Eleven rows, `RG-1` through `RG-11`, every one `PENDING`. The diff is a pure addition of 53 lines — zero deletions, so no existing row's status or wording moved. `RG-11` ships with no pass/fail criterion, as an open question about an arrow passing through the friendly front rank. The section states plainly that the draw phases have never been observed at runtime because the one real Debug run never advanced a tick, and which rows cannot be attempted until RU-31's sound files exist. **The rows are delivered; the results are not, and no agent may supply them** |
 | RU-33 | **Done — the canonical gate is GREEN IN FULL**, run once by the orchestrator on the integration commit, never delegated. Every stage passes: prerequisites, locked restore, format at 0 of 707 files reformatted, Release build, Release tests, and **two** determinism workloads. The second is the ranged one — `combatPreset 5, movementPreset 8`, `deterministic: true`, reproducing `C8023D3B5BEB005E` / `F709A345E2F7370E`. V4's workload is unmoved at `1B73FC5923879AA0` / `AC55684F24D39344`. Full output in section 9 |
 | RU-34 | Done on branch `ru-34` at `7b80c24`, merged into `ranged-units` — took Core from 18 red to 10 |
