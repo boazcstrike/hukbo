@@ -4151,3 +4151,79 @@ has moved twice since the second audit:
   calls `ApplyToDamage` with `CoverState.NotInCover`. The work in 79d-2b is
   building a real `CoverState` from the map's `CoverRecord` values, not
   rewriting the call.
+
+### Task 79d-2a complete, and the miss path is lit again — 2026-08-09
+
+Merged at `fde1e85`. `ProposeFire` resolved one `FirearmDefinition` from the
+private `DefaultFirearmId`, hoisted above the per-shot loop; it now resolves
+`FirearmCatalog.Rows[(int)shooter.Firearm]` inside the loop, mirroring the shape
+stage 11 has used since task 79c. `DefaultFirearmId` had no remaining consumer
+and is deleted.
+
+**`EmitShotMissedEvent` is executed by a test again.** Task 86 removed both of
+task 79d-1's miss tests and recorded the branch as a production path gone dark;
+it is dark no longer. Two tests replace them:
+
+- `RunTick_PistolMissesAndRifleHitsAtTheSameTwoHundredWorldUnitRange` builds the
+  identical fixture twice — same 200-world-unit range, same shooter entity id and
+  therefore the same `Accuracy` draw, same target — and changes exactly one
+  thing, the shooter's `Firearm`. The pistol misses and the rifle hits. That the
+  only variable is the loadout is what makes it a test of this task rather than
+  of the geometry.
+- `RunTick_Miss_EmitsExactlyOneShotFiredAndOneShotMissedEvent` restores the miss
+  half of task 79d-1's event criterion, as the exact-count mirror of the hit test
+  that already existed in the same file.
+
+Both are reached through `RunTick` and assert event counts and the target's
+health, not that something differed. The fixture is honest: real positions 200
+world units apart on a widened grid, no walls, and a genuine `Identified` contact
+memory entry so the shooter engages. `ProposeFire` computes its range from the
+operators' real positions, so nothing about the geometry is faked to reach the
+branch.
+
+`SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange` stands
+unweakened as the rifle's regression lock, and its doc comment — which carried
+both of these obligations so the next reader would find them from the code rather
+than from this document — now records them as discharged and names the tests that
+discharged them.
+
+Counts re-derived from the merged tree: `Sandata.Core.Tests` 1,093 to **1,095**;
+`Sandata.Client.Tests` 199, unchanged. `TickPipelineTests.cs` went from 30 to 32
+`[Fact]`/`[Theory]` attributes.
+
+The seed-1 workload is unchanged — `stateHash` `BDD56EBD06F76674`, `eventHash`
+`7C1B37876769DEC7`, 70 and 64 survivors, `deterministic: true` — which is the
+expected result and was reasoned in advance: `HeadlessRunner` leaves every
+operator's `Firearm` at its default, so reading the field resolves to the same
+definition the constant named. Had a hash moved it would have meant the workload
+carries a loadout nobody set.
+
+The break-proof was a whole-file swap to the pre-fix version rather than an
+injected edit, which sidesteps the `error CS0162` problem task 84 hit: both new
+tests failed with the pistol fixture recording a hit, and both passed again on
+restore.
+
+#### What this does not change
+
+The rifle still cannot miss inside sensing range. Task 86's finding survives this
+task intact: with the designed body radius the crossover sits near 345 world units
+against a `DetectRangeWu` of 256, so for every rifle in the catalog the accuracy
+draw remains decorative. What 79d-2a changed is that the *game* can now produce a
+miss at all, on the pistol curve, where before no weapon could. **What besides
+range should decide whether a shot lands remains an open design question and is
+still nobody's to settle here.**
+
+#### One process note
+
+The implementer's report said `grep` showed zero remaining `DefaultFirearmId`
+references in `src/`. Two remained: `src/Sandata.Core/Simulation/MissionState.cs:181`
+and `tests/Sandata.Core.Tests/MissionStateTests.cs:589`, both describing
+`OperatorState.Firearm` by reference to the constant that had just been deleted.
+Neither is a `<see cref/>`, so nothing failed to compile and no test failed —
+which is exactly why a search is the only thing that finds them. The integrating
+thread made both edits, since both files were outside the row's grant.
+
+That is the fourth figure this wave that a report got wrong and a reading of the
+tree got right, after a constant's previous value, a test total, and an
+allocation figure. The pattern is stable enough to plan around: **re-derive every
+count and every "grep returns nothing" claim from the tree, in every case.**
