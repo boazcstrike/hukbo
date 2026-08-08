@@ -1,8 +1,8 @@
 namespace Sandata.Core.Squads;
 
 /// <summary>
-/// Turns one squad slot's fixed formation-shape constants into a world-unit
-/// target point, per design section 8's formula:
+/// Turns one squad slot's fixed formation-shape constants into a raw
+/// fixed-point target point, per design section 8's formula:
 /// <c>targetPoint(slot) = pointAtArclength(leaderArclength - slot.TrailOffset)
 /// + lateralNormal * slot.LateralOffset</c>. Every follower is placed on the
 /// leader's own past path — offset only along the arclength the leader
@@ -27,14 +27,15 @@ public static class SlotTargets
     /// </param>
     /// <param name="leaderArclength">
     /// The leader's own position along <paramref name="path"/>, expressed as
-    /// an arclength value. Not required to be <c>path.TotalLength</c>: a
-    /// caller that tracks the leader's progress along a path already in
-    /// flight supplies whatever arclength corresponds to the leader's
-    /// current position.
+    /// an arclength value in raw fixed-point units. Not required to be
+    /// <c>path.TotalLength</c>: a caller that tracks the leader's progress
+    /// along a path already in flight supplies whatever arclength corresponds
+    /// to the leader's current position.
     /// </param>
     /// <param name="trailOffset">
-    /// How far behind <paramref name="leaderArclength"/>, measured along the
-    /// path, this slot marches. Must not be negative — a slot ahead of the
+    /// How far behind <paramref name="leaderArclength"/>, in raw fixed-point
+    /// units measured along the path, this slot marches. Must not be
+    /// negative — a slot ahead of the
     /// leader is not a trailing slot. A value that would place the slot
     /// before the path's own start clamps to the start rather than
     /// extrapolating past it or throwing, the same clamping
@@ -42,8 +43,9 @@ public static class SlotTargets
     /// out-of-range arclength.
     /// </param>
     /// <param name="lateralOffset">
-    /// This slot's sideways displacement from the path's local centreline,
-    /// applied perpendicular to the path's direction of travel at the
+    /// This slot's sideways displacement from the path's local centreline, in
+    /// raw fixed-point units, applied perpendicular to the path's direction
+    /// of travel at the
     /// sampled point. Positive displaces to the side reached by rotating the
     /// local direction vector <c>(dx, dy)</c> to <c>(dy, -dx)</c>; negative
     /// displaces to the opposite side. Zero leaves the target exactly on the
@@ -53,7 +55,9 @@ public static class SlotTargets
     /// lateral offset to zero.
     /// </param>
     /// <returns>
-    /// The slot's target point in world units. When the sampled point falls
+    /// The slot's target point in raw fixed-point units — the same
+    /// representation <c>MovementProposal</c> carries, so the caller passes it
+    /// straight through rather than converting. When the sampled point falls
     /// where the path's local direction is undefined (a one-vertex path, or
     /// a duplicate-vertex zero-length segment), the lateral offset cannot be
     /// applied and the point on the centreline is returned unchanged.
