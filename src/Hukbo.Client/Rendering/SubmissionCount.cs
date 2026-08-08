@@ -445,10 +445,49 @@ internal static class RenderBudgetEstimate
     // the actual per-pawn term from PawnQuadCount.Count every run, so this
     // comment records the arithmetic rather than a value the test re-derives
     // on its own.
+    //
+    // RU-23: PawnGeometry.CreateSecondaryBounds gained a Busog arm (RU-22)
+    // that draws the nocked arrow through the existing SecondaryEquipmentBounds
+    // slot the Wasay's axe head already occupies — one new rectangle, and the
+    // only one any of the three new PawnWeaponRole members adds (Bangkaw and
+    // Arquebus draw no secondary rectangle at all). That raises the 24-quad
+    // High-tier baseline to 25 for the worst case where every visible unit is
+    // a Busog:
+    //
+    //   (25 quads/pawn x 200 units) + 4,032 backdrop =  9,032 quads
+    //   (25 quads/pawn x 500 units) + 4,032 backdrop = 16,532 quads
+    //
+    // Both stay under the ceilings below with margin (2,968 quads of headroom
+    // at 200 units, 3,468 at 500), so — same rule as above — the ceilings are
+    // left unmoved. In-flight projectiles are not folded into this per-pawn
+    // term: they are a separate, bounded population
+    // (Scenario.MaximumProjectilesInFlight, default 512) counted against the
+    // same whole-frame estimate at ProjectileQuadsPerProjectile quad each (one
+    // stroked line, the same "one quad per live instance" convention
+    // BackdropQuadCount.TrampleMarks and .Decals already use):
+    //
+    //   9,032 + (512 x 1 projectile quad)  =  9,544 quads (200 units)
+    //   16,532 + (512 x 1 projectile quad) = 17,044 quads (500 units)
+    //
+    // Both still fit under the unmoved ceilings (2,456 quads of headroom at
+    // 200 units, 2,956 at 500). No projectile renderer exists yet
+    // (tools/... and src/Hukbo.Client/Rendering have no ProjectileRenderer.cs
+    // as of this task), so this budget is provisioned ahead of that renderer
+    // landing rather than measured against it; RenderBudgetEstimateTests
+    // reads Scenario.MaximumProjectilesInFlight's own default rather than
+    // repeating 512 as a second literal, so the two cannot drift apart.
 
     /// <summary>Arena-batch quad ceiling at 200 visible units.</summary>
     internal const int ArenaBatchQuadsAt200UnitsEstimate = 12_000;
 
     /// <summary>Arena-batch quad ceiling at 500 visible units.</summary>
     internal const int ArenaBatchQuadsAt500UnitsEstimate = 20_000;
+
+    /// <summary>
+    /// Quad cost of one live in-flight projectile once a projectile renderer
+    /// exists: a single stroked line segment, matching the "one quad per live
+    /// instance" convention <see cref="BackdropQuadCount.TrampleMarks"/> and
+    /// <see cref="BackdropQuadCount.Decals"/> already use.
+    /// </summary>
+    internal const int ProjectileQuadsPerProjectile = 1;
 }

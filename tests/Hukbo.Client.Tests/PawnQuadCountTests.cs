@@ -69,6 +69,36 @@ public sealed class PawnQuadCountTests
     }
 
     /// <summary>
+    /// RU-23: the three ranged weapon roles this package added
+    /// (<c>PawnWeaponRole.Bangkaw</c>, <c>Busog</c>, <c>Arquebus</c>) at the
+    /// same High-tier, unshielded, unarmored baseline as
+    /// <see cref="Count_PinsTheHighTierUnshieldedUnarmoredNormalPawn"/>.
+    /// Bangkaw and Arquebus draw no secondary rectangle
+    /// (<c>PawnGeometry.CreateSecondaryBounds</c>'s catch-all arm), so both
+    /// match the 24-quad baseline exactly. Busog draws its nocked arrow
+    /// through the same <c>SecondaryEquipmentBounds</c> slot the Wasay's axe
+    /// head already occupies — the one new rectangle RU-22 was permitted —
+    /// so it pins one quad higher at 25, the arithmetic the RU-23 plan row
+    /// (`docs/plans/2026-08-07-ranged-units.md`) states directly.
+    /// </summary>
+    [Theory]
+    [InlineData(WeaponId.Bangkaw, 24)]
+    [InlineData(WeaponId.Busog, 25)]
+    [InlineData(WeaponId.Arquebus, 24)]
+    public void Count_PinsTheHighTierUnshieldedUnarmoredRangedPawn(
+        WeaponId weaponId,
+        int expectedQuads)
+    {
+        var appearance = PawnAppearanceFactory.Create(0, weaponId, ShieldId.None);
+        var layout = PawnGeometry.Create(Vector2.Zero, HighTierZoom, appearance);
+
+        Assert.Equal(PawnDetailTier.High, layout.DetailTier);
+        Assert.Equal(
+            expectedQuads,
+            PawnQuadCount.Count(layout, appearance, PawnVisualState.Normal));
+    }
+
+    /// <summary>
     /// movement-gait-animation design section 9: a Low-tier layout produces
     /// empty leg and foot rectangles, so <c>PawnRenderer.DrawLegs</c> and
     /// <c>DrawFeet</c> submit nothing and the Low-tier pin above
