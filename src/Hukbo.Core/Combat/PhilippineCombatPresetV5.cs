@@ -387,50 +387,71 @@ public static class PhilippineCombatPresetV5
                 // defender is somewhat worse at intercepting a projectile
                 // than a bladed strike, and worse again against the fastest,
                 // least visible of the three (the arquebus ball).
-                [(WeaponId.Kampilan, ShieldId.None, WeaponId.Bangkaw)] = 900,
-                [(WeaponId.Kampilan, ShieldId.None, WeaponId.Busog)] = 700,
-                [(WeaponId.Kampilan, ShieldId.None, WeaponId.Arquebus)] = 300,
+                //
+                // RU-24 CALIBRATION PASS, PROVISIONAL: the launch values here
+                // (900/700/300 and proportionally down the other three rows)
+                // measured a pooled DefenceAttributableShare of 0.2220-0.2504
+                // across seeds 1-20 at the default roster split -- below the
+                // 0.25 floor for 19 of 20 seeds. Scaled x2.5 uniformly, which
+                // preserves every within-row and cross-row ordering the
+                // original hand-authored values established (Bangkaw >
+                // Busog > Arquebus attacker, and each defender's relative
+                // ranking against the other three) while lifting the pooled
+                // average clear of the floor. Still a gameplay tuning
+                // choice, not a historical measurement -- see class remarks.
+                [(WeaponId.Kampilan, ShieldId.None, WeaponId.Bangkaw)] = 2_250,
+                [(WeaponId.Kampilan, ShieldId.None, WeaponId.Busog)] = 1_750,
+                [(WeaponId.Kampilan, ShieldId.None, WeaponId.Arquebus)] = 750,
 
-                [(WeaponId.Wasay, ShieldId.None, WeaponId.Bangkaw)] = 800,
-                [(WeaponId.Wasay, ShieldId.None, WeaponId.Busog)] = 600,
-                [(WeaponId.Wasay, ShieldId.None, WeaponId.Arquebus)] = 250,
+                [(WeaponId.Wasay, ShieldId.None, WeaponId.Bangkaw)] = 2_000,
+                [(WeaponId.Wasay, ShieldId.None, WeaponId.Busog)] = 1_500,
+                [(WeaponId.Wasay, ShieldId.None, WeaponId.Arquebus)] = 625,
 
-                [(WeaponId.Kalis, ShieldId.None, WeaponId.Bangkaw)] = 700,
-                [(WeaponId.Kalis, ShieldId.None, WeaponId.Busog)] = 550,
-                [(WeaponId.Kalis, ShieldId.None, WeaponId.Arquebus)] = 250,
+                [(WeaponId.Kalis, ShieldId.None, WeaponId.Bangkaw)] = 1_750,
+                [(WeaponId.Kalis, ShieldId.None, WeaponId.Busog)] = 1_375,
+                [(WeaponId.Kalis, ShieldId.None, WeaponId.Arquebus)] = 625,
 
-                [(WeaponId.Itak, ShieldId.None, WeaponId.Bangkaw)] = 650,
-                [(WeaponId.Itak, ShieldId.None, WeaponId.Busog)] = 500,
-                [(WeaponId.Itak, ShieldId.None, WeaponId.Arquebus)] = 200,
+                [(WeaponId.Itak, ShieldId.None, WeaponId.Bangkaw)] = 1_625,
+                [(WeaponId.Itak, ShieldId.None, WeaponId.Busog)] = 1_250,
+                [(WeaponId.Itak, ShieldId.None, WeaponId.Arquebus)] = 500,
 
                 // Ranged defender vs any attacker — new. A ranged-armed
                 // warrior has little to no close-quarters interception
                 // skill, worst for the arquebus (no blade at all in this
                 // preset's simplification, and both hands committed to the
                 // weapon), decreasing in that order.
-                [(WeaponId.Bangkaw, ShieldId.None, WeaponId.Kampilan)] = 500,
-                [(WeaponId.Bangkaw, ShieldId.None, WeaponId.Wasay)] = 450,
-                [(WeaponId.Bangkaw, ShieldId.None, WeaponId.Kalis)] = 450,
-                [(WeaponId.Bangkaw, ShieldId.None, WeaponId.Itak)] = 450,
-                [(WeaponId.Bangkaw, ShieldId.None, WeaponId.Bangkaw)] = 500,
-                [(WeaponId.Bangkaw, ShieldId.None, WeaponId.Busog)] = 400,
-                [(WeaponId.Bangkaw, ShieldId.None, WeaponId.Arquebus)] = 150,
+                //
+                // RU-24 CALIBRATION PASS, PROVISIONAL: this is the single
+                // largest drag on the pooled band (a) measurement -- melee
+                // weapons fire far more often than ranged ones (4-8 tick
+                // cooldowns versus 25-240), so most of a melee attacker's
+                // huge attack volume that happens to land on the ranged
+                // quarter of the roster was passing through this
+                // under-25%-defended cell. Scaled x3 uniformly from launch,
+                // preserving every ordering the original values established.
+                [(WeaponId.Bangkaw, ShieldId.None, WeaponId.Kampilan)] = 1_500,
+                [(WeaponId.Bangkaw, ShieldId.None, WeaponId.Wasay)] = 1_350,
+                [(WeaponId.Bangkaw, ShieldId.None, WeaponId.Kalis)] = 1_350,
+                [(WeaponId.Bangkaw, ShieldId.None, WeaponId.Itak)] = 1_350,
+                [(WeaponId.Bangkaw, ShieldId.None, WeaponId.Bangkaw)] = 1_500,
+                [(WeaponId.Bangkaw, ShieldId.None, WeaponId.Busog)] = 1_200,
+                [(WeaponId.Bangkaw, ShieldId.None, WeaponId.Arquebus)] = 450,
 
-                [(WeaponId.Busog, ShieldId.None, WeaponId.Kampilan)] = 350,
-                [(WeaponId.Busog, ShieldId.None, WeaponId.Wasay)] = 300,
-                [(WeaponId.Busog, ShieldId.None, WeaponId.Kalis)] = 300,
-                [(WeaponId.Busog, ShieldId.None, WeaponId.Itak)] = 300,
-                [(WeaponId.Busog, ShieldId.None, WeaponId.Bangkaw)] = 350,
-                [(WeaponId.Busog, ShieldId.None, WeaponId.Busog)] = 350,
-                [(WeaponId.Busog, ShieldId.None, WeaponId.Arquebus)] = 100,
+                [(WeaponId.Busog, ShieldId.None, WeaponId.Kampilan)] = 1_050,
+                [(WeaponId.Busog, ShieldId.None, WeaponId.Wasay)] = 900,
+                [(WeaponId.Busog, ShieldId.None, WeaponId.Kalis)] = 900,
+                [(WeaponId.Busog, ShieldId.None, WeaponId.Itak)] = 900,
+                [(WeaponId.Busog, ShieldId.None, WeaponId.Bangkaw)] = 1_050,
+                [(WeaponId.Busog, ShieldId.None, WeaponId.Busog)] = 1_050,
+                [(WeaponId.Busog, ShieldId.None, WeaponId.Arquebus)] = 300,
 
-                [(WeaponId.Arquebus, ShieldId.None, WeaponId.Kampilan)] = 150,
-                [(WeaponId.Arquebus, ShieldId.None, WeaponId.Wasay)] = 125,
-                [(WeaponId.Arquebus, ShieldId.None, WeaponId.Kalis)] = 125,
-                [(WeaponId.Arquebus, ShieldId.None, WeaponId.Itak)] = 125,
-                [(WeaponId.Arquebus, ShieldId.None, WeaponId.Bangkaw)] = 150,
-                [(WeaponId.Arquebus, ShieldId.None, WeaponId.Busog)] = 125,
-                [(WeaponId.Arquebus, ShieldId.None, WeaponId.Arquebus)] = 150,
+                [(WeaponId.Arquebus, ShieldId.None, WeaponId.Kampilan)] = 450,
+                [(WeaponId.Arquebus, ShieldId.None, WeaponId.Wasay)] = 375,
+                [(WeaponId.Arquebus, ShieldId.None, WeaponId.Kalis)] = 375,
+                [(WeaponId.Arquebus, ShieldId.None, WeaponId.Itak)] = 375,
+                [(WeaponId.Arquebus, ShieldId.None, WeaponId.Bangkaw)] = 450,
+                [(WeaponId.Arquebus, ShieldId.None, WeaponId.Busog)] = 375,
+                [(WeaponId.Arquebus, ShieldId.None, WeaponId.Arquebus)] = 450,
             };
 
         var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>
