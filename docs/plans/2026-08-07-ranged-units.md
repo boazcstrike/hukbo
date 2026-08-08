@@ -1346,6 +1346,45 @@ V4 or V5 cell.
 Core stands at 1 failed, 2,421 passed, 2,422 total; Client at 0 of 3,328; format passes.
 RU-28 reported honestly that it had not run `format.ps1`; the orchestrator ran it.
 
+### Wave 8's dispatch, and two more wrong rows found while scoping it
+
+RU-26, RU-27, and RU-29 were dispatched together off `19870ff` — three disjoint file sets,
+and the hashes had stopped moving, which is what wave 8 was waiting for. Scoping them
+turned up the twelfth and thirteenth known-wrong rows, both found by reading the code the
+row points at rather than by an agent hitting them.
+
+**The twelfth is RU-26's zero-ranged inert control.** The row asks it to prove that a V5
+scenario with every ranged roster entry zeroed "reproduces V4's seed-1 state and event
+hashes exactly". The state hash cannot match and never could:
+`BattleSimulation.ComputeStateHash` seeds itself with `_rules.ContentHash`
+(`BattleSimulation.cs:800`), and V5's content hash necessarily differs from V4's because
+V5 declares three ranged weapon profiles and V4 declares none. RU-36's conditional fold
+widened that gap further. **This is the identical defect RU-21's row already hit** — its
+"same `stateHash` as V4" criterion was recorded in this document as unachievable for
+exactly this reason, and the row was written anyway. The control keeps all of its value
+by asserting what RU-21's resolution asserted: the *event* hash matches and the state hash
+does not. An unchanged ordered event stream across a changed digest is the real proof that
+no ranged fold leaked into a melee-only run.
+
+RU-45 also made that control harder in a way its row could not have known. V5's roster is
+nine entries now against V4's four, so zeroing only the three ranged entries leaves six
+melee entries and a different battle. The two shielded entries have to be zeroed as well.
+
+**The thirteenth is RU-27's file list.** The row names only
+`MovementPresetFreezeTests.cs`, but the freeze tests do not compute a digest — `LoadDigest`
+(`MovementPresetFreezeTests.cs:430-441`) reads a committed JSON fixture from
+`Fixtures/` and asserts the file exists. RU-27 has to create
+`seed-1-200-agents-movement-v8-digest.json` as well, and there is no generator anywhere in
+the repository: nothing under `tools/` or `scripts/` writes these files, and the seven
+existing fixtures record only a `provenance` block naming the commit they were captured
+at. RU-27 was told to add a capture routine behind `#if HUKBO_CALIBRATION`, following the
+precedent `RangedCalibrationHarness.cs` already set for hand-run measurement code, and to
+keep it so the next preset does not have to reinvent it.
+
+Two constraints were given to all three agents, because they run concurrently: only RU-26
+may write a hash literal, and none of them may write the roster length as a literal, since
+it has already changed size once inside this package.
+
 ### Task status
 
 | Task | Status |
