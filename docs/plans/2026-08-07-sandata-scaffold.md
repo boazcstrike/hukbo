@@ -3041,3 +3041,118 @@ the audit doing its job — the sentence originally written here claimed task 85
 conflicted with nothing, and that claim was wrong the moment task 79d-1 was
 dispatched with the same test file in its grant. Task 85 runs after task 79d-1
 merges, and not beside task 81 or task 84.
+
+### Task 79d-1 complete, and the invented constants it made load-bearing — 2026-08-08
+
+Merged. Stage 12 now resolves the drawn angular error against the target's
+subtended half-angle, a miss produces no `DamageInstance`, and three new event
+kinds — `ShotFired = 1`, `ShotHit = 2`, `ShotMissed = 3`, appended after
+`OrderRejected = 0`, whose value is contract and was not renumbered — are emitted
+through the same "assign the sequence, then advance it" shape
+`EmitOrderRejectedEvent` already used.
+
+**Sandata emitted events during a run for the first time.** The seed-1 workload's
+event hash moved from `CBF29CE484222325`, the bare FNV-1a offset basis, to
+`270364E265A3A8A7`. The event half of the determinism contract is now asserted by
+a run rather than by construction, which is what the wave-11 record said task
+79d would be the first to do. The state hash moved from `FB4715E7AFF108F6` to
+`6D4AEA08BEFEFA92` and the run stayed `deterministic: true`.
+
+Two process notes. The agent did not commit its work and reported a test total of
+3,152, which is neither Sandata suite — the integrating thread committed the
+branch at `612ca2b` and re-derived the real figures from the merged tree, 1,085
+core and 199 client. **Every count in this document is re-derived, never taken
+from a report**, and this is the wave's clearest illustration of why.
+
+#### The survivor counts did not move, and chasing that found the real defect
+
+Before hit resolution existed, the seed-1 workload ended with 98 and 92
+survivors. After it — with misses now producing no damage at all — the workload
+ends with **98 and 92 survivors**. Both hashes moved, so the mechanism is
+genuinely running. A change that removes damage from some fraction of all shots
+and kills exactly the same people is not a result, it is a symptom.
+
+It is. `SandataSimulation` declares:
+
+```
+private const int CollisionCellSizeRaw = 256;   //  0.25 wu
+private const int CollisionBodyRadiusRaw = 32;  //  0.03125 wu
+```
+
+Design section 4's unit table specifies the second of those explicitly, and not
+as a suggestion:
+
+> | Body radius | world unit | 4.25 wu, `CollisionRules.DefaultBodyRadiusRaw` unchanged, which is 0.266 m — a 0.53 m human footprint |
+
+`Hukbo.Core/Simulation/CollisionRules.cs:72` carries exactly that value:
+`public const int DefaultBodyRadiusRaw = (17 * FixedPoint.Scale) / 4`, which is
+4,352 raw. Sandata uses 32. **The operator body radius in the shooter is 136
+times smaller than the number the design names**, and at 1 metre = 16 world units
+it describes a person three centimetres across.
+
+Everything downstream inherits it:
+
+- **Collision is decorative.** Two operators must come within 0.0625 wu — four
+  millimetres — to register contact. `LocalAvoidance`, `SidestepRules`, and the
+  whole propose-prioritise-commit chain resolve conflicts that essentially never
+  occur.
+- **Hit resolution is now built on it.** Task 79d-1 computes the target's
+  subtended half-angle as `Cordic.Atan2(CollisionBodyRadiusRaw, range)`, which is
+  correct code against an incorrect constant. At a 90-world-unit range the target
+  subtends about two hundredths of a degree, so whether a shot lands is decided
+  by whether the drawn error rounds to near zero rather than by aim, range, or
+  dispersion. That is why removing damage from misses changed nobody's fate.
+- **The collision grid cell is smaller than a body.** `CollisionCellSizeRaw` is
+  0.25 wu against a designed 4.25 wu radius, so the uniform grid's cells are
+  seventeen times finer than the objects they index.
+
+Design section 4 also states the invariant these constants exist to satisfy:
+
+> Fifty hertz also keeps the collision invariant `MovementSpeedRaw <= BodyRadiusRaw`
+> comfortable: a 5 m/s sprint is 80 wu per second, which is 1.6 wu per tick
+> against a 4.25 wu radius.
+
+Against the code's 0.03125 wu radius, the maximum lawful movement step is 0.03125
+wu per tick. Task 79b's `FormationLookaheadWu` is 8. **The invariant is violated
+by a factor of 256**, which means operators pass through one another and through
+the grid between ticks and no test notices.
+
+#### This corrects task 84's row
+
+Task 84 was written on the finding that no movement-speed constant exists in
+`Movement/`. That is true of the code and it led to the wrong conclusion. **The
+design specifies the speed**: 5 m/s is 80 wu per second, which at the ruleset's
+50 Hz tick rate is exactly 1.6 wu per tick. It is not a value for an implementer
+to invent and mark provisional; it is a value to read out of design section 4 and
+derive. Task 84's row is amended accordingly below.
+
+#### The pattern, stated once
+
+Six constants in `SandataSimulation.cs` carry `<b>PROVISIONAL</b>` markers
+claiming that nothing supplies them. For at least the body radius, the movement
+speed, and arguably the collision cell size, **something did supply them and
+nobody looked.** The marker is honest about the code and wrong about the design,
+and being marked provisional made each one feel accounted for.
+
+This is wave 11's lesson pointed at the source instead of at a brief. A remedy
+stated in a brief needs its own reading of the code; a constant marked
+provisional needs its own reading of the *design*. Both failures look like
+diligence.
+
+#### One task this creates, and one it amends
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 86 | 12 | Take the invented physical constants out of the shooter and use the designed ones | `CollisionBodyRadiusRaw` is 32 raw, 0.03125 wu. Design section 4's unit table names 4.25 wu and names its source, `CollisionRules.DefaultBodyRadiusRaw` at `src/Hukbo.Core/Simulation/CollisionRules.cs:72`, which is `(17 * FixedPoint.Scale) / 4` = 4,352 raw. Use the designed value. Re-derive `CollisionCellSizeRaw` from it rather than leaving 0.25 wu cells indexing 4.25 wu bodies, and state the rule you derived it by. Do **not** take a `ProjectReference` on `Hukbo.Core` — the reference graph forbids it; read design section 3 and either restate the value with its provenance in a comment or raise tier-2 extraction as a question rather than doing it. Every `<b>PROVISIONAL</b>` marker you leave in place must be re-checked against design section 4 first, and the ones the design actually supplies must lose the marker and gain a citation. | `src/Sandata.Core/Simulation/SandataSimulation.cs` (the constants and their doc comments), `tests/Sandata.Core.Tests/TickPipelineTests.cs`, `tests/Sandata.Core.Tests/SandataCollisionTests.cs` | A test pins the body radius to 4,352 raw and cites design section 4 in its own comment. A test proves two operators at a plausible separation now collide where they previously did not. The seed-1 workload is re-run and its new hashes, survivor counts, and outcome recorded here — the survivor counts are expected to move, and if they do not, that is a finding to report rather than a result to accept. Task 79d-1's hit and miss tests still pass, with their pinned entity ids updated if the changed subtended angle moves which draw hits. | 79d-1 | |
+
+**Task 84 amended.** Its row said the per-tick movement distance is a value to
+invent and mark provisional. It is not. The row now reads: derive the per-tick
+movement step from design section 4 — a 5 m/s sprint is 80 wu per second, which
+at `TickRate` 50 is 1.6 wu per tick — cite that derivation at the declaration,
+and assert the design's own invariant `MovementSpeedRaw <= BodyRadiusRaw` in a
+test so that a future change to either constant cannot silently break it. Task 84
+now depends on task 86, because the invariant needs the corrected radius to mean
+anything.
+
+Ordering for the rest of the wave: task 86, then task 84, then task 81, then task
+52. All four want `SandataSimulation.cs` and none may run beside another.
