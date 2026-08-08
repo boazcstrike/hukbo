@@ -1143,21 +1143,59 @@ public sealed class SandataSimulation
     }
 
     /// <summary>
-    /// Stage 7. Call-site obligation: advances <see cref="_pathService"/> by
-    /// one tick against <see cref="_navGrid"/> and <see cref="_wallBuckets"/>.
+    /// Stage 7. Call-site obligation: for every <see cref="MissionState.Groups"/>
+    /// entry whose <see cref="GroupPathState.HasOutstandingRequest"/> is
+    /// <see langword="true"/>, submits it to <see cref="_pathService"/> via
+    /// <see cref="PathService.RequestPath"/> (a no-op if that group already has
+    /// an outstanding request in flight there — <see cref="PathService.RequestPath"/>'s
+    /// own remarks), then advances <see cref="_pathService"/> by one tick
+    /// against <see cref="_navGrid"/> and <see cref="_wallBuckets"/>. After
+    /// <see cref="PathService.Advance"/> returns, any such group whose request
+    /// published this tick (<see cref="PathService.HasOutstandingRequest"/> now
+    /// <see langword="false"/>) has its <see cref="State"/> entry rewritten
+    /// with <see cref="GroupPathState.HasOutstandingRequest"/> cleared, so a
+    /// later tick's loop does not resubmit an already-published request.
+    /// <b>This method does not decide what sets a destination</b> — it only
+    /// drains and reconciles whatever <see cref="MissionState.Groups"/>
+    /// already holds; no autonomous destination-request source exists in this
+    /// worktree, so a fixture that never populates <see cref="MissionState.Groups"/>
+    /// sees this stage's search-and-publish machinery run every tick with
+    /// nothing to act on, exactly as before this task — see
+    /// <see cref="TickStage.PathService"/>'s own remarks.
     /// <b>PROVISIONAL</b> <paramref name="currentTick"/>'s <c>blocked</c> span
     /// is all-<see langword="false"/> — no door-driven dynamic blocker source
     /// exists in this worktree (stage 4 is the same honest pass-through), so
-    /// every cell reports passable to the search this call may run. No
-    /// autonomous destination-request source exists either, so this stage's
-    /// search-and-publish machinery runs every tick but, in this wave, never
-    /// has an outstanding request to act on — see <see cref="TickStage.PathService"/>'s
-    /// own remarks.
+    /// every cell reports passable to the search this call may run.
     /// </summary>
     private void AdvancePathService(long currentTick)
     {
+        var groups = State.Groups;
+
+        foreach (var group in groups)
+        {
+            if (group.HasOutstandingRequest)
+            {
+                _pathService.RequestPath(
+                    group.GroupId, group.StartCellIndex, group.GoalCellIndex, group.RequestTick);
+            }
+        }
+
         var blocked = new bool[_navGrid.CellCount];
         _pathService.Advance(currentTick, _navGrid, blocked, _wallBuckets);
+
+        if (groups.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        var updatedGroups = ImmutableArray.CreateBuilder<GroupPathState>(groups.Length);
+        foreach (var group in groups)
+        {
+            var justPublished = group.HasOutstandingRequest && !_pathService.HasOutstandingRequest(group.GroupId);
+            updatedGroups.Add(justPublished ? group with { HasOutstandingRequest = false } : group);
+        }
+
+        State = State with { Groups = updatedGroups.MoveToImmutable() };
     }
 
     /// <summary>
