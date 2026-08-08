@@ -114,8 +114,20 @@ internal readonly record struct PawnAppearance(
     /// Filipino name is what the tradition offers. A cultural identification
     /// never appears bare and unqualified — see CLAUDE.md section 7.
     /// </summary>
-    public string WeaponLabel =>
-        WeaponRole switch
+    public string WeaponLabel => GetWeaponLabel(WeaponRole);
+
+    /// <summary>
+    /// The one place a weapon's player-facing label is written. Every caller
+    /// resolves through here rather than restating the strings, because the
+    /// copy that did restate them —
+    /// <c>BattleEventFormatter.GetWeaponLabel</c> — was left at four weapons
+    /// when the ranged three landed and threw
+    /// <see cref="ArgumentOutOfRangeException"/> on the first arquebus attack
+    /// the event feed tried to describe. A second switch over the same enum
+    /// is a second thing to remember; there is now only one.
+    /// </summary>
+    public static string GetWeaponLabel(PawnWeaponRole weaponRole) =>
+        weaponRole switch
         {
             PawnWeaponRole.Kampilan => "Kampilan — Great Blade",
             PawnWeaponRole.Wasay => "Wasay — War Axe",
@@ -131,8 +143,8 @@ internal readonly record struct PawnAppearance(
             // of this label.
             PawnWeaponRole.Arquebus => "Imported Arquebus",
             _ => throw new ArgumentOutOfRangeException(
-                nameof(WeaponRole),
-                WeaponRole,
+                nameof(weaponRole),
+                weaponRole,
                 null),
         };
 

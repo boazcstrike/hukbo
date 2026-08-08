@@ -301,6 +301,19 @@ public sealed class CombatRuleset
         RequireAttributes(weapon).Grip;
 
     /// <summary>
+    /// The grip a weapon is fought with, or <see langword="null"/> when this
+    /// preset declares no attributes for that weapon. The non-throwing form
+    /// of <see cref="ResolveWeaponGrip"/>, for a caller asking about a weapon
+    /// that a given preset may simply not field — an older melee-only preset
+    /// asked about a ranged weapon, for instance.
+    /// </summary>
+    public WeaponGrip? TryResolveWeaponGrip(WeaponId weapon) =>
+        _weaponAttributes is not null &&
+        _weaponAttributes.TryGetValue(weapon, out var attributes)
+            ? attributes.Grip
+            : null;
+
+    /// <summary>
     /// The attribute profile one warrior fights with, given their own weapon
     /// and their own shield: the solo profile when carrying no shield, the
     /// paired profile otherwise.

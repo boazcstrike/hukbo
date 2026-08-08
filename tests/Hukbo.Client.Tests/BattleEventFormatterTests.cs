@@ -526,4 +526,60 @@ public sealed class BattleEventFormatterTests
 
         Assert.Equal(labels.Count, labels.Distinct(StringComparer.Ordinal).Count());
     }
+
+    /// <summary>
+    /// The regression guard for the 2026-08-09 client crash. Formatting an
+    /// attack by any of the three ranged weapons threw
+    /// <c>ArgumentOutOfRangeException (Parameter 'weapon') Actual value was
+    /// Arquebus</c> and killed the process eight seconds into a battle,
+    /// because <c>GetWeaponLabel</c> restated the four melee labels in a
+    /// switch of its own and was never extended. Nothing caught it: the
+    /// headless gate formats no events, and every prior test here passed a
+    /// melee weapon.
+    /// </summary>
+    [Theory]
+    [InlineData(WeaponId.Kampilan, "Kampilan — Great Blade")]
+    [InlineData(WeaponId.Wasay, "Wasay — War Axe")]
+    [InlineData(WeaponId.Kalis, "Kalis — Thrusting Blade")]
+    [InlineData(WeaponId.Itak, "Itak — Work Blade")]
+    [InlineData(WeaponId.Bangkaw, "Bangkaw — Long Spear")]
+    [InlineData(WeaponId.Busog, "Busog — War Bow")]
+    [InlineData(WeaponId.Arquebus, "Imported Arquebus")]
+    public void Format_DescribesAnAttackByEveryWeaponInTheRoster(
+        WeaponId weapon,
+        string expectedLabel)
+    {
+        var battleEvent = BattleEvent.Attack(
+            sequence: 1,
+            tick: 66,
+            sourceEntityId: 7,
+            targetEntityId: 12,
+            damage: 10,
+            factionId: 0,
+            weapon,
+            ShieldId.None,
+            BodyPart.Chest);
+
+        var formatted = BattleEventFormatter.Format(battleEvent, scenarioSeed: 1);
+
+        Assert.Contains(expectedLabel, formatted, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The label a weapon carries in the event feed and the label the same
+    /// weapon carries on its pawn are one string, not two that happen to
+    /// agree today. Duplicating them is what let the feed fall four weapons
+    /// behind the pawn without anything going red.
+    /// </summary>
+    [Fact]
+    public void GetWeaponLabel_AgreesWithThePawnLabelForEveryWeapon()
+    {
+        foreach (var weapon in Enum.GetValues<WeaponId>())
+        {
+            Assert.Equal(
+                PawnAppearance.GetWeaponLabel(
+                    PawnAppearanceFactory.ToWeaponRole(weapon)),
+                BattleEventFormatter.GetWeaponLabel(weapon));
+        }
+    }
 }
