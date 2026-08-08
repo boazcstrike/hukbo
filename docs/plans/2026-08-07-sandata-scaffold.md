@@ -2069,3 +2069,131 @@ criterion they were given.
 Task 76 and task 78 are disjoint and can run together. **Task 77 must not run
 beside anything that calls squad grouping.** Task 79's split parts depend on 77
 for the grouping surface and on 76 for somewhere to emit what they resolve.
+
+### The wave-11 audit, run before dispatch — 2026-08-08
+
+Wave 11 is tasks 76, 77, 78, and 51, plus the split of task 79 into four rows
+that this section writes. Both directions of the audit were run over those rows
+before any agent was dispatched: no file is claimed by two tasks in the same
+batch, and every step named in a "What" column is claimed exactly once. As in
+wave 10, the file-level half passed immediately and the surface-level half is
+what produced everything below.
+
+Wave 10's own record was reconstructed and committed at the start of this
+session before any wave-11 work began, because the shell failure at the end of
+the previous session left it uncommitted. Wave 10 is now merged into `main`.
+
+#### `SandataSimulation.cs` is this wave's single-writer bottleneck
+
+Six of the rows in play — 76, 77, 78, and three of the four task 79 splits —
+each need a different region of `src/Sandata.Core/Simulation/SandataSimulation.cs`.
+The regions are genuinely disjoint: stage 14 for 76, the stage 6 call at line
+1063 for 77, the two casts at lines 596 and 1129 for 78, and stages 7 and 9 for
+the 79 splits. Disjoint regions inside one file are still one file, and this plan
+has said since its first page that two agents in one file is a merge conflict
+created on purpose.
+
+So the wave serialises on that file rather than pretending the regions make it
+safe:
+
+- **Batch 1:** task 76 alone. It is the longest row and everything downstream
+  wants a place to emit events.
+- **Batch 2:** task 77 and task 51 together. Their file sets are disjoint and
+  neither moves a surface the other consumes, subject to the constraint on 51
+  recorded below.
+- **Batch 3:** task 78 alone.
+- **Task 79's splits** follow in wave 12, in the dependency order given at the
+  end of this section.
+
+#### Task 76's row asks for the wrong fold, and the design says so
+
+The row written at the end of wave 10 says to fold the event feed "into the
+state hash after every field already covered". That is wrong, and it is worth
+correcting here rather than letting an implementer discover it or, worse, satisfy
+it.
+
+Design section 4 declares two hashes and says why they are two: "They are
+independent on purpose: a bug that moves state without emitting an event moves
+one and not the other." Folding the event stream into the state hash destroys
+exactly the property the second hash exists to provide. Section 4's list of what
+is authoritative and hashed does not contain the event feed, and it already
+contains `NextEventSequence`, which `SandataStateHasher` folds today at line 151.
+
+The corrected obligation for task 76:
+
+- The **event hash** is FNV-1a over the ordered event stream, accumulated as
+  events are emitted, so that the 200-event retention cap cannot truncate it. A
+  bounded feed and a complete hash are different things and the cap belongs only
+  to the feed.
+- The **state hash** gains no new field. Emitting an event still moves it,
+  through the `NextEventSequence` increment it already folds, and that is the
+  designed coupling rather than a new one.
+- The running event-hash accumulator and the event sequence are authoritative and
+  belong in `MissionSnapshot`, because resume has to reproduce the event hash and
+  cannot replay a truncated feed to get it.
+
+This is the same shape as the caution wave 10 recorded about the four ruleset
+constants: the finding that `Sandata.Core` has no event type was right, and the
+remedy attached to it was not, and the remedy needed its own reading of the
+design.
+
+#### Task 77 cannot reach its criterion with the files its row names
+
+Two corrections. First, the row says "stage 10 call site only". Squad grouping is
+**stage 6**; `ComputeSquadGrouping` sits at `SandataSimulation.cs:1045` and calls
+`SquadGrouping.Compute` at line 1063. Stage 10 is movement commit.
+
+Second, and this is the one that would have cost a run: the row grants
+`SquadGrouping.cs`, `SandataRuleset.cs`, the call site, and two test files. The
+whole finding wave 10 recorded is that the gate cannot work where it currently
+sits, because `TickStartView.Pairs` is filled from
+`SandataCollisionGrid.Rebuild(bodies, bodyRadiusRaw)` and is already narrowed to
+physical contact. Fixing that means changing where candidate pairs come from,
+which is `src/Sandata.Core/Collision/SandataCollisionGrid.cs` and
+`src/Sandata.Core/Simulation/TickStartView.cs`. Neither is in the row. As
+written, the only change reachable inside the granted file set is the unit
+conversion, which would leave the behaviour exactly as broken and every stated
+criterion still passing.
+
+Both files are therefore granted to task 77. This is the same failure the
+wave-10 audit caught when task 50 was given no `Program.cs`, and it is the second
+consecutive wave in which the pre-dispatch read of a row's file list against its
+own acceptance criterion was what caught it.
+
+#### Task 51 may not pin a literal Sandata hash this wave
+
+Task 51 and task 77 run in the same batch and share no file. They do share a
+value: task 77 renames a `SandataRuleset` field and changes grouping behaviour,
+so `SandataRuleset.ContentHash` moves and every mission state hash moves with it.
+A determinism runner that recorded a literal expected hash would be recording a
+number that stops being true the moment the other agent in its own batch merges.
+
+Task 51's assertions are therefore self-consistency assertions — two runs of the
+same seed agree, a resumed run agrees with an uninterrupted one, the documented
+exit codes fire on the documented conditions — and not literal expected values.
+Golden values belong to task 52, which runs after both.
+
+#### Task 79, split into four rows
+
+The row created in wave 10 said it must be split before dispatch, and this is the
+split. The shared cause is that stage 7 has no destination source, which is also
+what holds stage 9's autonomous branch at position; stage 12's fire resolution is
+a separate defect that was written into the same row only to keep the two
+visible together.
+
+One decision is deliberately kept out of these rows. **What an autonomous squad
+wants — how a destination is chosen — is undesigned**, in the same way and for
+the same reason that intent selection was undesigned when task 44 invented it.
+Task 79a below wires the machinery that serves a destination request and
+deliberately does not decide what issues one. That decision is listed among the
+open questions the user has not answered, and an implementer must not settle it.
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 79a | 12 | Serve an outstanding group path request | `MissionState.Groups` already carries `GroupPathState` with `DestinationCellIndex`, `HasOutstandingRequest`, `StartCellIndex`, `GoalCellIndex`, and `RequestTick`, and `SandataStateHasher` already folds all five. Nothing reads them: `AdvancePathService` calls `PathService.Advance` and never `RequestPath`. Wire stage 7 to issue a request for every group holding an outstanding one, publish the result at `RequestTick + PathLatencyTicks`, and clear the request when it publishes. **Do not decide what sets a destination** — the policy is an open question and this row is the mechanism only. | `src/Sandata.Core/Simulation/SandataSimulation.cs` (stage 7 only), `tests/Sandata.Core.Tests/TickPipelineTests.cs` | A test drives a group destination into `MissionState` directly, runs `RunTick` `PathLatencyTicks` times, and proves the path is unavailable before the latency elapses and available on the exact tick it does — which is wave 9's fourth ruleset constant finally observable. A test proves a request is cleared once published and not re-issued. | 78 | |
+| 79b | 12 | Autonomous movement from a published path | Stage 9's autonomous branch holds position because no group had a path. With 79a it can have one. Sample the group's published polyline by arclength through `SlotTargets.ComputeTarget`, apply `FormationCollapse`'s half-width gate against the clearance field, and produce a real proposal for an unassigned operator. | `src/Sandata.Core/Simulation/SandataSimulation.cs` (stage 9 autonomous branch only), `tests/Sandata.Core.Tests/TickPipelineTests.cs` | A test proves an unassigned operator in a group with a published path moves along it, and a test proves a group whose leader stands in a cell whose clearance is below the formation half-width collapses to single file — design section 8's doorway behaviour, structurally unreachable until now. | 79a | |
+| 79c | 12 | Give an operator a loadout | Stage 11 hardcodes `private const FirearmId DefaultFirearmId = FirearmId.Ak47` at `SandataSimulation.cs:284` because `OperatorState` carries no loadout field. Add the field, fold it into the state hash after every field the hasher already covers, carry it in the snapshot, and read it at stage 11. | `src/Sandata.Core/Simulation/MissionState.cs`, `src/Sandata.Core/Determinism/SandataStateHasher.cs`, `src/Sandata.Core/Simulation/MissionSnapshot.cs`, `src/Sandata.Core/Simulation/SandataSimulation.cs` (stage 11 only), and the corresponding test files | A test pins the pre-change state hash of a mission whose operators all carry the previous default, proving the fold was appended rather than interleaved. A test proves two operators with different loadouts advance different weapon chains. | 76 | |
+| 79d | 12 | Resolve fire for real | Stage 12 resolves nothing: every shot hits, damage is a flat `ProvisionalDamagePerHitPoints = 25`, cover is always `CoverState.NotInCover`, and `AccuracyRules.DrawAngularErrorBam`'s result is discarded. Make the drawn angular error decide the outcome against the target's subtended angle, take damage from the firearm the operator carries, and evaluate `CoverRules` at the shooter-to-target arc. Emit the shot and its outcome as events. | `src/Sandata.Core/Simulation/SandataSimulation.cs` (stage 12 only), `src/Sandata.Core/Combat/DamageResolution.cs`, and the corresponding test files | A test proves the same shot hits at one drawn error and misses at another, with no other input changed. A test proves a target in cover takes the cover-modified value and not the flat provisional one. A miss and a hit each emit exactly one event, observable in the feed. | 76, 79c | |
+
+Task 79a and 79c are disjoint and can run together. 79b depends on 79a, 79d
+depends on 79c, and both want task 76's feed to emit into.
