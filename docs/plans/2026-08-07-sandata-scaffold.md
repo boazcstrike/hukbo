@@ -3683,3 +3683,179 @@ integrating thread directly. Worth recording as a failure mode: **a resumed agen
 that believes it is finished will find something to do rather than nothing, and
 what it finds may be outside its grant.** A redo instruction to a resumed agent
 should restate the grant as though the agent were cold.
+
+### The third wave-12 audit, run before task 84 — 2026-08-09
+
+Five rows are left: 84, 81, 79d-2, 52, and 54, with task 55 after them. Both
+directions of the audit were run over those rows against `main` at `8fcd103`
+before any agent was dispatched. The file-level half passed and is trivial this
+time, because every remaining batch holds exactly one task: batches 2 through 6
+of the previous audit's plan are serialised on `SandataSimulation.cs` and nothing
+runs beside anything. The surface-level half produced six findings, two of which
+change what task 84 can honestly deliver and one of which changes how its
+constant is declared.
+
+Every figure below was re-derived from the merged tree rather than carried
+forward from the previous session's record. The graph tools `CLAUDE.md` section 8
+mandates are again unavailable in this session — `tokensave` did not register —
+so discovery ran through `Grep` and `Read` over the working tree. That is the
+second consecutive session in which this has been true and it is recorded rather
+than passed over.
+
+**The baseline, measured now.** `./scripts/benchmark.ps1 -Game Sandata -Seed 1`
+on `main` at `8fcd103` reports `stateHash` `BDD56EBD06F76674`, `eventHash`
+`7C1B37876769DEC7`, 70 and 64 survivors, `outcome: Ongoing`,
+`deterministic: true`, and `firstMismatchTick: null`. Every one of those matches
+the figures recorded when task 86 merged.
+
+`allocatedBytes` does not. This run reports **48,636,051,624** against the
+48,636,057,432 recorded at task 86, a difference of 5,808 bytes over ten thousand
+ticks. That is worth knowing before task 81 opens: the allocation figure is not
+part of the determinism contract and is not bit-reproducible across runs, so
+task 81's "before" and "after" are only meaningful as a magnitude, and an
+acceptance criterion phrased as an exact byte count would be unsatisfiable.
+
+#### The seed-1 workload contains no moving operators at all
+
+This is the finding that matters most, because it decides what task 84 is
+allowed to claim.
+
+`HeadlessRunner.BuildInitialState` returns a `MissionState` whose `Groups` array
+is `ImmutableArray<GroupPathState>.Empty` (`src/Sandata.Headless/HeadlessRunner.cs:411`),
+and nothing anywhere else populates it: `AdvancePathService` drains that array
+into `PathService.RequestPath` and its own remarks say plainly that no autonomous
+destination-request source exists. The fixture also carries no `OrderAssignment`
+values. So for all ten thousand ticks, every operator takes stage 9's autonomous
+branch, finds `_pathService.GetCurrentPath` empty, and proposes its own current
+position. **Nobody in the seed-1 workload has ever moved.**
+
+That explains a fact recorded earlier in this wave without an explanation: task
+86's survivor counts moved because the *fixture spacing* changed and therefore
+every pairwise range changed, not because larger bodies collided during a run.
+Nothing collides during that run, because nothing moves.
+
+Three consequences, none optional:
+
+- **Task 84 cannot move the seed-1 hashes and must not be asked to.** A step
+  clamp applied to a proposal that already equals the operator's own position is
+  a no-op on every tick of that workload. The correct acceptance criterion is
+  that the hashes are *unchanged*, and an implementer who reports them moved has
+  found a defect rather than a deliverable.
+- Task 84 is provable only through `TickPipelineTests`, which is the same
+  situation the previous audit recorded for cover in task 79d-2 and for the same
+  underlying reason: the headless fixture exercises a narrow slice of the
+  pipeline.
+- Task 81's allocation table is unaffected by task 84's ordering. The two stay
+  serial because they want the same file, not because one measures the other's
+  output.
+
+#### The per-tick step cannot be a `const`, because the tick rate is not one
+
+Task 84's row says to "declare it a provisional `const`". It cannot be one.
+`TickRate` is an instance property on `SandataRuleset`
+(`src/Sandata.Core/Rules/SandataRuleset.cs:145`), not a compile-time constant, and
+the derivation the previous audit fixed — `(80 * FixedPoint.Scale) / TickRate` —
+reads it.
+
+The correct shape, decided here so no implementer invents one, is the shape this
+file already uses for every weapon timing. `SandataSimulation` converts
+milliseconds to ticks through `_ruleset.TickRate` at lines 447, 448, and 485. The
+movement step follows: a `const int` carrying design section 4's sprint figure of
+80 world units per second, and a per-instance value derived from it and
+`_ruleset.TickRate`, which at the shipped tick rate of 50 evaluates to **1,638
+raw** exactly as the previous audit computed. No `SandataRuleset` field is added,
+so `SandataRuleset.ContentHash` `8_955_292_433_887_190_872` does not move — the
+constraint the row was protecting is satisfied by this shape as well as by a
+`const`, and this shape additionally keeps the physical speed correct if the tick
+rate ever changes.
+
+#### The autonomous branch is unbounded for every operator that is not the leader
+
+The record written on 2026-08-08 says task 79b made the autonomous branch honour
+a per-tick bound. That is true of slot 0 and of nothing else, and the difference
+decides how task 84's clamp has to be written.
+
+`SlotTargets.ComputeTarget(arclength, leaderArclength, trailOffsetWu, gatedLateralOffsetWu)`
+at `src/Sandata.Core/Simulation/SandataSimulation.cs:1625` is a pure function of
+the group's polyline, the *leader's* projected arclength, and the proposing
+operator's slot offsets. The proposing operator's own position is not an input.
+The leader's target is bounded relative to the leader's own position because the
+leader is the thing being projected; a trailing operator's target is bounded
+relative to the leader, and an operator standing far from its formation slot
+jumps into that slot in a single tick exactly as an ordered operator jumps to its
+waypoint.
+
+So the clamp is one clamp, of the vector from `(startXRaw, startYRaw)` to
+`(desiredXRaw, desiredYRaw)`, applied once after both branches have chosen a
+desired point and before the `MovementProposal` is constructed at line 1633. It
+is not two per-branch clamps, and it is not reachable by tuning the lookahead.
+
+`SandataSimulation.IntegerSqrt` at line 808 already provides the exact integer
+square root this needs, in the same file, so no new mathematics is introduced and
+design section 4's ban on `Math.Sqrt` inside `Sandata.Core` is untouched.
+
+#### What becomes of `FormationLookaheadWu`, decided rather than left open
+
+Task 84's row says to replace `FormationLookaheadWu` with the per-tick step
+"rather than leaving two constants that both mean 'how far in one tick'". Once
+the clamp exists, the two constants no longer mean the same thing: the clamp
+means how far an operator may move in one tick, and the lookahead means how far
+ahead of its own projection the leader *aims*. They also live in different
+domains — the clamp is raw, the lookahead is an arclength in whole world units,
+and 1.6 world units is not expressible there.
+
+The decision, so that an implementer does not invent a rounding rule the way the
+previous audit found one waiting to be invented: keep a lookahead, and derive it
+as the per-tick step rounded **up** to the next whole world unit, which is 2. Any
+value at or above the step is fully absorbed by the clamp and cannot make an
+operator move further than the step allows; a value below the step would throttle
+the leader beneath the designed sprint speed. Rounding up is therefore the only
+direction that is safe in both senses, and the declaration must say that the
+clamp and not this value decides distance travelled.
+
+#### Task 79b's pinned polyline test needs rewriting, not re-pinning
+
+`RunTick_UnassignedOperatorInGroupWithPublishedPath_FollowsTheBentPolylineNotTheGoal`
+(`tests/Sandata.Core.Tests/TickPipelineTests.cs:1231`) spawns its operator at
+world units (2, 2), asserts raw (7,168, 7,168) after the publish tick — a
+displacement of about 7.07 world units in one tick — and asserts raw (19,456,
+14,336) two ticks after that. At 1.6 world units per tick none of those three
+assertions is reachable at anything near the current tick counts; walking the
+bent polyline from x = 2 to x = 19 is on the order of twenty ticks.
+
+The row's phrasing, "with its pinned raw coordinates updated if and only if the
+constant differs from `FormationLookaheadWu`'s 8", understates the work. The tick
+counts change as well as the coordinates. What must survive the rewrite is the
+pair of properties the test exists to prove, both of which are stated in its own
+remarks: the first published tick moves along the first segment toward (10, 10)
+rather than to the goal at (26, 14), and a later tick finds the operator on the
+corridor's own Y of 14 rather than on the spawn-to-goal beeline's Y of 10. The
+new expected values are re-derived from the polyline's geometry, never copied out
+of a failing run's actual output.
+
+#### Task 79d-2's call-site count is stale in one cell
+
+The previous audit's table of `SandataSimulation` construction sites is still
+right about the seven files and is now wrong about one count.
+`tests/Sandata.Core.Tests/TickPipelineTests.cs` holds **26** sites today, not 30;
+task 86 removed the two miss tests. The totals on the merged tree are 39 sites
+across seven files: `SandataGame.cs` 1, `HeadlessRunner.cs` 2,
+`ClientOrderDoorTests.cs` 2, `HudComposerTests.cs` 1, `PathDrawToolTests.cs` 1,
+`MissionEventFeedTests.cs` 6, `TickPipelineTests.cs` 26. The file list task 79d-2
+was granted is unchanged and remains correct.
+
+#### The surface-level half, in both directions
+
+Every step named in a remaining "What" column is claimed exactly once: the
+two-branch step clamp, the lookahead replacement, and the
+`MovementSpeedRaw <= BodyRadiusRaw` invariant assertion belong to task 84; the
+per-stage allocation table and the cuts it names belong to task 81; the caliber
+damage table, the cover constructor parameter across seven files, the
+`DefaultFirearmId` replacement at line 655, and the restored miss coverage belong
+to task 79d-2; the two golden baselines belong to task 52; the measured figures
+and the twelve-project layout belong to task 54; the gate belongs to task 55. No
+step is claimed twice and none is unclaimed.
+
+`scripts/verify.ps1` does carry a `-Game` parameter, defaulting to `Hukbo`
+(`scripts/verify.ps1:14`), so task 55's second half is a command that exists
+rather than one that has to be written first.
