@@ -49,11 +49,13 @@ namespace Hukbo.Core.Combat;
 /// Kalis and Itak are <see cref="WeaponGrip.OneHanded"/>, and
 /// <see cref="CombatRuleset"/> requires a one-handed weapon to declare a
 /// paired profile even when no roster entry ever resolves it — a missing
-/// paired profile is an error, not a silent fallback to the solo one. This
-/// preset's roster fields only the solo loadout for each, so the paired rows
-/// below are unreachable through <see cref="CombatRuleset.Roster"/>; they
-/// exist solely to satisfy that construction invariant, restated verbatim
-/// from version 4.
+/// paired profile is an error, not a silent fallback to the solo one. Version
+/// 4 fielded only the solo loadout for each, leaving the paired rows below
+/// reachable only through the construction invariant. RU-45 adds one
+/// <see cref="ShieldId.TallHardwood"/> roster entry for each of Kalis and
+/// Itak — same rank as each weapon's existing shieldless row, so rank is not
+/// a second variable — which makes the paired rows below reachable through
+/// <see cref="CombatRuleset.Roster"/> for the first time in this preset.
 /// </para>
 /// </remarks>
 public static class PhilippineCombatPresetV5
@@ -295,6 +297,16 @@ public static class PhilippineCombatPresetV5
         // including their RankId assignment. The three ranged entries are
         // new roster data — see the class remarks on why all three share
         // RankId.Timawa rather than each inventing a distinct rank.
+        //
+        // RU-45: two ShieldId.TallHardwood entries appended below, one each
+        // for Kalis and Itak, so band (b) of the ranged calibration ("shielded
+        // roster entries absorb more blows before dying than shieldless
+        // ones") is measurable at all -- every prior V5 entry carried
+        // ShieldId.None. Each new entry reuses its weapon's existing
+        // shieldless-row RankId so rank is not a second variable in that
+        // comparison; see PhilippineCombatIntegrationTests.cs:793-800 for why
+        // that pairing matters. Existing seven entries and their order are
+        // untouched.
         var roster = new CombatLoadout[]
         {
             new(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None, RankId.Datu),
@@ -304,6 +316,8 @@ public static class PhilippineCombatPresetV5
             new(WeaponId.Bangkaw, ArmorId.LightOrganic, ShieldId.None, RankId.Timawa),
             new(WeaponId.Busog, ArmorId.LightOrganic, ShieldId.None, RankId.Timawa),
             new(WeaponId.Arquebus, ArmorId.LightOrganic, ShieldId.None, RankId.Timawa),
+            new(WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.TallHardwood, RankId.Timawa),
+            new(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.TallHardwood, RankId.AlipingNamamahay),
         };
 
         // Per-rank fighter levels restated exactly from PhilippineCombatPresetV4.
@@ -336,13 +350,17 @@ public static class PhilippineCombatPresetV5
     }
 
     /// <summary>
-    /// Defensive-interception tuning data for version 5's seven-loadout,
-    /// all-solo roster. <see cref="CombatRuleset"/>'s
-    /// <c>ValidateClashProfileCoversTheRoster</c> requires the full seven by
-    /// seven cross-product of weapon-intercept cells plus one void/hard-share
-    /// row per roster weapon, so this restates version 4's sixteen melee
-    /// cells verbatim and adds every cell a seventh, ranged-weapon-including
-    /// roster newly requires.
+    /// Defensive-interception tuning data for version 5's nine-entry roster
+    /// (seven distinct defender weapon/shield keys — two of the nine entries,
+    /// Kalis and Itak, each field a second key under
+    /// <see cref="ShieldId.TallHardwood"/>). <see cref="CombatRuleset"/>'s
+    /// <c>ValidateClashProfileCoversTheRoster</c> requires, for every distinct
+    /// defender key, a weapon-intercept cell against each of the roster's
+    /// seven distinct attacker weapons plus one void/hard-share row, so this
+    /// restates version 4's sixteen melee cells verbatim, adds every cell a
+    /// ranged-weapon-including roster requires, and — as of RU-45 — adds the
+    /// fourteen weapon-intercept cells and two void cells the two
+    /// <see cref="ShieldId.TallHardwood"/> defender keys require.
     /// </summary>
     /// <remarks>
     /// PROVISIONAL. Every value here is a gameplay tuning choice, not a
@@ -354,7 +372,20 @@ public static class PhilippineCombatPresetV5
     /// or a firearm intercepts a blow — melee or ranged — markedly worse than
     /// a defender carrying a blade does, and a ranged attacker's own strike is
     /// harder for any defender to intercept than a bladed one because it
-    /// arrives from beyond weapon's reach.
+    /// arrives from beyond weapon's reach. The RU-45 shielded cells reason
+    /// from a second premise: <see cref="ShieldId.TallHardwood"/> intercepts
+    /// through a separate, structural channel
+    /// (<see cref="ClashProfile.ResolveShieldIntercept"/>, unchanged at
+    /// <c>2_400</c> basis points below), so the shielded weapon-intercept
+    /// cells are deliberately lower per cell than their shieldless
+    /// counterparts — the shield channel makes up the rest, and the combined
+    /// total is what should exceed the shieldless total. Values follow
+    /// PhilippineCombatPresetV2's exact precedent (V2:277-286): where V2's
+    /// four legacy melee columns exist, its ratios reused directly (Kalis at
+    /// ~40% of its shieldless cell, Itak at ~30-36%); the three ranged
+    /// columns V2 never had are new, scaled by that same weapon's ratio
+    /// applied to this preset's own shieldless ranged cells above and rounded
+    /// to the nearest 25 basis points.
     /// </remarks>
     private static ClashProfile BuildClashProfile()
     {
@@ -452,6 +483,35 @@ public static class PhilippineCombatPresetV5
                 [(WeaponId.Arquebus, ShieldId.None, WeaponId.Bangkaw)] = 450,
                 [(WeaponId.Arquebus, ShieldId.None, WeaponId.Busog)] = 375,
                 [(WeaponId.Arquebus, ShieldId.None, WeaponId.Arquebus)] = 450,
+
+                // RU-45 PROVISIONAL: ShieldId.TallHardwood defender keys, the
+                // roster's only two shielded entries. The four melee-attacker
+                // cells for each are restated verbatim from
+                // PhilippineCombatPresetV2 (V2:278-286), which authored these
+                // exact defender/shield/attacker triples under its own
+                // four-loadout roster. The three ranged-attacker cells are
+                // new: each is that same weapon's ratio (~40% for Kalis,
+                // ~30-36% for Itak, derived from the four reused V2 cells)
+                // applied to this preset's own shieldless-row cell for the
+                // same attacker above, rounded to the nearest 25 basis
+                // points. Per-cell values are lower than the shieldless row
+                // by design -- see the class remarks above on why the shield
+                // channel, not this one, carries the rest of the difference.
+                [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Kampilan)] = 500,
+                [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Wasay)] = 400,
+                [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Kalis)] = 600,
+                [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Itak)] = 600,
+                [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Bangkaw)] = 700,
+                [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Busog)] = 550,
+                [(WeaponId.Kalis, ShieldId.TallHardwood, WeaponId.Arquebus)] = 250,
+
+                [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Kampilan)] = 400,
+                [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Wasay)] = 300,
+                [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Kalis)] = 500,
+                [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Itak)] = 500,
+                [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Bangkaw)] = 575,
+                [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Busog)] = 450,
+                [(WeaponId.Itak, ShieldId.TallHardwood, WeaponId.Arquebus)] = 175,
             };
 
         var voidChannel = new Dictionary<(WeaponId Weapon, ShieldId Shield), int>
@@ -470,6 +530,12 @@ public static class PhilippineCombatPresetV5
             [(WeaponId.Bangkaw, ShieldId.None)] = 1_600,
             [(WeaponId.Busog, ShieldId.None)] = 1_700,
             [(WeaponId.Arquebus, ShieldId.None)] = 1_800,
+
+            // RU-45 PROVISIONAL: the two ShieldId.TallHardwood defender keys.
+            // Restated verbatim from PhilippineCombatPresetV2 (V2:315-316),
+            // which authored these same two defender/shield pairs.
+            [(WeaponId.Kalis, ShieldId.TallHardwood)] = 1_000,
+            [(WeaponId.Itak, ShieldId.TallHardwood)] = 1_100,
         };
 
         var hardShareBases = new Dictionary<WeaponId, int>
