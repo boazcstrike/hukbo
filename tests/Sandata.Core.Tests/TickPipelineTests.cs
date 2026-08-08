@@ -1508,6 +1508,263 @@ public sealed class TickPipelineTests
     }
 
     /// <summary>
+    /// Task 89, the healthy half. An operator whose group has a published
+    /// path and whose route is clear of other bodies walks that path from end
+    /// to end and <b>arrives at the goal</b>, one designed sprint step per
+    /// tick. Arrival is the assertion a stall cannot satisfy, and it is what
+    /// separates this test from
+    /// <see cref="RunTick_AutonomousLeaderFarAlongPublishedPath_ClampsPerTickDisplacementToDesignedSprintSpeed"/>
+    /// above, which deliberately stops short and pins the per-tick bound
+    /// instead.
+    /// <para>
+    /// This is also the fixture task 90 needs: a mover that keeps moving
+    /// across a stated window, rather than one that looks active and is inert
+    /// inside the window an assertion actually covers.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void RunTick_AutonomousLeaderWithAClearRoute_WalksThePublishedPathToItsGoal()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var startCell = grid.CellIndex(0, 0);
+        var goalCell = grid.CellIndex(25, 0);
+
+        const int pathLatencyTicks = 1;
+        var ruleset = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: pathLatencyTicks,
+            groupCohesionRadiusWu: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        // (2, 2) world units is nav cell (0, 0)'s own centre, and the goal
+        // cell (25, 0)'s centre is (102, 2) - both derived from
+        // NavGrid.CellSizeWu 4 rather than pinned as bare literals, so the
+        // 100 wu of travel between them is the grid's arithmetic and not this
+        // test's assumption.
+        const int goalXWu = (25 * NavGrid.CellSizeWu) + (NavGrid.CellSizeWu / 2);
+        const int startYWu = (0 * NavGrid.CellSizeWu) + (NavGrid.CellSizeWu / 2);
+
+        var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 2, positionYWu: startYWu);
+        var groupState = new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: goalCell,
+            HasOutstandingRequest: true,
+            StartCellIndex: startCell,
+            GoalCellIndex: goalCell,
+            RequestTick: 0);
+        var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
+
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
+
+        var movementSpeedRaw = (80L * FixedPoint.Scale) / ruleset.TickRate;
+
+        // 100 wu at 1,638 raw/tick is 63 whole steps; the latency ticks and
+        // one partial final step sit on top of that, and the cap below leaves
+        // room for both without ever being reachable by a mover that stalls.
+        const int tickBudget = 100;
+
+        var previousXRaw = 2L * FixedPoint.Scale;
+        var previousYRaw = (long)startYWu * FixedPoint.Scale;
+        var arrivedAtTick = -1;
+
+        for (var tick = 0; tick < tickBudget && arrivedAtTick < 0; tick++)
+        {
+            sim.RunTick(tick);
+
+            var current = Assert.Single(sim.State.Operators);
+            var deltaX = current.PositionX.RawValue - previousXRaw;
+            var deltaY = current.PositionY.RawValue - previousYRaw;
+
+            Assert.True(
+                (deltaX * deltaX) + (deltaY * deltaY) <= movementSpeedRaw * movementSpeedRaw,
+                $"tick {tick}: displacement ({deltaX}, {deltaY}) raw exceeds the per-tick cap {movementSpeedRaw} raw");
+
+            previousXRaw = current.PositionX.RawValue;
+            previousYRaw = current.PositionY.RawValue;
+
+            if (current.PositionX.RawValue == goalXWu * FixedPoint.Scale &&
+                current.PositionY.RawValue == startYWu * FixedPoint.Scale)
+            {
+                arrivedAtTick = tick;
+            }
+        }
+
+        Assert.True(
+            arrivedAtTick >= 0,
+            $"leader must reach the goal ({goalXWu}, {startYWu}) wu within {tickBudget} ticks; " +
+            $"it stopped at ({previousXRaw}, {previousYRaw}) raw");
+
+        // Arrival that took one stride would mean the clamp was not applied
+        // at all, which would satisfy the assertion above for the wrong
+        // reason.
+        Assert.True(
+            arrivedAtTick > 60,
+            $"100 wu at {movementSpeedRaw} raw per tick cannot be covered in {arrivedAtTick + 1} ticks");
+    }
+
+    /// <summary>
+    /// Task 89, the finding. An operator with a freshly published group path
+    /// takes one step and then holds position forever when another body
+    /// stands on its route. The cause is <b>not</b> any of the four the task
+    /// row proposed: the derived <see cref="SquadSlot.GroupId"/> and
+    /// <see cref="SquadSlot.SlotIndex"/> never change, the leader never
+    /// reaches the end of the polyline, no lateral offset is gated, and
+    /// <see cref="RunTick_AutonomousLeaderWithAClearRoute_WalksThePublishedPathToItsGoal"/>
+    /// above proves the arclength arithmetic walks the identical path to its
+    /// goal once the route is clear.
+    /// <para>
+    /// The cause is stage 10, and it is two correct components composing into
+    /// a permanent stall. <c>LocalAvoidance.Commit</c> refuses a step whose
+    /// destination would overlap another body, and then offers exactly one
+    /// retry: <c>SidestepRules.Sidestep</c>'s single 22.5-degree rotation of
+    /// that same delta, to the side <c>entityId</c> parity picks. Design
+    /// section 8 states that rule in full - "if that is also blocked, it
+    /// waits a tick" - and says nothing about what happens when the blocker
+    /// never moves. Here it never does, so every input to both candidates is
+    /// identical on every subsequent tick and both are rejected forever. Head
+    /// on, a 22.5-degree turn does not clear a body whose radius is larger
+    /// than the step that turns.
+    /// </para>
+    /// <para>
+    /// <b>This test pins a known gap, not a desired outcome.</b> It exists so
+    /// the stall is reproduced rather than rediscovered, and the assertions
+    /// below are on the <i>mechanism</i> - stage 9 keeps proposing a full
+    /// forward step throughout, so the stall is stage 10 rejecting live
+    /// proposals rather than stage 9 giving up. If a future change lets a
+    /// blocked mover route around a static body, this test fails; the right
+    /// response then is to delete it and keep the arrival test above, never
+    /// to weaken that one.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void RunTick_StationaryBodyOnThePublishedPath_StallsTheLeaderBecauseItsOneSidestepIsBlockedToo()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var startCell = grid.CellIndex(0, 0);
+        var goalCell = grid.CellIndex(25, 0);
+
+        const int pathLatencyTicks = 1;
+        var ruleset = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: pathLatencyTicks,
+            groupCohesionRadiusWu: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        // The leader walks east along the cell-centre line y = 2 wu; the
+        // blocker stands on that same line 28 wu ahead of it. Opposing
+        // faction, so SquadGrouping never unions the two and the blocker
+        // never acquires a slot in the leader's formation; no group of its
+        // own has a path, so its every proposal is its own position. Both
+        // carry health far above anything stage 13 can remove inside this
+        // window, so the blocker cannot be shot out of the way and turn a
+        // movement finding into a combat one - asserted below rather than
+        // assumed.
+        const int blockerXWu = 30;
+        var leader = BuildOperator(entityId: 1, faction: 0, positionXWu: 2, positionYWu: 2)
+            with
+        { Health = 1_000_000 };
+        var blocker = BuildOperator(entityId: 3, faction: 1, positionXWu: blockerXWu, positionYWu: 2)
+            with
+        { Health = 1_000_000 };
+
+        var groupState = new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: goalCell,
+            HasOutstandingRequest: true,
+            StartCellIndex: startCell,
+            GoalCellIndex: goalCell,
+            RequestTick: 0);
+        var state = BuildState(ImmutableArray.Create(leader, blocker)) with
+        {
+            Groups = ImmutableArray.Create(groupState),
+        };
+
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
+
+        var movementSpeedRaw = (80L * FixedPoint.Scale) / ruleset.TickRate;
+
+        // Long enough that the leader covers the ~19 wu of clear ground
+        // before the blocker's body and then sits against it for many times
+        // as many ticks as it took to get there.
+        const int tickCount = 90;
+        const int stallWindowStart = 60;
+
+        long stalledXRaw = 0;
+        long stalledYRaw = 0;
+
+        for (var tick = 0; tick < tickCount; tick++)
+        {
+            sim.RunTick(tick);
+
+            var leaderNow = sim.State.Operators.Single(o => o.EntityId == 1UL);
+            var blockerNow = sim.State.Operators.Single(o => o.EntityId == 3UL);
+
+            Assert.True(
+                blockerNow.PositionX.RawValue == blockerXWu * FixedPoint.Scale &&
+                blockerNow.PositionY.RawValue == 2 * FixedPoint.Scale,
+                $"tick {tick}: the blocker must stand still for this fixture to mean anything");
+            Assert.True(blockerNow.Health > 0, $"tick {tick}: the blocker must not be shot out of the way");
+            Assert.True(leaderNow.Health > 0, $"tick {tick}: the leader must survive the whole window");
+
+            if (tick < stallWindowStart)
+            {
+                continue;
+            }
+
+            var proposal = sim.PendingMovementProposals.Single(p => p.EntityId == 1UL);
+
+            // Stage 9 is healthy throughout the stall: it proposes a fresh
+            // full-magnitude step toward the path on every one of these
+            // ticks. Without this the test could pass on a simulation that
+            // had simply stopped proposing anything, which is a different
+            // defect wearing the same symptom.
+            var desiredDeltaX = (long)proposal.DesiredXRaw - proposal.StartXRaw;
+            var desiredDeltaY = (long)proposal.DesiredYRaw - proposal.StartYRaw;
+            var desiredMagnitudeSq = (desiredDeltaX * desiredDeltaX) + (desiredDeltaY * desiredDeltaY);
+            Assert.True(
+                desiredMagnitudeSq > 0,
+                $"tick {tick}: stage 9 stopped proposing a move, so this is not a stage 10 stall");
+            Assert.True(
+                desiredMagnitudeSq > (movementSpeedRaw - 8) * (movementSpeedRaw - 8),
+                $"tick {tick}: stage 9's proposed step {desiredMagnitudeSq} raw squared is not a full stride");
+            Assert.Equal(1UL, proposal.GroupId);
+            Assert.Equal(0, proposal.SlotIndex);
+
+            if (tick == stallWindowStart)
+            {
+                stalledXRaw = leaderNow.PositionX.RawValue;
+                stalledYRaw = leaderNow.PositionY.RawValue;
+                continue;
+            }
+
+            Assert.True(
+                leaderNow.PositionX.RawValue == stalledXRaw && leaderNow.PositionY.RawValue == stalledYRaw,
+                $"tick {tick}: the leader moved from ({stalledXRaw}, {stalledYRaw}) to " +
+                $"({leaderNow.PositionX.RawValue}, {leaderNow.PositionY.RawValue}) - " +
+                "if stage 10 now routes around a static body, delete this test rather than widening it");
+        }
+
+        // The stall is short of the goal and past the start, so neither
+        // "never left" nor "already arrived" can produce it.
+        Assert.True(
+            stalledXRaw > 2 * FixedPoint.Scale,
+            "the leader must have walked the clear ground before the blocker");
+        Assert.True(
+            stalledXRaw < (blockerXWu - 8) * FixedPoint.Scale,
+            "the leader must be stalled against the blocker's body, not standing on top of it");
+    }
+
+    /// <summary>
     /// Task 84: the second, distinct case its brief names - a non-leader
     /// squad slot (entity 2, <see cref="SquadSlot.SlotIndex"/> 1) starting
     /// away from its own formation position must walk into it across
