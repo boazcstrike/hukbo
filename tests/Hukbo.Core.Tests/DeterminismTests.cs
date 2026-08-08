@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Text.Json;
 using Hukbo.Core.Combat;
@@ -241,6 +242,30 @@ public sealed class DeterminismTests
         // --movement-preset IndependentPursuitV1`.
         Assert.Equal("2BBEDD668CC38FD6", stateHash);
         Assert.Equal("228818712E5AE6C6", eventHash);
+    }
+
+    /// <summary>
+    /// RU-26. Preset V5 restates V4's four melee loadouts verbatim and adds
+    /// three ranged loadouts (Bangkaw, Busog, Arquebus) plus the two RU-45
+    /// shielded melee rows (Kalis+TallHardwood, Itak+TallHardwood), for a
+    /// nine-entry roster. Pinned so an accidental change to any V5 weapon
+    /// attribute, target-weight profile, clash cell, roster entry, or rank
+    /// level fails here rather than only in the much slower benchmark.
+    /// </summary>
+    [Fact]
+    public void PresetV5ContentHash_IsPinnedAndDistinctFromV1V2V3AndV4()
+    {
+        var v1 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
+        var v2 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV2);
+        var v3 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV3);
+        var v4 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV4);
+        var v5 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV5);
+
+        Assert.Equal(0x55F4F5B36EE59CF7UL, v5.ContentHash);
+        Assert.NotEqual(v1.ContentHash, v5.ContentHash);
+        Assert.NotEqual(v2.ContentHash, v5.ContentHash);
+        Assert.NotEqual(v3.ContentHash, v5.ContentHash);
+        Assert.NotEqual(v4.ContentHash, v5.ContentHash);
     }
 
     /// <summary>
