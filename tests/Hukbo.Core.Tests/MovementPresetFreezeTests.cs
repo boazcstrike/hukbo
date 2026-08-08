@@ -107,6 +107,9 @@ public sealed class MovementPresetFreezeTests
     private const string RangedStandoffV8DigestFileName =
         "seed-1-200-agents-movement-v8-digest.json";
 
+    private const string MonotoneAllyClearanceV9DigestFileName =
+        "seed-1-200-agents-movement-v9-digest.json";
+
     /// <summary>
     /// Replays the frozen seed-1, two-hundred-agent trajectory tick by tick
     /// under the default scenario -- <c>IndependentPursuitV1</c> is the only
@@ -291,6 +294,29 @@ public sealed class MovementPresetFreezeTests
     {
         var digest = LoadDigest(RangedStandoffV8DigestFileName);
         var simulation = CreateControlRun(MovementPresetId.RangedStandoffV8);
+
+        ReplayAndAssertDigest(digest, simulation);
+        AssertFinalContingentFieldsMatch(digest, simulation);
+    }
+
+    /// <summary>
+    /// Replays the frozen seed-1, two-hundred-agent trajectory tick by tick
+    /// under <c>MonotoneAllyClearanceV9</c> and asserts every tick row and
+    /// the final per-agent rows -- including the real
+    /// <see cref="AgentView.ContingentId"/> and
+    /// <see cref="AgentView.ContingentState"/> values this preset populates
+    /// -- match the fixture exactly. See RU-30 (F-B): this fixture freezes
+    /// the monotone ally-clearance preset's trajectory in the same shape
+    /// every earlier preset in this file already uses, with the control run
+    /// selecting <c>CombatPresetId.PrecolonialPhilippinesV2</c> explicitly,
+    /// the same way every other freeze test here does.
+    /// </summary>
+    [Fact]
+    public void MonotoneAllyClearanceV9_ReproducesTheFrozenTrajectoryDigest()
+    {
+        var digest = LoadDigest(MonotoneAllyClearanceV9DigestFileName);
+        var simulation = CreateControlRun(
+            MovementPresetId.MonotoneAllyClearanceV9);
 
         ReplayAndAssertDigest(digest, simulation);
         AssertFinalContingentFieldsMatch(digest, simulation);
@@ -577,6 +603,31 @@ public sealed class MovementPresetFreezeTests
     public void CaptureRangedStandoffV8Digest()
     {
         var simulation = CreateControlRun(MovementPresetId.RangedStandoffV8);
+
+        Console.WriteLine(CaptureDigestJson(simulation));
+    }
+
+    /// <summary>
+    /// RU-30 (F-B)'s capture routine for the monotone ally-clearance
+    /// preset's frozen trajectory digest fixture. Run once, from a clean
+    /// Release build:
+    ///
+    /// <code>
+    /// dotnet test tests/Hukbo.Core.Tests/Hukbo.Core.Tests.csproj -c Release ^
+    ///   -p:DefineConstants=HUKBO_CALIBRATION ^
+    ///   --filter FullyQualifiedName~CaptureMonotoneAllyClearanceV9Digest ^
+    ///   --logger "console;verbosity=detailed"
+    /// </code>
+    ///
+    /// Prints one JSON document to stdout in the shape <see cref="LoadDigest"/>
+    /// reads back: commit it verbatim as
+    /// <c>tests/Hukbo.Core.Tests/Fixtures/seed-1-200-agents-movement-v9-digest.json</c>.
+    /// </summary>
+    [Fact]
+    public void CaptureMonotoneAllyClearanceV9Digest()
+    {
+        var simulation = CreateControlRun(
+            MovementPresetId.MonotoneAllyClearanceV9);
 
         Console.WriteLine(CaptureDigestJson(simulation));
     }
