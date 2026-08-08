@@ -33,8 +33,8 @@ namespace Sandata.Core.Tests;
 /// <b>Why 8 operators / 40 ticks, not the 200-operator / 10,000-tick
 /// benchmark workload.</b> That workload is <c>./scripts/benchmark.ps1</c>'s
 /// job, runs for a large fraction of a minute, and is deliberately excluded
-/// from the unit-test suite (CLAUDE.md section 4: "Sandata's core suite
-/// already takes about 45 seconds"). Both missions below reuse
+/// from the unit-test suite (CLAUDE.md section 4, which
+/// records its measured duration). Both missions below reuse
 /// <see cref="HeadlessRunner.BuildOpenGrid"/> and
 /// <see cref="HeadlessRunner.BuildInitialState"/> — the same dense,
 /// alternating-faction packing the benchmark and

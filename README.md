@@ -13,13 +13,14 @@ times as you like.
 [![C#](https://img.shields.io/badge/C%23-14-239120?logo=csharp&logoColor=white)](src)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078D6?logo=windows&logoColor=white)](docs/platform-support-matrix.md)
 
-[![Tests](https://img.shields.io/badge/tests-5448%20passing-3FB950)](docs/development/testing.md)
+[![Tests](https://img.shields.io/badge/tests-6949%20passing-3FB950)](docs/development/testing.md)
 [![Determinism](https://img.shields.io/badge/determinism-verified-3FB950)](SIMULATION-GAME-STANDARDS.md)
 [![Gate](https://img.shields.io/badge/gate-local%20only-8B949E)](scripts/verify.ps1)
 [![Offline](https://img.shields.io/badge/offline-no%20telemetry-8B949E)](#offline-by-design)
 [![Milestone](https://img.shields.io/badge/milestone-v0.1%20tactical%20layer-FFA657)](#direction)
 
 [Run it](#run-the-game) ·
+[Sandata](#the-second-game-sandata) ·
 [Controls](#controls) ·
 [Determinism](#determinism) ·
 [Architecture](#architecture) ·
@@ -64,6 +65,39 @@ enters `Hukbo.Core`. When the campaign layer does start, it becomes a separate
 project that *produces* `Scenario` values and *consumes* `BattleOutcome`. The
 battle core never learns what a barangay is.
 
+## The second game: Sandata
+
+Since August 2026 this repository builds two games rather than one.
+
+**Sandata** is a top-down modern tactical game — room clearing in the Door
+Kickers tradition, in which small squads move through an interior map, and in
+which both autonomous squad behaviour and hand-drawn player orders are
+first-class. It is in development and has no v0.1 yet.
+
+It is a separate product, not a Hukbo mode and not a fork. It has its own
+simulation, its own fourteen-stage tick pipeline, its own ruleset and preset
+stream, its own map format, and its own pair of hashes. The two games share
+exactly one project, `src/Hukbo.Shared.Core`, which holds four pure integer
+determinism primitives — `FixedPoint`, `SplitMix64`, `Fnv1a`, and `Facing16` —
+and nothing that knows what an agent, an operator, a weapon, or a map is.
+
+Sandata runs at 50 Hz rather than Hukbo's 20 Hz, because a gunfight's timing
+chain is measured in tens of milliseconds; a pistol's 80-millisecond ready time
+is 1.6 ticks at 20 Hz and exactly 4 ticks at 50 Hz. Its distance unit is the
+world unit, with 1 metre equal to 16 of them.
+
+```powershell
+./scripts/run.ps1 -Game Sandata
+```
+
+Its design document is
+[`docs/plans/2026-08-07-sandata-scaffold-design.md`](docs/plans/2026-08-07-sandata-scaffold-design.md)
+and its plan document is
+[`docs/plans/2026-08-07-sandata-scaffold.md`](docs/plans/2026-08-07-sandata-scaffold.md).
+Two things about it are still open questions rather than decisions: the name
+`Sandata` itself, and whether shipped display strings use real weapon names or
+generic aliases.
+
 ## Run the game
 
 Requirements: Windows x64, PowerShell 7, Git, and .NET SDK 10.0.302 (pinned in
@@ -99,6 +133,24 @@ The game starts paused. Press Play, or press Space.
 ./scripts/doctor.ps1                           # diagnose a broken environment
 ./scripts/sfx.ps1 -List                        # sound slots and which have a file
 ```
+
+Every game-specific script takes `-Game`, validated to `Hukbo` or `Sandata` and
+defaulting to `Hukbo`, so a command with no `-Game` runs exactly what it ran
+before the second game existed:
+
+```powershell
+./scripts/run.ps1 -Game Sandata
+./scripts/test.ps1 -Configuration Release -Game Sandata
+./scripts/benchmark.ps1 -Game Sandata -Seed 1
+./scripts/package.ps1 -Runtime win-x64 -Game Sandata
+./scripts/verify.ps1 -Game Sandata
+```
+
+The project paths live in one table, `scripts/_gametargets.ps1`, and no script
+body hardcodes a project path; tests assert both halves of that. `build.ps1`,
+`format.ps1`, and `bootstrap.ps1` take no `-Game` because they act on the whole
+solution, and `doctor.ps1` takes none because it checks every project's lock
+file rather than one game's.
 
 `scripts/` holds the only supported entry points. `tools/` holds hand-run
 measurement harnesses; they are not in the solution and not in the gate.
@@ -262,14 +314,26 @@ stream. Changing an enum value, an enum's order, a roster, a weight, or a hash
 mixer requires a **new preset version** plus new golden expectations — the old
 preset stays registered and unmodified so its replays keep reproducing.
 
-Latest gate run on this machine, 200 agents, 10,000 requested ticks, seed 1:
+Latest Hukbo gate run on this machine, 200 agents, 10,000 requested ticks,
+seed 1, 2026-08-09:
 
 ```
-Core     Total tests: 2504   Passed: 2504
-Client   Total tests: 2944   Passed: 2944
+Core     Total tests: 2376   Passed: 2376
+Client   Total tests: 3270   Passed: 3270
 measuredTicks 981   outcome Faction1Victory   survivors 0 / 6
 stateHash 1B73FC5923879AA0   eventHash AC55684F24D39344   deterministic true
-coreAllocatedBytes 161168   p50 0.1239 ms   p95 1.05 ms   p99 1.2013 ms
+coreAllocatedBytes 154976   p50 0.1297 ms   p95 0.9696 ms   p99 1.3251 ms
+```
+
+Sandata computes its own two hashes over its own state and its own event stream.
+Its gate run on the same day, 200 operators over 10,000 ticks at seed 1:
+
+```
+Core     Total tests: 1104   Passed: 1104
+Client   Total tests:  199   Passed:  199
+measuredTicks 10000   outcome Ongoing   survivors 70 / 64
+stateHash BDD56EBD06F76674   eventHash 7C1B37876769DEC7   deterministic true
+p50 2.6383 ms   p95 4.6475 ms   p99 6.8726 ms
 ```
 
 ## Verify the repository
@@ -285,6 +349,20 @@ The canonical gate runs five stages in order:
 3. Release solution build;
 4. Core and GPU-independent Client tests;
 5. a 200-agent, 10,000-tick, seed-1 headless determinism workload.
+
+**With no `-Game` flag the gate runs Hukbo only.** Sandata has its own
+invocation, which runs the same five stages against Sandata's two test suites
+and Sandata's headless workload:
+
+```powershell
+./scripts/verify.ps1 -Game Sandata
+```
+
+The default gate deliberately stays on the Hukbo workload alone until Sandata's
+seed-1 baseline has settled, so that a red Sandata run can never be mistaken for
+a red Hukbo one. The corollary matters more: **a green `./scripts/verify.ps1` is
+not evidence about Sandata**, because without the flag the gate never built or
+ran a line of it. Report the two results separately or not at all.
 
 **Verification is deliberately local-only.** This repository has no GitHub
 Actions workflow and no hosted CI service, and it is not going to acquire one.
@@ -303,43 +381,75 @@ Output lands in `artifacts/packages/client-win-x64/`.
 
 ## Architecture
 
+Twelve projects, all in `Hukbo.slnx`.
+
 ```mermaid
 flowchart TD
+    Shared["Hukbo.Shared.Core<br/><b>tier 1, shared by both games</b><br/>FixedPoint · SplitMix64 · Fnv1a · Facing16"]
+    Core["Hukbo.Core<br/><b>Hukbo's authoritative simulation</b><br/>tick pipeline · combat · movement · collision<br/>events · hashing"]
     Client["Hukbo.Client<br/><i>MonoGame DesktopGL</i><br/>rendering · camera · HUD · themes · input · audio"]
     Headless["Hukbo.Headless<br/><i>no window</i><br/>determinism runner · benchmarks"]
-    Core["Hukbo.Core<br/><b>authoritative simulation</b><br/>tick pipeline · combat · movement · collision<br/>events · SplitMix64 · fixed point · hashing"]
+    SCore["Sandata.Core<br/><b>Sandata's authoritative simulation</b><br/>14-stage pipeline · navigation · squads<br/>weapons · orders · hashing"]
+    SClient["Sandata.Client<br/><i>MonoGame DesktopGL</i><br/>rendering · HUD · order drawing · audio"]
+    SHeadless["Sandata.Headless<br/><i>no window</i><br/>determinism runner · nav benchmark"]
     Diag["Hukbo.Diagnostics<br/><i>JSON Lines debug log</i>"]
 
+    Core --> Shared
+    SCore --> Shared
     Client -->|reads state, sends no decisions| Core
     Headless -->|runs, hashes, compares| Core
+    SClient -->|reads state, submits orders| SCore
+    SHeadless -->|runs, hashes, compares| SCore
     Client --> Diag
     Headless --> Diag
+    SClient --> Diag
+    SHeadless --> Diag
     Core -. forbidden .-x Diag
+    SCore -. forbidden .-x Diag
 ```
 
 | Project | Responsibility |
 | --- | --- |
-| `src/Hukbo.Core` | The authoritative simulation. Tick pipeline, agents, combat, movement, collision, events, RNG, hashing. |
-| `src/Hukbo.Client` | The MonoGame shell. Rendering, camera, UI, themes, input, audio. |
-| `src/Hukbo.Headless` | Determinism and benchmark runner. No window. |
-| `src/Hukbo.Diagnostics` | JSON Lines debug log shared by Client and Headless. |
-| `tests/` | `Hukbo.Core.Tests` and `Hukbo.Client.Tests` |
+| `src/Hukbo.Shared.Core` | Tier 1. Four pure integer determinism primitives shared by both games and nothing else. |
+| `src/Hukbo.Core` | Hukbo's authoritative simulation. Tick pipeline, agents, combat, movement, collision, events, RNG, hashing. |
+| `src/Hukbo.Client` | Hukbo's MonoGame shell. Rendering, camera, UI, themes, input, audio. |
+| `src/Hukbo.Headless` | Hukbo's determinism and benchmark runner. No window. |
+| `src/Sandata.Core` | Sandata's authoritative simulation. Fourteen-stage pipeline, navigation, squads, sensing, weapons, orders, hashing. |
+| `src/Sandata.Client` | Sandata's MonoGame shell. Rendering, HUD, order drawing, themes, audio. |
+| `src/Sandata.Headless` | Sandata's determinism runner and navigation benchmark. No window. |
+| `src/Hukbo.Diagnostics` | JSON Lines debug log shared by every client and headless runner. |
+| `tests/` | `Hukbo.Core.Tests`, `Hukbo.Client.Tests`, `Sandata.Core.Tests`, `Sandata.Client.Tests` |
 | `scripts/` | The only supported entry points. PowerShell 7. |
 | `docs/` | Design, plans, research, agent-role evidence. |
 
-Two boundaries are enforced by tests, not by convention:
+Four boundaries are enforced by tests, not by convention:
 
-- **`Hukbo.Core` may not reference** MonoGame, the filesystem, the network,
-  windowing, audio, the wall clock, or `Hukbo.Diagnostics`. The simulation is
-  denied the filesystem and the clock; the logger needs both. Observe the
-  simulation from outside, reading state the caller already holds.
-- **`Hukbo.Client` may not decide** targeting, damage, retreat, or victory. It
-  draws what the simulation already decided.
+- **Neither `Hukbo.Core` nor `Sandata.Core` may reference** MonoGame, the
+  filesystem, the network, windowing, audio, the wall clock, or
+  `Hukbo.Diagnostics`. A simulation is denied the filesystem and the clock; the
+  logger needs both. Observe it from outside, reading state the caller already
+  holds.
+- **Neither client may decide** targeting, damage, retreat, or victory. Each
+  draws what its simulation already decided.
+- **`Hukbo.Shared.Core` holds four files and stays that way.** Anything that
+  knows what an agent, an operator, a weapon, a tick stage, or a map is belongs
+  to one game. A change to a tier-1 file moves both games' hashes at once, which
+  is exactly why the boundary is drawn at "no game concepts" rather than at
+  "code we happen to use twice".
+- **The two games do not reach into each other.** No `Sandata.*` project
+  references a `Hukbo.Core` or `Hukbo.Client` type, and no `Hukbo.*` project
+  references a `Sandata.*` type.
+
+A tier-2 extraction — a shared client project for presentation code the two
+clients duplicate — is deferred with its boundary written down rather than
+built, and is one of the repository's open design questions.
 
 Client presentation tests never construct an `ArenaGame`, a graphics device, a
 sprite batch, or a window, and never depend on GPU, audio, focus, network, or
-the wall clock. That is what lets 5 448 tests finish in seconds rather than
-minutes.
+the wall clock. That is what lets Hukbo's 3 270 presentation tests finish in
+about two seconds. Sandata's 1 104 core tests take about 38 seconds, roughly
+half of that in the handful of cases that run its navigation benchmark end to
+end.
 
 ## Debug logging
 
@@ -429,7 +539,16 @@ output, or in a commit message.
 - [Agent instructions](CLAUDE.md) — the contract coding agents work under
 - [`AGENTS.md`](AGENTS.md) — the standalone version for non-Claude tools
 - [Testing and verification](docs/development/testing.md) — the gate, the
-  recorded baselines, the manual smoke checklist
+  recorded baselines for both games, the manual smoke checklists
+
+**Sandata** — the second game
+
+- [Sandata design](docs/plans/2026-08-07-sandata-scaffold-design.md) — the
+  binding document: reference graph, determinism contract, tick pipeline,
+  navigation, squads, weapons, audio, map format, test strategy, order layer
+- [Sandata plan](docs/plans/2026-08-07-sandata-scaffold.md) — the ordered task
+  list and the running record of what each wave found
+- [Sandata research](docs/research/2026-08-07-sandata-research-consolidated.md)
 
 **Research**
 
@@ -472,10 +591,12 @@ know is described in this file instead.
 
 v0.1 supports **Windows x64 only**. Deliberately deferred, each behind a gate:
 networking, persistence, terrain, pathfinding, morale, projectile ammunition,
-store distribution, mod APIs, and non-Windows packaging.
+store distribution, mod APIs, and non-Windows packaging. That list is Hukbo's.
+Sandata's own navigation and pathfinding are authorized by its design document
+and are already built; nothing about them lifts the bar for Hukbo.
 
-Also deliberately absent: rigid-body physics — distance checks and hitscan are
-the model — and any general-purpose ECS.
+Also deliberately absent from both games: rigid-body physics — distance checks
+and hitscan are the model — and any general-purpose ECS.
 
 ## License
 
