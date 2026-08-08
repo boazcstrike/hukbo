@@ -213,7 +213,10 @@ public sealed class SandataSimulation
         var bodies = BuildCollisionBodies(State);
         var grid = new SandataCollisionGrid(CollisionCellSizeRaw);
         grid.Rebuild(bodies, CollisionBodyRadiusRaw);
-        var view = CaptureTickStartView(State, grid);
+        var cohesionRadiusRaw = RawFromWorldUnits(_ruleset.GroupCohesionRadiusWu);
+        var cohesionGrid = new SandataCollisionGrid(CohesionCollisionCellSizeRaw(cohesionRadiusRaw));
+        cohesionGrid.RebuildWithinRange(bodies, cohesionRadiusRaw);
+        var view = CaptureTickStartView(State, grid, cohesionGrid);
 
         // Stage 4.
         State = ApplyDoorMutations(State);
@@ -770,6 +773,28 @@ public sealed class SandataSimulation
     private const int CollisionBodyRadiusRaw = 32;
 
     /// <summary>
+    /// The cell edge length, in raw fixed-point units, for the second
+    /// collision grid stage 3 builds solely to source
+    /// <see cref="ComputeSquadGrouping"/>'s candidate pairs. Unlike
+    /// <see cref="CollisionCellSizeRaw"/> this is not a constant: task 77
+    /// found that a fixed 256-raw-unit cell (roughly a quarter world unit)
+    /// cannot host a cohesion-radius query, because
+    /// <see cref="SandataRuleset.GroupCohesionRadiusWu"/> defaults to 96
+    /// world units — 98,304 raw, four orders of magnitude past that cell
+    /// edge — and <see cref="SandataCollisionGrid.RebuildWithinRange"/>'s own
+    /// remarks require a cell at least as wide as the range being queried, or
+    /// its 3-by-3 neighbour scan silently misses pairs sitting in a cell
+    /// beyond that ring. This helper sizes the second grid's cell to the
+    /// actual per-tick radius instead, so the query is complete at any
+    /// configured <see cref="SandataRuleset.GroupCohesionRadiusWu"/>, not
+    /// only the shipped default. <see cref="Math.Max(int, int)"/> floors the
+    /// result at 1 raw unit so a (nonsensical but not rejected) zero radius
+    /// never produces a zero-or-negative cell size.
+    /// </summary>
+    private static int CohesionCollisionCellSizeRaw(int cohesionRadiusRaw) =>
+        Math.Max(cohesionRadiusRaw, 1);
+
+    /// <summary>
     /// Stage 1. Applies every order whose <see cref="Order.TargetTick"/>
     /// equals <paramref name="currentTick"/>, read from
     /// <c>state.OrderQueue.InApplicationOrder()</c> — already sorted by
@@ -881,12 +906,15 @@ public sealed class SandataSimulation
     }
 
     /// <summary>
-    /// Stage 3. Rebuilds this tick's collision uniform grid (already done by
-    /// <see cref="RunTick"/> before calling this method) and freezes the
-    /// tick-start view stages 5 through 9 read.
+    /// Stage 3. Rebuilds this tick's two collision uniform grids (already
+    /// done by <see cref="RunTick"/> before calling this method — physical
+    /// contact via <paramref name="grid"/>, squad cohesion range via
+    /// <paramref name="cohesionGrid"/>) and freezes the tick-start view
+    /// stages 5 through 9 read.
     /// </summary>
-    private static TickStartView CaptureTickStartView(MissionState state, SandataCollisionGrid grid) =>
-        new(state, grid.Pairs);
+    private static TickStartView CaptureTickStartView(
+        MissionState state, SandataCollisionGrid grid, SandataCollisionGrid cohesionGrid) =>
+        new(state, grid.Pairs, cohesionGrid.Pairs);
 
     /// <summary>
     /// Stage 4. No door-trigger source (a breach action, a switch) exists
@@ -1078,9 +1106,19 @@ public sealed class SandataSimulation
     /// <summary>
     /// Stage 6. Call-site obligation: derives one <see cref="SquadSlot"/> per
     /// tick-start-view entry via <see cref="SquadGrouping.Compute"/>'s one
-    /// overload, gated by <see cref="SandataRuleset.GroupCohesionRadius"/>.
-    /// Purely derived — nothing here is written back into
-    /// <see cref="MissionState"/>, per that method's own remarks.
+    /// overload, gated by <see cref="SandataRuleset.GroupCohesionRadiusWu"/>
+    /// converted to raw fixed-point via <see cref="RawFromWorldUnits"/> (the
+    /// ruleset field is documented in world units; <c>SquadGrouping</c>'s
+    /// parameter is raw — task 77 found stage 6 passing the world-unit value
+    /// straight through with no conversion, silently shrinking the default
+    /// 96-world-unit radius to about 0.094 world units). Candidates come from
+    /// <see cref="TickStartView.CohesionPairs"/>, the range query stage 3
+    /// built specifically for this radius — never
+    /// <see cref="TickStartView.Pairs"/>, which is filtered to physical body
+    /// contact and can only narrow a candidate list, never widen it, so it
+    /// can never surface two operators standing world units apart. Purely
+    /// derived — nothing here is written back into <see cref="MissionState"/>,
+    /// per that method's own remarks.
     /// </summary>
     private void ComputeSquadGrouping(TickStartView view, Span<SquadSlot> slots)
     {
@@ -1098,9 +1136,11 @@ public sealed class SandataSimulation
             yRaw[i] = view.PositionYRaw(i);
         }
 
+        var groupCohesionRadiusRaw = RawFromWorldUnits(_ruleset.GroupCohesionRadiusWu);
+
         SquadGrouping.Compute(
             view.EntityIds, isAlive, factions, xRaw, yRaw,
-            _ruleset.GroupCohesionRadius, view.Pairs, slots);
+            groupCohesionRadiusRaw, view.CohesionPairs, slots);
     }
 
     /// <summary>
