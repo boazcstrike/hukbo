@@ -585,10 +585,10 @@ public sealed class MissionStateTests
 
     /// <summary>
     /// <see cref="OperatorState.Firearm"/> defaults to
-    /// <see cref="FirearmId.Ak47"/> — the same value
-    /// <c>SandataSimulation.DefaultFirearmId</c> already named — so a state
-    /// built without setting the field explicitly is unaffected by this
-    /// task's per-operator loadout addition.
+    /// <see cref="FirearmId.Ak47"/> — the value the private
+    /// <c>SandataSimulation.DefaultFirearmId</c> named before task 79d-2a
+    /// deleted it — so a state built without setting the field explicitly is
+    /// unaffected by the per-operator loadout addition.
     /// </summary>
     [Fact]
     public void OperatorState_Firearm_DefaultsToAk47()
