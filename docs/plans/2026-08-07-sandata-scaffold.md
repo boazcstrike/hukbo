@@ -4227,3 +4227,120 @@ That is the fourth figure this wave that a report got wrong and a reading of the
 tree got right, after a constant's previous value, a test total, and an
 allocation figure. The pattern is stable enough to plan around: **re-derive every
 count and every "grep returns nothing" claim from the tree, in every case.**
+
+### Task 79d-2b complete, and the hash that did not move for an honest reason — 2026-08-09
+
+Merged. Cover reaches the simulation and damage is keyed on the shooter's
+caliber, which closes the last two clauses of the original task 79d row.
+
+`SandataSimulation`'s constructor takes `ImmutableArray<CoverRecord>` as a
+required final parameter — required rather than optional with a default, for the
+reason the second wave-12 audit gave and which has now bitten six times: an
+omitted optional parameter would hand a caller a simulation in which cover
+silently does nothing, and a required one turns every missed call site into a
+compile error. All forty-three construction sites across seven files are updated.
+`HeadlessRunner`'s two sites pass an empty set, because it synthesises its
+mission and loads no map.
+
+Stage 12 resolves the target's `CoverState` from those records —
+`ResolveCoverState` finds the record whose rectangle contains the target,
+breaking a tie on the lowest `CoverRecord.LineNumber` so the lookup carries the
+total order design section 4 requires, and takes the posture from the target's
+own `IsCrouched` flag. `CaliberDamage.RawDamage`, a new eight-value table in
+`src/Sandata.Core/Combat/`, replaces the flat `ProvisionalDamagePerHitPoints`
+that every hit dealt regardless of loadout. `grep -rn 'ProvisionalDamagePerHitPoints' src/`
+returns nothing, including the prose references, and `FirearmDefinition` and
+`FirearmCatalog` were not touched — the table keys on the `CaliberFamily` those
+types already carried.
+
+All eight values are marked `PROVISIONAL` at their own declaration and say that
+no source supplies them. What the declarations do justify is the **relation**:
+the two pistol calibers below every rifle caliber, the smaller-bore
+intermediates below 7.62x39, and the two full-power rounds above it. A relation
+can be defended from public documentation where an absolute number cannot, and
+the comments claim only the former.
+
+#### The seed-1 workload cannot observe this task, and its unchanged hash is not evidence
+
+`stateHash` `BDD56EBD06F76674` and `eventHash` `7C1B37876769DEC7` are unchanged,
+with 70 and 64 survivors. The brief told the implementer this task was expected
+to move both, and that expectation was wrong for two compounding reasons:
+
+- The workload carries no cover at all, since `HeadlessRunner` loads no map.
+- Every operator in it carries the default `FirearmId.Ak47`, whose caliber is
+  `Cal762X39`, and the table's value for that caliber is 25 — the same number the
+  deleted flat constant carried.
+
+The second is worth stating carefully, because the brief explicitly forbade
+choosing a value in order to keep the digest still. That is not what happened:
+25 was kept as the anchor the rest of the scale was built around, and it sits
+mid-table among values from 10 to 30. But the effect is the same, and the honest
+conclusion is the one that matters: **the unchanged hash says nothing about
+whether this task works.** The three `RunTick` tests are the entire evidence, and
+that is the situation the second audit predicted when it recorded that cover
+would be provable only through `TickPipelineTests`.
+
+#### The three tests, and why each holds only one thing variable
+
+- `RunTick_TwoShootersOfDifferentCaliberFamilies_DealDifferentDamageOnAnIdenticalHit`
+  runs the identical fixture twice — same 100-world-unit range, same shooter
+  entity id and therefore the same `Accuracy` draw, same target — and changes only
+  the firearm, an AK-47 against an M4. This is the criterion that catches a
+  damage table keyed off a constant instead of off the loadout.
+- `RunTick_TargetInsideACoverArc_TakesReducedDamageWhileAFlankingShotIgnoresTheCover`
+  places the same rectangle over the target twice and differs only in the arc.
+  Neither half encodes a bearing convention: the protecting record uses the
+  `ArcHalfBam` of 32,768 that `CoverRecord`'s own documentation defines as
+  covering "from every direction", and the bypassing record uses a one-BAM arc
+  centred a quarter turn from either bearing a shooter due east can occupy under
+  any convention.
+- `RunTick_CrouchedTargetInCover_TakesTheCrouchedReductionRatherThanTheStandingOne`
+  exists because without it the posture half of the lookup could be hardcoded to
+  standing and every other cover assertion in the file would still pass.
+
+Every expected value is computed from `CaliberDamage.RawDamage` and from
+`CoverRules`' own published percentages rather than written as a literal, and
+each target's full health is read from the fixture before the tick rather than
+assumed, so none of the three can drift into passing vacuously.
+
+Counts re-derived from the merged tree: `Sandata.Core.Tests` 1,095 to **1,098**;
+`Sandata.Client.Tests` 199, unchanged.
+
+#### Break-proofs
+
+| Property | The break | Result |
+| --- | --- | --- |
+| Damage is keyed on the shooter's caliber | stage 12's `CaliberDamage.RawDamage(definition.Caliber)` replaced by the literal 25 | the caliber test fails, alone |
+| Cover reaches stage 12 from the map | `ResolveCoverState(...)` replaced by `CoverState.NotInCover` | both cover tests fail |
+| Posture comes from the target's own flag | `Posture:` hardcoded to `CoverPosture.Standing` | the crouched test fails, alone |
+
+Each break was reverted and the suite returned to 1,098 passing.
+
+#### The implementer stalled, and what that cost
+
+The agent hit the six-hundred-second watchdog with **nothing committed** —
+production work spread uncommitted across nine files, in an intermediate state
+where `CaliberDamage.cs` existed and compiled but nothing consumed it, and stage
+12 still read the flat constant it was meant to delete. The suite was green at
+1,095 at that moment, which is exactly the trap: a green suite on a half-finished
+task looks identical to a green suite on a finished one, because the tests that
+would have failed had not been written yet.
+
+The integrating thread finished it directly rather than resuming the agent,
+following this repository's own record that a resumed agent may not do the redo.
+What the integrator wrote: the caliber wiring at stage 12, the deletion of the
+constant and of the two prose references to it that survived inside
+`CaliberDamage.cs`'s own documentation, the fixture's cover and posture
+parameters, all three tests, and the break-proofs.
+
+Two process lessons, both already in this document in other forms and both
+sharper here:
+
+- **"Commit as you go" was in the brief and was ignored for the third time this
+  wave.** The instruction is not enough on its own. A brief that depends on
+  incremental commits should say what the first commit is and require it before
+  anything else begins — this one did say "do the call sites first, as their own
+  commit", and the agent did the call sites first and committed nothing.
+- **A green suite is not a finished task.** The only reliable check is the one
+  the wave has been running all along: re-derive the counts. 1,095 was the base
+  count, and a task that adds no test has added no evidence.
