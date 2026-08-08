@@ -61,7 +61,7 @@ public sealed class PathDrawToolTests
 
         var initialState = new MissionState(Tick: 0, Phase: 1, Winner: -1, NextEntityId: 1, NextEventSequence: 0);
 
-        return new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState);
+        return new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState, ImmutableArray<CoverRecord>.Empty);
     }
 
     // ==================== PathDrawTool: submission ====================

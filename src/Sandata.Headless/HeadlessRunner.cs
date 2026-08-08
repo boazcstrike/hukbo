@@ -8,6 +8,7 @@ using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
 using Hukbo.Diagnostics;
 using Sandata.Core.Combat;
+using Sandata.Core.Maps;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
@@ -147,8 +148,17 @@ public static class HeadlessRunner
         // simulation's later mutation reach the other. NavGrid and
         // WallBuckets are likewise shared read-only inputs, exactly as
         // TickPipelineTests.BuildGrid/NoWalls share theirs across simA/simB.
-        var left = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState);
-        var right = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState);
+        //
+        // Task 79d-2b: no CoverRecord array either, for the same reason
+        // WallBuckets.Build(grid, [], [], [], []) above already passes no
+        // wall data — this method synthesises its mission and never loads a
+        // real .hkmap file, so there is no map to read COVER records from.
+        // The seed-1 benchmark and determinism workload therefore carry no
+        // cover at all, by construction, not by omission.
+        var left = new SandataSimulation(
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState, ImmutableArray<CoverRecord>.Empty);
+        var right = new SandataSimulation(
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState, ImmutableArray<CoverRecord>.Empty);
 
         var tickDurations = new List<double>(Math.Min(tickCount, 100_000));
         long? firstMismatchTick = null;

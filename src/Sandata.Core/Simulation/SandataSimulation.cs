@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
@@ -7,6 +7,7 @@ using Sandata.Core.Combat;
 using Sandata.Core.Determinism;
 using Sandata.Core.Events;
 using Sandata.Core.Geometry;
+using Sandata.Core.Maps;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Movement;
 using Sandata.Core.Navigation;
@@ -48,6 +49,16 @@ public sealed class SandataSimulation
     private readonly NavGrid _navGrid;
     private readonly WallBuckets _wallBuckets;
     private readonly PathService _pathService;
+
+    /// <summary>
+    /// Task 79d-2b: every parsed <c>COVER</c> record this simulation's map
+    /// carries, read by <see cref="ProposeFire"/> to resolve a target's real
+    /// <see cref="CoverState"/> instead of the constant
+    /// <see cref="CoverState.NotInCover"/> every shot resolved against
+    /// before this task. Never mutated after construction — cover objects
+    /// are static map geometry, not simulation state.
+    /// </summary>
+    private readonly ImmutableArray<CoverRecord> _coverRecords;
 
     /// <summary>
     /// The chamfer clearance value at every <see cref="_navGrid"/> cell —
@@ -123,7 +134,8 @@ public sealed class SandataSimulation
         SandataRuleset ruleset,
         NavGrid navGrid,
         WallBuckets wallBuckets,
-        MissionState initialState)
+        MissionState initialState,
+        ImmutableArray<CoverRecord> coverRecords)
     {
         ArgumentNullException.ThrowIfNull(mission);
         ArgumentNullException.ThrowIfNull(ruleset);
@@ -135,6 +147,7 @@ public sealed class SandataSimulation
         _ruleset = ruleset;
         _navGrid = navGrid;
         _wallBuckets = wallBuckets;
+        _coverRecords = coverRecords.IsDefault ? ImmutableArray<CoverRecord>.Empty : coverRecords;
 
         // Call-site obligation for stage 7: PathService takes its latency as
         // a constructor parameter and deliberately does not read the
@@ -379,14 +392,6 @@ public sealed class SandataSimulation
 
         State = State with { Operators = builder.MoveToImmutable() };
     }
-
-    /// <summary>
-    /// The flat damage a fired shot deals in <see cref="ProposeFire"/>, before
-    /// cover. <b>PROVISIONAL</b> — <see cref="FirearmDefinition"/> carries no
-    /// damage field at all, so this is an invented placeholder, not a tuned
-    /// combat value.
-    /// </summary>
-    private const int ProvisionalDamagePerHitPoints = 25;
 
     /// <summary>
     /// Stage 11's per-tick record of one operator's completed shot: who fired
@@ -638,8 +643,9 @@ public sealed class SandataSimulation
     /// see that method's remarks for the exact unit conversion. A miss skips
     /// the <see cref="DamageInstance"/> entirely; a hit produces the same one
     /// this method always produced before this task.
-    /// <see cref="CoverRules.ApplyToDamage"/> is called for real, against
-    /// <see cref="CoverState.NotInCover"/> (see next), only for a hit. Task
+    /// <see cref="CoverRules.ApplyToDamage"/> is called for real, against the
+    /// target's real <see cref="CoverState"/> resolved by
+    /// <see cref="ResolveCoverState"/> (see next), only for a hit. Task
     /// 79d-2a (docs/plans/2026-08-07-sandata-scaffold.md) resolves
     /// <see cref="FirearmDefinition"/> from each shot's own shooter's
     /// <see cref="OperatorState.Firearm"/>, inside this loop, the same shape
@@ -652,16 +658,20 @@ public sealed class SandataSimulation
     /// in <c>TickPipelineTests</c>).
     /// </para>
     /// <para>
-    /// <b>Still PROVISIONAL — no per-weapon damage, no per-operator
-    /// cover.</b> Two genuine data-model gaps remain, both task 79d-2b's
-    /// territory: <see cref="FirearmDefinition"/> carries no
-    /// damage-per-round field at all, and no per-operator
-    /// <see cref="CoverState"/> field exists on <see cref="OperatorState"/>.
-    /// Consequently every hit deals the invented flat
-    /// <see cref="ProvisionalDamagePerHitPoints"/>, and every target resolves
-    /// as <see cref="CoverState.NotInCover"/>. These are honest placeholders,
-    /// not tuned combat values — the same "degenerate is fine, dishonest is
-    /// not" standard this task's other stages follow.
+    /// <b>Task 79d-2b, cover half.</b> The target's <see cref="CoverState"/>
+    /// now comes from <see cref="ResolveCoverState"/>, which looks up the
+    /// target's position against this simulation's real
+    /// <see cref="_coverRecords"/> rather than the constant
+    /// <see cref="CoverState.NotInCover"/> every shot resolved against
+    /// before this task — exact map geometry, not an invented placeholder.
+    /// The damage a hit deals comes from
+    /// <see cref="CaliberDamage.RawDamage"/>, keyed on the shooter's own
+    /// <see cref="FirearmDefinition.Caliber"/> — resolved from
+    /// <see cref="OperatorState.Firearm"/> by task 79d-2a — rather than the
+    /// single flat constant every hit dealt before this task. Those eight
+    /// values are provisional and say so at their own declaration; what is
+    /// no longer provisional is that the weapon an operator carries decides
+    /// how hard its round lands.
     /// </para>
     /// <para>
     /// <see cref="AccuracyRules.DrawAngularErrorBam"/> takes a
@@ -735,8 +745,9 @@ public sealed class SandataSimulation
 
             if (isHit)
             {
+                var targetCover = ResolveCoverState(target, targetXWu, targetYWu);
                 var damage = CoverRules.ApplyToDamage(
-                    ProvisionalDamagePerHitPoints, CoverState.NotInCover,
+                    CaliberDamage.RawDamage(definition.Caliber), targetCover,
                     shooterXWu, shooterYWu, targetXWu, targetYWu);
 
                 damageBuilder.Add(new DamageInstance(shooter.EntityId, target.EntityId, damage));
@@ -750,6 +761,80 @@ public sealed class SandataSimulation
 
         State = state;
         return damageBuilder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Task 79d-2b: the real <see cref="CoverState"/> a shot at
+    /// <paramref name="target"/> resolves against, looked up from this
+    /// simulation's <see cref="_coverRecords"/> rather than the constant
+    /// <see cref="CoverState.NotInCover"/> every shot resolved against
+    /// before this task.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Which record.</b> A <see cref="CoverRecord"/> contains
+    /// <paramref name="targetXWu"/>, <paramref name="targetYWu"/> when both
+    /// fall within its closed rectangle
+    /// <c>[MinX, MaxX] x [MinY, MaxY]</c> — the same inclusive-bounds
+    /// convention <c>MapValidator.IsInsideClosedBox</c> already uses
+    /// elsewhere in this codebase for the same "is this point inside this
+    /// map rectangle" question. When more than one record contains the
+    /// target, this is a multi-result query, and design section 4's total-
+    /// order rule (<c>CLAUDE.md</c> section 5) applies: the record with the
+    /// lowest <see cref="CoverRecord.LineNumber"/> wins, an arbitrary but
+    /// total and stable tie-break drawn directly from the map file's own
+    /// line order, never from iteration order over <see cref="_coverRecords"/>.
+    /// </para>
+    /// <para>
+    /// <b>No containing record.</b> Returns <see cref="CoverState.NotInCover"/>
+    /// unchanged — a target standing outside every cover rectangle is
+    /// exactly as exposed as it was before this task.
+    /// </para>
+    /// <para>
+    /// <b>Posture.</b> A containing record's
+    /// <see cref="CoverRecord.ArcCentreBam"/> and
+    /// <see cref="CoverRecord.ArcHalfBam"/> copy unchanged into
+    /// <see cref="CoverState.ArcCentreBam"/> and
+    /// <see cref="CoverState.ArcHalfBam"/>; <see cref="CoverState.Posture"/>
+    /// reads <paramref name="target"/>'s own
+    /// <see cref="OperatorState.IsCrouched"/> — design section 4's "posture
+    /// (standing or crouched)" is per-operator authoritative state, not
+    /// per-cover-object, exactly as <see cref="CoverState"/>'s own remarks
+    /// describe two operators behind the same object each holding their own
+    /// state.
+    /// </para>
+    /// </remarks>
+    private CoverState ResolveCoverState(OperatorState target, long targetXWu, long targetYWu)
+    {
+        CoverRecord? containing = null;
+
+        foreach (var record in _coverRecords)
+        {
+            var isInside =
+                targetXWu >= record.MinX && targetXWu <= record.MaxX &&
+                targetYWu >= record.MinY && targetYWu <= record.MaxY;
+
+            if (!isInside)
+            {
+                continue;
+            }
+
+            if (containing is null || record.LineNumber < containing.LineNumber)
+            {
+                containing = record;
+            }
+        }
+
+        if (containing is null)
+        {
+            return CoverState.NotInCover;
+        }
+
+        return new CoverState(
+            InCover: true,
+            ArcCentreBam: new Bam16((ushort)containing.ArcCentreBam),
+            ArcHalfBam: (ushort)containing.ArcHalfBam,
+            Posture: target.IsCrouched ? CoverPosture.Crouched : CoverPosture.Standing);
     }
 
     /// <summary>

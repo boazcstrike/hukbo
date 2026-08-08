@@ -7,6 +7,7 @@ using Sandata.Core.Collision;
 using Sandata.Core.Combat;
 using Sandata.Core.Determinism;
 using Sandata.Core.Events;
+using Sandata.Core.Maps;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
@@ -150,7 +151,7 @@ public sealed class TickPipelineTests
         var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 0, positionYWu: 0);
         var state = BuildState(ImmutableArray.Create(op));
 
-        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         var pathNodes = ImmutableArray.Create(
             new OrderPathNode(0, 0),
@@ -279,8 +280,8 @@ public sealed class TickPipelineTests
             BuildOperator(3, faction: 0, positionXWu: 20, positionYWu: 0),
             BuildOperator(4, faction: 0, positionXWu: 0, positionYWu: 0));
 
-        var simA = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildState(leftToRight));
-        var simB = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildState(rightToLeft));
+        var simA = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildState(leftToRight), ImmutableArray<CoverRecord>.Empty);
+        var simB = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildState(rightToLeft), ImmutableArray<CoverRecord>.Empty);
 
         simA.RunTick(0);
         simB.RunTick(0);
@@ -541,8 +542,8 @@ public sealed class TickPipelineTests
             BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0, aimAngle: new Bam16(2548)),
             BuildOperator(2, faction: 1, positionXWu: 90, positionYWu: 0)));
 
-        var simA = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture());
-        var simB = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture());
+        var simA = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
+        var simB = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
 
         for (var tick = 0; tick < 20; tick++)
         {
@@ -598,7 +599,7 @@ public sealed class TickPipelineTests
             BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
             BuildOperator(2, faction: 0, positionXWu: 50, positionYWu: 0)));
 
-        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
         sim.RunTick(0);
 
         var proposalOne = sim.PendingMovementProposals.Single(p => p.EntityId == 1UL);
@@ -631,14 +632,14 @@ public sealed class TickPipelineTests
             BuildOperator(2, faction: 0, positionXWu: separationWu, positionYWu: 0)));
 
         var simAtRadius = new SandataSimulation(
-            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(96));
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(96), ImmutableArray<CoverRecord>.Empty);
         simAtRadius.RunTick(0);
         var atRadiusOne = simAtRadius.PendingMovementProposals.Single(p => p.EntityId == 1UL);
         var atRadiusTwo = simAtRadius.PendingMovementProposals.Single(p => p.EntityId == 2UL);
         Assert.Equal(atRadiusOne.GroupId, atRadiusTwo.GroupId);
 
         var simBeyondRadius = new SandataSimulation(
-            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(97));
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(97), ImmutableArray<CoverRecord>.Empty);
         simBeyondRadius.RunTick(0);
         var beyondOne = simBeyondRadius.PendingMovementProposals.Single(p => p.EntityId == 1UL);
         var beyondTwo = simBeyondRadius.PendingMovementProposals.Single(p => p.EntityId == 2UL);
@@ -668,7 +669,7 @@ public sealed class TickPipelineTests
             BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
             BuildOperator(2, faction: 1, positionXWu: 20, positionYWu: 0)));
 
-        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
         sim.RunTick(0);
 
         var proposalOne = sim.PendingMovementProposals.Single(p => p.EntityId == 1UL);
@@ -713,13 +714,13 @@ public sealed class TickPipelineTests
             loweredWallDistanceWu: 24,
             aimToleranceBam: 1024);
 
-        var simNarrow = new SandataSimulation(mission, rulesetNarrow, grid, wallBuckets, BuildFixture());
+        var simNarrow = new SandataSimulation(mission, rulesetNarrow, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simNarrow.RunTick(0);
         var narrowOne = simNarrow.PendingMovementProposals.Single(p => p.EntityId == 1UL);
         var narrowTwo = simNarrow.PendingMovementProposals.Single(p => p.EntityId == 2UL);
         Assert.NotEqual(narrowOne.GroupId, narrowTwo.GroupId);
 
-        var simWide = new SandataSimulation(mission, rulesetWide, grid, wallBuckets, BuildFixture());
+        var simWide = new SandataSimulation(mission, rulesetWide, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simWide.RunTick(0);
         var wideOne = simWide.PendingMovementProposals.Single(p => p.EntityId == 1UL);
         var wideTwo = simWide.PendingMovementProposals.Single(p => p.EntityId == 2UL);
@@ -758,7 +759,7 @@ public sealed class TickPipelineTests
             loweredWallDistanceWu: 24,
             aimToleranceBam: 1024);
 
-        var sim = new SandataSimulation(mission, rulesetWideCohesion, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, rulesetWideCohesion, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
         sim.RunTick(0);
 
         var proposalOne = sim.PendingMovementProposals.Single(p => p.EntityId == 1UL);
@@ -821,8 +822,8 @@ public sealed class TickPipelineTests
             BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
             BuildOperator(2, faction: 1, positionXWu: 90, positionYWu: 0)));
 
-        var simLow = new SandataSimulation(mission, rulesetLow, grid, wallBuckets, BuildFixture());
-        var simHigh = new SandataSimulation(mission, rulesetHigh, grid, wallBuckets, BuildFixture());
+        var simLow = new SandataSimulation(mission, rulesetLow, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
+        var simHigh = new SandataSimulation(mission, rulesetHigh, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
 
         for (var tick = 0; tick < 5; tick++)
         {
@@ -878,13 +879,13 @@ public sealed class TickPipelineTests
             loweredWallDistanceWu: 7,
             aimToleranceBam: 1024);
 
-        var simInclusive = new SandataSimulation(mission, rulesetInclusive, grid, wallBuckets, BuildFixture());
+        var simInclusive = new SandataSimulation(mission, rulesetInclusive, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simInclusive.RunTick(0);
         var forcedOperator = Assert.Single(simInclusive.State.Operators);
         Assert.Equal((int)WeaponChainPhase.Lowered, forcedOperator.WeaponChainPhase);
         Assert.Equal(0, forcedOperator.WeaponChainRemainingTicks);
 
-        var simJustOutside = new SandataSimulation(mission, rulesetJustOutside, grid, wallBuckets, BuildFixture());
+        var simJustOutside = new SandataSimulation(mission, rulesetJustOutside, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simJustOutside.RunTick(0);
         var raisingOperator = Assert.Single(simJustOutside.State.Operators);
         Assert.Equal((int)WeaponChainPhase.Raising, raisingOperator.WeaponChainPhase);
@@ -944,12 +945,12 @@ public sealed class TickPipelineTests
             loweredWallDistanceWu: 24,
             aimToleranceBam: 400);
 
-        var simWide = new SandataSimulation(mission, rulesetWide, grid, wallBuckets, BuildFixture());
+        var simWide = new SandataSimulation(mission, rulesetWide, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simWide.RunTick(0);
         var completedOperator = simWide.State.Operators.Single(op => op.EntityId == 1UL);
         Assert.Equal((int)WeaponChainPhase.Aiming, completedOperator.WeaponChainPhase);
 
-        var simNarrow = new SandataSimulation(mission, rulesetNarrow, grid, wallBuckets, BuildFixture());
+        var simNarrow = new SandataSimulation(mission, rulesetNarrow, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simNarrow.RunTick(0);
         var stillTurningOperator = simNarrow.State.Operators.Single(op => op.EntityId == 1UL);
         Assert.Equal((int)WeaponChainPhase.Turning, stillTurningOperator.WeaponChainPhase);
@@ -1003,11 +1004,11 @@ public sealed class TickPipelineTests
             BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0) with { Firearm = firearm },
             BuildOperator(2, faction: 1, positionXWu: 90, positionYWu: 0)));
 
-        var simRifle = new SandataSimulation(mission, ruleset, grid, wallBuckets, BuildFixture(FirearmId.Ak47));
+        var simRifle = new SandataSimulation(mission, ruleset, grid, wallBuckets, BuildFixture(FirearmId.Ak47), ImmutableArray<CoverRecord>.Empty);
         simRifle.RunTick(0);
         var rifleOperator = simRifle.State.Operators.Single(op => op.EntityId == 1UL);
 
-        var simPistol = new SandataSimulation(mission, ruleset, grid, wallBuckets, BuildFixture(FirearmId.Beretta92Fs));
+        var simPistol = new SandataSimulation(mission, ruleset, grid, wallBuckets, BuildFixture(FirearmId.Beretta92Fs), ImmutableArray<CoverRecord>.Empty);
         simPistol.RunTick(0);
         var pistolOperator = simPistol.State.Operators.Single(op => op.EntityId == 1UL);
 
@@ -1065,9 +1066,9 @@ public sealed class TickPipelineTests
             nextOrderId: 1, nextOrderSequence: 1, ImmutableArray<Order>.Empty);
 
         var simResumed = new SandataSimulation(
-            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(resumedQueue));
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(resumedQueue), ImmutableArray<CoverRecord>.Empty);
         var simFresh = new SandataSimulation(
-            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(OrderQueue.Empty));
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(OrderQueue.Empty), ImmutableArray<CoverRecord>.Empty);
 
         for (var tick = 0; tick < 5; tick++)
         {
@@ -1147,7 +1148,7 @@ public sealed class TickPipelineTests
             RequestTick: 0);
         var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
 
-        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         for (var tick = 0; tick < pathLatencyTicks; tick++)
         {
@@ -1274,7 +1275,7 @@ public sealed class TickPipelineTests
             RequestTick: 0);
         var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
 
-        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         // Request tick: path not yet published, so stage 9 still holds.
         sim.RunTick(0);
@@ -1367,7 +1368,7 @@ public sealed class TickPipelineTests
         var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 0, positionYWu: 0);
         var state = BuildState(ImmutableArray.Create(op));
 
-        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         // Two far nodes, neither at the spawn point: an authored path needs
         // at least two nodes (Order.MaxAuthoredPathNodeCount's own lower
@@ -1456,7 +1457,7 @@ public sealed class TickPipelineTests
             RequestTick: 0);
         var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
 
-        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         var movementSpeedRaw = (80L * FixedPoint.Scale) / ruleset.TickRate;
 
@@ -1542,7 +1543,7 @@ public sealed class TickPipelineTests
             with
         { Groups = ImmutableArray.Create(groupState) };
 
-        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         var movementSpeedRaw = (80L * FixedPoint.Scale) / ruleset.TickRate;
 
@@ -1690,7 +1691,7 @@ public sealed class TickPipelineTests
             Groups = ImmutableArray.Create(groupState),
         };
 
-        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         sim.RunTick(0);
         sim.RunTick(pathLatencyTicks);
@@ -1958,7 +1959,7 @@ public sealed class TickPipelineTests
         var target = BuildOperator(entityId: 100_000, faction: 1, positionXWu: 90, positionYWu: 0);
         var state = BuildState(ImmutableArray.Create(shooter, target));
 
-        return new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        return new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
     }
 
     /// <summary>
@@ -2093,7 +2094,7 @@ public sealed class TickPipelineTests
             entityId: RangedFixtureTargetEntityId, faction: 1, positionXWu: 0, positionYWu: 0);
         var state = BuildState(ImmutableArray.Create(shooter, target));
 
-        return new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        return new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
     }
 
     /// <summary>
