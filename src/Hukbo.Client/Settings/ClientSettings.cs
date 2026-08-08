@@ -12,15 +12,22 @@ internal sealed record ClientSettings(
 
 /// <summary>
 /// A spectator-chosen army composition for both factions: the total units per
-/// team and the count fielded from each of the four ranks combat preset V4
-/// rosters, in declared roster-index order — Datu, Maharlika, Timawa, Aliping
-/// Namamahay. Persisted only; consumed by the next Full Reset.
+/// team and the count fielded from each of four military ranks — Datu,
+/// Maharlika, Timawa, Aliping Namamahay — regardless of which combat preset
+/// is active. Persisted only; consumed by the next Full Reset.
 /// </summary>
 /// <remarks>
-/// A category is a roster entry: under V4 every roster entry is exactly one
-/// rank's loadout, so a category and a rank now coincide. That was not true
-/// under V2, whose six categories were one-handed-weapon grip variants
-/// (solo/shielded) rather than ranks — see the first reset below.
+/// A category is a rank, not a roster row: under V4 every roster row is
+/// exactly one rank's loadout, so a category and a roster row happen to
+/// coincide too. That stopped being true when V5 and then RU-45 gave Timawa
+/// five roster rows and Aliping Namamahay two;
+/// <c>ArenaGame.ExpandCompositionToRosterCounts</c> (RU-43) is what spreads
+/// one rank's slider count across every roster row that carries that rank,
+/// using the calibrated per-row weights RU-24 and RU-45 measured, so the
+/// four sliders below still mean something under a preset whose roster
+/// outgrew them. That was not true under V2 either, whose six categories were
+/// one-handed-weapon grip variants (solo/shielded) rather than ranks — see
+/// the first reset below.
 /// <para>
 /// The shape changed twice over when V2 landed — four counts became six, and
 /// their names changed — so no existing settings file can be read forward
@@ -59,8 +66,15 @@ internal sealed record ArmyComposition(
     int AlipingNamamahayCount)
 {
     /// <summary>
-    /// One entry per roster index in combat preset V4. A test pins this
-    /// against the preset's actual roster length.
+    /// One entry per rank the spectator can dial, not one entry per
+    /// combat-preset roster row: four ranks, always, regardless of how many
+    /// roster rows a preset fields per rank. Under V4 a rank and a roster row
+    /// happen to coincide 1:1, which is what the pinning test below checks;
+    /// under V5 a rank can span several roster rows (RU-43), and
+    /// <c>ArenaGame.ExpandCompositionToRosterCounts</c> is what spreads one
+    /// rank's count across all of that rank's rows. A test pins this constant
+    /// against V4's roster length, the one preset where the two counts are
+    /// equal.
     /// </summary>
     public const int CategoryCount = 4;
 
@@ -107,7 +121,11 @@ internal sealed record ArmyComposition(
     }
 
     /// <summary>
-    /// The four counts in declared roster-index order.
+    /// The four counts in rank order — Datu, Maharlika, Timawa, Aliping
+    /// Namamahay. Under V4 this also happens to be roster-index order; under
+    /// V5 it is not, and <c>ArenaGame.ExpandCompositionToRosterCounts</c>
+    /// (RU-43) is what maps each of these four counts onto that preset's own
+    /// roster rows.
     /// </summary>
     public int[] CategoryCounts =>
     [
