@@ -1,4 +1,4 @@
-﻿using Sandata.Core.Weapons;
+using Sandata.Core.Weapons;
 
 namespace Sandata.Core.Combat;
 
