@@ -415,6 +415,11 @@ internal static class PawnRenderer
         }
 
         DrawAdornments(spriteBatch, pixel, layout, adornmentAccentColor);
+
+        // Before the trail and the weapon, after the torso and the shield: the
+        // arms leave the body and the weapon is held in the hand, so the
+        // weapon has to draw over the hand that holds it rather than under it.
+        DrawArms(spriteBatch, pixel, layout.Arms, skinColor);
         DrawSwingTrail(spriteBatch, pixel, layout.SwingTrail);
         DrawWeapon(
             spriteBatch,
@@ -1143,6 +1148,50 @@ internal static class PawnRenderer
     /// here: the pivot, radius, and both angles arrive from
     /// <see cref="PawnGeometry"/>, and this method only walks between them.
     /// </summary>
+    /// <summary>
+    /// The four arm strokes an actively attacking warrior draws, in the same
+    /// bare skin tone the feet already use. At most four quads, and none at
+    /// all when the layout carries no arms — which is every pawn that is not
+    /// mid-contact, and every pawn at the low detail tier.
+    /// </summary>
+    private static void DrawArms(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        ArmLayout arms,
+        Color skinColor)
+    {
+        if (arms.IsEmpty)
+        {
+            return;
+        }
+
+        DrawArmSegment(spriteBatch, pixel, arms.WeaponUpperArm, arms.Thickness, skinColor);
+        DrawArmSegment(spriteBatch, pixel, arms.WeaponForearm, arms.Thickness, skinColor);
+        DrawArmSegment(spriteBatch, pixel, arms.SupportUpperArm, arms.Thickness, skinColor);
+        DrawArmSegment(spriteBatch, pixel, arms.SupportForearm, arms.Thickness, skinColor);
+    }
+
+    private static void DrawArmSegment(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        ArmSegment segment,
+        float thickness,
+        Color skinColor)
+    {
+        if (segment.IsEmpty)
+        {
+            return;
+        }
+
+        DrawLine(
+            spriteBatch,
+            pixel,
+            segment.From,
+            segment.To,
+            skinColor,
+            thickness);
+    }
+
     private static void DrawSwingTrail(
         SpriteBatch spriteBatch,
         Texture2D pixel,

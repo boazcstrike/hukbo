@@ -307,21 +307,53 @@ public sealed class ConservativePawnCullTests
                     hasSash: true,
                     AppearanceComponentCatalog.MaxAccentMarksPerPawn).VisualBounds;
 
-                worst = MathF.Max(worst, anchor.X - exact.Left);
-                worst = MathF.Max(worst, exact.Right - anchor.X);
-                worst = MathF.Max(worst, anchor.Y - exact.Top);
-                worst = MathF.Max(worst, exact.Bottom - anchor.Y);
+                worst = MathF.Max(worst, Extent(exact, anchor));
+            }
+        }
+
+        // The posed half of the same question. Sixty-four headings rather than
+        // the containment proof's sixteen, because this row is what pins the
+        // coefficient and an under-sampled sweep would pin it too low.
+        foreach (var weapon in Enum.GetValues<WeaponId>())
+        {
+            foreach (var shield in Enum.GetValues<ShieldId>())
+            {
+                var appearance = PawnAppearanceFactory.Create(0, weapon, shield);
+
+                foreach (var resolution in Enum.GetValues<AttackResolution>())
+                {
+                    for (var step = 0; step < 64; step++)
+                    {
+                        var angle = step * (MathF.Tau / 64f);
+                        var exact = PosedVisualBounds(
+                            appearance,
+                            weapon,
+                            shield,
+                            resolution,
+                            MathF.Cos(angle),
+                            MathF.Sin(angle),
+                            anchor,
+                            zoom);
+
+                        worst = MathF.Max(worst, Extent(exact, anchor));
+                    }
+                }
             }
         }
 
         var slack = ConservativePawnCull.RadiusPixels(zoom) - worst;
 
-        // Measured: 4.08 pixels at minimum zoom, 3.51 at default fit, 3.78 at
-        // maximum zoom. Flat, not proportional — the radius does not get
-        // looser as the spectator zooms in, which is exactly where a cull has
-        // to be tight.
-        Assert.InRange(slack, 0f, 4.2f);
+        // Measured against the posed worst case: 2.62 pixels at minimum zoom,
+        // 1.99 at default fit, 1.74 at maximum zoom. Flat, not proportional —
+        // the radius does not get looser as the spectator zooms in, which is
+        // exactly where a cull has to be tight.
+        Assert.InRange(slack, 0f, 3f);
     }
+
+    private static float Extent(Rectangle bounds, Vector2 anchor) =>
+        MathF.Max(
+            MathF.Max(anchor.X - bounds.Left, bounds.Right - anchor.X),
+            MathF.Max(anchor.Y - bounds.Top, bounds.Bottom - anchor.Y));
 
     [Fact]
     public void IsPotentiallyVisible_AgreesWithTheBoundingRectangle()
@@ -402,11 +434,20 @@ public sealed class ConservativePawnCullTests
     /// cull already draws every pawn and the pre-cull cannot skip anything —
     /// both admit all of them, and a pre-cull buys exactly nothing there. At
     /// maximum zoom the exact cull draws 1.22 percent of the field and the
-    /// pre-cull admits 1.32 percent, so it rejects 98.68 percent of the army
-    /// while overshooting the drawn set by 7.8 percent of itself. The
+    /// pre-cull admits 1.52 percent, so it rejects 98.48 percent of the army
+    /// while overshooting the drawn set by 24.6 percent of itself. The
     /// conservative bound is therefore not too generous to be useful: where a
-    /// cull can help at all, it is within a tenth of a percentage point of
+    /// cull can help at all, it is within a third of a percentage point of
     /// the exact answer.
+    /// </para>
+    /// <para>
+    /// The maximum-zoom row was 1.32 percent while the radius bounded neutral
+    /// geometry only. Task 7 widened it to bound an attacking pawn's true
+    /// heading, extension, arms, and trail as well
+    /// (<see cref="ConservativePawnCull"/>), which costs two tenths of a
+    /// percentage point of the field — at 200 warriors, one extra pawn — and
+    /// buys the guarantee that a warrior striking at the edge of the panel is
+    /// never culled while its weapon is on screen.
     /// </para>
     /// <para>
     /// This is a model, not a measurement: agents are spread evenly over the
@@ -424,7 +465,7 @@ public sealed class ConservativePawnCullTests
     [Theory]
     [InlineData("minimum zoom", MinimumZoom, 1.0, 1.0)]
     [InlineData("default fit", FitStationSentinelZoom, 1.0, 1.0)]
-    [InlineData("maximum zoom", MaximumZoom, 0.0122, 0.0132)]
+    [InlineData("maximum zoom", MaximumZoom, 0.0122, 0.0152)]
     public void AdmittedFraction_IsRecordedForEachCameraStation(
         string stationName,
         float zoom,
@@ -489,6 +530,123 @@ public sealed class ConservativePawnCullTests
         }
 
         return ((double)exactCount / sampled, (double)preCullCount / sampled);
+    }
+
+    /// <summary>
+    /// The same upper-bound proof, for an actively attacking pawn. An attack
+    /// aims the weapon at a true heading and extends it, so the drawn line can
+    /// reach further from the foot anchor than any neutral appearance does,
+    /// and the arms, the axe head, the trail, and the shield guard all travel
+    /// with it (attack-animation-v2 design section 11).
+    /// </summary>
+    /// <remarks>
+    /// The radius stays pose-blind: it is still a function of zoom alone. What
+    /// changes is that it is now derived from the largest extent a posed pawn
+    /// can reach rather than the largest a neutral one can, which is what
+    /// keeps a warrior striking at the edge of the panel from being culled
+    /// while its weapon would have been on screen.
+    /// </remarks>
+    [Fact]
+    public void Bounds_ContainEveryPosedVisualBoundsAnAttackCanProduce()
+    {
+        var cases = 0;
+
+        foreach (var weapon in Enum.GetValues<WeaponId>())
+        {
+            foreach (var shield in Enum.GetValues<ShieldId>())
+            {
+                var appearance = PawnAppearanceFactory.Create(0, weapon, shield);
+
+                foreach (var resolution in Enum.GetValues<AttackResolution>())
+                {
+                    foreach (var (directionX, directionY) in PosedHeadings)
+                    {
+                        foreach (var zoom in ZoomSamples)
+                        {
+                            foreach (var anchor in AnchorSamples)
+                            {
+                                var exact = PosedVisualBounds(
+                                    appearance,
+                                    weapon,
+                                    shield,
+                                    resolution,
+                                    directionX,
+                                    directionY,
+                                    anchor,
+                                    zoom);
+
+                                AssertContains(
+                                    ConservativePawnCull.Bounds(anchor, zoom),
+                                    exact,
+                                    appearance,
+                                    zoom,
+                                    anchor);
+                                cases++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4 weapons x 2 shields x 5 resolutions x 16 headings x 14 zooms
+        // x 4 anchors. Asserted so a silently shrunken axis list cannot pass
+        // this test by covering less.
+        Assert.Equal(4 * 2 * 5 * 16 * 14 * 4, cases);
+    }
+
+    /// <summary>
+    /// Sixteen headings rather than the eight cardinal and intercardinal ones
+    /// the pose tests use: the extent is largest between the axes, so the
+    /// off-axis samples are the ones that actually constrain the radius.
+    /// </summary>
+    private static IEnumerable<(float X, float Y)> PosedHeadings
+    {
+        get
+        {
+            for (var step = 0; step < 16; step++)
+            {
+                var angle = step * (MathF.Tau / 16f);
+                yield return (MathF.Cos(angle), MathF.Sin(angle));
+            }
+        }
+    }
+
+    /// <summary>
+    /// The exact visual bounds of a pawn mid-contact, taken through the same
+    /// two-stage path the render loop uses. Contact is the widest moment: the
+    /// weapon is fully extended, the trail is at full strength, and the stance
+    /// is fully planted.
+    /// </summary>
+    private static Rectangle PosedVisualBounds(
+        PawnAppearance appearance,
+        WeaponId weapon,
+        ShieldId shield,
+        AttackResolution resolution,
+        float directionX,
+        float directionY,
+        Vector2 anchor,
+        float zoom)
+    {
+        var pose = AttackPoseResolver.Resolve(
+            AttackGeometryTests.Animation(
+                weapon,
+                resolution,
+                shield: shield,
+                directionX: directionX,
+                directionY: directionY));
+
+        return PawnGeometry.PoseBlindPrefix
+            .Create(
+                anchor,
+                zoom,
+                appearance,
+                scaleMultiplier: 1f,
+                AppearanceComponentCatalog.MaxArmorWidthFactor,
+                hasSash: true,
+                AppearanceComponentCatalog.MaxAccentMarksPerPawn)
+            .CompleteAttackPosedLayout(pose)
+            .VisualBounds;
     }
 
     private static void AssertContains(

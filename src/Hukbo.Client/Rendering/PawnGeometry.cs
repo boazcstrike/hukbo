@@ -44,6 +44,62 @@ internal readonly record struct SwingTrail(
 }
 
 /// <summary>
+/// The four arm segments an actively attacking warrior draws: two for the
+/// hand that drives the weapon, and two for the hand that either supports the
+/// weapon or carries the shield. Four rectangles is the design's ceiling of
+/// four extra quads per active Medium or High pawn (attack-animation-v2
+/// design section 11).
+/// </summary>
+/// <remarks>
+/// <see langword="default"/> — four <see cref="Rectangle.Empty"/> rectangles —
+/// is the neutral result, produced whenever no attack pose is active or the
+/// pawn is at <see cref="PawnDetailTier.Low"/>, the same "empty when absent"
+/// convention every other optional layer in this file already uses. The
+/// support pair is empty on its own for a one-handed family carrying no
+/// shield, which has no second arm to articulate.
+/// </remarks>
+/// <param name="From">The joint this segment leaves.</param>
+/// <param name="To">The joint this segment reaches.</param>
+/// <param name="Bounds">
+/// The padded rectangle the stroke sits inside, which is what reaches the
+/// bounding union. <see cref="Rectangle.Empty"/> when the segment is not
+/// drawn at all, which is the one thing <see cref="IsEmpty"/> reports.
+/// </param>
+internal readonly record struct ArmSegment(
+    Vector2 From,
+    Vector2 To,
+    Rectangle Bounds)
+{
+    public bool IsEmpty => Bounds.IsEmpty;
+}
+
+/// <param name="WeaponUpperArm">Shoulder to elbow on the weapon hand.</param>
+/// <param name="WeaponForearm">Elbow to the weapon grip.</param>
+/// <param name="SupportUpperArm">Shoulder to elbow on the off hand.</param>
+/// <param name="SupportForearm">
+/// Elbow to either the haft, for a two-handed family, or the shield.
+/// </param>
+/// <param name="Thickness">
+/// The stroke width every segment is drawn at, in pixels. Carried here for
+/// the same reason <see cref="PawnLayout.WeaponThickness"/> is carried on the
+/// layout: it is the one arm value that is not a rectangle and therefore
+/// cannot reach a bounding union.
+/// </param>
+internal readonly record struct ArmLayout(
+    ArmSegment WeaponUpperArm,
+    ArmSegment WeaponForearm,
+    ArmSegment SupportUpperArm,
+    ArmSegment SupportForearm,
+    float Thickness)
+{
+    public bool IsEmpty =>
+        WeaponUpperArm.IsEmpty &&
+        WeaponForearm.IsEmpty &&
+        SupportUpperArm.IsEmpty &&
+        SupportForearm.IsEmpty;
+}
+
+/// <summary>
 /// The pure geometry a renderer draws from. <see cref="WeaponGripAnchor"/>
 /// and <see cref="ShieldAnchor"/> are the named attachment points the
 /// composed-layer design (integration design section 5) reserves for the
@@ -106,7 +162,8 @@ internal readonly record struct PawnLayout(
     Rectangle LeftLegBounds,
     Rectangle RightLegBounds,
     Rectangle LeftFootBounds,
-    Rectangle RightFootBounds);
+    Rectangle RightFootBounds,
+    ArmLayout Arms);
 
 /// <summary>
 /// GPU-013. Both answers the arena render loop needs about one pawn, from
@@ -160,6 +217,49 @@ internal static class PawnGeometry
     /// <summary>
     /// PROVISIONAL. Angular span of the arc trail at full trail strength.
     /// </summary>
+    /// <summary>
+    /// How much of the gait stride an attack at full stance weight removes.
+    /// PROVISIONAL: enough that a strike reads as planted, short of the one
+    /// that would snap a running warrior's legs together.
+    /// </summary>
+    private const float MaximumStancePlant = 0.6f;
+
+    /// <summary>
+    /// How far a legal shield overlay brings the block toward the exchange, in
+    /// pawn units before apparent scale. PROVISIONAL presentation choreography.
+    /// </summary>
+    private const float ShieldGuardOffsetUnits = 1.4f;
+
+    /// <summary>
+    /// Where an arm leaves the torso, as a share of torso height below its
+    /// top edge.
+    /// </summary>
+    private const float ShoulderHeightShare = 0.18f;
+
+    /// <summary>
+    /// Half the drawn arm thickness, in pawn units before apparent scale, and
+    /// the whole-pixel floor below which an arm would stop being drawable at
+    /// all.
+    /// </summary>
+    private const float ArmHalfWidthUnits = 0.8f;
+
+    /// <summary>See <see cref="ArmHalfWidthUnits"/>.</summary>
+    private const float ArmMinimumHalfWidthPixels = 0.6f;
+
+    /// <summary>
+    /// How far the elbow leaves the straight shoulder-to-hand line, in pawn
+    /// units before apparent scale. PROVISIONAL: large enough to read as a
+    /// bend at Medium detail, small enough that the arm stays inside the
+    /// weapon's own reach envelope.
+    /// </summary>
+    private const float ElbowDisplacementUnits = 1.6f;
+
+    /// <summary>
+    /// Where a two-handed family's support hand grips the haft, as a share of
+    /// the distance from the grip to the weapon tip.
+    /// </summary>
+    private const float SupportGripShareAlongHaft = 0.28f;
+
     private const float TrailSweepRadians = 0.85f;
 
     /// <summary>PROVISIONAL. Trail stroke thickness in pawn units.</summary>
@@ -618,10 +718,24 @@ internal static class PawnGeometry
                 gaitPose ?? default);
 
         /// <summary>
-        /// Compatibility stage for the event-synchronized attack pose. It
-        /// consumes the new target-facing torso, weapon, and trail values
-        /// while the fuller articulated layout is completed in Task 7.
+        /// Stage two for the event-synchronized attack pose. The pose drives
+        /// the target-facing weapon line and trail through the same channel a
+        /// swing already used, and additionally composes the articulated arms,
+        /// the planted attack stance, and the shield guard on top of whatever
+        /// stride <paramref name="gaitPose"/> is in — it never replaces the
+        /// rest of the pawn.
         /// </summary>
+        /// <param name="attackPose">
+        /// The pose one contact-latched attack puts this pawn in, or
+        /// <c>null</c> for a pawn that is not attacking. A <c>null</c> pose
+        /// produces a layout bit-for-bit identical to
+        /// <see cref="PawnGeometry.Create"/>'s neutral one.
+        /// </param>
+        /// <param name="gaitPose">
+        /// The stride pose the legs and feet are drawn in, exactly as on
+        /// <see cref="CompletePosedLayout"/>. An active attack plants the
+        /// stance, damping this stride rather than discarding it.
+        /// </param>
         public PawnLayout CompleteAttackPosedLayout(
             AttackPose? attackPose = null,
             GaitPose? gaitPose = null) =>
@@ -635,7 +749,8 @@ internal static class PawnGeometry
                 _armorWidthFactor,
                 _hasSash,
                 _adornmentAccentMarkCount,
-                gaitPose ?? default);
+                gaitPose ?? default,
+                attackPose);
     }
 
     private static SwingPose ToSwingPose(
@@ -793,7 +908,8 @@ internal static class PawnGeometry
         float armorWidthFactor,
         bool hasSash,
         int adornmentAccentMarkCount,
-        GaitPose gaitPose)
+        GaitPose gaitPose,
+        AttackPose? attackPose = null)
     {
         var apparentScale = proportions.ApparentScale;
         var detailTier = proportions.DetailTier;
@@ -807,7 +923,7 @@ internal static class PawnGeometry
             torsoBounds,
             proportions,
             detailTier,
-            gaitPose);
+            PlantStride(gaitPose, attackPose));
         var legsBounds = Rectangle.Union(
             Rectangle.Union(legs.LeftLeg, legs.RightLeg),
             Rectangle.Union(legs.LeftFoot, legs.RightFoot));
@@ -851,10 +967,21 @@ internal static class PawnGeometry
         // the off-hand block stays where the torso puts it, so a spectator can
         // still tell a shielded warrior from a solo one at the moment of
         // impact, which is exactly when the weapon line is least readable.
-        var shield = CreateShield(
-            proportions,
+        var shield = ApplyShieldGuard(
+            CreateShield(
+                proportions,
+                torsoBounds,
+                appearance.ShieldRole),
+            apparentScale,
+            attackPose);
+
+        var arms = CreateArms(
             torsoBounds,
-            appearance.ShieldRole);
+            weapon,
+            shield,
+            proportions,
+            detailTier,
+            attackPose);
 
         // VIS-023, layers 4/5/9 (integration design section 5). None of
         // these read swingPose — they are pure functions of the torso/head
@@ -878,7 +1005,8 @@ internal static class PawnGeometry
             weapon.SecondaryBounds,
             shield.Bounds,
             armorBounds,
-            legsBounds);
+            legsBounds,
+            ArmsBounds(arms));
         var selectionBounds = CreateSelectionBounds(renderedBounds, apparentScale);
         var visualBounds = Rectangle.Union(renderedBounds, selectionBounds);
 
@@ -910,7 +1038,241 @@ internal static class PawnGeometry
             legs.LeftLeg,
             legs.RightLeg,
             legs.LeftFoot,
-            legs.RightFoot);
+            legs.RightFoot,
+            arms);
+    }
+
+    /// <summary>
+    /// An attacking warrior plants. The stride the gait pose is carrying is
+    /// damped toward the neutral stance in proportion to the attack's own
+    /// stance weight — full at contact, gone once the pose has recovered —
+    /// rather than being discarded, which is what keeps a warrior who strikes
+    /// mid-stride from snapping its legs together for one frame.
+    /// </summary>
+    /// <remarks>
+    /// The design's gait-conflict risk (section 14) is exactly this: two
+    /// independent offset channels writing the same legs. Damping one by the
+    /// other is a composition, so the neutral result of either channel is
+    /// still the neutral result of the pair.
+    /// </remarks>
+    private static GaitPose PlantStride(GaitPose gaitPose, AttackPose? attackPose)
+    {
+        if (attackPose is not { } pose)
+        {
+            return gaitPose;
+        }
+
+        var planted = 1f - (MaximumStancePlant * Math.Clamp(pose.StanceWeight, 0f, 1f));
+
+        return gaitPose with
+        {
+            LeftLegOffsetRatio = gaitPose.LeftLegOffsetRatio * planted,
+            RightLegOffsetRatio = gaitPose.RightLegOffsetRatio * planted,
+            LeftFootLiftRatio = gaitPose.LeftFootLiftRatio * planted,
+            RightFootLiftRatio = gaitPose.RightFootLiftRatio * planted,
+        };
+    }
+
+    /// <summary>
+    /// The off-hand block's attack guard. A legal shield overlay brings the
+    /// block a fixed few units toward the weapon line so it reads as covering
+    /// the exchange; an illegal one — a two-handed family, where
+    /// <see cref="AttackPose.HasShield"/> is already false — leaves the block
+    /// exactly where the neutral layout puts it.
+    /// </summary>
+    /// <remarks>
+    /// PROVISIONAL presentation choreography, not a documented guard position.
+    /// The offset is deliberately fixed rather than derived from the pose's
+    /// own shield hand: the block is a static silhouette element (see
+    /// <see cref="CreateShieldBlock"/>) and a per-frame tracked shield would
+    /// make the shielded silhouette harder to read at the one moment it
+    /// matters most.
+    /// </remarks>
+    private static ShieldLayout ApplyShieldGuard(
+        ShieldLayout shield,
+        float apparentScale,
+        AttackPose? attackPose)
+    {
+        if (shield.Bounds.IsEmpty ||
+            attackPose is not { HasShield: true } pose)
+        {
+            return shield;
+        }
+
+        var guard = (int)MathF.Round(
+            ShieldGuardOffsetUnits * apparentScale *
+            Math.Clamp(pose.StanceWeight, 0f, 1f));
+        if (guard == 0)
+        {
+            return shield;
+        }
+
+        return shield with
+        {
+            Bounds = new Rectangle(
+                shield.Bounds.X + guard,
+                shield.Bounds.Y - guard,
+                shield.Bounds.Width,
+                shield.Bounds.Height),
+            Anchor = shield.Anchor + new Vector2(guard, -guard),
+        };
+    }
+
+    /// <summary>
+    /// The two-segment arms an actively attacking warrior draws. The weapon
+    /// arm always runs shoulder to elbow to the grip the weapon line already
+    /// starts from, so the hand and the weapon can never disagree about where
+    /// the weapon is held. The off-hand arm exists only when the pose has
+    /// somewhere to put it: a two-handed family's support grip on the haft, or
+    /// a legal shield overlay's block.
+    /// </summary>
+    /// <remarks>
+    /// Omitted entirely at <see cref="PawnDetailTier.Low"/>, where a pawn is a
+    /// handful of pixels tall and two more segments per arm would be noise —
+    /// the same tier rule the swing trail and the leg rectangles already
+    /// follow. The elbow is displaced perpendicular to the shoulder-to-hand
+    /// line so the pair reads as an articulated arm rather than one bar; the
+    /// displacement is a PROVISIONAL presentation constant.
+    /// </remarks>
+    private static ArmLayout CreateArms(
+        Rectangle torsoBounds,
+        WeaponLayout weapon,
+        ShieldLayout shield,
+        in PawnProportions proportions,
+        PawnDetailTier detailTier,
+        AttackPose? attackPose)
+    {
+        if (detailTier == PawnDetailTier.Low || attackPose is not { } pose)
+        {
+            return default;
+        }
+
+        var scale = proportions.ApparentScale;
+        var padding = MathF.Max(ArmMinimumHalfWidthPixels, ArmHalfWidthUnits * scale);
+        var shoulderY = torsoBounds.Top + (torsoBounds.Height * ShoulderHeightShare);
+        var weaponShoulder = new Vector2(torsoBounds.Right, shoulderY);
+        var supportShoulder = new Vector2(torsoBounds.Left, shoulderY);
+
+        var thickness = MathF.Max(1f, padding * 2f);
+        var (weaponUpper, weaponFore) = BuildArm(
+            weaponShoulder,
+            weapon.Start,
+            scale,
+            padding);
+
+        if (!TryResolveSupportHand(pose, weapon, shield, out var supportHand))
+        {
+            return new ArmLayout(
+                weaponUpper,
+                weaponFore,
+                default,
+                default,
+                thickness);
+        }
+
+        var (supportUpper, supportFore) = BuildArm(
+            supportShoulder,
+            supportHand,
+            scale,
+            padding);
+
+        return new ArmLayout(
+            weaponUpper,
+            weaponFore,
+            supportUpper,
+            supportFore,
+            thickness);
+    }
+
+    /// <summary>
+    /// Where the off hand goes, or nowhere. A two-handed family anchors it on
+    /// the haft a fixed share along the weapon line; a legal shield overlay
+    /// anchors it on the block. A one-handed family carrying no shield has no
+    /// second arm to draw and reports so.
+    /// </summary>
+    private static bool TryResolveSupportHand(
+        AttackPose pose,
+        WeaponLayout weapon,
+        ShieldLayout shield,
+        out Vector2 supportHand)
+    {
+        if (pose.HasSupportHand)
+        {
+            supportHand = Vector2.Lerp(
+                weapon.Start,
+                weapon.End,
+                SupportGripShareAlongHaft);
+            return true;
+        }
+
+        if (pose.HasShield && !shield.Bounds.IsEmpty)
+        {
+            supportHand = new Vector2(
+                shield.Bounds.Right,
+                shield.Bounds.Center.Y);
+            return true;
+        }
+
+        supportHand = Vector2.Zero;
+        return false;
+    }
+
+    /// <summary>
+    /// One arm as two rectangles. The elbow sits on the perpendicular of the
+    /// shoulder-to-hand line, displaced away from the body, so the two
+    /// segments never collapse onto each other however the weapon is aimed.
+    /// </summary>
+    private static (ArmSegment Upper, ArmSegment Fore) BuildArm(
+        Vector2 shoulder,
+        Vector2 hand,
+        float scale,
+        float padding)
+    {
+        var span = hand - shoulder;
+        var length = span.Length();
+
+        // A coincident shoulder and hand carries no direction to take a
+        // perpendicular of, so the elbow drops straight down instead of
+        // producing a zero or NaN basis.
+        var perpendicular = length > 0f
+            ? new Vector2(-span.Y / length, span.X / length)
+            : new Vector2(0f, 1f);
+        var elbow = shoulder + (span * 0.5f) +
+            (perpendicular * ElbowDisplacementUnits * scale);
+
+        return (
+            new ArmSegment(
+                shoulder,
+                elbow,
+                BoundsFromLine(shoulder, elbow, padding)),
+            new ArmSegment(
+                elbow,
+                hand,
+                BoundsFromLine(elbow, hand, padding)));
+    }
+
+    private static Rectangle ArmsBounds(ArmLayout arms)
+    {
+        if (arms.IsEmpty)
+        {
+            return Rectangle.Empty;
+        }
+
+        var bounds = Rectangle.Union(
+            arms.WeaponUpperArm.Bounds,
+            arms.WeaponForearm.Bounds);
+
+        if (!arms.SupportUpperArm.IsEmpty)
+        {
+            bounds = Rectangle.Union(bounds, arms.SupportUpperArm.Bounds);
+        }
+
+        if (!arms.SupportForearm.IsEmpty)
+        {
+            bounds = Rectangle.Union(bounds, arms.SupportForearm.Bounds);
+        }
+
+        return bounds;
     }
 
     /// <summary>
@@ -983,7 +1345,12 @@ internal static class PawnGeometry
             weapon.SecondaryBounds,
             shieldBounds,
             armorBounds,
-            legsBounds);
+            legsBounds,
+
+            // Pose-blind on purpose: no arm rectangle exists without an
+            // attack pose, and reading one here would make the cull
+            // rectangle a function of presentation animation phase.
+            Rectangle.Empty);
 
         return Rectangle.Union(
             renderedBounds,
@@ -1166,7 +1533,8 @@ internal static class PawnGeometry
         Rectangle weaponSecondaryBounds,
         Rectangle shieldBounds,
         Rectangle armorBounds,
-        Rectangle legsBounds)
+        Rectangle legsBounds,
+        Rectangle armsBounds)
     {
         var renderedBounds = Rectangle.Union(groundRingBounds, torsoBounds);
         renderedBounds = Rectangle.Union(renderedBounds, headBounds);
@@ -1193,6 +1561,11 @@ internal static class PawnGeometry
         if (!legsBounds.IsEmpty)
         {
             renderedBounds = Rectangle.Union(renderedBounds, legsBounds);
+        }
+
+        if (!armsBounds.IsEmpty)
+        {
+            renderedBounds = Rectangle.Union(renderedBounds, armsBounds);
         }
 
         return renderedBounds;
