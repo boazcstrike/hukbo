@@ -14,6 +14,7 @@ using Sandata.Core.Orders;
 using Sandata.Core.Rules;
 using Sandata.Core.Sensing;
 using Sandata.Core.Simulation;
+using Sandata.Core.Squads;
 using Sandata.Core.Weapons;
 using Sandata.Headless;
 
@@ -1202,19 +1203,28 @@ public sealed class TickPipelineTests
     /// </para>
     /// <para>
     /// <b>The first published tick, derived rather than read back from a
-    /// run.</b> The operator spawns exactly on the path's own start vertex,
-    /// so its projected arclength is zero and the leader's sample arclength
-    /// is <c>FormationLookaheadWu</c>, 8. The first segment's stored length
-    /// is <see cref="PolylineArclength.Build"/>'s truncated integer square
-    /// root of (8·8 + 8·8) = 128, which is 11 rather than the true
-    /// 8·√2 ≈ 11.31, so <see cref="PolylineArclength.SampleAt"/> at
-    /// arclength 8 returns (2 + 8·8/11, 2 + 8·8/11) = (7, 7) under this
-    /// codebase's truncating integer division — raw (7,168, 7,168). The
-    /// displacement from raw (2,048, 2,048) is (5,120, 5,120), whose
-    /// magnitude is <c>IntegerSqrt(52,428,800)</c> = 7,240 raw, far past the
-    /// 1,638 raw per-tick cap, so stage 9's clamp scales it down:
-    /// 2,048 + 5,120·1,638/7,240 = 2,048 + 1,158 = <b>3,206 raw</b> on both
-    /// axes. That is the value pinned below.
+    /// run.</b> The operator spawns exactly on the path's own start vertex at
+    /// raw (2,048, 2,048), so its projected arclength is zero and the leader's
+    /// sample arclength is one per-tick step, 1,638 raw. Since task 87 the
+    /// first segment's stored length is the integer square root of a *raw*
+    /// square: (8·1,024)² · 2 = 134,217,728, whose root truncates to 11,585
+    /// against a true 8,192·√2 ≈ 11,585.24. <see cref="PolylineArclength.SampleAt"/>
+    /// at arclength 1,638 therefore returns
+    /// 2,048 + 8,192·1,638/11,585 = 2,048 + 1,158 = <b>3,206 raw</b> on both
+    /// axes, and the displacement of (1,158, 1,158) has a magnitude of about
+    /// 1,637.4 raw, just inside the 1,638 cap, so the clamp does not bind on
+    /// this tick at all.
+    /// </para>
+    /// <para>
+    /// <b>That the pinned value is the same 3,206 it was before task 87 is a
+    /// coincidence worth naming, not evidence that nothing changed.</b> Under
+    /// the old world-unit table the sample landed on (7, 7) — raw
+    /// (7,168, 7,168) — a displacement of 5,120 raw per axis, and stage 9's
+    /// clamp then scaled it down by 1,638/7,240 to 1,158. The new arithmetic
+    /// reaches 1,158 by walking exactly one step along the segment instead.
+    /// Both round to the same integer; only one of them is a leader that moves
+    /// at the speed the design specifies rather than one whose target
+    /// overshoots by four and a half strides and is reeled back in.
     /// </para>
     /// <para>
     /// <b>The two properties this test has always existed to prove, both
@@ -1235,12 +1245,18 @@ public sealed class TickPipelineTests
     /// more than the per-tick cap — the assertion that makes a teleport
     /// impossible to pass — and the operator must still arrive at the goal,
     /// which is what separates a slowed walk from a stalled one. That second
-    /// half is not decoration: task 84's first implementation derived
-    /// <c>FormationLookaheadWu</c> as the per-tick step rounded up to 2 world
-    /// units, and at that lookahead the round-trip arclength quantization on
-    /// a diagonal segment froze this very operator at (4, 4) permanently. An
-    /// arrival assertion is what catches that; a "the position changed"
-    /// assertion is not.
+    /// half is not decoration: task 84's first implementation set the
+    /// lookahead to the per-tick step rounded up to 2 world units, and at that
+    /// lookahead the round-trip arclength quantization on a diagonal segment
+    /// froze this very operator at (4, 4) permanently. An arrival assertion is
+    /// what catches that; a "the position changed" assertion is not.
+    /// </para>
+    /// <para>
+    /// <b>What task 87 adds.</b> The lookahead this test exercises *is* the
+    /// per-tick step now — the reduction task 84 could not make — because the
+    /// arclength round trip loses a raw unit or two rather than a world unit
+    /// or two. The arrival assertion below is therefore the direct proof that
+    /// the deadlock task 84 documented no longer exists at that value.
     /// </para>
     /// </remarks>
     [Fact]
@@ -1585,16 +1601,121 @@ public sealed class TickPipelineTests
     }
 
     /// <summary>
+    /// Task 87: a point sampled from an arclength projects back to that same
+    /// arclength, over a polyline carrying an axis-aligned, an exact
+    /// 45-degree, and an oblique segment. This is the property that decides
+    /// whether a leader aiming a short distance ahead of its own projection
+    /// actually gets there, and before task 87 it lost up to about two world
+    /// units on a diagonal.
+    /// </summary>
+    /// <remarks>
+    /// <b>What this test does not bind, established by breaking it.</b> The
+    /// round trip is insensitive to the stored segment length being wrong,
+    /// because <see cref="PolylineArclength.SampleAt"/> and
+    /// <c>ProjectArclength</c> divide by the same length in opposite
+    /// directions and the error cancels. Reintroducing task 87's world-unit
+    /// truncation leaves this test passing. What it does bind is the
+    /// coordinate precision: sampling in raw rather than in whole world units,
+    /// and projecting a raw query position rather than one already rounded to
+    /// a world unit. The segment length is pinned separately by
+    /// <c>SlotTargetsTests.Build_DiagonalSegmentLength_IsTheRawRootNotTheScaledWorldUnitRoot</c>.
+    /// </remarks>
+    [Fact]
+    public void ProjectArclength_RoundTripsEverySampledPointToWithinTwoRawUnits()
+    {
+        // Two raw units, not one, and the difference is arithmetic rather
+        // than slack. Three truncating divisions sit on this round trip: the
+        // segment length is a truncated integer square root, SampleAt then
+        // truncates the interpolated coordinate, and ProjectArclength
+        // truncates the projection back onto the segment. Each can lose up to
+        // a raw unit and they do not cancel. Task 87's row asked for "within
+        // one raw unit"; that figure was written without checking it against
+        // the three roundings it has to survive, and one is not reachable
+        // without rounding-to-nearest at every step. Two raw units is
+        // 2/1024 of a world unit, against a per-tick step of 1,638 raw — the
+        // property that matters is that the loss is now a rounding error
+        // rather than a stride, and it is measured here rather than assumed.
+        const long MaxRoundTripDriftRaw = 2;
+
+        // ProjectArclength is private, and it is read here by reflection for
+        // the same reason the invariant test below reads its constants that
+        // way: re-deriving the projection locally would test a copy of the
+        // arithmetic rather than the arithmetic stage 9 actually runs.
+        var projectArclength = typeof(SandataSimulation).GetMethod(
+            "ProjectArclength", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException(
+                "SandataSimulation.ProjectArclength not found by reflection.");
+
+        // One axis-aligned segment, one exact 45-degree diagonal, and one
+        // oblique segment at roughly 18.4 degrees — the angle of the angle
+        // -house fixture's own wall, and the case task 87 was written for.
+        ImmutableArray<PathPoint> polyline =
+        [
+            new PathPoint(0, 0),
+            new PathPoint(100, 0),
+            new PathPoint(140, 40),
+            new PathPoint(200, 60),
+        ];
+
+        var arclength = PolylineArclength.Build(polyline);
+
+        long RoundTrip(long queryArclength)
+        {
+            var sample = arclength.SampleAt(queryArclength);
+            return (long)projectArclength.Invoke(
+                null, [polyline, arclength, sample.X, sample.Y])!;
+        }
+
+        var probed = 0;
+        var worstDrift = 0L;
+        var worstDescription = "none";
+
+        void Probe(string description, long query)
+        {
+            var drift = Math.Abs(RoundTrip(query) - query);
+            probed++;
+
+            if (drift > worstDrift)
+            {
+                worstDrift = drift;
+                worstDescription = $"{description} at arclength {query}";
+            }
+        }
+
+        for (var vertexIndex = 0; vertexIndex < polyline.Length; vertexIndex++)
+        {
+            Probe($"vertex {vertexIndex}", arclength.ArclengthAtVertex(vertexIndex));
+        }
+
+        for (var segment = 0; segment + 1 < polyline.Length; segment++)
+        {
+            var segmentStart = arclength.ArclengthAtVertex(segment);
+            var segmentLength = arclength.ArclengthAtVertex(segment + 1) - segmentStart;
+
+            for (var step = 1; step < 32; step++)
+            {
+                Probe($"segment {segment} step {step}", segmentStart + (segmentLength * step / 32));
+            }
+        }
+
+        // Both loops must actually have run. Without this the whole test
+        // passes on an empty polyline, which is the shape of vacuous pass this
+        // wave has thrown away three measurements over.
+        Assert.Equal(97, probed);
+
+        Assert.True(
+            worstDrift <= MaxRoundTripDriftRaw,
+            $"worst round-trip drift was {worstDrift} raw units at {worstDescription}, " +
+            $"above the {MaxRoundTripDriftRaw} this arithmetic is allowed");
+    }
+
+    /// <summary>
     /// Task 84: pins the two constants the clamp's own safety property
     /// depends on - per-tick movement must never exceed the collision body
     /// radius, or two operators closing on each other could pass through
-    /// in a single tick. Both sides are re-derived from public building
-    /// blocks (<see cref="FixedPoint.Scale"/>, a ruleset instance's own
-    /// <see cref="SandataRuleset.TickRate"/>) rather than read off the
-    /// production type's private constants, which <see
-    /// cref="InternalsVisibleToAttribute"/> does not expose to this
-    /// assembly; the literal pins below fail this test if either design
-    /// value drifts, exactly as required.
+    /// in a single tick. Both constants are read out of the production type
+    /// by reflection rather than re-derived locally, so the invariant is
+    /// asserted against what the simulation actually uses.
     /// </summary>
     [Fact]
     public void MovementSpeedRaw_NeverExceedsTheCollisionBodyRadius()

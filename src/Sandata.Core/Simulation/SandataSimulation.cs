@@ -1672,40 +1672,37 @@ public sealed class SandataSimulation
     /// </summary>
     private const long FormationLateralStepWu = 4;
 
-    /// <summary>
-    /// How far ahead of the leader's own projected position, in whole world
-    /// units, the leader's sample point sits — without this, a leader whose
-    /// target is its own projection onto the path never moves. It is
-    /// <see cref="ClampToMovementSpeed"/>, not this value, that decides how
-    /// far the leader actually travels in a tick, so this value only has to
-    /// be large enough that the sampled point is reliably ahead of the
-    /// leader's own position. <b>PROVISIONAL</b> — still task 79b's
-    /// unvalidated 8, and still owed a real tuning pass, but no longer for
-    /// the reason task 79b gave: a per-tick step does now have a source,
-    /// <see cref="SprintSpeedWuPerSecond"/>.
-    /// <para>
-    /// <b>This value has a floor, and it is well above the per-tick step.</b>
-    /// Task 84 first set it to the step rounded up to the next whole world
-    /// unit, which is 2, on the reasoning that any value at or above the step
-    /// is absorbed by the clamp anyway. That reasoning is wrong, and the way
-    /// it is wrong deadlocks a leader on a diagonal segment.
-    /// <see cref="PolylineArclength.Build"/> stores each segment's length as
-    /// a truncated integer square root — an (8, 8) segment measures 11, not
-    /// 8·√2 ≈ 11.31 — and <see cref="ProjectArclength"/> and
-    /// <see cref="PolylineArclength.SampleAt"/> then divide by that truncated
-    /// length in both directions. The round trip from a world position to an
-    /// arclength and back therefore loses up to about two world units on a
-    /// diagonal. With a lookahead of 2 that loss consumes the entire
-    /// lookahead: a leader at (4, 4) projects to arclength 2, samples
-    /// arclength 4, and lands back on (4, 4) — its own position — so the
-    /// clamp has nothing to move toward and the leader is frozen there for
-    /// the rest of the mission. Before task 84 the same fixed point existed
-    /// and was invisible, because an unclamped commit stepped straight over
-    /// it in one stride. Any replacement value must stay clear of that
-    /// round-trip loss; 8 does, by a factor of four.
-    /// </para>
-    /// </summary>
-    private const long FormationLookaheadWu = 8;
+    // The leader's sample point sits exactly one per-tick step ahead of its
+    // own projection onto the path. There is no separate lookahead constant
+    // any more, and the reason is worth keeping.
+    //
+    // A lookahead exists at all because a leader whose target is its own
+    // projection never moves. Anything larger than one step is absorbed by
+    // ClampToMovementSpeed and buys nothing; anything smaller throttles the
+    // leader below the sprint speed design section 4 sets. One step is
+    // therefore the only value that is neither wasteful nor limiting, and it
+    // needs no tuning pass because it is not a tuning parameter — it is
+    // SprintSpeedWuPerSecond divided by the tick rate, and it moves when
+    // either of those does.
+    //
+    // Task 79b's provisional 8 world units could not be reduced to this
+    // before task 87. PolylineArclength stored each segment's length as a
+    // truncated integer square root of a *world-unit* square — an (8, 8)
+    // segment measured 11 rather than 8·√2 ≈ 11.31 — and ProjectArclength and
+    // SampleAt then divided by that truncated length in opposite directions,
+    // so a position turned into an arclength and back lost up to about two
+    // world units on a diagonal. Task 84 set the lookahead to 2 on the
+    // reasoning that the clamp absorbs anything at or above the step, did not
+    // check that reasoning against the arclength arithmetic the value
+    // actually feeds, and froze a leader at (4, 4) permanently: it projected
+    // to arclength 2, sampled arclength 4, and landed back on its own
+    // position with nothing for the clamp to move toward. The lookahead went
+    // back to 8 with the floor written at its declaration.
+    //
+    // Task 87 removed the floor rather than respecting it. Every length in
+    // PolylineArclength is now raw fixed point, so the round trip loses a raw
+    // unit or two instead of a world unit or two, and a lookahead of 1,638
+    // raw clears that by three orders of magnitude.
 
     /// <summary>
     /// Stage 9. Call-site obligation: chooses each living operator's
@@ -1749,10 +1746,12 @@ public sealed class SandataSimulation
     /// moves an entity straight to its proposal's desired point every tick
     /// with no speed cap of its own, projecting the leader's own current
     /// position back onto its own path would leave the leader's target
-    /// pinned to wherever it already stands; <see cref="FormationLookaheadWu"/>
-    /// adds a small arclength past that projection so the leader
-    /// (slot 0, whose trail and lateral offsets are both zero) still has
-    /// somewhere ahead of it to walk toward, each tick, clamped to the
+    /// pinned to wherever it already stands, so the leader's sample sits one
+    /// per-tick step past that projection — see the comment above
+    /// <see cref="FormationHalfWidthWu"/>'s neighbours for why exactly one
+    /// step and not a separate tunable — giving the leader
+    /// (slot 0, whose trail and lateral offsets are both zero)
+    /// somewhere ahead of it to walk toward each tick, clamped to the
     /// path's own <see cref="PolylineArclength.TotalLength"/> so it never
     /// overshoots the goal. Each slot's trail
     /// and lateral offset come from <see cref="FormationSlotOffsetsWu"/>, a
@@ -1846,19 +1845,27 @@ public sealed class SandataSimulation
                     var leaderPositionArclength = leaderIndex < 0
                         ? arclength.TotalLength
                         : ProjectArclength(
-                            path, arclength, view.PositionXWu(leaderIndex), view.PositionYWu(leaderIndex));
+                            path, arclength, view.PositionXRaw(leaderIndex), view.PositionYRaw(leaderIndex));
                     var leaderArclength = Math.Min(
-                        leaderPositionArclength + FormationLookaheadWu, arclength.TotalLength);
+                        leaderPositionArclength + movementSpeedRaw, arclength.TotalLength);
                     var (trailOffsetWu, lateralOffsetWu) = FormationSlotOffsetsWu(slot.SlotIndex ?? 0);
                     var leaderClearance = FindLeaderClearance(view, leaderEntityId);
                     var gatedLateralOffsetWu = FormationCollapse.LateralOffset(
                         leaderClearance, FormationHalfWidthWu, lateralOffsetWu);
 
+                    // The formation-shape constants are authored in whole
+                    // world units because that is the unit a person reasons
+                    // about a squad's spacing in; the arclength table they
+                    // index into is raw, so they are scaled here rather than
+                    // being restated in raw at their declarations.
                     var target = SlotTargets.ComputeTarget(
-                        arclength, leaderArclength, trailOffsetWu, gatedLateralOffsetWu);
+                        arclength,
+                        leaderArclength,
+                        checked(trailOffsetWu * FixedPoint.Scale),
+                        checked(gatedLateralOffsetWu * FixedPoint.Scale));
 
-                    desiredXRaw = RawFromWorldUnits(target.X);
-                    desiredYRaw = RawFromWorldUnits(target.Y);
+                    desiredXRaw = checked((int)target.X);
+                    desiredYRaw = checked((int)target.Y);
                 }
             }
 
@@ -1874,8 +1881,9 @@ public sealed class SandataSimulation
     }
 
     /// <summary>
-    /// Projects a world position onto the nearest point of <paramref name="path"/>
-    /// and returns that point's arclength, per <paramref name="arclength"/>.
+    /// Projects a raw fixed-point world position onto the nearest point of
+    /// <paramref name="path"/> and returns that point's arclength, also raw,
+    /// per <paramref name="arclength"/>.
     /// Pure function of its inputs — no state is stored between calls, so
     /// this is safe to call fresh every tick for every group's leader rather
     /// than tracking leader progress incrementally (design section 8:
@@ -1895,23 +1903,29 @@ public sealed class SandataSimulation
     /// method.
     /// </remarks>
     private static long ProjectArclength(
-        ImmutableArray<PathPoint> path, in PolylineArclength arclength, long positionXWu, long positionYWu)
+        ImmutableArray<PathPoint> path, in PolylineArclength arclength, long positionXRaw, long positionYRaw)
     {
-        var bestDistanceSq = long.MaxValue;
+        var bestDistanceSq = Int128.MaxValue;
         var bestArclength = 0L;
 
         for (var i = 0; i < path.Length - 1; i++)
         {
-            var ax = path[i].X;
-            var ay = path[i].Y;
-            var bx = path[i + 1].X;
-            var by = path[i + 1].Y;
+            // The published polyline's vertices are whole world units; every
+            // length this method compares or returns is raw, so each vertex is
+            // scaled once on the way in. Doing the geometry in world units and
+            // scaling the answer afterwards is what task 87 removed: it threw
+            // away the query position's own sub-world-unit precision before
+            // the projection had a chance to use it.
+            var ax = checked(path[i].X * FixedPoint.Scale);
+            var ay = checked(path[i].Y * FixedPoint.Scale);
+            var bx = checked(path[i + 1].X * FixedPoint.Scale);
+            var by = checked(path[i + 1].Y * FixedPoint.Scale);
             var dx = bx - ax;
             var dy = by - ay;
             var denom = checked((dx * dx) + (dy * dy));
 
-            var apx = positionXWu - ax;
-            var apy = positionYWu - ay;
+            var apx = positionXRaw - ax;
+            var apy = positionYRaw - ay;
 
             long clampedNumerator;
             long closestX;
@@ -1927,21 +1941,31 @@ public sealed class SandataSimulation
             {
                 var numerator = checked((apx * dx) + (apy * dy));
                 clampedNumerator = Math.Clamp(numerator, 0, denom);
-                closestX = ax + checked((clampedNumerator * dx) / denom);
-                closestY = ay + checked((clampedNumerator * dy) / denom);
+
+                // Int128 for the product alone. At raw scale the numerator is
+                // already on the order of the squared map extent, and
+                // multiplying that by a raw coordinate overflows a signed
+                // 64-bit integer on a map only a few thousand world units
+                // across. The quotient is back inside long by construction,
+                // since clampedNumerator never exceeds denom. Hukbo.Core's
+                // MovementContextQuery widens the same way for the same
+                // reason; Int128 is exact integer arithmetic and carries none
+                // of the cross-version hazard that bans double here.
+                closestX = ax + checked((long)(((Int128)clampedNumerator * dx) / denom));
+                closestY = ay + checked((long)(((Int128)clampedNumerator * dy) / denom));
             }
 
-            var distX = positionXWu - closestX;
-            var distY = positionYWu - closestY;
-            var distanceSq = checked((distX * distX) + (distY * distY));
+            var distX = positionXRaw - closestX;
+            var distY = positionYRaw - closestY;
+            var distanceSq = ((Int128)distX * distX) + ((Int128)distY * distY);
 
             if (distanceSq < bestDistanceSq)
             {
                 bestDistanceSq = distanceSq;
                 var segmentLength = arclength.ArclengthAtVertex(i + 1) - arclength.ArclengthAtVertex(i);
                 var distanceAlongSegment = denom == 0
-                    ? 0
-                    : checked((clampedNumerator * segmentLength) / denom);
+                    ? 0L
+                    : checked((long)(((Int128)clampedNumerator * segmentLength) / denom));
                 bestArclength = arclength.ArclengthAtVertex(i) + distanceAlongSegment;
             }
         }
