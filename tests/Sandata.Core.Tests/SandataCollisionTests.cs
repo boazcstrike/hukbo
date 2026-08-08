@@ -61,6 +61,41 @@ public sealed class SandataCollisionTests
     }
 
     /// <summary>
+    /// Task 86 finding, proved directly against this file's own grid rather
+    /// than through the seed-1 headless fixture: two operators a plausible
+    /// 2 wu apart (2,048 raw; <c>FixedPoint.Scale</c> is 1,024 per world
+    /// unit, same convention production uses) did not collide at the
+    /// invented pre-task-86 body radius (32 raw, sum-of-radii 64 raw, well
+    /// under the separation), but do collide at the designed body radius
+    /// (4,352 raw — <c>SandataSimulation.CollisionBodyRadiusRaw</c>,
+    /// restating <c>Hukbo.Core/Simulation/CollisionRules.cs:72</c>'s
+    /// <c>DefaultBodyRadiusRaw</c> — sum-of-radii 8,704 raw, well over it).
+    /// This is exactly the collision-grid behaviour change that made the
+    /// seed-1 headless fixture's old spacing invalid and task 86's
+    /// <c>HeadlessRunner.cs</c> re-spacing necessary, proved here
+    /// independent of that fixture.
+    /// </summary>
+    [Fact]
+    public void OperatorsAtAPlausibleSeparation_DoNotCollideAtOldRadius_ButDoAtTheDesignedRadius()
+    {
+        const int oldBodyRadiusRaw = 32;
+        const int newBodyRadiusRaw = 4352;
+        const int newCellSizeRaw = 2 * newBodyRadiusRaw;
+        const int separationRaw = 2048; // 2 wu at FixedPoint.Scale = 1,024
+
+        var bodyA = new SandataCollisionBody(EntityId: 1, XRaw: 0, YRaw: 0, IsAlive: true);
+        var bodyB = new SandataCollisionBody(EntityId: 2, XRaw: separationRaw, YRaw: 0, IsAlive: true);
+
+        var oldRadiusGrid = new SandataCollisionGrid(CellSizeRaw);
+        oldRadiusGrid.Rebuild([bodyA, bodyB], oldBodyRadiusRaw);
+        Assert.Empty(oldRadiusGrid.Pairs);
+
+        var newRadiusGrid = new SandataCollisionGrid(newCellSizeRaw);
+        newRadiusGrid.Rebuild([bodyA, bodyB], newBodyRadiusRaw);
+        Assert.Equal([SandataCollisionPair.Create(1, 2)], newRadiusGrid.Pairs);
+    }
+
+    /// <summary>
     /// Two entities that both start, and both propose to end up, at the exact
     /// same position must not collapse onto one point. This is a degenerate
     /// starting configuration — <see cref="SandataCollisionResolver"/>'s own

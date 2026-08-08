@@ -27,9 +27,15 @@
         }
       },
       "hukbo.core": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Hukbo.Shared.Core": "[1.0.0, )"
+        }
       },
       "hukbo.diagnostics": {
+        "type": "Project"
+      },
+      "hukbo.shared.core": {
         "type": "Project"
       },
       "MonoGame.Content.Builder.Task": {

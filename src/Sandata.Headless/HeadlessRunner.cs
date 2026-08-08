@@ -8,6 +8,7 @@ using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
 using Hukbo.Diagnostics;
 using Sandata.Core.Combat;
+using Sandata.Core.Maps;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
@@ -137,9 +138,9 @@ public static class HeadlessRunner
             throw new ArgumentOutOfRangeException(nameof(tickCount), tickCount, "Tick count must be positive.");
         }
 
-        var (grid, wallBuckets) = BuildOpenGrid(operatorCount);
+        var (grid, wallBuckets, packingSide) = BuildOpenGrid(operatorCount);
         var mission = BuildMission(seed, operatorCount);
-        var initialState = BuildInitialState(operatorCount, seed, grid);
+        var initialState = BuildInitialState(operatorCount, seed, packingSide);
 
         // Both simulations start from the same immutable fixture: MissionState
         // is a record whose every collection is an ImmutableArray, so sharing
@@ -147,8 +148,17 @@ public static class HeadlessRunner
         // simulation's later mutation reach the other. NavGrid and
         // WallBuckets are likewise shared read-only inputs, exactly as
         // TickPipelineTests.BuildGrid/NoWalls share theirs across simA/simB.
-        var left = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState);
-        var right = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState);
+        //
+        // Task 79d-2b: no CoverRecord array either, for the same reason
+        // WallBuckets.Build(grid, [], [], [], []) above already passes no
+        // wall data — this method synthesises its mission and never loads a
+        // real .hkmap file, so there is no map to read COVER records from.
+        // The seed-1 benchmark and determinism workload therefore carry no
+        // cover at all, by construction, not by omission.
+        var left = new SandataSimulation(
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState, ImmutableArray<CoverRecord>.Empty);
+        var right = new SandataSimulation(
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState, ImmutableArray<CoverRecord>.Empty);
 
         var tickDurations = new List<double>(Math.Min(tickCount, 100_000));
         long? firstMismatchTick = null;
@@ -246,22 +256,82 @@ public static class HeadlessRunner
     }
 
     /// <summary>
-    /// A fresh, fully open <see cref="NavGrid"/> sized to place one operator
-    /// per cell with room to spare, plus its matching wall-free
-    /// <see cref="WallBuckets"/> — this workload measures the tick pipeline's
-    /// own cost, not pathfinding around obstacles, so no wall is authored.
-    /// Mirrors <c>TickPipelineTests.BuildGrid</c>/<c>NoWalls</c>.
+    /// The body diameter, in whole world units, the fixture's placement must
+    /// clear: task 86 (docs/plans/2026-08-07-sandata-scaffold.md, "wave-12
+    /// audit") set <see cref="SandataSimulation.CollisionBodyRadiusRaw"/> to
+    /// 4,352 raw — design section 4's 4.25 wu — so the diameter is 8.5 wu,
+    /// rounded up to a whole unit because this fixture's placement arithmetic
+    /// is whole-world-unit-only, same as <see cref="NavGrid.CellSizeWu"/>
+    /// itself. <see cref="SandataSimulation.CollisionBodyRadiusRaw"/> is
+    /// <see langword="private"/> and this assembly carries no
+    /// <c>InternalsVisibleTo</c> grant from <c>Sandata.Core</c>, so the value
+    /// is restated from the same design citation rather than referenced live
+    /// — widening that visibility surface is outside this task's file grant.
     /// </summary>
-    private static (NavGrid Grid, WallBuckets WallBuckets) BuildOpenGrid(int operatorCount)
+    private const int OperatorBodyDiameterWu = 9;
+
+    /// <summary>
+    /// The worst-case shrink, in whole world units, <see cref="BuildInitialState"/>'s
+    /// own per-axis jitter can impose on two placed operators' centre-to-centre
+    /// separation: each operator's jitter independently spans
+    /// <c>[-1, 1]</c> wu per axis, so two adjacent operators jittered toward
+    /// each other close the gap by at most 1 + 1 = 2 wu.
+    /// </summary>
+    private const int JitterWorstCaseShrinkWu = 2;
+
+    /// <summary>
+    /// The minimum centre-to-centre pitch, in whole world units, two placed
+    /// operators must start at so that even the jitter's worst case in
+    /// <see cref="JitterWorstCaseShrinkWu"/> cannot let their bodies overlap.
+    /// </summary>
+    private const int MinimumOperatorPitchWu = OperatorBodyDiameterWu + JitterWorstCaseShrinkWu;
+
+    /// <summary>
+    /// How many <see cref="NavGrid"/> cells apart, on each axis, adjacent
+    /// operators are placed — the smallest whole cell count whose physical
+    /// pitch (<c>cells * NavGrid.CellSizeWu</c>) is at least
+    /// <see cref="MinimumOperatorPitchWu"/>, derived rather than chosen.
+    /// Ceiling integer division: <c>(a + b - 1) / b</c>.
+    /// </summary>
+    private const int OperatorSpacingPitchCells =
+        (MinimumOperatorPitchWu + NavGrid.CellSizeWu - 1) / NavGrid.CellSizeWu;
+
+    /// <summary>
+    /// A fresh, fully open <see cref="NavGrid"/> sized to place one operator
+    /// per <see cref="OperatorSpacingPitchCells"/>-pitched cell with room to
+    /// spare, plus its matching wall-free <see cref="WallBuckets"/> — this
+    /// workload measures the tick pipeline's own cost, not pathfinding around
+    /// obstacles, so no wall is authored. Mirrors
+    /// <c>TickPipelineTests.BuildGrid</c>/<c>NoWalls</c>.
+    /// </summary>
+    /// <returns>
+    /// The grid and its wall buckets, plus <c>PackingSide</c>: the logical
+    /// row width <see cref="BuildInitialState"/> must use for its own
+    /// <c>index % PackingSide</c> layout, which is narrower than the
+    /// returned <see cref="NavGrid"/>'s actual <see cref="NavGrid.Width"/>
+    /// now that placement is pitched — <see cref="NavGrid.Width"/> spans the
+    /// pitched physical footprint, not the one-operator-per-logical-cell
+    /// count.
+    /// </returns>
+    internal static (NavGrid Grid, WallBuckets WallBuckets, int PackingSide) BuildOpenGrid(int operatorCount)
     {
-        // Each operator gets its own cell (see BuildInitialState), so the
-        // grid must have at least operatorCount cells. Square, and padded so
-        // a small roster is not squeezed onto a one-cell-wide grid.
-        var side = Math.Clamp((int)Math.Ceiling(Math.Sqrt(operatorCount)), 4, NavGrid.MaxDimensionCells);
-        var grid = new NavGrid(side, side);
+        // Each operator gets its own logical cell (see BuildInitialState),
+        // so the packing side must fit at least operatorCount logical cells.
+        // Square, and padded so a small roster is not squeezed onto a
+        // one-cell-wide grid.
+        var packingSide = Math.Clamp((int)Math.Ceiling(Math.Sqrt(operatorCount)), 4, NavGrid.MaxDimensionCells);
+
+        // The physical NavGrid must be wide enough to hold the highest
+        // pitched logical coordinate in bounds — see LineOfSight.IsVisible's
+        // requirement (via GridRay.Traverse) that every queried origin cell
+        // lie inside the grid, which every sensing operator's own position
+        // is.
+        var physicalSide = Math.Clamp(
+            ((packingSide - 1) * OperatorSpacingPitchCells) + 1, 4, NavGrid.MaxDimensionCells);
+        var grid = new NavGrid(physicalSide, physicalSide);
         Array.Fill(grid.Passability, NavCellFlags.Open);
         var wallBuckets = WallBuckets.Build(grid, [], [], [], []);
-        return (grid, wallBuckets);
+        return (grid, wallBuckets, packingSide);
     }
 
     /// <summary>
@@ -287,28 +357,35 @@ public static class HeadlessRunner
         rulesetId: SandataPresetId.ModernTacticalV1);
 
     /// <summary>
-    /// Places <paramref name="operatorCount"/> operators one per grid cell,
-    /// row-major, alternating faction by index so every cell has a
-    /// mixed-faction neighbour — deliberately denser contact than a
-    /// two-line-of-battle layout, so the workload actually exercises stage
-    /// 5's sensing, stage 6's squad grouping, stage 10's collision, and
-    /// stage 12/13's fire resolution rather than mostly idling. Faction 0
-    /// faces Facing16.East and faction 1 faces Facing16.West, per each
-    /// member's own doc comment naming this as that faction's initial
-    /// facing. <see cref="SplitMix64"/>, seeded from <paramref name="seed"/>,
-    /// jitters each operator a whole world unit inside its cell so a run's
-    /// spatial layout is itself seed-dependent, not just its downstream
-    /// tick-by-tick decisions.
+    /// Places <paramref name="operatorCount"/> operators one per logical
+    /// cell of a <paramref name="packingSide"/>-wide row-major grid, each
+    /// logical cell <see cref="OperatorSpacingPitchCells"/> physical
+    /// <see cref="NavGrid"/> cells apart on both axes so no two operators'
+    /// designed bodies start overlapping (task 86; see
+    /// <see cref="MinimumOperatorPitchWu"/>), alternating faction by index so
+    /// every logical cell has a mixed-faction neighbour — deliberately denser
+    /// contact than a two-line-of-battle layout, so the workload actually
+    /// exercises stage 5's sensing, stage 6's squad grouping, stage 10's
+    /// collision, and stage 12/13's fire resolution rather than mostly
+    /// idling. Faction 0 faces Facing16.East and faction 1 faces
+    /// Facing16.West, per each member's own doc comment naming this as that
+    /// faction's initial facing. <see cref="SplitMix64"/>, seeded from
+    /// <paramref name="seed"/>, jitters each operator a whole world unit
+    /// inside its cell so a run's spatial layout is itself seed-dependent,
+    /// not just its downstream tick-by-tick decisions. The jitter draw order
+    /// and count are unchanged by the pitch: exactly two <see cref="SplitMix64.NextInt"/>
+    /// calls per operator, in the same index order, regardless of where the
+    /// pitch places that operator's unjittered cell centre.
     /// </summary>
-    private static MissionState BuildInitialState(int operatorCount, ulong seed, NavGrid grid)
+    internal static MissionState BuildInitialState(int operatorCount, ulong seed, int packingSide)
     {
         var rng = new SplitMix64(seed);
         var operators = ImmutableArray.CreateBuilder<OperatorState>(operatorCount);
 
         for (var index = 0; index < operatorCount; index++)
         {
-            var cellX = index % grid.Width;
-            var cellY = index / grid.Width;
+            var cellX = (index % packingSide) * OperatorSpacingPitchCells;
+            var cellY = (index / packingSide) * OperatorSpacingPitchCells;
             var jitterX = rng.NextInt(3) - 1;
             var jitterY = rng.NextInt(3) - 1;
             var worldX = (cellX * NavGrid.CellSizeWu) + (NavGrid.CellSizeWu / 2) + jitterX;

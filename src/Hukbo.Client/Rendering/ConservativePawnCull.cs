@@ -103,12 +103,38 @@ internal static class ConservativePawnCull
     /// The selection padding <see cref="PawnGeometry"/> inflates the rendered
     /// bounds by is <c>max(3, ceil(3 * apparentScale))</c>, which is at most
     /// <c>3 * apparentScale + 1</c> everywhere in the clamped scale range, so
-    /// the upward extent becomes <c>24.2 + 3 = 27.2</c> units per unit of
-    /// apparent scale. That is the largest of the four and therefore the
-    /// radius.
+    /// the neutral upward extent becomes <c>24.2 + 3 = 27.2</c> units per unit
+    /// of apparent scale. That was the radius while a pawn's drawn geometry
+    /// could only be neutral.
+    /// </para>
+    /// <para>
+    /// An attack pose reaches further. It aims the weapon at a true heading
+    /// rather than the neutral up-and-right one, so the same reach can point
+    /// in any direction, and it extends the line by the family's own visual
+    /// envelope; the arms, the axe head, the trail, and the shield guard all
+    /// travel with it (attack-animation-v2 design section 11). The worst case
+    /// is the Kalis, which owns both the longest neutral reach and the largest
+    /// extension envelope, on an evaded follow-through: measured at
+    /// <c>38.6</c> units per unit of apparent scale, reaction lean included, over every weapon,
+    /// shield, resolution, sixty-four headings, and every zoom sample, by
+    /// <c>ConservativePawnCullTests.Radius_ExceedsTheWorstCaseExtentByAFlatFewPixels</c>.
+    /// </para>
+    /// <para>
+    /// The radius stays pose-blind — it is still a function of zoom alone, and
+    /// a pose-aware cull would make the drawn set a function of presentation
+    /// animation phase — but it is now derived from the largest extent a posed
+    /// pawn can reach rather than a neutral one. That is what keeps a warrior
+    /// striking at the edge of the panel from being culled while its weapon
+    /// would have been on screen. A struck defender's reaction lean rides on
+    /// top of that — a lethal landed blow displaces the body by a further
+    /// <c>1.32</c> units of apparent scale, and it can point the same way the
+    /// weapon does — so the coefficient covers the sum of the two rather than
+    /// the weapon alone. The cost is a wider pre-cull:
+    /// <c>ConservativePawnCullTests.AdmittedFraction_IsRecordedForEachCameraStation</c>
+    /// records what it actually admits.
     /// </para>
     /// </remarks>
-    private const float RadiusUnitsPerApparentScale = 27.2f;
+    private const float RadiusUnitsPerApparentScale = 38.8f;
 
     /// <summary>
     /// The scale-independent term of the radius, in pixels: three pixels of

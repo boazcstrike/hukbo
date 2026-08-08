@@ -525,6 +525,23 @@ public sealed class MissionStateTests
     /// default. This is therefore a fresh baseline, not the pre-task-79c
     /// value carried forward.
     /// </summary>
+    /// <remarks>
+    /// Task 85 (docs/plans/2026-08-07-sandata-scaffold.md, wave-12 audit's
+    /// "Task 52's golden baseline against task 85's single-pin rule"): this
+    /// is now the <b>only</b> absolute state-hash literal in a <c>.cs</c>
+    /// file under <c>tests/Sandata.Core.Tests/</c> — the deliberate canary
+    /// that fires when any state fold changes.
+    /// <see cref="OrderStateHashTests"/>' former <c>PreTask61BaselineHash</c>
+    /// and <see cref="MissionEventFeedTests"/>' former
+    /// <c>PreTask76BaselineHash</c> pinned this same value for the same
+    /// fixture to guard properties that are actually relational, and both
+    /// are now comparisons between two hashes computed live instead. Task
+    /// 52's golden-replay baselines are a different kind of pin — a seed, a
+    /// build, and an ordered order stream reproducing a run's outcome, not a
+    /// constructed fixture's digest — and they live in
+    /// <c>tests/Sandata.Core.Tests/Fixtures/seed-1-baseline.json</c>, read by
+    /// <c>GoldenReplayTests</c>, not declared as a C# constant.
+    /// </remarks>
     private const ulong PreTask79cBaselineHash = 3_159_438_799_659_597_482UL;
 
     [Fact]
@@ -568,10 +585,10 @@ public sealed class MissionStateTests
 
     /// <summary>
     /// <see cref="OperatorState.Firearm"/> defaults to
-    /// <see cref="FirearmId.Ak47"/> — the same value
-    /// <c>SandataSimulation.DefaultFirearmId</c> already named — so a state
-    /// built without setting the field explicitly is unaffected by this
-    /// task's per-operator loadout addition.
+    /// <see cref="FirearmId.Ak47"/> — the value the private
+    /// <c>SandataSimulation.DefaultFirearmId</c> named before task 79d-2a
+    /// deleted it — so a state built without setting the field explicitly is
+    /// unaffected by the per-operator loadout addition.
     /// </summary>
     [Fact]
     public void OperatorState_Firearm_DefaultsToAk47()

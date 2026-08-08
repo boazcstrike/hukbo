@@ -119,6 +119,7 @@ internal static class PawnQuadCount
         }
 
         total += CountAdornments(layout);
+        total += CountArms(layout.Arms);
         total += CountSwingTrail(layout.SwingTrail);
         total += WeaponQuadCount(appearance.WeaponRole);
         total += CountStateMark(state);
@@ -315,6 +316,45 @@ internal static class PawnQuadCount
     /// </summary>
     private static int CountSwingTrail(SwingTrail trail) =>
         trail.IsEmpty ? 0 : SwingTrailSegments;
+
+    /// <summary>
+    /// <c>PawnRenderer.DrawArms</c>: one stroked quad per drawn arm segment,
+    /// and nothing at all for a pawn that is not mid-contact or is at the low
+    /// detail tier. Mirrors that method's four guarded calls exactly, which is
+    /// what keeps the design's ceiling of four extra quads per active Medium
+    /// or High pawn a counted fact rather than an assertion.
+    /// </summary>
+    private static int CountArms(ArmLayout arms)
+    {
+        if (arms.IsEmpty)
+        {
+            return 0;
+        }
+
+        var total = 0;
+
+        if (!arms.WeaponUpperArm.IsEmpty)
+        {
+            total++;
+        }
+
+        if (!arms.WeaponForearm.IsEmpty)
+        {
+            total++;
+        }
+
+        if (!arms.SupportUpperArm.IsEmpty)
+        {
+            total++;
+        }
+
+        if (!arms.SupportForearm.IsEmpty)
+        {
+            total++;
+        }
+
+        return total;
+    }
 
     /// <summary>
     /// <c>PawnRenderer.Draw</c>'s trailing state mark: the selection corners

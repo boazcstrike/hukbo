@@ -7,6 +7,7 @@ using Sandata.Core.Combat;
 using Sandata.Core.Determinism;
 using Sandata.Core.Events;
 using Sandata.Core.Geometry;
+using Sandata.Core.Maps;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Movement;
 using Sandata.Core.Navigation;
@@ -50,6 +51,16 @@ public sealed class SandataSimulation
     private readonly PathService _pathService;
 
     /// <summary>
+    /// Task 79d-2b: every parsed <c>COVER</c> record this simulation's map
+    /// carries, read by <see cref="ProposeFire"/> to resolve a target's real
+    /// <see cref="CoverState"/> instead of the constant
+    /// <see cref="CoverState.NotInCover"/> every shot resolved against
+    /// before this task. Never mutated after construction — cover objects
+    /// are static map geometry, not simulation state.
+    /// </summary>
+    private readonly ImmutableArray<CoverRecord> _coverRecords;
+
+    /// <summary>
     /// The chamfer clearance value at every <see cref="_navGrid"/> cell —
     /// <see cref="Navigation.ClearanceField.Build"/>'s output, baked once
     /// here from the same static <see cref="NavGrid.Passability"/> array
@@ -70,6 +81,43 @@ public sealed class SandataSimulation
     private LocalAvoidance? _localAvoidance;
 
     /// <summary>
+    /// Stage 3's physical-contact broad-phase grid, constructed once and
+    /// reused every tick. <see cref="SandataCollisionGrid"/>'s own remarks
+    /// promise "all storage is reused between calls and grows only when
+    /// capacity is insufficient, so a warm tick allocates nothing" — a
+    /// promise a fresh instance every tick defeated, since every one of its
+    /// backing arrays (and <see cref="Pairs"/>) then starts back at its
+    /// small initial capacity and must regrow from scratch. <see cref="Rebuild"/>
+    /// clears and re-indexes this tick's bodies before producing
+    /// <see cref="Pairs"/>, so nothing from an earlier tick survives into
+    /// the next one — see
+    /// <c>TickPipelineTests.SandataCollisionGrid_Rebuild_DiscardsThePreviousCallsPairs</c>
+    /// for the reuse proof this task adds.
+    /// </summary>
+    private readonly SandataCollisionGrid _contactGrid = new(CollisionCellSizeRaw);
+
+    /// <summary>
+    /// Stage 3's second grid, the squad-cohesion range query — the same
+    /// reuse reasoning as <see cref="_contactGrid"/> applies, sized once at
+    /// construction from <see cref="_ruleset"/>'s
+    /// <see cref="SandataRuleset.GroupCohesionRadiusWu"/>, which never
+    /// changes across this simulation's lifetime.
+    /// </summary>
+    private readonly SandataCollisionGrid _cohesionGrid;
+
+    /// <summary>
+    /// Stage 7's cell-blocked-this-tick input to <see cref="PathService.Advance"/>,
+    /// allocated once and never written to after construction. Every element
+    /// stays its default <see langword="false"/> for this worktree's whole
+    /// lifetime — <see cref="AdvancePathService"/>'s own remarks explain why
+    /// no door-driven dynamic blocker source exists here — so a fresh array
+    /// every tick would only ever reproduce the same all-false content
+    /// <see cref="PathService.Advance"/> already reads through a
+    /// <see cref="ReadOnlySpan{T}"/> it never mutates.
+    /// </summary>
+    private readonly bool[] _pathBlockedCells;
+
+    /// <summary>
     /// Stage 11's write-only record of which operators fired this tick, and
     /// at which contact, for <see cref="ProposeFire"/> to consume. Empty
     /// before the first call to <see cref="RunTick"/>.
@@ -86,7 +134,8 @@ public sealed class SandataSimulation
         SandataRuleset ruleset,
         NavGrid navGrid,
         WallBuckets wallBuckets,
-        MissionState initialState)
+        MissionState initialState,
+        ImmutableArray<CoverRecord> coverRecords)
     {
         ArgumentNullException.ThrowIfNull(mission);
         ArgumentNullException.ThrowIfNull(ruleset);
@@ -98,6 +147,7 @@ public sealed class SandataSimulation
         _ruleset = ruleset;
         _navGrid = navGrid;
         _wallBuckets = wallBuckets;
+        _coverRecords = coverRecords.IsDefault ? ImmutableArray<CoverRecord>.Empty : coverRecords;
 
         // Call-site obligation for stage 7: PathService takes its latency as
         // a constructor parameter and deliberately does not read the
@@ -115,6 +165,14 @@ public sealed class SandataSimulation
             _clearanceField,
             navGrid.Width,
             navGrid.Height);
+
+        // See _cohesionGrid's own remarks: sized once here from the ruleset
+        // this simulation is bound to for its whole lifetime.
+        var cohesionRadiusRaw = RawFromWorldUnits(ruleset.GroupCohesionRadiusWu);
+        _cohesionGrid = new SandataCollisionGrid(CohesionCollisionCellSizeRaw(cohesionRadiusRaw));
+
+        // See _pathBlockedCells's own remarks: never written to after this.
+        _pathBlockedCells = new bool[navGrid.CellCount];
 
         State = initialState;
     }
@@ -236,12 +294,10 @@ public sealed class SandataSimulation
 
         // Stage 3.
         var bodies = BuildCollisionBodies(State);
-        var grid = new SandataCollisionGrid(CollisionCellSizeRaw);
-        grid.Rebuild(bodies, CollisionBodyRadiusRaw);
+        _contactGrid.Rebuild(bodies, CollisionBodyRadiusRaw);
         var cohesionRadiusRaw = RawFromWorldUnits(_ruleset.GroupCohesionRadiusWu);
-        var cohesionGrid = new SandataCollisionGrid(CohesionCollisionCellSizeRaw(cohesionRadiusRaw));
-        cohesionGrid.RebuildWithinRange(bodies, cohesionRadiusRaw);
-        var view = CaptureTickStartView(State, grid, cohesionGrid);
+        _cohesionGrid.RebuildWithinRange(bodies, cohesionRadiusRaw);
+        var view = CaptureTickStartView(State, _contactGrid, _cohesionGrid);
 
         // Stage 4.
         State = ApplyDoorMutations(State);
@@ -336,28 +392,6 @@ public sealed class SandataSimulation
 
         State = State with { Operators = builder.MoveToImmutable() };
     }
-
-    /// <summary>
-    /// The firearm <see cref="ProposeFire"/> still advances every operator
-    /// against. <b>PROVISIONAL — <see cref="AdvanceWeaponChain"/> no longer
-    /// uses this constant.</b> Task 79c (docs/plans/2026-08-07-sandata-
-    /// scaffold.md, the wave-12 audit's corrected obligation) added
-    /// <see cref="OperatorState.Firearm"/>, and stage 11 below now reads that
-    /// per-operator field instead of this one shared default. Stage 12
-    /// (<see cref="ProposeFire"/>) is task 79d's territory, not this task's,
-    /// so it keeps reading this constant unchanged; the value also doubles
-    /// as <see cref="OperatorState.Firearm"/>'s own default, so behaviour is
-    /// unchanged for every caller that does not set the new field.
-    /// </summary>
-    private const FirearmId DefaultFirearmId = FirearmId.Ak47;
-
-    /// <summary>
-    /// The flat damage a fired shot deals in <see cref="ProposeFire"/>, before
-    /// cover. <b>PROVISIONAL</b> — <see cref="FirearmDefinition"/> carries no
-    /// damage field at all, so this is an invented placeholder, not a tuned
-    /// combat value.
-    /// </summary>
-    private const int ProvisionalDamagePerHitPoints = 25;
 
     /// <summary>
     /// Stage 11's per-tick record of one operator's completed shot: who fired
@@ -600,29 +634,62 @@ public sealed class SandataSimulation
     /// <see cref="AccuracyRules.Dispersion"/> and
     /// <see cref="AccuracyRules.DrawAngularErrorBam"/> are both called with
     /// real arguments, from the real <c>Accuracy</c> RNG stream keyed on
-    /// <see cref="Mission.Seed"/> and the shooter's entity id — proving that
-    /// wiring correct even though nothing downstream yet gates hit or miss on
-    /// the draw (see below). <see cref="CoverRules.ApplyToDamage"/> is called
-    /// for real, against <see cref="CoverState.NotInCover"/> (see next).
+    /// <see cref="Mission.Seed"/> and the shooter's entity id. Task 79d-1
+    /// (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12 audit's
+    /// corrected obligation) makes that draw decide hit or miss: it is
+    /// compared against the target's subtended half-angle at the measured
+    /// range, computed by <see cref="SubtendedHalfAngleBam"/> from
+    /// <see cref="CollisionBodyRadiusRaw"/> and <paramref name="rangeWu"/> —
+    /// see that method's remarks for the exact unit conversion. A miss skips
+    /// the <see cref="DamageInstance"/> entirely; a hit produces the same one
+    /// this method always produced before this task.
+    /// <see cref="CoverRules.ApplyToDamage"/> is called for real, against the
+    /// target's real <see cref="CoverState"/> resolved by
+    /// <see cref="ResolveCoverState"/> (see next), only for a hit. Task
+    /// 79d-2a (docs/plans/2026-08-07-sandata-scaffold.md) resolves
+    /// <see cref="FirearmDefinition"/> from each shot's own shooter's
+    /// <see cref="OperatorState.Firearm"/>, inside this loop, the same shape
+    /// stage 11's <see cref="AdvanceWeaponChain"/> already used — before that
+    /// task every shot in the game used <see cref="FirearmId.Ak47"/>'s
+    /// dispersion regardless of what the shooter actually carried, which made
+    /// a miss mathematically unreachable within
+    /// <see cref="Sensing.ContactMemory.DetectRangeWu"/> (see
+    /// <see cref="SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange"/>
+    /// in <c>TickPipelineTests</c>).
     /// </para>
     /// <para>
-    /// <b>PROVISIONAL — no hit geometry, no per-weapon damage, no per-operator
-    /// cover.</b> Three genuine data-model gaps meet in this method:
-    /// <see cref="FirearmDefinition"/> carries no damage-per-round field at
-    /// all, nothing in this worktree resolves an angular error draw against a
-    /// target's hitbox to decide hit or miss, and no per-operator
-    /// <see cref="CoverState"/> field exists on <see cref="OperatorState"/>.
-    /// Consequently every proposed shot always hits, for the invented flat
-    /// <see cref="ProvisionalDamagePerHitPoints"/>, and every target resolves
-    /// as <see cref="CoverState.NotInCover"/>. These are honest placeholders,
-    /// not tuned combat values — the same "degenerate is fine, dishonest is
-    /// not" standard this task's other stages follow.
+    /// <b>Task 79d-2b, cover half.</b> The target's <see cref="CoverState"/>
+    /// now comes from <see cref="ResolveCoverState"/>, which looks up the
+    /// target's position against this simulation's real
+    /// <see cref="_coverRecords"/> rather than the constant
+    /// <see cref="CoverState.NotInCover"/> every shot resolved against
+    /// before this task — exact map geometry, not an invented placeholder.
+    /// The damage a hit deals comes from
+    /// <see cref="CaliberDamage.RawDamage"/>, keyed on the shooter's own
+    /// <see cref="FirearmDefinition.Caliber"/> — resolved from
+    /// <see cref="OperatorState.Firearm"/> by task 79d-2a — rather than the
+    /// single flat constant every hit dealt before this task. Those eight
+    /// values are provisional and say so at their own declaration; what is
+    /// no longer provisional is that the weapon an operator carries decides
+    /// how hard its round lands.
     /// </para>
     /// <para>
     /// <see cref="AccuracyRules.DrawAngularErrorBam"/> takes a
     /// <see langword="ulong"/> entity id, matching
     /// <see cref="OperatorState.EntityId"/> exactly — task 78 widened it, so
     /// this call site no longer narrows.
+    /// </para>
+    /// <para>
+    /// <b>Events.</b> Every shot this method resolves — hit or miss — emits
+    /// <see cref="MissionEventKind.ShotFired"/>, immediately followed by
+    /// <see cref="MissionEventKind.ShotHit"/> or
+    /// <see cref="MissionEventKind.ShotMissed"/>, through the same "assign
+    /// then advance <see cref="MissionState.NextEventSequence"/>" shape
+    /// <see cref="EmitOrderRejectedEvent"/> already uses. A shot skipped by
+    /// the continues above — shooter or target not found, or target already
+    /// dead this tick — emits nothing, matching this method's pre-79d-1
+    /// behaviour of producing no <see cref="DamageInstance"/> for those
+    /// cases either.
     /// </para>
     /// </remarks>
     internal ImmutableArray<DamageInstance> ProposeFire()
@@ -634,8 +701,8 @@ public sealed class SandataSimulation
         }
 
         var operators = State.Operators;
-        var definition = FirearmCatalog.Rows[(int)DefaultFirearmId];
-        var builder = ImmutableArray.CreateBuilder<DamageInstance>(firedShots.Length);
+        var damageBuilder = ImmutableArray.CreateBuilder<DamageInstance>(firedShots.Length);
+        var state = State;
 
         foreach (var shot in firedShots)
         {
@@ -653,6 +720,8 @@ public sealed class SandataSimulation
                 continue;
             }
 
+            var definition = FirearmCatalog.Rows[(int)shooter.Firearm];
+
             var shooterXWu = WorldUnits.FromFixedPoint(shooter.PositionX);
             var shooterYWu = WorldUnits.FromFixedPoint(shooter.PositionY);
             var targetXWu = WorldUnits.FromFixedPoint(target.PositionX);
@@ -666,20 +735,192 @@ public sealed class SandataSimulation
             var dispersionBam = AccuracyRules.Dispersion(
                 rangeWu, definition.DispersionAtZeroWu, definition.DispersionAtMaxWu, definition.MaxEffectiveWu);
 
-            // The draw is taken for real, from the real Accuracy stream, even
-            // though nothing downstream yet resolves it into a hit or a miss
-            // — see this method's remarks.
-            _ = AccuracyRules.DrawAngularErrorBam(
+            var angularErrorBam = AccuracyRules.DrawAngularErrorBam(
                 _mission.Seed, shooter.EntityId, dispersionBam);
 
-            var damage = CoverRules.ApplyToDamage(
-                ProvisionalDamagePerHitPoints, CoverState.NotInCover,
-                shooterXWu, shooterYWu, targetXWu, targetYWu);
+            var halfAngleBam = SubtendedHalfAngleBam(rangeWu);
+            var isHit = Math.Abs(angularErrorBam) <= halfAngleBam;
 
-            builder.Add(new DamageInstance(shooter.EntityId, target.EntityId, damage));
+            state = EmitShotFiredEvent(state, shooter.EntityId);
+
+            if (isHit)
+            {
+                var targetCover = ResolveCoverState(target, targetXWu, targetYWu);
+                var damage = CoverRules.ApplyToDamage(
+                    CaliberDamage.RawDamage(definition.Caliber), targetCover,
+                    shooterXWu, shooterYWu, targetXWu, targetYWu);
+
+                damageBuilder.Add(new DamageInstance(shooter.EntityId, target.EntityId, damage));
+                state = EmitShotHitEvent(state, shooter.EntityId);
+            }
+            else
+            {
+                state = EmitShotMissedEvent(state, shooter.EntityId);
+            }
         }
 
-        return builder.ToImmutable();
+        State = state;
+        return damageBuilder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Task 79d-2b: the real <see cref="CoverState"/> a shot at
+    /// <paramref name="target"/> resolves against, looked up from this
+    /// simulation's <see cref="_coverRecords"/> rather than the constant
+    /// <see cref="CoverState.NotInCover"/> every shot resolved against
+    /// before this task.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Which record.</b> A <see cref="CoverRecord"/> contains
+    /// <paramref name="targetXWu"/>, <paramref name="targetYWu"/> when both
+    /// fall within its closed rectangle
+    /// <c>[MinX, MaxX] x [MinY, MaxY]</c> — the same inclusive-bounds
+    /// convention <c>MapValidator.IsInsideClosedBox</c> already uses
+    /// elsewhere in this codebase for the same "is this point inside this
+    /// map rectangle" question. When more than one record contains the
+    /// target, this is a multi-result query, and design section 4's total-
+    /// order rule (<c>CLAUDE.md</c> section 5) applies: the record with the
+    /// lowest <see cref="CoverRecord.LineNumber"/> wins, an arbitrary but
+    /// total and stable tie-break drawn directly from the map file's own
+    /// line order, never from iteration order over <see cref="_coverRecords"/>.
+    /// </para>
+    /// <para>
+    /// <b>No containing record.</b> Returns <see cref="CoverState.NotInCover"/>
+    /// unchanged — a target standing outside every cover rectangle is
+    /// exactly as exposed as it was before this task.
+    /// </para>
+    /// <para>
+    /// <b>Posture.</b> A containing record's
+    /// <see cref="CoverRecord.ArcCentreBam"/> and
+    /// <see cref="CoverRecord.ArcHalfBam"/> copy unchanged into
+    /// <see cref="CoverState.ArcCentreBam"/> and
+    /// <see cref="CoverState.ArcHalfBam"/>; <see cref="CoverState.Posture"/>
+    /// reads <paramref name="target"/>'s own
+    /// <see cref="OperatorState.IsCrouched"/> — design section 4's "posture
+    /// (standing or crouched)" is per-operator authoritative state, not
+    /// per-cover-object, exactly as <see cref="CoverState"/>'s own remarks
+    /// describe two operators behind the same object each holding their own
+    /// state.
+    /// </para>
+    /// </remarks>
+    private CoverState ResolveCoverState(OperatorState target, long targetXWu, long targetYWu)
+    {
+        CoverRecord? containing = null;
+
+        foreach (var record in _coverRecords)
+        {
+            var isInside =
+                targetXWu >= record.MinX && targetXWu <= record.MaxX &&
+                targetYWu >= record.MinY && targetYWu <= record.MaxY;
+
+            if (!isInside)
+            {
+                continue;
+            }
+
+            if (containing is null || record.LineNumber < containing.LineNumber)
+            {
+                containing = record;
+            }
+        }
+
+        if (containing is null)
+        {
+            return CoverState.NotInCover;
+        }
+
+        return new CoverState(
+            InCover: true,
+            ArcCentreBam: new Bam16((ushort)containing.ArcCentreBam),
+            ArcHalfBam: (ushort)containing.ArcHalfBam,
+            Posture: target.IsCrouched ? CoverPosture.Crouched : CoverPosture.Standing);
+    }
+
+    /// <summary>
+    /// Task 79d-1's hit-resolution geometry: the half-angle, in raw
+    /// <see cref="Bam16"/> units, that the target's collision body subtends
+    /// as seen from the shooter at <paramref name="rangeWu"/> — the standard
+    /// small-body approximation <c>atan(radius / range)</c>, computed exactly
+    /// by <see cref="Cordic.Atan2"/> rather than a banned floating-point
+    /// arctangent. <see cref="ProposeFire"/> compares this against the
+    /// magnitude of the drawn angular error: within it is a hit, beyond it a
+    /// miss.
+    /// </summary>
+    /// <remarks>
+    /// <b>The unit trap this method exists to avoid.</b>
+    /// <see cref="CollisionBodyRadiusRaw"/> is already a raw
+    /// <see cref="FixedPoint"/> value (scale 1,024 per world unit) — it is
+    /// the numerator as-is, never divided down. <paramref name="rangeWu"/>,
+    /// by contrast, is a whole world-unit integer (the same one
+    /// <see cref="AccuracyRules.Dispersion"/> takes), so it is the one that
+    /// must be scaled up to match, via <see cref="RawFromWorldUnits"/> —
+    /// exactly the inverse of the direction <see cref="WorldUnits.FromFixedPoint"/>
+    /// converts positions in, a few lines above this call site. Converting
+    /// <see cref="CollisionBodyRadiusRaw"/> down to world units instead would
+    /// floor a 32-raw radius (already well under one world unit) straight to
+    /// zero, making every shot at any nonzero range miss regardless of the
+    /// drawn error — silently off by exactly the 1,024 this remark warns
+    /// about.
+    /// </remarks>
+    /// <param name="rangeWu">
+    /// The measured engagement range, in whole world units, as
+    /// <see cref="IntegerSqrt"/> already produces it for this method's only
+    /// caller. Never negative.
+    /// </param>
+    private static int SubtendedHalfAngleBam(int rangeWu) =>
+        Cordic.Atan2(CollisionBodyRadiusRaw, RawFromWorldUnits(rangeWu));
+
+    /// <summary>
+    /// Task 79d-1's event-emission call site for a fired shot — the same
+    /// "assign then advance <see cref="MissionState.NextEventSequence"/>"
+    /// shape <see cref="EmitOrderRejectedEvent"/> already uses. Emitted once
+    /// per shot <see cref="ProposeFire"/> resolves, before the hit-or-miss
+    /// outcome event.
+    /// </summary>
+    private static MissionState EmitShotFiredEvent(MissionState state, ulong shooterEntityId)
+    {
+        var missionEvent = MissionEvent.ShotFired(state.NextEventSequence, state.Tick, shooterEntityId);
+
+        return state with
+        {
+            NextEventSequence = state.NextEventSequence + 1,
+            EventFeed = state.EventFeed.Append(missionEvent),
+        };
+    }
+
+    /// <summary>
+    /// Task 79d-1's event-emission call site for a shot that connects — the
+    /// same "assign then advance <see cref="MissionState.NextEventSequence"/>"
+    /// shape <see cref="EmitOrderRejectedEvent"/> already uses. Emitted
+    /// immediately after <see cref="EmitShotFiredEvent"/>, for the same shot.
+    /// </summary>
+    private static MissionState EmitShotHitEvent(MissionState state, ulong shooterEntityId)
+    {
+        var missionEvent = MissionEvent.ShotHit(state.NextEventSequence, state.Tick, shooterEntityId);
+
+        return state with
+        {
+            NextEventSequence = state.NextEventSequence + 1,
+            EventFeed = state.EventFeed.Append(missionEvent),
+        };
+    }
+
+    /// <summary>
+    /// Task 79d-1's event-emission call site for a shot that goes wide — the
+    /// same "assign then advance <see cref="MissionState.NextEventSequence"/>"
+    /// shape <see cref="EmitOrderRejectedEvent"/> already uses. Emitted
+    /// immediately after <see cref="EmitShotFiredEvent"/>, for the same shot.
+    /// </summary>
+    private static MissionState EmitShotMissedEvent(MissionState state, ulong shooterEntityId)
+    {
+        var missionEvent = MissionEvent.ShotMissed(state.NextEventSequence, state.Tick, shooterEntityId);
+
+        return state with
+        {
+            NextEventSequence = state.NextEventSequence + 1,
+            EventFeed = state.EventFeed.Append(missionEvent),
+        };
     }
 
     /// <summary>
@@ -795,19 +1036,34 @@ public sealed class SandataSimulation
 
     /// <summary>
     /// The uniform collision grid's cell edge length, in raw fixed-point
-    /// units. <b>PROVISIONAL</b> — no ruleset field carries this value; no
-    /// production caller of <see cref="SandataCollisionGrid"/> existed before
-    /// this task to pin one, so this is a placeholder pending a real tuning
-    /// pass.
+    /// units: one body diameter, the tightest cell that still keeps
+    /// <see cref="SandataCollisionGrid"/>'s fixed three-by-three neighbour
+    /// scan complete. That rule is not this task's invention — it is
+    /// <see cref="SandataCollisionGrid"/>'s own enforced precondition:
+    /// <c>ValidateBodyRadius</c> throws whenever twice the body radius
+    /// exceeds the cell size, and <c>RebuildWithinRange</c>'s remarks state
+    /// the same requirement generalised to a plain range. This value is
+    /// therefore <c>2 * CollisionBodyRadiusRaw</c> exactly, 8,704 raw
+    /// (8.5 wu), not an independently chosen number.
     /// </summary>
-    private const int CollisionCellSizeRaw = 256;
+    private const int CollisionCellSizeRaw = 2 * CollisionBodyRadiusRaw;
 
     /// <summary>
     /// The operator body radius, in raw fixed-point units, used to rebuild
-    /// this tick's collision broad phase. <b>PROVISIONAL</b> for the same
-    /// reason as <see cref="CollisionCellSizeRaw"/>.
+    /// this tick's collision broad phase. Design section 4's unit table
+    /// (docs/plans/2026-08-07-sandata-scaffold-design.md, "Units, and why
+    /// they are chosen") names this value as
+    /// <c>Hukbo.Core/Simulation/CollisionRules.cs:72</c>'s
+    /// <c>DefaultBodyRadiusRaw</c>, <c>(17 * FixedPoint.Scale) / 4</c> =
+    /// 4,352 raw = 4.25 wu = 0.266 m, unchanged from Hukbo. That file's own
+    /// <c>&lt;remarks&gt;</c> record it as measured, not guessed: 4.5 wu
+    /// deadlocked Hukbo's collision resolver, 4.25 and 4.125 did not, and
+    /// 4.25 was kept. <c>Sandata.Core</c> may not take a
+    /// <c>ProjectReference</c> on <c>Hukbo.Core</c> (design section 3), so
+    /// the value is restated here rather than shared; see the wave-12 audit
+    /// for the open tier-2 extraction question that duplication raises.
     /// </summary>
-    private const int CollisionBodyRadiusRaw = 32;
+    private const int CollisionBodyRadiusRaw = 4352;
 
     /// <summary>
     /// The cell edge length, in raw fixed-point units, for the second
@@ -968,8 +1224,10 @@ public sealed class SandataSimulation
     /// names a cone width (its confirmed field list is <c>TickRate</c>,
     /// <c>MsToTickConversionRuleId</c>, <c>PathLatencyTicks</c>,
     /// <c>GroupCohesionRadiusWu</c>, <c>LoweredWallDistanceWu</c>,
-    /// <c>AimToleranceBam</c>), so this is a placeholder pending a real
-    /// tuning pass, exactly like <see cref="CollisionCellSizeRaw"/> above.
+    /// <c>AimToleranceBam</c>), and design section 4 does not supply one
+    /// either — section 6's row for <see cref="VisionCone.Contains"/>
+    /// specifies the predicate's shape and never a half-width — so this
+    /// remains a placeholder pending a real tuning pass.
     /// </summary>
     private const ushort VisionConeHalfWidthBam = (ushort)(Bam16.UnitsPerTurn / 4);
 
@@ -1218,8 +1476,7 @@ public sealed class SandataSimulation
             }
         }
 
-        var blocked = new bool[_navGrid.CellCount];
-        _pathService.Advance(currentTick, _navGrid, blocked, _wallBuckets);
+        _pathService.Advance(currentTick, _navGrid, _pathBlockedCells, _wallBuckets);
 
         if (groups.IsDefaultOrEmpty)
         {
@@ -1319,6 +1576,71 @@ public sealed class SandataSimulation
     private static int RawFromWorldUnits(long worldUnits) => checked((int)(worldUnits << 10));
 
     /// <summary>
+    /// Sprint speed per design section 4 ("Units, and why they are
+    /// chosen"): 5 m/s doubles to 80 world units per second. Not itself a
+    /// per-tick raw step - <see cref="SandataRuleset.TickRate"/> is a
+    /// per-instance property, not a compile-time constant (line 145 of
+    /// that file), so the actual per-tick cap is derived fresh from
+    /// <see cref="_ruleset"/> inside <see cref="ComputeMovementProposals"/>,
+    /// the same shape stage 6 already uses for
+    /// <c>readyTicks</c>/<c>resetTicks</c>/<c>aimTicks</c> at lines 447,
+    /// 448, and 485.
+    /// </summary>
+    private const int SprintSpeedWuPerSecond = 80;
+
+    /// <summary>
+    /// Clamps a stage 9 desired point to at most
+    /// <paramref name="movementSpeedRaw"/> raw units of displacement from
+    /// the start point - design section 4's per-tick speed cap. Applied
+    /// once, in <see cref="ComputeMovementProposals"/>, after both the
+    /// ordered and autonomous branches have already picked a target, never
+    /// per-branch, so an ordered operator's authored waypoint and an
+    /// autonomous operator's formation slot are both walked toward across
+    /// ticks rather than reached in one -
+    /// <see cref="Movement.LocalAvoidance.Commit"/> applies no speed cap of
+    /// its own, moving a proposal straight to its desired point subject
+    /// only to collision blocking, so this is the only place stage 9
+    /// enforces a per-tick distance limit. Uses <see cref="IntegerSqrt"/>
+    /// for the displacement's magnitude; <c>Math.Sqrt</c> is banned in this
+    /// project (see <see cref="IntegerSqrt"/>'s own remarks).
+    /// </summary>
+    private static (int X, int Y) ClampToMovementSpeed(
+        int startXRaw, int startYRaw, int desiredXRaw, int desiredYRaw, int movementSpeedRaw)
+    {
+        var dx = (long)desiredXRaw - startXRaw;
+        var dy = (long)desiredYRaw - startYRaw;
+        var distanceSq = (dx * dx) + (dy * dy);
+
+        if (distanceSq <= (long)movementSpeedRaw * movementSpeedRaw)
+        {
+            return (desiredXRaw, desiredYRaw);
+        }
+
+        // IntegerSqrt truncates, so it reports a distance no larger than the
+        // true one. Scaling by movementSpeedRaw over a distance that is too
+        // small produces a step that is too large, and the resulting
+        // displacement can land just past the cap this method exists to
+        // enforce — measured at 1,638.06 raw against a cap of 1,638 on a
+        // (-1554, -518) step. Rounding the divisor up instead puts the error
+        // on the undershoot side, where a tick occasionally travels one raw
+        // unit less than it could and the bound is never broken.
+        var distance = IntegerSqrt(distanceSq);
+        if (distance <= 0)
+        {
+            return (desiredXRaw, desiredYRaw);
+        }
+
+        if ((long)distance * distance < distanceSq)
+        {
+            distance++;
+        }
+
+        var clampedX = startXRaw + checked((int)((dx * movementSpeedRaw) / distance));
+        var clampedY = startYRaw + checked((int)((dy * movementSpeedRaw) / distance));
+        return (clampedX, clampedY);
+    }
+
+    /// <summary>
     /// The squad's shared formation half-width, in world units, that
     /// <see cref="Squads.FormationCollapse.IsCollapsed"/> compares against
     /// the leader's clearance. <b>PROVISIONAL</b> — no
@@ -1350,20 +1672,37 @@ public sealed class SandataSimulation
     /// </summary>
     private const long FormationLateralStepWu = 4;
 
-    /// <summary>
-    /// How far ahead of the leader's own projected position, in world
-    /// units, the leader's sample point sits — without this, a leader whose
-    /// target is its own projection onto the path never moves.
-    /// <b>PROVISIONAL</b> — no movement-speed or per-tick step constant
-    /// exists anywhere under <c>Movement/</c> (<see cref="Movement.LocalAvoidance"/>,
-    /// <see cref="MovementProposal"/>, and <see cref="Movement.SidestepRules"/>
-    /// carry none) to derive this from, and <see cref="Movement.LocalAvoidance.Commit"/>
-    /// applies no speed cap of its own — it moves a proposal straight to its
-    /// desired point, subject only to collision blocking — so this constant
-    /// is, in effect, the leader's per-tick step size along its own path
-    /// until a real movement-speed source is designed.
-    /// </summary>
-    private const long FormationLookaheadWu = 8;
+    // The leader's sample point sits exactly one per-tick step ahead of its
+    // own projection onto the path. There is no separate lookahead constant
+    // any more, and the reason is worth keeping.
+    //
+    // A lookahead exists at all because a leader whose target is its own
+    // projection never moves. Anything larger than one step is absorbed by
+    // ClampToMovementSpeed and buys nothing; anything smaller throttles the
+    // leader below the sprint speed design section 4 sets. One step is
+    // therefore the only value that is neither wasteful nor limiting, and it
+    // needs no tuning pass because it is not a tuning parameter — it is
+    // SprintSpeedWuPerSecond divided by the tick rate, and it moves when
+    // either of those does.
+    //
+    // Task 79b's provisional 8 world units could not be reduced to this
+    // before task 87. PolylineArclength stored each segment's length as a
+    // truncated integer square root of a *world-unit* square — an (8, 8)
+    // segment measured 11 rather than 8·√2 ≈ 11.31 — and ProjectArclength and
+    // SampleAt then divided by that truncated length in opposite directions,
+    // so a position turned into an arclength and back lost up to about two
+    // world units on a diagonal. Task 84 set the lookahead to 2 on the
+    // reasoning that the clamp absorbs anything at or above the step, did not
+    // check that reasoning against the arclength arithmetic the value
+    // actually feeds, and froze a leader at (4, 4) permanently: it projected
+    // to arclength 2, sampled arclength 4, and landed back on its own
+    // position with nothing for the clamp to move toward. The lookahead went
+    // back to 8 with the floor written at its declaration.
+    //
+    // Task 87 removed the floor rather than respecting it. Every length in
+    // PolylineArclength is now raw fixed point, so the round trip loses a raw
+    // unit or two instead of a world unit or two, and a lookahead of 1,638
+    // raw clears that by three orders of magnitude.
 
     /// <summary>
     /// Stage 9. Call-site obligation: chooses each living operator's
@@ -1407,10 +1746,12 @@ public sealed class SandataSimulation
     /// moves an entity straight to its proposal's desired point every tick
     /// with no speed cap of its own, projecting the leader's own current
     /// position back onto its own path would leave the leader's target
-    /// pinned to wherever it already stands; <see cref="FormationLookaheadWu"/>
-    /// adds a small constant arclength past that projection so the leader
-    /// (slot 0, whose trail and lateral offsets are both zero) still has
-    /// somewhere ahead of it to walk toward, each tick, clamped to the
+    /// pinned to wherever it already stands, so the leader's sample sits one
+    /// per-tick step past that projection — see the comment above
+    /// <see cref="FormationHalfWidthWu"/>'s neighbours for why exactly one
+    /// step and not a separate tunable — giving the leader
+    /// (slot 0, whose trail and lateral offsets are both zero)
+    /// somewhere ahead of it to walk toward each tick, clamped to the
     /// path's own <see cref="PolylineArclength.TotalLength"/> so it never
     /// overshoots the goal. Each slot's trail
     /// and lateral offset come from <see cref="FormationSlotOffsetsWu"/>, a
@@ -1424,13 +1765,36 @@ public sealed class SandataSimulation
     /// every slot in the group to single file for that tick, per design
     /// section 8's "Doorway collapse falls out of the clearance field."
     /// </para>
+    /// <para>
+    /// <b>Speed clamp.</b> Both branches above only choose a desired point;
+    /// neither one is speed-limited on its own, and <see cref="Movement.LocalAvoidance.Commit"/>
+    /// applies no cap of its own either. This method converts design
+    /// section 4's sprint speed into a per-tick raw step once, from
+    /// <see cref="_ruleset"/>, then calls <see cref="ClampToMovementSpeed"/>
+    /// once per operator after the ordered/autonomous branch above has run,
+    /// never inside either branch, so an ordered operator walks toward a
+    /// far waypoint across many ticks and a non-leader slot walks into its
+    /// formation position rather than starting there.
+    /// </para>
     /// </remarks>
     private ImmutableArray<MovementProposal> ComputeMovementProposals(
         TickStartView view, ReadOnlySpan<SquadSlot> slots, MissionState state)
     {
         var count = view.Count;
         var assignments = state.OrderAssignments;
-        var builder = ImmutableArray.CreateBuilder<MovementProposal>();
+        // Sized to count: the loop below adds at most one proposal per
+        // operator (skipping dead ones), so this is the exact upper bound
+        // and avoids the unsized builder's doubling regrowth.
+        var builder = ImmutableArray.CreateBuilder<MovementProposal>(count);
+
+        // Design section 4: 5 m/s sprint = 80 wu/s. Truncating (not
+        // rounding) keeps this <= CollisionBodyRadiusRaw on the safe side -
+        // the game's only rounding rule (design section 4) is scoped to
+        // milliseconds, not this conversion. _ruleset.TickRate is a
+        // per-instance property, so this is computed here rather than as a
+        // compile-time constant, once per call rather than per operator
+        // since it does not vary across this tick's operators.
+        var movementSpeedRaw = (SprintSpeedWuPerSecond * FixedPoint.Scale) / _ruleset.TickRate;
 
         for (var i = 0; i < count; i++)
         {
@@ -1481,21 +1845,32 @@ public sealed class SandataSimulation
                     var leaderPositionArclength = leaderIndex < 0
                         ? arclength.TotalLength
                         : ProjectArclength(
-                            path, arclength, view.PositionXWu(leaderIndex), view.PositionYWu(leaderIndex));
+                            path, arclength, view.PositionXRaw(leaderIndex), view.PositionYRaw(leaderIndex));
                     var leaderArclength = Math.Min(
-                        leaderPositionArclength + FormationLookaheadWu, arclength.TotalLength);
+                        leaderPositionArclength + movementSpeedRaw, arclength.TotalLength);
                     var (trailOffsetWu, lateralOffsetWu) = FormationSlotOffsetsWu(slot.SlotIndex ?? 0);
                     var leaderClearance = FindLeaderClearance(view, leaderEntityId);
                     var gatedLateralOffsetWu = FormationCollapse.LateralOffset(
                         leaderClearance, FormationHalfWidthWu, lateralOffsetWu);
 
+                    // The formation-shape constants are authored in whole
+                    // world units because that is the unit a person reasons
+                    // about a squad's spacing in; the arclength table they
+                    // index into is raw, so they are scaled here rather than
+                    // being restated in raw at their declarations.
                     var target = SlotTargets.ComputeTarget(
-                        arclength, leaderArclength, trailOffsetWu, gatedLateralOffsetWu);
+                        arclength,
+                        leaderArclength,
+                        checked(trailOffsetWu * FixedPoint.Scale),
+                        checked(gatedLateralOffsetWu * FixedPoint.Scale));
 
-                    desiredXRaw = RawFromWorldUnits(target.X);
-                    desiredYRaw = RawFromWorldUnits(target.Y);
+                    desiredXRaw = checked((int)target.X);
+                    desiredYRaw = checked((int)target.Y);
                 }
             }
+
+            (desiredXRaw, desiredYRaw) = ClampToMovementSpeed(
+                startXRaw, startYRaw, desiredXRaw, desiredYRaw, movementSpeedRaw);
 
             builder.Add(new MovementProposal(
                 entityId, startXRaw, startYRaw, desiredXRaw, desiredYRaw,
@@ -1506,8 +1881,9 @@ public sealed class SandataSimulation
     }
 
     /// <summary>
-    /// Projects a world position onto the nearest point of <paramref name="path"/>
-    /// and returns that point's arclength, per <paramref name="arclength"/>.
+    /// Projects a raw fixed-point world position onto the nearest point of
+    /// <paramref name="path"/> and returns that point's arclength, also raw,
+    /// per <paramref name="arclength"/>.
     /// Pure function of its inputs — no state is stored between calls, so
     /// this is safe to call fresh every tick for every group's leader rather
     /// than tracking leader progress incrementally (design section 8:
@@ -1527,23 +1903,29 @@ public sealed class SandataSimulation
     /// method.
     /// </remarks>
     private static long ProjectArclength(
-        ImmutableArray<PathPoint> path, in PolylineArclength arclength, long positionXWu, long positionYWu)
+        ImmutableArray<PathPoint> path, in PolylineArclength arclength, long positionXRaw, long positionYRaw)
     {
-        var bestDistanceSq = long.MaxValue;
+        var bestDistanceSq = Int128.MaxValue;
         var bestArclength = 0L;
 
         for (var i = 0; i < path.Length - 1; i++)
         {
-            var ax = path[i].X;
-            var ay = path[i].Y;
-            var bx = path[i + 1].X;
-            var by = path[i + 1].Y;
+            // The published polyline's vertices are whole world units; every
+            // length this method compares or returns is raw, so each vertex is
+            // scaled once on the way in. Doing the geometry in world units and
+            // scaling the answer afterwards is what task 87 removed: it threw
+            // away the query position's own sub-world-unit precision before
+            // the projection had a chance to use it.
+            var ax = checked(path[i].X * FixedPoint.Scale);
+            var ay = checked(path[i].Y * FixedPoint.Scale);
+            var bx = checked(path[i + 1].X * FixedPoint.Scale);
+            var by = checked(path[i + 1].Y * FixedPoint.Scale);
             var dx = bx - ax;
             var dy = by - ay;
             var denom = checked((dx * dx) + (dy * dy));
 
-            var apx = positionXWu - ax;
-            var apy = positionYWu - ay;
+            var apx = positionXRaw - ax;
+            var apy = positionYRaw - ay;
 
             long clampedNumerator;
             long closestX;
@@ -1559,21 +1941,31 @@ public sealed class SandataSimulation
             {
                 var numerator = checked((apx * dx) + (apy * dy));
                 clampedNumerator = Math.Clamp(numerator, 0, denom);
-                closestX = ax + checked((clampedNumerator * dx) / denom);
-                closestY = ay + checked((clampedNumerator * dy) / denom);
+
+                // Int128 for the product alone. At raw scale the numerator is
+                // already on the order of the squared map extent, and
+                // multiplying that by a raw coordinate overflows a signed
+                // 64-bit integer on a map only a few thousand world units
+                // across. The quotient is back inside long by construction,
+                // since clampedNumerator never exceeds denom. Hukbo.Core's
+                // MovementContextQuery widens the same way for the same
+                // reason; Int128 is exact integer arithmetic and carries none
+                // of the cross-version hazard that bans double here.
+                closestX = ax + checked((long)(((Int128)clampedNumerator * dx) / denom));
+                closestY = ay + checked((long)(((Int128)clampedNumerator * dy) / denom));
             }
 
-            var distX = positionXWu - closestX;
-            var distY = positionYWu - closestY;
-            var distanceSq = checked((distX * distX) + (distY * distY));
+            var distX = positionXRaw - closestX;
+            var distY = positionYRaw - closestY;
+            var distanceSq = ((Int128)distX * distX) + ((Int128)distY * distY);
 
             if (distanceSq < bestDistanceSq)
             {
                 bestDistanceSq = distanceSq;
                 var segmentLength = arclength.ArclengthAtVertex(i + 1) - arclength.ArclengthAtVertex(i);
                 var distanceAlongSegment = denom == 0
-                    ? 0
-                    : checked((clampedNumerator * segmentLength) / denom);
+                    ? 0L
+                    : checked((long)(((Int128)clampedNumerator * segmentLength) / denom));
                 bestArclength = arclength.ArclengthAtVertex(i) + distanceAlongSegment;
             }
         }

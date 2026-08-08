@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework;
 using Sandata.Client;
 using Sandata.Client.Rendering;
 using Sandata.Client.UI;
+using Sandata.Core.Maps;
 using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
 using Sandata.Core.Rules;
@@ -198,7 +199,7 @@ public sealed class HudComposerTests
 
         var initialState = new MissionState(Tick: 0, Phase: 1, Winner: -1, NextEntityId: 1, NextEventSequence: 0);
 
-        return new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState);
+        return new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState, ImmutableArray<CoverRecord>.Empty);
     }
 
     [Fact]

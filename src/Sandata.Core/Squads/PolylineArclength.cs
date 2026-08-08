@@ -18,14 +18,15 @@ namespace Sandata.Core.Squads;
 /// no defined direction of travel — a duplicate consecutive vertex, or a
 /// one-vertex polyline.
 /// </summary>
-/// <param name="X">The sampled point's X coordinate, in world units.</param>
-/// <param name="Y">The sampled point's Y coordinate, in world units.</param>
-/// <param name="DirectionX">The source segment's raw, un-normalised X delta, or zero when no direction is defined at this sample.</param>
-/// <param name="DirectionY">The source segment's raw, un-normalised Y delta, or zero when no direction is defined at this sample.</param>
+/// <param name="X">The sampled point's X coordinate, in raw fixed-point units.</param>
+/// <param name="Y">The sampled point's Y coordinate, in raw fixed-point units.</param>
+/// <param name="DirectionX">The source segment's un-normalised X delta, in raw fixed-point units, or zero when no direction is defined at this sample.</param>
+/// <param name="DirectionY">The source segment's un-normalised Y delta, in raw fixed-point units, or zero when no direction is defined at this sample.</param>
 /// <param name="DirectionLength">
-/// The source segment's true Euclidean length — see <see cref="PolylineArclength"/>'s
-/// remarks for why this is Euclidean rather than a squared-free measure —
-/// or zero when no direction is defined at this sample.
+/// The source segment's true Euclidean length, in raw fixed-point units —
+/// see <see cref="PolylineArclength"/>'s remarks for why this is Euclidean
+/// rather than a squared-free measure, and why it is raw rather than whole
+/// world units — or zero when no direction is defined at this sample.
 /// </param>
 public readonly record struct ArclengthSample(
     long X,
@@ -73,6 +74,23 @@ public readonly record struct ArclengthSample(
 /// platform-dependent instruction sequence, so the same input pair of
 /// vertices always produces the same cumulative arclength, everywhere and
 /// forever.
+/// </para>
+/// <para>
+/// <b>Every length this type produces is in raw fixed-point units, not whole
+/// world units, and that is what makes the round trip survivable.</b> The
+/// vertices handed to <see cref="Build"/> are whole world units, because that
+/// is what <c>PathService</c> publishes; everything derived from them here is
+/// scaled by <see cref="FixedPoint.Scale"/> first. Until task 87 the segment
+/// length was a truncated integer square root of a world-unit square, so an
+/// (8, 8) segment measured 11 rather than 8·√2 ≈ 11.31, and
+/// <see cref="SampleAt"/> and its caller's projection then divided by that
+/// truncated length in opposite directions. A position turned into an
+/// arclength and back lost up to about two world units on a diagonal segment
+/// — enough that a leader aiming a short distance ahead of its own projection
+/// sampled a point behind where it already stood and froze there permanently.
+/// Scaling before the square root does not remove the truncation; it moves it
+/// from one part in eleven to one part in eleven thousand, which is a
+/// round-trip error of a raw unit or two rather than of a stride.
 /// </para>
 /// <para>
 /// <b>Deterministic across two evaluations.</b> <see cref="Build"/> reads
@@ -128,11 +146,15 @@ public readonly struct PolylineArclength
         {
             var previous = polyline[index - 1];
             var current = polyline[index];
-            var deltaX = current.X - previous.X;
-            var deltaY = current.Y - previous.Y;
-            var segmentLengthSquared = checked((deltaX * deltaX) + (deltaY * deltaY));
-            var segmentLength = FixedPoint.IntegerSquareRoot(segmentLengthSquared);
-            cumulativeLength.Add(checked(cumulativeLength[index - 1] + segmentLength));
+            // Scale the world-unit delta into raw units before squaring, so
+            // the square root truncates at 1/1024 of a world unit instead of
+            // at a whole one. Squaring first and scaling afterwards would not
+            // work: the truncation happens inside the root.
+            var deltaXRaw = checked((current.X - previous.X) * FixedPoint.Scale);
+            var deltaYRaw = checked((current.Y - previous.Y) * FixedPoint.Scale);
+            var segmentLengthSquared = checked((deltaXRaw * deltaXRaw) + (deltaYRaw * deltaYRaw));
+            var segmentLengthRaw = FixedPoint.IntegerSquareRoot(segmentLengthSquared);
+            cumulativeLength.Add(checked(cumulativeLength[index - 1] + segmentLengthRaw));
         }
 
         return new PolylineArclength(polyline, cumulativeLength.MoveToImmutable());
@@ -141,10 +163,10 @@ public readonly struct PolylineArclength
     /// <summary>The number of vertices <see cref="Build"/> was given.</summary>
     public int VertexCount => _vertices.Length;
 
-    /// <summary>The polyline's total arclength: the last entry of the cumulative table, and never negative.</summary>
+    /// <summary>The polyline's total arclength in raw fixed-point units: the last entry of the cumulative table, and never negative.</summary>
     public long TotalLength => _cumulativeLength[^1];
 
-    /// <summary>The precomputed cumulative arclength at <paramref name="vertexIndex"/>, matching the vertex <see cref="Build"/> was given at that index.</summary>
+    /// <summary>The precomputed cumulative arclength, in raw fixed-point units, at <paramref name="vertexIndex"/>, matching the vertex <see cref="Build"/> was given at that index.</summary>
     public long ArclengthAtVertex(int vertexIndex) => _cumulativeLength[vertexIndex];
 
     /// <summary>
@@ -226,7 +248,8 @@ public readonly struct PolylineArclength
         if (lastVertexIndex == 0)
         {
             var only = _vertices[0];
-            return new ArclengthSample(only.X, only.Y, 0, 0, 0);
+            return new ArclengthSample(
+                checked(only.X * FixedPoint.Scale), checked(only.Y * FixedPoint.Scale), 0, 0, 0);
         }
 
         var floorIndex = FloorVertexIndex(clamped);
@@ -234,19 +257,22 @@ public readonly struct PolylineArclength
 
         var start = _vertices[segmentStartIndex];
         var end = _vertices[segmentStartIndex + 1];
-        var directionX = end.X - start.X;
-        var directionY = end.Y - start.Y;
-        var segmentLength = _cumulativeLength[segmentStartIndex + 1] - _cumulativeLength[segmentStartIndex];
+        var startXRaw = checked(start.X * FixedPoint.Scale);
+        var startYRaw = checked(start.Y * FixedPoint.Scale);
+        var directionXRaw = checked((end.X - start.X) * FixedPoint.Scale);
+        var directionYRaw = checked((end.Y - start.Y) * FixedPoint.Scale);
+        var segmentLengthRaw =
+            _cumulativeLength[segmentStartIndex + 1] - _cumulativeLength[segmentStartIndex];
 
-        if (segmentLength == 0)
+        if (segmentLengthRaw == 0)
         {
-            return new ArclengthSample(start.X, start.Y, 0, 0, 0);
+            return new ArclengthSample(startXRaw, startYRaw, 0, 0, 0);
         }
 
         var traveled = clamped - _cumulativeLength[segmentStartIndex];
-        var x = checked(start.X + (directionX * traveled / segmentLength));
-        var y = checked(start.Y + (directionY * traveled / segmentLength));
+        var x = checked(startXRaw + (directionXRaw * traveled / segmentLengthRaw));
+        var y = checked(startYRaw + (directionYRaw * traveled / segmentLengthRaw));
 
-        return new ArclengthSample(x, y, directionX, directionY, segmentLength);
+        return new ArclengthSample(x, y, directionXRaw, directionYRaw, segmentLengthRaw);
     }
 }

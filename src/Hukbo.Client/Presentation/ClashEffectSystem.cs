@@ -26,6 +26,31 @@ internal sealed class ClashEffectSystem
     public ReadOnlySpan<ClashEffect> ActiveEffects => _effects.AsSpan(0, _count);
 
     /// <summary>
+    /// Starts the contact cross directly from an atomic bundle. Landed and
+    /// evaded contacts intentionally add no clash effect.
+    /// </summary>
+    public void StartContact(
+        AttackContactBundle contact,
+        AgentView attacker,
+        AgentView defender)
+    {
+        if (!ClashEffect.FiresFor(contact.Resolution))
+        {
+            return;
+        }
+
+        Add(
+            new ClashEffect(
+                contact.Sequence,
+                contact.AttackerEntityId,
+                contact.DefenderEntityId,
+                (attacker.XRaw + defender.XRaw) / 2,
+                (attacker.YRaw + defender.YRaw) / 2,
+                contact.Resolution,
+                AgeSeconds: 0f));
+    }
+
+    /// <summary>
     /// Places one effect at the contact midpoint for every attack event that
     /// resolved to a contact outcome and whose attacker and target are both
     /// present in the supplied views.

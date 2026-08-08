@@ -1,4 +1,5 @@
 using Hukbo.Client.Audio;
+using Hukbo.Client.Presentation;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
 
@@ -6,6 +7,34 @@ namespace Hukbo.Client.Tests;
 
 public sealed class SoundCueMapperTests
 {
+    [Theory]
+    [InlineData(false, null)]
+    [InlineData(true, (int)GameSoundId.Death)]
+    public void MapContact_ReturnsWeaponAndOptionalOwnedDeathCue(
+        bool isLethal,
+        int? expectedLethal)
+    {
+        var request = SoundCueMapper.MapContact(
+            new AttackContactBundle(
+                Sequence: 1,
+                Tick: 12,
+                AttackerEntityId: 3,
+                DefenderEntityId: 4,
+                Damage: 7,
+                FactionId: 0,
+                WeaponId.Kampilan,
+                AttackerShield: ShieldId.None,
+                HitLocation: BodyPart.Chest,
+                Resolution: AttackResolution.Landed,
+                ComboPosition: null,
+                isLethal));
+
+        Assert.Equal(GameSoundId.AttackKampilan, request.Contact);
+        Assert.Equal(
+            expectedLethal is { } sound ? (GameSoundId)sound : null,
+            request.Lethal);
+    }
+
     // Expected slots are ints because xunit requires public test methods and
     // GameSoundId is internal to Hukbo.Client.
     [Theory]

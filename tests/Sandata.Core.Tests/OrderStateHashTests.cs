@@ -111,38 +111,46 @@ public sealed class OrderStateHashTests
         Orders = ImmutableArray.Create(orders),
     };
 
-    // -- The pinned baseline: what this file's own remarks call "the ------
-    // -- single most important fact in task" -- an empty order queue and ---
-    // -- no assignments must hash to exactly what the pre-task-61 hasher ---
-    // -- produced for the same state. This literal was captured by running --
-    // -- SandataStateHasher.Compute(BuildSampleMission(), BuildSampleState(), --
-    // -- SandataRuleset.ModernTacticalV1) against the hasher as it stood ----
-    // -- immediately before task 61's edits, before OrderQueue and ----------
-    // -- OrderAssignments existed on MissionState at all. --------------------
-    // Moved at task 79c, from 5_550_901_129_500_655_850UL, and the move is
-    // sanctioned rather than worked around: task 79c appends the operator's
-    // Firearm to FoldOperator, so every state carrying at least one operator
-    // hashes differently. What this test actually guards is untouched by
-    // that — an empty order queue and no assignments still fold nothing, so
-    // this fixture still hashes to whatever the pre-task-61 hasher would
-    // produce for it under today's operator fold. Only the absolute literal
-    // is task-79c-specific. See the wave-12 audit in
-    // docs/plans/2026-08-07-sandata-scaffold.md.
-    private const ulong PreTask61BaselineHash = 3_159_438_799_659_597_482UL;
+    // -- Task 85 (docs/plans/2026-08-07-sandata-scaffold.md, wave-12 audit's
+    // -- "Task 52's golden baseline against task 85's single-pin rule"):
+    // -- the two tests below used to pin an absolute literal
+    // -- (PreTask61BaselineHash) to guard a relational property — "an empty
+    // -- order queue folds nothing" — and every legitimate change to the
+    // -- operator fold (e.g. task 79c) broke the literal even though the
+    // -- property it guarded never moved. Both are now comparisons between
+    // -- two hashes computed live by today's hasher, so they can never go
+    // -- stale from an unrelated fold change, and they still fail if the
+    // -- property they guard is genuinely broken (see PR notes for the
+    // -- break-and-revert proof). The one remaining absolute state-hash
+    // -- literal in this test assembly is
+    // -- MissionStateTests.PreTask79cBaselineHash, the deliberate canary.
 
+    /// <summary>
+    /// <see cref="SandataStateHasher"/>'s <c>FoldOrderQueue</c> is gated on
+    /// <c>queue.Equals(OrderQueue.Empty)</c>, not on how that empty value was
+    /// built. This proves the gate is genuinely value-based: a queue built by
+    /// never touching <see cref="MissionState.OrderQueue"/> at all and a
+    /// queue built by explicitly constructing zero orders through
+    /// <see cref="QueueOf"/> are two different code paths to the same value,
+    /// and both must hash identically because both equal
+    /// <see cref="OrderQueue.Empty"/>.
+    /// </summary>
     [Fact]
-    public void StateHash_WithEmptyOrderQueueAndNoAssignments_MatchesThePreTask61Hasher()
+    public void StateHash_WithEmptyOrderQueueAndNoAssignments_IsUnaffectedByHowTheEmptyQueueWasConstructed()
     {
         var mission = BuildSampleMission();
         var ruleset = SandataRuleset.ModernTacticalV1;
-        var state = BuildSampleState();
+        var neverPopulatedState = BuildSampleState();
+        var explicitlyEmptyState = BuildSampleState() with { OrderQueue = QueueOf() };
 
-        Assert.Equal(OrderQueue.Empty, state.OrderQueue);
-        Assert.Empty(state.OrderAssignments);
+        Assert.Equal(OrderQueue.Empty, neverPopulatedState.OrderQueue);
+        Assert.Equal(OrderQueue.Empty, explicitlyEmptyState.OrderQueue);
+        Assert.Empty(neverPopulatedState.OrderAssignments);
 
-        var hash = SandataStateHasher.Compute(mission, state, ruleset);
+        var neverPopulatedHash = SandataStateHasher.Compute(mission, neverPopulatedState, ruleset);
+        var explicitlyEmptyHash = SandataStateHasher.Compute(mission, explicitlyEmptyState, ruleset);
 
-        Assert.Equal(PreTask61BaselineHash, hash);
+        Assert.Equal(neverPopulatedHash, explicitlyEmptyHash);
     }
 
     /// <summary>
@@ -153,21 +161,24 @@ public sealed class OrderStateHashTests
     /// <see cref="OrderQueue.NextOrderSequence"/> advanced away from zero, so
     /// it is a genuinely different authoritative state from a mission that
     /// never submitted anything — <see cref="OrderQueue.Empty"/> — and must
-    /// not collide with the pinned baseline above.
+    /// not collide with the never-populated baseline, computed live rather
+    /// than pinned.
     /// </summary>
     [Fact]
     public void StateHash_QueueWithAdvancedCountersButNoStoredOrders_DiffersFromTheEmptyBaseline()
     {
         var mission = BuildSampleMission();
         var ruleset = SandataRuleset.ModernTacticalV1;
-        var state = BuildSampleState() with
+        var neverPopulatedState = BuildSampleState();
+        var advancedCountersState = BuildSampleState() with
         {
             OrderQueue = OrderQueue.Empty with { NextOrderId = 3, NextOrderSequence = 3 },
         };
 
-        var hash = SandataStateHasher.Compute(mission, state, ruleset);
+        var neverPopulatedHash = SandataStateHasher.Compute(mission, neverPopulatedState, ruleset);
+        var advancedCountersHash = SandataStateHasher.Compute(mission, advancedCountersState, ruleset);
 
-        Assert.NotEqual(PreTask61BaselineHash, hash);
+        Assert.NotEqual(neverPopulatedHash, advancedCountersHash);
     }
 
     // -- The state hash moves when any Order field changes, one case per ---

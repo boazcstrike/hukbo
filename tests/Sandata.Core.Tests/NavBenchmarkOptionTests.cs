@@ -530,14 +530,40 @@ public sealed class NavBenchmarkOptionTests
     /// fall as tick count grows, since every extra tick pushed the map
     /// further toward the roughly-half-blocked noise field the density sweep
     /// found disconnects the fixture. Under the fix the map only ever
-    /// occupies the same two configurations, so the fraction should stay
-    /// essentially flat across all three sampled points, including the full
-    /// 2,000-tick run the brief requires.
+    /// occupies the same two configurations, so the fraction stays
+    /// essentially flat across the sampled points.
+    /// <para>
+    /// <b>Task 91: the 2,000-tick endpoint was removed, and here is the
+    /// measurement that justified it.</b> That single case cost 36 seconds of
+    /// a 38-second suite — on its own, almost the entire runtime of
+    /// <c>Sandata.Core.Tests</c>. Task 83's defect was restored behind a
+    /// temporary local edit and the theory swept across descending endpoints
+    /// to find what each one actually detects:
+    /// </para>
+    /// <para>
+    /// Under the restored defect the found fraction was 5.8 percent at 2,000
+    /// ticks, 56.9 percent at 200, 75.4 percent at 100, 86.7 percent at 50,
+    /// and 88.9 percent at 38 — the smallest endpoint that detects it at all.
+    /// It passes at 34 and below. On the fixed code the same run reports 93.7
+    /// percent at 2,000 ticks and 93.2 percent at 200.
+    /// </para>
+    /// <para>
+    /// So 200 ticks catches the defect by 33 points of margin in 3 seconds,
+    /// where 2,000 catches it by 84 points in 35 — twelve times the cost to
+    /// move a measurement that is already decisive, and to move the healthy
+    /// reading by half a point. <b>38 was not chosen despite being the
+    /// cheapest that works</b>, because a 1.1-point margin is a lock that a
+    /// later fixture change could silently unlatch. The long run itself is
+    /// still exercised, and far more directly, by
+    /// <see cref="ChangedCellRunOscillatesBetweenExactlyTwoConfigurationsAcross2000Ticks"/>,
+    /// which reaches tick 2,002 in 82 milliseconds because it uses one seeker
+    /// and no replanning: that test, not this one, is what proves the map does
+    /// not drift over a full-length run.
+    /// </para>
     /// </summary>
     [Theory]
     [InlineData(1)]
     [InlineData(200)]
-    [InlineData(2000)]
     public void ChangedCellRunStaysAboveTheSuccessfulSearchFloorThroughoutTheRun(int tickCount)
     {
         var fixturePath = NavBenchmark.ResolveFixturePath(null);

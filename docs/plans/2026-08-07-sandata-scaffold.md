@@ -3041,3 +3041,1858 @@ the audit doing its job — the sentence originally written here claimed task 85
 conflicted with nothing, and that claim was wrong the moment task 79d-1 was
 dispatched with the same test file in its grant. Task 85 runs after task 79d-1
 merges, and not beside task 81 or task 84.
+
+### Task 79d-1 complete, and the invented constants it made load-bearing — 2026-08-08
+
+Merged. Stage 12 now resolves the drawn angular error against the target's
+subtended half-angle, a miss produces no `DamageInstance`, and three new event
+kinds — `ShotFired = 1`, `ShotHit = 2`, `ShotMissed = 3`, appended after
+`OrderRejected = 0`, whose value is contract and was not renumbered — are emitted
+through the same "assign the sequence, then advance it" shape
+`EmitOrderRejectedEvent` already used.
+
+**Sandata emitted events during a run for the first time.** The seed-1 workload's
+event hash moved from `CBF29CE484222325`, the bare FNV-1a offset basis, to
+`270364E265A3A8A7`. The event half of the determinism contract is now asserted by
+a run rather than by construction, which is what the wave-11 record said task
+79d would be the first to do. The state hash moved from `FB4715E7AFF108F6` to
+`6D4AEA08BEFEFA92` and the run stayed `deterministic: true`.
+
+Two process notes. The agent did not commit its work and reported a test total of
+3,152, which is neither Sandata suite — the integrating thread committed the
+branch at `612ca2b` and re-derived the real figures from the merged tree, 1,085
+core and 199 client. **Every count in this document is re-derived, never taken
+from a report**, and this is the wave's clearest illustration of why.
+
+#### The survivor counts did not move, and chasing that found the real defect
+
+Before hit resolution existed, the seed-1 workload ended with 98 and 92
+survivors. After it — with misses now producing no damage at all — the workload
+ends with **98 and 92 survivors**. Both hashes moved, so the mechanism is
+genuinely running. A change that removes damage from some fraction of all shots
+and kills exactly the same people is not a result, it is a symptom.
+
+It is. `SandataSimulation` declares:
+
+```
+private const int CollisionCellSizeRaw = 256;   //  0.25 wu
+private const int CollisionBodyRadiusRaw = 32;  //  0.03125 wu
+```
+
+Design section 4's unit table specifies the second of those explicitly, and not
+as a suggestion:
+
+> | Body radius | world unit | 4.25 wu, `CollisionRules.DefaultBodyRadiusRaw` unchanged, which is 0.266 m — a 0.53 m human footprint |
+
+`Hukbo.Core/Simulation/CollisionRules.cs:72` carries exactly that value:
+`public const int DefaultBodyRadiusRaw = (17 * FixedPoint.Scale) / 4`, which is
+4,352 raw. Sandata uses 32. **The operator body radius in the shooter is 136
+times smaller than the number the design names**, and at 1 metre = 16 world units
+it describes a person three centimetres across.
+
+Everything downstream inherits it:
+
+- **Collision is decorative.** Two operators must come within 0.0625 wu — four
+  millimetres — to register contact. `LocalAvoidance`, `SidestepRules`, and the
+  whole propose-prioritise-commit chain resolve conflicts that essentially never
+  occur.
+- **Hit resolution is now built on it.** Task 79d-1 computes the target's
+  subtended half-angle as `Cordic.Atan2(CollisionBodyRadiusRaw, range)`, which is
+  correct code against an incorrect constant. At a 90-world-unit range the target
+  subtends about two hundredths of a degree, so whether a shot lands is decided
+  by whether the drawn error rounds to near zero rather than by aim, range, or
+  dispersion. That is why removing damage from misses changed nobody's fate.
+- **The collision grid cell is smaller than a body.** `CollisionCellSizeRaw` is
+  0.25 wu against a designed 4.25 wu radius, so the uniform grid's cells are
+  seventeen times finer than the objects they index.
+
+Design section 4 also states the invariant these constants exist to satisfy:
+
+> Fifty hertz also keeps the collision invariant `MovementSpeedRaw <= BodyRadiusRaw`
+> comfortable: a 5 m/s sprint is 80 wu per second, which is 1.6 wu per tick
+> against a 4.25 wu radius.
+
+Against the code's 0.03125 wu radius, the maximum lawful movement step is 0.03125
+wu per tick. Task 79b's `FormationLookaheadWu` is 8. **The invariant is violated
+by a factor of 256**, which means operators pass through one another and through
+the grid between ticks and no test notices.
+
+#### This corrects task 84's row
+
+Task 84 was written on the finding that no movement-speed constant exists in
+`Movement/`. That is true of the code and it led to the wrong conclusion. **The
+design specifies the speed**: 5 m/s is 80 wu per second, which at the ruleset's
+50 Hz tick rate is exactly 1.6 wu per tick. It is not a value for an implementer
+to invent and mark provisional; it is a value to read out of design section 4 and
+derive. Task 84's row is amended accordingly below.
+
+#### The pattern, stated once
+
+Six constants in `SandataSimulation.cs` carry `<b>PROVISIONAL</b>` markers
+claiming that nothing supplies them. For at least the body radius, the movement
+speed, and arguably the collision cell size, **something did supply them and
+nobody looked.** The marker is honest about the code and wrong about the design,
+and being marked provisional made each one feel accounted for.
+
+This is wave 11's lesson pointed at the source instead of at a brief. A remedy
+stated in a brief needs its own reading of the code; a constant marked
+provisional needs its own reading of the *design*. Both failures look like
+diligence.
+
+#### One task this creates, and one it amends
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 86 | 12 | Take the invented physical constants out of the shooter and use the designed ones | `CollisionBodyRadiusRaw` is 32 raw, 0.03125 wu. Design section 4's unit table names 4.25 wu and names its source, `CollisionRules.DefaultBodyRadiusRaw` at `src/Hukbo.Core/Simulation/CollisionRules.cs:72`, which is `(17 * FixedPoint.Scale) / 4` = 4,352 raw. Use the designed value. Re-derive `CollisionCellSizeRaw` from it rather than leaving 0.25 wu cells indexing 4.25 wu bodies, and state the rule you derived it by. Do **not** take a `ProjectReference` on `Hukbo.Core` — the reference graph forbids it; read design section 3 and either restate the value with its provenance in a comment or raise tier-2 extraction as a question rather than doing it. Every `<b>PROVISIONAL</b>` marker you leave in place must be re-checked against design section 4 first, and the ones the design actually supplies must lose the marker and gain a citation. | `src/Sandata.Core/Simulation/SandataSimulation.cs` (the constants and their doc comments), `tests/Sandata.Core.Tests/TickPipelineTests.cs`, `tests/Sandata.Core.Tests/SandataCollisionTests.cs` | A test pins the body radius to 4,352 raw and cites design section 4 in its own comment. A test proves two operators at a plausible separation now collide where they previously did not. The seed-1 workload is re-run and its new hashes, survivor counts, and outcome recorded here — the survivor counts are expected to move, and if they do not, that is a finding to report rather than a result to accept. Task 79d-1's hit and miss tests still pass, with their pinned entity ids updated if the changed subtended angle moves which draw hits. | 79d-1 | |
+
+**Task 84 amended.** Its row said the per-tick movement distance is a value to
+invent and mark provisional. It is not. The row now reads: derive the per-tick
+movement step from design section 4 — a 5 m/s sprint is 80 wu per second, which
+at `TickRate` 50 is 1.6 wu per tick — cite that derivation at the declaration,
+and assert the design's own invariant `MovementSpeedRaw <= BodyRadiusRaw` in a
+test so that a future change to either constant cannot silently break it. Task 84
+now depends on task 86, because the invariant needs the corrected radius to mean
+anything.
+
+Ordering for the rest of the wave: task 86, then task 84, then task 81, then task
+52. All four want `SandataSimulation.cs` and none may run beside another.
+
+### The second wave-12 audit, run before the remaining eight rows — 2026-08-08
+
+Eight rows are left: 86, 84, 81, 79d-2, 52, 85, 54, and 55. Both directions of
+the audit were run over them against `main` at `13f67ad` before any agent was
+dispatched. The file-level half passed. The surface-level half produced six
+findings, one of which is large enough that it changes what task 86 can honestly
+deliver.
+
+Everything below is re-derived from the merged tree rather than taken from the
+wave's own record, because the record itself says every count in this document is
+re-derived and this wave has twice caught a report that was wrong.
+
+**The baseline, measured now.** `./scripts/test.ps1 -Configuration Release -Game Sandata`
+reports 1,085 tests passed in `Sandata.Core.Tests` and 199 passed in
+`Sandata.Client.Tests`, with zero failures in either. The seed-1 workload
+reports:
+
+```
+{"seed":1,"operatorsPerFaction":100,"requestedTicks":10000,"measuredTicks":10000,
+ "allocatedBytes":65782309192,"outcome":"Ongoing",
+ "faction0Survivors":98,"faction1Survivors":92,
+ "eventHash":"270364E265A3A8A7","stateHash":"6D4AEA08BEFEFA92",
+ "deterministic":true,"firstMismatchTick":null}
+```
+
+All three absolute pins — `OrderStateHashTests.PreTask61BaselineHash`,
+`MissionEventFeedTests.PreTask76BaselineHash`, and
+`MissionStateTests.PreTask79cBaselineHash` — carry
+`3_159_438_799_659_597_482UL` on disk today. The graph tools `CLAUDE.md`
+section 8 mandates are not available in this session, so discovery for this audit
+was done with `Grep` and `Read` over the working tree; that is a deviation worth
+recording rather than passing over silently.
+
+#### The seed-1 fixture cannot hold operators of the designed size
+
+This is the finding that matters. Task 86's row asks for the seed-1 workload to
+be re-run and its new survivor counts recorded, and expects them to move. They
+will move, but not for a reason anyone would want to record as a result.
+
+`HeadlessRunner.BuildOpenGrid` sizes the nav grid as
+`side = ceil(sqrt(operatorCount))`, which is 15 cells for the 200-operator
+workload, and `HeadlessRunner.BuildInitialState` then places one operator per nav
+cell at that cell's centre with a jitter of at most one world unit.
+`NavGrid.CellSizeWu` is 4. **The operators are therefore four world units apart.**
+
+The designed body radius is 4.25 world units, so the designed body *diameter* is
+8.5 world units. Every operator in the seed-1 fixture would overlap all four of
+its orthogonal neighbours by more than half a body the instant task 86 lands, and
+design section 8 forbids the one mechanism that would push them apart: "Never a
+force, never an impulse, never a push-apart." A blocked unit tries one
+22.5-degree sidestep and then waits. Two hundred mutually overlapping bodies on a
+60-by-60-world-unit grid is not a configuration that resolves; it is a
+configuration in which nothing can move at all.
+
+Three consequences follow, and none of them is optional:
+
+- Task 86 cannot record a meaningful post-change survivor count from a fixture
+  that is geometrically invalid the moment the change lands. Recording it anyway
+  would produce exactly the class of number this wave has already thrown away
+  twice — a measurement whose degenerate case and whose success case look
+  identical.
+- Task 81 measures per-tick allocation. A run in which every operator overlaps
+  four neighbours emits a far larger collision pair list than a correctly spaced
+  one, so an allocation table taken against the broken fixture would name the
+  wrong stage.
+- Task 52 records the golden baselines. A baseline recorded from a fixture that
+  has to be re-spaced afterwards is a baseline that has to be recorded twice.
+
+**Task 86's file grant therefore gains `src/Sandata.Headless/HeadlessRunner.cs`,
+and its scope gains the fixture spacing.** The alternative — a separate task
+after it — costs an extra batch and buys nothing, because the two changes are
+meaningless apart and both move the same two hashes.
+
+The obligation is stated narrowly on purpose. The implementer measures the
+minimum pairwise separation in the current fixture and reports it; re-spaces the
+placement so that separation is at least one body diameter, deriving the new
+pitch from `CollisionBodyRadiusRaw` and `NavGrid.CellSizeWu` rather than choosing
+a number; and changes nothing else about the fixture — not the operator count,
+not the jitter rule, not the faction split, not the RNG draw order. The jitter
+draw in particular must keep consuming exactly the same number of `SplitMix64`
+values in exactly the same order, or the change stops being a spacing change and
+becomes an unrelated RNG-stream change hiding inside one.
+
+#### Task 85 conflicts with nothing that is left
+
+The note recorded above at task 79c's completion says task 85 "is **not** free to
+run beside anything", naming `MissionEventFeedTests.cs` as writable to task 79d-1
+and `TickPipelineTests.cs` as writable to tasks 81 and 84. The first half was
+true and is now spent: task 79d-1 is merged. The second half was never true.
+Task 85's row grants three files — `OrderStateHashTests.cs`,
+`MissionEventFeedTests.cs`, and `MissionStateTests.cs` — and `TickPipelineTests.cs`
+is not among them.
+
+Checked against every remaining row rather than against memory: tasks 86, 84, 81,
+and 79d-2 grant `TickPipelineTests.cs`; task 79d-2 additionally grants
+`DamageResolutionTests.cs` and `CoverRulesTests.cs`; task 52 grants
+`DeterminismEquivalenceTests.cs`, `GoldenReplayTests.cs`, and
+`Fixtures/seed-1-baseline.json`; task 54 grants documentation only. None of them
+touches any of task 85's three files.
+
+Task 85 is also semantically independent of everything above it. Its three pins
+are digests of a constructed `MissionState` fixture, not of a run, so only a
+change to the *fold* moves them — and no remaining task changes the fold. Task 85
+pairs with task 86 in batch 1.
+
+This is the second time in two waves that a claim about task 85's conflicts has
+been wrong, once in each direction. The lesson is the same one this wave has now
+recorded three times in three different disguises: a statement written into the
+plan is a claim, and it needs its own reading of the thing it describes.
+
+#### Task 84's per-tick step is not an integer, and the rounding rule is a decision
+
+Task 84's amended row says to derive the per-tick movement step from design
+section 4: a 5 m/s sprint is 80 world units per second, which at `TickRate` 50 is
+1.6 world units per tick. That derivation is correct and it does not land on an
+integer in either unit. At `FixedPoint.Scale` 1024, 1.6 world units is 1,638.4
+raw, and the constant has to be an integer.
+
+The design supplies the speed and does not supply the rounding, so an implementer
+told only to "derive it" will invent one. The rule is written here instead:
+`MovementStepRaw = (80 * FixedPoint.Scale) / TickRate`, evaluated in integer
+arithmetic, which truncates toward zero to **1,638 raw**. Truncation rather than
+rounding half away from zero is chosen because design section 4's own conversion
+rule for weapon timings is the only rounding rule the game has, it is explicitly
+scoped to milliseconds, and borrowing it for a distance would create a second
+pinned rule that nothing states. Truncating also keeps the invariant
+`MovementSpeedRaw <= BodyRadiusRaw` on the safe side of the boundary rather than
+the unsafe one.
+
+Task 84 must also state, at the declaration, that 1,638 raw is derived from the
+design's 5 m/s sprint figure and is therefore the *sprint* bound rather than a
+walking pace, because design section 4 offers no second speed and the game has no
+gait model.
+
+#### Task 79d-2 needs a constructor parameter and seven call sites it does not have
+
+`SandataSimulation`'s constructor takes five parameters —
+`Mission`, `SandataRuleset`, `NavGrid`, `WallBuckets`, `MissionState` — and cover
+is in none of them, exactly as the first wave-12 audit recorded. What that audit
+did not do is count the call sites. There are seven files:
+
+| File | Sites |
+| --- | --- |
+| `src/Sandata.Client/SandataGame.cs` | 1 |
+| `src/Sandata.Headless/HeadlessRunner.cs` | 2 |
+| `tests/Sandata.Client.Tests/ClientOrderDoorTests.cs` | 2 |
+| `tests/Sandata.Client.Tests/HudComposerTests.cs` | 1 |
+| `tests/Sandata.Client.Tests/PathDrawToolTests.cs` | 1 |
+| `tests/Sandata.Core.Tests/MissionEventFeedTests.cs` | 6 |
+| `tests/Sandata.Core.Tests/TickPipelineTests.cs` | 30 |
+
+Only the last is in task 79d-2's grant.
+
+The parameter is **required, not optional with a default**. An optional cover
+parameter would mean a caller that omits it gets a simulation in which cover
+silently does nothing — which is this repository's recurring "a validated door
+beside an open unvalidated one" hazard for the sixth time, and the one shape of
+defect no file-level audit ever catches. A required parameter turns every missed
+call site into a compile error.
+
+Task 79d-2's grant therefore gains all six additional files. It runs alone, and
+it may not run beside task 85, because the `MissionEventFeedTests.cs` overlap
+that the earlier note claimed is real for the first time.
+
+One thing this makes visible and does not fix: `HeadlessRunner` synthesises its
+mission and loads no map, so the seed-1 workload carries no `CoverRecord` values
+at all. Cover is therefore unobservable in the workload and is provable only
+through `TickPipelineTests`. That is acceptable — it is the same situation
+`WallBuckets.Build(grid, [], [], [], [])` already puts walls in — but task 79d-2
+must pass an empty cover set at those two sites rather than inventing fixture
+cover, and must say so.
+
+#### Stage 12 still reads a hardcoded firearm
+
+`ProposeFire` resolves its weapon definition at `SandataSimulation.cs:655` with
+`FirearmCatalog.Rows[(int)DefaultFirearmId]`, and `DefaultFirearmId` is the
+`FirearmId.Ak47` constant at line 352. Task 79c gave `OperatorState` a `Firearm`
+field and wired it into stage 11's chain advance; stage 12 never learned about
+it, and the constant's own doc comment at line 342 says only that
+`AdvanceWeaponChain` no longer uses it.
+
+So the loadout task 79c added is half-connected, and task 79d-2 is the row that
+finishes it: keying a caliber damage table off `DefaultFirearmId` would satisfy
+the letter of "read it through the shooter's loadout" while changing nothing.
+Task 79d-2's own acceptance criterion — two operators carrying different caliber
+families dealing different damage on an identical hit — is decisive against that,
+and the brief names the line so the point is not left to be discovered.
+
+#### Task 52's golden baseline against task 85's single-pin rule
+
+Task 85 requires that exactly one absolute state-hash literal remain in
+`tests/Sandata.Core.Tests/`. Task 52 records two golden baselines, each carrying
+a state hash and an event hash. Read literally, task 52 breaks task 85's
+guarantee four times over the moment it lands, and task 85 runs first.
+
+The two rows are not actually in conflict; the rule needs its scope written
+down. Task 85's canary is about the *operator fold* — a digest of a constructed
+fixture that fires when any state field changes shape. Task 52's baselines are
+about a *run* — a seed, a build, and an ordered order stream reproducing an
+outcome. They guard different properties and the second is the entire point of a
+golden replay.
+
+The scoping rule, decided here so neither implementer has to guess:
+
+- Task 85's criterion reads: exactly one absolute state-hash literal remains **in
+  a `.cs` file** under `tests/Sandata.Core.Tests/`, and that one is
+  `PreTask79cBaselineHash`. The search it records must be scoped to `.cs`.
+- Task 52's baselines live in `tests/Sandata.Core.Tests/Fixtures/seed-1-baseline.json`,
+  which its own row already names, and `GoldenReplayTests` reads them from that
+  file rather than declaring constants.
+- `PreTask79cBaselineHash`'s comment says it is the only absolute pin in C# and
+  that the golden replay's baselines live in the fixture JSON, so the next person
+  to append a fold finds both halves of the picture from either end.
+
+#### Task 81's stated "before" figure is stale
+
+Task 81's row cites 65,679,126,648 bytes from task 51's first workload. The same
+workload on the merged tree reports **65,782,309,192**. Task 81 records the
+figure it measures on the tree it starts from — which will be the post-task-84
+tree, not this one — as its "before", and cites this section only as evidence
+that the row's number had already drifted.
+
+The arithmetic in the first wave-12 audit is right and worth restating so nobody
+re-derives it wrong: `HeadlessRunner.Execute` constructs and ticks **two**
+simulations per benchmark tick, `left` and `right`, so 65.78 GB over 10,000 ticks
+is 6.58 MB per benchmark tick and 3.29 MB per simulation-tick at 200 operators.
+
+#### Task 54's project count, re-derived
+
+`Hukbo.slnx` lists twelve projects: `Hukbo.Client`, `Hukbo.Core`,
+`Hukbo.Diagnostics`, `Hukbo.Headless`, `Hukbo.Shared.Core`, `Sandata.Client`,
+`Sandata.Core`, `Sandata.Headless`, `Hukbo.Client.Tests`, `Hukbo.Core.Tests`,
+`Sandata.Client.Tests`, and `Sandata.Core.Tests`. The first wave-12 audit's
+correction of task 54's "eleven" to twelve is confirmed independently.
+
+#### Task 86's provisional-marker sweep overlaps two other rows
+
+Task 86 is told to re-check every `<b>PROVISIONAL</b>` marker in
+`SandataSimulation.cs` against design section 4. There are nine marked constants
+and four marked prose passages, and two of the constants belong to other rows:
+`FormationLookaheadWu` is task 84's to replace, and `ProvisionalDamagePerHitPoints`
+is task 79d-2's to delete. Task 86 may correct their *comments* and may not
+change their *values* or remove them.
+
+Checked ahead of time so no implementer has to decide it: design section 4
+supplies the body radius and, through the sprint figure, the movement step. It
+supplies nothing for `VisionConeHalfWidthBam` — design section 6's row for
+`VisionCone.Contains` specifies the predicate's shape and never a half-width —
+and nothing for `FormationHalfWidthWu`, `FormationTrailStepWu`, or
+`FormationLateralStepWu`, which design section 8 describes structurally without
+numbers. Those four markers are correct as they stand and task 86 leaves them,
+which is a finding to state rather than an omission to notice later.
+
+#### The batch plan for the rest of the wave
+
+| Batch | Tasks | Why |
+| --- | --- | --- |
+| 1 | 86 and 85 | Disjoint file sets, verified above; 85 is independent of every hash 86 moves |
+| 2 | 84 | Stage 9; needs 86's radius for its invariant to mean anything |
+| 3 | 81 | Whole-file allocation work; measures against the post-84 tree |
+| 4 | 79d-2 | Stage 12, the constructor, and six call-site files |
+| 5 | 52 | Golden baselines, recorded after every hash-moving task above |
+| 6 | 54 | Documentation, after every number it records exists |
+
+Task 55 is the canonical gate and is not delegated.
+
+#### What is still nobody's to settle
+
+Unchanged from the first wave-12 audit and restated because two of these rows sit
+next to them: **what an autonomous squad wants** and **what decides an operator's
+loadout** are both undesigned, and no implementer may fill either in. Task 79d-2
+sits directly beside the second of those and adds damage keyed on the loadout
+field task 79c defaulted; it does not gain the right to decide what sets that
+field.
+
+One new question joins the open list. Task 86 restates
+`CollisionRules.DefaultBodyRadiusRaw`'s value in `Sandata.Core` with its
+provenance in a comment, because design section 3 forbids `Sandata.Core` a
+`ProjectReference` on `Hukbo.Core` and the constant lives in
+`Hukbo.Core/Simulation/`, not in `Hukbo.Shared.Core`. That leaves the two games
+carrying the same physical constant in two places. Whether that constant should
+join the tier-1 shared assembly is a tier-2 extraction question, and design
+section 3 is explicit that tier 2 becomes its own design document once Sandata's
+collision has run a full gate. It has not. The duplication is recorded here as
+the price of that, not resolved.
+
+### Task 85 complete, and the redundant rewrite it refused to write — 2026-08-08
+
+Merged at `fe233f1`. `OrderStateHashTests.PreTask61BaselineHash` and
+`MissionEventFeedTests.PreTask76BaselineHash` are gone, and both properties they
+guarded are now asserted by comparing two computed hashes.
+`MissionStateTests.PreTask79cBaselineHash` remains as the single deliberate
+canary, with a comment saying it is the only absolute state-hash literal in C#
+and that task 52's golden-replay baselines belong in
+`tests/Sandata.Core.Tests/Fixtures/seed-1-baseline.json` rather than beside it.
+
+The single-pin claim was re-checked by the integrating thread with a broader
+search than the one the implementer ran — every `[0-9][0-9_]{6,}UL` literal in
+`tests/Sandata.Core.Tests/**/*.cs`, rather than the two known values. Four
+literals survive. One is `PreTask79cBaselineHash`. The other three are content
+hashes, not state hashes: `AngleHouseFixtureTests.cs:136`'s `MapContentHash`,
+`FirearmCatalogTests.cs:120`'s `FirearmRuleset.ModernTacticalV1.ContentHash`, and
+`SandataRulesetTests.cs:61`'s `SandataRuleset.ContentHash`. Those three are
+supposed to be absolute — a content hash pinned to a recorded value is the
+mechanism by which a preset change becomes a new preset version, and it is the
+opposite of the habit this task removed.
+
+Test method counts per file are unchanged at 15, 7, and 26, confirmed by
+counting `[Fact]` and `[Theory]` attributes on both sides of the merge. Nothing
+was dropped in the rewrite. Both suites are green at 1,085 core and 199 client.
+
+#### The one deviation, and why it was the right call
+
+Task 85's row asked for `PreTask76BaselineHash`'s test to be rewritten as "the
+state with an empty feed against the same state with events appended". The
+implementer reported that writing exactly that would produce a tautological
+duplicate of `StateHash_DoesNotMove_WhenTheEventFeedGainsEvents`, which already
+sits in the same file and already does precisely that comparison — and the row's
+own text names that test as the pattern to follow, so the row was asking for a
+copy of the thing it was pointing at.
+
+It replaced the pinned test with
+`StateHash_DoesNotMove_AfterTheEventFeedEvictsPastItsRetentionCap` instead, which
+exercises a path no existing test reached: the feed's 200-event retention cap
+evicting older entries. That is a stricter statement of the same property — the
+hasher does not read the feed, not even when the feed mutates by discarding.
+
+This is the fourth time in this wave an agent has contradicted its brief with
+evidence and been right. The implementer flagged it for review rather than
+deviating quietly, which is the behaviour the brief asked for.
+
+One claim in that report is worth stating more carefully than the report did. The
+implementer described the new test as "independently breakable", but its own
+break-proof shows the sibling test failing under the same injected break. The new
+test is not independent of the sibling in that sense; what it adds is a distinct
+code path through the retention cap, not a distinct failure mode. The coverage is
+genuinely wider and the wording was stronger than the evidence.
+
+#### Break-proofs, which are the actual acceptance criterion
+
+A rewrite that cannot fail is worth nothing, so each property was broken in
+`src/` on purpose, the failure recorded, and the break reverted:
+
+| Property | The break | Failure |
+| --- | --- | --- |
+| An empty order queue folds nothing | `FoldOrderQueue`'s gate changed from `queue.Equals(OrderQueue.Empty)` to `ReferenceEquals(queue, OrderQueue.Empty)` | `Assert.Equal() Failure: Values differ / Expected: 3159438799659597482 / Actual: 16164427518677148266` |
+| A queue with advanced counters is not the empty queue | the same gate changed to `queue.Orders.IsEmpty` | `Assert.NotEqual() Failure: Values are equal / Expected: Not 3159438799659597482 / Actual: 3159438799659597482` |
+| `Compute` never reads the event feed | an unconditional `SandataHash.Fold(ref hash, state.EventFeed.Events.Length)` added to `Compute` | `Assert.Equal() Failure: Values differ / Expected: 15784416212425839146 / Actual: 13828696414860078466` |
+
+`git diff --name-only main..HEAD -- src/` returned zero files on the branch
+before the integrator's own edit, so every break was genuinely reverted.
+
+#### A stale cross-reference the task exposed, fixed by the integrator
+
+`SandataStateHasher.cs`'s remarks on the order-fold gate named
+`OrderStateHashTests.StateHash_WithEmptyOrderQueueAndNoAssignments_MatchesThePreTask61Hasher`
+and said it "pins that value directly". The implementer found it, correctly
+refused to edit a production file outside its grant, and reported it. The
+integrating thread made the edit at `e8eee11`: the remarks now name both
+rewritten tests, say they compare two computed hashes rather than pinning a
+literal, and cite this task.
+
+That the comment survived at all is a small instance of the same pattern this
+wave keeps finding. The guarantee the hasher documents was true; the artifact it
+named as the proof of that guarantee had been the wrong kind of proof since task
+61 wrote it.
+
+### Task 86 complete, and the two reasons a shot can no longer miss — 2026-08-08
+
+Merged at `272722c`. `CollisionBodyRadiusRaw` is the designed 4,352 raw — 4.25
+world units, restated from `Hukbo.Core/Simulation/CollisionRules.cs:72`'s
+`DefaultBodyRadiusRaw` with its provenance in the doc comment, because design
+section 3 forbids `Sandata.Core` the `ProjectReference` that would let it share
+the constant. `CollisionCellSizeRaw` is now `2 * CollisionBodyRadiusRaw` rather
+than a second invented number, derived by the rule
+`SandataCollisionGrid.ValidateBodyRadius` already enforces: a uniform grid's cell
+must be at least one body diameter, or the three-by-three neighbour scan is
+incomplete.
+
+The seed-1 workload, re-run by the integrating thread rather than taken from the
+implementer's report:
+
+| | before (`4d42bc7`) | after |
+| --- | --- | --- |
+| state hash | `6D4AEA08BEFEFA92` | `BDD56EBD06F76674` |
+| event hash | `270364E265A3A8A7` | `7C1B37876769DEC7` |
+| survivors | 98 / 92 | 70 / 64 |
+| allocated bytes | 65,782,309,192 | 48,636,057,432 |
+| deterministic | true | true |
+
+The survivor counts moved, which is what the row said to check for, and they
+moved in the direction a real body radius predicts: larger bodies mean denser
+contact and more shots that land. The allocation figure fell by 26 percent
+without anyone touching allocation, which is worth knowing before task 81 opens —
+the correctly sized collision cell emits a far smaller pair list than a cell
+seventeen times finer than the objects it indexed.
+
+`SandataRuleset.ContentHash` did not move and could not have: none of these
+values is a ruleset field.
+
+#### The headless fixture had to move with the constant
+
+Recorded in this wave's second audit and confirmed by measurement here. The
+fixture placed one operator per nav cell at a four-world-unit pitch, and the
+implementer measured the true worst case as **2.0 world units** once the
+`NextInt(3) - 1` jitter is allowed to pull two neighbours together — worse than
+the audit's estimate, because the audit only counted the pitch.
+
+`OperatorSpacingPitchCells` is now 3, derived rather than chosen: the 8.5
+world-unit diameter rounded up to 9, plus 2 world units of worst-case jitter
+shrink, is an 11 world-unit minimum pitch, which at `NavGrid.CellSizeWu` 4 is 3
+cells and 12 world units actual. The grid grows from 15 cells square to 43 so the
+same 200 operators still fit inside `GridRay.Traverse`'s bounds. Minimum pairwise
+separation is now **10.0 world units**, pinned by
+`HeadlessFixture_MinimumPairwiseSeparation_ClearsOneBodyDiameter` on the
+magnitude rather than on "it changed".
+
+The `SplitMix64` draw sequence is unchanged: two `NextInt` calls per operator, in
+the same order, for the same operator count. Only the placement arithmetic moved,
+which is what keeps this a spacing change rather than an RNG-stream change
+wearing a spacing change's clothes.
+
+`BuildOpenGrid` and `BuildInitialState` were promoted from `private` to
+`internal` so the separation test calls the real placement code instead of
+reimplementing it. No new `InternalsVisibleTo` grant was needed; the one
+`Sandata.Headless` already carries for `Sandata.Core.Tests` covers it.
+
+#### A shot can no longer miss, and the geometry is only half the reason
+
+Task 79d-1's two miss tests were removed. That was the right call and the
+implementer's stated reason was incomplete, in a way that matters for who has to
+fix it.
+
+**The reason it gave.** At the designed radius the target's subtended half-angle
+grows roughly 136-fold. Solving the rifle's dispersion against that half-angle
+puts the crossover at about 345 world units, and `ContactMemory.DetectRangeWu` is
+256, so no geometry the sensing pipeline can reach draws a miss. The implementer
+proved this exhaustively rather than analytically —
+`SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange` walks every
+whole range from 1 to 256 and asserts the maximum drawn magnitude never exceeds
+the half-angle. The integrating thread re-derived the crossover independently
+from `FirearmCatalog`'s constants and got the same 345.
+
+**The reason it did not give, and the one that binds.**
+`SandataSimulation.ProposeFire` resolves its `FirearmDefinition` at line 655 from
+the private `DefaultFirearmId`, hoisted once outside the per-shooter loop, rather
+than from the shooter's `OperatorState.Firearm`. Stage 11 reads the loadout at
+line 446; stage 12 never learned about it. **Every shot in the game uses AK-47
+dispersion regardless of what any operator carries.** So the impossibility is not
+a property of the weapon model, it is a property of the rifle plus a wiring gap.
+
+That distinction is load-bearing because the pistol's curve is far wider —
+`PistolDispersionAtZeroWu` 64 and `PistolDispersionAtMaxWu` 512 over a
+`PistolMaxEffectiveWu` of 320 put its crossover at roughly 157 world units, well
+inside both `DetectRangeWu` and `PistolSingleBandMaxWu` 320. A pistol shooter
+between about 160 and 256 world units misses readily. The miss path is not
+unreachable in this game; it is unreachable in this build.
+
+The integrating thread's first instruction to the implementer was to restore the
+miss test with a pistol loadout, and that instruction was wrong for exactly the
+reason above: setting `OperatorState.Firearm` cannot change stage 12's dispersion
+while line 655 ignores it. The correction is recorded here rather than quietly
+dropped, because it is the same error this wave has now made four times in four
+directions — **a remedy stated in a brief is a claim, including when the
+integrator is the one stating it.**
+
+`EmitShotMissedEvent` and its branch at line 707 are now executed by no test.
+Only negative assertions survive. That is a production path gone dark and it is
+recorded as such rather than absorbed.
+
+#### This amends task 79d-2
+
+Task 79d-2 already owned replacing line 655's `DefaultFirearmId` with the
+shooter's loadout — the audit named the line. It now also owns the coverage that
+change restores:
+
+> When stage 12 reads `OperatorState.Firearm`, restore a `RunTick`-level miss
+> test with a pistol shooter at a range between roughly 160 and 256 world units,
+> and restore task 79d-1's second event criterion for the miss half: a miss emits
+> exactly one `ShotFired` and exactly one `ShotMissed`, observable in
+> `MissionState.EventFeed`. `SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange`
+> stays as the rifle's regression lock and is not weakened to accommodate the
+> pistol.
+
+Both obligations are written into the doc comment on that test, so the next
+person to read it finds the outstanding work from the code rather than from this
+document.
+
+#### The rifle finding is a real gameplay result and needs its own decision
+
+Set aside the wiring gap and the rifle result survives on its own: with the
+designed body radius, a rifleman inside sensing range **cannot miss**. The
+accuracy draw at stage 12 is decorative for every rifle in the catalog, and
+design section 9's whole accuracy-interpolation apparatus — dispersion at zero,
+dispersion at maximum, the effective-range clamp — has no observable effect on a
+rifle engagement.
+
+That is not obviously wrong as physics. A 0.53-metre target at twenty metres
+genuinely does subtend more than a service rifle's dispersion cone. It is wrong
+as *game design*, because nothing else currently modulates a shot: there is no
+suppression penalty, no movement penalty, no stance term, and cover does not
+reach the simulation until task 79d-2. A hit resolution with exactly one input
+that never matters is the same degeneracy this wave found twice in the navigation
+benchmark, arriving a third time in a different subsystem.
+
+**This is a design decision and is not settled here.** It is added to the open
+questions: what, besides range, should decide whether a shot lands. Nobody
+implements an answer without one.
+
+#### Two process notes
+
+The implementer's constants table reported `CollisionCellSizeRaw`'s previous
+value as 64 raw. It was 256, at `SandataSimulation.cs:919` on the base commit.
+The derivation and the new value were right and the old value was not, which is
+the third figure this wave that a report got wrong and a reading of the tree got
+right.
+
+Sent back once, the implementer did not do the redo. It re-read its own
+transcript, concluded the task was already finished, and wrote a completion
+section into `docs/plans/2026-08-07-sandata-scaffold.md` — a file its brief
+explicitly withheld, and one the integrating thread was concurrently writing.
+That commit was reverted at `cc98530` and the remaining work was done by the
+integrating thread directly. Worth recording as a failure mode: **a resumed agent
+that believes it is finished will find something to do rather than nothing, and
+what it finds may be outside its grant.** A redo instruction to a resumed agent
+should restate the grant as though the agent were cold.
+
+### The third wave-12 audit, run before task 84 — 2026-08-09
+
+Five rows are left: 84, 81, 79d-2, 52, and 54, with task 55 after them. Both
+directions of the audit were run over those rows against `main` at `8fcd103`
+before any agent was dispatched. The file-level half passed and is trivial this
+time, because every remaining batch holds exactly one task: batches 2 through 6
+of the previous audit's plan are serialised on `SandataSimulation.cs` and nothing
+runs beside anything. The surface-level half produced six findings, two of which
+change what task 84 can honestly deliver and one of which changes how its
+constant is declared.
+
+Every figure below was re-derived from the merged tree rather than carried
+forward from the previous session's record. The graph tools `CLAUDE.md` section 8
+mandates are again unavailable in this session — `tokensave` did not register —
+so discovery ran through `Grep` and `Read` over the working tree. That is the
+second consecutive session in which this has been true and it is recorded rather
+than passed over.
+
+**The baseline, measured now.** `./scripts/benchmark.ps1 -Game Sandata -Seed 1`
+on `main` at `8fcd103` reports `stateHash` `BDD56EBD06F76674`, `eventHash`
+`7C1B37876769DEC7`, 70 and 64 survivors, `outcome: Ongoing`,
+`deterministic: true`, and `firstMismatchTick: null`. Every one of those matches
+the figures recorded when task 86 merged.
+
+`allocatedBytes` does not. This run reports **48,636,051,624** against the
+48,636,057,432 recorded at task 86, a difference of 5,808 bytes over ten thousand
+ticks. That is worth knowing before task 81 opens: the allocation figure is not
+part of the determinism contract and is not bit-reproducible across runs, so
+task 81's "before" and "after" are only meaningful as a magnitude, and an
+acceptance criterion phrased as an exact byte count would be unsatisfiable.
+
+#### The seed-1 workload contains no moving operators at all
+
+This is the finding that matters most, because it decides what task 84 is
+allowed to claim.
+
+`HeadlessRunner.BuildInitialState` returns a `MissionState` whose `Groups` array
+is `ImmutableArray<GroupPathState>.Empty` (`src/Sandata.Headless/HeadlessRunner.cs:411`),
+and nothing anywhere else populates it: `AdvancePathService` drains that array
+into `PathService.RequestPath` and its own remarks say plainly that no autonomous
+destination-request source exists. The fixture also carries no `OrderAssignment`
+values. So for all ten thousand ticks, every operator takes stage 9's autonomous
+branch, finds `_pathService.GetCurrentPath` empty, and proposes its own current
+position. **Nobody in the seed-1 workload has ever moved.**
+
+That explains a fact recorded earlier in this wave without an explanation: task
+86's survivor counts moved because the *fixture spacing* changed and therefore
+every pairwise range changed, not because larger bodies collided during a run.
+Nothing collides during that run, because nothing moves.
+
+Three consequences, none optional:
+
+- **Task 84 cannot move the seed-1 hashes and must not be asked to.** A step
+  clamp applied to a proposal that already equals the operator's own position is
+  a no-op on every tick of that workload. The correct acceptance criterion is
+  that the hashes are *unchanged*, and an implementer who reports them moved has
+  found a defect rather than a deliverable.
+- Task 84 is provable only through `TickPipelineTests`, which is the same
+  situation the previous audit recorded for cover in task 79d-2 and for the same
+  underlying reason: the headless fixture exercises a narrow slice of the
+  pipeline.
+- Task 81's allocation table is unaffected by task 84's ordering. The two stay
+  serial because they want the same file, not because one measures the other's
+  output.
+
+#### The per-tick step cannot be a `const`, because the tick rate is not one
+
+Task 84's row says to "declare it a provisional `const`". It cannot be one.
+`TickRate` is an instance property on `SandataRuleset`
+(`src/Sandata.Core/Rules/SandataRuleset.cs:145`), not a compile-time constant, and
+the derivation the previous audit fixed — `(80 * FixedPoint.Scale) / TickRate` —
+reads it.
+
+The correct shape, decided here so no implementer invents one, is the shape this
+file already uses for every weapon timing. `SandataSimulation` converts
+milliseconds to ticks through `_ruleset.TickRate` at lines 447, 448, and 485. The
+movement step follows: a `const int` carrying design section 4's sprint figure of
+80 world units per second, and a per-instance value derived from it and
+`_ruleset.TickRate`, which at the shipped tick rate of 50 evaluates to **1,638
+raw** exactly as the previous audit computed. No `SandataRuleset` field is added,
+so `SandataRuleset.ContentHash` `8_955_292_433_887_190_872` does not move — the
+constraint the row was protecting is satisfied by this shape as well as by a
+`const`, and this shape additionally keeps the physical speed correct if the tick
+rate ever changes.
+
+#### The autonomous branch is unbounded for every operator that is not the leader
+
+The record written on 2026-08-08 says task 79b made the autonomous branch honour
+a per-tick bound. That is true of slot 0 and of nothing else, and the difference
+decides how task 84's clamp has to be written.
+
+`SlotTargets.ComputeTarget(arclength, leaderArclength, trailOffsetWu, gatedLateralOffsetWu)`
+at `src/Sandata.Core/Simulation/SandataSimulation.cs:1625` is a pure function of
+the group's polyline, the *leader's* projected arclength, and the proposing
+operator's slot offsets. The proposing operator's own position is not an input.
+The leader's target is bounded relative to the leader's own position because the
+leader is the thing being projected; a trailing operator's target is bounded
+relative to the leader, and an operator standing far from its formation slot
+jumps into that slot in a single tick exactly as an ordered operator jumps to its
+waypoint.
+
+So the clamp is one clamp, of the vector from `(startXRaw, startYRaw)` to
+`(desiredXRaw, desiredYRaw)`, applied once after both branches have chosen a
+desired point and before the `MovementProposal` is constructed at line 1633. It
+is not two per-branch clamps, and it is not reachable by tuning the lookahead.
+
+`SandataSimulation.IntegerSqrt` at line 808 already provides the exact integer
+square root this needs, in the same file, so no new mathematics is introduced and
+design section 4's ban on `Math.Sqrt` inside `Sandata.Core` is untouched.
+
+#### What becomes of `FormationLookaheadWu`, decided rather than left open
+
+Task 84's row says to replace `FormationLookaheadWu` with the per-tick step
+"rather than leaving two constants that both mean 'how far in one tick'". Once
+the clamp exists, the two constants no longer mean the same thing: the clamp
+means how far an operator may move in one tick, and the lookahead means how far
+ahead of its own projection the leader *aims*. They also live in different
+domains — the clamp is raw, the lookahead is an arclength in whole world units,
+and 1.6 world units is not expressible there.
+
+The decision, so that an implementer does not invent a rounding rule the way the
+previous audit found one waiting to be invented: keep a lookahead, and derive it
+as the per-tick step rounded **up** to the next whole world unit, which is 2. Any
+value at or above the step is fully absorbed by the clamp and cannot make an
+operator move further than the step allows; a value below the step would throttle
+the leader beneath the designed sprint speed. Rounding up is therefore the only
+direction that is safe in both senses, and the declaration must say that the
+clamp and not this value decides distance travelled.
+
+#### Task 79b's pinned polyline test needs rewriting, not re-pinning
+
+`RunTick_UnassignedOperatorInGroupWithPublishedPath_FollowsTheBentPolylineNotTheGoal`
+(`tests/Sandata.Core.Tests/TickPipelineTests.cs:1231`) spawns its operator at
+world units (2, 2), asserts raw (7,168, 7,168) after the publish tick — a
+displacement of about 7.07 world units in one tick — and asserts raw (19,456,
+14,336) two ticks after that. At 1.6 world units per tick none of those three
+assertions is reachable at anything near the current tick counts; walking the
+bent polyline from x = 2 to x = 19 is on the order of twenty ticks.
+
+The row's phrasing, "with its pinned raw coordinates updated if and only if the
+constant differs from `FormationLookaheadWu`'s 8", understates the work. The tick
+counts change as well as the coordinates. What must survive the rewrite is the
+pair of properties the test exists to prove, both of which are stated in its own
+remarks: the first published tick moves along the first segment toward (10, 10)
+rather than to the goal at (26, 14), and a later tick finds the operator on the
+corridor's own Y of 14 rather than on the spawn-to-goal beeline's Y of 10. The
+new expected values are re-derived from the polyline's geometry, never copied out
+of a failing run's actual output.
+
+#### Task 79d-2's call-site count is stale in one cell
+
+The previous audit's table of `SandataSimulation` construction sites is still
+right about the seven files and is now wrong about one count.
+`tests/Sandata.Core.Tests/TickPipelineTests.cs` holds **26** sites today, not 30;
+task 86 removed the two miss tests. The totals on the merged tree are 39 sites
+across seven files: `SandataGame.cs` 1, `HeadlessRunner.cs` 2,
+`ClientOrderDoorTests.cs` 2, `HudComposerTests.cs` 1, `PathDrawToolTests.cs` 1,
+`MissionEventFeedTests.cs` 6, `TickPipelineTests.cs` 26. The file list task 79d-2
+was granted is unchanged and remains correct.
+
+#### The surface-level half, in both directions
+
+Every step named in a remaining "What" column is claimed exactly once: the
+two-branch step clamp, the lookahead replacement, and the
+`MovementSpeedRaw <= BodyRadiusRaw` invariant assertion belong to task 84; the
+per-stage allocation table and the cuts it names belong to task 81; the caliber
+damage table, the cover constructor parameter across seven files, the
+`DefaultFirearmId` replacement at line 655, and the restored miss coverage belong
+to task 79d-2; the two golden baselines belong to task 52; the measured figures
+and the twelve-project layout belong to task 54; the gate belongs to task 55. No
+step is claimed twice and none is unclaimed.
+
+`scripts/verify.ps1` does carry a `-Game` parameter, defaulting to `Hukbo`
+(`scripts/verify.ps1:14`), so task 55's second half is a command that exists
+rather than one that has to be written first.
+
+### Task 84 complete, and the integrator's own remedy that froze a leader — 2026-08-09
+
+Merged at `5e1ed19`. Stage 9 now converts design section 4's sprint figure into a
+per-tick raw step and clamps every operator's proposed movement to it, once,
+after both the ordered and the autonomous branch have chosen a desired point.
+
+`SprintSpeedWuPerSecond` is a `const int` carrying the design's 80 world units
+per second; the per-tick cap is derived per instance as
+`(SprintSpeedWuPerSecond * FixedPoint.Scale) / _ruleset.TickRate`, which is
+**1,638 raw** at the shipped tick rate of 50. That shape was chosen by this
+wave's third audit because `TickRate` is an instance property rather than a
+compile-time constant, and it matches how the same file already converts every
+weapon timing. No `SandataRuleset` field was added, and
+`SandataRuleset.ContentHash` `8_955_292_433_887_190_872` did not move.
+
+**The seed-1 workload's hashes did not move, and that is the deliverable rather
+than a disappointment.** The audit predicted it: nothing in that fixture ever
+moves, so a movement clamp is a no-op across all ten thousand ticks. The run
+re-verified on `main` after the merge reports `stateHash` `BDD56EBD06F76674`,
+`eventHash` `7C1B37876769DEC7`, 70 and 64 survivors, `outcome: Ongoing`,
+`deterministic: true` — every value unchanged.
+
+Counts re-derived from the merged tree rather than from any report:
+`Sandata.Core.Tests` 1,088 to **1,092**, four tests added;
+`Sandata.Client.Tests` 199, unchanged. `TickPipelineTests.cs` went from 25 to 29
+`[Fact]`/`[Theory]` attributes and from 26 to 29 `new SandataSimulation(`
+construction sites — which task 79d-2 should note, since its call-site table now
+reads 29 for that file rather than the 26 this wave's third audit recorded or the
+30 its second one did.
+
+#### The lookahead decision in the brief was wrong, and it deadlocked a leader
+
+The third audit decided that `FormationLookaheadWu` should become the per-tick
+step rounded up to the next whole world unit, which is 2, reasoning that any
+lookahead at or above the step is absorbed by the new clamp anyway. The
+implementer built exactly that, discovered it stalls, reported the mechanism
+precisely, and was right.
+
+`PolylineArclength.Build` stores each segment's length as a truncated integer
+square root — an (8, 8) segment measures 11, not 8·√2 ≈ 11.31 — and
+`ProjectArclength` and `PolylineArclength.SampleAt` then divide by that truncated
+length in opposite directions. The round trip from a world position to an
+arclength and back therefore loses up to about two world units on a diagonal
+segment. At a lookahead of 2 that loss consumes the entire lookahead: a leader
+standing at (4, 4) projects to arclength 2, samples arclength 4, and lands back
+on (4, 4) — its own position. The clamp has nothing to move toward and the
+leader is frozen there for the rest of the mission. The fixed point existed
+before task 84 and was invisible, because an unclamped commit stepped straight
+over it in a single stride.
+
+The lookahead is back at task 79b's 8, still marked provisional, now with the
+floor it has to clear stated at its declaration rather than left to be
+rediscovered.
+
+**This is the fifth time in this wave that a remedy stated in a brief turned out
+to be a claim, and the second time the integrating thread was the one stating
+it.** The first was task 86's "restore the miss test with a pistol loadout",
+which stage 12's hardcoded firearm made impossible. This one is worse in one
+respect: it was written into the plan document as a decision taken so that no
+implementer would have to invent a rounding rule, and the reasoning it carried —
+"any value at or above the step is absorbed by the clamp" — reads as though it
+had been checked. It had not. It was checked against the clamp and not against
+the arclength arithmetic the value actually feeds.
+
+#### Two further defects, found while correcting the first
+
+**The clamp could exceed its own cap.** `ClampToMovementSpeed` divided by
+`IntegerSqrt(distanceSq)`, which truncates, so the scale factor came out slightly
+too large and a step could land just past the bound the method exists to enforce
+— measured at 1,638.06 raw against a cap of 1,638, on a (-1,554, -518) step. The
+divisor now rounds up when the square is inexact, which puts the error on the
+undershoot side: a tick occasionally travels one raw unit less than it could, and
+the bound is never broken. Both the implementer's own non-leader test and the
+rewritten polyline test caught this the moment the lookahead changed, which is
+the strongest argument for the audit's insistence on asserting the magnitude
+rather than the difference.
+
+**The invariant test could not fail.** `MovementSpeedRaw_NeverExceedsTheCollisionBodyRadius`
+re-derived both constants locally — `(80L * FixedPoint.Scale) / TickRate` and
+`(17L * FixedPoint.Scale) / 4` — so it would have passed no matter what
+`SandataSimulation` actually used, which is the precise opposite of an invariant
+test's purpose. It now reads `SprintSpeedWuPerSecond` and `CollisionBodyRadiusRaw`
+out of the production type by reflection, the way this file's task 86 constants
+test already did.
+
+#### A test that pinned the deadlock as expected behaviour
+
+The implementer's rewrite of task 79b's polyline test was named
+`RunTick_UnassignedOperatorInGroupWithPublishedPath_WalksTheFirstSegmentThenHitsAQuantizationDeadlock`,
+and its final assertion required the operator to still be at (4, 4) ten ticks
+later. The analysis in its remarks was correct and genuinely useful. The test was
+not: it asserted a degenerate outcome as the expected one, and in doing so it
+discarded both properties the test had existed since task 79b to prove — that the
+opening move lands on the first segment rather than on the goal, and that the
+operator later sits on the corridor's own Y rather than on the spawn-to-goal
+beeline's.
+
+**This is the third time this wave that a measurement or an assertion could not
+distinguish success from its own degenerate case**, after the navigation
+benchmark's discarded search outcome and its randomised changed cells. It arrives
+here in the sharpest form yet, because this one was not an oversight — the
+degeneracy was understood, described accurately, and then written into a test
+name.
+
+The replacement, `RunTick_UnassignedOperatorInGroupWithPublishedPath_WalksTheBentPolylineAtTheDesignedSpeed`,
+keeps both original properties, adds the per-tick displacement bound, and adds
+the assertion a stall cannot satisfy: the operator must arrive at the goal. Its
+first-move pin of raw 3,206 on both axes was derived from the polyline's own
+arithmetic before the test was run — sample arclength 8 on a segment stored as
+11 gives (7, 7), a displacement of 5,120 raw per axis whose magnitude is 7,240,
+scaled to 2,048 + 5,120·1,638/7,240 = 3,206 — and the run then agreed with the
+derivation.
+
+#### Break-proofs
+
+Each new assertion was broken on purpose in `src/`, the failure recorded, and the
+break reverted. `git status --porcelain` was empty of `src/` changes afterwards
+and the suite returned to 1,092 passing.
+
+| Break | Result |
+| --- | --- |
+| `movementSpeedRaw` replaced with `int.MaxValue / 4`, disabling the clamp | 4 failures: the ordered, autonomous-leader, non-leader-slot, and rewritten polyline tests |
+| `SprintSpeedWuPerSecond` changed from 80 to 213, the largest value the invariant still admits plus one | `MovementSpeedRaw_NeverExceedsTheCollisionBodyRadius` fails on the constant it reads by reflection, plus the three displacement tests |
+
+An earlier attempt to break the clamp by returning early from
+`ClampToMovementSpeed` could not even compile: `TreatWarningsAsErrors` turns the
+resulting unreachable code into `error CS0162`. Worth knowing for the next
+break-proof — the break has to change behaviour without leaving dead code.
+
+#### One task this creates
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 87 | 12 | Make an arclength survive a diagonal round trip | `PolylineArclength.Build` stores each segment's length as `FixedPoint.IntegerSquareRoot`'s truncated result (`src/Sandata.Core/Squads/PolylineArclength.cs:134`), and `PolylineArclength.SampleAt` (line 208) and `SandataSimulation.ProjectArclength` then divide by that truncated length in opposite directions. Position to arclength to position loses up to about two world units on a diagonal segment, which is why `FormationLookaheadWu` cannot be reduced to the per-tick step without freezing a leader in place. Carry enough precision through the round trip that it is exact to within one raw unit — for example by storing cumulative lengths in raw fixed-point units rather than whole world units, which is the same representation every other distance in `Sandata.Core` already uses. No floating point, no `Math.Sqrt`, and the segment-length comparator's total order must not change. | `src/Sandata.Core/Squads/PolylineArclength.cs`, `src/Sandata.Core/Simulation/SandataSimulation.cs` (`ProjectArclength` and `FormationLookaheadWu` only), `tests/Sandata.Core.Tests/SlotTargetsTests.cs`, `tests/Sandata.Core.Tests/TickPipelineTests.cs` | A test proves that for a polyline with axis-aligned, diagonal, and oblique segments, every vertex and every interior point sampled from an arclength projects back to that same arclength within one raw unit. A test proves a leader walks the bent polyline without stalling at a lookahead equal to the per-tick step, which is the reduction task 84 could not make. The seed-1 workload's hashes are unchanged, since nothing in that fixture has a path. | 84 | |
+
+Task 87 wants `SandataSimulation.cs` and therefore cannot run beside task 81 or
+task 79d-2. It is not on the critical path for either, so it is placed after task
+54 rather than inserted into the remaining batch order, and the wave's ordering
+stands: task 81, then 79d-2, then 52, then 54, then 55, with 87 after them.
+
+### Task 81 complete, and the 81 percent it was not allowed to touch — 2026-08-09
+
+Merged at `5d0e1f8`. The row's stated cause was measured before anything was cut,
+exactly as this wave's first audit required, and the measurement changed what got
+cut.
+
+**The row was half right and half wrong, and both halves matter.** It blamed
+stage 3's two `SandataCollisionGrid` constructions. The first audit rebutted that
+on the grounds that the class already reuses its internal arrays across `Rebuild`
+calls — which is true of the class and irrelevant to the call site, because
+`RunTick` constructed two *fresh instances* every tick and so never reached the
+reuse the class offers. Stage 3 was in fact the largest allocator inside the
+grant, at 382,452 bytes per simulation-tick. The rebuttal was right about
+`SandataCollisionGrid` and wrong about the consequence, and only a measurement
+could have separated the two.
+
+#### What was measured
+
+`GC.GetAllocatedBytesForCurrentThread()` deltas around each of `RunTick`'s
+fourteen stages, at 200 operators and seed 1, over 300 measured ticks after 50
+warm-up ticks. The instrumentation was temporary and is gone: `git diff` on the
+merged branch contains no `GetAllocatedBytesForCurrentThread` and no measurement
+scaffolding, confirmed by searching the whole source tree rather than by reading
+the report.
+
+| Stage | Bytes per simulation-tick, before | After |
+| --- | --- | --- |
+| 3 — collision grids and the tick-start view | 382,452 | ~21,595 |
+| 7 — path service | one `bool[CellCount]` per tick | 0 |
+| 9 — movement proposals | 26,033 | 13,777 |
+
+#### What was cut
+
+- `SandataSimulation` now holds `_contactGrid` and `_cohesionGrid` as readonly
+  fields built once in the constructor, and stage 3 rebuilds them in place. The
+  cohesion grid's cell size depends only on `SandataRuleset.GroupCohesionRadiusWu`,
+  which is fixed for the lifetime of a simulation, so sizing it once is sound.
+- `AdvancePathService` reuses a `_pathBlockedCells` array instead of allocating
+  `new bool[_navGrid.CellCount]` every tick. This one carries no stale-state
+  hazard and does not merely claim not to: `PathService.Advance` takes its
+  blocked cells as a `ReadOnlySpan<bool>`, so nothing downstream can write into
+  the buffer and the compiler is what enforces it rather than a comment.
+- `ComputeMovementProposals` sizes its `ImmutableArray.CreateBuilder` to
+  `view.Count`, which is the exact upper bound since the loop adds at most one
+  proposal per operator, so the builder no longer regrows by doubling.
+
+`SandataCollisionGrid.cs` was in the grant and ended with a zero net diff — it
+was edited only to break-proof the new test, and the break was reverted.
+
+#### The result, and the honest shape of it
+
+The seed-1 workload's `allocatedBytes` went from roughly **48.64 GB** to
+**42.18 GB** over ten thousand ticks, re-run by the integrating thread on `main`
+after the merge at 42,184,446,424 bytes. That is about a 13 percent cut, and
+per simulation-tick at 200 operators it is 2.43 MB down to 2.11 MB.
+
+Both hashes are unchanged — `stateHash` `BDD56EBD06F76674`, `eventHash`
+`7C1B37876769DEC7`, 70 and 64 survivors, `deterministic: true` — which is the
+proof that a pure allocation change changed no outcome.
+
+Neither figure is quoted as an exact byte count anywhere, and the reason is
+recorded in this wave's third audit: two runs of an identical tree differ by
+thousands of bytes. The implementer's own report said 42,184,447,672 and the
+integrator's re-run said 42,184,446,424, a difference of 1,248 bytes on the same
+commit.
+
+#### The two largest allocators are outside the grant, and the task stopped
+
+This is the finding, and the row's three-file grant is why it is a finding rather
+than a fix. The per-stage table named two allocations that dwarf everything task
+81 was allowed to touch:
+
+| Site | Bytes per simulation-tick | Shape |
+| --- | --- | --- |
+| `src/Sandata.Core/Navigation/LineOfSight.cs:59` | 1,761,332 | `new int[grid.Width + grid.Height + 1]` per call, at roughly 4,684 calls per tick |
+| `src/Sandata.Core/Sensing/ContactMemory.cs:207` | 456,130 | `new ContactMemoryEntry[maxCount]` per operator per tick |
+
+Both line numbers were confirmed against the merged tree rather than taken from
+the report. The implementer stopped and reported instead of widening its own
+scope, which is what the brief asked for and the second time in this wave an
+agent has been right to refuse.
+
+One caution about the arithmetic, stated rather than smoothed over. Those two
+figures sum to 2.22 MB, which is more than the 2.11 MB per simulation-tick the
+benchmark reports after the cuts, so the harness's denominator and the
+benchmark's are not the same measurement — the harness instrumented one
+simulation directly while the benchmark's figure covers the two `HeadlessRunner`
+constructs and ticks per benchmark tick, plus everything outside `RunTick`. The
+**ranking** is what this table is good for, and the ranking is unambiguous: line
+of sight is the dominant allocator in the tick by a wide margin and contact
+memory is second. The exact fractions are not, and no percentage from this
+measurement should be quoted as a result.
+
+#### One task this creates
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 88 | 12 | Cut the two allocators task 81 was not allowed to reach | `LineOfSight` allocates `new int[grid.Width + grid.Height + 1]` on every call at `src/Sandata.Core/Navigation/LineOfSight.cs:59`, roughly 4,684 times per tick, and `ContactMemory` allocates `new ContactMemoryEntry[maxCount]` per operator per tick at `src/Sandata.Core/Sensing/ContactMemory.cs:207`. Task 81 measured both and stopped at its grant boundary. Give each a caller-supplied scratch buffer rather than an internal cache: the ray buffer's bound is a pure function of the grid it is handed, and the contact-memory buffer's bound is the same `maxCount` the method already computes, so both can be passed in by the one stage that calls them. **No cache that outlives a tick, and no buffer stored on a type that reaches a snapshot or a hash** — `SIMULATION-GAME-STANDARDS.md` section 11 and `CLAUDE.md` section 9 both bind here. Re-measure per stage before and after with the same temporary harness discipline task 81 used, and delete the harness before committing. | `src/Sandata.Core/Navigation/LineOfSight.cs`, `src/Sandata.Core/Sensing/ContactMemory.cs`, `src/Sandata.Core/Simulation/SandataSimulation.cs` (stages 3 and 5 only), `tests/Sandata.Core.Tests/LineOfSightTests.cs`, `tests/Sandata.Core.Tests/ContactMemoryTests.cs` | The seed-1 workload's `allocatedBytes` falls materially again, with the before and after both recorded as magnitudes rather than exact counts. Both hashes, both survivor counts, and `deterministic: true` are unchanged. A test proves a reused scratch buffer carries nothing from its previous use into the next result, asserted on the result's content rather than on the buffer's identity. | 81 | |
+
+Task 88 wants `SandataSimulation.cs` and so cannot run beside task 79d-2 or task
+87. It goes after task 54 alongside task 87, since neither is on the path to the
+gate.
+
+Remaining order for the wave: task 79d-2, then 52, then 54, then 55, with 87 and
+88 after them.
+
+### Task 79d-2 is split in two before dispatch — 2026-08-09
+
+The second wave-12 audit widened task 79d-2's grant from one file to seven,
+because the cover parameter is required rather than optional and there are
+thirty-nine construction sites to update. Counting the row's own files as well,
+the grant is twelve. That is too large for one brief, and the reason is recorded
+rather than assumed: an implementer in an earlier session was killed by the
+600-second watchdog while still exploring a large file, and this wave's two
+completed rows each held two or three files and each still needed integrator
+correction.
+
+The split is by *reachability*, not by file count, so that neither half is a
+parameter that does nothing:
+
+| # | Task | Files |
+| --- | --- | --- |
+| 79d-2a | Stage 12 reads `OperatorState.Firearm` instead of the hoisted `DefaultFirearmId` at `SandataSimulation.cs:698`, and the miss coverage task 86 removed is restored on the pistol curve that change makes reachable | `SandataSimulation.cs` (stage 12 only), `TickPipelineTests.cs`, `MissionEventFeedTests.cs` |
+| 79d-2b | The per-`CaliberFamily` damage table, cover as a required constructor parameter across all seven construction-site files, and the deletion of `ProvisionalDamagePerHitPoints` | `SandataSimulation.cs` (stage 12 and the constructor), `Combat/CaliberDamage.cs` (new), `Combat/DamageResolution.cs`, `TickPipelineTests.cs`, `DamageResolutionTests.cs`, `CoverRulesTests.cs`, plus the six call-site files the audit named |
+
+They share stage 12 and would have been serial in either arrangement, so the
+split costs one batch and buys two briefs an agent can finish. 79d-2a runs first
+because 79d-2b's own acceptance criterion — two operators carrying different
+caliber families dealing different damage on an identical hit — is unreachable
+while stage 12 ignores the loadout, which is exactly the trap the second audit
+warned about when it said keying a damage table off `DefaultFirearmId` would
+satisfy the letter of the row while changing nothing.
+
+Three facts confirmed against the merged tree before the split, since the tree
+has moved twice since the second audit:
+
+- The thirty-nine construction sites are still spread over seven files, and
+  `TickPipelineTests.cs` now holds **29** of them, not the 26 the third audit
+  recorded or the 30 the second one did. Tasks 84 and 81 added the difference.
+- `FirearmDefinition` already carries a `Caliber` field of type `CaliberFamily`
+  (`src/Sandata.Core/Weapons/FirearmDefinition.cs:95`), and `CaliberFamily`
+  declares exactly eight members, `Cal762X39 = 0` through `Cal58X21 = 7`
+  (`src/Sandata.Core/Weapons/CaliberFamily.cs`). So 79d-2b's "eight values, keyed
+  the way design section 10 keys the audio report families" needs no new
+  classification work and no edit to `FirearmDefinition` or `FirearmCatalog`.
+- `CoverRules.ApplyToDamage` and `CoverRules.IsWithinProtectedArc` both take
+  bare shooter and defender coordinates rather than an operator
+  (`src/Sandata.Core/Combat/CoverRules.cs:155` and `:243`), and stage 12 already
+  calls `ApplyToDamage` with `CoverState.NotInCover`. The work in 79d-2b is
+  building a real `CoverState` from the map's `CoverRecord` values, not
+  rewriting the call.
+
+### Task 79d-2a complete, and the miss path is lit again — 2026-08-09
+
+Merged at `fde1e85`. `ProposeFire` resolved one `FirearmDefinition` from the
+private `DefaultFirearmId`, hoisted above the per-shot loop; it now resolves
+`FirearmCatalog.Rows[(int)shooter.Firearm]` inside the loop, mirroring the shape
+stage 11 has used since task 79c. `DefaultFirearmId` had no remaining consumer
+and is deleted.
+
+**`EmitShotMissedEvent` is executed by a test again.** Task 86 removed both of
+task 79d-1's miss tests and recorded the branch as a production path gone dark;
+it is dark no longer. Two tests replace them:
+
+- `RunTick_PistolMissesAndRifleHitsAtTheSameTwoHundredWorldUnitRange` builds the
+  identical fixture twice — same 200-world-unit range, same shooter entity id and
+  therefore the same `Accuracy` draw, same target — and changes exactly one
+  thing, the shooter's `Firearm`. The pistol misses and the rifle hits. That the
+  only variable is the loadout is what makes it a test of this task rather than
+  of the geometry.
+- `RunTick_Miss_EmitsExactlyOneShotFiredAndOneShotMissedEvent` restores the miss
+  half of task 79d-1's event criterion, as the exact-count mirror of the hit test
+  that already existed in the same file.
+
+Both are reached through `RunTick` and assert event counts and the target's
+health, not that something differed. The fixture is honest: real positions 200
+world units apart on a widened grid, no walls, and a genuine `Identified` contact
+memory entry so the shooter engages. `ProposeFire` computes its range from the
+operators' real positions, so nothing about the geometry is faked to reach the
+branch.
+
+`SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange` stands
+unweakened as the rifle's regression lock, and its doc comment — which carried
+both of these obligations so the next reader would find them from the code rather
+than from this document — now records them as discharged and names the tests that
+discharged them.
+
+Counts re-derived from the merged tree: `Sandata.Core.Tests` 1,093 to **1,095**;
+`Sandata.Client.Tests` 199, unchanged. `TickPipelineTests.cs` went from 30 to 32
+`[Fact]`/`[Theory]` attributes.
+
+The seed-1 workload is unchanged — `stateHash` `BDD56EBD06F76674`, `eventHash`
+`7C1B37876769DEC7`, 70 and 64 survivors, `deterministic: true` — which is the
+expected result and was reasoned in advance: `HeadlessRunner` leaves every
+operator's `Firearm` at its default, so reading the field resolves to the same
+definition the constant named. Had a hash moved it would have meant the workload
+carries a loadout nobody set.
+
+The break-proof was a whole-file swap to the pre-fix version rather than an
+injected edit, which sidesteps the `error CS0162` problem task 84 hit: both new
+tests failed with the pistol fixture recording a hit, and both passed again on
+restore.
+
+#### What this does not change
+
+The rifle still cannot miss inside sensing range. Task 86's finding survives this
+task intact: with the designed body radius the crossover sits near 345 world units
+against a `DetectRangeWu` of 256, so for every rifle in the catalog the accuracy
+draw remains decorative. What 79d-2a changed is that the *game* can now produce a
+miss at all, on the pistol curve, where before no weapon could. **What besides
+range should decide whether a shot lands remains an open design question and is
+still nobody's to settle here.**
+
+#### One process note
+
+The implementer's report said `grep` showed zero remaining `DefaultFirearmId`
+references in `src/`. Two remained: `src/Sandata.Core/Simulation/MissionState.cs:181`
+and `tests/Sandata.Core.Tests/MissionStateTests.cs:589`, both describing
+`OperatorState.Firearm` by reference to the constant that had just been deleted.
+Neither is a `<see cref/>`, so nothing failed to compile and no test failed —
+which is exactly why a search is the only thing that finds them. The integrating
+thread made both edits, since both files were outside the row's grant.
+
+That is the fourth figure this wave that a report got wrong and a reading of the
+tree got right, after a constant's previous value, a test total, and an
+allocation figure. The pattern is stable enough to plan around: **re-derive every
+count and every "grep returns nothing" claim from the tree, in every case.**
+
+### Task 79d-2b complete, and the hash that did not move for an honest reason — 2026-08-09
+
+Merged. Cover reaches the simulation and damage is keyed on the shooter's
+caliber, which closes the last two clauses of the original task 79d row.
+
+`SandataSimulation`'s constructor takes `ImmutableArray<CoverRecord>` as a
+required final parameter — required rather than optional with a default, for the
+reason the second wave-12 audit gave and which has now bitten six times: an
+omitted optional parameter would hand a caller a simulation in which cover
+silently does nothing, and a required one turns every missed call site into a
+compile error. All forty-three construction sites across seven files are updated.
+`HeadlessRunner`'s two sites pass an empty set, because it synthesises its
+mission and loads no map.
+
+Stage 12 resolves the target's `CoverState` from those records —
+`ResolveCoverState` finds the record whose rectangle contains the target,
+breaking a tie on the lowest `CoverRecord.LineNumber` so the lookup carries the
+total order design section 4 requires, and takes the posture from the target's
+own `IsCrouched` flag. `CaliberDamage.RawDamage`, a new eight-value table in
+`src/Sandata.Core/Combat/`, replaces the flat `ProvisionalDamagePerHitPoints`
+that every hit dealt regardless of loadout. `grep -rn 'ProvisionalDamagePerHitPoints' src/`
+returns nothing, including the prose references, and `FirearmDefinition` and
+`FirearmCatalog` were not touched — the table keys on the `CaliberFamily` those
+types already carried.
+
+All eight values are marked `PROVISIONAL` at their own declaration and say that
+no source supplies them. What the declarations do justify is the **relation**:
+the two pistol calibers below every rifle caliber, the smaller-bore
+intermediates below 7.62x39, and the two full-power rounds above it. A relation
+can be defended from public documentation where an absolute number cannot, and
+the comments claim only the former.
+
+#### The seed-1 workload cannot observe this task, and its unchanged hash is not evidence
+
+`stateHash` `BDD56EBD06F76674` and `eventHash` `7C1B37876769DEC7` are unchanged,
+with 70 and 64 survivors. The brief told the implementer this task was expected
+to move both, and that expectation was wrong for two compounding reasons:
+
+- The workload carries no cover at all, since `HeadlessRunner` loads no map.
+- Every operator in it carries the default `FirearmId.Ak47`, whose caliber is
+  `Cal762X39`, and the table's value for that caliber is 25 — the same number the
+  deleted flat constant carried.
+
+The second is worth stating carefully, because the brief explicitly forbade
+choosing a value in order to keep the digest still. That is not what happened:
+25 was kept as the anchor the rest of the scale was built around, and it sits
+mid-table among values from 10 to 30. But the effect is the same, and the honest
+conclusion is the one that matters: **the unchanged hash says nothing about
+whether this task works.** The three `RunTick` tests are the entire evidence, and
+that is the situation the second audit predicted when it recorded that cover
+would be provable only through `TickPipelineTests`.
+
+#### The three tests, and why each holds only one thing variable
+
+- `RunTick_TwoShootersOfDifferentCaliberFamilies_DealDifferentDamageOnAnIdenticalHit`
+  runs the identical fixture twice — same 100-world-unit range, same shooter
+  entity id and therefore the same `Accuracy` draw, same target — and changes only
+  the firearm, an AK-47 against an M4. This is the criterion that catches a
+  damage table keyed off a constant instead of off the loadout.
+- `RunTick_TargetInsideACoverArc_TakesReducedDamageWhileAFlankingShotIgnoresTheCover`
+  places the same rectangle over the target twice and differs only in the arc.
+  Neither half encodes a bearing convention: the protecting record uses the
+  `ArcHalfBam` of 32,768 that `CoverRecord`'s own documentation defines as
+  covering "from every direction", and the bypassing record uses a one-BAM arc
+  centred a quarter turn from either bearing a shooter due east can occupy under
+  any convention.
+- `RunTick_CrouchedTargetInCover_TakesTheCrouchedReductionRatherThanTheStandingOne`
+  exists because without it the posture half of the lookup could be hardcoded to
+  standing and every other cover assertion in the file would still pass.
+
+Every expected value is computed from `CaliberDamage.RawDamage` and from
+`CoverRules`' own published percentages rather than written as a literal, and
+each target's full health is read from the fixture before the tick rather than
+assumed, so none of the three can drift into passing vacuously.
+
+Counts re-derived from the merged tree: `Sandata.Core.Tests` 1,095 to **1,098**;
+`Sandata.Client.Tests` 199, unchanged.
+
+#### Break-proofs
+
+| Property | The break | Result |
+| --- | --- | --- |
+| Damage is keyed on the shooter's caliber | stage 12's `CaliberDamage.RawDamage(definition.Caliber)` replaced by the literal 25 | the caliber test fails, alone |
+| Cover reaches stage 12 from the map | `ResolveCoverState(...)` replaced by `CoverState.NotInCover` | both cover tests fail |
+| Posture comes from the target's own flag | `Posture:` hardcoded to `CoverPosture.Standing` | the crouched test fails, alone |
+
+Each break was reverted and the suite returned to 1,098 passing.
+
+#### The implementer stalled, and what that cost
+
+The agent hit the six-hundred-second watchdog with **nothing committed** —
+production work spread uncommitted across nine files, in an intermediate state
+where `CaliberDamage.cs` existed and compiled but nothing consumed it, and stage
+12 still read the flat constant it was meant to delete. The suite was green at
+1,095 at that moment, which is exactly the trap: a green suite on a half-finished
+task looks identical to a green suite on a finished one, because the tests that
+would have failed had not been written yet.
+
+The integrating thread finished it directly rather than resuming the agent,
+following this repository's own record that a resumed agent may not do the redo.
+What the integrator wrote: the caliber wiring at stage 12, the deletion of the
+constant and of the two prose references to it that survived inside
+`CaliberDamage.cs`'s own documentation, the fixture's cover and posture
+parameters, all three tests, and the break-proofs.
+
+Two process lessons, both already in this document in other forms and both
+sharper here:
+
+- **"Commit as you go" was in the brief and was ignored for the third time this
+  wave.** The instruction is not enough on its own. A brief that depends on
+  incremental commits should say what the first commit is and require it before
+  anything else begins — this one did say "do the call sites first, as their own
+  commit", and the agent did the call sites first and committed nothing.
+- **A green suite is not a finished task.** The only reliable check is the one
+  the wave has been running all along: re-derive the counts. 1,095 was the base
+  count, and a task that adds no test has added no evidence.
+
+### Task 52b complete, and the event hash both baselines share — 2026-08-09
+
+Merged at `ab57dc0`. `GoldenReplayTests` pins two seed-1 baselines, and every hash
+literal lives in `tests/Sandata.Core.Tests/Fixtures/seed-1-baseline.json` rather
+than in the `.cs` file, so task 85's guarantee — exactly one absolute state-hash
+literal in C# under `tests/Sandata.Core.Tests/` — survives intact. A search of the
+test file for a sixteen-character hex literal returns nothing.
+
+Both missions are the same fixture: seed 1, eight operators in a four-against-four
+packing built through `HeadlessRunner.BuildOpenGrid` and
+`HeadlessRunner.BuildInitialState`, ticked forty times. Forty ticks rather than
+the workload's ten thousand, because Sandata's core suite already runs about
+forty-five seconds and a second ten-thousand-tick run would have doubled it. The
+two tests cost about ten seconds; the suite now runs about fifty-six.
+
+The second mission submits two real orders through `SandataSimulation.SubmitOrder`
+at tick 0 — a `MoveAlongPath` for one faction's operator and a `Hold` for the
+other's — both accepted. Submitting them through the door rather than injecting
+them into state is what makes the baseline a statement about the order layer at
+all.
+
+**The failure message names the first mismatch tick**, which the row required and
+which is the difference between a golden test that costs a minute to diagnose and
+one that costs a day. A real failure, captured during the break-proof:
+
+```
+Golden replay diverged: state hash at tick 0 was 2EE5D7F78DBCAB16,
+expected D81CEB0CBE66B3D8 (first mismatch tick = 0).
+39 further ticks were not compared.
+```
+
+Neither mission is degenerate, and this was asserted rather than assumed: each
+run emits sixteen events including eight `ShotFired`, and three operators end
+below full health. The order baseline additionally re-runs an empty-order
+companion and asserts the two state hashes differ, which is the direct proof that
+the orders changed the run rather than being accepted and ignored.
+
+Break-proofs, both reverted with an empty `src/` diff afterwards: folding an extra
+value into `SandataStateHasher.Compute` fails both baselines at tick 0, and
+folding one into `MissionEventFeed.FoldEvent` fails the event-hash assertion while
+every per-tick state hash still matches — which is the two-independent-hashes
+property demonstrating itself.
+
+#### Both baselines carry the same event hash, and that is a finding
+
+`FinalEventHashHex` is `74E008E940AB05A5` for the empty-order mission and for the
+order mission alike, while their state hashes differ from tick 0 onward. The
+implementer noticed this and reported it rather than passing over it.
+
+It is not a bug in the test, and the cause is structural rather than
+coincidental. `MissionEventKind` declares exactly four members — `OrderRejected`,
+`ShotFired`, `ShotHit`, `ShotMissed`. **An order that is accepted emits no event
+at all**, and movement emits none either, so the only way an order can reach the
+event stream is by changing which shots resolve. Over forty ticks, with the
+per-tick movement clamp at 1.6 world units, one operator walking a short polyline
+does not change any shot's outcome — every rifle inside sensing range hits
+regardless.
+
+Two consequences, stated rather than filed away:
+
+- **The order baseline's event half proves nothing that the empty one does not.**
+  Its state half does the work. Design section 16's requirement for two baselines
+  is met, but it is met on one of the two hashes, and a future reader comparing
+  the fixture's two `FinalEventHashHex` values should know why they are equal
+  rather than assume the file is wrong.
+- **A player's accepted order leaves no trace in the authoritative event stream.**
+  Design section 16 promises that rejection is observable and says nothing about
+  acceptance. Whether an accepted order should emit an event is a design question
+  — the event feed is what a replay and a spectator read, and an order layer whose
+  successful commands are invisible to it cannot be reconstructed from the stream
+  alone. **This is added to the open questions and is not settled here.**
+
+One deviation, correctly reported: `HeadlessRunner.BuildMission` is `private
+static`, unlike `BuildOpenGrid` and `BuildInitialState` which task 86 promoted to
+`internal`. Rather than widen a production type's visibility from outside its
+grant, the implementer wrote a local equivalent in the test file and said so. That
+is the right call at a grant boundary and it leaves a small duplication worth
+folding away if a third test project ever needs the same mission.
+
+`Sandata.Core.Tests` is at **1,100** and `Sandata.Client.Tests` at 199, both
+re-derived from the merged tree.
+
+### Task 52a complete, and the clause it cannot prove — 2026-08-09
+
+Merged. `DeterminismEquivalenceTests` adds four relational tests, none of which
+pins an absolute hash, so task 85's single-C#-literal guarantee is untouched and
+the golden replay's fixture JSON remains the only place a Sandata run's digest is
+written down.
+
+| Test | Held constant | Varied | Asserted |
+| --- | --- | --- | --- |
+| Same-seed repeat, in process | seed, mission, fixture, 60 ticks | nothing — two independently constructed simulations | per-tick state hash, event hash, the whole ordered event stream by sequence, outcome |
+| Cold cache | seed, mission | one simulation runs 0–59 continuously; a second, freshly constructed one — new nav grid, new clearance field, new collision grids — runs only 30–59 | the two agree tick for tick from the midpoint |
+| Save and resume | seed, mission, one authored `MoveAlongPath` order | reference never stops; the other snapshots at the midpoint and resumes in a brand-new simulation | tick-for-tick agreement, plus the order's `PathNodes` and `CurrentNodeIndex` surviving the round trip |
+| Logging off versus `trc` | seed, mission, fixture | `DiagnosticLog.Disabled` against `LogLevel.Trace` writing to an in-memory writer | tick-for-tick agreement, plus the writer actually produced output — so the logged run genuinely logged |
+
+Every one of them calls `AssertRunWasActive`, which requires events emitted and
+total operator health below its starting value, so none can pass by both sides
+doing nothing. That check exists because this wave has now thrown away three
+measurements whose degenerate case and success case were indistinguishable.
+
+`Sandata.Core.Tests` is at **1,104** and `Sandata.Client.Tests` at 199, both
+re-derived from the merged tree. The Sandata core suite now runs about a minute.
+
+#### The fresh-process clause, reported rather than invented
+
+The row's fifth clause asks for a same-seed repeat "in a fresh process". The
+implementer confirmed what this wave's audit suspected: nothing in either test
+project spawns a process, and `tests/Hukbo.Core.Tests/DeterminismTests.cs` does
+not either. It declined to introduce one and said so. That is correct — a process
+launch drags the wall clock, the filesystem, and a build layout into a unit
+suite, and the clause is already discharged by
+`./scripts/benchmark.ps1 -Game Sandata -Seed 1`, which is a fresh process by
+construction and is task 55's evidence.
+
+#### Two break-proofs failed to break, and that is the useful part of the report
+
+The implementer tried three breaks and reported all three honestly:
+
+| Break attempted | Result |
+| --- | --- |
+| A construction-time bias baked into the clearance field | did not fail — no fixture in the file populates `MissionState.Groups`, so the clearance field's squad-leader consumer is never reached |
+| Removing `SandataCollisionGrid`'s clear-before-insert | did not fail — `GeneratePairs` clears `_pairs` itself and the hash-occupancy dedupe masks the rest |
+| XOR-ing wall-clock entropy into `ComputeStateHash` | all four tests failed with exact hash mismatches |
+
+The second is a genuine finding about the production code and matches what task
+81 found from the other direction: `SandataCollisionGrid` has **two** independent
+clears, so neither one alone is load-bearing. The third is a coarse break — it
+fails everything, including the trivial repeat test — so it establishes that the
+suite detects nondeterminism in general and not that any individual test binds its
+own specific property.
+
+#### The save-and-resume test does not prove what design section 4 asks it to
+
+This is the finding, and it was reached by the integrating thread writing a fifth
+test, discovering that the test passed vacuously, and deleting it rather than
+merging it.
+
+The row calls save-and-resume "the only proof that paths are genuinely derived".
+Design section 4 states the rule precisely: published path polylines are derived
+and excluded from the snapshot, "the *request* is authoritative and snapshotted;
+the *result* is not. On resume, every outstanding and every published path is
+recomputed from its stored request record before the first tick executes."
+
+The merged test snapshots an **authored** order. An authored polyline is stored
+state — design section 16 is explicit that it is authoritative, not derived — so
+it round-trips as data and the test proves the round trip works. It says nothing
+about a recomputed path, because **no test in the file populates
+`MissionState.Groups` at all**, so no autonomous path is ever requested and none
+is ever published.
+
+The attempted fifth test populated `Groups`, ran past `PathLatencyTicks`,
+asserted the request had published, snapshotted, and resumed in a fresh
+simulation. It passed. It was still worthless, and a probe is what showed why:
+entity 1 moved from raw (3,072, 2,048) to (4,095, 3,327) over the first thirty
+ticks and then **did not move at all** for the remaining thirty. Tick-for-tick
+agreement after the snapshot was agreement between two runs that were both
+standing still. The probe that settled it compared the operator's position at the
+snapshot tick against its position at the end, and returned `moved=False`.
+
+That is the same shape as everything else this wave has caught, arriving one
+level deeper: not a test that asserts "it changed", but a test whose *scenario*
+looks active and is inert in exactly the window the assertion covers.
+
+Two things follow, and the second is the more interesting one.
+
+- **The derived-path resume rule is unproven.** It is not disproven; nothing
+  suggests the recomputation is wrong. It simply has no test, and task 52 should
+  not be recorded as having supplied one.
+- **An operator with a freshly published group path walks about one world unit
+  and stops.** That is a second finding, independent of the test, and it was not
+  looked for. Whether the cause is the arclength quantization task 87 already
+  names, or derived squad grouping moving the operator out of the group whose
+  path was published, or the clearance gate collapsing the formation, is not
+  known. It is worth knowing before anyone tunes movement.
+
+#### The tasks these create
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 89 | 12 | Find out why an operator with a published group path stops after one world unit | A fixture that populates `MissionState.Groups` with an outstanding request, runs past `SandataRuleset.PathLatencyTicks`, and ticks on, moves its operator roughly one world unit in the first thirty ticks and then holds position for the next thirty — measured, not inferred. Candidate causes, none confirmed: the diagonal arclength quantization task 87 names; `SquadGrouping` deriving a different `GroupId` once the operator has moved, so `PathService.GetCurrentPath(slot.GroupId)` no longer finds the published path; `FormationCollapse` gating the slot to single file; or the leader projection reaching the end of a short polyline. **Diagnose before changing anything**, and report the cause rather than patching the symptom. | `tests/Sandata.Core.Tests/TickPipelineTests.cs`, and whichever single production file the diagnosis names, reported before it is edited | The cause is named with file and line and reproduced by a test. If it is a defect, the fix lands with a test asserting sustained movement over a stated number of ticks, on the displacement rather than on "the position changed". If it is correct behaviour, the reason is written at the code that produces it. | 84, 52a | |
+| 90 | 12 | Prove a published path is recomputed on resume, not restored | Task 52a's save-and-resume test snapshots an authored order, whose polyline is stored state; design section 4's rule is about the *derived* polyline of an autonomous group path, and no test exercises it. Once task 89 has an operator that keeps walking a published path, snapshot mid-walk and resume into a fresh `SandataSimulation`, which begins with an empty `PathService`. The resumed run must match the never-stopped one tick for tick **through a window in which the operator is demonstrably still moving** — assert that movement inside the compared window, not merely at some point in the run, or the test repeats this one's mistake. | `tests/Sandata.Core.Tests/DeterminismEquivalenceTests.cs` | The comparison window contains real movement, proved by an assertion inside the test rather than by a probe outside it, and the resumed run matches. Breaking the recomputation makes it fail, with the failure recorded. | 89 | |
+
+### Task 54 complete, and the four documents that pointed at files which no longer exist — 2026-08-09
+
+`docs/development/testing.md`, `README.md`, `AGENTS.md`, and `CLAUDE.md` now
+describe a repository that builds two games. Every figure below was re-derived
+from the merged tree during this session rather than carried forward, and doing
+that is what caught most of what follows.
+
+The audit was run in both directions before anything was written. Task 54's four
+documents are claimed by nothing else; task 55 claims no file at all; tasks 87,
+88, 89, and 90 all want `SandataSimulation.cs` or its test file and are serial
+with one another and with nothing here. Every step in task 54's "What" column is
+claimed exactly once, and the row's own count was the first thing the audit
+found wrong.
+
+#### The row says eleven projects and there are twelve
+
+`Hukbo.slnx` lists twelve, a search for `.csproj` under `src` and `tests`
+returns twelve, and the layout blocks now list twelve: `Hukbo.Shared.Core`,
+`Hukbo.Core`, `Hukbo.Client`, `Hukbo.Headless`, `Hukbo.Diagnostics`,
+`Sandata.Core`, `Sandata.Client`, `Sandata.Headless`, and the four test
+projects.
+
+#### Two documents pointed at source files that do not exist
+
+`CLAUDE.md` section 5 and `AGENTS.md`'s non-negotiables both told the reader to
+use `Hukbo.Core/Determinism/SplitMix64.cs` and
+`Hukbo.Core/Mathematics/FixedPoint.cs`. Neither path exists.
+`src/Hukbo.Core/Mathematics/` is not a directory at all, and
+`src/Hukbo.Core/Determinism/` holds only `StateHasher.cs`; both files moved to
+`Hukbo.Shared.Core` when the tier-1 extraction landed in an early Sandata wave.
+
+Nothing failed to compile and no test went red, because a path inside a Markdown
+bullet is not checked by anything. This is the same shape as task 79d-2a's two
+surviving prose references to a deleted constant, and it is one more figure in
+this wave that a reading of the tree corrected. Both now read
+`src/Hukbo.Shared.Core/...` and name the project the rule actually lives in.
+
+#### A test cited a sentence in `CLAUDE.md` that had never been written
+
+`GoldenReplayTests`' class remarks justified its eight-operator, forty-tick
+fixture by quoting `CLAUDE.md` section 4: "Sandata's core suite already takes
+about 45 seconds". `CLAUDE.md` contained no such sentence and, before this task,
+did not mention Sandata anywhere at all. The quotation was of a document that
+task 54 had not yet written.
+
+The figure was also stale twice over — the suite has been recorded at 45, then
+56, then about 60 seconds by three different sessions, and measures 37.77
+seconds warm today. The remarks now point at section 4 without quoting a number,
+so the citation is true and cannot rot the same way again. That edit is one doc
+comment in a test file outside the row's four-document grant, made by the
+integrating thread and recorded here rather than left to be found later.
+
+#### `main` moved underneath this session, and a test count moved with it
+
+The session began at `de687b4`. Partway through, another session merged
+`codex/attack-animation-v2`, and `main` became `9e28a65` while this work was in
+progress. The uncommitted documentation edits survived intact: `git diff HEAD`
+on `docs/development/testing.md` reports insertions and zero deletions, so the
+other session's sixty-one lines of attack-animation smoke observations are all
+present underneath this task's additions.
+
+What did not survive was a figure. `Hukbo.Client.Tests` was measured at **3,152**
+before the merge and is **3,270** after it, and the first figure had already been
+written into two of these documents. The 118 new tests are the attack-animation
+work's, not this task's.
+
+The false hypothesis was worth eliminating rather than assuming: a documentation
+edit that changed test *discovery* would have been a far more interesting
+problem. It was ruled out by listing discovered tests, then stashing the four
+documents, listing again, and comparing — 3,105 discovered entries both ways,
+identical. Discovery is unaffected by these documents; the count moved because
+the tree did.
+
+**Re-derive a count immediately before writing it down, not once at the start of
+a session.** A figure measured an hour earlier in a repository with concurrent
+sessions is a figure from a different commit.
+
+#### Sandata's suite is slow in one place, not seven, and it is not half
+
+Three sessions have carried the sentence "roughly half of it is one test case"
+alongside "tasks 82 and 83 added seven test cases that run the benchmark". The
+first half understates it and the second half is wrong about which tests those
+are.
+
+Per-test durations from a full Release run:
+
+| Test | Duration |
+| --- | --- |
+| `NavBenchmarkOptionTests.ChangedCellRunStaysAboveTheSuccessfulSearchFloorThroughoutTheRun(tickCount: 2000)` | **36 s** |
+| the same theory at `tickCount: 200` | 3 s |
+| the same theory at `tickCount: 1` | 0.152 s |
+| `DeterminismEquivalenceTests.AFreshlyConstructedSimulation_MatchesAnAlreadyRunningOne...` | 0.121 s |
+| every other test in the suite | under 0.09 s |
+
+The whole suite is 37.77 seconds warm. **One `InlineData` value on one theory is
+thirty-six of them.** Nothing else in the file is expensive: the golden replay
+tests task 52b was careful to keep cheap cost 44 and 39 milliseconds, and the
+four determinism equivalence tests together cost about a fifth of a second.
+
+#### The decision task 55 carried, taken
+
+**The benchmark test cases stay in the suite. They do not move to `tools/`.**
+
+The reasoning that made this look like an architecture question does not survive
+the measurement. There is no cluster of seven expensive cases trading off
+against gate speed; there is one assertion endpoint. It is a regression lock on
+a defect this same wave found and fixed — under the old per-tick fresh-draw
+behaviour the successful-search fraction decayed as the tick count grew, and
+`tickCount: 2000` is the point at which that decay was unmistakable. Thirty-six
+seconds on a locally run gate that already spends over a minute elsewhere is
+affordable, and moving a regression lock out of the suite to buy it back would
+trade a guard that runs for a hand-run one nobody runs.
+
+**What is deliberately not decided here** is whether `InlineData(2000)` could be
+reduced to a cheaper endpoint without weakening the lock. It probably could —
+two hundred ticks is already two hundred mutation steps against a 160-by-180
+grid — but "probably" is exactly the kind of claim this wave has been wrong
+about repeatedly. Proving it means reverting the defect and confirming the
+smaller endpoint still fails, which is a break-proof, which is a task. It is
+filed as task 91.
+
+#### What the documents now say, and one thing they deliberately do not
+
+`CLAUDE.md` gained a Sandata subsection in section 1, Sandata naming in section
+2, a twelve-project layout with the reference graph and the tier-1 rule in
+section 3, the `-Game` parameter in section 4, Sandata's determinism additions
+in section 5, and four Sandata entries in section 9. `AGENTS.md` gained the same
+material in its standalone form, because it must be complete for tools that
+never read `CLAUDE.md`. `README.md` gained a section on the second game, the
+`-Game` commands, a twelve-project architecture diagram, four enforced
+boundaries rather than two, the Sandata documentation links, and a corrected
+test badge.
+
+`docs/development/testing.md` gained a Sandata section carrying the seed-1
+baseline, the suite counts warm and inside the gate, task 53's audio-pool and
+navigation-matrix figures, the two largest remaining allocators, and the eight
+smoke rows.
+
+**Task 53's raw output is cited to this plan document and not to a file.** Both
+measurement runs wrote under `artifacts/`, which `.gitignore` excludes, so those
+files exist on one workstation and in no clone. `SourceHygieneTests` carries a
+fact written for exactly this mistake in Hukbo's render baselines; rather than
+repeat the mistake in a form that fact does not scan for, the new section names
+the section titled "Task 53 complete, after tasks 82 and 83" as the transcript
+of record and says plainly that no such file travels with the repository.
+
+**Every one of the eight Sandata smoke rows is `PENDING` and none may be flipped
+by an agent.** SD-5, the sustained-automatic-fire audio row, cannot be attempted
+at all: Sandata ships no sound files, its catalog is 106 slots expanding to 524
+variants at roughly 104,800 ElevenLabs credits, and that spend is not
+authorised. It stays `PENDING` with the reason stated rather than becoming
+`BLOCKED`, because the blocker is upstream of the smoke run and the row must not
+be quietly forgotten once the audio question is answered.
+
+The allocation figure is recorded as a magnitude. Two further runs this session
+reported 42,184,440,712 and 42,184,446,456 bytes against the previously recorded
+42,184,446,424 and 42,184,447,672. All four mean "about 42.18 GB".
+
+#### One task this creates
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 91 | 12 | Find the cheapest endpoint that still locks task 83's connectivity defect | `NavBenchmarkOptionTests.ChangedCellRunStaysAboveTheSuccessfulSearchFloorThroughoutTheRun` costs thirty-six seconds at `InlineData(2000)` and is, on its own, the overwhelming majority of Sandata's core suite runtime; the same theory costs three seconds at 200 and 0.15 seconds at 1. Task 55 decided the case stays in the suite and explicitly did not decide whether its endpoint can shrink. Restore task 83's per-tick fresh-random-draw behaviour behind a temporary local edit, run the theory at descending endpoints, and find the smallest tick count at which the successful-search fraction still falls below the floor. If a materially cheaper endpoint fails under the reverted defect, replace 2000 with it and record both the failing output at the new endpoint and the passing output after the revert. If nothing below 2000 fails, say so and leave the case exactly as it is — **a cheaper endpoint that cannot detect the defect is worse than a slow one that can**, and reporting "no cheaper endpoint works" is a successful outcome for this task. | `tests/Sandata.Core.Tests/NavBenchmarkOptionTests.cs`, and `src/Sandata.Headless/NavBenchmark.cs` for the temporary revert only, which must not appear in any commit | The smallest defect-detecting endpoint is named with its measured failure output, or the absence of one is stated with the endpoints tried. The merged branch contains no trace of the reverted defect. The suite's total runtime before and after is recorded. | 55 | |
+
+Task 91 wants neither `SandataSimulation.cs` nor its test file, so it is the one
+remaining row that could run beside task 87, 88, 89, or 90.
+
+### Task 55 complete — both gates run, both green — 2026-08-09
+
+Run by the integrating thread on `main` at `9e28a65`, not delegated, both
+outputs pasted in full into `docs/development/testing.md`.
+
+`./scripts/verify.ps1` with no flags, exit code 0: prerequisites and locked
+restore, formatting, a Release solution build with zero warnings and zero
+errors, `Hukbo.Core.Tests` 2,376 of 2,376 passing in 29.49 seconds,
+`Hukbo.Client.Tests` 3,270 of 3,270 passing in 2.07 seconds, and the 200-agent,
+10,000-tick, seed-1 workload reporting `stateHash` `1B73FC5923879AA0`,
+`eventHash` `AC55684F24D39344`, `outcome` `Faction1Victory`, survivors 0 and 6,
+and `deterministic: true`. **Both recorded Hukbo baseline hashes are
+unchanged**, which is the first time they have been confirmed in four sessions.
+
+`./scripts/verify.ps1 -Game Sandata`, exit code 0, the same five stages against
+Sandata's two suites and Sandata's workload: `Sandata.Core.Tests` 1,104 of 1,104
+passing in 1.0803 minutes, `Sandata.Client.Tests` 199 of 199 passing in 0.5005
+seconds, and the seed-1 workload reporting `stateHash` `BDD56EBD06F76674`,
+`eventHash` `7C1B37876769DEC7`, `outcome` `Ongoing`, survivors 70 and 64, and
+`deterministic: true`. **This is the first recorded run of Sandata's gate.**
+
+The two runs are recorded as two results and are never added together. A green
+default gate is not evidence about Sandata, which is now stated in all four
+documents and in this plan.
+
+One figure worth carrying: Sandata's core suite costs 1.08 minutes inside the
+gate against 37.77 seconds warm. Both are real, and the gate figure is the one
+to quote, because it is what the suite costs immediately after a full Release
+build.
+
+`Hukbo.Client.Tests` was re-run after the two gate-result sections were appended
+to `docs/development/testing.md`, since `SourceHygieneTests` reads that file:
+3,270 of 3,270 passing.
+
+### Task 87 complete, and the row's own precision figure was unreachable — 2026-08-09
+
+Merged. Every length `PolylineArclength` produces is now raw fixed point. The
+vertices `Build` is handed are still whole world units, because that is what
+`PathService` publishes; everything derived from them is scaled by
+`FixedPoint.Scale` **before** the square root rather than after it. That single
+change moves the truncation from one part in eleven to one part in forty-eight
+thousand.
+
+`ArclengthSample`'s coordinates, direction and length, `SlotTargets.ComputeTarget`'s
+offsets and result, and `ProjectArclength`'s query position and return value all
+moved with it. The published polyline itself is untouched.
+
+#### The grant was too small for the row's own acceptance criterion
+
+The row granted `PolylineArclength.cs`, `SandataSimulation.cs` restricted to
+"`ProjectArclength` and `FormationLookaheadWu` only", `SlotTargetsTests.cs`, and
+`TickPipelineTests.cs`. Storing cumulative lengths in raw, which is what the row
+suggested, does **not** on its own make the round trip exact: `SampleAt` still
+returned whole-world-unit coordinates and `ProjectArclength` still took a
+whole-world-unit query position, and each of those throws away more precision
+than the segment length ever did. Meeting the criterion required
+`SlotTargets.cs` and the stage 9 call site as well.
+
+This is the same shape as task 79d-2's grant widening and it was widened
+deliberately, by the integrating thread, with no other row running. The row's
+file list is recorded as insufficient rather than quietly obeyed.
+
+#### `Int128` in two places, for a reason that only appears at raw scale
+
+`ProjectArclength`'s projection numerator is on the order of the squared map
+extent. In world units that is about 1.7 × 10⁷ and multiplying it by a
+coordinate is harmless; at raw scale it is about 10¹³ and the same multiplication
+overflows a signed 64-bit integer on a map only a few thousand world units
+across. Two products are widened to `Int128`, whose quotient is back inside
+`long` by construction since the clamped numerator never exceeds the
+denominator. `Hukbo.Core`'s `MovementContextQuery` already widens the same way
+for the same reason, so this introduces no new technique, and `Int128` is exact
+integer arithmetic carrying none of the cross-version hazard that bans `double`
+from `Sandata.Core`.
+
+#### `FormationLookaheadWu` is gone, which is the reduction task 84 could not make
+
+The leader's sample now sits exactly one per-tick step ahead of its own
+projection. Anything larger is absorbed by `ClampToMovementSpeed` and buys
+nothing; anything smaller throttles the leader below the designed sprint speed.
+One step is therefore not a tuning parameter at all — it is
+`SprintSpeedWuPerSecond` divided by the tick rate, and it moves when either of
+those does. Task 79b's provisional 8 world units, and the floor task 84 had to
+write under it after freezing a leader at (4, 4), are both deleted.
+
+#### The row asked for one raw unit and one raw unit is not reachable
+
+Measured worst-case round-trip drift over 97 probes is exactly **2 raw units**,
+and the test pins 2 rather than 1. Three truncating divisions sit on that round
+trip: the segment length is a truncated integer square root, `SampleAt`
+truncates the interpolated coordinate, and `ProjectArclength` truncates the
+projection back. Each can lose a raw unit and they do not cancel. One is not
+reachable without rounding-to-nearest at every step.
+
+**The row said "exact to within one raw unit" and the integrating thread wrote
+that row.** It was written without checking it against the three roundings it
+has to survive. Two raw units is 2/1024 of a world unit against a per-tick step
+of 1,638 raw, so the property the task exists for is intact — but the figure was
+a claim, and it is now a measurement.
+
+#### The break-proofs found a defect in the new tests, not in the new code
+
+Three breaks, each reverted, with `git diff` on `src/` empty afterwards.
+
+| Break | Result |
+| --- | --- |
+| Segment length taken in world units and scaled afterwards — task 87's defect, restored exactly | `RunTick_...WalksTheBentPolylineAtTheDesignedSpeed` fails alone, 3,206 against 3,205, and after the pin below was added, `Build_DiagonalSegmentLength_...` fails too, 11,585 against 11,264 |
+| Query position rounded back to whole world units before projecting | `ProjectArclength_RoundTrips...` fails alone, worst drift 1,448 raw — 1.41 world units, the loss the row described |
+
+The first break is the interesting one. It was expected to fail the two new
+precision tests and **it failed neither.**
+
+The round trip is insensitive to the stored segment length being wrong, because
+`SampleAt` and `ProjectArclength` divide by the *same* length in opposite
+directions and the error cancels exactly. And the "sample stays on the segment"
+test is insensitive to it too, because interpolation scales both components by
+the same ratio: a truncated length moves the sample *along* the segment without
+ever moving it *off* the segment.
+
+So the two tests written to prove task 87's headline property proved a different
+property, and only the pre-existing walk test caught the headline one — by a
+margin of one raw unit. A third test was added in response,
+`Build_DiagonalSegmentLength_IsTheRawRootNotTheScaledWorldUnitRoot`, which pins
+the (8, 8) segment at 11,585 raw against the 11,264 the old arithmetic produces.
+It fails immediately and alone under that break.
+
+Both surviving tests now carry a "what this test does not bind, established by
+breaking it" paragraph naming the test that does bind it. **A test that passes
+under the break it was written for is worth more as a corrected doc comment than
+as a deleted test**, but only if the correction is written down.
+
+#### The seed-1 workload is unchanged, as predicted
+
+`stateHash` `BDD56EBD06F76674`, `eventHash` `7C1B37876769DEC7`, 70 and 64
+survivors, `deterministic: true`. Nothing in that fixture has a published path,
+so none of this code executes there. `Sandata.Core.Tests` went 1,104 to 1,107.
+
+### Task 91 complete, and the endpoint that was 95 percent of a suite — 2026-08-09
+
+Merged. `Sandata.Core.Tests` drops from **1,107 tests in 38 seconds to 1,106 in
+4.5**.
+
+Task 83's defect — redrawing the changed-cell set every tick instead of toggling
+a fixed one — was restored behind a temporary local edit, and
+`ChangedCellRunStaysAboveTheSuccessfulSearchFloorThroughoutTheRun` was swept
+across descending endpoints to measure what each one actually detects.
+
+| Tick count | Found fraction under the restored defect | Detects it? |
+| --- | --- | --- |
+| 2,000 | 5.8 % | yes |
+| 800 | 14.4 % | yes |
+| 400 | 28.9 % | yes |
+| 200 | 56.9 % | yes |
+| 100 | 75.4 % | yes |
+| 50 | 86.7 % | yes |
+| 38 | 88.9 % | yes, by 1.1 points |
+| 34 and below | above the floor | **no** |
+
+On the fixed code the same run reports 93.7 percent at 2,000 ticks and 93.2
+percent at 200, taking 35 seconds and 3 seconds respectively.
+
+**200 catches the defect by 33 points of margin in 3 seconds; 2,000 catches it
+by 84 points in 35.** Twelve times the cost to move a decisive measurement to a
+more decisive one, and to move the healthy reading by half a point. The
+2,000-tick endpoint is removed and the theory keeps 1 and 200.
+
+38 was **not** chosen despite being the cheapest endpoint that works. A
+1.1-point margin is a lock a later fixture change could silently unlatch, and
+the task's own instruction was that a cheaper endpoint which cannot detect the
+defect is worse than a slow one that can. The same reasoning applies a little
+above the threshold.
+
+What is genuinely lost is the assertion that the found fraction holds up after a
+full-length run. That loss is smaller than it looks: under the fix the map
+oscillates between exactly two configurations by tick parity, so 200 and 2,000
+are the *same configuration* and differ only in sample count. The full-length
+property has its own test —
+`ChangedCellRunOscillatesBetweenExactlyTwoConfigurationsAcross2000Ticks` reaches
+tick 2,002 in 82 milliseconds, because it uses one seeker and no replanning —
+and that test, not this one, is what proves the map does not drift.
+
+The temporary revert never entered a commit: `git diff` on `src/` was empty
+before the branch was committed, and the merged diff is one test file.
+
+#### Both gates, run after Batch A
+
+`./scripts/verify.ps1 -Game Sandata`, exit 0: `Sandata.Core.Tests` 1,106 of
+1,106 in 4.52 seconds, `Sandata.Client.Tests` 199 of 199 in 0.49 seconds, and
+the seed-1 workload reporting `stateHash` `BDD56EBD06F76674`, `eventHash`
+`7C1B37876769DEC7`, 70 and 64 survivors, `deterministic: true` — unchanged
+through both tasks.
+
+`./scripts/verify.ps1` with no flags, exit 0: `Hukbo.Core.Tests` 2,376 of 2,376,
+`Hukbo.Client.Tests` 3,270 of 3,270, and the 200-agent workload reporting
+`stateHash` `1B73FC5923879AA0`, `eventHash` `AC55684F24D39344`,
+`deterministic: true`.
+
+The suite-duration figures written into `CLAUDE.md`, `README.md`, and
+`docs/development/testing.md` earlier the same day were corrected in place
+rather than left standing, since task 91 invalidated all three within hours of
+task 54 recording them.

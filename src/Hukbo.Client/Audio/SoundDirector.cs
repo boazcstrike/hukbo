@@ -1,3 +1,4 @@
+using Hukbo.Client.Presentation;
 using Hukbo.Core.Simulation;
 using Hukbo.Diagnostics;
 
@@ -180,6 +181,105 @@ internal sealed class SoundDirector
         _agentsById.TryGetValue(battleEvent.SourceEntityId, out var launcher)
             ? SoundCueMapper.MapRelease(launcher.Loadout.Weapon)
             : null;
+
+    /// <summary>
+    /// Releases the weapon cue and optional dispatcher-owned lethal cue as one
+    /// contact request. Aggregate Damage and standalone Death events never
+    /// reach this path, preventing double playback after the live migration.
+    /// </summary>
+    public void StartContact(AttackContactBundle contact)
+    {
+        var request = SoundCueMapper.MapContact(contact);
+        if (request.Contact is { } contactSound)
+        {
+            var hitClass = SoundCatalog.IsHitLocationDriven(contactSound)
+                ? HitClassCatalog.FromBodyPart(contact.HitLocation)
+                : (HitClass?)null;
+            Resolve(
+                contactSound,
+                hitClass,
+                contact.Tick,
+                contact.AttackerEntityId);
+        }
+
+        if (request.Lethal is { } lethalSound)
+        {
+            Resolve(
+                lethalSound,
+                hitClass: null,
+                contact.Tick,
+                contact.DefenderEntityId);
+        }
+    }
+
+    /// <summary>
+    /// Processes the events that no attack contact carries: the match
+    /// <see cref="BattleEventKind.Outcome"/>, and the two ranged kinds.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Attack and death cues travel through <see cref="StartContact"/>, so
+    /// this route must never map them or every blow would sound twice.
+    /// </para>
+    /// <para>
+    /// <see cref="BattleEventKind.Release"/> and
+    /// <see cref="BattleEventKind.Miss"/> are here because they are not
+    /// contacts and the dispatcher never produces a bundle for either: a
+    /// release is a bowstring, and a miss is a shot spending itself in the
+    /// air. A ranged attack resolved <see cref="AttackResolution.Evaded"/> is
+    /// a different thing and is *not* handled here — it is a real contact
+    /// bundle whose <c>MapAttack</c> diverts it to the weapon's <c>miss-</c>
+    /// slot. Merging the ranged package onto the contact-dispatcher migration
+    /// is exactly where those two could have been confused, and the result
+    /// would have been every ranged cue going silent with nothing failing.
+    /// </para>
+    /// <para>
+    /// <paramref name="agents"/> is required for the same reason
+    /// <see cref="Ingest"/> requires it: a classless Release event cannot name
+    /// its own weapon, so the launcher's loadout is read from its view.
+    /// </para>
+    /// </remarks>
+    public void IngestImmediate(
+        IReadOnlyList<BattleEvent> events,
+        IReadOnlyList<AgentView> agents)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(agents);
+
+        _agentsById.Clear();
+        for (var index = 0; index < agents.Count; index++)
+        {
+            var agent = agents[index];
+            _agentsById[agent.EntityId] = agent;
+        }
+
+        for (var index = 0; index < events.Count; index++)
+        {
+            var battleEvent = events[index];
+            var sound = battleEvent.Kind switch
+            {
+                BattleEventKind.Outcome => SoundCueMapper.Map(battleEvent),
+                BattleEventKind.Release => ResolveReleaseSound(battleEvent),
+                BattleEventKind.Miss => SoundCueMapper.Map(battleEvent),
+                _ => null,
+            };
+
+            if (sound is { } resolvedSound)
+            {
+                // None of the three kinds routed here is hit-location driven:
+                // an outcome has no body, and neither a release nor a miss
+                // reaches one. Passing null rather than reading
+                // battleEvent.HitLocation is deliberate — a Release event
+                // forces every combat-context field to null by construction,
+                // so the null-forgiving read Ingest performs would throw here.
+                Resolve(
+                    resolvedSound,
+                    hitClass: null,
+                    battleEvent.Tick,
+                    battleEvent.SourceEntityId);
+            }
+        }
+    }
 
     /// <summary>
     /// Requests a cue that no simulation event produced, such as a UI click.

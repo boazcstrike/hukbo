@@ -7,7 +7,7 @@ namespace Hukbo.Client.Rendering;
 /// <summary>
 /// Pure mapping from the gait store and the agent views to a per-pawn pose,
 /// plus the lookup a draw loop uses to fetch one pose. Mirrors
-/// <see cref="SwingPoseResolver"/> exactly, with the spectator's
+/// <see cref="AttackPoseResolver"/> exactly, with the spectator's
 /// <see cref="MotionIntensity"/> setting folded in as an extra argument, since
 /// unlike a swing's pose a gait pose is not meaningful without knowing whether
 /// ambient motion is currently suppressed.
@@ -15,7 +15,7 @@ namespace Hukbo.Client.Rendering;
 /// <remarks>
 /// <see cref="Resolve"/> fills a destination the caller owns rather than
 /// returning a fresh dictionary, and runs once a frame on the draw path with
-/// no heap allocation of its own, matching <see cref="SwingPoseResolver"/>'s
+/// no heap allocation of its own, matching <see cref="AttackPoseResolver"/>'s
 /// rule.
 /// </remarks>
 internal static class GaitPoseResolver

@@ -381,7 +381,8 @@ public sealed partial class ArenaGame
                 GC.CollectionCount(0),
                 GC.CollectionCount(1),
                 GC.CollectionCount(2),
-                allocatedBytes));
+                allocatedBytes,
+                _attackPoses.Count));
         }
 
         if (_isFrameTimingMeasured || _isFrameTraceLogged)
@@ -441,7 +442,9 @@ public sealed partial class ArenaGame
 
         foreach (var agent in _simulation.Agents)
         {
-            if (!agent.IsAlive)
+            if (!agent.IsAlive &&
+                !_presentation.DefenderReactions.IsLethalHoldActive(
+                    agent.EntityId))
             {
                 continue;
             }
@@ -485,13 +488,15 @@ public sealed partial class ArenaGame
                 continue;
             }
 
-            var swingPose = SwingPoseResolver.TryGetPose(
-                _swingPoses,
+            var attackPose = _attackPoses.TryGetValue(
                 agent.EntityId,
                 out var pose)
                 ? pose
-                : (SwingPose?)null;
-            var layout = pawnPrefix.CompletePosedLayout(swingPose);
+                : (AttackPose?)null;
+            var layout = pawnPrefix.CompleteAttackPosedLayout(
+                attackPose,
+                gaitPose: null,
+                ResolveReactionOffset(agent.EntityId));
             var state = GetPawnVisualState(
                 agent.EntityId,
                 selectedEntityId,
@@ -717,6 +722,7 @@ public sealed partial class ArenaGame
             spriteBatch,
             pixel);
         DrawPawns(spriteBatch, pixel, arenaBounds);
+        _presentation.AcknowledgeAttackDraw();
         BloodRenderer.DrawBursts(
             _presentation.Blood.ActiveBursts,
             _presentation.Blood.ActiveSpurts,
@@ -958,7 +964,9 @@ public sealed partial class ArenaGame
         {
             var agent = agents[ordinal];
 
-            if (!agent.IsAlive)
+            if (!agent.IsAlive &&
+                !_presentation.DefenderReactions.IsLethalHoldActive(
+                    agent.EntityId))
             {
                 continue;
             }
@@ -1030,26 +1038,32 @@ public sealed partial class ArenaGame
             // same position in the same left-to-right argument order.
             var hitPulseStrength = hitPulses.GetPulseStrength(agent.EntityId);
 
-            // RU-25. A ranged pose and a swing pose write the same
+            // RU-25. A ranged pose and an attack pose write the same
             // weapon-line rotation and reach channels into the one weapon
             // line a pawn has (RangedPoseResolver.SuppressesSwing), so a
-            // pawn mid-draw, mid-aim, or mid-release never also resolves a
-            // swing pose here.
+            // pawn mid-draw, mid-aim, or mid-release never also resolves an
+            // attack pose here.
+            //
+            // Before the 2026-08-09 merge the suppressed thing was the swing
+            // pose, which the attack-animation-v2 migration replaced with the
+            // contact-latched attack pose. The suppression follows the
+            // channel, not the type: whatever writes the weapon line is what
+            // a ranged pose must exclude, or a drawing archer would have its
+            // bow arm fighting a sword swing for the same weapon line.
             var rangedPose = RangedPoseResolver.TryGetPose(
                 _rangedPoses,
                 agent.EntityId,
                 out var resolvedRangedPose)
                 ? resolvedRangedPose
                 : (RangedPose?)null;
-            var swingPose = !RangedPoseResolver.SuppressesSwing(
+            var attackPose = !RangedPoseResolver.SuppressesSwing(
                 _rangedPoses,
                 agent.EntityId) &&
-                SwingPoseResolver.TryGetPose(
-                    _swingPoses,
+                _attackPoses.TryGetValue(
                     agent.EntityId,
                     out var pose)
                 ? pose
-                : (SwingPose?)null;
+                : (AttackPose?)null;
             var gaitPose = GaitPoseResolver.TryGetPose(
                 _gaitPoses,
                 agent.EntityId,
@@ -1063,9 +1077,10 @@ public sealed partial class ArenaGame
             // inputs, same layout, same pixels as the PawnGeometry.Create call
             // this replaces — PawnGeometryTests pins that too. Deliberately
             // not counted as a second invocation; see the note at stage one.
-            var pawnLayout = pawnPrefix.CompletePosedLayout(
-                swingPose,
+            var pawnLayout = pawnPrefix.CompleteAttackPosedLayout(
+                attackPose,
                 gaitPose,
+                ResolveReactionOffset(agent.EntityId),
                 rangedPose);
 
             CloseArenaGeometrySpan();
@@ -1112,6 +1127,18 @@ public sealed partial class ArenaGame
             : entityId == hoveredEntityId
                 ? PawnVisualState.Hovered
                 : PawnVisualState.Normal;
+
+    /// <summary>
+    /// The presentation-only body displacement a warrior struck this contact
+    /// window is drawn at, or <c>default</c> for everyone else. Read at the
+    /// posed stage only: the pose-blind cull rectangle above is built from the
+    /// authoritative foot anchor, so a reaction can never change which pawns
+    /// are drawn — only how the ones already drawn are posed.
+    /// </summary>
+    private (float X, float Y) ResolveReactionOffset(ulong entityId) =>
+        _presentation.DefenderReactions.TryGetReaction(entityId, out var reaction)
+            ? reaction.ResolveOffset()
+            : default;
 
     private void DrawStatus(
         SpriteBatch spriteBatch,

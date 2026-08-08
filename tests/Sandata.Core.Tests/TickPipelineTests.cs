@@ -6,12 +6,17 @@ using Hukbo.Core.Movement;
 using Sandata.Core.Collision;
 using Sandata.Core.Combat;
 using Sandata.Core.Determinism;
+using Sandata.Core.Events;
+using Sandata.Core.Maps;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
 using Sandata.Core.Rules;
+using Sandata.Core.Sensing;
 using Sandata.Core.Simulation;
+using Sandata.Core.Squads;
 using Sandata.Core.Weapons;
+using Sandata.Headless;
 
 namespace Sandata.Core.Tests;
 
@@ -91,9 +96,9 @@ public sealed class TickPipelineTests
     /// applies it — not a pipeline defect, a fixture gap this file corrects
     /// explicitly rather than silently.
     /// </summary>
-    private static NavGrid BuildGrid()
+    private static NavGrid BuildGrid(int width = 32, int height = 32)
     {
-        var grid = new NavGrid(width: 32, height: 32);
+        var grid = new NavGrid(width: width, height: height);
         Array.Fill(grid.Passability, NavCellFlags.Open);
         return grid;
     }
@@ -147,7 +152,7 @@ public sealed class TickPipelineTests
         var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 0, positionYWu: 0);
         var state = BuildState(ImmutableArray.Create(op));
 
-        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         var pathNodes = ImmutableArray.Create(
             new OrderPathNode(0, 0),
@@ -276,8 +281,8 @@ public sealed class TickPipelineTests
             BuildOperator(3, faction: 0, positionXWu: 20, positionYWu: 0),
             BuildOperator(4, faction: 0, positionXWu: 0, positionYWu: 0));
 
-        var simA = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildState(leftToRight));
-        var simB = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildState(rightToLeft));
+        var simA = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildState(leftToRight), ImmutableArray<CoverRecord>.Empty);
+        var simB = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildState(rightToLeft), ImmutableArray<CoverRecord>.Empty);
 
         simA.RunTick(0);
         simB.RunTick(0);
@@ -538,8 +543,8 @@ public sealed class TickPipelineTests
             BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0, aimAngle: new Bam16(2548)),
             BuildOperator(2, faction: 1, positionXWu: 90, positionYWu: 0)));
 
-        var simA = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture());
-        var simB = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture());
+        var simA = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
+        var simB = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
 
         for (var tick = 0; tick < 20; tick++)
         {
@@ -595,7 +600,7 @@ public sealed class TickPipelineTests
             BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
             BuildOperator(2, faction: 0, positionXWu: 50, positionYWu: 0)));
 
-        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
         sim.RunTick(0);
 
         var proposalOne = sim.PendingMovementProposals.Single(p => p.EntityId == 1UL);
@@ -628,14 +633,14 @@ public sealed class TickPipelineTests
             BuildOperator(2, faction: 0, positionXWu: separationWu, positionYWu: 0)));
 
         var simAtRadius = new SandataSimulation(
-            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(96));
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(96), ImmutableArray<CoverRecord>.Empty);
         simAtRadius.RunTick(0);
         var atRadiusOne = simAtRadius.PendingMovementProposals.Single(p => p.EntityId == 1UL);
         var atRadiusTwo = simAtRadius.PendingMovementProposals.Single(p => p.EntityId == 2UL);
         Assert.Equal(atRadiusOne.GroupId, atRadiusTwo.GroupId);
 
         var simBeyondRadius = new SandataSimulation(
-            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(97));
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(97), ImmutableArray<CoverRecord>.Empty);
         simBeyondRadius.RunTick(0);
         var beyondOne = simBeyondRadius.PendingMovementProposals.Single(p => p.EntityId == 1UL);
         var beyondTwo = simBeyondRadius.PendingMovementProposals.Single(p => p.EntityId == 2UL);
@@ -665,7 +670,7 @@ public sealed class TickPipelineTests
             BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
             BuildOperator(2, faction: 1, positionXWu: 20, positionYWu: 0)));
 
-        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
         sim.RunTick(0);
 
         var proposalOne = sim.PendingMovementProposals.Single(p => p.EntityId == 1UL);
@@ -710,13 +715,13 @@ public sealed class TickPipelineTests
             loweredWallDistanceWu: 24,
             aimToleranceBam: 1024);
 
-        var simNarrow = new SandataSimulation(mission, rulesetNarrow, grid, wallBuckets, BuildFixture());
+        var simNarrow = new SandataSimulation(mission, rulesetNarrow, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simNarrow.RunTick(0);
         var narrowOne = simNarrow.PendingMovementProposals.Single(p => p.EntityId == 1UL);
         var narrowTwo = simNarrow.PendingMovementProposals.Single(p => p.EntityId == 2UL);
         Assert.NotEqual(narrowOne.GroupId, narrowTwo.GroupId);
 
-        var simWide = new SandataSimulation(mission, rulesetWide, grid, wallBuckets, BuildFixture());
+        var simWide = new SandataSimulation(mission, rulesetWide, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simWide.RunTick(0);
         var wideOne = simWide.PendingMovementProposals.Single(p => p.EntityId == 1UL);
         var wideTwo = simWide.PendingMovementProposals.Single(p => p.EntityId == 2UL);
@@ -755,7 +760,7 @@ public sealed class TickPipelineTests
             loweredWallDistanceWu: 24,
             aimToleranceBam: 1024);
 
-        var sim = new SandataSimulation(mission, rulesetWideCohesion, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, rulesetWideCohesion, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
         sim.RunTick(0);
 
         var proposalOne = sim.PendingMovementProposals.Single(p => p.EntityId == 1UL);
@@ -818,8 +823,8 @@ public sealed class TickPipelineTests
             BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
             BuildOperator(2, faction: 1, positionXWu: 90, positionYWu: 0)));
 
-        var simLow = new SandataSimulation(mission, rulesetLow, grid, wallBuckets, BuildFixture());
-        var simHigh = new SandataSimulation(mission, rulesetHigh, grid, wallBuckets, BuildFixture());
+        var simLow = new SandataSimulation(mission, rulesetLow, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
+        var simHigh = new SandataSimulation(mission, rulesetHigh, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
 
         for (var tick = 0; tick < 5; tick++)
         {
@@ -875,13 +880,13 @@ public sealed class TickPipelineTests
             loweredWallDistanceWu: 7,
             aimToleranceBam: 1024);
 
-        var simInclusive = new SandataSimulation(mission, rulesetInclusive, grid, wallBuckets, BuildFixture());
+        var simInclusive = new SandataSimulation(mission, rulesetInclusive, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simInclusive.RunTick(0);
         var forcedOperator = Assert.Single(simInclusive.State.Operators);
         Assert.Equal((int)WeaponChainPhase.Lowered, forcedOperator.WeaponChainPhase);
         Assert.Equal(0, forcedOperator.WeaponChainRemainingTicks);
 
-        var simJustOutside = new SandataSimulation(mission, rulesetJustOutside, grid, wallBuckets, BuildFixture());
+        var simJustOutside = new SandataSimulation(mission, rulesetJustOutside, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simJustOutside.RunTick(0);
         var raisingOperator = Assert.Single(simJustOutside.State.Operators);
         Assert.Equal((int)WeaponChainPhase.Raising, raisingOperator.WeaponChainPhase);
@@ -941,12 +946,12 @@ public sealed class TickPipelineTests
             loweredWallDistanceWu: 24,
             aimToleranceBam: 400);
 
-        var simWide = new SandataSimulation(mission, rulesetWide, grid, wallBuckets, BuildFixture());
+        var simWide = new SandataSimulation(mission, rulesetWide, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simWide.RunTick(0);
         var completedOperator = simWide.State.Operators.Single(op => op.EntityId == 1UL);
         Assert.Equal((int)WeaponChainPhase.Aiming, completedOperator.WeaponChainPhase);
 
-        var simNarrow = new SandataSimulation(mission, rulesetNarrow, grid, wallBuckets, BuildFixture());
+        var simNarrow = new SandataSimulation(mission, rulesetNarrow, grid, wallBuckets, BuildFixture(), ImmutableArray<CoverRecord>.Empty);
         simNarrow.RunTick(0);
         var stillTurningOperator = simNarrow.State.Operators.Single(op => op.EntityId == 1UL);
         Assert.Equal((int)WeaponChainPhase.Turning, stillTurningOperator.WeaponChainPhase);
@@ -1000,11 +1005,11 @@ public sealed class TickPipelineTests
             BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0) with { Firearm = firearm },
             BuildOperator(2, faction: 1, positionXWu: 90, positionYWu: 0)));
 
-        var simRifle = new SandataSimulation(mission, ruleset, grid, wallBuckets, BuildFixture(FirearmId.Ak47));
+        var simRifle = new SandataSimulation(mission, ruleset, grid, wallBuckets, BuildFixture(FirearmId.Ak47), ImmutableArray<CoverRecord>.Empty);
         simRifle.RunTick(0);
         var rifleOperator = simRifle.State.Operators.Single(op => op.EntityId == 1UL);
 
-        var simPistol = new SandataSimulation(mission, ruleset, grid, wallBuckets, BuildFixture(FirearmId.Beretta92Fs));
+        var simPistol = new SandataSimulation(mission, ruleset, grid, wallBuckets, BuildFixture(FirearmId.Beretta92Fs), ImmutableArray<CoverRecord>.Empty);
         simPistol.RunTick(0);
         var pistolOperator = simPistol.State.Operators.Single(op => op.EntityId == 1UL);
 
@@ -1062,9 +1067,9 @@ public sealed class TickPipelineTests
             nextOrderId: 1, nextOrderSequence: 1, ImmutableArray<Order>.Empty);
 
         var simResumed = new SandataSimulation(
-            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(resumedQueue));
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(resumedQueue), ImmutableArray<CoverRecord>.Empty);
         var simFresh = new SandataSimulation(
-            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(OrderQueue.Empty));
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(OrderQueue.Empty), ImmutableArray<CoverRecord>.Empty);
 
         for (var tick = 0; tick < 5; tick++)
         {
@@ -1144,7 +1149,7 @@ public sealed class TickPipelineTests
             RequestTick: 0);
         var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
 
-        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         for (var tick = 0; tick < pathLatencyTicks; tick++)
         {
@@ -1177,55 +1182,85 @@ public sealed class TickPipelineTests
     // ---- 8. STAGE 9, AUTONOMOUS BRANCH -------------------------------------
 
     /// <summary>
-    /// Task 79b (second pass, after coordinator rejection): closes the gap
-    /// task 79a opened — an unassigned operator (no <see
-    /// cref="OrderAssignment"/>) whose group now has a published path (<see
-    /// cref="RunTick_OutstandingGroupPathRequest_PublishesAtExactlyRequestTickPlusLatencyAndIsNotReissued"/>
-    /// proves that publish transition on its own) must actually walk along
-    /// that path, not toward the path's own end. The rejected first pass
-    /// used a straight spawn-to-goal path, on which "walk toward the
-    /// polyline" and "walk toward the goal" are the same motion and so
-    /// could not tell <c>leaderArclength</c>'s two candidate values apart;
-    /// this fixture instead forces a genuinely bent, multi-vertex smoothed
-    /// polyline — a non-axis-aligned start/goal cell pair (so raw A* zigzags
-    /// rather than reducing to one segment) plus a real <see
-    /// cref="WallBuckets"/> wall segment placed to block the funnel
-    /// smoother's line-of-sight shortcut back to a straight line — so the
-    /// two candidates diverge sharply on the very first tick after publish.
-    /// Reached only through <see cref="SandataSimulation.RunTick"/>,
-    /// observed only through the committed <see
-    /// cref="SandataSimulation.State"/> position — never
-    /// <c>ComputeMovementProposals</c> directly.
+    /// Task 79b, amended by task 84: an unassigned operator in a group with a
+    /// published path follows that path's actual bent shape rather than
+    /// heading for the goal, and — since task 84 — walks it at the designed
+    /// sprint speed instead of arriving in a single stride. Reached only
+    /// through <see cref="SandataSimulation.RunTick"/> and observed only
+    /// through the committed <see cref="SandataSimulation.State"/> position,
+    /// never through <c>ComputeMovementProposals</c> directly.
     /// </summary>
     /// <remarks>
-    /// With cell size 4 (<see cref="NavGrid.CellSizeWu"/>), start cell
-    /// (0, 0) and goal cell (6, 3) sit at world-unit centres (2, 2) and
-    /// (26, 14); a wall segment running the full grid height at x = 14
-    /// forces the funnel-smoothed path through the vertices (2, 2),
+    /// <para>
+    /// <b>Geometry.</b> With cell size 4 (<see cref="NavGrid.CellSizeWu"/>),
+    /// start cell (0, 0) and goal cell (6, 3) sit at world-unit centres
+    /// (2, 2) and (26, 14); a wall segment running the full grid height at
+    /// x = 14 forces the funnel-smoothed path through the vertices (2, 2),
     /// (10, 10), (14, 14), (18, 14), (26, 14) instead of a straight line
-    /// (confirmed empirically against the real <see
-    /// cref="Sandata.Core.Navigation.PathService"/> output before this test
-    /// was written). <see cref="Movement.LocalAvoidance.Commit"/> moves an
-    /// unblocked proposal straight to its desired point every tick, with no
-    /// speed cap of its own, so the very first published tick's committed
-    /// position <i>is</i> that tick's <c>ComputeMovementProposals</c>
-    /// target. If <c>leaderArclength</c> were pinned to
-    /// <see cref="PolylineArclength.TotalLength"/> (the rejected value),
-    /// that target would be the polyline's final vertex — the goal itself,
-    /// raw (26,624, 14,336) — on this very first tick, regardless of the
-    /// operator's own position. This test's first assertion, raw
-    /// (7,168, 7,168), is a point on the first segment toward (10, 10), far
-    /// short of the goal and off the straight spawn-to-goal line entirely;
-    /// it fails under the rejected pinned value, and passes only when
-    /// <c>leaderArclength</c> is genuinely derived from the leader's own
-    /// projected position. This was confirmed directly: temporarily pinning
-    /// <c>leaderArclength</c> back to <c>arclength.TotalLength</c> and
-    /// rerunning this fixture's own tick sequence made every tick from the
-    /// first published one onward land on raw (26,624, 14,336) — an instant
-    /// jump straight to the goal — before the pin was reverted.
+    /// (confirmed empirically against the real
+    /// <see cref="Sandata.Core.Navigation.PathService"/> output before this
+    /// test's original, task 79b version was written).
+    /// </para>
+    /// <para>
+    /// <b>The first published tick, derived rather than read back from a
+    /// run.</b> The operator spawns exactly on the path's own start vertex at
+    /// raw (2,048, 2,048), so its projected arclength is zero and the leader's
+    /// sample arclength is one per-tick step, 1,638 raw. Since task 87 the
+    /// first segment's stored length is the integer square root of a *raw*
+    /// square: (8·1,024)² · 2 = 134,217,728, whose root truncates to 11,585
+    /// against a true 8,192·√2 ≈ 11,585.24. <see cref="PolylineArclength.SampleAt"/>
+    /// at arclength 1,638 therefore returns
+    /// 2,048 + 8,192·1,638/11,585 = 2,048 + 1,158 = <b>3,206 raw</b> on both
+    /// axes, and the displacement of (1,158, 1,158) has a magnitude of about
+    /// 1,637.4 raw, just inside the 1,638 cap, so the clamp does not bind on
+    /// this tick at all.
+    /// </para>
+    /// <para>
+    /// <b>That the pinned value is the same 3,206 it was before task 87 is a
+    /// coincidence worth naming, not evidence that nothing changed.</b> Under
+    /// the old world-unit table the sample landed on (7, 7) — raw
+    /// (7,168, 7,168) — a displacement of 5,120 raw per axis, and stage 9's
+    /// clamp then scaled it down by 1,638/7,240 to 1,158. The new arithmetic
+    /// reaches 1,158 by walking exactly one step along the segment instead.
+    /// Both round to the same integer; only one of them is a leader that moves
+    /// at the speed the design specifies rather than one whose target
+    /// overshoots by four and a half strides and is reeled back in.
+    /// </para>
+    /// <para>
+    /// <b>The two properties this test has always existed to prove, both
+    /// preserved.</b> First, the operator's opening move lands on the first
+    /// segment toward (10, 10) rather than on the goal at (26, 14) — under
+    /// the rejected task 79b pin of <c>leaderArclength</c> to
+    /// <see cref="PolylineArclength.TotalLength"/> the target would have been
+    /// the goal itself from the first published tick onward. Second, once the
+    /// operator has walked past the polyline's (14, 14) corner it sits on the
+    /// corridor's own Y of 14, whereas a straight spawn-to-goal beeline would
+    /// read Y = 10 at X = 19 (slope 12/24 from (2, 2) to (26, 14)); the
+    /// assertion allows for the fixed-point residue of the diagonal approach
+    /// and only requires the operator to be clear of the beeline by two whole
+    /// world units, which no beeline can satisfy.
+    /// </para>
+    /// <para>
+    /// <b>What task 84 adds.</b> No single tick may displace the operator by
+    /// more than the per-tick cap — the assertion that makes a teleport
+    /// impossible to pass — and the operator must still arrive at the goal,
+    /// which is what separates a slowed walk from a stalled one. That second
+    /// half is not decoration: task 84's first implementation set the
+    /// lookahead to the per-tick step rounded up to 2 world units, and at that
+    /// lookahead the round-trip arclength quantization on a diagonal segment
+    /// froze this very operator at (4, 4) permanently. An arrival assertion is
+    /// what catches that; a "the position changed" assertion is not.
+    /// </para>
+    /// <para>
+    /// <b>What task 87 adds.</b> The lookahead this test exercises *is* the
+    /// per-tick step now — the reduction task 84 could not make — because the
+    /// arclength round trip loses a raw unit or two rather than a world unit
+    /// or two. The arrival assertion below is therefore the direct proof that
+    /// the deadlock task 84 documented no longer exists at that value.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void RunTick_UnassignedOperatorInGroupWithPublishedPath_FollowsTheBentPolylineNotTheGoal()
+    public void RunTick_UnassignedOperatorInGroupWithPublishedPath_WalksTheBentPolylineAtTheDesignedSpeed()
     {
         var grid = BuildGrid();
         var wallBuckets = WallBuckets.Build(grid, [14L], [-100L], [14L], [100L]);
@@ -1256,7 +1291,7 @@ public sealed class TickPipelineTests
             RequestTick: 0);
         var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
 
-        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         // Request tick: path not yet published, so stage 9 still holds.
         sim.RunTick(0);
@@ -1265,29 +1300,451 @@ public sealed class TickPipelineTests
         Assert.Equal(2 * FixedPoint.Scale, stillAtSpawn.PositionY.RawValue);
 
         // Publish tick: stage 7 publishes the path before stage 9 runs, so
-        // this same tick's proposal already targets a point on it. Exact
-        // raw (7,168, 7,168) — see remarks above for why this value, and
-        // not the goal, is what a correct projection-based leaderArclength
-        // produces here.
+        // this same tick's proposal already targets a point on it. The exact
+        // raw 3,206 is derived in the remarks above, not copied from a run.
         sim.RunTick(pathLatencyTicks);
         var afterFirstMove = Assert.Single(sim.State.Operators);
-        Assert.Equal(7 * FixedPoint.Scale, afterFirstMove.PositionX.RawValue);
-        Assert.Equal(7 * FixedPoint.Scale, afterFirstMove.PositionY.RawValue);
+        Assert.Equal(3206, afterFirstMove.PositionX.RawValue);
+        Assert.Equal(3206, afterFirstMove.PositionY.RawValue);
 
-        // Two ticks further on (each RunTick call performs exactly one
-        // movement step, so the intermediate tick must actually be run, not
-        // skipped over), the leader has walked past the polyline's (14, 14)
-        // corner and onto the final, horizontal segment toward the goal —
-        // Y pinned at 14 while X still trails the goal's 26. A straight
-        // spawn-to-goal beeline would read Y = 10 (not 14) at X = 19 (slope
-        // 12/24 from (2, 2) to (26, 14)); landing on the corridor's own Y
-        // instead is this fixture's second, independent confirmation that
-        // motion follows the polyline's actual shape.
+        // First property: that opening move is onto the first segment toward
+        // (10, 10) and nowhere near the goal's (26, 14).
+        Assert.True(afterFirstMove.PositionX.RawValue > 2 * FixedPoint.Scale);
+        Assert.True(afterFirstMove.PositionX.RawValue < 10 * FixedPoint.Scale);
+
+        // Design section 4's sprint of 80 world units per second at the
+        // fixture's tick rate of 50, in raw fixed-point units.
+        const int movementSpeedRaw = 80 * FixedPoint.Scale / 50;
+
+        var previousX = afterFirstMove.PositionX.RawValue;
+        var previousY = afterFirstMove.PositionY.RawValue;
+        var reachedTheCorridor = false;
+        var yPastTheCorner = 0;
+
+        // Sixty ticks is more than three times what the polyline's roughly 29
+        // world units of length needs at 1.6 world units per tick, so a run
+        // that has not arrived by then has stalled rather than merely been
+        // slowed.
+        for (var tick = pathLatencyTicks + 1; tick <= pathLatencyTicks + 60; tick++)
+        {
+            sim.RunTick(tick);
+            var current = Assert.Single(sim.State.Operators);
+            var x = current.PositionX.RawValue;
+            var y = current.PositionY.RawValue;
+
+            var dx = (long)x - previousX;
+            var dy = (long)y - previousY;
+            Assert.True(
+                (dx * dx) + (dy * dy) <= (long)movementSpeedRaw * movementSpeedRaw,
+                $"tick {tick} displaced the operator further than the per-tick cap of {movementSpeedRaw} raw");
+
+            if (!reachedTheCorridor && x >= 19 * FixedPoint.Scale)
+            {
+                reachedTheCorridor = true;
+                yPastTheCorner = y;
+            }
+
+            previousX = x;
+            previousY = y;
+        }
+
+        // Second property: past the (14, 14) corner the operator is on the
+        // corridor, not on the spawn-to-goal beeline, which would read
+        // Y = 10 at X = 19.
+        Assert.True(reachedTheCorridor, "the operator never reached X = 19");
+        Assert.True(
+            yPastTheCorner > 12 * FixedPoint.Scale,
+            $"at X = 19 the operator's Y was {yPastTheCorner} raw, which is the beeline's Y rather than the corridor's");
+
+        // Task 84: the clamp slows the walk; it must not stall it.
+        var arrived = Assert.Single(sim.State.Operators);
+        Assert.Equal(26 * FixedPoint.Scale, arrived.PositionX.RawValue);
+        Assert.Equal(14 * FixedPoint.Scale, arrived.PositionY.RawValue);
+    }
+
+    // ---- 9. TASK 84, MOVEMENT SPEED CLAMP ----------------------------------
+
+    /// <summary>
+    /// Task 84: an ordered operator (an <see cref="OrderAssignment"/> whose
+    /// single path node sits far from the operator's own spawn point) must
+    /// take more than one <see cref="SandataSimulation.RunTick"/> call to
+    /// arrive, and no single tick's displacement may exceed the per-tick
+    /// speed cap <see cref="SandataSimulation.ComputeMovementProposals"/>
+    /// derives from design section 4's 5 m/s sprint. This asserts the
+    /// displacement magnitude every tick, not merely that the position
+    /// changed, so an unclamped implementation (one <c>RunTick</c> jumping
+    /// straight to the waypoint) fails it immediately.
+    /// </summary>
+    [Fact]
+    public void RunTick_OrderedOperatorFarFromWaypoint_ClampsPerTickDisplacementToDesignedSprintSpeed()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+        var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 0, positionYWu: 0);
+        var state = BuildState(ImmutableArray.Create(op));
+
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
+
+        // Two far nodes, neither at the spawn point: an authored path needs
+        // at least two nodes (Order.MaxAuthoredPathNodeCount's own lower
+        // bound, OrderValidation.ValidateMoveAlongPath), and
+        // CurrentNodeIndex is never advanced anywhere in production code
+        // today (confirmed by search - it is written once, at order
+        // submission, and never written again), so node 0 is the operator's
+        // target for this whole test and must not equal the spawn point.
+        var pathNodes = ImmutableArray.Create(new OrderPathNode(40, 0), new OrderPathNode(60, 0));
+        var (_, _, rejection) = sim.SubmitOrder(
+            targetTick: 0,
+            factionId: 0,
+            addressees: ImmutableArray.Create(1UL),
+            kind: OrderKind.MoveAlongPath,
+            pathNodes: pathNodes);
+        Assert.Null(rejection);
+
+        // Design section 4: 5 m/s sprint = 80 wu/s, truncated to raw at
+        // ModernTacticalV1's own TickRate - independently re-derived here
+        // from public building blocks, not copied from the production
+        // constant this test assembly cannot see.
+        var movementSpeedRaw = (80L * FixedPoint.Scale) / SandataRuleset.ModernTacticalV1.TickRate;
+
+        var previousXRaw = 0L;
+        var reachedWaypoint = false;
+        var ticksRun = 0;
+
+        for (var tick = 0; tick < 60 && !reachedWaypoint; tick++)
+        {
+            sim.RunTick(tick);
+            ticksRun++;
+
+            var current = Assert.Single(sim.State.Operators).PositionX.RawValue;
+            var deltaX = current - previousXRaw;
+
+            Assert.True(deltaX >= 0, $"tick {tick}: operator moved backward away from a forward waypoint");
+            Assert.True(
+                deltaX * deltaX <= movementSpeedRaw * movementSpeedRaw,
+                $"tick {tick}: displacement {deltaX} raw exceeds the per-tick cap {movementSpeedRaw} raw");
+
+            previousXRaw = current;
+            reachedWaypoint = current == 40L * FixedPoint.Scale;
+        }
+
+        Assert.True(reachedWaypoint, "operator must eventually reach the authored waypoint");
+        Assert.True(ticksRun > 1, "a 40 wu waypoint must take more than one tick at the designed sprint speed");
+    }
+
+    /// <summary>
+    /// Task 84: the same displacement bound as the ordered-branch test
+    /// above, proven for the autonomous branch - a group leader following a
+    /// published path with no <see cref="OrderAssignment"/> of its own. The
+    /// published path here is a straight, axis-aligned line (open grid, no
+    /// walls) so segment length and arclength projection are both exact
+    /// integer divisions with no truncation loss; this test is about the
+    /// speed clamp, not <see cref="PolylineArclength"/>'s own quantization
+    /// behaviour on a diagonal segment (see the rewritten bent-polyline
+    /// test's remarks for that separate, reported defect).
+    /// </summary>
+    [Fact]
+    public void RunTick_AutonomousLeaderFarAlongPublishedPath_ClampsPerTickDisplacementToDesignedSprintSpeed()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var startCell = grid.CellIndex(0, 0);
+        var goalCell = grid.CellIndex(25, 0);
+
+        const int pathLatencyTicks = 1;
+        var ruleset = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: pathLatencyTicks,
+            groupCohesionRadiusWu: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 2, positionYWu: 2);
+        var groupState = new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: goalCell,
+            HasOutstandingRequest: true,
+            StartCellIndex: startCell,
+            GoalCellIndex: goalCell,
+            RequestTick: 0);
+        var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
+
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
+
+        var movementSpeedRaw = (80L * FixedPoint.Scale) / ruleset.TickRate;
+
+        var previousXRaw = 2L * FixedPoint.Scale;
+        var previousYRaw = 2L * FixedPoint.Scale;
+
+        for (var tick = 0; tick <= pathLatencyTicks + 20; tick++)
+        {
+            sim.RunTick(tick);
+
+            var current = Assert.Single(sim.State.Operators);
+            var deltaX = current.PositionX.RawValue - previousXRaw;
+            var deltaY = current.PositionY.RawValue - previousYRaw;
+
+            Assert.True(
+                (deltaX * deltaX) + (deltaY * deltaY) <= movementSpeedRaw * movementSpeedRaw,
+                $"tick {tick}: displacement ({deltaX}, {deltaY}) raw exceeds the per-tick cap {movementSpeedRaw} raw");
+
+            previousXRaw = current.PositionX.RawValue;
+            previousYRaw = current.PositionY.RawValue;
+        }
+
+        // 21 ticks at <= 1,638 raw/tick cannot cover the 100 wu (102,400
+        // raw) gap to the goal - the bound above is not vacuously true.
+        var final = Assert.Single(sim.State.Operators);
+        Assert.True(
+            final.PositionX.RawValue < 102 * FixedPoint.Scale,
+            "leader must not have already reached a 100 wu goal after 21 clamped ticks");
+        Assert.True(
+            final.PositionX.RawValue > 2 * FixedPoint.Scale,
+            "leader must actually have moved from its spawn point across 21 ticks");
+    }
+
+    /// <summary>
+    /// Task 84: the second, distinct case its brief names - a non-leader
+    /// squad slot (entity 2, <see cref="SquadSlot.SlotIndex"/> 1) starting
+    /// away from its own formation position must walk into it across
+    /// multiple ticks, never teleport there in one. The leader (entity 1,
+    /// the lowest id, per this file's own <see
+    /// cref="RunTick_GroupLeaderInNarrowCorridor_CollapsesFollowerLateralOffsetToZero"/>
+    /// convention) and follower both start on a straight, axis-aligned
+    /// published path, 12 world units apart - close enough to share one
+    /// cohesion group (<see cref="SandataRuleset.GroupCohesionRadiusWu"/> 96),
+    /// far enough apart that their collision bodies (<c>CollisionBodyRadiusRaw</c>
+    /// 4,352 raw, 4.25 wu each) do not already overlap and confound this
+    /// test's own read of <see cref="SandataSimulation.State"/> with
+    /// collision-resolution effects unrelated to task 84's clamp. The
+    /// slot's target depends only on the leader's own position, not the
+    /// follower's, so this spacing does not change it: trail 8 wu behind,
+    /// lateral 4 wu offset (<see cref="SandataSimulation.FormationSlotOffsetsWu"/>)
+    /// places the target well outside the one-tick (1,638 raw, about 1.6 wu)
+    /// cap regardless of where the follower itself starts.
+    /// </summary>
+    [Fact]
+    public void RunTick_NonLeaderSlotFarFromFormationPosition_DoesNotTeleportIntoPlace()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var startCell = grid.CellIndex(0, 0);
+        var goalCell = grid.CellIndex(25, 0);
+
+        const int pathLatencyTicks = 1;
+        var ruleset = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: pathLatencyTicks,
+            groupCohesionRadiusWu: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        var leader = BuildOperator(entityId: 1, faction: 0, positionXWu: 22, positionYWu: 2);
+        var follower = BuildOperator(entityId: 2, faction: 0, positionXWu: 34, positionYWu: 2);
+        var groupState = new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: goalCell,
+            HasOutstandingRequest: true,
+            StartCellIndex: startCell,
+            GoalCellIndex: goalCell,
+            RequestTick: 0);
+        var state = BuildState(ImmutableArray.Create(leader, follower))
+            with
+        { Groups = ImmutableArray.Create(groupState) };
+
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
+
+        var movementSpeedRaw = (80L * FixedPoint.Scale) / ruleset.TickRate;
+
+        sim.RunTick(0); // request tick: path not yet published, both hold.
+
+        var beforeFollower = sim.State.Operators.Single(o => o.EntityId == 2UL);
+        Assert.Equal(34 * FixedPoint.Scale, beforeFollower.PositionX.RawValue);
+        Assert.Equal(2 * FixedPoint.Scale, beforeFollower.PositionY.RawValue);
+
+        sim.RunTick(pathLatencyTicks); // publish tick: slot target is now real.
+
+        var afterFirstMove = sim.State.Operators.Single(o => o.EntityId == 2UL);
+        var deltaX = afterFirstMove.PositionX.RawValue - beforeFollower.PositionX.RawValue;
+        var deltaY = afterFirstMove.PositionY.RawValue - beforeFollower.PositionY.RawValue;
+
+        Assert.True(
+            (deltaX * deltaX) + (deltaY * deltaY) <= movementSpeedRaw * movementSpeedRaw,
+            $"first published tick displacement ({deltaX}, {deltaY}) raw exceeds the per-tick cap {movementSpeedRaw} raw");
+        Assert.True(deltaX != 0 || deltaY != 0, "follower must actually start moving toward its formation slot");
+
+        // The proposal itself (before any collision resolution downstream
+        // of stage 9 - out of task 84's grant, and irrelevant to whether
+        // the clamp did its job) already shows the target is still far off:
+        // the trail (8 wu behind the leader's own arclength) and lateral
+        // (4 wu) offsets place the slot's true target tens of world units
+        // from the follower's spawn point, so one clamped ~1.6 wu step
+        // could not have reached it. A second tick's proposal must show the
+        // same bounded, nonzero step, proving the clamp - not a one-tick
+        // snap - governs every tick this walk takes, not only the first.
         sim.RunTick(pathLatencyTicks + 1);
-        sim.RunTick(pathLatencyTicks + 2);
-        var afterCorner = Assert.Single(sim.State.Operators);
-        Assert.Equal(19 * FixedPoint.Scale, afterCorner.PositionX.RawValue);
-        Assert.Equal(14 * FixedPoint.Scale, afterCorner.PositionY.RawValue);
+        var followerProposal2 = sim.PendingMovementProposals.Single(p => p.EntityId == 2UL);
+        var deltaX2 = followerProposal2.DesiredXRaw - followerProposal2.StartXRaw;
+        var deltaY2 = followerProposal2.DesiredYRaw - followerProposal2.StartYRaw;
+
+        Assert.True(
+            ((long)deltaX2 * deltaX2) + ((long)deltaY2 * deltaY2) <= movementSpeedRaw * movementSpeedRaw,
+            $"second tick's proposed displacement ({deltaX2}, {deltaY2}) raw exceeds the per-tick cap {movementSpeedRaw} raw");
+        Assert.True(deltaX2 != 0 || deltaY2 != 0, "follower must still be closing on its formation slot on the second tick");
+    }
+
+    /// <summary>
+    /// Task 87: a point sampled from an arclength projects back to that same
+    /// arclength, over a polyline carrying an axis-aligned, an exact
+    /// 45-degree, and an oblique segment. This is the property that decides
+    /// whether a leader aiming a short distance ahead of its own projection
+    /// actually gets there, and before task 87 it lost up to about two world
+    /// units on a diagonal.
+    /// </summary>
+    /// <remarks>
+    /// <b>What this test does not bind, established by breaking it.</b> The
+    /// round trip is insensitive to the stored segment length being wrong,
+    /// because <see cref="PolylineArclength.SampleAt"/> and
+    /// <c>ProjectArclength</c> divide by the same length in opposite
+    /// directions and the error cancels. Reintroducing task 87's world-unit
+    /// truncation leaves this test passing. What it does bind is the
+    /// coordinate precision: sampling in raw rather than in whole world units,
+    /// and projecting a raw query position rather than one already rounded to
+    /// a world unit. The segment length is pinned separately by
+    /// <c>SlotTargetsTests.Build_DiagonalSegmentLength_IsTheRawRootNotTheScaledWorldUnitRoot</c>.
+    /// </remarks>
+    [Fact]
+    public void ProjectArclength_RoundTripsEverySampledPointToWithinTwoRawUnits()
+    {
+        // Two raw units, not one, and the difference is arithmetic rather
+        // than slack. Three truncating divisions sit on this round trip: the
+        // segment length is a truncated integer square root, SampleAt then
+        // truncates the interpolated coordinate, and ProjectArclength
+        // truncates the projection back onto the segment. Each can lose up to
+        // a raw unit and they do not cancel. Task 87's row asked for "within
+        // one raw unit"; that figure was written without checking it against
+        // the three roundings it has to survive, and one is not reachable
+        // without rounding-to-nearest at every step. Two raw units is
+        // 2/1024 of a world unit, against a per-tick step of 1,638 raw — the
+        // property that matters is that the loss is now a rounding error
+        // rather than a stride, and it is measured here rather than assumed.
+        const long MaxRoundTripDriftRaw = 2;
+
+        // ProjectArclength is private, and it is read here by reflection for
+        // the same reason the invariant test below reads its constants that
+        // way: re-deriving the projection locally would test a copy of the
+        // arithmetic rather than the arithmetic stage 9 actually runs.
+        var projectArclength = typeof(SandataSimulation).GetMethod(
+            "ProjectArclength", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException(
+                "SandataSimulation.ProjectArclength not found by reflection.");
+
+        // One axis-aligned segment, one exact 45-degree diagonal, and one
+        // oblique segment at roughly 18.4 degrees — the angle of the angle
+        // -house fixture's own wall, and the case task 87 was written for.
+        ImmutableArray<PathPoint> polyline =
+        [
+            new PathPoint(0, 0),
+            new PathPoint(100, 0),
+            new PathPoint(140, 40),
+            new PathPoint(200, 60),
+        ];
+
+        var arclength = PolylineArclength.Build(polyline);
+
+        long RoundTrip(long queryArclength)
+        {
+            var sample = arclength.SampleAt(queryArclength);
+            return (long)projectArclength.Invoke(
+                null, [polyline, arclength, sample.X, sample.Y])!;
+        }
+
+        var probed = 0;
+        var worstDrift = 0L;
+        var worstDescription = "none";
+
+        void Probe(string description, long query)
+        {
+            var drift = Math.Abs(RoundTrip(query) - query);
+            probed++;
+
+            if (drift > worstDrift)
+            {
+                worstDrift = drift;
+                worstDescription = $"{description} at arclength {query}";
+            }
+        }
+
+        for (var vertexIndex = 0; vertexIndex < polyline.Length; vertexIndex++)
+        {
+            Probe($"vertex {vertexIndex}", arclength.ArclengthAtVertex(vertexIndex));
+        }
+
+        for (var segment = 0; segment + 1 < polyline.Length; segment++)
+        {
+            var segmentStart = arclength.ArclengthAtVertex(segment);
+            var segmentLength = arclength.ArclengthAtVertex(segment + 1) - segmentStart;
+
+            for (var step = 1; step < 32; step++)
+            {
+                Probe($"segment {segment} step {step}", segmentStart + (segmentLength * step / 32));
+            }
+        }
+
+        // Both loops must actually have run. Without this the whole test
+        // passes on an empty polyline, which is the shape of vacuous pass this
+        // wave has thrown away three measurements over.
+        Assert.Equal(97, probed);
+
+        Assert.True(
+            worstDrift <= MaxRoundTripDriftRaw,
+            $"worst round-trip drift was {worstDrift} raw units at {worstDescription}, " +
+            $"above the {MaxRoundTripDriftRaw} this arithmetic is allowed");
+    }
+
+    /// <summary>
+    /// Task 84: pins the two constants the clamp's own safety property
+    /// depends on - per-tick movement must never exceed the collision body
+    /// radius, or two operators closing on each other could pass through
+    /// in a single tick. Both constants are read out of the production type
+    /// by reflection rather than re-derived locally, so the invariant is
+    /// asserted against what the simulation actually uses.
+    /// </summary>
+    [Fact]
+    public void MovementSpeedRaw_NeverExceedsTheCollisionBodyRadius()
+    {
+        // Both constants are read out of the production type by reflection,
+        // the way this file's task 86 constants test already reads them.
+        // Re-deriving either one locally would leave an invariant test that
+        // passes no matter what the simulation actually uses, which is the
+        // opposite of what this test is for.
+        var sprintSpeedField = typeof(SandataSimulation).GetField(
+            "SprintSpeedWuPerSecond", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException(
+                "SandataSimulation.SprintSpeedWuPerSecond not found by reflection.");
+        var radiusField = typeof(SandataSimulation).GetField(
+            "CollisionBodyRadiusRaw", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException(
+                "SandataSimulation.CollisionBodyRadiusRaw not found by reflection.");
+
+        var sprintSpeedWuPerSecond = (int)sprintSpeedField.GetValue(null)!;
+        var collisionBodyRadiusRaw = (long)(int)radiusField.GetValue(null)!;
+        var movementSpeedRaw =
+            ((long)sprintSpeedWuPerSecond * FixedPoint.Scale) / SandataRuleset.ModernTacticalV1.TickRate;
+
+        Assert.Equal(80, sprintSpeedWuPerSecond);
+        Assert.Equal(1_638L, movementSpeedRaw);
+        Assert.Equal(4_352L, collisionBodyRadiusRaw);
+        Assert.True(
+            movementSpeedRaw <= collisionBodyRadiusRaw,
+            "per-tick movement must never exceed the collision body radius");
     }
 
     /// <summary>
@@ -1355,7 +1812,7 @@ public sealed class TickPipelineTests
             Groups = ImmutableArray.Create(groupState),
         };
 
-        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
 
         sim.RunTick(0);
         sim.RunTick(pathLatencyTicks);
@@ -1371,4 +1828,608 @@ public sealed class TickPipelineTests
         const int corridorCentreYRaw = 22 * FixedPoint.Scale;
         Assert.Equal(corridorCentreYRaw, followerProposal.DesiredYRaw);
     }
+
+    /// <summary>
+    /// Task 86 finding, superseding task 79d-1's original claim for this
+    /// fixture. Before task 86, <c>CollisionBodyRadiusRaw</c> was an
+    /// invented 32 raw (0.03 wu); at that size the target's subtended
+    /// half-angle at 90 wu was comparable to the AK-47's drawn dispersion,
+    /// so shooter id 2 drew a miss and id 25 drew a hit. Task 86 corrected
+    /// the radius to the designed 4,352 raw (4.25 wu,
+    /// <c>Hukbo.Core/Simulation/CollisionRules.cs:72</c>'s
+    /// <c>DefaultBodyRadiusRaw</c>), which grows the half-angle roughly
+    /// 136x. Both ids now hit — verified here directly, and proved to hold
+    /// for every reachable id by
+    /// <see cref="SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange"/>
+    /// below. See the task-86 report for the full derivation.
+    /// <para>
+    /// The name says "while stage 12 hardcodes the rifle" for history, not
+    /// current behavior: task 79d-2a moved <c>SandataSimulation.ProposeFire</c>'s
+    /// <see cref="FirearmDefinition"/> resolution inside the per-shooter loop,
+    /// keyed on each shot's own <see cref="OperatorState.Firearm"/>, the same
+    /// shape stage 11 already used. Neither fixture below sets
+    /// <see cref="OperatorState.Firearm"/>, so both still default to
+    /// <see cref="FirearmId.Ak47"/> and this test's outcome is unchanged by
+    /// that fix — it is named for the geometry finding it pins, not for the
+    /// now-closed loadout gap.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData(2)]
+    [InlineData(25)]
+    public void RunTick_SameGeometryAnyShooterEntityId_AlwaysHitsWhileStage12HardcodesTheRifle(
+        int shooterEntityId)
+    {
+        var sim = BuildFiringFixture(shooterEntityId);
+
+        sim.RunTick(0);
+
+        var events = sim.State.EventFeed.Events;
+        Assert.Single(events, e => e.Kind == MissionEventKind.ShotFired);
+        Assert.Single(events, e => e.Kind == MissionEventKind.ShotHit);
+        Assert.DoesNotContain(events, e => e.Kind == MissionEventKind.ShotMissed);
+    }
+
+    /// <summary>Task 79d-1, done-when criterion 2, restated as an explicit count check.</summary>
+    [Fact]
+    public void RunTick_Hit_EmitsExactlyOneShotFiredAndOneShotHitEvent()
+    {
+        var sim = BuildFiringFixture(shooterEntityId: 25);
+
+        sim.RunTick(0);
+
+        var events = sim.State.EventFeed.Events;
+        Assert.Equal(2, events.Length);
+        Assert.Equal(1, events.Count(e => e.Kind == MissionEventKind.ShotFired));
+        Assert.Equal(1, events.Count(e => e.Kind == MissionEventKind.ShotHit));
+        Assert.Equal(0, events.Count(e => e.Kind == MissionEventKind.ShotMissed));
+    }
+
+    /// <summary>
+    /// Task 86 finding, still true after task 79d-2a: at the designed
+    /// <c>CollisionBodyRadiusRaw</c> (4,352 raw), a miss is mathematically
+    /// unreachable for an <see cref="FirearmId.Ak47"/> loadout through
+    /// <see cref="SandataSimulation.RunTick"/>, because
+    /// <see cref="AccuracyRules.DrawAngularErrorBam"/>'s drawn magnitude
+    /// never exceeds the private <c>SubtendedHalfAngleBam(rangeWu)</c>
+    /// (reflected below — same reflection convention this file already uses
+    /// for other private members) for any whole range the sensing pipeline
+    /// can reach. <see cref="ContactMemory.DetectRangeWu"/> (256) is the
+    /// outer bound: <c>AdvanceWeaponChain</c> only proposes a shot once a
+    /// contact clears <see cref="ContactTier.Unknown"/>, which requires a
+    /// range within <c>DetectRangeWu</c>. Solving dispersion(R) =
+    /// half-angle(R) continuously puts the crossover at roughly 345 wu —
+    /// past <c>DetectRangeWu</c> — so no in-range geometry can ever draw a
+    /// miss for this weapon. This pins the impossibility as a regression
+    /// check: if a future change to <c>CollisionBodyRadiusRaw</c>, the
+    /// AK-47's dispersion constants, or <c>DetectRangeWu</c> ever reopens a
+    /// reachable rifle miss, this test fails.
+    /// <para>
+    /// Task 86 found two separate things blocking a reachable miss, only one
+    /// of them geometric. The first is the crossover above, and it still
+    /// holds. The second was that <c>ProposeFire</c> resolved every shot's
+    /// <see cref="FirearmDefinition"/> from a hardcoded rifle default rather
+    /// than the shooter's own <see cref="OperatorState.Firearm"/>, so a
+    /// pistol loadout changed nothing in stage 12 — <see cref="FirearmId.Beretta92Fs"/>'s
+    /// far wider dispersion curve (crossover roughly 157 wu, comfortably
+    /// inside <see cref="ContactMemory.DetectRangeWu"/>) was unreachable from
+    /// any <see cref="SandataSimulation.RunTick"/> call. Task 79d-2a closed
+    /// that second gap: <c>ProposeFire</c> now resolves
+    /// <see cref="FirearmDefinition"/> per shot from
+    /// <see cref="OperatorState.Firearm"/>, the same shape stage 11 already
+    /// used, so a pistol shooter's dispersion is real in stage 12. That makes
+    /// the pistol-miss path reachable, and
+    /// <see cref="RunTick_PistolMissesAndRifleHitsAtTheSameTwoHundredWorldUnitRange"/>
+    /// and <see cref="RunTick_Miss_EmitsExactlyOneShotFiredAndOneShotMissedEvent"/>
+    /// below restore that <c>RunTick</c>-level miss coverage — the exact
+    /// obligation this doc comment used to describe as still open.
+    /// <c>EmitShotMissedEvent</c> is no longer a production path with zero
+    /// test coverage.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange()
+    {
+        var method = typeof(SandataSimulation).GetMethod(
+            "SubtendedHalfAngleBam", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException(
+                "SandataSimulation.SubtendedHalfAngleBam not found by reflection; " +
+                "task 86's regression check for the miss-impossibility finding cannot run.");
+
+        var definition = FirearmCatalog.Rows[(int)FirearmId.Ak47];
+
+        for (var rangeWu = 1; rangeWu <= ContactMemory.DetectRangeWu; rangeWu++)
+        {
+            var maxDrawMagnitudeBam = AccuracyRules.Dispersion(
+                rangeWu, definition.DispersionAtZeroWu, definition.DispersionAtMaxWu, definition.MaxEffectiveWu);
+            var halfAngleBam = (int)method.Invoke(null, new object[] { rangeWu })!;
+
+            Assert.True(
+                maxDrawMagnitudeBam <= halfAngleBam,
+                $"range {rangeWu} wu: max drawn magnitude {maxDrawMagnitudeBam} exceeds half-angle " +
+                $"{halfAngleBam} bam — a miss is reachable within DetectRangeWu, so the task-86 finding " +
+                "no longer holds and RunTick-level miss coverage must be restored.");
+        }
+    }
+
+    /// <summary>
+    /// Task 86 regression pin: <c>CollisionBodyRadiusRaw</c> must stay the
+    /// designed value —
+    /// <c>Hukbo.Core/Simulation/CollisionRules.cs:72</c>'s
+    /// <c>DefaultBodyRadiusRaw</c>
+    /// (4,352 raw = 4.25 wu), restated in <see cref="SandataSimulation"/>
+    /// per design section 4 of
+    /// docs/plans/2026-08-07-sandata-scaffold-design.md, not the invented
+    /// 32 raw task 86 replaced. <c>CollisionCellSizeRaw</c> must stay
+    /// exactly twice that (8,704 raw), the tightest cell
+    /// <see cref="SandataCollisionGrid"/>'s own three-by-three neighbour
+    /// scan tolerates. Reflection is required — both are <c>private
+    /// const</c>, same convention this file already uses for other private
+    /// members.
+    /// </summary>
+    [Fact]
+    public void CollisionBodyRadiusAndCellSize_MatchTheDesignedValues()
+    {
+        var radiusField = typeof(SandataSimulation).GetField(
+            "CollisionBodyRadiusRaw", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException(
+                "SandataSimulation.CollisionBodyRadiusRaw not found by reflection.");
+        var cellSizeField = typeof(SandataSimulation).GetField(
+            "CollisionCellSizeRaw", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException(
+                "SandataSimulation.CollisionCellSizeRaw not found by reflection.");
+
+        var bodyRadiusRaw = (int)radiusField.GetValue(null)!;
+        var cellSizeRaw = (int)cellSizeField.GetValue(null)!;
+
+        Assert.Equal(4352, bodyRadiusRaw);
+        Assert.Equal(2 * bodyRadiusRaw, cellSizeRaw);
+        Assert.Equal(8704, cellSizeRaw);
+    }
+
+    /// <summary>
+    /// Task 86's own required proof: the re-spaced seed-1 headless fixture's
+    /// operators must clear one designed body diameter (8,704 raw = 2 *
+    /// <c>CollisionBodyRadiusRaw</c>) at minimum pairwise separation, so
+    /// operators no longer start overlapping now that the collision body
+    /// radius is the designed size rather than the old invented one. Calls
+    /// the real <see cref="HeadlessRunner.BuildOpenGrid"/> and
+    /// <see cref="HeadlessRunner.BuildInitialState"/> directly — both
+    /// promoted from <see langword="private"/> to <see langword="internal"/>
+    /// for exactly this proof, reachable here through
+    /// <c>Sandata.Headless.csproj</c>'s existing
+    /// <c>InternalsVisibleTo("Sandata.Core.Tests")</c> grant — rather than
+    /// reimplementing the placement formula in the test. Uses the same
+    /// operator count and seed (200, 1) the canonical gate's headless
+    /// determinism workload and this repo's default benchmark both run.
+    /// </summary>
+    [Fact]
+    public void HeadlessFixture_MinimumPairwiseSeparation_ClearsOneBodyDiameter()
+    {
+        const int operatorCount = 200;
+        const ulong seed = 1UL;
+        const int bodyDiameterRaw = 8704; // 2 * CollisionBodyRadiusRaw (4,352 raw), task 86
+
+        var (_, _, packingSide) = HeadlessRunner.BuildOpenGrid(operatorCount);
+        var state = HeadlessRunner.BuildInitialState(operatorCount, seed, packingSide);
+        var operators = state.Operators;
+
+        var minSquaredRaw = long.MaxValue;
+        for (var i = 0; i < operators.Length; i++)
+        {
+            for (var j = i + 1; j < operators.Length; j++)
+            {
+                var dx = (long)(operators[i].PositionX.RawValue - operators[j].PositionX.RawValue);
+                var dy = (long)(operators[i].PositionY.RawValue - operators[j].PositionY.RawValue);
+                var squaredRaw = (dx * dx) + (dy * dy);
+                if (squaredRaw < minSquaredRaw)
+                {
+                    minSquaredRaw = squaredRaw;
+                }
+            }
+        }
+
+        Assert.True(
+            minSquaredRaw >= (long)bodyDiameterRaw * bodyDiameterRaw,
+            $"minimum pairwise separation squared {minSquaredRaw} raw is under the body-diameter-squared " +
+            $"threshold {(long)bodyDiameterRaw * bodyDiameterRaw} raw — operators would start overlapping.");
+
+        // Pinned exact measurement at this operator count and seed: the
+        // worst-case jitter bound (12 wu pitch minus the jitter's 2 wu
+        // worst-case shrink) is actually reached, 10 wu (10,240 raw).
+        Assert.Equal(10_240L * 10_240L, minSquaredRaw);
+    }
+
+    /// <summary>
+    /// Task 79d-1, done-when criterion 3: once a shot is emitted the event
+    /// hash must move off <see cref="SandataHash.Begin"/>'s bare FNV-1a
+    /// offset basis — the value the feed starts at before any event folds
+    /// in (see <see cref="MissionEventFeed.Empty"/>).
+    /// </summary>
+    [Fact]
+    public void RunTick_ShotEmitted_EventHashMovesOffTheFnv1aOffsetBasis()
+    {
+        var sim = BuildFiringFixture(shooterEntityId: 25);
+
+        sim.RunTick(0);
+
+        Assert.NotEmpty(sim.State.EventFeed.Events);
+        Assert.NotEqual(SandataHash.Begin(), sim.State.EventFeed.Hash);
+    }
+
+    /// <summary>
+    /// Shared fixture for the 79d-1 hit/miss tests: an opposing-faction pair
+    /// 90 world units apart on the x axis, with the shooter's weapon chain
+    /// seeded directly into <see cref="WeaponChainPhase.Aiming"/> with one
+    /// remaining tick so stage 11 fires on tick 0 without simulating the
+    /// full ready/turn/aim sequence. Sensing is still real: the 90 wu
+    /// separation is within <c>ContactMemory.IdentifyRangeWu</c> (96), so
+    /// stage 5 commits a genuine <c>ContactMemory</c> entry stage 11 reads
+    /// to populate the real target id consumed by stage 12.
+    /// </summary>
+    private static SandataSimulation BuildFiringFixture(int shooterEntityId)
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+        var ruleset = SandataRuleset.ModernTacticalV1;
+
+        var shooter = BuildOperator(
+            entityId: shooterEntityId, faction: 0, positionXWu: 0, positionYWu: 0,
+            weaponChainPhase: (int)WeaponChainPhase.Aiming, weaponChainRemainingTicks: 1);
+        var target = BuildOperator(entityId: 100_000, faction: 1, positionXWu: 90, positionYWu: 0);
+        var state = BuildState(ImmutableArray.Create(shooter, target));
+
+        return new SandataSimulation(
+            mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
+    }
+
+    /// <summary>
+    /// Task 79d-2a, deliverable B: the same range and shooter entity id, run
+    /// twice with different <see cref="OperatorState.Firearm"/> loadouts,
+    /// prove <c>ProposeFire</c> now reads the per-shot loadout rather than a
+    /// hardcoded rifle default — a <see cref="FirearmId.Beretta92Fs"/>
+    /// shooter misses where an otherwise-identical
+    /// <see cref="FirearmId.Ak47"/> shooter hits, reached only through
+    /// <see cref="SandataSimulation.RunTick"/>, never by calling
+    /// <c>ProposeFire</c> directly. 200 wu and shooter entity id 25 are a
+    /// concrete deterministic pair found by probing
+    /// <c>AccuracyRules.DrawAngularErrorBam</c> against both weapons'
+    /// dispersion curves at that range: the pistol's wider curve draws past
+    /// its target's subtended half-angle there while the rifle's narrower
+    /// curve does not. Both outcomes are asserted on the observable event
+    /// kinds and on the target's <see cref="OperatorState.Health"/>, not on
+    /// "the two runs differ" — see
+    /// <see cref="RunTick_Miss_EmitsExactlyOneShotFiredAndOneShotMissedEvent"/>
+    /// for the exact-count restatement of the miss half alone.
+    /// </summary>
+    [Fact]
+    public void RunTick_PistolMissesAndRifleHitsAtTheSameTwoHundredWorldUnitRange()
+    {
+        var pistolSim = BuildRangedFiringFixture(FirearmId.Beretta92Fs, rangeWu: 200, shooterEntityId: 25);
+        var rifleSim = BuildRangedFiringFixture(FirearmId.Ak47, rangeWu: 200, shooterEntityId: 25);
+
+        pistolSim.RunTick(0);
+        rifleSim.RunTick(0);
+
+        var pistolEvents = pistolSim.State.EventFeed.Events;
+        Assert.Equal(1, pistolEvents.Count(e => e.Kind == MissionEventKind.ShotFired));
+        Assert.Equal(0, pistolEvents.Count(e => e.Kind == MissionEventKind.ShotHit));
+        Assert.Equal(1, pistolEvents.Count(e => e.Kind == MissionEventKind.ShotMissed));
+        var pistolTarget = pistolSim.State.Operators.Single(o => o.EntityId == RangedFixtureTargetEntityId);
+        Assert.Equal(100, pistolTarget.Health);
+
+        var rifleEvents = rifleSim.State.EventFeed.Events;
+        Assert.Equal(1, rifleEvents.Count(e => e.Kind == MissionEventKind.ShotFired));
+        Assert.Equal(1, rifleEvents.Count(e => e.Kind == MissionEventKind.ShotHit));
+        Assert.Equal(0, rifleEvents.Count(e => e.Kind == MissionEventKind.ShotMissed));
+        var rifleTarget = rifleSim.State.Operators.Single(o => o.EntityId == RangedFixtureTargetEntityId);
+        Assert.True(rifleTarget.Health < 100, $"rifle hit should reduce target health below 100, was {rifleTarget.Health}");
+    }
+
+    /// <summary>
+    /// Task 79d-1, done-when criterion 2's miss half, restored per task
+    /// 79d-2a's obligation (see
+    /// <see cref="SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange"/>'s
+    /// remarks): the same exact-count shape as
+    /// <see cref="RunTick_Hit_EmitsExactlyOneShotFiredAndOneShotHitEvent"/>,
+    /// using the pistol half of
+    /// <see cref="RunTick_PistolMissesAndRifleHitsAtTheSameTwoHundredWorldUnitRange"/>'s
+    /// fixture.
+    /// </summary>
+    [Fact]
+    public void RunTick_Miss_EmitsExactlyOneShotFiredAndOneShotMissedEvent()
+    {
+        var sim = BuildRangedFiringFixture(FirearmId.Beretta92Fs, rangeWu: 200, shooterEntityId: 25);
+
+        sim.RunTick(0);
+
+        var events = sim.State.EventFeed.Events;
+        Assert.Equal(2, events.Length);
+        Assert.Equal(1, events.Count(e => e.Kind == MissionEventKind.ShotFired));
+        Assert.Equal(0, events.Count(e => e.Kind == MissionEventKind.ShotHit));
+        Assert.Equal(1, events.Count(e => e.Kind == MissionEventKind.ShotMissed));
+    }
+
+    private const int RangedFixtureTargetEntityId = 200_000;
+
+    /// <summary>
+    /// Shared fixture for the task 79d-2a pistol-miss/rifle-hit pair: the
+    /// shooter sits <paramref name="rangeWu"/> world units <b>east</b> of the
+    /// target, at (<paramref name="rangeWu"/>, 0), so the target is directly
+    /// opposite the shooter's default <see cref="Facing16.East"/> facing.
+    /// Both positions stay non-negative and inside a grid widened to fit
+    /// <paramref name="rangeWu"/> — <see cref="NavGrid.CellSizeWu"/> is 4
+    /// world units per cell, and <see cref="BuildGrid"/>'s default 32-cell
+    /// width only covers 128 wu, short of the 200 wu this fixture needs. The
+    /// shooter's <see cref="OperatorState.ContactMemory"/> is pre-seeded with
+    /// a stale <see cref="ContactTier.Identified"/> entry for the target from
+    /// tick 0.
+    /// <para>
+    /// This is deliberate, not an oversight: <see cref="IntentSelection.Select"/>
+    /// only selects <see cref="OperatorIntent.Engage"/> when
+    /// <c>BestContactTier == ContactTier.Identified</c>, which real sensing
+    /// only ever grants within <see cref="ContactMemory.IdentifyRangeWu"/>
+    /// (96 wu) — too close for the 200 wu range this fixture needs. Placing
+    /// the target behind the shooter's vision cone
+    /// (<c>VisionConeHalfWidthBam</c>, 90° half-width) means stage 5's
+    /// <see cref="ContactMemory.Update"/> never observes it from the
+    /// shooter's side this tick, so the pre-seeded entry survives unchanged
+    /// as a ghost (that method's documented "carried forward unchanged"
+    /// rule) and stage 9 still selects <see cref="OperatorIntent.Engage"/>
+    /// from it. The target's own sensing of the shooter is real and mutual —
+    /// the shooter sits inside the target's East-facing cone — the same
+    /// harmless mutual-visibility shape <see cref="BuildFiringFixture"/>
+    /// already relies on at 90 wu; the target's own weapon chain starts
+    /// <see cref="WeaponChainPhase.Lowered"/>, so it never fires back within
+    /// one tick. Stage 12's actual shot geometry is unaffected by the ghost:
+    /// <c>ProposeFire</c> always reads the target's real, live committed
+    /// position from <see cref="MissionState.Operators"/>, never the contact
+    /// memory, so the resolved range is the true <paramref name="rangeWu"/>
+    /// this fixture places the target at. The shooter's weapon chain is
+    /// seeded directly into <see cref="WeaponChainPhase.Aiming"/> with one
+    /// remaining tick, the same shortcut <see cref="BuildFiringFixture"/>
+    /// uses, so stage 11 fires on tick 0 without simulating the full
+    /// ready/turn/aim sequence.
+    /// </para>
+    /// </summary>
+    private static SandataSimulation BuildRangedFiringFixture(
+        FirearmId firearm,
+        int rangeWu,
+        int shooterEntityId,
+        ImmutableArray<CoverRecord> coverRecords = default,
+        bool targetIsCrouched = false)
+    {
+        var gridWidthCells = (rangeWu / NavGrid.CellSizeWu) + 8;
+        var grid = BuildGrid(width: gridWidthCells, height: 8);
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+        var ruleset = SandataRuleset.ModernTacticalV1;
+
+        var shooter = BuildOperator(
+            entityId: shooterEntityId, faction: 0, positionXWu: rangeWu, positionYWu: 0,
+            weaponChainPhase: (int)WeaponChainPhase.Aiming, weaponChainRemainingTicks: 1) with
+        {
+            Firearm = firearm,
+            ContactMemory = ImmutableArray.Create(new ContactMemoryEntry(
+                EnemyEntityId: (ulong)RangedFixtureTargetEntityId,
+                LastKnownCellIndex: 0,
+                ContactTier: (int)ContactTier.Identified,
+                LastSeenTick: 0)),
+        };
+        var target = BuildOperator(
+            entityId: RangedFixtureTargetEntityId, faction: 1, positionXWu: 0, positionYWu: 0) with
+        {
+            IsCrouched = targetIsCrouched,
+        };
+        var state = BuildState(ImmutableArray.Create(shooter, target));
+
+        return new SandataSimulation(
+            mission, ruleset, grid, wallBuckets, state,
+            coverRecords.IsDefault ? ImmutableArray<CoverRecord>.Empty : coverRecords);
+    }
+
+    /// <summary>
+    /// Task 81's reuse-proof: <see cref="SandataSimulation"/> now holds one
+    /// <see cref="SandataCollisionGrid"/> instance for its whole lifetime
+    /// instead of constructing a fresh one every tick (the change that cut
+    /// stage 3's measured per-tick allocation from roughly 382,000 bytes to
+    /// roughly 21,000 bytes). That reuse is only safe if a later
+    /// <see cref="SandataCollisionGrid.Rebuild"/> call fully discards the
+    /// previous tick's <see cref="SandataCollisionGrid.Pairs"/> rather than
+    /// leaking stale entries into an observably reused buffer. This asserts
+    /// the discard on content, not on "it reused something": a first
+    /// <see cref="SandataCollisionGrid.Rebuild"/> call produces one
+    /// contact pair between two co-located bodies, and a second call on the
+    /// very same instance — with entirely different entity ids placed far
+    /// apart — must report zero pairs and, specifically, must not still
+    /// report the first call's pair.
+    /// </summary>
+    [Fact]
+    public void SandataCollisionGrid_Rebuild_DiscardsThePreviousCallsPairs()
+    {
+        const int cellSizeRaw = 200;
+        const int bodyRadiusRaw = 50; // diameter 100 <= cellSizeRaw, satisfies ValidateBodyRadius.
+        var grid = new SandataCollisionGrid(cellSizeRaw);
+
+        var firstTickBodies = new[]
+        {
+            new SandataCollisionBody(EntityId: 1, XRaw: 0, YRaw: 0, IsAlive: true),
+            new SandataCollisionBody(EntityId: 2, XRaw: 10, YRaw: 0, IsAlive: true), // within sum-of-radii contact.
+        };
+        grid.Rebuild(firstTickBodies, bodyRadiusRaw);
+
+        Assert.Equal(
+            new SandataCollisionPair(LowEntityId: 1, HighEntityId: 2),
+            Assert.Single(grid.Pairs));
+
+        var secondTickBodies = new[]
+        {
+            new SandataCollisionBody(EntityId: 3, XRaw: 5_000, YRaw: 5_000, IsAlive: true),
+            new SandataCollisionBody(EntityId: 4, XRaw: -5_000, YRaw: -5_000, IsAlive: true),
+        };
+        grid.Rebuild(secondTickBodies, bodyRadiusRaw);
+
+        Assert.Empty(grid.Pairs);
+        Assert.DoesNotContain(
+            grid.Pairs, pair => pair.LowEntityId == 1 || pair.HighEntityId == 2);
+    }
+
+    /// <summary>
+    /// Task 79d-2b: the damage a hit deals is keyed on the shooter's own
+    /// <see cref="FirearmDefinition.Caliber"/>, so two shooters whose
+    /// firearms belong to different caliber families deal different damage
+    /// on an otherwise identical hit. Everything else about the two fixtures
+    /// is the same — the same range, the same geometry, the same shooter
+    /// entity id and therefore the same <c>Accuracy</c> draw, the same
+    /// target — so the loadout is the only variable, which is what makes
+    /// this a test of the caliber table rather than of the geometry. Before
+    /// this task every hit dealt one flat constant regardless of loadout,
+    /// and this test could not have distinguished the two.
+    /// </summary>
+    /// <remarks>
+    /// The two expected health values are computed from
+    /// <see cref="CaliberDamage.RawDamage"/> itself rather than written as
+    /// literals, so the test follows the table if a future tuning pass moves
+    /// it, and still fails if stage 12 stops reading the table at all. What
+    /// is pinned as a literal is the relation the table's own remarks
+    /// promise: 7.62x39 does strictly more damage than 5.56x45. Both
+    /// shooters are rifles at 100 world units, inside
+    /// <see cref="ContactMemory.DetectRangeWu"/>, where
+    /// <see cref="SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange"/>
+    /// establishes that a rifle cannot miss, so both shots land and the only
+    /// difference reaching the target's health is the caliber.
+    /// </remarks>
+    [Fact]
+    public void RunTick_TwoShootersOfDifferentCaliberFamilies_DealDifferentDamageOnAnIdenticalHit()
+    {
+        var softerCaliberDamage = CaliberDamage.RawDamage(CaliberFamily.Cal556X45);
+        var harderCaliberDamage = CaliberDamage.RawDamage(CaliberFamily.Cal762X39);
+
+        Assert.True(
+            harderCaliberDamage > softerCaliberDamage,
+            "the caliber table's own remarks promise 7.62x39 above 5.56x45");
+
+        var harderSim = BuildRangedFiringFixture(FirearmId.Ak47, rangeWu: 100, shooterEntityId: 25);
+        var softerSim = BuildRangedFiringFixture(FirearmId.M4, rangeWu: 100, shooterEntityId: 25);
+
+        var fullHealth = harderSim.State.Operators
+            .Single(o => o.EntityId == RangedFixtureTargetEntityId).Health;
+
+        harderSim.RunTick(0);
+        softerSim.RunTick(0);
+
+        var harderTarget = harderSim.State.Operators.Single(o => o.EntityId == RangedFixtureTargetEntityId);
+        var softerTarget = softerSim.State.Operators.Single(o => o.EntityId == RangedFixtureTargetEntityId);
+
+        Assert.Equal(fullHealth - harderCaliberDamage, harderTarget.Health);
+        Assert.Equal(fullHealth - softerCaliberDamage, softerTarget.Health);
+    }
+
+    /// <summary>
+    /// Task 79d-2b: a target standing inside a cover record's protected arc
+    /// takes the cover-modified damage, and a target inside the same
+    /// rectangle but with the shot arriving from outside the arc takes the
+    /// unmodified value — design section 9's flank-and-rear bypass, reached
+    /// through <see cref="SandataSimulation.RunTick"/> rather than by calling
+    /// <see cref="CoverRules"/> directly, which is the whole point: before
+    /// this task the map's `COVER` records never reached the simulation at
+    /// all and stage 12 resolved every shot against
+    /// <see cref="CoverState.NotInCover"/>.
+    /// </summary>
+    /// <remarks>
+    /// Both fixtures place the same cover rectangle over the target's
+    /// position and differ only in the record's arc. The protecting record
+    /// uses an <c>ArcHalfBam</c> of 32,768, which
+    /// <see cref="Sandata.Core.Maps.CoverRecord"/>'s own documentation
+    /// defines as covering "from every direction", so it protects whatever
+    /// bearing the shooter occupies without this test having to encode a
+    /// bearing convention. The bypassing record uses a half-width of one BAM
+    /// centred on 16,384, a quarter turn away from either bearing a shooter
+    /// due east of the target can occupy under any convention, so the shot
+    /// arrives from outside the arc no matter how the cone measures its
+    /// angles. The expected damage values come from
+    /// <see cref="CaliberDamage.RawDamage"/> and
+    /// <see cref="CoverRules.ApplyPercentageReduction"/>'s stated arithmetic
+    /// rather than from a run.
+    /// </remarks>
+    [Fact]
+    public void RunTick_TargetInsideACoverArc_TakesReducedDamageWhileAFlankingShotIgnoresTheCover()
+    {
+        var rawDamage = CaliberDamage.RawDamage(CaliberFamily.Cal762X39);
+
+        var protectingCover = ImmutableArray.Create(new CoverRecord(
+            LineNumber: 1, MinX: 0, MinY: 0, MaxX: 8, MaxY: 8,
+            ArcCentreBam: 0, ArcHalfBam: 32768, Height: 1));
+        var bypassedCover = ImmutableArray.Create(new CoverRecord(
+            LineNumber: 1, MinX: 0, MinY: 0, MaxX: 8, MaxY: 8,
+            ArcCentreBam: 16384, ArcHalfBam: 1, Height: 1));
+
+        var coveredSim = BuildRangedFiringFixture(
+            FirearmId.Ak47, rangeWu: 100, shooterEntityId: 25, coverRecords: protectingCover);
+        var flankedSim = BuildRangedFiringFixture(
+            FirearmId.Ak47, rangeWu: 100, shooterEntityId: 25, coverRecords: bypassedCover);
+
+        var fullHealth = coveredSim.State.Operators
+            .Single(o => o.EntityId == RangedFixtureTargetEntityId).Health;
+
+        coveredSim.RunTick(0);
+        flankedSim.RunTick(0);
+
+        var coveredTarget = coveredSim.State.Operators.Single(o => o.EntityId == RangedFixtureTargetEntityId);
+        var flankedTarget = flankedSim.State.Operators.Single(o => o.EntityId == RangedFixtureTargetEntityId);
+
+        // Standing in cover: the raw damage loses
+        // CoverRules.StandingCoverReductionPercent, truncating toward zero.
+        var expectedCoveredDamage =
+            (rawDamage * (100 - CoverRules.StandingCoverReductionPercent)) / 100;
+
+        Assert.Equal(fullHealth - expectedCoveredDamage, coveredTarget.Health);
+        Assert.Equal(fullHealth - rawDamage, flankedTarget.Health);
+        Assert.True(
+            coveredTarget.Health > flankedTarget.Health,
+            "cover inside its own arc must leave the target better off than a flanking shot");
+    }
+
+    /// <summary>
+    /// Task 79d-2b: the posture <see cref="SandataSimulation"/> passes into
+    /// the target's <see cref="CoverState"/> comes from that operator's own
+    /// <see cref="OperatorState.IsCrouched"/> flag, so a crouched target in
+    /// the same cover takes
+    /// <see cref="CoverRules.CrouchedCoverReductionPercent"/> rather than
+    /// <see cref="CoverRules.StandingCoverReductionPercent"/>. Without this
+    /// the posture half of the cover lookup could be hardcoded to standing
+    /// and every other cover assertion in this file would still pass.
+    /// </summary>
+    [Fact]
+    public void RunTick_CrouchedTargetInCover_TakesTheCrouchedReductionRatherThanTheStandingOne()
+    {
+        var rawDamage = CaliberDamage.RawDamage(CaliberFamily.Cal762X39);
+
+        var cover = ImmutableArray.Create(new CoverRecord(
+            LineNumber: 1, MinX: 0, MinY: 0, MaxX: 8, MaxY: 8,
+            ArcCentreBam: 0, ArcHalfBam: 32768, Height: 1));
+
+        var crouchedSim = BuildRangedFiringFixture(
+            FirearmId.Ak47, rangeWu: 100, shooterEntityId: 25,
+            coverRecords: cover, targetIsCrouched: true);
+
+        var fullHealth = crouchedSim.State.Operators
+            .Single(o => o.EntityId == RangedFixtureTargetEntityId).Health;
+
+        crouchedSim.RunTick(0);
+
+        var crouchedTarget = crouchedSim.State.Operators.Single(o => o.EntityId == RangedFixtureTargetEntityId);
+
+        var expectedCrouchedDamage =
+            (rawDamage * (100 - CoverRules.CrouchedCoverReductionPercent)) / 100;
+        var expectedStandingDamage =
+            (rawDamage * (100 - CoverRules.StandingCoverReductionPercent)) / 100;
+
+        Assert.Equal(fullHealth - expectedCrouchedDamage, crouchedTarget.Health);
+        Assert.True(
+            expectedCrouchedDamage < expectedStandingDamage,
+            "the crouched reduction must be the stronger of the two for this test to mean anything");
+    }
+
 }

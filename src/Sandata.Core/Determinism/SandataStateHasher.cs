@@ -119,8 +119,12 @@ namespace Sandata.Core.Determinism;
 /// <see cref="Orders.OrderQueue.Empty"/> and whose
 /// <see cref="MissionState.OrderAssignments"/> is still empty produces the
 /// exact same <see cref="Compute"/> output this method produced before this
-/// task — <c>OrderStateHashTests.StateHash_WithEmptyOrderQueueAndNoAssignments_MatchesThePreTask61Hasher</c>
-/// pins that value directly. Any real order-layer activity (even a queue
+/// task. <c>OrderStateHashTests.StateHash_WithEmptyOrderQueueAndNoAssignments_IsUnaffectedByHowTheEmptyQueueWasConstructed</c>
+/// guards that gate, and
+/// <c>OrderStateHashTests.StateHash_QueueWithAdvancedCountersButNoStoredOrders_DiffersFromTheEmptyBaseline</c>
+/// guards its converse. Both compare two computed hashes rather than pinning
+/// an absolute literal, so a legitimate future change to the operator fold
+/// does not break either one — see task 85. Any real order-layer activity (even a queue
 /// whose <c>Orders</c> array is empty because every submission was rejected,
 /// which still advances <c>NextOrderId</c>/<c>NextOrderSequence</c> away from
 /// zero) is not equal to <see cref="Orders.OrderQueue.Empty"/> and is folded

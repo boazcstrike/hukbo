@@ -177,11 +177,13 @@ public sealed record OperatorState(
     /// (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12 audit's
     /// corrected obligation) adds this field so <see
     /// cref="Simulation.SandataSimulation.AdvanceWeaponChain"/> can read a
-    /// real per-operator loadout instead of its own hardcoded
-    /// <c>DefaultFirearmId</c>. Defaults to <see cref="FirearmId.Ak47"/> —
-    /// the same value that constant already named — so behaviour is
-    /// unchanged for every existing caller that does not set this
-    /// explicitly. <b>What decides which weapon an operator actually
+    /// real per-operator loadout instead of a hardcoded constant. Stage 12
+    /// went on reading that constant for one more task; task 79d-2a pointed
+    /// it here as well and deleted the constant, so this field is now the
+    /// only source of a shooter's weapon. Defaults to
+    /// <see cref="FirearmId.Ak47"/> — the value the deleted constant named —
+    /// so behaviour is unchanged for every existing caller that does not set
+    /// this explicitly. <b>What decides which weapon an operator actually
     /// carries is undesigned</b>; this field only carries the value, it does
     /// not choose it. <see cref="Determinism.SandataStateHasher"/> folds it
     /// last inside its per-operator block, after

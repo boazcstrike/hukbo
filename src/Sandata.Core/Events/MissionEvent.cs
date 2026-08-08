@@ -85,4 +85,86 @@ public readonly record struct MissionEvent
 
         return new MissionEvent(sequence, tick, MissionEventKind.OrderRejected, orderId, (int)reason);
     }
+
+    /// <summary>
+    /// Creates a validated <see cref="MissionEventKind.ShotFired"/> event —
+    /// task 79d-1: stage 12's weapon chain completed a shot this tick,
+    /// before hit resolution runs. <see cref="ReasonCode"/> carries no
+    /// meaning for this kind and is always <c>0</c>.
+    /// </summary>
+    /// <param name="sequence">
+    /// The value <see cref="Simulation.MissionState.NextEventSequence"/> held
+    /// at the moment of emission.
+    /// </param>
+    /// <param name="tick">The mission tick the shot was fired on.</param>
+    /// <param name="shooterEntityId">
+    /// The firing operator's <see cref="Simulation.OperatorState.EntityId"/>,
+    /// folded into <see cref="SubjectId"/> the same
+    /// <c>unchecked((long)value)</c> way every other entity-id-carrying fold
+    /// in this project reinterprets a <see langword="ulong"/> entity id.
+    /// </param>
+    public static MissionEvent ShotFired(long sequence, long tick, ulong shooterEntityId)
+    {
+        if (sequence < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(sequence), sequence, "An event sequence must not be negative.");
+        }
+
+        return new MissionEvent(sequence, tick, MissionEventKind.ShotFired, unchecked((long)shooterEntityId), 0);
+    }
+
+    /// <summary>
+    /// Creates a validated <see cref="MissionEventKind.ShotHit"/> event —
+    /// task 79d-1: the drawn angular error fell within the target's
+    /// subtended half-angle, so the shot connects. <see cref="ReasonCode"/>
+    /// carries no meaning for this kind and is always <c>0</c>.
+    /// </summary>
+    /// <param name="sequence">
+    /// The value <see cref="Simulation.MissionState.NextEventSequence"/> held
+    /// at the moment of emission.
+    /// </param>
+    /// <param name="tick">The mission tick the shot resolved on.</param>
+    /// <param name="shooterEntityId">
+    /// The firing operator's <see cref="Simulation.OperatorState.EntityId"/>,
+    /// folded into <see cref="SubjectId"/> exactly as <see cref="ShotFired"/>
+    /// folds it — the same shot, reported by the same subject.
+    /// </param>
+    public static MissionEvent ShotHit(long sequence, long tick, ulong shooterEntityId)
+    {
+        if (sequence < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(sequence), sequence, "An event sequence must not be negative.");
+        }
+
+        return new MissionEvent(sequence, tick, MissionEventKind.ShotHit, unchecked((long)shooterEntityId), 0);
+    }
+
+    /// <summary>
+    /// Creates a validated <see cref="MissionEventKind.ShotMissed"/> event —
+    /// task 79d-1: the drawn angular error exceeded the target's subtended
+    /// half-angle, so the shot goes wide. <see cref="ReasonCode"/> carries no
+    /// meaning for this kind and is always <c>0</c>.
+    /// </summary>
+    /// <param name="sequence">
+    /// The value <see cref="Simulation.MissionState.NextEventSequence"/> held
+    /// at the moment of emission.
+    /// </param>
+    /// <param name="tick">The mission tick the shot resolved on.</param>
+    /// <param name="shooterEntityId">
+    /// The firing operator's <see cref="Simulation.OperatorState.EntityId"/>,
+    /// folded into <see cref="SubjectId"/> exactly as <see cref="ShotFired"/>
+    /// folds it — the same shot, reported by the same subject.
+    /// </param>
+    public static MissionEvent ShotMissed(long sequence, long tick, ulong shooterEntityId)
+    {
+        if (sequence < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(sequence), sequence, "An event sequence must not be negative.");
+        }
+
+        return new MissionEvent(sequence, tick, MissionEventKind.ShotMissed, unchecked((long)shooterEntityId), 0);
+    }
 }

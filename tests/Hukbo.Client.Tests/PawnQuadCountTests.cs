@@ -285,4 +285,48 @@ public sealed class PawnQuadCountTests
         // High tier: 3 outline + 3 fill + 1 belt), a difference of 6.
         Assert.Equal(normalTorso - 6, placeholderTorso);
     }
+
+    /// <summary>
+    /// The design's active-pawn ceiling, counted rather than asserted: an
+    /// attack adds at most four arm quads to a Medium or High pawn, and none
+    /// at all at Low, where the arms are not drawn.
+    /// </summary>
+    [Theory]
+    [InlineData(WeaponId.Kampilan, ShieldId.None)]
+    [InlineData(WeaponId.Wasay, ShieldId.None)]
+    [InlineData(WeaponId.Kalis, ShieldId.None)]
+    [InlineData(WeaponId.Kalis, ShieldId.TallHardwood)]
+    [InlineData(WeaponId.Itak, ShieldId.None)]
+    [InlineData(WeaponId.Itak, ShieldId.TallHardwood)]
+    public void Count_ArmsAddAtMostFourQuadsAndNoneAtLowTier(
+        WeaponId weapon,
+        ShieldId shield)
+    {
+        var appearance = PawnAppearanceFactory.Create(11, weapon, shield);
+        var pose = AttackPoseResolver.Resolve(
+            AttackGeometryTests.Animation(weapon, shield: shield));
+
+        foreach (var zoom in new[] { 0.2f, 1.0f, 1.6f })
+        {
+            var prefix = PawnGeometry.PoseBlindPrefix.Create(
+                new Vector2(400.5f, 300.5f),
+                zoom,
+                appearance);
+            var neutral = prefix.CompleteAttackPosedLayout(attackPose: null);
+            var posed = prefix.CompleteAttackPosedLayout(pose);
+
+            var armQuads =
+                PawnQuadCount.Count(posed, appearance, PawnVisualState.Normal) -
+                PawnQuadCount.Count(neutral, appearance, PawnVisualState.Normal) -
+                (posed.SwingTrail.IsEmpty ? 0 : PawnQuadCount.SwingTrailSegments);
+
+            if (posed.DetailTier == PawnDetailTier.Low)
+            {
+                Assert.Equal(0, armQuads);
+                continue;
+            }
+
+            Assert.InRange(armQuads, 2, 4);
+        }
+    }
 }

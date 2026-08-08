@@ -1,4 +1,5 @@
 using Hukbo.Client.Audio;
+using Hukbo.Client.Presentation;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
 
@@ -6,6 +7,43 @@ namespace Hukbo.Client.Tests;
 
 public sealed class SoundDirectorTests
 {
+    [Fact]
+    public void StartContact_PlaysWeaponAndOwnedDeathCueAtomically()
+    {
+        var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
+        var director = new SoundDirector(logCapacity: 64, player);
+        director.BeginFrame(elapsedSeconds: 0);
+
+        director.StartContact(Contact(isLethal: true));
+
+        Assert.Equal(
+            [GameSoundId.AttackKampilan, GameSoundId.Death],
+            player.Played.Select(cue => cue.Sound));
+    }
+
+    [Fact]
+    public void IngestImmediate_KeepsOutcomeCueAlongsideContactApi()
+    {
+        var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
+        var director = new SoundDirector(logCapacity: 64, player);
+        director.BeginFrame(elapsedSeconds: 0);
+
+        director.IngestImmediate(
+        [
+            BattleEvent.NonAttack(
+                sequence: 2,
+                tick: 5,
+                BattleEventKind.Outcome,
+                sourceEntityId: 0,
+                targetEntityId: null,
+                value: 0,
+                factionId: 0),
+        ],
+            []);
+
+        Assert.Equal(GameSoundId.VictoryBlue, Assert.Single(player.Played).Sound);
+    }
+
     [Fact]
     public void Ingest_PlaysAndLogsAMappedEvent()
     {
@@ -440,6 +478,21 @@ public sealed class SoundDirectorTests
 
     private static BattleEvent Attack(long sequence, WeaponId weapon) =>
         Attack(sequence, weapon, BodyPart.Chest);
+
+    private static AttackContactBundle Contact(bool isLethal) =>
+        new(
+            Sequence: 1,
+            Tick: 5,
+            AttackerEntityId: 1,
+            DefenderEntityId: 2,
+            Damage: 9,
+            FactionId: 0,
+            WeaponId.Kampilan,
+            AttackerShield: ShieldId.None,
+            HitLocation: BodyPart.Chest,
+            Resolution: AttackResolution.Landed,
+            ComboPosition: null,
+            isLethal);
 
     private static BattleEvent Attack(
         long sequence,
