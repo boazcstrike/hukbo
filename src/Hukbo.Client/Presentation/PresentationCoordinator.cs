@@ -1,4 +1,6 @@
+using Hukbo.Client.Audio;
 using Hukbo.Client.Rendering;
+using Hukbo.Client.Settings;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.Presentation;
@@ -14,25 +16,31 @@ internal sealed class PresentationCoordinator
     /// </param>
     public PresentationCoordinator(
         int eventCapacity,
-        int hitEffectCapacity = 256,
-        int bloodBurstCapacity = 256,
-        int swingCapacity = 256,
-        int clashEffectCapacity = 256,
+        int hitEffectCapacity = PawnAppearanceCache.Capacity,
+        int bloodBurstCapacity = PawnAppearanceCache.Capacity,
+        int bloodGroundMarkCapacity = PawnAppearanceCache.Capacity,
+        int bloodSpurtCapacity = PawnAppearanceCache.Capacity,
+        int clashEffectCapacity = PawnAppearanceCache.Capacity,
         int trampleMarkCapacity = TrampleMarkSystem.Capacity,
         int dustPuffCapacity = DustEffectSystem.Capacity,
         int gaitCapacity = PawnAppearanceCache.Capacity,
+        int attackCapacity = PawnAppearanceCache.Capacity,
         IRenderMetricsRecorder? renderMetricsRecorder = null)
     {
         PawnAppearances = new PawnAppearanceCache(
             renderMetricsRecorder ?? NullRenderMetricsRecorder.Instance);
         EventFeed = new BattleEventFeed(eventCapacity);
         HitEffects = new HitEffectSystem(hitEffectCapacity);
-        Blood = new BloodEffectSystem(bloodBurstCapacity);
-        Swings = new SwingAnimationSystem(swingCapacity);
+        Blood = new BloodEffectSystem(
+            bloodBurstCapacity,
+            bloodGroundMarkCapacity,
+            bloodSpurtCapacity);
         ClashEffects = new ClashEffectSystem(clashEffectCapacity);
         Trample = new TrampleMarkSystem(trampleMarkCapacity);
         Dust = new DustEffectSystem(dustPuffCapacity);
         Gait = new GaitAnimationSystem(gaitCapacity);
+        AttackFrames = new AttackFrameCoordinator(attackCapacity);
+        DefenderReactions = new DefenderReactionSystem(attackCapacity);
         BattleReportAccumulator = new BattleReportAccumulator();
     }
 
@@ -59,12 +67,6 @@ internal sealed class PresentationCoordinator
     /// <see cref="HitEffects"/> instead of replacing it.
     /// </summary>
     public BloodEffectSystem Blood { get; }
-
-    /// <summary>
-    /// The in-flight weapon swings. Its clock is the only one scaled by the
-    /// playback speed.
-    /// </summary>
-    public SwingAnimationSystem Swings { get; }
 
     /// <summary>
     /// The crosses where two weapons, or a weapon and a shield, met.
@@ -101,6 +103,40 @@ internal sealed class PresentationCoordinator
     /// </summary>
     public GaitAnimationSystem Gait { get; }
 
+    public AttackFrameCoordinator AttackFrames { get; }
+
+    public AttackContactDispatcher AttackContacts => AttackFrames.Dispatcher;
+
+    public AttackAnimationSystem AttackAnimations => AttackFrames.Animations;
+
+    public DefenderReactionSystem DefenderReactions { get; }
+
+    public bool HasUndrawnAttackContacts => AttackFrames.HasUndrawnContacts;
+
+    public bool HasTerminalAttackPresentation
+    {
+        get
+        {
+            if (HasUndrawnAttackContacts)
+            {
+                return true;
+            }
+
+            var reactions = DefenderReactions.ActiveReactions;
+            for (var index = 0; index < reactions.Length; index++)
+            {
+                var reaction = reactions[index];
+                if (reaction.IsLethal &&
+                    reaction.AgeSeconds < DefenderReaction.LethalHoldSeconds)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
     /// <summary>
     /// Accumulates the per-unit, per-faction, and battle-wide statistics
     /// behind the post-battle battle report. Fed here from the raw per-tick
@@ -118,7 +154,8 @@ internal sealed class PresentationCoordinator
     /// (battlefield-environment-design.md, "Wind and motion", R-W5.4).
     /// Advanced in <see cref="AdvanceEffects"/> on unscaled frame seconds —
     /// ambient grass motion is not gameplay communication, so it never scales
-    /// with the playback speed, unlike <see cref="Swings"/>. It never touches
+    /// with the playback speed, unlike <see cref="AttackAnimations"/>. It never
+    /// touches
     /// the simulation, no simulation value depends on it, and nothing it
     /// computes is ever stored, hashed, or snapshotted.
     /// </summary>
@@ -138,10 +175,7 @@ internal sealed class PresentationCoordinator
     {
         EventFeed.Ingest(events);
         BattleReportAccumulator.Ingest(events, tickCombatByFaction);
-        HitEffects.Ingest(events, agents);
-        Blood.Ingest(events, agents);
-        Swings.Ingest(events, agents);
-        ClashEffects.Ingest(events, agents);
+        AttackFrames.Ingest(events);
         Trample.Ingest(events, agents);
         Dust.Ingest(events, agents);
 
@@ -151,27 +185,79 @@ internal sealed class PresentationCoordinator
     }
 
     /// <param name="speedMultiplier">
-    /// The playback speed. It scales the swing clock and nothing else: the
+    /// The playback speed. It scales the attack clock and nothing else: the
     /// simulation issues attacks at the playback speed, so at 4x an unscaled
-    /// swing would still be mid-recovery when the next blow landed and every
-    /// warrior would read as permanently mid-swing. The hit and blood effects
-    /// are wounds already dealt rather than actions in progress, and they keep
-    /// advancing on unscaled presentation time.
+    /// attack would still be mid-recovery when the next blow landed and every
+    /// warrior would read as permanently mid-attack. Contact effects advance
+    /// on unscaled presentation time while playback is active.
     /// </param>
-    public void AdvanceEffects(float elapsedSeconds, float speedMultiplier = 1f)
+    public void AdvanceEffects(
+        float elapsedSeconds,
+        float speedMultiplier = 1f,
+        bool advanceContacts = true)
     {
         if (!float.IsFinite(speedMultiplier) || speedMultiplier <= 0f)
         {
             throw new ArgumentOutOfRangeException(nameof(speedMultiplier));
         }
 
-        HitEffects.Advance(elapsedSeconds);
-        Blood.Advance(elapsedSeconds);
-        ClashEffects.Advance(elapsedSeconds);
+        if (advanceContacts)
+        {
+            HitEffects.Advance(elapsedSeconds);
+            Blood.Advance(elapsedSeconds);
+            ClashEffects.Advance(elapsedSeconds);
+            DefenderReactions.Advance(elapsedSeconds);
+        }
+
+        AttackFrames.Advance(
+            elapsedSeconds,
+            speedMultiplier,
+            advanceContacts);
         Dust.Advance(elapsedSeconds);
-        Swings.Advance(elapsedSeconds * speedMultiplier);
         GrassSwayClockSeconds += elapsedSeconds;
     }
+
+    /// <summary>
+    /// Starts all contact consumers from the same bundle in the same frame.
+    /// No individual channel observes the raw attack/death event stream.
+    /// </summary>
+    public int ReleaseAttackContactsForDraw(
+        IReadOnlyList<AgentView> agents,
+        MotionIntensity motionIntensity,
+        SoundDirector soundDirector,
+        bool allowRelease)
+    {
+        ArgumentNullException.ThrowIfNull(soundDirector);
+
+        var released = AttackFrames.ReleaseForDraw(
+            agents,
+            motionIntensity,
+            allowRelease);
+        for (var index = 0; index < released.Length; index++)
+        {
+            var contact = released[index];
+            if (!AttackFrames.TryGetAgent(
+                    contact.AttackerEntityId,
+                    out var attacker) ||
+                !AttackFrames.TryGetAgent(
+                    contact.DefenderEntityId,
+                    out var defender))
+            {
+                throw new InvalidOperationException(
+                    $"Attack contact {contact.Sequence} could not resolve its frame agents.");
+            }
+
+            HitEffects.StartContact(contact, defender);
+            Blood.StartContact(contact, attacker, defender);
+            ClashEffects.StartContact(contact, attacker, defender);
+            DefenderReactions.StartContact(contact, attacker, defender);
+            soundDirector.StartContact(contact);
+        }
+
+        return released.Length;
+    }
+
+    public int AcknowledgeAttackDraw() => AttackFrames.AcknowledgeDraw();
 
     public MatchSummary ProcessTerminal(
         BattleOutcome outcome,
@@ -229,7 +315,8 @@ internal sealed class PresentationCoordinator
         BattleReportAccumulator.Clear();
         HitEffects.Clear();
         Blood.Clear();
-        Swings.Clear();
+        AttackFrames.Clear();
+        DefenderReactions.Clear();
         ClashEffects.Clear();
         Trample.Clear();
         Dust.Clear();

@@ -1,3 +1,4 @@
+using Hukbo.Client.Presentation;
 using Hukbo.Core.Simulation;
 using Hukbo.Diagnostics;
 
@@ -142,6 +143,59 @@ internal sealed class SoundDirector
                     ? HitClassCatalog.FromBodyPart(battleEvent.HitLocation!.Value)
                     : (HitClass?)null;
                 Resolve(sound, hitClass, battleEvent.Tick, battleEvent.SourceEntityId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Releases the weapon cue and optional dispatcher-owned lethal cue as one
+    /// contact request. Aggregate Damage and standalone Death events never
+    /// reach this path, preventing double playback after the live migration.
+    /// </summary>
+    public void StartContact(AttackContactBundle contact)
+    {
+        var request = SoundCueMapper.MapContact(contact);
+        if (request.Contact is { } contactSound)
+        {
+            var hitClass = SoundCatalog.IsHitLocationDriven(contactSound)
+                ? HitClassCatalog.FromBodyPart(contact.HitLocation)
+                : (HitClass?)null;
+            Resolve(
+                contactSound,
+                hitClass,
+                contact.Tick,
+                contact.AttackerEntityId);
+        }
+
+        if (request.Lethal is { } lethalSound)
+        {
+            Resolve(
+                lethalSound,
+                hitClass: null,
+                contact.Tick,
+                contact.DefenderEntityId);
+        }
+    }
+
+    /// <summary>
+    /// Processes only immediate semantic outcome sounds. Task 6 can retain
+    /// this route while moving every attack/death sound to StartContact.
+    /// </summary>
+    public void IngestImmediate(IReadOnlyList<BattleEvent> events)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+
+        for (var index = 0; index < events.Count; index++)
+        {
+            var battleEvent = events[index];
+            if (battleEvent.Kind == BattleEventKind.Outcome &&
+                SoundCueMapper.Map(battleEvent) is { } sound)
+            {
+                Resolve(
+                    sound,
+                    hitClass: null,
+                    battleEvent.Tick,
+                    battleEvent.SourceEntityId);
             }
         }
     }

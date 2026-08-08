@@ -1,3 +1,4 @@
+using Hukbo.Client.Audio;
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Rendering;
 using Hukbo.Client.Settings;
@@ -108,22 +109,23 @@ public sealed class PresentationCoordinatorTests
     }
 
     [Fact]
-    public void IngestTick_ForwardsEveryBatchToFeedAndHitEffects()
+    public void IngestTick_ForwardsAttackEventsToFeedAndBoundedContactQueue()
     {
         var coordinator = new PresentationCoordinator(
             eventCapacity: 5,
             hitEffectCapacity: 5);
-        AgentView[] agents = [CreateAgent(1)];
+        AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
 
-        coordinator.IngestTick([DamageEvent(1, 1)], agents, default);
-        coordinator.IngestTick([DamageEvent(2, 1)], agents, default);
+        coordinator.IngestTick([AttackEvent(1, 1, 2)], agents, default);
+        coordinator.IngestTick([AttackEvent(2, 1, 2)], agents, default);
 
         Assert.Equal(2, coordinator.EventFeed.Entries.Count);
-        Assert.Equal(2, coordinator.HitEffects.ActiveEffects.Length);
+        Assert.Equal(2, coordinator.AttackContacts.PendingCount);
+        Assert.Empty(coordinator.HitEffects.ActiveEffects.ToArray());
     }
 
     [Fact]
-    public void IngestTick_ForwardsEveryBatchToBlood()
+    public void ReleaseAttackContactsForDraw_StartsBloodAtTheFrameBoundary()
     {
         var coordinator = new PresentationCoordinator(
             eventCapacity: 5,
@@ -132,10 +134,65 @@ public sealed class PresentationCoordinatorTests
         AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
 
         coordinator.IngestTick([AttackEvent(1, 2, 1)], agents, default);
-        coordinator.IngestTick([AttackEvent(2, 2, 1)], agents, default);
+        var sounds = ReleaseContacts(coordinator, agents);
 
-        Assert.Equal(2, coordinator.Blood.ActiveBursts.Length);
-        Assert.Equal(2, coordinator.Blood.ActiveGroundMarks.Length);
+        Assert.Single(coordinator.AttackAnimations.ActiveAnimations.ToArray());
+        Assert.Single(coordinator.HitEffects.ActiveEffects.ToArray());
+        Assert.Single(coordinator.Blood.ActiveBursts.ToArray());
+        Assert.Single(coordinator.Blood.ActiveGroundMarks.ToArray());
+        Assert.Single(coordinator.DefenderReactions.ActiveReactions.ToArray());
+        Assert.Single(sounds.Log.Entries);
+    }
+
+    [Theory]
+    [InlineData(AttackResolution.Landed)]
+    [InlineData(AttackResolution.Parried)]
+    public void ReleaseAttackContactsForDraw_RetainsEverySupportedScaleChannel(
+        AttackResolution resolution)
+    {
+        const int Capacity = PawnAppearanceCache.Capacity;
+        var coordinator = new PresentationCoordinator(eventCapacity: Capacity);
+        var agents = new AgentView[Capacity];
+        var events = new BattleEvent[Capacity];
+        for (var index = 0; index < Capacity; index++)
+        {
+            var attackerEntityId = (ulong)index + 1;
+            var defenderEntityId = (ulong)((index + 1) % Capacity) + 1;
+            agents[index] = CreateAgentAt(
+                attackerEntityId,
+                xRaw: index * 10,
+                yRaw: 0);
+            events[index] = AttackEvent(
+                sequence: index + 1,
+                attackerEntityId,
+                defenderEntityId,
+                resolution,
+                tick: 1);
+        }
+
+        coordinator.IngestTick(events, agents, default);
+        ReleaseContacts(coordinator, agents);
+
+        Assert.Equal(
+            Capacity,
+            coordinator.AttackAnimations.ActiveAnimations.Length);
+        Assert.Equal(
+            Capacity,
+            coordinator.DefenderReactions.ActiveReactions.Length);
+        if (resolution == AttackResolution.Landed)
+        {
+            Assert.Equal(Capacity, coordinator.HitEffects.ActiveEffects.Length);
+            Assert.Equal(Capacity, coordinator.Blood.ActiveBursts.Length);
+            Assert.Equal(Capacity, coordinator.Blood.ActiveGroundMarks.Length);
+            Assert.Empty(coordinator.ClashEffects.ActiveEffects.ToArray());
+        }
+        else
+        {
+            Assert.Empty(coordinator.HitEffects.ActiveEffects.ToArray());
+            Assert.Empty(coordinator.Blood.ActiveBursts.ToArray());
+            Assert.Empty(coordinator.Blood.ActiveGroundMarks.ToArray());
+            Assert.Equal(Capacity, coordinator.ClashEffects.ActiveEffects.Length);
+        }
     }
 
     [Fact]
@@ -146,6 +203,7 @@ public sealed class PresentationCoordinatorTests
         coordinator.IngestTick(
             [DamageEvent(1, 1), AttackEvent(2, 2, 1)],
             agents, default);
+        ReleaseContacts(coordinator, agents);
 
         coordinator.AdvanceEffects(0.5f);
 
@@ -155,28 +213,27 @@ public sealed class PresentationCoordinatorTests
     }
 
     /// <summary>
-    /// The swing is the only action in progress rather than a wound already
-    /// dealt, so it is the only clock the playback speed touches.
+    /// The attack is the only action in progress rather than a wound already
+    /// dealt, so it is the only contact clock the playback speed touches.
     /// </summary>
     [Fact]
-    public void AdvanceEffects_ScalesOnlyTheSwingClockByTheSpeedMultiplier()
+    public void AdvanceEffects_ScalesOnlyTheAttackClockByTheSpeedMultiplier()
     {
         var coordinator = new PresentationCoordinator(eventCapacity: 5);
         AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
         coordinator.IngestTick(
             [
-                DamageEvent(1, 1),
                 AttackEvent(2, 2, 1),
-                AttackEvent(3, 2, 1, AttackResolution.Parried),
             ],
             agents, default);
+        ReleaseContacts(coordinator, agents);
+        coordinator.AcknowledgeAttackDraw();
 
         coordinator.AdvanceEffects(0.02f, speedMultiplier: 4f);
 
-        var swing = Assert.Single(coordinator.Swings.ActiveSwings.ToArray());
-        Assert.Equal(0.08f, swing.AgeSeconds, precision: 5);
-        var clash = Assert.Single(coordinator.ClashEffects.ActiveEffects.ToArray());
-        Assert.Equal(0.02f, clash.AgeSeconds, precision: 5);
+        var attack = Assert.Single(
+            coordinator.AttackAnimations.ActiveAnimations.ToArray());
+        Assert.Equal(0.08f, attack.AgeSeconds, precision: 5);
         var hit = Assert.Single(coordinator.HitEffects.ActiveEffects.ToArray());
         Assert.Equal(0.02f, hit.AgeSeconds, precision: 5);
         var burst = Assert.Single(coordinator.Blood.ActiveBursts.ToArray());
@@ -206,6 +263,89 @@ public sealed class PresentationCoordinatorTests
     }
 
     [Fact]
+    public void AdvanceEffects_WhenPlaybackIsPausedFreezesEveryContactClock()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
+        coordinator.IngestTick([AttackEvent(1, 1, 2)], agents, default);
+        ReleaseContacts(coordinator, agents);
+        coordinator.AcknowledgeAttackDraw();
+
+        coordinator.AdvanceEffects(
+            elapsedSeconds: 0.10f,
+            speedMultiplier: 4f,
+            advanceContacts: false);
+
+        Assert.Equal(0f, Assert.Single(
+            coordinator.AttackAnimations.ActiveAnimations.ToArray()).AgeSeconds);
+        Assert.Equal(0f, Assert.Single(
+            coordinator.HitEffects.ActiveEffects.ToArray()).AgeSeconds);
+        Assert.Equal(0f, Assert.Single(
+            coordinator.Blood.ActiveBursts.ToArray()).AgeSeconds);
+        Assert.Equal(0f, Assert.Single(
+            coordinator.DefenderReactions.ActiveReactions.ToArray()).AgeSeconds);
+        Assert.Equal(0.10f, coordinator.GrassSwayClockSeconds, precision: 5);
+    }
+
+    [Fact]
+    public void TerminalAttackPresentation_WaitsForDrawAndLethalHoldOnly()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
+        coordinator.IngestTick(
+            [AttackEvent(1, 1, 2), DeathEvent(2, defenderEntityId: 2)],
+            agents,
+            default);
+
+        ReleaseContacts(coordinator, agents);
+
+        Assert.True(coordinator.HasTerminalAttackPresentation);
+        Assert.Equal(1, coordinator.AcknowledgeAttackDraw());
+        Assert.True(coordinator.HasTerminalAttackPresentation);
+
+        coordinator.AdvanceEffects(
+            DefenderReaction.LethalHoldSeconds,
+            advanceContacts: true);
+
+        Assert.False(coordinator.HasTerminalAttackPresentation);
+    }
+
+    [Fact]
+    public void TerminalAttackPresentation_DrainsSameAttackerContactsBeforeCompletion()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 8);
+        AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
+        coordinator.IngestTick(
+            [
+                AttackEvent(1, 1, 2, tick: 1),
+                AttackEvent(2, 1, 2, tick: 1),
+                DeathEvent(3, defenderEntityId: 2),
+            ],
+            agents,
+            default);
+
+        ReleaseContacts(coordinator, agents);
+
+        Assert.True(coordinator.HasTerminalAttackPresentation);
+        Assert.Equal(1, coordinator.AttackContacts.PendingCount);
+        Assert.Equal(1, coordinator.AcknowledgeAttackDraw());
+        Assert.True(coordinator.HasTerminalAttackPresentation);
+
+        ReleaseContacts(coordinator, agents);
+
+        Assert.Equal(0, coordinator.AttackContacts.PendingCount);
+        Assert.True(coordinator.HasTerminalAttackPresentation);
+        Assert.Equal(1, coordinator.AcknowledgeAttackDraw());
+        Assert.True(coordinator.HasTerminalAttackPresentation);
+
+        coordinator.AdvanceEffects(
+            DefenderReaction.LethalHoldSeconds,
+            advanceContacts: true);
+
+        Assert.False(coordinator.HasTerminalAttackPresentation);
+    }
+
+    [Fact]
     public void ResetFor_ClearsTheGrassSwayClock()
     {
         var coordinator = new PresentationCoordinator(eventCapacity: 5);
@@ -217,23 +357,24 @@ public sealed class PresentationCoordinatorTests
     }
 
     [Fact]
-    public void ResetFor_ClearsSwingsAndClashEffects()
+    public void ResetFor_ClearsAttackFramesAndClashEffects()
     {
         var coordinator = new PresentationCoordinator(eventCapacity: 5);
         AgentView[] agents = [CreateAgent(1), CreateAgent(2)];
         coordinator.IngestTick(
             [
-                AttackEvent(1, 2, 1),
                 AttackEvent(2, 1, 2, AttackResolution.ShieldBlocked),
             ],
             agents, default);
+        ReleaseContacts(coordinator, agents);
 
-        Assert.NotEmpty(coordinator.Swings.ActiveSwings.ToArray());
+        Assert.NotEmpty(coordinator.AttackAnimations.ActiveAnimations.ToArray());
         Assert.NotEmpty(coordinator.ClashEffects.ActiveEffects.ToArray());
 
         coordinator.ResetFor(ClientCommand.NextRound);
 
-        Assert.Empty(coordinator.Swings.ActiveSwings.ToArray());
+        Assert.Empty(coordinator.AttackAnimations.ActiveAnimations.ToArray());
+        Assert.False(coordinator.HasUndrawnAttackContacts);
         Assert.Empty(coordinator.ClashEffects.ActiveEffects.ToArray());
     }
 
@@ -559,6 +700,20 @@ public sealed class PresentationCoordinatorTests
         Assert.Same(summary, coordinator.Summary);
     }
 
+    private static SoundDirector ReleaseContacts(
+        PresentationCoordinator coordinator,
+        IReadOnlyList<AgentView> agents)
+    {
+        var sounds = new SoundDirector(logCapacity: 8);
+        sounds.BeginFrame(elapsedSeconds: 0);
+        coordinator.ReleaseAttackContactsForDraw(
+            agents,
+            MotionIntensity.Full,
+            sounds,
+            allowRelease: true);
+        return sounds;
+    }
+
     private static AgentView CreateAgent(ulong entityId) =>
         CreateAgentAt(entityId, xRaw: 0, yRaw: 0);
 
@@ -592,10 +747,11 @@ public sealed class PresentationCoordinatorTests
         long sequence,
         ulong sourceEntityId,
         ulong targetEntityId,
-        AttackResolution resolution = AttackResolution.Landed) =>
+        AttackResolution resolution = AttackResolution.Landed,
+        long? tick = null) =>
         BattleEvent.Attack(
             sequence,
-            tick: sequence,
+            tick: tick ?? sequence,
             sourceEntityId,
             targetEntityId,
             damage: resolution == AttackResolution.Landed ? 10 : 0,
@@ -615,5 +771,17 @@ public sealed class PresentationCoordinatorTests
             sourceEntityId: targetEntityId,
             targetEntityId: targetEntityId,
             value: 10,
+            factionId: null);
+
+    private static BattleEvent DeathEvent(
+        long sequence,
+        ulong defenderEntityId) =>
+        BattleEvent.NonAttack(
+            sequence,
+            tick: 1,
+            BattleEventKind.Death,
+            sourceEntityId: defenderEntityId,
+            targetEntityId: null,
+            value: 0,
             factionId: null);
 }

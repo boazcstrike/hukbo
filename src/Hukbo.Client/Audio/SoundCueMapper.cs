@@ -1,7 +1,16 @@
+using Hukbo.Client.Presentation;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.Audio;
+
+/// <summary>
+/// The sounds released atomically with one contact. A lethal landed bundle
+/// keeps its weapon cue and owns the single Death cue attached by dispatch.
+/// </summary>
+internal readonly record struct ContactSoundRequest(
+    GameSoundId? Contact,
+    GameSoundId? Lethal);
 
 /// <summary>
 /// Translates one authoritative <see cref="BattleEvent"/> into the sound slot
@@ -10,6 +19,11 @@ namespace Hukbo.Client.Audio;
 /// </summary>
 internal static class SoundCueMapper
 {
+    public static ContactSoundRequest MapContact(AttackContactBundle contact) =>
+        new(
+            MapAttack(contact.Weapon, contact.Resolution),
+            contact.IsLethal ? GameSoundId.Death : null);
+
     /// <summary>
     /// Returns the slot for an event, or <c>null</c> when the event has no
     /// sound.

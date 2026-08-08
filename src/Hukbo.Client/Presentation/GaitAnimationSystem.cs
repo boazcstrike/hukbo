@@ -36,7 +36,7 @@ internal readonly record struct GaitEntry(
 /// <summary>
 /// Holds one gait entry per living warrior currently in view, in a
 /// fixed-capacity array sized at construction. Mirrors
-/// <see cref="SwingAnimationSystem"/>'s fixed-capacity, zero-heap-allocation
+/// <see cref="AttackAnimationSystem"/>'s fixed-capacity, zero-heap-allocation
 /// shape, keyed on position change rather than on battle events.
 /// </summary>
 /// <remarks>

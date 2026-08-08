@@ -57,10 +57,18 @@ namespace Hukbo.Client.Rendering;
 /// this same counter's frame-to-frame delta (R-W4.10) rather than leaving a
 /// caller to derive it from a window of samples afterward.
 /// </param>
+/// <param name="ActiveAttackPoses">
+/// How many warriors held an active attack pose on this frame
+/// (attack-animation-v2 plan, task 10). A station whose whole window records
+/// zero never exercised the articulated attack path at all, which is what
+/// makes an attack render budget measured from it meaningless. Defaulted so
+/// a caller that predates the attack rig still constructs a valid sample.
+/// </param>
 public readonly record struct RenderProbeSample(
     double FrameMilliseconds,
     RenderMetricsSnapshot Metrics,
     int Gen0Collections,
     int Gen1Collections,
     int Gen2Collections,
-    long AllocatedBytes);
+    long AllocatedBytes,
+    int ActiveAttackPoses = 0);

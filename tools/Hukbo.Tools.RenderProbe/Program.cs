@@ -285,7 +285,21 @@ RenderProbeReport CaptureReport(int agents, ulong seed, int framesPerStation)
     // before any frame counts toward a station's sample set.
     const int WarmupFrameCount = 30;
 
+    // Attack-animation-v2, task 10. A battle's warriors start spread out, so
+    // the first counted frame of a fixed thirty-frame warm-up lands long
+    // before anyone is in reach of anyone else, and every station then reports
+    // a window in which no attack was ever drawn. That window measures the
+    // neutral pawn path and says nothing about the articulated attack path,
+    // which is the one this task exists to bound. So the warm-up is extended
+    // until the client actually holds an attack pose, and the ceiling below
+    // stops a scenario that never produces one from hanging the probe — it
+    // proceeds and the report's activeAttackPosesMaximum stays zero, which is
+    // the honest reading rather than a fabricated one.
+    const int ContactWarmupFrameCeiling = 4_000;
+
     var warmupFramesRemaining = WarmupFrameCount;
+    var contactWarmupFrames = 0;
+    var contactObserved = false;
     var stationIndex = 0;
     var samplesByStation = new List<RenderProbeSample>[stations.Length];
     for (var index = 0; index < stations.Length; index++)
@@ -304,6 +318,12 @@ RenderProbeReport CaptureReport(int agents, ulong seed, int framesPerStation)
     // GraphicsDeviceManager reads the flag when it creates the device.
     game.SetProbeVerticalRetrace(synchronize: false);
 
+    // Attack-animation-v2, task 10. A launched client opens paused, so an
+    // unstarted battle never produces a contact and every station below would
+    // measure the neutral pawn path only. This starts the same authoritative
+    // playback a spectator starts by pressing play.
+    game.SetProbePlaybackStarted();
+
     game.RenderProbeSampled += sample =>
     {
         if (warmupFramesRemaining > 0)
@@ -315,6 +335,19 @@ RenderProbeReport CaptureReport(int agents, ulong seed, int framesPerStation)
             }
 
             return;
+        }
+
+        if (!contactObserved)
+        {
+            contactWarmupFrames++;
+            if (sample.ActiveAttackPoses > 0)
+            {
+                contactObserved = true;
+            }
+            else if (contactWarmupFrames < ContactWarmupFrameCeiling)
+            {
+                return;
+            }
         }
 
         samplesByStation[stationIndex].Add(sample);

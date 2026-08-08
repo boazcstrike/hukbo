@@ -83,6 +83,35 @@ internal sealed class BloodEffectSystem
     public ReadOnlySpan<LethalSpurt> ActiveSpurts =>
         _spurts.AsSpan(0, _spurtCount);
 
+    /// <summary>
+    /// Starts blood owned by one atomic landed contact. Lethal classification
+    /// comes from the dispatcher-owned bundle rather than from a later Death
+    /// scan, so only the highest-sequence lethal contributor gets a spurt.
+    /// </summary>
+    public void StartContact(
+        AttackContactBundle contact,
+        AgentView attacker,
+        AgentView defender)
+    {
+        if (_intensity == GoreIntensity.Off ||
+            contact.Resolution != AttackResolution.Landed)
+        {
+            return;
+        }
+
+        var direction = ResolveDirection(attacker, defender);
+        AddBlow(
+            contact.Sequence,
+            contact.AttackerEntityId,
+            contact.DefenderEntityId,
+            contact.Damage,
+            contact.Weapon,
+            contact.HitLocation,
+            contact.IsLethal,
+            defender,
+            direction);
+    }
+
     public void Ingest(
         IReadOnlyList<BattleEvent> events,
         IReadOnlyList<AgentView> agents)
@@ -175,8 +204,31 @@ internal sealed class BloodEffectSystem
     {
         var direction = ResolveDirection(battleEvent.SourceEntityId, victim);
         var isLethal = _deathEntityIds.Contains(targetEntityId);
-        var severityRatio = ResolveSeverityRatio(
+        AddBlow(
+            battleEvent.Sequence,
+            battleEvent.SourceEntityId,
+            targetEntityId,
             battleEvent.Value,
+            weapon,
+            hitLocation,
+            isLethal,
+            victim,
+            direction);
+    }
+
+    private void AddBlow(
+        long sequence,
+        ulong sourceEntityId,
+        ulong targetEntityId,
+        int damage,
+        WeaponId weapon,
+        BodyPart hitLocation,
+        bool isLethal,
+        AgentView victim,
+        (float X, float Y) direction)
+    {
+        var severityRatio = ResolveSeverityRatio(
+            damage,
             victim.MaximumHitPoints);
         var isDense = _intensity == GoreIntensity.Full;
 
@@ -184,8 +236,8 @@ internal sealed class BloodEffectSystem
             _bursts,
             _burstCount,
             new BloodBurst(
-                battleEvent.Sequence,
-                battleEvent.SourceEntityId,
+                sequence,
+                sourceEntityId,
                 targetEntityId,
                 victim.XRaw,
                 victim.YRaw,
@@ -200,7 +252,7 @@ internal sealed class BloodEffectSystem
             _groundMarks,
             _groundMarkCount,
             new GroundMark(
-                battleEvent.Sequence,
+                sequence,
                 victim.XRaw,
                 victim.YRaw,
                 isLethal,
@@ -216,8 +268,8 @@ internal sealed class BloodEffectSystem
             _spurts,
             _spurtCount,
             new LethalSpurt(
-                battleEvent.Sequence,
-                battleEvent.SourceEntityId,
+                sequence,
+                sourceEntityId,
                 targetEntityId,
                 victim.XRaw,
                 victim.YRaw,
@@ -225,6 +277,16 @@ internal sealed class BloodEffectSystem
                 direction.Y,
                 severityRatio,
                 AgeSeconds: 0f));
+    }
+
+    private static (float X, float Y) ResolveDirection(
+        AgentView attacker,
+        AgentView victim)
+    {
+        var deltaX = (float)(victim.XRaw - attacker.XRaw);
+        var deltaY = (float)(victim.YRaw - attacker.YRaw);
+        var length = MathF.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
+        return length > 0f ? (deltaX / length, deltaY / length) : (0f, 0f);
     }
 
     /// <summary>

@@ -415,6 +415,11 @@ internal static class PawnRenderer
         }
 
         DrawAdornments(spriteBatch, pixel, layout, adornmentAccentColor);
+
+        // Before the trail and the weapon, after the torso and the shield: the
+        // arms leave the body and the weapon is held in the hand, so the
+        // weapon has to draw over the hand that holds it rather than under it.
+        DrawArms(spriteBatch, pixel, layout.Arms, skinColor);
         DrawSwingTrail(spriteBatch, pixel, layout.SwingTrail);
         DrawWeapon(
             spriteBatch,
@@ -1139,6 +1144,50 @@ internal static class PawnRenderer
     }
 
     /// <summary>
+    /// The four arm strokes an actively attacking warrior draws, in the same
+    /// bare skin tone the feet already use. At most four quads, and none at
+    /// all when the layout carries no arms — which is every pawn that is not
+    /// mid-contact, and every pawn at the low detail tier.
+    /// </summary>
+    private static void DrawArms(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        ArmLayout arms,
+        Color skinColor)
+    {
+        if (arms.IsEmpty)
+        {
+            return;
+        }
+
+        DrawArmSegment(spriteBatch, pixel, arms.WeaponUpperArm, arms.Thickness, skinColor);
+        DrawArmSegment(spriteBatch, pixel, arms.WeaponForearm, arms.Thickness, skinColor);
+        DrawArmSegment(spriteBatch, pixel, arms.SupportUpperArm, arms.Thickness, skinColor);
+        DrawArmSegment(spriteBatch, pixel, arms.SupportForearm, arms.Thickness, skinColor);
+    }
+
+    private static void DrawArmSegment(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        ArmSegment segment,
+        float thickness,
+        Color skinColor)
+    {
+        if (segment.IsEmpty)
+        {
+            return;
+        }
+
+        DrawLine(
+            spriteBatch,
+            pixel,
+            segment.From,
+            segment.To,
+            skinColor,
+            thickness);
+    }
+
+    /// <summary>
     /// Strokes the arc the layout already computed. There is no trail formula
     /// here: the pivot, radius, and both angles arrive from
     /// <see cref="PawnGeometry"/>, and this method only walks between them.
@@ -1163,7 +1212,10 @@ internal static class PawnRenderer
                 pixel,
                 previous,
                 current,
-                SwingTrailColor * (trail.Strength * along * 0.55f),
+                SwingTrailColor * Math.Clamp(
+                    trail.Strength * trail.Emphasis * along * 0.55f,
+                    0f,
+                    1f),
                 trail.Thickness);
             previous = current;
         }

@@ -132,6 +132,64 @@ public sealed class PawnGeometryTests
         }
     }
 
+    [Fact]
+    public void CompleteAttackPosedLayout_PointsEveryWeaponAtAllEightHeadings()
+    {
+        WeaponId[] weapons =
+        [
+            WeaponId.Kampilan,
+            WeaponId.Wasay,
+            WeaponId.Kalis,
+            WeaponId.Itak,
+        ];
+
+        foreach (var weapon in weapons)
+        {
+            var appearance = PawnAppearanceFactory.Create(
+                entityId: 1,
+                weapon,
+                ShieldId.None);
+            var prefix = PawnGeometry.PoseBlindPrefix.Create(
+                new Vector2(100f, 100f),
+                cameraZoom: 1.5f,
+                appearance);
+
+            for (var heading = 0; heading < 8; heading++)
+            {
+                var radians = heading * MathF.PI / 4f;
+                var direction = new Vector2(
+                    MathF.Cos(radians),
+                    MathF.Sin(radians));
+                var pose = new AttackPose(
+                    AttackAnimationPhase.Contact,
+                    Forward: direction,
+                    Right: new Vector2(-direction.Y, direction.X),
+                    TorsoOffset: Vector2.Zero,
+                    TorsoRotationRadians: 0f,
+                    StanceWeight: 1f,
+                    WeaponHand: Vector2.Zero,
+                    SupportHand: Vector2.Zero,
+                    HasSupportHand: false,
+                    WeaponTip: direction * 1.15f,
+                    TrailStart: Vector2.Zero,
+                    TrailEnd: direction,
+                    TrailStrength: 1f,
+                    ShieldHand: Vector2.Zero,
+                    HasShield: false,
+                    AttackResolution.Landed,
+                    IsLethal: false);
+
+                var layout = prefix.CompleteAttackPosedLayout(pose);
+                var actual = Vector2.Normalize(
+                    layout.WeaponEnd - layout.WeaponStart);
+
+                Assert.True(
+                    Vector2.Dot(direction, actual) > 0.999f,
+                    $"{weapon} heading {heading} drew {actual}.");
+            }
+        }
+    }
+
     /// <summary>
     /// No shield in the loadout draws no block on the battlefield: the
     /// silhouette carries only what the authoritative Core loadout grants.
