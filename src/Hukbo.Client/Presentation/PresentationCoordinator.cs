@@ -20,7 +20,6 @@ internal sealed class PresentationCoordinator
         int bloodBurstCapacity = PawnAppearanceCache.Capacity,
         int bloodGroundMarkCapacity = PawnAppearanceCache.Capacity,
         int bloodSpurtCapacity = PawnAppearanceCache.Capacity,
-        int swingCapacity = 256,
         int clashEffectCapacity = PawnAppearanceCache.Capacity,
         int trampleMarkCapacity = TrampleMarkSystem.Capacity,
         int dustPuffCapacity = DustEffectSystem.Capacity,
@@ -36,7 +35,6 @@ internal sealed class PresentationCoordinator
             bloodBurstCapacity,
             bloodGroundMarkCapacity,
             bloodSpurtCapacity);
-        Swings = new SwingAnimationSystem(swingCapacity);
         ClashEffects = new ClashEffectSystem(clashEffectCapacity);
         Trample = new TrampleMarkSystem(trampleMarkCapacity);
         Dust = new DustEffectSystem(dustPuffCapacity);
@@ -75,7 +73,6 @@ internal sealed class PresentationCoordinator
     /// the attack renderer migrates. The live event route no longer ingests
     /// or advances this store.
     /// </summary>
-    public SwingAnimationSystem Swings { get; }
 
     /// <summary>
     /// The crosses where two weapons, or a weapon and a shield, met.
@@ -324,7 +321,6 @@ internal sealed class PresentationCoordinator
         BattleReportAccumulator.Clear();
         HitEffects.Clear();
         Blood.Clear();
-        Swings.Clear();
         AttackFrames.Clear();
         DefenderReactions.Clear();
         ClashEffects.Clear();

@@ -4,7 +4,7 @@ namespace Hukbo.Client.Rendering;
 
 /// <summary>
 /// Pure mapping from a warrior's per-tick displacement and stride phase to a
-/// <see cref="GaitPose"/>, mirroring <see cref="SwingGeometry"/>'s shape: a
+/// <see cref="GaitPose"/>, mirroring <see cref="AttackGeometry"/>'s shape: a
 /// static class over value types only, with no store, no clock, and no
 /// dependency on anything that can fail to be present in a unit test.
 /// </summary>

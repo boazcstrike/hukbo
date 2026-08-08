@@ -4870,6 +4870,52 @@ warrior.
 | GA-13 | Watch a warrior attack while moving | The swing and the gait compose without the body jumping between two poses | | PENDING |
 | GA-14 | Watch a battle at 200 agents from minimum zoom | The formation still reads as a formation; leg motion has not turned the field into noise | | PENDING |
 
+### Attack animation V2 smoke (2026-08-08)
+
+**No interactive run was performed for this change.** Every row below is
+`PENDING`. The automated tests prove the weapon-motion catalog, the
+contact-latched timeline, the target-local geometry, the articulated arm
+rectangles, the defender reaction offsets, the shield overlay legality, the
+motion-intensity policy, the quad accounting, and the conservative cull's
+containment of all of it. None of them prove that a Kampilan reads differently
+from a Kalis on screen, that a blow appears to land on the warrior it names, or
+that a dense battle of two hundred warriors striking at once reads as combat
+rather than as noise. Design:
+`docs/plans/2026-08-08-attack-animation-v2-design.md`.
+
+The render probe measured the attack path directly at 200, 500, and 1 000
+agents across all three camera stations, with every station recording at least
+one frame holding an active attack pose (peaks of 2 to 20 poses per frame):
+`artifacts/attack-animation-v2/render-matrix.json`. That is a performance
+measurement, not a visual one, and it flips no row below.
+
+| ID | Action | Expected | Observed | Result |
+| --- | --- | --- | --- | --- |
+| AA-1 | Watch a Kampilan warrior strike at close zoom | The broadest of the four arcs, both hands on the blade, a planted weight transfer | | PENDING |
+| AA-2 | Watch a Wasay warrior strike at close zoom | The head arrives late and stops hard; the support hand anchors the haft; the longest recovery of the four | | PENDING |
+| AA-3 | Watch a Kalis warrior strike at close zoom | A mostly linear extension toward the target rather than a broad cut, with the fastest return | | PENDING |
+| AA-4 | Watch an Itak warrior strike at close zoom | The shortest, quickest chop, alternating side between consecutive blows | | PENDING |
+| AA-5 | Watch each of the four weapons at 1x, 2x, and 4x | Every blow stays individually visible; nothing blurs into a single continuous motion at 4x | | PENDING |
+| AA-6 | Watch a blow that lands | The weapon reaches the named target, blood and the defender's recoil arrive on the same frame as the weapon | | PENDING |
+| AA-7 | Watch a blow a shield blocks | The defender braces into the contact rather than being driven back, and the clash reads on the shield | | PENDING |
+| AA-8 | Watch a parried blow | Attacker and defender weapons visibly meet and redirect across the line of the blow | | PENDING |
+| AA-9 | Watch a deflected blow | A shallower glance than the parry, continuing rather than reversing | | PENDING |
+| AA-10 | Watch an evaded blow | Full follow-through with no blood, no clash cross, and no contact recoil | | PENDING |
+| AA-11 | Watch a two-blow combo from one warrior | The second contact installs a new blow rather than restarting the first; the return side changes | | PENDING |
+| AA-12 | Watch a lethal blow at close zoom | The victim stays visible long enough for the weapon to reach it, then falls; it does not vanish before contact | | PENDING |
+| AA-13 | Watch a shielded Kalis warrior strike (registered V2 replay) | The block stays between the defender and the weapon line; the weapon arm does not cross or hide it | | PENDING |
+| AA-14 | Watch a shielded Itak warrior strike (registered V2 replay) | As AA-13, with the compact chop rather than the thrust | | PENDING |
+| AA-15 | Watch attacks at Low, Medium, and High detail | Low keeps direction and outcome with no arms and no trail; Medium and High draw the full rig | | PENDING |
+| AA-16 | Set motion to Full, then Reduced, then Off | All three keep direction, reach, and which outcome resolved the blow; Reduced damps the body; Off removes the trail entirely | | PENDING |
+| AA-17 | Pause on the frame of a contact | The pose, the effect, the reaction, and the sound freeze together; nothing advances while paused | | PENDING |
+| AA-18 | Pause during a catch-up burst, then resume | Queued contacts resume in order and none is duplicated or lost | | PENDING |
+| AA-19 | Next Round, then Full Reset, during active combat | Every attack pose, pending contact, reaction, and transient effect is cleared by both | | PENDING |
+| AA-20 | Watch a 200-warrior battle at close zoom | Individual exchanges are readable; the arms and trails do not obscure who is fighting whom | | PENDING |
+| AA-21 | Watch a 200-warrior battle at default fit | The formation still reads as a formation | | PENDING |
+| AA-22 | Watch a 500-warrior stress battle at minimum, default-fit, and maximum zoom | Frame pacing stays comfortable and the field does not turn into visual noise at any of the three | | PENDING |
+| AA-23 | Watch a warrior strike while moving | The attack plants the stance and composes with the stride; the body does not jump between two poses | | PENDING |
+| AA-24 | Watch a warrior at the edge of the arena panel strike outward | The weapon does not pop in or out at the panel edge as the blow extends | | PENDING |
+
 ## Failure classification
 
 Classify failures as implementation, test, environment/dependency, pre-existing,
