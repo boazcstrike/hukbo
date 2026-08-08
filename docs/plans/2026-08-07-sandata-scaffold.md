@@ -2908,3 +2908,61 @@ belong beside `tools/` as hand-run measurement.
 
 Task 53 is complete. Tasks 82 and 83 are complete. Task 54 now has figures worth
 recording.
+
+### There is no movement speed, and an ordered operator teleports — 2026-08-08
+
+Task 79b's rejected first attempt pinned `leaderArclength` to the polyline's
+`TotalLength`, and the redo's evidence for why that was wrong turned up something
+larger than the defect it was sent back to fix. With the bad pin restored, the
+operator's raw X after a single `RunTick` was **26,624** — the goal's own raw X,
+26 world units — where a correct projection produces 7,168. It did not move
+toward the goal over several ticks. It arrived, in one.
+
+The cause is not in stage 9. `LocalAvoidance.Commit`
+(`src/Sandata.Core/Movement/LocalAvoidance.cs:105-148`) hands
+`proposal.DesiredXRaw` and `proposal.DesiredYRaw` straight to
+`SandataCollisionResolver.Resolve`. **Nothing anywhere clamps how far an operator
+may move in one tick.** There is no speed field on `SandataRuleset`, no step
+constant in `Movement/`, and no distance check in the resolver. An operator moves
+to its proposed position in a single tick regardless of distance, subject only to
+collision.
+
+That is defensible as a division of labour — design section 8 describes stage 10
+as "commit sequentially against the collision grid" and says nothing about
+speed, so producing one tick's worth of movement is the *proposer's* obligation,
+and stage 9 is the proposer. What is not defensible is that only one of the two
+proposal branches honours it:
+
+- **The autonomous branch now does**, since task 79b: it samples the polyline at
+  the leader's projected arclength plus `FormationLookaheadWu`, so the proposed
+  point is a bounded distance from the current one. That bound is an accidental
+  speed and it is marked provisional.
+- **The ordered branch does not.** `ComputeMovementProposals` sets
+  `desiredXRaw = RawFromWorldUnits(node.X)` directly from
+  `assignment.PathNodes[assignment.CurrentNodeIndex]`. An operator following a
+  path a player drew jumps to its current waypoint in one tick.
+
+This is reachable in the game right now. Task 80 wired `Sandata.Client`'s path
+draw tool to `SandataSimulation.SubmitOrder` and gave the client a real
+simulation over `angle-house.hkmap`, so drawing a path and submitting it is a
+thing a person can do, and what they will see is an operator teleporting between
+the waypoints they drew. Design section 16 promises the opposite in as many
+words: "A path a person drew is that person's decision", with the operator
+walking it and the inspector able to report "the node index currently being
+walked". A node index being walked presumes walking.
+
+The wider point is worth stating plainly, because it explains why this went
+unnoticed for eleven waves: **every stage-9 test before task 79b asserted that an
+operator's position changed, and none asserted how far it moved.** A teleport
+satisfies "moved" perfectly. It is the same shape as the two benchmark defects
+this wave found — a measurement that cannot distinguish the success it claims to
+observe from a degenerate case that looks identical.
+
+#### One task this creates
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 84 | 12 | Give movement a speed | `LocalAvoidance.Commit` commits `MovementProposal.DesiredXRaw`/`DesiredYRaw` unclamped, so an operator moves any distance in one tick. Stage 9's ordered branch proposes the authored waypoint itself, so an operator under a drawn order teleports between the nodes a player drew — observable in the client task 80 wired up. Clamp the proposed step to a per-tick movement distance in stage 9, for **both** branches, so the ordered branch walks its polyline instead of jumping to it. Replace task 79b's provisional `FormationLookaheadWu` with that same distance rather than leaving two constants that both mean "how far in one tick". Do not add a `SandataRuleset` field — that moves the pinned `ContentHash` `8_955_292_433_887_190_872`; declare it a provisional `const` marked at its declaration, as task 79b's four already are, and record that a real tuning pass owes this a measured value. | `src/Sandata.Core/Simulation/SandataSimulation.cs` (stage 9 only), `tests/Sandata.Core.Tests/TickPipelineTests.cs` | A test proves an operator under an `OrderAssignment` whose next waypoint is far away takes more than one tick to reach it, and that its per-tick displacement never exceeds the constant — asserted on the displacement, not on "the position changed". A test proves the same bound for the autonomous branch. Task 79b's `RunTick_UnassignedOperatorInGroupWithPublishedPath_FollowsTheBentPolylineNotTheGoal` still passes, with its pinned raw coordinates updated if and only if the constant differs from `FormationLookaheadWu`'s 8. | 79b, 80 | |
+
+Task 84 shares `SandataSimulation.cs` with every remaining task-79 split and with
+task 81, so it does not run beside any of them.
