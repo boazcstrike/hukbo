@@ -1962,4 +1962,50 @@ public sealed class TickPipelineTests
 
         return new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
     }
+
+    /// <summary>
+    /// Task 81's reuse-proof: <see cref="SandataSimulation"/> now holds one
+    /// <see cref="SandataCollisionGrid"/> instance for its whole lifetime
+    /// instead of constructing a fresh one every tick (the change that cut
+    /// stage 3's measured per-tick allocation from roughly 382,000 bytes to
+    /// roughly 21,000 bytes). That reuse is only safe if a later
+    /// <see cref="SandataCollisionGrid.Rebuild"/> call fully discards the
+    /// previous tick's <see cref="SandataCollisionGrid.Pairs"/> rather than
+    /// leaking stale entries into an observably reused buffer. This asserts
+    /// the discard on content, not on "it reused something": a first
+    /// <see cref="SandataCollisionGrid.Rebuild"/> call produces one
+    /// contact pair between two co-located bodies, and a second call on the
+    /// very same instance — with entirely different entity ids placed far
+    /// apart — must report zero pairs and, specifically, must not still
+    /// report the first call's pair.
+    /// </summary>
+    [Fact]
+    public void SandataCollisionGrid_Rebuild_DiscardsThePreviousCallsPairs()
+    {
+        const int cellSizeRaw = 200;
+        const int bodyRadiusRaw = 50; // diameter 100 <= cellSizeRaw, satisfies ValidateBodyRadius.
+        var grid = new SandataCollisionGrid(cellSizeRaw);
+
+        var firstTickBodies = new[]
+        {
+            new SandataCollisionBody(EntityId: 1, XRaw: 0, YRaw: 0, IsAlive: true),
+            new SandataCollisionBody(EntityId: 2, XRaw: 10, YRaw: 0, IsAlive: true), // within sum-of-radii contact.
+        };
+        grid.Rebuild(firstTickBodies, bodyRadiusRaw);
+
+        Assert.Equal(
+            new SandataCollisionPair(LowEntityId: 1, HighEntityId: 2),
+            Assert.Single(grid.Pairs));
+
+        var secondTickBodies = new[]
+        {
+            new SandataCollisionBody(EntityId: 3, XRaw: 5_000, YRaw: 5_000, IsAlive: true),
+            new SandataCollisionBody(EntityId: 4, XRaw: -5_000, YRaw: -5_000, IsAlive: true),
+        };
+        grid.Rebuild(secondTickBodies, bodyRadiusRaw);
+
+        Assert.Empty(grid.Pairs);
+        Assert.DoesNotContain(
+            grid.Pairs, pair => pair.LowEntityId == 1 || pair.HighEntityId == 2);
+    }
 }

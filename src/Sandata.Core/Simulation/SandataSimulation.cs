@@ -70,6 +70,43 @@ public sealed class SandataSimulation
     private LocalAvoidance? _localAvoidance;
 
     /// <summary>
+    /// Stage 3's physical-contact broad-phase grid, constructed once and
+    /// reused every tick. <see cref="SandataCollisionGrid"/>'s own remarks
+    /// promise "all storage is reused between calls and grows only when
+    /// capacity is insufficient, so a warm tick allocates nothing" — a
+    /// promise a fresh instance every tick defeated, since every one of its
+    /// backing arrays (and <see cref="Pairs"/>) then starts back at its
+    /// small initial capacity and must regrow from scratch. <see cref="Rebuild"/>
+    /// clears and re-indexes this tick's bodies before producing
+    /// <see cref="Pairs"/>, so nothing from an earlier tick survives into
+    /// the next one — see
+    /// <c>TickPipelineTests.SandataCollisionGrid_Rebuild_DiscardsThePreviousCallsPairs</c>
+    /// for the reuse proof this task adds.
+    /// </summary>
+    private readonly SandataCollisionGrid _contactGrid = new(CollisionCellSizeRaw);
+
+    /// <summary>
+    /// Stage 3's second grid, the squad-cohesion range query — the same
+    /// reuse reasoning as <see cref="_contactGrid"/> applies, sized once at
+    /// construction from <see cref="_ruleset"/>'s
+    /// <see cref="SandataRuleset.GroupCohesionRadiusWu"/>, which never
+    /// changes across this simulation's lifetime.
+    /// </summary>
+    private readonly SandataCollisionGrid _cohesionGrid;
+
+    /// <summary>
+    /// Stage 7's cell-blocked-this-tick input to <see cref="PathService.Advance"/>,
+    /// allocated once and never written to after construction. Every element
+    /// stays its default <see langword="false"/> for this worktree's whole
+    /// lifetime — <see cref="AdvancePathService"/>'s own remarks explain why
+    /// no door-driven dynamic blocker source exists here — so a fresh array
+    /// every tick would only ever reproduce the same all-false content
+    /// <see cref="PathService.Advance"/> already reads through a
+    /// <see cref="ReadOnlySpan{T}"/> it never mutates.
+    /// </summary>
+    private readonly bool[] _pathBlockedCells;
+
+    /// <summary>
     /// Stage 11's write-only record of which operators fired this tick, and
     /// at which contact, for <see cref="ProposeFire"/> to consume. Empty
     /// before the first call to <see cref="RunTick"/>.
@@ -115,6 +152,14 @@ public sealed class SandataSimulation
             _clearanceField,
             navGrid.Width,
             navGrid.Height);
+
+        // See _cohesionGrid's own remarks: sized once here from the ruleset
+        // this simulation is bound to for its whole lifetime.
+        var cohesionRadiusRaw = RawFromWorldUnits(ruleset.GroupCohesionRadiusWu);
+        _cohesionGrid = new SandataCollisionGrid(CohesionCollisionCellSizeRaw(cohesionRadiusRaw));
+
+        // See _pathBlockedCells's own remarks: never written to after this.
+        _pathBlockedCells = new bool[navGrid.CellCount];
 
         State = initialState;
     }
@@ -236,12 +281,10 @@ public sealed class SandataSimulation
 
         // Stage 3.
         var bodies = BuildCollisionBodies(State);
-        var grid = new SandataCollisionGrid(CollisionCellSizeRaw);
-        grid.Rebuild(bodies, CollisionBodyRadiusRaw);
+        _contactGrid.Rebuild(bodies, CollisionBodyRadiusRaw);
         var cohesionRadiusRaw = RawFromWorldUnits(_ruleset.GroupCohesionRadiusWu);
-        var cohesionGrid = new SandataCollisionGrid(CohesionCollisionCellSizeRaw(cohesionRadiusRaw));
-        cohesionGrid.RebuildWithinRange(bodies, cohesionRadiusRaw);
-        var view = CaptureTickStartView(State, grid, cohesionGrid);
+        _cohesionGrid.RebuildWithinRange(bodies, cohesionRadiusRaw);
+        var view = CaptureTickStartView(State, _contactGrid, _cohesionGrid);
 
         // Stage 4.
         State = ApplyDoorMutations(State);
@@ -1351,8 +1394,7 @@ public sealed class SandataSimulation
             }
         }
 
-        var blocked = new bool[_navGrid.CellCount];
-        _pathService.Advance(currentTick, _navGrid, blocked, _wallBuckets);
+        _pathService.Advance(currentTick, _navGrid, _pathBlockedCells, _wallBuckets);
 
         if (groups.IsDefaultOrEmpty)
         {
@@ -1659,7 +1701,10 @@ public sealed class SandataSimulation
     {
         var count = view.Count;
         var assignments = state.OrderAssignments;
-        var builder = ImmutableArray.CreateBuilder<MovementProposal>();
+        // Sized to count: the loop below adds at most one proposal per
+        // operator (skipping dead ones), so this is the exact upper bound
+        // and avoids the unsized builder's doubling regrowth.
+        var builder = ImmutableArray.CreateBuilder<MovementProposal>(count);
 
         // Design section 4: 5 m/s sprint = 80 wu/s. Truncating (not
         // rounding) keeps this <= CollisionBodyRadiusRaw on the safe side -
