@@ -182,18 +182,6 @@ internal sealed class SoundDirector
             : null;
 
     /// <summary>
-    /// Convenience overload for a caller with no view list, such as a test
-    /// that never emits a <see cref="BattleEventKind.Release"/> event and so
-    /// never needs one. Equivalent to <see cref="Ingest(IReadOnlyList{BattleEvent}, IReadOnlyList{AgentView})"/>
-    /// with an empty view list. This exists to keep pre-existing tests
-    /// unmodified; the one production caller,
-    /// <c>ArenaGame.Update</c>, always calls the two-argument overload and
-    /// always passes the real roster.
-    /// </summary>
-    public void Ingest(IReadOnlyList<BattleEvent> events) =>
-        Ingest(events, []);
-
-    /// <summary>
     /// Requests a cue that no simulation event produced, such as a UI click.
     /// It carries no hit location and no source entity, so variant selection
     /// falls back to the fixed entity ID zero — deterministic, and immaterial

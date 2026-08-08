@@ -13,7 +13,7 @@ public sealed class SoundDirectorTests
         var director = new SoundDirector(logCapacity: 64, player);
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([Attack(1, WeaponId.Kampilan)]);
+        director.Ingest([Attack(1, WeaponId.Kampilan)], []);
 
         Assert.Equal(
             GameSoundId.AttackKampilan,
@@ -32,7 +32,7 @@ public sealed class SoundDirectorTests
 
         director.BeginFrame(elapsedSeconds: 1.0);
         director.Ingest(
-            [Attack(1, WeaponId.Kampilan, BodyPart.Head)]);
+            [Attack(1, WeaponId.Kampilan, BodyPart.Head)], []);
 
         Assert.Equal(HitClass.Skull, Assert.Single(player.Played).HitClass);
     }
@@ -64,7 +64,8 @@ public sealed class SoundDirectorTests
                 ShieldId.None,
                 BodyPart.Head,
                 AttackResolution.ShieldBlocked),
-        ]);
+        ],
+        []);
 
         var played = Assert.Single(player.Played);
         Assert.Null(played.HitClass);
@@ -78,7 +79,7 @@ public sealed class SoundDirectorTests
         var director = new SoundDirector(logCapacity: 64, player);
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([NonAttack(1, BattleEventKind.Death)]);
+        director.Ingest([NonAttack(1, BattleEventKind.Death)], []);
 
         Assert.Null(Assert.Single(player.Played).HitClass);
     }
@@ -107,7 +108,7 @@ public sealed class SoundDirectorTests
         }
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest(events);
+        director.Ingest(events, []);
 
         var distinctIndexes = player.Played
             .Select(played => played.VariantIndex)
@@ -146,7 +147,8 @@ public sealed class SoundDirectorTests
         [
             NonAttack(1, BattleEventKind.Move),
             NonAttack(2, BattleEventKind.Damage),
-        ]);
+        ],
+        []);
 
         Assert.Empty(player.Played);
         Assert.Empty(director.Log.Entries);
@@ -159,7 +161,7 @@ public sealed class SoundDirectorTests
         var director = new SoundDirector(logCapacity: 64, player);
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([NonAttack(1, BattleEventKind.Death)]);
+        director.Ingest([NonAttack(1, BattleEventKind.Death)], []);
 
         Assert.Empty(player.Played);
         Assert.Equal(
@@ -174,7 +176,7 @@ public sealed class SoundDirectorTests
         var director = new SoundDirector(logCapacity: 64, player);
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([NonAttack(1, BattleEventKind.Death)]);
+        director.Ingest([NonAttack(1, BattleEventKind.Death)], []);
 
         Assert.Empty(player.Played);
         Assert.Equal(
@@ -190,7 +192,7 @@ public sealed class SoundDirectorTests
         director.ToggleMute();
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([NonAttack(1, BattleEventKind.Death)]);
+        director.Ingest([NonAttack(1, BattleEventKind.Death)], []);
 
         Assert.True(director.IsMuted);
         Assert.Equal(
@@ -206,7 +208,7 @@ public sealed class SoundDirectorTests
         director.ToggleMute();
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([NonAttack(1, BattleEventKind.Death)]);
+        director.Ingest([NonAttack(1, BattleEventKind.Death)], []);
 
         Assert.Empty(player.Played);
         Assert.Equal(
@@ -215,7 +217,7 @@ public sealed class SoundDirectorTests
 
         director.ToggleMute();
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([NonAttack(2, BattleEventKind.Death)]);
+        director.Ingest([NonAttack(2, BattleEventKind.Death)], []);
 
         Assert.Single(player.Played);
         Assert.False(director.IsMuted);
@@ -236,7 +238,7 @@ public sealed class SoundDirectorTests
         }
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest(events);
+        director.Ingest(events, []);
 
         Assert.Equal(2, player.Played.Count);
         Assert.Equal(2, director.Log.Entries.Count);
@@ -256,11 +258,11 @@ public sealed class SoundDirectorTests
             new SoundCueBudget(maximumPerSound: 1, maximumTotal: 1));
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([Attack(1, WeaponId.Itak), Attack(2, WeaponId.Itak)]);
+        director.Ingest([Attack(1, WeaponId.Itak), Attack(2, WeaponId.Itak)], []);
         Assert.Single(player.Played);
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([Attack(3, WeaponId.Itak)]);
+        director.Ingest([Attack(3, WeaponId.Itak)], []);
 
         Assert.Equal(2, player.Played.Count);
     }
@@ -275,8 +277,8 @@ public sealed class SoundDirectorTests
             new SoundCueBudget(maximumPerSound: 1, maximumTotal: 1));
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([Attack(1, WeaponId.Itak)]);
-        director.Ingest([Attack(2, WeaponId.Itak)]);
+        director.Ingest([Attack(1, WeaponId.Itak)], []);
+        director.Ingest([Attack(2, WeaponId.Itak)], []);
 
         Assert.Single(player.Played);
     }
@@ -299,11 +301,11 @@ public sealed class SoundDirectorTests
     {
         var director = new SoundDirector(logCapacity: 64);
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([NonAttack(1, BattleEventKind.Death)]);
+        director.Ingest([NonAttack(1, BattleEventKind.Death)], []);
         var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
 
         director.AttachPlayer(player);
-        director.Ingest([NonAttack(2, BattleEventKind.Death)]);
+        director.Ingest([NonAttack(2, BattleEventKind.Death)], []);
 
         Assert.Equal(2, director.Log.Entries.Count);
         Assert.Equal(SoundCueStatus.Missing, director.Log.Entries[0].Status);
@@ -316,7 +318,7 @@ public sealed class SoundDirectorTests
         var director = new SoundDirector(logCapacity: 64);
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([Attack(1, WeaponId.Kampilan)]);
+        director.Ingest([Attack(1, WeaponId.Kampilan)], []);
 
         Assert.IsType<SilentSoundPlayer>(director.Player);
         Assert.Equal(
@@ -329,7 +331,7 @@ public sealed class SoundDirectorTests
     {
         var director = new SoundDirector(logCapacity: 64);
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([NonAttack(1, BattleEventKind.Death)]);
+        director.Ingest([NonAttack(1, BattleEventKind.Death)], []);
 
         director.Clear();
 
@@ -341,9 +343,7 @@ public sealed class SoundDirectorTests
     {
         var director = new SoundDirector(logCapacity: 64);
 
-        Assert.Throws<ArgumentNullException>(() => director.Ingest(null!));
-        Assert.Throws<ArgumentNullException>(
-            () => director.Ingest(null!, []));
+        Assert.Throws<ArgumentNullException>(() => director.Ingest(null!, []));
         Assert.Throws<ArgumentNullException>(
             () => director.Ingest([], null!));
         Assert.Throws<ArgumentNullException>(
@@ -484,7 +484,8 @@ public sealed class SoundDirectorTests
             Attack(2, WeaponId.Kampilan),
             Attack(3, WeaponId.Kampilan),
             Attack(4, WeaponId.Kampilan),
-        ]);
+        ],
+        []);
 
         Assert.Equal(4, player.Played.Count);
         Assert.Equal(SoundDirector.CueVolume, player.Played[0].Volume);
@@ -508,12 +509,12 @@ public sealed class SoundDirectorTests
         var director = new SoundDirector(logCapacity: 64, player);
 
         director.BeginFrame(elapsedSeconds: 0.016);
-        director.Ingest([Attack(1, WeaponId.Kampilan), Attack(2, WeaponId.Kampilan)]);
+        director.Ingest([Attack(1, WeaponId.Kampilan), Attack(2, WeaponId.Kampilan)], []);
         Assert.True(player.Played[1].Volume < SoundDirector.CueVolume);
 
         // Long enough that both clips have finished.
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([Attack(3, WeaponId.Kampilan)]);
+        director.Ingest([Attack(3, WeaponId.Kampilan)], []);
 
         Assert.Equal(SoundDirector.CueVolume, player.Played[2].Volume);
     }
@@ -528,12 +529,12 @@ public sealed class SoundDirectorTests
         var director = new SoundDirector(logCapacity: 64, player);
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([Attack(1, WeaponId.Kampilan)]);
+        director.Ingest([Attack(1, WeaponId.Kampilan)], []);
 
         // One frame at sixty per second is far shorter than a 250 ms clip, so
         // the first voice is still sounding and must still lower the gain.
         director.BeginFrame(elapsedSeconds: 0.016);
-        director.Ingest([Attack(2, WeaponId.Kampilan)]);
+        director.Ingest([Attack(2, WeaponId.Kampilan)], []);
 
         Assert.Equal(
             SoundDirector.CueVolume / MathF.Sqrt(2),
@@ -552,7 +553,7 @@ public sealed class SoundDirectorTests
         var director = new SoundDirector(logCapacity: 64, player);
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([Attack(1, WeaponId.Kampilan)]);
+        director.Ingest([Attack(1, WeaponId.Kampilan)], []);
 
         Assert.Empty(player.Played);
         Assert.Equal(
@@ -571,7 +572,7 @@ public sealed class SoundDirectorTests
         var director = new SoundDirector(logCapacity: 64, player);
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([Attack(1, WeaponId.Kampilan), Attack(2, WeaponId.Kampilan)]);
+        director.Ingest([Attack(1, WeaponId.Kampilan), Attack(2, WeaponId.Kampilan)], []);
 
         Assert.Equal(0, director.SoundingVoices);
         Assert.Equal(SoundDirector.CueVolume, director.NextCueGain);
@@ -587,7 +588,7 @@ public sealed class SoundDirectorTests
         var director = new SoundDirector(logCapacity: 64, player);
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([Attack(1, WeaponId.Kampilan), Attack(2, WeaponId.Kampilan)]);
+        director.Ingest([Attack(1, WeaponId.Kampilan), Attack(2, WeaponId.Kampilan)], []);
 
         Assert.Equal(2, director.SoundingVoices);
         Assert.Equal(
@@ -606,7 +607,7 @@ public sealed class SoundDirectorTests
         var director = new SoundDirector(logCapacity: 64, player);
 
         director.BeginFrame(elapsedSeconds: 1.0);
-        director.Ingest([Attack(1, WeaponId.Kampilan)]);
+        director.Ingest([Attack(1, WeaponId.Kampilan)], []);
         Assert.Equal(1, director.SoundingVoices);
 
         director.Clear();
