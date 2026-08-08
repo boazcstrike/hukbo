@@ -155,7 +155,7 @@ public sealed class AccuracyRulesTests
     public void DrawAngularErrorBam_ZeroDispersion_IsAlwaysZero()
     {
         Assert.Equal(0, AccuracyRules.DrawAngularErrorBam(missionSeed: 1UL, entityId: 1, dispersionBam: 0));
-        Assert.Equal(0, AccuracyRules.DrawAngularErrorBam(missionSeed: ulong.MaxValue, entityId: -1, dispersionBam: 0));
+        Assert.Equal(0, AccuracyRules.DrawAngularErrorBam(missionSeed: ulong.MaxValue, entityId: ulong.MaxValue, dispersionBam: 0));
         Assert.Equal(0, AccuracyRules.DrawAngularErrorBam(missionSeed: 0UL, entityId: 0, dispersionBam: 0));
     }
 
@@ -164,5 +164,34 @@ public sealed class AccuracyRulesTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(
             () => AccuracyRules.DrawAngularErrorBam(missionSeed: 1UL, entityId: 1, dispersionBam: -1));
+    }
+
+    /// <summary>
+    /// Task 78 widened <see cref="AccuracyRules.DrawAngularErrorBam"/>'s
+    /// <c>entityId</c> parameter from <see langword="int"/> to
+    /// <see langword="ulong"/>, to remove the <c>unchecked((int)...)</c> cast
+    /// its one call site in <c>SandataSimulation.ProposeFire</c> applied
+    /// against <c>OperatorState.EntityId</c>. Because the fold this method
+    /// runs seeds the named <c>Accuracy</c> RNG stream design section 4's
+    /// "ordering and randomness" rule governs, a parameter-width change that
+    /// altered the folded value for any id that already fit in a
+    /// non-negative <see langword="int"/> would move that stream — a
+    /// preset-version change, not a refactor. These three triples were
+    /// captured by calling the pre-change, <see langword="int"/>-parameter
+    /// <see cref="AccuracyRules.DrawAngularErrorBam"/> with the same
+    /// arguments immediately before the widening edit landed (a temporary
+    /// <c>ITestOutputHelper</c> fact in this file printed the three values,
+    /// then was deleted once they were recorded here) and are asserted again
+    /// now, against the widened method, byte for byte.
+    /// </summary>
+    [Theory]
+    [InlineData(12345UL, 7UL, 256, -122)]
+    [InlineData(999UL, 42UL, 171, -147)]
+    [InlineData(55UL, 3UL, 32_767, 30472)]
+    public void DrawAngularErrorBam_PinnedDraws_MatchThePreWideningValues(
+        ulong missionSeed, ulong entityId, int dispersionBam, int expectedDraw)
+    {
+        Assert.Equal(
+            expectedDraw, AccuracyRules.DrawAngularErrorBam(missionSeed, entityId, dispersionBam));
     }
 }

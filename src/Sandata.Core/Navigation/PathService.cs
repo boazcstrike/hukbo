@@ -136,7 +136,7 @@ public sealed class PathService
     /// <c>requestTick + PathLatencyTicks</c>.
     /// </param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="requestTick"/> is negative.</exception>
-    public void RequestPath(int groupId, int startCellIndex, int goalCellIndex, long requestTick)
+    public void RequestPath(ulong groupId, int startCellIndex, int goalCellIndex, long requestTick)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(requestTick);
 
@@ -209,7 +209,7 @@ public sealed class PathService
     /// has not yet been published — either its search has not run, or it has
     /// run but the fixed latency has not yet elapsed.
     /// </summary>
-    public bool HasOutstandingRequest(int groupId) => FindGroup(groupId)?.HasOutstandingRequest ?? false;
+    public bool HasOutstandingRequest(ulong groupId) => FindGroup(groupId)?.HasOutstandingRequest ?? false;
 
     /// <summary>
     /// Retrieves the authoritative request last accepted for
@@ -224,7 +224,7 @@ public sealed class PathService
     /// from it.
     /// </summary>
     /// <returns><see langword="false"/> if <paramref name="groupId"/> has never made a request.</returns>
-    public bool TryGetRequest(int groupId, out PathRequest request)
+    public bool TryGetRequest(ulong groupId, out PathRequest request)
     {
         var group = FindGroup(groupId);
         if (group is null)
@@ -248,7 +248,7 @@ public sealed class PathService
     /// merely still awaiting its latency. See <see cref="GetCurrentCorridor"/>
     /// for the raw cell sequence this polyline was smoothed from.
     /// </summary>
-    public ImmutableArray<PathPoint> GetCurrentPath(int groupId) => FindGroup(groupId)?.CurrentPath ?? ImmutableArray<PathPoint>.Empty;
+    public ImmutableArray<PathPoint> GetCurrentPath(ulong groupId) => FindGroup(groupId)?.CurrentPath ?? ImmutableArray<PathPoint>.Empty;
 
     /// <summary>
     /// The group's current published path as the raw ordered sequence of nav
@@ -260,7 +260,7 @@ public sealed class PathService
     /// both are published together by <see cref="Publish"/> from the same
     /// search result.
     /// </summary>
-    public ImmutableArray<int> GetCurrentCorridor(int groupId) => FindGroup(groupId)?.CurrentCorridor ?? ImmutableArray<int>.Empty;
+    public ImmutableArray<int> GetCurrentCorridor(ulong groupId) => FindGroup(groupId)?.CurrentCorridor ?? ImmutableArray<int>.Empty;
 
     /// <summary>
     /// Why <see cref="GetCurrentPath"/> currently returns what it returns,
@@ -268,7 +268,7 @@ public sealed class PathService
     /// <see cref="PathReasonCode"/>'s own members for the exact rule each one
     /// follows.
     /// </summary>
-    public PathReasonCode GetReasonCode(int groupId)
+    public PathReasonCode GetReasonCode(ulong groupId)
     {
         var group = FindGroup(groupId);
         if (group is null)
@@ -368,7 +368,7 @@ public sealed class PathService
         return builder.MoveToImmutable();
     }
 
-    private GroupState? FindGroup(int groupId)
+    private GroupState? FindGroup(ulong groupId)
     {
         foreach (var group in _groups)
         {
@@ -381,7 +381,7 @@ public sealed class PathService
         return null;
     }
 
-    private GroupState FindOrCreateGroup(int groupId)
+    private GroupState FindOrCreateGroup(ulong groupId)
     {
         var existing = FindGroup(groupId);
         if (existing is not null)
@@ -415,9 +415,9 @@ public sealed class PathService
     /// <see cref="Request"/>, exposed read-only through
     /// <see cref="PathService.TryGetRequest"/>.
     /// </summary>
-    private sealed class GroupState(int groupId)
+    private sealed class GroupState(ulong groupId)
     {
-        public int GroupId { get; } = groupId;
+        public ulong GroupId { get; } = groupId;
 
         public PathRequest Request { get; set; }
 

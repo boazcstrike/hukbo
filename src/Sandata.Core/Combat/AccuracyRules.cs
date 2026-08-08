@@ -82,9 +82,24 @@ public static class AccuracyRules
     /// whether successive shots by the same entity draw from a persisted,
     /// advancing generator or re-derive a fresh one each time — this method
     /// only implements the single-draw formula design section 9 specifies.
+    /// <paramref name="entityId"/> folds through the same
+    /// <c>unchecked((long)value)</c> bit-reinterpretation
+    /// <paramref name="missionSeed"/> and <c>PathService</c>'s
+    /// <c>GroupId</c> already use elsewhere in this fold, so every entity id
+    /// that also fits in a non-negative <see langword="int"/> — every id
+    /// task 64's widening pass actually produces — folds to the identical
+    /// <see langword="long"/> value, and therefore draws the identical
+    /// angular error, this method produced before its parameter widened from
+    /// <see langword="int"/> to <see langword="ulong"/>
+    /// (<c>AccuracyRulesTests.DrawAngularErrorBam_PinnedDraws</c> proves this
+    /// for three concrete triples).
     /// </remarks>
     /// <param name="missionSeed">The mission's root seed.</param>
-    /// <param name="entityId">The firing entity's ID.</param>
+    /// <param name="entityId">
+    /// The firing entity's ID. <see cref="Simulation.OperatorState.EntityId"/>
+    /// is <see langword="ulong"/>; this parameter matches it exactly, so a
+    /// caller never narrows the entity id to reach this method.
+    /// </param>
     /// <param name="dispersionBam">
     /// The dispersion computed by <see cref="Dispersion"/> for this shot's
     /// range. Never negative. The draw is uniform over the
@@ -97,14 +112,14 @@ public static class AccuracyRules
     /// <paramref name="dispersionBam"/> is <c>0</c>.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="dispersionBam"/> is negative.</exception>
-    public static int DrawAngularErrorBam(ulong missionSeed, int entityId, int dispersionBam)
+    public static int DrawAngularErrorBam(ulong missionSeed, ulong entityId, int dispersionBam)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(dispersionBam);
 
         var hash = SandataHash.Begin();
         SandataHash.Fold(ref hash, unchecked((long)missionSeed));
         SandataHash.Fold(ref hash, (long)SandataSystemTag.Accuracy);
-        SandataHash.Fold(ref hash, entityId);
+        SandataHash.Fold(ref hash, unchecked((long)entityId));
 
         var generator = new SplitMix64(hash);
 

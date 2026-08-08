@@ -146,6 +146,35 @@ public sealed class SandataSourceHygieneTests
     ];
 
     /// <summary>
+    /// Task 78: task 64's identifier-widening pass took every
+    /// <c>EntityId</c>/<c>GroupId</c> to <see langword="ulong"/>, but two
+    /// consumers at subsystem boundaries — <c>PathService</c>'s whole
+    /// group-identity surface and <c>AccuracyRules.DrawAngularErrorBam</c>'s
+    /// <c>entityId</c> parameter — still narrowed the value back down with
+    /// <c>unchecked((int)...)</c> at their call sites. Task 78 widened both
+    /// consumers instead of patching the call sites, which removed every
+    /// <c>unchecked((int)</c> cast from the whole <c>src/</c> tree; this scan
+    /// is the standing proof that stays true rather than the one-time
+    /// observation that it was true the day task 78 landed. A future
+    /// narrowing of an identifier back to <see langword="int"/> anywhere
+    /// under <c>src/</c> trips this fact rather than silently reintroducing
+    /// the defect task 78 fixed.
+    /// </summary>
+    [Fact]
+    public void SourceTreeNeverNarrowsAnIdentifierWithAnUncheckedIntCast()
+    {
+        var root = GetRepositoryRoot();
+        var srcDirectory = Path.Combine(root, "src");
+
+        var offenders = FindOffendingCodeLines(
+            root,
+            EnumerateSourceFiles(srcDirectory),
+            line => line.Contains("unchecked((int)", StringComparison.Ordinal));
+
+        Assert.Empty(offenders);
+    }
+
+    /// <summary>
     /// Scans a set of files line by line for a banned pattern, skipping
     /// comment lines (<c>//</c> and <c>///</c>) so a doc comment that
     /// documents a prohibition by naming the prohibited token cannot trip the
