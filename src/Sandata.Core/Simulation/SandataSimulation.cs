@@ -1492,10 +1492,23 @@ public sealed class SandataSimulation
             return (desiredXRaw, desiredYRaw);
         }
 
+        // IntegerSqrt truncates, so it reports a distance no larger than the
+        // true one. Scaling by movementSpeedRaw over a distance that is too
+        // small produces a step that is too large, and the resulting
+        // displacement can land just past the cap this method exists to
+        // enforce — measured at 1,638.06 raw against a cap of 1,638 on a
+        // (-1554, -518) step. Rounding the divisor up instead puts the error
+        // on the undershoot side, where a tick occasionally travels one raw
+        // unit less than it could and the bound is never broken.
         var distance = IntegerSqrt(distanceSq);
         if (distance <= 0)
         {
             return (desiredXRaw, desiredYRaw);
+        }
+
+        if ((long)distance * distance < distanceSq)
+        {
+            distance++;
         }
 
         var clampedX = startXRaw + checked((int)((dx * movementSpeedRaw) / distance));
@@ -1538,22 +1551,37 @@ public sealed class SandataSimulation
     /// <summary>
     /// How far ahead of the leader's own projected position, in whole world
     /// units, the leader's sample point sits — without this, a leader whose
-    /// target is its own projection onto the path never moves. A per-tick
-    /// step now has a source, <see cref="SprintSpeedWuPerSecond"/>, but
-    /// <see cref="SlotTargets.ComputeTarget"/>'s arclength domain is whole
-    /// world units, and 1.6 wu (the step at this file's design-scoped
-    /// <see cref="SandataRuleset.TickRate"/> of 50) is not expressible
-    /// there. Rounding the step up — not down — to the next whole world
-    /// unit keeps this lookahead at least as far ahead as the leader can
-    /// actually walk in one tick: a lookahead at or above the per-tick step
-    /// is absorbed by <see cref="ClampToMovementSpeed"/> every tick
-    /// regardless, while a lookahead below the step would throttle the
-    /// leader below its designed sprint speed. It is
-    /// <see cref="ClampToMovementSpeed"/>'s clamp, not this value, that
-    /// decides how far the leader actually travels in a tick.
+    /// target is its own projection onto the path never moves. It is
+    /// <see cref="ClampToMovementSpeed"/>, not this value, that decides how
+    /// far the leader actually travels in a tick, so this value only has to
+    /// be large enough that the sampled point is reliably ahead of the
+    /// leader's own position. <b>PROVISIONAL</b> — still task 79b's
+    /// unvalidated 8, and still owed a real tuning pass, but no longer for
+    /// the reason task 79b gave: a per-tick step does now have a source,
+    /// <see cref="SprintSpeedWuPerSecond"/>.
+    /// <para>
+    /// <b>This value has a floor, and it is well above the per-tick step.</b>
+    /// Task 84 first set it to the step rounded up to the next whole world
+    /// unit, which is 2, on the reasoning that any value at or above the step
+    /// is absorbed by the clamp anyway. That reasoning is wrong, and the way
+    /// it is wrong deadlocks a leader on a diagonal segment.
+    /// <see cref="PolylineArclength.Build"/> stores each segment's length as
+    /// a truncated integer square root — an (8, 8) segment measures 11, not
+    /// 8·√2 ≈ 11.31 — and <see cref="ProjectArclength"/> and
+    /// <see cref="PolylineArclength.SampleAt"/> then divide by that truncated
+    /// length in both directions. The round trip from a world position to an
+    /// arclength and back therefore loses up to about two world units on a
+    /// diagonal. With a lookahead of 2 that loss consumes the entire
+    /// lookahead: a leader at (4, 4) projects to arclength 2, samples
+    /// arclength 4, and lands back on (4, 4) — its own position — so the
+    /// clamp has nothing to move toward and the leader is frozen there for
+    /// the rest of the mission. Before task 84 the same fixed point existed
+    /// and was invisible, because an unclamped commit stepped straight over
+    /// it in one stride. Any replacement value must stay clear of that
+    /// round-trip loss; 8 does, by a factor of four.
+    /// </para>
     /// </summary>
-    private static long DeriveFormationLookaheadWu(int movementSpeedRaw) =>
-        (movementSpeedRaw + FixedPoint.Scale - 1) / FixedPoint.Scale;
+    private const long FormationLookaheadWu = 8;
 
     /// <summary>
     /// Stage 9. Call-site obligation: chooses each living operator's
@@ -1597,7 +1625,7 @@ public sealed class SandataSimulation
     /// moves an entity straight to its proposal's desired point every tick
     /// with no speed cap of its own, projecting the leader's own current
     /// position back onto its own path would leave the leader's target
-    /// pinned to wherever it already stands; <see cref="DeriveFormationLookaheadWu"/>
+    /// pinned to wherever it already stands; <see cref="FormationLookaheadWu"/>
     /// adds a small arclength past that projection so the leader
     /// (slot 0, whose trail and lateral offsets are both zero) still has
     /// somewhere ahead of it to walk toward, each tick, clamped to the
@@ -1641,7 +1669,6 @@ public sealed class SandataSimulation
         // compile-time constant, once per call rather than per operator
         // since it does not vary across this tick's operators.
         var movementSpeedRaw = (SprintSpeedWuPerSecond * FixedPoint.Scale) / _ruleset.TickRate;
-        var formationLookaheadWu = DeriveFormationLookaheadWu(movementSpeedRaw);
 
         for (var i = 0; i < count; i++)
         {
@@ -1694,7 +1721,7 @@ public sealed class SandataSimulation
                         : ProjectArclength(
                             path, arclength, view.PositionXWu(leaderIndex), view.PositionYWu(leaderIndex));
                     var leaderArclength = Math.Min(
-                        leaderPositionArclength + formationLookaheadWu, arclength.TotalLength);
+                        leaderPositionArclength + FormationLookaheadWu, arclength.TotalLength);
                     var (trailOffsetWu, lateralOffsetWu) = FormationSlotOffsetsWu(slot.SlotIndex ?? 0);
                     var leaderClearance = FindLeaderClearance(view, leaderEntityId);
                     var gatedLateralOffsetWu = FormationCollapse.LateralOffset(

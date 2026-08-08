@@ -1180,22 +1180,13 @@ public sealed class TickPipelineTests
     // ---- 8. STAGE 9, AUTONOMOUS BRANCH -------------------------------------
 
     /// <summary>
-    /// Task 79b (second pass, after coordinator rejection), rewritten under
-    /// task 84: an unassigned operator (no <see cref="OrderAssignment"/>)
-    /// whose group has a published path (<see
-    /// cref="RunTick_OutstandingGroupPathRequest_PublishesAtExactlyRequestTickPlusLatencyAndIsNotReissued"/>
-    /// proves that publish transition on its own) must walk along that
-    /// path, not toward the path's own end or the straight spawn-to-goal
-    /// line. Before task 84 there was no per-tick speed cap, so the very
-    /// first published tick's committed position was that tick's entire
-    /// <c>ComputeMovementProposals</c> target, and this test's original
-    /// assertions (raw (7,168, 7,168) after one tick, raw (19*Scale, 14*Scale)
-    /// after three) proved the polyline claim directly. Task 84 adds the
-    /// clamp <see cref="SandataSimulation.ComputeMovementProposals"/>'s own
-    /// "Speed clamp" remarks describe, so those multi-world-unit
-    /// single-tick jumps are no longer reachable, and this fixture is
-    /// rewritten below at the slower, clamped pace those remarks now
-    /// describe.
+    /// Task 79b, amended by task 84: an unassigned operator in a group with a
+    /// published path follows that path's actual bent shape rather than
+    /// heading for the goal, and — since task 84 — walks it at the designed
+    /// sprint speed instead of arriving in a single stride. Reached only
+    /// through <see cref="SandataSimulation.RunTick"/> and observed only
+    /// through the committed <see cref="SandataSimulation.State"/> position,
+    /// never through <c>ComputeMovementProposals</c> directly.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -1204,68 +1195,55 @@ public sealed class TickPipelineTests
     /// (2, 2) and (26, 14); a wall segment running the full grid height at
     /// x = 14 forces the funnel-smoothed path through the vertices (2, 2),
     /// (10, 10), (14, 14), (18, 14), (26, 14) instead of a straight line
-    /// (confirmed empirically against the real <see
-    /// cref="Sandata.Core.Navigation.PathService"/> output before this
-    /// test's original, task-79b version was written).
+    /// (confirmed empirically against the real
+    /// <see cref="Sandata.Core.Navigation.PathService"/> output before this
+    /// test's original, task 79b version was written).
     /// </para>
     /// <para>
-    /// <b>First published tick, derived (not copied from a run).</b> The
-    /// operator spawns exactly on the path's own start vertex, so its
-    /// projected arclength is exactly zero.
-    /// <see cref="SandataSimulation.DeriveFormationLookaheadWu"/> adds 2
-    /// world units of lookahead (design section 4's 1.6 wu/tick step,
-    /// rounded up), giving a target 2 wu along the first (2, 2)-(10, 10)
-    /// segment. That segment's own length, per <see
-    /// cref="PolylineArclength.Build"/>'s truncating integer square root of
-    /// (8*8 + 8*8) = 128, is 11, not the true 8*sqrt(2), approximately
-    /// 11.31. Sampling 2 of that 11 along an (8, 8) raw delta gives
-    /// (2 + 8*2/11, 2 + 8*2/11) = (2 + 1, 2 + 1) = (3, 3) under this
-    /// codebase's truncating integer division. The displacement from
-    /// (2, 2) to (3, 3) is (1,024, 1,024) raw, within the 1,638 raw
-    /// per-tick cap, so <see cref="SandataSimulation.ComputeMovementProposals"/>'s
-    /// clamp is a no-op on this tick and the committed position lands
-    /// exactly on that derived point, on the first segment toward
-    /// (10, 10), nowhere near the goal.
+    /// <b>The first published tick, derived rather than read back from a
+    /// run.</b> The operator spawns exactly on the path's own start vertex,
+    /// so its projected arclength is zero and the leader's sample arclength
+    /// is <c>FormationLookaheadWu</c>, 8. The first segment's stored length
+    /// is <see cref="PolylineArclength.Build"/>'s truncated integer square
+    /// root of (8·8 + 8·8) = 128, which is 11 rather than the true
+    /// 8·√2 ≈ 11.31, so <see cref="PolylineArclength.SampleAt"/> at
+    /// arclength 8 returns (2 + 8·8/11, 2 + 8·8/11) = (7, 7) under this
+    /// codebase's truncating integer division — raw (7,168, 7,168). The
+    /// displacement from raw (2,048, 2,048) is (5,120, 5,120), whose
+    /// magnitude is <c>IntegerSqrt(52,428,800)</c> = 7,240 raw, far past the
+    /// 1,638 raw per-tick cap, so stage 9's clamp scales it down:
+    /// 2,048 + 5,120·1,638/7,240 = 2,048 + 1,158 = <b>3,206 raw</b> on both
+    /// axes. That is the value pinned below.
     /// </para>
     /// <para>
-    /// <b>Discovered defect, reported here rather than fixed (out of task
-    /// 84's grant: <see cref="ProjectArclength"/> and <see
-    /// cref="PolylineArclength.SampleAt"/> both predate this task, and
-    /// <see cref="PolylineArclength"/> is not one of the two files task 84
-    /// authorised).</b> Carrying the same arithmetic one tick further does
-    /// not reach the polyline's (14, 14) corner or the corridor beyond it.
-    /// At tick 2 the operator reaches exactly (4, 4); from tick 3 onward it
-    /// is frozen there permanently, confirmed by running the real <see
-    /// cref="SandataSimulation"/> for ten ticks past that point. The cause
-    /// is a quantization fixed point: at world-unit position (4, 4), <see
-    /// cref="ProjectArclength"/> projects that truncated position back onto
-    /// the same first segment and recovers arclength 2 (not the true
-    /// 2.828 = 4*sqrt(2), lost to the segment's own truncated integer
-    /// length of 11 rather than 8*sqrt(2)); <see
-    /// cref="DeriveFormationLookaheadWu"/> adds 2 more, and <see
-    /// cref="PolylineArclength.SampleAt"/> sampling arclength 4 on this
-    /// same segment lands back on exactly (4, 4), the operator's own
-    /// current position. The desired point equals the start point, and
-    /// <see cref="ClampToMovementSpeed"/> has nothing to move toward.
-    /// Before task 84 this could not be observed: with no speed cap, <see
-    /// cref="Movement.LocalAvoidance.Commit"/> moved every proposal
-    /// straight to its (unclamped) target every tick regardless of this
-    /// fixed point, so the operator crossed it in a single stride rather
-    /// than landing on it. This is a genuine interaction between the
-    /// mandated clamp and pre-existing truncation loss on a diagonal
-    /// polyline segment; axis-aligned segments do not lose precision this
-    /// way, since the segment length then cancels exactly in every
-    /// division (this file's task 84 non-leader-slot and autonomous-branch
-    /// tests are deliberately built on axis-aligned paths for exactly this
-    /// reason). Fixing it would mean redesigning how <see
-    /// cref="PolylineArclength"/> and <see cref="ProjectArclength"/> track
-    /// fractional progress on a diagonal segment, out of task 84's two-file
-    /// grant (this method's own stage 9 clamp and constants), so it is
-    /// reported here, not patched.
+    /// <b>The two properties this test has always existed to prove, both
+    /// preserved.</b> First, the operator's opening move lands on the first
+    /// segment toward (10, 10) rather than on the goal at (26, 14) — under
+    /// the rejected task 79b pin of <c>leaderArclength</c> to
+    /// <see cref="PolylineArclength.TotalLength"/> the target would have been
+    /// the goal itself from the first published tick onward. Second, once the
+    /// operator has walked past the polyline's (14, 14) corner it sits on the
+    /// corridor's own Y of 14, whereas a straight spawn-to-goal beeline would
+    /// read Y = 10 at X = 19 (slope 12/24 from (2, 2) to (26, 14)); the
+    /// assertion allows for the fixed-point residue of the diagonal approach
+    /// and only requires the operator to be clear of the beeline by two whole
+    /// world units, which no beeline can satisfy.
+    /// </para>
+    /// <para>
+    /// <b>What task 84 adds.</b> No single tick may displace the operator by
+    /// more than the per-tick cap — the assertion that makes a teleport
+    /// impossible to pass — and the operator must still arrive at the goal,
+    /// which is what separates a slowed walk from a stalled one. That second
+    /// half is not decoration: task 84's first implementation derived
+    /// <c>FormationLookaheadWu</c> as the per-tick step rounded up to 2 world
+    /// units, and at that lookahead the round-trip arclength quantization on
+    /// a diagonal segment froze this very operator at (4, 4) permanently. An
+    /// arrival assertion is what catches that; a "the position changed"
+    /// assertion is not.
     /// </para>
     /// </remarks>
     [Fact]
-    public void RunTick_UnassignedOperatorInGroupWithPublishedPath_WalksTheFirstSegmentThenHitsAQuantizationDeadlock()
+    public void RunTick_UnassignedOperatorInGroupWithPublishedPath_WalksTheBentPolylineAtTheDesignedSpeed()
     {
         var grid = BuildGrid();
         var wallBuckets = WallBuckets.Build(grid, [14L], [-100L], [14L], [100L]);
@@ -1283,8 +1261,8 @@ public sealed class TickPipelineTests
             loweredWallDistanceWu: 24,
             aimToleranceBam: 1024);
 
-        // Spawns on the path's own start vertex (2, 2), the world-unit
-        // centre of cell (0, 0), so the very first projection has a known,
+        // Spawns on the path's own start vertex (2, 2) — the world-unit
+        // centre of cell (0, 0) — so the very first projection has a known,
         // exact starting arclength of zero.
         var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 2, positionYWu: 2);
         var groupState = new GroupPathState(
@@ -1304,31 +1282,67 @@ public sealed class TickPipelineTests
         Assert.Equal(2 * FixedPoint.Scale, stillAtSpawn.PositionX.RawValue);
         Assert.Equal(2 * FixedPoint.Scale, stillAtSpawn.PositionY.RawValue);
 
-        // Publish tick: exactly (3, 3), on the first segment toward
-        // (10, 10), never the goal. See remarks above for the derivation.
+        // Publish tick: stage 7 publishes the path before stage 9 runs, so
+        // this same tick's proposal already targets a point on it. The exact
+        // raw 3,206 is derived in the remarks above, not copied from a run.
         sim.RunTick(pathLatencyTicks);
         var afterFirstMove = Assert.Single(sim.State.Operators);
-        Assert.Equal(3 * FixedPoint.Scale, afterFirstMove.PositionX.RawValue);
-        Assert.Equal(3 * FixedPoint.Scale, afterFirstMove.PositionY.RawValue);
+        Assert.Equal(3206, afterFirstMove.PositionX.RawValue);
+        Assert.Equal(3206, afterFirstMove.PositionY.RawValue);
 
-        // One tick further: (4, 4), still on the first segment, still far
-        // short of the goal.
-        sim.RunTick(pathLatencyTicks + 1);
-        var afterSecondMove = Assert.Single(sim.State.Operators);
-        Assert.Equal(4 * FixedPoint.Scale, afterSecondMove.PositionX.RawValue);
-        Assert.Equal(4 * FixedPoint.Scale, afterSecondMove.PositionY.RawValue);
+        // First property: that opening move is onto the first segment toward
+        // (10, 10) and nowhere near the goal's (26, 14).
+        Assert.True(afterFirstMove.PositionX.RawValue > 2 * FixedPoint.Scale);
+        Assert.True(afterFirstMove.PositionX.RawValue < 10 * FixedPoint.Scale);
 
-        // Discovered defect (see remarks): the operator is now frozen. Ten
-        // more ticks land on the exact same point rather than continuing
-        // toward (14, 14) and the corridor beyond it.
-        for (var tick = pathLatencyTicks + 2; tick < pathLatencyTicks + 12; tick++)
+        // Design section 4's sprint of 80 world units per second at the
+        // fixture's tick rate of 50, in raw fixed-point units.
+        const int movementSpeedRaw = 80 * FixedPoint.Scale / 50;
+
+        var previousX = afterFirstMove.PositionX.RawValue;
+        var previousY = afterFirstMove.PositionY.RawValue;
+        var reachedTheCorridor = false;
+        var yPastTheCorner = 0;
+
+        // Sixty ticks is more than three times what the polyline's roughly 29
+        // world units of length needs at 1.6 world units per tick, so a run
+        // that has not arrived by then has stalled rather than merely been
+        // slowed.
+        for (var tick = pathLatencyTicks + 1; tick <= pathLatencyTicks + 60; tick++)
         {
             sim.RunTick(tick);
+            var current = Assert.Single(sim.State.Operators);
+            var x = current.PositionX.RawValue;
+            var y = current.PositionY.RawValue;
+
+            var dx = (long)x - previousX;
+            var dy = (long)y - previousY;
+            Assert.True(
+                (dx * dx) + (dy * dy) <= (long)movementSpeedRaw * movementSpeedRaw,
+                $"tick {tick} displaced the operator further than the per-tick cap of {movementSpeedRaw} raw");
+
+            if (!reachedTheCorridor && x >= 19 * FixedPoint.Scale)
+            {
+                reachedTheCorridor = true;
+                yPastTheCorner = y;
+            }
+
+            previousX = x;
+            previousY = y;
         }
 
-        var stuck = Assert.Single(sim.State.Operators);
-        Assert.Equal(4 * FixedPoint.Scale, stuck.PositionX.RawValue);
-        Assert.Equal(4 * FixedPoint.Scale, stuck.PositionY.RawValue);
+        // Second property: past the (14, 14) corner the operator is on the
+        // corridor, not on the spawn-to-goal beeline, which would read
+        // Y = 10 at X = 19.
+        Assert.True(reachedTheCorridor, "the operator never reached X = 19");
+        Assert.True(
+            yPastTheCorner > 12 * FixedPoint.Scale,
+            $"at X = 19 the operator's Y was {yPastTheCorner} raw, which is the beeline's Y rather than the corridor's");
+
+        // Task 84: the clamp slows the walk; it must not stall it.
+        var arrived = Assert.Single(sim.State.Operators);
+        Assert.Equal(26 * FixedPoint.Scale, arrived.PositionX.RawValue);
+        Assert.Equal(14 * FixedPoint.Scale, arrived.PositionY.RawValue);
     }
 
     // ---- 9. TASK 84, MOVEMENT SPEED CLAMP ----------------------------------
@@ -1584,9 +1598,26 @@ public sealed class TickPipelineTests
     [Fact]
     public void MovementSpeedRaw_NeverExceedsTheCollisionBodyRadius()
     {
-        var movementSpeedRaw = (80L * FixedPoint.Scale) / SandataRuleset.ModernTacticalV1.TickRate;
-        var collisionBodyRadiusRaw = (17L * FixedPoint.Scale) / 4;
+        // Both constants are read out of the production type by reflection,
+        // the way this file's task 86 constants test already reads them.
+        // Re-deriving either one locally would leave an invariant test that
+        // passes no matter what the simulation actually uses, which is the
+        // opposite of what this test is for.
+        var sprintSpeedField = typeof(SandataSimulation).GetField(
+            "SprintSpeedWuPerSecond", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException(
+                "SandataSimulation.SprintSpeedWuPerSecond not found by reflection.");
+        var radiusField = typeof(SandataSimulation).GetField(
+            "CollisionBodyRadiusRaw", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException(
+                "SandataSimulation.CollisionBodyRadiusRaw not found by reflection.");
 
+        var sprintSpeedWuPerSecond = (int)sprintSpeedField.GetValue(null)!;
+        var collisionBodyRadiusRaw = (long)(int)radiusField.GetValue(null)!;
+        var movementSpeedRaw =
+            ((long)sprintSpeedWuPerSecond * FixedPoint.Scale) / SandataRuleset.ModernTacticalV1.TickRate;
+
+        Assert.Equal(80, sprintSpeedWuPerSecond);
         Assert.Equal(1_638L, movementSpeedRaw);
         Assert.Equal(4_352L, collisionBodyRadiusRaw);
         Assert.True(
