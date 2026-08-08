@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Sandata.Core/Sandata.Core.csproj" />
+    <ProjectReference Include="../Hukbo.Diagnostics/Hukbo.Diagnostics.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Content.Builder.Task" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" />
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      Task 13 (SandataThemeCatalog / sandata-theme-standards.json) never
+      shipped this file to a packaged build: SandataThemeTests only passed by
+      reading the source tree directly through LogPaths.FindRepositoryRoot,
+      a lookup that has no meaning once this project is published outside a
+      Hukbo.slnx checkout. SandataGame.LoadTheme reads this same file from
+      AppContext.BaseDirectory at run time, so without this rule every
+      packaged run would fall through to the hardcoded fallback theme. The
+      relative path under Content is preserved in the output directory
+      (no Link override), matching where SandataGame looks for it.
+    -->
+    <None Include="Content\Themes\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

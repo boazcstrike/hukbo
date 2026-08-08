@@ -21,6 +21,17 @@ public static class LogEvents
 {
     // Boot channel.
     public const string BootCrashed = "boot.crashed";
+
+    // Sandata's own boot lifecycle events (plan task 14 of
+    // docs/plans/2026-08-07-sandata-scaffold.md). Named with a "sandata"
+    // middle segment rather than a "sandata." leading prefix, because
+    // LogEventCatalogTests.EveryIdentifierPrefixNamesADeclaredChannel
+    // requires the leading segment to be a declared LogChannel wire name —
+    // "boot" here, exactly as it is for the events immediately below.
+    public const string BootSandataCrashed = "boot.sandata.crashed";
+    public const string BootSandataStarted = "boot.sandata.started";
+    public const string BootSandataStopped = "boot.sandata.stopped";
+
     public const string BootStarted = "boot.started";
     public const string BootStopped = "boot.stopped";
     public const string BootWindowCreated = "boot.window.created";

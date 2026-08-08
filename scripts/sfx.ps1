@@ -71,7 +71,19 @@
 
 .PARAMETER DryRun
     Resolves the slot, prompt, and output path and prints the request that
-    would be sent, without calling the API.
+    would be sent, without calling the API. In -Batch mode, lists every
+    variant that would be requested instead of a single request.
+
+.PARAMETER Batch
+    Reads a manifest CSV (the shape scripts/sfx-manifest.ps1 writes: at least
+    BaseFileName, VariantCount, DurationSeconds, and Prompt columns) and
+    requests every variant of every row in one run, instead of the single
+    slot scripts/sfx.ps1 -Slot handles. Existing files are left alone unless
+    -Force is set. Requires -ManifestPath and -OutputDirectory; this script
+    does not assume which project's content folder a batch run belongs to.
+
+.PARAMETER ManifestPath
+    Path to the manifest CSV consumed by -Batch.
 
 .EXAMPLE
     ./scripts/sfx.ps1 -List
@@ -81,6 +93,9 @@
 
 .EXAMPLE
     ./scripts/sfx.ps1 -Slot attack-kampilan -Prompt 'single heavy steel blade cleaving flesh, wet impact, no music' -Duration 0.4 -Force
+
+.EXAMPLE
+    ./scripts/sfx.ps1 -Batch -ManifestPath artifacts/audio/sandata-sound-manifest.csv -OutputDirectory src/Sandata.Client/Content/Audio -DryRun
 #>
 [CmdletBinding(DefaultParameterSetName = 'Generate')]
 param(
@@ -102,38 +117,34 @@ param(
     [ValidateRange(0.5, 30.0)]
     [double] $Duration,
 
-    [Parameter(ParameterSetName = 'Generate')]
+    [Parameter(ParameterSetName = 'Batch', Mandatory)]
+    [switch] $Batch,
+
+    [Parameter(ParameterSetName = 'Batch', Mandatory)]
+    [string] $ManifestPath,
+
     [ValidateRange(0.0, 1.0)]
     [double] $PromptInfluence = 0.4,
 
-    [Parameter(ParameterSetName = 'Generate')]
     [ValidateSet(16000, 22050, 24000, 44100)]
     [int] $SampleRate = 24000,
 
-    [Parameter(ParameterSetName = 'Generate')]
     [ValidateSet(1, 2)]
     [int] $Channels,
 
-    [Parameter(ParameterSetName = 'Generate')]
     [string] $OutputDirectory,
 
-    [Parameter(ParameterSetName = 'Generate')]
     [switch] $Trim,
 
-    [Parameter(ParameterSetName = 'Generate')]
     [switch] $NoTrim,
 
-    [Parameter(ParameterSetName = 'Generate')]
     [ValidateRange(0.5, 50.0)]
     [double] $SilenceThreshold = 5.0,
 
-    [Parameter(ParameterSetName = 'Generate')]
     [switch] $AllowQuiet,
 
-    [Parameter(ParameterSetName = 'Generate')]
     [switch] $Force,
 
-    [Parameter(ParameterSetName = 'Generate')]
     [switch] $DryRun,
 
     [Parameter(ParameterSetName = 'List', Mandatory)]
@@ -366,6 +377,45 @@ $defaultPrompts = @{
 # as a literal list, not derived from the ValidateSet attribute, so neither
 # side needs to parse the other's syntax.
 $hitClassTokens = @('skull', 'neck', 'ribcage', 'gut', 'limb', 'extremity')
+
+# Per-family trim thresholds for -Batch mode, keyed by the family token that
+# leads a manifest base file name (for example "gun-556x45-single-close" has
+# family token "gun"). A gunshot's report ends in a sharp muzzle crack with a
+# quiet, gently decaying tail; trimming that tail at the 5% melee default
+# chops it hard and audibly. A tighter 1.5% threshold keeps far more of the
+# natural decay for every gunfire family, while non-gunfire families keep the
+# single-slot script's existing 5% (or 2% for the short UI-style notification
+# tones scripts/sfx.ps1 already generates for Hukbo).
+$familyTrimThresholds = @{
+    'gun'     = 1.5
+    'gunloop' = 1.5
+    'guntail' = 1.5
+    'mech'    = 5.0
+    'dry'     = 5.0
+    'impact'  = 5.0
+    'casing'  = 5.0
+    'ui'      = 2.0
+}
+$defaultFamilyTrimThreshold = 5.0
+
+function Get-FamilyTrimThreshold {
+    <#
+        The first hyphen-separated token of a manifest base file name is its
+        family (scripts/sfx-manifest.ps1's own naming convention). Unknown
+        families fall back to the melee default rather than throwing, so a
+        manifest from a catalog this script has never seen still runs.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $BaseFileName
+    )
+
+    $familyToken = $BaseFileName.Split('-')[0]
+    if ($familyTrimThresholds.ContainsKey($familyToken)) {
+        return $familyTrimThresholds[$familyToken]
+    }
+
+    return $defaultFamilyTrimThreshold
+}
 
 function Get-CatalogSlot {
     if (-not (Test-Path -LiteralPath $catalogPath -PathType Leaf)) {
@@ -700,6 +750,148 @@ function Write-WavFile {
     }
 }
 
+function Invoke-SoundGeneration {
+    <#
+        The one place this script talks to the network: requests one
+        generation, retries a rate limit, rejects a too-quiet take, trims
+        it, and writes the WAV. Both the single -Slot path and the -Batch
+        path call this after each has resolved its own prompt, duration,
+        trim decision, and destination path, so a request is built and sent
+        exactly the same way regardless of which mode reached it.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Prompt,
+        [Parameter(Mandatory)] [double] $Duration,
+        [Parameter(Mandatory)] [double] $PromptInfluenceValue,
+        [Parameter(Mandatory)] [int] $SampleRateValue,
+
+        # 0 means "not supplied"; a real channel count is always 1 or 2, so
+        # 0 is a safe sentinel for "infer it from the returned byte count".
+        [int] $ChannelsValue,
+
+        [Parameter(Mandatory)] [bool] $ShouldTrimValue,
+        [Parameter(Mandatory)] [double] $SilenceThresholdValue,
+        [Parameter(Mandatory)] [bool] $AllowQuietValue,
+        [Parameter(Mandatory)] [string] $ApiKeyValue,
+        [Parameter(Mandatory)] [string] $DestinationPath
+    )
+
+    $body = [ordered] @{
+        text             = $Prompt
+        model_id         = $modelId
+        duration_seconds = $Duration
+        prompt_influence = $PromptInfluenceValue
+    } | ConvertTo-Json -Depth 3
+
+    $requestUri = "$($apiEndpoint)?output_format=pcm_$SampleRateValue"
+    $temporaryPath = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "hukbo-sfx-$([System.Guid]::NewGuid()).pcm")
+
+    try {
+        # Several slots are commonly generated at once, so a rate-limit
+        # response is expected rather than exceptional. Back off and retry
+        # rather than failing the whole run and losing the take.
+        for ($attempt = 1; $attempt -le $rateLimitRetries; $attempt++) {
+            try {
+                Invoke-WebRequest `
+                    -Uri $requestUri `
+                    -Method Post `
+                    -Headers @{ 'xi-api-key' = $ApiKeyValue } `
+                    -ContentType 'application/json' `
+                    -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) `
+                    -OutFile $temporaryPath `
+                    -MaximumRedirection 0 | Out-Null
+
+                break
+            }
+            catch {
+                $statusCode = 0
+                if ($null -ne $_.Exception.Response) {
+                    $statusCode = [int] $_.Exception.Response.StatusCode
+                }
+
+                $isRetryable = $statusCode -eq 429 -or ($statusCode -ge 500 -and $statusCode -le 599)
+                if (-not $isRetryable -or $attempt -eq $rateLimitRetries) {
+                    throw
+                }
+
+                $backoffSeconds = [System.Math]::Min(30, [System.Math]::Pow(2, $attempt))
+                Write-Host "[INFO] HTTP $statusCode. Waiting ${backoffSeconds}s, then retrying (attempt $attempt of $rateLimitRetries)."
+                Start-Sleep -Seconds $backoffSeconds
+            }
+        }
+
+        $pcm = [System.IO.File]::ReadAllBytes($temporaryPath)
+        if ($pcm.Length -lt 1024) {
+            throw "The API returned only $($pcm.Length) bytes, which is not usable audio. The request may have been rejected."
+        }
+
+        $resolvedChannels = $ChannelsValue
+        if ($resolvedChannels -ne 1 -and $resolvedChannels -ne 2) {
+            # Raw PCM carries no header, so the channel count is inferred
+            # from how many 16-bit frames came back for the requested
+            # duration.
+            $expectedMonoBytes = $SampleRateValue * ($bitsPerSample / 8) * $Duration
+            $ratio = $pcm.Length / $expectedMonoBytes
+            if ($ratio -lt 1.5) {
+                $resolvedChannels = 1
+            }
+            elseif ($ratio -lt 2.5) {
+                $resolvedChannels = 2
+            }
+            else {
+                throw "Returned $($pcm.Length) bytes, which is $([math]::Round($ratio, 2))x the mono size for ${Duration}s at $SampleRateValue Hz. Re-run with an explicit -Channels value."
+            }
+        }
+
+        # The model sometimes returns a take that is technically valid audio
+        # and far too quiet to hear in a battle. Catching it here is what
+        # stops -Force from replacing a good file with a dud.
+        $peak = Get-PeakAmplitude -PcmData $pcm
+        $peakPercent = [math]::Round(100.0 * $peak / 32767.0, 1)
+        if ($peak -lt $minimumPeakAmplitude -and -not $AllowQuietValue) {
+            throw "This take peaks at only $peakPercent% of full scale, which is too quiet to hear over a battle. Nothing was written, so any existing file at $DestinationPath is untouched. Run the same command again for another take, or pass -AllowQuiet to keep this one."
+        }
+
+        Write-Host "[INFO] Peak level: $peakPercent% of full scale."
+
+        $generatedSeconds = [math]::Round($pcm.Length / ($SampleRateValue * $resolvedChannels * ($bitsPerSample / 8)), 2)
+        if ($ShouldTrimValue) {
+            $trimmed = Remove-Silence `
+                -PcmData $pcm `
+                -Rate $SampleRateValue `
+                -ChannelCount $resolvedChannels `
+                -ThresholdRatio ($SilenceThresholdValue / 100.0)
+
+            if ($trimmed.Length -lt $pcm.Length) {
+                Write-Host ("[INFO] Trimmed to the audible part at {0}% of peak: {1}s generated, {2}s kept. Use -NoTrim to keep it all." -f `
+                        $SilenceThresholdValue,
+                    $generatedSeconds,
+                    [math]::Round($trimmed.Length / ($SampleRateValue * $resolvedChannels * ($bitsPerSample / 8)), 2))
+                $pcm = $trimmed
+            }
+            else {
+                Write-Host "[INFO] Nothing to trim: the audio is audible from end to end at $SilenceThresholdValue% of peak."
+            }
+        }
+
+        Write-WavFile -PcmData $pcm -Rate $SampleRateValue -ChannelCount $resolvedChannels -Path $DestinationPath
+
+        $keptSeconds = [math]::Round($pcm.Length / ($SampleRateValue * $resolvedChannels * ($bitsPerSample / 8)), 2)
+        $kilobytes = [math]::Round($pcm.Length / 1024.0, 1)
+        Write-Host "[PASS] Wrote $DestinationPath ($kilobytes KB, ${keptSeconds}s, $resolvedChannels channel(s), $SampleRateValue Hz, 16-bit PCM)."
+
+        return [pscustomobject] @{
+            KeptSeconds = $keptSeconds
+            Channels    = $resolvedChannels
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporaryPath -PathType Leaf) {
+            Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 $slots = Get-CatalogSlot
 
 if ($List) {
@@ -730,6 +922,129 @@ if ($List) {
 
     Write-Host ''
     Write-Host 'Generate one with: ./scripts/sfx.ps1 -Slot <name> [-Prompt "..."] [-Force]'
+    return
+}
+
+if ($Batch) {
+    if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
+        throw "No manifest was found at $ManifestPath. Generate one first (for example, ./scripts/sfx-manifest.ps1)."
+    }
+
+    if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+        throw '-OutputDirectory is required with -Batch. This script does not assume which project a manifest belongs to, so it will not guess a content folder.'
+    }
+
+    if ($Trim -and $NoTrim) {
+        throw 'Pass either -Trim or -NoTrim, not both.'
+    }
+
+    if (-not (Test-Path -LiteralPath $OutputDirectory -PathType Container)) {
+        New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
+    }
+
+    $manifestRows = @(Import-Csv -LiteralPath $ManifestPath)
+    if ($manifestRows.Count -eq 0) {
+        throw "$ManifestPath contains no rows."
+    }
+
+    foreach ($requiredColumn in @('BaseFileName', 'VariantCount', 'DurationSeconds', 'Prompt')) {
+        if ($null -eq ($manifestRows[0].PSObject.Properties[$requiredColumn])) {
+            throw "$ManifestPath has no '$requiredColumn' column. Expected the shape scripts/sfx-manifest.ps1 writes."
+        }
+    }
+
+    Write-Host "Batch:    $ManifestPath ($($manifestRows.Count) rows)"
+    Write-Host "Output:   $OutputDirectory"
+    Write-Host ("Trim:     {0}" -f $(if ($NoTrim) { 'no, every generation is kept in full' } else { 'per-family threshold (gunfire 1.5%, UI 2%, everything else 5%), unless -SilenceThreshold overrides it' }))
+    if ($DryRun) {
+        Write-Host '[INFO] -DryRun was set; listing planned generations without calling the API.'
+    }
+
+    $apiKey = $null
+    if (-not $DryRun) {
+        $apiKey = Get-ApiKey
+        if ([string]::IsNullOrWhiteSpace($apiKey)) {
+            throw @'
+No ElevenLabs API key was found. Provide it either way:
+
+    ELEVENLABS_API_KEY=<your key>        in the repository's .env file
+    $env:ELEVENLABS_API_KEY = '<key>'    for the current shell session only
+
+.env is ignored by .gitignore and must stay that way. Never commit the key,
+never put it in a tracked file, and never pass it on the command line where it
+lands in shell history.
+'@
+        }
+    }
+
+    $channelsForBatch = 0
+    if ($PSBoundParameters.ContainsKey('Channels')) {
+        $channelsForBatch = $Channels
+    }
+
+    $generatedCount = 0
+    $skippedCount = 0
+
+    foreach ($row in $manifestRows) {
+        $baseFileName = $row.BaseFileName
+        $variantCount = [int] $row.VariantCount
+        $rowPrompt = $row.Prompt
+        $rowDuration = [System.Math]::Max([double] $row.DurationSeconds, $minimumApiDuration)
+
+        $rowTrimThreshold = if ($PSBoundParameters.ContainsKey('SilenceThreshold')) { $SilenceThreshold } else { Get-FamilyTrimThreshold -BaseFileName $baseFileName }
+        $rowShouldTrim = -not $NoTrim
+
+        for ($variantIndex = 1; $variantIndex -le $variantCount; $variantIndex++) {
+            $variantFileName = '{0}-{1:D2}.wav' -f $baseFileName, $variantIndex
+            $variantPath = Join-Path $OutputDirectory $variantFileName
+
+            if ((Test-Path -LiteralPath $variantPath -PathType Leaf) -and -not $Force) {
+                $skippedCount++
+                continue
+            }
+
+            if ($DryRun) {
+                Write-Host ("[DRYRUN] {0}  ({1}s, trim {2}% of peak)  {3}" -f $variantFileName, $rowDuration, $rowTrimThreshold, $rowPrompt)
+                continue
+            }
+
+            Write-Host ''
+            Write-Host "Slot:     $baseFileName variant $variantIndex of $variantCount"
+            Write-Host "Output:   $variantPath"
+            Write-Host ("Duration: {0}s at {1} Hz, prompt influence {2}" -f $rowDuration, $SampleRate, $PromptInfluence)
+            Write-Host ("Trim:     {0}" -f $(if ($rowShouldTrim) { "yes, below $rowTrimThreshold% of peak" } else { 'no, the full generation is kept' }))
+            Write-Host "Prompt:   $rowPrompt"
+
+            try {
+                Invoke-SoundGeneration `
+                    -Prompt $rowPrompt `
+                    -Duration $rowDuration `
+                    -PromptInfluenceValue $PromptInfluence `
+                    -SampleRateValue $SampleRate `
+                    -ChannelsValue $channelsForBatch `
+                    -ShouldTrimValue $rowShouldTrim `
+                    -SilenceThresholdValue $rowTrimThreshold `
+                    -AllowQuietValue ([bool] $AllowQuiet) `
+                    -ApiKeyValue $apiKey `
+                    -DestinationPath $variantPath | Out-Null
+
+                $generatedCount++
+            }
+            catch {
+                Write-Host "[FAIL] $variantFileName : $($_.Exception.Message)" -ForegroundColor Red
+                throw
+            }
+        }
+    }
+
+    Write-Host ''
+    if ($DryRun) {
+        Write-Host "[INFO] -DryRun complete: $($manifestRows.Count) manifest rows read; no request was sent and no file was written."
+    }
+    else {
+        Write-Host "[PASS] Batch complete: $generatedCount file(s) generated, $skippedCount already present and skipped (re-run with -Force to replace)."
+    }
+
     return
 }
 
@@ -841,109 +1156,25 @@ lands in shell history.
 '@
 }
 
-$body = [ordered] @{
-    text             = $Prompt
-    model_id         = $modelId
-    duration_seconds = $Duration
-    prompt_influence = $PromptInfluence
-} | ConvertTo-Json -Depth 3
+Write-Host 'Requesting audio from ElevenLabs...'
 
-$requestUri = "$($apiEndpoint)?output_format=pcm_$SampleRate"
-$temporaryPath = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "hukbo-sfx-$([System.Guid]::NewGuid()).pcm")
+$channelsForSlot = 0
+if ($PSBoundParameters.ContainsKey('Channels')) {
+    $channelsForSlot = $Channels
+}
 
 try {
-    Write-Host 'Requesting audio from ElevenLabs...'
-
-    # Several slots are commonly generated at once, so a rate-limit response is
-    # expected rather than exceptional. Back off and retry rather than failing
-    # the whole run and losing the take.
-    for ($attempt = 1; $attempt -le $rateLimitRetries; $attempt++) {
-        try {
-            Invoke-WebRequest `
-                -Uri $requestUri `
-                -Method Post `
-                -Headers @{ 'xi-api-key' = $apiKey } `
-                -ContentType 'application/json' `
-                -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) `
-                -OutFile $temporaryPath `
-                -MaximumRedirection 0 | Out-Null
-
-            break
-        }
-        catch {
-            $statusCode = 0
-            if ($null -ne $_.Exception.Response) {
-                $statusCode = [int] $_.Exception.Response.StatusCode
-            }
-
-            $isRetryable = $statusCode -eq 429 -or ($statusCode -ge 500 -and $statusCode -le 599)
-            if (-not $isRetryable -or $attempt -eq $rateLimitRetries) {
-                throw
-            }
-
-            $backoffSeconds = [System.Math]::Min(30, [System.Math]::Pow(2, $attempt))
-            Write-Host "[INFO] HTTP $statusCode from ElevenLabs. Waiting ${backoffSeconds}s, then retrying (attempt $attempt of $rateLimitRetries)."
-            Start-Sleep -Seconds $backoffSeconds
-        }
-    }
-
-    $pcm = [System.IO.File]::ReadAllBytes($temporaryPath)
-    if ($pcm.Length -lt 1024) {
-        throw "The API returned only $($pcm.Length) bytes, which is not usable audio. The request may have been rejected."
-    }
-
-    if (-not $PSBoundParameters.ContainsKey('Channels')) {
-        # Raw PCM carries no header, so the channel count is inferred from how
-        # many 16-bit frames came back for the requested duration.
-        $expectedMonoBytes = $SampleRate * ($bitsPerSample / 8) * $Duration
-        $ratio = $pcm.Length / $expectedMonoBytes
-        if ($ratio -lt 1.5) {
-            $Channels = 1
-        }
-        elseif ($ratio -lt 2.5) {
-            $Channels = 2
-        }
-        else {
-            throw "Returned $($pcm.Length) bytes, which is $([math]::Round($ratio, 2))x the mono size for ${Duration}s at $SampleRate Hz. Re-run with an explicit -Channels value."
-        }
-    }
-
-    # The model sometimes returns a take that is technically valid audio and
-    # far too quiet to hear in a battle. Catching it here is what stops -Force
-    # from replacing a good file with a dud.
-    $peak = Get-PeakAmplitude -PcmData $pcm
-    $peakPercent = [math]::Round(100.0 * $peak / 32767.0, 1)
-    if ($peak -lt $minimumPeakAmplitude -and -not $AllowQuiet) {
-        throw "This take peaks at only $peakPercent% of full scale, which is too quiet to hear over a battle. Nothing was written, so any existing $Slot.wav is untouched. Run the same command again for another take, or pass -AllowQuiet to keep this one."
-    }
-
-    Write-Host "[INFO] Peak level: $peakPercent% of full scale."
-
-    $generatedSeconds = [math]::Round($pcm.Length / ($SampleRate * $Channels * ($bitsPerSample / 8)), 2)
-    if ($shouldTrim) {
-        $trimmed = Remove-Silence `
-            -PcmData $pcm `
-            -Rate $SampleRate `
-            -ChannelCount $Channels `
-            -ThresholdRatio ($SilenceThreshold / 100.0)
-
-        if ($trimmed.Length -lt $pcm.Length) {
-            Write-Host ("[INFO] Trimmed to the audible part at {0}% of peak: {1}s generated, {2}s kept. Use -NoTrim to keep it all." -f `
-                    $SilenceThreshold,
-                $generatedSeconds,
-                [math]::Round($trimmed.Length / ($SampleRate * $Channels * ($bitsPerSample / 8)), 2))
-            $pcm = $trimmed
-        }
-        else {
-            Write-Host "[INFO] Nothing to trim: the audio is audible from end to end at $SilenceThreshold% of peak."
-        }
-    }
-
-    Write-WavFile -PcmData $pcm -Rate $SampleRate -ChannelCount $Channels -Path $outputPath
-
-    $seconds = [math]::Round($pcm.Length / ($SampleRate * $Channels * ($bitsPerSample / 8)), 2)
-    $kilobytes = [math]::Round($pcm.Length / 1024.0, 1)
-    Write-Host "[PASS] Wrote $outputPath ($kilobytes KB, ${seconds}s, $Channels channel(s), $SampleRate Hz, 16-bit PCM)."
+    $result = Invoke-SoundGeneration `
+        -Prompt $Prompt `
+        -Duration $Duration `
+        -PromptInfluenceValue $PromptInfluence `
+        -SampleRateValue $SampleRate `
+        -ChannelsValue $channelsForSlot `
+        -ShouldTrimValue ([bool] $shouldTrim) `
+        -SilenceThresholdValue $SilenceThreshold `
+        -AllowQuietValue ([bool] $AllowQuiet) `
+        -ApiKeyValue $apiKey `
+        -DestinationPath $outputPath
 
     $escapedPrompt = $Prompt -replace '\|', '\|'
     $row = '| {0} | `{1}` | `{2}` | {3}s | {4}s | {5} | {6} |' -f `
@@ -951,7 +1182,7 @@ try {
     (Split-Path -Leaf $outputPath),
     $modelId,
     $Duration,
-    $seconds,
+    $result.KeptSeconds,
     $PromptInfluence,
     $escapedPrompt
 
@@ -985,9 +1216,4 @@ catch {
     }
 
     throw
-}
-finally {
-    if (Test-Path -LiteralPath $temporaryPath -PathType Leaf) {
-        Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
-    }
 }

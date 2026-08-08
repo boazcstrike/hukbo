@@ -4,9 +4,15 @@
     <Project Path="src/Hukbo.Core/Hukbo.Core.csproj" />
     <Project Path="src/Hukbo.Diagnostics/Hukbo.Diagnostics.csproj" />
     <Project Path="src/Hukbo.Headless/Hukbo.Headless.csproj" />
+    <Project Path="src/Hukbo.Shared.Core/Hukbo.Shared.Core.csproj" />
+    <Project Path="src/Sandata.Client/Sandata.Client.csproj" />
+    <Project Path="src/Sandata.Core/Sandata.Core.csproj" />
+    <Project Path="src/Sandata.Headless/Sandata.Headless.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Hukbo.Client.Tests/Hukbo.Client.Tests.csproj" />
     <Project Path="tests/Hukbo.Core.Tests/Hukbo.Core.Tests.csproj" />
+    <Project Path="tests/Sandata.Client.Tests/Sandata.Client.Tests.csproj" />
+    <Project Path="tests/Sandata.Core.Tests/Sandata.Core.Tests.csproj" />
   </Folder>
 </Solution>

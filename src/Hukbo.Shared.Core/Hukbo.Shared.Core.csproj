@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- The moved files keep their existing Hukbo.Core.* namespaces; pinning
+         RootNamespace here means not one `using` directive anywhere in
+         Hukbo.Core, Hukbo.Client, Hukbo.Headless, or either Hukbo test
+         project has to change for this extraction. -->
+    <RootNamespace>Hukbo.Core</RootNamespace>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+</Project>

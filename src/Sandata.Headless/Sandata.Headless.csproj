@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Sandata.Core/Sandata.Core.csproj" />
+    <ProjectReference Include="../Hukbo.Diagnostics/Hukbo.Diagnostics.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Sandata.Core.Tests" />
+  </ItemGroup>
+</Project>

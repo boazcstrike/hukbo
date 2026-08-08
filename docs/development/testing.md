@@ -3069,6 +3069,52 @@ below remains `PENDING`, and the display-scaling measurement task (gated,
 separate, and requiring a human at an interactive Windows desktop) remains
 untouched by this run.
 
+### Font plan closeout — T29–T31, 2026-07-28
+
+T29 (display scaling, measure only) was closed as declined: the 100% reading
+was taken (viewport 1280×720, client bounds 1280×720, equal), then the user
+declined the 150% reading, having no use for the remedy it would have gated.
+T30 is therefore also closed as declined, and row 75 above is marked
+`DECLINED` rather than left `PENDING`. T31 (archive both plan documents) was
+completed: both files were moved out of `docs/plans/` into `docs/archives/`,
+each bannered, with every stale `docs/plans/...` cross-reference in the
+repository repointed. Both archived files were later removed from the
+repository by the archive prune of 2026-07-26 through 2026-07-31, so this
+section is now the only surviving record of the font and text quality work.
+
+At the time this closeout was first written, `./scripts/verify.ps1` could not
+be run: `main` at `ff5b73a`, the commit this work branched from, already failed
+to build six test files with `CS1503` errors at `BattleEvent.Attack`'s call
+sites. That break was pre-existing, unrelated to the font work, and has since
+been fixed on `main`.
+
+The gate was therefore re-run before this branch was integrated. On 2026-08-07,
+after merging `main` into this branch and resolving the conflicts left by the
+archive prune, `./scripts/verify.ps1 -SkipBootstrap` was run at the root of the
+`font-text-quality-t29-31` worktree and printed exactly:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+The Release build produced 0 warnings and 0 errors. `Hukbo.Core.Tests` reported
+2614 total, 2614 passed, 0 failed; `Hukbo.Client.Tests` reported 3121 total,
+3121 passed, 0 failed. The seed-1, 200-agent, 10,000-tick headless workload's
+`RunReport` recorded `measuredTicks` `981`, outcome `Faction1Victory`,
+`faction0Survivors` `0`, `faction1Survivors` `6`, `eventHash`
+`AC55684F24D39344`, `stateHash` `1B73FC5923879AA0`, `deterministic` `true`, and
+`firstMismatchTick` `null`.
+
+This run verifies the merged tree, not the font change in isolation — every
+code file this workstream touched was resolved in `main`'s favour during the
+merge, so what remains on this branch is this documentation section and the
+`DECLINED` state of row 75. The manual rows above stay `PENDING`: no person
+watched a live window for this run.
+
 ## Superseded: the amended collision run
 
 Every figure in this section comes from one final verified run of the **amended**
@@ -3893,7 +3939,7 @@ window-opening probe do not.
 | 72. Theme cycling | All six themes render text at the active UI scale with correct contrast, and no theme reveals a clipped or misaligned label the others hide. | Not run | PENDING |
 | 73. Window resize and automatic scale tiers | With UI Scale set to Auto, resizing selects 100% at 1280x720, 125% at 1920x1080, 150% at 2560x1440, and 200% at 3840x2160. Each tier stays crisp, re-lays out without clipping, and keeps every menu control visible. | Not run | PENDING |
 | 74. Subpixel blur is gone | Panning, zooming, and pausing produce no shimmering or swimming text. | Not run | PENDING |
-| 75. Display scaling | Record the appearance at 100% and at 150% Windows scaling. Feeds the separate, gated display-scaling measurement task; not itself a pass/fail row for the font ramp. | Not run | PENDING |
+| 75. Display scaling | Record the appearance at 100% and at 150% Windows scaling. Fed the separate, gated display-scaling measurement task. | The 100% reading was taken during implementation (viewport 1280×720, client bounds 1280×720, equal). The user declined the 150% reading on 2026-07-28, having no use for the display-scaling remedy this row was gating. | DECLINED |
 
 ### Responsive menu, startup display, and UI motion smoke
 

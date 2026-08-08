@@ -31,15 +31,22 @@ param(
     # falls back to Scenario's own default movement preset.
     [string] $MovementPreset,
 
-    [switch] $NoBuild
+    [switch] $NoBuild,
+
+    # Which game's headless runner to invoke. Defaults to 'Hukbo' so a caller
+    # that never passes -Game gets today's behavior unchanged.
+    [ValidateSet('Hukbo', 'Sandata')]
+    [string] $Game = 'Hukbo'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_common.ps1')
+. (Join-Path $PSScriptRoot '_gametargets.ps1')
 
 $root = Get-RepositoryRoot
-$headlessProject = 'src/Hukbo.Headless/Hukbo.Headless.csproj'
+$target = Get-GameTarget -Game $Game
+$headlessProject = $target.Headless
 Push-Location $root
 try {
     if (-not $NoBuild) {
