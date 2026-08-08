@@ -46,9 +46,15 @@ namespace Hukbo.Core.Tests;
 /// preset.</b> <c>Scenario.RosterCounts</c> is set explicitly on every
 /// scenario this harness builds; <see cref="PhilippineCombatPresetV5"/> is
 /// never edited to bias its own roster distribution, because
-/// <c>BattleSimulation.cs:571-574</c> spreads warriors evenly over all seven
+/// <c>BattleSimulation.cs:571-574</c> spreads warriors evenly over all nine
 /// roster entries whenever <c>RosterCounts</c> is left unset, which would
 /// field far more melee than ranged and never reach a defensible calibration.
+/// </para>
+/// <para>
+/// <b>RU-45</b> appended two <see cref="ShieldId.TallHardwood"/> roster
+/// entries (Kalis, Itak) to <see cref="PhilippineCombatPresetV5"/>, so this
+/// file's roster-order lists, its default weights, and band (b) below all
+/// move from seven entries to nine.
 /// </para>
 /// </remarks>
 internal static class RangedCalibrationHarness
@@ -104,9 +110,10 @@ internal static class RangedCalibrationHarness
     /// matrix, and returns the whole report as one block of text.
     /// </summary>
     /// <param name="rosterCounts">
-    /// The seven-entry roster split to measure, indexed against
+    /// The nine-entry roster split to measure, indexed against
     /// <see cref="PhilippineCombatPresetV5.Rules"/>'s own roster order
-    /// (Kampilan, Wasay, Kalis, Itak, Bangkaw, Busog, Arquebus). Scaled by
+    /// (Kampilan, Wasay, Kalis, Itak, Bangkaw, Busog, Arquebus, Kalis +
+    /// TallHardwood, Itak + TallHardwood). Scaled by
     /// <see cref="BuildRosterCounts"/> to whatever <c>AgentsPerFaction</c> a
     /// given cell needs, using a largest-remainder apportionment so every
     /// scaled roster still sums exactly to that cell's <c>AgentsPerFaction</c>,
@@ -333,19 +340,20 @@ internal static class RangedCalibrationHarness
             "== Band b: shielded roster entries absorb more blows before " +
             "dying than shieldless ones ==");
 
+        // RU-45 gave PhilippineCombatPresetV5 two ShieldId.TallHardwood
+        // roster entries (Kalis, Itak), so this band is measurable by
+        // default. This guard stays as a defensive fallback only: a caller
+        // that passes rosterCounts weighting both shielded entries to zero
+        // would still get an honest UNMEASURABLE line rather than a
+        // division-derived garbage ratio, exactly as before RU-45.
         var anyShielded = seedResults.Any(result => result.ShieldedTotal > 0);
         if (!anyShielded)
         {
             report.AppendLine(
-                "UNMEASURABLE: PhilippineCombatPresetV5's roster fields " +
-                "ShieldId.None on all seven entries (restated verbatim from " +
-                "PhilippineCombatPresetV4, whose own roster dropped every " +
-                "shield PrecolonialPhilippinesV2 carried). shieldedTotal is " +
-                "0 for every roster share this harness can build without " +
-                "editing the roster's shield assignment, which is outside " +
-                "RU-24's tuning levers (roster share, standoff/reach, shot " +
-                "intervals, intercept matrix). Reported as BLOCKED for this " +
-                "band; not widened, not fabricated.");
+                "UNMEASURABLE: the given rosterCounts field zero agents on " +
+                "both of PhilippineCombatPresetV5's ShieldId.TallHardwood " +
+                "roster entries (Kalis, Itak), so shieldedTotal is 0 for " +
+                "every seed. Not widened, not fabricated.");
             report.AppendLine();
             return;
         }
@@ -514,10 +522,11 @@ internal static class RangedCalibrationHarness
 ///   --logger "console;verbosity=detailed"
 /// </code>
 /// The roster share weights are read from <c>HUKBO_RANGED_ROSTER_WEIGHTS</c>,
-/// a comma-separated list of seven non-negative integers in
+/// a comma-separated list of nine non-negative integers in
 /// <see cref="Hukbo.Core.Combat.PhilippineCombatPresetV5"/> roster order
-/// (Kampilan, Wasay, Kalis, Itak, Bangkaw, Busog, Arquebus). It defaults to
-/// this file's own <see cref="DefaultRosterWeights"/> constant when unset.
+/// (Kampilan, Wasay, Kalis, Itak, Bangkaw, Busog, Arquebus, Kalis +
+/// TallHardwood, Itak + TallHardwood). It defaults to this file's own
+/// <see cref="DefaultRosterWeights"/> constant when unset.
 /// </remarks>
 public sealed class RangedCalibrationRun
 {
@@ -528,9 +537,18 @@ public sealed class RangedCalibrationRun
     /// with the ranged quarter weighted toward the Bangkaw, since a thrown
     /// spear is the best-attested missile weapon in this record and the
     /// Arquebus is deliberately the rarest of the three.
+    /// <para>
+    /// RU-45: the pre-RU-45 seven-weight table's Kalis weight (19) and Itak
+    /// weight (18) are each split roughly in half between that weapon's
+    /// shieldless and <see cref="ShieldId.TallHardwood"/> row -- Kalis
+    /// 10/9, Itak 9/9 -- because nothing in the record supports either
+    /// variant being more common than the other. Every other weapon's weight
+    /// is untouched, so the melee/ranged 75/25 split this table has always
+    /// held is unchanged and the total still sums to 100.
+    /// </para>
     /// </summary>
     internal static readonly int[] DefaultRosterWeights =
-        [19, 19, 19, 18, 11, 8, 6];
+        [19, 19, 10, 9, 11, 8, 6, 9, 9];
 
     private readonly Xunit.Abstractions.ITestOutputHelper _output;
 
