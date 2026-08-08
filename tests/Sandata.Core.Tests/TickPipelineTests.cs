@@ -11,6 +11,7 @@ using Sandata.Core.Mathematics;
 using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
 using Sandata.Core.Rules;
+using Sandata.Core.Sensing;
 using Sandata.Core.Simulation;
 using Sandata.Core.Weapons;
 
@@ -1374,28 +1375,23 @@ public sealed class TickPipelineTests
     }
 
     /// <summary>
-    /// Task 79d-1, done-when criterion 1: builds a shot at fixed geometry
-    /// (shooter at (0,0), target at (90,0) world units, same mission seed,
-    /// weapon chain seeded to fire on tick 0) and shows one shooter entity
-    /// id produces a hit while another produces a miss.
+    /// Task 86 finding, superseding task 79d-1's original claim for this
+    /// fixture. Before task 86, <c>CollisionBodyRadiusRaw</c> was an
+    /// invented 32 raw (0.03 wu); at that size the target's subtended
+    /// half-angle at 90 wu was comparable to the AK-47's drawn dispersion,
+    /// so shooter id 2 drew a miss and id 25 drew a hit. Task 86 corrected
+    /// the radius to the designed 4,352 raw (4.25 wu,
+    /// <c>Hukbo.Core/Simulation/CollisionRules.cs:72</c>'s
+    /// <c>DefaultBodyRadiusRaw</c>), which grows the half-angle roughly
+    /// 136x. Both ids now hit — verified here directly, and proved to hold
+    /// for every reachable id by
+    /// <see cref="SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange"/>
+    /// below. See the task-86 report for the full derivation.
     /// </summary>
-    /// <remarks>
-    /// The RNG draw is isolated to the shooter's <c>EntityId</c>:
-    /// <see cref="AccuracyRules.DrawAngularErrorBam"/> is keyed on
-    /// <c>(missionSeed, entityId)</c>, and this fixture holds
-    /// <c>missionSeed</c>, both operators' positions, and the firearm
-    /// (hence dispersion) fixed across both runs — only the shooter's
-    /// <c>EntityId</c> differs (2 vs. 25), so only the draw differs. Both
-    /// ids were found by an exhaustive probe over ids 2..500 at this exact
-    /// geometry and seed, run only through <see cref="SandataSimulation.RunTick"/>
-    /// (never by calling <c>ProposeFire</c> directly or predicting the draw
-    /// offline) — id 2 is the first miss, id 25 is the first hit.
-    /// </remarks>
     [Theory]
-    [InlineData(2, false)]
-    [InlineData(25, true)]
-    public void RunTick_SameGeometryDifferentShooterEntityId_AngularErrorDrawDecidesHitOrMiss(
-        int shooterEntityId, bool expectHit)
+    [InlineData(2)]
+    [InlineData(25)]
+    public void RunTick_SameGeometryAnyShooterEntityId_AlwaysHits(int shooterEntityId)
     {
         var sim = BuildFiringFixture(shooterEntityId);
 
@@ -1403,8 +1399,8 @@ public sealed class TickPipelineTests
 
         var events = sim.State.EventFeed.Events;
         Assert.Single(events, e => e.Kind == MissionEventKind.ShotFired);
-        Assert.Single(events, e => e.Kind == (expectHit ? MissionEventKind.ShotHit : MissionEventKind.ShotMissed));
-        Assert.DoesNotContain(events, e => e.Kind == (expectHit ? MissionEventKind.ShotMissed : MissionEventKind.ShotHit));
+        Assert.Single(events, e => e.Kind == MissionEventKind.ShotHit);
+        Assert.DoesNotContain(events, e => e.Kind == MissionEventKind.ShotMissed);
     }
 
     /// <summary>Task 79d-1, done-when criterion 2, restated as an explicit count check.</summary>
@@ -1422,19 +1418,54 @@ public sealed class TickPipelineTests
         Assert.Equal(0, events.Count(e => e.Kind == MissionEventKind.ShotMissed));
     }
 
-    /// <summary>Task 79d-1, done-when criterion 2, restated as an explicit count check.</summary>
+    /// <summary>
+    /// Task 86 finding replacing the removed
+    /// <c>RunTick_Miss_EmitsExactlyOneShotFiredAndOneShotMissedEvent</c>: at
+    /// the designed <c>CollisionBodyRadiusRaw</c> (4,352 raw), a miss is
+    /// mathematically unreachable for the AK-47 loadout through
+    /// <see cref="SandataSimulation.RunTick"/>, because
+    /// <see cref="AccuracyRules.DrawAngularErrorBam"/>'s drawn magnitude
+    /// never exceeds the private <c>SubtendedHalfAngleBam(rangeWu)</c>
+    /// (reflected below — same reflection convention this file already uses
+    /// for other private members) for any whole range the sensing pipeline
+    /// can reach. <see cref="ContactMemory.DetectRangeWu"/> (256) is the
+    /// outer bound: <c>AdvanceWeaponChain</c> only proposes a shot once a
+    /// contact clears <see cref="ContactTier.Unknown"/>, which requires a
+    /// range within <c>DetectRangeWu</c>. Solving dispersion(R) =
+    /// half-angle(R) continuously puts the crossover at roughly 345 wu —
+    /// past <c>DetectRangeWu</c> — so no in-range geometry can ever draw a
+    /// miss for this weapon. This is a genuine contradiction of the
+    /// original task-79d-1 assumption that shooter-id tuning alone
+    /// preserves both a hit and a miss path; it is reported, not hidden,
+    /// per the task-86 brief's evidence-contradicts-brief rule. This test
+    /// pins the impossibility as a regression check: if a future change to
+    /// <c>CollisionBodyRadiusRaw</c>, the AK-47's dispersion constants, or
+    /// <c>DetectRangeWu</c> ever reopens a reachable miss, this test fails
+    /// and the removed <c>RunTick</c>-level miss coverage must return.
+    /// </summary>
     [Fact]
-    public void RunTick_Miss_EmitsExactlyOneShotFiredAndOneShotMissedEvent()
+    public void SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange()
     {
-        var sim = BuildFiringFixture(shooterEntityId: 2);
+        var method = typeof(SandataSimulation).GetMethod(
+            "SubtendedHalfAngleBam", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException(
+                "SandataSimulation.SubtendedHalfAngleBam not found by reflection; " +
+                "task 86's regression check for the miss-impossibility finding cannot run.");
 
-        sim.RunTick(0);
+        var definition = FirearmCatalog.Rows[(int)FirearmId.Ak47];
 
-        var events = sim.State.EventFeed.Events;
-        Assert.Equal(2, events.Length);
-        Assert.Equal(1, events.Count(e => e.Kind == MissionEventKind.ShotFired));
-        Assert.Equal(1, events.Count(e => e.Kind == MissionEventKind.ShotMissed));
-        Assert.Equal(0, events.Count(e => e.Kind == MissionEventKind.ShotHit));
+        for (var rangeWu = 1; rangeWu <= ContactMemory.DetectRangeWu; rangeWu++)
+        {
+            var maxDrawMagnitudeBam = AccuracyRules.Dispersion(
+                rangeWu, definition.DispersionAtZeroWu, definition.DispersionAtMaxWu, definition.MaxEffectiveWu);
+            var halfAngleBam = (int)method.Invoke(null, new object[] { rangeWu })!;
+
+            Assert.True(
+                maxDrawMagnitudeBam <= halfAngleBam,
+                $"range {rangeWu} wu: max drawn magnitude {maxDrawMagnitudeBam} exceeds half-angle " +
+                $"{halfAngleBam} bam — a miss is reachable within DetectRangeWu, so the task-86 finding " +
+                "no longer holds and RunTick-level miss coverage must be restored.");
+        }
     }
 
     /// <summary>
