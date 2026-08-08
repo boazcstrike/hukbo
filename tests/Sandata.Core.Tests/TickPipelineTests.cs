@@ -485,4 +485,389 @@ public sealed class TickPipelineTests
         var indexOfException = Assert.Throws<InvalidOperationException>(() => view.IndexOf(1UL));
         Assert.Equal(expectedMessage, indexOfException.Message);
     }
+
+    // ---- 5. DETERMINISM -----------------------------------------------
+
+    /// <summary>
+    /// Two independently constructed <see cref="SandataSimulation"/>
+    /// instances, built from the same <see cref="Mission"/> and the same
+    /// starting fixture (an identified cross-faction contact, so the
+    /// weapon chain actually advances through several phases rather than
+    /// sitting idle), run twenty identical ticks each and must land on the
+    /// same <see cref="MissionState.Operators"/> and the same
+    /// <see cref="SandataSimulation.LastStateHash"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Gap, stated plainly.</b> <see cref="SandataSimulation"/> exposes no
+    /// ordered event stream the way <c>Hukbo.Core.Simulation.BattleOutcome</c>
+    /// does — <see cref="SandataSimulation.PendingIntents"/> and
+    /// <see cref="SandataSimulation.PendingMovementProposals"/> are each only
+    /// the most recently completed tick's buffer, overwritten on the next
+    /// <see cref="SandataSimulation.RunTick"/> call, not an accumulated
+    /// history. This test can therefore only compare the two runs'
+    /// end-of-run <see cref="SandataSimulation.State"/> and
+    /// <see cref="SandataSimulation.LastStateHash"/>, not an ordered event
+    /// stream across all twenty ticks the way a full determinism contract
+    /// (design section 4's "identical state hash, event hash, winner, and
+    /// ordered event stream") would ask for. There is no event hash and no
+    /// winner concept in this worktree's <see cref="SandataSimulation"/>
+    /// today either.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void RunTick_TwentyIdenticalTicksAcrossTwoIndependentInstances_ProduceIdenticalStateAndHash()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        MissionState BuildFixture() => BuildState(ImmutableArray.Create(
+            BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0, aimAngle: new Bam16(2548)),
+            BuildOperator(2, faction: 1, positionXWu: 90, positionYWu: 0)));
+
+        var simA = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture());
+        var simB = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture());
+
+        for (var tick = 0; tick < 20; tick++)
+        {
+            simA.RunTick(tick);
+            simB.RunTick(tick);
+        }
+
+        Assert.True(simA.State.Operators.SequenceEqual(simB.State.Operators));
+        Assert.NotNull(simA.LastStateHash);
+        Assert.Equal(simA.LastStateHash, simB.LastStateHash);
+    }
+
+    // ---- 6. THE FOUR RULESET CONSTANTS ---------------------------------
+
+    /// <summary>
+    /// <see cref="SandataRuleset.GroupCohesionRadius"/>: design section 8
+    /// documents it as a world-unit radius — "operators within
+    /// <c>GroupCohesionRadius</c> world units of each other in the same
+    /// faction are unioned" — so two same-faction operators 50 world units
+    /// apart, well inside the default 96-world-unit radius, should union
+    /// into one squad. Running the full pipeline instead shows they never
+    /// do: each keeps its own <see cref="Sandata.Core.Movement.MovementProposal.GroupId"/>
+    /// equal to its own entity id (the union-find "solo group" outcome
+    /// <see cref="Sandata.Core.Squads.SquadGrouping"/> assigns any entity no
+    /// candidate pair ever names).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Two compounding defects, both confirmed by reading the code this
+    /// call site actually runs, not by inspection alone.</b>
+    /// </para>
+    /// <para>
+    /// <b>Defect: unit mismatch.</b> <c>SandataSimulation.ComputeSquadGrouping</c>
+    /// passes <c>_ruleset.GroupCohesionRadius</c> — documented, and defaulted
+    /// to 96, in world units — straight into
+    /// <c>SquadGrouping.Compute</c>'s <c>groupCohesionRadiusRaw</c> parameter,
+    /// which that method squares and compares directly against squared raw
+    /// fixed-point position deltas (scale 1,024 raw units per world unit).
+    /// No conversion is applied — <c>SandataSimulation</c> already has one,
+    /// its own private <c>RawFromWorldUnits</c> helper, used correctly by
+    /// stage 9, but stage 6 never calls it. The default radius therefore
+    /// behaves as roughly 96 raw units, about 0.094 world units, not the
+    /// documented 96 world units — operators would need to stand almost
+    /// exactly on top of each other for this comparison alone to pass.
+    /// </para>
+    /// <para>
+    /// <b>Defect: the candidate pair list is pre-filtered to physical
+    /// contact, far tighter than any cohesion radius could reach.</b>
+    /// <c>ComputeSquadGrouping</c> only ever unions a pair that already
+    /// appears in <c>TickStartView.Pairs</c>, which stage 3 fills from
+    /// <c>SandataCollisionGrid.Pairs</c> — documented as "every unordered
+    /// pair of living bodies in contact", built at
+    /// <c>CollisionBodyRadiusRaw = 32</c> raw units (about 0.031 world
+    /// units) per body, so two bodies appear as a candidate pair at all only
+    /// within about 64 raw units (about 0.063 world units) of each other.
+    /// Because that bound is already smaller than the buggy raw-unit
+    /// interpretation of the default radius (96), the
+    /// <c>GroupCohesionRadius</c> comparison in
+    /// <c>SquadGrouping.ComputeCore</c> is, at the shipped default value,
+    /// dead weight: any pair that reaches it at all already satisfies it.
+    /// Fixing only the unit-conversion defect above would not, by itself,
+    /// let two operators several world units apart ever group — the
+    /// candidate list itself would still need to widen far beyond a
+    /// physical-contact broad phase for design section 8's stated behaviour
+    /// to be reachable at any interesting distance. Both facts are reported
+    /// here; neither production file is touched.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void RunTick_TwoSameFactionOperatorsFiftyWorldUnitsApart_AreNotGroupedDespiteDocumentedRadius()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var state = BuildState(ImmutableArray.Create(
+            BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
+            BuildOperator(2, faction: 0, positionXWu: 50, positionYWu: 0)));
+
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state);
+        sim.RunTick(0);
+
+        var proposalOne = sim.PendingMovementProposals.Single(p => p.EntityId == 1UL);
+        var proposalTwo = sim.PendingMovementProposals.Single(p => p.EntityId == 2UL);
+
+        Assert.Equal(1UL, proposalOne.GroupId);
+        Assert.Equal(2UL, proposalTwo.GroupId);
+    }
+
+    /// <summary>
+    /// <see cref="SandataRuleset.PathLatencyTicks"/>: reading
+    /// <see cref="SandataSimulation.RunTick"/>'s stage 7 call site
+    /// (<c>AdvancePathService</c>) and every method it calls confirms this
+    /// worktree never calls <c>PathService.RequestPath</c> for any group —
+    /// the field reaches only <c>PathService</c>'s constructor and
+    /// <c>PathService.Advance</c>, neither of which this worktree's fixed,
+    /// no-request-source pipeline can make observably branch on its value.
+    /// <b>Blocked precondition:</b> proving this constant load-bearing would
+    /// need a fixture that gets an outstanding path request into
+    /// <see cref="PathService"/>, and no call site anywhere in
+    /// <see cref="SandataSimulation"/> can construct one — see
+    /// <c>AdvancePathService</c>'s own remarks, which state the same fact.
+    /// </summary>
+    /// <remarks>
+    /// What this test proves instead: two <see cref="SandataRuleset"/>
+    /// instances differing only in <c>PathLatencyTicks</c> produce byte-for-byte
+    /// identical <see cref="SandataSimulation.State"/> after several ticks of
+    /// an otherwise ordinary fixture — full record equality, not merely the
+    /// state hash, because <see cref="SandataRuleset.ContentHash"/> folds
+    /// <c>PathLatencyTicks</c> directly (<see cref="SandataStateHasher.Compute"/>
+    /// folds <c>ruleset.ContentHash</c> last), so comparing
+    /// <see cref="SandataSimulation.LastStateHash"/> instead would report a
+    /// difference this constant itself never causes.
+    /// </remarks>
+    [Fact]
+    public void RunTick_PathLatencyTicksDifference_LeavesStateIdentical()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var rulesetLow = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: 10,
+            groupCohesionRadius: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        var rulesetHigh = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: 9999,
+            groupCohesionRadius: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        MissionState BuildFixture() => BuildState(ImmutableArray.Create(
+            BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
+            BuildOperator(2, faction: 1, positionXWu: 90, positionYWu: 0)));
+
+        var simLow = new SandataSimulation(mission, rulesetLow, grid, wallBuckets, BuildFixture());
+        var simHigh = new SandataSimulation(mission, rulesetHigh, grid, wallBuckets, BuildFixture());
+
+        for (var tick = 0; tick < 5; tick++)
+        {
+            simLow.RunTick(tick);
+            simHigh.RunTick(tick);
+        }
+
+        Assert.Equal(simLow.State, simHigh.State);
+    }
+
+    /// <summary>
+    /// <see cref="SandataRuleset.LoweredWallDistanceWu"/>: an operator
+    /// standing exactly 8 world units from a wall — <see cref="WeaponChainPhase.Raising"/>,
+    /// mid-raise, with a provisional 5 ticks left — is forced back to
+    /// <see cref="WeaponChainPhase.Lowered"/> in one tick under a
+    /// threshold of 8 (inclusive, per <see cref="WeaponLoweredRules"/>'s own
+    /// contract), but is not forced under a threshold of 7, where the raise
+    /// simply keeps counting down. Wall geometry mirrors
+    /// <c>WeaponLoweredRulesTests</c>'s own fixture: a vertical wall at
+    /// x = 50 spanning y in [0, 100], queried at y = 60 so the perpendicular
+    /// distance is exactly <c>|x - 50|</c>.
+    /// </summary>
+    [Fact]
+    public void RunTick_LoweredWallDistanceWuThreshold_ForcesLoweredOnlyWhenInclusive()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = WallBuckets.Build(grid, [50], [0], [50], [100]);
+        var mission = BuildMission();
+
+        // x = 42: distance to the wall at x = 50 is exactly 8.
+        MissionState BuildFixture() => BuildState(ImmutableArray.Create(
+            BuildOperator(
+                1, faction: 0, positionXWu: 42, positionYWu: 60,
+                weaponChainPhase: (int)WeaponChainPhase.Raising,
+                // PROVISIONAL: any positive remaining-ticks value works to
+                // distinguish "forced to Lowered" from "still Raising"; 5 is
+                // an arbitrary pick with no historical or tuning meaning.
+                weaponChainRemainingTicks: 5)));
+
+        var rulesetInclusive = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: 10,
+            groupCohesionRadius: 96,
+            loweredWallDistanceWu: 8,
+            aimToleranceBam: 1024);
+
+        var rulesetJustOutside = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: 10,
+            groupCohesionRadius: 96,
+            loweredWallDistanceWu: 7,
+            aimToleranceBam: 1024);
+
+        var simInclusive = new SandataSimulation(mission, rulesetInclusive, grid, wallBuckets, BuildFixture());
+        simInclusive.RunTick(0);
+        var forcedOperator = Assert.Single(simInclusive.State.Operators);
+        Assert.Equal((int)WeaponChainPhase.Lowered, forcedOperator.WeaponChainPhase);
+        Assert.Equal(0, forcedOperator.WeaponChainRemainingTicks);
+
+        var simJustOutside = new SandataSimulation(mission, rulesetJustOutside, grid, wallBuckets, BuildFixture());
+        simJustOutside.RunTick(0);
+        var raisingOperator = Assert.Single(simJustOutside.State.Operators);
+        Assert.Equal((int)WeaponChainPhase.Raising, raisingOperator.WeaponChainPhase);
+        Assert.Equal(4, raisingOperator.WeaponChainRemainingTicks);
+    }
+
+    /// <summary>
+    /// <see cref="SandataRuleset.AimToleranceBam"/>: reachable only through a
+    /// narrow gate — <c>raiseRequested</c> true (stage 8 selected
+    /// <see cref="Sandata.Core.Simulation.OperatorIntent.Engage"/>), a
+    /// remembered contact stage 9's own-tick sensing resolves to a live
+    /// operator, and <see cref="WeaponChainPhase.Turning"/> already reached.
+    /// This fixture opens that gate: an operator at the origin facing
+    /// <see cref="Facing16.East"/> with <see cref="Bam16"/> raw aim 2,548, an
+    /// opposing-faction operator 90 world units due east (inside
+    /// <c>ContactMemory.IdentifyRangeWu</c> = 96, so this tick's fresh
+    /// sensing classifies it <see cref="ContactTier.Identified"/> and stage 8
+    /// selects <c>Engage</c>). With the rifle's
+    /// <c>TurnBamPerTick</c> = 2,048, the bearing to the target is
+    /// <see cref="Bam16"/> raw 0 (due east), so the shortest arc from 2,548 is
+    /// -2,548, magnitude past the per-tick turn cap; the one-tick turn lands
+    /// at raw 500, clamped short of the target by exactly 500 raw units —
+    /// worked by hand from <see cref="Bam16.ShortestArc"/> and
+    /// <see cref="WeaponChain.IsArcWithinTolerance"/> exactly as
+    /// <c>AdvanceWeaponChain</c> computes them, not asserted by fiat. A
+    /// tolerance of 600 admits that 500-unit residual into
+    /// <see cref="WeaponChainPhase.Aiming"/> in the same tick; a tolerance of
+    /// 400 does not, and the chain stays <see cref="WeaponChainPhase.Turning"/>.
+    /// </summary>
+    [Fact]
+    public void RunTick_AimToleranceBamThreshold_CompletesTurningOnlyWhenResidualArcFitsInside()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        MissionState BuildFixture() => BuildState(ImmutableArray.Create(
+            BuildOperator(
+                1, faction: 0, positionXWu: 0, positionYWu: 0,
+                facing: Facing16.East, aimAngle: new Bam16(2548),
+                weaponChainPhase: (int)WeaponChainPhase.Turning, weaponChainRemainingTicks: 0),
+            BuildOperator(2, faction: 1, positionXWu: 90, positionYWu: 0)));
+
+        var rulesetWide = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: 10,
+            groupCohesionRadius: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 600);
+
+        var rulesetNarrow = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: 10,
+            groupCohesionRadius: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 400);
+
+        var simWide = new SandataSimulation(mission, rulesetWide, grid, wallBuckets, BuildFixture());
+        simWide.RunTick(0);
+        var completedOperator = simWide.State.Operators.Single(op => op.EntityId == 1UL);
+        Assert.Equal((int)WeaponChainPhase.Aiming, completedOperator.WeaponChainPhase);
+
+        var simNarrow = new SandataSimulation(mission, rulesetNarrow, grid, wallBuckets, BuildFixture());
+        simNarrow.RunTick(0);
+        var stillTurningOperator = simNarrow.State.Operators.Single(op => op.EntityId == 1UL);
+        Assert.Equal((int)WeaponChainPhase.Turning, stillTurningOperator.WeaponChainPhase);
+    }
+
+    // ---- 7. ADDITIVE ORDER LAYER ---------------------------------------
+
+    /// <summary>
+    /// A resumed <see cref="OrderQueue"/> whose counters have advanced away
+    /// from zero but which carries no orders (<see cref="SandataSimulation.RestoreOrderQueue"/>
+    /// with <c>nextOrderId: 1, nextOrderSequence: 1</c> and an empty order
+    /// array) must behave identically, tick for tick, to the fresh
+    /// <see cref="OrderQueue.Empty"/> a new mission starts from: stage 1's
+    /// <c>ApplyOrders</c> reads only <see cref="OrderQueue.InApplicationOrder"/>,
+    /// never the counters, so an empty order list produces the same
+    /// <see cref="MissionState.OrderAssignments"/>, the same
+    /// <see cref="MissionState.Operators"/>, and the same
+    /// <see cref="SandataSimulation.PendingMovementProposals"/> either way.
+    /// </summary>
+    /// <remarks>
+    /// <b>Not a defect, and deliberately not asserted as hash-equal.</b>
+    /// <see cref="SandataStateHasher"/>'s own <c>FoldOrderQueue</c> folds
+    /// <c>NextOrderId</c> and <c>NextOrderSequence</c> into the state hash
+    /// whenever the queue is not exactly equal to <see cref="OrderQueue.Empty"/>
+    /// — its own remarks name this precise resumed-but-empty shape and cite
+    /// <c>OrderStateHashTests</c> as the file that already pins it. A queue
+    /// restored at counters (1, 1) is therefore not record-equal to
+    /// <see cref="OrderQueue.Empty"/>, so its counters are folded and the
+    /// resulting <see cref="SandataSimulation.LastStateHash"/> differs from
+    /// the fresh-queue run's, by design, even though every operator-visible
+    /// outcome below is identical. This test asserts that documented
+    /// divergence explicitly, rather than silently avoiding it, so a reader
+    /// does not mistake it for a determinism defect this file failed to
+    /// catch.
+    /// </remarks>
+    [Fact]
+    public void RunTick_ResumedEmptyOrderQueueVersusFreshEmptyOrderQueue_ProduceIdenticalOperatorsButDivergentHash()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        MissionState BuildFixture(OrderQueue queue) => BuildState(ImmutableArray.Create(
+            BuildOperator(1, faction: 0, positionXWu: 0, positionYWu: 0),
+            BuildOperator(2, faction: 1, positionXWu: 90, positionYWu: 0)))
+            with
+        { OrderQueue = queue };
+
+        var resumedQueue = SandataSimulation.RestoreOrderQueue(
+            nextOrderId: 1, nextOrderSequence: 1, ImmutableArray<Order>.Empty);
+
+        var simResumed = new SandataSimulation(
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(resumedQueue));
+        var simFresh = new SandataSimulation(
+            mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, BuildFixture(OrderQueue.Empty));
+
+        for (var tick = 0; tick < 5; tick++)
+        {
+            simResumed.RunTick(tick);
+            simFresh.RunTick(tick);
+        }
+
+        Assert.True(simResumed.State.Operators.SequenceEqual(simFresh.State.Operators));
+        Assert.True(simResumed.State.OrderAssignments.SequenceEqual(simFresh.State.OrderAssignments));
+        Assert.True(simResumed.PendingMovementProposals.SequenceEqual(simFresh.PendingMovementProposals));
+
+        Assert.NotEqual(resumedQueue, OrderQueue.Empty);
+        Assert.NotEqual(simResumed.State, simFresh.State);
+        Assert.NotNull(simResumed.LastStateHash);
+        Assert.NotNull(simFresh.LastStateHash);
+        Assert.NotEqual(simResumed.LastStateHash, simFresh.LastStateHash);
+    }
 }
