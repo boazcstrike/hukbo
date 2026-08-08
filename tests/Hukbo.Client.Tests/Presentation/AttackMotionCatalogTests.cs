@@ -15,10 +15,13 @@ public sealed class AttackMotionCatalogTests
             [WeaponId.Wasay] = AttackMotionFamily.HeadWeightedChop,
             [WeaponId.Kalis] = AttackMotionFamily.LinearThrustCut,
             [WeaponId.Itak] = AttackMotionFamily.CompactChopSlash,
+            [WeaponId.Bangkaw] = AttackMotionFamily.OverhandThrow,
+            [WeaponId.Busog] = AttackMotionFamily.DrawAndRelease,
+            [WeaponId.Arquebus] = AttackMotionFamily.BracedDischarge,
         };
 
         Assert.Equal(Enum.GetValues<WeaponId>().Length, expected.Count);
-        Assert.Equal(4, Enum.GetValues<AttackMotionFamily>().Length);
+        Assert.Equal(7, Enum.GetValues<AttackMotionFamily>().Length);
 
         foreach (var (weapon, family) in expected)
         {
@@ -51,13 +54,29 @@ public sealed class AttackMotionCatalogTests
             Assert.True(float.IsFinite(profile.RecoverySeconds));
             Assert.InRange(profile.RecoverySeconds, 0.01f, 1f);
             Assert.Contains(profile.HandCount, new[] { 1, 2 });
-            Assert.True(profile.TrailEligible);
         }
+
+        // TrailEligible is pinned per weapon, not asserted as a blanket true.
+        // The four bladed melee weapons sweep an edge through the air and
+        // draw a bounded trail; the three ranged weapons resolve their attack
+        // as a release (a hurl, a bowstring, a discharge) with no continuous
+        // edge sweep, so they do not draw one. Each pin below still fails on
+        // its own if that weapon's flag flips silently.
+        Assert.True(AttackMotionCatalog.Resolve(WeaponId.Kampilan).TrailEligible);
+        Assert.True(AttackMotionCatalog.Resolve(WeaponId.Wasay).TrailEligible);
+        Assert.True(AttackMotionCatalog.Resolve(WeaponId.Kalis).TrailEligible);
+        Assert.True(AttackMotionCatalog.Resolve(WeaponId.Itak).TrailEligible);
+        Assert.False(AttackMotionCatalog.Resolve(WeaponId.Bangkaw).TrailEligible);
+        Assert.False(AttackMotionCatalog.Resolve(WeaponId.Busog).TrailEligible);
+        Assert.False(AttackMotionCatalog.Resolve(WeaponId.Arquebus).TrailEligible);
 
         Assert.False(AttackMotionCatalog.Resolve(WeaponId.Kampilan).ShieldCompatible);
         Assert.False(AttackMotionCatalog.Resolve(WeaponId.Wasay).ShieldCompatible);
         Assert.True(AttackMotionCatalog.Resolve(WeaponId.Kalis).ShieldCompatible);
         Assert.True(AttackMotionCatalog.Resolve(WeaponId.Itak).ShieldCompatible);
+        Assert.True(AttackMotionCatalog.Resolve(WeaponId.Bangkaw).ShieldCompatible);
+        Assert.False(AttackMotionCatalog.Resolve(WeaponId.Busog).ShieldCompatible);
+        Assert.False(AttackMotionCatalog.Resolve(WeaponId.Arquebus).ShieldCompatible);
     }
 
     [Fact]
