@@ -1,0 +1,1292 @@
+using System.Collections.Immutable;
+using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
+using Sandata.Core.Collision;
+using Sandata.Core.Combat;
+using Sandata.Core.Determinism;
+using Sandata.Core.Geometry;
+using Sandata.Core.Mathematics;
+using Sandata.Core.Movement;
+using Sandata.Core.Navigation;
+using Sandata.Core.Orders;
+using Sandata.Core.Rules;
+using Sandata.Core.Sensing;
+using Sandata.Core.Squads;
+using Sandata.Core.Weapons;
+
+namespace Sandata.Core.Simulation;
+
+/// <summary>
+/// The single production caller of <see cref="TickStage"/>'s fourteen-stage
+/// table. Task 49 walks stages 1 through 9; stages 10 through 14 are declared
+/// below as clearly marked not-yet-implemented members so the full fourteen-
+/// stage shape is visible to a later task, per the task 49 brief.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>The frozen view's lifetime.</b> <see cref="TickStartView"/> is captured
+/// once, during stage 3 (<see cref="CaptureTickStartView"/>), and released
+/// exactly once, between stage 9 and stage 10 — see <see cref="TickStage"/>'s
+/// own remarks for the two binding rules this enforces. Stage 5's alert and
+/// contact-memory writes are therefore evaluated against the frozen view
+/// during stage 5 but committed into <see cref="State"/> only after the view
+/// is released, so no stage 5-through-9 operator can observe another
+/// operator's stage-5 write from the same tick.
+/// </para>
+/// <para>
+/// <b>What this task honestly implements.</b> See this class's per-stage
+/// method remarks, and task 49's own final report, for exactly which stages
+/// are complete, partial, or blocked on a missing callee.
+/// </para>
+/// </remarks>
+public sealed class SandataSimulation
+{
+    private readonly Mission _mission;
+    private readonly SandataRuleset _ruleset;
+    private readonly NavGrid _navGrid;
+    private readonly WallBuckets _wallBuckets;
+    private readonly PathService _pathService;
+
+    /// <summary>
+    /// Stage 10's collision-and-avoidance resolver, constructed once and
+    /// reused every tick — <see cref="Movement.LocalAvoidance"/> carries no
+    /// per-tick state of its own beyond the resolver it wraps, so there is
+    /// nothing to reset between ticks.
+    /// </summary>
+    private LocalAvoidance? _localAvoidance;
+
+    /// <summary>
+    /// Stage 11's write-only record of which operators fired this tick, and
+    /// at which contact, for <see cref="ProposeFire"/> to consume. Empty
+    /// before the first call to <see cref="RunTick"/>.
+    /// </summary>
+    private ImmutableArray<FiredShot> _pendingFiredShots = ImmutableArray<FiredShot>.Empty;
+
+    /// <summary>
+    /// Creates a simulation caller bound to one mission, its resolved
+    /// ruleset, the baked navigation artifacts stages 5 and 7 need, and the
+    /// authoritative state to begin ticking from.
+    /// </summary>
+    public SandataSimulation(
+        Mission mission,
+        SandataRuleset ruleset,
+        NavGrid navGrid,
+        WallBuckets wallBuckets,
+        MissionState initialState)
+    {
+        ArgumentNullException.ThrowIfNull(mission);
+        ArgumentNullException.ThrowIfNull(ruleset);
+        ArgumentNullException.ThrowIfNull(navGrid);
+        ArgumentNullException.ThrowIfNull(wallBuckets);
+        ArgumentNullException.ThrowIfNull(initialState);
+
+        _mission = mission;
+        _ruleset = ruleset;
+        _navGrid = navGrid;
+        _wallBuckets = wallBuckets;
+
+        // Call-site obligation for stage 7: PathService takes its latency as
+        // a constructor parameter and deliberately does not read the
+        // ruleset itself, so this caller passes ruleset.PathLatencyTicks.
+        _pathService = new PathService(ruleset.PathLatencyTicks);
+
+        State = initialState;
+    }
+
+    /// <summary>The mission this simulation is ticking.</summary>
+    public Mission Mission => _mission;
+
+    /// <summary>The ruleset this simulation was constructed with.</summary>
+    public SandataRuleset Ruleset => _ruleset;
+
+    /// <summary>The current authoritative state, as of the last completed stage.</summary>
+    public MissionState State { get; private set; }
+
+    /// <summary>
+    /// Stage 9's write-only movement proposal buffer from the most recently
+    /// completed tick — the "later run" (stages 10 through 14) consumes this.
+    /// Empty before the first call to <see cref="RunTick"/>.
+    /// </summary>
+    internal ImmutableArray<MovementProposal> PendingMovementProposals { get; private set; } =
+        ImmutableArray<MovementProposal>.Empty;
+
+    /// <summary>
+    /// Stage 8's selected intent per living operator from the most recently
+    /// completed tick.
+    /// </summary>
+    public ImmutableArray<IntentSelectionResult> PendingIntents { get; private set; } =
+        ImmutableArray<IntentSelectionResult>.Empty;
+
+    /// <summary>
+    /// Stage 14's scheduled state hash, from the most recent tick whose
+    /// <c>currentTick % Mission.TickPolicy.StateHashCadenceTicks == 0</c> —
+    /// see <see cref="ComputeStateHash"/>. <see langword="null"/> until the
+    /// first scheduled tick has run.
+    /// </summary>
+    public ulong? LastStateHash { get; private set; }
+
+    /// <summary>
+    /// The only production submission door into <see cref="OrderQueue"/> this
+    /// simulation exposes — call-site obligation for stage 1: wraps
+    /// <see cref="OrderQueue.SubmitValidated"/>, the only public submission
+    /// door on that type (<c>OrderQueue.Submit</c> is deliberately private).
+    /// The submitted order, if accepted, becomes visible to stage 1's
+    /// <see cref="ApplyOrders"/> starting on the tick <see cref="RunTick"/>
+    /// is next called for a tick equal to <paramref name="targetTick"/>.
+    /// </summary>
+    public (OrderQueue Queue, Order? Submitted, OrderRejection? Rejection) SubmitOrder(
+        long targetTick,
+        int factionId,
+        ImmutableArray<ulong> addressees,
+        OrderKind kind,
+        ImmutableArray<OrderPathNode> pathNodes = default)
+    {
+        var result = State.OrderQueue.SubmitValidated(
+            targetTick, factionId, addressees, kind, _navGrid, _wallBuckets, pathNodes);
+
+        State = State with { OrderQueue = result.Queue };
+        return result;
+    }
+
+    /// <summary>
+    /// Call-site obligation for stage 1's other door: wraps
+    /// <see cref="OrderQueue.RestoreForResume"/>, the resume-only restore
+    /// path a save/load caller uses to rebuild an <see cref="OrderQueue"/>
+    /// from a snapshot without re-running validation.
+    /// </summary>
+    public static OrderQueue RestoreOrderQueue(
+        long nextOrderId, long nextOrderSequence, ImmutableArray<Order> orders) =>
+        OrderQueue.RestoreForResume(nextOrderId, nextOrderSequence, orders);
+
+    /// <summary>
+    /// Runs all fourteen stages of <see cref="TickStage"/>'s table, in that
+    /// exact numeric order, for <paramref name="currentTick"/>. See this
+    /// class's per-stage method remarks for exactly which stages are
+    /// complete, partial, or blocked on a missing callee.
+    /// </summary>
+    public void RunTick(long currentTick)
+    {
+        // Stage 1.
+        State = ApplyOrders(State, currentTick);
+
+        // Stage 2.
+        State = ApplySpawnAndDespawn(State);
+
+        // Stage 3.
+        var bodies = BuildCollisionBodies(State);
+        var grid = new SandataCollisionGrid(CollisionCellSizeRaw);
+        grid.Rebuild(bodies, CollisionBodyRadiusRaw);
+        var view = CaptureTickStartView(State, grid);
+
+        // Stage 4.
+        State = ApplyDoorMutations(State);
+
+        // Stage 5 (evaluated only — committed after the view is released).
+        var sensing = EvaluateSensing(view, State, currentTick);
+
+        // Stage 6.
+        var slots = new SquadSlot[view.Count];
+        ComputeSquadGrouping(view, slots);
+
+        // Stage 7.
+        AdvancePathService(currentTick);
+
+        // Stage 8.
+        PendingIntents = SelectIntents(view, slots, sensing);
+
+        // Stage 9.
+        PendingMovementProposals = ComputeMovementProposals(view, slots, State);
+
+        view.Release();
+
+        // Stage 5's deferred commit: safe now that no stage 5-through-9
+        // reader can observe it mid-range.
+        State = CommitSensing(State, sensing);
+
+        // Stage 10. Reads only PendingMovementProposals and State — the
+        // frozen view above was already released before this line runs, and
+        // none of stages 10 through 14 below ever takes a TickStartView
+        // parameter, so there is structurally nothing for them to read from
+        // it even by mistake.
+        ResolveLocalAvoidanceAndCollision();
+
+        // Stage 11.
+        AdvanceWeaponChain();
+
+        // Stage 12.
+        var damageInstances = ProposeFire();
+
+        // Stage 13.
+        ResolveDamage(damageInstances);
+
+        // Stage 14.
+        ComputeStateHash(currentTick);
+    }
+
+    // ---- Stage 10 through 14. ----------------------------------------------
+
+    /// <summary>
+    /// Stage 10, <see cref="TickStage.LocalAvoidanceAndCollision"/>. Resolves
+    /// and commits stage 9's <see cref="PendingMovementProposals"/> in one
+    /// call to <see cref="Movement.LocalAvoidance.Commit"/> — propose,
+    /// prioritise, and commit (including the one sidestep retry) are all
+    /// inside that call, per its own remarks; this method only writes the
+    /// settled positions back into <see cref="State"/>. Takes no
+    /// <see cref="TickStartView"/> parameter — every position this method
+    /// needs already lives in <see cref="PendingMovementProposals"/>,
+    /// captured before the view was released.
+    /// </summary>
+    internal void ResolveLocalAvoidanceAndCollision()
+    {
+        var proposals = PendingMovementProposals;
+        if (proposals.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        _localAvoidance ??= new LocalAvoidance(CollisionCellSizeRaw, CollisionBodyRadiusRaw);
+        var results = _localAvoidance.Commit(proposals);
+
+        var operators = State.Operators;
+        var builder = ImmutableArray.CreateBuilder<OperatorState>(operators.Length);
+
+        foreach (var op in operators)
+        {
+            var committed = op;
+            foreach (var result in results)
+            {
+                if (result.EntityId == op.EntityId)
+                {
+                    committed = op with
+                    {
+                        PositionX = FixedPoint.FromRaw(result.CommittedXRaw),
+                        PositionY = FixedPoint.FromRaw(result.CommittedYRaw),
+                    };
+                    break;
+                }
+            }
+
+            builder.Add(committed);
+        }
+
+        State = State with { Operators = builder.MoveToImmutable() };
+    }
+
+    /// <summary>
+    /// The default firearm every operator advances against in
+    /// <see cref="AdvanceWeaponChain"/> and <see cref="ProposeFire"/>.
+    /// <b>PROVISIONAL — no per-operator loadout.</b> <see cref="OperatorState"/>
+    /// carries no <c>FirearmId</c> field, so this task cannot look up a real
+    /// per-operator weapon; every operator uses this one row of
+    /// <see cref="FirearmCatalog.Rows"/> instead. Honest degeneracy, not a
+    /// stand-in for a real loadout system.
+    /// </summary>
+    private const FirearmId DefaultFirearmId = FirearmId.Ak47;
+
+    /// <summary>
+    /// The flat damage a fired shot deals in <see cref="ProposeFire"/>, before
+    /// cover. <b>PROVISIONAL</b> — <see cref="FirearmDefinition"/> carries no
+    /// damage field at all, so this is an invented placeholder, not a tuned
+    /// combat value.
+    /// </summary>
+    private const int ProvisionalDamagePerHitPoints = 25;
+
+    /// <summary>
+    /// Stage 11's per-tick record of one operator's completed shot: who fired
+    /// and at whom, for <see cref="ProposeFire"/> to resolve.
+    /// </summary>
+    private readonly record struct FiredShot(ulong ShooterEntityId, ulong TargetEntityId);
+
+    /// <summary>
+    /// Stage 11, <see cref="TickStage.WeaponChain"/>. Advances every living
+    /// operator's weapon chain by exactly one tick via
+    /// <see cref="WeaponChain.Advance"/>, writes the updated phase, remaining
+    /// ticks, and aim angle back into <see cref="State"/>, and records every
+    /// operator whose shot completed this tick into
+    /// <see cref="_pendingFiredShots"/> for <see cref="ProposeFire"/>. Reads
+    /// only <see cref="State"/> (this tick's already-committed positions,
+    /// health, and contact memory) and <see cref="PendingIntents"/> (stage
+    /// 8's output, index-aligned to <see cref="MissionState.Operators"/>
+    /// since both are built from the same tick-start-view order with no
+    /// liveness filter — see <see cref="SelectIntents"/>); it never takes a
+    /// <see cref="TickStartView"/> parameter.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Call-site obligations.</b> <see cref="WeaponLoweredRules.IsForcedLowered"/>
+    /// is passed <see cref="SandataRuleset.LoweredWallDistanceWu"/>. The
+    /// <c>arcWithinTolerance</c> argument to <see cref="WeaponChain.Advance"/>
+    /// is computed by <see cref="WeaponChain.IsArcWithinTolerance"/> against
+    /// <see cref="SandataRuleset.AimToleranceBam"/> — closing the "read by
+    /// nothing" finding wave 9 left on that field.
+    /// </para>
+    /// <para>
+    /// <b>Target bearing.</b> <c>raiseRequested</c> is this operator's stage-8
+    /// <see cref="OperatorIntent.Engage"/> selection. When raising, this
+    /// method reads the operator's own committed
+    /// <see cref="OperatorState.ContactMemory"/> for its highest-tier entry
+    /// (ties break on the lower <see cref="ContactMemoryEntry.EnemyEntityId"/>),
+    /// resolves that contact's live committed position from
+    /// <see cref="State"/> — not the remembered cell, which is all
+    /// <see cref="ContactMemoryEntry"/> itself carries — and turns the aim
+    /// point toward it by at most <see cref="FirearmDefinition.TurnBamPerTick"/>
+    /// of raw <see cref="Bam16"/> magnitude. <see cref="WeaponChain.Advance"/>
+    /// only counts phases; its own remarks are explicit that nothing inside
+    /// it rotates anything, so this call site is the one place that has to
+    /// perform that per-tick turn during <see cref="WeaponChainPhase.Turning"/>.
+    /// </para>
+    /// <para>
+    /// If the operator is raising but its best remembered contact has since
+    /// died or left the roster, <c>arcWithinTolerance</c> stays
+    /// <see langword="false"/> for the whole tick — the chain holds at
+    /// <see cref="WeaponChainPhase.Turning"/> rather than firing at nothing.
+    /// </para>
+    /// </remarks>
+    internal void AdvanceWeaponChain()
+    {
+        var operators = State.Operators;
+        if (operators.IsDefaultOrEmpty)
+        {
+            _pendingFiredShots = ImmutableArray<FiredShot>.Empty;
+            return;
+        }
+
+        var definition = FirearmCatalog.Rows[(int)DefaultFirearmId];
+        var readyTicks = TickConversion.ToTicks(definition.ReadyMs, _ruleset.TickRate);
+        var resetTicks = TickConversion.ToTicks(definition.ResetMs, _ruleset.TickRate);
+        var intents = PendingIntents;
+
+        var updated = ImmutableArray.CreateBuilder<OperatorState>(operators.Length);
+        var fired = ImmutableArray.CreateBuilder<FiredShot>();
+
+        for (var i = 0; i < operators.Length; i++)
+        {
+            var op = operators[i];
+
+            if (!DamageResolution.IsAlive(op.Health))
+            {
+                updated.Add(op);
+                continue;
+            }
+
+            var positionXWu = WorldUnits.FromFixedPoint(op.PositionX);
+            var positionYWu = WorldUnits.FromFixedPoint(op.PositionY);
+
+            var forceLowered = WeaponLoweredRules.IsForcedLowered(
+                positionXWu, positionYWu, _navGrid, _wallBuckets,
+                _ruleset.LoweredWallDistanceWu, definition.ExemptFromLoweredRule);
+
+            var raiseRequested = i < intents.Length && intents[i].Intent == OperatorIntent.Engage;
+
+            var aimAngle = op.AimAngle;
+            var arcWithinTolerance = false;
+            var offCentreBam = 0;
+            ulong? targetEntityId = null;
+
+            if (raiseRequested &&
+                TryFindBestContact(op.ContactMemory, out var contactId) &&
+                TryFindOperatorIndex(operators, contactId, out var targetIndex))
+            {
+                var target = operators[targetIndex];
+                var targetXWu = WorldUnits.FromFixedPoint(target.PositionX);
+                var targetYWu = WorldUnits.FromFixedPoint(target.PositionY);
+                var bearing = new Bam16(Cordic.Atan2(targetYWu - positionYWu, targetXWu - positionXWu));
+
+                var arc = Bam16.ShortestArc(aimAngle, bearing);
+                offCentreBam = Math.Abs((int)arc);
+
+                var step = Math.Clamp((int)arc, -definition.TurnBamPerTick, definition.TurnBamPerTick);
+                aimAngle = new Bam16(unchecked((ushort)(aimAngle.Raw + step)));
+
+                arcWithinTolerance = WeaponChain.IsArcWithinTolerance(
+                    aimAngle, bearing, _ruleset.AimToleranceBam);
+                targetEntityId = contactId;
+            }
+
+            var aimMs = definition.AimBaseMs + checked((definition.AimPerBamMs * offCentreBam) / 1024);
+            var aimTicks = TickConversion.ToTicks(Math.Max(aimMs, 0), _ruleset.TickRate);
+
+            var result = WeaponChain.Advance(
+                (WeaponChainPhase)op.WeaponChainPhase,
+                op.WeaponChainRemainingTicks,
+                forceLowered,
+                raiseRequested,
+                arcWithinTolerance,
+                readyTicks,
+                aimTicks,
+                resetTicks);
+
+            updated.Add(op with
+            {
+                WeaponChainPhase = (int)result.Phase,
+                WeaponChainRemainingTicks = result.RemainingTicks,
+                AimAngle = aimAngle,
+            });
+
+            if (result.Fired && targetEntityId is ulong firedTargetId)
+            {
+                fired.Add(new FiredShot(op.EntityId, firedTargetId));
+            }
+        }
+
+        State = State with { Operators = updated.MoveToImmutable() };
+        _pendingFiredShots = fired.ToImmutable();
+    }
+
+    /// <summary>
+    /// Finds <paramref name="memory"/>'s highest-<see cref="ContactTier"/>
+    /// entry, ties broken toward the lower
+    /// <see cref="ContactMemoryEntry.EnemyEntityId"/> for a stable, total
+    /// order. Returns <see langword="false"/> when every entry is
+    /// <see cref="ContactTier.Unknown"/> or <paramref name="memory"/> is
+    /// empty.
+    /// </summary>
+    private static bool TryFindBestContact(ImmutableArray<ContactMemoryEntry> memory, out ulong contactId)
+    {
+        contactId = 0;
+        if (memory.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        var found = false;
+        var bestTier = ContactTier.Unknown;
+
+        foreach (var entry in memory)
+        {
+            var tier = (ContactTier)entry.ContactTier;
+            if (tier == ContactTier.Unknown)
+            {
+                continue;
+            }
+
+            if (!found || tier > bestTier || (tier == bestTier && entry.EnemyEntityId < contactId))
+            {
+                found = true;
+                bestTier = tier;
+                contactId = entry.EnemyEntityId;
+            }
+        }
+
+        return found;
+    }
+
+    /// <summary>
+    /// Binary search for <paramref name="entityId"/> within
+    /// <paramref name="operators"/>, which <see cref="MissionState.Operators"/>'s
+    /// own remarks guarantee stays ascending by
+    /// <see cref="OperatorState.EntityId"/> — the same flat-sorted-array
+    /// convention <see cref="FindAssignment"/> already uses, in place of a
+    /// banned <c>Dictionary&lt;&gt;</c>.
+    /// </summary>
+    private static bool TryFindOperatorIndex(
+        ImmutableArray<OperatorState> operators, ulong entityId, out int index)
+    {
+        var low = 0;
+        var high = operators.Length - 1;
+
+        while (low <= high)
+        {
+            var mid = low + ((high - low) / 2);
+            var candidateId = operators[mid].EntityId;
+
+            if (candidateId == entityId)
+            {
+                index = mid;
+                return true;
+            }
+
+            if (candidateId < entityId)
+            {
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        index = -1;
+        return false;
+    }
+
+    /// <summary>
+    /// Stage 12, <see cref="TickStage.FireProposal"/>. Resolves each of stage
+    /// 11's <see cref="_pendingFiredShots"/> into a <see cref="DamageInstance"/>,
+    /// using the shooter's and target's committed positions from
+    /// <see cref="State"/>. Takes no <see cref="TickStartView"/> parameter.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>What is real here.</b> Range is measured from committed positions;
+    /// <see cref="AccuracyRules.Dispersion"/> and
+    /// <see cref="AccuracyRules.DrawAngularErrorBam"/> are both called with
+    /// real arguments, from the real <c>Accuracy</c> RNG stream keyed on
+    /// <see cref="Mission.Seed"/> and the shooter's entity id — proving that
+    /// wiring correct even though nothing downstream yet gates hit or miss on
+    /// the draw (see below). <see cref="CoverRules.ApplyToDamage"/> is called
+    /// for real, against <see cref="CoverState.NotInCover"/> (see next).
+    /// </para>
+    /// <para>
+    /// <b>PROVISIONAL — no hit geometry, no per-weapon damage, no per-operator
+    /// cover.</b> Three genuine data-model gaps meet in this method:
+    /// <see cref="FirearmDefinition"/> carries no damage-per-round field at
+    /// all, nothing in this worktree resolves an angular error draw against a
+    /// target's hitbox to decide hit or miss, and no per-operator
+    /// <see cref="CoverState"/> field exists on <see cref="OperatorState"/>.
+    /// Consequently every proposed shot always hits, for the invented flat
+    /// <see cref="ProvisionalDamagePerHitPoints"/>, and every target resolves
+    /// as <see cref="CoverState.NotInCover"/>. These are honest placeholders,
+    /// not tuned combat values — the same "degenerate is fine, dishonest is
+    /// not" standard this task's other stages follow.
+    /// </para>
+    /// <para>
+    /// <see cref="AccuracyRules.DrawAngularErrorBam"/> takes an
+    /// <see langword="int"/> entity id while <see cref="OperatorState.EntityId"/>
+    /// is <see langword="ulong"/> — narrowed with <c>unchecked</c>, the same
+    /// real, inert type-domain mismatch task 49a found at
+    /// <c>PathService</c>/<c>SquadSlot.GroupId</c>.
+    /// </para>
+    /// </remarks>
+    internal ImmutableArray<DamageInstance> ProposeFire()
+    {
+        var firedShots = _pendingFiredShots;
+        if (firedShots.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<DamageInstance>.Empty;
+        }
+
+        var operators = State.Operators;
+        var definition = FirearmCatalog.Rows[(int)DefaultFirearmId];
+        var builder = ImmutableArray.CreateBuilder<DamageInstance>(firedShots.Length);
+
+        foreach (var shot in firedShots)
+        {
+            if (!TryFindOperatorIndex(operators, shot.ShooterEntityId, out var shooterIndex) ||
+                !TryFindOperatorIndex(operators, shot.TargetEntityId, out var targetIndex))
+            {
+                continue;
+            }
+
+            var shooter = operators[shooterIndex];
+            var target = operators[targetIndex];
+
+            if (!DamageResolution.IsAlive(target.Health))
+            {
+                continue;
+            }
+
+            var shooterXWu = WorldUnits.FromFixedPoint(shooter.PositionX);
+            var shooterYWu = WorldUnits.FromFixedPoint(shooter.PositionY);
+            var targetXWu = WorldUnits.FromFixedPoint(target.PositionX);
+            var targetYWu = WorldUnits.FromFixedPoint(target.PositionY);
+
+            var dx = targetXWu - shooterXWu;
+            var dy = targetYWu - shooterYWu;
+            var rangeSquaredWu = checked((dx * dx) + (dy * dy));
+            var rangeWu = IntegerSqrt(rangeSquaredWu);
+
+            var dispersionBam = AccuracyRules.Dispersion(
+                rangeWu, definition.DispersionAtZeroWu, definition.DispersionAtMaxWu, definition.MaxEffectiveWu);
+
+            // The draw is taken for real, from the real Accuracy stream, even
+            // though nothing downstream yet resolves it into a hit or a miss
+            // — see this method's remarks.
+            _ = AccuracyRules.DrawAngularErrorBam(
+                _mission.Seed, unchecked((int)shooter.EntityId), dispersionBam);
+
+            var damage = CoverRules.ApplyToDamage(
+                ProvisionalDamagePerHitPoints, CoverState.NotInCover,
+                shooterXWu, shooterYWu, targetXWu, targetYWu);
+
+            builder.Add(new DamageInstance(shooter.EntityId, target.EntityId, damage));
+        }
+
+        return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Deterministic pure-integer square root by binary search —
+    /// <c>Math.Sqrt</c> is banned in this project (see, for example,
+    /// <c>Sensing/Shadowcast.cs</c>'s own remarks on the same ban). Used only
+    /// by <see cref="ProposeFire"/>, to turn a squared range into
+    /// <see cref="AccuracyRules.Dispersion"/>'s linear <c>rangeWu</c> input.
+    /// </summary>
+    private static int IntegerSqrt(long value)
+    {
+        if (value <= 0)
+        {
+            return 0;
+        }
+
+        var low = 0L;
+        var high = value;
+
+        while (low < high)
+        {
+            var mid = low + ((high - low + 1) / 2);
+            if (mid <= value / mid)
+            {
+                low = mid;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        return checked((int)low);
+    }
+
+    /// <summary>
+    /// Stage 13, <see cref="TickStage.DamageResolution"/>. Applies stage 12's
+    /// <paramref name="damageInstances"/> to every operator simultaneously,
+    /// resolves this tick's deaths, and resolves the mission outcome — all
+    /// three already-existing calls, used in the order
+    /// <see cref="DamageResolution.ApplyDamage"/> (accumulate-then-apply
+    /// internally) then <see cref="DamageResolution.ResolveDeaths"/> then
+    /// <see cref="OutcomeRules.Resolve"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Simultaneity.</b> <see cref="DamageResolution.ApplyDamage"/> computes
+    /// every operator's new health from that same operator's health in the
+    /// <paramref name="damageInstances"/> array's <em>input</em>
+    /// <c>operators</c> snapshot — never from another operator's already-
+    /// updated value in the same call — so an operator whose shot this method
+    /// resolves still fires this tick even if a different shot proposed the
+    /// same tick kills it: both shots are scored against the tick-start
+    /// roster, per <see cref="DamageResolution.ApplyDamage"/>'s own remarks.
+    /// <see cref="DamageResolution.ResolveDeaths"/> is called only on the
+    /// resulting fully-resolved array, per its own remarks, so two operators
+    /// who mutually kill each other this tick both appear in the result.
+    /// There is no <c>Events</c>-shaped type anywhere in <c>Sandata.Core</c>
+    /// (confirmed by a full-project search) to publish those deaths into —
+    /// see <see cref="ComputeStateHash"/>'s remarks for the same gap.
+    /// </remarks>
+    internal void ResolveDamage(ImmutableArray<DamageInstance> damageInstances)
+    {
+        var beforeDamage = State.Operators;
+        if (beforeDamage.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        var afterDamage = DamageResolution.ApplyDamage(beforeDamage, damageInstances);
+        var deaths = DamageResolution.ResolveDeaths(beforeDamage, afterDamage);
+        _ = deaths; // No Events-shaped type exists in Sandata.Core to publish these into.
+
+        var outcome = OutcomeRules.Resolve(afterDamage);
+
+        State = State with { Operators = afterDamage, Winner = (int)outcome };
+    }
+
+    /// <summary>
+    /// Stage 14, <see cref="TickStage.StateHash"/>. Computes and stores
+    /// <see cref="LastStateHash"/> via <see cref="SandataStateHasher.Compute"/>,
+    /// but only on ticks the mission actually schedules — every
+    /// <paramref name="currentTick"/> that is an exact multiple of
+    /// <see cref="MissionTickPolicy.StateHashCadenceTicks"/>, per
+    /// <see cref="TickStage.StateHash"/>'s own remarks. On every other tick
+    /// this method does nothing, leaving <see cref="LastStateHash"/> holding
+    /// whichever scheduled tick's value it last computed.
+    /// </summary>
+    /// <remarks>
+    /// <b>Events are not implemented.</b> Stage 14's call-site obligation
+    /// names only <see cref="SandataStateHasher.Compute"/>; its other named
+    /// job, "emit ordered events," has no real destination in this worktree —
+    /// no <c>Events</c>-shaped collection and no <c>BattleEvent</c>-like type
+    /// exist anywhere in <c>Sandata.Core</c> (confirmed by a full-project
+    /// search returning zero matches). Inventing one is out of this task's
+    /// scope; the state-hash half of this stage is implemented, the
+    /// event-emission half is not.
+    /// </remarks>
+    internal void ComputeStateHash(long currentTick)
+    {
+        var cadence = _mission.TickPolicy.StateHashCadenceTicks;
+        if (cadence > 0 && currentTick % cadence != 0)
+        {
+            return;
+        }
+
+        LastStateHash = SandataStateHasher.Compute(_mission, State, _ruleset);
+    }
+
+    // ---- Stages 1 through 9: implemented below, one commit group at a time. ----
+
+    /// <summary>
+    /// The uniform collision grid's cell edge length, in raw fixed-point
+    /// units. <b>PROVISIONAL</b> — no ruleset field carries this value; no
+    /// production caller of <see cref="SandataCollisionGrid"/> existed before
+    /// this task to pin one, so this is a placeholder pending a real tuning
+    /// pass.
+    /// </summary>
+    private const int CollisionCellSizeRaw = 256;
+
+    /// <summary>
+    /// The operator body radius, in raw fixed-point units, used to rebuild
+    /// this tick's collision broad phase. <b>PROVISIONAL</b> for the same
+    /// reason as <see cref="CollisionCellSizeRaw"/>.
+    /// </summary>
+    private const int CollisionBodyRadiusRaw = 32;
+
+    /// <summary>
+    /// Stage 1. Applies every order whose <see cref="Order.TargetTick"/>
+    /// equals <paramref name="currentTick"/>, read from
+    /// <c>state.OrderQueue.InApplicationOrder()</c> — already sorted by
+    /// <c>(TargetTick, OrderSequence)</c>, so this method does no sorting of
+    /// its own. This stage never calls <see cref="OrderQueue.SubmitValidated"/>
+    /// (see <see cref="SubmitOrder"/> for that door); it only reads orders
+    /// already accepted into the queue by some earlier submission.
+    /// </summary>
+    /// <remarks>
+    /// For a <see cref="OrderKind.MoveAlongPath"/> order, every addressee's
+    /// existing <see cref="OrderAssignment"/> (if any) is replaced by a new
+    /// one naming this order's <see cref="Order.PathNodes"/>, starting at
+    /// node index 0. For every other <see cref="OrderKind"/> — only
+    /// <see cref="OrderKind.Hold"/> exists in this worktree today — the
+    /// addressee's existing assignment is cleared and nothing is added back.
+    /// <b>PROVISIONAL reconstruction:</b> design section 16 states that an
+    /// <see cref="OrderAssignment"/>'s presence or absence is the whole
+    /// movement-source selector, but does not enumerate every
+    /// <see cref="OrderKind"/>'s exact effect on that assignment; clearing on
+    /// every non-<see cref="OrderKind.MoveAlongPath"/> kind is this task's
+    /// best-effort reading, not a value taken from that section verbatim.
+    /// </remarks>
+    private static MissionState ApplyOrders(MissionState state, long currentTick)
+    {
+        var assignments = state.OrderAssignments;
+
+        foreach (var order in state.OrderQueue.InApplicationOrder())
+        {
+            if (order.TargetTick != currentTick)
+            {
+                continue;
+            }
+
+            foreach (var addressee in order.Addressees)
+            {
+                assignments = WithoutAssignment(assignments, addressee);
+
+                if (order.Kind == OrderKind.MoveAlongPath)
+                {
+                    var assignment = new OrderAssignment(addressee, order.OrderId, CurrentNodeIndex: 0)
+                    {
+                        PathNodes = order.PathNodes,
+                    };
+                    assignments = assignments.Add(assignment);
+                }
+            }
+        }
+
+        if (assignments.Length > 1)
+        {
+            var builder = assignments.ToBuilder();
+            builder.Sort(static (left, right) => left.EntityId.CompareTo(right.EntityId));
+            assignments = builder.ToImmutable();
+        }
+
+        return state with { OrderAssignments = assignments };
+    }
+
+    private static ImmutableArray<OrderAssignment> WithoutAssignment(
+        ImmutableArray<OrderAssignment> assignments, ulong entityId)
+    {
+        if (assignments.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<OrderAssignment>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<OrderAssignment>(assignments.Length);
+        foreach (var assignment in assignments)
+        {
+            if (assignment.EntityId != entityId)
+            {
+                builder.Add(assignment);
+            }
+        }
+
+        return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Stage 2. No spawn or despawn trigger source exists anywhere in this
+    /// worktree, so this stage is an honest pass-through, per
+    /// <see cref="TickStage.SpawnAndDespawn"/>'s own remarks: the state it
+    /// receives is the state it returns, unchanged.
+    /// </summary>
+    private static MissionState ApplySpawnAndDespawn(MissionState state) => state;
+
+    /// <summary>
+    /// Builds this tick's collision broad-phase bodies from every operator
+    /// <see cref="ApplyOrders"/> and <see cref="ApplySpawnAndDespawn"/> left
+    /// behind, in <see cref="MissionState.Operators"/> order (already
+    /// ascending by <see cref="OperatorState.EntityId"/>).
+    /// </summary>
+    private static ImmutableArray<SandataCollisionBody> BuildCollisionBodies(MissionState state)
+    {
+        var operators = state.Operators;
+        if (operators.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<SandataCollisionBody>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<SandataCollisionBody>(operators.Length);
+        foreach (var op in operators)
+        {
+            builder.Add(new SandataCollisionBody(
+                op.EntityId, op.PositionX.RawValue, op.PositionY.RawValue, op.Health > 0));
+        }
+
+        return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Stage 3. Rebuilds this tick's collision uniform grid (already done by
+    /// <see cref="RunTick"/> before calling this method) and freezes the
+    /// tick-start view stages 5 through 9 read.
+    /// </summary>
+    private static TickStartView CaptureTickStartView(MissionState state, SandataCollisionGrid grid) =>
+        new(state, grid.Pairs);
+
+    /// <summary>
+    /// Stage 4. No door-trigger source (a breach action, a switch) exists
+    /// anywhere in this worktree, so this stage is an honest pass-through,
+    /// per <see cref="TickStage.DoorMutation"/>'s own remarks: the state it
+    /// receives is the state it returns, unchanged.
+    /// </summary>
+    private static MissionState ApplyDoorMutations(MissionState state) => state;
+
+    /// <summary>
+    /// Half of stage 5's vision cone's total angular width, in
+    /// <see cref="Bam16"/> raw units — a quarter turn either side of facing,
+    /// 180 degrees total. <b>PROVISIONAL</b>: no field on <see cref="SandataRuleset"/>
+    /// names a cone width (its confirmed field list is <c>TickRate</c>,
+    /// <c>MsToTickConversionRuleId</c>, <c>PathLatencyTicks</c>,
+    /// <c>GroupCohesionRadius</c>, <c>LoweredWallDistanceWu</c>,
+    /// <c>AimToleranceBam</c>), so this is a placeholder pending a real
+    /// tuning pass, exactly like <see cref="CollisionCellSizeRaw"/> above.
+    /// </summary>
+    private const ushort VisionConeHalfWidthBam = (ushort)(Bam16.UnitsPerTurn / 4);
+
+    private readonly record struct SensingOutcome(
+        ImmutableArray<ImmutableArray<ContactMemoryEntry>> ContactMemoryByIndex,
+        ImmutableArray<int> AlertLevelByFaction);
+
+    /// <summary>
+    /// Stage 5, evaluated only — see <see cref="RunTick"/>'s remarks on why
+    /// the result is not written into <see cref="State"/> until
+    /// <see cref="CommitSensing"/> runs after the frozen view is released.
+    /// Updates every living operator's <see cref="ContactMemoryEntry"/> array
+    /// against <paramref name="view"/> (vision cone via <see cref="VisionCone.Contains"/>,
+    /// then wall line of sight via <see cref="LineOfSight.IsVisible"/>, both
+    /// gated to <see cref="ContactMemory.DetectRangeWu"/>), then folds each
+    /// living operator's resulting best contact tier into its faction's
+    /// alert level via <see cref="AlertRules.EvaluateFaction"/>. A dead
+    /// operator's contact memory is carried forward unchanged — it observes
+    /// nothing — and a dead operator is never itself observable, since only
+    /// living enemies are scanned as candidates below.
+    /// </summary>
+    private SensingOutcome EvaluateSensing(TickStartView view, MissionState state, long currentTick)
+    {
+        var count = view.Count;
+        var contactMemoryByIndex = ImmutableArray.CreateBuilder<ImmutableArray<ContactMemoryEntry>>(count);
+        var hasIdentifiedByIndex = new bool[count];
+        var observationBuffer = new ContactObservation[count];
+        var maxDetectRangeSquaredWu = checked((long)ContactMemory.DetectRangeWu * ContactMemory.DetectRangeWu);
+
+        for (var i = 0; i < count; i++)
+        {
+            if (!view.IsAlive(i))
+            {
+                contactMemoryByIndex.Add(view.ContactMemory(i));
+                continue;
+            }
+
+            var faction = view.Faction(i);
+            var facing = Bam16.FromFacing16(view.Facing(i));
+            var originX = view.PositionXWu(i);
+            var originY = view.PositionYWu(i);
+            var observationCount = 0;
+
+            for (var j = 0; j < count; j++)
+            {
+                if (i == j || !view.IsAlive(j) || view.Faction(j) == faction)
+                {
+                    continue;
+                }
+
+                var targetX = view.PositionXWu(j);
+                var targetY = view.PositionYWu(j);
+                var dx = targetX - originX;
+                var dy = targetY - originY;
+                var rangeSquared = checked((dx * dx) + (dy * dy));
+
+                if (!VisionCone.Contains(facing, VisionConeHalfWidthBam, maxDetectRangeSquaredWu, dx, dy))
+                {
+                    continue;
+                }
+
+                if (!LineOfSight.IsVisible(originX, originY, targetX, targetY, _navGrid, _wallBuckets))
+                {
+                    continue;
+                }
+
+                var cellX = NavGrid.WorldToCellCoordinate(targetX);
+                var cellY = NavGrid.WorldToCellCoordinate(targetY);
+                _navGrid.TryGetCellIndex(cellX, cellY, out var cellIndex);
+
+                observationBuffer[observationCount++] = new ContactObservation(
+                    view.EntityIds[j], HasLineOfSightThisTick: true, rangeSquared, cellIndex);
+            }
+
+            var updatedMemory = ContactMemory.Update(
+                view.ContactMemory(i), observationBuffer.AsSpan(0, observationCount), currentTick);
+            contactMemoryByIndex.Add(updatedMemory);
+
+            foreach (var entry in updatedMemory.AsSpan())
+            {
+                if (entry.ContactTier == (int)ContactTier.Identified)
+                {
+                    hasIdentifiedByIndex[i] = true;
+                    break;
+                }
+            }
+        }
+
+        // Design section 4: faction is a two-valued selector, always 0 or 1
+        // — see FactionAlertState's own remarks. AlertRules.EvaluateFaction
+        // is called once per faction, over that faction's own living
+        // operators' per-operator observations, per TickStage.AlertAndSensing's
+        // remarks.
+        var faction0 = new AlertTriggerObservation[count];
+        var faction1 = new AlertTriggerObservation[count];
+        var faction0Count = 0;
+        var faction1Count = 0;
+
+        for (var i = 0; i < count; i++)
+        {
+            if (!view.IsAlive(i))
+            {
+                continue;
+            }
+
+            var observation = new AlertTriggerObservation(hasIdentifiedByIndex[i], false, false, false);
+            if (view.Faction(i) == 0)
+            {
+                faction0[faction0Count++] = observation;
+            }
+            else
+            {
+                faction1[faction1Count++] = observation;
+            }
+        }
+
+        var level0 = (int)AlertRules.EvaluateFaction(
+            PreviousAlertLevel(state, 0), faction0.AsSpan(0, faction0Count));
+        var level1 = (int)AlertRules.EvaluateFaction(
+            PreviousAlertLevel(state, 1), faction1.AsSpan(0, faction1Count));
+
+        return new SensingOutcome(
+            contactMemoryByIndex.ToImmutable(),
+            ImmutableArray.Create(level0, level1));
+    }
+
+    private static AlertLevel PreviousAlertLevel(MissionState state, int factionId)
+    {
+        foreach (var factionAlert in state.FactionAlerts)
+        {
+            if (factionAlert.FactionId == factionId)
+            {
+                return (AlertLevel)factionAlert.AlertLevel;
+            }
+        }
+
+        return AlertLevel.Calm;
+    }
+
+    /// <summary>
+    /// Stage 5's deferred commit, run by <see cref="RunTick"/> only after
+    /// <see cref="TickStartView.Release"/> — writes <paramref name="outcome"/>
+    /// into <paramref name="state"/>'s <see cref="MissionState.Operators"/>
+    /// and <see cref="MissionState.FactionAlerts"/>.
+    /// </summary>
+    private static MissionState CommitSensing(MissionState state, SensingOutcome outcome)
+    {
+        var operators = state.Operators;
+        if (operators.IsDefaultOrEmpty)
+        {
+            return state;
+        }
+
+        var updatedOperators = ImmutableArray.CreateBuilder<OperatorState>(operators.Length);
+        for (var i = 0; i < operators.Length; i++)
+        {
+            updatedOperators.Add(operators[i] with { ContactMemory = outcome.ContactMemoryByIndex[i] });
+        }
+
+        var factionAlerts = ImmutableArray.Create(
+            new FactionAlertState(0, outcome.AlertLevelByFaction[0]),
+            new FactionAlertState(1, outcome.AlertLevelByFaction[1]));
+
+        return state with
+        {
+            Operators = updatedOperators.ToImmutable(),
+            FactionAlerts = factionAlerts,
+        };
+    }
+
+    /// <summary>
+    /// Stage 6. Call-site obligation: derives one <see cref="SquadSlot"/> per
+    /// tick-start-view entry via <see cref="SquadGrouping.Compute"/>'s one
+    /// overload, gated by <see cref="SandataRuleset.GroupCohesionRadius"/>.
+    /// Purely derived — nothing here is written back into
+    /// <see cref="MissionState"/>, per that method's own remarks.
+    /// </summary>
+    private void ComputeSquadGrouping(TickStartView view, Span<SquadSlot> slots)
+    {
+        var count = view.Count;
+        var isAlive = new bool[count];
+        var factions = new int[count];
+        var xRaw = new int[count];
+        var yRaw = new int[count];
+
+        for (var i = 0; i < count; i++)
+        {
+            isAlive[i] = view.IsAlive(i);
+            factions[i] = view.Faction(i);
+            xRaw[i] = view.PositionXRaw(i);
+            yRaw[i] = view.PositionYRaw(i);
+        }
+
+        SquadGrouping.Compute(
+            view.EntityIds, isAlive, factions, xRaw, yRaw,
+            _ruleset.GroupCohesionRadius, view.Pairs, slots);
+    }
+
+    /// <summary>
+    /// Stage 7. Call-site obligation: advances <see cref="_pathService"/> by
+    /// one tick against <see cref="_navGrid"/> and <see cref="_wallBuckets"/>.
+    /// <b>PROVISIONAL</b> <paramref name="currentTick"/>'s <c>blocked</c> span
+    /// is all-<see langword="false"/> — no door-driven dynamic blocker source
+    /// exists in this worktree (stage 4 is the same honest pass-through), so
+    /// every cell reports passable to the search this call may run. No
+    /// autonomous destination-request source exists either, so this stage's
+    /// search-and-publish machinery runs every tick but, in this wave, never
+    /// has an outstanding request to act on — see <see cref="TickStage.PathService"/>'s
+    /// own remarks.
+    /// </summary>
+    private void AdvancePathService(long currentTick)
+    {
+        var blocked = new bool[_navGrid.CellCount];
+        _pathService.Advance(currentTick, _navGrid, blocked, _wallBuckets);
+    }
+
+    /// <summary>
+    /// Stage 8. Call-site obligation: assembles one
+    /// <see cref="IntentSelectionInput"/> per tick-start-view entry from
+    /// <paramref name="view"/>, stage 5's frozen-view-evaluated
+    /// <paramref name="sensing"/> (not yet committed into
+    /// <see cref="MissionState"/> — see <see cref="RunTick"/>'s remarks), and
+    /// stage 7's <see cref="PathService.GetReasonCode"/>, then calls
+    /// <see cref="IntentSelection.SelectAll"/>.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="IntentSelectionInput.IsAtBreachPoint"/> is hardcoded
+    /// <see langword="false"/>: <b>PROVISIONAL</b>, no breach-point source
+    /// exists in this worktree. <see cref="SquadSlot.GroupId"/> (design
+    /// section 8's <see langword="ulong"/> "minimum entity id") is narrowed
+    /// to the <see langword="int"/> <see cref="PathService.GetReasonCode"/>
+    /// actually takes — a real type-domain mismatch between the two this
+    /// task did not introduce and is out of scope to fix. It is inert this
+    /// wave: <see cref="AdvancePathService"/> never calls
+    /// <see cref="PathService.RequestPath"/> for any group, so
+    /// <see cref="PathService.GetReasonCode"/> answers
+    /// <see cref="PathReasonCode.NoDestinationRequested"/> for every group id
+    /// regardless of the narrowing's exact numeric result.
+    /// </remarks>
+    private ImmutableArray<IntentSelectionResult> SelectIntents(
+        TickStartView view, ReadOnlySpan<SquadSlot> slots, SensingOutcome sensing)
+    {
+        var count = view.Count;
+        var inputs = new IntentSelectionInput[count];
+
+        for (var i = 0; i < count; i++)
+        {
+            var bestTier = ContactTier.Unknown;
+            var memory = sensing.ContactMemoryByIndex[i];
+            if (!memory.IsDefaultOrEmpty)
+            {
+                foreach (var entry in memory.AsSpan())
+                {
+                    var tier = (ContactTier)entry.ContactTier;
+                    if (tier > bestTier)
+                    {
+                        bestTier = tier;
+                    }
+                }
+            }
+
+            var groupId = unchecked((int)slots[i].GroupId);
+            var pathReasonCode = _pathService.GetReasonCode(groupId);
+
+            inputs[i] = new IntentSelectionInput(
+                view.EntityIds[i],
+                view.Health(i),
+                view.SuppressionCounter(i),
+                bestTier,
+                false,
+                pathReasonCode);
+        }
+
+        return IntentSelection.SelectAll(inputs);
+    }
+
+    /// <summary>
+    /// The inverse of <see cref="WorldUnits.FromFixedPoint"/>, scoped to this
+    /// file: one world unit is exactly <c>1,024</c> raw
+    /// <see cref="FixedPoint"/> units (<see cref="FixedPoint.Scale"/>), per
+    /// that type's own remarks. <see cref="WorldUnits"/> only ever needed the
+    /// raw-to-world-unit direction before this task; stage 9 is the first
+    /// caller that needs the reverse, to place a <see cref="MovementProposal"/>'s
+    /// desired position (raw domain) from an <see cref="OrderPathNode"/>
+    /// (world-unit domain). Kept private here rather than added to
+    /// <see cref="WorldUnits"/> itself, since editing that file is out of
+    /// this task's scope.
+    /// </summary>
+    private static int RawFromWorldUnits(long worldUnits) => checked((int)(worldUnits << 10));
+
+    /// <summary>
+    /// Stage 9. Call-site obligation: chooses each living operator's
+    /// movement source (an authored <see cref="OrderAssignment"/> or the
+    /// autonomous squad slot — <see cref="OrderAssignment"/>'s own presence
+    /// or absence is the whole selector, per its remarks), excludes ordered
+    /// operators from <see cref="MovementSource.SlotTargetingRoster"/>
+    /// implicitly by branching on that same presence check per operator, and
+    /// produces one write-only <see cref="MovementProposal"/> per living
+    /// operator.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Ordered branch.</b> An operator with an <see cref="OrderAssignment"/>
+    /// walks directly toward <c>PathNodes[CurrentNodeIndex]</c> (clamped into
+    /// range), converted world-unit to raw via <see cref="RawFromWorldUnits"/>
+    /// — design section 16: "An authored polyline is authoritative, not
+    /// derived... never re-smoothed", so this stage places the desired point
+    /// at the node itself rather than through <see cref="SlotTargets.ComputeTarget"/>'s
+    /// arclength machinery, which is the autonomous branch's tool over a
+    /// group's own shared path, not an individual operator's authored one.
+    /// </para>
+    /// <para>
+    /// <b>Autonomous branch, and the formation-collapse gap this task
+    /// reports rather than forces.</b> Design section 8's slot-target formula
+    /// (<see cref="SlotTargets.ComputeTarget"/>) needs the operator's group's
+    /// own shared published path, sampled by arclength, to place a target;
+    /// <see cref="FormationCollapse"/>'s formation half-width gate needs that
+    /// same live path's leader-clearance context to mean anything. No group
+    /// ever has a published path this wave: <see cref="AdvancePathService"/>
+    /// never calls <see cref="PathService.RequestPath"/> for any group (no
+    /// autonomous destination-request source exists in this worktree), so
+    /// <see cref="PathService.GetCurrentPath"/> is empty for every group,
+    /// every tick — the same fact <see cref="TickStage.PathService"/>'s own
+    /// remarks already state. With no path to sample, <see cref="SlotTargets"/>
+    /// and <see cref="FormationCollapse"/> have nothing to compute against, so
+    /// this task does not call either for the autonomous branch; an
+    /// unassigned operator's honest desired position this wave is its own
+    /// current position — hold — until a future task wires an autonomous
+    /// destination-request source into stage 7.
+    /// </para>
+    /// </remarks>
+    private static ImmutableArray<MovementProposal> ComputeMovementProposals(
+        TickStartView view, ReadOnlySpan<SquadSlot> slots, MissionState state)
+    {
+        var count = view.Count;
+        var assignments = state.OrderAssignments;
+        var builder = ImmutableArray.CreateBuilder<MovementProposal>();
+
+        for (var i = 0; i < count; i++)
+        {
+            if (!view.IsAlive(i))
+            {
+                continue;
+            }
+
+            var entityId = view.EntityIds[i];
+            var startXRaw = view.PositionXRaw(i);
+            var startYRaw = view.PositionYRaw(i);
+            var slot = slots[i];
+
+            var assignment = FindAssignment(assignments, entityId);
+
+            int desiredXRaw;
+            int desiredYRaw;
+
+            if (assignment is not null)
+            {
+                var nodes = assignment.PathNodes;
+                if (nodes.IsDefaultOrEmpty)
+                {
+                    desiredXRaw = startXRaw;
+                    desiredYRaw = startYRaw;
+                }
+                else
+                {
+                    var nodeIndex = Math.Clamp(assignment.CurrentNodeIndex, 0, nodes.Length - 1);
+                    var node = nodes[nodeIndex];
+                    desiredXRaw = RawFromWorldUnits(node.X);
+                    desiredYRaw = RawFromWorldUnits(node.Y);
+                }
+            }
+            else
+            {
+                desiredXRaw = startXRaw;
+                desiredYRaw = startYRaw;
+            }
+
+            builder.Add(new MovementProposal(
+                entityId, startXRaw, startYRaw, desiredXRaw, desiredYRaw,
+                slot.GroupId, slot.SlotIndex ?? 0));
+        }
+
+        return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Binary search for <paramref name="entityId"/> within
+    /// <paramref name="assignments"/>, which <see cref="ApplyOrders"/> keeps
+    /// sorted ascending by <see cref="OrderAssignment.EntityId"/> — the same
+    /// flat-sorted-array convention <see cref="MovementSource.SlotTargetingRoster"/>'s
+    /// own remarks describe, in place of a banned <c>Dictionary&lt;&gt;</c>.
+    /// </summary>
+    private static OrderAssignment? FindAssignment(ImmutableArray<OrderAssignment> assignments, ulong entityId)
+    {
+        if (assignments.IsDefaultOrEmpty)
+        {
+            return null;
+        }
+
+        var low = 0;
+        var high = assignments.Length - 1;
+
+        while (low <= high)
+        {
+            var mid = low + ((high - low) / 2);
+            var candidate = assignments[mid];
+
+            if (candidate.EntityId == entityId)
+            {
+                return candidate;
+            }
+
+            if (candidate.EntityId < entityId)
+            {
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        return null;
+    }
+}
