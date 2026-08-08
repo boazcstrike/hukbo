@@ -12,16 +12,27 @@ namespace Sandata.Client.Audio;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Provisional ceiling.</b> <see cref="DefaultMaximumInstances"/> is a
-/// placeholder, not a measurement. Design section 10 assigns the real pool
-/// ceiling to a later measurement task against named hardware — the plan
-/// document's own task-39 row literally says "task 49 measures them", but
-/// that number disagrees with the risk register's own entry for this exact
-/// risk and with the task that reports its outcome, both of which name task
-/// 53. This budget follows the risk register and the reporting task, not the
-/// row's literal text, and remains provisional under either number: no task
-/// before the measurement task may present this constant as tuned to real
-/// hardware.
+/// <b>Measured ceiling.</b> <see cref="DefaultMaximumInstances"/> is no longer
+/// a placeholder. Task 53 ran <c>tools/Sandata.Tools.AudioPool</c> on named
+/// hardware and recorded the instance count at which
+/// <c>InstancePlayLimitException</c> first fires: the 257th concurrent
+/// <c>SoundEffectInstance</c> throws, so 256 is the usable pool. That figure
+/// is MonoGame's own DesktopGL pool limit rather than a property of one sound
+/// card, so a different machine is not expected to report a different number;
+/// what was genuinely machine-specific, and is recorded alongside it in
+/// <c>docs/development/testing.md</c>, is that eight shooters sustained
+/// automatic fire for ten seconds holding sixteen instances with zero
+/// refusals.
+/// </para>
+/// <para>
+/// <b>Why the constant equals the ceiling rather than sitting below it.</b>
+/// This budget refuses the 257th reservation, which is the same instance
+/// MonoGame would have thrown on, so no headroom is needed — but that holds
+/// only while every played instance is reserved here first. Every cue path on
+/// <see cref="SandataSoundPlayer"/> goes through <see cref="TryReserve"/>
+/// before <see cref="ISandataSoundOutput.Play"/> today, and a future task that
+/// adds a play path bypassing this budget reintroduces the exception this
+/// constant exists to prevent.
 /// </para>
 /// <para>
 /// <b>Renewal, not accumulation.</b> A reservation is keyed by
@@ -36,10 +47,12 @@ namespace Sandata.Client.Audio;
 internal sealed class SandataSoundBudget
 {
     /// <summary>
-    /// Provisional pool ceiling. See this type's remarks — not a measurement
-    /// until the pool-ceiling measurement task records one.
+    /// The measured pool ceiling: the 257th concurrent
+    /// <c>SoundEffectInstance</c> throws <c>InstancePlayLimitException</c>, so
+    /// 256 is the last reservation this budget may grant. Recorded by task 53
+    /// against named hardware — see this type's remarks.
     /// </summary>
-    public const int DefaultMaximumInstances = 64;
+    public const int DefaultMaximumInstances = 256;
 
     private readonly Reservation[] _reservations;
 
@@ -52,8 +65,8 @@ internal sealed class SandataSoundBudget
     }
 
     /// <summary>
-    /// The provisional pool ceiling this instance was constructed with. See
-    /// this type's remarks.
+    /// The pool ceiling this instance was constructed with, defaulting to the
+    /// measured <see cref="DefaultMaximumInstances"/>. See this type's remarks.
     /// </summary>
     public int MaximumInstances { get; }
 

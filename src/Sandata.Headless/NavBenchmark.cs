@@ -20,6 +20,23 @@ public readonly record struct NavBenchmarkPercentiles(
     double P99Milliseconds);
 
 /// <summary>
+/// How many standalone <see cref="NavSearch.TryFindPath"/> probe queries a
+/// benchmark run recorded for each possible <see cref="NavSearchOutcome"/>,
+/// over every probe query the run issued — the initial per-seeker query
+/// before the tick loop and every subsequent per-tick replan query. Task 82:
+/// before this type existed, <see cref="NavBenchmark.TimeProbeQuery"/>
+/// discarded <see cref="NavSearch.TryFindPath"/>'s return value entirely, so
+/// a run whose queries were all <see cref="NavSearchOutcome.Unreachable"/> —
+/// which returns almost immediately, having proved a negative — was
+/// indistinguishable from a run that found real paths quickly.
+/// <see cref="PathFoundQueryCount"/> plus <see cref="UnreachableQueryCount"/>
+/// always equals the report's total probe count.
+/// </summary>
+public readonly record struct NavBenchmarkOutcomeBreakdown(
+    long PathFoundQueryCount,
+    long UnreachableQueryCount);
+
+/// <summary>
 /// The full result of one navigation benchmark run: the matrix parameters
 /// and operational settings the run used, and the six percentiles plan
 /// task 50 requires — <c>p50</c>/<c>p95</c>/<c>p99</c> for a standalone
@@ -27,6 +44,30 @@ public readonly record struct NavBenchmarkPercentiles(
 /// <see cref="PathService.Advance"/> tick-stage call, six numbers in total
 /// across the two <see cref="NavBenchmarkPercentiles"/> fields below.
 /// </summary>
+/// <remarks>
+/// Task 82 appends three fields after the original ten-field, four-metric
+/// shape above, so a reader of the old shape keeps working:
+/// <see cref="ProbeOutcomeBreakdown"/>, and a second, narrower percentile
+/// set — <see cref="SuccessfulAStarQuerySampleCount"/> and
+/// <see cref="SuccessfulAStarQueryPercentiles"/> — computed only over probe
+/// queries whose <see cref="NavSearchOutcome"/> was
+/// <see cref="NavSearchOutcome.PathFound"/>. <see cref="AStarQuerySampleCount"/>
+/// and <see cref="AStarQueryPercentiles"/> keep their original meaning,
+/// unchanged: every probe query, found or not. Only the successful-search
+/// percentiles answer "how fast does this benchmark's navigation search
+/// run" — the all-queries percentiles can be dominated by fast
+/// <see cref="NavSearchOutcome.Unreachable"/> failures and are not a
+/// navigation performance number on their own.
+///
+/// Task 83 appends <see cref="FinalBlockedCellCount"/>: the number of
+/// <see cref="NavCellFlags.Blocked"/> cells in <see cref="NavGrid.Passability"/>
+/// once the run's tick loop finishes. With the fixed changed-cell set
+/// <see cref="NavBenchmark.ApplyChangedCells"/> now toggles, this count is
+/// determined entirely by <see cref="TickCount"/>'s parity — see that
+/// method's remarks — so a test can prove the map oscillates between two
+/// configurations rather than drifting by running the same options and seed
+/// for two tick counts of matching parity and asserting equal counts.
+/// </remarks>
 public sealed record NavBenchmarkReport(
     int MapDensityPercent,
     int ChangedCellCount,
@@ -41,7 +82,11 @@ public sealed record NavBenchmarkReport(
     long AStarQuerySampleCount,
     NavBenchmarkPercentiles AStarQueryPercentiles,
     long TickStageSampleCount,
-    NavBenchmarkPercentiles TickStagePercentiles);
+    NavBenchmarkPercentiles TickStagePercentiles,
+    NavBenchmarkOutcomeBreakdown ProbeOutcomeBreakdown,
+    long SuccessfulAStarQuerySampleCount,
+    NavBenchmarkPercentiles SuccessfulAStarQueryPercentiles,
+    long FinalBlockedCellCount);
 
 /// <summary>
 /// Runs the navigation benchmark workload SIMULATION-GAME-STANDARDS.md
@@ -198,25 +243,51 @@ public static class NavBenchmark
             seekers[index] = ((ulong)(index + 1), start, goal);
         }
 
+        var changedCellIndices = ChooseChangedCells(openCells, options.ChangedCellCount, ref rng);
+
         var pathService = new PathService(SandataRuleset.ModernTacticalV1.PathLatencyTicks);
         var probeSearch = new NavSearch();
         var scratchPath = new List<int>();
         var scratchExpanded = new List<int>();
 
         var aStarSamples = new List<double>();
+        var successfulAStarSamples = new List<double>();
         var tickStageSamples = new List<double>(tickCount);
+        var pathFoundQueryCount = 0L;
+        var unreachableQueryCount = 0L;
+
+        void RecordProbe(int startCellIndex, int goalCellIndex)
+        {
+            var (elapsedMilliseconds, outcome) = TimeProbeQuery(
+                probeSearch, grid, startCellIndex, goalCellIndex, blocked, scratchPath, scratchExpanded);
+            aStarSamples.Add(elapsedMilliseconds);
+
+            switch (outcome)
+            {
+                case NavSearchOutcome.PathFound:
+                    pathFoundQueryCount++;
+                    successfulAStarSamples.Add(elapsedMilliseconds);
+                    break;
+                case NavSearchOutcome.Unreachable:
+                    unreachableQueryCount++;
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        $"Unhandled {nameof(NavSearchOutcome)} value '{outcome}'.");
+            }
+        }
 
         foreach (var seeker in seekers)
         {
             pathService.RequestPath(seeker.GroupId, seeker.Start, seeker.Goal, requestTick: 0);
-            aStarSamples.Add(TimeProbeQuery(probeSearch, grid, seeker.Start, seeker.Goal, blocked, scratchPath, scratchExpanded));
+            RecordProbe(seeker.Start, seeker.Goal);
         }
 
         for (var tick = 0; tick < tickCount; tick++)
         {
-            if (options.ChangedCellCount > 0)
+            if (changedCellIndices.Length > 0)
             {
-                ApplyChangedCells(grid, options.ChangedCellCount, ref rng);
+                ApplyChangedCells(grid, changedCellIndices);
                 RefreshBlocked(grid, blocked);
             }
 
@@ -228,7 +299,7 @@ public static class NavBenchmark
                 }
 
                 pathService.RequestPath(seeker.GroupId, seeker.Start, seeker.Goal, tick);
-                aStarSamples.Add(TimeProbeQuery(probeSearch, grid, seeker.Start, seeker.Goal, blocked, scratchPath, scratchExpanded));
+                RecordProbe(seeker.Start, seeker.Goal);
             }
 
             var stageStart = Stopwatch.GetTimestamp();
@@ -237,7 +308,17 @@ public static class NavBenchmark
         }
 
         var sortedAStar = aStarSamples.Order().ToArray();
+        var sortedSuccessfulAStar = successfulAStarSamples.Order().ToArray();
         var sortedTickStage = tickStageSamples.Order().ToArray();
+
+        var finalBlockedCellCount = 0L;
+        foreach (var flags in grid.Passability)
+        {
+            if (flags == NavCellFlags.Blocked)
+            {
+                finalBlockedCellCount++;
+            }
+        }
 
         return new NavBenchmarkReport(
             options.MapDensityPercent,
@@ -259,10 +340,17 @@ public static class NavBenchmark
             new NavBenchmarkPercentiles(
                 Percentile(sortedTickStage, 0.50),
                 Percentile(sortedTickStage, 0.95),
-                Percentile(sortedTickStage, 0.99)));
+                Percentile(sortedTickStage, 0.99)),
+            new NavBenchmarkOutcomeBreakdown(pathFoundQueryCount, unreachableQueryCount),
+            sortedSuccessfulAStar.Length,
+            new NavBenchmarkPercentiles(
+                Percentile(sortedSuccessfulAStar, 0.50),
+                Percentile(sortedSuccessfulAStar, 0.95),
+                Percentile(sortedSuccessfulAStar, 0.99)),
+            finalBlockedCellCount);
     }
 
-    private static double TimeProbeQuery(
+    private static (double ElapsedMilliseconds, NavSearchOutcome Outcome) TimeProbeQuery(
         NavSearch search,
         NavGrid grid,
         int startCellIndex,
@@ -272,8 +360,9 @@ public static class NavBenchmark
         List<int> scratchExpanded)
     {
         var start = Stopwatch.GetTimestamp();
-        search.TryFindPath(grid, startCellIndex, goalCellIndex, blocked, scratchPath, scratchExpanded);
-        return Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        var outcome = search.TryFindPath(grid, startCellIndex, goalCellIndex, blocked, scratchPath, scratchExpanded);
+        var elapsedMilliseconds = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        return (elapsedMilliseconds, outcome);
     }
 
     /// <summary>
@@ -307,21 +396,79 @@ public static class NavBenchmark
     }
 
     /// <summary>
-    /// Toggles <paramref name="changedCellCount"/> randomly chosen cells
-    /// between <see cref="NavCellFlags.Open"/> and
-    /// <see cref="NavCellFlags.Blocked"/>, run once per benchmark tick to
-    /// simulate ongoing map change. A door cell is left untouched — its
-    /// passability is governed by door state, not by this synthetic churn.
-    /// The same cell may be chosen, and toggled back, more than once within
-    /// one call; that is an accepted property of independent per-pick
-    /// sampling, not a bug to work around.
+    /// Chooses <paramref name="changedCellCount"/> cell indices once, at
+    /// seeker-placement time, so <see cref="ApplyChangedCells"/> can toggle
+    /// the same fixed set on every tick instead of redrawing it. Task 83:
+    /// the previous implementation drew <paramref name="changedCellCount"/>
+    /// fresh indices from the whole grid — <see cref="NavGrid.CellCount"/>,
+    /// including cells no door in the fixture would ever touch — on every
+    /// single tick, which random-walks the map toward a roughly
+    /// half-blocked noise field within a few hundred ticks (measured: the
+    /// density sweep in <c>docs/plans/2026-08-07-sandata-scaffold.md</c>
+    /// puts the disconnection threshold between 30 and 40 percent blocked).
+    /// Design doc section 5 stage 4: "Doors are the only runtime nav
+    /// mutation in v0.1. Rebake is local, not global." — a door has a fixed
+    /// location and alternates between exactly two states, so the changed
+    /// cells this benchmark uses to stand in for doors must too.
+    ///
+    /// Draws come from <paramref name="openCells"/> — the same open-cell
+    /// collection <see cref="PlaceSeekerPair"/> already draws seekers from
+    /// — rather than <see cref="NavGrid.CellCount"/>, so every chosen cell
+    /// is genuinely part of the authored layout's connectivity instead of
+    /// an arbitrary interior cell that happens to be open. Because
+    /// <paramref name="openCells"/> only ever contains
+    /// <see cref="NavCellFlags.Open"/> cells (built by
+    /// <see cref="CollectOpenCells"/>), a <see cref="NavCellFlags.Door"/>
+    /// cell can never be chosen here; <see cref="ApplyChangedCells"/> still
+    /// skips one defensively, matching <see cref="NavCellFlags.Door"/>'s own
+    /// contract that its passability is governed by door state, not by this
+    /// synthetic churn.
+    ///
+    /// Draws are independent and with replacement, exactly as the previous
+    /// per-tick draw's own sampling was: the same cell index may appear more
+    /// than once in the returned array. That is still not a bug to work
+    /// around — a cell drawn an even number of times nets to "left alone"
+    /// every tick once <see cref="ApplyChangedCells"/> is called with the
+    /// fixed array, and a cell drawn an odd number of times nets to "flipped
+    /// every tick", so the map's oscillation between exactly two
+    /// configurations holds regardless of how many times any one index
+    /// repeats.
     /// </summary>
-    private static void ApplyChangedCells(NavGrid grid, int changedCellCount, ref SplitMix64 rng)
+    private static int[] ChooseChangedCells(List<int> openCells, int changedCellCount, ref SplitMix64 rng)
     {
-        var passability = grid.Passability;
+        if (changedCellCount <= 0)
+        {
+            return [];
+        }
+
+        var chosen = new int[changedCellCount];
         for (var i = 0; i < changedCellCount; i++)
         {
-            var cellIndex = rng.NextInt(grid.CellCount);
+            chosen[i] = openCells[rng.NextInt(openCells.Count)];
+        }
+
+        return chosen;
+    }
+
+    /// <summary>
+    /// Toggles every cell in <paramref name="changedCellIndices"/> between
+    /// <see cref="NavCellFlags.Open"/> and <see cref="NavCellFlags.Blocked"/>,
+    /// run once per benchmark tick against the same fixed set
+    /// <see cref="ChooseChangedCells"/> chose once at placement time, so the
+    /// map oscillates between exactly two configurations — the fixture's own
+    /// baked-plus-density passability, and that same passability with every
+    /// net-odd-occurrence index in <paramref name="changedCellIndices"/>
+    /// flipped — instead of random-walking further from the authored layout
+    /// on every tick. A door cell is left untouched — its passability is
+    /// governed by door state, not by this synthetic churn — though
+    /// <paramref name="changedCellIndices"/> never contains one; see
+    /// <see cref="ChooseChangedCells"/>'s remarks.
+    /// </summary>
+    private static void ApplyChangedCells(NavGrid grid, IReadOnlyList<int> changedCellIndices)
+    {
+        var passability = grid.Passability;
+        foreach (var cellIndex in changedCellIndices)
+        {
             var current = passability[cellIndex];
             if (current == NavCellFlags.Door)
             {

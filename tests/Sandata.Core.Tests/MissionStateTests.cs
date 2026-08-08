@@ -6,6 +6,7 @@ using Sandata.Core.Determinism;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Rules;
 using Sandata.Core.Simulation;
+using Sandata.Core.Weapons;
 
 namespace Sandata.Core.Tests;
 
@@ -505,5 +506,78 @@ public sealed class MissionStateTests
 
         Assert.NotNull(property);
         Assert.Equal(typeof(int), property!.PropertyType);
+    }
+
+    // -- Task 79c (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12 --
+    // -- audit's corrected obligation): OperatorState.Firearm folds last ---
+    // -- inside FoldOperator, after the contact-memory block. -------------
+
+    /// <summary>
+    /// Captured by running <see cref="SandataStateHasher.Compute"/> against
+    /// <see cref="BuildSampleMission"/>/<see cref="BuildSampleState"/> as
+    /// this file's own fixtures stand today, under the hasher exactly as
+    /// task 79c leaves it (operator field fold order plus the new
+    /// <c>Firearm</c> fold appended last in <c>FoldOperator</c>). Design
+    /// section 4's own audit correction for this task states plainly that
+    /// no literal can survive this change unmoved — <c>SandataHash.Fold</c>
+    /// is FNV-1a, and folding one additional value changes the digest
+    /// unconditionally, including when that value equals the old hardcoded
+    /// default. This is therefore a fresh baseline, not the pre-task-79c
+    /// value carried forward.
+    /// </summary>
+    private const ulong PreTask79cBaselineHash = 3_159_438_799_659_597_482UL;
+
+    [Fact]
+    public void StateHash_OfSampleState_MatchesThePreTask79cBaseline()
+    {
+        var mission = BuildSampleMission();
+        var ruleset = SandataRuleset.ModernTacticalV1;
+        var state = BuildSampleState();
+
+        var hash = SandataStateHasher.Compute(mission, state, ruleset);
+
+        Assert.Equal(PreTask79cBaselineHash, hash);
+    }
+
+    /// <summary>
+    /// The assertion that is actually decisive about
+    /// <see cref="OperatorState.Firearm"/> being folded at all: two mission
+    /// states differing in exactly one operator's loadout, and nothing
+    /// else, must hash differently. Unlike the baseline literal above (which
+    /// only proves *some* value changed), this proves the specific field is
+    /// live in the fold rather than dead code the compiler kept around.
+    /// </summary>
+    [Fact]
+    public void StateHash_Moves_WhenOnlyOneOperatorsFirearmDiffers()
+    {
+        var mission = BuildSampleMission();
+        var ruleset = SandataRuleset.ModernTacticalV1;
+        var state = BuildSampleState();
+        var changedState = state with
+        {
+            Operators = ImmutableArray.Create(
+                BuildSampleOperator(1) with { Firearm = FirearmId.Beretta92Fs },
+                BuildSampleOperator(2)),
+        };
+
+        var baseline = SandataStateHasher.Compute(mission, state, ruleset);
+        var changed = SandataStateHasher.Compute(mission, changedState, ruleset);
+
+        Assert.NotEqual(baseline, changed);
+    }
+
+    /// <summary>
+    /// <see cref="OperatorState.Firearm"/> defaults to
+    /// <see cref="FirearmId.Ak47"/> — the same value
+    /// <c>SandataSimulation.DefaultFirearmId</c> already named — so a state
+    /// built without setting the field explicitly is unaffected by this
+    /// task's per-operator loadout addition.
+    /// </summary>
+    [Fact]
+    public void OperatorState_Firearm_DefaultsToAk47()
+    {
+        var op = BuildSampleOperator(1);
+
+        Assert.Equal(FirearmId.Ak47, op.Firearm);
     }
 }

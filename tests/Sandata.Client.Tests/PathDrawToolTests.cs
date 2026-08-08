@@ -5,8 +5,11 @@ using System.Linq;
 using System.Reflection;
 using Microsoft.Xna.Framework;
 using Sandata.Client.UI;
+using Sandata.Core.Maps;
 using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
+using Sandata.Core.Rules;
+using Sandata.Core.Simulation;
 
 namespace Sandata.Client.Tests;
 
@@ -33,6 +36,34 @@ public sealed class PathDrawToolTests
 
     private static WallBuckets NoWalls(NavGrid grid) => WallBuckets.Build(grid, [], [], [], []);
 
+    /// <summary>
+    /// The smallest valid <see cref="SandataSimulation"/> a test can submit
+    /// an order through — one operator per faction (the floor
+    /// <see cref="Mission"/>'s own constructor requires), an empty
+    /// <see cref="MissionState.Operators"/> list (nothing here reads it), and
+    /// the map geometry a caller already built via <see cref="NewOpenGrid"/>/
+    /// <see cref="NoWalls"/>. Mirrors
+    /// <c>Sandata.Headless.HeadlessRunner.BuildMission</c>'s own shape, the
+    /// one existing production template for constructing a
+    /// <see cref="Mission"/>.
+    /// </summary>
+    private static SandataSimulation NewSimulation(NavGrid grid, WallBuckets wallBuckets)
+    {
+        var mission = new Mission(
+            formatVersion: Mission.CurrentFormatVersion,
+            seed: 1UL,
+            mapContentHash: 1UL,
+            tickPolicy: new MissionTickPolicy(TickLimit: 100, StateHashCadenceTicks: 1),
+            factionSetups: ImmutableArray.Create(
+                new MissionFactionSetup(FactionId: 0, OperatorCount: 1),
+                new MissionFactionSetup(FactionId: 1, OperatorCount: 1)),
+            rulesetId: SandataPresetId.ModernTacticalV1);
+
+        var initialState = new MissionState(Tick: 0, Phase: 1, Winner: -1, NextEntityId: 1, NextEventSequence: 0);
+
+        return new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, initialState);
+    }
+
     // ==================== PathDrawTool: submission ====================
 
     /// <summary>
@@ -46,7 +77,7 @@ public sealed class PathDrawToolTests
     {
         var grid = NewOpenGrid();
         var wallBuckets = NoWalls(grid);
-        var queue = OrderQueue.Empty;
+        var simulation = NewSimulation(grid, wallBuckets);
 
         var state = PathDrawState.CreateEmpty();
         state = PathDrawTool.AddNode(state, new DrawnPathNode(0, 0));
@@ -54,12 +85,12 @@ public sealed class PathDrawToolTests
 
         var unsortedAddressees = ImmutableArray.Create<ulong>(30, 5, 100, 2, 17);
 
-        var (_, updatedQueue, submitted, rejection) = PathDrawTool.Submit(
-            state, queue, targetTick: 10, factionId: 0, unsortedAddressees, grid, wallBuckets);
+        var (_, submitted, rejection) = PathDrawTool.Submit(
+            state, simulation, targetTick: 10, factionId: 0, unsortedAddressees);
 
         Assert.Null(rejection);
         Assert.NotNull(submitted);
-        var storedOrder = Assert.Single(updatedQueue.Orders);
+        var storedOrder = Assert.Single(simulation.State.OrderQueue.Orders);
         Assert.Equal(OrderKind.MoveAlongPath, submitted!.Kind);
         Assert.Equal(new ulong[] { 2, 5, 17, 30, 100 }, submitted.Addressees.ToArray());
         Assert.Equal(submitted, storedOrder);
@@ -121,15 +152,15 @@ public sealed class PathDrawToolTests
     {
         var grid = NewOpenGrid();
         var wallBuckets = NoWalls(grid);
-        var queue = OrderQueue.Empty;
+        var simulation = NewSimulation(grid, wallBuckets);
 
         var state = PathDrawState.CreateEmpty();
         state = PathDrawTool.AddNode(state, new DrawnPathNode(0, 0));
         state = PathDrawTool.AddNode(state, new DrawnPathNode(4, 0));
         state = PathDrawTool.AddNode(state, new DrawnPathNode(8, 0));
 
-        var (postSubmitState, updatedQueue, submitted, rejection) = PathDrawTool.Submit(
-            state, queue, targetTick: 1, factionId: 0, ImmutableArray.Create<ulong>(5, 1, 3), grid, wallBuckets);
+        var (postSubmitState, submitted, rejection) = PathDrawTool.Submit(
+            state, simulation, targetTick: 1, factionId: 0, ImmutableArray.Create<ulong>(5, 1, 3));
 
         Assert.Null(rejection);
         Assert.NotNull(submitted);
@@ -140,7 +171,7 @@ public sealed class PathDrawToolTests
         Assert.Empty(afterUndo.Nodes);
         Assert.Equal(0, afterUndo.Undo.Depth);
 
-        var storedOrder = Assert.Single(updatedQueue.Orders);
+        var storedOrder = Assert.Single(simulation.State.OrderQueue.Orders);
         Assert.Equal(3, storedOrder.PathNodes.Length);
         Assert.Equal(submitted.PathNodes, storedOrder.PathNodes);
     }
@@ -419,14 +450,14 @@ public sealed class PathDrawToolTests
         // world unit past the closed bounds interval.
         var grid = NewOpenGrid();
         var wallBuckets = NoWalls(grid);
-        var queue = OrderQueue.Empty;
+        var simulation = NewSimulation(grid, wallBuckets);
 
         var state = PathDrawState.CreateEmpty();
         state = PathDrawTool.AddNode(state, new DrawnPathNode(0, 0));
         state = PathDrawTool.AddNode(state, new DrawnPathNode(81, 0));
 
-        var (_, _, submitted, rejection) = PathDrawTool.Submit(
-            state, queue, targetTick: 1, factionId: 0, ImmutableArray.Create<ulong>(1), grid, wallBuckets);
+        var (_, submitted, rejection) = PathDrawTool.Submit(
+            state, simulation, targetTick: 1, factionId: 0, ImmutableArray.Create<ulong>(1));
 
         Assert.Null(submitted);
         Assert.NotNull(rejection);

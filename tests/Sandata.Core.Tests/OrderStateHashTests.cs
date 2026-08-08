@@ -119,7 +119,16 @@ public sealed class OrderStateHashTests
     // -- SandataRuleset.ModernTacticalV1) against the hasher as it stood ----
     // -- immediately before task 61's edits, before OrderQueue and ----------
     // -- OrderAssignments existed on MissionState at all. --------------------
-    private const ulong PreTask61BaselineHash = 5_550_901_129_500_655_850UL;
+    // Moved at task 79c, from 5_550_901_129_500_655_850UL, and the move is
+    // sanctioned rather than worked around: task 79c appends the operator's
+    // Firearm to FoldOperator, so every state carrying at least one operator
+    // hashes differently. What this test actually guards is untouched by
+    // that — an empty order queue and no assignments still fold nothing, so
+    // this fixture still hashes to whatever the pre-task-61 hasher would
+    // produce for it under today's operator fold. Only the absolute literal
+    // is task-79c-specific. See the wave-12 audit in
+    // docs/plans/2026-08-07-sandata-scaffold.md.
+    private const ulong PreTask61BaselineHash = 3_159_438_799_659_597_482UL;
 
     [Fact]
     public void StateHash_WithEmptyOrderQueueAndNoAssignments_MatchesThePreTask61Hasher()

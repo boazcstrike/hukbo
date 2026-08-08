@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
 using Sandata.Core.Collision;
@@ -49,6 +50,18 @@ public sealed class SandataSimulation
     private readonly PathService _pathService;
 
     /// <summary>
+    /// The chamfer clearance value at every <see cref="_navGrid"/> cell —
+    /// <see cref="Navigation.ClearanceField.Build"/>'s output, baked once
+    /// here from the same static <see cref="NavGrid.Passability"/> array
+    /// stage 5's contact queries already read, and never rebuilt: this
+    /// worktree has no dynamic-door source (<see cref="AdvancePathService"/>'s
+    /// own remarks), so nothing ever changes a cell's passability after
+    /// construction. Stage 9's autonomous branch indexes this array at the
+    /// leader's cell to feed <see cref="Squads.FormationCollapse"/>.
+    /// </summary>
+    private readonly int[] _clearanceField;
+
+    /// <summary>
     /// Stage 10's collision-and-avoidance resolver, constructed once and
     /// reused every tick — <see cref="Movement.LocalAvoidance"/> carries no
     /// per-tick state of its own beyond the resolver it wraps, so there is
@@ -90,6 +103,18 @@ public sealed class SandataSimulation
         // a constructor parameter and deliberately does not read the
         // ruleset itself, so this caller passes ruleset.PathLatencyTicks.
         _pathService = new PathService(ruleset.PathLatencyTicks);
+
+        // NavCellFlags is byte-backed with literal values 0 (Blocked), 1
+        // (Open), 2 (Door) — the same "0 blocked, nonzero open" convention
+        // ClearanceField.Build documents, so this reinterpret cast carries
+        // no narrowing and no semantic mismatch. Built once, here, since the
+        // grid never changes after construction (see _clearanceField).
+        _clearanceField = new int[navGrid.CellCount];
+        ClearanceField.Build(
+            MemoryMarshal.Cast<NavCellFlags, byte>(navGrid.Passability),
+            _clearanceField,
+            navGrid.Width,
+            navGrid.Height);
 
         State = initialState;
     }
@@ -313,13 +338,16 @@ public sealed class SandataSimulation
     }
 
     /// <summary>
-    /// The default firearm every operator advances against in
-    /// <see cref="AdvanceWeaponChain"/> and <see cref="ProposeFire"/>.
-    /// <b>PROVISIONAL — no per-operator loadout.</b> <see cref="OperatorState"/>
-    /// carries no <c>FirearmId</c> field, so this task cannot look up a real
-    /// per-operator weapon; every operator uses this one row of
-    /// <see cref="FirearmCatalog.Rows"/> instead. Honest degeneracy, not a
-    /// stand-in for a real loadout system.
+    /// The firearm <see cref="ProposeFire"/> still advances every operator
+    /// against. <b>PROVISIONAL — <see cref="AdvanceWeaponChain"/> no longer
+    /// uses this constant.</b> Task 79c (docs/plans/2026-08-07-sandata-
+    /// scaffold.md, the wave-12 audit's corrected obligation) added
+    /// <see cref="OperatorState.Firearm"/>, and stage 11 below now reads that
+    /// per-operator field instead of this one shared default. Stage 12
+    /// (<see cref="ProposeFire"/>) is task 79d's territory, not this task's,
+    /// so it keeps reading this constant unchanged; the value also doubles
+    /// as <see cref="OperatorState.Firearm"/>'s own default, so behaviour is
+    /// unchanged for every caller that does not set the new field.
     /// </summary>
     private const FirearmId DefaultFirearmId = FirearmId.Ak47;
 
@@ -381,6 +409,15 @@ public sealed class SandataSimulation
     /// <see langword="false"/> for the whole tick — the chain holds at
     /// <see cref="WeaponChainPhase.Turning"/> rather than firing at nothing.
     /// </para>
+    /// <para>
+    /// <b>Per-operator loadout.</b> Task 79c
+    /// (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12 audit's
+    /// corrected obligation): each operator's own
+    /// <see cref="OperatorState.Firearm"/> selects its
+    /// <see cref="FirearmCatalog"/> row, looked up once per operator inside
+    /// the loop below rather than once for the whole tick, so two operators
+    /// carrying different firearms advance different timing chains.
+    /// </para>
     /// </remarks>
     internal void AdvanceWeaponChain()
     {
@@ -391,9 +428,6 @@ public sealed class SandataSimulation
             return;
         }
 
-        var definition = FirearmCatalog.Rows[(int)DefaultFirearmId];
-        var readyTicks = TickConversion.ToTicks(definition.ReadyMs, _ruleset.TickRate);
-        var resetTicks = TickConversion.ToTicks(definition.ResetMs, _ruleset.TickRate);
         var intents = PendingIntents;
 
         var updated = ImmutableArray.CreateBuilder<OperatorState>(operators.Length);
@@ -408,6 +442,10 @@ public sealed class SandataSimulation
                 updated.Add(op);
                 continue;
             }
+
+            var definition = FirearmCatalog.Rows[(int)op.Firearm];
+            var readyTicks = TickConversion.ToTicks(definition.ReadyMs, _ruleset.TickRate);
+            var resetTicks = TickConversion.ToTicks(definition.ResetMs, _ruleset.TickRate);
 
             var positionXWu = WorldUnits.FromFixedPoint(op.PositionX);
             var positionYWu = WorldUnits.FromFixedPoint(op.PositionY);
@@ -1143,21 +1181,59 @@ public sealed class SandataSimulation
     }
 
     /// <summary>
-    /// Stage 7. Call-site obligation: advances <see cref="_pathService"/> by
-    /// one tick against <see cref="_navGrid"/> and <see cref="_wallBuckets"/>.
+    /// Stage 7. Call-site obligation: for every <see cref="MissionState.Groups"/>
+    /// entry whose <see cref="GroupPathState.HasOutstandingRequest"/> is
+    /// <see langword="true"/>, submits it to <see cref="_pathService"/> via
+    /// <see cref="PathService.RequestPath"/> (a no-op if that group already has
+    /// an outstanding request in flight there — <see cref="PathService.RequestPath"/>'s
+    /// own remarks), then advances <see cref="_pathService"/> by one tick
+    /// against <see cref="_navGrid"/> and <see cref="_wallBuckets"/>. After
+    /// <see cref="PathService.Advance"/> returns, any such group whose request
+    /// published this tick (<see cref="PathService.HasOutstandingRequest"/> now
+    /// <see langword="false"/>) has its <see cref="State"/> entry rewritten
+    /// with <see cref="GroupPathState.HasOutstandingRequest"/> cleared, so a
+    /// later tick's loop does not resubmit an already-published request.
+    /// <b>This method does not decide what sets a destination</b> — it only
+    /// drains and reconciles whatever <see cref="MissionState.Groups"/>
+    /// already holds; no autonomous destination-request source exists in this
+    /// worktree, so a fixture that never populates <see cref="MissionState.Groups"/>
+    /// sees this stage's search-and-publish machinery run every tick with
+    /// nothing to act on, exactly as before this task — see
+    /// <see cref="TickStage.PathService"/>'s own remarks.
     /// <b>PROVISIONAL</b> <paramref name="currentTick"/>'s <c>blocked</c> span
     /// is all-<see langword="false"/> — no door-driven dynamic blocker source
     /// exists in this worktree (stage 4 is the same honest pass-through), so
-    /// every cell reports passable to the search this call may run. No
-    /// autonomous destination-request source exists either, so this stage's
-    /// search-and-publish machinery runs every tick but, in this wave, never
-    /// has an outstanding request to act on — see <see cref="TickStage.PathService"/>'s
-    /// own remarks.
+    /// every cell reports passable to the search this call may run.
     /// </summary>
     private void AdvancePathService(long currentTick)
     {
+        var groups = State.Groups;
+
+        foreach (var group in groups)
+        {
+            if (group.HasOutstandingRequest)
+            {
+                _pathService.RequestPath(
+                    group.GroupId, group.StartCellIndex, group.GoalCellIndex, group.RequestTick);
+            }
+        }
+
         var blocked = new bool[_navGrid.CellCount];
         _pathService.Advance(currentTick, _navGrid, blocked, _wallBuckets);
+
+        if (groups.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        var updatedGroups = ImmutableArray.CreateBuilder<GroupPathState>(groups.Length);
+        foreach (var group in groups)
+        {
+            var justPublished = group.HasOutstandingRequest && !_pathService.HasOutstandingRequest(group.GroupId);
+            updatedGroups.Add(justPublished ? group with { HasOutstandingRequest = false } : group);
+        }
+
+        State = State with { Groups = updatedGroups.MoveToImmutable() };
     }
 
     /// <summary>
@@ -1176,12 +1252,20 @@ public sealed class SandataSimulation
     /// section 8's <see langword="ulong"/> "minimum entity id") now passes to
     /// <see cref="PathService.GetReasonCode"/> unchanged — task 78 widened
     /// <c>PathService</c>'s whole group-identity surface to
-    /// <see langword="ulong"/>, so no narrowing happens here. It remains
-    /// inert this wave for an unrelated reason: <see cref="AdvancePathService"/>
-    /// never calls <see cref="PathService.RequestPath"/> for any group, so
-    /// <see cref="PathService.GetReasonCode"/> answers
-    /// <see cref="PathReasonCode.NoDestinationRequested"/> for every group id
-    /// regardless.
+    /// <see langword="ulong"/>, so no narrowing happens here.
+    /// <see cref="AdvancePathService"/> now drains every
+    /// <see cref="MissionState.Groups"/> entry whose
+    /// <see cref="GroupPathState.HasOutstandingRequest"/> is
+    /// <see langword="true"/> into <see cref="PathService.RequestPath"/> each
+    /// tick (task 79a), so <see cref="PathService.GetReasonCode"/> now
+    /// answers whatever that group's live pathfinding state actually is.
+    /// <see cref="PathReasonCode.NoDestinationRequested"/> is the answer only
+    /// for a group id <see cref="MissionState.Groups"/> never named at all —
+    /// no autonomous destination-request source populates that array in this
+    /// worktree, so a fixture that never sets it still sees this stage
+    /// select every unassigned operator's intent as if nothing had been
+    /// requested, which remains this stage's only honest behavior absent
+    /// that source.
     /// </remarks>
     private ImmutableArray<IntentSelectionResult> SelectIntents(
         TickStartView view, ReadOnlySpan<SquadSlot> slots, SensingOutcome sensing)
@@ -1235,6 +1319,53 @@ public sealed class SandataSimulation
     private static int RawFromWorldUnits(long worldUnits) => checked((int)(worldUnits << 10));
 
     /// <summary>
+    /// The squad's shared formation half-width, in world units, that
+    /// <see cref="Squads.FormationCollapse.IsCollapsed"/> compares against
+    /// the leader's clearance. <b>PROVISIONAL</b> — no
+    /// <see cref="SandataRuleset"/> field carries this value: adding one
+    /// would move that type's pinned <see cref="SandataRuleset.ContentHash"/>
+    /// literal, an explicitly reviewed change this task does not make, so
+    /// this is a placeholder pending a real tuning pass and a ruleset field
+    /// of its own.
+    /// </summary>
+    private const long FormationHalfWidthWu = 6;
+
+    /// <summary>
+    /// How far behind the leader, in world units, each row of trailing
+    /// slots marches — <see cref="FormationSlotOffsetsWu"/>'s per-row trail
+    /// offset. <b>PROVISIONAL</b> — <see cref="SquadSlot"/> carries only a
+    /// <see cref="SquadSlot.SlotIndex"/>, no stored per-operator offset
+    /// (design section 8: "Stored per operator: ... Nothing else."), so
+    /// this task derives one deterministically from that index rather than
+    /// inventing per-operator state; the step size itself is an
+    /// unvalidated placeholder.
+    /// </summary>
+    private const long FormationTrailStepWu = 8;
+
+    /// <summary>
+    /// Each row's sideways displacement from the leader's own path, in
+    /// world units, before <see cref="Squads.FormationCollapse"/> may zero
+    /// it. <b>PROVISIONAL</b> for the same reason as
+    /// <see cref="FormationTrailStepWu"/>.
+    /// </summary>
+    private const long FormationLateralStepWu = 4;
+
+    /// <summary>
+    /// How far ahead of the leader's own projected position, in world
+    /// units, the leader's sample point sits — without this, a leader whose
+    /// target is its own projection onto the path never moves.
+    /// <b>PROVISIONAL</b> — no movement-speed or per-tick step constant
+    /// exists anywhere under <c>Movement/</c> (<see cref="Movement.LocalAvoidance"/>,
+    /// <see cref="MovementProposal"/>, and <see cref="Movement.SidestepRules"/>
+    /// carry none) to derive this from, and <see cref="Movement.LocalAvoidance.Commit"/>
+    /// applies no speed cap of its own — it moves a proposal straight to its
+    /// desired point, subject only to collision blocking — so this constant
+    /// is, in effect, the leader's per-tick step size along its own path
+    /// until a real movement-speed source is designed.
+    /// </summary>
+    private const long FormationLookaheadWu = 8;
+
+    /// <summary>
     /// Stage 9. Call-site obligation: chooses each living operator's
     /// movement source (an authored <see cref="OrderAssignment"/> or the
     /// autonomous squad slot — <see cref="OrderAssignment"/>'s own presence
@@ -1256,26 +1387,45 @@ public sealed class SandataSimulation
     /// group's own shared path, not an individual operator's authored one.
     /// </para>
     /// <para>
-    /// <b>Autonomous branch, and the formation-collapse gap this task
-    /// reports rather than forces.</b> Design section 8's slot-target formula
-    /// (<see cref="SlotTargets.ComputeTarget"/>) needs the operator's group's
-    /// own shared published path, sampled by arclength, to place a target;
-    /// <see cref="FormationCollapse"/>'s formation half-width gate needs that
-    /// same live path's leader-clearance context to mean anything. No group
-    /// ever has a published path this wave: <see cref="AdvancePathService"/>
-    /// never calls <see cref="PathService.RequestPath"/> for any group (no
-    /// autonomous destination-request source exists in this worktree), so
-    /// <see cref="PathService.GetCurrentPath"/> is empty for every group,
-    /// every tick — the same fact <see cref="TickStage.PathService"/>'s own
-    /// remarks already state. With no path to sample, <see cref="SlotTargets"/>
-    /// and <see cref="FormationCollapse"/> have nothing to compute against, so
-    /// this task does not call either for the autonomous branch; an
-    /// unassigned operator's honest desired position this wave is its own
-    /// current position — hold — until a future task wires an autonomous
-    /// destination-request source into stage 7.
+    /// <b>Autonomous branch.</b> An operator with no
+    /// <see cref="OrderAssignment"/> asks its own group's
+    /// <see cref="_pathService"/> for <see cref="PathService.GetCurrentPath"/>
+    /// — empty until <see cref="AdvancePathService"/> has actually published
+    /// one for that group, in which case this method falls back to holding
+    /// at the operator's own current position, exactly as it did before this
+    /// task. Once a path is published, this method builds a
+    /// <see cref="PolylineArclength"/> over it and derives the shared
+    /// "leader arclength" fresh every tick by projecting the slot's own
+    /// <see cref="SquadSlot.LeaderEntityId"/> current position onto that
+    /// polyline through <see cref="ProjectArclength"/> — a pure geometric
+    /// projection, not a stored per-tick tracker, so design section 8's
+    /// "Stored per group: nothing" still holds. <see cref="SlotTargets.ComputeTarget"/>'s
+    /// own remarks say that value is "not required to be
+    /// <c>path.TotalLength</c>", only whatever arclength corresponds to the
+    /// leader's current progress along the path, which is exactly what the
+    /// projection recomputes. Because <see cref="Movement.LocalAvoidance.Commit"/>
+    /// moves an entity straight to its proposal's desired point every tick
+    /// with no speed cap of its own, projecting the leader's own current
+    /// position back onto its own path would leave the leader's target
+    /// pinned to wherever it already stands; <see cref="FormationLookaheadWu"/>
+    /// adds a small constant arclength past that projection so the leader
+    /// (slot 0, whose trail and lateral offsets are both zero) still has
+    /// somewhere ahead of it to walk toward, each tick, clamped to the
+    /// path's own <see cref="PolylineArclength.TotalLength"/> so it never
+    /// overshoots the goal. Each slot's trail
+    /// and lateral offset come from <see cref="FormationSlotOffsetsWu"/>, a
+    /// pure function of <see cref="SquadSlot.SlotIndex"/> — the only
+    /// per-operator formation-shape input this worktree stores (design
+    /// section 8: "Stored per operator: ... Nothing else."). The lateral
+    /// component is then gated through <see cref="FormationCollapse.LateralOffset"/>
+    /// using the clearance this method looks up at the leader's own cell via
+    /// <see cref="FindLeaderClearance"/>, so a leader standing where the
+    /// clearance field reads below <see cref="FormationHalfWidthWu"/> forces
+    /// every slot in the group to single file for that tick, per design
+    /// section 8's "Doorway collapse falls out of the clearance field."
     /// </para>
     /// </remarks>
-    private static ImmutableArray<MovementProposal> ComputeMovementProposals(
+    private ImmutableArray<MovementProposal> ComputeMovementProposals(
         TickStartView view, ReadOnlySpan<SquadSlot> slots, MissionState state)
     {
         var count = view.Count;
@@ -1317,8 +1467,34 @@ public sealed class SandataSimulation
             }
             else
             {
-                desiredXRaw = startXRaw;
-                desiredYRaw = startYRaw;
+                var path = _pathService.GetCurrentPath(slot.GroupId);
+
+                if (path.IsDefaultOrEmpty || slot.LeaderEntityId is not { } leaderEntityId)
+                {
+                    desiredXRaw = startXRaw;
+                    desiredYRaw = startYRaw;
+                }
+                else
+                {
+                    var arclength = PolylineArclength.Build(path);
+                    var leaderIndex = view.IndexOf(leaderEntityId);
+                    var leaderPositionArclength = leaderIndex < 0
+                        ? arclength.TotalLength
+                        : ProjectArclength(
+                            path, arclength, view.PositionXWu(leaderIndex), view.PositionYWu(leaderIndex));
+                    var leaderArclength = Math.Min(
+                        leaderPositionArclength + FormationLookaheadWu, arclength.TotalLength);
+                    var (trailOffsetWu, lateralOffsetWu) = FormationSlotOffsetsWu(slot.SlotIndex ?? 0);
+                    var leaderClearance = FindLeaderClearance(view, leaderEntityId);
+                    var gatedLateralOffsetWu = FormationCollapse.LateralOffset(
+                        leaderClearance, FormationHalfWidthWu, lateralOffsetWu);
+
+                    var target = SlotTargets.ComputeTarget(
+                        arclength, leaderArclength, trailOffsetWu, gatedLateralOffsetWu);
+
+                    desiredXRaw = RawFromWorldUnits(target.X);
+                    desiredYRaw = RawFromWorldUnits(target.Y);
+                }
             }
 
             builder.Add(new MovementProposal(
@@ -1327,6 +1503,142 @@ public sealed class SandataSimulation
         }
 
         return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Projects a world position onto the nearest point of <paramref name="path"/>
+    /// and returns that point's arclength, per <paramref name="arclength"/>.
+    /// Pure function of its inputs — no state is stored between calls, so
+    /// this is safe to call fresh every tick for every group's leader rather
+    /// than tracking leader progress incrementally (design section 8:
+    /// "Stored per group: nothing").
+    /// </summary>
+    /// <remarks>
+    /// Walks every segment of <paramref name="path"/>, clamps the
+    /// dot-product projection scalar to the segment's own span so the
+    /// closest point never falls outside the segment, and keeps the
+    /// segment whose clamped closest point has the smallest squared
+    /// distance to the query position. Ties break on the lowest segment
+    /// index, matching this codebase's other total-order rules (design
+    /// section 4: every multi-result query needs a total order). All
+    /// arithmetic is integer and <see langword="checked"/>, following
+    /// <see cref="FormationCollapse"/>'s own division-free,
+    /// cross-multiplication style — no floating point anywhere in this
+    /// method.
+    /// </remarks>
+    private static long ProjectArclength(
+        ImmutableArray<PathPoint> path, in PolylineArclength arclength, long positionXWu, long positionYWu)
+    {
+        var bestDistanceSq = long.MaxValue;
+        var bestArclength = 0L;
+
+        for (var i = 0; i < path.Length - 1; i++)
+        {
+            var ax = path[i].X;
+            var ay = path[i].Y;
+            var bx = path[i + 1].X;
+            var by = path[i + 1].Y;
+            var dx = bx - ax;
+            var dy = by - ay;
+            var denom = checked((dx * dx) + (dy * dy));
+
+            var apx = positionXWu - ax;
+            var apy = positionYWu - ay;
+
+            long clampedNumerator;
+            long closestX;
+            long closestY;
+
+            if (denom == 0)
+            {
+                clampedNumerator = 0;
+                closestX = ax;
+                closestY = ay;
+            }
+            else
+            {
+                var numerator = checked((apx * dx) + (apy * dy));
+                clampedNumerator = Math.Clamp(numerator, 0, denom);
+                closestX = ax + checked((clampedNumerator * dx) / denom);
+                closestY = ay + checked((clampedNumerator * dy) / denom);
+            }
+
+            var distX = positionXWu - closestX;
+            var distY = positionYWu - closestY;
+            var distanceSq = checked((distX * distX) + (distY * distY));
+
+            if (distanceSq < bestDistanceSq)
+            {
+                bestDistanceSq = distanceSq;
+                var segmentLength = arclength.ArclengthAtVertex(i + 1) - arclength.ArclengthAtVertex(i);
+                var distanceAlongSegment = denom == 0
+                    ? 0
+                    : checked((clampedNumerator * segmentLength) / denom);
+                bestArclength = arclength.ArclengthAtVertex(i) + distanceAlongSegment;
+            }
+        }
+
+        return bestArclength;
+    }
+
+    /// <summary>
+    /// Derives one slot's trail and lateral offsets, in world units, purely
+    /// from its zero-based <see cref="SquadSlot.SlotIndex"/> — the only
+    /// per-operator formation-shape input this worktree stores (design
+    /// section 8, quoted on <see cref="FormationTrailStepWu"/>). Slot 0 (the
+    /// leader itself) rides its own path with no offset at all. Every later
+    /// slot packs two to a row, alternating left and right of the leader's
+    /// centreline by the index's own parity, one
+    /// <see cref="FormationTrailStepWu"/> further back per row — a pure
+    /// function of a value design section 8 already guarantees is a stable
+    /// total order (ascending living entity id), so two evaluations of the
+    /// same slot index always agree.
+    /// </summary>
+    private static (long TrailOffsetWu, long LateralOffsetWu) FormationSlotOffsetsWu(int slotIndex)
+    {
+        if (slotIndex <= 0)
+        {
+            return (0, 0);
+        }
+
+        var row = (slotIndex + 1) / 2;
+        var trailOffsetWu = row * FormationTrailStepWu;
+        var lateralOffsetWu = slotIndex % 2 == 1 ? FormationLateralStepWu : -FormationLateralStepWu;
+
+        return (trailOffsetWu, lateralOffsetWu);
+    }
+
+    /// <summary>
+    /// Looks up the group leader's own clearance-field value:
+    /// <paramref name="view"/>'s frozen position for
+    /// <paramref name="leaderEntityId"/>, converted to a nav cell via
+    /// <see cref="NavGrid.WorldToCellCoordinate"/>, indexed into
+    /// <see cref="_clearanceField"/>. A living operator's own
+    /// <see cref="SquadSlot.LeaderEntityId"/> is guaranteed non-null and
+    /// present in <paramref name="view"/> — the operator's own component
+    /// always has at least itself alive — so the two defensive fallbacks
+    /// below (<see cref="ClearanceField.BlockedClearance"/> for a missing
+    /// index or an out-of-grid cell) exist only to keep this method total
+    /// without throwing, not because either path is expected to run.
+    /// </summary>
+    private int FindLeaderClearance(TickStartView view, ulong leaderEntityId)
+    {
+        var leaderIndex = view.IndexOf(leaderEntityId);
+
+        if (leaderIndex < 0)
+        {
+            return ClearanceField.BlockedClearance;
+        }
+
+        var cellX = NavGrid.WorldToCellCoordinate(view.PositionXWu(leaderIndex));
+        var cellY = NavGrid.WorldToCellCoordinate(view.PositionYWu(leaderIndex));
+
+        if (!_navGrid.TryGetCellIndex(cellX, cellY, out var cellIndex))
+        {
+            return ClearanceField.BlockedClearance;
+        }
+
+        return _clearanceField[cellIndex];
     }
 
     /// <summary>

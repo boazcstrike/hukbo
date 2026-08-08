@@ -2384,3 +2384,660 @@ stops meaning what it looks like as soon as another batch lands.
 
 Task 80 and task 81 are disjoint from each other. Task 81 shares
 `SandataSimulation.cs` with every task-79 split, so it does not run beside them.
+
+### The wave-12 audit, run before dispatch — 2026-08-08
+
+Wave 12 is tasks 79a, 79b, 79c, 79d, 80, and 81, plus tasks 52, 53, 54, and 55,
+which have been outstanding since the original plan. Both directions of the
+audit were run over those rows before any agent was dispatched: no file is
+claimed by two tasks in the same batch, and every step named in a "What" column
+is claimed exactly once. For the third consecutive wave the file-level half
+passed immediately and the surface-level half produced everything below — and
+this time it produced more than in either of the two waves before it.
+
+Two things the user authorised at the start of this session are recorded here so
+they are decisions rather than drift. First, the client may load
+`tests/Sandata.Core.Tests/Fixtures/angle-house.hkmap` at startup and construct a
+`SandataSimulation` from it, which folds into task 80's row below. Second, the
+merged Sandata worktrees were swept: eleven of them — `sandata-t49-tickpipeline`,
+`sandata-t50-navbench`, `sandata-t51-headless`, `sandata-t72-queuedoor`,
+`sandata-t73-pathsubmit`, `sandata-t74-rulesetwiring`, `sandata-t75-wallboundary`,
+`sandata-t76-events`, `sandata-t77-cohesion`, `sandata-t78-idwiden`, and
+`sandata-wave10` — each verified clean (`git status --porcelain` empty) and
+verified an ancestor of `main` (`git merge-base --is-ancestor`) before removal.
+The branches themselves were kept. The two unregistered directories under
+`.claude/worktrees/`, `hit-animations` and `rank-basecheck`, belong to another
+session and were not touched.
+
+#### `SandataSimulation.cs` is still the single-writer bottleneck
+
+Wave 11 serialised on this file and wave 12 has to serialise on it harder,
+because five of this wave's rows want five different regions of it. The regions
+were confirmed by line number against `main` at `d1f6640` rather than taken from
+the rows:
+
+| Task | Region of `SandataSimulation.cs` |
+| --- | --- |
+| 79a | `AdvancePathService`, lines 1157 to 1161 — stage 7 |
+| 79b | `ComputeMovementProposals`, lines 1278 to 1330 — stage 9 |
+| 79c | `AdvanceWeaponChain`, lines 385 to 474, and the `DefaultFirearmId` constant at line 324 — stage 11 |
+| 79d | `ProposeFire`, lines 590 to 645 — stage 12 |
+| 81 | `RunTick`, lines 204 to 264, plus whichever stage measurement names |
+
+Disjoint regions inside one file are still one file. Each of those five rows gets
+a batch to itself. Task 80 touches `Sandata.Client` only, so it is the one row
+that can run beside a Core task, and it runs beside the first.
+
+#### Task 79d cannot reach three of its four clauses, and is split in two
+
+Task 79d's row names four changes. Three of them are unreachable inside the files
+the row grants, and each is unreachable for a different reason. This is the same
+failure the wave-10 audit caught for task 50 and the wave-11 audit caught for
+task 77, arriving three times in one row.
+
+**Per-weapon damage has nowhere to come from.** `FirearmDefinition`
+(`src/Sandata.Core/Weapons/FirearmDefinition.cs`, lines 92 to 123) declares
+twenty-one fields and not one of them is damage. `ProposeFire`'s own remarks
+already say so at line 328. Adding a damage field to that record means editing
+all thirty-eight rows of `FirearmCatalog` and inventing thirty-eight tuning
+numbers, which is a design decision smuggled in as an implementation detail.
+Design section 10 already establishes the alternative for the audio catalog, in
+words that apply here unchanged: "the caliber, not the weapon, keys the report.
+Six report families cover the rifles... Eight families in total, not 38
+weapons." Damage is therefore keyed on `CaliberFamily` in a new file under
+`src/Sandata.Core/Combat/`, as eight values marked provisional at their
+declaration, and `FirearmDefinition` and `FirearmCatalog` are not touched at all.
+
+**Cover exists in the map format and never reaches the simulation.** `COVER` is
+a real record kind — `MapRecordKind.Cover = 3`, parsed into `CoverRecord` at
+`src/Sandata.Core/Maps/MapRecord.cs:63` — and the `angle-house` fixture carries
+four of them. `CoverState` is a record struct carrying an arc centre, an arc
+half-width, and a posture, and `CoverRules.IsWithinProtectedArc` already exists
+to test a bearing against it. What does not exist is any route from the map to
+the simulation: `SandataSimulation`'s constructor takes a `Mission`, a
+`SandataRuleset`, a `NavGrid`, a `WallBuckets`, and a `MissionState`, and cover
+is in none of them. Evaluating cover is one constructor parameter of work and
+exactly zero lines of it are reachable inside a grant that reads "stage 12 only".
+
+**There is one event kind.** `MissionEventKind` declares `OrderRejected = 0` and
+nothing else, and `MissionEvent` exposes one factory. Emitting a shot and its
+outcome means new members on both, in `src/Sandata.Core/Events/`, which the row
+does not grant.
+
+Three new surfaces in one row is what task 79 looked like before wave 11 split
+it, so task 79d is split the same way. The two halves share stage 12 and would
+have been serial regardless, so the split costs one extra batch and buys two
+briefs an agent can actually finish.
+
+#### Task 79c's acceptance criterion is arithmetically impossible
+
+The row asks for "a test that pins the pre-change state hash of a mission whose
+operators all carry the previous default, proving the fold was appended rather
+than interleaved". No such test can exist. `SandataHash.Fold` is FNV-1a, and
+folding one additional value changes the digest unconditionally — including when
+that value equals the old hardcoded default, because the fold is over the value's
+bytes and not over any notion of "the value that was already assumed". The
+pre-change hash cannot survive an appended fold under any placement.
+
+This is wave 11's task 77 lesson pointed the other way. There, a brief claimed a
+hash would move and it did not; here, a row claims a hash will hold and it
+cannot. Both are the same error: **a remedy stated in a brief is a claim, and it
+needs its own reading of the code before an agent is told to satisfy it.**
+
+The corrected obligation for task 79c:
+
+- The new fold goes **last inside `FoldOperator`**, after the contact-memory
+  block that currently ends at `SandataStateHasher.cs:343`. "After every field
+  the hasher already covers" means after all of them, including the nested ones.
+- A fresh `PreTask79cBaselineHash` constant is recorded, in the same shape as the
+  existing `PreTask61BaselineHash` and `PreTask76BaselineHash`.
+- The seed-1 workload's state hash moves off `00EC034D18941D36` **on purpose**,
+  and recording the new value is the deliverable rather than a problem to be
+  worked around. Nothing anywhere pins the old one.
+- Fold position is proved by a test in which two mission states differing only in
+  one operator's loadout hash differently, which is decisive where the pinned
+  literal is not.
+
+One grant in that row is spare and should not be spent: `MissionSnapshot` holds
+an `ImmutableArray<OperatorState>` already, so a new field on `OperatorState` is
+carried through the snapshot with no edit to `MissionSnapshot.cs` at all.
+
+#### Task 79b needs a clearance field that nothing builds
+
+`FormationCollapse.IsCollapsed` takes a leader clearance and a formation
+half-width. `SandataSimulation` holds a `NavGrid` and a `WallBuckets` and no
+clearance field, and `ClearanceField.Build` is never called anywhere in the
+simulation. Baking one belongs in the constructor, which is outside a grant
+reading "stage 9 autonomous branch only". Two smaller consequences fall out of
+the same row: `ComputeMovementProposals` is `static` today and has to become an
+instance method to reach `_pathService` at all, and the formation half-width is a
+seventh provisional constant with no `SandataRuleset` field behind it, to be
+marked at its declaration exactly as `CollisionCellSizeRaw` and
+`VisionConeHalfWidthBam` already are.
+
+#### Task 52 needs two golden baselines, and design section 16 says so
+
+Task 52's row, written before the order layer was promoted, names "a pinned
+seed-1 mission whose state hash and event hash are recorded as expected
+constants" — one baseline. Design section 16 outranks it: "The golden replay
+needs two baselines, not one: a mission with an empty order stream, which is the
+pure autonomous case, and a mission with a recorded non-empty one. A single
+empty-stream baseline would prove nothing about the subsystem this section adds."
+Task 52 records both.
+
+#### Task 81's stated cause is a claim, not a measurement
+
+The row asserts that stage 3's two `SandataCollisionGrid` constructions are where
+the 65,679,126,648 bytes go. That was a reasonable guess written at the end of
+wave 11 and it does not survive a reading of the code. `SandataCollisionGrid`
+already reuses its internal arrays across `Rebuild` calls and grows them on
+demand (`_hashHeadSlot`, `_hashOccupied`, `_nextSlotInCell`,
+`_occupiedCellHashIndex`, and the growth path at line 738), so what a fresh
+instance costs each tick is four small arrays and not megabytes. The other named
+suspect is smaller still: `AdvancePathService` allocates `new bool[_navGrid.CellCount]`
+every tick, and the headless workload's grid is ten cells by ten, so that
+allocation is one hundred bytes.
+
+Roughly 3.28 MB per simulation-tick at two hundred operators has to be *measured*
+before it is cut. Task 81 therefore produces a per-stage allocation table first,
+from `GC.GetAllocatedBytesForCurrentThread()` deltas in a temporary harness it
+deletes before committing, and cuts what the table names. If the table names a
+file outside the grant, the task stops and reports rather than widening its own
+scope.
+
+#### Task 54's project count is stale
+
+The row requires that "`CLAUDE.md` section 3's layout block lists all eleven
+projects". `Hukbo.slnx` lists twelve: five under `src/` for Hukbo — `Hukbo.Core`,
+`Hukbo.Client`, `Hukbo.Headless`, `Hukbo.Diagnostics`, `Hukbo.Shared.Core` —
+three for Sandata, and four test projects. Twelve is the number to write.
+
+#### Two policy decisions stay out of these rows
+
+**What an autonomous squad wants — how a destination is chosen — is undesigned**,
+in the same way and for the same reason that intent selection was undesigned when
+task 44 invented it. Task 79a wires the machinery that serves a destination
+request and deliberately does not decide what issues one.
+
+**What decides an operator's loadout is equally undesigned.** Task 79c adds the
+field and defaults it to the `FirearmId.Ak47` that stage 11 hardcodes today, so
+behaviour is unchanged and the degeneracy stays honest. It does not invent a rule
+that assigns a weapon to an operator.
+
+An implementer must settle neither. Both are listed among the open questions the
+user has not answered.
+
+#### The batch plan
+
+| Batch | Tasks | Why they can share it |
+| --- | --- | --- |
+| 1 | 79a and 80 | 80 is `Sandata.Client` only; 79a is stage 7 of `SandataSimulation.cs` |
+| 2 | 79b | Stage 9; depends on 79a |
+| 3 | 79c | Stage 11, and it moves the state hash |
+| 4 | 79d-1 | Stage 12, hit resolution and events |
+| 5 | 79d-2 | Stage 12, damage and cover; depends on 79d-1 |
+| 6 | 81 | Whole-file allocation work; runs after every 79 split |
+| 7 | 52 | Golden baselines, recorded after every hash-moving task above |
+| 8 | 54 | Documentation, after 52 and 53 |
+
+Task 53's measurement runs are not delegated. The audio instance-pool harness
+needs a real audio device and the row requires naming the hardware, so the
+integrating thread runs both harnesses itself, between batches. Task 55 is the
+canonical gate and is likewise never delegated.
+
+#### The rows this audit rewrites
+
+Task 79c's "Done when" column is replaced by the corrected obligation above.
+Task 79d is replaced by the two rows below. Task 80's row gains the client
+startup map load the user authorised.
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 79d-1 | 12 | Make the drawn angular error decide hit or miss, and emit the shot | Stage 12 draws a real angular error from the real `Accuracy` stream and discards it at `SandataSimulation.cs:634`. Resolve that draw against the target's subtended angle, computed from the range already measured there and the provisional body radius `CollisionBodyRadiusRaw`. A miss produces no `DamageInstance`. Add the shot-fired, shot-hit, and shot-missed members to `MissionEventKind` with matching `MissionEvent` factories, and emit them from stage 12 through the same "assign then advance `NextEventSequence`" shape `EmitOrderRejectedEvent` already uses. Damage stays the flat provisional value and cover stays `NotInCover`; both are 79d-2. | `src/Sandata.Core/Simulation/SandataSimulation.cs` (stage 12 only), `src/Sandata.Core/Events/MissionEvent.cs`, `src/Sandata.Core/Events/MissionEventKind.cs`, `tests/Sandata.Core.Tests/TickPipelineTests.cs`, `tests/Sandata.Core.Tests/MissionEventFeedTests.cs` | A test proves the same shot hits at one drawn error and misses at another, with no other input changed, reached through `RunTick` rather than by calling `ProposeFire` directly. A test proves a hit emits exactly one shot-fired and one shot-hit event and a miss emits exactly one shot-fired and one shot-missed, observable in `MissionState.EventFeed`. A test proves the event hash moves off the bare FNV-1a offset basis once a shot is emitted. | 76, 79c | |
+| 79d-2 | 12 | Damage by caliber, and cover evaluated from the map | `FirearmDefinition` carries no damage field and cover never reaches the simulation. Add a provisional per-`CaliberFamily` damage table — eight values, marked provisional at the declaration, keyed the way design section 10 keys the audio report families — and read it through the shooter's loadout from task 79c. Give `SandataSimulation` the mission's `CoverRecord` values, find the record containing the target, and evaluate `CoverRules.IsWithinProtectedArc` at the shooter-to-target bearing with `CoverPosture` taken from `OperatorState.IsCrouched`, then apply `CoverRules.ApplyToDamage` to the caliber value. `FirearmDefinition.cs` and `FirearmCatalog.cs` are not edited. | `src/Sandata.Core/Simulation/SandataSimulation.cs` (stage 12 and the constructor only), `src/Sandata.Core/Combat/CaliberDamage.cs` (new), `src/Sandata.Core/Combat/DamageResolution.cs`, `tests/Sandata.Core.Tests/TickPipelineTests.cs`, `tests/Sandata.Core.Tests/DamageResolutionTests.cs`, `tests/Sandata.Core.Tests/CoverRulesTests.cs` | A test proves two operators carrying firearms of different caliber families deal different damage on an identical hit. A test proves a target inside a cover record's protected arc takes the cover-modified value and a target outside that arc takes the unmodified one, both reached through `RunTick`. The `ProvisionalDamagePerHitPoints` constant is gone and `grep -rn 'ProvisionalDamagePerHitPoints' src/` returns nothing. | 79d-1 | |
+
+Task 80's row is amended rather than replaced: it additionally loads
+`angle-house.hkmap` at client startup and constructs the `SandataSimulation` from
+it, so the client is something a person can watch and the submission door it
+should be calling actually exists. The map file stays a single source of truth —
+`Sandata.Client.csproj` links the existing fixture into the client's output
+rather than copying it, and the follow-up of moving that fixture to a shared
+`assets/maps/` location owned by neither the tests nor the client is recorded as
+a later task, not done here. `src/Sandata.Client/Program.cs` and
+`src/Sandata.Client/Sandata.Client.csproj` join that row's file list.
+
+### Task 53's measurement runs, and the benchmark defect they exposed — 2026-08-08
+
+Both harnesses were run by the integrating thread rather than delegated. The
+audio one needs a real audio device and the row requires naming the hardware, so
+no sub-agent could have produced an honest number for it. Raw output was captured
+to `artifacts/sandata-task53/`, which is untracked, exactly as the row requires;
+the figures below are the record, and task 54 carries them into
+`docs/development/testing.md`.
+
+**The hardware, reported by the harness itself:**
+
+```
+BO | Microsoft Windows 10.0.26200 (X64) | 20 logical processors | .NET 10.0.10
+```
+
+#### The audio instance-pool ceiling
+
+```
+=== Phase A: shooter-pair ceiling ramp ===
+shooters held             : 128
+instance count at first InstancePlayLimitException: 257 (shooter #129, InstancePlayLimitException)
+
+=== Phase B: sustained automatic fire at the maximum operator count ===
+sustained-fire duration    : 10.0 s (target 10 s)
+loop instances still playing at end: 8 / 8
+tail cues fired            : 14, refused 0
+no InstancePlayLimitException while sustaining 8 shooters for 10.0 s.
+```
+
+The usable ceiling is 256 concurrent `SoundEffectInstance` objects, the 257th
+throwing. The harness synthesized its clips in memory — a 150 ms loop and a
+764 ms tail at 44,100 Hz, played at volume 0.02 — because Sandata has shipped no
+audio content yet, and the pool ceiling is a property of the device rather than
+of any clip's contents.
+
+**256 is MonoGame's own DesktopGL pool limit, not a property of this sound
+card.** That is worth writing down plainly, because the obvious reading of "on
+named hardware" is that a different machine would give a different number, and
+here it will not. What is genuinely machine-specific is Phase B: eight shooters
+sustained automatic fire for ten seconds holding sixteen instances, with zero
+refusals, against a 256 ceiling. Design section 10's structural claim — "A
+shooter holding the trigger holds two instances, not thirty-two" — is what makes
+that comfortable, and this run is the first evidence for it rather than the first
+assertion of it.
+
+`SandataSoundBudget.DefaultMaximumInstances` is still the provisional 64 at the
+time of writing. It was deliberately not changed in this batch:
+`SandataSoundBudgetTests` lives under `tests/Sandata.Client.Tests/`, which task
+80's agent held for the whole of batch 1, and moving the constant without moving
+its test is two writers in one file. The constant is set after batch 1 merges.
+
+#### The navigation benchmark matrix
+
+Six rows on the `angle-house` fixture, which bakes to a 160-by-180-cell nav grid,
+at seed 1 and 2,000 ticks per row. Every row carries a nonzero replanning rate:
+the first smoke run used a rate of zero and took only four A\* samples, at which
+point p95, p99, and the maximum are all the same measurement and none of them
+means anything.
+
+| Row | Density % | Changed cells | Seekers | Query distance (wu) | Replan % | A\* samples | A\* p50 / p95 / p99 (ms) | Stage 7 p50 / p95 / p99 (ms) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| baseline | 20 | 0 | 4 | 512 | 5 | 408 | 0.8821 / 1.6028 / 2.0621 | 0.0001 / 1.0172 / 1.7411 |
+| dense | 40 | 0 | 4 | 512 | 5 | 408 | 0.1210 / 0.6196 / 1.0512 | 0.0001 / 0.4316 / 0.5604 |
+| doors-moving | 20 | 50 | 4 | 512 | 10 | 793 | 0.0001 / 1.2468 / 1.6153 | 0.0001 / 0.0179 / 1.2115 |
+| many-seekers | 20 | 0 | 16 | 512 | 5 | 1,603 | 0.7647 / 1.5033 / 1.8552 | 0.0654 / 1.7368 / 2.6899 |
+| long-queries | 20 | 0 | 4 | 2,048 | 5 | 408 | 1.7004 / 2.7783 / 3.4253 | 0.0001 / 2.3031 / 3.0602 |
+| worst-case | 40 | 200 | 32 | 2,048 | 25 | 15,864 | 0.0001 / 0.0342 / 0.1241 | 0.0005 / 0.0664 / 0.2253 |
+
+#### Only three of those six rows measure a search that found anything
+
+Read the table as a performance result and it says the worst case is forty times
+faster than the baseline, which is not a surprising result, it is an impossible
+one. The cause is a defect in task 50's benchmark, and it was confirmed in the
+code rather than inferred from the shape of the numbers:
+
+- `NavBenchmark.TimeProbeQuery` calls
+  `search.TryFindPath(grid, startCellIndex, goalCellIndex, blocked, scratchPath, scratchExpanded)`
+  at `src/Sandata.Headless/NavBenchmark.cs:275` and **discards the return
+  value**. `NavBenchmarkReport` has no outcome field of any kind.
+- Each seeker's start and goal pair is placed once, before the tick loop, by
+  `PlaceSeekerPair`. `ApplyChangedCells` then blocks cells on every subsequent
+  tick without re-placing anything.
+
+So a query whose goal has become unreachable returns almost immediately, having
+proved a negative, and is recorded as a fast search. The higher the density and
+the larger the changed-cell count, the more of the sample is failure latency —
+which is exactly the gradient the table shows. `worst-case` at density 40 with
+200 changed cells per tick is very nearly a pure measurement of how quickly A\*
+can establish that no path exists.
+
+**The three rows at density 20 with no changed cells are the trustworthy ones**,
+and read on their own they are coherent and unremarkable: 0.88 ms at p50 for a
+512-world-unit query, 1.70 ms for a 2,048-world-unit one, and going from four
+concurrent seekers to sixteen moves p50 by less than a tenth of a millisecond
+because the searches are independent. Stage 7's own cost tracks the query cost,
+as it should, since the stage is one search per group.
+
+This is the same class of finding as the acceptance-criterion rule wave 11
+recorded: *a measurement a fixture can satisfy without exercising the thing being
+measured is not a measurement.* A benchmark that cannot distinguish "found a path
+in 0.0001 ms" from "proved there is no path in 0.0001 ms" reports its most
+degenerate configuration as its best result.
+
+#### One task this finding creates
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 82 | 12 | Make the navigation benchmark report search outcomes | `NavBenchmark.TimeProbeQuery` discards `NavSearch.TryFindPath`'s return value at `NavBenchmark.cs:275` and `NavBenchmarkReport` carries no outcome field, so a row in which every query is unreachable reports the best percentiles in the matrix. Record the outcome of every probe query and report the breakdown beside the percentiles. Report the successful-search percentiles separately from the all-queries percentiles, since the two answer different questions and only the first one is a navigation performance number. | `src/Sandata.Headless/NavBenchmark.cs`, `src/Sandata.Headless/NavBenchmarkOptions.cs`, `tests/Sandata.Core.Tests/NavBenchmarkOptionTests.cs` | A test proves a benchmark configuration whose goals are all unreachable reports zero successful searches rather than a fast p50. The six-row matrix above is re-run and its successful-search percentiles recorded here, replacing the table above as the figures task 54 carries into `docs/development/testing.md`. | 50 | |
+
+Task 82 runs before task 54, because task 54's whole job is recording numbers and
+three of the six rows above are not yet numbers worth recording. The audio
+figures are unaffected by any of this and stand as measured.
+
+### Task 53 re-run after task 82, and the second benchmark defect it found — 2026-08-08
+
+Task 82 merged at `414c9c1` and the six-row matrix was re-run against it. The
+figures in the previous section stand as the record of what the broken benchmark
+reported; everything below supersedes them as the record of what the workload
+actually does. Task 54 carries the numbers from *this* section into
+`docs/development/testing.md`.
+
+#### What fraction of each row ever found a path
+
+| Row | Density % | Changed cells | Seekers | Query wu | Replan % | Probes | Found | Found % |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| baseline | 20 | 0 | 4 | 512 | 5 | 408 | 408 | 100.0 |
+| dense | 40 | 0 | 4 | 512 | 5 | 408 | 0 | 0.0 |
+| doors-moving | 20 | 50 | 4 | 512 | 10 | 793 | 66 | 8.3 |
+| many-seekers | 20 | 0 | 16 | 512 | 5 | 1,603 | 1,603 | 100.0 |
+| long-queries | 20 | 0 | 4 | 2,048 | 5 | 408 | 408 | 100.0 |
+| worst-case | 40 | 200 | 32 | 2,048 | 25 | 15,864 | 0 | 0.0 |
+
+The three rows called trustworthy in the previous section were the right three,
+and the assessment of the other three was too generous: `dense` is not partly
+degenerate, it is **entirely** degenerate at zero successful searches out of 408.
+It reported the second-best p50 in the whole matrix.
+
+Successful-search percentiles for the rows that have any, which are the only
+navigation performance numbers this hardware has produced:
+
+| Row | Successful p50 / p95 / p99 (ms) |
+| --- | --- |
+| baseline | 0.8861 / 1.3273 / 1.7880 |
+| doors-moving | 1.2540 / 1.8782 / 4.9456 |
+| many-seekers | 0.8169 / 1.6261 / 2.0530 |
+| long-queries | 2.1426 / 2.8909 / 3.6742 |
+
+#### The map-density parameter has a cliff between 30 and 40 percent
+
+A density sweep was run to find it, since a matrix whose rows silently fall off a
+connectivity cliff is not a matrix. All rows at zero changed cells, four seekers,
+512-world-unit queries, 5 percent replanning, 2,000 ticks:
+
+| Density % | Probes | Found | Found % | Successful p50 / p95 / p99 (ms) |
+| --- | --- | --- | --- | --- |
+| 0 | 418 | 418 | 100.0 | 0.8215 / 3.9979 / 4.4503 |
+| 10 | 408 | 408 | 100.0 | 0.5895 / 1.2473 / 1.6271 |
+| 20 | 408 | 408 | 100.0 | 0.8861 / 1.3273 / 1.7880 |
+| 30 | 408 | 206 | 50.5 | 1.2055 / 1.5904 / 1.7153 |
+| 40 | 408 | 0 | 0.0 | — |
+
+`angle-house` is an indoor map that is already walled. The density parameter
+blocks additional cells on top of that, so 40 percent extra blocking severs it
+completely and 30 percent severs half the seeker pairs. **The usable density
+range on this fixture is 0 to 20 percent**, and any future matrix row above that
+is measuring disconnection rather than pathfinding.
+
+#### The changed-cell parameter randomises the map instead of moving doors
+
+Two more rows were run inside the usable density range, and they still came back
+mostly unreachable:
+
+| Row | Density % | Changed cells | Seekers | Query wu | Replan % | Probes | Found | Found % | Successful p50 / p95 / p99 (ms) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| doors-light | 10 | 20 | 4 | 512 | 10 | 798 | 173 | 21.7 | 1.0413 / 1.7029 / 4.0855 |
+| stress-connected | 10 | 50 | 32 | 2,048 | 25 | 16,011 | 1,293 | 8.1 | 1.3470 / 3.1114 / 3.9579 |
+
+That is not a density problem, and the cause is in the code rather than in the
+parameters. `NavBenchmark.ApplyChangedCells` (`src/Sandata.Headless/NavBenchmark.cs:386-402`)
+draws `changedCellCount` **fresh random cell indices across the whole grid on
+every tick** and toggles each between `Open` and `Blocked`, skipping only
+`NavCellFlags.Door`. It is an unbiased random toggle over 28,800 cells, so the
+map random-walks away from its authored layout toward a roughly half-blocked
+noise field and then stays there. The density sweep above shows that anything
+past about 30 percent blocked is disconnected, so within a few hundred ticks
+every seeker pair is severed no matter how small the changed-cell count is. Only
+the rate of arrival differs.
+
+That is the wrong model twice over. Design section 5, stage 4 says **"Doors are
+the only runtime nav mutation in v0.1"** and that the rebake is local rather than
+global. A door is a fixed location toggling between two states; it is not an
+arbitrary interior cell being randomised, and a nav rebake in this game never
+touches a cell that is not part of a door. As written, the changed-cell
+parameter cannot measure what
+`SIMULATION-GAME-STANDARDS.md` section 11 asks it to measure — replanning cost
+against dynamic blockers — because after a short warm-up there is nothing left to
+replan through.
+
+This is the same shape as the defect task 82 fixed, one level further in. Task 82
+made the benchmark *report* that its queries were failing. This one is why they
+fail.
+
+#### One task this finding creates
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 83 | 12 | Make the benchmark's changed cells behave like doors | `NavBenchmark.ApplyChangedCells` (`NavBenchmark.cs:386-402`) redraws `changedCellCount` random cell indices across the whole grid every tick and toggles each one, so the map random-walks to a roughly half-blocked noise field and every seeker pair is severed within a few hundred ticks — the density sweep recorded above puts the disconnection threshold between 30 and 40 percent blocked. Design section 5, stage 4: "Doors are the only runtime nav mutation in v0.1", and the rebake is local. Choose the changed-cell set **once**, at placement time, from cells that are genuinely part of the authored layout's connectivity, and toggle that same fixed set each tick so the map oscillates between two known configurations instead of degrading. | `src/Sandata.Headless/NavBenchmark.cs`, `tests/Sandata.Core.Tests/NavBenchmarkOptionTests.cs` | A test proves a 2,000-tick run with a nonzero changed-cell count ends with the same set of cells blocked-or-open as some tick early in the run, rather than a monotonically degrading one. A test proves the successful-search fraction of a changed-cell run inside the usable density range stays above a stated floor for the whole run instead of collapsing. The `doors-light` and `stress-connected` rows above are re-run and their successful-search percentiles recorded here. | 82 | |
+
+Task 83, like task 82, runs before task 54. The audio measurements in the
+previous section are untouched by any of this and stand as measured.
+
+**The usable matrix, as it stands today**, is density 0 to 20 with zero changed
+cells. Within it the numbers are coherent and unremarkable: roughly 0.6 to 0.9 ms
+at p50 for a 512-world-unit query on a 160-by-180-cell grid, about 2.1 ms for a
+2,048-world-unit one, and moving from four concurrent seekers to sixteen barely
+moves p50 because the searches are independent of one another.
+
+### Task 53 complete, after tasks 82 and 83 — 2026-08-08
+
+Task 83 merged at `8533b26` and the matrix was run a third time. **These are the
+figures task 54 records in `docs/development/testing.md`.** The two earlier
+tables are kept above as the record of two real defects and how they presented,
+not as measurements of anything.
+
+Task 83's effect on the two rows it was dispatched against is the confirmation
+that the diagnosis was right, and it is large:
+
+| Row | Found before task 83 | Found after |
+| --- | --- | --- |
+| doors-light | 173 of 798, 21.7 percent | 820 of 820, 100.0 percent |
+| stress-connected | 1,293 of 16,011, 8.1 percent | 14,933 of 15,937, 93.7 percent |
+
+#### The measurement, on named hardware
+
+```
+BO | Microsoft Windows 10.0.26200 (X64) | 20 logical processors | .NET 10.0.10
+```
+
+**Audio instance pool.** The 257th concurrent `SoundEffectInstance` throws
+`InstancePlayLimitException`, so 256 is the usable pool. Eight shooters
+sustained automatic fire for ten seconds holding sixteen instances — one loop
+and one tail each — with fourteen tail cues fired, zero refused, and no
+exception. `SandataSoundBudget.DefaultMaximumInstances` was moved from the
+provisional 64 to the measured 256 at commit `650214c`, and its provisional
+markers removed.
+
+The constant equals the ceiling rather than sitting below it, and that is a
+deliberate choice with a stated precondition rather than an oversight. This
+budget refuses the 257th reservation, which is the same instance MonoGame would
+have thrown on, so no headroom is required — **but only while every played
+instance is reserved here first.** Every cue path on `SandataSoundPlayer` goes
+through `TryReserve` before `ISandataSoundOutput.Play` today. A future task that
+adds a play path bypassing the budget reintroduces exactly the exception this
+constant exists to prevent, and that is the fifth instance of this repository's
+recurring "a validated door beside an open one" hazard.
+
+**Navigation matrix.** The `angle-house` fixture bakes to a 160-by-180-cell nav
+grid. Seed 1, 2,000 ticks per row.
+
+| Row | Density % | Changed cells | Seekers | Query wu | Replan % | Probes | Found % | Successful p50 / p95 / p99 (ms) | Stage 7 p50 / p95 / p99 (ms) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| baseline | 20 | 0 | 4 | 512 | 5 | 408 | 100.0 | 0.9376 / 1.5742 / 1.8825 | 0.0001 / 1.1056 / 1.6790 |
+| many-seekers | 20 | 0 | 16 | 512 | 5 | 1,603 | 100.0 | 0.7900 / 1.5222 / 1.8724 | 0.0672 / 1.7753 / 2.8294 |
+| long-queries | 20 | 0 | 4 | 2,048 | 5 | 408 | 100.0 | 1.5465 / 2.9441 / 3.2198 | 0.0001 / 2.4036 / 3.2181 |
+| doors-light | 10 | 20 | 4 | 512 | 10 | 820 | 100.0 | 0.5794 / 1.2112 / 1.3738 | 0.0001 / 0.9457 / 1.3047 |
+| stress-connected | 10 | 50 | 32 | 2,048 | 25 | 15,937 | 93.7 | 1.3415 / 4.8988 / 6.0748 | 3.8829 / 11.5732 / 15.9489 |
+
+What the numbers say, now that they say anything:
+
+- A single A\* query over a 512-world-unit distance costs well under a
+  millisecond at p50 and under two at p99.
+- Quadrupling the query distance to 2,048 world units roughly doubles the cost,
+  which is the expected shape for grid A\* over a bounded indoor map.
+- Going from four concurrent seekers to sixteen barely moves p50, because the
+  searches are independent of one another. What it moves is the stage-7 total,
+  which is the sum of them.
+- **The stress row is the one worth watching.** Thirty-two seekers replanning at
+  25 percent puts stage 7 at 3.88 ms p50 and 15.95 ms p99. At the 50 Hz tick
+  rate the ruleset declares, one tick is 20 ms, so that row spends most of a
+  tick budget in one stage. It is far past anything design section 8 anticipates
+  — that section's cost table is written for `n = 16` operators and `g = 4`
+  groups — and it is not a configuration the game runs. It is recorded because a
+  measured ceiling is worth more than an assumed one.
+- The 6.3 percent of stress-row queries that still fail are genuine: at 50
+  toggling cells and 32 seekers, some goals sit behind a cell that is blocked in
+  the toggled configuration. That is a real dynamic-blocker case, which is what
+  the row was meant to measure.
+
+#### One cost this incurred, recorded rather than absorbed silently
+
+Tasks 82 and 83 added seven test cases that run the benchmark itself, including a
+2,000-tick, 32-seeker, 2,048-world-unit row. Sandata's core suite went from
+roughly ten seconds to about 45. That does not touch the canonical gate today,
+because design section 14 keeps the gate on the Hukbo projects until Sandata has
+a recorded baseline. **It will matter at task 55**, which is the task that
+proposes running `verify.ps1 -Game Sandata`. Whoever takes that decision should
+know they are adding about 45 seconds, and that roughly half of it is one test
+case, before deciding whether the benchmark tests belong in a gate at all or
+belong beside `tools/` as hand-run measurement.
+
+Task 53 is complete. Tasks 82 and 83 are complete. Task 54 now has figures worth
+recording.
+
+### There is no movement speed, and an ordered operator teleports — 2026-08-08
+
+Task 79b's rejected first attempt pinned `leaderArclength` to the polyline's
+`TotalLength`, and the redo's evidence for why that was wrong turned up something
+larger than the defect it was sent back to fix. With the bad pin restored, the
+operator's raw X after a single `RunTick` was **26,624** — the goal's own raw X,
+26 world units — where a correct projection produces 7,168. It did not move
+toward the goal over several ticks. It arrived, in one.
+
+The cause is not in stage 9. `LocalAvoidance.Commit`
+(`src/Sandata.Core/Movement/LocalAvoidance.cs:105-148`) hands
+`proposal.DesiredXRaw` and `proposal.DesiredYRaw` straight to
+`SandataCollisionResolver.Resolve`. **Nothing anywhere clamps how far an operator
+may move in one tick.** There is no speed field on `SandataRuleset`, no step
+constant in `Movement/`, and no distance check in the resolver. An operator moves
+to its proposed position in a single tick regardless of distance, subject only to
+collision.
+
+That is defensible as a division of labour — design section 8 describes stage 10
+as "commit sequentially against the collision grid" and says nothing about
+speed, so producing one tick's worth of movement is the *proposer's* obligation,
+and stage 9 is the proposer. What is not defensible is that only one of the two
+proposal branches honours it:
+
+- **The autonomous branch now does**, since task 79b: it samples the polyline at
+  the leader's projected arclength plus `FormationLookaheadWu`, so the proposed
+  point is a bounded distance from the current one. That bound is an accidental
+  speed and it is marked provisional.
+- **The ordered branch does not.** `ComputeMovementProposals` sets
+  `desiredXRaw = RawFromWorldUnits(node.X)` directly from
+  `assignment.PathNodes[assignment.CurrentNodeIndex]`. An operator following a
+  path a player drew jumps to its current waypoint in one tick.
+
+This is reachable in the game right now. Task 80 wired `Sandata.Client`'s path
+draw tool to `SandataSimulation.SubmitOrder` and gave the client a real
+simulation over `angle-house.hkmap`, so drawing a path and submitting it is a
+thing a person can do, and what they will see is an operator teleporting between
+the waypoints they drew. Design section 16 promises the opposite in as many
+words: "A path a person drew is that person's decision", with the operator
+walking it and the inspector able to report "the node index currently being
+walked". A node index being walked presumes walking.
+
+The wider point is worth stating plainly, because it explains why this went
+unnoticed for eleven waves: **every stage-9 test before task 79b asserted that an
+operator's position changed, and none asserted how far it moved.** A teleport
+satisfies "moved" perfectly. It is the same shape as the two benchmark defects
+this wave found — a measurement that cannot distinguish the success it claims to
+observe from a degenerate case that looks identical.
+
+#### One task this creates
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 84 | 12 | Give movement a speed | `LocalAvoidance.Commit` commits `MovementProposal.DesiredXRaw`/`DesiredYRaw` unclamped, so an operator moves any distance in one tick. Stage 9's ordered branch proposes the authored waypoint itself, so an operator under a drawn order teleports between the nodes a player drew — observable in the client task 80 wired up. Clamp the proposed step to a per-tick movement distance in stage 9, for **both** branches, so the ordered branch walks its polyline instead of jumping to it. Replace task 79b's provisional `FormationLookaheadWu` with that same distance rather than leaving two constants that both mean "how far in one tick". Do not add a `SandataRuleset` field — that moves the pinned `ContentHash` `8_955_292_433_887_190_872`; declare it a provisional `const` marked at its declaration, as task 79b's four already are, and record that a real tuning pass owes this a measured value. | `src/Sandata.Core/Simulation/SandataSimulation.cs` (stage 9 only), `tests/Sandata.Core.Tests/TickPipelineTests.cs` | A test proves an operator under an `OrderAssignment` whose next waypoint is far away takes more than one tick to reach it, and that its per-tick displacement never exceeds the constant — asserted on the displacement, not on "the position changed". A test proves the same bound for the autonomous branch. Task 79b's `RunTick_UnassignedOperatorInGroupWithPublishedPath_FollowsTheBentPolylineNotTheGoal` still passes, with its pinned raw coordinates updated if and only if the constant differs from `FormationLookaheadWu`'s 8. | 79b, 80 | |
+
+Task 84 shares `SandataSimulation.cs` with every remaining task-79 split and with
+task 81, so it does not run beside any of them.
+
+### Task 79c complete, and the pinned-literal habit it exposed — 2026-08-08
+
+Merged at `2d1db58`. `OperatorState` gained a `Firearm` field, folded last inside
+`FoldOperator` — after the nested contact-memory entries, not interleaved among
+the scalar fields — carried through `MissionSnapshot` with no edit to that file
+at all, and read at stage 11 in place of the hardcoded `DefaultFirearmId`.
+
+The wave-12 audit's corrected acceptance criterion is what this task was built
+against, and it was the right correction. The original row asked for a test
+pinning the *pre-change* state hash; that test cannot exist, because folding one
+more value into FNV-1a changes the digest unconditionally.
+
+**The seed-1 workload's state hash moved from `00EC034D18941D36` to
+`FB4715E7AFF108F6`, on purpose**, and the run stayed `deterministic: true` with
+`firstMismatchTick: null`. That is this task's deliverable. The event hash is
+still `CBF29CE484222325`, the bare FNV-1a offset basis, because nothing yet emits
+during a run — task 79d-1 is what changes that.
+
+`PreTask79cBaselineHash` is `3_159_438_799_659_597_482UL`.
+
+#### A real bug in the hasher, found because the fold had to go last
+
+`FoldOperator` used to `return` early from inside `if (contactMemory.IsDefault)`.
+Nothing followed that branch, so it had never skipped anything and no recorded
+hash was ever wrong. It was a trap laid for the next person to append a fold:
+any operator whose `ContactMemory` was still its default value would have
+silently skipped the appended field, producing a hash that depended on whether an
+unrelated array had been initialised. Task 79c restructured it to an
+`if (!contactMemory.IsDefault)` block with no early return, which changes no
+pre-existing hash and makes the appended fold unconditional.
+
+#### Two absolute-literal pins broke, and updating them was the integrator's call
+
+`OrderStateHashTests.PreTask61BaselineHash` and
+`MissionEventFeedTests.PreTask76BaselineHash` both pinned
+`5_550_901_129_500_655_850UL` for the same fixture, and task 79c's appended fold
+moved both to `3_159_438_799_659_597_482UL`. **The implementing agent stopped at
+its grant boundary and reported the two failures rather than editing literals it
+had not been given** — which is exactly right, and is the second time this wave an
+agent has been correct to refuse an instruction. The integrating thread made the
+edit and the judgement, at commit `2d1db58`.
+
+The judgement, written down because it is the kind that gets made silently and
+then regretted: updating those literals is **not** the forbidden "re-pin a hash to
+go green". The property each test guards is untouched by task 79c. `PreTask61`
+guards that an empty order queue folds nothing; `PreTask76` guards that
+`SandataStateHasher.Compute` never reads `MissionState.EventFeed`. Both remain
+true. Only the absolute value of an unrelated fixture moved, for a sanctioned
+reason recorded above. Had the *property* broken, the correct action would have
+been to stop.
+
+But the episode names a habit worth fixing. **Both tests assert an absolute
+literal where they mean to assert an invariant.** Written that way, every future
+legitimate change to the operator fold breaks two unrelated test files and
+presents the next agent with a one-character fix that looks harmless and is
+sometimes catastrophic. `MissionEventFeedTests` already contains the better
+form of its own assertion —
+`StateHash_DoesNotMove_WhenTheEventFeedGainsEvents` compares two computed hashes
+and is invariant under any appended fold — so the pattern is already in the
+repository and is simply not used consistently.
+
+#### One task this creates
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 85 | 12 | Turn the absolute state-hash pins into invariant assertions | `OrderStateHashTests.PreTask61BaselineHash` and `MissionEventFeedTests.PreTask76BaselineHash` pin an absolute fixture digest to guard properties that are actually relational: "an empty order queue folds nothing" and "`Compute` never reads the event feed". Any legitimate change to the operator fold breaks both and invites a one-character re-pin. Rewrite each as a comparison between two computed hashes — the state with an empty queue against a state whose queue was never populated, and the state with an empty feed against the same state with events appended — following `StateHash_DoesNotMove_WhenTheEventFeedGainsEvents`, which already does it correctly in the same file. Keep exactly one absolute pin in the suite, `PreTask79cBaselineHash`, as the deliberate canary that fires when any state fold changes, and say in its comment that it is the only one and why. | `tests/Sandata.Core.Tests/OrderStateHashTests.cs`, `tests/Sandata.Core.Tests/MissionEventFeedTests.cs`, `tests/Sandata.Core.Tests/MissionStateTests.cs` | Both rewritten tests pass, and both still fail if their guarded property is genuinely broken — proved by temporarily breaking each property and recording the failure. Exactly one absolute state-hash literal remains in `tests/Sandata.Core.Tests/`, confirmed by search, and the search used is recorded. | 79c | |
+
+Task 85 touches only test files, but it is **not** free to run beside anything:
+`MissionEventFeedTests.cs` is writable to task 79d-1, and `TickPipelineTests.cs`
+is writable to tasks 81 and 84. This correction is itself the file-level half of
+the audit doing its job — the sentence originally written here claimed task 85
+conflicted with nothing, and that claim was wrong the moment task 79d-1 was
+dispatched with the same test file in its grant. Task 85 runs after task 79d-1
+merges, and not beside task 81 or task 84.

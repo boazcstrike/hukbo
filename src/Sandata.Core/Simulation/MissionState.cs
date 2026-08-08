@@ -4,6 +4,7 @@ using Hukbo.Core.Movement;
 using Sandata.Core.Events;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Orders;
+using Sandata.Core.Weapons;
 
 namespace Sandata.Core.Simulation;
 
@@ -171,6 +172,23 @@ public sealed record OperatorState(
     public ImmutableArray<ContactMemoryEntry> ContactMemory { get; init; } =
         ImmutableArray<ContactMemoryEntry>.Empty;
 
+    /// <summary>
+    /// The firearm this operator carries. Task 79c
+    /// (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12 audit's
+    /// corrected obligation) adds this field so <see
+    /// cref="Simulation.SandataSimulation.AdvanceWeaponChain"/> can read a
+    /// real per-operator loadout instead of its own hardcoded
+    /// <c>DefaultFirearmId</c>. Defaults to <see cref="FirearmId.Ak47"/> —
+    /// the same value that constant already named — so behaviour is
+    /// unchanged for every existing caller that does not set this
+    /// explicitly. <b>What decides which weapon an operator actually
+    /// carries is undesigned</b>; this field only carries the value, it does
+    /// not choose it. <see cref="Determinism.SandataStateHasher"/> folds it
+    /// last inside its per-operator block, after
+    /// <see cref="ContactMemory"/>.
+    /// </summary>
+    public FirearmId Firearm { get; init; } = FirearmId.Ak47;
+
     public bool Equals(OperatorState? other)
     {
         if (other is null)
@@ -198,6 +216,7 @@ public sealed record OperatorState(
             MagazineRounds == other.MagazineRounds &&
             CyclicFireAccumulator == other.CyclicFireAccumulator &&
             SuppressionCounter == other.SuppressionCounter &&
+            Firearm == other.Firearm &&
             ContactMemorySpan.SequenceEqual(other.ContactMemorySpan);
     }
 
@@ -219,6 +238,7 @@ public sealed record OperatorState(
         hash.Add(MagazineRounds);
         hash.Add(CyclicFireAccumulator);
         hash.Add(SuppressionCounter);
+        hash.Add(Firearm);
         foreach (var entry in ContactMemorySpan)
         {
             hash.Add(entry);

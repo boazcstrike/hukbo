@@ -27,4 +27,13 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <!--
+      Task 80: the client boots against the same angle-house.hkmap fixture
+      Sandata.Core.Tests already owns, so the map stays a single source of
+      truth instead of a duplicated copy. Linked, not copied — this is the
+      one fixture file on disk, referenced from two projects.
+    -->
+    <Content Include="../../tests/Sandata.Core.Tests/Fixtures/angle-house.hkmap" Link="Maps/angle-house.hkmap" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

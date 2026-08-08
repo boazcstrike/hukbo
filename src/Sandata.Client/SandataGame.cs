@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 using Hukbo.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -11,6 +13,8 @@ using Sandata.Core.Maps;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
+using Sandata.Core.Rules;
+using Sandata.Core.Simulation;
 
 namespace Sandata.Client;
 
@@ -154,6 +158,49 @@ internal sealed class SandataGame : Game
     private const int PlaceholderOrderFactionId = 0;
 
     /// <summary>
+    /// <see cref="Mission.Seed"/> for the <see cref="Mission"/> this class
+    /// builds so it can construct a <see cref="SandataSimulation"/>. No task
+    /// before this one wires a real seed source (menu, launch argument, save
+    /// file) into the Sandata client, and this task's own file list does not
+    /// add one, so every client-hosted run uses this fixed value until a
+    /// later task supplies a real one.
+    /// </summary>
+    private const ulong PlaceholderMissionSeed = 1UL;
+
+    /// <summary>
+    /// <see cref="MissionTickPolicy.TickLimit"/> for the client's
+    /// <see cref="Mission"/>. This task never calls
+    /// <see cref="SandataSimulation.RunTick"/> — it only submits orders
+    /// through <see cref="SandataSimulation.SubmitOrder"/> — so this value is
+    /// never actually reached by this class; it exists only because
+    /// <see cref="MissionTickPolicy"/> requires a positive value.
+    /// </summary>
+    private const int PlaceholderTickLimit = 36_000;
+
+    /// <summary>
+    /// <see cref="MissionTickPolicy.StateHashCadenceTicks"/> for the client's
+    /// <see cref="Mission"/>. Unreached for the same reason as
+    /// <see cref="PlaceholderTickLimit"/>.
+    /// </summary>
+    private const int PlaceholderStateHashCadenceTicks = 1;
+
+    /// <summary>
+    /// <see cref="MissionFactionSetup.OperatorCount"/> must be strictly
+    /// positive for both factions (<see cref="Mission"/>'s own constructor
+    /// validation), but this class's own constructor doc comment treats an
+    /// empty map-records array as "a valid, empty world, not an error." This
+    /// floor keeps that promise: when a faction's real spawn count from the
+    /// map is zero, the <see cref="Mission"/> this class builds still reports
+    /// one seat for that faction, purely so the constructor does not throw.
+    /// Nothing in <c>Sandata.Core</c> reads <see cref="Mission.FactionSetups"/>
+    /// anywhere else (confirmed by a repository-wide search before this
+    /// task's implementation), so this floor never inflates
+    /// <see cref="MissionState.Operators"/> — that list stays exactly as long
+    /// as the real, possibly-empty, spawn list the map supplied.
+    /// </summary>
+    private const int MinimumMissionFactionOperatorCount = 1;
+
+    /// <summary>
     /// A theme used only if the shipped catalog at
     /// <c>Content/Themes/sandata-theme-standards.json</c> cannot be read or
     /// fails validation. <see cref="SandataThemeCatalog"/> (task 13) exposes
@@ -227,6 +274,7 @@ internal sealed class SandataGame : Game
     private readonly SandataTheme _theme;
     private readonly NavGrid _navGrid;
     private readonly WallBuckets _wallBuckets;
+    private readonly SandataSimulation _simulation;
     private readonly SandataSoundPlayer _soundPlayer;
     private readonly UndoStack<int> _undoStack = new();
     private readonly int _operatorCount;
@@ -240,7 +288,6 @@ internal sealed class SandataGame : Game
     private DragCapture _dragCapture = DragCapture.Inactive;
     private MultiSelectState _multiSelect = MultiSelectState.Empty;
     private PathDrawState _pathDrawState = PathDrawState.CreateEmpty();
-    private OrderQueue _orderQueue = OrderQueue.Empty;
     private ImmutableArray<GoCodePanel.GoCodeEntry> _goCodeEntries = ImmutableArray<GoCodePanel.GoCodeEntry>.Empty;
     private ImmutableArray<OrderQueueView.Entry> _orderQueueEntries = ImmutableArray<OrderQueueView.Entry>.Empty;
 
@@ -302,6 +349,28 @@ internal sealed class SandataGame : Game
         // over the same wall data _navGrid was already baked from — no
         // earlier task builds one for the Sandata client.
         _wallBuckets = BuildWallBuckets(_navGrid, _wallRecords);
+
+        // Task 80: build a real Mission/MissionState pair from the caller's
+        // own already-validated map, and construct the one production
+        // SandataSimulation this class ever hosts. SandataSimulation.SubmitOrder
+        // is the only door into OrderQueue that also emits
+        // MissionEventKind.OrderRejected, so a real simulation instance is
+        // required before either ReleaseGoCode or SubmitDrawnPath can call it.
+        var canonicalMapRecords = MapCanonicalizer.Canonicalize(_mapRecords);
+        var mapContentHash = MapContentHash.Compute(canonicalMapRecords);
+
+        var mission = new Mission(
+            formatVersion: Mission.CurrentFormatVersion,
+            seed: PlaceholderMissionSeed,
+            mapContentHash: mapContentHash,
+            tickPolicy: new MissionTickPolicy(PlaceholderTickLimit, PlaceholderStateHashCadenceTicks),
+            factionSetups: ImmutableArray.Create(
+                new MissionFactionSetup(FactionId: 0, OperatorCount: Math.Max(MinimumMissionFactionOperatorCount, _operatorCount)),
+                new MissionFactionSetup(FactionId: 1, OperatorCount: Math.Max(MinimumMissionFactionOperatorCount, _contactCount))),
+            rulesetId: SandataPresetId.ModernTacticalV1);
+
+        var initialState = BuildInitialState(_spawnRecords);
+        _simulation = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, _navGrid, _wallBuckets, initialState);
 
         // Task 39 built SandataSoundPlayer and SandataSoundBudget but
         // deliberately left the MonoGame-backed ISandataSoundOutput to a
@@ -466,14 +535,12 @@ internal sealed class SandataGame : Game
 
         var addressees = ToAddressees(_multiSelect.SelectedEntityIds);
 
-        (_pathDrawState, _orderQueue, _orderQueueEntries) = SubmitDrawnPath(
+        (_pathDrawState, _orderQueueEntries) = SubmitDrawnPath(
             _pathDrawState,
             addressees,
             PlaceholderOrderTargetTick,
             PlaceholderOrderFactionId,
-            _orderQueue,
-            _navGrid,
-            _wallBuckets,
+            _simulation,
             _orderQueueEntries);
     }
 
@@ -506,14 +573,12 @@ internal sealed class SandataGame : Game
             var letter = (char)('A' + (key - Keys.A));
             var addressees = ToAddressees(_multiSelect.SelectedEntityIds);
 
-            (_orderQueue, _goCodeEntries, _orderQueueEntries) = ReleaseGoCode(
+            (_goCodeEntries, _orderQueueEntries) = ReleaseGoCode(
                 letter,
                 addressees,
                 PlaceholderOrderTargetTick,
                 PlaceholderOrderFactionId,
-                _orderQueue,
-                _navGrid,
-                _wallBuckets,
+                _simulation,
                 _goCodeEntries,
                 _orderQueueEntries);
         }
@@ -620,34 +685,31 @@ internal sealed class SandataGame : Game
     /// <summary>
     /// Submits one <see cref="OrderKind.GoCodeRelease"/> order for
     /// <paramref name="letter"/>, addressed to <paramref name="addressees"/>,
-    /// through <see cref="OrderQueue.SubmitValidated"/> — the same door
-    /// <see cref="UI.PathDrawTool.Submit"/> uses for a drawn path — and folds
-    /// the result into both the go-code panel's own entry list and the order
-    /// queue view's entry list, so an accepted release marks its code
+    /// through <see cref="SandataSimulation.SubmitOrder"/> — the same door
+    /// <see cref="UI.PathDrawTool.Submit"/> uses for a drawn path, and the
+    /// only production door into <see cref="OrderQueue"/> that also emits
+    /// <see cref="Sandata.Core.Events.MissionEventKind.OrderRejected"/> on rejection — and
+    /// folds the result into both the go-code panel's own entry list and the
+    /// order queue view's entry list, so an accepted release marks its code
     /// released and a rejected one still becomes an observable queue entry
     /// carrying its specific <see cref="OrderRejectReason"/> (design section
     /// 16: "rejection is observable").
     /// </summary>
     internal static (
-        OrderQueue Queue,
         ImmutableArray<GoCodePanel.GoCodeEntry> GoCodeEntries,
         ImmutableArray<OrderQueueView.Entry> OrderQueueEntries) ReleaseGoCode(
         char letter,
         ImmutableArray<ulong> addressees,
         long targetTick,
         int factionId,
-        OrderQueue queue,
-        NavGrid grid,
-        WallBuckets wallBuckets,
+        SandataSimulation simulation,
         ImmutableArray<GoCodePanel.GoCodeEntry> existingGoCodeEntries,
         ImmutableArray<OrderQueueView.Entry> existingOrderQueueEntries)
     {
-        ArgumentNullException.ThrowIfNull(queue);
-        ArgumentNullException.ThrowIfNull(grid);
-        ArgumentNullException.ThrowIfNull(wallBuckets);
+        ArgumentNullException.ThrowIfNull(simulation);
 
-        var (updatedQueue, submitted, rejection) = queue.SubmitValidated(
-            targetTick, factionId, addressees, OrderKind.GoCodeRelease, grid, wallBuckets);
+        var (_, submitted, rejection) = simulation.SubmitOrder(
+            targetTick, factionId, addressees, OrderKind.GoCodeRelease);
 
         var goCodeEntries = existingGoCodeEntries.IsDefault
             ? ImmutableArray<GoCodePanel.GoCodeEntry>.Empty
@@ -667,7 +729,7 @@ internal sealed class SandataGame : Game
                 OrderQueueView.FromRejection(rejection, OrderKind.GoCodeRelease, targetTick));
         }
 
-        return (updatedQueue, goCodeEntries, orderQueueEntries);
+        return (goCodeEntries, orderQueueEntries);
     }
 
     /// <summary>
@@ -693,7 +755,7 @@ internal sealed class SandataGame : Game
     /// <see cref="OrderQueue.NextOrderId"/> and
     /// <see cref="OrderQueue.NextOrderSequence"/> for nothing. This method
     /// refuses that case before calling <see cref="UI.PathDrawTool.Submit"/>
-    /// at all: <paramref name="queue"/>, its counters, and
+    /// at all: <paramref name="simulation"/>'s own state and
     /// <paramref name="existingOrderQueueEntries"/> all come back byte-for-byte
     /// unchanged, and — because nothing was submitted — <paramref name="state"/>
     /// also comes back unchanged rather than being reset to empty, so a
@@ -712,20 +774,15 @@ internal sealed class SandataGame : Game
     /// </remarks>
     internal static (
         PathDrawState State,
-        OrderQueue Queue,
         ImmutableArray<OrderQueueView.Entry> OrderQueueEntries) SubmitDrawnPath(
         PathDrawState state,
         ImmutableArray<ulong> addressees,
         long targetTick,
         int factionId,
-        OrderQueue queue,
-        NavGrid grid,
-        WallBuckets wallBuckets,
+        SandataSimulation simulation,
         ImmutableArray<OrderQueueView.Entry> existingOrderQueueEntries)
     {
-        ArgumentNullException.ThrowIfNull(queue);
-        ArgumentNullException.ThrowIfNull(grid);
-        ArgumentNullException.ThrowIfNull(wallBuckets);
+        ArgumentNullException.ThrowIfNull(simulation);
 
         var orderQueueEntries = existingOrderQueueEntries.IsDefault
             ? ImmutableArray<OrderQueueView.Entry>.Empty
@@ -733,11 +790,11 @@ internal sealed class SandataGame : Game
 
         if (addressees.IsDefaultOrEmpty)
         {
-            return (state, queue, orderQueueEntries);
+            return (state, orderQueueEntries);
         }
 
-        var (updatedState, updatedQueue, submitted, rejection) = PathDrawTool.Submit(
-            state, queue, targetTick, factionId, addressees, grid, wallBuckets);
+        var (updatedState, submitted, rejection) = PathDrawTool.Submit(
+            state, simulation, targetTick, factionId, addressees);
 
         if (submitted is not null)
         {
@@ -749,7 +806,7 @@ internal sealed class SandataGame : Game
                 OrderQueueView.FromRejection(rejection, OrderKind.MoveAlongPath, targetTick));
         }
 
-        return (updatedState, updatedQueue, orderQueueEntries);
+        return (updatedState, orderQueueEntries);
     }
 
     /// <summary>
@@ -1277,6 +1334,60 @@ internal sealed class SandataGame : Game
         }
 
         return WallBuckets.Build(grid, segmentAX, segmentAY, segmentBX, segmentBY);
+    }
+
+    /// <summary>
+    /// Builds the client's initial <see cref="MissionState"/> directly from
+    /// the map's own <see cref="SpawnRecord"/> values — real position,
+    /// faction, and facing, in spawn order (already ascending, satisfying
+    /// <see cref="MissionState.Operators"/>'s own ascending-<c>EntityId</c>
+    /// requirement). <see cref="OperatorState.AimAngle"/> uses the spawn's
+    /// exact raw <see cref="Bam16"/> facing rather than the coarser
+    /// <see cref="Facing16"/> reconstruction <c>Sandata.Headless.HeadlessRunner</c>
+    /// uses, because this caller — unlike that one — actually has the exact
+    /// value to carry. Every other <see cref="OperatorState"/> field
+    /// (<c>Health</c>, <c>MagazineRounds</c>, and the rest) has no source in
+    /// a <see cref="SpawnRecord"/> at all, so each is a fixed placeholder
+    /// copied from <c>HeadlessRunner.BuildInitialState</c> — the one existing
+    /// production template for this shape, and the only one this task's file
+    /// list permits reading rather than editing.
+    /// </summary>
+    private static MissionState BuildInitialState(ImmutableArray<SpawnRecord> spawnRecords)
+    {
+        var operators = ImmutableArray.CreateBuilder<OperatorState>(spawnRecords.Length);
+        for (var index = 0; index < spawnRecords.Length; index++)
+        {
+            var spawn = spawnRecords[index];
+            var rawFacing = new Bam16((ushort)spawn.FacingBam);
+
+            operators.Add(new OperatorState(
+                EntityId: (ulong)(index + 1),
+                PositionX: FixedPoint.FromWhole(spawn.X),
+                PositionY: FixedPoint.FromWhole(spawn.Y),
+                Facing: rawFacing.ToFacing16(),
+                AimAngle: rawFacing,
+                Health: 100,
+                Faction: spawn.Faction,
+                Intent: 0,
+                IsCrouched: false,
+                WeaponLowered: false,
+                WeaponChainPhase: 0,
+                WeaponChainRemainingTicks: 0,
+                MagazineRounds: 30,
+                CyclicFireAccumulator: 0,
+                SuppressionCounter: 0));
+        }
+
+        var built = operators.MoveToImmutable();
+        return new MissionState(
+            Tick: 0, Phase: 1, Winner: -1, NextEntityId: (ulong)(spawnRecords.Length + 1), NextEventSequence: 0)
+        {
+            Operators = built,
+            FactionAlerts = ImmutableArray.Create(new FactionAlertState(0, 0), new FactionAlertState(1, 0)),
+            Doors = ImmutableArray<DoorState>.Empty,
+            Groups = ImmutableArray<GroupPathState>.Empty,
+            RngStreams = ImmutableArray<RngStreamState>.Empty,
+        };
     }
 
     private static ImmutableArray<SpawnRecord> FindSpawns(ImmutableArray<MapRecord> records)
