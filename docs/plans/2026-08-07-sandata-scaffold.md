@@ -2822,3 +2822,89 @@ cells. Within it the numbers are coherent and unremarkable: roughly 0.6 to 0.9 m
 at p50 for a 512-world-unit query on a 160-by-180-cell grid, about 2.1 ms for a
 2,048-world-unit one, and moving from four concurrent seekers to sixteen barely
 moves p50 because the searches are independent of one another.
+
+### Task 53 complete, after tasks 82 and 83 — 2026-08-08
+
+Task 83 merged at `8533b26` and the matrix was run a third time. **These are the
+figures task 54 records in `docs/development/testing.md`.** The two earlier
+tables are kept above as the record of two real defects and how they presented,
+not as measurements of anything.
+
+Task 83's effect on the two rows it was dispatched against is the confirmation
+that the diagnosis was right, and it is large:
+
+| Row | Found before task 83 | Found after |
+| --- | --- | --- |
+| doors-light | 173 of 798, 21.7 percent | 820 of 820, 100.0 percent |
+| stress-connected | 1,293 of 16,011, 8.1 percent | 14,933 of 15,937, 93.7 percent |
+
+#### The measurement, on named hardware
+
+```
+BO | Microsoft Windows 10.0.26200 (X64) | 20 logical processors | .NET 10.0.10
+```
+
+**Audio instance pool.** The 257th concurrent `SoundEffectInstance` throws
+`InstancePlayLimitException`, so 256 is the usable pool. Eight shooters
+sustained automatic fire for ten seconds holding sixteen instances — one loop
+and one tail each — with fourteen tail cues fired, zero refused, and no
+exception. `SandataSoundBudget.DefaultMaximumInstances` was moved from the
+provisional 64 to the measured 256 at commit `650214c`, and its provisional
+markers removed.
+
+The constant equals the ceiling rather than sitting below it, and that is a
+deliberate choice with a stated precondition rather than an oversight. This
+budget refuses the 257th reservation, which is the same instance MonoGame would
+have thrown on, so no headroom is required — **but only while every played
+instance is reserved here first.** Every cue path on `SandataSoundPlayer` goes
+through `TryReserve` before `ISandataSoundOutput.Play` today. A future task that
+adds a play path bypassing the budget reintroduces exactly the exception this
+constant exists to prevent, and that is the fifth instance of this repository's
+recurring "a validated door beside an open one" hazard.
+
+**Navigation matrix.** The `angle-house` fixture bakes to a 160-by-180-cell nav
+grid. Seed 1, 2,000 ticks per row.
+
+| Row | Density % | Changed cells | Seekers | Query wu | Replan % | Probes | Found % | Successful p50 / p95 / p99 (ms) | Stage 7 p50 / p95 / p99 (ms) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| baseline | 20 | 0 | 4 | 512 | 5 | 408 | 100.0 | 0.9376 / 1.5742 / 1.8825 | 0.0001 / 1.1056 / 1.6790 |
+| many-seekers | 20 | 0 | 16 | 512 | 5 | 1,603 | 100.0 | 0.7900 / 1.5222 / 1.8724 | 0.0672 / 1.7753 / 2.8294 |
+| long-queries | 20 | 0 | 4 | 2,048 | 5 | 408 | 100.0 | 1.5465 / 2.9441 / 3.2198 | 0.0001 / 2.4036 / 3.2181 |
+| doors-light | 10 | 20 | 4 | 512 | 10 | 820 | 100.0 | 0.5794 / 1.2112 / 1.3738 | 0.0001 / 0.9457 / 1.3047 |
+| stress-connected | 10 | 50 | 32 | 2,048 | 25 | 15,937 | 93.7 | 1.3415 / 4.8988 / 6.0748 | 3.8829 / 11.5732 / 15.9489 |
+
+What the numbers say, now that they say anything:
+
+- A single A\* query over a 512-world-unit distance costs well under a
+  millisecond at p50 and under two at p99.
+- Quadrupling the query distance to 2,048 world units roughly doubles the cost,
+  which is the expected shape for grid A\* over a bounded indoor map.
+- Going from four concurrent seekers to sixteen barely moves p50, because the
+  searches are independent of one another. What it moves is the stage-7 total,
+  which is the sum of them.
+- **The stress row is the one worth watching.** Thirty-two seekers replanning at
+  25 percent puts stage 7 at 3.88 ms p50 and 15.95 ms p99. At the 50 Hz tick
+  rate the ruleset declares, one tick is 20 ms, so that row spends most of a
+  tick budget in one stage. It is far past anything design section 8 anticipates
+  — that section's cost table is written for `n = 16` operators and `g = 4`
+  groups — and it is not a configuration the game runs. It is recorded because a
+  measured ceiling is worth more than an assumed one.
+- The 6.3 percent of stress-row queries that still fail are genuine: at 50
+  toggling cells and 32 seekers, some goals sit behind a cell that is blocked in
+  the toggled configuration. That is a real dynamic-blocker case, which is what
+  the row was meant to measure.
+
+#### One cost this incurred, recorded rather than absorbed silently
+
+Tasks 82 and 83 added seven test cases that run the benchmark itself, including a
+2,000-tick, 32-seeker, 2,048-world-unit row. Sandata's core suite went from
+roughly ten seconds to about 45. That does not touch the canonical gate today,
+because design section 14 keeps the gate on the Hukbo projects until Sandata has
+a recorded baseline. **It will matter at task 55**, which is the task that
+proposes running `verify.ps1 -Game Sandata`. Whoever takes that decision should
+know they are adding about 45 seconds, and that roughly half of it is one test
+case, before deciding whether the benchmark tests belong in a gate at all or
+belong beside `tools/` as hand-run measurement.
+
+Task 53 is complete. Tasks 82 and 83 are complete. Task 54 now has figures worth
+recording.
