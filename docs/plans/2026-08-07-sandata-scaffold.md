@@ -2966,3 +2966,73 @@ observe from a degenerate case that looks identical.
 
 Task 84 shares `SandataSimulation.cs` with every remaining task-79 split and with
 task 81, so it does not run beside any of them.
+
+### Task 79c complete, and the pinned-literal habit it exposed — 2026-08-08
+
+Merged at `2d1db58`. `OperatorState` gained a `Firearm` field, folded last inside
+`FoldOperator` — after the nested contact-memory entries, not interleaved among
+the scalar fields — carried through `MissionSnapshot` with no edit to that file
+at all, and read at stage 11 in place of the hardcoded `DefaultFirearmId`.
+
+The wave-12 audit's corrected acceptance criterion is what this task was built
+against, and it was the right correction. The original row asked for a test
+pinning the *pre-change* state hash; that test cannot exist, because folding one
+more value into FNV-1a changes the digest unconditionally.
+
+**The seed-1 workload's state hash moved from `00EC034D18941D36` to
+`FB4715E7AFF108F6`, on purpose**, and the run stayed `deterministic: true` with
+`firstMismatchTick: null`. That is this task's deliverable. The event hash is
+still `CBF29CE484222325`, the bare FNV-1a offset basis, because nothing yet emits
+during a run — task 79d-1 is what changes that.
+
+`PreTask79cBaselineHash` is `3_159_438_799_659_597_482UL`.
+
+#### A real bug in the hasher, found because the fold had to go last
+
+`FoldOperator` used to `return` early from inside `if (contactMemory.IsDefault)`.
+Nothing followed that branch, so it had never skipped anything and no recorded
+hash was ever wrong. It was a trap laid for the next person to append a fold:
+any operator whose `ContactMemory` was still its default value would have
+silently skipped the appended field, producing a hash that depended on whether an
+unrelated array had been initialised. Task 79c restructured it to an
+`if (!contactMemory.IsDefault)` block with no early return, which changes no
+pre-existing hash and makes the appended fold unconditional.
+
+#### Two absolute-literal pins broke, and updating them was the integrator's call
+
+`OrderStateHashTests.PreTask61BaselineHash` and
+`MissionEventFeedTests.PreTask76BaselineHash` both pinned
+`5_550_901_129_500_655_850UL` for the same fixture, and task 79c's appended fold
+moved both to `3_159_438_799_659_597_482UL`. **The implementing agent stopped at
+its grant boundary and reported the two failures rather than editing literals it
+had not been given** — which is exactly right, and is the second time this wave an
+agent has been correct to refuse an instruction. The integrating thread made the
+edit and the judgement, at commit `2d1db58`.
+
+The judgement, written down because it is the kind that gets made silently and
+then regretted: updating those literals is **not** the forbidden "re-pin a hash to
+go green". The property each test guards is untouched by task 79c. `PreTask61`
+guards that an empty order queue folds nothing; `PreTask76` guards that
+`SandataStateHasher.Compute` never reads `MissionState.EventFeed`. Both remain
+true. Only the absolute value of an unrelated fixture moved, for a sanctioned
+reason recorded above. Had the *property* broken, the correct action would have
+been to stop.
+
+But the episode names a habit worth fixing. **Both tests assert an absolute
+literal where they mean to assert an invariant.** Written that way, every future
+legitimate change to the operator fold breaks two unrelated test files and
+presents the next agent with a one-character fix that looks harmless and is
+sometimes catastrophic. `MissionEventFeedTests` already contains the better
+form of its own assertion —
+`StateHash_DoesNotMove_WhenTheEventFeedGainsEvents` compares two computed hashes
+and is invariant under any appended fold — so the pattern is already in the
+repository and is simply not used consistently.
+
+#### One task this creates
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 85 | 12 | Turn the absolute state-hash pins into invariant assertions | `OrderStateHashTests.PreTask61BaselineHash` and `MissionEventFeedTests.PreTask76BaselineHash` pin an absolute fixture digest to guard properties that are actually relational: "an empty order queue folds nothing" and "`Compute` never reads the event feed". Any legitimate change to the operator fold breaks both and invites a one-character re-pin. Rewrite each as a comparison between two computed hashes — the state with an empty queue against a state whose queue was never populated, and the state with an empty feed against the same state with events appended — following `StateHash_DoesNotMove_WhenTheEventFeedGainsEvents`, which already does it correctly in the same file. Keep exactly one absolute pin in the suite, `PreTask79cBaselineHash`, as the deliberate canary that fires when any state fold changes, and say in its comment that it is the only one and why. | `tests/Sandata.Core.Tests/OrderStateHashTests.cs`, `tests/Sandata.Core.Tests/MissionEventFeedTests.cs`, `tests/Sandata.Core.Tests/MissionStateTests.cs` | Both rewritten tests pass, and both still fail if their guarded property is genuinely broken — proved by temporarily breaking each property and recording the failure. Exactly one absolute state-hash literal remains in `tests/Sandata.Core.Tests/`, confirmed by search, and the search used is recorded. | 79c | |
+
+Task 85 touches only test files and no file any task-79 split or task 81 or 84
+wants, so it can run beside any of them.
