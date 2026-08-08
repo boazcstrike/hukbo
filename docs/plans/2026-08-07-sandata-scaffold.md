@@ -4426,3 +4426,104 @@ folding away if a third test project ever needs the same mission.
 
 `Sandata.Core.Tests` is at **1,100** and `Sandata.Client.Tests` at 199, both
 re-derived from the merged tree.
+
+### Task 52a complete, and the clause it cannot prove — 2026-08-09
+
+Merged. `DeterminismEquivalenceTests` adds four relational tests, none of which
+pins an absolute hash, so task 85's single-C#-literal guarantee is untouched and
+the golden replay's fixture JSON remains the only place a Sandata run's digest is
+written down.
+
+| Test | Held constant | Varied | Asserted |
+| --- | --- | --- | --- |
+| Same-seed repeat, in process | seed, mission, fixture, 60 ticks | nothing — two independently constructed simulations | per-tick state hash, event hash, the whole ordered event stream by sequence, outcome |
+| Cold cache | seed, mission | one simulation runs 0–59 continuously; a second, freshly constructed one — new nav grid, new clearance field, new collision grids — runs only 30–59 | the two agree tick for tick from the midpoint |
+| Save and resume | seed, mission, one authored `MoveAlongPath` order | reference never stops; the other snapshots at the midpoint and resumes in a brand-new simulation | tick-for-tick agreement, plus the order's `PathNodes` and `CurrentNodeIndex` surviving the round trip |
+| Logging off versus `trc` | seed, mission, fixture | `DiagnosticLog.Disabled` against `LogLevel.Trace` writing to an in-memory writer | tick-for-tick agreement, plus the writer actually produced output — so the logged run genuinely logged |
+
+Every one of them calls `AssertRunWasActive`, which requires events emitted and
+total operator health below its starting value, so none can pass by both sides
+doing nothing. That check exists because this wave has now thrown away three
+measurements whose degenerate case and success case were indistinguishable.
+
+`Sandata.Core.Tests` is at **1,104** and `Sandata.Client.Tests` at 199, both
+re-derived from the merged tree. The Sandata core suite now runs about a minute.
+
+#### The fresh-process clause, reported rather than invented
+
+The row's fifth clause asks for a same-seed repeat "in a fresh process". The
+implementer confirmed what this wave's audit suspected: nothing in either test
+project spawns a process, and `tests/Hukbo.Core.Tests/DeterminismTests.cs` does
+not either. It declined to introduce one and said so. That is correct — a process
+launch drags the wall clock, the filesystem, and a build layout into a unit
+suite, and the clause is already discharged by
+`./scripts/benchmark.ps1 -Game Sandata -Seed 1`, which is a fresh process by
+construction and is task 55's evidence.
+
+#### Two break-proofs failed to break, and that is the useful part of the report
+
+The implementer tried three breaks and reported all three honestly:
+
+| Break attempted | Result |
+| --- | --- |
+| A construction-time bias baked into the clearance field | did not fail — no fixture in the file populates `MissionState.Groups`, so the clearance field's squad-leader consumer is never reached |
+| Removing `SandataCollisionGrid`'s clear-before-insert | did not fail — `GeneratePairs` clears `_pairs` itself and the hash-occupancy dedupe masks the rest |
+| XOR-ing wall-clock entropy into `ComputeStateHash` | all four tests failed with exact hash mismatches |
+
+The second is a genuine finding about the production code and matches what task
+81 found from the other direction: `SandataCollisionGrid` has **two** independent
+clears, so neither one alone is load-bearing. The third is a coarse break — it
+fails everything, including the trivial repeat test — so it establishes that the
+suite detects nondeterminism in general and not that any individual test binds its
+own specific property.
+
+#### The save-and-resume test does not prove what design section 4 asks it to
+
+This is the finding, and it was reached by the integrating thread writing a fifth
+test, discovering that the test passed vacuously, and deleting it rather than
+merging it.
+
+The row calls save-and-resume "the only proof that paths are genuinely derived".
+Design section 4 states the rule precisely: published path polylines are derived
+and excluded from the snapshot, "the *request* is authoritative and snapshotted;
+the *result* is not. On resume, every outstanding and every published path is
+recomputed from its stored request record before the first tick executes."
+
+The merged test snapshots an **authored** order. An authored polyline is stored
+state — design section 16 is explicit that it is authoritative, not derived — so
+it round-trips as data and the test proves the round trip works. It says nothing
+about a recomputed path, because **no test in the file populates
+`MissionState.Groups` at all**, so no autonomous path is ever requested and none
+is ever published.
+
+The attempted fifth test populated `Groups`, ran past `PathLatencyTicks`,
+asserted the request had published, snapshotted, and resumed in a fresh
+simulation. It passed. It was still worthless, and a probe is what showed why:
+entity 1 moved from raw (3,072, 2,048) to (4,095, 3,327) over the first thirty
+ticks and then **did not move at all** for the remaining thirty. Tick-for-tick
+agreement after the snapshot was agreement between two runs that were both
+standing still. The probe that settled it compared the operator's position at the
+snapshot tick against its position at the end, and returned `moved=False`.
+
+That is the same shape as everything else this wave has caught, arriving one
+level deeper: not a test that asserts "it changed", but a test whose *scenario*
+looks active and is inert in exactly the window the assertion covers.
+
+Two things follow, and the second is the more interesting one.
+
+- **The derived-path resume rule is unproven.** It is not disproven; nothing
+  suggests the recomputation is wrong. It simply has no test, and task 52 should
+  not be recorded as having supplied one.
+- **An operator with a freshly published group path walks about one world unit
+  and stops.** That is a second finding, independent of the test, and it was not
+  looked for. Whether the cause is the arclength quantization task 87 already
+  names, or derived squad grouping moving the operator out of the group whose
+  path was published, or the clearance gate collapsing the formation, is not
+  known. It is worth knowing before anyone tunes movement.
+
+#### The tasks these create
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 89 | 12 | Find out why an operator with a published group path stops after one world unit | A fixture that populates `MissionState.Groups` with an outstanding request, runs past `SandataRuleset.PathLatencyTicks`, and ticks on, moves its operator roughly one world unit in the first thirty ticks and then holds position for the next thirty — measured, not inferred. Candidate causes, none confirmed: the diagonal arclength quantization task 87 names; `SquadGrouping` deriving a different `GroupId` once the operator has moved, so `PathService.GetCurrentPath(slot.GroupId)` no longer finds the published path; `FormationCollapse` gating the slot to single file; or the leader projection reaching the end of a short polyline. **Diagnose before changing anything**, and report the cause rather than patching the symptom. | `tests/Sandata.Core.Tests/TickPipelineTests.cs`, and whichever single production file the diagnosis names, reported before it is edited | The cause is named with file and line and reproduced by a test. If it is a defect, the fix lands with a test asserting sustained movement over a stated number of ticks, on the displacement rather than on "the position changed". If it is correct behaviour, the reason is written at the code that produces it. | 84, 52a | |
+| 90 | 12 | Prove a published path is recomputed on resume, not restored | Task 52a's save-and-resume test snapshots an authored order, whose polyline is stored state; design section 4's rule is about the *derived* polyline of an autonomous group path, and no test exercises it. Once task 89 has an operator that keeps walking a published path, snapshot mid-walk and resume into a fresh `SandataSimulation`, which begins with an empty `PathService`. The resumed run must match the never-stopped one tick for tick **through a window in which the operator is demonstrably still moving** — assert that movement inside the compared window, not merely at some point in the run, or the test repeats this one's mistake. | `tests/Sandata.Core.Tests/DeterminismEquivalenceTests.cs` | The comparison window contains real movement, proved by an assertion inside the test rather than by a probe outside it, and the resumed run matches. Breaking the recomputation makes it fail, with the failure recorded. | 89 | |
