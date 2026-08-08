@@ -71,6 +71,18 @@ internal readonly record struct MixResult(
     }
 }
 
+/// <summary>
+/// The outcome of applying a per-slot/per-total cap to raw demand, with no
+/// audio involved. Answers "would <see cref="MixPolicy.MaximumPerSound"/> and
+/// <see cref="MixPolicy.MaximumTotal"/> suppress anything" for a slot that has
+/// no shipped clip and so never reaches <see cref="Mixer.Render"/>.
+/// </summary>
+internal readonly record struct DemandBudgetResult(
+    int Demanded,
+    int Accepted,
+    int Suppressed,
+    int[] SuppressedBySlot);
+
 internal static class Mixer
 {
     private const int FramesPerSecond = 60;
@@ -189,6 +201,59 @@ internal static class Mixer
             clipped,
             buffer.Length,
             perSlotPeak);
+    }
+
+    /// <summary>
+    /// Applies exactly the frame-clearing and cap logic <see cref="Render"/>
+    /// applies to playable cues, but to the raw (tick, slot) demand stream
+    /// instead — no clip lookup, no sample summing, no audio. This is the
+    /// only way to ask whether <paramref name="policy"/>'s per-slot or total
+    /// cap would suppress a slot that has no shipped <c>.wav</c> file and so
+    /// never enters <see cref="Render"/>'s cue list at all, as is true today
+    /// for every ranged slot: the schedule and its timing are real,
+    /// measured output of the same <c>BattleSimulation</c>
+    /// <see cref="CueSchedule.Build"/> ran; only the audio is absent.
+    /// </summary>
+    public static DemandBudgetResult EvaluateDemand(
+        IReadOnlyList<(long Tick, int Slot)> events,
+        int tickRate,
+        double speedMultiplier,
+        MixPolicy policy)
+    {
+        var framesPerTick = FramesPerSecond / (tickRate * speedMultiplier);
+
+        var perSound = new int[CueSchedule.SlotCount];
+        var suppressedBySlot = new int[CueSchedule.SlotCount];
+        var total = 0;
+        var currentFrame = -1L;
+
+        var accepted = 0;
+        var suppressed = 0;
+
+        foreach (var (tick, slot) in events)
+        {
+            var frameIndex = (long)(tick * framesPerTick);
+            if (frameIndex != currentFrame)
+            {
+                currentFrame = frameIndex;
+                Array.Clear(perSound);
+                total = 0;
+            }
+
+            if ((policy.MaximumTotal is { } maxTotal && total >= maxTotal) ||
+                (policy.MaximumPerSound is { } maxPerSound && perSound[slot] >= maxPerSound))
+            {
+                suppressed++;
+                suppressedBySlot[slot]++;
+                continue;
+            }
+
+            perSound[slot]++;
+            total++;
+            accepted++;
+        }
+
+        return new DemandBudgetResult(events.Count, accepted, suppressed, suppressedBySlot);
     }
 
     /// <summary>
