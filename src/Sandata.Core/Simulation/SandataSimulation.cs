@@ -4,6 +4,7 @@ using Hukbo.Core.Movement;
 using Sandata.Core.Collision;
 using Sandata.Core.Combat;
 using Sandata.Core.Determinism;
+using Sandata.Core.Events;
 using Sandata.Core.Geometry;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Movement;
@@ -134,6 +135,15 @@ public sealed class SandataSimulation
     /// <see cref="ApplyOrders"/> starting on the tick <see cref="RunTick"/>
     /// is next called for a tick equal to <paramref name="targetTick"/>.
     /// </summary>
+    /// <remarks>
+    /// Task 76 (docs/plans/2026-08-07-sandata-scaffold.md): when
+    /// <see cref="OrderQueue.SubmitValidated"/> reports a rejection, this
+    /// method emits a <see cref="MissionEventKind.OrderRejected"/> event
+    /// through <see cref="EmitOrderRejectedEvent"/> before returning — design
+    /// section 16, "An order is validated when it is submitted, not when it
+    /// is applied, so the player learns immediately." The event is emitted
+    /// here, at submission, not deferred to stage 14.
+    /// </remarks>
     public (OrderQueue Queue, Order? Submitted, OrderRejection? Rejection) SubmitOrder(
         long targetTick,
         int factionId,
@@ -144,8 +154,35 @@ public sealed class SandataSimulation
         var result = State.OrderQueue.SubmitValidated(
             targetTick, factionId, addressees, kind, _navGrid, _wallBuckets, pathNodes);
 
-        State = State with { OrderQueue = result.Queue };
+        var state = State with { OrderQueue = result.Queue };
+        if (result.Rejection is { } rejection)
+        {
+            state = EmitOrderRejectedEvent(state, rejection);
+        }
+
+        State = state;
         return result;
+    }
+
+    /// <summary>
+    /// Task 76's event-emission call site for a rejected order — design
+    /// section 16: "A rejected order emits an authoritative event carrying
+    /// the order id and a reason code. It is not silently dropped." Assigns
+    /// the event <paramref name="state"/>'s current
+    /// <see cref="MissionState.NextEventSequence"/> and advances that
+    /// counter by one, the same "assign then advance" shape every other
+    /// authoritative counter in this class already follows.
+    /// </summary>
+    private static MissionState EmitOrderRejectedEvent(MissionState state, OrderRejection rejection)
+    {
+        var missionEvent = MissionEvent.OrderRejected(
+            state.NextEventSequence, state.Tick, rejection.OrderId, rejection.Reason);
+
+        return state with
+        {
+            NextEventSequence = state.NextEventSequence + 1,
+            EventFeed = state.EventFeed.Append(missionEvent),
+        };
     }
 
     /// <summary>
@@ -691,14 +728,17 @@ public sealed class SandataSimulation
     /// whichever scheduled tick's value it last computed.
     /// </summary>
     /// <remarks>
-    /// <b>Events are not implemented.</b> Stage 14's call-site obligation
-    /// names only <see cref="SandataStateHasher.Compute"/>; its other named
-    /// job, "emit ordered events," has no real destination in this worktree —
-    /// no <c>Events</c>-shaped collection and no <c>BattleEvent</c>-like type
-    /// exist anywhere in <c>Sandata.Core</c> (confirmed by a full-project
-    /// search returning zero matches). Inventing one is out of this task's
-    /// scope; the state-hash half of this stage is implemented, the
-    /// event-emission half is not.
+    /// <b>Event emission does not happen here.</b> Task 76
+    /// (docs/plans/2026-08-07-sandata-scaffold.md) adds
+    /// <see cref="Events.MissionEventFeed"/> and its first producer, a
+    /// rejected-order event emitted by <see cref="SubmitOrder"/> at
+    /// submission time — design section 16: "An order is validated when it
+    /// is submitted, not when it is applied." No stage currently emits an
+    /// event during <see cref="RunTick"/> itself; a later task (79d) is
+    /// expected to add stage 12/13 event emission for shot and hit outcomes
+    /// once fire resolution is real. This method's own job stays exactly
+    /// what it was: compute and store <see cref="LastStateHash"/> on a
+    /// scheduled tick.
     /// </remarks>
     internal void ComputeStateHash(long currentTick)
     {

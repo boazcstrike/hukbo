@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Sandata.Core.Events;
 using Sandata.Core.Orders;
 
 namespace Sandata.Core.Simulation;
@@ -70,6 +71,18 @@ public sealed record MissionSnapshot(
         ImmutableArray<OrderAssignment>.Empty;
 
     /// <summary>
+    /// Task 76's ordered mission event feed and running event hash, stored
+    /// verbatim. Design section 4: the event hash is independent of the
+    /// state hash, but is itself authoritative — a resumed mission must
+    /// reproduce the same event hash an unresumed run would have produced,
+    /// which requires carrying <see cref="MissionEventFeed.Hash"/> (never
+    /// truncated by the 200-event retention cap) across the round trip
+    /// rather than trying to recompute it from the capped
+    /// <see cref="MissionEventFeed.Events"/> window alone.
+    /// </summary>
+    public MissionEventFeed EventFeed { get; init; } = MissionEventFeed.Empty;
+
+    /// <summary>
     /// Restores a <see cref="MissionState"/> from this snapshot. Every
     /// collection is copied by value (an <see cref="ImmutableArray{T}"/>
     /// assignment shares the same backing array, which is safe because both
@@ -90,6 +103,7 @@ public sealed record MissionSnapshot(
         RngStreams = RngStreams,
         OrderQueue = Orders.OrderQueue.RestoreForResume(OrderQueue.NextOrderId, OrderQueue.NextOrderSequence, OrderQueue.Orders),
         OrderAssignments = OrderAssignments,
+        EventFeed = EventFeed,
     };
 }
 
@@ -115,5 +129,6 @@ public static class MissionStateSnapshotExtensions
             RngStreams = state.RngStreams,
             OrderQueue = state.OrderQueue,
             OrderAssignments = state.OrderAssignments,
+            EventFeed = state.EventFeed,
         };
 }

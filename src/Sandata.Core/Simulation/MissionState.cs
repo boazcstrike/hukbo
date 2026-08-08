@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
+using Sandata.Core.Events;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Orders;
 
@@ -269,7 +270,8 @@ public sealed record OperatorState(
 /// <para>
 /// This type holds five <see cref="ImmutableArray{T}"/> collections plus
 /// <see cref="OrderAssignments"/> below (task 61 of
-/// docs/plans/2026-08-07-sandata-scaffold.md), so — exactly like
+/// docs/plans/2026-08-07-sandata-scaffold.md) and <see cref="EventFeed"/>
+/// below (task 76 of the same plan), so — exactly like
 /// <c>Hukbo.Core.Simulation.Scenario</c> and <see cref="OperatorState"/>
 /// above — it overrides <c>Equals</c>/<c>GetHashCode</c> rather than relying
 /// on the record default.
@@ -326,6 +328,21 @@ public sealed record MissionState(
     public ImmutableArray<OrderAssignment> OrderAssignments { get; init; } =
         ImmutableArray<OrderAssignment>.Empty;
 
+    /// <summary>
+    /// Task 76 (docs/plans/2026-08-07-sandata-scaffold.md, the wave-11
+    /// 2026-08-08 audit): the ordered mission event feed and its running
+    /// event hash. The audit corrected an earlier row that would have folded
+    /// this into the state hash; instead it is deliberately excluded from
+    /// <see cref="Determinism.SandataStateHasher"/> — design section 4's two
+    /// hashes are independent on purpose, "a bug that moves state without
+    /// emitting an event moves one and not the other." Still authoritative
+    /// and snapshotted, because resume must reproduce the same event hash an
+    /// unresumed run would have produced — see
+    /// <see cref="Events.MissionEventFeed"/>'s own remarks for why its
+    /// <c>Hash</c> is never truncated by its 200-event retention cap.
+    /// </summary>
+    public MissionEventFeed EventFeed { get; init; } = MissionEventFeed.Empty;
+
     public bool Equals(MissionState? other)
     {
         if (other is null)
@@ -349,7 +366,8 @@ public sealed record MissionState(
             GroupsSpan.SequenceEqual(other.GroupsSpan) &&
             RngStreamsSpan.SequenceEqual(other.RngStreamsSpan) &&
             OrderQueue.Equals(other.OrderQueue) &&
-            OrderAssignmentsSpan.SequenceEqual(other.OrderAssignmentsSpan);
+            OrderAssignmentsSpan.SequenceEqual(other.OrderAssignmentsSpan) &&
+            EventFeed.Equals(other.EventFeed);
     }
 
     public override int GetHashCode()
@@ -390,6 +408,8 @@ public sealed record MissionState(
         {
             hash.Add(assignment);
         }
+
+        hash.Add(EventFeed);
 
         return hash.ToHashCode();
     }
