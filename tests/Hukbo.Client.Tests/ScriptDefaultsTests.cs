@@ -6,33 +6,32 @@ namespace Hukbo.Client.Tests;
 
 /// <summary>
 /// Proves the acceptance criterion for plan task 47
-/// (docs/plans/2026-08-07-sandata-scaffold.md): scripts/verify.ps1 gains a
+/// (docs/plans/2026-08-07-sandata-scaffold.md) plus the RU-29 extension
+/// (docs/plans/2026-08-07-ranged-units.md): scripts/verify.ps1 gains a
 /// -Game parameter and passes it through to test.ps1 and benchmark.ps1, and
-/// with no -Game argument on the command line it still runs exactly the
-/// command sequence it ran before this change -- one test.ps1 invocation and
-/// one benchmark.ps1 invocation at Agents 200 / Ticks 10000 / Seed 1.
-///
-/// Design section 14, "When verify.ps1 starts running both games," is
-/// explicit that the default gate keeps running the Hukbo workload alone
-/// until task 51 records a Sandata baseline, and that a second benchmark
-/// invocation is its own later task. A wrong implementation that adds a
-/// second, unconditional benchmark.ps1 call for Sandata makes
-/// <see cref="VerifyInvokesBenchmarkExactlyOnceWithTheCanonicalWorkload"/>
-/// red, because that fact asserts the count is exactly one.
+/// with no -Game argument on the command line it runs exactly two
+/// benchmark.ps1 invocations -- the original canonical workload at
+/// Agents 200 / Ticks 10000 / Seed 1, plus a second, Hukbo-guarded
+/// invocation that exercises the ranged combat preset
+/// (PrecolonialPhilippinesV5 / RangedStandoffV8). RU-29 added the second
+/// invocation on purpose: the previous single-workload gate never exercised
+/// the ranged path, so a completely broken ranged combat preset would have
+/// left the gate green.
 /// </summary>
 public sealed class ScriptDefaultsTests
 {
     [Fact]
-    public void VerifyInvokesBenchmarkExactlyOnceWithTheCanonicalWorkload()
+    public void VerifyInvokesBenchmarkExactlyTwiceWithTheCanonicalAndRangedWorkloads()
     {
         var content = ReadScript("verify.ps1");
 
         var benchmarkInvocations = Regex.Matches(
             content, @"Invoke-RepositoryScript\s+-Name\s+'benchmark\.ps1'");
 
-        var onlyBenchmarkInvocation = Assert.Single(benchmarkInvocations.Cast<Match>());
+        Assert.Equal(2, benchmarkInvocations.Count);
 
-        var block = ExtractBraceBlockAfter(content, onlyBenchmarkInvocation.Index);
+        var canonicalInvocation = benchmarkInvocations[0];
+        var block = ExtractBraceBlockAfter(content, canonicalInvocation.Index);
 
         Assert.Contains("Agents = 200", block, StringComparison.Ordinal);
         Assert.Contains("Ticks = 10000", block, StringComparison.Ordinal);
@@ -53,8 +52,9 @@ public sealed class ScriptDefaultsTests
     /// <summary>
     /// verify.ps1 declares -Game with the same two-member ValidateSet and
     /// 'Hukbo' default as every other game-specific script, and passes it
-    /// through to both the test.ps1 and the benchmark.ps1 invocation, so a
-    /// caller that never passes -Game resolves to 'Hukbo' at every layer.
+    /// through to the test.ps1 invocation and both benchmark.ps1
+    /// invocations, so a caller that never passes -Game resolves to
+    /// 'Hukbo' at every layer.
     /// </summary>
     [Fact]
     public void VerifyDeclaresTheGameParameterDefaultingToHukboAndPassesItThrough()
@@ -66,7 +66,7 @@ public sealed class ScriptDefaultsTests
         Assert.Contains("$Game = 'Hukbo'", content, StringComparison.Ordinal);
 
         var passThroughCount = Regex.Matches(content, @"Game\s*=\s*\$Game").Count;
-        Assert.Equal(2, passThroughCount);
+        Assert.Equal(3, passThroughCount);
     }
 
     private static string ExtractBraceBlockAfter(string content, int searchStartIndex)
