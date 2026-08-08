@@ -26,34 +26,35 @@ keeping ammunition, terrain, cover, pathfinding, and morale deferred.
 
 The work is on branch `ranged-units`, in the worktree
 `C:\Users\boazs\webdev\autonomous-arena\.claude\worktrees\ranged-units`, at commit
-`674c2ba` plus the uncommitted status-row addition described below.
+`6700d14`.
 
-`git status --short` immediately before this document was written reported a clean
+**Updated 2026-08-08, after wave 4.** Everything below reflects the state after
+wave 4 was dispatched, verified, integrated, and recorded. Waves 1 through 4 are
+merged.
+
+`git status --short` immediately before this update was written reported a clean
 tree:
 
 ```
 ```
 
-That empty output is accurate — every wave-1, wave-2, and wave-3 branch has been
-merged into `ranged-units` and committed. The only change made while writing this
-handoff was adding a missing RU-39 status row to the plan document and creating
-this file, both of which are uncommitted at the time of writing.
+That empty output is accurate — every wave-1 through wave-4 branch has been merged
+into `ranged-units` and committed, and the plan document's wave 4 record is
+committed with them.
 
-The last twelve commits on the branch:
+The last ten commits on the branch:
 
 ```
-674c2ba docs(plans): point the wave 3 baseline at its final commit
-2f785f1 docs(plans): add RU-39, record RU-12's judgment calls and the wave 3 close
-5d13249 wip: stage RU-12 notes
-9ab3b3e feat(combat): add V5 preset with three ranged weapon rows
-02d67c2 docs(plans): record the wave 3 integration baseline
-f0f25f4 Merge branch 'ru-37' into ranged-units
-514560d Merge branch 'ru-35' into ranged-units
-da2ba90 Merge branch 'ru-16' into ranged-units
-db4973c Merge branch 'ru-15' into ranged-units
-9cce386 Merge branch 'ru-14' into ranged-units
-f7f84ff Merge branch 'ru-13' into ranged-units
-694e86a docs(plans): add RU-38 and record wave 3 status
+6700d14 docs(plans): record the wave 4 result, add RU-40, and correct RU-20's dependency
+33e2b64 Merge branch 'ru-17' into ranged-units
+a5ee8bb Merge branch 'ru-20' into ranged-units
+291d60c Merge branch 'ru-18' into ranged-units
+ba59a1f Merge branch 'ru-19' into ranged-units
+46f51fd Merge branch 'ru-38' into ranged-units
+a9a54c1 feat: add the pooled ranged-attack projectile (RU-17)
+e2c73d4 test(tools): match the mix harness to the 26-slot client mapping and re-measure at 500 agents
+b622c76 test: derive the ranged-fields fact from weapon identity, not its own fields
+37620c4 feat(client): add the ranged draw-pose resolver and its geometry
 ```
 
 One blemish in that history is worth knowing about rather than discovering. The
@@ -69,16 +70,23 @@ branch is to be tidied before it approaches `main`, that is the commit to reword
 and rewording it means rewriting the merge, so it is a decision for the user
 rather than something to do casually.
 
-Every per-task worktree from waves 1 through 3 still exists under
-`.claude/worktrees/` — `ru-01` through `ru-16`, plus `ru-34`, `ru-35`, and `ru-37`.
-They are all fully merged and are safe to remove, but they belong to the previous
-session, so confirm with the user before sweeping them. No worktrees exist yet for
-wave 4.
+Every per-task worktree from waves 1 through 4 still exists under
+`.claude/worktrees/` — `ru-01` through `ru-20`, plus `ru-34`, `ru-35`, `ru-37`,
+`ru-38`, and `ru-39`. They are all fully merged and are safe to remove, but the
+wave 1 through 3 ones belong to an earlier session, so confirm with the user before
+sweeping any of them. No worktrees exist yet for wave 5.
+
+One untracked artifact is worth knowing about rather than discovering: RU-20's
+measurement run left roughly 75 MB of rendered WAV files in `mix-output/` at the
+root of the `ru-20` worktree. They are covered by `.gitignore:28`, so they were
+never at risk of being committed, and they regenerate on demand. Delete them or
+leave them; they are disposable either way.
 
 ## What is done
 
-Waves 1 through 3 are complete and merged: nineteen of the plan's thirty-nine task
-rows.
+Waves 1 through 4 are complete and merged: **twenty-five of the plan's forty task
+rows.** The plan gained RU-40 during wave 4, which is why the denominator moved
+from thirty-nine to forty.
 
 **Wave 1 — foundations.** RU-01 corrected two stale documentation figures, most
 importantly a per-tick allocation ceiling recorded as 900,000 bytes when the
@@ -117,11 +125,58 @@ RU-16 made `AgentIntent.Holding` render as a distinct inspector reason code.
 RU-35 added the three ranged arms to `PawnAppearanceFactory.ToWeaponRole`. RU-37
 wired F-A's counters through `HeadlessRunner`.
 
+**Wave 4 — the projectile, its poses, its sound, and two independents.** Six tasks
+were dispatched at once and all six merged without a conflict.
+
+RU-17 created `src/Hukbo.Core/Simulation/Projectile.cs`, a `readonly record struct`
+of integers and small enums only, held in a flat array sized once from a new
+`Scenario.MaximumProjectilesInFlight`. It added the A0 pass at the head of
+`GatherAndCommitAttacks` that advances every countdown and resolves arrivals while
+folding the launch tick rather than the impact tick, the gather-pass branch that
+launches instead of resolving, the pool on `BattleSnapshot`, and the
+capability-gated tail fold in `StateHasher.Compute`. This is the first task in the
+package to move a hash, and it moved the right one — see the determinism section.
+
+RU-18 added `RangedPose`, `RangedGeometry`, and `RangedPoseResolver` as five new
+files in `src/Hukbo.Client/Rendering` and `tests/Hukbo.Client.Tests`, in the same
+pure-helper shape `SwingPoseResolver` uses, including the early-out that
+`GaitPoseResolver` omits. The resolver is **not yet wired into the draw loop**;
+that is RU-25's in wave 6.
+
+RU-19 changed `SoundDirector.Ingest` to take the agent view list alongside the
+events, so a classless `Release` event resolves its weapon from
+`AgentView.Loadout` through RU-14's `MapRelease(WeaponId?)` hook, and updated the
+single production call site at `ArenaGame.cs:1549`. It also confirmed in code that
+`UpdateViews` writes a view for every agent including the dead, so a launcher killed
+on the same tick still resolves.
+
+RU-20 rewrote the mix-analysis harness's replica mapping to match the client's
+twenty-six slots and re-ran it at 500 agents. It is **only partly done** — see the
+next section.
+
+RU-38 passed the agent roster through at `PresentationCoordinator.cs:140`, so
+RU-16's per-faction `HoldingCount` stops reading zero in the running game. RU-39
+rescoped `WeaponProfileTests`'s ranged-fields fact, taking Core from two red to one.
+
 ## What is not done
 
-Twenty rows remain. Three of them were added during the previous session because
-agents found gaps the original plan did not cover, and two of those three are small
-and independent enough to fold into the next wave.
+Fifteen rows remain. Two of them — RU-20's re-run and RU-40 — exist because wave 4
+found problems that the plan as written did not cover.
+
+**Carried forward from wave 4, and both should land early.**
+
+- **RU-20, the second half.** The harness parity work is merged, but the
+  measurement the task exists to produce does not exist. All three ranged release
+  slots measured zero cues and −∞ dBFS, because on the base it ran against nothing
+  emitted a `Release` event — RU-17 had not landed on that branch — and no ranged
+  sound files exist. **Re-run it now that RU-17 has merged.** Until it produces a
+  real release-cue concentration figure, **RU-31 is not cleared to spend money on
+  sixty ElevenLabs generations.** The plan's dependency column for RU-20 named only
+  RU-14; RU-17 has been added.
+- **RU-40** — delete the public one-argument `SoundDirector.Ingest(events)` overload
+  RU-19 left behind and migrate the twenty-seven test call sites to pass a view
+  list. Files: `src/Hukbo.Client/Audio/SoundDirector.cs`,
+  `tests/Hukbo.Client.Tests/SoundDirectorTests.cs`.
 
 **Blocking on a user decision, and it is now the tightest constraint.**
 
@@ -138,35 +193,24 @@ and independent enough to fold into the next wave.
   unilaterally.** Files: `src/Hukbo.Core/Combat/CombatRuleset.cs`,
   `tests/Hukbo.Core.Tests/DeterminismTests.cs`.
 
-**Ready now, small, and independent of wave 4.**
+**Wave 5 is next, and both of its tasks are unblocked.**
 
-- **RU-39** — rescope
-  `WeaponProfileTests.EveryProfileOfEveryRegisteredPresetDeclaresAllRangedFieldsZero`
-  so that a melee profile must declare all three ranged fields zero and a ranged
-  profile must declare all three non-zero. This is one of the two remaining Core
-  failures. File: `tests/Hukbo.Core.Tests/WeaponProfileTests.cs`.
-- **RU-38** — pass the agent roster at `PresentationCoordinator.cs:140` so
-  `BattleReportAccumulator`'s per-faction `HoldingCount` stops reading zero in the
-  running game, and pin a non-zero count through `PresentationCoordinator` rather
-  than by calling the accumulator directly. Files:
-  `src/Hukbo.Client/Presentation/PresentationCoordinator.cs`,
-  `tests/Hukbo.Client.Tests/PresentationCoordinatorTests.cs`.
+- **RU-21** — the hold arm and the `RangedStandoffV8` movement preset, restated
+  verbatim from `PersistentContingentsV4` plus one rule, in the legacy body of
+  `GatherMovementProposals` and not in the equipment-relative pipeline. It is the
+  fourth owner of `BattleSimulation.cs`, so it must not run in parallel with
+  anything else touching that file. Registering V8 is half of what closes the last
+  red Core test.
+- **RU-22** — `PawnGeometry` learns the three new weapon roles and the third pose,
+  across four `switch` expressions. It owns both `PawnGeometryTests.cs` and
+  `ConservativePawnCullTests.cs`, which together are all twenty-one remaining
+  Client failures.
 
-**Wave 4, four agents, file sets disjoint.**
-
-- **RU-17** — the projectile pool in `BattleSimulation.GatherAndCommitAttacks`,
-  emission of `Release` and `Miss`, and flight resolution. This is the largest
-  single task in the plan and the third owner of `BattleSimulation.cs`.
-- **RU-18** — the ranged draw poses, which depend on RU-13's projection fields.
-- **RU-19** — the sound director wiring for release and miss cues.
-- **RU-20** — the 500-agent mix measurement, which must happen before anyone pays
-  for a sound file.
-
-**Waves 5 through 10, unchanged from the plan.** Wave 5 is RU-21 and RU-22; wave 6
-is RU-23, RU-24, and RU-25; wave 7 is RU-26, RU-27, RU-28, and RU-29; wave 8 is
-RU-30 alone, which is F-B; wave 9 is RU-31, which a human runs and which spends
-money, together with RU-32; wave 10 is RU-33, the canonical gate, which the
-orchestrator runs and never delegates.
+**Waves 6 through 10, unchanged from the plan.** Wave 6 is RU-23, RU-24, and
+RU-25; wave 7 is RU-26, RU-27, RU-28, and RU-29; wave 8 is RU-30 alone, which is
+F-B; wave 9 is RU-31, which a human runs and which spends money, together with
+RU-32; wave 10 is RU-33, the canonical gate, which the orchestrator runs and never
+delegates.
 
 Note that RU-22's scope was widened during the previous session: it now owns
 `tests/Hukbo.Client.Tests/ConservativePawnCullTests.cs`, which was moved off RU-35
@@ -184,19 +228,20 @@ integration, and the tree is deliberately red until the tasks that add the missi
 registry and catalog arms have all landed.
 
 What has actually been observed, in `Release` configuration, on the integration
-branch at `2f785f1`:
+branch at the wave 4 merge commit `33e2b64`:
 
 ```
-Core:   Failed: 2, Passed: 2642, Total: 2644
-Client: Failed: 21, Passed: 3227, Total: 3248
-DeterminismTests: Failed: 0, Passed: 22, Total: 22
+Core:   Failed: 1, Passed: 2647, Total: 2648
+Client: Failed: 21, Passed: 3262, Total: 3283
+format: [PASS] Formatting verification completed.
 ```
 
-The two remaining Core failures are RU-39's ranged-fields-zero fact and
+Core is down from two red to one. **The single remaining Core failure is**
 `BattleSimulationTests.ExactlyOneLivingLeaderPerNonEmptyContingentAcrossEveryRegisteredMovementPreset`,
 which closes when RU-21 and RU-30 register the V8 and V9 movement presets. The
 twenty-one Client failures are `PawnGeometryTests` (eleven) and
-`ConservativePawnCullTests` (ten), both of which are RU-22's in wave 5.
+`ConservativePawnCullTests` (ten), both of which are RU-22's in wave 5. No failure
+appeared outside that list at any point in the wave.
 
 Configuration matters when comparing these numbers. A `Debug` run adds two
 allocation-budget failures,
@@ -224,12 +269,30 @@ onto `AgentView`, with nothing added to `AgentState`, `Scenario`, `BattleSnapsho
 or `StateHasher`. RU-12 registered a new preset without touching V1 through V4, and
 `DeterminismTests` passes in full with V5 registered, so no pinned golden moved.
 
-That changes in wave 4. **RU-17 emits events and moves projectiles, so it will
-change end-of-tick state**, and RU-30's F-B changes end-of-tick positions. Both
-ship as new preset versions — `RangedStandoffV8` and `MonotoneAllyClearanceV9`
-respectively — with their own frozen digests and new golden expectations, captured
-after RU-24's calibration settles the values. V1 through V4 and V6 and V7 keep
-their existing content hashes and digests throughout. Never re-pin an existing
+**That changed in wave 4, and it changed correctly.** RU-17 emits events and moves
+projectiles, so it changes end-of-tick state for any ruleset that fields a ranged
+weapon. The capability gate in `StateHasher.Compute` means a ruleset with no ranged
+entry folds nothing at all, not even a zero, so the frozen presets cannot drift.
+Both halves of that were measured on the integration branch:
+
+| Preset | `stateHash` | `eventHash` |
+| --- | --- | --- |
+| V4, before and after RU-17 | `1B73FC5923879AA0` | `AC55684F24D39344` |
+| V5, before RU-17 | `1B2524B9DFEB7FDB` | `673EF3076D2B2EC9` |
+| V5, after RU-17 | `CA230133F128B1A9` | `6953A1C982A3014C` |
+
+The V5 row moving is not a problem to be fixed — it is the proof that projectiles
+actually fly. Given this package's history of features that were structurally
+complete and functionally dead, an unmoved V5 hash would have meant nothing was
+launching. Run both benchmarks, not just the default one, whenever a change could
+touch the ranged path.
+
+**The V5 hashes above are not goldens and must not be pinned yet.** RU-24's
+calibration will move them again, and RU-26 is the row that pins them afterwards.
+
+RU-30's F-B still changes end-of-tick positions and still ships as
+`MonotoneAllyClearanceV9` with its own frozen digest. V1 through V4, V6, and V7
+keep their existing content hashes and digests throughout. Never re-pin an existing
 baseline to make a test pass; a moved hash on a preset that should not have moved
 is a real defect, and `hukbo-determinism-change` is the skill that covers
 diagnosing it.
@@ -298,12 +361,13 @@ then the research was right and the correct fix is real per-agent state with its
 own hash fold, which is a substantially larger change. The bet is recorded in the
 `RangedPhase` enum's doc comment and in design section 8.1.
 
-**RU-13's end-to-end path is unproven.** It could not exercise a real ranged
-battle because V5 was not registered on its branch, so it tested
-`RangedPhaseProjection.Derive` as a pure function. The logic is covered but the
-path from a live ranged agent through `UpdateViews` to a populated `AgentView` has
-not been observed. V5 is registered now, so this is checkable and should be checked
-early in wave 4.
+**RU-13's end-to-end path was checked in wave 4 and it holds.**
+`RangedPhaseProjection.Derive` is called unconditionally for every agent at
+`BattleSimulation.cs:4483`, with no gate and no optional parameter, so it runs every
+tick for every agent, and a live V5 battle was driven through the headless runner
+for the first time. What remains unproven is whether the phases *read* correctly on
+screen, which is a wave 6 question for RU-25 rather than a correctness question
+about the derivation. The bet recorded above is not yet settled either way.
 
 **All tuning values in V5 are provisional and RU-24 owns them.** Reach is 48, 80,
 and 112 world units against the Kampilan's 16; standoff is 36, 60, and 84;
@@ -318,6 +382,41 @@ predates this package and is explicitly out of RU-36's scope. And
 `docs/research/HISTORICAL_1500s_WEAPONS.md` line 42 cites a Luzon account of
 palm-wood lances that belongs to a 1571-72 document in the same volume rather than
 to Artieda; it is accurate as written but the source entry does not enumerate it.
+
+**The shipped audio mix already clips, and it is not this package's fault.** RU-20
+measured a melee-only 500-agent battle under the shipped policy — sixteen per slot,
+sixty-four total, `CueVolume` 0.65 — at **+0.9 dBFS with 8 clipped samples**,
+against the −0.2 dBFS and zero clipped samples recorded in section 7.2a of
+`docs/research/SOUND-CAPACITY-MEASUREMENTS.md`. Peak concurrent voices rose from
+forty-one to fifty-four. The cause is `Hukbo.Core` combat drift since that
+2026-07-27 measurement. The mix is therefore over full scale before a single ranged
+cue exists, and this package intends to add thirteen more slots on top of it. That
+is a `CueVolume` and gain question belonging to whoever owns the audio mix, it is
+out of the ranged package's authority, and **it should be settled before RU-31 is
+paid for.** It is recorded in section 7.2b of the research document and in section
+9 of the plan rather than silently absorbed.
+
+The per-slot cap of sixteen does **not** bind — zero suppressions out of 6,302 cues
+— so the raised `DefaultMaximumPerSound` that RU-20's row anticipated is not
+indicated, and `SoundCueBudgetTests.cs:59-79` should not move.
+
+**A test that re-derives its own premise from the data under test is not a weak
+test, it is not a test.** RU-39's first attempt derived "is this profile ranged"
+from the same three fields it then asserted on. Because
+`WeaponProfile.ValidateRangedFields` (`WeaponProfile.cs:140`) already forces every
+profile that constructs into all-zero-or-all-non-zero using the identical
+predicate, the fact could not fail in any direction, and the suite was green. Its
+negative proof looked convincing because it exercised a copy of the branch logic
+rather than the fact itself. The accepted version cross-checks against
+`RangedPhaseProjection.Derive`, which switches on `WeaponId` alone, so the two
+declarations are independent. Watch for this shape in RU-26's pins especially,
+where the temptation to assert a value against itself is highest.
+
+**Verifying agent reports against the disk caught real problems in this wave, in
+both directions.** RU-20 reported work it had not committed and reported that
+`.gitignore` did not cover `mix-output/` when `.gitignore:28` does. RU-39 reported
+a green suite for a worthless test. RU-19 honestly self-reported a deviation that
+did need an orchestrator ruling. Read the diff, not the summary.
 
 ## How to resume
 
@@ -340,17 +439,31 @@ dotnet build Hukbo.slnx -c Release
 dotnet test tests/Hukbo.Core.Tests/Hukbo.Core.Tests.csproj -c Release --no-build
 dotnet test tests/Hukbo.Client.Tests/Hukbo.Client.Tests.csproj -c Release --no-build
 pwsh -NoProfile -Command "./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1"
+pwsh -NoProfile -Command "./scripts/benchmark.ps1 -Agents 200 -Ticks 10000 -Seed 1 -Preset PrecolonialPhilippinesV5"
 ```
 
-Expect Core 2 failed of 2644, Client 21 failed of 3248, and both hashes matching
-`1B73FC5923879AA0` and `AC55684F24D39344`.
+Expect Core **1** failed of 2648, Client 21 failed of 3248 before any new tests are
+added, the V4 run matching `1B73FC5923879AA0` and `AC55684F24D39344`, and the V5
+run matching `CA230133F128B1A9` and `6953A1C982A3014C`.
+
+Run the V5 benchmark as well as the default one from now on. The default workload
+alone cannot see a ranged regression, because V4 fields no ranged weapon and
+therefore folds nothing into the hash — a completely broken projectile path would
+leave the default run byte-identical and green.
 
 Read, in this order: `docs/plans/2026-08-07-ranged-units.md` sections 3 and 9 for
 the corrections, then the rows for the tasks being dispatched, then
 `docs/plans/2026-08-07-ranged-units-design.md` for the sections those rows cite.
 
 Ask the user for the RU-36 decision before wave 6 begins, and do not decide it by
-default. RU-38 and RU-39 can be dispatched immediately alongside wave 4.
+default. It was put to the user at the end of wave 4 with three options and a
+recommendation — the conditional fold — and had not been answered when this
+document was updated. Two other questions were put to the user at the same time and
+are also unanswered: whether to fix the clipping mix before RU-31, and whether to
+sweep the merged per-task worktrees.
+
+Wave 5 is RU-21 and RU-22, both unblocked. RU-20's re-run and RU-40 are small,
+independent of both, and can go in the same wave.
 
 Orchestration follows `CLAUDE.md` section 10 and the `hukbo-orchestrate` skill:
 one worktree per task branched from the current integration commit, an explicit
