@@ -1427,6 +1427,68 @@ The agent also reported that the weighting in its brief arrived corrupted — th
 the Arquebus was missing — and that it read the real values from the calibration harness
 instead. That is the brief's naming of an on-disk source of truth working as intended.
 
+### RU-26's control, sent back once and now proving the right thing — and RU-46
+
+RU-26's first two pins were verified against the orchestrator's own independent
+measurements and matched exactly: V5's content hash is `0x55F4F5B36EE59CF7`, distinct from
+all four earlier presets, and V5's seed-1 pair at 20 agents and 200 ticks under
+`PersistentContingentsV4` is `DFD7751E249243E3` / `E8C1D6B300075418`.
+
+**Its third pin was returned once before being accepted.** As first written, the control
+landed as `V5MeleeOnlyRosterControl_DoesNotReproduceV4SEventStream` — a fact pinning that
+two runs *differ*. That is close to vacuous, it froze two literal hashes of a configuration
+nobody cares about, and it did not deliver the one thing the control exists for.
+
+The diagnosis underneath it was correct and was verified independently:
+`BattleSimulation.cs:571-574` branches on `rosterCountsAreEmpty`, so a scenario that
+supplies `RosterCounts` resolves loadouts through `RosterCountExpansion.Expand`, in
+contiguous blocks by faction-local index, while one that does not resolves through
+`CombatRuleset.ResolveLoadout`, an interleaved round-robin on `(entityId - 1) % roster.Count`
+that even gives the two factions different per-loadout counts. The task had compared a V5
+run *with* `RosterCounts` against V4's pinned run *without* them. Two different assignment
+functions over byte-identical roster rows, so the battles diverge from tick zero. The
+agent found the mechanism and then stopped at pinning the divergence.
+
+Putting both sides on the same path is all it needed: V4 given an explicit `[3, 3, 2, 2]`
+with its length from `PhilippineCombatPresetV4.Rules.Roster.Count`, V5 given
+`[3, 3, 2, 2, 0, 0, 0, 0, 0]` with its length from V5's own roster count, both through
+`Expand`. The result is the proof the row wanted:
+
+| | V4 melee-only control | V5 melee-only control | |
+| --- | --- | --- | --- |
+| `eventHash` | `DDDF61F8A79EEB4C` | `DDDF61F8A79EEB4C` | **EQUAL** |
+| `stateHash` | `B617298A33DAAEC9` | `B34B3292FBFCF762` | **DIFFER** |
+
+An identical ordered event stream across a differing digest is direct evidence that
+neither the ranged fold nor the shield rows leak into a melee-only run, and that the state
+hash differs for the one expected reason — V5's `ContentHash` folding in. The fact is now
+`V4AndV5MeleeOnlyRosterControls_ShareTheSameEventStreamButNotTheSameStateHash`, both
+hashes are computed live rather than pinned as literals, and the vacuous fact is gone
+rather than kept alongside.
+
+**RU-46 exists because the Client suite pins the shell scripts, which nobody remembered.**
+`tests/Hukbo.Client.Tests/ScriptDefaultsTests.cs` reads `scripts/verify.ps1` as text and
+asserts its shape: `Assert.Single` over `Invoke-RepositoryScript -Name 'benchmark.ps1'`
+matches, and a `Game = $Game` pass-through count pinned at 2. RU-29's second determinism
+workload — a correct and required change — made those 2 and 3, and both facts went red.
+
+Neither RU-29 nor the orchestrator caught it at the time. RU-29's brief told it to run the
+Core suite, which was green; the orchestrator ran Core and `format.ps1` after merging and
+did not run the Client suite, because a PowerShell edit does not look like something a C#
+suite can observe. **The tree was red across one merge before it surfaced.** The lesson is
+not about this file: run both suites after every merge, not only the one the diff appears
+to touch.
+
+RU-46 updates the two pins to the new contract and is explicitly forbidden from editing
+`verify.ps1` to suit them — the script is right and the pins describe a contract that
+deliberately changed. It is required to tighten rather than loosen: exactly two benchmark
+invocations, the first still unguarded and still carrying the canonical workload, the
+second naming both ranged presets inside its `if ($Game -eq 'Hukbo')` guard, and a
+pass-through count pinned at a literal 3. Relaxing `Assert.Single` into "at least one"
+would destroy the reason the pin exists. This repository already made the correct move
+once, when `AgentIntentNumericValuesArePinned` was extended with a new member and a raised
+count rather than having its count assertion deleted.
+
 ### Task status
 
 | Task | Status |
@@ -1456,7 +1518,7 @@ instead. That is the brief's naming of an on-disk source of truth working as int
 | RU-23 | Done on branch `ru-23` at `59319b2`, merged into `ranged-units` — Busog pins one quad higher at 25, Bangkaw and Arquebus at 24; the projectile population is counted separately at one quad each against `Scenario.MaximumProjectilesInFlight`. **Its renderer-parity criterion holds for the four melee roles only; see RU-42.** |
 | RU-24 | **Done on branch `ru-24` at `9aab100`, merged into `ranged-units`.** Bands (a), (c), (d), and (e) all pass, re-measured independently by the orchestrator rather than taken from the report. Band (b) is **BLOCKED and unmeetable by tuning** — V5's roster fields no shield on any entry, so there is nothing shielded to compare; it is the tenth known-wrong row and needs a user decision, not a retune. Only lever 4 moved: the ranged intercept cells, uniformly, marked `PROVISIONAL` in source. The chosen roster share `[19, 19, 19, 18, 11, 8, 6]` lives only in the harness and **must be carried into RU-43 and RU-29**. See the RU-24 result in section 9 |
 | RU-25 | Done on branch `ru-25` at `900dff7` and `ffcabe3`, merged into `ranged-units`. The client now runs `PrecolonialPhilippinesV5` + `RangedStandoffV8`; `Scenario.CreateDefault` and the headless default are untouched on V4. **Its own acceptance is only partly demonstrable: `run.ps1` throws on the first ranged pawn (RU-42), so the projectile draw path has never executed.** Two findings recorded as RU-42's widening and RU-43. |
-| RU-26 | Not started |
+| RU-26 | **Done on branch `ru-26` at `069db14`, merged into `ranged-units`.** Three pins: V5 content hash `0x55F4F5B36EE59CF7`, V5 seed-1 pair at 20 agents and 200 ticks, and the melee-only control. **The control was returned once** — as first written it pinned that V4 and V5 differ, which is vacuous; it now puts both presets on the same `RosterCounts` assignment path and proves equal event hashes with differing state hashes. See section 9 |
 | RU-27 | **Done on branch `ru-27` at `efd3366`, merged into `ranged-units`.** V8 has a frozen digest of 1,005 tick rows; V1 through V7 fixtures are untouched and still pass. Its row understated the file list — the fixture had to be created too, the thirteenth known-wrong row. A gated capture routine was kept committed for the next preset. See section 9 |
 | RU-28 | **Done on branch `ru-28` at `9e95864`, merged into `ranged-units`.** Its row was the eleventh known-wrong one: `ProjectileTests.cs` already carried four of its eight pins, so the real scope was the remaining four plus an audit of the existing four. All four existing pins hold with no gap, and the allocation pin does run on a ranged roster. Four new pins added, no hash literal among them. See the result in section 9 |
 | RU-29 | **Done on branch `ru-29` at `e2f9c6a`, merged into `ranged-units`.** The gate now runs a second, ranged determinism workload, guarded so `-Game Sandata` skips it. Twenty-seed ranged termination test added with a guard fact tying the roster weights to `Rules.Roster.Count`. **The agent's own benchmark evidence was invalid — positional arguments meant it measured V4, not V5; re-run correctly by the orchestrator. See section 9** |
@@ -1476,3 +1538,4 @@ instead. That is the brief's naming of an on-disk source of truth working as int
 | RU-43 | **Not started — added 2026-08-08, found and self-reported by RU-25.** The army-composition sliders are inert while V5 is active. `BuildScenario` (`ArenaGame.cs:1402`) no longer sets `RosterCounts = ToRosterCounts(composition)`, because `Settings.ArmyComposition` is fixed at four categories (`ClientSettings.cs:65`) while V5's ruleset fields a seven-entry roster, and `Scenario.Validate` (`Scenario.cs:310`) throws when `RosterCounts.Length != rules.Roster.Count`. Filling it would have traded an unreachable feature for a game that fails to launch, so RU-25 left it unset and `BattleSimulation.Create` falls back to `CombatRuleset.ResolveLoadout`'s cyclic assignment (`BattleSimulation.cs:571-574`), which is what actually guarantees a ranged loadout reaches the roster at all. That was the right call under RU-25's file list and it is not a defect in RU-25. It is, however, a spectator-facing control that silently does nothing, which fails acceptance question 1 exactly as squarely as the problem RU-25 was written to fix. The task is to decide and implement how a four-category composition panel maps onto V5's seven-entry roster — widen `ArmyComposition` to seven categories, or map four onto seven — and restore `RosterCounts`. **Sequencing:** the ranged roster share is RU-24's first tuning lever, so RU-24 settles what the share should be and RU-43 makes the panel able to express it. Files: `src/Hukbo.Client/ArenaGame.cs`, `src/Hukbo.Client/Settings/ClientSettings.cs`, `src/Hukbo.Client/UI/ArmyCompositionPanel.cs`, and their tests. Depends on RU-24. |
 | RU-44 | **Done on branch `ru-44` at `ed34239`, merged into `ranged-units` at `58180ac`. Added 2026-08-08, found by the orchestrator when re-measuring the wave 7 baseline.** The Client suite is green again at 0 failed of 3328, verified independently of the task agent on the integration branch, and the whole six-cell hash matrix reproduced byte-for-byte afterwards, as a Client-only change must. Three families were added rather than one — `OverhandThrow = 4`, `DrawAndRelease = 5`, `BracedDischarge = 6` — on the ground that a hurl, a bowstring release, and a firearm discharge are structurally distinct motions, which also keeps the file's existing one-family-per-weapon shape. The `TrailEligible` judgment call went the way the row anticipated: the blanket `Assert.True` over every `WeaponId` became seven explicit per-weapon pins, four `true` and three `false`, because a trail is the visible sweep of an edge through the air and none of the three ranged releases sweeps one. That is a stricter pin than the blanket assertion it replaced, since each weapon now fails on its own if its flag flips. The four melee profiles were not touched. Original statement of the defect follows. `AttackMotionCatalog.Resolve` (`src/Hukbo.Client/Presentation/AttackMotionCatalog.cs:74-80`) switches over `WeaponId` with arms for the four melee weapons and a throwing default, and it arrived from `main` with the `attack-animation-v2` package after this package had already widened `WeaponId` to seven members. Two facts in `tests/Hukbo.Client.Tests/Presentation/AttackMotionCatalogTests.cs` fail with `Expected: 7 Actual: 4`. The task is to add an `AttackMotionFamily` member and an `AttackMotionProfile` for each of `Bangkaw`, `Busog`, and `Arquebus`, give `Resolve` three real arms, keep the throwing default, and extend the test file's weapon-to-family map and `ShieldCompatible` pins. Every choreography value is a **Provisional reconstruction** under `CLAUDE.md` section 7; the physical weapon classes are Documented and the motions are not. One judgment call is delegated to the implementer and must be reported rather than buried: the bounded-data loop asserts `TrailEligible` is true for every `WeaponId`, which was written when all four weapons swung, so a ranged weapon whose release draws no trail requires that assertion to become per-weapon pins rather than a blanket one. Files: `src/Hukbo.Client/Presentation/AttackMotionCatalog.cs`, `src/Hukbo.Client/Presentation/AttackMotionFamily.cs`, `tests/Hukbo.Client.Tests/Presentation/AttackMotionCatalogTests.cs`. Depends on nothing in this package; must land before RU-33. |
 | RU-45 | **Done on branch `ru-45` at `c0bc314`, merged into `ranged-units`.** Band (b) is measurable and passes 20 of 20 at a ratio of 1.16 to 1.40; band (a) improved to 0.2766–0.3151 rather than degrading. The roster is nine entries. Note the harness asserts a 1.15x margin that no plan row requires — see section 9. Added 2026-08-08 by user decision. Makes RU-24's band (b) measurable by giving `PhilippineCombatPresetV5` a shielded roster entry, following V2's one-handed pairing precedent — the roster goes from seven entries to nine, plus the fourteen weapon-intercept cells and two void-channel entries the new `TallHardwood` defender keys require, because both `ClashProfile` lookups throw on a missing key rather than defaulting to zero. Re-measures all five bands, with band (a) now moving toward its 0.45 ceiling rather than its floor. Ripples into RU-43, whose four-category panel now maps onto nine roster entries, and RU-29, which must read `Rules.Roster.Count` rather than carry a literal. Files: `src/Hukbo.Core/Combat/PhilippineCombatPresetV5.cs`, `tests/Hukbo.Core.Tests/RangedCalibrationHarness.cs`. Depends on RU-24; must land before RU-26 and RU-27 pin anything. |
+| RU-46 | **In progress on branch `ru-46` at `5937583`, added 2026-08-09.** Updates `tests/Hukbo.Client.Tests/ScriptDefaultsTests.cs`, which pins the text shape of `scripts/verify.ps1` and went red when RU-29 correctly added the gate's second, ranged determinism workload. The script is right; the pins describe a contract that deliberately changed. Required to tighten rather than loosen — exactly two benchmark invocations, the first unguarded and canonical, the second naming both ranged presets inside its `-Game` guard, pass-through count pinned at a literal 3. `scripts/verify.ps1` is read-only to it. File: `tests/Hukbo.Client.Tests/ScriptDefaultsTests.cs`. Depends on RU-29. |
