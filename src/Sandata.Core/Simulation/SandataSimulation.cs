@@ -1338,6 +1338,21 @@ public sealed class SandataSimulation
     private const long FormationLateralStepWu = 4;
 
     /// <summary>
+    /// How far ahead of the leader's own projected position, in world
+    /// units, the leader's sample point sits — without this, a leader whose
+    /// target is its own projection onto the path never moves.
+    /// <b>PROVISIONAL</b> — no movement-speed or per-tick step constant
+    /// exists anywhere under <c>Movement/</c> (<see cref="Movement.LocalAvoidance"/>,
+    /// <see cref="MovementProposal"/>, and <see cref="Movement.SidestepRules"/>
+    /// carry none) to derive this from, and <see cref="Movement.LocalAvoidance.Commit"/>
+    /// applies no speed cap of its own — it moves a proposal straight to its
+    /// desired point, subject only to collision blocking — so this constant
+    /// is, in effect, the leader's per-tick step size along its own path
+    /// until a real movement-speed source is designed.
+    /// </summary>
+    private const long FormationLookaheadWu = 8;
+
+    /// <summary>
     /// Stage 9. Call-site obligation: chooses each living operator's
     /// movement source (an authored <see cref="OrderAssignment"/> or the
     /// autonomous squad slot — <see cref="OrderAssignment"/>'s own presence
@@ -1366,16 +1381,25 @@ public sealed class SandataSimulation
     /// one for that group, in which case this method falls back to holding
     /// at the operator's own current position, exactly as it did before this
     /// task. Once a path is published, this method builds a
-    /// <see cref="PolylineArclength"/> over it and treats the whole path's
-    /// own <see cref="PolylineArclength.TotalLength"/> as every slot's
-    /// shared "leader arclength" — <see cref="SlotTargets.ComputeTarget"/>'s
-    /// own remarks state that value is "not required to be
+    /// <see cref="PolylineArclength"/> over it and derives the shared
+    /// "leader arclength" fresh every tick by projecting the slot's own
+    /// <see cref="SquadSlot.LeaderEntityId"/> current position onto that
+    /// polyline through <see cref="ProjectArclength"/> — a pure geometric
+    /// projection, not a stored per-tick tracker, so design section 8's
+    /// "Stored per group: nothing" still holds. <see cref="SlotTargets.ComputeTarget"/>'s
+    /// own remarks say that value is "not required to be
     /// <c>path.TotalLength</c>", only whatever arclength corresponds to the
-    /// leader's current progress along the path; no live leader-progress
-    /// tracker exists in this worktree, so this method uses the path's own
-    /// end, which is simple, a pure function of the already-published,
-    /// already-deterministic path, and pulls an unassigned operator toward
-    /// its group's destination the moment a path exists. Each slot's trail
+    /// leader's current progress along the path, which is exactly what the
+    /// projection recomputes. Because <see cref="Movement.LocalAvoidance.Commit"/>
+    /// moves an entity straight to its proposal's desired point every tick
+    /// with no speed cap of its own, projecting the leader's own current
+    /// position back onto its own path would leave the leader's target
+    /// pinned to wherever it already stands; <see cref="FormationLookaheadWu"/>
+    /// adds a small constant arclength past that projection so the leader
+    /// (slot 0, whose trail and lateral offsets are both zero) still has
+    /// somewhere ahead of it to walk toward, each tick, clamped to the
+    /// path's own <see cref="PolylineArclength.TotalLength"/> so it never
+    /// overshoots the goal. Each slot's trail
     /// and lateral offset come from <see cref="FormationSlotOffsetsWu"/>, a
     /// pure function of <see cref="SquadSlot.SlotIndex"/> — the only
     /// per-operator formation-shape input this worktree stores (design
@@ -1440,7 +1464,13 @@ public sealed class SandataSimulation
                 else
                 {
                     var arclength = PolylineArclength.Build(path);
-                    var leaderArclength = arclength.TotalLength;
+                    var leaderIndex = view.IndexOf(leaderEntityId);
+                    var leaderPositionArclength = leaderIndex < 0
+                        ? arclength.TotalLength
+                        : ProjectArclength(
+                            path, arclength, view.PositionXWu(leaderIndex), view.PositionYWu(leaderIndex));
+                    var leaderArclength = Math.Min(
+                        leaderPositionArclength + FormationLookaheadWu, arclength.TotalLength);
                     var (trailOffsetWu, lateralOffsetWu) = FormationSlotOffsetsWu(slot.SlotIndex ?? 0);
                     var leaderClearance = FindLeaderClearance(view, leaderEntityId);
                     var gatedLateralOffsetWu = FormationCollapse.LateralOffset(
@@ -1460,6 +1490,82 @@ public sealed class SandataSimulation
         }
 
         return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Projects a world position onto the nearest point of <paramref name="path"/>
+    /// and returns that point's arclength, per <paramref name="arclength"/>.
+    /// Pure function of its inputs — no state is stored between calls, so
+    /// this is safe to call fresh every tick for every group's leader rather
+    /// than tracking leader progress incrementally (design section 8:
+    /// "Stored per group: nothing").
+    /// </summary>
+    /// <remarks>
+    /// Walks every segment of <paramref name="path"/>, clamps the
+    /// dot-product projection scalar to the segment's own span so the
+    /// closest point never falls outside the segment, and keeps the
+    /// segment whose clamped closest point has the smallest squared
+    /// distance to the query position. Ties break on the lowest segment
+    /// index, matching this codebase's other total-order rules (design
+    /// section 4: every multi-result query needs a total order). All
+    /// arithmetic is integer and <see langword="checked"/>, following
+    /// <see cref="FormationCollapse"/>'s own division-free,
+    /// cross-multiplication style — no floating point anywhere in this
+    /// method.
+    /// </remarks>
+    private static long ProjectArclength(
+        ImmutableArray<PathPoint> path, in PolylineArclength arclength, long positionXWu, long positionYWu)
+    {
+        var bestDistanceSq = long.MaxValue;
+        var bestArclength = 0L;
+
+        for (var i = 0; i < path.Length - 1; i++)
+        {
+            var ax = path[i].X;
+            var ay = path[i].Y;
+            var bx = path[i + 1].X;
+            var by = path[i + 1].Y;
+            var dx = bx - ax;
+            var dy = by - ay;
+            var denom = checked((dx * dx) + (dy * dy));
+
+            var apx = positionXWu - ax;
+            var apy = positionYWu - ay;
+
+            long clampedNumerator;
+            long closestX;
+            long closestY;
+
+            if (denom == 0)
+            {
+                clampedNumerator = 0;
+                closestX = ax;
+                closestY = ay;
+            }
+            else
+            {
+                var numerator = checked((apx * dx) + (apy * dy));
+                clampedNumerator = Math.Clamp(numerator, 0, denom);
+                closestX = ax + checked((clampedNumerator * dx) / denom);
+                closestY = ay + checked((clampedNumerator * dy) / denom);
+            }
+
+            var distX = positionXWu - closestX;
+            var distY = positionYWu - closestY;
+            var distanceSq = checked((distX * distX) + (distY * distY));
+
+            if (distanceSq < bestDistanceSq)
+            {
+                bestDistanceSq = distanceSq;
+                var segmentLength = arclength.ArclengthAtVertex(i + 1) - arclength.ArclengthAtVertex(i);
+                var distanceAlongSegment = denom == 0
+                    ? 0
+                    : checked((clampedNumerator * segmentLength) / denom);
+                bestArclength = arclength.ArclengthAtVertex(i) + distanceAlongSegment;
+            }
+        }
+
+        return bestArclength;
     }
 
     /// <summary>

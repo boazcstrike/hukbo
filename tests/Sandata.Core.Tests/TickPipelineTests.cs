@@ -1114,26 +1114,64 @@ public sealed class TickPipelineTests
     // ---- 8. STAGE 9, AUTONOMOUS BRANCH -------------------------------------
 
     /// <summary>
-    /// Task 79b: closes the gap task 79a opened — an unassigned operator (no
-    /// <see cref="OrderAssignment"/>) whose group now has a published path
-    /// (<see cref="RunTick_OutstandingGroupPathRequest_PublishesAtExactlyRequestTickPlusLatencyAndIsNotReissued"/>
+    /// Task 79b (second pass, after coordinator rejection): closes the gap
+    /// task 79a opened — an unassigned operator (no <see
+    /// cref="OrderAssignment"/>) whose group now has a published path (<see
+    /// cref="RunTick_OutstandingGroupPathRequest_PublishesAtExactlyRequestTickPlusLatencyAndIsNotReissued"/>
     /// proves that publish transition on its own) must actually walk along
-    /// that path rather than hold at its spawn position forever. Reached
-    /// only through <see cref="SandataSimulation.RunTick"/>, observed only
-    /// through the committed <see cref="SandataSimulation.State"/> position —
-    /// never <c>ComputeMovementProposals</c> directly.
+    /// that path, not toward the path's own end. The rejected first pass
+    /// used a straight spawn-to-goal path, on which "walk toward the
+    /// polyline" and "walk toward the goal" are the same motion and so
+    /// could not tell <c>leaderArclength</c>'s two candidate values apart;
+    /// this fixture instead forces a genuinely bent, multi-vertex smoothed
+    /// polyline — a non-axis-aligned start/goal cell pair (so raw A* zigzags
+    /// rather than reducing to one segment) plus a real <see
+    /// cref="WallBuckets"/> wall segment placed to block the funnel
+    /// smoother's line-of-sight shortcut back to a straight line — so the
+    /// two candidates diverge sharply on the very first tick after publish.
+    /// Reached only through <see cref="SandataSimulation.RunTick"/>,
+    /// observed only through the committed <see
+    /// cref="SandataSimulation.State"/> position — never
+    /// <c>ComputeMovementProposals</c> directly.
     /// </summary>
+    /// <remarks>
+    /// With cell size 4 (<see cref="NavGrid.CellSizeWu"/>), start cell
+    /// (0, 0) and goal cell (6, 3) sit at world-unit centres (2, 2) and
+    /// (26, 14); a wall segment running the full grid height at x = 14
+    /// forces the funnel-smoothed path through the vertices (2, 2),
+    /// (10, 10), (14, 14), (18, 14), (26, 14) instead of a straight line
+    /// (confirmed empirically against the real <see
+    /// cref="Sandata.Core.Navigation.PathService"/> output before this test
+    /// was written). <see cref="Movement.LocalAvoidance.Commit"/> moves an
+    /// unblocked proposal straight to its desired point every tick, with no
+    /// speed cap of its own, so the very first published tick's committed
+    /// position <i>is</i> that tick's <c>ComputeMovementProposals</c>
+    /// target. If <c>leaderArclength</c> were pinned to
+    /// <see cref="PolylineArclength.TotalLength"/> (the rejected value),
+    /// that target would be the polyline's final vertex — the goal itself,
+    /// raw (26,624, 14,336) — on this very first tick, regardless of the
+    /// operator's own position. This test's first assertion, raw
+    /// (7,168, 7,168), is a point on the first segment toward (10, 10), far
+    /// short of the goal and off the straight spawn-to-goal line entirely;
+    /// it fails under the rejected pinned value, and passes only when
+    /// <c>leaderArclength</c> is genuinely derived from the leader's own
+    /// projected position. This was confirmed directly: temporarily pinning
+    /// <c>leaderArclength</c> back to <c>arclength.TotalLength</c> and
+    /// rerunning this fixture's own tick sequence made every tick from the
+    /// first published one onward land on raw (26,624, 14,336) — an instant
+    /// jump straight to the goal — before the pin was reverted.
+    /// </remarks>
     [Fact]
-    public void RunTick_UnassignedOperatorInGroupWithPublishedPath_MovesMeasurablyAlongThePolyline()
+    public void RunTick_UnassignedOperatorInGroupWithPublishedPath_FollowsTheBentPolylineNotTheGoal()
     {
         var grid = BuildGrid();
-        var wallBuckets = NoWalls(grid);
+        var wallBuckets = WallBuckets.Build(grid, [14L], [-100L], [14L], [100L]);
         var mission = BuildMission();
 
         var startCell = grid.CellIndex(0, 0);
-        var goalCell = grid.CellIndex(5, 0);
+        var goalCell = grid.CellIndex(6, 3);
 
-        const int pathLatencyTicks = 3;
+        const int pathLatencyTicks = 1;
         var ruleset = new SandataRuleset(
             tickRate: 50,
             msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
@@ -1142,7 +1180,10 @@ public sealed class TickPipelineTests
             loweredWallDistanceWu: 24,
             aimToleranceBam: 1024);
 
-        var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 0, positionYWu: 0);
+        // Spawns on the path's own start vertex (2, 2) — the world-unit
+        // centre of cell (0, 0) — so the very first projection has a known,
+        // exact starting arclength of zero.
+        var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 2, positionYWu: 2);
         var groupState = new GroupPathState(
             GroupId: 1UL,
             DestinationCellIndex: goalCell,
@@ -1154,34 +1195,36 @@ public sealed class TickPipelineTests
 
         var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state);
 
-        for (var tick = 0; tick < pathLatencyTicks; tick++)
-        {
-            sim.RunTick(tick);
-
-            var stillAtSpawn = Assert.Single(sim.State.Operators);
-            Assert.Equal(0, stillAtSpawn.PositionX.RawValue);
-            Assert.Equal(0, stillAtSpawn.PositionY.RawValue);
-        }
+        // Request tick: path not yet published, so stage 9 still holds.
+        sim.RunTick(0);
+        var stillAtSpawn = Assert.Single(sim.State.Operators);
+        Assert.Equal(2 * FixedPoint.Scale, stillAtSpawn.PositionX.RawValue);
+        Assert.Equal(2 * FixedPoint.Scale, stillAtSpawn.PositionY.RawValue);
 
         // Publish tick: stage 7 publishes the path before stage 9 runs, so
-        // the very same tick's movement proposal already targets a point on
-        // it — this method's whole point is that stage 9 no longer holds
-        // once a path exists.
+        // this same tick's proposal already targets a point on it. Exact
+        // raw (7,168, 7,168) — see remarks above for why this value, and
+        // not the goal, is what a correct projection-based leaderArclength
+        // produces here.
         sim.RunTick(pathLatencyTicks);
+        var afterFirstMove = Assert.Single(sim.State.Operators);
+        Assert.Equal(7 * FixedPoint.Scale, afterFirstMove.PositionX.RawValue);
+        Assert.Equal(7 * FixedPoint.Scale, afterFirstMove.PositionY.RawValue);
 
-        var moved = Assert.Single(sim.State.Operators);
-
-        // Solo operator: its own group's published path runs from cell
-        // (0, 0) to cell (5, 0) over an all-open grid, so the smoothed
-        // polyline heads strictly toward +X. A one-cell nudge (one
-        // FixedPoint.Scale-quarter) would not distinguish "moved" from
-        // "rounded"; requiring at least half a cell (2 world units, raw
-        // 2,048) is what "measurably further along the polyline, not merely
-        // different" means here.
-        const int halfCellRaw = (NavGrid.CellSizeWu / 2) * FixedPoint.Scale;
-        Assert.True(
-            moved.PositionX.RawValue >= halfCellRaw,
-            $"expected the operator to have advanced at least half a cell toward the published path's goal; actual raw X was {moved.PositionX.RawValue}");
+        // Two ticks further on (each RunTick call performs exactly one
+        // movement step, so the intermediate tick must actually be run, not
+        // skipped over), the leader has walked past the polyline's (14, 14)
+        // corner and onto the final, horizontal segment toward the goal —
+        // Y pinned at 14 while X still trails the goal's 26. A straight
+        // spawn-to-goal beeline would read Y = 10 (not 14) at X = 19 (slope
+        // 12/24 from (2, 2) to (26, 14)); landing on the corridor's own Y
+        // instead is this fixture's second, independent confirmation that
+        // motion follows the polyline's actual shape.
+        sim.RunTick(pathLatencyTicks + 1);
+        sim.RunTick(pathLatencyTicks + 2);
+        var afterCorner = Assert.Single(sim.State.Operators);
+        Assert.Equal(19 * FixedPoint.Scale, afterCorner.PositionX.RawValue);
+        Assert.Equal(14 * FixedPoint.Scale, afterCorner.PositionY.RawValue);
     }
 
     /// <summary>
