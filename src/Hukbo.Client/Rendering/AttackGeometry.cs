@@ -25,9 +25,6 @@ internal readonly record struct AttackGeometrySample(
 /// </summary>
 internal static class AttackGeometry
 {
-    private const float ContactAngleShare = 0.36f;
-    private const float TrailLagShare = 0.22f;
-
     public static AttackGeometrySample Evaluate(AttackAnimation animation)
     {
         var profile = animation.MotionProfile;
@@ -35,22 +32,34 @@ internal static class AttackGeometry
         var outcome = ResolveOutcome(animation.Resolution, profile.RecoilStrength);
         var recovery = EaseWeightedRecovery(animation.RecoveryProgress);
 
+        // A legal paired loadout restrains the weapon-side motion so the block
+        // stays in the exchange. An illegal one resolves to no overlay at all
+        // and evaluates exactly as the solo stance does.
+        var overlay = AttackMotionCatalog.ResolveShieldOverlay(
+            animation.Weapon,
+            animation.AttackerShield);
+        var lateralScale = overlay?.LateralScale ?? 1f;
+        var rotationScale = overlay?.TorsoRotationScale ?? 1f;
+        var extensionScale = overlay?.ExtensionScale ?? 1f;
+
         var contactAngle =
-            profile.ArcRadians * ContactAngleShare * comboSide *
+            profile.ArcRadians * profile.ContactAngleShare * comboSide *
             outcome.AngleMultiplier;
         var contactReach = MathF.Max(
             0.35f,
-            profile.VisualExtensionEnvelope * outcome.ReachMultiplier);
+            profile.VisualExtensionEnvelope * outcome.ReachMultiplier *
+            extensionScale);
         var contactLateral =
-            profile.LateralBias * comboSide * outcome.LateralMultiplier;
+            profile.LateralBias * comboSide * outcome.LateralMultiplier *
+            lateralScale;
         var contactTrailAngle = contactAngle -
-            (profile.ArcRadians * TrailLagShare * comboSide);
+            (profile.ArcRadians * profile.TrailLagShare * comboSide);
         var contactTorsoForward =
             0.18f +
             ((profile.VisualExtensionEnvelope - 1f) * 1.4f) +
             (profile.RecoilStrength * 0.08f);
         var contactTorsoLateral = -contactLateral * 0.34f;
-        var contactTorsoRotation = -contactAngle * 0.28f;
+        var contactTorsoRotation = -contactAngle * 0.28f * rotationScale;
 
         return new AttackGeometrySample(
             WeaponAngleRadians: Lerp(contactAngle, 0f, recovery),

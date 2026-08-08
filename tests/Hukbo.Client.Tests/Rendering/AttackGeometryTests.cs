@@ -155,4 +155,68 @@ public sealed class AttackGeometryTests
             ageSeconds,
             awaitingDrawAcknowledgement);
     }
+
+    /// <summary>
+    /// Design section 7's paired stance, from the curve's side: a legal shield
+    /// overlay restrains lateral travel and body rotation while keeping most
+    /// of the reach, so the block stays between the defender and the weapon
+    /// line instead of being swung out of the exchange.
+    /// </summary>
+    [Theory]
+    [InlineData(WeaponId.Kalis)]
+    [InlineData(WeaponId.Itak)]
+    public void Evaluate_RestrainsALegalPairedStance(WeaponId weapon)
+    {
+        var solo = Evaluate(weapon, ShieldId.None);
+        var paired = Evaluate(weapon, ShieldId.TallHardwood);
+
+        Assert.True(
+            MathF.Abs(paired.WeaponLateralOffset) <
+            MathF.Abs(solo.WeaponLateralOffset));
+        Assert.True(
+            MathF.Abs(paired.TorsoRotationRadians) <
+            MathF.Abs(solo.TorsoRotationRadians));
+        Assert.True(paired.WeaponReach < solo.WeaponReach);
+        Assert.True(paired.WeaponReach > solo.WeaponReach * 0.8f);
+        Assert.Equal(solo.WeaponAngleRadians, paired.WeaponAngleRadians, precision: 5);
+    }
+
+    /// <summary>
+    /// An illegal pairing changes nothing. A two-handed family carrying a
+    /// shield identity evaluates exactly as the solo stance does, rather than
+    /// drawing a restrained motion no loadout is entitled to.
+    /// </summary>
+    [Theory]
+    [InlineData(WeaponId.Kampilan)]
+    [InlineData(WeaponId.Wasay)]
+    public void Evaluate_IgnoresAnIllegalPairedStance(WeaponId weapon)
+    {
+        Assert.Equal(
+            Evaluate(weapon, ShieldId.None),
+            Evaluate(weapon, ShieldId.TallHardwood));
+    }
+
+    /// <summary>
+    /// The head-weighted family commits less of its arc at contact than the
+    /// edge-led families do, which is what makes the axe's mass read as
+    /// arriving late rather than leading.
+    /// </summary>
+    [Fact]
+    public void Evaluate_LandsTheHeadWeightedFamilyLaterInItsOwnArc()
+    {
+        var wasay = AttackMotionCatalog.Resolve(WeaponId.Wasay);
+        var kampilan = AttackMotionCatalog.Resolve(WeaponId.Kampilan);
+
+        var wasayShare =
+            MathF.Abs(Evaluate(WeaponId.Wasay, ShieldId.None).WeaponAngleRadians) /
+            wasay.ArcRadians;
+        var kampilanShare =
+            MathF.Abs(Evaluate(WeaponId.Kampilan, ShieldId.None).WeaponAngleRadians) /
+            kampilan.ArcRadians;
+
+        Assert.True(wasayShare < kampilanShare);
+    }
+
+    private static AttackGeometrySample Evaluate(WeaponId weapon, ShieldId shield) =>
+        AttackGeometry.Evaluate(Animation(weapon, shield: shield));
 }
