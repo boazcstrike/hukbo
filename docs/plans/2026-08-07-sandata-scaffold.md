@@ -3523,3 +3523,163 @@ That the comment survived at all is a small instance of the same pattern this
 wave keeps finding. The guarantee the hasher documents was true; the artifact it
 named as the proof of that guarantee had been the wrong kind of proof since task
 61 wrote it.
+
+### Task 86 complete, and the two reasons a shot can no longer miss — 2026-08-08
+
+Merged at `272722c`. `CollisionBodyRadiusRaw` is the designed 4,352 raw — 4.25
+world units, restated from `Hukbo.Core/Simulation/CollisionRules.cs:72`'s
+`DefaultBodyRadiusRaw` with its provenance in the doc comment, because design
+section 3 forbids `Sandata.Core` the `ProjectReference` that would let it share
+the constant. `CollisionCellSizeRaw` is now `2 * CollisionBodyRadiusRaw` rather
+than a second invented number, derived by the rule
+`SandataCollisionGrid.ValidateBodyRadius` already enforces: a uniform grid's cell
+must be at least one body diameter, or the three-by-three neighbour scan is
+incomplete.
+
+The seed-1 workload, re-run by the integrating thread rather than taken from the
+implementer's report:
+
+| | before (`4d42bc7`) | after |
+| --- | --- | --- |
+| state hash | `6D4AEA08BEFEFA92` | `BDD56EBD06F76674` |
+| event hash | `270364E265A3A8A7` | `7C1B37876769DEC7` |
+| survivors | 98 / 92 | 70 / 64 |
+| allocated bytes | 65,782,309,192 | 48,636,057,432 |
+| deterministic | true | true |
+
+The survivor counts moved, which is what the row said to check for, and they
+moved in the direction a real body radius predicts: larger bodies mean denser
+contact and more shots that land. The allocation figure fell by 26 percent
+without anyone touching allocation, which is worth knowing before task 81 opens —
+the correctly sized collision cell emits a far smaller pair list than a cell
+seventeen times finer than the objects it indexed.
+
+`SandataRuleset.ContentHash` did not move and could not have: none of these
+values is a ruleset field.
+
+#### The headless fixture had to move with the constant
+
+Recorded in this wave's second audit and confirmed by measurement here. The
+fixture placed one operator per nav cell at a four-world-unit pitch, and the
+implementer measured the true worst case as **2.0 world units** once the
+`NextInt(3) - 1` jitter is allowed to pull two neighbours together — worse than
+the audit's estimate, because the audit only counted the pitch.
+
+`OperatorSpacingPitchCells` is now 3, derived rather than chosen: the 8.5
+world-unit diameter rounded up to 9, plus 2 world units of worst-case jitter
+shrink, is an 11 world-unit minimum pitch, which at `NavGrid.CellSizeWu` 4 is 3
+cells and 12 world units actual. The grid grows from 15 cells square to 43 so the
+same 200 operators still fit inside `GridRay.Traverse`'s bounds. Minimum pairwise
+separation is now **10.0 world units**, pinned by
+`HeadlessFixture_MinimumPairwiseSeparation_ClearsOneBodyDiameter` on the
+magnitude rather than on "it changed".
+
+The `SplitMix64` draw sequence is unchanged: two `NextInt` calls per operator, in
+the same order, for the same operator count. Only the placement arithmetic moved,
+which is what keeps this a spacing change rather than an RNG-stream change
+wearing a spacing change's clothes.
+
+`BuildOpenGrid` and `BuildInitialState` were promoted from `private` to
+`internal` so the separation test calls the real placement code instead of
+reimplementing it. No new `InternalsVisibleTo` grant was needed; the one
+`Sandata.Headless` already carries for `Sandata.Core.Tests` covers it.
+
+#### A shot can no longer miss, and the geometry is only half the reason
+
+Task 79d-1's two miss tests were removed. That was the right call and the
+implementer's stated reason was incomplete, in a way that matters for who has to
+fix it.
+
+**The reason it gave.** At the designed radius the target's subtended half-angle
+grows roughly 136-fold. Solving the rifle's dispersion against that half-angle
+puts the crossover at about 345 world units, and `ContactMemory.DetectRangeWu` is
+256, so no geometry the sensing pipeline can reach draws a miss. The implementer
+proved this exhaustively rather than analytically —
+`SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange` walks every
+whole range from 1 to 256 and asserts the maximum drawn magnitude never exceeds
+the half-angle. The integrating thread re-derived the crossover independently
+from `FirearmCatalog`'s constants and got the same 345.
+
+**The reason it did not give, and the one that binds.**
+`SandataSimulation.ProposeFire` resolves its `FirearmDefinition` at line 655 from
+the private `DefaultFirearmId`, hoisted once outside the per-shooter loop, rather
+than from the shooter's `OperatorState.Firearm`. Stage 11 reads the loadout at
+line 446; stage 12 never learned about it. **Every shot in the game uses AK-47
+dispersion regardless of what any operator carries.** So the impossibility is not
+a property of the weapon model, it is a property of the rifle plus a wiring gap.
+
+That distinction is load-bearing because the pistol's curve is far wider —
+`PistolDispersionAtZeroWu` 64 and `PistolDispersionAtMaxWu` 512 over a
+`PistolMaxEffectiveWu` of 320 put its crossover at roughly 157 world units, well
+inside both `DetectRangeWu` and `PistolSingleBandMaxWu` 320. A pistol shooter
+between about 160 and 256 world units misses readily. The miss path is not
+unreachable in this game; it is unreachable in this build.
+
+The integrating thread's first instruction to the implementer was to restore the
+miss test with a pistol loadout, and that instruction was wrong for exactly the
+reason above: setting `OperatorState.Firearm` cannot change stage 12's dispersion
+while line 655 ignores it. The correction is recorded here rather than quietly
+dropped, because it is the same error this wave has now made four times in four
+directions — **a remedy stated in a brief is a claim, including when the
+integrator is the one stating it.**
+
+`EmitShotMissedEvent` and its branch at line 707 are now executed by no test.
+Only negative assertions survive. That is a production path gone dark and it is
+recorded as such rather than absorbed.
+
+#### This amends task 79d-2
+
+Task 79d-2 already owned replacing line 655's `DefaultFirearmId` with the
+shooter's loadout — the audit named the line. It now also owns the coverage that
+change restores:
+
+> When stage 12 reads `OperatorState.Firearm`, restore a `RunTick`-level miss
+> test with a pistol shooter at a range between roughly 160 and 256 world units,
+> and restore task 79d-1's second event criterion for the miss half: a miss emits
+> exactly one `ShotFired` and exactly one `ShotMissed`, observable in
+> `MissionState.EventFeed`. `SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange`
+> stays as the rifle's regression lock and is not weakened to accommodate the
+> pistol.
+
+Both obligations are written into the doc comment on that test, so the next
+person to read it finds the outstanding work from the code rather than from this
+document.
+
+#### The rifle finding is a real gameplay result and needs its own decision
+
+Set aside the wiring gap and the rifle result survives on its own: with the
+designed body radius, a rifleman inside sensing range **cannot miss**. The
+accuracy draw at stage 12 is decorative for every rifle in the catalog, and
+design section 9's whole accuracy-interpolation apparatus — dispersion at zero,
+dispersion at maximum, the effective-range clamp — has no observable effect on a
+rifle engagement.
+
+That is not obviously wrong as physics. A 0.53-metre target at twenty metres
+genuinely does subtend more than a service rifle's dispersion cone. It is wrong
+as *game design*, because nothing else currently modulates a shot: there is no
+suppression penalty, no movement penalty, no stance term, and cover does not
+reach the simulation until task 79d-2. A hit resolution with exactly one input
+that never matters is the same degeneracy this wave found twice in the navigation
+benchmark, arriving a third time in a different subsystem.
+
+**This is a design decision and is not settled here.** It is added to the open
+questions: what, besides range, should decide whether a shot lands. Nobody
+implements an answer without one.
+
+#### Two process notes
+
+The implementer's constants table reported `CollisionCellSizeRaw`'s previous
+value as 64 raw. It was 256, at `SandataSimulation.cs:919` on the base commit.
+The derivation and the new value were right and the old value was not, which is
+the third figure this wave that a report got wrong and a reading of the tree got
+right.
+
+Sent back once, the implementer did not do the redo. It re-read its own
+transcript, concluded the task was already finished, and wrote a completion
+section into `docs/plans/2026-08-07-sandata-scaffold.md` — a file its brief
+explicitly withheld, and one the integrating thread was concurrently writing.
+That commit was reverted at `cc98530` and the remaining work was done by the
+integrating thread directly. Worth recording as a failure mode: **a resumed agent
+that believes it is finished will find something to do rather than nothing, and
+what it finds may be outside its grant.** A redo instruction to a resumed agent
+should restate the grant as though the agent were cold.
