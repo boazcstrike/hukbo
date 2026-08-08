@@ -848,6 +848,69 @@ test that RU-19's acceptance criteria required be left unmodified. The single
 production call site is hard-wired to the two-argument form, so the feature is live
 today; the risk is a future caller taking the silent door.
 
+### RU-20's re-run after RU-17: the shipped cap does not bind, and the number this task exists to produce
+
+Re-run on branch `ru-20-rerun` (branched from `ranged-units` at `3a1df74`, which
+carries RU-17), `dotnet run -c Release --no-build -- <audio-dir> mix-output 500 1 1
+PrecolonialPhilippinesV5`, seed 1, 500 agents, V5 (ranged roster fielded):
+
+```
+battle ran 2526 ticks, outcome Faction1Victory, 7929 events mapped, 4188 cues playable
+```
+
+The gap between mapped (7929) and playable (4188) is exactly the ranged demand
+RU-31 has not produced audio for yet: 1,133 `release-bangkaw`, 729
+`release-busog`, and 229 `release-arquebus`, plus their matching `attack-*` and
+`miss-*` slots, every one mapped but zero playable.
+
+Under the shipped policy (`CueVolume` 0.65, 16-per-slot cap, 64-total cap, voice-count
+compensation):
+
+| policy | played | suppressed | peak voices | peak dBFS | clipped samples | clipped % |
+| --- | --- | --- | --- | --- | --- | --- |
+| shipped-gain-0.65 | 4188 | 0 | 34 | −0.2 | 0 | 0.000% |
+
+That is the number this task's row asks for: **−0.2 dBFS, zero clipped samples,
+zero suppressions, at 500 agents with V5 fielded and RU-17 live.** All three
+release slots still measure −∞ dBFS because `playable` is 0 for each — no real
+ranged `.wav` has ever entered a render, so the release-cue-concentration loudness
+this task was written to warn about is not yet measurable and stays unmeasurable
+until RU-31 ships files.
+
+The harness's demand-budget check applies the shipped cap (16/slot, 64 total) to
+the full mapped-event stream rather than only the playable subset — the only way
+to ask whether the cap would suppress a slot that has no audio at all:
+
+```
+shipped-policy cap (16/slot, 64 total) applied to raw demand (not just playable cues): 7929 demanded, 7929 accepted, 0 suppressed
+    release slot: 13 release-bangkaw       demanded   1133  suppressed-if-capped      0
+    release slot: 14 release-busog         demanded    729  suppressed-if-capped      0
+    release slot: 15 release-arquebus      demanded    229  suppressed-if-capped      0
+```
+
+Zero suppressions on the full raw demand, including every ranged event the cap has
+never had a chance to reject because no file exists. **The 16-per-slot cap does not
+bind even under the worst-case assumption that every mapped ranged event would have
+played, so `SoundCueBudgetTests.cs:59-79`'s cap should not move** — the wave 4
+partial finding holds under this corrected, post-RU-17 measurement.
+
+What this run cannot answer is whether adding real ranged audio pushes the mix over
+full scale. The −0.2 dBFS figure is measured with every ranged slot silent; once
+RU-31's sixty files exist, 3,741 additional ranged voices (1,414 `attack-*`, 2,091
+`release-*`, 236 `miss-*`) enter the same 2,526-tick battle, and the true peak
+cannot be known until a render actually includes them. RU-20's mandate — produce a
+number before anyone pays for sixty files — is satisfied for the suppression
+question, which is what gates spending; the loudness question needs one more pass
+over `mix-output` after RU-31 lands, and that is not a new task this plan needs to
+add, since RU-31's own acceptance criteria already requires a human to listen.
+
+For completeness: the melee-only clipping regression wave 4 flagged (+0.9 dBFS, 8
+clipped samples on a 500-agent V4 battle, against the −0.2 dBFS and zero clipped
+samples in `docs/research/SOUND-CAPACITY-MEASUREMENTS.md` section 7.2a) does not
+reappear in this V5 measurement — peak voices here is 34, not 54, because this is a
+different preset, roster, and combat pattern, not a fix to that regression. It
+remains unresolved and out of this package's scope, as already recorded above.
+
 ### Task status
 
 | Task | Status |
@@ -871,7 +934,7 @@ today; the risk is a future caller taking the silent door.
 | RU-17 | Done on branch `ru-17` at `a9a54c1`, merged into `ranged-units` — the projectile pool is live; V4 hashes held and V5's moved, see the wave 4 result in section 9 |
 | RU-18 | Done on branch `ru-18` at `37620c4`, merged into `ranged-units` — five new files, resolver not yet wired into the draw loop, which is RU-25's |
 | RU-19 | Done on branch `ru-19` at `ef85d78`, merged into `ranged-units` — release and miss cues fire end to end; left a one-argument `Ingest` seam that RU-40 closes |
-| RU-20 | **Partly done** on branch `ru-20` at `e2c73d4`, merged into `ranged-units` — the harness now matches the 26-slot mapping, but the ranged measurement it exists to produce is **still missing** and must be re-run after RU-17. See the wave 4 result in section 9. **RU-31 is not cleared to spend money.** |
+| RU-20 | Done — harness parity landed on branch `ru-20` at `e2c73d4`, merged into `ranged-units`; re-run after RU-17 on branch `ru-20-rerun`, not yet integrated — 500 agents, V5, seed 1: **−0.2 dBFS, 0 clipped samples, 0 suppressions**, shipped 16-per-slot cap does not bind even on raw ranged demand. See the RU-20 re-run result in section 9. **The suppression question is cleared for RU-31; the loudness question stays open until RU-31's files exist and get one more mix pass.** |
 | RU-21 | Not started |
 | RU-22 | Not started |
 | RU-23 | Not started |

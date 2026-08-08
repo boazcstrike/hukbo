@@ -111,31 +111,80 @@ internal static class CueSchedule
     /// <c>SoundLibrary.Resolve</c> and <c>SoundLibrary.ResolveVariants</c>
     /// take — so the numbered-match, fallback-chain, and bare-single rules
     /// below mirror them exactly rather than only the numbered-variant case
-    /// the previous replica implemented.
+    /// the previous replica implemented. <paramref name="preset"/> selects the
+    /// combat ruleset via <c>Scenario.CombatPreset</c>, exactly the way
+    /// <c>HeadlessRunner</c>'s <c>--preset</c> flag does
+    /// (<c>scenario = scenario with { CombatPreset = preset }</c>); passing
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV5"/> is what fields a
+    /// ranged roster instead of the melee-only default.
+    /// <see cref="MappedCountsBySlot"/> on the result counts every event that
+    /// mapped to a slot, whether or not a file existed to resolve — the raw
+    /// demand, distinct from <c>Cues.Count</c>, which only counts cues that
+    /// also resolved to a playable file. The two agree once every slot has
+    /// shipped audio; today they do not for the thirteen ranged slots, and
+    /// that gap is itself the finding this task's re-run must report.
+    /// <see cref="MappedEvents"/> carries every mapped (tick, slot) pair in
+    /// emission order, independent of file resolution, so a caller can run
+    /// the same per-frame budget accounting <see cref="Mixer"/> applies to
+    /// playable cues against the full demand instead — the only way to ask
+    /// whether the per-slot cap would bind on a slot that currently has no
+    /// audio to play at all.
     /// </summary>
-    public static (IReadOnlyList<ScheduledCue> Cues, long TicksRun, string Outcome) Build(
+    public static (
+        IReadOnlyList<ScheduledCue> Cues,
+        long TicksRun,
+        string Outcome,
+        int[] MappedCountsBySlot,
+        IReadOnlyList<(long Tick, int Slot)> MappedEvents) Build(
         int agents,
         ulong seed,
         int tickLimit,
-        IReadOnlyDictionary<string, WavClip> clips)
+        IReadOnlyDictionary<string, WavClip> clips,
+        CombatPresetId preset)
     {
         var (rawMatches, bareMatches) = BuildRawMatches(clips);
 
-        var scenario = Scenario.CreateDefault(seed, agents) with { TickLimit = tickLimit };
+        var scenario = Scenario.CreateDefault(seed, agents) with
+        {
+            TickLimit = tickLimit,
+            CombatPreset = preset,
+        };
         scenario.Validate();
         var simulation = BattleSimulation.Create(scenario);
+
+        // A classless Release/Miss event cannot name its own weapon --
+        // BattleEvent.NonAttack forces Weapon null by construction for both
+        // kinds (BattleEvent.cs). SoundDirector.Ingest (RU-19) resolves the
+        // Release case from the source agent's AgentView.Loadout instead of
+        // the event; mirror that here or every Release event maps to slot -1
+        // forever, which is exactly the defect this re-run exists to catch.
+        // A loadout is fixed at spawn and never changes, even after death
+        // (BattleSimulation.cs's A0-pass comment on Pass A0), so one snapshot
+        // taken immediately after creation -- before any tick runs -- covers
+        // the whole battle.
+        var launcherWeapons = new Dictionary<ulong, WeaponId>();
+        foreach (var view in simulation.Agents)
+        {
+            launcherWeapons[view.EntityId] = view.Loadout.Weapon;
+        }
+
         var cues = new List<ScheduledCue>();
+        var mappedCountsBySlot = new int[SlotCount];
+        var mappedEvents = new List<(long Tick, int Slot)>();
 
         while (simulation.Outcome == BattleOutcome.Ongoing && simulation.Tick < tickLimit)
         {
             simulation.AdvanceOneTick();
             foreach (var battleEvent in simulation.LastEvents)
             {
-                var slot = MapSlot(battleEvent);
+                var slot = MapSlot(battleEvent, launcherWeapons);
                 if (slot < 0)
                 {
                     continue;
                 }
+
+                mappedCountsBySlot[slot]++;
+                mappedEvents.Add((battleEvent.Tick, slot));
 
                 var fileName = ResolveFile(
                     slot,
@@ -152,11 +201,13 @@ internal static class CueSchedule
             }
         }
 
-        return (cues, simulation.Tick, simulation.Outcome.ToString());
+        return (cues, simulation.Tick, simulation.Outcome.ToString(), mappedCountsBySlot, mappedEvents);
     }
 
     /// <summary>Mirrors <c>SoundCueMapper.Map</c>.</summary>
-    private static int MapSlot(BattleEvent battleEvent) =>
+    private static int MapSlot(
+        BattleEvent battleEvent,
+        IReadOnlyDictionary<ulong, WeaponId> launcherWeapons) =>
         battleEvent.Kind switch
         {
             BattleEventKind.Attack => MapAttackSlot(battleEvent.Weapon, battleEvent.Resolution),
@@ -167,10 +218,23 @@ internal static class CueSchedule
                 1 => 6,
                 _ => 7,
             },
-            BattleEventKind.Release => MapReleaseSlot(battleEvent.Weapon),
+            BattleEventKind.Release => MapReleaseSlot(
+                ResolveLauncherWeapon(battleEvent.SourceEntityId, launcherWeapons)),
             BattleEventKind.Miss => MapMissSlot(battleEvent.Weapon),
             _ => -1,
         };
+
+    /// <summary>
+    /// Looks up the launching agent's weapon from the battle-start loadout
+    /// snapshot, exactly what <c>SoundDirector.ResolveReleaseSound</c> does
+    /// against the live <c>AgentView</c> list. Returns <c>null</c> — no cue,
+    /// no throw — if the source entity is somehow absent, mirroring
+    /// <c>SoundDirector</c>'s own miss case.
+    /// </summary>
+    private static WeaponId? ResolveLauncherWeapon(
+        ulong sourceEntityId,
+        IReadOnlyDictionary<ulong, WeaponId> launcherWeapons) =>
+        launcherWeapons.TryGetValue(sourceEntityId, out var weapon) ? weapon : null;
 
     /// <summary>Mirrors <c>SoundCueMapper.MapAttack</c>.</summary>
     private static int MapAttackSlot(WeaponId? weapon, AttackResolution? resolution)
@@ -221,16 +285,15 @@ internal static class CueSchedule
         };
 
     /// <summary>
-    /// Mirrors <c>SoundCueMapper.MapRelease</c>. In today's event stream
-    /// <c>BattleEvent.Weapon</c> is always <c>null</c> for a
-    /// <see cref="BattleEventKind.Release"/> event by construction (the
-    /// enum's own doc comment says so), so this always resolves -1 today —
-    /// exactly matching what the real client's <c>SoundCueMapper.Map</c>
-    /// entry point does, since nothing yet resolves the launching weapon from
-    /// the source agent's loadout. Only the internal, directly-called
-    /// <c>MapRelease(WeaponId?)</c> overload the mapper exposes for a future
-    /// caller — RU-19 — can ever pass a non-null weapon, and that caller does
-    /// not exist yet.
+    /// Mirrors <c>SoundCueMapper.MapRelease</c>, the hook RU-14 exposed for
+    /// <c>SoundDirector.ResolveReleaseSound</c> (RU-19, merged) to call
+    /// directly with the launching agent's weapon. <c>BattleEvent.Weapon</c>
+    /// is always <c>null</c> for a <see cref="BattleEventKind.Release"/>
+    /// event by construction (the enum's own doc comment says so), so the
+    /// weapon reaching this method must come from
+    /// <see cref="MapSlot"/>'s <c>ResolveLauncherWeapon</c> lookup against the
+    /// source agent's loadout, never from <c>battleEvent.Weapon</c> directly
+    /// — that is exactly the RU-19 fix this replica now mirrors.
     /// </summary>
     private static int MapReleaseSlot(WeaponId? weapon) =>
         weapon switch
@@ -242,11 +305,18 @@ internal static class CueSchedule
         };
 
     /// <summary>
-    /// Mirrors <c>SoundCueMapper.MapMiss</c>. Same weapon-always-null caveat
-    /// as <see cref="MapReleaseSlot"/> applies to a
-    /// <see cref="BattleEventKind.Miss"/> event; an
-    /// <see cref="AttackResolution.Evaded"/> ranged attack still carries its
-    /// weapon and reaches this correctly through <see cref="MapAttackSlot"/>.
+    /// Mirrors <c>SoundCueMapper.MapMiss</c>. Deliberately reads
+    /// <c>battleEvent.Weapon</c> directly, unlike <see cref="MapReleaseSlot"/>
+    /// — the real client's <c>SoundDirector.Ingest</c> routes only
+    /// <see cref="BattleEventKind.Release"/> through the loadout-lookup fix;
+    /// a genuine <see cref="BattleEventKind.Miss"/> event (the target died in
+    /// flight) still goes through the unmodified
+    /// <c>SoundCueMapper.Map(battleEvent)</c> path and so still resolves -1
+    /// in production today. Mirroring that here, warts included, is required
+    /// parity, not an oversight — an <see cref="AttackResolution.Evaded"/>
+    /// ranged attack is a different event kind (<c>Attack</c>, not
+    /// <c>Miss</c>) that still carries its weapon and reaches this correctly
+    /// through <see cref="MapAttackSlot"/>.
     /// </summary>
     private static int MapMissSlot(WeaponId? weapon) =>
         weapon switch
