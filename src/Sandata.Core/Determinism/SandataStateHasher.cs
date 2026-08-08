@@ -38,7 +38,11 @@ namespace Sandata.Core.Determinism;
 /// <c>SuppressionCounter</c>, then that operator's
 /// <c>ContactMemory</c>'s count and, for each entry, in the array's stored
 /// order, <c>EnemyEntityId</c>, <c>LastKnownCellIndex</c>, <c>ContactTier</c>,
-/// <c>LastSeenTick</c>. <c>SquadSlotIndex</c> is not folded: task 64's
+/// <c>LastSeenTick</c>, and finally (task 79c of
+/// docs/plans/2026-08-07-sandata-scaffold.md, the wave-12 audit's corrected
+/// obligation) that operator's <c>Firearm</c>, folded last in this block —
+/// after the contact-memory entries, not interleaved among the scalar
+/// fields above. <c>SquadSlotIndex</c> is not folded: task 64's
 /// 2026-08-07 correction removed it from <see cref="OperatorState"/> because
 /// design section 8 derives it every tick and stores nothing per group.
 /// <c>EntityId</c>, <c>EnemyEntityId</c>, and <c>Groups</c>' <c>GroupId</c>
@@ -330,17 +334,26 @@ internal static class SandataStateHasher
 
         var contactMemory = operatorState.ContactMemory;
         SandataHash.Fold(ref hash, contactMemory.IsDefault ? 0 : contactMemory.Length);
-        if (contactMemory.IsDefault)
+        if (!contactMemory.IsDefault)
         {
-            return;
+            foreach (var entry in contactMemory)
+            {
+                SandataHash.Fold(ref hash, unchecked((long)entry.EnemyEntityId));
+                SandataHash.Fold(ref hash, entry.LastKnownCellIndex);
+                SandataHash.Fold(ref hash, entry.ContactTier);
+                SandataHash.Fold(ref hash, entry.LastSeenTick);
+            }
         }
 
-        foreach (var entry in contactMemory)
-        {
-            SandataHash.Fold(ref hash, unchecked((long)entry.EnemyEntityId));
-            SandataHash.Fold(ref hash, entry.LastKnownCellIndex);
-            SandataHash.Fold(ref hash, entry.ContactTier);
-            SandataHash.Fold(ref hash, entry.LastSeenTick);
-        }
+        // Task 79c (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12
+        // audit's corrected obligation): the operator's loadout, folded last
+        // inside this block -- after every field this hasher already
+        // covered, including the nested contact-memory entries above. This
+        // fold must be unconditional and outside the contact-memory
+        // early-exit path above (fixed here: the pre-task-79c method
+        // `return`ed from inside the `if (contactMemory.IsDefault)` branch,
+        // which would have skipped this fold for any operator whose
+        // ContactMemory array is still its default value).
+        SandataHash.Fold(ref hash, (long)operatorState.Firearm);
     }
 }

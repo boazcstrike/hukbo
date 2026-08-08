@@ -338,13 +338,16 @@ public sealed class SandataSimulation
     }
 
     /// <summary>
-    /// The default firearm every operator advances against in
-    /// <see cref="AdvanceWeaponChain"/> and <see cref="ProposeFire"/>.
-    /// <b>PROVISIONAL — no per-operator loadout.</b> <see cref="OperatorState"/>
-    /// carries no <c>FirearmId</c> field, so this task cannot look up a real
-    /// per-operator weapon; every operator uses this one row of
-    /// <see cref="FirearmCatalog.Rows"/> instead. Honest degeneracy, not a
-    /// stand-in for a real loadout system.
+    /// The firearm <see cref="ProposeFire"/> still advances every operator
+    /// against. <b>PROVISIONAL — <see cref="AdvanceWeaponChain"/> no longer
+    /// uses this constant.</b> Task 79c (docs/plans/2026-08-07-sandata-
+    /// scaffold.md, the wave-12 audit's corrected obligation) added
+    /// <see cref="OperatorState.Firearm"/>, and stage 11 below now reads that
+    /// per-operator field instead of this one shared default. Stage 12
+    /// (<see cref="ProposeFire"/>) is task 79d's territory, not this task's,
+    /// so it keeps reading this constant unchanged; the value also doubles
+    /// as <see cref="OperatorState.Firearm"/>'s own default, so behaviour is
+    /// unchanged for every caller that does not set the new field.
     /// </summary>
     private const FirearmId DefaultFirearmId = FirearmId.Ak47;
 
@@ -406,6 +409,15 @@ public sealed class SandataSimulation
     /// <see langword="false"/> for the whole tick — the chain holds at
     /// <see cref="WeaponChainPhase.Turning"/> rather than firing at nothing.
     /// </para>
+    /// <para>
+    /// <b>Per-operator loadout.</b> Task 79c
+    /// (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12 audit's
+    /// corrected obligation): each operator's own
+    /// <see cref="OperatorState.Firearm"/> selects its
+    /// <see cref="FirearmCatalog"/> row, looked up once per operator inside
+    /// the loop below rather than once for the whole tick, so two operators
+    /// carrying different firearms advance different timing chains.
+    /// </para>
     /// </remarks>
     internal void AdvanceWeaponChain()
     {
@@ -416,9 +428,6 @@ public sealed class SandataSimulation
             return;
         }
 
-        var definition = FirearmCatalog.Rows[(int)DefaultFirearmId];
-        var readyTicks = TickConversion.ToTicks(definition.ReadyMs, _ruleset.TickRate);
-        var resetTicks = TickConversion.ToTicks(definition.ResetMs, _ruleset.TickRate);
         var intents = PendingIntents;
 
         var updated = ImmutableArray.CreateBuilder<OperatorState>(operators.Length);
@@ -433,6 +442,10 @@ public sealed class SandataSimulation
                 updated.Add(op);
                 continue;
             }
+
+            var definition = FirearmCatalog.Rows[(int)op.Firearm];
+            var readyTicks = TickConversion.ToTicks(definition.ReadyMs, _ruleset.TickRate);
+            var resetTicks = TickConversion.ToTicks(definition.ResetMs, _ruleset.TickRate);
 
             var positionXWu = WorldUnits.FromFixedPoint(op.PositionX);
             var positionYWu = WorldUnits.FromFixedPoint(op.PositionY);

@@ -210,7 +210,13 @@ public sealed class MissionEventFeedTests
     /// future reader searching for "what did task 76 pin" finds an answer
     /// here rather than having to already know it is task 61's value.
     /// </summary>
-    private const ulong PreTask76BaselineHash = 5_550_901_129_500_655_850UL;
+    // Moved at task 79c, from 5_550_901_129_500_655_850UL, for the reason
+    // recorded beside OrderStateHashTests.PreTask61BaselineHash: task 79c
+    // appends the operator's Firearm to FoldOperator. What this test guards
+    // is unaffected — Compute still never reads MissionState.EventFeed, and
+    // StateHash_DoesNotMove_WhenTheEventFeedGainsEvents below is the
+    // assertion that actually proves it, independently of any literal.
+    private const ulong PreTask76BaselineHash = 3_159_438_799_659_597_482UL;
 
     [Fact]
     public void StateHash_OfPinnedFixtureWithDefaultEventFeed_MatchesThePreTask76Baseline()
