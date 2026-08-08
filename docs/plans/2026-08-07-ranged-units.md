@@ -911,6 +911,78 @@ reappear in this V5 measurement — peak voices here is 34, not 54, because this
 different preset, roster, and combat pattern, not a fix to that regression. It
 remains unresolved and out of this package's scope, as already recorded above.
 
+### Wave 5's result, measured on the integration branch after merging
+
+Wave 5 dispatched RU-21 and RU-22 from the plan's own wave, plus RU-20's re-run and
+RU-40. All four merged without a conflict. Before dispatching, `main` was merged
+into `ranged-units` — 186 commits of Sandata work, one conflict in `scripts/sfx.ps1`
+where both sides had added independent content at the same point, resolved by
+keeping both.
+
+Measured on the merge commit, in `Release`:
+
+```
+Core:   Failed: 1, Passed: 2414, Total: 2415
+Client: Failed: 0, Passed: 3293, Total: 3293
+format: [PASS] Formatting verification completed.
+```
+
+**The Client suite is green.** The known-red window's Client half, twenty-one
+failures at its widest, closed exactly where section 3 predicted it would — at
+RU-22. The single remaining Core failure is the leader fact, which needs both V8 and
+V9 registered; RU-21 supplied V8, so RU-30 closes it in wave 8.
+
+Note that Core's total dropped from 2648 to 2410 when `main` merged in. That is
+`fd8435c`, which consolidated the movement-matrix and profile-row suites on `main`.
+It is not lost coverage, and an agent comparing against the wave 4 figure without
+knowing this will think 238 tests vanished.
+
+**Every frozen preset held, verified across the whole matrix rather than only the
+default:**
+
+| Combat | Movement | `stateHash` | `eventHash` |
+| --- | --- | --- | --- |
+| V4 | V4 | `1B73FC5923879AA0` | `AC55684F24D39344` |
+| V5 | V4 | `CA230133F128B1A9` | `6953A1C982A3014C` |
+| V4 | V6 | `24EA6F2183A3D05B` | `2B8DE43B3CAAEF92` |
+| V4 | V7 | `B6B0AB6C575D2FE6` | `3298D40F15FC43DE` |
+| V4 | V8 | `43458DD43FA3F564` | `AC55684F24D39344` |
+| V5 | V8 | `216412BC51B838E3` | `B7DAB19F52CB0D67` |
+
+V6 and V7 were measured on the integration branch both before and after RU-21 and
+came back byte-identical, which is the evidence that RU-21's code motion was safe.
+That check mattered: RU-21 hoisted the `target` lookup in `GatherMovementProposals`
+above the contingent-cohesion branch, and that branch runs for every preset except
+`IndependentPursuitV1`. A hoist that changed V6 or V7 would have been a silent
+regression in a preset nobody in this package was looking at.
+
+**A sixth known-wrong row: RU-21's "same `stateHash` as V4" criterion cannot be
+met, by construction.** `StateHasher.Compute` folds `movementContentHash`, so a
+distinct movement preset necessarily produces a distinct `stateHash` even when its
+behaviour is byte-identical. The row should have asked for the same `eventHash`,
+and it gets it — V8 on a melee-only roster returns `AC55684F24D39344`, identical to
+V4, which is the real proof that the ordered event stream is unchanged. RU-21 also
+supplied a stronger behavioural proof than either hash: a lockstep test running V4
+and V8 side by side for 600 ticks, comparing per-agent position, hit points,
+intent, liveness, target, and movement resolution every tick.
+
+**`PrecolonialPhilippinesV5` cannot run under V6 or V7.** The combination fails
+with `No movement profile is registered for this loadout under movement preset
+EquipmentRelativeFootworkV6 ... Actual value was CombatLoadout { Weapon = Bangkaw
+... }`. This is expected rather than broken — V8 is the movement preset that carries
+ranged behaviour — but it is a real constraint on what RU-25 may name in
+`ArenaGame.BuildScenario` and on what any later benchmark may ask for. A ranged
+roster runs under V4 or V8 and nothing else.
+
+**RU-21 found and fixed a real defect the plan did not anticipate.** The
+contingent-cohesion aim-point branch would have intercepted a ranged agent's turn
+with a `continue` before the standoff check ever ran, closing a held warrior onto
+its target's body-contact ring and making the hold arm dead on arrival. This is the
+same class of failure as the optional trailing parameter — code that compiles,
+tests that pass, and a feature that never executes — arriving through a different
+mechanism, an earlier `continue` in a shared loop. Worth watching for in RU-25 and
+RU-30, both of which add branches to loops that already have several.
+
 ### Task status
 
 | Task | Status |
@@ -935,8 +1007,8 @@ remains unresolved and out of this package's scope, as already recorded above.
 | RU-18 | Done on branch `ru-18` at `37620c4`, merged into `ranged-units` — five new files, resolver not yet wired into the draw loop, which is RU-25's |
 | RU-19 | Done on branch `ru-19` at `ef85d78`, merged into `ranged-units` — release and miss cues fire end to end; left a one-argument `Ingest` seam that RU-40 closes |
 | RU-20 | Done — harness parity landed on branch `ru-20` at `e2c73d4`, merged into `ranged-units`; re-run after RU-17 on branch `ru-20-rerun`, not yet integrated — 500 agents, V5, seed 1: **−0.2 dBFS, 0 clipped samples, 0 suppressions**, shipped 16-per-slot cap does not bind even on raw ranged demand. See the RU-20 re-run result in section 9. **The suppression question is cleared for RU-31; the loudness question stays open until RU-31's files exist and get one more mix pass.** |
-| RU-21 | Not started |
-| RU-22 | Not started |
+| RU-21 | Done on branch `ru-21` at `0281e5f`, merged into `ranged-units` — `RangedStandoffV8` registered, `AgentIntent.Holding` has exactly one producer at `BattleSimulation.cs:1741`. Its "same `stateHash` as V4" criterion is unachievable by construction; see the wave 5 result in section 9 |
+| RU-22 | Done on branch `ru-22` at `6ff87ab` and `532ae4c`, merged into `ranged-units` — **the Client suite is green, 0 failed of 3293.** Two stale cardinality pins now derive their role factor from the enum rather than carrying a literal |
 | RU-23 | Not started |
 | RU-24 | Not started |
 | RU-25 | Not started |
@@ -954,4 +1026,5 @@ remains unresolved and out of this package's scope, as already recorded above.
 | RU-37 | Done on branch `ru-37` at `719fbe7` — F-A reports real counters; see the F-A result in section 9 |
 | RU-38 | Done on branch `ru-38` at `215bff1`, merged into `ranged-units` — `HoldingCount` now reads a real roster in the running game |
 | RU-39 | Done on branch `ru-39` at `53105bd` and `b622c76`, merged into `ranged-units` — Core is down from two red to one; the second commit exists because the first rescoping was tautological, see the wave 4 result in section 9 |
-| RU-40 | Not started — added 2026-08-08, found by the orchestrator while reviewing RU-19; closes the one-argument `Ingest` seam |
+| RU-40 | Done on branch `ru-40` at `24ede78`, merged into `ranged-units` — the one-argument `Ingest` seam is gone and `agents` carries no default |
+| RU-41 | Not started — added 2026-08-08, found by RU-22. `ConservativePawnCullTests.cs`'s second cardinality pin still carries a literal `2` for `PawnShieldRole`'s member count, which is correct today and rots the moment a second shield type is added — the identical defect RU-22 just repaired for `PawnWeaponRole`. Derive it from `Enum.GetValues<PawnShieldRole>().Length`. File: `tests/Hukbo.Client.Tests/ConservativePawnCullTests.cs` |
