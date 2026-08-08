@@ -471,6 +471,18 @@ public sealed class AttackPoseRenderingTests
     private static PawnAppearance Appearance(WeaponId weapon, ShieldId shield) =>
         PawnAppearanceFactory.Create(entityId: 11, weapon, shield);
 
+    /// <summary>
+    /// The heading of this weapon's line on a pawn that is not attacking: the
+    /// baseline every attack rotation is measured against.
+    /// </summary>
+    private static float NeutralWeaponAngle(WeaponId weapon, float zoom)
+    {
+        var layout = Neutral(weapon, zoom);
+        return MathF.Atan2(
+            layout.WeaponEnd.Y - layout.WeaponStart.Y,
+            layout.WeaponEnd.X - layout.WeaponStart.X);
+    }
+
     private static Vector2 Center(Rectangle bounds) =>
         new(bounds.Center.X, bounds.Center.Y);
 
@@ -540,5 +552,57 @@ public sealed class AttackPoseRenderingTests
             awaitingDrawAcknowledgement: false);
 
         Assert.False(recovering.Arms.IsEmpty);
+    }
+
+    /// <summary>
+    /// The trail lags the blade at every heading. <c>CreateSwingTrail</c> reads
+    /// the sign of the weapon rotation as the direction of travel, so a
+    /// rotation left unwrapped past pi — which a difference between two
+    /// <c>Atan2</c> results can be — would sweep the arc ahead of the weapon
+    /// instead of behind it. That inverted for roughly an eighth of all
+    /// headings before the rotation was wrapped.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Weapons))]
+    public void Trail_LagsTheBladeAtEveryHeading(WeaponId weapon)
+    {
+        for (var degrees = 0; degrees < 360; degrees += 3)
+        {
+            var radians = degrees * MathF.PI / 180f;
+            var layout = Posed(
+                weapon,
+                HighZoom,
+                directionX: MathF.Cos(radians),
+                directionY: MathF.Sin(radians));
+            var trail = layout.SwingTrail;
+
+            Assert.False(trail.IsEmpty);
+
+            // The arc runs from its trailing end to the weapon tip, so the
+            // start of the sweep must sit behind the drawn weapon line.
+            var weaponAngle = MathF.Atan2(
+                layout.WeaponEnd.Y - layout.WeaponStart.Y,
+                layout.WeaponEnd.X - layout.WeaponStart.X);
+            var endDelta = MathF.Abs(
+                MathF.IEEERemainder(trail.EndAngleRadians - weaponAngle, MathF.Tau));
+
+            Assert.True(
+                endDelta < 0.001f,
+                $"{weapon} at {degrees} deg: trail ends {endDelta} rad off the blade.");
+
+            // The sweep runs from the trailing end to the tip, so its sign is
+            // the direction the weapon actually turned. Recomputed here from
+            // the drawn line and the weapon's own neutral baseline rather than
+            // read back out of the pose, so an unwrapped rotation cannot agree
+            // with itself.
+            var baseline = NeutralWeaponAngle(weapon, HighZoom);
+            var turned = MathF.IEEERemainder(weaponAngle - baseline, MathF.Tau);
+            var sweep = trail.EndAngleRadians - trail.StartAngleRadians;
+
+            Assert.NotEqual(0f, sweep);
+            Assert.True(
+                (sweep >= 0f) == (turned >= 0f),
+                $"{weapon} at {degrees} deg: swept {sweep} for a turn of {turned}.");
+        }
     }
 }

@@ -810,11 +810,27 @@ internal static class PawnGeometry
         return new SwingPose(
             phase,
             PhaseProgress: phase == SwingPhase.ImpactHold ? 0f : 1f,
-            WeaponAngleRadians: desiredAngle - baselineAngle,
+            WeaponAngleRadians: NormalizeAngle(desiredAngle - baselineAngle),
             TorsoLeanX: pose.TorsoOffset.X,
             TorsoLeanY: pose.TorsoOffset.Y,
             ExtensionRatio: extensionRatio,
             TrailStrength: pose.TrailStrength);
+    }
+
+    /// <summary>
+    /// Wraps a rotation into <c>[-pi, pi]</c>. The rotation itself is
+    /// unaffected — a cosine and a sine do not care which turn they are on —
+    /// but its <em>sign</em> is read as a direction of travel by
+    /// <see cref="CreateSwingTrail"/>, and an unwrapped difference between two
+    /// <see cref="MathF.Atan2"/> results can exceed pi. Without this wrap a
+    /// warrior striking roughly up-and-left through left reported a positive
+    /// rotation where the real one is negative, and its trail was drawn ahead
+    /// of the blade instead of behind it, for about an eighth of all headings.
+    /// </summary>
+    private static float NormalizeAngle(float radians)
+    {
+        var wrapped = MathF.IEEERemainder(radians, MathF.Tau);
+        return float.IsFinite(wrapped) ? wrapped : 0f;
     }
 
     /// <summary>
