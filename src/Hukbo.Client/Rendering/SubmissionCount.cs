@@ -480,9 +480,14 @@ internal static class RenderBudgetEstimate
     //   17,532 + (512 x 1 projectile quad) = 18,044 quads (500 units)
     //
     // Both still fit under the unmoved ceilings (2,056 quads of headroom at
-    // 200 units, 1,956 at 500). No projectile renderer exists yet
-    // (tools/... and src/Hukbo.Client/Rendering have no ProjectileRenderer.cs
-    // as of this task), so this budget is provisioned ahead of that renderer
+    // 200 units, 1,956 at 500) — but note the 500-unit margin has fallen from
+    // 3,468 to 1,956 across RU-23 and RU-42, so the next feature that wants a
+    // per-pawn quad owes a fresh measurement rather than an assumption.
+    // The projectile draw itself landed in RU-25 as ArenaGame.DrawProjectiles
+    // (ArenaGame.Rendering.cs), one stroked shaft per live flight, rather than
+    // as a ProjectileRenderer.cs of its own; that shaft has not yet been
+    // observed at runtime, because the RU-42 launch that proved the ranged
+    // pawns draw never advanced a tick, so this budget is still provisioned
     // landing rather than measured against it; RenderBudgetEstimateTests
     // reads Scenario.MaximumProjectilesInFlight's own default rather than
     // repeating 512 as a second literal, so the two cannot drift apart.
