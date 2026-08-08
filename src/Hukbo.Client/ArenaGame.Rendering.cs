@@ -427,7 +427,9 @@ public sealed partial class ArenaGame
 
         foreach (var agent in _simulation.Agents)
         {
-            if (!agent.IsAlive)
+            if (!agent.IsAlive &&
+                !_presentation.DefenderReactions.IsLethalHoldActive(
+                    agent.EntityId))
             {
                 continue;
             }
@@ -471,13 +473,12 @@ public sealed partial class ArenaGame
                 continue;
             }
 
-            var swingPose = SwingPoseResolver.TryGetPose(
-                _swingPoses,
+            var attackPose = _attackPoses.TryGetValue(
                 agent.EntityId,
                 out var pose)
                 ? pose
-                : (SwingPose?)null;
-            var layout = pawnPrefix.CompletePosedLayout(swingPose);
+                : (AttackPose?)null;
+            var layout = pawnPrefix.CompleteAttackPosedLayout(attackPose);
             var state = GetPawnVisualState(
                 agent.EntityId,
                 selectedEntityId,
@@ -703,6 +704,7 @@ public sealed partial class ArenaGame
             spriteBatch,
             pixel);
         DrawPawns(spriteBatch, pixel, arenaBounds);
+        _presentation.AcknowledgeAttackDraw();
         BloodRenderer.DrawBursts(
             _presentation.Blood.ActiveBursts,
             _presentation.Blood.ActiveSpurts,
@@ -887,7 +889,9 @@ public sealed partial class ArenaGame
         {
             var agent = agents[ordinal];
 
-            if (!agent.IsAlive)
+            if (!agent.IsAlive &&
+                !_presentation.DefenderReactions.IsLethalHoldActive(
+                    agent.EntityId))
             {
                 continue;
             }
@@ -958,12 +962,11 @@ public sealed partial class ArenaGame
             // of a full scan of the live-effect buffer per pawn. Same value,
             // same position in the same left-to-right argument order.
             var hitPulseStrength = hitPulses.GetPulseStrength(agent.EntityId);
-            var swingPose = SwingPoseResolver.TryGetPose(
-                _swingPoses,
+            var attackPose = _attackPoses.TryGetValue(
                 agent.EntityId,
                 out var pose)
                 ? pose
-                : (SwingPose?)null;
+                : (AttackPose?)null;
             var gaitPose = GaitPoseResolver.TryGetPose(
                 _gaitPoses,
                 agent.EntityId,
@@ -977,7 +980,9 @@ public sealed partial class ArenaGame
             // inputs, same layout, same pixels as the PawnGeometry.Create call
             // this replaces — PawnGeometryTests pins that too. Deliberately
             // not counted as a second invocation; see the note at stage one.
-            var pawnLayout = pawnPrefix.CompletePosedLayout(swingPose, gaitPose);
+            var pawnLayout = pawnPrefix.CompleteAttackPosedLayout(
+                attackPose,
+                gaitPose);
 
             CloseArenaGeometrySpan();
 

@@ -616,6 +616,63 @@ internal static class PawnGeometry
                 _hasSash,
                 _adornmentAccentMarkCount,
                 gaitPose ?? default);
+
+        /// <summary>
+        /// Compatibility stage for the event-synchronized attack pose. It
+        /// consumes the new target-facing torso, weapon, and trail values
+        /// while the fuller articulated layout is completed in Task 7.
+        /// </summary>
+        public PawnLayout CompleteAttackPosedLayout(
+            AttackPose? attackPose = null,
+            GaitPose? gaitPose = null) =>
+            CreateLayout(
+                _proportions,
+                _footAnchor,
+                _appearance,
+                attackPose is { } pose
+                    ? ToSwingPose(pose, _appearance.WeaponRole)
+                    : default,
+                _armorWidthFactor,
+                _hasSash,
+                _adornmentAccentMarkCount,
+                gaitPose ?? default);
+    }
+
+    private static SwingPose ToSwingPose(
+        AttackPose pose,
+        PawnWeaponRole weaponRole)
+    {
+        var weaponDirection = pose.WeaponTip - pose.WeaponHand;
+        var desiredAngle = MathF.Atan2(
+            weaponDirection.Y,
+            weaponDirection.X);
+        var baseline = weaponRole switch
+        {
+            PawnWeaponRole.Itak => new Vector2(8f, -8f),
+            PawnWeaponRole.Kampilan => new Vector2(14f, -13f),
+            PawnWeaponRole.Wasay => new Vector2(11f, -13f),
+            PawnWeaponRole.Kalis => new Vector2(13f, -14f),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(weaponRole),
+                weaponRole,
+                null),
+        };
+        var baselineAngle = MathF.Atan2(baseline.Y, baseline.X);
+        var extensionRatio =
+            (weaponDirection.Length() - 1f) / ExtensionReach;
+        var phase = pose.Phase is AttackAnimationPhase.Contact or
+            AttackAnimationPhase.LethalHold
+            ? SwingPhase.ImpactHold
+            : SwingPhase.Recovery;
+
+        return new SwingPose(
+            phase,
+            PhaseProgress: phase == SwingPhase.ImpactHold ? 0f : 1f,
+            WeaponAngleRadians: desiredAngle - baselineAngle,
+            TorsoLeanX: pose.TorsoOffset.X,
+            TorsoLeanY: pose.TorsoOffset.Y,
+            ExtensionRatio: extensionRatio,
+            TrailStrength: pose.TrailStrength);
     }
 
     /// <summary>

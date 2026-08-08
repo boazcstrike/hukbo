@@ -141,15 +141,14 @@ public sealed partial class ArenaGame : Game
     private StartupDisplayMode _startupDisplayMode;
 
     /// <summary>
-    /// Reused each frame so the draw path allocates nothing. The mapping into
-    /// it lives in <see cref="SwingPoseResolver"/> rather than here, because
-    /// this file is banned from tests and anything in it is untestable by
-    /// construction.
+    /// Reused each frame so the draw path allocates nothing. Contacts are
+    /// resolved after simulation ingestion, so the pose consumed by Draw is
+    /// from the same frame as its authoritative event.
     /// </summary>
-    private readonly Dictionary<ulong, SwingPose> _swingPoses = [];
+    private readonly Dictionary<ulong, AttackPose> _attackPoses = [];
 
     /// <summary>
-    /// Reused each frame, mirroring <see cref="_swingPoses"/> exactly. The
+    /// Reused each frame, mirroring <see cref="_attackPoses"/> exactly. The
     /// mapping into it lives in <see cref="GaitPoseResolver"/>; unlike the
     /// swing poses it is never scaled by playback speed, because
     /// <see cref="GaitAnimationSystem"/>'s phase already advances by distance
@@ -664,18 +663,6 @@ public sealed partial class ArenaGame : Game
 
         _input.Update();
         _soundDirector.BeginFrame(gameTime.ElapsedGameTime.TotalSeconds);
-        _presentation.AdvanceEffects(
-            (float)gameTime.ElapsedGameTime.TotalSeconds,
-            _speedMultiplier);
-        SwingPoseResolver.Resolve(
-            _presentation.Swings,
-            _simulation.Agents,
-            _swingPoses);
-        GaitPoseResolver.Resolve(
-            _presentation.Gait,
-            _simulation.Agents,
-            _motionManager.Value,
-            _gaitPoses);
         var screenBounds = GraphicsDevice.Viewport.Bounds;
         _fonts?.SelectScale(
             _configuredUiScale,
@@ -941,7 +928,40 @@ public sealed partial class ArenaGame : Game
 
         LogPointer(consumedBy);
         LogFocusChange();
+
+        _presentation.AdvanceEffects(
+            (float)gameTime.ElapsedGameTime.TotalSeconds,
+            _speedMultiplier,
+            advanceContacts: _presentation.Playback.IsPlaying);
         AdvanceSimulation(gameTime.ElapsedGameTime.TotalSeconds);
+        _presentation.ReleaseAttackContactsForDraw(
+            _simulation.Agents,
+            _motionManager.Value,
+            _soundDirector,
+            allowRelease: _presentation.Playback.IsPlaying);
+
+        _attackPoses.Clear();
+        var activeAttacks = _presentation.AttackAnimations.ActiveAnimations;
+        for (var index = 0; index < activeAttacks.Length; index++)
+        {
+            var attack = activeAttacks[index];
+            _attackPoses[attack.AttackerEntityId] =
+                AttackPoseResolver.Resolve(attack);
+        }
+
+        GaitPoseResolver.Resolve(
+            _presentation.Gait,
+            _simulation.Agents,
+            _motionManager.Value,
+            _gaitPoses);
+
+        if (_presentation.Playback.IsPlaying &&
+            _simulation.Outcome != BattleOutcome.Ongoing &&
+            !_presentation.HasTerminalAttackPresentation)
+        {
+            CompleteMatch();
+        }
+
         UpdateWindowTitle();
 
         if (isFrameMeasured)
@@ -1518,7 +1538,6 @@ public sealed partial class ArenaGame : Game
 
         if (_simulation.Outcome != BattleOutcome.Ongoing)
         {
-            CompleteMatch();
             return;
         }
 
@@ -1546,14 +1565,9 @@ public sealed partial class ArenaGame : Game
                 _simulation.LastEvents,
                 _simulation.Agents,
                 _simulation.LastTickCombatByFaction);
-            _soundDirector.Ingest(_simulation.LastEvents);
+            _soundDirector.IngestImmediate(_simulation.LastEvents);
             LogTick();
             _simulationAccumulator -= secondsPerTick;
-        }
-
-        if (_simulation.Outcome != BattleOutcome.Ongoing)
-        {
-            CompleteMatch();
         }
     }
 
