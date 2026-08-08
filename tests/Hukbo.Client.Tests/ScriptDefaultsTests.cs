@@ -30,12 +30,40 @@ public sealed class ScriptDefaultsTests
 
         Assert.Equal(2, benchmarkInvocations.Count);
 
-        var canonicalInvocation = benchmarkInvocations[0];
-        var block = ExtractBraceBlockAfter(content, canonicalInvocation.Index);
+        var invocations = benchmarkInvocations.Cast<Match>().ToList();
+        var canonicalInvocation = invocations[0];
+        var rangedInvocation = invocations[1];
 
-        Assert.Contains("Agents = 200", block, StringComparison.Ordinal);
-        Assert.Contains("Ticks = 10000", block, StringComparison.Ordinal);
-        Assert.Contains("Seed = 1", block, StringComparison.Ordinal);
+        var canonicalBlock = ExtractBraceBlockAfter(content, canonicalInvocation.Index);
+
+        Assert.Contains("Agents = 200", canonicalBlock, StringComparison.Ordinal);
+        Assert.Contains("Ticks = 10000", canonicalBlock, StringComparison.Ordinal);
+        Assert.Contains("Seed = 1", canonicalBlock, StringComparison.Ordinal);
+
+        var rangedBlock = ExtractBraceBlockAfter(content, rangedInvocation.Index);
+
+        Assert.Contains(
+            "Preset = 'PrecolonialPhilippinesV5'", rangedBlock, StringComparison.Ordinal);
+        Assert.Contains(
+            "MovementPreset = 'RangedStandoffV8'", rangedBlock, StringComparison.Ordinal);
+
+        var hukboGuard = Regex.Match(content, @"if\s*\(\s*\$Game\s+-eq\s+'Hukbo'\s*\)\s*\{");
+        Assert.True(
+            hukboGuard.Success,
+            "Expected an `if ($Game -eq 'Hukbo') { ... }` guard in verify.ps1.");
+        Assert.True(
+            hukboGuard.Index > canonicalInvocation.Index,
+            "The canonical benchmark.ps1 invocation must run unconditionally -- " +
+            "before the Hukbo guard -- so a caller that passes no -Game still runs it.");
+        Assert.True(
+            hukboGuard.Index < rangedInvocation.Index,
+            "The Hukbo guard must precede the ranged benchmark.ps1 invocation.");
+
+        var guardBlock = ExtractBraceBlockAfter(content, hukboGuard.Index);
+        Assert.Contains(
+            "Invoke-RepositoryScript -Name 'benchmark.ps1'",
+            guardBlock,
+            StringComparison.Ordinal);
     }
 
     [Fact]
