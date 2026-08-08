@@ -132,12 +132,102 @@ public sealed class AttackContactDispatcherTests
         dispatcher.Ingest(
         [
             AttackEvent(1, 1, 2, 7, damage: 12),
-            DamageEvent(2, tick: 1, target: 7, damage: 12),
+            AttackEvent(2, 1, 3, 7, damage: 7),
+            DamageEvent(3, tick: 1, target: 7, damage: 19),
         ]);
 
-        var contact = Assert.Single(Drain(dispatcher));
-        Assert.Equal(1, contact.Sequence);
-        Assert.Equal(12, contact.Damage);
+        var contacts = Drain(dispatcher);
+        Assert.Equal([1L, 2L], contacts.Select(contact => contact.Sequence));
+        Assert.Equal([12, 7], contacts.Select(contact => contact.Damage));
+    }
+
+    [Fact]
+    public void LatchesOneContactPerAttackerUntilMatchingAcknowledgement()
+    {
+        var dispatcher = new AttackContactDispatcher(attackerCapacity: 2);
+        dispatcher.Ingest(
+        [
+            AttackEvent(1, tick: 5, source: 2, target: 7),
+            AttackEvent(2, tick: 5, source: 3, target: 8),
+            AttackEvent(3, tick: 5, source: 2, target: 9),
+        ]);
+
+        Assert.True(dispatcher.TryLatchNext(out var attackerAFirst));
+        Assert.Equal(1, attackerAFirst.Sequence);
+        Assert.True(dispatcher.TryLatchNext(out var attackerBFirst));
+        Assert.Equal(2, attackerBFirst.Sequence);
+        Assert.False(dispatcher.TryLatchNext(out _));
+        Assert.Equal(1, dispatcher.PendingCount);
+        Assert.Equal(2, dispatcher.LatchedCount);
+
+        Assert.False(
+            dispatcher.AcknowledgeLatched(
+                attackerAFirst.AttackerEntityId,
+                sequence: 99));
+        Assert.True(
+            dispatcher.TryGetLatched(
+                attackerAFirst.AttackerEntityId,
+                out var stillLatched));
+        Assert.Equal(attackerAFirst, stillLatched);
+        Assert.False(dispatcher.TryLatchNext(out _));
+
+        Assert.True(
+            dispatcher.AcknowledgeLatched(
+                attackerAFirst.AttackerEntityId,
+                attackerAFirst.Sequence));
+        Assert.True(dispatcher.TryLatchNext(out var attackerASecond));
+        Assert.Equal(3, attackerASecond.Sequence);
+        Assert.Equal(2UL, attackerASecond.AttackerEntityId);
+        Assert.Equal(0, dispatcher.PendingCount);
+        Assert.Equal(2, dispatcher.LatchedCount);
+    }
+
+    [Fact]
+    public void Ingest_CountsLatchedContactTowardPerAttackerOverflowLimit()
+    {
+        var dispatcher = new AttackContactDispatcher(attackerCapacity: 1);
+        dispatcher.Ingest(
+        [
+            AttackEvent(1, 1, 2, 7),
+            AttackEvent(2, 2, 2, 8),
+            AttackEvent(3, 3, 2, 9),
+            AttackEvent(4, 4, 2, 10),
+            AttackEvent(5, 5, 2, 11),
+        ]);
+        Assert.True(dispatcher.TryLatchNext(out var latched));
+
+        dispatcher.Ingest(
+        [
+            AttackEvent(
+                6,
+                6,
+                2,
+                12,
+                damage: 17,
+                weapon: WeaponId.Itak,
+                hitLocation: BodyPart.Neck),
+        ]);
+
+        Assert.Equal(4, dispatcher.PendingCount);
+        Assert.Equal(1, dispatcher.LatchedCount);
+        Assert.Equal(1, dispatcher.CollapsedContactCount);
+        Assert.True(
+            dispatcher.TryGetLatched(
+                latched.AttackerEntityId,
+                out var retainedLatch));
+        Assert.Equal(latched, retainedLatch);
+        Assert.True(
+            dispatcher.AcknowledgeLatched(
+                latched.AttackerEntityId,
+                latched.Sequence));
+
+        var contacts = Drain(dispatcher);
+        Assert.Equal([2L, 3L, 4L, 6L], contacts.Select(contact => contact.Sequence));
+        var replacement = contacts[^1];
+        Assert.Equal(12UL, replacement.DefenderEntityId);
+        Assert.Equal(17, replacement.Damage);
+        Assert.Equal(WeaponId.Itak, replacement.Weapon);
+        Assert.Equal(BodyPart.Neck, replacement.HitLocation);
     }
 
     [Fact]
@@ -206,13 +296,17 @@ public sealed class AttackContactDispatcherTests
             AttackEvent(5, 5, 2, 7),
             AttackEvent(6, 6, 2, 7),
         ]);
-        Assert.True(dispatcher.TryLatchNext(out _));
+        Assert.True(dispatcher.TryLatchNext(out var latched));
 
         dispatcher.Clear();
 
         Assert.Equal(0, dispatcher.PendingCount);
+        Assert.Equal(0, dispatcher.LatchedCount);
         Assert.Equal(0, dispatcher.CollapsedContactCount);
-        Assert.False(dispatcher.TryGetLatched(out _));
+        Assert.False(
+            dispatcher.TryGetLatched(
+                latched.AttackerEntityId,
+                out _));
         Assert.False(dispatcher.TryLatchNext(out _));
     }
 
@@ -222,7 +316,10 @@ public sealed class AttackContactDispatcherTests
         while (dispatcher.TryLatchNext(out var contact))
         {
             contacts.Add(contact);
-            dispatcher.AcknowledgeLatched();
+            Assert.True(
+                dispatcher.AcknowledgeLatched(
+                    contact.AttackerEntityId,
+                    contact.Sequence));
         }
 
         return contacts;
