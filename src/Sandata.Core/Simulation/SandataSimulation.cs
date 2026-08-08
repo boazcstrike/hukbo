@@ -381,20 +381,6 @@ public sealed class SandataSimulation
     }
 
     /// <summary>
-    /// The firearm <see cref="ProposeFire"/> still advances every operator
-    /// against. <b>PROVISIONAL — <see cref="AdvanceWeaponChain"/> no longer
-    /// uses this constant.</b> Task 79c (docs/plans/2026-08-07-sandata-
-    /// scaffold.md, the wave-12 audit's corrected obligation) added
-    /// <see cref="OperatorState.Firearm"/>, and stage 11 below now reads that
-    /// per-operator field instead of this one shared default. Stage 12
-    /// (<see cref="ProposeFire"/>) is task 79d's territory, not this task's,
-    /// so it keeps reading this constant unchanged; the value also doubles
-    /// as <see cref="OperatorState.Firearm"/>'s own default, so behaviour is
-    /// unchanged for every caller that does not set the new field.
-    /// </summary>
-    private const FirearmId DefaultFirearmId = FirearmId.Ak47;
-
-    /// <summary>
     /// The flat damage a fired shot deals in <see cref="ProposeFire"/>, before
     /// cover. <b>PROVISIONAL</b> — <see cref="FirearmDefinition"/> carries no
     /// damage field at all, so this is an invented placeholder, not a tuned
@@ -653,11 +639,21 @@ public sealed class SandataSimulation
     /// the <see cref="DamageInstance"/> entirely; a hit produces the same one
     /// this method always produced before this task.
     /// <see cref="CoverRules.ApplyToDamage"/> is called for real, against
-    /// <see cref="CoverState.NotInCover"/> (see next), only for a hit.
+    /// <see cref="CoverState.NotInCover"/> (see next), only for a hit. Task
+    /// 79d-2a (docs/plans/2026-08-07-sandata-scaffold.md) resolves
+    /// <see cref="FirearmDefinition"/> from each shot's own shooter's
+    /// <see cref="OperatorState.Firearm"/>, inside this loop, the same shape
+    /// stage 11's <see cref="AdvanceWeaponChain"/> already used — before that
+    /// task every shot in the game used <see cref="FirearmId.Ak47"/>'s
+    /// dispersion regardless of what the shooter actually carried, which made
+    /// a miss mathematically unreachable within
+    /// <see cref="Sensing.ContactMemory.DetectRangeWu"/> (see
+    /// <see cref="SubtendedHalfAngle_AlwaysAtLeast_AkDispersion_WithinDetectRange"/>
+    /// in <c>TickPipelineTests</c>).
     /// </para>
     /// <para>
     /// <b>Still PROVISIONAL — no per-weapon damage, no per-operator
-    /// cover.</b> Two genuine data-model gaps remain, both task 79d-2's
+    /// cover.</b> Two genuine data-model gaps remain, both task 79d-2b's
     /// territory: <see cref="FirearmDefinition"/> carries no
     /// damage-per-round field at all, and no per-operator
     /// <see cref="CoverState"/> field exists on <see cref="OperatorState"/>.
@@ -695,7 +691,6 @@ public sealed class SandataSimulation
         }
 
         var operators = State.Operators;
-        var definition = FirearmCatalog.Rows[(int)DefaultFirearmId];
         var damageBuilder = ImmutableArray.CreateBuilder<DamageInstance>(firedShots.Length);
         var state = State;
 
@@ -714,6 +709,8 @@ public sealed class SandataSimulation
             {
                 continue;
             }
+
+            var definition = FirearmCatalog.Rows[(int)shooter.Firearm];
 
             var shooterXWu = WorldUnits.FromFixedPoint(shooter.PositionX);
             var shooterYWu = WorldUnits.FromFixedPoint(shooter.PositionY);
