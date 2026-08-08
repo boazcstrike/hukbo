@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Immutable;
 using System.Linq;
-using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
+using Sandata.Core.Simulation;
 
 namespace Sandata.Client.UI;
 
@@ -158,30 +158,28 @@ internal static class PathDrawTool
 
     /// <summary>
     /// Submits the drawn path as one <see cref="OrderKind.MoveAlongPath"/>
-    /// order through <see cref="OrderQueue.SubmitValidated"/> — the only
-    /// public door into <see cref="OrderQueue"/> — and returns a fresh, empty
-    /// drawing state regardless of whether the order is accepted or
-    /// rejected. <paramref name="addressees"/> need not already be sorted:
-    /// <see cref="OrderQueue"/> stores them in ascending order.
+    /// order through <see cref="SandataSimulation.SubmitOrder"/> — the one
+    /// production door into <see cref="OrderQueue"/>, which also emits
+    /// <see cref="Sandata.Core.Events.MissionEventKind.OrderRejected"/> on
+    /// rejection — and returns a fresh, empty drawing state regardless of
+    /// whether the order is accepted or rejected. <paramref name="addressees"/>
+    /// need not already be sorted: <see cref="OrderQueue"/> stores them in
+    /// ascending order.
     /// </summary>
-    internal static (PathDrawState State, OrderQueue Queue, Order? Submitted, OrderRejection? Rejection) Submit(
+    internal static (PathDrawState State, Order? Submitted, OrderRejection? Rejection) Submit(
         PathDrawState state,
-        OrderQueue queue,
+        SandataSimulation simulation,
         long targetTick,
         int factionId,
-        ImmutableArray<ulong> addressees,
-        NavGrid grid,
-        WallBuckets wallBuckets)
+        ImmutableArray<ulong> addressees)
     {
-        ArgumentNullException.ThrowIfNull(queue);
-        ArgumentNullException.ThrowIfNull(grid);
-        ArgumentNullException.ThrowIfNull(wallBuckets);
+        ArgumentNullException.ThrowIfNull(simulation);
 
         var pathNodes = ToOrderPathNodes(state.Nodes);
 
-        var (updatedQueue, submitted, rejection) = queue.SubmitValidated(
-            targetTick, factionId, addressees, OrderKind.MoveAlongPath, grid, wallBuckets, pathNodes);
+        var (_, submitted, rejection) = simulation.SubmitOrder(
+            targetTick, factionId, addressees, OrderKind.MoveAlongPath, pathNodes);
 
-        return (PathDrawState.CreateEmpty(state.Undo.DepthLimit), updatedQueue, submitted, rejection);
+        return (PathDrawState.CreateEmpty(state.Undo.DepthLimit), submitted, rejection);
     }
 }
