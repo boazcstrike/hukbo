@@ -2605,3 +2605,116 @@ rather than copying it, and the follow-up of moving that fixture to a shared
 `assets/maps/` location owned by neither the tests nor the client is recorded as
 a later task, not done here. `src/Sandata.Client/Program.cs` and
 `src/Sandata.Client/Sandata.Client.csproj` join that row's file list.
+
+### Task 53's measurement runs, and the benchmark defect they exposed — 2026-08-08
+
+Both harnesses were run by the integrating thread rather than delegated. The
+audio one needs a real audio device and the row requires naming the hardware, so
+no sub-agent could have produced an honest number for it. Raw output was captured
+to `artifacts/sandata-task53/`, which is untracked, exactly as the row requires;
+the figures below are the record, and task 54 carries them into
+`docs/development/testing.md`.
+
+**The hardware, reported by the harness itself:**
+
+```
+BO | Microsoft Windows 10.0.26200 (X64) | 20 logical processors | .NET 10.0.10
+```
+
+#### The audio instance-pool ceiling
+
+```
+=== Phase A: shooter-pair ceiling ramp ===
+shooters held             : 128
+instance count at first InstancePlayLimitException: 257 (shooter #129, InstancePlayLimitException)
+
+=== Phase B: sustained automatic fire at the maximum operator count ===
+sustained-fire duration    : 10.0 s (target 10 s)
+loop instances still playing at end: 8 / 8
+tail cues fired            : 14, refused 0
+no InstancePlayLimitException while sustaining 8 shooters for 10.0 s.
+```
+
+The usable ceiling is 256 concurrent `SoundEffectInstance` objects, the 257th
+throwing. The harness synthesized its clips in memory — a 150 ms loop and a
+764 ms tail at 44,100 Hz, played at volume 0.02 — because Sandata has shipped no
+audio content yet, and the pool ceiling is a property of the device rather than
+of any clip's contents.
+
+**256 is MonoGame's own DesktopGL pool limit, not a property of this sound
+card.** That is worth writing down plainly, because the obvious reading of "on
+named hardware" is that a different machine would give a different number, and
+here it will not. What is genuinely machine-specific is Phase B: eight shooters
+sustained automatic fire for ten seconds holding sixteen instances, with zero
+refusals, against a 256 ceiling. Design section 10's structural claim — "A
+shooter holding the trigger holds two instances, not thirty-two" — is what makes
+that comfortable, and this run is the first evidence for it rather than the first
+assertion of it.
+
+`SandataSoundBudget.DefaultMaximumInstances` is still the provisional 64 at the
+time of writing. It was deliberately not changed in this batch:
+`SandataSoundBudgetTests` lives under `tests/Sandata.Client.Tests/`, which task
+80's agent held for the whole of batch 1, and moving the constant without moving
+its test is two writers in one file. The constant is set after batch 1 merges.
+
+#### The navigation benchmark matrix
+
+Six rows on the `angle-house` fixture, which bakes to a 160-by-180-cell nav grid,
+at seed 1 and 2,000 ticks per row. Every row carries a nonzero replanning rate:
+the first smoke run used a rate of zero and took only four A\* samples, at which
+point p95, p99, and the maximum are all the same measurement and none of them
+means anything.
+
+| Row | Density % | Changed cells | Seekers | Query distance (wu) | Replan % | A\* samples | A\* p50 / p95 / p99 (ms) | Stage 7 p50 / p95 / p99 (ms) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| baseline | 20 | 0 | 4 | 512 | 5 | 408 | 0.8821 / 1.6028 / 2.0621 | 0.0001 / 1.0172 / 1.7411 |
+| dense | 40 | 0 | 4 | 512 | 5 | 408 | 0.1210 / 0.6196 / 1.0512 | 0.0001 / 0.4316 / 0.5604 |
+| doors-moving | 20 | 50 | 4 | 512 | 10 | 793 | 0.0001 / 1.2468 / 1.6153 | 0.0001 / 0.0179 / 1.2115 |
+| many-seekers | 20 | 0 | 16 | 512 | 5 | 1,603 | 0.7647 / 1.5033 / 1.8552 | 0.0654 / 1.7368 / 2.6899 |
+| long-queries | 20 | 0 | 4 | 2,048 | 5 | 408 | 1.7004 / 2.7783 / 3.4253 | 0.0001 / 2.3031 / 3.0602 |
+| worst-case | 40 | 200 | 32 | 2,048 | 25 | 15,864 | 0.0001 / 0.0342 / 0.1241 | 0.0005 / 0.0664 / 0.2253 |
+
+#### Only three of those six rows measure a search that found anything
+
+Read the table as a performance result and it says the worst case is forty times
+faster than the baseline, which is not a surprising result, it is an impossible
+one. The cause is a defect in task 50's benchmark, and it was confirmed in the
+code rather than inferred from the shape of the numbers:
+
+- `NavBenchmark.TimeProbeQuery` calls
+  `search.TryFindPath(grid, startCellIndex, goalCellIndex, blocked, scratchPath, scratchExpanded)`
+  at `src/Sandata.Headless/NavBenchmark.cs:275` and **discards the return
+  value**. `NavBenchmarkReport` has no outcome field of any kind.
+- Each seeker's start and goal pair is placed once, before the tick loop, by
+  `PlaceSeekerPair`. `ApplyChangedCells` then blocks cells on every subsequent
+  tick without re-placing anything.
+
+So a query whose goal has become unreachable returns almost immediately, having
+proved a negative, and is recorded as a fast search. The higher the density and
+the larger the changed-cell count, the more of the sample is failure latency —
+which is exactly the gradient the table shows. `worst-case` at density 40 with
+200 changed cells per tick is very nearly a pure measurement of how quickly A\*
+can establish that no path exists.
+
+**The three rows at density 20 with no changed cells are the trustworthy ones**,
+and read on their own they are coherent and unremarkable: 0.88 ms at p50 for a
+512-world-unit query, 1.70 ms for a 2,048-world-unit one, and going from four
+concurrent seekers to sixteen moves p50 by less than a tenth of a millisecond
+because the searches are independent. Stage 7's own cost tracks the query cost,
+as it should, since the stage is one search per group.
+
+This is the same class of finding as the acceptance-criterion rule wave 11
+recorded: *a measurement a fixture can satisfy without exercising the thing being
+measured is not a measurement.* A benchmark that cannot distinguish "found a path
+in 0.0001 ms" from "proved there is no path in 0.0001 ms" reports its most
+degenerate configuration as its best result.
+
+#### One task this finding creates
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 82 | 12 | Make the navigation benchmark report search outcomes | `NavBenchmark.TimeProbeQuery` discards `NavSearch.TryFindPath`'s return value at `NavBenchmark.cs:275` and `NavBenchmarkReport` carries no outcome field, so a row in which every query is unreachable reports the best percentiles in the matrix. Record the outcome of every probe query and report the breakdown beside the percentiles. Report the successful-search percentiles separately from the all-queries percentiles, since the two answer different questions and only the first one is a navigation performance number. | `src/Sandata.Headless/NavBenchmark.cs`, `src/Sandata.Headless/NavBenchmarkOptions.cs`, `tests/Sandata.Core.Tests/NavBenchmarkOptionTests.cs` | A test proves a benchmark configuration whose goals are all unreachable reports zero successful searches rather than a fast p50. The six-row matrix above is re-run and its successful-search percentiles recorded here, replacing the table above as the figures task 54 carries into `docs/development/testing.md`. | 50 | |
+
+Task 82 runs before task 54, because task 54's whole job is recording numbers and
+three of the six rows above are not yet numbers worth recording. The audio
+figures are unaffected by any of this and stand as measured.
