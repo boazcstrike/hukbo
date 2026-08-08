@@ -2384,3 +2384,224 @@ stops meaning what it looks like as soon as another batch lands.
 
 Task 80 and task 81 are disjoint from each other. Task 81 shares
 `SandataSimulation.cs` with every task-79 split, so it does not run beside them.
+
+### The wave-12 audit, run before dispatch — 2026-08-08
+
+Wave 12 is tasks 79a, 79b, 79c, 79d, 80, and 81, plus tasks 52, 53, 54, and 55,
+which have been outstanding since the original plan. Both directions of the
+audit were run over those rows before any agent was dispatched: no file is
+claimed by two tasks in the same batch, and every step named in a "What" column
+is claimed exactly once. For the third consecutive wave the file-level half
+passed immediately and the surface-level half produced everything below — and
+this time it produced more than in either of the two waves before it.
+
+Two things the user authorised at the start of this session are recorded here so
+they are decisions rather than drift. First, the client may load
+`tests/Sandata.Core.Tests/Fixtures/angle-house.hkmap` at startup and construct a
+`SandataSimulation` from it, which folds into task 80's row below. Second, the
+merged Sandata worktrees were swept: eleven of them — `sandata-t49-tickpipeline`,
+`sandata-t50-navbench`, `sandata-t51-headless`, `sandata-t72-queuedoor`,
+`sandata-t73-pathsubmit`, `sandata-t74-rulesetwiring`, `sandata-t75-wallboundary`,
+`sandata-t76-events`, `sandata-t77-cohesion`, `sandata-t78-idwiden`, and
+`sandata-wave10` — each verified clean (`git status --porcelain` empty) and
+verified an ancestor of `main` (`git merge-base --is-ancestor`) before removal.
+The branches themselves were kept. The two unregistered directories under
+`.claude/worktrees/`, `hit-animations` and `rank-basecheck`, belong to another
+session and were not touched.
+
+#### `SandataSimulation.cs` is still the single-writer bottleneck
+
+Wave 11 serialised on this file and wave 12 has to serialise on it harder,
+because five of this wave's rows want five different regions of it. The regions
+were confirmed by line number against `main` at `d1f6640` rather than taken from
+the rows:
+
+| Task | Region of `SandataSimulation.cs` |
+| --- | --- |
+| 79a | `AdvancePathService`, lines 1157 to 1161 — stage 7 |
+| 79b | `ComputeMovementProposals`, lines 1278 to 1330 — stage 9 |
+| 79c | `AdvanceWeaponChain`, lines 385 to 474, and the `DefaultFirearmId` constant at line 324 — stage 11 |
+| 79d | `ProposeFire`, lines 590 to 645 — stage 12 |
+| 81 | `RunTick`, lines 204 to 264, plus whichever stage measurement names |
+
+Disjoint regions inside one file are still one file. Each of those five rows gets
+a batch to itself. Task 80 touches `Sandata.Client` only, so it is the one row
+that can run beside a Core task, and it runs beside the first.
+
+#### Task 79d cannot reach three of its four clauses, and is split in two
+
+Task 79d's row names four changes. Three of them are unreachable inside the files
+the row grants, and each is unreachable for a different reason. This is the same
+failure the wave-10 audit caught for task 50 and the wave-11 audit caught for
+task 77, arriving three times in one row.
+
+**Per-weapon damage has nowhere to come from.** `FirearmDefinition`
+(`src/Sandata.Core/Weapons/FirearmDefinition.cs`, lines 92 to 123) declares
+twenty-one fields and not one of them is damage. `ProposeFire`'s own remarks
+already say so at line 328. Adding a damage field to that record means editing
+all thirty-eight rows of `FirearmCatalog` and inventing thirty-eight tuning
+numbers, which is a design decision smuggled in as an implementation detail.
+Design section 10 already establishes the alternative for the audio catalog, in
+words that apply here unchanged: "the caliber, not the weapon, keys the report.
+Six report families cover the rifles... Eight families in total, not 38
+weapons." Damage is therefore keyed on `CaliberFamily` in a new file under
+`src/Sandata.Core/Combat/`, as eight values marked provisional at their
+declaration, and `FirearmDefinition` and `FirearmCatalog` are not touched at all.
+
+**Cover exists in the map format and never reaches the simulation.** `COVER` is
+a real record kind — `MapRecordKind.Cover = 3`, parsed into `CoverRecord` at
+`src/Sandata.Core/Maps/MapRecord.cs:63` — and the `angle-house` fixture carries
+four of them. `CoverState` is a record struct carrying an arc centre, an arc
+half-width, and a posture, and `CoverRules.IsWithinProtectedArc` already exists
+to test a bearing against it. What does not exist is any route from the map to
+the simulation: `SandataSimulation`'s constructor takes a `Mission`, a
+`SandataRuleset`, a `NavGrid`, a `WallBuckets`, and a `MissionState`, and cover
+is in none of them. Evaluating cover is one constructor parameter of work and
+exactly zero lines of it are reachable inside a grant that reads "stage 12 only".
+
+**There is one event kind.** `MissionEventKind` declares `OrderRejected = 0` and
+nothing else, and `MissionEvent` exposes one factory. Emitting a shot and its
+outcome means new members on both, in `src/Sandata.Core/Events/`, which the row
+does not grant.
+
+Three new surfaces in one row is what task 79 looked like before wave 11 split
+it, so task 79d is split the same way. The two halves share stage 12 and would
+have been serial regardless, so the split costs one extra batch and buys two
+briefs an agent can actually finish.
+
+#### Task 79c's acceptance criterion is arithmetically impossible
+
+The row asks for "a test that pins the pre-change state hash of a mission whose
+operators all carry the previous default, proving the fold was appended rather
+than interleaved". No such test can exist. `SandataHash.Fold` is FNV-1a, and
+folding one additional value changes the digest unconditionally — including when
+that value equals the old hardcoded default, because the fold is over the value's
+bytes and not over any notion of "the value that was already assumed". The
+pre-change hash cannot survive an appended fold under any placement.
+
+This is wave 11's task 77 lesson pointed the other way. There, a brief claimed a
+hash would move and it did not; here, a row claims a hash will hold and it
+cannot. Both are the same error: **a remedy stated in a brief is a claim, and it
+needs its own reading of the code before an agent is told to satisfy it.**
+
+The corrected obligation for task 79c:
+
+- The new fold goes **last inside `FoldOperator`**, after the contact-memory
+  block that currently ends at `SandataStateHasher.cs:343`. "After every field
+  the hasher already covers" means after all of them, including the nested ones.
+- A fresh `PreTask79cBaselineHash` constant is recorded, in the same shape as the
+  existing `PreTask61BaselineHash` and `PreTask76BaselineHash`.
+- The seed-1 workload's state hash moves off `00EC034D18941D36` **on purpose**,
+  and recording the new value is the deliverable rather than a problem to be
+  worked around. Nothing anywhere pins the old one.
+- Fold position is proved by a test in which two mission states differing only in
+  one operator's loadout hash differently, which is decisive where the pinned
+  literal is not.
+
+One grant in that row is spare and should not be spent: `MissionSnapshot` holds
+an `ImmutableArray<OperatorState>` already, so a new field on `OperatorState` is
+carried through the snapshot with no edit to `MissionSnapshot.cs` at all.
+
+#### Task 79b needs a clearance field that nothing builds
+
+`FormationCollapse.IsCollapsed` takes a leader clearance and a formation
+half-width. `SandataSimulation` holds a `NavGrid` and a `WallBuckets` and no
+clearance field, and `ClearanceField.Build` is never called anywhere in the
+simulation. Baking one belongs in the constructor, which is outside a grant
+reading "stage 9 autonomous branch only". Two smaller consequences fall out of
+the same row: `ComputeMovementProposals` is `static` today and has to become an
+instance method to reach `_pathService` at all, and the formation half-width is a
+seventh provisional constant with no `SandataRuleset` field behind it, to be
+marked at its declaration exactly as `CollisionCellSizeRaw` and
+`VisionConeHalfWidthBam` already are.
+
+#### Task 52 needs two golden baselines, and design section 16 says so
+
+Task 52's row, written before the order layer was promoted, names "a pinned
+seed-1 mission whose state hash and event hash are recorded as expected
+constants" — one baseline. Design section 16 outranks it: "The golden replay
+needs two baselines, not one: a mission with an empty order stream, which is the
+pure autonomous case, and a mission with a recorded non-empty one. A single
+empty-stream baseline would prove nothing about the subsystem this section adds."
+Task 52 records both.
+
+#### Task 81's stated cause is a claim, not a measurement
+
+The row asserts that stage 3's two `SandataCollisionGrid` constructions are where
+the 65,679,126,648 bytes go. That was a reasonable guess written at the end of
+wave 11 and it does not survive a reading of the code. `SandataCollisionGrid`
+already reuses its internal arrays across `Rebuild` calls and grows them on
+demand (`_hashHeadSlot`, `_hashOccupied`, `_nextSlotInCell`,
+`_occupiedCellHashIndex`, and the growth path at line 738), so what a fresh
+instance costs each tick is four small arrays and not megabytes. The other named
+suspect is smaller still: `AdvancePathService` allocates `new bool[_navGrid.CellCount]`
+every tick, and the headless workload's grid is ten cells by ten, so that
+allocation is one hundred bytes.
+
+Roughly 3.28 MB per simulation-tick at two hundred operators has to be *measured*
+before it is cut. Task 81 therefore produces a per-stage allocation table first,
+from `GC.GetAllocatedBytesForCurrentThread()` deltas in a temporary harness it
+deletes before committing, and cuts what the table names. If the table names a
+file outside the grant, the task stops and reports rather than widening its own
+scope.
+
+#### Task 54's project count is stale
+
+The row requires that "`CLAUDE.md` section 3's layout block lists all eleven
+projects". `Hukbo.slnx` lists twelve: five under `src/` for Hukbo — `Hukbo.Core`,
+`Hukbo.Client`, `Hukbo.Headless`, `Hukbo.Diagnostics`, `Hukbo.Shared.Core` —
+three for Sandata, and four test projects. Twelve is the number to write.
+
+#### Two policy decisions stay out of these rows
+
+**What an autonomous squad wants — how a destination is chosen — is undesigned**,
+in the same way and for the same reason that intent selection was undesigned when
+task 44 invented it. Task 79a wires the machinery that serves a destination
+request and deliberately does not decide what issues one.
+
+**What decides an operator's loadout is equally undesigned.** Task 79c adds the
+field and defaults it to the `FirearmId.Ak47` that stage 11 hardcodes today, so
+behaviour is unchanged and the degeneracy stays honest. It does not invent a rule
+that assigns a weapon to an operator.
+
+An implementer must settle neither. Both are listed among the open questions the
+user has not answered.
+
+#### The batch plan
+
+| Batch | Tasks | Why they can share it |
+| --- | --- | --- |
+| 1 | 79a and 80 | 80 is `Sandata.Client` only; 79a is stage 7 of `SandataSimulation.cs` |
+| 2 | 79b | Stage 9; depends on 79a |
+| 3 | 79c | Stage 11, and it moves the state hash |
+| 4 | 79d-1 | Stage 12, hit resolution and events |
+| 5 | 79d-2 | Stage 12, damage and cover; depends on 79d-1 |
+| 6 | 81 | Whole-file allocation work; runs after every 79 split |
+| 7 | 52 | Golden baselines, recorded after every hash-moving task above |
+| 8 | 54 | Documentation, after 52 and 53 |
+
+Task 53's measurement runs are not delegated. The audio instance-pool harness
+needs a real audio device and the row requires naming the hardware, so the
+integrating thread runs both harnesses itself, between batches. Task 55 is the
+canonical gate and is likewise never delegated.
+
+#### The rows this audit rewrites
+
+Task 79c's "Done when" column is replaced by the corrected obligation above.
+Task 79d is replaced by the two rows below. Task 80's row gains the client
+startup map load the user authorised.
+
+| # | Wave | Task | What | Files (explicit paths) | Done when | Depends on | Verified |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 79d-1 | 12 | Make the drawn angular error decide hit or miss, and emit the shot | Stage 12 draws a real angular error from the real `Accuracy` stream and discards it at `SandataSimulation.cs:634`. Resolve that draw against the target's subtended angle, computed from the range already measured there and the provisional body radius `CollisionBodyRadiusRaw`. A miss produces no `DamageInstance`. Add the shot-fired, shot-hit, and shot-missed members to `MissionEventKind` with matching `MissionEvent` factories, and emit them from stage 12 through the same "assign then advance `NextEventSequence`" shape `EmitOrderRejectedEvent` already uses. Damage stays the flat provisional value and cover stays `NotInCover`; both are 79d-2. | `src/Sandata.Core/Simulation/SandataSimulation.cs` (stage 12 only), `src/Sandata.Core/Events/MissionEvent.cs`, `src/Sandata.Core/Events/MissionEventKind.cs`, `tests/Sandata.Core.Tests/TickPipelineTests.cs`, `tests/Sandata.Core.Tests/MissionEventFeedTests.cs` | A test proves the same shot hits at one drawn error and misses at another, with no other input changed, reached through `RunTick` rather than by calling `ProposeFire` directly. A test proves a hit emits exactly one shot-fired and one shot-hit event and a miss emits exactly one shot-fired and one shot-missed, observable in `MissionState.EventFeed`. A test proves the event hash moves off the bare FNV-1a offset basis once a shot is emitted. | 76, 79c | |
+| 79d-2 | 12 | Damage by caliber, and cover evaluated from the map | `FirearmDefinition` carries no damage field and cover never reaches the simulation. Add a provisional per-`CaliberFamily` damage table — eight values, marked provisional at the declaration, keyed the way design section 10 keys the audio report families — and read it through the shooter's loadout from task 79c. Give `SandataSimulation` the mission's `CoverRecord` values, find the record containing the target, and evaluate `CoverRules.IsWithinProtectedArc` at the shooter-to-target bearing with `CoverPosture` taken from `OperatorState.IsCrouched`, then apply `CoverRules.ApplyToDamage` to the caliber value. `FirearmDefinition.cs` and `FirearmCatalog.cs` are not edited. | `src/Sandata.Core/Simulation/SandataSimulation.cs` (stage 12 and the constructor only), `src/Sandata.Core/Combat/CaliberDamage.cs` (new), `src/Sandata.Core/Combat/DamageResolution.cs`, `tests/Sandata.Core.Tests/TickPipelineTests.cs`, `tests/Sandata.Core.Tests/DamageResolutionTests.cs`, `tests/Sandata.Core.Tests/CoverRulesTests.cs` | A test proves two operators carrying firearms of different caliber families deal different damage on an identical hit. A test proves a target inside a cover record's protected arc takes the cover-modified value and a target outside that arc takes the unmodified one, both reached through `RunTick`. The `ProvisionalDamagePerHitPoints` constant is gone and `grep -rn 'ProvisionalDamagePerHitPoints' src/` returns nothing. | 79d-1 | |
+
+Task 80's row is amended rather than replaced: it additionally loads
+`angle-house.hkmap` at client startup and constructs the `SandataSimulation` from
+it, so the client is something a person can watch and the submission door it
+should be calling actually exists. The map file stays a single source of truth —
+`Sandata.Client.csproj` links the existing fixture into the client's output
+rather than copying it, and the follow-up of moving that fixture to a shared
+`assets/maps/` location owned by neither the tests nor the client is recorded as
+a later task, not done here. `src/Sandata.Client/Program.cs` and
+`src/Sandata.Client/Sandata.Client.csproj` join that row's file list.
