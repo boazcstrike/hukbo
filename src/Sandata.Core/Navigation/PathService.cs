@@ -205,6 +205,63 @@ public sealed class PathService
     }
 
     /// <summary>
+    /// Rebuilds one group's <i>already published</i> path from the
+    /// authoritative request record a snapshot carried, and publishes it
+    /// immediately rather than after another <see cref="PathLatencyTicks"/> —
+    /// design section 4, verbatim: "the request is authoritative and
+    /// snapshotted; the result is not. On resume, every outstanding and every
+    /// published path is recomputed from its stored request record before the
+    /// first tick executes."
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the whole reason a published polyline may be excluded from the
+    /// snapshot and from both hashes: it is a pure function of the nav data,
+    /// the start cell, and the goal cell, so re-running the identical search
+    /// against the identical grid reproduces it exactly. That is also why the
+    /// latency is not re-served here. The latency exists so that a decision
+    /// taken at tick <c>t</c> cannot act before tick
+    /// <c>t + PathLatencyTicks</c>, and that waiting already happened in the
+    /// run being resumed; charging it a second time would make a saved
+    /// mission diverge from an unsaved one, which is precisely the property
+    /// <c>DeterminismEquivalenceTests</c> exists to forbid.
+    /// </para>
+    /// <para>
+    /// A request whose latency has <i>not</i> yet elapsed needs nothing from
+    /// this method. Its <c>GroupPathState.HasOutstandingRequest</c> is still
+    /// set in the snapshot, so the resumed simulation's stage 7 re-submits it
+    /// through <see cref="RequestPath"/> on the first tick and
+    /// <see cref="Advance"/> publishes it on the tick its stored
+    /// <see cref="PathRequest.RequestTick"/> always implied.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="grid"/> or <paramref name="wallBuckets"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="requestTick"/> is negative.</exception>
+    public void RestorePublishedPath(
+        ulong groupId,
+        int startCellIndex,
+        int goalCellIndex,
+        long requestTick,
+        NavGrid grid,
+        ReadOnlySpan<bool> blocked,
+        WallBuckets wallBuckets)
+    {
+        ArgumentNullException.ThrowIfNull(grid);
+        ArgumentNullException.ThrowIfNull(wallBuckets);
+        ArgumentOutOfRangeException.ThrowIfNegative(requestTick);
+
+        var group = FindOrCreateGroup(groupId);
+        group.Request = new PathRequest(groupId, startCellIndex, goalCellIndex, requestTick);
+        group.HasOutstandingRequest = true;
+        group.SearchCompleted = false;
+        group.PendingOutcome = NavSearchOutcome.Unreachable;
+        group.PendingPath = ImmutableArray<int>.Empty;
+
+        RunSearch(group, grid, blocked);
+        Publish(group, grid, wallBuckets);
+    }
+
+    /// <summary>
     /// Whether <paramref name="groupId"/> currently has a request whose path
     /// has not yet been published — either its search has not run, or it has
     /// run but the fixed latency has not yet elapsed.
