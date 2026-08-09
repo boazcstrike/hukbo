@@ -4896,3 +4896,303 @@ The suite-duration figures written into `CLAUDE.md`, `README.md`, and
 `docs/development/testing.md` earlier the same day were corrected in place
 rather than left standing, since task 91 invalidated all three within hours of
 task 54 recording them.
+
+### Tasks 89, 88, and 90 complete, and the resume rule that was never implemented — 2026-08-09
+
+Three rows closed in one session, run inline rather than through the agent
+pipeline because the harness in force this session forbids the Agent tool
+without an explicit user request. The recommended order was followed — 89
+first, because its diagnosis could change what the other two mean, and it did.
+
+Both gates were run on `main` at `8c1e2c0` before anything was touched, and
+both were green: Hukbo at `1B73FC5923879AA0` / `AC55684F24D39344`, Sandata at
+`BDD56EBD06F76674` / `7C1B37876769DEC7` with 1,106 and 199 tests passing.
+
+#### The sequencing audit, run in both directions before any work began
+
+File-level: task 89 claimed `TickPipelineTests.cs` plus one production file the
+diagnosis would name; task 88 claimed `LineOfSight.cs`, `ContactMemory.cs`,
+`SandataSimulation.cs`, `LineOfSightTests.cs`, and `ContactMemoryTests.cs`;
+task 90 claimed `DeterminismEquivalenceTests.cs` alone. No file is claimed
+twice. Running the three serially made the question moot in practice, but the
+audit was run rather than skipped, and it is what established in advance that
+task 89's unnamed production file could collide with task 88's grant — which in
+the end it did not, because the diagnosis named `LocalAvoidance.cs`.
+
+Surface-level: task 89's steps are the diagnosis, the reproduction, and the
+record; task 88's are the two allocator cuts, the re-measurement, and the
+scratch-buffer test; task 90's are the fixture, the resume comparison, and the
+break. Each is claimed exactly once. The surface-level half is again what
+mattered, since it is where task 90's step "prove a published path is
+recomputed" turned out to name a behaviour that did not exist.
+
+#### Task 89 — the cause was none of the four the row proposed
+
+The row listed four candidates: the arclength quantization task 87 had already
+addressed, `SquadGrouping` deriving a different `GroupId` once the operator
+moves, `FormationCollapse` gating the slot, and the leader projection reaching
+the end of a short polyline. **It is none of them.**
+
+The symptom was reproduced first, on the same twenty-operator fixture task 52a
+used. Entity 1 sits at raw (3,072, 2,048), the request publishes at tick 10,
+and the operator moves exactly once — to raw (4,585, 1,422), a displacement
+whose magnitude is 1,637.4 against a per-tick cap of 1,638 — and then holds that
+position for every remaining tick until it is killed at tick 37.
+
+Throughout the stall the derived `GroupId` stays 1 and the `SlotIndex` stays 0,
+so grouping is not it. Stage 9 keeps proposing a fresh full-magnitude step, from
+raw (4,585, 1,422) toward (6,114, 2,006), on every single tick — so the polyline
+has not run out, the formation is not collapsed, and the arclength arithmetic is
+producing a target the whole time. **The proposal is live and the commit is
+refused.**
+
+The control settled it. The identical fixture with entity 1 alone on the map,
+same start position, same group request, same grid: it walks the entire fifty
+world units at exactly 1,638 raw per tick and arrives at the goal cell's own
+centre. Nothing in stage 9 is wrong.
+
+The cause is stage 10, at `src/Sandata.Core/Movement/LocalAvoidance.cs:105`, and
+it is two correct components composing into a permanent stall. Entity 2, a
+faction-1 operator that never moves, stands at raw (13,312, 3,072) — directly on
+entity 1's published route. `LocalAvoidance.Commit` refuses a step whose
+destination would overlap another body, and then offers exactly one retry:
+`SidestepRules.Sidestep`'s single 22.5-degree rotation of the same delta, to the
+side `entityId` parity picks. Measured against the contact distance of 8,704 raw
+(two body radii of 4,352), the first tick's desired point sits 8,662 raw from
+entity 2 and every subsequent tick's sits 7,276 raw from it.
+
+Design section 8 states the rule in full — "A blocked unit first tries a single
+22.5-degree sidestep, choosing the side by a rule pinned on `entityId` parity so
+it is total; if that is also blocked, it waits a tick" — and says nothing about a
+blocker that never moves. Both candidates are pure functions of the proposal,
+and the proposal is a pure function of an unchanged start position and an
+unchanged polyline, so both are refused again on every following tick with
+nothing in the simulation able to change any input. **"Waits a tick" becomes
+"waits forever."** Head on, a 22.5-degree turn cannot clear a body whose radius
+is 4,352 raw with a step of 1,638 raw.
+
+Nothing upstream re-routes either. No path is re-requested after publication —
+`AdvancePathService` clears `HasOutstandingRequest` on publish and nothing sets
+it again — and no operator is ever entered into the nav search's `blocked` span,
+so the search routes straight through a standing body. **Whether a blocked mover
+should re-plan around a static body is an open design question and was not
+settled here.**
+
+The finding is written at the code that produces it, as the row required: a
+paragraph on `LocalAvoidance`'s own remarks naming the measurement, the two
+tests, and the open question. That is the one production file this task edited,
+and the edit is documentation only.
+
+Two tests, in `TickPipelineTests.cs`. The first,
+`RunTick_AutonomousLeaderWithAClearRoute_WalksThePublishedPathToItsGoal`, is the
+control turned into a permanent assertion — arrival at the goal, which a stall
+cannot satisfy, plus the per-tick displacement bound, plus a lower bound on the
+tick count so an unclamped single stride cannot satisfy it either. The second,
+`RunTick_StationaryBodyOnThePublishedPath_StallsTheLeaderBecauseItsOneSidestepIsBlockedToo`,
+reproduces the stall.
+
+**The stall test asserts the mechanism rather than the degenerate outcome**,
+which is the trap this wave has fallen into repeatedly. It requires stage 9 to
+keep proposing a full forward stride on every tick of the stall window, so it
+cannot pass on a simulation that has simply stopped proposing anything; it
+asserts the blocker never moves and neither operator dies, so the fixture cannot
+quietly become a combat test; and its own remarks say plainly that it pins a
+known gap rather than a desired outcome, and that the right response to it
+failing is to delete it and keep the arrival test.
+
+Break-proofs, each reverted with an empty `src/` diff afterwards:
+
+| Break | Result |
+| --- | --- |
+| the leader's one-step lookahead removed, so the sample sits at its own projection | the arrival test fails, "stopped at (2,048, 2,048) raw" — it never left; the stall test fails on its stage-9 stride assertion, "stage 9 stopped proposing a move, so this is not a stage 10 stall" |
+| `SidestepRules.TurnMagnitudeBam` multiplied by eight, a 180-degree sidestep instead of 22.5 | the stall test fails alone at tick 61, "the leader moved from (21,704, 2,048) to (20,066, 2,048)"; the arrival test still passes, correctly, since its fixture has no blocker and no sidestep ever runs |
+
+Merged at `bf73c31`.
+
+#### Task 88 — ninety-four percent of the tick was one stage
+
+Both allocators task 81 measured and was not allowed to reach sit in stage 5,
+and the re-measurement taken before anything was cut shows how far above
+everything else they were. `GC.GetAllocatedBytesForCurrentThread()` deltas
+around each of `RunTick`'s fourteen stages, at 200 operators and seed 1, over
+300 measured ticks after 50 warm-up ticks:
+
+| Stage | Bytes per simulation-tick, before | After |
+| --- | --- | --- |
+| 3 — collision grids and the tick-start view | 21,613 | 21,593 |
+| 5 — sensing | 2,229,069 | 187,857 |
+| 6 — squad grouping | 16,895 | 16,896 |
+| 8 — intent selection | 12,872 | 12,872 |
+| 9 — movement proposals | 13,776 | 13,776 |
+| 10 — local avoidance and collision | 46,508 | 46,506 |
+| 11 — weapon chain | 14,878 | 14,874 |
+| 12 — fire proposal | 15,517 | 15,517 |
+| the whole tick | 2,371,482 | 330,245 |
+
+Stage 5 was ninety-four percent of everything the tick allocated, and task 81's
+two figures — 1,761,332 for line of sight and 456,130 for contact memory — sum
+to 2,217,462 against stage 5's measured 2,229,069, which confirms those two
+sites were essentially all of it. The instrumentation was temporary and is gone:
+a search of `src/` and `tests/` for `GetAllocatedBytesForCurrentThread` and for
+the harness type returns nothing but stale build output.
+
+The seed-1 workload's `allocatedBytes` falls from about **42.18 GB** to about
+**6.08 GB** over ten thousand ticks. Neither figure is quoted as an exact count,
+for the reason this wave has already recorded three times. `stateHash`
+`BDD56EBD06F76674`, `eventHash` `7C1B37876769DEC7`, 70 and 64 survivors,
+`outcome: Ongoing`, `deterministic: true` — every one unchanged.
+
+What was cut. `LineOfSight.FirstBlockingSegment` and `IsVisible` gained
+overloads taking a `Span<int>` cell buffer, with a `RequiredCellBufferLength`
+helper so a caller can size one; the allocating overloads remain and now
+delegate to them. `ContactMemory.Update` gained an overload taking a merge
+buffer, and falls back to allocating its own whenever the supplied span is
+shorter than the merge needs. `SandataSimulation` holds the cell buffer as a
+`readonly` field sized once in the constructor from the nav grid's fixed
+dimensions, and the merge buffer as a grow-on-demand field, the same shape
+`PathService` already uses for its own smoothing scratch and the same shape task
+81 used for `_pathBlockedCells`. Neither buffer reaches a snapshot or a hash and
+neither outlives its tick as content.
+
+**Two deliberate deviations from the row, both recorded rather than quietly
+taken.** The row granted `SandataSimulation.cs` "stages 3 and 5 only", and the
+buffers are allocated in the constructor instead, because that is where task 81
+put the identical thing for the identical reason and because sizing a buffer
+inside the stage that uses it every tick would defeat the point. And the
+allocating overloads were kept rather than removed, because `PathSmoothing`
+calls line of sight once per published path rather than once per operator pair
+and threading a buffer through it buys nothing measurable; the risk that this
+leaves an open door beside a validated one is answered by naming the hot-caller
+rule at the type's own remarks rather than by leaving it implicit.
+
+**The line-of-sight reuse test could not be made to fail, and that is a finding
+about the code rather than a defect in the test.** The first attempt compared
+the buffer overload's answers against the allocating overload's, which is
+worthless once the second delegates to the first — it compares a code path
+against itself. Rewritten to pin each query's answer from the fixture's own wall
+geometry, it then survived the break it was written for: reading the whole
+buffer instead of only the prefix `GridRay.Traverse` had just written changed no
+result at all. The reason is structural. A stale cell only ever adds candidate
+wall segments, and `ExactPredicates.ClassifySegments` then tests each candidate
+against the query's own two endpoints, so a wall that does not actually cross
+the sightline is rejected no matter which cell proposed it. **A reused
+line-of-sight buffer cannot corrupt an answer**, and that is now written both at
+`LineOfSight` and in the test's own "what this test does not bind" paragraph,
+following the pattern task 87 established. A break that does bind was then found
+— walking the cell chain in reverse fails the test alone, "Expected: 0, Actual:
+1" — so the pinned answers are real assertions and not decoration.
+
+The contact-memory buffer genuinely can leak, and its test binds it:
+
+| Break | Result |
+| --- | --- |
+| the merge returns the whole buffer rather than the filled prefix, on every path | six `ContactMemoryTests` fail, which is too coarse to attribute to any one property |
+| the merge returns the whole buffer only when a caller-supplied scratch was used | the reuse test fails, and so do both golden replays and two determinism-equivalence tests — the leak reaching the simulation, demonstrated |
+
+One process note, cheap to state and expensive to relearn: `git checkout --` on
+a file holding uncommitted work reverts the work, not the break. It silently
+discarded this task's whole `LineOfSight.cs` edit in the middle of a
+break-proof. A break in an uncommitted file is reverted by undoing the break, or
+from a copy taken first.
+
+Merged at `c1acbc7`.
+
+#### Task 90 — the rule the row assumed was already implemented was not
+
+The row's premise was that design section 4's derived-path resume rule works and
+merely lacks a test: "It is not disproven; nothing suggests the recomputation is
+wrong. It simply has no test." **The recomputation did not exist.**
+
+`SandataSimulation`'s constructor built a fresh, empty `PathService` and never
+seeded it from `initialState.Groups`, and `AdvancePathService` re-submits only
+groups whose `HasOutstandingRequest` is still set — which publication clears. So
+a *published* path was not recomputed on resume, it was lost. Measured, not
+inferred: an operator resumed mid-walk at raw x 34,808 was still at 34,808 after
+its first resumed tick, while the run that never stopped kept walking, and the
+per-tick state hashes diverged immediately at the resume tick.
+
+An *outstanding* request was always fine, and that distinction is what makes the
+fix small: its flag survives the snapshot, stage 7 re-submits it on the first
+tick, and `PathService.Advance` publishes it on the tick its stored
+`RequestTick` always implied.
+
+The fix. `PathService.RestorePublishedPath` rebuilds one group's polyline from
+its request record and publishes at once rather than serving `PathLatencyTicks`
+a second time — the wait already happened in the run being resumed, and charging
+it again is exactly what would make a saved mission diverge from an unsaved one,
+which is the property this suite exists to forbid. `SandataSimulation` calls it
+from its constructor, before the first tick, for every group whose flag is
+already cleared. On a fresh mission the loop does nothing at all, since every
+group a mission starts with has its request outstanding — which is why the
+seed-1 workload, whose `Groups` array is empty anyway, is untouched.
+
+**This widened the row's grant from one test file to three files.** The row
+asked only for proof; proof that the behaviour is absent is worth little without
+the behaviour. The widening was deliberate, was taken with no other row running,
+and is recorded here rather than quietly obeyed — the same shape as tasks 87 and
+79d-2.
+
+The test uses its own fixture rather than the file's shared twenty-operator
+packing, and task 89 is the reason it has to: in that packing every mover is
+stalled against another body within a step or two, so a comparison window there
+would compare two runs that are both standing still — which is precisely the
+mistake task 52a's deleted fifth test made. The fixture is one walker on a clear
+route plus one enemy placed beyond `DetectRangeWu` from every point of that
+route, so nothing senses, shoots at, or blocks anything. It carries no combat
+and therefore cannot use `AssertRunWasActive`; **sustained movement inside the
+compared window is its activity check instead, asserted on both sides**, along
+with the premise that the request had already published by the midpoint.
+
+Break-proofs, each reverted:
+
+| Break | Result |
+| --- | --- |
+| the constructor's recomputation call removed | the new test fails alone |
+| the recomputation run with the start and goal cells swapped | the new test fails alone, so it binds the recomputed polyline's identity and not merely the existence of some path |
+
+Merged at `e22a542`.
+
+#### Both gates, run after all three merges
+
+`main` moved underneath this session between the task 89 merge and the task 88
+branch: another session merged `ranged-units` at `9daa271`. Tasks 88 and 90 were
+therefore branched from the newer `main` and needed no rebase, and the Hukbo
+figures below are not comparable to the ones this session recorded at its start.
+Check `git log --oneline -1` before quoting any of them.
+
+`./scripts/verify.ps1 -Game Sandata`, exit 0: `Sandata.Core.Tests` 1,113 of
+1,113, `Sandata.Client.Tests` 199 of 199, and the seed-1 workload reporting
+`stateHash` `BDD56EBD06F76674`, `eventHash` `7C1B37876769DEC7`, 70 and 64
+survivors, `outcome: Ongoing`, `deterministic: true`, `allocatedBytes`
+6,078,234,120 — about 6.08 GB, down from about 42.18 GB.
+
+`./scripts/verify.ps1` with no flags, exit 0: `Hukbo.Core.Tests` 2,433 of 2,433
+and `Hukbo.Client.Tests` 3,499 of 3,499, both raised by the `ranged-units` merge
+rather than by anything here, and two headless workloads — the recorded baseline
+at `stateHash` `1B73FC5923879AA0` / `eventHash` `AC55684F24D39344`, unchanged,
+and a second at `C8023D3B5BEB005E` / `F709A345E2F7370E` that arrived with
+`ranged-units` and belongs to that session to record.
+
+The two runs are two results and are never added together.
+
+#### What is now open
+
+Wave 12's task list is closed: 79a through 79d-2b, and 80 through 91, are all
+done. What these three rows leave behind is not a task list but three questions,
+none of them settled here:
+
+- **Should a blocked mover re-plan around a static body?** Task 89's stall is
+  correct behaviour in every component and a dead end in composition. Answering
+  it means deciding whether operators enter the nav search's `blocked` span,
+  whether a group re-requests its path when its mover stops making progress, or
+  neither.
+- **Should stage 5's remaining per-tick arrays be cut too?** After task 88 the
+  tick allocates about 330 KB per simulation-tick, of which stage 10 is now the
+  largest single contributor at about 46,500 bytes. Nothing here is urgent and
+  no row asks for it; it is recorded so that the next measurement starts from
+  the right number rather than from the old one.
+- **The nine open design questions from the previous session all still stand**,
+  and task 90 sharpened none of them — but it did demonstrate that a rule
+  written plainly in design section 4 had gone unimplemented for eleven waves
+  without any test noticing, which is worth carrying into how the remaining
+  design rules are treated.

@@ -144,8 +144,12 @@ a red Hukbo one.
 
 | Suite | Tests | Inside `verify.ps1 -Game Sandata` |
 | --- | --- | --- |
-| `Sandata.Core.Tests` | 1,106 | 4.52 s |
-| `Sandata.Client.Tests` | 199 | 0.49 s |
+| `Sandata.Core.Tests` | 1,113 | 4.5 s |
+| `Sandata.Client.Tests` | 199 | 0.5 s |
+
+Tasks 88, 89, and 90 added seven tests to the core suite and no measurable time
+to it — the count moved from 1,106 to 1,113 while the runtime stayed where task
+91 left it.
 
 **These figures replace the ones recorded earlier the same day**, and the reason
 they moved is worth keeping. The core suite was 1,104 tests in 37.77 seconds
@@ -190,6 +194,14 @@ stateHash BDD56EBD06F76674   eventHash 7C1B37876769DEC7   deterministic true
 p50 2.6761 ms   p95 3.8265 ms   p99 4.8984 ms   max 64.1713 ms
 durationMilliseconds 28393.9   allocatedBytes ~42.18 GB
 ```
+
+**The allocation figure is now about 6.08 GB, and everything else above is
+unchanged.** Task 88 gave stage 5's line-of-sight and contact-memory calls
+caller-owned scratch buffers, which took the whole tick from about 2.37 MB to
+about 330 KB per simulation-tick at 200 operators and the workload from about
+42.18 GB to about 6.08 GB over ten thousand ticks. Both hashes, both survivor
+counts, the outcome, and `deterministic: true` are all exactly as printed
+above, which is the proof that a pure allocation change changed no outcome.
 
 `SandataRuleset.ContentHash` is `8_955_292_433_887_190_872`, pinned by
 `SandataRulesetTests`.
@@ -344,11 +356,11 @@ record is the plan document,
 complete, after tasks 82 and 83". Nothing here should be read as a citation to a
 file a fresh clone can open, because there is no such file.
 
-### The largest remaining allocators, measured and not yet cut
+### The largest allocators, measured and then cut
 
 Per-stage instrumentation at 200 operators and seed 1, over 300 measured ticks
 after 50 warm-up ticks, ranked two allocation sites well above everything the
-allocation task was allowed to touch:
+first allocation task was allowed to touch:
 
 | Site | Bytes per simulation-tick | Shape |
 | --- | --- | --- |
@@ -360,6 +372,20 @@ fractions. Those two figures sum to more than the benchmark's own per-tick
 total, because the harness instrumented one simulation directly while the
 benchmark figure covers two constructed simulations plus everything outside the
 tick. No percentage derived from this measurement should be quoted as a result.
+
+Task 88 cut both. Both sites sit in stage 5, and the same harness re-run after
+the cut records the change per stage:
+
+| Stage | Bytes per simulation-tick, before | After |
+| --- | --- | --- |
+| 5 — sensing | 2,229,069 | 187,857 |
+| the whole tick | 2,371,482 | 330,245 |
+
+Every other stage is within twenty bytes of where it was, which is the noise
+floor of this instrument rather than a change. The next largest allocator is
+now stage 10 at about 46,500 bytes per simulation-tick, an order of magnitude
+below where stage 5 used to sit and roughly a seventh of what the whole tick
+now costs.
 
 ## Render performance measurement — full matrix (VIS-036), 2026-07-28
 

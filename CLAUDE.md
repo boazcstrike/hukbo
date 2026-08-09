@@ -172,7 +172,7 @@ default on the Hukbo workload until Sandata has a recorded, stable seed-1
 baseline, so that a red Sandata workload can never be mistaken for a red Hukbo
 one.
 
-Sandata's core suite runs 1,106 tests in about **4.5 seconds** inside the gate.
+Sandata's core suite runs 1,113 tests in about **4.5 seconds** inside the gate.
 It was 38 seconds until task 91, and 36 of those were a single `InlineData`
 value on a single theory that ran the navigation benchmark for 2,000 ticks.
 Before reasoning about suite cost here, get per-test durations
