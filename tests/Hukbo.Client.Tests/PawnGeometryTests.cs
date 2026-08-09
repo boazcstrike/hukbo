@@ -2,6 +2,7 @@ using Hukbo.Client.Presentation;
 using Hukbo.Client.Presentation.Catalogs;
 using Hukbo.Client.Rendering;
 using Hukbo.Core.Combat;
+using Hukbo.Core.Simulation;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Tests;
@@ -316,6 +317,137 @@ public sealed class PawnGeometryTests
             (still.WeaponEnd - still.WeaponStart).Length(),
             "An extended weapon line should be longer than the neutral one.");
         Assert.True(swinging.VisualBounds.Contains(swinging.WeaponBounds));
+    }
+
+    /// <summary>
+    /// RU-42: <see cref="RangedPose.WeaponAngleRadians"/> and
+    /// <see cref="RangedPose.ExtensionRatio"/> reach the weapon line through
+    /// the same <c>ApplySwing</c> call <see cref="SwingPose"/> already uses
+    /// (<see cref="Create_WithASwingPose_RotatesTheWeaponAndLeansTheTorso"/>
+    /// is the precedent this mirrors), rather than being read only for the
+    /// torso lean. If <c>CreateWeaponLayout</c> stopped folding
+    /// <c>rangedPose</c>'s angle and extension into <c>ApplySwing</c>, this
+    /// assertion on <c>WeaponEnd</c> would fail even though the torso lean
+    /// assertions below it kept passing — proof the two channels are wired
+    /// independently of the lean channels.
+    /// </summary>
+    [Fact]
+    public void Create_WithARangedPose_RotatesAndExtendsTheWeaponLine()
+    {
+        var footAnchor = new Vector2(140f, 240f);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Bangkaw, ShieldId.None);
+        var pose = new RangedPose(
+            RangedPhase.Draw,
+            WeaponAngleRadians: 0.8f,
+            ExtensionRatio: 1f,
+            TorsoLeanX: 0f,
+            TorsoLeanY: 0f,
+            DrawTension: 0f);
+
+        var still = PawnGeometry.Create(footAnchor, 2f, appearance);
+        var drawn = PawnGeometry.Create(
+            footAnchor,
+            2f,
+            appearance,
+            scaleMultiplier: 1f,
+            rangedPose: pose);
+
+        Assert.Equal(footAnchor, drawn.FootAnchor);
+        Assert.NotEqual(still.WeaponEnd, drawn.WeaponEnd);
+        Assert.True(
+            (drawn.WeaponEnd - drawn.WeaponStart).Length() >
+            (still.WeaponEnd - still.WeaponStart).Length(),
+            "An extended weapon line should be longer than the neutral one.");
+    }
+
+    /// <summary>
+    /// RU-42: <see cref="RangedPose.TorsoLeanX"/> and
+    /// <see cref="RangedPose.TorsoLeanY"/> are the only channels
+    /// <c>CreateBodyAnchor</c> read before this task. This case pins that
+    /// existing behaviour still holds now that the angle/extension channels
+    /// also flow through, so a future edit cannot silently drop the lean
+    /// while keeping the weapon-line rotation.
+    /// </summary>
+    [Fact]
+    public void Create_WithARangedPose_StillLeansTheTorso()
+    {
+        var footAnchor = new Vector2(140f, 240f);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Busog, ShieldId.None);
+        var pose = new RangedPose(
+            RangedPhase.Draw,
+            WeaponAngleRadians: 0f,
+            ExtensionRatio: 0f,
+            TorsoLeanX: 1.6f,
+            TorsoLeanY: 0f,
+            DrawTension: 0f);
+
+        var still = PawnGeometry.Create(footAnchor, 2f, appearance);
+        var leaning = PawnGeometry.Create(
+            footAnchor,
+            2f,
+            appearance,
+            scaleMultiplier: 1f,
+            rangedPose: pose);
+
+        Assert.True(leaning.TorsoBounds.Left > still.TorsoBounds.Left);
+    }
+
+    /// <summary>
+    /// RU-42: <see cref="RangedPose.DrawTension"/> is carried straight
+    /// through onto <see cref="PawnLayout.RangedDrawTension"/> for every
+    /// role, not just Busog — the field itself has no role gate, only
+    /// <c>PawnRenderer</c>'s Busog arm reads it. If
+    /// <c>CreateLayout</c> stopped forwarding <c>rangedPose.DrawTension</c>,
+    /// this would fail even though the weapon-line assertions above kept
+    /// passing.
+    /// </summary>
+    [Fact]
+    public void Create_WithARangedPose_CarriesDrawTensionOntoTheLayout()
+    {
+        var footAnchor = new Vector2(140f, 240f);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Busog, ShieldId.None);
+        var pose = new RangedPose(
+            RangedPhase.Draw,
+            WeaponAngleRadians: 0f,
+            ExtensionRatio: 0f,
+            TorsoLeanX: 0f,
+            TorsoLeanY: 0f,
+            DrawTension: 0.75f);
+
+        var drawn = PawnGeometry.Create(
+            footAnchor,
+            2f,
+            appearance,
+            scaleMultiplier: 1f,
+            rangedPose: pose);
+
+        Assert.Equal(0.75f, drawn.RangedDrawTension);
+    }
+
+    /// <summary>
+    /// A <c>default(RangedPose)</c> (every field zero, matching
+    /// <c>CreatePoseBlindVisualBounds</c>'s own neutral input) leaves the
+    /// weapon line exactly where no pose at all leaves it, mirroring
+    /// <see cref="Create_WithoutAGaitPose_MatchesTheStaticLayout"/>'s
+    /// precedent for <see cref="GaitPose"/>.
+    /// </summary>
+    [Fact]
+    public void Create_WithANeutralRangedPose_MatchesTheStaticLayout()
+    {
+        var footAnchor = new Vector2(140f, 240f);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Arquebus, ShieldId.None);
+
+        var withoutPose = PawnGeometry.Create(footAnchor, 2f, appearance);
+        var withNeutralPose = PawnGeometry.Create(
+            footAnchor,
+            2f,
+            appearance,
+            scaleMultiplier: 1f,
+            rangedPose: default(RangedPose));
+
+        Assert.Equal(withoutPose.WeaponEnd, withNeutralPose.WeaponEnd);
+        Assert.Equal(withoutPose.TorsoBounds, withNeutralPose.TorsoBounds);
+        Assert.Equal(withoutPose.RangedDrawTension, withNeutralPose.RangedDrawTension);
     }
 
     // --- movement-gait-animation, T3: leg and foot layout ---
@@ -2173,6 +2305,47 @@ public sealed class PawnGeometryTests
     }
 
     /// <summary>
+    /// RU-42, mirroring
+    /// <see cref="CreateWithPoseBlindBounds_KeepsTheCullRectangleBlindToTheSwing"/>
+    /// for the three channels this task wired up. A large
+    /// <see cref="RangedPose"/> (nonzero angle, extension, lean, and tension)
+    /// changes the posed <c>VisualBounds</c> but must not change the cull
+    /// rectangle <c>CreatePoseBlindVisualBounds</c> builds, which always
+    /// passes <c>default(RangedPose)</c> to <c>CreateWeaponLayout</c>
+    /// regardless of the caller's own <c>rangedPose</c> argument — the
+    /// pose-blind convention already proven for the swing channel above,
+    /// carried over unchanged to the three ranged channels this task wires
+    /// up.
+    /// </summary>
+    [Fact]
+    public void CreateWithPoseBlindBounds_KeepsTheCullRectangleBlindToTheRangedPose()
+    {
+        var footAnchor = new Vector2(137f, 241f);
+        var appearance = PawnAppearanceFactory.Create(
+            7,
+            WeaponId.Busog,
+            ShieldId.TallHardwood);
+        var pose = new RangedPose(
+            RangedPhase.Draw,
+            WeaponAngleRadians: 1.2f,
+            ExtensionRatio: 1f,
+            TorsoLeanX: 2.4f,
+            TorsoLeanY: -1.1f,
+            DrawTension: 1f);
+
+        var combined = PawnGeometry.CreateWithPoseBlindBounds(
+            footAnchor,
+            2f,
+            appearance,
+            rangedPose: pose);
+
+        Assert.NotEqual(combined.Layout.VisualBounds, combined.PoseBlindVisualBounds);
+        Assert.Equal(
+            PawnGeometry.Create(footAnchor, 2f, appearance).VisualBounds,
+            combined.PoseBlindVisualBounds);
+    }
+
+    /// <summary>
     /// GPU-013. The combined call checks its arguments the same way
     /// <c>PawnGeometry.Create</c> does, and reports the same parameter name,
     /// so adopting it at a call site cannot turn a rejected input into an
@@ -2444,6 +2617,64 @@ public sealed class PawnGeometryTests
         // anything for the posed ones.
         Assert.NotEqual(
             prefix.CompletePosedLayout(poses[^1]).VisualBounds,
+            prefix.PoseBlindVisualBounds);
+    }
+
+    /// <summary>
+    /// RU-42, mirroring
+    /// <see cref="PoseBlindPrefix_CompletesOneCullRectangleUnderEveryPose"/>
+    /// for <see cref="RangedPose"/>: the same one prefix completes correctly
+    /// under several ranged poses, and the cull rectangle it carries stays
+    /// the neutral one throughout.
+    /// </summary>
+    [Fact]
+    public void PoseBlindPrefix_CompletesOneCullRectangleUnderEveryRangedPose()
+    {
+        var footAnchor = new Vector2(137f, 241f);
+        var appearance = PawnAppearanceFactory.Create(
+            7,
+            WeaponId.Busog,
+            ShieldId.TallHardwood);
+        var poses = new RangedPose?[]
+        {
+            null,
+            default(RangedPose),
+            new RangedPose(
+                RangedPhase.Draw,
+                WeaponAngleRadians: -0.9f,
+                ExtensionRatio: 0.2f,
+                TorsoLeanX: -1.4f,
+                TorsoLeanY: 0.7f,
+                DrawTension: 0.4f),
+            new RangedPose(
+                RangedPhase.Release,
+                WeaponAngleRadians: 1.2f,
+                ExtensionRatio: 1f,
+                TorsoLeanX: 2.4f,
+                TorsoLeanY: -1.1f,
+                DrawTension: 1f),
+        };
+
+        var prefix = PawnGeometry.PoseBlindPrefix.Create(
+            footAnchor,
+            2f,
+            appearance);
+
+        Assert.Equal(
+            PawnRenderer.GetBounds(footAnchor, 2f, appearance),
+            prefix.PoseBlindVisualBounds);
+
+        foreach (var pose in poses)
+        {
+            AssertLayoutsAreBitIdentical(
+                PawnGeometry.Create(footAnchor, 2f, appearance, rangedPose: pose),
+                prefix.CompletePosedLayout(rangedPose: pose));
+        }
+
+        // Guards the assertions above against passing for the wrong reason,
+        // same rationale as the swing-pose version above.
+        Assert.NotEqual(
+            prefix.CompletePosedLayout(rangedPose: poses[^1]).VisualBounds,
             prefix.PoseBlindVisualBounds);
     }
 

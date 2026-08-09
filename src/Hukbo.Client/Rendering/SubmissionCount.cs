@@ -36,11 +36,15 @@ internal static class PawnQuadCount
     internal const int SwingTrailSegments = 6;
 
     /// <summary>
-    /// <c>PawnRenderer.DrawWeapon</c>/<c>DrawBlade</c>: a grip line, a blade
-    /// line, and a highlight line, for every weapon role — geometry (gripEnd,
-    /// widthMultiplier) differs by role, quad count does not.
+    /// <c>PawnRenderer.DrawWeapon</c>: a grip line, a blade line, and a
+    /// highlight line via <c>DrawBlade</c> for every role (geometry —
+    /// gripEnd, widthMultiplier — differs by role, quad count does not), plus
+    /// two bowstring segments via <c>DrawBowstring</c> for
+    /// <see cref="PawnWeaponRole.Busog"/> only (RU-42): the Busog is the only
+    /// role whose weapon-line quad count differs from the rest.
     /// </summary>
-    private const int WeaponQuadCount = 3;
+    private static int WeaponQuadCount(PawnWeaponRole role) =>
+        role == PawnWeaponRole.Busog ? 5 : 3;
 
     /// <summary>
     /// <c>PawnRenderer.DrawHeadTreatment</c>: every one of the three
@@ -117,7 +121,7 @@ internal static class PawnQuadCount
         total += CountAdornments(layout);
         total += CountArms(layout.Arms);
         total += CountSwingTrail(layout.SwingTrail);
-        total += WeaponQuadCount;
+        total += WeaponQuadCount(appearance.WeaponRole);
         total += CountStateMark(state);
 
         if (isLeader)
@@ -485,10 +489,60 @@ internal static class RenderBudgetEstimate
     // the actual per-pawn term from PawnQuadCount.Count every run, so this
     // comment records the arithmetic rather than a value the test re-derives
     // on its own.
+    //
+    // RU-23: PawnGeometry.CreateSecondaryBounds gained a Busog arm (RU-22)
+    // that draws the nocked arrow through the existing SecondaryEquipmentBounds
+    // slot the Wasay's axe head already occupies — one new rectangle, and the
+    // only one any of the three new PawnWeaponRole members adds (Bangkaw and
+    // Arquebus draw no secondary rectangle at all). That raises the 24-quad
+    // High-tier baseline to 25 for the worst case where every visible unit is
+    // a Busog.
+    //
+    // RU-42: PawnRenderer.DrawWeapon's Busog arm gained a DrawBowstring call
+    // (two stroked line segments — WeaponQuadCount is now role-dependent,
+    // 5 for Busog vs 3 for every other role) so the bowstring can bend with
+    // RangedPose.DrawTension. That raises the Busog worst case by 2, from 25
+    // to 27:
+    //
+    //   (27 quads/pawn x 200 units) + 4,032 backdrop =  9,432 quads
+    //   (27 quads/pawn x 500 units) + 4,032 backdrop = 17,532 quads
+    //
+    // Both stay under the ceilings below with margin (2,568 quads of headroom
+    // at 200 units, 2,468 at 500), so — same rule as above — the ceilings are
+    // left unmoved. In-flight projectiles are not folded into this per-pawn
+    // term: they are a separate, bounded population
+    // (Scenario.MaximumProjectilesInFlight, default 512) counted against the
+    // same whole-frame estimate at ProjectileQuadsPerProjectile quad each (one
+    // stroked line, the same "one quad per live instance" convention
+    // BackdropQuadCount.TrampleMarks and .Decals already use):
+    //
+    //   9,432 + (512 x 1 projectile quad)  =  9,944 quads (200 units)
+    //   17,532 + (512 x 1 projectile quad) = 18,044 quads (500 units)
+    //
+    // Both still fit under the unmoved ceilings (2,056 quads of headroom at
+    // 200 units, 1,956 at 500) — but note the 500-unit margin has fallen from
+    // 3,468 to 1,956 across RU-23 and RU-42, so the next feature that wants a
+    // per-pawn quad owes a fresh measurement rather than an assumption.
+    // The projectile draw itself landed in RU-25 as ArenaGame.DrawProjectiles
+    // (ArenaGame.Rendering.cs), one stroked shaft per live flight, rather than
+    // as a ProjectileRenderer.cs of its own; that shaft has not yet been
+    // observed at runtime, because the RU-42 launch that proved the ranged
+    // pawns draw never advanced a tick, so this budget is still provisioned
+    // landing rather than measured against it; RenderBudgetEstimateTests
+    // reads Scenario.MaximumProjectilesInFlight's own default rather than
+    // repeating 512 as a second literal, so the two cannot drift apart.
 
     /// <summary>Arena-batch quad ceiling at 200 visible units.</summary>
     internal const int ArenaBatchQuadsAt200UnitsEstimate = 12_000;
 
     /// <summary>Arena-batch quad ceiling at 500 visible units.</summary>
     internal const int ArenaBatchQuadsAt500UnitsEstimate = 20_000;
+
+    /// <summary>
+    /// Quad cost of one live in-flight projectile once a projectile renderer
+    /// exists: a single stroked line segment, matching the "one quad per live
+    /// instance" convention <see cref="BackdropQuadCount.TrampleMarks"/> and
+    /// <see cref="BackdropQuadCount.Decals"/> already use.
+    /// </summary>
+    internal const int ProjectileQuadsPerProjectile = 1;
 }

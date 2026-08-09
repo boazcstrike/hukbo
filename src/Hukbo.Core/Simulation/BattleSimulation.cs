@@ -34,6 +34,30 @@ public sealed class BattleSimulation
     private readonly ReadOnlyCollection<AgentView> _agents;
     private readonly CollisionScratch _collision;
 
+    // The projectile pool (ranged-units plan RU-17): a flat array sized once
+    // here from Scenario.MaximumProjectilesInFlight, with a live count.
+    // Launch appends at the count; a resolved or missed shot compacts the
+    // tail forward, preserving order, in GatherAndCommitAttacks's new pass
+    // A0. Sized zero, exactly like the V6/V7 scratch above, under any
+    // ruleset that fields no ranged weapon -- every preset up to and
+    // including PrecolonialPhilippinesV4 -- so a legacy battle carries no
+    // pool storage at all and never allocates one. _hasRangedWeapon is
+    // computed once here, from the ruleset's roster, and reused by both the
+    // pool sizing below and the state-hash gate ComputeStateHash passes to
+    // StateHasher.Compute, following the hasRankLevels precedent at
+    // StateHasher.cs:136-139.
+    private readonly bool _hasRangedWeapon;
+    private readonly Projectile[] _projectiles;
+    private int _projectileLiveCount;
+
+    // A launch attempted while the pool already holds
+    // Scenario.MaximumProjectilesInFlight live projectiles is refused
+    // outright: the shot does not occur and the launching warrior's cooldown
+    // is not charged. Derived observability in the same mould as
+    // _movementConflictDenials: never hashed, never snapshotted, never read
+    // by any simulation stage.
+    private long _projectileLaunchRefusals;
+
     // Persistent-contingent movement state, resolved once per tick by
     // ResolveContingentStates and consumed later the same tick by
     // GatherMovementProposals's cohesion branch. Every array is sized once
@@ -100,6 +124,33 @@ public sealed class BattleSimulation
     private readonly bool[] _conflictAccepted;
     private long _movementConflictDenials;
 
+    // The four-way split of TryProposeEquipmentRoute's route-refusal reasons
+    // (ranged-units plan RU-06, F-A): derived observability in the same
+    // mould as _movementConflictDenials just above. A denied route's reason
+    // is not recoverable from an AgentView the way a phase is, so
+    // TryProposeEquipmentRoute records which reason applied to
+    // _pendingRouteRefusalReasons below rather than incrementing directly:
+    // ApplyEquipmentAttackFootworkAndDeathCleanup can still overwrite this
+    // same tick's Refuse with Commit, for an agent whose gathered attack the
+    // combat stage accepted after the route was already rejected, and a
+    // reason recorded for a tick that never actually surfaces as Refuse must
+    // not be counted. ReconcileRouteRefusalReasonCounters resolves each
+    // pending reason against the tick's now-final FootworkPhase and
+    // increments exactly one of the four counters below, so together they
+    // decompose MovementBehaviorMetrics.RefuseAgentTicks exactly, never
+    // inflated by a reason a later stage overrode.
+    private long _routeRefusalNoCandidatesBuilt;
+    private long _routeRefusalStepEndpointRejected;
+    private long _routeRefusalDirectCandidateOmitted;
+    private long _routeRefusalLaneNotClear;
+
+    // One slot per scenario agent: which of the four reasons, if any,
+    // TryProposeEquipmentRoute recorded for the agent this tick, pending
+    // ReconcileRouteRefusalReasonCounters resolving it after the
+    // accepted-attack override has had its say. Allocated only when
+    // usesFootwork, matching every other V6-only scratch array above.
+    private readonly RouteRefusalReason[] _pendingRouteRefusalReasons;
+
     // Pressure-interrupt scratch (V7 design section 3, question 2). One slot
     // per scenario agent, allocated once here and sized zero under every preset
     // whose MovementRuleset.AppliesPressureInterrupt is false — which is every
@@ -160,9 +211,22 @@ public sealed class BattleSimulation
         _damageTotals = new int[agents.Length];
         _movementProposals =
             new (int XRaw, int YRaw, ulong TargetId)?[agents.Length];
+        _hasRangedWeapon = DetermineHasRangedWeapon(rules);
+        // Sized for the worst case a single tick could buffer: every agent
+        // resolving a melee blow (at most agents.Length) plus every pooled
+        // projectile arriving the same tick (at most
+        // MaximumProjectilesInFlight, pass A0's ceiling), so neither source
+        // can ever overrun this array. Zero extra capacity, and therefore
+        // byte-identical sizing to before this feature, under any ruleset
+        // that fields no ranged weapon.
         _attackProposals =
             new (int SourceIndex, int TargetIndex, BodyPart HitLocation,
-                AttackResolution Resolution, int? ComboPosition)[agents.Length];
+                AttackResolution Resolution, int? ComboPosition)[
+                    agents.Length +
+                        (_hasRangedWeapon ? scenario.MaximumProjectilesInFlight : 0)];
+        _projectiles = _hasRangedWeapon
+            ? new Projectile[scenario.MaximumProjectilesInFlight]
+            : [];
         _agentViews = new AgentView[agents.Length];
         _agents = Array.AsReadOnly(_agentViews);
         _collision = new CollisionScratch(scenario, agents.Length);
@@ -182,6 +246,9 @@ public sealed class BattleSimulation
         _provisionalFootworkTicks = usesFootwork ? new int[agents.Length] : [];
         _proposedPaceRaw = usesFootwork ? new int[agents.Length] : [];
         _attackAcceptedThisTick = usesFootwork ? new bool[agents.Length] : [];
+        _pendingRouteRefusalReasons = usesFootwork
+            ? new RouteRefusalReason[agents.Length]
+            : [];
         _factionLocalIndexes = usesFootwork ? new int[agents.Length] : [];
         _conflictProposals = usesFootwork
             ? new FriendlyClearanceProposal[agents.Length]
@@ -318,6 +385,71 @@ public sealed class BattleSimulation
     /// <inheritdoc cref="MovementConflictDenials"/>
     internal long MovementConflictDenialsForTesting =>
         MovementConflictDenials;
+
+    /// <summary>
+    /// The number of <c>TryProposeEquipmentRoute</c> calls, since the battle
+    /// started, that finalised <see cref="Movement.FootworkPhase.Refuse"/>
+    /// because <c>BuildEquipmentRouteCandidates</c> produced zero candidates
+    /// for the tick. One of the four rejection-reason counters (ranged-units
+    /// plan RU-06, F-A) that together decompose
+    /// <see cref="Simulation.MovementBehaviorMetrics.RefuseAgentTicks"/>.
+    /// Derived observability in the same mould as
+    /// <see cref="MovementConflictDenials"/>: never hashed, never
+    /// snapshotted, never read by any simulation stage.
+    /// </summary>
+    public long RouteRefusalNoCandidatesBuilt =>
+        _routeRefusalNoCandidatesBuilt;
+
+    /// <summary>
+    /// The number of <c>TryProposeEquipmentRoute</c> calls, since the battle
+    /// started, whose last attempted candidate was rejected because
+    /// <c>MovementRouteRules.StepEndpoint</c> found no legal step for it. One
+    /// of the four rejection-reason counters decomposing
+    /// <see cref="Simulation.MovementBehaviorMetrics.RefuseAgentTicks"/>. See
+    /// <see cref="RouteRefusalNoCandidatesBuilt"/> for the shared derived
+    /// observability contract.
+    /// </summary>
+    public long RouteRefusalStepEndpointRejected =>
+        _routeRefusalStepEndpointRejected;
+
+    /// <summary>
+    /// The number of <c>TryProposeEquipmentRoute</c> calls, since the battle
+    /// started, whose last attempted candidate was rejected because
+    /// <c>ShouldOmitDirectCandidate</c> ruled out a direct approach subject
+    /// to second-threat omission. One of the four rejection-reason counters
+    /// decomposing
+    /// <see cref="Simulation.MovementBehaviorMetrics.RefuseAgentTicks"/>. See
+    /// <see cref="RouteRefusalNoCandidatesBuilt"/> for the shared derived
+    /// observability contract.
+    /// </summary>
+    public long RouteRefusalDirectCandidateOmitted =>
+        _routeRefusalDirectCandidateOmitted;
+
+    /// <summary>
+    /// The number of <c>TryProposeEquipmentRoute</c> calls, since the battle
+    /// started, whose last attempted candidate was rejected because
+    /// <c>IsLaneClearOfAllies</c> found the route too close to a friendly
+    /// agent. One of the four rejection-reason counters decomposing
+    /// <see cref="Simulation.MovementBehaviorMetrics.RefuseAgentTicks"/>. See
+    /// <see cref="RouteRefusalNoCandidatesBuilt"/> for the shared derived
+    /// observability contract.
+    /// </summary>
+    public long RouteRefusalLaneNotClear =>
+        _routeRefusalLaneNotClear;
+
+    /// <summary>
+    /// The number of ranged-weapon launches refused, since the battle
+    /// started, because the projectile pool already held
+    /// <see cref="Scenario.MaximumProjectilesInFlight"/> live projectiles.
+    /// A refused launch does not occur — no projectile enters the pool, no
+    /// <see cref="BattleEventKind.Release"/> event is emitted, and the
+    /// launching warrior's cooldown is not charged — so this is the only
+    /// record that it was ever attempted. Derived observability in the same
+    /// mould as <see cref="MovementConflictDenials"/>: never hashed, never
+    /// snapshotted, never read by any simulation stage, and zero forever
+    /// under every ruleset that fields no ranged weapon.
+    /// </summary>
+    public long ProjectileLaunchRefusals => _projectileLaunchRefusals;
 
     /// <summary>
     /// The local movement context derived for one agent by the tick just
@@ -644,6 +776,11 @@ public sealed class BattleSimulation
             // and agents killed by the gathered exchange take death cleanup,
             // before any outcome, hash, or snapshot work.
             ApplyEquipmentAttackFootworkAndDeathCleanup();
+
+            // RU-06, F-A: resolved only after the accepted-attack override
+            // just above has had its say, so a route rejection whose Refuse
+            // was overwritten to Commit this same tick is never counted.
+            ReconcileRouteRefusalReasonCounters();
         }
 
         ResolveOutcome(events);
@@ -693,18 +830,28 @@ public sealed class BattleSimulation
             // passes a non-null movement content hash, so folding the three
             // pressure-interrupt fields inside that block would move V6's
             // per-agent byte layout. Only V7 registers this true.
-            _movementRules.AppliesPressureInterrupt);
+            _movementRules.AppliesPressureInterrupt,
+            // A ruleset with no ranged roster entry folds nothing at all for
+            // the projectile pool -- not even a zero -- which is what keeps
+            // every preset up to and including PrecolonialPhilippinesV4
+            // exactly where its pinned hash already is.
+            _hasRangedWeapon,
+            new ReadOnlySpan<Projectile>(_projectiles, 0, _projectileLiveCount));
 
     public BattleSnapshot CreateSnapshot()
     {
         var agents = Array.AsReadOnly(_agents.ToArray());
         var events = Array.AsReadOnly(_lastEvents.ToArray());
+        var projectiles = Array.AsReadOnly(
+            new ReadOnlySpan<Projectile>(_projectiles, 0, _projectileLiveCount)
+                .ToArray());
         return new BattleSnapshot(
             Tick,
             Outcome,
             agents,
             events,
-            ComputeStateHash());
+            ComputeStateHash(),
+            projectiles);
     }
 
     /// <summary>
@@ -917,6 +1064,37 @@ public sealed class BattleSimulation
                 Scenario.DamagePerAttack,
                 Scenario.AttackRangeRaw,
                 Scenario.AttackCooldownTicks);
+
+    /// <summary>
+    /// Whether <paramref name="rules"/> fields at least one ranged weapon —
+    /// "this combat ruleset fields at least one ranged weapon" — computed
+    /// once at construction and cached on <see cref="_hasRangedWeapon"/>
+    /// rather than re-derived per tick. A weapon is ranged exactly when
+    /// <see cref="WeaponProfile.StandoffDistanceRaw"/> is non-zero, the same
+    /// test <see cref="WeaponProfile.ValidateRangedFields"/> uses; every
+    /// registered preset up to and including
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV4"/> declares no
+    /// weapon profiles at all, so this returns <see langword="false"/> for
+    /// every one of them without resolving a single profile.
+    /// </summary>
+    private static bool DetermineHasRangedWeapon(CombatRuleset rules)
+    {
+        if (!rules.HasWeaponProfiles)
+        {
+            return false;
+        }
+
+        foreach (var loadout in rules.Roster)
+        {
+            var profile = rules.ResolveWeaponProfile(loadout.Weapon, loadout.Shield);
+            if (profile.StandoffDistanceRaw != 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// Clears an attacker's active attack combination. Called by the pre-
@@ -1531,6 +1709,56 @@ public sealed class BattleSimulation
             if (agent.Intent == AgentIntent.Moving &&
                 agent.TargetEntityId is { } enemyTargetId)
             {
+                var target = _agentStates[_agentIndexes[enemyTargetId]];
+
+                // Ranged standoff. Confined to RangedStandoffV8 so every other
+                // registered preset — PersistentContingentsV4 included — takes
+                // the unmodified path below regardless of which combat preset
+                // supplied the roster. A melee weapon's StandoffDistanceRaw is
+                // always 0, so a melee-only roster under V8 falls through this
+                // block untouched and is byte-identical to V4. Checked ahead of
+                // contingent cohesion below: cohesion's aim-point pursuit would
+                // otherwise close a held ranged warrior straight onto its
+                // target's body-contact ring, since that branch runs for every
+                // preset other than IndependentPursuitV1 and never consults
+                // StandoffDistanceRaw.
+                if (Scenario.MovementPreset == MovementPresetId.RangedStandoffV8)
+                {
+                    var standoffRaw =
+                        ResolveAttackerWeaponProfile(agent.Loadout).StandoffDistanceRaw;
+                    if (standoffRaw != 0)
+                    {
+                        if (SquaredDistance(agent, target) <=
+                            checked((long)standoffRaw * standoffRaw))
+                        {
+                            // At or inside the weapon's standoff distance: the
+                            // warrior deliberately holds rather than closing to
+                            // body contact. No proposal is written —
+                            // _movementProposals[index] is already null from the
+                            // Array.Clear above — so the collision stage
+                            // resolves it to MovementResolution.None rather than
+                            // Blocked, and the blocked streak never starts.
+                            agent.Intent = AgentIntent.Holding;
+                            continue;
+                        }
+
+                        var rangedStallGeneration = _collision.StallGeneration(index);
+                        _movementProposals[index] = rangedStallGeneration == 0
+                            ? BuildMovementProposal(
+                                agent,
+                                target.XRaw,
+                                target.YRaw,
+                                target.EntityId,
+                                standoffRaw)
+                            : BuildSidesteppingPursuitProposal(
+                                agent,
+                                target,
+                                rangedStallGeneration,
+                                standoffRaw);
+                        continue;
+                    }
+                }
+
                 if (cohesionActive &&
                     TryResolveContingentCohesionAimPoint(
                         agent,
@@ -1560,8 +1788,6 @@ public sealed class BattleSimulation
                         leaderEntityId);
                     continue;
                 }
-
-                var target = _agentStates[_agentIndexes[enemyTargetId]];
 
                 // The pursuit-path stall escape. At generation 0 — every agent
                 // in every battle that is merely crowded — this is the same
@@ -1989,6 +2215,20 @@ public sealed class BattleSimulation
     }
 
     /// <summary>
+    /// Which of the four route-refusal reasons (ranged-units plan RU-06,
+    /// F-A) <c>TryProposeEquipmentRoute</c> recorded for an agent's current
+    /// tick, pending <see cref="ReconcileRouteRefusalReasonCounters"/>.
+    /// </summary>
+    private enum RouteRefusalReason : byte
+    {
+        None = 0,
+        NoCandidatesBuilt = 1,
+        StepEndpointRejected = 2,
+        DirectCandidateOmitted = 3,
+        LaneNotClear = 4,
+    }
+
+    /// <summary>
     /// Generates the provisional phase's route candidates per design section
     /// 10.4, clearance-tests them in order per section 10.5, and proposes
     /// the first survivor. Returns whether any candidate survived; on
@@ -2010,6 +2250,45 @@ public sealed class BattleSimulation
         var actorClearanceSquared = SquaredClearanceRadius(profile);
         var mapWidthRaw = checked(Scenario.MapWidth * FixedPoint.Scale);
         var mapHeightRaw = checked(Scenario.MapHeight * FixedPoint.Scale);
+
+        // Hoisted out of the candidate loop below because it depends only on
+        // the scenario's registered preset, never on the candidate: RU-30
+        // (F-B) reaches the monotone lane-clearance rule under exactly one
+        // preset identity, the same way BattleSimulation.cs's ranged-standoff
+        // branch gates on Scenario.MovementPreset == RangedStandoffV8.
+        var usesMonotoneAllyClearance =
+            Scenario.MovementPreset == MovementPresetId.MonotoneAllyClearanceV9;
+
+        // WeaponMovementRules.FinalizeFootwork only turns a failed route into
+        // FootworkPhase.Refuse for these three provisional phases; a failed
+        // Commit/Recover/Regroup/Disengage route keeps its own phase and
+        // timer instead (design section 9.4's "a blocked lane must not erase
+        // a safety or attack lifecycle"). The four counters below decompose
+        // MovementBehaviorMetrics.RefuseAgentTicks specifically, so they must
+        // count only the calls FinalizeFootwork actually turns into Refuse —
+        // gating on the identical condition keeps the four-way sum equal to
+        // RefuseAgentTicks exactly, never inflated by a non-Refuse failure.
+        var finalizesRefuseOnFailure = provisionalPhase is FootworkPhase.Approach
+            or FootworkPhase.Engage
+            or FootworkPhase.Pursue;
+
+        // No candidate table at all: BuildEquipmentRouteCandidates found no
+        // threat, no facing, or no non-zero delta to route toward, so the
+        // loop below never runs. Counted here, once, rather than inside the
+        // loop, so this reason is mutually exclusive with the three below —
+        // together the four counters decompose RefuseAgentTicks with exactly
+        // one increment per finalised Refuse, never more (RU-06, F-A).
+        if (count == 0)
+        {
+            if (finalizesRefuseOnFailure)
+            {
+                _pendingRouteRefusalReasons[index] =
+                    RouteRefusalReason.NoCandidatesBuilt;
+            }
+
+            TurnFacingInPlace(agent, profile, provisionalPhase, threat);
+            return false;
+        }
 
         for (var candidateIndex = 0; candidateIndex < count; candidateIndex++)
         {
@@ -2053,18 +2332,42 @@ public sealed class BattleSimulation
                 mapHeightRaw,
                 Scenario.BodyRadiusRaw) is not { } endpoint)
             {
+                // Only the last candidate tried this call decides the
+                // reason: an earlier candidate's continue is superseded the
+                // moment a later one is attempted, so counting only the
+                // final iteration keeps this counter mutually exclusive with
+                // the other three and the four-way sum equal to
+                // RefuseAgentTicks exactly (never a double count).
+                if (finalizesRefuseOnFailure && candidateIndex == count - 1)
+                {
+                    _pendingRouteRefusalReasons[index] =
+                        RouteRefusalReason.StepEndpointRejected;
+                }
+
                 continue;
             }
 
             if (candidate.SubjectToSecondThreatOmission &&
                 ShouldOmitDirectCandidate(agent, context, endpoint))
             {
+                if (finalizesRefuseOnFailure && candidateIndex == count - 1)
+                {
+                    _pendingRouteRefusalReasons[index] =
+                        RouteRefusalReason.DirectCandidateOmitted;
+                }
+
                 continue;
             }
 
             if (!IsLaneClearOfAllies(
-                index, agent, endpoint, actorClearanceSquared))
+                index, agent, endpoint, actorClearanceSquared, usesMonotoneAllyClearance))
             {
+                if (finalizesRefuseOnFailure && candidateIndex == count - 1)
+                {
+                    _pendingRouteRefusalReasons[index] =
+                        RouteRefusalReason.LaneNotClear;
+                }
+
                 continue;
             }
 
@@ -2077,6 +2380,57 @@ public sealed class BattleSimulation
 
         TurnFacingInPlace(agent, profile, provisionalPhase, threat);
         return false;
+    }
+
+    /// <summary>
+    /// Resolves every pending route-refusal reason
+    /// <c>TryProposeEquipmentRoute</c> recorded this tick against each
+    /// agent's now-final <see cref="Movement.FootworkPhase"/>, incrementing
+    /// exactly one of the four RU-06 counters per agent whose tick still
+    /// finalises as <see cref="Movement.FootworkPhase.Refuse"/>. Must run
+    /// after <see cref="ApplyEquipmentAttackFootworkAndDeathCleanup"/>: that
+    /// pass can overwrite this same tick's Refuse with Commit for an agent
+    /// whose gathered attack the combat stage accepted after the route was
+    /// already rejected, and a reason recorded for a tick that never
+    /// actually surfaces as Refuse must not be counted.
+    /// </summary>
+    private void ReconcileRouteRefusalReasonCounters()
+    {
+        for (var index = 0; index < _agentStates.Length; index++)
+        {
+            var reason = _pendingRouteRefusalReasons[index];
+            if (reason == RouteRefusalReason.None)
+            {
+                continue;
+            }
+
+            _pendingRouteRefusalReasons[index] = RouteRefusalReason.None;
+
+            if (_agentStates[index].FootworkPhase != FootworkPhase.Refuse)
+            {
+                continue;
+            }
+
+            switch (reason)
+            {
+                case RouteRefusalReason.NoCandidatesBuilt:
+                    _routeRefusalNoCandidatesBuilt =
+                        checked(_routeRefusalNoCandidatesBuilt + 1);
+                    break;
+                case RouteRefusalReason.StepEndpointRejected:
+                    _routeRefusalStepEndpointRejected =
+                        checked(_routeRefusalStepEndpointRejected + 1);
+                    break;
+                case RouteRefusalReason.DirectCandidateOmitted:
+                    _routeRefusalDirectCandidateOmitted =
+                        checked(_routeRefusalDirectCandidateOmitted + 1);
+                    break;
+                case RouteRefusalReason.LaneNotClear:
+                    _routeRefusalLaneNotClear =
+                        checked(_routeRefusalLaneNotClear + 1);
+                    break;
+            }
+        }
     }
 
     /// <summary>
@@ -2424,13 +2778,32 @@ public sealed class BattleSimulation
     /// radii. Exact equality is clear, matching the collision stage's
     /// strict-less tangency convention. No neighbours are stored and
     /// nothing allocates.
+    ///
+    /// <paramref name="isMonotone"/> -- <see langword="true"/> only under
+    /// <see cref="MovementPresetId.MonotoneAllyClearanceV9"/> -- narrows that
+    /// absolute rule to a monotonicity constraint (design section 10.3, plan
+    /// task RU-30, F-B): a candidate whose endpoint is still inside a given
+    /// ally's clearance radius is rejected only when it also moves the actor
+    /// strictly closer to that same ally than the actor's own tick-start
+    /// position already was. An actor already standing inside an ally's
+    /// clearance radius may hold, sidestep, or retreat; only a step that
+    /// tightens that specific, pre-existing violation is refused. This is
+    /// what F-A's root-cause finding named: the absolute rule punished
+    /// movement out of a violation, not the violation itself. V1 through V8
+    /// are unaffected -- <paramref name="isMonotone"/> is <see langword="false"/>
+    /// for every one of them, so this method's decision is byte-identical to
+    /// the rule above for every preset except V9.
     /// </summary>
     private bool IsLaneClearOfAllies(
         int selfIndex,
         AgentState agent,
         (int XRaw, int YRaw) endpoint,
-        Int128 actorClearanceSquared)
+        Int128 actorClearanceSquared,
+        bool isMonotone)
     {
+        var actorXRaw = agent.XRaw;
+        var actorYRaw = agent.YRaw;
+
         for (var otherIndex = 0; otherIndex < _agentStates.Length; otherIndex++)
         {
             if (otherIndex == selfIndex)
@@ -2450,7 +2823,25 @@ public sealed class BattleSimulation
                     _movementRules.ResolveLoadoutProfile(ally.Loadout)));
             var separation = (Int128)CollisionGeometry.SquaredDistance(
                 endpoint.XRaw, endpoint.YRaw, ally.XRaw, ally.YRaw);
-            if (separation < required)
+            if (separation >= required)
+            {
+                continue;
+            }
+
+            if (!isMonotone)
+            {
+                return false;
+            }
+
+            // Actor's tick-start separation to this same ally. Depends only
+            // on the actor's fixed tick-start position (hoisted above, out
+            // of this per-ally loop's repeated field reads) and the ally's
+            // own tick-start position -- never on the candidate endpoint --
+            // so it is the monotonicity baseline every candidate this call's
+            // caller tries is compared against.
+            var currentSeparation = (Int128)CollisionGeometry.SquaredDistance(
+                actorXRaw, actorYRaw, ally.XRaw, ally.YRaw);
+            if (separation < currentSeparation)
             {
                 return false;
             }
@@ -3070,11 +3461,20 @@ public sealed class BattleSimulation
     /// The pursuer's current stall generation, which the caller has already
     /// established is non-zero.
     /// </param>
+    /// <param name="stopShortRaw">
+    /// Overrides the stopping distance used when the offset resolves to zero
+    /// and this falls back to closing straight on <paramref name="target"/>.
+    /// <see langword="null"/> keeps the original two-body-radius stop; a
+    /// ranged pursuer beyond its standoff distance passes that distance here
+    /// instead, so a stalled ranged agent's fallback still stops at standoff
+    /// rather than walking in to body contact.
+    /// </param>
     /// <returns>The pursuer's movement proposal against the offset aim point.</returns>
     private (int XRaw, int YRaw, ulong TargetId) BuildSidesteppingPursuitProposal(
         AgentState agent,
         AgentState target,
-        int stallGeneration)
+        int stallGeneration,
+        int? stopShortRaw = null)
     {
         var deltaXRaw = (long)target.XRaw - agent.XRaw;
         var deltaYRaw = (long)target.YRaw - agent.YRaw;
@@ -3092,7 +3492,10 @@ public sealed class BattleSimulation
 
         if (offsetXRaw == 0 && offsetYRaw == 0)
         {
-            return BuildMovementProposal(agent, target);
+            return stopShortRaw is { } directStopShortRaw
+                ? BuildMovementProposal(
+                    agent, target.XRaw, target.YRaw, target.EntityId, directStopShortRaw)
+                : BuildMovementProposal(agent, target);
         }
 
         // Saturated and clamped the same way BuildRegroupingProposal handles its
@@ -3109,7 +3512,9 @@ public sealed class BattleSimulation
             mapHeightRaw,
             Scenario.BodyRadiusRaw);
 
-        return BuildMovementProposal(agent, aimXRaw, aimYRaw, target.EntityId);
+        return stopShortRaw is { } aimStopShortRaw
+            ? BuildMovementProposal(agent, aimXRaw, aimYRaw, target.EntityId, aimStopShortRaw)
+            : BuildMovementProposal(agent, aimXRaw, aimYRaw, target.EntityId);
     }
 
     private (int XRaw, int YRaw, ulong TargetId)? BuildRegroupingProposal(
@@ -3607,6 +4012,132 @@ public sealed class BattleSimulation
         Span<int> deflected = stackalloc int[FactionCount];
         Span<int> evaded = stackalloc int[FactionCount];
 
+        // Pass A0 (ranged-units plan RU-17): advance every pooled
+        // projectile's flight countdown and resolve any arrival, before the
+        // melee gather loop below even starts. A projectile's clash and
+        // hit-location roll folds its LAUNCH tick, not this arrival tick, so
+        // a shot's outcome was already fixed the instant it left its
+        // weapon; only whether the result is visible yet was ever in
+        // question. Order-preserving compaction: a projectile that survives
+        // is copied down to close the gap left by one that resolved this
+        // tick, exactly as CollisionScratch's own compaction preserves
+        // order elsewhere. _projectileLiveCount is zero, and this loop a
+        // single no-op comparison, under any ruleset that fields no ranged
+        // weapon.
+        var projectileWriteIndex = 0;
+        for (var readIndex = 0; readIndex < _projectileLiveCount; readIndex++)
+        {
+            var projectile = _projectiles[readIndex];
+            var ticksRemaining = projectile.TicksRemaining - 1;
+            if (ticksRemaining > 0)
+            {
+                _projectiles[projectileWriteIndex] =
+                    projectile with { TicksRemaining = ticksRemaining };
+                projectileWriteIndex++;
+                continue;
+            }
+
+            // Arrived. The launching warrior's FactionId, Loadout, and
+            // EntityId never change once created, even after death, so
+            // reading them here from a source that may itself have died
+            // since launch is exactly as safe as the shared code below
+            // already treats a melee source.
+            var arrivalSourceIndex = _agentIndexes[projectile.SourceEntityId];
+            var arrivalSource = _agentStates[arrivalSourceIndex];
+            var arrivalTargetIndex = _agentIndexes[projectile.TargetEntityId];
+            var arrivalTarget = _agentStates[arrivalTargetIndex];
+
+            if (!arrivalTarget.IsAlive)
+            {
+                // Phase 1's only miss: the recorded target died between
+                // launch and arrival. This shot produces no accepted attack,
+                // so it never enters _attackProposals.
+                AddEvent(
+                    events,
+                    BattleEventKind.Miss,
+                    projectile.SourceEntityId,
+                    projectile.TargetEntityId,
+                    0,
+                    arrivalSource.FactionId);
+                continue;
+            }
+
+            var arrivalHitLocation = HitLocationResolver.Resolve(
+                _rules,
+                arrivalSource.Loadout,
+                arrivalTarget.Loadout,
+                Scenario.Seed,
+                projectile.LaunchTick,
+                projectile.SourceEntityId,
+                projectile.TargetEntityId);
+            var arrivalResolution = ClashResolver.Resolve(
+                _rules.ClashProfile,
+                Scenario.Seed,
+                projectile.LaunchTick,
+                projectile.SourceEntityId,
+                projectile.TargetEntityId,
+                arrivalSource.Loadout.Weapon,
+                arrivalTarget.Loadout.Weapon,
+                arrivalTarget.Loadout.Shield);
+
+            // An impact needs no new BattleEventKind: it is buffered here
+            // exactly as a melee blow is, and pass B below emits it as an
+            // ordinary Attack event carrying weapon, shield, hit location,
+            // and resolution. Ranged weapons never open a combo chain
+            // (PhilippineCombatPresetV5.RangedProfile fixes their
+            // combo-open chance at zero), so the buffered combo position is
+            // unconditionally null rather than routed through
+            // ResolveComboTransition, which would also incorrectly rewrite
+            // the cooldown this shot already charged at launch.
+            _attackProposals[proposalCount] = (
+                arrivalSourceIndex,
+                arrivalTargetIndex,
+                arrivalHitLocation,
+                arrivalResolution,
+                null);
+            proposalCount++;
+
+            // The damage recorded at launch, not the launcher's current
+            // DamagePerAttack, so a later loadout or preset change could
+            // never retroactively alter a shot already in flight. The two
+            // are bit-identical for every agent CreateAgent ever produces —
+            // AgentState.DamagePerAttack is a get-only property, written
+            // once at spawn — so this is not a behavioural difference today,
+            // only which of two equal sources the code commits to.
+            if (arrivalResolution == AttackResolution.Landed)
+            {
+                _damageTotals[arrivalTargetIndex] = checked(
+                    _damageTotals[arrivalTargetIndex] + projectile.DamageAtLaunch);
+            }
+
+            // Credited to the launcher's faction, in the same shape the
+            // melee loop below credits its own resolutions, so the impact
+            // tick — not the launch tick — is what counts toward this
+            // tick's CombatMetrics.
+            var arrivalFaction = arrivalSource.FactionId;
+            accepted[arrivalFaction]++;
+            switch (arrivalResolution)
+            {
+                case AttackResolution.Landed:
+                    landed[arrivalFaction]++;
+                    break;
+                case AttackResolution.ShieldBlocked:
+                    shieldBlocked[arrivalFaction]++;
+                    break;
+                case AttackResolution.Parried:
+                    parried[arrivalFaction]++;
+                    break;
+                case AttackResolution.Deflected:
+                    deflected[arrivalFaction]++;
+                    break;
+                default:
+                    evaded[arrivalFaction]++;
+                    break;
+            }
+        }
+
+        _projectileLiveCount = projectileWriteIndex;
+
         for (var sourceIndex = 0;
              sourceIndex < _agentStates.Length;
              sourceIndex++)
@@ -3643,6 +4174,65 @@ public sealed class BattleSimulation
 
             if (source.AttackCooldownRemaining != 0)
             {
+                continue;
+            }
+
+            // Ranged-units plan RU-17: a ranged weapon launches a
+            // projectile here instead of resolving immediately. The
+            // precheck ladder above -- alive, has a target, target alive,
+            // within reach, cooldown ready -- is unchanged and load-bearing
+            // for both weapon families; only what happens once every
+            // precheck has passed differs. Phase 1: a projectile passes
+            // through allies and through every enemy but its target -- there
+            // is no line of sight and no interception.
+            var weaponProfile = ResolveAttackerWeaponProfile(source.Loadout);
+            if (weaponProfile.StandoffDistanceRaw != 0)
+            {
+                if (_projectileLiveCount >= Scenario.MaximumProjectilesInFlight)
+                {
+                    // Launch at the ceiling is refused outright: the shot
+                    // does not occur, the cooldown is not charged, and the
+                    // refusal is counted so it is visible rather than
+                    // silently dropped.
+                    _projectileLaunchRefusals =
+                        checked(_projectileLaunchRefusals + 1);
+                    continue;
+                }
+
+                source.Intent = AgentIntent.Attacking;
+                _projectiles[_projectileLiveCount] = new Projectile(
+                    source.EntityId,
+                    target.EntityId,
+                    Tick,
+                    weaponProfile.FlightTickCeiling,
+                    source.XRaw,
+                    source.YRaw,
+                    source.Loadout.Weapon,
+                    weaponProfile.DamagePerAttack);
+                _projectileLiveCount++;
+
+                // The cooldown charges on launch, not on arrival, mirroring
+                // the existing non-landed-attack cooldown-reset behaviour.
+                // Every ranged weapon this preset family declares fixes its
+                // combo-open chance at zero
+                // (PhilippineCombatPresetV5.RangedProfile), so it can never
+                // open a chain and this writes the normal cooldown directly
+                // rather than routing through ResolveComboTransition.
+                source.AttackCooldownRemaining = source.AttackCooldownTicks;
+
+                AddEvent(
+                    events,
+                    BattleEventKind.Release,
+                    source.EntityId,
+                    target.EntityId,
+                    weaponProfile.FlightTickCeiling,
+                    source.FactionId);
+
+                if (marksAcceptedAttackers)
+                {
+                    _attackAcceptedThisTick[sourceIndex] = true;
+                }
+
                 continue;
             }
 
@@ -4268,6 +4858,22 @@ public sealed class BattleSimulation
                 agent.ContingentId);
             var isLeader = agent.EntityId == _contingentLeaderEntityIds[slot];
             var view = agent.ToView(isLeader);
+
+            // Derived projection only — design section 8.1. Reads the
+            // attack-cooldown pair the tick has already produced and the
+            // weapon already resolved at spawn; nothing new is stored,
+            // hashed, or snapshotted, and nothing here queries anything the
+            // tick would not otherwise make.
+            var (rangedPhase, rangedPhaseTicksRemaining) = RangedPhaseProjection.Derive(
+                agent.Loadout.Weapon,
+                agent.AttackCooldownRemaining,
+                agent.AttackCooldownTicks);
+            view = view with
+            {
+                RangedPhase = rangedPhase,
+                RangedPhaseTicksRemaining = rangedPhaseTicksRemaining,
+            };
+
             if (appliesPressureInterrupt && agent.IsAlive)
             {
                 // The running value, on every tick rather than only on a tick

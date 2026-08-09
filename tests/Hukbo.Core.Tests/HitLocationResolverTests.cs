@@ -6,6 +6,22 @@ public sealed class HitLocationResolverTests
 {
     private static readonly CombatRuleset Rules = PhilippineCombatPreset.Rules;
 
+    /// <summary>
+    /// The weapon roster this ruleset actually fields, read off
+    /// <see cref="CombatRuleset.Roster"/> rather than
+    /// <c>Enum.GetValues&lt;WeaponId&gt;()</c>. <see cref="Rules"/> is a
+    /// frozen preset that will never declare a ranged weapon, so a sweep of
+    /// every <see cref="WeaponId"/> the enum defines throws the moment a
+    /// ranged weapon is added to the enum; a sweep of the weapons this
+    /// ruleset's own roster declares does not, and still covers every weapon
+    /// added to a future roster automatically.
+    /// </summary>
+    private static readonly WeaponId[] RosterWeapons = Rules.Roster
+        .Select(loadout => loadout.Weapon)
+        .Distinct()
+        .OrderBy(weapon => (int)weapon)
+        .ToArray();
+
     // Independently calculated golden vectors. Derivation method for each
     // row: expectedRoll is the 64-bit FNV-1a fold (offset basis
     // 14695981039346656037, prime 1099511628211) of, in order, the fixed tag
@@ -117,13 +133,16 @@ public sealed class HitLocationResolverTests
     {
         var defender = new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None);
         var results = new HashSet<BodyPart>();
+        var sweptAttackers = new HashSet<WeaponId>();
 
-        foreach (var weapon in Enum.GetValues<WeaponId>())
+        foreach (var weapon in RosterWeapons)
         {
+            sweptAttackers.Add(weapon);
             var attacker = new CombatLoadout(weapon, ArmorId.LightOrganic, ShieldId.None);
             results.Add(HitLocationResolver.Resolve(Rules, attacker, defender, 9UL, 4L, 5UL, 6UL));
         }
 
+        Assert.Equal(RosterWeapons.Length, sweptAttackers.Count);
         Assert.True(results.Count > 1);
     }
 

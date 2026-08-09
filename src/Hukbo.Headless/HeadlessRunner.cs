@@ -518,6 +518,11 @@ public static class HeadlessRunner
         var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocationStart;
         collisionMetrics.ObserveBlockedStreak(left.LongestBlockedStreakTicks);
         movementMetrics.RecordConflictDenialTotal(left.MovementConflictDenials);
+        movementMetrics.RecordRouteRefusalReasonTotals(
+            left.RouteRefusalNoCandidatesBuilt,
+            left.RouteRefusalStepEndpointRejected,
+            left.RouteRefusalDirectCandidateOmitted,
+            left.RouteRefusalLaneNotClear);
         var sortedDurations = tickDurations.Order().ToArray();
         var survivors = left.Agents
             .Where(agent => agent.IsAlive)
@@ -571,7 +576,9 @@ public static class HeadlessRunner
             collisionMetrics.ToMetrics(),
             combatMetrics.ToMetrics(),
             coreAllocatedBytes,
-            movementMetrics.ToMetrics());
+            movementMetrics.ToMetrics(),
+            scenario.CombatPreset,
+            scenario.MovementPreset);
     }
 
     /// <summary>

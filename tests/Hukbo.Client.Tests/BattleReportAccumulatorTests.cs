@@ -186,6 +186,127 @@ public sealed class BattleReportAccumulatorTests
         Assert.Equal(0, factionOne.TopKillerKills);
     }
 
+    // ===== RU-16: live per-faction Holding count =====
+
+    [Fact]
+    public void Ingest_WithAgents_CountsLivingHoldingWarriorsPerFaction()
+    {
+        var accumulator = new BattleReportAccumulator();
+        var agents = new[]
+        {
+            Agent(entityId: 1, factionId: 0, intent: AgentIntent.Holding),
+            Agent(entityId: 2, factionId: 0, intent: AgentIntent.Holding),
+            Agent(entityId: 3, factionId: 0, intent: AgentIntent.Moving),
+            Agent(entityId: 4, factionId: 1, intent: AgentIntent.Holding),
+            // Dead, so it must not count despite carrying Holding.
+            Agent(entityId: 5, factionId: 1, intent: AgentIntent.Holding, isAlive: false),
+        };
+
+        // Both factions must already be "observed" (a unit row exists) for
+        // BuildFactionTotals to emit a row at all — the same requirement
+        // every other faction-totals test in this file relies on. These
+        // deaths are otherwise inert: no kill is credited by either.
+        var events = new[]
+        {
+            Death(seq: 1, tick: 1, source: 900, factionId: 0),
+            Death(seq: 2, tick: 1, source: 901, factionId: 1),
+        };
+
+        accumulator.Ingest(events, default, agents);
+        var report = accumulator.Snapshot(terminalTick: 1);
+
+        var factionZero = report.Factions.Single(faction => faction.FactionId == 0);
+        var factionOne = report.Factions.Single(faction => faction.FactionId == 1);
+        Assert.Equal(2, factionZero.HoldingCount);
+        Assert.Equal(1, factionOne.HoldingCount);
+    }
+
+    /// <summary>
+    /// Holding is a momentary per-tick state, not an event to sum: the
+    /// second Ingest call's roster must replace the first call's count
+    /// rather than add to it.
+    /// </summary>
+    [Fact]
+    public void Ingest_WithAgents_ReplacesTheHoldingCountRatherThanAccumulatingIt()
+    {
+        var accumulator = new BattleReportAccumulator();
+        var seedFactionZero = new[] { Death(seq: 1, tick: 1, source: 900, factionId: 0) };
+
+        accumulator.Ingest(
+            seedFactionZero,
+            default,
+            new[] { Agent(entityId: 1, factionId: 0, intent: AgentIntent.Holding) });
+        accumulator.Ingest(
+            Array.Empty<BattleEvent>(),
+            default,
+            new[] { Agent(entityId: 1, factionId: 0, intent: AgentIntent.Moving) });
+
+        var report = accumulator.Snapshot(terminalTick: 2);
+
+        var factionZero = report.Factions.Single(faction => faction.FactionId == 0);
+        Assert.Equal(0, factionZero.HoldingCount);
+    }
+
+    /// <summary>
+    /// A caller that never passes the roster (every call site not yet
+    /// updated for RU-16) must still compile and must report 0 rather than
+    /// throwing — the default keeps every other call in this file
+    /// unaffected.
+    /// </summary>
+    [Fact]
+    public void Ingest_WithoutAgents_LeavesHoldingCountAtZero()
+    {
+        var accumulator = new BattleReportAccumulator();
+
+        accumulator.Ingest(
+            new[] { Attack(seq: 1, tick: 1, source: 1, target: 100, damage: 5, factionId: 0) },
+            default);
+
+        var report = accumulator.Snapshot(terminalTick: 1);
+
+        var factionZero = report.Factions.Single(faction => faction.FactionId == 0);
+        Assert.Equal(0, factionZero.HoldingCount);
+    }
+
+    [Fact]
+    public void Clear_ResetsTheHoldingCount()
+    {
+        var accumulator = new BattleReportAccumulator();
+        accumulator.Ingest(
+            Array.Empty<BattleEvent>(),
+            default,
+            new[] { Agent(entityId: 1, factionId: 0, intent: AgentIntent.Holding) });
+
+        accumulator.Clear();
+        accumulator.Ingest(
+            new[] { Attack(seq: 1, tick: 1, source: 2, target: 100, damage: 5, factionId: 0) },
+            default);
+        var report = accumulator.Snapshot(terminalTick: 1);
+
+        var factionZero = report.Factions.Single(faction => faction.FactionId == 0);
+        Assert.Equal(0, factionZero.HoldingCount);
+    }
+
+    private static AgentView Agent(
+        ulong entityId,
+        int factionId,
+        AgentIntent intent,
+        bool isAlive = true) =>
+        new(
+            EntityId: entityId,
+            FactionId: factionId,
+            XRaw: 0,
+            YRaw: 0,
+            HitPoints: isAlive ? 10 : 0,
+            MaximumHitPoints: 10,
+            TargetEntityId: null,
+            Intent: intent,
+            IsAlive: isAlive,
+            Loadout: new CombatLoadout(
+                WeaponId.Kampilan,
+                ArmorId.LightOrganic,
+                ShieldId.None));
+
     [Fact]
     public void Clear_ResetsCountersAndHighlights()
     {

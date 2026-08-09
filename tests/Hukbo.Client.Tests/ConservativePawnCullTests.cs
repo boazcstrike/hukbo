@@ -165,10 +165,16 @@ public sealed class ConservativePawnCullTests
             }
         }
 
-        // Four weapon roles, times three statures, times three builds, times
-        // four tall-hardwood skins for a shielded warrior and the single
-        // model-category default for an unshielded one.
-        Assert.Equal(4 * 3 * 3 * (4 + 1), produced.Count);
+        // Every PawnWeaponRole — derived from the enum rather than
+        // hardcoded, because a literal 4 here already rotted silently once,
+        // the moment RU-35 grew the enum to seven members — times three
+        // statures, times three builds, times four tall-hardwood skins for
+        // a shielded warrior and the single model-category default for an
+        // unshielded one. produced.Count comes from
+        // PawnAppearanceFactory.Create, a source independent of the enum
+        // itself, so a role the factory silently stopped producing would
+        // still break this equality instead of vacuously satisfying it.
+        Assert.Equal(Enum.GetValues<PawnWeaponRole>().Length * 3 * 3 * (4 + 1), produced.Count);
 
         var enumerated = new HashSet<(PawnWeaponRole, PawnShieldRole, float, float, string)>(
             GeometryAppearances().Select(appearance => (
@@ -226,10 +232,18 @@ public sealed class ConservativePawnCullTests
             }
         }
 
-        // 432 appearances x 3 armor factors x 2 sash states x 3 accent counts
-        // x 14 zooms x 4 anchors. Asserted so a silently shrunken axis list
-        // cannot pass this test by covering less.
-        Assert.Equal(432 * 3 * 2 * 3 * 14 * 4, cases);
+        // The 432 in the old literal was every PawnWeaponRole (hardcoded 4,
+        // now derived from the enum for the same reason as above) x every
+        // PawnShieldRole (hardcoded 2, now also derived from the enum —
+        // RU-41, the identical rot RU-22 repaired for PawnWeaponRole) x 3
+        // statures x 3 builds x 6 shield skins — GeometryAppearances' own
+        // cross-product — times 3 armor factors x 2 sash states x 3 accent
+        // counts x 14 zooms x 4 anchors. Asserted so a silently shrunken
+        // axis list cannot pass this test by covering less.
+        Assert.Equal(
+            (Enum.GetValues<PawnWeaponRole>().Length *
+                Enum.GetValues<PawnShieldRole>().Length * 3 * 3 * 6) * 3 * 2 * 3 * 14 * 4,
+            cases);
     }
 
     /// <summary>
@@ -589,10 +603,19 @@ public sealed class ConservativePawnCullTests
             }
         }
 
-        // 4 weapons x 2 shields x 5 resolutions x 16 headings x 14 zooms
+        // Every weapon x 2 shields x 5 resolutions x 16 headings x 14 zooms
         // x 4 anchors. Asserted so a silently shrunken axis list cannot pass
         // this test by covering less.
-        Assert.Equal(4 * 2 * 5 * 16 * 14 * 4, cases);
+        //
+        // The weapon factor is read from the enum rather than written as a
+        // literal. It was a literal 4, authored when the roster was four
+        // weapons, and the ranged three turned it into a merge failure that
+        // said nothing about what this test protects — every containment
+        // assertion above passed for all seven. Two other cardinality pins in
+        // this suite were converted for the same reason.
+        Assert.Equal(
+            Enum.GetValues<WeaponId>().Length * 2 * 5 * 16 * 14 * 4,
+            cases);
     }
 
     /// <summary>

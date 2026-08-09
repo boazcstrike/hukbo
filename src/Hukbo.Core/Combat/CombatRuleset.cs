@@ -301,6 +301,19 @@ public sealed class CombatRuleset
         RequireAttributes(weapon).Grip;
 
     /// <summary>
+    /// The grip a weapon is fought with, or <see langword="null"/> when this
+    /// preset declares no attributes for that weapon. The non-throwing form
+    /// of <see cref="ResolveWeaponGrip"/>, for a caller asking about a weapon
+    /// that a given preset may simply not field — an older melee-only preset
+    /// asked about a ranged weapon, for instance.
+    /// </summary>
+    public WeaponGrip? TryResolveWeaponGrip(WeaponId weapon) =>
+        _weaponAttributes is not null &&
+        _weaponAttributes.TryGetValue(weapon, out var attributes)
+            ? attributes.Grip
+            : null;
+
+    /// <summary>
     /// The attribute profile one warrior fights with, given their own weapon
     /// and their own shield: the solo profile when carrying no shield, the
     /// paired profile otherwise.
@@ -645,6 +658,32 @@ public sealed class CombatRuleset
         Fnv1a.Add(
             ref hash,
             unchecked((ulong)(uint)profile.AttackCooldownTicks));
+
+        // Contributed only by a profile that declares ranged fields, on the
+        // same terms as the weapon-attribute and clash-profile blocks below:
+        // a melee profile mixes nothing here at all — not even a zero
+        // count — which is what leaves every preset up to and including V4,
+        // none of which declare a ranged weapon, at its pinned content hash.
+        // Folding these three unconditionally would move every one of those
+        // presets the moment a ranged tuning value changed, even though none
+        // of them reference it. The flag itself is not folded: inside this
+        // branch it is always true, so folding it would contribute a
+        // constant and discriminate nothing; the branch is what records it.
+        var isRangedDeclaration = profile.ProjectileSpeedRaw != 0 ||
+            profile.StandoffDistanceRaw != 0 ||
+            profile.FlightTickCeiling != 0;
+        if (isRangedDeclaration)
+        {
+            Fnv1a.Add(
+                ref hash,
+                unchecked((ulong)(uint)profile.ProjectileSpeedRaw));
+            Fnv1a.Add(
+                ref hash,
+                unchecked((ulong)(uint)profile.StandoffDistanceRaw));
+            Fnv1a.Add(
+                ref hash,
+                unchecked((ulong)(uint)profile.FlightTickCeiling));
+        }
     }
 
     /// <summary>

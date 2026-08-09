@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Rendering;
 using Hukbo.Core.Combat;
+using Hukbo.Core.Simulation;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Tests;
@@ -59,6 +60,63 @@ public sealed class RenderBudgetEstimateTests
             totalAt500Units <= RenderBudgetEstimate.ArenaBatchQuadsAt500UnitsEstimate,
             $"500-unit worst case ({totalAt500Units} quads: {perPawnQuads} per pawn x 500 + " +
                 $"{backdropWorstCaseQuads} backdrop) exceeds the ESTIMATE budget " +
+                $"({RenderBudgetEstimate.ArenaBatchQuadsAt500UnitsEstimate}).");
+    }
+
+    /// <summary>
+    /// RU-23: the all-ranged worst case — every one of the 200/500 units is a
+    /// Busog pawn, the one ranged role that draws an extra rectangle
+    /// (<see cref="PawnQuadCountTests.Count_PinsTheHighTierUnshieldedUnarmoredRangedPawn"/>)
+    /// — plus the bounded in-flight projectile population, counted separately
+    /// from the per-pawn term rather than folded into it, per the RU-23 plan
+    /// row. <see cref="Scenario.MaximumProjectilesInFlight"/>'s own default is
+    /// read here rather than repeated as a literal, so this test cannot drift
+    /// from the value <c>Hukbo.Core</c> actually enforces.
+    /// </summary>
+    [Fact]
+    public void WholeFrameWorstCaseArithmetic_AllRangedUnitsWithProjectilesFitsWithinTheEstimateAt200And500Units()
+    {
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Busog, ShieldId.None);
+        var layout = PawnGeometry.Create(Vector2.Zero, 3f, appearance);
+        Assert.Equal(PawnDetailTier.High, layout.DetailTier);
+
+        var perPawnQuads = PawnQuadCount.Count(layout, appearance, PawnVisualState.Normal);
+
+        var backdropWorstCaseQuads =
+            BackdropQuadCount.GroundGrid(
+                PlainsBackdropGeometry.MaximumGridDimension,
+                PlainsBackdropGeometry.MaximumGridDimension) +
+            BackdropQuadCount.Decals(PlainsBackdropGeometry.MaximumDecalCount) +
+            BackdropQuadCount.GrassClusters(WorstCaseGrassClusters(), GrassZoomBand.Near) +
+            BackdropQuadCount.TrampleMarks(TrampleMarkSystem.Capacity) +
+            BackdropQuadCount.DustPuffs(WorstCaseDustPuffs(), cameraZoom: 3f);
+
+        var maximumProjectilesInFlight = new Scenario(
+            Seed: 1,
+            MapWidth: 1,
+            MapHeight: 1,
+            AgentsPerFaction: 1,
+            TickRate: 1,
+            TickLimit: 1).MaximumProjectilesInFlight;
+        var projectileQuads =
+            maximumProjectilesInFlight * RenderBudgetEstimate.ProjectileQuadsPerProjectile;
+
+        var totalAt200Units =
+            (perPawnQuads * 200) + backdropWorstCaseQuads + projectileQuads;
+        var totalAt500Units =
+            (perPawnQuads * 500) + backdropWorstCaseQuads + projectileQuads;
+
+        Assert.True(
+            totalAt200Units <= RenderBudgetEstimate.ArenaBatchQuadsAt200UnitsEstimate,
+            $"200-unit all-ranged worst case ({totalAt200Units} quads: " +
+                $"{perPawnQuads} per pawn x 200 + {backdropWorstCaseQuads} backdrop + " +
+                $"{projectileQuads} projectiles) exceeds the ESTIMATE budget " +
+                $"({RenderBudgetEstimate.ArenaBatchQuadsAt200UnitsEstimate}).");
+        Assert.True(
+            totalAt500Units <= RenderBudgetEstimate.ArenaBatchQuadsAt500UnitsEstimate,
+            $"500-unit all-ranged worst case ({totalAt500Units} quads: " +
+                $"{perPawnQuads} per pawn x 500 + {backdropWorstCaseQuads} backdrop + " +
+                $"{projectileQuads} projectiles) exceeds the ESTIMATE budget " +
                 $"({RenderBudgetEstimate.ArenaBatchQuadsAt500UnitsEstimate}).");
     }
 

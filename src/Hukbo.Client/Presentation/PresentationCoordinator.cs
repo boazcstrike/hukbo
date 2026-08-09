@@ -14,6 +14,16 @@ internal sealed class PresentationCoordinator
     /// about measurement keep their existing call, and so a normal run — where
     /// the render probe is off — pays only no-op calls.
     /// </param>
+    /// <summary>
+    /// Mirrors <c>Scenario</c>'s own default for
+    /// <c>Scenario.MaximumProjectilesInFlight</c> (RU-25). A caller building a
+    /// real scenario should pass its actual
+    /// <c>Scenario.MaximumProjectilesInFlight</c> as <c>projectileCapacity</c>
+    /// instead of relying on this default, exactly as every other capacity
+    /// parameter here is a literal a caller may override.
+    /// </summary>
+    private const int DefaultProjectileCapacity = 512;
+
     public PresentationCoordinator(
         int eventCapacity,
         int hitEffectCapacity = PawnAppearanceCache.Capacity,
@@ -24,6 +34,7 @@ internal sealed class PresentationCoordinator
         int trampleMarkCapacity = TrampleMarkSystem.Capacity,
         int dustPuffCapacity = DustEffectSystem.Capacity,
         int gaitCapacity = PawnAppearanceCache.Capacity,
+        int projectileCapacity = DefaultProjectileCapacity,
         int attackCapacity = PawnAppearanceCache.Capacity,
         IRenderMetricsRecorder? renderMetricsRecorder = null)
     {
@@ -39,6 +50,7 @@ internal sealed class PresentationCoordinator
         Trample = new TrampleMarkSystem(trampleMarkCapacity);
         Dust = new DustEffectSystem(dustPuffCapacity);
         Gait = new GaitAnimationSystem(gaitCapacity);
+        Projectiles = new ProjectileFlightSystem(projectileCapacity);
         AttackFrames = new AttackFrameCoordinator(attackCapacity);
         DefenderReactions = new DefenderReactionSystem(attackCapacity);
         BattleReportAccumulator = new BattleReportAccumulator();
@@ -138,6 +150,17 @@ internal sealed class PresentationCoordinator
     }
 
     /// <summary>
+    /// The fixed-capacity, tick-advanced store of in-flight ranged shots
+    /// (RU-25), fed once per tick in <see cref="IngestTick"/> from the same
+    /// <see cref="BattleEventKind.Release"/> events every other system here
+    /// reads. Unlike <see cref="Swings"/> it is never scaled by playback
+    /// speed and is not advanced in <see cref="AdvanceEffects"/>: its clock is
+    /// the tick number passed to <see cref="IngestTick"/>, exactly as
+    /// <see cref="Gait"/>'s is.
+    /// </summary>
+    public ProjectileFlightSystem Projectiles { get; }
+
+    /// <summary>
     /// Accumulates the per-unit, per-faction, and battle-wide statistics
     /// behind the post-battle battle report. Fed here from the raw per-tick
     /// event list, never through <see cref="EventFeed"/> — that feed
@@ -168,13 +191,32 @@ internal sealed class PresentationCoordinator
     /// </summary>
     public BattleReport? Report { get; private set; }
 
+    /// <param name="tick">
+    /// The just-completed simulation tick, forwarded only to
+    /// <see cref="Projectiles"/>, which needs an absolute, monotonically
+    /// non-decreasing tick number to prune expired flights. Defaulted to
+    /// <c>0</c> so every existing three-argument call keeps compiling; a
+    /// caller driving a real battle must pass the simulation's own tick, or
+    /// every flight the store ingests will read as launched at tick zero.
+    /// </param>
     public void IngestTick(
         IReadOnlyList<BattleEvent> events,
         IReadOnlyList<AgentView> agents,
-        FactionCombatMetrics tickCombatByFaction)
+        FactionCombatMetrics tickCombatByFaction,
+        long tick = 0)
     {
         EventFeed.Ingest(events);
-        BattleReportAccumulator.Ingest(events, tickCombatByFaction);
+        // The ranged package's three-argument BattleReportAccumulator.Ingest
+        // survives the merge; only this branch changed that method, and it
+        // needs the views to attribute a report row.
+        BattleReportAccumulator.Ingest(events, tickCombatByFaction, agents);
+
+        // HitEffects, Blood, Swings and ClashEffects used to be driven from
+        // here with (events, agents). The attack-animation-v2 migration moved
+        // every one of them onto AttackContactDispatcher, which calls their
+        // StartContact at the frame the blow lands rather than at the tick the
+        // event was emitted. Restoring the four calls below would play every
+        // impact twice, once early.
         AttackFrames.Ingest(events);
         Trample.Ingest(events, agents);
         Dust.Ingest(events, agents);
@@ -182,6 +224,10 @@ internal sealed class PresentationCoordinator
         // Gait consumes no events, unlike every system above — its whole
         // signal is the agent views' own XRaw/YRaw, per design section 3.
         Gait.Ingest(agents);
+
+        // RU-25. Same events, same agents, the tick argument alone naming
+        // when they landed.
+        Projectiles.Ingest(tick, events, agents);
     }
 
     /// <param name="speedMultiplier">
@@ -321,6 +367,7 @@ internal sealed class PresentationCoordinator
         Trample.Clear();
         Dust.Clear();
         Gait.Clear();
+        Projectiles.Clear();
         GrassSwayClockSeconds = 0f;
         Summary = null;
         Report = null;

@@ -76,6 +76,11 @@ internal static class BattleEventFormatter
             BattleEventKind.Death => "died",
             BattleEventKind.Outcome =>
                 GetOutcomeLabel(battleEvent.FactionId),
+            BattleEventKind.Release =>
+                $"released a shot toward {target} — " +
+                $"{battleEvent.Value} ticks in flight",
+            BattleEventKind.Miss =>
+                "shot spent itself without landing",
             _ => "unknown event",
         };
     }
@@ -139,18 +144,18 @@ internal static class BattleEventFormatter
     /// Filipino name is what the tradition offers. Never a bare cultural
     /// identification — see CLAUDE.md section 7.
     /// </summary>
+    /// <remarks>
+    /// This used to restate the four melee labels in a switch of its own. It
+    /// was not extended when the ranged three landed, so the first arquebus
+    /// attack the event feed described threw
+    /// <see cref="ArgumentOutOfRangeException"/> and took the whole client
+    /// down eight seconds into a battle. Nothing in the headless gate or the
+    /// test suite covered it, because neither one formats an event. The
+    /// labels now come from <see cref="PawnAppearance.GetWeaponLabel"/>, the
+    /// single place they are written.
+    /// </remarks>
     internal static string GetWeaponLabel(WeaponId weapon) =>
-        weapon switch
-        {
-            WeaponId.Kampilan => "Kampilan — Great Blade",
-            WeaponId.Wasay => "Wasay — War Axe",
-            WeaponId.Kalis => "Kalis — Thrusting Blade",
-            WeaponId.Itak => "Itak — Work Blade",
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(weapon),
-                weapon,
-                null),
-        };
+        PawnAppearance.GetWeaponLabel(PawnAppearanceFactory.ToWeaponRole(weapon));
 
     /// <summary>
     /// The pair-form label plus the grip, for a one-handed weapon only.

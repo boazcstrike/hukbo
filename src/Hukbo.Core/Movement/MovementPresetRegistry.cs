@@ -429,6 +429,102 @@ public static class MovementPresetRegistry
         incomingDamageWeightBasisPoints: 3_000,
         allyCollapseWeightBasisPoints: 2_000);
 
+    /// <summary>
+    /// The ranged-standoff preset. Every tunable is the same value
+    /// <see cref="PersistentContingentsV4Ruleset"/> already carries, restated
+    /// verbatim rather than referenced, following the "restate, do not
+    /// reference" convention V4 already uses against V3; V8 declares no new
+    /// field of its own, because the standoff hold is driven by preset
+    /// identity and each agent's own <c>WeaponProfile.StandoffDistanceRaw</c>
+    /// inside <c>BattleSimulation.GatherMovementProposals</c>, not by
+    /// anything <see cref="MovementRuleset"/> stores.
+    /// </summary>
+    /// <remarks>
+    /// Under V8, a warrior whose target lies at or inside its weapon's
+    /// standoff distance reports <see cref="AgentIntent.Holding"/> and
+    /// proposes no movement, instead of the ordinary pursuit or sidestep
+    /// proposal V4 always builds. A warrior whose target lies beyond that
+    /// distance still pursues, but stops short by the standoff distance
+    /// instead of by two body radii. A melee weapon's
+    /// <c>StandoffDistanceRaw</c> is always zero, so a melee-only roster sees
+    /// none of this and moves byte-identically to
+    /// <see cref="PersistentContingentsV4Ruleset"/>; V4 itself is untouched
+    /// and stays the shipped default. See CLAUDE.md section 5: this is a new
+    /// preset version rather than an edit to V4 because it changes simulated
+    /// behaviour for any roster that fields a ranged weapon.
+    /// </remarks>
+    private static readonly MovementRuleset RangedStandoffV8Ruleset = new(
+        id: MovementPresetId.RangedStandoffV8,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: false,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0);
+
+    /// <summary>
+    /// The monotone-ally-clearance preset (RU-30, F-B). A verbatim
+    /// restatement of <see cref="EquipmentRelativeFootworkV6Ruleset"/> --
+    /// every field, including <c>usesEquipmentRelativeFootwork: true</c> and
+    /// all six per-loadout movement profile rows -- not of
+    /// <see cref="PersistentContingentsV4Ruleset"/>, because
+    /// <c>BattleSimulation.IsLaneClearOfAllies</c> is reachable only from
+    /// <c>TryProposeEquipmentRoute</c>, which
+    /// <c>BattleSimulation.GatherMovementProposals</c> only calls when
+    /// <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/> is
+    /// <see langword="true"/>. Registering V9 on V4's legacy field values
+    /// would compile but never reach the new monotone rule at all, silently
+    /// making the fix inert. The single behavioural difference from V6 is
+    /// gated entirely on preset identity inside
+    /// <c>IsLaneClearOfAllies</c> itself, not on any field this ruleset
+    /// carries, exactly the way <see cref="RangedStandoffV8Ruleset"/>'s own
+    /// standoff behaviour is gated on preset identity rather than a field.
+    /// </summary>
+    private static readonly MovementRuleset MonotoneAllyClearanceV9Ruleset = new(
+        id: MovementPresetId.MonotoneAllyClearanceV9,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: true,
+        usesEquipmentRelativeFootwork: true,
+        immediateRadiusBodyDiametersBasisPoints: 25_000,
+        supportRadiusBodyDiametersBasisPoints: 60_000,
+        loadoutMovementProfiles:
+        [
+            KampilanMovementProfile.Row,
+            WasayMovementProfile.Row,
+            KalisMovementProfile.Row,
+            ItakMovementProfile.Row,
+            TallHardwoodMovementProfiles.KalisRow,
+            TallHardwoodMovementProfiles.ItakRow,
+        ],
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0);
+
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
         {
@@ -439,6 +535,8 @@ public static class MovementPresetRegistry
             MovementPresetId.PersistentContingentsV5 => true,
             MovementPresetId.EquipmentRelativeFootworkV6 => true,
             MovementPresetId.EquipmentRelativeFootworkV7 => true,
+            MovementPresetId.RangedStandoffV8 => true,
+            MovementPresetId.MonotoneAllyClearanceV9 => true,
             _ => false,
         };
 
@@ -452,6 +550,8 @@ public static class MovementPresetRegistry
             MovementPresetId.PersistentContingentsV5 => PersistentContingentsV5Ruleset,
             MovementPresetId.EquipmentRelativeFootworkV6 => EquipmentRelativeFootworkV6Ruleset,
             MovementPresetId.EquipmentRelativeFootworkV7 => EquipmentRelativeFootworkV7Ruleset,
+            MovementPresetId.RangedStandoffV8 => RangedStandoffV8Ruleset,
+            MovementPresetId.MonotoneAllyClearanceV9 => MonotoneAllyClearanceV9Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,

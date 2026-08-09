@@ -179,7 +179,7 @@ internal static class AgentInspectorContent
         var loadout = agent.Loadout;
         var lines = new List<string>(MaximumLowerRowCount)
         {
-            $"Intent: {agent.Intent}",
+            FormatIntentLine(agent.Intent),
         };
 
         if (FormatContingentLine(agent.ContingentId, agent.ContingentState, agent.IsLeader)
@@ -378,6 +378,43 @@ internal static class AgentInspectorContent
 
         return null;
     }
+
+    /// <summary>
+    /// RU-16: the reason-code row, first-class for all six
+    /// <see cref="AgentIntent"/> values including <see cref="AgentIntent.Holding"/>.
+    /// This is one of the two defences against risk 8 — a ranged warrior
+    /// deliberately holding its preferred engagement distance must read as
+    /// visibly distinct from <see cref="FormatMovementLine"/>'s "Blocked",
+    /// the V6/V7 standoff bug this feature would otherwise look like
+    /// (docs/plans/2026-08-07-ranged-units.md, RU-16). Movement and intent
+    /// are independent fields on <see cref="AgentView"/>, so this row and
+    /// the movement row below it always render side by side rather than one
+    /// suppressing the other.
+    /// </summary>
+    internal static string FormatIntentLine(AgentIntent intent) =>
+        $"Intent: {GetIntentLabel(intent)}";
+
+    /// <summary>
+    /// The five pre-existing <see cref="AgentIntent"/> values read as their
+    /// bare enum name, unchanged. <see cref="AgentIntent.Holding"/> reads
+    /// "Holding at range" instead of the bare enum name "Holding" so it
+    /// cannot be misread beside <see cref="GetMovementLabel"/>'s "Blocked" —
+    /// see <see cref="FormatIntentLine"/>.
+    /// </summary>
+    internal static string GetIntentLabel(AgentIntent intent) =>
+        intent switch
+        {
+            AgentIntent.Idle => "Idle",
+            AgentIntent.Moving => "Moving",
+            AgentIntent.Attacking => "Attacking",
+            AgentIntent.Dead => "Dead",
+            AgentIntent.Regrouping => "Regrouping",
+            AgentIntent.Holding => "Holding at range",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(intent),
+                intent,
+                null),
+        };
 
     internal static string FormatMovementLine(MovementResolution resolution) =>
         $"Movement: {GetMovementLabel(resolution)}";
@@ -704,7 +741,9 @@ internal static class AgentInspectorContent
     /// Kalis <c>l2</c>, <c>l3</c>) — R-W1.4's later or provisional forms,
     /// each explicitly labelled as such and carrying its own tier and note.
     /// Wasay and Itak contribute none: neither weapon catalogs a later or
-    /// provisional form.
+    /// provisional form. Neither do Bangkaw, Busog, or Arquebus (RU-16,
+    /// plan section 3's "second correction") — an evidence claim, not an
+    /// unexamined default.
     /// </item>
     /// </list>
     /// Every returned line's weapon name is
@@ -810,6 +849,16 @@ internal static class AgentInspectorContent
             PawnWeaponRole.Itak => WeaponVisualCatalog.ItakSilhouettes
                 .Where(entry => !entry.PawnSelectable)
                 .ToArray(),
+            // RU-16 (plan section 3, "second correction"): none of the three
+            // ranged weapons catalogs a later or provisional form today.
+            // This is an evidence claim under CLAUDE.md section 7 — each
+            // arm was checked against WeaponVisualCatalog and found empty —
+            // not a default the switch falls through to; that is why each
+            // gets its own arm here instead of joining the throwing default
+            // below.
+            PawnWeaponRole.Bangkaw => Array.Empty<WeaponSilhouetteEntry>(),
+            PawnWeaponRole.Busog => Array.Empty<WeaponSilhouetteEntry>(),
+            PawnWeaponRole.Arquebus => Array.Empty<WeaponSilhouetteEntry>(),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(weapon),
                 weapon,

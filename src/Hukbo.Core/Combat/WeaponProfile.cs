@@ -56,6 +56,33 @@ namespace Hukbo.Core.Combat;
 /// of <see cref="AttackCooldownTicks"/>. Must be positive, same rule as
 /// <see cref="AttackCooldownTicks"/>.
 /// </param>
+/// <param name="ProjectileSpeedRaw">
+/// PROVISIONAL gameplay tuning, not a historical measurement — none of it may
+/// be cited back into docs/research/HISTORICAL_1500s_WEAPONS.md. A thrown or
+/// loosed projectile's speed as a raw fixed-point value — world units per
+/// tick multiplied by <see cref="Hukbo.Core.Mathematics.FixedPoint.Scale"/>.
+/// Zero for a melee weapon; <see cref="CombatRuleset"/> requires a ranged
+/// weapon to declare this alongside <see cref="StandoffDistanceRaw"/> and
+/// <see cref="FlightTickCeiling"/>, all three or none.
+/// </param>
+/// <param name="StandoffDistanceRaw">
+/// PROVISIONAL gameplay tuning, not a historical measurement — none of it may
+/// be cited back into docs/research/HISTORICAL_1500s_WEAPONS.md. The distance
+/// a ranged warrior tries to hold from its target, as a raw fixed-point
+/// value, before releasing a shot. Zero for a melee weapon.
+/// <see cref="CombatRuleset"/> requires this to sit strictly inside this same
+/// profile's own <see cref="AttackRangeRaw"/>: a warrior standing beyond its
+/// own reach can never shoot, and one standing exactly at its reach is one
+/// collision nudge from being unable to.
+/// </param>
+/// <param name="FlightTickCeiling">
+/// PROVISIONAL gameplay tuning, not a historical measurement — none of it may
+/// be cited back into docs/research/HISTORICAL_1500s_WEAPONS.md. The most
+/// ticks this weapon's projectile is ever in flight before it is forced to
+/// resolve. Zero for a melee weapon; <see cref="CombatRuleset"/> requires a
+/// ranged weapon to declare this alongside <see cref="ProjectileSpeedRaw"/>
+/// and <see cref="StandoffDistanceRaw"/>, all three or none.
+/// </param>
 public readonly record struct WeaponProfile(
     int DamagePerAttack,
     int AttackRangeRaw,
@@ -63,7 +90,10 @@ public readonly record struct WeaponProfile(
     int ComboOpenChanceBasisPoints = 0,
     int ComboContinueChanceBasisPoints = 0,
     int ComboMaxSteps = 1,
-    int ComboCooldownTicks = 1)
+    int ComboCooldownTicks = 1,
+    int ProjectileSpeedRaw = 0,
+    int StandoffDistanceRaw = 0,
+    int FlightTickCeiling = 0)
 {
     /// <summary>
     /// Throws when any attribute is not positive, or when a combo chance is
@@ -95,6 +125,62 @@ public readonly record struct WeaponProfile(
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(
             ComboCooldownTicks,
             $"{parameterName}.{nameof(ComboCooldownTicks)}");
+        ValidateRangedFields(parameterName);
+    }
+
+    /// <summary>
+    /// Enforces the ranged-field construction invariants: a weapon is either
+    /// melee, declaring all three ranged fields zero, or ranged, declaring
+    /// all three positive with its standoff distance strictly inside its own
+    /// <see cref="AttackRangeRaw"/>. Called by <see cref="Validate"/>, which
+    /// <see cref="CombatRuleset"/> runs for every declared profile, so a
+    /// misconfigured ranged weapon fails loudly at construction rather than
+    /// producing a warrior that can never shoot.
+    /// </summary>
+    private void ValidateRangedFields(string parameterName)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(
+            ProjectileSpeedRaw,
+            $"{parameterName}.{nameof(ProjectileSpeedRaw)}");
+        ArgumentOutOfRangeException.ThrowIfNegative(
+            StandoffDistanceRaw,
+            $"{parameterName}.{nameof(StandoffDistanceRaw)}");
+        ArgumentOutOfRangeException.ThrowIfNegative(
+            FlightTickCeiling,
+            $"{parameterName}.{nameof(FlightTickCeiling)}");
+
+        var isRangedDeclaration = ProjectileSpeedRaw != 0 ||
+            StandoffDistanceRaw != 0 ||
+            FlightTickCeiling != 0;
+        if (!isRangedDeclaration)
+        {
+            return;
+        }
+
+        if (ProjectileSpeedRaw == 0 ||
+            StandoffDistanceRaw == 0 ||
+            FlightTickCeiling == 0)
+        {
+            throw new ArgumentException(
+                $"{parameterName} declares a ranged weapon — one of " +
+                $"{nameof(ProjectileSpeedRaw)}, {nameof(StandoffDistanceRaw)}, " +
+                $"or {nameof(FlightTickCeiling)} is non-zero — but does not " +
+                "declare all three. A ranged profile must declare all three " +
+                "positive; a melee profile must declare all three zero.",
+                parameterName);
+        }
+
+        if (StandoffDistanceRaw >= AttackRangeRaw)
+        {
+            throw new ArgumentOutOfRangeException(
+                $"{parameterName}.{nameof(StandoffDistanceRaw)}",
+                StandoffDistanceRaw,
+                $"{parameterName} standoff distance {StandoffDistanceRaw} " +
+                $"raw is at or beyond its own reach of {AttackRangeRaw} raw. " +
+                "A warrior standing beyond its own reach can never shoot, " +
+                "and one standing exactly at its reach is one collision " +
+                "nudge from being unable to.");
+        }
     }
 
     private static void ValidateBasisPoints(int value, string parameterName)

@@ -44,6 +44,19 @@ internal static class SoundCatalog
         GameSoundId.ClashShieldWasay,
         GameSoundId.ClashShieldKalis,
         GameSoundId.ClashShieldItak,
+        GameSoundId.ReleaseBangkaw,
+        GameSoundId.ReleaseBusog,
+        GameSoundId.ReleaseArquebus,
+        GameSoundId.AttackBangkaw,
+        GameSoundId.AttackBusog,
+        GameSoundId.AttackArquebus,
+        GameSoundId.ClashShieldBangkaw,
+        GameSoundId.ClashShieldBusog,
+        GameSoundId.ClashShieldArquebus,
+        GameSoundId.MissBangkaw,
+        GameSoundId.MissBusog,
+        GameSoundId.MissArquebus,
+        GameSoundId.MisfireArquebus,
     ];
 
     /// <summary>
@@ -70,6 +83,19 @@ internal static class SoundCatalog
             GameSoundId.ClashShieldWasay => "clash-shield-wasay",
             GameSoundId.ClashShieldKalis => "clash-shield-kalis",
             GameSoundId.ClashShieldItak => "clash-shield-itak",
+            GameSoundId.ReleaseBangkaw => "release-bangkaw",
+            GameSoundId.ReleaseBusog => "release-busog",
+            GameSoundId.ReleaseArquebus => "release-arquebus",
+            GameSoundId.AttackBangkaw => "attack-bangkaw",
+            GameSoundId.AttackBusog => "attack-busog",
+            GameSoundId.AttackArquebus => "attack-arquebus",
+            GameSoundId.ClashShieldBangkaw => "clash-shield-bangkaw",
+            GameSoundId.ClashShieldBusog => "clash-shield-busog",
+            GameSoundId.ClashShieldArquebus => "clash-shield-arquebus",
+            GameSoundId.MissBangkaw => "miss-bangkaw",
+            GameSoundId.MissBusog => "miss-busog",
+            GameSoundId.MissArquebus => "miss-arquebus",
+            GameSoundId.MisfireArquebus => "misfire-arquebus",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(sound),
                 sound,
@@ -84,14 +110,20 @@ internal static class SoundCatalog
 
     /// <summary>
     /// Whether a slot's variant is chosen by the event's hit location. Only
-    /// the four weapon attack slots carry combat context; every other slot's
-    /// variant, if it has one, is chosen from a single slot-level list.
+    /// the seven weapon attack slots carry combat context; every other
+    /// slot's variant, if it has one, is chosen from a single slot-level
+    /// list. This includes the three ranged attack- slots (the projectile's
+    /// impact) but not the ranged release-, miss-, or misfire- slots, which
+    /// have no meaningful hit location.
     /// </summary>
     public static bool IsHitLocationDriven(GameSoundId sound) =>
         sound is GameSoundId.AttackKampilan or
             GameSoundId.AttackWasay or
             GameSoundId.AttackKalis or
-            GameSoundId.AttackItak;
+            GameSoundId.AttackItak or
+            GameSoundId.AttackBangkaw or
+            GameSoundId.AttackBusog or
+            GameSoundId.AttackArquebus;
 
     /// <summary>
     /// The file-name prefix shared by every numbered take of one hit class,

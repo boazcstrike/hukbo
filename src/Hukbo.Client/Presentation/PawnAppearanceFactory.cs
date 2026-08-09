@@ -127,13 +127,22 @@ internal static class PawnAppearanceFactory
             garmentBaseTone);
     }
 
-    private static PawnWeaponRole ToWeaponRole(WeaponId weapon) =>
+    /// <summary>
+    /// Visible beyond this factory because <c>BattleEventFormatter</c> needs
+    /// the same weapon-to-role mapping to reach
+    /// <see cref="PawnAppearance.GetWeaponLabel"/>, and a second copy of this
+    /// switch is exactly what produced the crash that fix repairs.
+    /// </summary>
+    internal static PawnWeaponRole ToWeaponRole(WeaponId weapon) =>
         weapon switch
         {
             WeaponId.Kampilan => PawnWeaponRole.Kampilan,
             WeaponId.Wasay => PawnWeaponRole.Wasay,
             WeaponId.Kalis => PawnWeaponRole.Kalis,
             WeaponId.Itak => PawnWeaponRole.Itak,
+            WeaponId.Bangkaw => PawnWeaponRole.Bangkaw,
+            WeaponId.Busog => PawnWeaponRole.Busog,
+            WeaponId.Arquebus => PawnWeaponRole.Arquebus,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(weapon),
                 weapon,

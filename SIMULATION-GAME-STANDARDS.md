@@ -24,9 +24,14 @@ see a winner. Repeated headless runs match winner, ordered events, and final sta
 
 ### Deferred layers
 
-Terrain/pathfinding, cover, projectiles/ammo, morale, diplomacy, body parts, equipment, needs,
-economy, persistent worlds, multiplayer, and mods are deferred. Section 11 preserves the future
-pathfinding acceptance bar.
+Terrain/pathfinding, cover, morale, diplomacy, body parts, equipment, needs, economy, persistent
+worlds, multiplayer, and mods are deferred. Section 11 preserves the future pathfinding acceptance
+bar.
+
+Projectiles and projectile flight time were lifted from this deferred list on 2026-08-07,
+authorized for the ranged-units package (`docs/plans/2026-08-07-ranged-units.md`) alone.
+Ammunition — quiver sizes, resupply, and any other stock-and-consumption model for a projectile —
+was not lifted and stays deferred.
 
 ## 2. Language and engine decision
 
@@ -873,8 +878,12 @@ termination criterion; the recorded figures are in
 (`ResolutionShift = 24`), alongside `Weapon` (bits 16-23), `Shield` (bits 8-15), and `HitLocation`
 (bits 0-7). `Landed = 0` contributes nothing to the resolution byte, which is safe only because the
 weapon field is non-zero for every attack event and "absent" is tested on the whole field, not on any
-one byte — a pinned test guards this reasoning. The event stays at 72 bytes and the collision
-allocation ceiling stays at 900,000. `ClashProfile`'s entire tuning surface — the weapon-intercept
+one byte — a pinned test guards this reasoning. The event stays at 72 bytes. The enforced per-tick
+allocation ceiling is **16,384 bytes per 1,000 warm ticks, with a 4,096-byte growth tolerance, at 12
+agents per faction** (`tests/Hukbo.Core.Tests/BattleSimulationTests.cs:393-395`); the 900,000-byte
+figure once recorded here was a stale absolute-window measurement from an earlier collision-scaling
+workload and is superseded — see the historical run records in `docs/development/testing.md` for
+where it came from. `ClashProfile`'s entire tuning surface — the weapon-intercept
 matrix keyed by all three key parts, the shield scalar, the void channel, the hard-share rows, and the
 clamp bounds — folds into `CombatRuleset.ContentHash` conditionally: only a ruleset actually
 constructed with a clash profile folds it, which is what keeps preset V1's pinned content hash
@@ -891,6 +900,7 @@ it is derived observability data only.
 | Clash cross | absent | yes | yes | yes | absent |
 | Swing pose | stops on target | recoil | recoil | recoil | follows through |
 | Sound cue | weapon impact | `clash-shield-<weapon>` | weapon impact | weapon impact | weapon impact |
+| Sound cue (ranged weapon) | weapon impact | `clash-shield-<weapon>` | weapon impact | weapon impact | `miss-<weapon>` |
 
 A shield block now has a sound channel of its own. It is carried by four classless slots keyed to the
 attacking weapon — `clash-shield-kampilan`, `clash-shield-wasay`, `clash-shield-kalis`, and
@@ -900,9 +910,17 @@ own; the other four still share the single weapon impact cue, as the `Sound cue`
 The two remaining clash slots, `clash-blade-hard` and `clash-blade-soft`, are deferred by owner
 decision and are not part of this contract.
 
-`Evaded` is still the weakest case: distinguished by one positive channel, the event-log line, and
-three absences. It has no sound channel of its own, because it plays the same weapon impact cue as
-`Landed`, `Parried`, and `Deflected`, so the reason it is the weakest case is unchanged.
+`Evaded` is still the weakest case for a melee weapon: distinguished by one positive channel, the
+event-log line, and three absences. A melee weapon's `Evaded` has no sound channel of its own,
+because it plays the same weapon impact cue as `Landed`, `Parried`, and `Deflected` — so a melee
+blow that meets empty air still plays a flesh impact, honestly recorded here as the shipped, deliberate
+scope of the ranged-units package rather than an oversight. **`Evaded` on one of the three ranged
+weapons — Bangkaw, Busog, Arquebus — is the one exception**, added by the `Sound cue (ranged weapon)`
+row above: it takes that weapon's own `miss-` slot instead, because a loosed shot that finds no
+target sounds like a shot spending itself in the air, not like a body being struck. Every other
+resolution, and every other channel in the table, is identical for a ranged weapon and a melee one;
+only the ranged `Evaded` sound cue differs, and `SoundCueMapper.MapAttack` is the single place that
+difference is decided.
 
 ### Historical boundary
 

@@ -42,4 +42,23 @@ Invoke-RepositoryScript -Name 'benchmark.ps1' -Parameters @{
     Game = $Game
 }
 
+# The invocation above never exercises the ranged combat preset: the
+# shipped default scenario stays on PrecolonialPhilippinesV4 and
+# PersistentContingentsV4, so a completely broken ranged path (every
+# projectile refused, every archer stalling to the tick cap) would leave
+# this gate green. Guarded to Hukbo only -- PrecolonialPhilippinesV5 and
+# RangedStandoffV8 are Hukbo-specific preset ids that do not exist in the
+# Sandata game target.
+if ($Game -eq 'Hukbo') {
+    Invoke-RepositoryScript -Name 'benchmark.ps1' -Parameters @{
+        Agents = 200
+        Ticks = 10000
+        Seed = 1
+        NoBuild = $true
+        Game = $Game
+        Preset = 'PrecolonialPhilippinesV5'
+        MovementPreset = 'RangedStandoffV8'
+    }
+}
+
 Write-Host '[PASS] Canonical repository verification completed.'

@@ -31,7 +31,8 @@ internal readonly record struct MixResult(
     int PeakVoices,
     float PeakAmplitude,
     long ClippedSamples,
-    long TotalSamples)
+    long TotalSamples,
+    float[] PerSlotPeakAmplitude)
 {
     public double PeakDbfs => PeakAmplitude <= 0
         ? double.NegativeInfinity
@@ -40,7 +41,47 @@ internal readonly record struct MixResult(
     public double ClippedPercent => TotalSamples == 0
         ? 0
         : 100.0 * ClippedSamples / TotalSamples;
+
+    /// <summary>
+    /// The finished-mix peak while <paramref name="slot"/> had at least one
+    /// voice sounding — how loud the bus gets while that slot is playing, not
+    /// merely the clip's own amplitude.
+    /// </summary>
+    public double GetSlotPeakDbfs(int slot)
+    {
+        var amplitude = PerSlotPeakAmplitude[slot];
+        return amplitude <= 0 ? double.NegativeInfinity : 20.0 * Math.Log10(amplitude);
+    }
+
+    /// <summary>The slot with the highest recorded peak, or -1 if none played.</summary>
+    public int WorstSlot()
+    {
+        var worst = -1;
+        var worstAmplitude = 0f;
+        for (var slot = 0; slot < PerSlotPeakAmplitude.Length; slot++)
+        {
+            if (PerSlotPeakAmplitude[slot] > worstAmplitude)
+            {
+                worstAmplitude = PerSlotPeakAmplitude[slot];
+                worst = slot;
+            }
+        }
+
+        return worst;
+    }
 }
+
+/// <summary>
+/// The outcome of applying a per-slot/per-total cap to raw demand, with no
+/// audio involved. Answers "would <see cref="MixPolicy.MaximumPerSound"/> and
+/// <see cref="MixPolicy.MaximumTotal"/> suppress anything" for a slot that has
+/// no shipped clip and so never reaches <see cref="Mixer.Render"/>.
+/// </summary>
+internal readonly record struct DemandBudgetResult(
+    int Demanded,
+    int Accepted,
+    int Suppressed,
+    int[] SuppressedBySlot);
 
 internal static class Mixer
 {
@@ -80,6 +121,11 @@ internal static class Mixer
         var activeUntil = new List<int>();
         var peakVoices = 0;
 
+        // Every played cue's (slot, startFrame, endFrame), so the per-slot
+        // peak can be measured against the finished buffer after the limiter
+        // (if any) has run, rather than against each clip in isolation.
+        var playedRanges = new List<(int Slot, int StartFrame, int EndFrame)>();
+
         foreach (var cue in cues)
         {
             var frameIndex = (long)(cue.Tick * framesPerTick);
@@ -118,6 +164,7 @@ internal static class Mixer
 
             Overlay(buffer, clip, startFrame, channels, gain);
             activeUntil.Add(startFrame + clip.FrameCount);
+            playedRanges.Add((cue.Slot, startFrame, startFrame + clip.FrameCount));
             played++;
         }
 
@@ -142,6 +189,8 @@ internal static class Mixer
             }
         }
 
+        var perSlotPeak = MeasureSlotPeaks(buffer, channels, playedRanges);
+
         return new MixResult(
             policy.Label,
             buffer,
@@ -150,7 +199,94 @@ internal static class Mixer
             peakVoices,
             peak,
             clipped,
-            buffer.Length);
+            buffer.Length,
+            perSlotPeak);
+    }
+
+    /// <summary>
+    /// Applies exactly the frame-clearing and cap logic <see cref="Render"/>
+    /// applies to playable cues, but to the raw (tick, slot) demand stream
+    /// instead — no clip lookup, no sample summing, no audio. This is the
+    /// only way to ask whether <paramref name="policy"/>'s per-slot or total
+    /// cap would suppress a slot that has no shipped <c>.wav</c> file and so
+    /// never enters <see cref="Render"/>'s cue list at all, as is true today
+    /// for every ranged slot: the schedule and its timing are real,
+    /// measured output of the same <c>BattleSimulation</c>
+    /// <see cref="CueSchedule.Build"/> ran; only the audio is absent.
+    /// </summary>
+    public static DemandBudgetResult EvaluateDemand(
+        IReadOnlyList<(long Tick, int Slot)> events,
+        int tickRate,
+        double speedMultiplier,
+        MixPolicy policy)
+    {
+        var framesPerTick = FramesPerSecond / (tickRate * speedMultiplier);
+
+        var perSound = new int[CueSchedule.SlotCount];
+        var suppressedBySlot = new int[CueSchedule.SlotCount];
+        var total = 0;
+        var currentFrame = -1L;
+
+        var accepted = 0;
+        var suppressed = 0;
+
+        foreach (var (tick, slot) in events)
+        {
+            var frameIndex = (long)(tick * framesPerTick);
+            if (frameIndex != currentFrame)
+            {
+                currentFrame = frameIndex;
+                Array.Clear(perSound);
+                total = 0;
+            }
+
+            if ((policy.MaximumTotal is { } maxTotal && total >= maxTotal) ||
+                (policy.MaximumPerSound is { } maxPerSound && perSound[slot] >= maxPerSound))
+            {
+                suppressed++;
+                suppressedBySlot[slot]++;
+                continue;
+            }
+
+            perSound[slot]++;
+            total++;
+            accepted++;
+        }
+
+        return new DemandBudgetResult(events.Count, accepted, suppressed, suppressedBySlot);
+    }
+
+    /// <summary>
+    /// For each slot, the highest magnitude the finished (post-limiter)
+    /// buffer reaches during any frame the slot has a voice sounding.
+    /// </summary>
+    private static float[] MeasureSlotPeaks(
+        float[] buffer,
+        int channels,
+        List<(int Slot, int StartFrame, int EndFrame)> playedRanges)
+    {
+        var frames = buffer.Length / channels;
+        var perSlotPeak = new float[CueSchedule.SlotCount];
+
+        foreach (var (slot, startFrame, endFrame) in playedRanges)
+        {
+            var clampedStart = Math.Max(0, startFrame);
+            var clampedEnd = Math.Min(frames, endFrame);
+            for (var frame = clampedStart; frame < clampedEnd; frame++)
+            {
+                var offset = frame * channels;
+                for (var channel = 0; channel < channels; channel++)
+                {
+                    var magnitude = MathF.Abs(buffer[offset + channel]);
+                    if (magnitude > perSlotPeak[slot])
+                    {
+                        perSlotPeak[slot] = magnitude;
+                    }
+                }
+            }
+        }
+
+        return perSlotPeak;
     }
 
     private static void Overlay(

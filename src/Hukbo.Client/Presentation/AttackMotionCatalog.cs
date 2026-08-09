@@ -77,6 +77,69 @@ internal static class AttackMotionCatalog
         ContactAngleShare: 0.40f,
         TrailLagShare: 0.24f);
 
+    // Documented weapon class (Pigafetta, iron-tipped lances at Mactan) and
+    // documented thrown role (Pigafetta, bamboo spears hurled at Mactan). The
+    // one-hand overhand hurl choreography itself is a Provisional
+    // reconstruction. Spear infantry pairing with a narrow shield is
+    // consistent with the research doc's defensive-equipment notes, so the
+    // free off-hand keeps ShieldCompatible true.
+    private static readonly AttackMotionProfile Bangkaw = new(
+        AttackMotionFamily.OverhandThrow,
+        VisualExtensionEnvelope: 1.30f,
+        ArcRadians: 0.95f,
+        LateralBias: 0.15f,
+        RecoilStrength: 0.45f,
+        RecoverySeconds: 0.28f,
+        HandCount: 1,
+        TrailEligible: false,
+        ShieldCompatible: true,
+        // A hurl releases the shaft at full commitment, so almost the whole
+        // arc is spent by the contact instant; there is no trail, so the lag
+        // share is inert and stated as zero rather than invented.
+        ContactAngleShare: 0.85f,
+        TrailLagShare: 0f);
+
+    // Documented weapon (Pigafetta, Mactan 1521; Legazpi's specimen shipment).
+    // The draw-and-release choreography is a Provisional reconstruction. Both
+    // hands are visibly committed to the bow and string, matching the
+    // research doc's note that archers carry small or no shield.
+    private static readonly AttackMotionProfile Busog = new(
+        AttackMotionFamily.DrawAndRelease,
+        VisualExtensionEnvelope: 1.20f,
+        ArcRadians: 0.40f,
+        LateralBias: 0.05f,
+        RecoilStrength: 0.30f,
+        RecoverySeconds: 0.22f,
+        HandCount: 2,
+        TrailEligible: false,
+        ShieldCompatible: false,
+        // A bowstring release is over the instant it starts: the whole of the
+        // small arc is spent at contact. No trail, so no lag.
+        ContactAngleShare: 0.95f,
+        TrailLagShare: 0f);
+
+    // Documented, form uncertain (Legazpi 1567; matchlocks attested c. 1543-67
+    // per the WeaponId remarks). The braced, near-static level-and-discharge
+    // choreography is a Provisional reconstruction; the strong recoil value
+    // reflects a matchlock's visible kick, not a measured historical figure.
+    // Both hands brace the stock, matching the research doc's note that
+    // arquebusiers carry small or no shield.
+    private static readonly AttackMotionProfile Arquebus = new(
+        AttackMotionFamily.BracedDischarge,
+        VisualExtensionEnvelope: 1.10f,
+        ArcRadians: 0.15f,
+        LateralBias: 0.00f,
+        RecoilStrength: 0.85f,
+        RecoverySeconds: 0.45f,
+        HandCount: 2,
+        TrailEligible: false,
+        ShieldCompatible: false,
+        // A discharge is not a swing at all. The barrel is already level when
+        // the shot leaves it, so the whole of the token arc is spent at
+        // contact and the recoil is what moves afterwards. No trail, no lag.
+        ContactAngleShare: 1f,
+        TrailLagShare: 0f);
+
     /// <summary>
     /// Resolves the single motion profile declared for a weapon identity.
     /// Unknown identities fail explicitly so a new Core weapon cannot silently
@@ -89,6 +152,9 @@ internal static class AttackMotionCatalog
             WeaponId.Wasay => Wasay,
             WeaponId.Kalis => Kalis,
             WeaponId.Itak => Itak,
+            WeaponId.Bangkaw => Bangkaw,
+            WeaponId.Busog => Busog,
+            WeaponId.Arquebus => Arquebus,
             _ => throw new ArgumentOutOfRangeException(nameof(weapon), weapon, null),
         };
 

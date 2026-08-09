@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Text.Json;
 using Hukbo.Core.Combat;
@@ -241,6 +242,198 @@ public sealed class DeterminismTests
         // --movement-preset IndependentPursuitV1`.
         Assert.Equal("2BBEDD668CC38FD6", stateHash);
         Assert.Equal("228818712E5AE6C6", eventHash);
+    }
+
+    /// <summary>
+    /// RU-26. Preset V5 restates V4's four melee loadouts verbatim and adds
+    /// three ranged loadouts (Bangkaw, Busog, Arquebus) plus the two RU-45
+    /// shielded melee rows (Kalis+TallHardwood, Itak+TallHardwood), for a
+    /// nine-entry roster. Pinned so an accidental change to any V5 weapon
+    /// attribute, target-weight profile, clash cell, roster entry, or rank
+    /// level fails here rather than only in the much slower benchmark.
+    /// </summary>
+    [Fact]
+    public void PresetV5ContentHash_IsPinnedAndDistinctFromV1V2V3AndV4()
+    {
+        var v1 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
+        var v2 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV2);
+        var v3 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV3);
+        var v4 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV4);
+        var v5 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV5);
+
+        Assert.Equal(0x55F4F5B36EE59CF7UL, v5.ContentHash);
+        Assert.NotEqual(v1.ContentHash, v5.ContentHash);
+        Assert.NotEqual(v2.ContentHash, v5.ContentHash);
+        Assert.NotEqual(v3.ContentHash, v5.ContentHash);
+        Assert.NotEqual(v4.ContentHash, v5.ContentHash);
+    }
+
+    /// <summary>
+    /// RU-26. A small, fast seed-1 workload run through the same headless
+    /// path <see cref="PresetV4_SeedOneStateAndEventHashArePinned"/> uses,
+    /// pinned against preset V5 so an accidental change to the ranged
+    /// combat state machine, the V5 roster, or the shared StateHasher/
+    /// event-hash fold fails here rather than only in the much slower
+    /// benchmark. Run under
+    /// <see cref="MovementPresetId.PersistentContingentsV4"/> rather than
+    /// V4's <see cref="MovementPresetId.IndependentPursuitV1"/> because
+    /// ranged standoff behaviour is only exercised under a movement preset
+    /// that lets a contingent hold formation at range.
+    /// </summary>
+    [Fact]
+    public void PresetV5_SeedOneStateAndEventHashArePinned()
+    {
+        const ulong Seed = 1;
+        const int Agents = 20;
+        const int Ticks = 200;
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+        string[] arguments =
+        [
+            "--agents", Agents.ToString(CultureInfo.InvariantCulture),
+            "--ticks", Ticks.ToString(CultureInfo.InvariantCulture),
+            "--seed", Seed.ToString(CultureInfo.InvariantCulture),
+            "--preset", nameof(CombatPresetId.PrecolonialPhilippinesV5),
+            "--movement-preset", nameof(MovementPresetId.PersistentContingentsV4),
+        ];
+        var exitCode = HeadlessRunner.Run(arguments, output, error);
+        Assert.Equal(0, exitCode);
+
+        using var report = JsonDocument.Parse(output.ToString());
+        var stateHash = report.RootElement.GetProperty("stateHash").GetString();
+        var eventHash = report.RootElement.GetProperty("eventHash").GetString();
+
+        // Captured from a real run of this exact command against this build:
+        // `./src/Hukbo.Headless/bin/Release/net10.0/Hukbo.Headless.exe
+        // --agents 20 --ticks 200 --seed 1 --preset PrecolonialPhilippinesV5
+        // --movement-preset PersistentContingentsV4`.
+        Assert.Equal("DFD7751E249243E3", stateHash);
+        Assert.Equal("E8C1D6B300075418", eventHash);
+    }
+
+    /// <summary>
+    /// RU-26 control. Both sides are built with an explicit
+    /// <see cref="Scenario.RosterCounts"/> so both resolve loadouts through
+    /// the identical code path, <c>RosterCountExpansion.Expand</c>
+    /// (<c>BattleSimulation.cs:563-574</c>), rather than comparing that path
+    /// against <c>CombatRuleset.ResolveLoadout</c>'s unrelated interleaved
+    /// round-robin -- an earlier version of this control compared V5-with-
+    /// <c>RosterCounts</c> against V4's own pinned no-<c>RosterCounts</c> run
+    /// and found the two assignment functions disagreed on which warrior
+    /// gets which loadout even for byte-identical roster rows, which is a
+    /// real fact about <c>ResolveLoadout</c> but proves nothing about
+    /// whether a ranged or shield fold leaks into melee combat resolution.
+    /// Putting both presets on the one assignment path removes that
+    /// confound.
+    /// <para>
+    /// V4's four-entry roster (Kampilan, Wasay, Kalis, Itak) gets
+    /// <c>RosterCounts = [3, 3, 2, 2]</c>, length taken from
+    /// <see cref="PhilippineCombatPresetV4"/>'s live roster count. V5's
+    /// nine-entry roster (the same four melee weapons in the same order,
+    /// plus three ranged rows and the two RU-45 shielded rows) gets
+    /// <c>RosterCounts = [3, 3, 2, 2, 0, 0, 0, 0, 0]</c>, length taken from
+    /// <see cref="PhilippineCombatPresetV5"/>'s live roster count -- the
+    /// same contiguous melee block layout, with the five new rows zeroed.
+    /// Same seed, same tick count, same <c>AgentsPerFaction</c>, both hashes
+    /// computed live rather than compared against either preset's own
+    /// pinned no-<c>RosterCounts</c> fixture, which is a different run.
+    /// </para>
+    /// <para>
+    /// Measured, not assumed: the event hash <b>is</b> identical between the
+    /// two runs -- the ordered event stream a melee-only V5 battle produces
+    /// is byte-for-byte the one V4's four-loadout roster produces under the
+    /// same assignment path, direct proof that RU-26's ranged fold and
+    /// RU-45's shield fold touch only the roster rows that declare them. The
+    /// state hash differs, exactly as expected and for the one already-
+    /// understood reason: <c>BattleSimulation.ComputeStateHash</c> folds
+    /// <c>_rules.ContentHash</c> into every per-tick state-hash word, and
+    /// V5's <see cref="CombatRuleset.ContentHash"/> necessarily differs from
+    /// V4's because V5 declares three ranged weapon profiles and two
+    /// shielded roster rows V4 never declares, regardless of which roster
+    /// rows a scenario's <c>RosterCounts</c> actually field.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void V4AndV5MeleeOnlyRosterControls_ShareTheSameEventStreamButNotTheSameStateHash()
+    {
+        var (v4StateHashHex, v4EventHashHex) = RunMeleeOnlyRosterControl(
+            CombatPresetId.PrecolonialPhilippinesV4,
+            PhilippineCombatPresetV4.Rules.Roster.Count);
+        var (v5StateHashHex, v5EventHashHex) = RunMeleeOnlyRosterControl(
+            CombatPresetId.PrecolonialPhilippinesV5,
+            PhilippineCombatPresetV5.Rules.Roster.Count);
+
+        // Measured live on both sides -- no comparison against either
+        // preset's own pinned no-RosterCounts fixture, which is a different
+        // run entirely. The real proof: an unchanged ordered event stream
+        // across the ranged/shield-carrying preset once both runs share the
+        // one assignment path.
+        Assert.Equal(v4EventHashHex, v5EventHashHex);
+        Assert.NotEqual(v4StateHashHex, v5StateHashHex);
+    }
+
+    /// <summary>
+    /// Builds a seed-1, twenty-agent, two-hundred-tick melee-only control
+    /// run for <paramref name="preset"/>: an explicit
+    /// <see cref="Scenario.RosterCounts"/> of <c>[3, 3, 2, 2]</c> for the
+    /// preset's first four roster entries (Kampilan, Wasay, Kalis, Itak in
+    /// every preset that declares them) and zero for every roster entry
+    /// beyond the fourth, sized from <paramref name="rosterCount"/> rather
+    /// than a literal. Returns the terminal state hash and the accumulated
+    /// event hash, both formatted the same way
+    /// <see cref="HeadlessRunner"/> formats them, so a caller can compare
+    /// two runs, or a run against a pinned literal, without repeating the
+    /// simulation loop.
+    /// </summary>
+    private static (string StateHashHex, string EventHashHex) RunMeleeOnlyRosterControl(
+        CombatPresetId preset,
+        int rosterCount)
+    {
+        var builder = ImmutableArray.CreateBuilder<int>(rosterCount);
+        builder.Count = rosterCount;
+        for (var index = 0; index < rosterCount; index++)
+        {
+            builder[index] = 0;
+        }
+
+        // The first four roster entries are the shared melee loadouts
+        // (Kampilan, Wasay, Kalis, Itak) in every preset this control
+        // exercises; the contiguous block layout below is the same one on
+        // both sides, so both runs resolve through RosterCountExpansion.Expand
+        // rather than one of them falling back to
+        // CombatRuleset.ResolveLoadout.
+        builder[0] = 3;
+        builder[1] = 3;
+        builder[2] = 2;
+        builder[3] = 2;
+
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 20) with
+        {
+            TickLimit = 200,
+            CombatPreset = preset,
+            MovementPreset = MovementPresetId.PersistentContingentsV4,
+            RosterCounts = builder.MoveToImmutable(),
+        };
+        scenario.Validate();
+
+        var simulation = BattleSimulation.Create(scenario);
+        var eventHash = Fnv1a.OffsetBasis;
+        for (var tick = 0;
+             tick < scenario.TickLimit && simulation.Outcome == BattleOutcome.Ongoing;
+             tick++)
+        {
+            simulation.AdvanceOneTick();
+            foreach (var battleEvent in simulation.LastEvents)
+            {
+                HeadlessRunner.AddEventToHash(ref eventHash, battleEvent);
+            }
+        }
+
+        var stateHash = simulation.ComputeStateHash();
+        return (
+            stateHash.ToString("X16", CultureInfo.InvariantCulture),
+            eventHash.ToString("X16", CultureInfo.InvariantCulture));
     }
 
     /// <summary>

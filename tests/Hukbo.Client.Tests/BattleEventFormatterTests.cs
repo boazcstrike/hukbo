@@ -436,4 +436,150 @@ public sealed class BattleEventFormatterTests
 
         Assert.Equal("Red wins", actionLabel);
     }
+
+    /// <summary>
+    /// The release line states that a shot has left the weapon and how many
+    /// ticks it will be in the air; <see cref="BattleEvent.Value"/> carries
+    /// the flight time.
+    /// </summary>
+    [Fact]
+    public void GetActionLabel_ReleaseEventNamesTheFlightTime()
+    {
+        var battleEvent = BattleEvent.NonAttack(
+            sequence: 1,
+            tick: 1,
+            BattleEventKind.Release,
+            sourceEntityId: 5,
+            targetEntityId: 9,
+            value: 14,
+            factionId: 0);
+
+        var actionLabel = BattleEventFormatter.GetActionLabel(battleEvent);
+
+        Assert.Contains("14", actionLabel);
+        Assert.Contains("released", actionLabel);
+    }
+
+    /// <summary>
+    /// The miss line states that the shot spent itself without landing,
+    /// distinct from every other line the feed renders.
+    /// </summary>
+    [Fact]
+    public void GetActionLabel_MissEventFormattingIsUnchanged()
+    {
+        var battleEvent = BattleEvent.NonAttack(
+            sequence: 1,
+            tick: 1,
+            BattleEventKind.Miss,
+            sourceEntityId: 5,
+            targetEntityId: 9,
+            value: 0,
+            factionId: 0);
+
+        var actionLabel = BattleEventFormatter.GetActionLabel(battleEvent);
+
+        Assert.Equal("shot spent itself without landing", actionLabel);
+    }
+
+    /// <summary>
+    /// The feed has to render every <see cref="BattleEventKind"/> defined
+    /// today, including the two ranged, non-attack kinds this task adds a
+    /// case for — a missing case falls through to the shared "unknown event"
+    /// fallback, which is a blank row a spectator cannot read.
+    /// </summary>
+    [Fact]
+    public void GetActionLabel_RendersANonEmptyDistinctLineForEveryEventKind()
+    {
+        var labels = new List<string>();
+
+        foreach (var kind in Enum.GetValues<BattleEventKind>())
+        {
+            var battleEvent = kind == BattleEventKind.Attack
+                ? BattleEvent.Attack(
+                    sequence: 1,
+                    tick: 1,
+                    sourceEntityId: 7,
+                    targetEntityId: 12,
+                    damage: 10,
+                    factionId: 0,
+                    WeaponId.Kampilan,
+                    ShieldId.None,
+                    BodyPart.Shoulder)
+                : BattleEvent.NonAttack(
+                    sequence: 1,
+                    tick: 1,
+                    kind,
+                    sourceEntityId: 7,
+                    targetEntityId: 12,
+                    value: kind == BattleEventKind.Release ? 14 : 0,
+                    factionId: 0);
+
+            var actionLabel = BattleEventFormatter.GetActionLabel(battleEvent);
+
+            Assert.False(
+                string.IsNullOrWhiteSpace(actionLabel),
+                $"{kind} rendered a blank line.");
+            Assert.NotEqual("unknown event", actionLabel);
+
+            labels.Add(actionLabel);
+        }
+
+        Assert.Equal(labels.Count, labels.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    /// <summary>
+    /// The regression guard for the 2026-08-09 client crash. Formatting an
+    /// attack by any of the three ranged weapons threw
+    /// <c>ArgumentOutOfRangeException (Parameter 'weapon') Actual value was
+    /// Arquebus</c> and killed the process eight seconds into a battle,
+    /// because <c>GetWeaponLabel</c> restated the four melee labels in a
+    /// switch of its own and was never extended. Nothing caught it: the
+    /// headless gate formats no events, and every prior test here passed a
+    /// melee weapon.
+    /// </summary>
+    [Theory]
+    [InlineData(WeaponId.Kampilan, "Kampilan — Great Blade")]
+    [InlineData(WeaponId.Wasay, "Wasay — War Axe")]
+    [InlineData(WeaponId.Kalis, "Kalis — Thrusting Blade")]
+    [InlineData(WeaponId.Itak, "Itak — Work Blade")]
+    [InlineData(WeaponId.Bangkaw, "Bangkaw — Long Spear")]
+    [InlineData(WeaponId.Busog, "Busog — War Bow")]
+    [InlineData(WeaponId.Arquebus, "Imported Arquebus")]
+    public void Format_DescribesAnAttackByEveryWeaponInTheRoster(
+        WeaponId weapon,
+        string expectedLabel)
+    {
+        var battleEvent = BattleEvent.Attack(
+            sequence: 1,
+            tick: 66,
+            sourceEntityId: 7,
+            targetEntityId: 12,
+            damage: 10,
+            factionId: 0,
+            weapon,
+            ShieldId.None,
+            BodyPart.Chest);
+
+        var formatted = BattleEventFormatter.Format(battleEvent, scenarioSeed: 1);
+
+        Assert.Contains(expectedLabel, formatted, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The label a weapon carries in the event feed and the label the same
+    /// weapon carries on its pawn are one string, not two that happen to
+    /// agree today. Duplicating them is what let the feed fall four weapons
+    /// behind the pawn without anything going red.
+    /// </summary>
+    [Fact]
+    public void GetWeaponLabel_AgreesWithThePawnLabelForEveryWeapon()
+    {
+        foreach (var weapon in Enum.GetValues<WeaponId>())
+        {
+            Assert.Equal(
+                PawnAppearance.GetWeaponLabel(
+                    PawnAppearanceFactory.ToWeaponRole(weapon)),
+                BattleEventFormatter.GetWeaponLabel(weapon));
+        }
+    }
 }

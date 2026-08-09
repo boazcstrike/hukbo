@@ -1,3 +1,5 @@
+using Hukbo.Core.Combat;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Headless;
@@ -54,5 +56,24 @@ public sealed record RunReport(
     long CoreAllocatedBytes = 0,
     // Defaulted for the same reason as CombatMetrics above: every report
     // written before this member existed deserializes to an all-zero block,
-    // and every legacy movement preset legitimately reports one.
-    MovementBehaviorMetrics MovementMetrics = default);
+    // and every legacy movement preset legitimately reports one. Carries
+    // RU-06's four route-refusal-reason counters (F-A) alongside every field
+    // that predates them, since they are new fields on
+    // MovementBehaviorMetrics itself rather than new members here. Populating
+    // them for a real run additionally requires HeadlessRunner's
+    // MovementBehaviorMetricsAccumulator plumbing to read
+    // BattleSimulation.RouteRefusalNoCandidatesBuilt and its three siblings,
+    // the same way it already reads MovementConflictDenials.
+    MovementBehaviorMetrics MovementMetrics = default,
+    // The two preset identities that actually produced this run: whatever
+    // Scenario.CombatPreset and Scenario.MovementPreset resolved to, after
+    // CreateDefault and any --preset/--movement-preset override. Both default
+    // to 0, which is deliberately not a defined member of either enum --
+    // CombatPresetId starts at 1 and MovementPresetId's lowest defined value
+    // is 2 -- so a report built by hand or read from an older file still
+    // deserializes, and the unpopulated value reads as visibly unpopulated
+    // rather than silently claiming a real preset. The runner always
+    // populates both from the validated scenario's real values, so 0
+    // appears here only in a report that was never produced by a run.
+    CombatPresetId CombatPreset = default,
+    MovementPresetId MovementPreset = default);

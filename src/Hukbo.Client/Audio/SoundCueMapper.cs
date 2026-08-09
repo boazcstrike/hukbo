@@ -43,6 +43,8 @@ internal static class SoundCueMapper
                 battleEvent.Resolution),
             BattleEventKind.Death => GameSoundId.Death,
             BattleEventKind.Outcome => MapOutcome(battleEvent.FactionId),
+            BattleEventKind.Release => MapRelease(battleEvent.Weapon),
+            BattleEventKind.Miss => MapMiss(battleEvent.Weapon),
             _ => null,
         };
 
@@ -51,18 +53,44 @@ internal static class SoundCueMapper
     /// defender's shield took sounds like the attacking weapon striking a
     /// board, not like the weapon reaching a body, so
     /// <see cref="AttackResolution.ShieldBlocked"/> takes the weapon's clash
-    /// slot. Every other resolution keeps the weapon's impact slot, which is
-    /// the pre-existing behaviour: <see cref="AttackResolution.Landed"/>,
+    /// slot. A ranged weapon that is <see cref="AttackResolution.Evaded"/>
+    /// takes its <c>miss-</c> slot, because a loosed arrow or bolt that finds
+    /// no target sounds like a shot spending itself in the air, not like the
+    /// weapon reaching a body — this is the fix this task exists for. A melee
+    /// weapon keeps the pre-existing, shared-cue behaviour for every other
+    /// resolution, including <see cref="AttackResolution.Evaded"/>:
+    /// <see cref="AttackResolution.Landed"/>,
     /// <see cref="AttackResolution.Parried"/>,
     /// <see cref="AttackResolution.Deflected"/>, and
-    /// <see cref="AttackResolution.Evaded"/> still share one cue.
+    /// <see cref="AttackResolution.Evaded"/> still share one cue for a melee
+    /// weapon. See <c>SIMULATION-GAME-STANDARDS.md</c> section 14 for the
+    /// recorded scope of that difference.
     /// </summary>
     private static GameSoundId? MapAttack(
         WeaponId? weapon,
-        AttackResolution? resolution) =>
-        resolution == AttackResolution.ShieldBlocked
-            ? MapShieldClash(weapon)
-            : MapWeapon(weapon);
+        AttackResolution? resolution)
+    {
+        if (resolution == AttackResolution.ShieldBlocked)
+        {
+            return MapShieldClash(weapon);
+        }
+
+        if (resolution == AttackResolution.Evaded && IsRanged(weapon))
+        {
+            return MapMiss(weapon);
+        }
+
+        return MapWeapon(weapon);
+    }
+
+    /// <summary>
+    /// True for the three ranged weapons this package adds. Used only to
+    /// decide whether an <see cref="AttackResolution.Evaded"/> resolution
+    /// should divert to <see cref="MapMiss"/> instead of the shared melee
+    /// impact cue.
+    /// </summary>
+    private static bool IsRanged(WeaponId? weapon) =>
+        weapon is WeaponId.Bangkaw or WeaponId.Busog or WeaponId.Arquebus;
 
     /// <summary>
     /// A weapon with no mapping stays silent rather than throwing, because a
@@ -77,6 +105,9 @@ internal static class SoundCueMapper
             WeaponId.Wasay => GameSoundId.AttackWasay,
             WeaponId.Kalis => GameSoundId.AttackKalis,
             WeaponId.Itak => GameSoundId.AttackItak,
+            WeaponId.Bangkaw => GameSoundId.AttackBangkaw,
+            WeaponId.Busog => GameSoundId.AttackBusog,
+            WeaponId.Arquebus => GameSoundId.AttackArquebus,
             _ => null,
         };
 
@@ -96,6 +127,46 @@ internal static class SoundCueMapper
             WeaponId.Wasay => GameSoundId.ClashShieldWasay,
             WeaponId.Kalis => GameSoundId.ClashShieldKalis,
             WeaponId.Itak => GameSoundId.ClashShieldItak,
+            WeaponId.Bangkaw => GameSoundId.ClashShieldBangkaw,
+            WeaponId.Busog => GameSoundId.ClashShieldBusog,
+            WeaponId.Arquebus => GameSoundId.ClashShieldArquebus,
+            _ => null,
+        };
+
+    /// <summary>
+    /// The slot for a shot that left its launcher. Keyed on the weapon
+    /// directly rather than derived only from a <see cref="BattleEvent"/>,
+    /// because <see cref="BattleEventKind.Release"/> is a non-attack event
+    /// whose <see cref="BattleEvent.Weapon"/> is always <c>null</c> by
+    /// construction; a future caller that resolves the launching weapon from
+    /// elsewhere (for example the source agent's loadout) can call this
+    /// directly with that resolved weapon. Only the three ranged weapons map;
+    /// every melee weapon stays silent here.
+    /// </summary>
+    internal static GameSoundId? MapRelease(WeaponId? weapon) =>
+        weapon switch
+        {
+            WeaponId.Bangkaw => GameSoundId.ReleaseBangkaw,
+            WeaponId.Busog => GameSoundId.ReleaseBusog,
+            WeaponId.Arquebus => GameSoundId.ReleaseArquebus,
+            _ => null,
+        };
+
+    /// <summary>
+    /// The slot for a ranged shot that spent itself without landing, whether
+    /// it arrives as a <see cref="BattleEventKind.Miss"/> event or as an
+    /// <see cref="AttackResolution.Evaded"/> resolution on a ranged weapon's
+    /// attack. Only the three ranged weapons map; a melee weapon has no miss
+    /// slot and keeps its shared impact cue for <c>Evaded</c> instead, which
+    /// <see cref="MapAttack"/> enforces by only reaching this method for a
+    /// ranged weapon.
+    /// </summary>
+    private static GameSoundId? MapMiss(WeaponId? weapon) =>
+        weapon switch
+        {
+            WeaponId.Bangkaw => GameSoundId.MissBangkaw,
+            WeaponId.Busog => GameSoundId.MissBusog,
+            WeaponId.Arquebus => GameSoundId.MissArquebus,
             _ => null,
         };
 

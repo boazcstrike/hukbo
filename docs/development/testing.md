@@ -2271,7 +2271,13 @@ hash would have meant the clash stage was never actually wired in.
   bands. Both moves are legitimate content changes, not re-baseline drift —
   see the retune note under "T60 — the 20-seed defence-attributable share"
   below.
-- The collision allocation ceiling stays at 900,000 bytes. The merged
+- The collision allocation ceiling stays at 900,000 bytes. **Superseded: this
+  was the ceiling in force on 2026-07-28 and is not the current one.** The
+  enforced per-tick allocation ceiling as of RU-01 (2026-08-07) is 16,384
+  bytes per 1,000 warm ticks, with a 4,096-byte growth tolerance, at 12 agents
+  per faction (`tests/Hukbo.Core.Tests/BattleSimulationTests.cs:393-395`).
+  This paragraph is left unedited below as the historical record of the
+  measurement taken at the time. The merged
   `BattleEvent` — carrying `Weapon`, `Shield`, `HitLocation`, and `Resolution`
   all packed into one `int` per D5 — measures 815,312 bytes, comfortably under
   the ceiling and smaller than the pre-clash 200-agent figure above.
@@ -2487,6 +2493,14 @@ because they are what makes the move trustworthy:
 | `maximumPenetrationRaw` | 0 |
 
 ### A note on per-tick allocation
+
+**Superseded: the 900,000-byte figure below was the ceiling in force on
+2026-07-27 and is not the current one.** The enforced per-tick allocation
+ceiling as of RU-01 (2026-08-07) is 16,384 bytes per 1,000 warm ticks, with a
+4,096-byte growth tolerance, at 12 agents per faction
+(`tests/Hukbo.Core.Tests/BattleSimulationTests.cs:393-395`). The paragraph
+below is left unedited as the historical record of the measurement taken at
+the time.
 
 Adding the attacker's shield to `BattleEvent` — needed so a feed line can say
 whether a one-handed blow was solo or shielded — first pushed the collision
@@ -5183,6 +5197,58 @@ warrior.
 | GA-13 | Watch a warrior attack while moving | The swing and the gait compose without the body jumping between two poses | | PENDING |
 | GA-14 | Watch a battle at 200 agents from minimum zoom | The formation still reads as a formation; leg motion has not turned the field into noise | | PENDING |
 
+### Ranged units smoke (ranged-units package, task RU-32)
+
+**No interactive run was performed for this change. Every row below is
+`PENDING`.** The ranged-units package adds three ranged weapons — the Bangkaw
+(`Bangkaw — Long Spear`, thrown), the Busog (`Busog — War Bow`), and the
+Imported Arquebus (a matchlock, carrying the `IMPORTED` badge rather than a
+Filipino pair-form label because no source ties the weapon to a Philippine
+name) — together with a hitscan projectile that carries a flight time, a
+five-phase draw/load/release/recover cycle, a movement rule that holds a
+ranged warrior at its preferred distance instead of closing to melee, and
+thirteen new sound slots split across the three weapons. The automated suites
+prove the countdown resolves on the correct tick, that the state and event
+hashes move only for a ruleset that fields a ranged weapon, that
+`AgentIntent.Holding` and a rejected route are written by independent code
+paths, and that the pose geometry and the inspector strings are wired and
+tested in isolation. None of that proves any of it reads correctly to a
+person watching the screen, which is the only thing the rows below are for.
+
+Two things are true about the current state of this package and both bear
+directly on these rows. First, a real `./scripts/run.ps1 -Configuration
+Debug` run built a 500-agent `PrecolonialPhilippinesV5` scenario and rendered
+52 seconds at 185 fps with zero `err` lines in the debug log, so the game
+does launch and does render ranged pawns without crashing or logging an
+error — but `simTicks` stayed 0 on every frame line of that run, meaning the
+battle never actually advanced a single tick. `RangedPhase` has therefore
+never been observed in a non-`None` state at runtime, and
+`WeaponAngleRadians`, `ExtensionRatio`, and `DrawTension` have never taken a
+non-zero value outside a unit test. Rows RG-1, RG-2, RG-3, RG-4, RG-5, RG-6,
+RG-8, and RG-10 below depend on exactly those runtime values and have
+therefore never been seen by anyone, agent or human; nothing above should be
+read as implying otherwise. Second, the sixty sound files task RU-31
+generates — including every `release-<weapon>`, `attack-<weapon>`,
+`clash-shield-<weapon>`, `miss-<weapon>`, and `misfire-arquebus` file the
+rows below reference — do not exist yet, because RU-31 is a paid, human-run
+task that has not been executed. Any row below that depends on a cue says so
+plainly and still ships `PENDING`, not `BLOCKED`: the row itself is not
+blocked by any defect, the attempt to run it is simply not yet possible
+until those files land.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| RG-1 | Watch a Bangkaw, Busog, or Arquebus warrior fire at a target several world units away, at default zoom | A projectile is visibly drawn traveling from the launcher toward the target and exists on screen for multiple ticks before impact, rather than the target reacting the instant the release plays. Failure is a shot that resolves with no visible projectile at all, or one that appears to teleport instantly from launcher to target | | PENDING |
+| RG-2 | Listen to one ranged shot from release to impact, at default zoom and 1x speed | A release cue plays at the launcher, then a separate impact or miss cue plays at the target after a perceptible gap, and that gap reads as the shot's flight time rather than as two disconnected sounds. Failure is the two cues sounding simultaneous, the gap sounding random rather than distance-related, or only one of the two cues playing. Cannot be attempted until the release and impact/miss sound files from RU-31 exist | | PENDING |
+| RG-3 | Watch one Bangkaw warrior go through a full ready, load, draw, release, recover cycle at default zoom, close enough to see the weapon | The sequence reads as a spear being thrown: the shaft draws back past the shoulder during Draw, then releases forward and returns to a neutral carry during Recover. Failure is a Bangkaw sequence that reads as a generic swing, or one that shows no visible change in weapon angle across the five phases | | PENDING |
+| RG-4 | Watch one Busog warrior go through a full ready, load, draw, release, recover cycle at default zoom, close enough to see the weapon | The sequence reads as a bow being drawn: the bow stave holds out from the body while the string hand draws back toward the cheek during Draw, then both return toward Ready after Release. Failure is a Busog sequence indistinguishable from the Bangkaw's throwing motion, or one that shows no build-up of draw tension before Release | | PENDING |
+| RG-5 | Watch one Imported Arquebus warrior go through a full ready, load, draw, release, recover cycle at default zoom, close enough to see the weapon | The sequence reads as a matchlock being fired: the weapon is shouldered and levelled, held on target through Release rather than swept quickly, with a long barrel plainly visible out in front of the warrior. Failure is an Arquebus sequence that reads as a spear or a bow, or one indistinguishable from the other two ranged weapons at a glance | | PENDING |
+| RG-6 | Watch a ranged warrior (Bangkaw, Busog, or Arquebus) approach its standoff distance from a target during an advance, alongside melee warriors closing on the same line | The ranged warrior visibly halts and holds its position once it reaches range, while melee warriors on the same approach keep walking forward and pass it. Failure is the ranged warrior continuing to close all the way to melee range like its comrades, or halting at a point indistinguishable from where a melee warrior would stop on its own | | PENDING |
+| RG-7 | Click a ranged warrior that has halted at its standoff distance and read its inspector panel | The intent row reads "Intent: Holding at range", not "Blocked" and not any other movement-refusal wording. Failure is the inspector showing "Blocked" — the movement row's own wording for a warrior whose route was rejected — for a warrior that is in fact deliberately choosing not to close | | PENDING |
+| RG-8 | Watch and listen to a ranged shot that resolves as a miss rather than a landed hit | A miss cue plays instead of the ordinary flesh-impact cue used for a landed blow. Failure is a missed shot playing the same body-hit sound as a hit would, or playing no sound where a miss cue exists for that weapon. Cannot be attempted until the miss-`<weapon>` sound files from RU-31 exist | | PENDING |
+| RG-9 | Compare a Bangkaw, a Busog, and an Arquebus warrior side by side at the High, Medium, and Low detail tiers, from a close-up zoom down to fully zoomed out | At every tier the three ranged silhouettes are distinguishable from each other and from the four existing melee silhouettes — the Bangkaw reads as spear-armed, the Busog as bow-armed, the Arquebus as carrying a long firearm. Failure is any two of the three collapsing into the same silhouette at the Low tier, or a ranged warrior being mistaken for a melee warrior at any tier | | PENDING |
+| RG-10 | Watch and listen to a battle fielding all three ranged weapons for several minutes | The Arquebus fires far less often than the Bangkaw or the Busog, matching its much longer authored shot interval, and each Arquebus shot is audibly louder and more distinctive than a Busog release or a Bangkaw throw — a spectator should be able to tell an Arquebus has fired without seeing which warrior fired it. Failure is the Arquebus firing at a cadence similar to the other two ranged weapons, or its report sounding unremarkable next to theirs. Cannot be fully attempted until the release-arquebus and attack-arquebus sound files from RU-31 exist; the firing-cadence half of this row does not depend on sound and can be attempted once RG-1 is attemptable | | PENDING |
+| RG-11 | Watch a Bangkaw or Busog shot whose flight path passes through or near a friendly warrior standing between the launcher and the target | **This row has no pass/fail criterion; it is an open question, not a check.** Phase 1 deliberately implements no friendly fire and no line of sight — a projectile resolves as a pure distance-and-timer hitscan against its chosen target, with nothing checked about who or what stands between launcher and target — and that gap is deferred to Phase 2 by design, not an oversight to correct here. Record in `Actual` whatever was actually observed: does the projectile visibly passing through the friendly warrior look wrong to a spectator, or does it go unnoticed at the pace and scale of a real battle? This is the one Phase 1 effect a spectator cannot discover for themselves through any other row above, which is why it needs a person to look at it deliberately rather than being inferred from the others | | PENDING |
 ### Attack animation V2 smoke (2026-08-08)
 
 **No interactive run was performed for this change.** Every row below is

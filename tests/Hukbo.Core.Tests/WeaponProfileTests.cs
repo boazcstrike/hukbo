@@ -352,6 +352,233 @@ public sealed class WeaponProfileTests
         // own global value of 10.
         Assert.Equal(18, PhilippineCombatPresetV2.Rules.MaximumProfileDamagePerAttack);
 
+    [Fact]
+    public void EveryProfileOfEveryRegisteredPresetDeclaresRangedFieldsConsistentWithItsKind()
+    {
+        // Every registered preset's every profile must land on one of the two
+        // halves CombatRuleset (via WeaponProfile.ValidateRangedFields)
+        // enforces at construction: melee declares all three ranged fields
+        // zero, ranged declares all three non-zero. This used to assert only
+        // the melee half, which was true only because RU-12's
+        // PrecolonialPhilippinesV5 — the first registered preset to field a
+        // ranged row — was not registered yet. It is registered now, so this
+        // sweeps both halves rather than hard-coding which presets are melee.
+        //
+        // Deriving "is this profile ranged" from the same three fields the
+        // assertion then checks would be tautological: WeaponProfile
+        // .ValidateRangedFields already forces every profile that manages to
+        // construct into all-zero-or-all-non-zero, so the self-referential
+        // predicate could never disagree with the fields it reads and this
+        // fact could never fail. The kind has to come from a signal
+        // independent of the three fields under test, so it comes from the
+        // weapon's identity instead, via RangedPhaseProjection.Derive — the
+        // production switch over WeaponId (Bangkaw, Busog, Arquebus) that
+        // decides whether a warrior's readable draw cycle exists at all. A
+        // melee weapon wrongly given non-zero ranged fields, or a ranged
+        // weapon wrongly given all-zero ones, disagrees with this second,
+        // independent source and fails here even though it would have
+        // constructed cleanly.
+        foreach (var id in Enum.GetValues<CombatPresetId>())
+        {
+            if (!CombatPresetRegistry.IsRegistered(id))
+            {
+                continue;
+            }
+
+            var rules = CombatPresetRegistry.Get(id);
+            if (!rules.HasWeaponProfiles)
+            {
+                continue;
+            }
+
+            foreach (var loadout in rules.Roster)
+            {
+                var profile = rules.ResolveWeaponProfile(
+                    loadout.Weapon,
+                    loadout.Shield);
+
+                AssertRangedFieldsAgreeWithWeaponIdentity(loadout.Weapon, profile);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Asserts a profile's declared ranged fields agree with the independent
+    /// signal <see cref="RangedPhaseProjection.Derive"/> reads from the
+    /// weapon's identity alone: a weapon the projection recognizes as ranged
+    /// must declare all three fields non-zero, and a weapon it does not
+    /// recognize must declare all three zero. Split out from
+    /// <see cref="EveryProfileOfEveryRegisteredPresetDeclaresRangedFieldsConsistentWithItsKind"/>
+    /// so a hand-built weapon/profile disagreement can drive this exact
+    /// mechanism directly, rather than only through whatever the registry
+    /// currently happens to field.
+    /// </summary>
+    private static void AssertRangedFieldsAgreeWithWeaponIdentity(
+        WeaponId weapon,
+        WeaponProfile profile)
+    {
+        var declaresRangedFields = profile.ProjectileSpeedRaw != 0 ||
+            profile.StandoffDistanceRaw != 0 ||
+            profile.FlightTickCeiling != 0;
+
+        var (phase, _) = RangedPhaseProjection.Derive(
+            weapon,
+            attackCooldownRemaining: 0,
+            attackCooldownTicks: profile.AttackCooldownTicks);
+        var isRangedWeaponIdentity = phase != RangedPhase.None;
+
+        Assert.Equal(isRangedWeaponIdentity, declaresRangedFields);
+
+        if (declaresRangedFields)
+        {
+            Assert.NotEqual(0, profile.ProjectileSpeedRaw);
+            Assert.NotEqual(0, profile.StandoffDistanceRaw);
+            Assert.NotEqual(0, profile.FlightTickCeiling);
+        }
+        else
+        {
+            Assert.Equal(0, profile.ProjectileSpeedRaw);
+            Assert.Equal(0, profile.StandoffDistanceRaw);
+            Assert.Equal(0, profile.FlightTickCeiling);
+        }
+    }
+
+    [Theory]
+    // Exactly one of the three ranged fields declared, the other two left at
+    // the melee default of zero. Any one non-zero field is enough to mark the
+    // profile as an attempted ranged declaration, so each case must throw.
+    [InlineData(0, 5, 3)]
+    [InlineData(4, 0, 3)]
+    [InlineData(4, 5, 0)]
+    public void RangedProfileDeclaringOnlySomeOfTheThreeFieldsThrows(
+        int projectileSpeedWorldUnits,
+        int standoffWorldUnits,
+        int flightTickCeiling)
+    {
+        var exception = Assert.Throws<ArgumentException>(() => BuildRuleset(
+            attributes: new Dictionary<WeaponId, WeaponAttributes>
+            {
+                [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                    RangedProfile(
+                        15,
+                        reachWorldUnits: 16,
+                        cooldownTicks: 7,
+                        projectileSpeedWorldUnits,
+                        standoffWorldUnits,
+                        flightTickCeiling)),
+            }));
+
+        Assert.Contains(
+            "declares a ranged weapon",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StandoffDistanceAtTheProfilesOwnReachThrows()
+    {
+        // Sixteen world units of reach, sixteen of standoff: exactly at the
+        // boundary, which the row deliberately excludes rather than allows.
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+            () => BuildRuleset(
+                attributes: new Dictionary<WeaponId, WeaponAttributes>
+                {
+                    [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                        RangedProfile(
+                            15,
+                            reachWorldUnits: 16,
+                            cooldownTicks: 7,
+                            projectileSpeedWorldUnits: 4,
+                            standoffWorldUnits: 16,
+                            flightTickCeiling: 30)),
+                }));
+
+        Assert.Contains(
+            "one collision nudge",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StandoffDistanceBeyondTheProfilesOwnReachThrows()
+    {
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+            () => BuildRuleset(
+                attributes: new Dictionary<WeaponId, WeaponAttributes>
+                {
+                    [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                        RangedProfile(
+                            15,
+                            reachWorldUnits: 16,
+                            cooldownTicks: 7,
+                            projectileSpeedWorldUnits: 4,
+                            standoffWorldUnits: 20,
+                            flightTickCeiling: 30)),
+                }));
+
+        Assert.Contains(
+            "beyond its own reach",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RangedProfileWithAllThreeDeclaredAndStandoffStrictlyInsideReachConstructs()
+    {
+        var rules = BuildRuleset(
+            attributes: new Dictionary<WeaponId, WeaponAttributes>
+            {
+                [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                    RangedProfile(
+                        15,
+                        reachWorldUnits: 16,
+                        cooldownTicks: 7,
+                        projectileSpeedWorldUnits: 4,
+                        standoffWorldUnits: 12,
+                        flightTickCeiling: 30)),
+            });
+
+        var profile = rules.ResolveWeaponProfile(WeaponId.Kampilan, ShieldId.None);
+        Assert.Equal(4 * FixedPoint.Scale, profile.ProjectileSpeedRaw);
+        Assert.Equal(12 * FixedPoint.Scale, profile.StandoffDistanceRaw);
+        Assert.Equal(30, profile.FlightTickCeiling);
+    }
+
+    [Fact]
+    public void MeleeProfileWithAllThreeRangedFieldsZeroConstructs()
+    {
+        // Every existing preset weapon is melee and relies on this: the
+        // default zero for all three ranged fields must remain a valid,
+        // no-op declaration so presets V1 through V4 keep constructing
+        // untouched.
+        var rules = BuildRuleset(
+            attributes: new Dictionary<WeaponId, WeaponAttributes>
+            {
+                [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                    Profile(15, 16, 7)),
+            });
+
+        var profile = rules.ResolveWeaponProfile(WeaponId.Kampilan, ShieldId.None);
+        Assert.Equal(0, profile.ProjectileSpeedRaw);
+        Assert.Equal(0, profile.StandoffDistanceRaw);
+        Assert.Equal(0, profile.FlightTickCeiling);
+    }
+
+    private static WeaponProfile RangedProfile(
+        int damage,
+        int reachWorldUnits,
+        int cooldownTicks,
+        int projectileSpeedWorldUnits,
+        int standoffWorldUnits,
+        int flightTickCeiling) =>
+        new(
+            damage,
+            reachWorldUnits * FixedPoint.Scale,
+            cooldownTicks,
+            ProjectileSpeedRaw: projectileSpeedWorldUnits * FixedPoint.Scale,
+            StandoffDistanceRaw: standoffWorldUnits * FixedPoint.Scale,
+            FlightTickCeiling: flightTickCeiling);
+
     private static WeaponProfile Profile(
         int damage,
         int reachWorldUnits,

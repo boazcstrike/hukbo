@@ -232,6 +232,129 @@ $defaultPrompts = @{
         Duration = 0.5
         Trim     = $true
     }
+    # Ranged weapons (RU-09): a shot has up to four possible sounds instead of
+    # one — release when it leaves the weapon, attack when it lands, miss when
+    # it is evaded, and, for the Arquebus alone, misfire when the weapon fails
+    # to fire at all. Release, miss, and misfire carry no hit location, so
+    # each gets a single prompt. The three attack- slots are hit-location
+    # driven exactly like the four melee attack slots above, and each one
+    # carries an OPTIONAL nested ClassPrompts table keyed by the same six
+    # tokens -Class accepts (skull, neck, ribcage, gut, limb, extremity).
+    # Passing -Class resolves the matching ClassPrompts entry when the slot
+    # declares one and falls back to the slot's own top-level Prompt
+    # otherwise — see the resolution logic below the -List block. The
+    # top-level Prompt for each attack- ranged slot doubles as its ribcage
+    # take, since ribcage is the universal fallback target every weapon must
+    # have.
+    'release-bangkaw'       = @{
+        Prompt   = 'one long spear leaving a throwing hand, quick low whoosh through open air, no impact, no music, no voice'
+        Duration = 0.5
+        Trim     = $true
+    }
+    'release-busog'         = @{
+        Prompt   = 'one bowstring releasing, sharp taut string snap with a quick arrow whoosh, no impact, no music, no voice'
+        Duration = 0.5
+        Trim     = $true
+    }
+    'release-arquebus'      = @{
+        Prompt   = 'one matchlock arquebus firing, sharp loud powder blast with a brief smoky crack, open air, no music, no voice'
+        Duration = 0.8
+        Trim     = $true
+    }
+    'attack-bangkaw'        = @{
+        Prompt       = 'one long spear point driving deep into a chest, heavy wet punch through ribs with a dull crack, no music, no voice'
+        Duration     = 0.5
+        Trim         = $true
+        ClassPrompts = @{
+            skull     = 'one long spear point punching into the side of a skull, hard wet crack with a sharp glancing thud, no music, no voice'
+            neck      = 'one long spear point driving through a neck, thin wet puncture with a short choked exhale, no music, no voice'
+            ribcage   = 'one long spear point driving deep into a chest, heavy wet punch through ribs with a dull crack, no music, no voice'
+            gut       = 'one long spear point sinking into a belly, soft deep wet puncture with no bone, no music, no voice'
+            limb      = 'one long spear point punching through a shoulder, wet puncture with a hard joint catch, no music, no voice'
+            # 'grazing' and 'quick shallow' are the same quiet instruction
+            # that made attack-busog's original prompts unusable, so this
+            # one arm is rewritten with the loudness stated. The other five
+            # Bangkaw classes are left exactly as they were: no take of any
+            # of them has been rejected, and rewriting an untested prompt
+            # trades a known quantity for a guess.
+            extremity = 'one long spear point striking a forearm hard, loud short wet puncture with a sharp tick of bone, upfront and dry, no music, no voice'
+        }
+    }
+    # Rewritten 2026-08-09 after two consecutive takes of the original
+    # ribcage prompt came back at 2.8% and 2.3% of full scale and were
+    # rejected by the quiet guard. The cause was the wording rather than
+    # bad luck: 'thin' and 'soft thud' are instructions to be quiet, and
+    # the model followed them. Each prompt below keeps the same physical
+    # event and states the loudness explicitly instead. The duration also
+    # moves from the API's 0.5-second floor to 0.8, which gives the model
+    # room to put an attack transient somewhere other than the first
+    # frame; trimming still cuts the result back to the audible part, so
+    # the written file stays as short as it always was. The rewritten
+    # ribcage prompt landed at 100% peak on its first take.
+    'attack-busog'          = @{
+        Prompt       = 'one arrow slamming into a chest at close range, loud sharp wet puncture cracking through ribs, hard close impact, upfront and dry, no music, no voice'
+        Duration     = 0.8
+        Trim         = $true
+        ClassPrompts = @{
+            skull     = 'one arrow punching hard into the side of a skull at close range, loud brittle crack with a heavy wet thud, upfront and dry, no music, no voice'
+            neck      = 'one arrow driving through a neck at close range, loud wet puncture with a short choked gasp, upfront and dry, no music, no voice'
+            ribcage   = 'one arrow slamming into a chest at close range, loud sharp wet puncture cracking through ribs, hard close impact, upfront and dry, no music, no voice'
+            gut       = 'one arrow burying deep into a belly at close range, loud deep wet puncture with no bone, upfront and dry, no music, no voice'
+            limb      = 'one arrow punching through a thigh at close range, loud wet puncture with a hard muscle thud, upfront and dry, no music, no voice'
+            extremity = 'one arrow striking a forearm at close range, loud short wet puncture with a hard tick of bone, upfront and dry, no music, no voice'
+        }
+    }
+    'attack-arquebus'       = @{
+        Prompt       = 'one heavy lead ball punching deep into a chest, heavy wet impact through ribs with a dull crack, brief distant powder echo, no music, no voice'
+        Duration     = 0.5
+        Trim         = $true
+        ClassPrompts = @{
+            skull     = 'one heavy lead ball striking a skull, hard wet crack with a deep thud, brief distant powder echo, no music, no voice'
+            neck      = 'one heavy lead ball punching through a neck, wet heavy impact with a short choked gasp, brief distant powder echo, no music, no voice'
+            ribcage   = 'one heavy lead ball punching deep into a chest, heavy wet impact through ribs with a dull crack, brief distant powder echo, no music, no voice'
+            gut       = 'one heavy lead ball sinking into a belly, deep wet heavy impact with no bone, brief distant powder echo, no music, no voice'
+            limb      = 'one heavy lead ball smashing through a thigh, heavy wet impact with a hard bone crack, brief distant powder echo, no music, no voice'
+            # Same single-arm rewrite as Bangkaw's, and for the same
+            # reason: 'grazing' reads as quiet even with 'heavy' next to
+            # it. The other five Arquebus classes are untouched.
+            extremity = 'one heavy lead ball striking a forearm hard, loud short wet impact with a sharp bone crack, brief distant powder echo, upfront and dry, no music, no voice'
+        }
+    }
+    'clash-shield-bangkaw'  = @{
+        Prompt   = 'one long spear point punching hard into a large light wooden shield, tight woody punch with a stiff shaft judder, dry rattan-bound plank, dry packed earth, open air, very short, no ring, no metal, no reverb, no music, no voice'
+        Duration = 0.5
+        Trim     = $true
+    }
+    'clash-shield-busog'    = @{
+        Prompt   = 'one thin arrow punching into a large light wooden shield, quick sharp woody plunk with a thin shaft flex, dry rattan-bound plank, dry packed earth, open air, very short, no ring, no metal, no reverb, no music, no voice'
+        Duration = 0.5
+        Trim     = $true
+    }
+    'clash-shield-arquebus' = @{
+        Prompt   = 'one heavy lead ball slamming hard into a large light wooden shield, loud close impact, heavy board crack with splitting wood fibres, dry plank break, dry packed earth, open air, very short, no ring, no metal, no reverb, no music, no voice'
+        Duration = 0.5
+        Trim     = $true
+    }
+    'miss-bangkaw'          = @{
+        Prompt   = 'one long spear thudding into dry packed earth, having missed its target, brief soft dirt impact with no flesh, no music, no voice'
+        Duration = 0.6
+        Trim     = $true
+    }
+    'miss-busog'            = @{
+        Prompt   = 'one thin arrow whistling past and thudding into dry packed earth, having missed its target, brief soft dirt impact with no flesh, no music, no voice'
+        Duration = 0.6
+        Trim     = $true
+    }
+    'miss-arquebus'         = @{
+        Prompt   = 'one heavy lead ball striking dry packed earth at a distance, having missed its target, brief dull dirt impact with a faint powder echo, no flesh, no music, no voice'
+        Duration = 0.7
+        Trim     = $true
+    }
+    'misfire-arquebus'      = @{
+        Prompt   = 'a matchlock arquebus failing to fire, damp powder fizzle and a dry mechanical click, no shot, no music, no voice'
+        Duration = 0.7
+        Trim     = $true
+    }
     'death'                  = @{
         Prompt   = 'a body collapsing onto dry packed earth, dull heavy thud with a short scrape of cloth and gear, no music, no voice'
         Duration = 0.7
@@ -267,6 +390,13 @@ $defaultPrompts = @{
         Threshold = 2.0
     }
 }
+
+# The six acoustic hit-class tokens a hit-location driven slot's variant file
+# name can carry, matching -Class's ValidateSet above and
+# HitClassCatalog.GetToken in src/Hukbo.Client/Audio/HitClass.cs exactly. Kept
+# as a literal list, not derived from the ValidateSet attribute, so neither
+# side needs to parse the other's syntax.
+$hitClassTokens = @('skull', 'neck', 'ribcage', 'gut', 'limb', 'extremity')
 
 # Per-family trim thresholds for -Batch mode, keyed by the family token that
 # leads a manifest base file name (for example "gun-556x45-single-close" has
@@ -344,6 +474,48 @@ function Get-SlotPath {
     }
 
     return Join-Path $Directory "$name.wav"
+}
+
+function Test-SlotHasGeneratedFile {
+    <#
+        Reports whether at least one file backs a slot, using the same
+        prefix rules SoundLibrary.BuildRawMatches applies in
+        src/Hukbo.Client/Audio/SoundLibrary.cs: a slot counts as present when
+        either its bare "<slot>.wav" fallback exists, or at least one
+        "<slot>-NN.wav" numbered take exists. A hit-location driven slot —
+        every "attack-" slot, matching SoundCatalog.IsHitLocationDriven — is
+        numbered per hit class instead, as "<slot>-<class>-NN.wav", so a take
+        under any one class is enough to report the slot present. This is
+        deliberately not a Test-Path probe of the bare file alone: that
+        undercounts every slot the game actually reads from numbered takes,
+        which today is every shipped slot except draw, ui-click,
+        victory-blue, and victory-red.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $SlotName,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [string[]] $FileNames
+    )
+
+    $bareFileName = "$SlotName.wav"
+    if ($FileNames | Where-Object { $_ -ieq $bareFileName }) {
+        return $true
+    }
+
+    $prefixes = if ($SlotName.StartsWith('attack-')) {
+        $hitClassTokens | ForEach-Object { "$SlotName-$_-" }
+    }
+    else {
+        , "$SlotName-"
+    }
+
+    foreach ($prefix in $prefixes) {
+        $variantPattern = '^' + [regex]::Escape($prefix) + '\d{2}\.wav$'
+        if ($FileNames | Where-Object { $_ -imatch $variantPattern }) {
+            return $true
+        }
+    }
+
+    return $false
 }
 
 function Add-ProvenanceRow {
@@ -747,8 +919,21 @@ if ($List) {
     Write-Host "Catalog: $catalogPath"
     Write-Host "Folder:  $defaultOutputDirectory"
     Write-Host ''
+
+    # Counted with Test-SlotHasGeneratedFile, the same prefix rules the game
+    # applies in SoundLibrary.cs, not by probing only the bare "<slot>.wav"
+    # file: a slot shipped as numbered or class-numbered takes has no bare
+    # file at all and would otherwise be reported MISSING despite being fully
+    # generated and paid for.
+    $existingFileNames = if (Test-Path -LiteralPath $defaultOutputDirectory -PathType Container) {
+        @(Get-ChildItem -LiteralPath $defaultOutputDirectory -Filter '*.wav' -File | ForEach-Object { $_.Name })
+    }
+    else {
+        @()
+    }
+
     foreach ($name in $slots) {
-        $exists = Test-Path -LiteralPath (Get-SlotPath -SlotName $name -Directory $defaultOutputDirectory) -PathType Leaf
+        $exists = Test-SlotHasGeneratedFile -SlotName $name -FileNames $existingFileNames
         $status = if ($exists) { 'PRESENT' } else { 'MISSING' }
         $defaultPrompt = if ($defaultPrompts.ContainsKey($name)) { $defaultPrompts[$name].Prompt } else { '(no default prompt)' }
         Write-Host ("[{0}] {1}" -f $status, $name)
@@ -901,7 +1086,20 @@ if ([string]::IsNullOrWhiteSpace($Prompt)) {
         throw "Slot '$Slot' has no default prompt in this script. Pass -Prompt explicitly."
     }
 
-    $Prompt = $defaultPrompts[$Slot].Prompt
+    $slotDefault = $defaultPrompts[$Slot]
+
+    # An OPTIONAL per-hit-class table. Only the three ranged attack- slots
+    # declare one today; every other slot, including the four melee attack-
+    # slots, has no ClassPrompts key and falls straight through to the
+    # slot-level Prompt exactly as before this table existed.
+    if (-not [string]::IsNullOrWhiteSpace($Class) -and
+        $slotDefault.ContainsKey('ClassPrompts') -and
+        $slotDefault.ClassPrompts.ContainsKey($Class)) {
+        $Prompt = $slotDefault.ClassPrompts[$Class]
+    }
+    else {
+        $Prompt = $slotDefault.Prompt
+    }
 }
 
 if (-not $PSBoundParameters.ContainsKey('Duration')) {

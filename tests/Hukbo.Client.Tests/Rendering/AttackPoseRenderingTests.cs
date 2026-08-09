@@ -566,6 +566,20 @@ public sealed class AttackPoseRenderingTests
     [MemberData(nameof(Weapons))]
     public void Trail_LagsTheBladeAtEveryHeading(WeaponId weapon)
     {
+        // A trail is the visible sweep of an edge through the air, and none of
+        // the three ranged releases sweeps one — AttackMotionCatalog pins
+        // TrailEligible false for all three, which RU-44 established as seven
+        // explicit per-weapon pins rather than a blanket assertion.
+        //
+        // This test arrived from the attack-animation-v2 branch enumerating
+        // every WeaponId and asserting a trail exists, which was true when the
+        // roster was four swinging weapons. Rather than drop the ranged three
+        // from the data set, assert what is actually true of them: an
+        // ineligible weapon draws no trail at any heading. That is a stricter
+        // pin than excluding them, because a trail appearing on an arquebus
+        // would now fail here instead of going unnoticed.
+        var trailEligible = AttackMotionCatalog.Resolve(weapon).TrailEligible;
+
         for (var degrees = 0; degrees < 360; degrees += 3)
         {
             var radians = degrees * MathF.PI / 180f;
@@ -575,6 +589,15 @@ public sealed class AttackPoseRenderingTests
                 directionX: MathF.Cos(radians),
                 directionY: MathF.Sin(radians));
             var trail = layout.SwingTrail;
+
+            if (!trailEligible)
+            {
+                Assert.True(
+                    trail.IsEmpty,
+                    $"{weapon} at {degrees} deg: drew a trail it is not " +
+                    "eligible for.");
+                continue;
+            }
 
             Assert.False(trail.IsEmpty);
 

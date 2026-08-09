@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Hukbo.Client.Audio;
 using Hukbo.Client.Diagnostics;
@@ -10,6 +11,7 @@ using Hukbo.Client.Rendering;
 using Hukbo.Client.Settings;
 using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
+using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
@@ -156,6 +158,16 @@ public sealed partial class ArenaGame : Game
     /// (movement-gait-animation-design.md section 4).
     /// </summary>
     private readonly Dictionary<ulong, GaitPose> _gaitPoses = [];
+
+    /// <summary>
+    /// Reused each frame, mirroring <see cref="_swingPoses"/> and
+    /// <see cref="_gaitPoses"/>. The mapping into it lives in
+    /// <see cref="RangedPoseResolver"/>, which needs no animation store of its
+    /// own: <see cref="Hukbo.Core.Simulation.AgentView.RangedPhase"/> and
+    /// <see cref="Hukbo.Core.Simulation.AgentView.RangedPhaseTicksRemaining"/>
+    /// already arrive derived on every tick's agent views.
+    /// </summary>
+    private readonly Dictionary<ulong, RangedPose> _rangedPoses = [];
     private readonly DiagnosticLog _log;
 
     /// <summary>
@@ -321,8 +333,20 @@ public sealed partial class ArenaGame : Game
         _renderMetricsRecorder = _renderProbeEnabled
             ? new SpriteBatchRenderMetricsRecorder()
             : NullRenderMetricsRecorder.Instance;
+
+        // Computed ahead of the scenario field below, purely to size the
+        // coordinator's projectile store from the real
+        // Scenario.MaximumProjectilesInFlight rather than a duplicated
+        // literal. initialSettings.Composition is exactly what
+        // _activeComposition becomes two statements below, so this mirrors
+        // the same BuildScenario call that produces _scenario itself; the
+        // repeated call is a pure, allocation-cheap read, not a second
+        // source of truth.
+        var startupScenarioForCapacity = scenarioOverride ??
+            BuildScenario(_matchSeries.CurrentSeed, initialSettings.Composition);
         _presentation = new PresentationCoordinator(
             EventHistoryCapacity,
+            projectileCapacity: startupScenarioForCapacity.MaximumProjectilesInFlight,
             renderMetricsRecorder: _renderMetricsRecorder);
 
         // A restored preference takes effect from tick zero, so the spectator
@@ -978,6 +1002,13 @@ public sealed partial class ArenaGame : Game
             _motionManager.Value,
             _gaitPoses);
 
+        // RU-25. Moved here by the 2026-08-09 merge: this call used to sit
+        // beside SwingPoseResolver in the block the attack-animation-v2
+        // migration relocated. Swings became AttackFrames and their resolver
+        // is gone, but the ranged pose is a separate channel that migration
+        // never touched, so it follows the block rather than the resolver.
+        RangedPoseResolver.Resolve(_simulation.Agents, _rangedPoses);
+
         if (_presentation.Playback.IsPlaying &&
             _simulation.Outcome != BattleOutcome.Ongoing &&
             !_presentation.HasTerminalAttackPresentation)
@@ -1379,13 +1410,215 @@ public sealed partial class ArenaGame : Game
             composition.CategoryCounts[3]);
     }
 
+    // RU-25: the client's own scenario, not Scenario.CreateDefault's shipped
+    // default, is what carries the ranged package: PrecolonialPhilippinesV5
+    // is the only combat preset with ranged attack rules registered, and it
+    // is only ever paired with RangedStandoffV8 (never with
+    // EquipmentRelativeFootworkV6 or V7), the only movement preset with the
+    // ranged standoff rule that keeps a holding archer from being walked in
+    // on by its own melee comrades. CreateDefault stays V4/V4 so the
+    // headless determinism baseline and every other caller are unaffected.
+    //
+    // RU-43: RosterCounts is filled again, through
+    // ExpandCompositionToRosterCounts rather than the flat
+    // ToRosterCounts(composition) RU-25 could no longer use. V5's roster
+    // (now nine rows — RU-45 appended two shielded melee rows after RU-25
+    // was written) fields more than one row for Timawa and for Aliping
+    // Namamahay, while Settings.ArmyComposition still carries exactly one
+    // slider per rank; ExpandCompositionToRosterCounts spreads each rank's
+    // slider count across every roster row that carries that rank, so the
+    // sliders move real warriors again instead of being read and discarded.
     private static Scenario BuildScenario(
         ulong seed,
-        Settings.ArmyComposition composition) =>
-        Scenario.CreateDefault(seed, composition.UnitsPerTeam * 2) with
+        Settings.ArmyComposition composition)
+    {
+        var scenario = Scenario.CreateDefault(seed, composition.UnitsPerTeam * 2) with
         {
-            RosterCounts = ToRosterCounts(composition),
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV5,
+            MovementPreset = MovementPresetId.RangedStandoffV8,
         };
+
+        var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
+        return scenario with
+        {
+            RosterCounts = ExpandCompositionToRosterCounts(
+                rules.Roster,
+                composition),
+        };
+    }
+
+    /// <summary>
+    /// RU-43's fix for the inert composition sliders: expands the
+    /// spectator's four rank-count sliders (<see cref="RankId.Datu"/>,
+    /// <see cref="RankId.Maharlika"/>, <see cref="RankId.Timawa"/>,
+    /// <see cref="RankId.AlipingNamamahay"/>) into one count per
+    /// <paramref name="roster"/> row, in <paramref name="roster"/> order, so
+    /// the result can always be assigned straight to
+    /// <see cref="Scenario.RosterCounts"/>: its length always equals
+    /// <paramref name="roster"/>.Count, and its sum always equals
+    /// <paramref name="composition"/>.UnitsPerTeam, which is what
+    /// <see cref="Scenario.Validate"/> requires.
+    /// <para>
+    /// Combat preset V4 fields exactly one roster row per rank, so every
+    /// rank's row group has exactly one member and its slider count passes
+    /// through unchanged — today's behavior, preserved exactly. Combat
+    /// preset V5 fields five rows under Timawa (Kalis, Bangkaw, Busog,
+    /// Arquebus, Kalis + shield) and two under Aliping Namamahay (Itak,
+    /// Itak + shield); those rows split by
+    /// <see cref="CalibratedRosterEntryWeights"/> using the same
+    /// largest-remainder apportionment
+    /// <c>RangedCalibrationHarness.BuildRosterCounts</c> uses for the RU-24
+    /// and RU-45 calibration matrix, restated in
+    /// <see cref="ApportionByLargestRemainder"/> because Hukbo.Client cannot
+    /// reference the Core test project. Splitting evenly instead of by that
+    /// calibrated weight would change V5's measured ranged share, which is
+    /// exactly the failure this method exists to avoid.
+    /// </para>
+    /// </summary>
+    internal static ImmutableArray<int> ExpandCompositionToRosterCounts(
+        IReadOnlyList<CombatLoadout> roster,
+        Settings.ArmyComposition composition)
+    {
+        var rankTargets = new Dictionary<RankId, int>
+        {
+            [RankId.Datu] = composition.DatuCount,
+            [RankId.Maharlika] = composition.MaharlikaCount,
+            [RankId.Timawa] = composition.TimawaCount,
+            [RankId.AlipingNamamahay] = composition.AlipingNamamahayCount,
+        };
+
+        var result = new int[roster.Count];
+        foreach (var (rank, targetCount) in rankTargets)
+        {
+            var rankIndices = new List<int>();
+            var rankWeights = new List<int>();
+            for (var index = 0; index < roster.Count; index++)
+            {
+                if (roster[index].Rank != rank)
+                {
+                    continue;
+                }
+
+                rankIndices.Add(index);
+                rankWeights.Add(ResolveRosterEntryWeight(roster[index]));
+            }
+
+            if (rankIndices.Count == 0)
+            {
+                continue;
+            }
+
+            var apportioned = ApportionByLargestRemainder(
+                targetCount,
+                rankWeights);
+            for (var slot = 0; slot < rankIndices.Count; slot++)
+            {
+                result[rankIndices[slot]] = apportioned[slot];
+            }
+        }
+
+        for (var index = 0; index < roster.Count; index++)
+        {
+            if (!rankTargets.ContainsKey(roster[index].Rank))
+            {
+                throw new InvalidOperationException(
+                    $"Roster row {index} carries {roster[index].Rank}, " +
+                    $"which has no {nameof(Settings.ArmyComposition)} " +
+                    "slider. Widen the composition record before rostering " +
+                    "that rank.");
+            }
+        }
+
+        return [.. result];
+    }
+
+    /// <summary>
+    /// RU-24/RU-45's calibrated share weights for combat preset V5's nine
+    /// roster rows, keyed by weapon and shield since rank alone does not
+    /// distinguish Bangkaw from Busog from Arquebus, or a solo Kalis from a
+    /// shielded one. A (weapon, shield) pair not listed here — every V4
+    /// row, and any future preset row this table carries no calibration
+    /// data for — falls back to a weight of 1 in
+    /// <see cref="ResolveRosterEntryWeight"/>: that reproduces today's
+    /// behavior exactly whenever the row is the only one carrying its rank
+    /// (V4's case, where the shared weight cancels out), and splits evenly
+    /// among uncalibrated siblings otherwise.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<(WeaponId Weapon, ShieldId Shield), int>
+        CalibratedRosterEntryWeights =
+            new Dictionary<(WeaponId Weapon, ShieldId Shield), int>
+            {
+                [(WeaponId.Kampilan, ShieldId.None)] = 19,
+                [(WeaponId.Wasay, ShieldId.None)] = 19,
+                [(WeaponId.Kalis, ShieldId.None)] = 10,
+                [(WeaponId.Itak, ShieldId.None)] = 9,
+                [(WeaponId.Bangkaw, ShieldId.None)] = 11,
+                [(WeaponId.Busog, ShieldId.None)] = 8,
+                [(WeaponId.Arquebus, ShieldId.None)] = 6,
+                [(WeaponId.Kalis, ShieldId.TallHardwood)] = 9,
+                [(WeaponId.Itak, ShieldId.TallHardwood)] = 9,
+            };
+
+    private static int ResolveRosterEntryWeight(CombatLoadout entry) =>
+        CalibratedRosterEntryWeights.TryGetValue(
+            (entry.Weapon, entry.Shield),
+            out var weight)
+            ? weight
+            : 1;
+
+    /// <summary>
+    /// Largest-remainder apportionment of <paramref name="total"/> across
+    /// <paramref name="weights"/>: the result always sums to exactly
+    /// <paramref name="total"/> regardless of rounding, which
+    /// <see cref="Scenario.Validate"/> requires of
+    /// <see cref="Scenario.RosterCounts"/>. Same method
+    /// <c>tests/Hukbo.Core.Tests/RangedCalibrationHarness.cs</c>'s
+    /// <c>BuildRosterCounts</c> uses for the RU-24 calibration matrix,
+    /// restated here because Hukbo.Client cannot reference the Core test
+    /// project.
+    /// </summary>
+    private static ImmutableArray<int> ApportionByLargestRemainder(
+        int total,
+        IReadOnlyList<int> weights)
+    {
+        var totalWeight = weights.Sum();
+        if (totalWeight <= 0)
+        {
+            throw new ArgumentException(
+                "weights must sum to a positive total.",
+                nameof(weights));
+        }
+
+        var counts = new int[weights.Count];
+        var remainders = new double[weights.Count];
+        var assigned = 0;
+
+        for (var index = 0; index < weights.Count; index++)
+        {
+            var exact = (double)total * weights[index] / totalWeight;
+            counts[index] = (int)Math.Floor(exact);
+            remainders[index] = exact - counts[index];
+            assigned += counts[index];
+        }
+
+        var remaining = total - assigned;
+        // Largest-remainder-first, ties broken on ascending index for a
+        // stable, deterministic apportionment.
+        foreach (var index in Enumerable.Range(0, weights.Count)
+                     .OrderByDescending(index => remainders[index])
+                     .ThenBy(index => index))
+        {
+            if (remaining <= 0)
+            {
+                break;
+            }
+
+            counts[index]++;
+            remaining--;
+        }
+
+        return [.. counts];
+    }
 
     private void RequestExit()
     {
@@ -1587,8 +1820,19 @@ public sealed partial class ArenaGame : Game
             _presentation.IngestTick(
                 _simulation.LastEvents,
                 _simulation.Agents,
-                _simulation.LastTickCombatByFaction);
-            _soundDirector.IngestImmediate(_simulation.LastEvents);
+                _simulation.LastTickCombatByFaction,
+                _simulation.Tick);
+
+            // IngestImmediate rather than Ingest, because attack and death
+            // cues now travel through AttackContactDispatcher and would sound
+            // twice if this route mapped them too. The agent views are passed
+            // because the ranged Release cue cannot name its own weapon and
+            // reads it from the launcher's loadout — drop them and every
+            // release, and every standalone miss, goes silent with nothing
+            // failing anywhere.
+            _soundDirector.IngestImmediate(
+                _simulation.LastEvents,
+                _simulation.Agents);
             LogTick();
             _simulationAccumulator -= secondsPerTick;
         }

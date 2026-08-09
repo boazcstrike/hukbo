@@ -67,6 +67,27 @@ internal static class StateHasher
     /// <see cref="AgentState.PriorSupportAllies"/>, and
     /// <see cref="AgentState.BrokeOffUnderPressure"/> as <c>1</c> or <c>0</c>.
     /// </param>
+    /// <param name="hasRangedWeapon">
+    /// Whether the ruleset the simulation is running on fields at least one
+    /// ranged weapon, computed once by <c>BattleSimulation</c> from
+    /// <see cref="Combat.CombatRuleset.Roster"/> and
+    /// <see cref="Combat.CombatRuleset.ResolveWeaponProfile"/>. A gate of its
+    /// own, in exactly the shape <paramref name="hasRankLevels"/> takes above:
+    /// when <see langword="false"/> — every preset up to and including
+    /// <see cref="Combat.CombatPresetId.PrecolonialPhilippinesV4"/> — nothing
+    /// new is written anywhere, not even a zero, which is what keeps those
+    /// presets' pinned hashes exactly where they are. It is global rather than
+    /// per-agent, and folded after the <c>foreach</c> above closes rather than
+    /// inside it, so it cannot disturb the per-agent fold order
+    /// <paramref name="movementContentHash"/> and
+    /// <paramref name="appliesPressureInterrupt"/> pin.
+    /// </param>
+    /// <param name="projectiles">
+    /// The live projectile pool, in array order, read only when
+    /// <paramref name="hasRangedWeapon"/> is <see langword="true"/>. Ignored
+    /// entirely otherwise, so a caller running a ruleset with no ranged
+    /// weapon may pass <see langword="default"/>.
+    /// </param>
     internal static ulong Compute(
         Scenario scenario,
         long tick,
@@ -76,7 +97,9 @@ internal static class StateHasher
         ulong contentHash,
         bool hasRankLevels,
         ulong? movementContentHash = null,
-        bool appliesPressureInterrupt = false)
+        bool appliesPressureInterrupt = false,
+        bool hasRangedWeapon = false,
+        ReadOnlySpan<Projectile> projectiles = default)
     {
         var hash = Fnv1a.OffsetBasis;
         Add(ref hash, scenario.Seed);
@@ -152,6 +175,23 @@ internal static class StateHasher
                 Add(ref hash, agent.DamageTakenLastTick);
                 Add(ref hash, agent.PriorSupportAllies);
                 Add(ref hash, agent.BrokeOffUnderPressure ? 1 : 0);
+            }
+        }
+
+        if (hasRangedWeapon)
+        {
+            Add(ref hash, projectiles.Length);
+            for (var index = 0; index < projectiles.Length; index++)
+            {
+                var projectile = projectiles[index];
+                Add(ref hash, projectile.SourceEntityId);
+                Add(ref hash, projectile.TargetEntityId);
+                Add(ref hash, projectile.LaunchTick);
+                Add(ref hash, projectile.TicksRemaining);
+                Add(ref hash, projectile.OriginXRaw);
+                Add(ref hash, projectile.OriginYRaw);
+                Add(ref hash, (int)projectile.Weapon);
+                Add(ref hash, projectile.DamageAtLaunch);
             }
         }
 

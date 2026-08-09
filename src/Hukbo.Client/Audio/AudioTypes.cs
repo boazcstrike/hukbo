@@ -26,6 +26,26 @@ internal enum GameSoundId
     ClashShieldWasay = 10,
     ClashShieldKalis = 11,
     ClashShieldItak = 12,
+
+    // The ranged-weapon slots added for the ranged-units package. A release
+    // fires when the shot leaves the bow, spear, or gun; an attack- slot is
+    // the projectile's impact and is hit-location driven exactly like the
+    // four melee attack slots above; a shield clash and a miss slot follow
+    // the same one-per-weapon pattern as the melee set. Misfire is unique to
+    // the arquebus, whose mechanism can fail before the shot is loosed.
+    ReleaseBangkaw = 13,
+    ReleaseBusog = 14,
+    ReleaseArquebus = 15,
+    AttackBangkaw = 16,
+    AttackBusog = 17,
+    AttackArquebus = 18,
+    ClashShieldBangkaw = 19,
+    ClashShieldBusog = 20,
+    ClashShieldArquebus = 21,
+    MissBangkaw = 22,
+    MissBusog = 23,
+    MissArquebus = 24,
+    MisfireArquebus = 25,
 }
 
 /// <summary>

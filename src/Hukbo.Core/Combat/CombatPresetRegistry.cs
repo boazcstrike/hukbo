@@ -15,6 +15,7 @@ public static class CombatPresetRegistry
             CombatPresetId.PrecolonialPhilippinesV2 => true,
             CombatPresetId.PrecolonialPhilippinesV3 => true,
             CombatPresetId.PrecolonialPhilippinesV4 => true,
+            CombatPresetId.PrecolonialPhilippinesV5 => true,
             _ => false,
         };
 
@@ -45,9 +46,19 @@ public static class CombatPresetRegistry
             }
 
             var rules = Get(id);
-            if (rules.HasWeaponProfiles)
+
+            // Ask the preset whether it fields this weapon at all, rather
+            // than taking the first preset that declares any profiles and
+            // demanding an answer from it. That earlier form threw
+            // ArgumentOutOfRangeException for every ranged weapon, because
+            // the lowest-numbered preset with profiles is melee-only and had
+            // never heard of a Bangkaw. Both callers are presentation, so the
+            // exception surfaced as a client crash on the first arquebus
+            // attack the event feed tried to describe, with the headless gate
+            // green throughout.
+            if (rules.TryResolveWeaponGrip(weapon) is { } grip)
             {
-                return rules.ResolveWeaponGrip(weapon);
+                return grip;
             }
         }
 
@@ -61,6 +72,7 @@ public static class CombatPresetRegistry
             CombatPresetId.PrecolonialPhilippinesV2 => PhilippineCombatPresetV2.Rules,
             CombatPresetId.PrecolonialPhilippinesV3 => PhilippineCombatPresetV3.Rules,
             CombatPresetId.PrecolonialPhilippinesV4 => PhilippineCombatPresetV4.Rules,
+            CombatPresetId.PrecolonialPhilippinesV5 => PhilippineCombatPresetV5.Rules,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,

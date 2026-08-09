@@ -1296,6 +1296,54 @@ internal static class PawnRenderer
                     gripEnd: 0.16f,
                     widthMultiplier: 1.5f);
                 break;
+            case PawnWeaponRole.Bangkaw:
+                // PROVISIONAL RECONSTRUCTION: a thrown/thrusting spear reads
+                // as a long, thin haft with a short head, the opposite ratio
+                // of the melee blades above (RU-42). gripEnd/widthMultiplier
+                // are gameplay-legibility tuning, not a historical
+                // measurement.
+                DrawBlade(
+                    spriteBatch,
+                    pixel,
+                    layout,
+                    gripColor,
+                    bladeColor,
+                    ironHighlight,
+                    gripEnd: 0.72f,
+                    widthMultiplier: 1.2f);
+                break;
+            case PawnWeaponRole.Busog:
+                // PROVISIONAL RECONSTRUCTION: the stave itself is thin and
+                // near-vertical (RangedGeometry's Busog pose); the bowstring
+                // is the readable content, drawn separately so DrawTension
+                // (RU-42) has something to bend. gripEnd/widthMultiplier
+                // tuning, not a historical measurement.
+                DrawBlade(
+                    spriteBatch,
+                    pixel,
+                    layout,
+                    gripColor,
+                    bladeColor,
+                    ironHighlight,
+                    gripEnd: 0.5f,
+                    widthMultiplier: 0.9f);
+                DrawBowstring(spriteBatch, pixel, layout, gripColor);
+                break;
+            case PawnWeaponRole.Arquebus:
+                // PROVISIONAL RECONSTRUCTION: a long, uniformly thick barrel
+                // read as one continuous line rather than a grip/blade
+                // taper (RU-42). gripEnd/widthMultiplier tuning, not a
+                // historical measurement.
+                DrawBlade(
+                    spriteBatch,
+                    pixel,
+                    layout,
+                    gripColor,
+                    bladeColor,
+                    ironHighlight,
+                    gripEnd: 0.35f,
+                    widthMultiplier: 1.3f);
+                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(role), role, null);
         }
@@ -1336,6 +1384,40 @@ internal static class PawnRenderer
             layout.WeaponEnd,
             highlightColor,
             MathF.Max(1f, layout.WeaponThickness * 0.55f));
+    }
+
+    /// <summary>
+    /// The Busog bowstring's two half-segments, from each stave tip to a
+    /// midpoint pulled toward the archer by <see cref="PawnLayout.RangedDrawTension"/>
+    /// (RU-42). At zero tension the midpoint sits on the stave itself, so the
+    /// string reads as a straight line flush against it; at full tension the
+    /// midpoint is pulled back roughly a third of the stave's own length,
+    /// reading as a drawn bow. Pure geometry so <c>PawnRendererTests</c> can
+    /// assert the string actually moves with tension without a graphics
+    /// device.
+    /// </summary>
+    private const float BowstringPullFraction = 0.35f;
+
+    public static (Vector2 StaveTip, Vector2 Midpoint, Vector2 StaveBase) GetBowstringLine(
+        PawnLayout layout)
+    {
+        var stave = layout.WeaponEnd - layout.WeaponStart;
+        var perpendicular = new Vector2(-stave.Y, stave.X);
+        var pull = perpendicular * (BowstringPullFraction * layout.RangedDrawTension);
+        var midpoint = Vector2.Lerp(layout.WeaponStart, layout.WeaponEnd, 0.5f) + pull;
+        return (layout.WeaponEnd, midpoint, layout.WeaponStart);
+    }
+
+    private static void DrawBowstring(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        PawnLayout layout,
+        Color stringColor)
+    {
+        var (staveTip, midpoint, staveBase) = GetBowstringLine(layout);
+        var thickness = MathF.Max(1f, layout.WeaponThickness * 0.4f);
+        DrawLine(spriteBatch, pixel, staveTip, midpoint, stringColor, thickness);
+        DrawLine(spriteBatch, pixel, midpoint, staveBase, stringColor, thickness);
     }
 
     private static void DrawSteppedCapsule(

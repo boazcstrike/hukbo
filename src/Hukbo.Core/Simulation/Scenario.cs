@@ -24,6 +24,8 @@ public sealed record Scenario(
     private const int MaximumCombatValue = 1_000_000;
     private const int DefaultMapWidth = 1_280;
     private const int DefaultMapHeight = 720;
+    private const int DefaultMaximumProjectilesInFlight = 512;
+    private const int MaximumProjectilesInFlightCeiling = 1_000_000;
 
     public int MaximumHitPoints { get; init; } = 100;
 
@@ -49,6 +51,34 @@ public sealed record Scenario(
     /// historical measurement — see <see cref="FormationRules"/>.
     /// </summary>
     public int LastStandThresholdAgents { get; init; }
+
+    /// <summary>
+    /// The hard ceiling on projectiles simultaneously in flight, sized once
+    /// at <see cref="BattleSimulation"/> construction into a flat pooled
+    /// array. A launch attempted while the pool already holds this many live
+    /// projectiles is refused outright — the shot does not occur, the
+    /// launching warrior's cooldown is not charged, and a derived counter
+    /// records the refusal — rather than the pool growing, which would be
+    /// both an unbounded per-tick allocation and an unbounded state-hash
+    /// fold; see <see cref="Projectile"/> and
+    /// <c>BattleSimulation.GatherAndCommitAttacks</c>.
+    /// <para>
+    /// A scenario is free to declare this below the worst case its own
+    /// roster could produce — that is exactly how the refusal path is
+    /// exercised deterministically in a test — so <see cref="Validate"/>
+    /// only bounds this to a representable, non-negative capacity rather
+    /// than rejecting an "insufficient" value. Sizing it comfortably above
+    /// routine use, so a refusal stays a genuine anomaly rather than a
+    /// routine occurrence, is a calibration concern for whichever preset
+    /// actually fields ranged weapons, not a constraint this record enforces.
+    /// A combat preset that fields no ranged weapon at all — every preset up
+    /// to and including <see cref="CombatPresetId.PrecolonialPhilippinesV4"/> —
+    /// never launches a projectile, so this ceiling is inert for it
+    /// regardless of the value chosen.
+    /// </para>
+    /// </summary>
+    public int MaximumProjectilesInFlight { get; init; } =
+        DefaultMaximumProjectilesInFlight;
 
     /// <summary>
     /// The combat ruleset this battle is fought under. Defaults to the
@@ -148,6 +178,7 @@ public sealed record Scenario(
             BodyRadiusRaw == other.BodyRadiusRaw &&
             CollisionPolicy == other.CollisionPolicy &&
             LastStandThresholdAgents == other.LastStandThresholdAgents &&
+            MaximumProjectilesInFlight == other.MaximumProjectilesInFlight &&
             CombatPreset == other.CombatPreset &&
             MovementPreset == other.MovementPreset &&
             PlaceholderFighterLevel == other.PlaceholderFighterLevel &&
@@ -172,6 +203,7 @@ public sealed record Scenario(
         hash.Add(BodyRadiusRaw);
         hash.Add(CollisionPolicy);
         hash.Add(LastStandThresholdAgents);
+        hash.Add(MaximumProjectilesInFlight);
         hash.Add(CombatPreset);
         hash.Add(MovementPreset);
         hash.Add(PlaceholderFighterLevel);
@@ -333,6 +365,12 @@ public sealed record Scenario(
             0,
             FormationRules.MaximumLastStandThresholdAgents,
             nameof(LastStandThresholdAgents));
+
+        ValidateInRange(
+            MaximumProjectilesInFlight,
+            0,
+            MaximumProjectilesInFlightCeiling,
+            nameof(MaximumProjectilesInFlight));
 
         if (LastStandThresholdAgents > 0 &&
             !FormationRules.IsBodyRadiusWithinJitterSpanRange(BodyRadiusRaw))

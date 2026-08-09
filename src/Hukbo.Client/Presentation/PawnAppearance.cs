@@ -8,6 +8,15 @@ public enum PawnWeaponRole
     Wasay,
     Kalis,
     Itak,
+    // RU-10: the three ranged weapons (ranged-units-design.md section 4).
+    // Bangkaw and Busog carry a zero-year-gap 1521 attestation; the
+    // Imported Arquebus makes no cultural-name claim at all (see
+    // WeaponLabel below). Appended after the four melee roles, matching
+    // how WeaponId itself was extended (CLAUDE.md determinism contract on
+    // enum append order).
+    Bangkaw,
+    Busog,
+    Arquebus,
 }
 
 /// <summary>
@@ -105,24 +114,46 @@ internal readonly record struct PawnAppearance(
     /// Filipino name is what the tradition offers. A cultural identification
     /// never appears bare and unqualified — see CLAUDE.md section 7.
     /// </summary>
-    public string WeaponLabel =>
-        WeaponRole switch
+    public string WeaponLabel => GetWeaponLabel(WeaponRole);
+
+    /// <summary>
+    /// The one place a weapon's player-facing label is written. Every caller
+    /// resolves through here rather than restating the strings, because the
+    /// copy that did restate them —
+    /// <c>BattleEventFormatter.GetWeaponLabel</c> — was left at four weapons
+    /// when the ranged three landed and threw
+    /// <see cref="ArgumentOutOfRangeException"/> on the first arquebus attack
+    /// the event feed tried to describe. A second switch over the same enum
+    /// is a second thing to remember; there is now only one.
+    /// </summary>
+    public static string GetWeaponLabel(PawnWeaponRole weaponRole) =>
+        weaponRole switch
         {
             PawnWeaponRole.Kampilan => "Kampilan — Great Blade",
             PawnWeaponRole.Wasay => "Wasay — War Axe",
             PawnWeaponRole.Kalis => "Kalis — Thrusting Blade",
             PawnWeaponRole.Itak => "Itak — Work Blade",
+            PawnWeaponRole.Bangkaw => "Bangkaw — Long Spear",
+            PawnWeaponRole.Busog => "Busog — War Bow",
+            // No em dash, no Filipino name: "Arquebus" is a European term
+            // contemporary with the depicted period, not a cultural
+            // identification, so the pair-form rule does not engage
+            // (ranged-units-design.md, "Name check: not applicable, and
+            // deliberately so"). The IMPORTED badge itself is UI, not part
+            // of this label.
+            PawnWeaponRole.Arquebus => "Imported Arquebus",
             _ => throw new ArgumentOutOfRangeException(
-                nameof(WeaponRole),
-                WeaponRole,
+                nameof(weaponRole),
+                weaponRole,
                 null),
         };
 
     public WeaponEvidenceTier EvidenceTier =>
         WeaponRole switch
         {
-            PawnWeaponRole.Kalis => WeaponEvidenceTier.Documented,
-            PawnWeaponRole.Kampilan or PawnWeaponRole.Wasay =>
+            PawnWeaponRole.Kalis or PawnWeaponRole.Bangkaw or PawnWeaponRole.Busog =>
+                WeaponEvidenceTier.Documented,
+            PawnWeaponRole.Kampilan or PawnWeaponRole.Wasay or PawnWeaponRole.Arquebus =>
                 WeaponEvidenceTier.DocumentedFormUncertain,
             PawnWeaponRole.Itak =>
                 WeaponEvidenceTier.ProvisionalReconstruction,
@@ -168,6 +199,23 @@ internal readonly record struct PawnAppearance(
             PawnWeaponRole.Itak =>
                 "A Tagalog term for a field and utility blade also used in " +
                 "fighting. The specific early attestation is unconfirmed.",
+            PawnWeaponRole.Bangkaw =>
+                "Pigafetta, wounded at Mactan in 1521, records bamboo " +
+                "spears — some iron-tipped — thrown and reused; his 1521 " +
+                "Visayan vocabulary records bancan, identified with " +
+                "bangcao. A Visayan and Mindanao term; Tagalog is sibat.",
+            PawnWeaponRole.Busog =>
+                "Pigafetta records the poisoned arrow that struck Magellan " +
+                "through the leg at Mactan in 1521; his 1521 Visayan " +
+                "vocabulary records bossugh, identified with bosog, " +
+                "descending from Proto-Austronesian busuʀ with no gap to " +
+                "the depicted period.",
+            PawnWeaponRole.Arquebus =>
+                "Escalante Alvarado records a few arquebuses in local " +
+                "hands near Sarangani and Mindanao around 1543-45; Legazpi " +
+                "shipped a Chinese arquebus from Cebu in 1567, writing " +
+                "that local users carried them more to terrify than to " +
+                "kill. No local name was located.",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(WeaponRole),
                 WeaponRole,

@@ -636,4 +636,28 @@ public sealed class PawnRendererTests
 
         Assert.Equal(nonEmptyLegAndFootRectangles, withLegsAndFeet - withoutLegsAndFeet);
     }
+
+    /// <summary>
+    /// RU-42: <c>PawnRenderer.DrawWeapon</c>'s Busog arm reads
+    /// <see cref="PawnLayout.RangedDrawTension"/> only through
+    /// <see cref="PawnRenderer.GetBowstringLine"/>, the pure helper that
+    /// mirrors this test's own doc convention (<see cref="PawnRenderer"/>'s
+    /// class remarks: "Those helpers have no second implementation"). If
+    /// <c>DrawBowstring</c> stopped consuming <c>RangedDrawTension</c>, this
+    /// assertion on <c>Midpoint</c> would fail while <c>StaveTip</c> and
+    /// <c>StaveBase</c> — which never depend on tension — kept passing.
+    /// </summary>
+    [Fact]
+    public void GetBowstringLine_MovesTheMidpointWithDrawTension()
+    {
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Busog, ShieldId.None);
+        var layout = PawnGeometry.Create(Vector2.Zero, 2f, appearance);
+
+        var relaxed = PawnRenderer.GetBowstringLine(layout with { RangedDrawTension = 0f });
+        var drawn = PawnRenderer.GetBowstringLine(layout with { RangedDrawTension = 1f });
+
+        Assert.Equal(relaxed.StaveTip, drawn.StaveTip);
+        Assert.Equal(relaxed.StaveBase, drawn.StaveBase);
+        Assert.NotEqual(relaxed.Midpoint, drawn.Midpoint);
+    }
 }

@@ -1,4 +1,5 @@
 using Hukbo.Core.Combat;
+using Hukbo.Core.Mathematics;
 
 namespace Hukbo.Core.Tests;
 
@@ -221,7 +222,15 @@ public sealed class CombatConfigurationTests
                 source.GeneralTargets.Get(part),
                 copy.GeneralTargets.Get(part));
 
-            foreach (var weapon in Enum.GetValues<WeaponId>())
+            // Scoped to the weapons this source ruleset actually declares
+            // target weights for, not the bare WeaponId enum: PhilippineCombatPresetV2
+            // is a frozen four-melee-weapon preset and never gains the three
+            // ranged weapons WeaponId later added, so a full-enum sweep would
+            // throw on a weapon this preset was never asked to know about.
+            foreach (var weapon in source.Roster
+                .Select(loadout => loadout.Weapon)
+                .Distinct()
+                .OrderBy(id => (int)id))
             {
                 Assert.Equal(
                     source.ResolveWeaponWeight(weapon, part),
@@ -425,7 +434,18 @@ public sealed class CombatConfigurationTests
         int expectedMean)
     {
         var profile = PhilippineCombatPresetV2.Rules.ClashProfile;
-        var attackers = Enum.GetValues<WeaponId>();
+
+        // Scoped to the weapons PhilippineCombatPresetV2's roster actually
+        // fields, not the bare WeaponId enum: this frozen preset only ever
+        // declares clash data for its original four melee weapons, and the
+        // pinned expectedMean values above were computed against exactly
+        // those four attackers, before WeaponId later gained three ranged
+        // members this preset never learns about.
+        var attackers = PhilippineCombatPresetV2.Rules.Roster
+            .Select(loadout => loadout.Weapon)
+            .Distinct()
+            .OrderBy(id => (int)id)
+            .ToArray();
         var total = 0;
 
         foreach (var attacker in attackers)
@@ -549,6 +569,102 @@ public sealed class CombatConfigurationTests
         {
             [RankId.Timawa] = 2,
             [RankId.Datu] = 3,
+        });
+
+        Assert.Equal(ascending.ContentHash, descending.ContentHash);
+    }
+
+    /// <summary>
+    /// RU-36 / D3.1's ranged hole. Before this fix, <c>AddProfile</c> folded
+    /// only <c>DamagePerAttack</c>, <c>AttackRangeRaw</c>, and
+    /// <c>AttackCooldownTicks</c>, so a preset whose only difference was one
+    /// of the three ranged fields hashed identically to the profile it
+    /// diverged from — a replay recorded against the old tuning would then be
+    /// accepted and diverge. This is the direct regression test: a ranged
+    /// profile and the same profile with all three ranged fields zeroed out
+    /// (a melee no-op declaration) must hash differently.
+    /// </summary>
+    [Fact]
+    public void ContentHash_DiffersBetweenARangedProfileAndTheSameProfileWithRangedFieldsZeroed()
+    {
+        var ranged = BuildRulesetWithWeaponAttributes(new Dictionary<WeaponId, WeaponAttributes>
+        {
+            [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                RangedProfile(
+                    damage: 15,
+                    reachWorldUnits: 16,
+                    cooldownTicks: 7,
+                    projectileSpeedWorldUnits: 4,
+                    standoffWorldUnits: 12,
+                    flightTickCeiling: 30)),
+        });
+        var zeroed = BuildRulesetWithWeaponAttributes(new Dictionary<WeaponId, WeaponAttributes>
+        {
+            [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                MeleeProfile(damage: 15, reachWorldUnits: 16, cooldownTicks: 7)),
+        });
+
+        Assert.NotEqual(ranged.ContentHash, zeroed.ContentHash);
+    }
+
+    /// <summary>
+    /// RU-36: proves all three ranged fields are folded, not just one. Each
+    /// case below holds two of the three ranged fields fixed and changes only
+    /// the third; a fold that dropped a field would leave the case that
+    /// varies exactly that field passing by accident while looking correct.
+    /// </summary>
+    [Fact]
+    public void ContentHash_ChangesWhenAnyOneRangedFieldChangesWithTheOtherTwoHeld()
+    {
+        var baseline = BuildRulesetWithWeaponAttributes(new Dictionary<WeaponId, WeaponAttributes>
+        {
+            [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                RangedProfile(15, 16, 7, projectileSpeedWorldUnits: 4, standoffWorldUnits: 12, flightTickCeiling: 30)),
+        });
+        var projectileSpeedChanged = BuildRulesetWithWeaponAttributes(new Dictionary<WeaponId, WeaponAttributes>
+        {
+            [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                RangedProfile(15, 16, 7, projectileSpeedWorldUnits: 5, standoffWorldUnits: 12, flightTickCeiling: 30)),
+        });
+        var standoffDistanceChanged = BuildRulesetWithWeaponAttributes(new Dictionary<WeaponId, WeaponAttributes>
+        {
+            [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                RangedProfile(15, 16, 7, projectileSpeedWorldUnits: 4, standoffWorldUnits: 13, flightTickCeiling: 30)),
+        });
+        var flightTickCeilingChanged = BuildRulesetWithWeaponAttributes(new Dictionary<WeaponId, WeaponAttributes>
+        {
+            [WeaponId.Kampilan] = WeaponAttributes.TwoHanded(
+                RangedProfile(15, 16, 7, projectileSpeedWorldUnits: 4, standoffWorldUnits: 12, flightTickCeiling: 31)),
+        });
+
+        Assert.NotEqual(baseline.ContentHash, projectileSpeedChanged.ContentHash);
+        Assert.NotEqual(baseline.ContentHash, standoffDistanceChanged.ContentHash);
+        Assert.NotEqual(baseline.ContentHash, flightTickCeilingChanged.ContentHash);
+    }
+
+    /// <summary>
+    /// RU-36: the new conditional ranged-field fold must not reopen order
+    /// dependence for a fully melee weapon-attribute table — the same
+    /// guarantee <see cref="ContentHash_IsIndependentOfRankLevelDictionaryOrder"/>
+    /// already holds for rank levels.
+    /// </summary>
+    [Fact]
+    public void ContentHash_IsIndependentOfWeaponAttributeDictionaryOrderWhenBothWeaponsAreMelee()
+    {
+        var kampilan = WeaponAttributes.TwoHanded(
+            MeleeProfile(damage: 15, reachWorldUnits: 16, cooldownTicks: 7));
+        var wasay = WeaponAttributes.TwoHanded(
+            MeleeProfile(damage: 18, reachWorldUnits: 13, cooldownTicks: 8));
+
+        var ascending = BuildRulesetWithWeaponAttributes(new Dictionary<WeaponId, WeaponAttributes>
+        {
+            [WeaponId.Kampilan] = kampilan,
+            [WeaponId.Wasay] = wasay,
+        });
+        var descending = BuildRulesetWithWeaponAttributes(new Dictionary<WeaponId, WeaponAttributes>
+        {
+            [WeaponId.Wasay] = wasay,
+            [WeaponId.Kampilan] = kampilan,
         });
 
         Assert.Equal(ascending.ContentHash, descending.ContentHash);
@@ -793,6 +909,80 @@ public sealed class CombatConfigurationTests
             ],
             rankLevels: rankLevels);
     }
+
+    /// <summary>
+    /// RU-36. A ruleset carrying <paramref name="weaponAttributes"/> as its
+    /// only interesting content: one uniform target-weight profile shared by
+    /// every declared weapon, and a one-entry roster fielding whichever
+    /// declared weapon sorts first by <see cref="WeaponId"/>. Every declared
+    /// weapon is two-handed in every caller of this helper, so
+    /// <c>ShieldId.None</c> never trips the two-handed-plus-shield
+    /// invariant regardless of which weapon the roster picks.
+    /// </summary>
+    private static CombatRuleset BuildRulesetWithWeaponAttributes(
+        IReadOnlyDictionary<WeaponId, WeaponAttributes> weaponAttributes)
+    {
+        var uniformEntries = Enum.GetValues<BodyPart>()
+            .Select(part => (part, 5))
+            .ToArray();
+        var uniformMultiplierEntries = Enum.GetValues<BodyPart>()
+            .Select(part => (part, 1_000))
+            .ToArray();
+
+        var general = new TargetWeightProfile(uniformEntries);
+        var weaponProfile = new TargetWeightProfile(uniformEntries);
+        var shieldProfile = new TargetWeightProfile(uniformMultiplierEntries);
+        var weaponTargets = weaponAttributes.Keys
+            .ToDictionary(weapon => weapon, _ => weaponProfile);
+        var rosterWeapon = weaponAttributes.Keys.OrderBy(id => (int)id).First();
+
+        return new CombatRuleset(
+            CombatPresetId.PrecolonialPhilippinesV1,
+            version: 1,
+            generalTargets: general,
+            weaponTargets: weaponTargets,
+            armors: [ArmorId.LightOrganic],
+            shieldMultipliers: new Dictionary<ShieldId, TargetWeightProfile>
+            {
+                [ShieldId.None] = shieldProfile,
+            },
+            roster:
+            [
+                new CombatLoadout(rosterWeapon, ArmorId.LightOrganic, ShieldId.None),
+            ],
+            weaponAttributes: weaponAttributes);
+    }
+
+    /// <summary>
+    /// A melee profile: all three ranged fields left at their zero default,
+    /// matching <see cref="WeaponProfile.ValidateRangedFields"/>'s melee
+    /// no-op declaration.
+    /// </summary>
+    private static WeaponProfile MeleeProfile(
+        int damage,
+        int reachWorldUnits,
+        int cooldownTicks) =>
+        new(damage, reachWorldUnits * FixedPoint.Scale, cooldownTicks);
+
+    /// <summary>
+    /// A ranged profile declaring all three ranged fields, with the standoff
+    /// distance validated by the constructor to sit strictly inside the
+    /// reach every caller here supplies.
+    /// </summary>
+    private static WeaponProfile RangedProfile(
+        int damage,
+        int reachWorldUnits,
+        int cooldownTicks,
+        int projectileSpeedWorldUnits,
+        int standoffWorldUnits,
+        int flightTickCeiling) =>
+        new(
+            damage,
+            reachWorldUnits * FixedPoint.Scale,
+            cooldownTicks,
+            ProjectileSpeedRaw: projectileSpeedWorldUnits * FixedPoint.Scale,
+            StandoffDistanceRaw: standoffWorldUnits * FixedPoint.Scale,
+            FlightTickCeiling: flightTickCeiling);
 
     /// <summary>
     /// A profile whose tables are uniform apart from one matrix cell value, so
