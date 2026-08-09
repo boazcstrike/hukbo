@@ -118,6 +118,31 @@ public sealed class SandataSimulation
     private readonly bool[] _pathBlockedCells;
 
     /// <summary>
+    /// Stage 5's reused cell chain for <see cref="LineOfSight.IsVisible"/>,
+    /// sized once from <see cref="_navGrid"/>'s fixed dimensions. Task 88:
+    /// stage 5 runs that query once per living observer-candidate pair — 4,684
+    /// times per tick at 200 operators — and each call used to allocate its
+    /// own chain, which made it the largest single allocator in the whole
+    /// tick. Contents never outlive one call: <c>LineOfSight</c> writes the
+    /// whole prefix it then reads and stores no reference to the buffer, so
+    /// nothing from one pair's query can reach another's answer.
+    /// </summary>
+    private readonly int[] _sightCellBuffer;
+
+    /// <summary>
+    /// Stage 5's reused merge buffer for <see cref="ContactMemory.Update"/>,
+    /// which needs one slot per remembered contact plus one per observation.
+    /// Grown on demand and never shrunk, the same shape
+    /// <see cref="PathService"/> uses for its own smoothing scratch, because
+    /// the roster can grow through stage 2 after this simulation was
+    /// constructed. Like <see cref="_sightCellBuffer"/> it is capacity and
+    /// never content: <c>ContactMemory.Update</c> copies its result out
+    /// before returning, so no entry survives into the next operator's
+    /// memory.
+    /// </summary>
+    private ContactMemoryEntry[] _contactMergeBuffer = [];
+
+    /// <summary>
     /// Stage 11's write-only record of which operators fired this tick, and
     /// at which contact, for <see cref="ProposeFire"/> to consume. Empty
     /// before the first call to <see cref="RunTick"/>.
@@ -173,6 +198,10 @@ public sealed class SandataSimulation
 
         // See _pathBlockedCells's own remarks: never written to after this.
         _pathBlockedCells = new bool[navGrid.CellCount];
+
+        // A NavGrid's dimensions are fixed for its lifetime, so stage 5's
+        // cell chain can be sized once here rather than grown.
+        _sightCellBuffer = new int[LineOfSight.RequiredCellBufferLength(navGrid)];
 
         State = initialState;
     }
@@ -1257,6 +1286,16 @@ public sealed class SandataSimulation
         var observationBuffer = new ContactObservation[count];
         var maxDetectRangeSquaredWu = checked((long)ContactMemory.DetectRangeWu * ContactMemory.DetectRangeWu);
 
+        // One slot per remembered contact plus one per observation is
+        // ContactMemory.Update's own worst case, and neither can exceed the
+        // roster; sized once here rather than per operator, and grown only
+        // when the roster itself has grown since the last tick.
+        var requiredMergeLength = checked(count * 2);
+        if (_contactMergeBuffer.Length < requiredMergeLength)
+        {
+            _contactMergeBuffer = new ContactMemoryEntry[requiredMergeLength];
+        }
+
         for (var i = 0; i < count; i++)
         {
             if (!view.IsAlive(i))
@@ -1289,7 +1328,8 @@ public sealed class SandataSimulation
                     continue;
                 }
 
-                if (!LineOfSight.IsVisible(originX, originY, targetX, targetY, _navGrid, _wallBuckets))
+                if (!LineOfSight.IsVisible(
+                        originX, originY, targetX, targetY, _navGrid, _wallBuckets, _sightCellBuffer))
                 {
                     continue;
                 }
@@ -1303,7 +1343,8 @@ public sealed class SandataSimulation
             }
 
             var updatedMemory = ContactMemory.Update(
-                view.ContactMemory(i), observationBuffer.AsSpan(0, observationCount), currentTick);
+                view.ContactMemory(i), observationBuffer.AsSpan(0, observationCount), currentTick,
+                _contactMergeBuffer);
             contactMemoryByIndex.Add(updatedMemory);
 
             foreach (var entry in updatedMemory.AsSpan())

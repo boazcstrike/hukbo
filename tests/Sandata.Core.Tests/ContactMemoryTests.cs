@@ -247,4 +247,93 @@ public sealed class ContactMemoryTests
 
         Assert.True(believedState); // now sees it is open.
     }
+
+    // --- Task 88: the reused merge buffer -------------------------------
+
+    /// <summary>
+    /// Task 88: stage 5 hands one merge buffer to every operator's update in
+    /// turn, so a large operator's result must not bleed into the small
+    /// operator that follows it. Asserted on the <i>returned arrays</i>,
+    /// against what the allocating overload produces for the identical
+    /// inputs, rather than on the buffer's contents — a result built from a
+    /// stale tail is still a well-formed array, and only comparing the
+    /// contents catches it.
+    /// </summary>
+    [Fact]
+    public void OneMergeBufferReusedAcrossOperators_GivesTheSameResultsAsAFreshBufferEachTime()
+    {
+        var crowdedMemory = ImmutableArray.Create(
+            new ContactMemoryEntry(11UL, 111, (int)ContactTier.Identified, 40L),
+            new ContactMemoryEntry(12UL, 112, (int)ContactTier.Identified, 41L),
+            new ContactMemoryEntry(13UL, 113, (int)ContactTier.QuestionMark, 42L),
+            new ContactMemoryEntry(14UL, 114, (int)ContactTier.QuestionMark, 43L));
+        var crowdedObservations = new ContactObservation[]
+        {
+            new(EnemyEntityId: 12, HasLineOfSightThisTick: true, RangeSquaredWu: 0, CurrentCellIndex: 212),
+            new(EnemyEntityId: 15, HasLineOfSightThisTick: true, RangeSquaredWu: 0, CurrentCellIndex: 215),
+            new(EnemyEntityId: 16, HasLineOfSightThisTick: true, RangeSquaredWu: 0, CurrentCellIndex: 216),
+        };
+
+        var sparseMemory = ImmutableArray.Create(
+            new ContactMemoryEntry(99UL, 199, (int)ContactTier.QuestionMark, 5L));
+        var sparseObservations = new ContactObservation[]
+        {
+            new(EnemyEntityId: 99, HasLineOfSightThisTick: true, RangeSquaredWu: 0, CurrentCellIndex: 299),
+        };
+
+        // Sized for the crowded call, then reused for the sparse one, which
+        // fills three of its seven slots. The other four hold the crowded
+        // call's entries at that moment, which is exactly the stale tail a
+        // wrong read length would return.
+        var sharedBuffer = new ContactMemoryEntry[crowdedMemory.Length + crowdedObservations.Length];
+
+        var crowdedExpected = ContactMemory.Update(crowdedMemory, crowdedObservations, currentTick: 100);
+        var crowdedActual = ContactMemory.Update(crowdedMemory, crowdedObservations, currentTick: 100, sharedBuffer);
+        Assert.Equal(crowdedExpected.ToArray(), crowdedActual.ToArray());
+
+        var sparseExpected = ContactMemory.Update(sparseMemory, sparseObservations, currentTick: 101);
+        var sparseActual = ContactMemory.Update(sparseMemory, sparseObservations, currentTick: 101, sharedBuffer);
+        Assert.Equal(sparseExpected.ToArray(), sparseActual.ToArray());
+
+        // Non-vacuous in both directions: the crowded result is longer than
+        // the sparse one, so a length that carried over would be visible, and
+        // the sparse result is exactly its own one entry rather than a
+        // prefix of the crowded one.
+        Assert.Equal(6, crowdedActual.Length);
+        var only = Assert.Single(sparseActual);
+        Assert.Equal(99UL, only.EnemyEntityId);
+        Assert.Equal(299, only.LastKnownCellIndex);
+
+        // And the crowded call itself is re-run afterwards against the now
+        // sparse-dirtied buffer, so the bleed is checked in both directions
+        // rather than only from large to small.
+        Assert.Equal(
+            crowdedExpected.ToArray(),
+            ContactMemory.Update(crowdedMemory, crowdedObservations, currentTick: 100, sharedBuffer).ToArray());
+    }
+
+    /// <summary>
+    /// Task 88: a caller-supplied buffer too short for the merge is not an
+    /// error and not a truncated answer — the method allocates its own and
+    /// returns the same result. This is what lets stage 5 grow its buffer
+    /// lazily without a correctness cliff on the tick the roster grows.
+    /// </summary>
+    [Fact]
+    public void AMergeBufferShorterThanTheMergeNeeds_StillProducesTheFullResult()
+    {
+        var existing = ImmutableArray.Create(
+            new ContactMemoryEntry(11UL, 111, (int)ContactTier.Identified, 40L),
+            new ContactMemoryEntry(12UL, 112, (int)ContactTier.Identified, 41L));
+        var observations = new ContactObservation[]
+        {
+            new(EnemyEntityId: 13, HasLineOfSightThisTick: true, RangeSquaredWu: 0, CurrentCellIndex: 213),
+        };
+
+        var expected = ContactMemory.Update(existing, observations, currentTick: 100);
+        var actual = ContactMemory.Update(
+            existing, observations, currentTick: 100, new ContactMemoryEntry[1]);
+
+        Assert.Equal(expected.ToArray(), actual.ToArray());
+        Assert.Equal(3, actual.Length);
+    }
 }

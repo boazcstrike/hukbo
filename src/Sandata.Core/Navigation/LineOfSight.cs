@@ -28,6 +28,33 @@ namespace Sandata.Core.Navigation;
 /// overlap with a wall are all cases where the sightline does not cleanly
 /// pass the wall by.
 /// </para>
+/// <para>
+/// <b>Every query needs a cell buffer, and a hot caller must own it.</b> Task
+/// 88 of <c>docs/plans/2026-08-07-sandata-scaffold.md</c> measured this method
+/// allocating a fresh <c>int[grid.Width + grid.Height + 1]</c> on every call
+/// at roughly 4,684 calls per tick — by a wide margin the largest allocator in
+/// the whole tick. The overloads taking a <see cref="Span{T}"/> exist for that
+/// reason and are what <c>SandataSimulation</c>'s stage 5 uses. The overloads
+/// without one still allocate, deliberately: they serve callers that run this
+/// query once per published path rather than once per operator pair, and
+/// giving those a buffer they would have to size and thread through buys
+/// nothing measurable. <b>A new per-tick, per-pair caller belongs on the
+/// buffer overload</b>, and <see cref="RequiredCellBufferLength"/> is how it
+/// sizes one.
+/// </para>
+/// <para>
+/// <b>A reused buffer cannot corrupt an answer, and the reason is phase two.</b>
+/// Task 88 established this by breaking it: reading the whole buffer instead of
+/// only the prefix <see cref="GridRay.Traverse"/> just wrote changes no result
+/// at all. A stale cell only ever adds candidate wall segments, and
+/// <see cref="ExactPredicates.ClassifySegments"/> then tests each one against
+/// this query's own two endpoints — so a wall that does not actually cross the
+/// sightline is rejected no matter which cell proposed it. The broad phase is
+/// an optimisation over the whole wall list and never a correctness input. What
+/// a stale read does cost is time, and what a genuinely out-of-range index
+/// would cost is a throw from <see cref="WallBuckets.SegmentsInCell"/>, which is
+/// why the length check below is an exception rather than a silent clamp.
+/// </para>
 /// </remarks>
 public static class LineOfSight
 {
@@ -54,9 +81,60 @@ public static class LineOfSight
         WallBuckets wallBuckets)
     {
         ArgumentNullException.ThrowIfNull(grid);
+
+        return FirstBlockingSegment(
+            originX, originY, targetX, targetY, grid, wallBuckets,
+            new int[RequiredCellBufferLength(grid)]);
+    }
+
+    /// <summary>
+    /// The length a caller-supplied <c>cellBuffer</c> must have for
+    /// <paramref name="grid"/>: the longest cell chain
+    /// <see cref="GridRay.Traverse"/> can produce across it, which is one step
+    /// per column plus one per row plus the origin cell itself.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="grid"/> is <see langword="null"/>.</exception>
+    public static int RequiredCellBufferLength(NavGrid grid)
+    {
+        ArgumentNullException.ThrowIfNull(grid);
+
+        return grid.Width + grid.Height + 1;
+    }
+
+    /// <summary>
+    /// <see cref="FirstBlockingSegment(long, long, long, long, NavGrid, WallBuckets)"/>
+    /// against a scratch buffer the caller owns, for a caller that runs this
+    /// query many times per tick.
+    /// </summary>
+    /// <param name="cellBuffer">
+    /// Scratch space for <see cref="GridRay.Traverse"/>'s cell chain, at least
+    /// <see cref="RequiredCellBufferLength"/> long. Written on every call and
+    /// read only within it, and this method stores no reference to it, so one
+    /// buffer serves every query against <paramref name="grid"/>. See this
+    /// type's remarks for why a stale entry could not change an answer even if
+    /// one were read.
+    /// </param>
+    /// <exception cref="ArgumentException"><paramref name="cellBuffer"/> is shorter than <see cref="RequiredCellBufferLength"/>.</exception>
+    public static int FirstBlockingSegment(
+        long originX,
+        long originY,
+        long targetX,
+        long targetY,
+        NavGrid grid,
+        WallBuckets wallBuckets,
+        Span<int> cellBuffer)
+    {
+        ArgumentNullException.ThrowIfNull(grid);
         ArgumentNullException.ThrowIfNull(wallBuckets);
 
-        var cellBuffer = new int[grid.Width + grid.Height + 1];
+        var required = RequiredCellBufferLength(grid);
+        if (cellBuffer.Length < required)
+        {
+            throw new ArgumentException(
+                $"cellBuffer must hold at least {required} cells for a {grid.Width}x{grid.Height} grid.",
+                nameof(cellBuffer));
+        }
+
         var cellCount = GridRay.Traverse(originX, originY, targetX, targetY, cellBuffer, grid);
 
         for (var cellPosition = 0; cellPosition < cellCount; cellPosition++)
@@ -96,4 +174,20 @@ public static class LineOfSight
         NavGrid grid,
         WallBuckets wallBuckets) =>
         FirstBlockingSegment(originX, originY, targetX, targetY, grid, wallBuckets) < 0;
+
+    /// <summary>
+    /// <see cref="IsVisible(long, long, long, long, NavGrid, WallBuckets)"/>
+    /// against a caller-owned scratch buffer — see the
+    /// <see cref="FirstBlockingSegment(long, long, long, long, NavGrid, WallBuckets, Span{int})"/>
+    /// overload this delegates to for the buffer's contract.
+    /// </summary>
+    public static bool IsVisible(
+        long originX,
+        long originY,
+        long targetX,
+        long targetY,
+        NavGrid grid,
+        WallBuckets wallBuckets,
+        Span<int> cellBuffer) =>
+        FirstBlockingSegment(originX, originY, targetX, targetY, grid, wallBuckets, cellBuffer) < 0;
 }

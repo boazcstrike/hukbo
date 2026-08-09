@@ -192,7 +192,30 @@ public static class ContactMemory
     public static ImmutableArray<Simulation.ContactMemoryEntry> Update(
         ImmutableArray<Simulation.ContactMemoryEntry> existingMemory,
         ReadOnlySpan<ContactObservation> observationsThisTick,
-        long currentTick)
+        long currentTick) =>
+        Update(existingMemory, observationsThisTick, currentTick, scratch: default);
+
+    /// <summary>
+    /// <see cref="Update(ImmutableArray{Simulation.ContactMemoryEntry}, ReadOnlySpan{ContactObservation}, long)"/>
+    /// against a merge buffer the caller owns, for a caller that runs this
+    /// once per operator per tick.
+    /// </summary>
+    /// <param name="scratch">
+    /// Working space for the merge, at least
+    /// <c>existingMemory.Length + observationsThisTick.Length</c> long. A
+    /// shorter span — including the default empty one the allocating overload
+    /// passes — makes this method allocate its own instead, so a caller may
+    /// pass a buffer it has not resized yet without getting a wrong answer.
+    /// Nothing survives one call into the next result: every element this
+    /// method reads back it wrote during the same call, and the returned
+    /// <see cref="ImmutableArray{T}"/> is built by copying out of it, so the
+    /// buffer's prior contents can never reach a caller.
+    /// </param>
+    public static ImmutableArray<Simulation.ContactMemoryEntry> Update(
+        ImmutableArray<Simulation.ContactMemoryEntry> existingMemory,
+        ReadOnlySpan<ContactObservation> observationsThisTick,
+        long currentTick,
+        Span<Simulation.ContactMemoryEntry> scratch)
     {
         var existingSpan = existingMemory.IsDefault
             ? ReadOnlySpan<Simulation.ContactMemoryEntry>.Empty
@@ -204,7 +227,9 @@ public static class ContactMemory
             return ImmutableArray<Simulation.ContactMemoryEntry>.Empty;
         }
 
-        var buffer = new Simulation.ContactMemoryEntry[maxCount];
+        var buffer = scratch.Length >= maxCount
+            ? scratch[..maxCount]
+            : new Simulation.ContactMemoryEntry[maxCount];
         var count = 0;
 
         // Every enemy already in memory: either refreshed by this tick's
@@ -259,9 +284,17 @@ public static class ContactMemory
                 observation.EnemyEntityId, observation.CurrentCellIndex, (int)tier, currentTick);
         }
 
-        Array.Sort(buffer, 0, count, EntityIdComparer.Instance);
+        var merged = buffer[..count];
 
-        return ImmutableArray.Create(buffer, 0, count);
+        // Span.Sort over the merge window rather than Array.Sort over an
+        // array slice, since the window may now live inside a caller-owned
+        // span. Both dispatch to the same introsort, and this comparer's own
+        // remarks record that no two entries in one call can compare equal —
+        // so an unstable sort has no tie to be unstable about, and the order
+        // is a total one either way.
+        merged.Sort(EntityIdComparer.Instance);
+
+        return ImmutableArray.Create((ReadOnlySpan<Simulation.ContactMemoryEntry>)merged);
     }
 
     /// <summary>

@@ -110,4 +110,90 @@ public sealed class LineOfSightTests
         Assert.True(LineOfSight.IsVisible(originX: 0, originY: 0, targetX: 20, targetY: 20, grid, wallBuckets));
         Assert.Equal(-1, LineOfSight.FirstBlockingSegment(originX: 0, originY: 0, targetX: 20, targetY: 20, grid, wallBuckets));
     }
+
+    /// <summary>
+    /// Task 88: stage 5 hands the same cell buffer to every one of its
+    /// thousands of queries per tick, so no query's answer may depend on what
+    /// the previous one left in it. Every expectation below is written from
+    /// the fixture's own geometry, not read back from the allocating overload
+    /// — that overload now delegates to this one, so comparing the two would
+    /// compare a code path against itself.
+    /// <para>
+    /// <b>What this test does not bind, established by breaking it.</b>
+    /// Reading the whole buffer instead of only the prefix
+    /// <see cref="GridRay.Traverse"/> just wrote does not fail this test, or
+    /// any other. A stale cell only adds candidate walls, and
+    /// <see cref="ExactPredicates.ClassifySegments"/> rejects every one that
+    /// does not actually cross this query's own segment — so the broad phase
+    /// cannot produce a false positive however dirty the buffer is. The
+    /// property that the buffer's <i>contents</i> are inert is therefore not
+    /// testable from outside this type; it is a consequence of the two-phase
+    /// design, recorded at <see cref="LineOfSight"/> itself. What this test
+    /// does bind is that the buffer overload answers each of these queries
+    /// correctly, which
+    /// <see cref="ACellBufferShorterThanTheGridRequires_IsRejected"/> then
+    /// completes on the one input that genuinely can go wrong: a buffer too
+    /// short for the ray.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void OneCellBufferReusedAcrossManyQueries_AnswersEveryQueryFromItsOwnEndpoints()
+    {
+        var grid = NewGrid();
+
+        // Two full-height walls, at x = 10 and x = 26 world units — both
+        // strictly inside a cell rather than on a cell boundary, so no
+        // assertion below depends on which bucket a boundary-hugging segment
+        // lands in.
+        var wallAX = new long[] { 10, 26 };
+        var wallAY = new long[] { 0, 0 };
+        var wallBX = new long[] { 10, 26 };
+        var wallBY = new long[] { 32, 32 };
+        var wallBuckets = WallBuckets.Build(grid, wallAX, wallAY, wallBX, wallBY);
+
+        // Deliberately dirty, and dirty with an in-range cell index that
+        // genuinely holds wall 0, so a leak would be a plausible wrong answer
+        // rather than an exception any assertion would have caught.
+        var sharedBuffer = new int[LineOfSight.RequiredCellBufferLength(grid)];
+        Array.Fill(sharedBuffer, grid.CellIndex(2, 4));
+
+        // Long, then short, then long again, so the short query writes far
+        // fewer cells than the buffer already held. Each expectation is the
+        // wall record index the query's own endpoints straddle, or -1.
+        (long OriginX, long OriginY, long TargetX, long TargetY, int Expected)[] queries =
+        [
+            (0, 16, 30, 16, 0),    // crosses both; wall 0 is met first.
+            (0, 16, 8, 16, -1),    // stops short of wall 0.
+            (0, 16, 30, 16, 0),    // the long query again, after a short one.
+            (12, 16, 24, 16, -1),  // entirely between the two walls.
+            (12, 16, 30, 16, 1),   // starts past wall 0, crosses wall 1.
+            (28, 16, 30, 16, -1),  // entirely past both.
+        ];
+
+        foreach (var (originX, originY, targetX, targetY, expected) in queries)
+        {
+            Assert.Equal(
+                expected,
+                LineOfSight.FirstBlockingSegment(
+                    originX, originY, targetX, targetY, grid, wallBuckets, sharedBuffer));
+        }
+    }
+
+    /// <summary>
+    /// Task 88: a caller-supplied buffer too short for the grid is rejected
+    /// by name rather than silently truncating a ray and reporting a clear
+    /// line of sight through a wall it never reached.
+    /// </summary>
+    [Fact]
+    public void ACellBufferShorterThanTheGridRequires_IsRejected()
+    {
+        var grid = NewGrid();
+        var wallBuckets = WallBuckets.Build(grid, [], [], [], []);
+        var tooShort = new int[LineOfSight.RequiredCellBufferLength(grid) - 1];
+
+        var exception = Assert.Throws<ArgumentException>(
+            () => LineOfSight.FirstBlockingSegment(0, 0, 20, 20, grid, wallBuckets, tooShort));
+
+        Assert.Equal("cellBuffer", exception.ParamName);
+    }
 }
