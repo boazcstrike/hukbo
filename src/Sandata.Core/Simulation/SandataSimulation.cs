@@ -204,6 +204,55 @@ public sealed class SandataSimulation
         _sightCellBuffer = new int[LineOfSight.RequiredCellBufferLength(navGrid)];
 
         State = initialState;
+
+        RecomputePublishedPaths();
+    }
+
+    /// <summary>
+    /// Design section 4's resume rule, run here so that it happens "before
+    /// the first tick executes": every group whose request has already been
+    /// published has its polyline recomputed from the request record
+    /// <see cref="MissionState.Groups"/> carries, because that polyline is
+    /// derived and is deliberately absent from both the snapshot and both
+    /// hashes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A <see cref="GroupPathState"/> with <see cref="GroupPathState.HasOutstandingRequest"/>
+    /// still set needs nothing here and gets nothing: stage 7 re-submits it
+    /// on the first tick and <see cref="PathService.Advance"/> publishes it
+    /// on the tick its stored <see cref="GroupPathState.RequestTick"/> always
+    /// implied. Only a cleared flag means "already published", since
+    /// <see cref="AdvancePathService"/> is the one place that clears it.
+    /// </para>
+    /// <para>
+    /// On a fresh mission this loop does nothing at all, because every group
+    /// a mission starts with has its request outstanding — which is why the
+    /// seed-1 workload's hashes are untouched by it. Task 90 measured what
+    /// its absence cost: an operator resumed mid-walk lost its path entirely
+    /// and stood still from the resume onward, while the run that never
+    /// stopped kept walking.
+    /// </para>
+    /// </remarks>
+    private void RecomputePublishedPaths()
+    {
+        var groups = State.Groups;
+        if (groups.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        foreach (var group in groups)
+        {
+            if (group.HasOutstandingRequest)
+            {
+                continue;
+            }
+
+            _pathService.RestorePublishedPath(
+                group.GroupId, group.StartCellIndex, group.GoalCellIndex, group.RequestTick,
+                _navGrid, _pathBlockedCells, _wallBuckets);
+        }
     }
 
     /// <summary>The mission this simulation is ticking.</summary>
