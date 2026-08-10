@@ -1412,12 +1412,16 @@ public sealed partial class ArenaGame : Game
 
     // RU-25: the client's own scenario, not Scenario.CreateDefault's shipped
     // default, is what carries the ranged package: PrecolonialPhilippinesV5
-    // is the only combat preset with ranged attack rules registered, and it
-    // is only ever paired with RangedStandoffV8 (never with
-    // EquipmentRelativeFootworkV6 or V7), the only movement preset with the
-    // ranged standoff rule that keeps a holding archer from being walked in
-    // on by its own melee comrades. CreateDefault stays V4/V4 so the
-    // headless determinism baseline and every other caller are unaffected.
+    // is the only combat preset with ranged attack rules registered. It is
+    // now paired with BattlefieldRealismV10, which inherits the V8 ranged
+    // standoff rule that keeps a holding archer from being walked in on by
+    // its own melee comrades and adds weapon-cohort deployment, shield
+    // bearers placed at the forward-most slots of their own contingent, and
+    // a ranged warrior backing away from closing melee. All three are a
+    // labelled gameplay model, not a historical claim — see
+    // docs/plans/2026-08-11-battlefield-realism-design.md. CreateDefault
+    // stays V4/V4 so the headless determinism baseline and every other
+    // caller are unaffected.
     //
     // RU-43: RosterCounts is filled again, through
     // ExpandCompositionToRosterCounts rather than the flat
@@ -1435,7 +1439,7 @@ public sealed partial class ArenaGame : Game
         var scenario = Scenario.CreateDefault(seed, composition.UnitsPerTeam * 2) with
         {
             CombatPreset = CombatPresetId.PrecolonialPhilippinesV5,
-            MovementPreset = MovementPresetId.RangedStandoffV8,
+            MovementPreset = MovementPresetId.BattlefieldRealismV10,
         };
 
         var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
