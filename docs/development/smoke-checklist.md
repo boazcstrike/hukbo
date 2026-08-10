@@ -23,46 +23,54 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-11
 
-307 rows across 26 subsections: **265 `PENDING`, 14 `BLOCKED`, 24 `PASS`,
-3 `FAIL`, 1 `DECLINED`**, recounted from the status column of this file on
-2026-08-11 after the collision, battle-report and window-shell family closed all
-fifteen of its rows on one interactive run and was archived out. Earlier the
-same day the `V2` weapon-identity re-run closed its last four rows and was
-archived, the `CL` weapon-clash family closed and was archived before that, and
-the DPI awareness fix returned `UI-2`, `UI-4`, and `UI-6` from `FAIL` to
-`PENDING` for a re-run. The totals fall rather than rise on a good day, because
-a family that closes leaves the file. The three archived families are in
-[`../archives/2026-08-11/2026-08-11-collision-report-window-shell-smoke.md`](../archives/2026-08-11/2026-08-11-collision-report-window-shell-smoke.md),
-[`../archives/2026-08-11/2026-08-11-weapon-identity-smoke.md`](../archives/2026-08-11/2026-08-11-weapon-identity-smoke.md),
-and
-[`../archives/2026-08-11/2026-08-11-weapon-clash-smoke.md`](../archives/2026-08-11/2026-08-11-weapon-clash-smoke.md),
-and their 37 `PASS` rows are not lost.
+221 rows across 23 subsections: **203 `PENDING`, 14 `BLOCKED`, 3 `FAIL`,
+1 `DECLINED`**, counted from the status column of this file on 2026-08-11.
 
-Three earlier figures here were wrong — 105 rows across 29 subsections, which
-appears to have survived the split out of `docs/development/testing.md`; 333
-rows across 28 subsections, which was counted on a branch before battlefield
-realism's ten rows merged; and 343 rows with no `DECLINED` column, which
-dropped typography row 75 out of the total because its status is neither
-`PENDING` nor a result. **Recount before trusting any total**; that instruction
-has now been earned three times, and the third time it was a status nobody
-thought to count rather than a stale branch.
+**There is no `PASS` column any more, and that is deliberate.** The last 22
+passing rows were lifted out on 2026-08-11. Every row in this file is now
+something a person still has to do: 203 never attempted, 14 that cannot be
+attempted until the build changes, 3 that were attempted and failed, and 1
+declined. If a `PASS` ever appears here again it is a row that has just closed
+and has not yet been lifted — not a row that belongs.
 
-**A completed family is archived out of this file, not left sitting in it.** A
-section every one of whose rows is `PASS` is a record rather than a checklist,
-and leaving it here makes the file longer without giving a tester anything to
-do. A section is archived only when it is entirely `PASS`: an open `FAIL` or
-`BLOCKED` row is unfinished work, and burying it in `docs/archives/` would hide
-a defect behind a folder nobody is allowed to cite. One section has no
-`PENDING` rows today and stays here for exactly that reason: Sandata, which
-holds 2 `FAIL` and 5 `BLOCKED`.
+**Recount before trusting that total.** Every figure here that was ever taken
+on faith turned out to be wrong. Count the status column itself, and count
+every status — a row that is neither `PENDING` nor a result is still a row.
 
-**A fixed row goes back to `PENDING`, never straight to `PASS`.** The `UI`
-family briefly had no `PENDING` rows either, on 13 `PASS` and 3 `FAIL`. The
-three failures were then fixed the same day, and the fix does not close them —
-`UI-2`, `UI-4`, and `UI-6` are `PENDING` again, each keeping its `FAIL`
-observation in `Actual` so the re-run is judged against what was actually seen.
-This is the same pattern the `CL` clash rows followed across the combat-cadence
-change. An agent may write the fix; only a person may close the row.
+**This file holds open work only.** It is not a record of what has been tested.
+A family every one of whose rows is `PASS` is deleted from this file outright:
+it is a record rather than a checklist, and keeping it makes the file longer
+without giving a tester anything to do. A family is deleted only when it is
+entirely `PASS` — an open `FAIL` or `BLOCKED` row is unfinished work and stays
+here where a reader will see it. One section has no `PENDING` rows today and
+stays for exactly that reason: Sandata, which holds 2 `FAIL` and 5 `BLOCKED`.
+
+**A single passing row is lifted out the same way, without its section.** Four
+sections still carrying open work had rows that closed — Sandata, the `UI`
+family, the persistent-contingent section, and attack animation V2 — and those
+22 rows left on 2026-08-11 while their sections stayed. Each of the four names,
+in its own preamble, which of its rows closed and what to be careful of when
+reading the archived result: two of them closed under a preset or a viewport
+that is no longer the shipped one, which is exactly the trap an undated `PASS`
+sets for the next reader.
+
+**No file in this repository may link to `docs/archives/`.** That folder is
+deleted periodically, so a link into it is a link that breaks. Nothing in this
+checklist points there, and nothing added to it may. Where a closed row's
+evidence is worth naming, it is named in prose — the 2026-08-11 record
+**"Closed rows lifted out of families that are still open"** is referenced that
+way in four sections below. Find such a record by its title rather than by a
+path, so that a later prune costs a search instead of the evidence:
+
+```powershell
+git log --diff-filter=A --name-only --format='%h %s' -- 'docs/archives/**' |
+  Select-String 'closed-rows-from-open-families'
+```
+
+**A fixed row goes back to `PENDING`, never straight to `PASS`.** A row keeps
+its `FAIL` observation in `Actual` when it reopens, so the re-run is judged
+against what was actually seen. An agent may write the fix; only a person may
+close the row.
 
 The families below are grouped by what a single launch can actually
 show, because the subsections are ordered by the change that created them
@@ -72,25 +80,20 @@ order relaunches the game far more often than they need to.
 | Batch | Families | Rows | What one launch has to show |
 | --- | --- | --- | --- |
 | Ranged | `PP` 8, `RG` 11 | 19 `PENDING` | A battle fielding Bangkaw, Busog, and Arquebus warriors. The shipped client runs combat preset V5 and movement preset V8, so ranged units are on the field by default at roughly a 14 per cent share |
-| Pawn animation | `AA` 17, `GA` 14 | 31 `PENDING` | Warriors striking and walking, close in. `AA` also holds the one open `FAIL`, AA-22 |
+| Pawn animation | `AA` 18 of 24, `GA` 14 | 31 `PENDING`, 1 `FAIL` | Warriors striking and walking, close in. `AA` also holds the one open `FAIL`, AA-22, and its other 6 rows passed and were lifted out |
 | Markers | `LC` 11, `L` 7 | 18 `PENDING` | Leaders and contingents at default zoom, plus the agent inspector |
-| Render | `GR` 5 | 5 `PENDING` | Launch-time render behaviour. The `CL` clash family that used to share this batch is complete and archived |
+| Render | `GR` 5 | 5 `PENDING` | Launch-time render behaviour |
 | Battlefield realism | task 18 rows | 10 `PENDING` | Cohort deployment and the V10 retreat rung |
-| Menu, display, motion | `UI` 16 | 13 `PASS`, 3 `PENDING` | Run on 2026-08-11. The three open rows, `UI-2`, `UI-4`, and `UI-6`, all failed that run on one shared cause — the process never declared DPI awareness, so Windows rendered the game at a virtualised size and bitmap-stretched the result. **That is fixed**; the three are re-runs, not fresh checks. Set UI Scale to Auto first. See finding 1 in that section |
-| Sandata | `SD` | 5 `BLOCKED`, 2 `PASS`, 2 `FAIL` | `./scripts/run.ps1 -Game Sandata` |
+| Menu, display, motion | `UI` 3 of 16 | 3 `PENDING` | Run on 2026-08-11; the other 13 passed and were lifted out. The three open rows, `UI-2`, `UI-4`, and `UI-6`, all failed that run on one shared cause — the process never declared DPI awareness, so Windows rendered the game at a virtualised size and bitmap-stretched the result. **That is fixed**; the three are re-runs, not fresh checks. Set UI Scale to Auto first. See finding 1 in that section |
+| Sandata | `SD` 7 of 9 | 5 `BLOCKED`, 2 `FAIL` | `./scripts/run.ps1 -Game Sandata`. The other 2 passed and were lifted out |
 | Pressure interrupt | `P` | 9 `BLOCKED`, 1 `PENDING` | **Not runnable today** — see below |
-
-The `V2` weapon-identity batch used to sit at the foot of this table. It closed
-on 2026-08-11 and is archived; see the link above.
 
 **The 14 `BLOCKED` rows are blocked by the build, not by the reader.** Nine `P`
 rows need movement preset V7, which the client cannot select: `BuildScenario`
 overrides the preset to `RangedStandoffV8` and no preset selector is exposed, so
 under the shipped default no pressure mark is ever drawn and no pressure
 inspector row ever renders. Unblocking them is a code change, not an attempt.
-The `SD` rows are blocked for reasons recorded in the Sandata subsection. The
-fifteenth blocked row until 2026-08-11 was `V2-10`, which closed on the
-weapon-identity re-run and left this file with its family.
+The `SD` rows are blocked for reasons recorded in the Sandata subsection.
 
 **Controls, so no row has to be attempted by guesswork.** `Space` plays and
 pauses; `1`, `2`, and `4` set playback speed; `R` starts the next round and
@@ -127,8 +130,7 @@ operators from the map's static `SPAWN` records, so nothing on screen could
 move under any circumstances. That is fixed: the client now runs
 `SandataSimulation.RunTick` on a fixed 20-millisecond timestep, draws every
 pawn from live `MissionState`, and gives the assaulting squad an objective to
-walk to without being asked. The full record is
-`docs/archives/2026-08-11/2026-08-10-sandata-playable-client.md`.
+walk to without being asked.
 
 **Controls.**
 
@@ -216,10 +218,8 @@ of the whole route and never does anything.
 | --- | --- | --- | --- | --- |
 | SD-1 | Launch, then zoom from the closest tier out to the furthest | The window opens, the map draws, and the operators stay legible at every zoom level | 2026-08-11, tester at the desktop: "there was only 2 of them, so no" — an operator could not be told from a piece of cover at the tiers tried. Ally versus enemy *was* tellable, but by colour alone. The row asks about operator-versus-cover legibility, which is the half that failed. | FAIL |
 | SD-2 | Watch a squad path across the 26.57-degree diagonal wall | The funnel path visibly follows the wall as a straight line rather than a staircase | 2026-08-11, attempted: "i am unsure which is which". Investigated after the run and the row cannot be judged by anyone — `SandataGame.DrawOrderPath` renders only `_pathDrawState.Nodes`, the polyline the player is drawing by right-click. No published autonomous group path is drawn anywhere in `Sandata.Client`, so there is no line on screen to call straight or stepped. Becomes executable when the published path is rendered. | BLOCKED |
-| SD-3 | Send a squad through the entry door and on into the room behind it | The squad visibly collapses to single file at the door and re-expands inside | 2026-08-11, tester at the desktop: "single file" — the collapse at the door was observed. The re-expansion inside the room was not separately reported, so only the first half of the expected observation is evidenced. | PASS |
 | SD-4 | Watch a rifle operator cross a doorway, then a pistol operator cross the same one | The rifle operator lowers the weapon and re-raises it; the pistol operator does not | Cannot be run by anyone: every operator draws the same placeholder weapon appearance, so the two halves of the comparison are visually identical. Becomes executable when per-weapon operator appearances ship. | BLOCKED |
 | SD-5 | Hold sustained automatic fire from the maximum operator count | Automatic fire sounds continuous rather than machine-gun-stuttered, and no audio drops out | Cannot be run by anyone: Sandata ships no sound files at all. Becomes executable when the audio generation run is authorized and its slots exist. See the note below the table. | BLOCKED |
-| SD-6 | Look at a fire cone at every detail tier, zoomed in and out | The cone reads at every tier and does not fade with zoom | 2026-08-11, tester at the desktop: "readable but not understandable". The row's literal criterion — the cone stays visible at every tier and does not fade with zoom — was met. That it does not communicate *what it means* to a viewer is a real separate finding and is recorded below the table, not folded into this row's status. | PASS |
 | SD-7a | View a friendly and a hostile contact side by side in `night-ops`, then judge them again ignoring colour | The two are distinguishable at a glance, and remain distinguishable by shape alone | 2026-08-11, tester at the desktop: distinguishable at a glance, yes — "not distinguishable by shape" with colour ignored. The row requires both halves, and the colour-independent half is the accessibility half, so the row fails. | FAIL |
 | SD-7b | View friendly, hostile, and unknown contacts in every shipped theme | All three are distinguishable in `daylight-ops` as well as `night-ops` | Cannot be run by anyone: `LoadTheme` always takes `catalog.DefaultThemeId`, so `daylight-ops` is unreachable from the client, and no unknown-contact state exists to render. Becomes executable when a theme switcher and an unknown-contact state ship. | BLOCKED |
 | SD-8 | Click an operator that is holding position | The inspector explains the hold: reason code, path state, and weapon chain phase | Cannot be run by anyone: `Sandata.Client` has no `SpriteFont` and makes no `DrawString` call, so the inspector renders no characters at all. Becomes executable when text rendering ships. | BLOCKED |
@@ -229,10 +229,21 @@ slots expanding to 524 variant files, roughly 104,800 ElevenLabs credits, and
 that spend is not authorized. The row is listed in full so that it is not
 quietly forgotten once the audio question is answered.
 
-**Which rows a tester can actually reach today: SD-1, SD-2, SD-3, SD-6, and
-SD-7a — five of the nine.** All five are attemptable now that the client runs
-the simulation and the assaulting squad walks a real route. The other four are
-`BLOCKED`.
+**`SD-3` and `SD-6` passed and are no longer in the table.** They were lifted
+out on 2026-08-11 into
+the 2026-08-11 record **"Closed rows lifted out of families that are still
+open"**, named rather than linked for the reason given at the top of this file,
+with their evidence, so what remains below is the open work: 2 `FAIL` and 5
+`BLOCKED`. Read `SD-6`'s archived entry before acting on finding 4 of the first
+run — the row passed on legibility, and the separate finding that the cone
+communicates nothing is recorded there rather than as a failure.
+
+**Which rows a tester could reach on the first run: SD-1, SD-2, SD-3, SD-6, and
+SD-7a — five of the nine.** All five were attemptable once the client ran the
+simulation and the assaulting squad walked a real route. `SD-3` and `SD-6`
+closed; `SD-2` turned out to be unjudgeable and is now `BLOCKED`; `SD-1` and
+`SD-7a` failed and are still open. The other four were `BLOCKED` from the
+start.
 
 **Why those four are `BLOCKED` and not `PENDING`, corrected 2026-08-11.** They
 were recorded `PENDING` when the table was written, on the reasoning that the
@@ -301,180 +312,14 @@ the `SD-1` and `SD-7a` failures, are the same underlying problem stated three
 ways: the client draws untextured primitives with no shape vocabulary, so
 everything on screen depends on colour to mean anything.
 
-## Weapon identity and attributes smoke (preset V2) — complete, archived
-
-**All ten `V2` rows are `PASS` and this section has moved.** It closed on
-2026-08-11 after two interactive runs and the `AgentPickTarget` click-target fix
-between them. The rows, both runs' observations, and the four findings are in
-[`../archives/2026-08-11/2026-08-11-weapon-identity-smoke.md`](../archives/2026-08-11/2026-08-11-weapon-identity-smoke.md).
-
-Nothing there is an instruction. If a later change touches weapon labels,
-weapon silhouettes, the agent inspector, or the army composition panel, write
-fresh rows here rather than re-running the archived ones.
-
-## Weapon clash smoke (preset V2) — complete, archived
-
-**All twelve `CL` rows are `PASS` and this section has moved.** It closed on
-2026-08-11 after two interactive runs and the combat-cadence change between
-them, and it is the first family in this checklist to close completely. The
-rows, both runs' observations, and the reasoning that connects them are in
-[`../archives/2026-08-11/2026-08-11-weapon-clash-smoke.md`](../archives/2026-08-11/2026-08-11-weapon-clash-smoke.md).
-
-Nothing there is an instruction. If a later change touches clash resolution,
-weapon swing arcs, or attack cadence, write fresh rows here rather than
-re-running the archived ones.
-
-## Spectator clarity smoke
-
-Record the observed value in `Actual` and change `Status` only after performing
-the interaction. Use `PASS`, `FAIL`, or `BLOCKED`; leave untouched rows
-`PENDING`.
-
-| Evidence field | Recorded value |
-| --- | --- |
-| Date | 2026-07-27 |
-| Machine/platform | Microsoft Windows 10.0.26200 (Windows 11 Pro) x64 |
-| Source commit | `8815a3c`; the later `d6818a8` is documentation-only and builds the identical binary |
-| Launch path (`source` or package path) | `source`, via `./scripts/run.ps1` |
-| Optional screenshot paths | None recorded |
-
-The rows below were observed by the repository owner at an interactive Windows
-desktop and reported to the role 17 review, which transcribed them. Only rows
-whose **whole** expected observation was exercised are marked `PASS`. Rows 2, 4,
-5, and 15 were partly observed: the observed half is recorded in `Actual` and the
-row stays `PENDING`, because a row is a single status and half a row is not a
-pass. Each of those four names exactly what is still missing, so closing them is
-a short follow-up rather than a repeat of the whole pass.
-
-| Check | Expected observation | Actual | Status |
-| --- | --- | --- | --- |
-| 1. Launch the game | The window opens, agents render, and the match starts paused with tick unchanged. | Window opened; match started paused with the tick counter sitting still. | PASS |
-| 2. Activate Play | The always-visible Play button advances ticks; Space provides the same toggle while the modal is closed. | Play advanced the ticks. The Space toggle was not exercised. 2026-08-11, tester at an interactive Windows desktop: re-run in full — the part left unexercised in July was exercised and the whole expected observation was seen. | PASS |
-| 3. Activate Pause | The always-visible Pause button stops tick advancement and visibly indicates the paused state. | Pause stopped tick advancement and the paused state was visible on screen. | PASS |
-| 4. Open Menu | The always-visible Menu button pauses the match and opens the modal; Escape toggles that same menu behavior. | The Menu button opened the modal. Escape as a toggle was not exercised. 2026-08-11, tester at an interactive Windows desktop: re-run in full — the part left unexercised in July was exercised and the whole expected observation was seen. | PASS |
-| 5. Exercise modal commands | Modal Play resumes and closes; modal Pause remains open and paused; Escape closes without resuming; Exit Game, which is available only in the modal, requests one clean shutdown. | Exit Game quit the game cleanly. Modal Play, modal Pause, and Escape-closes-without-resuming were not exercised. 2026-08-11, tester at an interactive Windows desktop: re-run in full — the part left unexercised in July was exercised and the whole expected observation was seen. | PASS |
-| 6. Select an agent | A primary click on a living agent pins the inspector with ID, faction, alive/dead state, health, intent, target, and position. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 7. Move away and observe death | Moving the pointer away does not clear selection; if the selected agent dies, the inspector remains pinned and shows its final `DEAD` state. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 8. Check observational behavior | Selecting or inspecting an agent does not alter tick progression or the deterministic battle result; an empty-arena click clears selection and UI clicks do not click through. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 9. Exercise event-log scrolling | At 1x and 4x, events remain ordered without duplicates and retain at most 200 rows. The wheel scrolls only the log while the pointer is over it and does not zoom the arena; new events do not steal an upward scroll position; returning to the bottom reveals the newest events; over the arena, the wheel zooms. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 10. Reach a terminal outcome | The match pauses and the summary winner, both survivor counts, terminal tick, simulated duration, and seed match the final status and visible arena state; the summary offers Next Round. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 11. Check score timing and team mapping | Team A is Blue/faction 0 and Team B is Red/faction 1. Reaching a victory does not change the score immediately; choosing Next Round adds exactly one win to that completed round's winner. Starting the next round after a draw or while the current round is ongoing adds no win. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 12. Exercise ordinary Next Round | `R`, modal Next Round, and summary Next Round each preserve the score, speed, and camera; clear selection, event history, scroll state, and summary; and leave the fresh round paused. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 13. Check seed progression | Each Next Round changes the seed to a distinct deterministic value. After Full Reset, repeating the same Next Round sequence produces the same seed sequence. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 14. Exercise Full Reset | After changing the score, speed, and camera, press `Shift+R`; both win totals become 0, seed returns to 1, speed returns to 1x, the camera fits the arena, disposable UI state clears, and the fresh round is paused. Change state again and confirm modal Full Reset has the same result. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 15. Close the window | The operating-system close button exits the process once with exit code 0. | Closing the window exited the game. The exit code was not captured, so the `0` half of this row is unproven. 2026-08-11, tester at an interactive Windows desktop: re-run in full — the part left unexercised in July was exercised and the whole expected observation was seen. | PASS |
-| 16. Check the plains backdrop ground | The battle floor shows varied ground shading with scattered grass, dirt, and stone marks rather than one flat color. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 17. Check backdrop stability at zoom extremes | Zooming fully out and fully in keeps the ground pattern locked to the same patches of map; the pattern does not crawl or shimmer, and decals neither vanish into flicker nor balloon into large blobs. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 18. Check backdrop continuity while panning | Panning the camera across the map shows no seam lines, gaps, or overlapping bright edges between ground cells. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 19. Check readability over the backdrop | Pawn silhouettes, faction ground rings, selection marks, and hit effects all remain clearly readable against the new backdrop. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 20. Cycle every theme against the backdrop | Each theme produces a backdrop in its own palette, with the arena border still distinguishable from the ground. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 21. Check backdrop reseeding on Next Round and Full Reset | Pressing `R` for a new round changes the backdrop with the new seed; pressing `Shift+R` for a full reset returns the seed-1 backdrop identical to the first launch. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 22. Confirm the sound log is hidden by default | On launch, no sound panel is visible and the battle event log occupies the full height of the right column exactly as before. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 23. Toggle the sound log | The `Sounds` control-bar button and `F9` both open and close the sound panel; the button shows an active state while it is open; the right column splits with battle events above and the sound log below, and nothing else on screen moves. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 24. Check the expected-file list with an empty audio folder | With no files in `Content/Audio/`, the panel lists all thirteen expected file names, each marked `MISSING`, shows `MISSING 13/13`, and the game stays silent without errors. The list scrolls with the wheel, so all thirteen names are reachable even though only ten rows are shown at once. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 25. Add one sound file | Drop a PCM WAV named `death.wav` into `Content/Audio/`, relaunch, and confirm that slot reads `READY`, the counter drops to `MISSING 12/13`, and a death audibly plays with a `PLAYED` row in the cue log. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 26. Check an unusable file | Replace `death.wav` with a non-PCM file of the same name, relaunch, and confirm the slot reads `FAILED` rather than `MISSING`, and the game still runs silently for that slot. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 27. Exercise mute and rate limiting | With files present, the panel's `MUTE` toggle silences playback while still logging rows; during a busy tick the cue log shows collapsed `LIMITED xN` rows rather than one row per suppressed cue. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 28. Exercise sound-log scrolling and isolation | The wheel scrolls only the panel under the pointer — sound log, battle log, or arena zoom — and clicks inside the sound panel do not click through to the arena or clear the agent selection. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 29. Check sound-log reset behavior | `R` and `Shift+R` clear the cue log while leaving the expected-file list and its statuses unchanged. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 30. Open the Army Composition panel | Menu opens and the Army Composition button (between Next Round and Full Reset) shows the currently saved units-per-team and category counts in four steppers. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 31. Adjust a category count | Left and Right arrows on a stepper adjust its value; Shift+Left and Shift+Right adjust by 10 instead of 1. The Unassigned readout updates live. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 32. Check Unassigned reaches zero | Adjusting steppers such that category sum equals units-per-team displays Unassigned: 0. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 33. Verify Apply gate behavior | Apply is disabled (ActionDisabled style, dimmed glyph) while Unassigned != 0 and while the draft equals the saved composition; Apply is enabled exactly when balanced and changed. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 34. Check the staged banner | After pressing Apply, the panel closes, the menu shows a one-line notice stating the composition takes effect on the next Full Reset, and Apply remains disabled until a different composition is drafted and applied. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 35. Verify Full Reset fields the chosen army | After applying a composition and pressing Full Reset (or `Shift+R`), the arena resets and both factions field the number and distribution of warriors specified by the staged composition, visible in the agent inspector and event log. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 36. Observe blood at the default fit view | On first launch, with the default gore setting (Stylized) and the default camera fit, a landed blow shows a directional spray and a ground mark that are both plainly visible without zooming the camera in at all. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 37. Check spray direction | Select an agent, watch it get struck, and confirm the spray leaves the victim along the line running from the attacker to the victim — pointing away from the attacker, never back toward it. Confirm this holds for blows arriving from several different directions. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 38. Distinguish a lethal blow from a wound | A blow that kills its victim renders visibly differently from a blow that only wounds: the lethal tier is denser or longer-lived, and only the lethal blow leaves the ground mark described in row 39. A spectator can tell the two apart without reading the event log. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 39. Check ground-mark persistence and fade | A ground mark stays on the battlefield after the fighters involved have moved away, then fades out gradually over time rather than vanishing in a single frame. Marks accumulate where the fighting was heaviest instead of spreading evenly. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 40. Confirm gore Off draws nothing | With the gore setting on Off, no spray, spurt, or ground mark appears anywhere for any blow, including kills, at any camera zoom. The existing warm-white hit-effect ring still draws, so impacts remain readable. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 41. Change gore intensity via the menu | Open Menu; the Gore Intensity control cycles Off, Stylized, Full and wraps at both ends using Left and Right and the pointer arrows. Each choice visibly changes blow rendering: Off shows nothing, Stylized shows spray and a fading mark, and Full additionally shows a sustained spurt on a kill together with denser, longer-lived marks. The change takes effect immediately, without a restart. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 42. Reach the gore selector by keyboard | Inside the menu, `Tab`, `Down`, and `S` move focus from the theme selector through every button and land on the Gore Intensity selector as the final control in the order; continuing past it wraps back to the theme selector. `Up` and `W` reach it from the theme selector by wrapping backwards. While it is focused, Left and Right change the value and no button is activated. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 43. Reach the gore selector by pointer | Hovering the Gore Intensity selector highlights it without changing the value; clicking its previous and next arrows changes the value; and a click on the selector does not click through to the arena or activate any menu button. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 44. Check gore intensity persists across a restart | Set gore to Full, fully close the game, and relaunch it: Full is active from the first blow, without reopening the menu. Repeat with Off and confirm the same. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 45. Check blood clears on Next Round and Full Reset | With sprays and ground marks visible on screen, trigger Next Round (`R`, modal, or summary); all blood clears immediately alongside the event log, inspector, and summary. Repeat separately with Full Reset (`Shift+R` and the modal command) and confirm the same. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 46. Check blood readability across every theme | Cycle all six visual themes while blood is on screen. In every theme, including `datu-court` and `high-contrast`, blood stays clearly distinguishable from the Blue faction pawns, from the Red faction pawns, and from the arena ground surface; no theme makes a spray or a ground mark disappear into a pawn or the backdrop. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 47. Check speed and gore independence | At 1x, 2x, and 4x speed, switch gore between Off and Full and confirm the tick counter in the window title advances at the same visible rate for both settings at each speed. The gore setting never slows, pauses, or reorders simulation advancement. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 48. Confirm variants resolve | Press `F9`. Every attack slot reports `READY` with a per-class breakdown, and the counts match the files in `Content/Audio/`: 10 for each of the four attack slots, 10 for `death`. A class with no take of its own shows its real count rather than a fallback-inflated one. Scroll the expected-files list to the bottom: each of the four clash slots reports `READY` with four takes, sixteen takes across the four. Each weapon is its own slot, so a clash slot with no take shows its real count and no other weapon's takes are substituted for it. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 49. Hear the variation | Watch an unpaused battle for a full minute. Blows do not sound like one repeating sample: cuts to different parts of the body are audibly different, and the same weapon striking the same class does not always play the identical take. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 50. Confirm no human voice | Listen through a full battle including many deaths. No cue contains a scream, grunt, groan, or breath. Pay particular attention to `death-02`, `death-06`, and `death-07`, whose prompt wording carries the highest risk of an accidental vocalisation. Any file that vocalises must be regenerated before release. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 51. Check level consistency | No cue is obviously louder or quieter than its neighbours. The known-quiet takes — `attack-kampilan-ribcage-01`, `attack-kampilan-gut-01`, `attack-wasay-neck-01`, `death-02` — are audible under a busy battle rather than disappearing. Any that vanish need a re-roll. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 52. Verify a partial set falls back | Move one hit class's takes for a single weapon out of `Content/Audio/` and relaunch. That weapon still makes a sound on a hit to that body part, drawn from the fallback class, and the sound log shows the class as missing rather than the whole slot going silent. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-
-For round scoring, record Team A (Blue) and Team B (Red) totals before and after
-each command together with the outgoing outcome and old/new seeds. Next Round
-scores only a terminal victory and always advances the deterministic seed.
-Full Reset never scores the outgoing round.
-
-## Collision readability smoke
-
-Added by the collision change and revised by the contact-closing amendment.
-**Not performed.** Observe one collision-heavy engagement in a live window and
-record what was actually seen. The automated gate, the benchmarks, and the
-collision regression tests above prove the rule is enforced; none of them prove
-the resulting battle line is legible to a person watching it, which is the only
-thing these rows are for. The amendment changed what a spectator should expect to
-see here, so these rows carry more weight than they did before and none of them
-has been observed.
-
-**Amended by the persistent-contingent movement change (T18).** Under
-`PersistentContingentsV2` the movement labels rows 19, 20 and 21 read change in
-both meaning and frequency. A second-rank agent's blocked label can now read as
-gathering toward its contingent rather than purely as blocked by the front
-rank, and it can also read as easing to a stop under the arrival taper (design
-section 3.6) rather than stopping dead. Row 21's rank-closing observation still
-applies, but the closing approach itself now tapers rather than arriving at a
-constant rate. Rows 19, 20, 21 and 21a stay `PENDING`; whoever observes them
-should not assume the pre-contingent description of what they show still holds
-and should record what is actually seen under the new default.
-
-| Evidence field | Recorded value |
-| --- | --- |
-| Date | Not recorded |
-| Machine/platform | Not recorded |
-| Source commit | Not recorded |
-| Launch path (`source` or package path) | Not recorded |
-| Optional screenshot paths | None recorded |
-
-| Check | Expected observation | Actual | Status |
-| --- | --- | --- | --- |
-| 16. Read the battle line | Agents form a visible front instead of a shapeless blob, and the shape reads as a consequence of crowding rather than as a snapped grid. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 17. Look for stacking and jitter | No two living pawns visually occupy the same spot, and a pressed front settles instead of vibrating between positions tick after tick. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 18. Confirm combat continues | A packed front keeps dealing damage; the match does not stall into a standoff and reaches a terminal outcome inside its tick limit. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 19. Inspect a blocked agent | Selecting an agent in the second rank shows a movement label explaining why it is not advancing, and that label changes as the situation changes. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 20. Inspect the front rank | Selecting a front-rank agent shows it moving or attacking rather than blocked, and an agent that has arrived at an enemy reads as attacking rather than still marching. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 21. Confirm the ranks actually touch | Opposing front ranks close until their pawn bodies meet, rather than settling with a visible gap of open ground between the two lines. This is the amendment's whole visible effect and the pre-amendment behaviour was a persistent gap. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-| 21a. Watch a contested push change hands | Added by the collision priority amendment. Select a second-rank agent pressed against the same enemy for a sustained engagement. Its movement label alternates between blocked and moving across ticks rather than reading blocked for the whole engagement, and neither faction's line is the one that always gives way. | 2026-08-11, tester at an interactive Windows desktop: run and observed exactly as the Expected column describes. | PASS |
-
-## Camera auto-pan smoke
-
-Added by the camera auto-pan change. **Not performed.** The unit tests prove the
-targeting and state-machine decisions; only a person watching a live window can
-say whether the resulting camera motion is helpful rather than distracting.
-
-| Evidence field | Recorded value |
-| --- | --- |
-| Date | Not recorded |
-| Machine/platform | Not recorded |
-| Source commit | Not recorded |
-| Launch path (`source` or package path) | Not recorded |
-| Optional screenshot paths | None recorded |
-
-| Check | Expected observation | Actual | Status |
-| --- | --- | --- | --- |
-| 53. Confirm the camera holds still during a visible fight | Zoom in on an engagement so fighting fills the screen. The camera stays exactly where it was left for the whole engagement; it never creeps, drifts, or re-centres on its own while anyone on screen is fighting. | Not run | PENDING |
-| 54. Watch the camera find a fight it lost | Zoom in, then pan away until no fighting is on screen. Within a moment the camera slides on its own toward the nearest melee, slows as it arrives, and stops with the fighting comfortably inside the view rather than pinned to an edge. | Not run | PENDING |
-| 55. Confirm zoom never changes | Through several auto-pans, the zoom level is exactly what the spectator set. The camera only slides; it never zooms out to find the fight or zooms in on arrival. | Not run | PENDING |
-| 56. Take control back | While the camera is auto-panning, hold a pan key. Motion stops under the spectator's hand immediately, the camera goes exactly where they steer it, and it does not resume on its own for a couple of seconds after the key is released. | Not run | PENDING |
-| 57. Watch the end of a long battle | Let a match run to its final few survivors at a zoom where they leave the screen. The camera follows the fighting to the end instead of leaving the spectator on empty ground, and it stands still once the match summary appears. | Not run | PENDING |
-
 ## Auto camera modes smoke
 
 Added by the auto-camera hysteresis and mode setting, 2026-07-28. **Not
 performed.** The unit tests prove the grace, dwell, re-target, and ceiling
 decisions against synthetic agent lists; only a person watching a live window
-can say whether the camera now feels calm rather than restless. Rows 53 to 57
-above remain the baseline behaviour rows and are still `PENDING` too.
+can say whether the camera now feels calm rather than restless. The baseline
+auto-pan motion underneath this setting is already closed; these rows are about
+the modes built on top of it.
 
 | Evidence field | Recorded value |
 | --- | --- |
@@ -591,6 +436,17 @@ order, the three motion intensities, and all five interpolated accents behave
 as written, and that glyphs stopped being crisp the moment the window filled
 the screen.
 
+**Only the three open rows are listed below.** The thirteen that passed —
+`UI-1`, `UI-3`, `UI-5`, `UI-7` through `UI-16` — were lifted out on 2026-08-11
+into
+the 2026-08-11 record **"Closed rows lifted out of families that are still
+open"**, named rather than linked for the reason given at the top of this file,
+with their evidence intact, so this table shows what is left to do rather than
+what is already done. `UI-5` is worth re-reading there before the re-run: it
+asserts the window opens at 1280x720, which now means 1280x720 real pixels
+rather than virtual ones, so it is physically smaller than it was when it
+passed.
+
 **That cause was fixed the same day and the three rows are now `PENDING`
 re-runs.** The fix is the DPI awareness declaration described in finding 1 and
 designed in
@@ -609,22 +465,9 @@ was actually seen rather than against an empty row.
 
 | Check | Expected observation | Actual | Status |
 | --- | --- | --- | --- |
-| UI-1. Minimum-size menu containment | At 1024x720 and UI Scale Auto, the complete two-column menu remains inside the window; its 12 controls, labels, arrows, and helper text neither overlap nor clip. | 2026-08-11, tester at the desktop: the whole two-column menu stayed inside the window with nothing overlapping or clipped | PASS |
 | UI-2. Common landscape and maximised layouts | At 1280x720, 1920x1080, and the maximised desktop size, the menu stays centred and balanced, the arena HUD remains readable, and no panel covers an unrelated control. | 2026-08-11, tester at the desktop. Layout held: the menu stayed centred and balanced and no panel covered an unrelated control at any of the three sizes. The row also asks that the arena HUD remain **readable**, and at the maximised desktop size it does not — every glyph is visibly pixelated. The layout half passed and the readability half failed, and a row is a single status, so the row fails. Cause in finding 1. **Fixed the same day** by the DPI awareness declaration; a logged run now reports a 2560x1440 viewport where it reported the virtualised size before. Back to `PENDING` because only a person can say the glyphs read as crisp | PENDING |
-| UI-3. Tall-window layout | At 1440x1920, the menu and HUD remain contained and readable without stretched text or misplaced pointer hit targets. | 2026-08-11, tester at the desktop: contained and readable, no stretched text, hit targets landed where they were drawn | PASS |
 | UI-4. Preferred UI scales and safety cap | Select Auto, 100%, 125%, 150%, and 200%. The selected preference persists after restart; when the viewport is too small for it, the active tier is safely capped while the preferred value remains selected in the menu. | 2026-08-11, tester at the desktop. Selection, persistence across a restart, and the safety cap all behaved as written. But no tier renders crisply once the window fills the screen, and the tier the policy selects at that size is itself wrong: on this 2560x1440 display the game is handed a virtualised 2048x1152 viewport, which clears `UiScalePolicy`'s 1920x1080 bar but not its 2560x1440 one, so Auto resolves to 125% where the real screen deserves 150%. Cause in finding 1. **Fixed the same day**: the viewport is now real, so Auto resolves correctly with no change to `UiScalePolicy` itself. Back to `PENDING` for a re-run. **Set UI Scale to Auto before re-running** — the saved preference on the reporting machine is an explicit `100`, left over from this row's own sweep, and an explicit preference is honoured rather than overridden, so a re-run that skips this step measures the 100% tier and learns nothing about Auto | PENDING |
-| UI-5. Windowed startup | Select Windowed, close the game fully, and relaunch. It opens at 1280x720, cannot be resized below 1024x720, and all UI remains contained. | 2026-08-11, tester at the desktop: Windowed persisted across a full close and relaunch, the minimum size held, and the UI stayed contained | PASS |
 | UI-6. Fullscreen startup | Select Fullscreen, close the game fully, and relaunch. It opens in soft fullscreen at the current desktop resolution. Select Windowed, restart again, and confirm normal windowed startup returns. | 2026-08-11, tester at the desktop. The mode round-trip worked: Fullscreen persisted across a full close and relaunch, opened in soft fullscreen, and selecting Windowed restored normal windowed startup. It does not open at "the current desktop resolution" — it opens at the virtualised 2048x1152 the OS reports instead of the true 2560x1440 — and the text is pixelated throughout. Cause in finding 1. **Fixed the same day**: a logged fullscreen run now reports `client` and `viewport` both at the display's true 2560x1440. Back to `PENDING` because the row's own wording — that it opens at the current desktop resolution — is now satisfied in the log but has not been seen by a person | PENDING |
-| UI-7. Keyboard traversal | Open Menu and use Tab, Shift+Tab, W/S, and Up/Down. Focus visits the theme selector, six action buttons, gore, motion, auto camera, UI scale, and startup display exactly once before wrapping. Left/Right changes only the focused selector. | 2026-08-11, tester at the desktop: focus visited every control once and wrapped, and Left/Right moved only the focused selector | PASS |
-| UI-8. Motion Off | Select Motion Off. Hover, focus, and press menu and HUD buttons: state changes are immediate, with no animated positional movement, while hit targets remain stable. | 2026-08-11, tester at the desktop: state changes were immediate, nothing animated its position, hit targets held | PASS |
-| UI-9. Motion Reduced | Select Motion Reduced. Hover, focus, and press buttons: color transitions remain gentle, no control shifts position, and the setting takes effect immediately. | 2026-08-11, tester at the desktop: colour transitions stayed gentle, no control moved, and the setting applied without a restart | PASS |
-| UI-10. Motion Full | Select Motion Full. Hover and press buttons: transitions ease smoothly and a pressed control moves by no more than one active-scale pixel without changing its clickable bounds. | 2026-08-11, tester at the desktop: transitions eased smoothly and a pressed control moved within its bounds without shifting where it could be clicked | PASS |
-| UI-11. Cebu 1521 Court theme | Select `Cebu 1521 — Provisional` and confirm the selector label reads `PROVISIONAL RECONSTRUCTION`. The restrained dark hardwood, woven-fibre, warm metal, soot-black, and textile-red palette reads as a provisional early-contact chiefly-court interpretation rather than a generic European-medieval or modern national design; text and faction signals remain legible. | 2026-08-11, tester at the desktop: the selector label read `PROVISIONAL RECONSTRUCTION`, the palette did not read as European-medieval or modern-national, and text and faction signals stayed legible. Every criterion this row states was met. The tester separately dislikes how the theme looks; that is recorded as finding 2 rather than folded into this row's status, because the row asks what the palette reads as and not whether the reader wants to use it | PASS |
-| UI-12. Battle event log new-event accent | With a battle running and the event log panel visible, let a new event append while the log is on screen. At Motion Off, the new row's text renders in its final new-event accent colour immediately, with no colour fade. At Motion Reduced and Motion Full, the row's text eases from the new-event accent colour back toward the normal text colour over roughly 200 ms, and the two intensities look identical to each other. Row order, row height, and every other row are unaffected at every intensity. | 2026-08-11, tester at the desktop: the accent snapped at Motion Off and eased back at both Reduced and Full, the two looked identical, and no other row was disturbed | PASS |
-| UI-13. Selected-agent inspector accent | Select an agent, open the agent inspector, then select a different agent while the inspector stays open. At Motion Off, the inspector's accent updates to the newly selected agent immediately, with no colour fade. At Motion Reduced and Motion Full, the accent eases in from the emphasis colour over roughly 160 ms before settling, and the two intensities look identical to each other. Re-selecting the agent that is already selected does not retrigger the accent. | 2026-08-11, tester at the desktop: the accent updated instantly at Motion Off and eased in at both Reduced and Full, and re-selecting the same agent did not retrigger it | PASS |
-| UI-14. Selector arrow and active-marker interpolation | In the menu, hover the pointer over a selector's previous and next arrows (theme, gore, motion, auto camera, or UI scale) and change the selector's value. At Motion Off, the hovered arrow's highlight and the active-value marker snap instantly with no fade, and hit targets are unaffected. At Motion Reduced and Motion Full, the hovered arrow eases toward its highlighted colour and the marker eases toward its emphasis colour over the selector's pulse duration, and the two intensities look identical to each other. Moving focus without changing the selector's value does not retrigger the marker pulse. | 2026-08-11, tester at the desktop: arrows and the active marker snapped at Motion Off and eased at both Reduced and Full, hit targets were unaffected, and moving focus alone did not pulse the marker | PASS |
-| UI-15. Control-bar active strip | On the control bar, toggle play/pause and change the simulation speed. At Motion Off, each button's active strip snaps instantly to its active colour at its existing six-pixel width. At Motion Reduced and Motion Full, the strip's colour eases from the inactive border colour toward the active colour over roughly 120 ms when a button becomes active, and eases back when it deactivates; the two intensities look identical to each other. The strip's width and the button's hit target never change at any intensity. | 2026-08-11, tester at the desktop: the strip snapped at Motion Off and eased both ways at Reduced and Full, and its width and hit target never moved | PASS |
-| UI-16. Status-badge emphasis (one-shot, non-looping) | Cause the battle outcome to change, or toggle play/pause so the playing flag changes, and watch the status badge for several seconds afterward. At Motion Off, the badge's fill snaps to the new state's colour immediately with no pulse. At Motion Reduced and Motion Full, the badge briefly pulses toward its emphasis colour and settles back within roughly 450 to 650 ms, and the two intensities look identical to each other; the badge does not pulse again on its own while the state stays unchanged. Toggling the same state change again triggers a fresh, single pulse each time. | 2026-08-11, tester at the desktop: the badge snapped at Motion Off, pulsed once and settled at both Reduced and Full, never pulsed again on its own, and pulsed afresh on each repeat toggle | PASS |
 
 ### Findings from the 2026-08-11 UI run
 
@@ -843,251 +686,63 @@ rows are `PENDING`.**
 | 99. Watch the battle event feed during a live run | Events appear correctly and in the correct order for the whole run; nothing is missing, duplicated, or out of sequence. | Not run | PENDING |
 | 100. Pause, resume, and change speed repeatedly during a run | The feed survives every pause and every speed change without losing or duplicating a single entry. | Not run | PENDING |
 | 101. Let a battle run to its end | Once the battle ends, the feed shows nothing stale left over from the last live tick. | Not run | PENDING |
+## Visual improvement smoke — the three open rows
 
-## Visual improvement milestone smoke (VIS-041)
+Both improve-visuals families, `VIS-041` (rows 102 to 115) and `VIS-043` (rows
+116 to 133), were run by a person at an interactive Windows desktop on
+2026-08-11. It was the first time any of the thirty-two rows had been
+attempted; both sections had stood entirely `PENDING` since they were written.
 
-Covers the first milestone of
-the improve-visuals implementation plan draft
-(tasks VIS-001 through VIS-038, milestone-scoped subset), closing that plan's
-own VIS-041 task. **Not performed. Every row below is `PENDING`.** The
-automated suites landed alongside these tasks prove the catalog validation
-passes, the detail-tier and contrast-envelope thresholds fire at their exact
-pinned values, the missing-visual diagnostics dedupe and cap correctly, the
-reduced-motion truth table is exhaustive, and the MotionIntensity-Off sway
-path is bit-identical to a static backdrop by construction. None of that
-proves how the milestone's actual content — the Kalis tint family, the S1
-shield skin, the five levy presets, the grass ground and its sway, the
-diagnostic placeholder — reads to a person watching the screen, which is the
-only thing the rows below are for. Per `CLAUDE.md` section 6 item 4 and
-R-W6.17, only a human at an interactive Windows desktop may flip one of these
-rows to `PASS`, `FAIL`, or `BLOCKED`; compilation, unit tests, and a
-window-opening probe do not count, and no agent may perform this session.
+**Twenty-nine of the thirty-two rows passed and have been archived.** They are
+in
+[`../archives/2026-08-11/2026-08-11-visual-improvement-smoke.md`](../archives/2026-08-11/2026-08-11-visual-improvement-smoke.md),
+together with the session's evidence fields and the dagger notes that belonged
+to rows 106, 114, 121, and 133. Nothing there is an instruction, and nothing
+there is outstanding. If a later change touches weapon tints, shield skins, the
+appearance roster, the grass ground, the sway setting, or the visual-catalog
+fallback path, write fresh rows here rather than reviving the archived ones.
 
-**Review protocol.**
-
-- **Launch and seed.** Start from a fresh `./scripts/run.ps1` session, or
-  press `Shift+R` (Full Reset) if a session is already open. Either path
-  returns the seed to `1`, matching the milestone's recorded reference pair
-  (stateHash `A883926A3B93792E`, eventHash `2A9F2D7054CD1805` — see "The
-  preset V3 reference pair" above, the same pair VIS-045's canonical gate run
-  reproduced byte for byte). The package's planning documents cite the older
-  Phase 2 pair `27DC94C6E9A01E35` / `372C9217E5CB8BE9`; that pair was already
-  stale when the package began, because the V3 combat-preset merge changed the
-  ruleset after it was recorded. The neutrality claim is unaffected — it is a
-  before-and-after comparison on the same commit lineage, and both sides agree.
-  Every row below is observed against this seed-1 scenario unless the row says
-  otherwise.
-- **Camera stations.** Three fixed stations, named per row: minimum zoom
-  (zoomed fully out, the whole field visible at once), default fit (the
-  camera position the game opens in, before any zoom or pan input), and
-  maximum zoom (zoomed fully in, a close-up on one or two pawns). A row that
-  names more than one station must be observed at each one named before it
-  can be marked `PASS`.
-- **Themes.** Default and high-contrast, cycled through the in-game theme
-  selector. A row that names both themes must be observed under each before
-  it can be marked `PASS`.
-- **Settings permutations.** Gore Intensity and MotionIntensity are both
-  spectator-facing settings this milestone's rows can depend on; exercise
-  only the permutation a given row actually names. No row in this batch
-  depends on the Gore Intensity setting. The MotionIntensity setting (`Off`,
-  `Reduced`, `Full`) is exercised by the three sway rows and by the
-  operability row, each of which names the value or values it needs.
-- **Evidence.** Fill in the evidence-field table below once for the session
-  (date, machine/platform, source commit, launch path, and any screenshot
-  paths). Record what was actually seen in each row's `Actual` column, even
-  for a row that ends up `PASS` — "Not run" is only correct for a row that
-  was never attempted. Attach a screenshot under `artifacts/` for any row
-  where a picture is useful evidence; capture one for the forced-failure
-  placeholder row and for any row disposed `FAIL`, since those are the ones
-  a second reader is most likely to need to see rather than take on faith.
-- **Disposition.** Only a human at an interactive desktop may write `PASS`,
-  `FAIL`, or `BLOCKED` into a row's `Status` column; nothing in the plan, no
-  test, and no agent may. `PASS` requires the row's whole expected
-  observation to have actually been seen, exactly as stated — a row that was
-  only partly exercised stays `PENDING`, following the precedent set by rows
-  2, 4, 5, and 15 above, and the still-missing half is named in `Actual`
-  rather than left silent. `FAIL` records what was actually seen instead of
-  the expected observation. `BLOCKED` records the obstacle that prevented the
-  row from being exercised at all. A row untouched by this session stays
-  `PENDING`.
+**Three rows failed and stay here.** They are below, with what the tester
+actually said. A failing row is unfinished work, so it is not archived: the
+live checklist is where an open defect belongs.
 
 | Evidence field | Recorded value |
 | --- | --- |
-| Date | Not recorded |
-| Machine/platform | Not recorded |
-| Source commit | Not recorded |
-| Launch path (`source` or package path) | Not recorded |
+| Date | 2026-08-11 |
+| Machine/platform | Microsoft Windows 10.0.26200 (Windows 11 Pro) x64 |
+| Source commit | `4fbbdf9`, the repository head at the time of the run |
+| Launch path (`source` or package path) | `source`, via `./scripts/run.ps1` |
 | Optional screenshot paths | None recorded |
-
-Rows marked with a dagger (†) instantiate a requirement traced elsewhere in
-the plan and carry more weight than an ordinary readability check; the note
-below the table explains each one.
 
 | Check | Expected observation | Actual | Status |
 | --- | --- | --- | --- |
-| 102. Kalis tints at minimum zoom | At the minimum-zoom station, default theme, MotionIntensity Full, Kalis-armed pawns remain classifiable as Kalis-wielders; the `freshIron`/`wellOiled` tint difference is invisible or below the threshold of notice at this distance. | Not run | PENDING |
-| 103. Kalis tints at default fit | At the default-fit station, default theme, compare a `freshIron` and a `wellOiled` Kalis pawn side by side. The tint reads as material variation on the same weapon, never as a different weapon. | Not run | PENDING |
-| 104. Kalis tints at maximum zoom | At the maximum-zoom station, default theme, close in on a single Kalis pawn. The tint is visible without breaking weapon-role recognition — it still reads unmistakably as a Kalis. | Not run | PENDING |
-| 105. S1 shield distinguishable at minimum zoom | At the minimum-zoom station, default theme, compare a shield-bearing pawn (S1 `mactanThin`) against an unshielded pawn of the same weapon. Shield bearers are distinguishable from solo warriors without zooming in or clicking either. | Not run | PENDING |
-| 106. S1 shield reads as the same equipment † | At the default-fit station, default theme, examine an S1 `mactanThin` shield bearer. The skin reads as ordinary shield equipment, not as a different or a visibly reduced piece of equipment compared to an unshielded pawn's absence of one. | Not run | PENDING |
-| 107. Levy presets read as varied but coherent | At the default-fit station, default theme, observe the five levy clothing presets across the roster. The five read as visibly varied from one another while still reading as clothing belonging to the same army, not as unrelated or mismatched equipment. | Not run | PENDING |
-| 108. Levy presets do not misread faction or equipment | At the default-fit station, default theme, compare warriors wearing different levy presets across both factions. No preset reads as belonging to the other faction, and no preset reads as a different weapon or equipment identity than the pawn actually carries. | Not run | PENDING |
-| 109. Grass reads as grassland, not a checkerboard | Cycle through the minimum-zoom, default-fit, and maximum-zoom stations, default theme, observing the battlefield ground at each. At every station the ground reads as living grassland with grass clusters scattered across it, not as a flat repeating checkerboard tile pattern. | Not run | PENDING |
-| 110. Arena border still reads as the strongest line | At the default-fit station, default theme, compare the arena border against the new grass ground. The border remains the visually strongest line on the field; the grass rendering does not compete with it or make it harder to find. | Not run | PENDING |
-| 111. Sway reads as alive, not as noise | At the default-fit station, default theme, MotionIntensity Full, watch the grass during a busy engagement (multiple pawns fighting on screen at once). The sway reads as gentle, organic motion — alive — rather than as flicker or visual noise. | Not run | PENDING |
-| 112. No sway motion visible at minimum zoom | At the minimum-zoom station, default theme, MotionIntensity Full. No grass motion is visible at this distance — the detail-tier gate suppresses sway at minimum zoom regardless of the motion setting. | Not run | PENDING |
-| 113. High-contrast theme shows zero grass motion | At the default-fit station, high-contrast theme, MotionIntensity Full. The high-contrast theme shows zero grass motion, independent of the MotionIntensity setting. | Not run | PENDING |
-| 114. Motion setting is operable and gates sway exactly † | Open Menu, locate the Motion Intensity control, and cycle it through `Off`, `Reduced`, and `Full` while watching the grass at the default-fit station, default theme. The control is reachable and operable from the menu. `Off` shows exactly zero grass motion — the off switch is exact, not merely reduced. `Reduced` shows visibly damped motion. `Full` shows the full sway amplitude. | Not run | PENDING |
-| 115. Forced-failure placeholder is conspicuous | Run the forced-failure debug configuration that exercises the visual-catalog resolver's fallback path (see the resolver and its tests landed under VIS-003/VIS-004/VIS-008 for the specific trigger, as this document does not fix one that was not verified against the running build). Observe the affected element's position, then inspect the session's debug log on the `assets` channel. The diagnostic placeholder is conspicuously visible at the affected element's position — not blended in, not easy to miss — and the `assets` channel logs the fallback event exactly once for that identifier. | Not run | PENDING |
+| 128. Armored figures read as bulkier, not as shielded | At the default-fit or maximum-zoom station, default theme, compare a pawn wearing an armor-layer component (F2 through F5) against an unarmored pawn and against a shield-bearing pawn. The armored pawn reads as visibly bulkier through the torso, and does not read as if it were carrying a shield. | 2026-08-11, tester at the desktop: not clear. Investigated after the run and the cause is in the draw, not in the eye: `PawnRenderer.DrawArmor` filled the whole widened capsule solid in `BarkBrown`, replacing the torso's dye, outline, and belt with a flat block — a recolour rather than bulk, and a flat single block over the body is the silhouette a held shield draws. The widening itself was under a pixel at the default-fit station. A remedy shipped the same day; see the note below the table. | FAIL |
+| 129. Adornment accents visible at maximum zoom without breaking any read | At the maximum-zoom station, default theme, close in on a pawn wearing adornment accents (gold accents I4/I5, or the C3 gold-edged putong). The accents are visible without breaking weapon-role, faction, or equipment recognition. | 2026-08-11, tester at the desktop: not clear. Investigated after the run: `PawnGeometry.CreateAdornmentAccents` sized a mark as `min(2, round(2 × apparentScale))`, which can never exceed 2 because the constant appears on both sides of the `min`. An accent was two pixels at every zoom including the clamp ceiling, so this row could not have been passed at any station. A remedy shipped the same day; see the note below the table. | FAIL |
+| 131. Trampled areas visibly thin where fighting happened | During or after a battle with visible casualties, observe the grass around a cluster of `Death` events. The grass there reads as visibly thinned or trampled compared to untouched ground elsewhere on the field. | 2026-08-11, tester at the desktop: not clear. Investigated after the run: a trample mark drew at shade interpolation `0.22`, the exact tone of a Large grass cluster, with the grass drawn on top of it — the worn ground and the grass that was supposed to have thinned had no contrast against each other at all. The suppression radius of 40 world units also thinned part of one clump rather than an area. A remedy shipped the same day; see the note below the table. | FAIL |
 
-**Row 106** instantiates R-X.12's false-cause guard (no equipment reading as
-less mechanical coverage than another) for the milestone's single shipped
-shield skin. The full multi-skin comparison the guard was written for —
-whether a narrower S2/S5 skin reads as less coverage than S1, S3, or S4 —
-only becomes meaningful once VIS-014 ships the other three skins, which is
-post-milestone; that comparison gets its own row under VIS-043 when VIS-014
-lands, per OD-10's resolution (see the implementation plan around VIS-014 and
-the requirements-traceability table entry for R-X.12).
+**A remedy for all three shipped on 2026-08-11 and none of these rows may be
+flipped on account of it.** The design is
+[`../plans/2026-08-11-armor-accent-trample-legibility-design.md`](../plans/2026-08-11-armor-accent-trample-legibility-design.md).
+In short: armor now draws as two symmetric flank bars that thicken the body and
+leave the torso's dye visible, instead of one slab covering it; the accent area
+cap is read as the scale-relative bound R-W3.6's own wording states, so a mark
+is two pixels at apparent scale 1 and five at the clamp ceiling instead of two
+everywhere; and trampled stubble drops to a shade below every grass tone while
+the mark covers real ground, so a worn area has a boundary against the grass
+around it. The canonical gate passed with the seed-1 hashes unmoved, which is
+what a presentation-only change owes. **A green gate proves none of these three
+rows.** Each stays `FAIL` until a person at an interactive desktop looks at the
+screen again and says otherwise.
 
-**Row 114** is the milestone completion condition the plan's milestone
-section calls "sway off-switch exact" (implementation plan, First milestone
-section): the row requires observing that `MotionIntensity Off` produces
-literally zero grass motion, not merely a damped or reduced one, in addition
-to confirming the control is reachable from the menu.
-
-## Visual improvement full-package smoke (VIS-043)
-
-Covers every post-milestone task in
-the improve-visuals implementation plan draft
-whose own "Manual visual verification" section calls for a row that the
-milestone checklist above (VIS-041) did not already create: VIS-009, VIS-011,
-VIS-012, VIS-014, VIS-015, VIS-016, VIS-020, VIS-022, VIS-023, VIS-024,
-VIS-028, VIS-029, and VIS-033. Three further post-milestone tasks in that same
-list — VIS-006, VIS-019, VIS-021 — name no new row of their own; the audit
-table below explains why. VIS-027's row is a re-judgment of an existing
-milestone row rather than a new one, and VIS-036 is a hand-run measurement
-procedure, not a screen-look row, already recorded in its own section above.
-**Not performed. Every row below is `PENDING`.** As with VIS-041, only a
-human at an interactive Windows desktop may flip one of these rows to `PASS`,
-`FAIL`, or `BLOCKED`; compilation, unit tests, and a window-opening probe do
-not count, and no agent may perform this session, per `CLAUDE.md` section 6
-item 4 and R-W6.17.
-
-**Review protocol.** The launch-and-seed instructions, the three named camera
-stations (minimum zoom, default fit, maximum zoom), the default and
-high-contrast theme cycle, and the disposition rules (`PASS` requires the
-whole expected observation to have actually been seen; a partly-exercised row
-stays `PENDING`; `FAIL` records what was actually seen; `BLOCKED` records the
-obstacle) are the same protocol recorded under the VIS-041 section above and
-are not repeated here. The MotionIntensity and Gore Intensity settings are
-not exercised by any row in this batch.
-
-| Evidence field | Recorded value |
-| --- | --- |
-| Date | Not recorded |
-| Machine/platform | Not recorded |
-| Source commit | Not recorded |
-| Launch path (`source` or package path) | Not recorded |
-| Optional screenshot paths | None recorded |
-
-Rows marked with a dagger (†) instantiate a requirement traced elsewhere in
-the plan and carry more weight than an ordinary readability check; the note
-below the table explains each one.
-
-| Check | Expected observation | Actual | Status |
-| --- | --- | --- | --- |
-| 116. Weapon variants at minimum zoom, all four weapons | At the minimum-zoom station, default theme, with 200+ pawns: each of the four weapon roles (Kampilan, Wasay, Kalis, Itak) remains classifiable, and tint variation across all four is invisible or below the threshold of notice at this distance. | Not run | PENDING |
-| 117. Weapon variants at default fit, all four weapons | At the default-fit station, default theme: each pawn's weapon role is identifiable at a glance across all four weapons, and every tint reads as material variation on the same weapon, never as a different weapon. | Not run | PENDING |
-| 118. Weapon variants at maximum zoom, including the Wasay lashing band | At the maximum-zoom station, default theme, close in on pawns carrying each of the four weapons in turn. Tint and wear variation is visible without breaking role recognition for any of the four; the Wasay's rattan lashing band at the head-haft junction reads as a lashed band, not as damage or a new weapon part. | Not run | PENDING |
-| 119. Weapon inspector shows label, tier, and note | Select a pawn carrying each of the four weapons in turn. The inspector shows the unchanged pair-form weapon label, the selected variant's evidence tier, and its note; for a weapon with inspector-only entries (Kampilan k2, Kalis l2/l3), those appear labelled as later-or-provisional forms, never as anything the selected pawn is shown wearing. | Not run | PENDING |
-| 120. Pawns render identically to the pre-package build at all three zoom stations | Compare a pawn's rendered appearance today against the pre-package build at the minimum-zoom, default-fit, and maximum-zoom stations. Weapon grip position, shield position, and layer draw order all look unchanged — this task only added anchor fields and empty layer slots, it drew nothing new. | Not run | PENDING |
-| 121. Shield skins at default fit: four skins read as variation, S5 accent reads as binding † | At the default-fit station, default theme, compare shield-bearing pawns across all four shipped skins (S1 `mactanThin`, S2 `morgaFullBody`, S3 `boxerCagayan`, S5 `visayanKalasag`). All four read as variation of one shield, not as different pieces of equipment; on an S5-skinned pawn, the horizontal rattan accent reads as a binding detail, not as damage. | Not run | PENDING |
-| 122. Shield skins at maximum zoom: face tones, curvature, edge step, and angled posture | At the maximum-zoom station, default theme, close in on shield-bearing pawns across all four skins. Face tones, the S3 curvature, and the High-tier edge-tone step are all visible; the shield's angled forward posture (S12) reads as an active stance, not as a layout bug, for every skin. | Not run | PENDING |
-| 123. Shield skins under the high-contrast theme remain unambiguous | Switch to the high-contrast theme at the default-fit station. The shield block remains unambiguous against both torso and ground for all four skins — no skin blends into its background or becomes hard to identify as a shield. | Not run | PENDING |
-| 124. Shield inspector shows label, anchor tag, tier, note, and pending flags | Select a shield-bearing pawn for each of the four skins in turn. The inspector shows the plain label `Tall Hardwood Shield`, the skin's anchor tag, its evidence tier, and its note, including the pending-verification flags on the *kalasag* (S5) and, if OD-2's default stands, any *palisay* reference — with neither name appearing as a bare player-facing label anywhere in the panel. | Not run | PENDING |
-| 125. Fifty-plus presets read as varied but coherent at normal zoom | At the default-fit station, default theme, observe the full roster (levy plus Visayan, Tagalog, and Northern Luzon blocks) across both factions. The fifty-plus presets read as visibly varied from one another while still reading as clothing belonging to the same two armies, not as unrelated or mismatched equipment. | Not run | PENDING |
-| 126. Elite figures read as denser in gold and dye, not larger | At the default-fit station, default theme, compare an elite- or datu-marked preset (gold accents, richer dye) against an ordinary preset from the same block. The elite figure reads as denser in gold and dye detail; it never reads as a physically larger pawn. | Not run | PENDING |
-| 127. At minimum zoom, faction and weapon role remain the dominant reads | At the minimum-zoom station, default theme, with 200+ pawns drawn from the full roster across all blocks. Faction (by ground-ring color) and weapon role remain the dominant, most legible reads on the field; no preset's clothing or color competes with either for attention at this distance. | Not run | PENDING |
-| 128. Armored figures read as bulkier, not as shielded | At the default-fit or maximum-zoom station, default theme, compare a pawn wearing an armor-layer component (F2 through F5) against an unarmored pawn and against a shield-bearing pawn. The armored pawn reads as visibly bulkier through the torso, and does not read as if it were carrying a shield. | Not run | PENDING |
-| 129. Adornment accents visible at maximum zoom without breaking any read | At the maximum-zoom station, default theme, close in on a pawn wearing adornment accents (gold accents I4/I5, or the C3 gold-edged putong). The accents are visible without breaking weapon-role, faction, or equipment recognition. | Not run | PENDING |
-| 130. Appearance inspector shows preset name, scope tag, tier, and component notes | Select any pawn from the full roster. The inspector shows the preset's plain-English name, its scope tag, its evidence tier, a per-component tier list with must-not-generalize notes, pending-verification flags where applicable, and any non-renderable flavor lines — with no bare Filipino term appearing unpaired anywhere in the panel. | Not run | PENDING |
-| 131. Trampled areas visibly thin where fighting happened | During or after a battle with visible casualties, observe the grass around a cluster of `Death` events. The grass there reads as visibly thinned or trampled compared to untouched ground elsewhere on the field. | Not run | PENDING |
-| 132. Dust reads as impact punctuation, not weather (ships only if VIS-029 shipped) | If VIS-029 shipped this pass: during a busy engagement, observe the brief dust puffs spawned on `Death` (and, if implemented, a throttled `Attack`) events. The dust reads as a short, localized punctuation of an individual impact, not as ambient weather or a persistent haze across the field. If VIS-029 was not shipped this pass, record this row `BLOCKED` with that reason rather than leaving it silently unresolved. | Not run | PENDING |
-| 133. With 200+ pawns, faction remains readable by ring shape and position, hue disregarded † | At the default-fit station, default theme, with 200+ pawns on the field. A human with typical color vision judges the faction ring's shape-and-position channel alone, disregarding hue, and finds faction still distinguishable by that channel. | Not run | PENDING |
-
-**Row 121** instantiates R-X.12's false-cause guard for the full four-skin
-shield roster, completing the comparison that row 106 in the VIS-041 section
-above explicitly deferred to this task ("that comparison gets its own row
-under VIS-043 when VIS-014 lands, per OD-10's resolution"). Row 106 itself is
-left as recorded — it covered only the single milestone skin, S1, and is not
-edited or duplicated here.
-
-**Row 133** is an honest partial check, worded exactly as VIS-033's own task
-text requires: it holds only the no-regression floor that no new garment,
-tint, skin tone, or ground shade introduced by this package has become a
-competing faction signal. It is not color-blind verification. OD-7 defers the
-stronger shape-redundant faction marker to a backlog item in
-`docs/plans/TODO.md`; this row does not stand in for that marker.
-
-**Human review task, not a checklist row.** Both `implementation-plan-draft.md`
-(VIS-043's own goal) and `warrior-appearance-design.md` call for a line-by-line
-historical review of the full preset roster table against
-`docs/research/improve-visuals/warrior-appearance-historical-research.md`.
-That review is a human read-through of a document against another document,
-not an observation of the running game, so it does not belong in the table
-above as a `PASS`/`FAIL`/`BLOCKED` row. It is recorded here as an outstanding
-task: the review has not been performed, and per
-`implementation-plan-draft.md`'s VIS-044 entry, a failure found during that
-review routes to a content-correction task, not to a change in this testing
-document. It is due at VIS-044, the full-package manual review session,
-alongside the rows above.
-
-#### Criterion-to-row audit
-
-Every post-milestone task named in this section's opening paragraph, and the
-disposition of its own "Manual visual verification" section from
-`implementation-plan-draft.md`:
-
-| Task | Manual criterion (as stated in the task) | Disposition |
-| --- | --- | --- |
-| VIS-006 | None stated; runtime effect is observable only in a forced-failure build. | Already covered by row 115, created under VIS-041 for VIS-008's forced-failure placeholder path — the same observable effect VIS-006's catalog validator falls back through. No new row. |
-| VIS-009 | "Pawns render identically to the pre-package build at all three zoom stations." | Row 120. |
-| VIS-011 | "The three zoom rows across all four weapons; the Wasay lashing band reads as a band, not damage or a new weapon part." | Rows 116, 117, 118 (the maximum-zoom row, 118, carries the Wasay lashing-band clause, matching the single bundled row `weapon-visuals-design.md`'s own "Readability confirmation" section defines for maximum zoom). |
-| VIS-012 | "Inspector shows, for a selected pawn, the pair-form weapon label, the variant's evidence tier, and its note." | Row 119. |
-| VIS-014 | "The four skins read as variation of one shield, not different equipment"; "the S5 accent reads as binding, not damage"; "the maximum-zoom and high-contrast rows per the shield design." | Row 121 (first two clauses, bundled per `shield-visuals-design.md`'s own normal-zoom row), row 122 (maximum zoom, shared with VIS-015), row 123 (high-contrast). |
-| VIS-015 | "The angled posture reads as an active stance, not a layout bug (maximum zoom)." | Row 122, shared with VIS-014 — `shield-visuals-design.md`'s own maximum-zoom row bundles face tones/curvature/edge steps together with the angled-posture observation as one check performed at one station under one set of conditions. |
-| VIS-016 | "Inspector shows, for a selected shielded pawn, the plain shield label, the skin's anchor tag, tier, and note including pending flags." | Row 124. |
-| VIS-019 | None directly; "judged through the roster rows in VIS-043." | Covered by rows 125, 126, 127 below and by the existing rows 107/108 under VIS-041. No new row. |
-| VIS-020 | "Fifty-plus presets read as varied but coherent at normal zoom"; "elite figures read as denser in gold and dye, not larger." | Rows 125, 126. |
-| VIS-021 | "Shared roster rows in VIS-043." | Covered by rows 125, 126 and the existing row 108. No new row. |
-| VIS-022 | "Shared roster rows in VIS-043; at minimum zoom, faction and weapon role remain the dominant reads." | Row 127 (the new clause); the shared portion is covered by rows 125, 126, and 108 as with VIS-021. |
-| VIS-023 | "Armored figures read as bulkier, not as shielded"; "accents visible at maximum zoom without breaking any read." | Rows 128, 129. |
-| VIS-024 | "Inspector shows preset name, scope tag, tier, and component notes for any selected pawn." | Row 130. |
-| VIS-027 | "Ground reads as living grassland, not checkerboard, at all zooms (re-judged after this task)." | Reuses existing row 109 under VIS-041 — the identical criterion, re-observed against the new correlated-shading formula rather than the independent per-cell hash it replaces. No new row; row 109 is not edited. |
-| VIS-028 | "Trampled areas visibly thin where fighting happened." | Row 131. |
-| VIS-029 | "Dust reads as impact punctuation, not weather (wording finalized when unblocked)." | Row 132, worded to account for the task's optional-per-OD-9 status. |
-| VIS-033 | "With 200+ pawns, faction remains readable by ring shape and position when hue is disregarded" (honest wording). | Row 133. |
-| VIS-036 | None; "the run itself is the hand procedure," BLOCKED-honest if no desktop. | Not a screen-look row. Already recorded, and already disposed `BLOCKED, honestly`, in the "Render performance measurement — full matrix (VIS-036)" section earlier in this document. No new row. |
-
-Eighteen new rows (116 through 133) were created by this task, all `PENDING`.
-No row born flipped, per VIS-043's own prohibited-scope clause.
-
-## Collision firmness, battle report, and window shell smoke — complete, archived
-
-**All fifteen rows, 134 through 148, are `PASS` and this section has moved.** It
-closed on 2026-08-11 on a single interactive run, with no code change needed
-between attempts. The rows, the observations, and the note on which SDL
-P/Invokes that run does and does not vouch for are in
-[`../archives/2026-08-11/2026-08-11-collision-report-window-shell-smoke.md`](../archives/2026-08-11/2026-08-11-collision-report-window-shell-smoke.md).
-
-Row 137 executed `SDL_MinimizeWindow` for the first time in this repository and
-it worked. That says nothing about `SDL_MaximizeWindow`, `SDL_RestoreWindow`, or
-`SDL_GetWindowFlags`, which are still unexecuted and are covered by rows 165 to
-167 in the section immediately below.
-
-Nothing in the archive is an instruction. If a later change touches collision
-firmness, the battle report panel, or the borderless window shell, write fresh
-rows here rather than re-running the archived ones.
+**Still outstanding, and not a row.** Both the implementation plan draft and
+`warrior-appearance-design.md` called for a line-by-line historical review of
+the full preset roster table against
+`docs/research/improve-visuals/warrior-appearance-historical-research.md`. That
+is a human read-through of one document against another rather than an
+observation of the running game, so it never was a checklist row and the
+2026-08-11 session did not touch it. It has not been performed. A failure found
+during it routes to a content-correction task, not to a change in this
+document.
 
 ## Quit confirmation, maximize, and Core faction metrics smoke (2026-07-28)
 
@@ -1095,10 +750,11 @@ Added by the quit-confirmation, maximize and faction metrics plan.
 **A passing gate proves none of the rows below.** Every one needs a human at an
 interactive desktop, and no agent may flip one to `PASS`.
 
-The maximize and restore rows deserve the same suspicion as the minimize row
-above them: `SDL_MaximizeWindow`, `SDL_RestoreWindow`, and `SDL_GetWindowFlags`
-are P/Invokes that compile cleanly and have never been executed in this
-repository. A clean build is no evidence that any of them works.
+The maximize and restore rows deserve particular suspicion:
+`SDL_MaximizeWindow`, `SDL_RestoreWindow`, and `SDL_GetWindowFlags` are
+P/Invokes that compile cleanly and have never been executed in this repository.
+A clean build is no evidence that any of them works. `SDL_MinimizeWindow` has
+been executed and does work, which says nothing about these three.
 
 | # | Step | Expected | Result | Status |
 | --- | --- | --- | --- | --- |
@@ -1126,7 +782,16 @@ Added by the formation and movement realism change (T18 of
 which flips the default `Scenario.MovementPreset` to `PersistentContingentsV2`.
 **Partially performed on 2026-07-28.** Rows 102, 103, 104, 105, 111 and 114 were
 observed in one hands-off pass at the default camera fit. Rows 106, 107, 108,
-109, 110, 112 and 113 remain unobserved. Rows 104 and 114 failed. The automated
+109, 110, 112 and 113 remain unobserved. Rows 104 and 114 failed.
+
+**Row 111 passed and is no longer in the table**, lifted out on 2026-08-11 into
+the 2026-08-11 record **"Closed rows lifted out of families that are still
+open"**, named rather than linked for the reason given at the top of this file,
+with its evidence. It is the only row of this section that ever closed. Note
+that it closed under `PersistentContingentsV2`, and the shipped default is now
+`BattlefieldRealismV10`, so if a later question turns on whether the battle
+still resolves, write a fresh row rather than reading the archived one as
+current. The automated
 suite —
 `MovementPresetRegistryTests`, `FormationRulesTests`,
 `ContingentOffsetTests`, `ContingentStateMachineTests`, `ArrivalTaperTests`,
@@ -1183,7 +848,6 @@ window-opening probe do not.
 | 108. Inspect the contingent row | Selecting any warrior shows a `Contingent: <n> — <state>` row in the inspector, and that state changes over the course of the battle rather than reading the same value throughout. | Not run | PENDING |
 | 109. Confirm the contingent ground tints are distinguishable | The eight contingent ground tints within one faction are distinguishable from each other at the default camera fit, and no tint is mistakable for the opposing faction's colour, at all six themes. | Not run | PENDING |
 | 110. Confirm the frozen preset is unaffected | Running the same seed under `IndependentPursuitV1` looks exactly as the game looks today: no gathering, no per-contingent tint, and no contingent row in the inspector. | Not run | PENDING |
-| 111. Confirm the battle still resolves | A full 200-agent battle reaches a terminal outcome. Neither side stands gathered and unmoving until the tick limit. | The battle reached a terminal outcome and a winner was declared. | PASS |
 | 112. Watch a group reach a map edge or corner | A group whose warriors reach a map edge or a corner keeps moving and fighting there rather than piling into the boundary and staying put. This is the visible face of the map-edge open-ground rule in design section 3.5. | Not run | PENDING |
 | 113. Watch two groups collide and separate | Two groups on the same side that walk into each other come apart again and carry on advancing, rather than jamming into one stationary mass. This is the visible face of the cross-contingent rule in design section 3.5. | Not run | PENDING |
 | 114. Watch whether gathering keeps appearing across the whole advance | Groups read as groups for the whole of the advance, not only in the first few seconds after deployment. Watch a full battle at the default camera fit and judge whether gathering behaviour keeps appearing across several different groups as the armies converge, or whether it happens once near the start and then stops. This is the spectator half of the inertness bar in design section 10.3 — the automated half asserts thresholds on how often cohesion is granted, and only a person can say whether the result looks like several groups advancing or like one crowd that briefly twitched. | Not run | PENDING |
@@ -1537,9 +1201,7 @@ automatically a failure of the mark.
 **No interactive run was performed for this change.** Every row below is
 `PENDING`. These rows were drafted in the plan on 2026-07-28 and moved here on
 2026-08-07; they were never in this file while the workstream ran, which is why
-no human has worked from them. The archived plan is
-[2026-07-28-gpu-render.md](../archives/2026-08-07/gpu-render/2026-07-28-gpu-render.md)
-and this copy is now the live one.
+no human has worked from them. This copy is the live one.
 
 What the automated work already proves, and what it does not: the render probe
 recorded a 1,000-unit default-fit `Draw` p95 of 3 276.6 us against an 8.0 ms
@@ -1685,8 +1347,7 @@ that a shield block attaches to the shield rather than to the body part it also
 carries, that the pool never exceeds 256 slots and evicts oldest-first, and
 that the quad budget still fits. None of them prove that a spectator can tell a
 spear from an arrow from a lead ball while a battle is running, or that a stuck
-arrow reads as stuck rather than as a smear. Plan:
-`docs/archives/2026-08-11/2026-08-11-projectile-props.md`.
+arrow reads as stuck rather than as a smear.
 
 Rows PP-4 through PP-7 need a battle that actually lands ranged hits, so they
 cannot be attempted before RG-1 is attemptable.
@@ -1704,8 +1365,20 @@ cannot be attempted before RG-1 is attemptable.
 
 ## Attack animation V2 smoke (2026-08-08)
 
-**No interactive run was performed for this change.** Every row below is
-`PENDING`. The automated tests prove the weapon-motion catalog, the
+**Six rows passed and are no longer in the table** — `AA-1`, `AA-2`, `AA-3`,
+`AA-4`, `AA-6`, and `AA-17`, lifted out on 2026-08-11 into
+the 2026-08-11 record **"Closed rows lifted out of families that are still
+open"**, named rather than linked for the reason given at the top of this file,
+with their evidence. What remains below is 17 `PENDING` and one `FAIL`, `AA-22`.
+**Read the archived six against the note on fullscreen resolution in the run
+record beneath this paragraph**: they were observed at 2048x1152, which is the
+virtualised viewport a DPI-unaware process was handed on that display. The DPI
+awareness fix of 2026-08-11 means the same run today would be at 2560x1440, so
+any of the six that turned on glyph or silhouette legibility is worth a fresh
+row rather than trust in the archived result.
+
+**No interactive run was performed for the rows below when this section was
+written.** The automated tests prove the weapon-motion catalog, the
 contact-latched timeline, the target-local geometry, the articulated arm
 rectangles, the defender reaction offsets, the shield overlay legality, the
 motion-intensity policy, the quad accounting, and the conservative cull's
@@ -1738,12 +1411,7 @@ measurement, not a visual one, and it flips no row below.
 
 | ID | Action | Expected | Observed | Result |
 | --- | --- | --- | --- | --- |
-| AA-1 | Watch a Kampilan warrior strike at close zoom | The broadest of the four arcs, both hands on the blade, a planted weight transfer | Reads as the broad one. Confirmed as part of the four-way comparison rather than in isolation. | PASS |
-| AA-2 | Watch a Wasay warrior strike at close zoom | The head arrives late and stops hard; the support hand anchors the haft; the longest recovery of the four | Reads as the late, heavy one. Confirmed as part of the four-way comparison rather than in isolation. | PASS |
-| AA-3 | Watch a Kalis warrior strike at close zoom | A mostly linear extension toward the target rather than a broad cut, with the fastest return | Reads as the linear one. Confirmed as part of the four-way comparison rather than in isolation. | PASS |
-| AA-4 | Watch an Itak warrior strike at close zoom | The shortest, quickest chop, alternating side between consecutive blows | Reads as the short one. The combo side alternation was not separately confirmed. | PASS |
 | AA-5 | Watch each of the four weapons at 1x, 2x, and 4x | Every blow stays individually visible; nothing blurs into a single continuous motion at 4x | | PENDING |
-| AA-6 | Watch a blow that lands | The weapon reaches the named target, blood and the defender's recoil arrive on the same frame as the weapon | The blow lands on the warrior it names, with blood and recoil on the same frame. | PASS |
 | AA-7 | Watch a blow a shield blocks | The defender braces into the contact rather than being driven back, and the clash reads on the shield | Outcomes look distinct, but the observer reported being unable to follow which outcome resolved which exchange in a live 500-agent battle. Not certifiable at this density. | PENDING |
 | AA-8 | Watch a parried blow | Attacker and defender weapons visibly meet and redirect across the line of the blow | As AA-7: distinctness observed, individual attribution not possible at this density. | PENDING |
 | AA-9 | Watch a deflected blow | A shallower glance than the parry, continuing rather than reversing | As AA-7: distinctness observed, individual attribution not possible at this density. | PENDING |
@@ -1754,7 +1422,6 @@ measurement, not a visual one, and it flips no row below.
 | AA-14 | Watch a shielded Itak warrior strike (registered V2 replay) | As AA-13, with the compact chop rather than the thrust | | PENDING |
 | AA-15 | Watch attacks at Low, Medium, and High detail | Low keeps direction and outcome with no arms and no trail; Medium and High draw the full rig | Articulated arms are present but reported as "not significantly seen" at the zoom used. The three tiers were not compared against each other. | PENDING |
 | AA-16 | Set motion to Full, then Reduced, then Off | All three keep direction, reach, and which outcome resolved the blow; Reduced damps the body; Off removes the trail entirely | | PENDING |
-| AA-17 | Pause on the frame of a contact | The pose, the effect, the reaction, and the sound freeze together; nothing advances while paused | Everything freezes together. Three pause/resume cycles during combat, at ticks 94, 119 and 147. | PASS |
 | AA-18 | Pause during a catch-up burst, then resume | Queued contacts resume in order and none is duplicated or lost | | PENDING |
 | AA-19 | Next Round, then Full Reset, during active combat | Every attack pose, pending contact, reaction, and transient effect is cleared by both | Next Round exercised and the second battle ran clean; Full Reset was never triggered. | PENDING |
 | AA-20 | Watch a 200-warrior battle at close zoom | Individual exchanges are readable; the arms and trails do not obscure who is fighting whom | | PENDING |
@@ -1765,8 +1432,7 @@ measurement, not a visual one, and it flips no row below.
 
 ## Battlefield realism cohort and retreat smoke (task 18)
 
-Added by the battlefield realism change
-([2026-08-11-battlefield-realism.md](../archives/2026-08-11/2026-08-11-battlefield-realism.md), archived once its build merged),
+Added by the battlefield realism change,
 which flips the client's default preset combination to `PrecolonialPhilippinesV5`
 plus `MovementPresetId.BattlefieldRealismV10`. **No interactive run was
 performed for this change.** Every row below is `PENDING` with its evidence
