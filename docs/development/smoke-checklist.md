@@ -1713,3 +1713,37 @@ measurement, not a visual one, and it flips no row below.
 | AA-23 | Watch a warrior strike while moving | The attack plants the stance and composes with the stride; the body does not jump between two poses | | PENDING |
 | AA-24 | Watch a warrior at the edge of the arena panel strike outward | The weapon does not pop in or out at the panel edge as the blow extends | | PENDING |
 
+## Battlefield realism cohort and retreat smoke (task 18)
+
+Added by the battlefield realism change
+([2026-08-11-battlefield-realism.md](../plans/2026-08-11-battlefield-realism.md)),
+which flips the client's default preset combination to `PrecolonialPhilippinesV5`
+plus `MovementPresetId.BattlefieldRealismV10`. **No interactive run was
+performed for this change.** Every row below is `PENDING` with its evidence
+cell empty. The automated suite proves the cohort sort order, the
+shield-bearer slot pairing inside each contingent, the threat-radius
+arithmetic, the retreat ladder's three rungs, the per-index and positional
+mirror assertions, and the twenty-seed termination sweep. None of it proves
+that a spectator can read a cohort as mostly one weapon, that a shield bearer
+visibly leads its own group, that a back-pedalling shooter reads as retreating
+rather than as fleeing or stuck, or that the taller inspector panel still fits
+the smallest supported window — which is what the rows below are for. Design:
+`docs/plans/2026-08-11-battlefield-realism-design.md`.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+certify one of these rows. Compilation, unit tests, and a window-opening probe
+do not.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| BR-1 | Watch a contingent form up after deployment, at the default camera fit | The contingent reads as mostly carrying one weapon, with only a few warriors of a different weapon visible at its edges, rather than an even mix across the group. Failure is a contingent that still looks like a uniform round-robin blend of every weapon in the roster, indistinguishable at a glance from the pre-V10 grouping | | PENDING |
+| BR-2 | Watch a contingent that includes shield bearers, before it makes contact with the enemy | The shield bearers are visibly at the forward-most slots of their own contingent — ahead of their contingent's other warriors on the approach — rather than scattered through the group or clustered only at the edge of the whole army. Failure is a contingent where a shield bearer cannot be picked out as leading its own group, or where the leading edge is indistinguishable from an unshielded warrior's | | PENDING |
+| BR-3 | Watch one contingent's shield bearers make first contact with the enemy, then watch how long the warriors behind them keep fighting | The shield bearers are the ones who take the opening blows, and the warriors sheltered behind them survive visibly longer than they would standing in the open — the shield bearers read as absorbing the first exchanges rather than being bypassed. Failure is the enemy reaching the unshielded warriors behind the shield bearers just as quickly as the shield bearers themselves, or the shield bearers falling in the opening exchange with no visible difference in how long their own contingent's other warriors then last | | PENDING |
+| BR-4 | Compare the two factions' starting deployments under the default rotating roster, at the default camera fit | The two sides read as positionally equivalent — similar contingent shapes and similar cohort groupings on each flank — without being warrior-for-warrior mirror images of each other; a warrior at a given position on one side does not necessarily correspond to the same weapon at the mirrored position on the other side. Failure is the two sides reading as exact per-index mirrors indistinguishable from the pre-V10 mirrored layout, or reading as unrelated rather than equivalent | | PENDING |
+| BR-5 | Watch a ranged warrior (Bangkaw, Busog, or Arquebus) whose standoff distance a melee enemy closes inside | The ranged warrior visibly backs directly away from the closing melee enemy rather than holding its ground and continuing to fire. Failure is the ranged warrior standing still and shooting as the melee enemy closes to contact, indistinguishable from its behaviour before this change | | PENDING |
+| BR-6 | Watch a ranged warrior that is backing away from a melee enemy until it is stopped by the map edge or a corner | Once cornered, the ranged warrior stops backing away and stands its ground rather than continuing to retreat in place or oscillating at the boundary. Failure is a cornered ranged warrior that appears to keep trying to back away indefinitely — visibly jittering, sliding along the edge, or kiting back and forth — instead of settling into a stationary hold | | PENDING |
+| BR-7 | Watch the same back-pedalling ranged warrior from BR-5 with an eye specifically toward how the motion reads, as distinct from whether it happens at all. **This row has no automated proxy; it is a judgement call only a person watching the game can make.** | The retreat reads as a warrior deliberately backing away from a threat — facing the danger, moving with evident purpose — rather than as panicked flight, and rather than as a warrior stuck sliding against terrain or another agent. Record in `Actual` which of the three readings the observer actually got: backing away, fleeing, or stuck | | PENDING |
+| BR-8 | Watch a full battle between two rosters that each field ranged warriors, under V10, to its conclusion | The battle reaches a terminal outcome — one side is defeated or the tick limit is reached with a clear winner — rather than a ranged side backing away for the whole of the tick limit and the battle never resolving. Failure is a battle that visibly stalls, with the ranged side perpetually retreating and no side able to close and finish the fight | | PENDING |
+| BR-9 | Click a ranged warrior that is backing away from a melee enemy, then click one that is holding at range with no melee threat nearby, and read both inspector panels | The two intent strings — "Backing away from close fighters" and "Holding at range" — are both legible at a glance and clearly distinct from each other; a spectator reading the inspector can tell which of the two states the warrior is in without needing to also watch the battlefield. Failure is either string being hard to read at the panel's default size, or the two strings reading as similar enough to be mistaken for each other | | PENDING |
+| BR-10 | Resize the game window down to the smallest supported size, 1024 by 720, and open the agent inspector on a warrior whose panel renders at its full 953-pixel height | The panel still fits within the window at that size without clipping against the window edge and without overlapping the HUD, the control bar, or the event feed. Failure is the taller panel running off the bottom or side of the window at the minimum size, or covering another HUD element that was clear of it before this change | | PENDING |
+
