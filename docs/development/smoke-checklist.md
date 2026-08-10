@@ -23,12 +23,15 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-11
 
-333 rows across 28 subsections: **287 `PENDING`, 15 `BLOCKED`, 28 `PASS`,
-3 `FAIL`**, counted from the status column of this file on 2026-08-11. The
-earlier figure here, 105 rows across 29 subsections, did not match the file and
-appears to have survived the split out of `docs/development/testing.md`;
-recount before trusting any total. The families below are grouped by what a
-single launch can actually
+343 rows across 29 subsections: **296 `PENDING`, 15 `BLOCKED`, 29 `PASS`,
+3 `FAIL`**, recounted from the status column of this file on 2026-08-11 after
+the weapon-clash re-run and the battlefield realism rows landed. Two earlier
+figures here were wrong — 105 rows across 29 subsections, which appears to have
+survived the split out of `docs/development/testing.md`, and 333 rows across 28
+subsections, which was counted on a branch before battlefield realism's ten rows
+merged. **Recount before trusting any total**; that instruction has now been
+earned twice. The families below are grouped by what a single launch can
+actually
 show, because the subsections are ordered by the change that created them
 rather than by what is on screen at once, and a person working down the file in
 order relaunches the game far more often than they need to.
@@ -38,7 +41,8 @@ order relaunches the game far more often than they need to.
 | Ranged | `PP` 8, `RG` 11 | 19 `PENDING` | A battle fielding Bangkaw, Busog, and Arquebus warriors. The shipped client runs combat preset V5 and movement preset V8, so ranged units are on the field by default at roughly a 14 per cent share |
 | Pawn animation | `AA` 17, `GA` 14 | 31 `PENDING` | Warriors striking and walking, close in. `AA` also holds the one open `FAIL`, AA-22 |
 | Markers | `LC` 11, `L` 7 | 18 `PENDING` | Leaders and contingents at default zoom, plus the agent inspector |
-| Feed, UI, render | `CL` 12, `GR` 5 | 9 `PENDING`, 8 `PASS` | The event feed, typography, and launch-time render behaviour. The `CL` clash rows were run on 2026-08-11 — 8 `PASS`, and four re-runs after the combat-cadence change: CL-1, CL-3, CL-7a, CL-7b |
+| Feed, UI, render | `CL` 12, `GR` 5 | 5 `PENDING`, 12 `PASS` | Typography and launch-time render behaviour. **The `CL` clash family is complete** — all 12 rows `PASS` as of 2026-08-11, the last four after the combat-cadence change |
+| Battlefield realism | task 18 rows | 10 `PENDING` | Cohort deployment and the V10 retreat rung |
 | Sandata | `SD` | 5 `BLOCKED`, 2 `PASS`, 2 `FAIL` | `./scripts/run.ps1 -Game Sandata` |
 | Pressure interrupt | `P` | 9 `BLOCKED`, 1 `PENDING` | **Not runnable today** — see below |
 | Weapon identity | `V2` | 6 `PASS`, 3 `PENDING`, 1 `BLOCKED` | Run on 2026-08-11. The three `PENDING` rows are re-runs: one waiting on the click-target fix that landed the same day, two rewritten after the run |
@@ -343,47 +347,55 @@ favour of the existing sound-gain section.
 
 ## Weapon clash smoke (preset V2)
 
-An interactive run was performed on 2026-08-11 at commit `0c3f7f2`. Eight rows
-passed and three failed — CL-1, CL-3, and CL-7. All three were legibility
-failures rather than logic failures: the effects rendered, but they overlapped
-each other densely enough that a spectator could not attribute an individual one
-to an individual blow.
+**This family is complete: all twelve rows `PASS`.** It took two interactive
+runs and a ruleset change between them.
 
-**Those three rows have since been worked on and are `PENDING` again**, so they
-need a fresh interactive run. The 2026-08-11 observation is preserved in the
-`Actual` column of each, prefixed `2026-08-11 FAIL`, because a re-run is only
-meaningful against what was seen the first time. The eight passing rows keep
-their result; nothing in the combat-cadence change touches what they assert.
-CL-7 is now two rows, CL-7a and CL-7b, because it was two defects wearing one
-row — see section 4 of
-[`../plans/2026-08-11-combat-cadence-v6-design.md`](../plans/2026-08-11-combat-cadence-v6-design.md).
+The first run, on 2026-08-11 at commit `0c3f7f2`, passed eight rows and failed
+three — CL-1, CL-3, and CL-7. None was a logic failure. Every effect rendered;
+they simply overlapped each other densely enough that a spectator could not
+attribute an individual one to an individual blow. The observer's own diagnosis
+was that blows arrived too often, and it was right.
 
-**No agent may flip CL-1, CL-3, CL-7a, or CL-7b to `PASS`.** A person at an
-interactive desktop does that, after watching a battle. A green suite and a
-green gate are not evidence about any of them.
+The combat cadence change answered it. `PrecolonialPhilippinesV6` restates V4's
+tables and retunes only cadence and damage, so blows land roughly half as often
+and hurt roughly twice as much at a near-constant damage per tick — the
+artefact rate is the attack rate, so halving one halves the other without
+changing how long a battle lasts. CL-7 turned out to be two defects wearing one
+row and was split: CL-7a is the 1x cadence, and CL-7b is the 4x animation
+compression, which no simulation change could have fixed because it was applied
+on top of whatever cadence the simulation produced. That half needed
+`AttackAnimationSystem.MaximumAnimationSpeedMultiplier`. See
+[`../plans/2026-08-11-combat-cadence-v6-design.md`](../plans/2026-08-11-combat-cadence-v6-design.md),
+section 4.
+
+The second run, later the same day, passed all four re-opened rows. Both
+observations are preserved in the `Actual` column of each, because a row that
+records only its final state does not explain why the code looks the way it
+does.
 
 Rows marked with a dagger (†) are the ones that decide something about the
 design rather than merely confirm it — see design section 3.8 for the recorded
-disposition if the void-versus-landed row returns `FAIL`.
+disposition if the void-versus-landed row returns `FAIL`. Both returned `PASS`,
+so that disposition was never needed.
 
 | Evidence field | Recorded value |
 | --- | --- |
-| Date | 2026-08-11 |
+| Date | 2026-08-11, two runs |
 | Machine/platform | Microsoft Windows 10.0.26200 (Windows 11 Pro) x64 |
-| Source commit | `0c3f7f2` for the eight recorded results; the four `PENDING` rows need a run at or after the combat-cadence change |
+| Source commit | `0c3f7f2` for the first run; the four re-runs were at or after the combat-cadence change, `main` at `982bd6f` |
 | Launch path (`source` or package path) | `source`, via `./scripts/run.ps1` |
 | Optional screenshot paths | None recorded |
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| CL-1 | Watch the battle event feed for one exchange of each resolution | The five lines are distinguishable: a damage line for `Landed`, "stopped by the shield" for `ShieldBlocked`, "parried" for `Parried`, "turned aside" for `Deflected`, "stepped off the line" for `Evaded` | 2026-08-11 FAIL at `0c3f7f2`: not distinguishable in practice. The five wordings exist, but too many resolutions arrived at once for an observer to match a line to the blow that produced it. The combat-cadence change roughly halves the line rate; whether that is enough is what this re-run decides | PENDING |
+| CL-1 | Watch the battle event feed for one exchange of each resolution | The five lines are distinguishable: a damage line for `Landed`, "stopped by the shield" for `ShieldBlocked`, "parried" for `Parried`, "turned aside" for `Deflected`, "stepped off the line" for `Evaded` | 2026-08-11 FAIL at `0c3f7f2`: not distinguishable in practice. The five wordings exist, but too many resolutions arrived at once for an observer to match a line to the blow that produced it. The combat-cadence change roughly halves the line rate; whether that is enough is what this re-run decides Re-run 2026-08-11 after the combat-cadence change: **PASS**. The observer's words: "now it is clearer". The five wordings are distinguishable at the halved line rate | PASS |
 | CL-2 | Watch a shield-blocked, parried, or deflected blow | No blood spray and no impact ring appear for any of the three | As expected | PASS |
-| CL-3 | Watch the clash cross render | It appears for `ShieldBlocked`, `Parried`, and `Deflected`, and for neither `Landed` nor `Evaded` | 2026-08-11 FAIL at `0c3f7f2`: too fast to attribute. Individual clash crosses overlapped one another, so a shield block, a parry, and a deflection could not be told apart in flight. The combat-cadence change roughly halves the clash-cross rate | PENDING |
+| CL-3 | Watch the clash cross render | It appears for `ShieldBlocked`, `Parried`, and `Deflected`, and for neither `Landed` nor `Evaded` | 2026-08-11 FAIL at `0c3f7f2`: too fast to attribute. Individual clash crosses overlapped one another, so a shield block, a parry, and a deflection could not be told apart in flight. The combat-cadence change roughly halves the clash-cross rate Re-run 2026-08-11 after the combat-cadence change: **PASS**. Clash crosses no longer overlap one another at the halved attack rate, so a shield block, a parry, and a deflection can be told apart in flight | PASS |
 | CL-4 † | Distinguish a void from a shield block | An `Evaded` blow (no clash cross, follow-through swing) reads differently on screen from a `ShieldBlocked` blow (clash cross, recoil) without reading the event log | As expected | PASS |
 | CL-5 † | Distinguish a void from a landed blow | An `Evaded` blow (follow-through swing, no blood, no impact ring) reads differently on screen from a `Landed` blow (stops on target, blood, impact ring) without reading the event log | As expected | PASS |
 | CL-6 | Watch any warrior attack | Weapons visibly swing through an arc rather than sitting static during an attack | As expected | PASS |
-| CL-7a | Watch one attack at 1x | The swing reads as one countable action, with visible rest either side of it rather than running straight into the next swing | 2026-08-11 FAIL at `0c3f7f2`: the single-action reading was not visible enough to confirm. Under the old cadence an Itak swung every 200 ms while its recovery animation ran 170 ms, so consecutive swings very nearly abutted; the cadence change roughly doubles the interval | PENDING |
-| CL-7b | Watch the same weapon at 4x | The swing is still drawn long enough to read as one action rather than smearing into a blur | 2026-08-11 FAIL at `0c3f7f2`, as part of the undivided CL-7. Attack timelines were aged by the full playback multiplier, so a 0.17-second recovery drew in 0.0425 seconds — two to three frames at 60 Hz. `AttackAnimationSystem.MaximumAnimationSpeedMultiplier` now holds the animation clock at 2x | PENDING |
+| CL-7a | Watch one attack at 1x | The swing reads as one countable action, with visible rest either side of it rather than running straight into the next swing | 2026-08-11 FAIL at `0c3f7f2`: the single-action reading was not visible enough to confirm. Under the old cadence an Itak swung every 200 ms while its recovery animation ran 170 ms, so consecutive swings very nearly abutted; the cadence change roughly doubles the interval Re-run 2026-08-11 after the combat-cadence change: **PASS**. The doubled attack interval leaves visible rest either side of a swing, so it reads as one countable action | PASS |
+| CL-7b | Watch the same weapon at 4x | The swing is still drawn long enough to read as one action rather than smearing into a blur | 2026-08-11 FAIL at `0c3f7f2`, as part of the undivided CL-7. Attack timelines were aged by the full playback multiplier, so a 0.17-second recovery drew in 0.0425 seconds — two to three frames at 60 Hz. `AttackAnimationSystem.MaximumAnimationSpeedMultiplier` now holds the animation clock at 2x Re-run 2026-08-11 after the animation-speed ceiling: **PASS**. The swing no longer compresses past 2x and stays legible at 4x | PASS |
 | CL-8 | Compare a `Parried` or `Deflected` blow, a `Landed` blow, and an `Evaded` blow | The clashed blow visibly recoils, the landed blow stops on the target, and the void follows through past it | As expected | PASS |
 | CL-9 | Zoom to high detail, then to low detail, during a swing | The swing arc trail is visible at high zoom and absent at low zoom | As expected | PASS |
 | CL-10 | Pan the camera so a swinging weapon crosses the arena panel edge | A weapon tip may be visibly clipped at the panel edge while panning — this is the accepted cost of the pose-blind frustum cull, not a defect | As expected | PASS |
@@ -646,38 +658,42 @@ window-opening probe do not.
 
 ## Responsive menu, startup display, and UI motion smoke
 
-Added by the UI/UX completion work. **Not performed.** Automated layout tests
-prove containment and hit-target invariants at representative viewports, but
-only a person at an interactive Windows desktop may judge crispness, historical
-visual coherence, focus clarity, and motion comfort. Keep these rows `PENDING`
-until that observation is performed.
+Added by the UI/UX completion work. **Run by a person on 2026-08-11.** Every
+row was attempted. Thirteen passed. Three failed — `UI-2`, `UI-4`, and `UI-6`,
+the three rows a person exercises at a maximised or fullscreen viewport — and
+all three failed for the same single cause, recorded as finding 1 below the
+table. The automated layout tests prove containment and hit-target invariants
+at representative viewports; what this run adds is that the menu, the focus
+order, the three motion intensities, and all five interpolated accents behave
+as written, and that glyphs stop being crisp the moment the window fills the
+screen.
 
 | Evidence field | Recorded value |
 | --- | --- |
-| Date | Not recorded |
-| Machine/platform | Not recorded |
-| Source commit | Not recorded |
-| Launch path (`source` or package path) | Not recorded |
+| Date | 2026-08-11 |
+| Machine/platform | Microsoft Windows 10.0.26200 (Windows 11 Pro) x64, NVIDIA GeForce RTX 4070 SUPER, 2560x1440 display at 125% Windows scaling (`AppliedDPI` 120) |
+| Source commit | Not captured by the tester. `main` was at `8bbcfd8` when these results were transcribed; the uncommitted working-tree changes at that moment were documentation-only and build the identical binary |
+| Launch path (`source` or package path) | `source`, via `./scripts/run.ps1` |
 | Optional screenshot paths | None recorded |
 
 | Check | Expected observation | Actual | Status |
 | --- | --- | --- | --- |
-| UI-1. Minimum-size menu containment | At 1024x720 and UI Scale Auto, the complete two-column menu remains inside the window; its 12 controls, labels, arrows, and helper text neither overlap nor clip. | Not run | PENDING |
-| UI-2. Common landscape and maximised layouts | At 1280x720, 1920x1080, and the maximised desktop size, the menu stays centred and balanced, the arena HUD remains readable, and no panel covers an unrelated control. | Not run | PENDING |
-| UI-3. Tall-window layout | At 1440x1920, the menu and HUD remain contained and readable without stretched text or misplaced pointer hit targets. | Not run | PENDING |
-| UI-4. Preferred UI scales and safety cap | Select Auto, 100%, 125%, 150%, and 200%. The selected preference persists after restart; when the viewport is too small for it, the active tier is safely capped while the preferred value remains selected in the menu. | Not run | PENDING |
-| UI-5. Windowed startup | Select Windowed, close the game fully, and relaunch. It opens at 1280x720, cannot be resized below 1024x720, and all UI remains contained. | Not run | PENDING |
-| UI-6. Fullscreen startup | Select Fullscreen, close the game fully, and relaunch. It opens in soft fullscreen at the current desktop resolution. Select Windowed, restart again, and confirm normal windowed startup returns. | Not run | PENDING |
-| UI-7. Keyboard traversal | Open Menu and use Tab, Shift+Tab, W/S, and Up/Down. Focus visits the theme selector, six action buttons, gore, motion, auto camera, UI scale, and startup display exactly once before wrapping. Left/Right changes only the focused selector. | Not run | PENDING |
-| UI-8. Motion Off | Select Motion Off. Hover, focus, and press menu and HUD buttons: state changes are immediate, with no animated positional movement, while hit targets remain stable. | Not run | PENDING |
-| UI-9. Motion Reduced | Select Motion Reduced. Hover, focus, and press buttons: color transitions remain gentle, no control shifts position, and the setting takes effect immediately. | Not run | PENDING |
-| UI-10. Motion Full | Select Motion Full. Hover and press buttons: transitions ease smoothly and a pressed control moves by no more than one active-scale pixel without changing its clickable bounds. | Not run | PENDING |
-| UI-11. Cebu 1521 Court theme | Select `Cebu 1521 — Provisional` and confirm the selector label reads `PROVISIONAL RECONSTRUCTION`. The restrained dark hardwood, woven-fibre, warm metal, soot-black, and textile-red palette reads as a provisional early-contact chiefly-court interpretation rather than a generic European-medieval or modern national design; text and faction signals remain legible. | Not run | PENDING |
-| UI-12. Battle event log new-event accent | With a battle running and the event log panel visible, let a new event append while the log is on screen. At Motion Off, the new row's text renders in its final new-event accent colour immediately, with no colour fade. At Motion Reduced and Motion Full, the row's text eases from the new-event accent colour back toward the normal text colour over roughly 200 ms, and the two intensities look identical to each other. Row order, row height, and every other row are unaffected at every intensity. | Not run | PENDING |
-| UI-13. Selected-agent inspector accent | Select an agent, open the agent inspector, then select a different agent while the inspector stays open. At Motion Off, the inspector's accent updates to the newly selected agent immediately, with no colour fade. At Motion Reduced and Motion Full, the accent eases in from the emphasis colour over roughly 160 ms before settling, and the two intensities look identical to each other. Re-selecting the agent that is already selected does not retrigger the accent. | Not run | PENDING |
-| UI-14. Selector arrow and active-marker interpolation | In the menu, hover the pointer over a selector's previous and next arrows (theme, gore, motion, auto camera, or UI scale) and change the selector's value. At Motion Off, the hovered arrow's highlight and the active-value marker snap instantly with no fade, and hit targets are unaffected. At Motion Reduced and Motion Full, the hovered arrow eases toward its highlighted colour and the marker eases toward its emphasis colour over the selector's pulse duration, and the two intensities look identical to each other. Moving focus without changing the selector's value does not retrigger the marker pulse. | Not run | PENDING |
-| UI-15. Control-bar active strip | On the control bar, toggle play/pause and change the simulation speed. At Motion Off, each button's active strip snaps instantly to its active colour at its existing six-pixel width. At Motion Reduced and Motion Full, the strip's colour eases from the inactive border colour toward the active colour over roughly 120 ms when a button becomes active, and eases back when it deactivates; the two intensities look identical to each other. The strip's width and the button's hit target never change at any intensity. | Not run | PENDING |
-| UI-16. Status-badge emphasis (one-shot, non-looping) | Cause the battle outcome to change, or toggle play/pause so the playing flag changes, and watch the status badge for several seconds afterward. At Motion Off, the badge's fill snaps to the new state's colour immediately with no pulse. At Motion Reduced and Motion Full, the badge briefly pulses toward its emphasis colour and settles back within roughly 450 to 650 ms, and the two intensities look identical to each other; the badge does not pulse again on its own while the state stays unchanged. Toggling the same state change again triggers a fresh, single pulse each time. | Not run | PENDING |
+| UI-1. Minimum-size menu containment | At 1024x720 and UI Scale Auto, the complete two-column menu remains inside the window; its 12 controls, labels, arrows, and helper text neither overlap nor clip. | 2026-08-11, tester at the desktop: the whole two-column menu stayed inside the window with nothing overlapping or clipped | PASS |
+| UI-2. Common landscape and maximised layouts | At 1280x720, 1920x1080, and the maximised desktop size, the menu stays centred and balanced, the arena HUD remains readable, and no panel covers an unrelated control. | 2026-08-11, tester at the desktop. Layout held: the menu stayed centred and balanced and no panel covered an unrelated control at any of the three sizes. The row also asks that the arena HUD remain **readable**, and at the maximised desktop size it does not — every glyph is visibly pixelated. The layout half passed and the readability half failed, and a row is a single status, so the row fails. Cause in finding 1 | FAIL |
+| UI-3. Tall-window layout | At 1440x1920, the menu and HUD remain contained and readable without stretched text or misplaced pointer hit targets. | 2026-08-11, tester at the desktop: contained and readable, no stretched text, hit targets landed where they were drawn | PASS |
+| UI-4. Preferred UI scales and safety cap | Select Auto, 100%, 125%, 150%, and 200%. The selected preference persists after restart; when the viewport is too small for it, the active tier is safely capped while the preferred value remains selected in the menu. | 2026-08-11, tester at the desktop. Selection, persistence across a restart, and the safety cap all behaved as written. But no tier renders crisply once the window fills the screen, and the tier the policy selects at that size is itself wrong: on this 2560x1440 display the game is handed a virtualised 2048x1152 viewport, which clears `UiScalePolicy`'s 1920x1080 bar but not its 2560x1440 one, so Auto resolves to 125% where the real screen deserves 150%. Cause in finding 1 | FAIL |
+| UI-5. Windowed startup | Select Windowed, close the game fully, and relaunch. It opens at 1280x720, cannot be resized below 1024x720, and all UI remains contained. | 2026-08-11, tester at the desktop: Windowed persisted across a full close and relaunch, the minimum size held, and the UI stayed contained | PASS |
+| UI-6. Fullscreen startup | Select Fullscreen, close the game fully, and relaunch. It opens in soft fullscreen at the current desktop resolution. Select Windowed, restart again, and confirm normal windowed startup returns. | 2026-08-11, tester at the desktop. The mode round-trip worked: Fullscreen persisted across a full close and relaunch, opened in soft fullscreen, and selecting Windowed restored normal windowed startup. It does not open at "the current desktop resolution" — it opens at the virtualised 2048x1152 the OS reports instead of the true 2560x1440 — and the text is pixelated throughout. Cause in finding 1 | FAIL |
+| UI-7. Keyboard traversal | Open Menu and use Tab, Shift+Tab, W/S, and Up/Down. Focus visits the theme selector, six action buttons, gore, motion, auto camera, UI scale, and startup display exactly once before wrapping. Left/Right changes only the focused selector. | 2026-08-11, tester at the desktop: focus visited every control once and wrapped, and Left/Right moved only the focused selector | PASS |
+| UI-8. Motion Off | Select Motion Off. Hover, focus, and press menu and HUD buttons: state changes are immediate, with no animated positional movement, while hit targets remain stable. | 2026-08-11, tester at the desktop: state changes were immediate, nothing animated its position, hit targets held | PASS |
+| UI-9. Motion Reduced | Select Motion Reduced. Hover, focus, and press buttons: color transitions remain gentle, no control shifts position, and the setting takes effect immediately. | 2026-08-11, tester at the desktop: colour transitions stayed gentle, no control moved, and the setting applied without a restart | PASS |
+| UI-10. Motion Full | Select Motion Full. Hover and press buttons: transitions ease smoothly and a pressed control moves by no more than one active-scale pixel without changing its clickable bounds. | 2026-08-11, tester at the desktop: transitions eased smoothly and a pressed control moved within its bounds without shifting where it could be clicked | PASS |
+| UI-11. Cebu 1521 Court theme | Select `Cebu 1521 — Provisional` and confirm the selector label reads `PROVISIONAL RECONSTRUCTION`. The restrained dark hardwood, woven-fibre, warm metal, soot-black, and textile-red palette reads as a provisional early-contact chiefly-court interpretation rather than a generic European-medieval or modern national design; text and faction signals remain legible. | 2026-08-11, tester at the desktop: the selector label read `PROVISIONAL RECONSTRUCTION`, the palette did not read as European-medieval or modern-national, and text and faction signals stayed legible. Every criterion this row states was met. The tester separately dislikes how the theme looks; that is recorded as finding 2 rather than folded into this row's status, because the row asks what the palette reads as and not whether the reader wants to use it | PASS |
+| UI-12. Battle event log new-event accent | With a battle running and the event log panel visible, let a new event append while the log is on screen. At Motion Off, the new row's text renders in its final new-event accent colour immediately, with no colour fade. At Motion Reduced and Motion Full, the row's text eases from the new-event accent colour back toward the normal text colour over roughly 200 ms, and the two intensities look identical to each other. Row order, row height, and every other row are unaffected at every intensity. | 2026-08-11, tester at the desktop: the accent snapped at Motion Off and eased back at both Reduced and Full, the two looked identical, and no other row was disturbed | PASS |
+| UI-13. Selected-agent inspector accent | Select an agent, open the agent inspector, then select a different agent while the inspector stays open. At Motion Off, the inspector's accent updates to the newly selected agent immediately, with no colour fade. At Motion Reduced and Motion Full, the accent eases in from the emphasis colour over roughly 160 ms before settling, and the two intensities look identical to each other. Re-selecting the agent that is already selected does not retrigger the accent. | 2026-08-11, tester at the desktop: the accent updated instantly at Motion Off and eased in at both Reduced and Full, and re-selecting the same agent did not retrigger it | PASS |
+| UI-14. Selector arrow and active-marker interpolation | In the menu, hover the pointer over a selector's previous and next arrows (theme, gore, motion, auto camera, or UI scale) and change the selector's value. At Motion Off, the hovered arrow's highlight and the active-value marker snap instantly with no fade, and hit targets are unaffected. At Motion Reduced and Motion Full, the hovered arrow eases toward its highlighted colour and the marker eases toward its emphasis colour over the selector's pulse duration, and the two intensities look identical to each other. Moving focus without changing the selector's value does not retrigger the marker pulse. | 2026-08-11, tester at the desktop: arrows and the active marker snapped at Motion Off and eased at both Reduced and Full, hit targets were unaffected, and moving focus alone did not pulse the marker | PASS |
+| UI-15. Control-bar active strip | On the control bar, toggle play/pause and change the simulation speed. At Motion Off, each button's active strip snaps instantly to its active colour at its existing six-pixel width. At Motion Reduced and Motion Full, the strip's colour eases from the inactive border colour toward the active colour over roughly 120 ms when a button becomes active, and eases back when it deactivates; the two intensities look identical to each other. The strip's width and the button's hit target never change at any intensity. | 2026-08-11, tester at the desktop: the strip snapped at Motion Off and eased both ways at Reduced and Full, and its width and hit target never moved | PASS |
+| UI-16. Status-badge emphasis (one-shot, non-looping) | Cause the battle outcome to change, or toggle play/pause so the playing flag changes, and watch the status badge for several seconds afterward. At Motion Off, the badge's fill snaps to the new state's colour immediately with no pulse. At Motion Reduced and Motion Full, the badge briefly pulses toward its emphasis colour and settles back within roughly 450 to 650 ms, and the two intensities look identical to each other; the badge does not pulse again on its own while the state stays unchanged. Toggling the same state change again triggers a fresh, single pulse each time. | 2026-08-11, tester at the desktop: the badge snapped at Motion Off, pulsed once and settled at both Reduced and Full, never pulsed again on its own, and pulsed afresh on each repeat toggle | PASS |
 
 ## Last-stand formation smoke
 

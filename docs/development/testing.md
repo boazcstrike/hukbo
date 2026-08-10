@@ -196,7 +196,7 @@ median decision tick is 1,651 against V4's 1,668. That the sweep did not move
 across the rebase is itself informative: battlefield realism's changes sit
 behind `BattlefieldRealismV10`, which the default workload never selects. The
 measurement is recorded in
-[`../plans/2026-08-11-combat-cadence-v6.md`](../plans/2026-08-11-combat-cadence-v6.md)
+[`../archives/2026-08-11/2026-08-11-combat-cadence-v6.md`](../archives/2026-08-11/2026-08-11-combat-cadence-v6.md)
 under task 5.
 
 `Hukbo.Core.Tests` grew from 2,470 to 2,492 and `Hukbo.Client.Tests` from 3,643

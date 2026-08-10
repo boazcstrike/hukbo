@@ -11,11 +11,12 @@ record are all live, because a future session still has to read them. What none
 of them means is *go and build this* — only an explicit authorization does that,
 and section 6 of [`../../CLAUDE.md`](../../CLAUDE.md) says how one is given.
 
-Last reviewed 2026-08-11, when three finished documents left for
+Last reviewed 2026-08-11, when four finished documents left for
 [`../archives/2026-08-11/`](../archives/2026-08-11/): the projectile-props
 plan, whose build merged at `3ec5523`; the Sandata playable-client plan, whose
-tasks `P1`–`P9` merged at `5508310` and `c13b696`; and the wave-11 handoff,
-superseded when wave 12 closed.
+tasks `P1`–`P9` merged at `5508310` and `c13b696`; the wave-11 handoff,
+superseded when wave 12 closed; and the combat-cadence V6 plan, whose twelve
+tasks merged at `982bd6f` and whose four re-opened smoke rows then passed.
 
 ## Hukbo
 
@@ -26,6 +27,7 @@ superseded when wave 12 closed.
 | [`2026-08-07-ranged-units-design.md`](2026-08-07-ranged-units-design.md) | The ranged design. Cited by name from `PhilippineCombatPresetV5.cs`, `RangedPhase.cs`, and the client's ranged geometry | Shipped; cited from source |
 | [`2026-08-09-ranged-units-handoff.md`](2026-08-09-ranged-units-handoff.md) | What is still open on the ranged package: RU-31's listening acceptance, the eleven `RG-*` smoke rows, the V9 termination gap, and the default-composition decision | Current status document |
 | [`2026-08-09-projectile-props-design.md`](2026-08-09-projectile-props-design.md) | In-flight projectile props and embedded projectiles, with the quad-budget arithmetic and five open decisions | Shipped at `3ec5523`. Its plan, which answered all five decisions and corrected the design's own quad arithmetic, is archived at [`../archives/2026-08-11/2026-08-11-projectile-props.md`](../archives/2026-08-11/2026-08-11-projectile-props.md) |
+| [`2026-08-11-combat-cadence-v6-design.md`](2026-08-11-combat-cadence-v6-design.md) | Why `PrecolonialPhilippinesV6` exists and why it is the shipped default: the melee cadence retune that halves the on-screen artefact rate at a near-constant damage per tick, and the ceiling on how fast an attack animation may be played. Cited by path from `CombatIdentity.cs`, `PhilippineCombatPresetV6.cs`, `Scenario.cs`, and `DeterminismTests.cs` | Shipped at `982bd6f`; cited from source. All twelve `CL-*` smoke rows `PASS`. Its plan is archived at [`../archives/2026-08-11/2026-08-11-combat-cadence-v6.md`](../archives/2026-08-11/2026-08-11-combat-cadence-v6.md) |
 | [`2026-08-08-attack-animation-v2-design.md`](2026-08-08-attack-animation-v2-design.md) | The attack-animation V2 design. Authoritative over its backlog where the two disagree | Shipped |
 | [`2026-08-09-attack-animation-v2-backlog.md`](2026-08-09-attack-animation-v2-backlog.md) | What the twelve-task attack-animation plan left behind | Open |
 | [`2026-08-07-movement-gait-animation-design.md`](2026-08-07-movement-gait-animation-design.md) | The gait design — legs, feet, stride phase, tier gating | Shipped; `GA-1`–`GA-14` smoke rows `PENDING` |

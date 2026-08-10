@@ -1,11 +1,22 @@
 # Combat cadence V6 — plan
 
-**Design:** [`2026-08-11-combat-cadence-v6-design.md`](2026-08-11-combat-cadence-v6-design.md).
+> **Archived: reference only.** Finished work, kept so a past decision can be
+> traced to its reasoning. Never execute it, never treat it as current, and never
+> cite it as justification for a change. The live contract is `CLAUDE.md`,
+> `SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, and `docs/plans/`.
+>
+> All twelve tasks are done and all twelve `CL-*` smoke rows `PASS`. The design
+> document is **not** archived — it is cited by path from `CombatIdentity.cs`,
+> `PhilippineCombatPresetV6.cs`, `Scenario.cs`, and `DeterminismTests.cs`, and
+> stays live at
+> [`../../plans/2026-08-11-combat-cadence-v6-design.md`](../../plans/2026-08-11-combat-cadence-v6-design.md).
+
+Design: [2026-08-11-combat-cadence-v6-design.md](../../plans/2026-08-11-combat-cadence-v6-design.md).
 The design document outranks this one on intent; this one owns the ordered task
 list and the verification criteria.
 
-**Base commit:** `0c3f7f2`
-**Branch:** `combat-cadence-v6`
+**Base commit:** `0c3f7f2`, rebased twice and finally onto `main` at `817c900`
+**Branch:** `combat-cadence-v6`, merged to `main` at `982bd6f`
 
 ## Ordering rule
 
