@@ -123,6 +123,13 @@ internal sealed class SandataGame : Game
     private const float PlaceholderFireConeRangeWu = 200f;
 
     /// <summary>
+    /// Half the width of an impact mark's X, in world units. 6 wu is a little
+    /// under half a metre at Sandata's 16-world-units-per-metre scale, which
+    /// puts the mark at roughly the width of the operator it is drawn on.
+    /// </summary>
+    private const float ImpactMarkArmWu = 6f;
+
+    /// <summary>
     /// The alert level every draw reads for <see cref="UI.AlertIndicator"/>.
     /// <c>0</c> is Calm (<see cref="UI.AlertIndicator.GetShape"/>'s own
     /// documented mapping) — no <c>FactionAlertState</c> is wired into the
@@ -323,6 +330,15 @@ internal sealed class SandataGame : Game
     private ImmutableArray<OrderQueueView.Entry> _orderQueueEntries = ImmutableArray<OrderQueueView.Entry>.Empty;
     private long _accumulatedMicroseconds;
     private long _nextTick;
+
+    /// <summary>
+    /// Live muzzle flashes, tracers, and impact marks — the layer that makes a
+    /// firefight visible at all. Presentation only: nothing here reaches the
+    /// simulation, and <see cref="CombatFeedback"/>'s remarks record why the
+    /// flash layer drew nothing before 2026-08-11.
+    /// </summary>
+    private ImmutableArray<CombatEffect> _combatEffects = ImmutableArray<CombatEffect>.Empty;
+
     private bool _isPaused;
     private int _speedIndex = DefaultSpeedIndex;
     private int _pendingSingleSteps;
@@ -544,10 +560,28 @@ internal sealed class SandataGame : Game
                 TickPacing.DefaultMaxTicksPerFrame);
         }
 
+        // One frame's worth of ageing, applied once rather than once per tick:
+        // these marks are measured in frames, and a frame that happened to
+        // execute four ticks must not expire them four times as fast. See
+        // CombatEffect's remarks on why the lifetime is frames and not ticks.
+        _combatEffects = CombatFeedback.Age(_combatEffects);
+
         for (var step = 0; step < ticksToRun && _nextTick < _mission.TickPolicy.TickLimit; step++)
         {
-            _simulation.RunTick(_nextTick);
+            var healthBefore = CombatFeedback.CaptureHealth(_simulation.State.Operators);
+            var executedTick = _nextTick;
+
+            _simulation.RunTick(executedTick);
             _nextTick++;
+
+            _combatEffects = CombatFeedback.Append(
+                _combatEffects,
+                CombatFeedback.ObserveTick(
+                    _simulation.State.EventFeed,
+                    _simulation.State.Operators,
+                    healthBefore,
+                    executedTick));
+
             LogRosterIfChanged();
         }
     }
@@ -1225,6 +1259,10 @@ internal sealed class SandataGame : Game
         }
 
         DrawOperatorsAndFireCones(spriteBatch, contentBounds);
+        // After the operators: a tracer that a body drew over would defeat the
+        // point of drawing it. Before the order path, which is the player's
+        // own input and outranks everything the simulation is saying.
+        DrawCombatEffects(spriteBatch, contentBounds);
         DrawOrderPath(spriteBatch, contentBounds);
 
         var hudLayout = ComposeHudLayout(contentBounds);
@@ -1276,7 +1314,13 @@ internal sealed class SandataGame : Game
                 // the real per-operator state a future task supplies.
                 previousDisplayRotationRawUnits: 0f,
                 smoothingFactor: 1f,
-                isFiring: operatorState.WeaponChainPhase == (int)WeaponChainPhase.Firing,
+                // Was operatorState.WeaponChainPhase == WeaponChainPhase.Firing,
+                // which is always false: WeaponChain never returns Firing as a
+                // phase to hold, so the flash layer below it never drew a
+                // pixel and a firefight rendered as nothing at all. The live
+                // marks from the ShotFired event feed are the real answer —
+                // see CombatFeedback's remarks.
+                isFiring: CombatFeedback.IsFiring(_combatEffects, operatorState.EntityId),
                 isSelected: isSelected && isAlive);
 
             // A casualty stays on the map and reads as one. Removing the pawn
@@ -1316,6 +1360,70 @@ internal sealed class SandataGame : Game
 
         DrawLine(spriteBatch, screenGeometry.Apex, screenGeometry.LeftEdgeEnd, _theme.Colors.FireConeEdge);
         DrawLine(spriteBatch, screenGeometry.Apex, screenGeometry.RightEdgeEnd, _theme.Colors.FireConeEdge);
+    }
+
+    /// <summary>
+    /// Draws the live tracers and impact marks. Muzzle flashes are not drawn
+    /// here: they belong to the operator's own layered geometry and are
+    /// already drawn by <see cref="OperatorRenderer"/>, gated on
+    /// <see cref="CombatFeedback.IsFiring"/>.
+    /// </summary>
+    /// <remarks>
+    /// Both roles are existing members of the theme contract.
+    /// <see cref="SandataThemeColors.StatusWarning"/> carries the tracer and
+    /// <see cref="SandataThemeColors.StatusDanger"/> the impact, which is the
+    /// same role the muzzle flash already uses — a shot and the wound it
+    /// leaves reading as one colour is the intent, not an oversight. No
+    /// fortieth role is invented here.
+    /// </remarks>
+    private void DrawCombatEffects(SpriteBatch spriteBatch, Rectangle contentBounds)
+    {
+        if (_combatEffects.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        foreach (var effect in _combatEffects)
+        {
+            switch (effect.Kind)
+            {
+                case CombatEffectKind.Tracer:
+                    DrawLine(
+                        spriteBatch,
+                        _camera.WorldToScreen(effect.StartWu, contentBounds),
+                        _camera.WorldToScreen(effect.EndWu, contentBounds),
+                        _theme.Colors.StatusWarning);
+                    break;
+
+                case CombatEffectKind.Impact:
+                    DrawImpactMark(spriteBatch, contentBounds, effect.StartWu);
+                    break;
+
+                case CombatEffectKind.MuzzleFlash:
+                default:
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// An impact mark: a small X centred on the operator that lost health.
+    /// A cross rather than a dot on purpose — <c>SD-1</c> and <c>SD-7a</c>
+    /// both failed on 2026-08-11 because everything on this map is a
+    /// rectangle and only colour separates one rectangle from another, so a
+    /// new mark that is also a rectangle would add nothing a colour-blind
+    /// viewer could use.
+    /// </summary>
+    private void DrawImpactMark(SpriteBatch spriteBatch, Rectangle contentBounds, Vector2 centreWu)
+    {
+        const float arm = ImpactMarkArmWu;
+        var topLeft = _camera.WorldToScreen(centreWu + new Vector2(-arm, -arm), contentBounds);
+        var bottomRight = _camera.WorldToScreen(centreWu + new Vector2(arm, arm), contentBounds);
+        var bottomLeft = _camera.WorldToScreen(centreWu + new Vector2(-arm, arm), contentBounds);
+        var topRight = _camera.WorldToScreen(centreWu + new Vector2(arm, -arm), contentBounds);
+
+        DrawLine(spriteBatch, topLeft, bottomRight, _theme.Colors.StatusDanger);
+        DrawLine(spriteBatch, bottomLeft, topRight, _theme.Colors.StatusDanger);
     }
 
     /// <summary>
