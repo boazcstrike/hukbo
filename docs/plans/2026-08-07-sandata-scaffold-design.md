@@ -1519,6 +1519,50 @@ Therefore, and without exception:
 > plan document calls ElevenLabs. Nothing is generated until the user reviews the
 > manifest and authorises the spend.**
 
+### Measured 2026-08-11: 156 of the 372 gun-family files cannot be selected
+
+Established while the user was deciding how far to cut the catalog, by reading
+the generated manifest against what the simulation can actually supply.
+
+`ShotSlotResolver` picks a `SoundEnvironment` from four inputs: the caliber,
+the range in world units, whether the shooter is indoors, and whether a
+suppressor is fitted. **Two of those four have no data source anywhere in
+`Sandata.Core`, and neither is a wiring gap that a client task could close.**
+
+- **Indoors.** The map format's complete record set is `GRID`, `NAME`, `WALL`,
+  `DOOR`, `COVER`, `SPAWN`, `OBJECTIVE`, `END`. There is no room, interior, or
+  enclosure record, and no derived interior concept exists — the only matches
+  for "Interior" in the navigation code are `WallBuckets.ClampToInterior`,
+  which clamps a segment to the grid and is unrelated. A shooter cannot be
+  known to be indoors.
+- **Suppressed.** The string "suppressor" does not occur anywhere in
+  `src/Sandata.Core`. There is no attachment, loadout slot, or firearm field
+  that could carry one.
+
+What that costs, counted from the manifest:
+
+| Environment | Rows | Files | Selectable today |
+| --- | ---: | ---: | --- |
+| `indoor` | 23 | 108 | **no** — no interior concept exists |
+| `outdoor` | 23 | 108 | yes, by range |
+| `close` | 11 | 60 | yes, by range |
+| `distant` | 8 | 48 | yes, by range |
+| `suppressed` | 8 | 48 | **no** — no suppressor concept exists |
+
+**216 selectable, 156 unreachable — 42 per cent of the gun-family budget.**
+
+This is not an argument to delete those rows. `indoor` in particular is the
+environment a room-clearing game most obviously wants, and its absence is a
+gap in the *simulation*, not a mistake in the catalog: a game in the Door
+Kickers tradition that cannot tell inside from outside is missing something
+more important than a sound file. The finding's real use is ordering. Whatever
+caliber set the catalog is eventually cut to, generating the `indoor` rows
+before an interior concept exists would buy 108 files that nothing can ask
+for, and generating `suppressed` would buy 48 more.
+
+Recorded here rather than acted on. No row was removed and no cost estimate in
+this section was rewritten.
+
 ---
 
 ## 11. Client and UI
