@@ -195,6 +195,12 @@ p50 2.6761 ms   p95 3.8265 ms   p99 4.8984 ms   max 64.1713 ms
 durationMilliseconds 28393.9   allocatedBytes ~42.18 GB
 ```
 
+> **Superseded on 2026-08-11. Both hashes above are stale and must not be
+> compared against.** The live seed-1 baseline is the block under
+> "The seed-1 headless workload, re-measured 2026-08-11" below. The run above
+> is kept because the outcome, both survivor counts, and the timings it
+> records are still the reference for everything except the two digests.
+
 **The allocation figure is now about 6.08 GB, and everything else above is
 unchanged.** Task 88 gave stage 5's line-of-sight and contact-memory calls
 caller-owned scratch buffers, which took the whole tick from about 2.37 MB to
@@ -204,7 +210,58 @@ counts, the outcome, and `deterministic: true` are all exactly as printed
 above, which is the proof that a pure allocation change changed no outcome.
 
 `SandataRuleset.ContentHash` is `8_955_292_433_887_190_872`, pinned by
-`SandataRulesetTests`.
+`SandataRulesetTests`. It is **unchanged** by the 2026-08-11 re-measurement
+below, which is the point of that entry: the ruleset content did not move, a
+defect in `SandataSimulation.RunTick` did.
+
+### The seed-1 headless workload, re-measured 2026-08-11
+
+This is the live Sandata seed-1 baseline. It replaces the 2026-08-09 digests
+above.
+
+```
+BO | Microsoft Windows 10.0.26200 (X64) | 20 logical processors | .NET 10.0.10
+```
+
+`./scripts/verify.ps1 -Game Sandata`, stage five, which is 200 operators — 100
+per faction — over 10,000 ticks:
+
+```
+measuredTicks 10000   outcome Ongoing   survivors 70 / 64
+stateHash AB44D2319A91422A   eventHash 3C0C243989A09A43   deterministic true
+p50 2.3975 ms   p95 2.7172 ms   p99 3.6566 ms   max 62.4547 ms
+durationMilliseconds 24853.4   allocatedBytes ~6.08 GB
+```
+
+**Both hashes moved, and nothing else did.** `outcome`, both survivor counts,
+and `deterministic: true` are identical to the 2026-08-09 run. The cause is
+that `SandataSimulation.RunTick` now writes `MissionState.Tick`. Until
+2026-08-11 nothing in `Sandata.Core` ever wrote that field, so it stayed 0 for
+the whole of every run: `SandataStateHasher` folded a constant zero, every
+emitted event carried tick 0 regardless of when it fired, and
+`HeadlessRunner`'s per-tick divergence check compared 0 against 0 on every
+tick of every run. The state hash moved because the folded field is now the
+real tick, and the event hash moved because the events carry the tick they
+happened on.
+
+**This is deliberately not a new `SandataPresetId`.** Design section 4's
+trigger list for a new preset value is an enum's numeric value, an enum's
+order, the roster order, a weapon weight, the tick rate, the millisecond
+conversion rule, or a hash mixer. A defect in `RunTick` is none of them, the
+ruleset content is untouched, and `SandataRuleset.ContentHash` is unchanged —
+so `ModernTacticalV1 = 1` still names exactly the ruleset it always named.
+Sandata has no v0.1 and no recorded replay outside this repository, so nothing
+existed that the old digests had to keep reproducing.
+
+The golden replay fixtures moved with it.
+`tests/Sandata.Core.Tests/Fixtures/seed-1-baseline.json` was re-measured in the
+same change: seventy-eight of its eighty state hashes and both of its event
+hashes are new, and the two tick-0 state hashes are byte-identical to their
+recorded values. That signature is the confirmation rather than a coincidence —
+on tick 0 the field was already 0, so only tick 1 onward could move.
+`MissionStateTests.PreTask79cBaselineHash` is unchanged and was not re-pinned,
+because it hashes a hand-built state whose `Tick` is set explicitly and the fix
+did not touch `SandataStateHasher`.
 
 **The allocation figure is a magnitude and must never be recorded as an exact
 byte count.** It is not part of the determinism contract and it is not
@@ -243,6 +300,51 @@ p50 2.6383 ms   p95 4.6475 ms   p99 6.8726 ms   max 64.1272 ms
 This is the first time Sandata's gate has been run and recorded. It proves the
 five stages and the seed-1 digest; it proves nothing interactive, and every row
 in the Sandata smoke checklist below stays `PENDING`.
+
+> **The two digests in the transcript above were superseded on 2026-08-11.**
+> The transcript itself is left exactly as the run printed it, because a
+> recorded gate result is evidence and evidence is not edited after the fact.
+> The live values are `stateHash AB44D2319A91422A` and
+> `eventHash 3C0C243989A09A43`; see the 2026-08-11 gate result below for the
+> run that produced them and the re-measured seed-1 block above for why they
+> moved.
+
+### Canonical gate result — Sandata, 2026-08-11
+
+`./scripts/verify.ps1 -Game Sandata`, all five stages, exit code 0, run after
+`SandataSimulation.RunTick` began writing `MissionState.Tick`:
+
+```
+[PASS] Platform: Windows x64
+[PASS] PowerShell: 7.6.4
+[PASS] git version 2.55.0.windows.3
+[PASS] .NET SDK: 10.0.302
+[PASS] packages.lock.json present for all 868 projects.
+[PASS] MonoGame packages are centrally pinned: MonoGame.Content.Builder.Task 3.8.5, MonoGame.Framework.DesktopGL 3.8.5
+[PASS] Required prerequisites and repository configuration are present.
+[PASS] Locked package restore completed.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Sandata.Core.Tests     Total tests: 1118   Passed: 1118
+Sandata.Client.Tests   Total tests:  219   Passed:  219   Total time: 0.4802 Seconds
+[PASS] Release repository tests completed.
+measuredTicks 10000   outcome Ongoing   survivors 70 / 64
+stateHash AB44D2319A91422A   eventHash 3C0C243989A09A43   deterministic true
+p50 2.3975 ms   p95 2.7172 ms   p99 3.6566 ms   max 62.4547 ms
+durationMilliseconds 24853.4   allocatedBytes 6,080,464,120 (~6.08 GB)
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+`Sandata.Core.Tests` is 1,118 rather than the 1,113 of the previous wave: the
+five added tests are the ones that bind the advancing tick, and all five were
+break-proofed by pinning `MissionState.Tick` back to 0 and confirming each one
+fails. The two golden-replay tests failed alongside them in that same run,
+which is seven failures out of 1,118 — recorded here because a break-proof that
+does not fail proves nothing, and this one did.
+
+This gate is still no evidence about anything interactive. Every row in the
+Sandata smoke checklist below stays `PENDING`.
 
 **Two things this workload does not prove**, both established by measurement
 during wave 12 and both worth knowing before anyone reads an unchanged hash as

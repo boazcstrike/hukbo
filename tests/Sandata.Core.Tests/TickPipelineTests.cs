@@ -2689,4 +2689,138 @@ public sealed class TickPipelineTests
             "the crouched reduction must be the stronger of the two for this test to mean anything");
     }
 
+    // ---- MissionState.Tick advances (2026-08-11) ------------------------
+
+    // Until 2026-08-11 nothing in Sandata.Core ever wrote MissionState.Tick.
+    // It stayed 0 for the whole of every run, so SandataStateHasher folded a
+    // constant, every emitted event carried tick 0 regardless of when it
+    // fired, and HeadlessRunner's per-tick divergence check compared 0
+    // against 0. The four tests below are the ones that would have caught
+    // that, and each of them fails against the pre-fix code.
+    //
+    // What this group does NOT bind: it says nothing about the *value* of any
+    // state hash. That is GoldenReplayTests' job through
+    // Fixtures/seed-1-baseline.json, and those eighty recorded hashes were
+    // re-measured in the same change that added these tests. A test here that
+    // pinned a hash literal would also violate the one-literal rule
+    // CLAUDE.md section 5 states for this assembly.
+
+    /// <summary>
+    /// After <see cref="SandataSimulation.RunTick"/> returns,
+    /// <see cref="MissionState.Tick"/> is the tick just executed. Asserts the
+    /// value at each of four consecutive ticks rather than "it changed", and
+    /// deliberately does not start at 0 for the first call — a fixture built
+    /// at tick 0 that then runs tick 0 cannot tell a real assignment from the
+    /// initial value it already had.
+    /// </summary>
+    [Fact]
+    public void RunTick_LeavesMissionStateTickAtTheTickJustExecuted()
+    {
+        var sim = BuildFiringFixture(shooterEntityId: 1);
+
+        Assert.Equal(0L, sim.State.Tick);
+
+        foreach (var tick in new long[] { 3, 4, 5, 6 })
+        {
+            sim.RunTick(tick);
+            Assert.Equal(tick, sim.State.Tick);
+        }
+    }
+
+    /// <summary>
+    /// The tick a run is on survives a gap in the caller's tick numbers.
+    /// <see cref="SandataSimulation.RunTick"/> takes the tick as a parameter
+    /// and does not increment a counter of its own, so a caller that jumps is
+    /// followed rather than corrected. This is the assertion that would fail
+    /// if someone later replaced the assignment with <c>Tick + 1</c>.
+    /// </summary>
+    [Fact]
+    public void RunTick_FollowsTheCallersTickNumberRatherThanCountingItsOwn()
+    {
+        var sim = BuildFiringFixture(shooterEntityId: 1);
+
+        sim.RunTick(41);
+        Assert.Equal(41L, sim.State.Tick);
+
+        sim.RunTick(9_000);
+        Assert.Equal(9_000L, sim.State.Tick);
+    }
+
+    /// <summary>
+    /// An event emitted from inside <see cref="SandataSimulation.RunTick"/>
+    /// stamps itself with the tick it fired on, not with 0. This is the
+    /// consequence that mattered: all four
+    /// <see cref="MissionEvent"/> constructions in
+    /// <c>SandataSimulation</c> read <c>State.Tick</c> rather than taking the
+    /// tick as a parameter, so a never-written field silently backdated every
+    /// one of them. 61 is an arbitrary non-zero tick; the fixture's weapon
+    /// chain has one tick remaining, so it fires on whichever tick is run
+    /// first.
+    /// </summary>
+    [Fact]
+    public void RunTick_ShotFiredEventCarriesTheTickItFiredOn()
+    {
+        var sim = BuildFiringFixture(shooterEntityId: 1);
+
+        sim.RunTick(61);
+
+        var fired = sim.State.EventFeed.Events
+            .Where(e => e.Kind == MissionEventKind.ShotFired)
+            .ToArray();
+
+        Assert.Single(fired);
+        Assert.Equal(61L, fired[0].Tick);
+    }
+
+    /// <summary>
+    /// The same property on the submission path.
+    /// <see cref="SandataSimulation.SubmitOrder"/> emits its rejection event
+    /// immediately rather than deferring it to a stage (design section 16),
+    /// and stamps it from <see cref="MissionState.Tick"/> — so a rejection
+    /// raised after the run has advanced must carry the advanced tick. The
+    /// order is rejected for carrying a single path node, which
+    /// <see cref="OrderRejectReason.InvalidNodeCount"/> names.
+    /// </summary>
+    [Fact]
+    public void SubmitOrder_RejectionEmittedAfterTheRunAdvanced_CarriesTheAdvancedTick()
+    {
+        var sim = BuildFiringFixture(shooterEntityId: 1);
+        sim.RunTick(23);
+
+        var (_, _, rejection) = sim.SubmitOrder(
+            targetTick: 24,
+            factionId: 0,
+            addressees: ImmutableArray.Create(1UL),
+            kind: OrderKind.MoveAlongPath,
+            pathNodes: ImmutableArray.Create(new OrderPathNode(4, 4)));
+
+        Assert.NotNull(rejection);
+
+        var rejected = sim.State.EventFeed.Events
+            .Where(e => e.Kind == MissionEventKind.OrderRejected)
+            .ToArray();
+
+        Assert.Single(rejected);
+        Assert.Equal(23L, rejected[0].Tick);
+    }
+
+    /// <summary>
+    /// <see cref="MissionSnapshot"/> already carried
+    /// <see cref="MissionState.Tick"/> through its round trip, but until the
+    /// field advanced there was no run from which a non-zero value could be
+    /// captured, so the round trip was only ever exercised at 0. Runs the
+    /// simulation, snapshots it, and proves the captured tick is the one the
+    /// run reached.
+    /// </summary>
+    [Fact]
+    public void ToSnapshot_AfterARunAdvanced_CapturesTheAdvancedTick()
+    {
+        var sim = BuildFiringFixture(shooterEntityId: 1);
+        sim.RunTick(17);
+
+        var snapshot = sim.State.ToSnapshot();
+
+        Assert.Equal(17L, snapshot.Tick);
+    }
+
 }

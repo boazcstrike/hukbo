@@ -2171,10 +2171,24 @@ consolidation's own list and the eleventh was added on 2026-08-10.
     each assaulting squad a map objective to walk to, ranked by objective
     index. It sits in the client because a destination source inside the
     simulation would also fire for the 200-operator seed-1 headless workload
-    and move a recorded state hash, which is a new preset version. When the
-    real clearing model is designed, moving it into the simulation is the point
-    at which that cost is worth paying. Recorded in
+    and change what that workload does — the operators would start walking —
+    which is a gameplay change to the reference workload, not merely a moved
+    digest. When the real clearing model is designed, moving it into the
+    simulation is the point at which that cost is worth paying. Recorded in
     `docs/plans/2026-08-10-sandata-playable-client.md`.
+
+    **Corrected 2026-08-11.** This paragraph previously ended "and move a
+    recorded state hash, which is a new preset version". That gloss is wrong
+    and it was load-bearing: it was cited as the reason not to fix
+    `MissionState.Tick`, and it is stated nowhere in section 4, which is the
+    binding text. A moved state hash requires new golden expectations, always.
+    It requires a **new preset value** only when one of section 4's listed
+    triggers moved — an enum's numeric value, an enum's order, the roster
+    order, a weapon weight, the tick rate, the millisecond conversion rule, or
+    a hash mixer. Fixing a defect in `SandataSimulation.RunTick` moved every
+    Sandata digest on 2026-08-11 under `ModernTacticalV1 = 1`, with
+    `SandataRuleset.ContentHash` unchanged, and that was correct. Do not read
+    "the hash moved" as "bump the preset" anywhere in this document.
 
 ---
 

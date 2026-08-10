@@ -362,8 +362,47 @@ public sealed class SandataSimulation
     /// class's per-stage method remarks for exactly which stages are
     /// complete, partial, or blocked on a missing callee.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why <see cref="MissionState.Tick"/> is written before stage 1 and
+    /// not after stage 14.</b> Authoritative time is an integer tick
+    /// (<c>CLAUDE.md</c> section 5), and the tick a running mission is on is
+    /// authoritative state that design section 4 lists as hashed and
+    /// snapshotted — it is the first field
+    /// <see cref="Determinism.SandataStateHasher"/> folds and the first field
+    /// <see cref="MissionSnapshot"/> carries. Every stage below that stamps a
+    /// <see cref="Events.MissionEvent"/> reads <c>State.Tick</c> rather than
+    /// taking <paramref name="currentTick"/> as a parameter, so the write has
+    /// to land before the first stage that can emit one. Stage 1 emits
+    /// <see cref="Events.MissionEvent.OrderRejected"/>, so "before stage 1" is
+    /// the only placement under which an event's own tick stamp is the tick it
+    /// happened on. After <see cref="RunTick"/> returns,
+    /// <c>State.Tick == currentTick</c>: the tick just executed, not the tick
+    /// to execute next.
+    /// </para>
+    /// <para>
+    /// This assignment is what makes that field non-constant. Until
+    /// 2026-08-11 nothing in this assembly ever wrote it, so it stayed 0 for
+    /// the whole of every run: the hasher folded a constant, every event
+    /// carried tick 0 regardless of when it fired, and
+    /// <c>Sandata.Headless.HeadlessRunner</c>'s per-tick divergence check
+    /// compared 0 against 0. Fixing it moves every recorded Sandata state
+    /// hash, which is why <c>Fixtures/seed-1-baseline.json</c> and the seed-1
+    /// baseline in <c>docs/development/testing.md</c> were re-measured in the
+    /// same change. It is deliberately <em>not</em> a new
+    /// <see cref="Rules.SandataPresetId"/>: design section 4's trigger list is
+    /// an enum value or order, a roster order, a weapon weight, the tick rate,
+    /// the millisecond conversion rule, or a hash mixer, and a defect in this
+    /// method is none of them — <see cref="Rules.SandataRuleset.ContentHash"/>
+    /// is unchanged by it.
+    /// </para>
+    /// </remarks>
     public void RunTick(long currentTick)
     {
+        // Before stage 1 — see this method's remarks. Stage 1 can emit an
+        // event, and every event stamps itself from State.Tick.
+        State = State with { Tick = currentTick };
+
         // Stage 1.
         State = ApplyOrders(State, currentTick);
 

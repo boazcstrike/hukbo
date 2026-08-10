@@ -1,39 +1,40 @@
 {
-  "_comment": "Task 52b golden replay baselines. Both missions are the exact same seed-1, 8-operator (4v4) fixture built through Sandata.Headless.HeadlessRunner.BuildOpenGrid(8) and Sandata.Headless.HeadlessRunner.BuildInitialState(8, 1, packingSide) -- the same dense, alternating-faction packing HeadlessRunnerTests and the seed-1 benchmark workload use -- ticked for 40 ticks with MissionTickPolicy.StateHashCadenceTicks=1. EmptyOrderStream submits no orders (the pure autonomous case). NonEmptyOrderStream submits, at tick 0 through SandataSimulation.SubmitOrder: a MoveAlongPath order for faction 0's entity 1 along the two-node path (4,4)->(12,4), and a Hold order for faction 1's entity 2. Both orders were accepted (no rejection). Every hash below was measured by running GoldenReplayTests.ZZZ_CaptureBaselineValues (a temporary capture test, removed once these values were recorded), never calculated or typed by hand. TickStateHashesHex[i] is SandataSimulation.LastStateHash immediately after RunTick(i), formatted X16.",
+  "_comment": "Task 52b golden replay baselines. Both missions are the exact same seed-1, 8-operator (4v4) fixture built through Sandata.Headless.HeadlessRunner.BuildOpenGrid(8) and Sandata.Headless.HeadlessRunner.BuildInitialState(8, 1, packingSide) -- the same dense, alternating-faction packing HeadlessRunnerTests and the seed-1 benchmark workload use -- ticked for 40 ticks with MissionTickPolicy.StateHashCadenceTicks=1 and TickLimit=1000. EmptyOrderStream submits no orders (the pure autonomous case). NonEmptyOrderStream submits, at tick 0 through SandataSimulation.SubmitOrder: a MoveAlongPath order for faction 0's entity 1 along the two-node path (4,4)->(12,4), and a Hold order for faction 1's entity 2. Both orders were accepted (no rejection). Every hash below was measured by running a temporary capture test (removed once these values were recorded), never calculated or typed by hand. TickStateHashesHex[i] is SandataSimulation.LastStateHash immediately after RunTick(i), formatted X16.",
+  "_rerecorded2026-08-11": "Every value except the two tick-0 state hashes was re-measured on 2026-08-11, when SandataSimulation.RunTick began writing MissionState.Tick. Until then nothing in Sandata.Core ever wrote that field, so it stayed 0 for a whole run: SandataStateHasher folded a constant and every emitted event carried tick 0 regardless of when it fired. Both tick-0 state hashes are byte-identical to the values recorded before the fix (D81CEB0CBE66B3D8 and 92AA050E83A47D1B), which is the expected signature of this particular change -- on tick 0 the field was already 0, so only tick 1 onward could move. Both FinalEventHashHex values moved together, from 74E008E940AB05A5, because the events in the feed now carry the tick they fired on. This is NOT a new SandataPresetId: design section 4's trigger list is an enum value or order, a roster order, a weapon weight, the tick rate, the millisecond conversion rule, or a hash mixer, and a defect in RunTick is none of them. SandataRuleset.ContentHash is unchanged at 8955292433887190872.",
   "EmptyOrderStream": {
     "OperatorCount": 8,
     "TickCount": 40,
     "Seed": 1,
     "TickStateHashesHex": [
-      "D81CEB0CBE66B3D8", "1BBB3B523B96CA6C", "8CA4208120D46940", "05933928B2BC2CAE",
-      "64375D693DF394BA", "7D460B7FEA9137F2", "FAD793E4A0D6355A", "06C0852B1F03A622",
-      "3FD94B2D24851C5A", "1EF51DB544B6F162", "BDB4A7889B30E81A", "3036055BDE3D4B52",
-      "EA967EEF44EFCABA", "07704D71A026AA62", "B7D6C95014C97D7A", "57B88BFD349450F2",
-      "DDF8DC12F21B5C7A", "AAE0CDEFA252D252", "72695A7CE42B151A", "A52548F693B5E5C2",
-      "0540E03513AB0212", "7B7551730720AD1A", "4302F61DFB001C22", "4E3ED223B0787F5A",
-      "F34E6993B23952F2", "04DF53266AC2035A", "48C1733D90C19052", "C80765EB5A0E5ABA",
-      "E3989D2C51259762", "6F62DF711B932D1A", "3B02DE06AD1AE1F2", "1312EFE02567987A",
-      "41A43CEE05CB0B62", "12AB5AB8B893DAFA", "48F989022C272C42", "DA60431E4E9AE5FA",
-      "955D677BEED19352", "6CC46094BB63101E", "65FFF591CD0D06C9", "E0A6DE3ADDF4335C"
+      "D81CEB0CBE66B3D8", "EE414E9B14F4FC49", "D1AEE6708603418A", "462CD2EC3A0F7EA1",
+      "B59E7A874ADC437E", "030A6D5C8054ECCF", "DD870040DD8C7160", "C74CDDBAEFCFA259",
+      "94FC590AD6EE69D2", "74CC083EE3520EF3", "68C99AE39A192144", "A7580007CC6F301D",
+      "957AB3881DA75BB6", "457E49AA2F8C7A67", "D09443F2EEF27878", "12095910354A60E1",
+      "DC79E8DBCAF1CB2A", "E2823912E5CABE6B", "467AEE5C8DF5B51C", "1E48B10FCF7B68E5",
+      "1543C47777205D56", "41AA46BAE8D26117", "657510C0C5A46198", "217D8496E3C9A681",
+      "68AFBBFE7AA3817A", "D3FB598D54F755AB", "A611BBF72FED037C", "89AA4451A4CB0205",
+      "8327539EAC48825E", "5C1F5E042A32CE8F", "D2926E8FACC4ED80", "3B1D1D5E3B7A3879",
+      "68CB4ED4E92FF4C2", "4251AEE58CFC6863", "6CC6BBA5290FA244", "AE00836F166204FD",
+      "AA94278B8163BDC6", "218E4614266F749B", "FFA2733EE90AD993", "993042BF94F8474F"
     ],
-    "FinalEventHashHex": "74E008E940AB05A5"
+    "FinalEventHashHex": "8ABB8C0C246205A5"
   },
   "NonEmptyOrderStream": {
     "OperatorCount": 8,
     "TickCount": 40,
     "Seed": 1,
     "TickStateHashesHex": [
-      "92AA050E83A47D1B", "6768C21C36966D14", "42E174A0E9AC60F4", "7DF4CF3BB725E1CA",
-      "E85AAA21790FBC8E", "18C5CA4D89AAD086", "C6A52D9CDF118C76", "C9624E939D12BCB6",
-      "ED870F63C29900CE", "C03CB55614907026", "DD512E89920530F6", "160413F062C77196",
-      "826A9F8766859F6E", "0EA0AC32D8C2B6B6", "6208A2C80462EC36", "2D7B0683D7EAAEB6",
-      "A001783B205C1E8E", "E43E1F7601F4DFF6", "6BB2C81A1988A356", "D78DE23D344813B6",
-      "31F2412DEFD4C236", "2EBCFD2AA07FCBB6", "8793A87DB8089636", "6DAD60AEDDB64A4E",
-      "69ECE6D8F1B20C06", "22BC8AEAA3FF05F6", "4EC61C22A5939916", "2937ECB52987ECEE",
-      "A495C637F67DA3A6", "2031A41926499B76", "C6C6191EF6AFC036", "648E818FAADB230E",
-      "2A9413F8D14CBD36", "9F9ECF752066E4B6", "0F183E677BF089B6", "D0B3CCCB4C465FAE",
-      "396B55B60CAF5376", "DFAA393BE01F6A92", "032BF910C19AEE91", "C65DB98EC6179094"
+      "92AA050E83A47D1B", "15DAF8867F859F41", "A3776ABC199AD642", "5F6437D12DC585F1",
+      "A7D16EF39E24123A", "3A391D46ABB32F53", "6E65F76D327E2930", "384EA201125E4E69",
+      "86F28960376C0776", "D266ADABD5BEF33F", "E48EBD4B8E2EF04C", "5E490D609E7F1855",
+      "1A1EE4A3F96F0BA2", "168B991E49B5647B", "7203104C48F56248", "3C441057DCDC0AB1",
+      "F034B05ECEC66B9E", "BD07AFE746834567", "BFAE572224E679A4", "0D9361CEA2E2409D",
+      "D015D7A70B332F52", "0D7571E25E9168C3", "A2B157599C815198", "2C68F8EC6234CA79",
+      "48E2270089C546BE", "E9FF4F7DE5E61A0F", "A6C6A3E5703D2E74", "10FD1DA67F0030B5",
+      "55D5907F7AB0C42A", "0392A59A9C663ACB", "BCE6A07ECEF9BE20", "D125CB5A3615BD71",
+      "1E6877C92C2BD1D6", "FB400F298D70B057", "B6DE7722BF0CC55C", "BFA59A7B5C97FB8D",
+      "5152EDEDA3BDDE02", "3E8F486739B8DC67", "32682E9DD5DD615F", "443737190ECE658B"
     ],
-    "FinalEventHashHex": "74E008E940AB05A5"
+    "FinalEventHashHex": "8ABB8C0C246205A5"
   }
 }

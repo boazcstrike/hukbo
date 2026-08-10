@@ -171,6 +171,30 @@ golden expectations under `CLAUDE.md` section 5. The client works around it by
 keeping its own tick counter, which is the value `RunTick` takes as an
 argument anyway.
 
+> **Fixed on 2026-08-11, and the sentence above is wrong about the preset.**
+> `SandataSimulation.RunTick` now writes `State.Tick = currentTick` before
+> stage 1 — before stage 1 specifically, because stage 1 can emit an
+> `OrderRejected` event and every event stamps itself from `State.Tick`. Both
+> Sandata digests moved, the golden fixture and the recorded seed-1 baseline
+> were re-measured, and five new tests in `TickPipelineTests` bind the
+> behaviour; each was break-proofed by pinning the field back to 0.
+>
+> **No new preset version was created, and none was needed.** The claim above
+> repeated a loose sentence in design section 15 rather than design section
+> 4's actual trigger list, which is an enum's numeric value, an enum's order,
+> the roster order, a weapon weight, the tick rate, the millisecond conversion
+> rule, or a hash mixer. A defect in `RunTick` is none of those, the ruleset
+> content is untouched, and `SandataRuleset.ContentHash` is unchanged at
+> `8_955_292_433_887_190_872` — so `ModernTacticalV1 = 1` still names exactly
+> the ruleset it always named. Burning a second preset value would have made
+> preset 1 name a ruleset that never differed. Recorded in
+> `docs/development/testing.md` under "The seed-1 headless workload,
+> re-measured 2026-08-11".
+>
+> The client's own tick counter is left in place. It is now redundant with
+> `State.Tick` rather than a workaround, and removing it is a separate change
+> that no longer has a correctness reason behind it.
+
 **`scripts/run.ps1:59` prints a control hint Sandata did not implement** —
 "Press Escape for Play, Pause, and Exit Game". Task P6 makes the hint true
 rather than changing the text.
