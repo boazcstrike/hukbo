@@ -432,8 +432,10 @@ public sealed class SandataSimulation
         // Stage 8.
         PendingIntents = SelectIntents(view, slots, sensing);
 
-        // Stage 9.
-        PendingMovementProposals = ComputeMovementProposals(view, slots, State);
+        // Stage 9. Takes stage 8's intents and stage 5's evaluated sensing so
+        // an operator that is in a position to shoot stands still to do it —
+        // see ComputeMovementProposals and IsHaltedToEngage.
+        PendingMovementProposals = ComputeMovementProposals(view, slots, State, PendingIntents, sensing);
 
         view.Release();
 
@@ -1906,8 +1908,120 @@ public sealed class SandataSimulation
     /// formation position rather than starting there.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Whether operator <paramref name="index"/> should stand still this tick
+    /// because it is in a position to shoot. True when stage 8 selected
+    /// <see cref="OperatorIntent.Engage"/> for it <em>and</em> its best
+    /// remembered contact is a living operator inside its own firearm's
+    /// <see cref="FirearmDefinition.MaxEffectiveWu"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The range half does not discriminate today, and that is measured
+    /// rather than assumed.</b> The binding number is
+    /// <see cref="ContactMemory.IdentifyRangeWu"/>, which is 96 — not
+    /// <see cref="ContactMemory.DetectRangeWu"/>'s 256 — because
+    /// <see cref="OperatorIntent.Engage"/> requires
+    /// <see cref="ContactTier.Identified"/> and nothing less.
+    /// <c>PistolMaxEffectiveWu</c> is 320 and <c>RifleMaxEffectiveWu</c> is
+    /// 800, so 96 &lt; 320 &lt; 800: a contact identified at all is already
+    /// well inside the effective range of every weapon in the catalog. On
+    /// today's numbers this method returns exactly what a bare
+    /// <c>intents[index].Intent == Engage</c> test would return, and no test
+    /// in this repository can currently tell the two apart.
+    /// </para>
+    /// <para>
+    /// The range test is kept regardless, because the alternative is a rule
+    /// that is only accidentally correct. The moment detection outruns a
+    /// weapon — a longer <see cref="ContactMemory.DetectRangeWu"/>, a spotter,
+    /// a shorter-ranged weapon than the 320 wu pistol — halting on the intent
+    /// alone would stop an operator the instant it saw anything and leave it
+    /// firing from a distance it cannot reach. Writing the rule correctly now
+    /// costs one comparison per living operator per tick; discovering it later
+    /// costs a session of wondering why nobody closes.
+    /// </para>
+    /// <para>
+    /// <b>Why the contact comes from <paramref name="sensing"/> rather than
+    /// from <c>state.Operators[index].ContactMemory</c>.</b> Stage 5 is
+    /// evaluated before this stage but committed after it — see
+    /// <see cref="RunTick"/> — so the memory on
+    /// <see cref="MissionState"/> at this point is still last tick's. Stage 8
+    /// chose its intent from <paramref name="sensing"/>, and a halt decision
+    /// that consulted a different tick's contacts than the intent it is
+    /// honouring would disagree with itself on the tick a contact appears or
+    /// is lost.
+    /// </para>
+    /// <para>
+    /// <b>Line of sight is already accounted for and is not re-tested here.</b>
+    /// A contact only enters <see cref="ContactMemory"/> after passing
+    /// <see cref="VisionCone.Contains"/> and <see cref="LineOfSight.IsVisible"/>
+    /// in stage 5. Re-testing would duplicate stage 5's work; skipping the
+    /// memory and scanning raw positions instead would halt operators behind
+    /// walls, which is the mistake this note exists to prevent.
+    /// </para>
+    /// <para>
+    /// The halt is a proposal like any other. It goes through
+    /// <see cref="LocalAvoidance"/> in stage 10 exactly as a moving proposal
+    /// does, so a halted operator still participates in collision rather than
+    /// becoming an immovable obstacle.
+    /// </para>
+    /// </remarks>
+    private static bool IsHaltedToEngage(
+        TickStartView view,
+        MissionState state,
+        ImmutableArray<IntentSelectionResult> intents,
+        SensingOutcome sensing,
+        int index)
+    {
+        if (index >= intents.Length || intents[index].Intent != OperatorIntent.Engage)
+        {
+            return false;
+        }
+
+        var contactMemory = sensing.ContactMemoryByIndex;
+        if (index >= contactMemory.Length ||
+            !TryFindBestContact(contactMemory[index], out var contactId))
+        {
+            return false;
+        }
+
+        var contactIndex = view.IndexOf(contactId);
+        if (contactIndex < 0 || !view.IsAlive(contactIndex))
+        {
+            return false;
+        }
+
+        // The view and state.Operators are index-aligned: CaptureTickStartView
+        // builds the view by walking state.Operators in order. The firearm is
+        // read from state because the view carries only what stages 5 through
+        // 9 need to read positionally, and a loadout is not one of those.
+        if (index >= state.Operators.Length)
+        {
+            return false;
+        }
+
+        var definition = FirearmCatalog.Rows[(int)state.Operators[index].Firearm];
+
+        var dxWu = WorldUnits.FromFixedPoint(FixedPoint.FromRaw(view.PositionXRaw(contactIndex))) -
+            WorldUnits.FromFixedPoint(FixedPoint.FromRaw(view.PositionXRaw(index)));
+        var dyWu = WorldUnits.FromFixedPoint(FixedPoint.FromRaw(view.PositionYRaw(contactIndex))) -
+            WorldUnits.FromFixedPoint(FixedPoint.FromRaw(view.PositionYRaw(index)));
+
+        var rangeSquaredWu = checked((dxWu * dxWu) + (dyWu * dyWu));
+        var maxEffectiveSquaredWu =
+            checked((long)definition.MaxEffectiveWu * definition.MaxEffectiveWu);
+
+        // Compared squared, so no integer square root is taken on a path that
+        // runs once per living operator per tick.
+        return rangeSquaredWu <= maxEffectiveSquaredWu;
+    }
+
     private ImmutableArray<MovementProposal> ComputeMovementProposals(
-        TickStartView view, ReadOnlySpan<SquadSlot> slots, MissionState state)
+        TickStartView view,
+        ReadOnlySpan<SquadSlot> slots,
+        MissionState state,
+        ImmutableArray<IntentSelectionResult> intents,
+        SensingOutcome sensing)
     {
         var count = view.Count;
         var assignments = state.OrderAssignments;
@@ -1936,6 +2050,22 @@ public sealed class SandataSimulation
             var startXRaw = view.PositionXRaw(i);
             var startYRaw = view.PositionYRaw(i);
             var slot = slots[i];
+
+            // Halt to engage. Until 2026-08-11 this stage never read the
+            // intent stage 8 had just selected, so an operator with
+            // OperatorIntent.Engage kept walking its published path at full
+            // sprint speed regardless. On the shipped angle-house map that
+            // meant an assaulting pair advanced onto the objective cell a
+            // defender was standing on and killed it from touching distance,
+            // which is why the first person to watch a run reported the game
+            // as melee combat. See this method's remarks.
+            if (IsHaltedToEngage(view, state, intents, sensing, i))
+            {
+                builder.Add(new MovementProposal(
+                    entityId, startXRaw, startYRaw, startXRaw, startYRaw,
+                    slot.GroupId, slot.SlotIndex ?? 0));
+                continue;
+            }
 
             var assignment = FindAssignment(assignments, entityId);
 

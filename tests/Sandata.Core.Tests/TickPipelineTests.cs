@@ -1631,25 +1631,44 @@ public sealed class TickPipelineTests
     /// than the step that turns.
     /// </para>
     /// <para>
-    /// <b>This test pins a known gap, not a desired outcome.</b> It exists so
-    /// the stall is reproduced rather than rediscovered, and the assertions
-    /// below are on the <i>mechanism</i> - stage 9 keeps proposing a full
-    /// forward step throughout, so the stall is stage 10 rejecting live
-    /// proposals rather than stage 9 giving up. If a future change lets a
-    /// blocked mover route around a static body, this test fails; the right
-    /// response then is to delete it and keep the arrival test above, never
-    /// to weaken that one.
+    /// <b>Rewritten 2026-08-11, and the paragraphs above are now history
+    /// rather than current behaviour.</b> This fixture can no longer reach the
+    /// stage 10 stall, because the blocker it uses is an <em>opposing
+    /// faction</em> body 28 wu away — and stage 9 now halts an operator that
+    /// stage 8 gave <see cref="OperatorIntent.Engage"/> when its best contact
+    /// is inside its firearm's effective range. The leader stops to shoot the
+    /// blocker before it can ever walk into it, so what this fixture now
+    /// demonstrates is the halt, not the stall. The old assertions failed
+    /// exactly as they were written to: "stage 9 stopped proposing a move, so
+    /// this is not a stage 10 stall".
+    /// </para>
+    /// <para>
+    /// <b>Task 89's stall is not fixed and has not been lost.</b> Nothing in
+    /// <c>LocalAvoidance</c> changed. The stall is a stage 10 property, and it
+    /// is now pinned where it actually lives, against
+    /// <c>LocalAvoidance.Commit</c> directly, by
+    /// <c>LocalAvoidanceTests.CommitAgainstAStaticBody_StallsForeverBecauseTheOneSidestepIsBlockedToo</c>.
+    /// That is a better home for it than this one: at stage 10 there is no
+    /// sensing, no intent, and no faction, so no future combat rule can
+    /// silently stop the fixture from reaching the defect the way this one
+    /// just did.
     /// </para>
     /// </summary>
     [Fact]
-    public void RunTick_StationaryBodyOnThePublishedPath_StallsTheLeaderBecauseItsOneSidestepIsBlockedToo()
+    public void RunTick_HostileBodyOnThePublishedPath_HaltsTheLeaderToEngageBeforeItWalksIntoTheBody()
     {
-        var grid = BuildGrid();
+        // 96 cells at NavGrid.CellSizeWu 4 is 384 wu across, deliberately
+        // wider than this file's 32-cell default. ContactMemory.DetectRangeWu
+        // is 256, so on a 128 wu grid every hostile is already inside
+        // detection range at tick 0 and the leader could never be seen to walk
+        // and then stop — a correct halt would be indistinguishable from a
+        // leader that never moved at all.
+        var grid = BuildGrid(width: 96, height: 32);
         var wallBuckets = NoWalls(grid);
         var mission = BuildMission();
 
         var startCell = grid.CellIndex(0, 0);
-        var goalCell = grid.CellIndex(25, 0);
+        var goalCell = grid.CellIndex(90, 0);
 
         const int pathLatencyTicks = 1;
         var ruleset = new SandataRuleset(
@@ -1669,7 +1688,7 @@ public sealed class TickPipelineTests
         // window, so the blocker cannot be shot out of the way and turn a
         // movement finding into a combat one - asserted below rather than
         // assumed.
-        const int blockerXWu = 30;
+        const int blockerXWu = 300;
         var leader = BuildOperator(entityId: 1, faction: 0, positionXWu: 2, positionYWu: 2)
             with
         { Health = 1_000_000 };
@@ -1696,8 +1715,12 @@ public sealed class TickPipelineTests
         // Long enough that the leader covers the ~19 wu of clear ground
         // before the blocker's body and then sits against it for many times
         // as many ticks as it took to get there.
-        const int tickCount = 90;
-        const int stallWindowStart = 60;
+        // The leader halts when the blocker reaches ContactMemory
+        // .IdentifyRangeWu (96), which from 2 wu against a blocker at 300 wu
+        // is about 202 wu of walking at 1.6 wu per tick — roughly 126 ticks.
+        // The window opens well after that so the halt has settled.
+        const int tickCount = 200;
+        const int stallWindowStart = 160;
 
         long stalledXRaw = 0;
         long stalledYRaw = 0;
@@ -1723,22 +1746,32 @@ public sealed class TickPipelineTests
 
             var proposal = sim.PendingMovementProposals.Single(p => p.EntityId == 1UL);
 
-            // Stage 9 is healthy throughout the stall: it proposes a fresh
-            // full-magnitude step toward the path on every one of these
-            // ticks. Without this the test could pass on a simulation that
-            // had simply stopped proposing anything, which is a different
-            // defect wearing the same symptom.
+            // Stage 9 itself is what stops the leader now: it proposes the
+            // leader's own current position rather than a stride toward the
+            // path. This is the assertion that inverted on 2026-08-11 — it
+            // used to require a full-magnitude proposal, because the stall it
+            // pinned lived in stage 10 rejecting live proposals.
             var desiredDeltaX = (long)proposal.DesiredXRaw - proposal.StartXRaw;
             var desiredDeltaY = (long)proposal.DesiredYRaw - proposal.StartYRaw;
             var desiredMagnitudeSq = (desiredDeltaX * desiredDeltaX) + (desiredDeltaY * desiredDeltaY);
             Assert.True(
-                desiredMagnitudeSq > 0,
-                $"tick {tick}: stage 9 stopped proposing a move, so this is not a stage 10 stall");
-            Assert.True(
-                desiredMagnitudeSq > (movementSpeedRaw - 8) * (movementSpeedRaw - 8),
-                $"tick {tick}: stage 9's proposed step {desiredMagnitudeSq} raw squared is not a full stride");
+                desiredMagnitudeSq == 0,
+                $"tick {tick}: stage 9 proposed a step of {desiredMagnitudeSq} raw squared toward a " +
+                "hostile it should have halted to engage");
             Assert.Equal(1UL, proposal.GroupId);
             Assert.Equal(0, proposal.SlotIndex);
+
+            // The whole point of the halt: the leader keeps its distance
+            // rather than closing to touching range. Asserted as a real gap in
+            // world units, not as "the positions differ" — two bodies resting
+            // against each other also differ.
+            var gapXWu =
+                (blockerNow.PositionX.RawValue - leaderNow.PositionX.RawValue) / FixedPoint.Scale;
+            Assert.True(
+                gapXWu >= 80,
+                $"tick {tick}: the leader closed to {gapXWu} wu of the hostile. It should have " +
+                "stopped at about ContactMemory.IdentifyRangeWu (96), which is where Engage " +
+                "becomes available — closing to touching distance is what this halt prevents");
 
             if (tick == stallWindowStart)
             {
@@ -1750,8 +1783,7 @@ public sealed class TickPipelineTests
             Assert.True(
                 leaderNow.PositionX.RawValue == stalledXRaw && leaderNow.PositionY.RawValue == stalledYRaw,
                 $"tick {tick}: the leader moved from ({stalledXRaw}, {stalledYRaw}) to " +
-                $"({leaderNow.PositionX.RawValue}, {leaderNow.PositionY.RawValue}) - " +
-                "if stage 10 now routes around a static body, delete this test rather than widening it");
+                $"({leaderNow.PositionX.RawValue}, {leaderNow.PositionY.RawValue}) while halted to engage");
         }
 
         // The stall is short of the goal and past the start, so neither

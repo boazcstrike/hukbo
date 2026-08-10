@@ -14,6 +14,7 @@ using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
 using Sandata.Core.Rules;
 using Sandata.Core.Simulation;
+using Sandata.Core.Weapons;
 
 namespace Sandata.Headless;
 
@@ -377,6 +378,42 @@ public static class HeadlessRunner
     /// calls per operator, in the same index order, regardless of where the
     /// pitch places that operator's unjittered cell centre.
     /// </summary>
+    /// <summary>
+    /// The two-weapon roster this workload puts in play: every fourth operator
+    /// carries <see cref="FirearmId.Beretta92Fs"/> and the rest carry
+    /// <see cref="FirearmId.Ak47"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Before 2026-08-11 nothing in this repository assigned a firearm to
+    /// anybody.</b> <see cref="OperatorState.Firearm"/> is <c>init</c>-only
+    /// with a default of <see cref="FirearmId.Ak47"/>, and no assignment
+    /// existed anywhere in <c>src/</c> — so although
+    /// <c>FirearmCatalog</c> declares 38 weapons, every operator in every run
+    /// carried the same rifle and the roster in play was one. That is also why
+    /// smoke row <c>SD-4</c> could not be attempted: its rifle-versus-pistol
+    /// comparison had no pistol to compare.
+    /// </para>
+    /// <para>
+    /// <b>One in four, not one in two.</b> A even split would make the pistol
+    /// as common as the rifle, which is neither a realistic loadout nor a good
+    /// test: the interesting case is a minority weapon that has to be spotted
+    /// among a majority. The index rather than the entity id keys it because
+    /// the id is the index plus one, so keying on the id would put the pistols
+    /// on a different set of operators for no reason a reader could infer.
+    /// </para>
+    /// <para>
+    /// <b>This moves the recorded seed-1 digests, deliberately.</b> A pistol
+    /// has different timings, dispersion, and caliber damage than a rifle, so
+    /// the workload's outcome legitimately changes. It is not a new
+    /// <see cref="SandataPresetId"/>: the catalog, the enum, and
+    /// <c>FirearmRuleset.ContentHash</c> are all untouched — this only chooses
+    /// which existing rows the workload uses.
+    /// </para>
+    /// </remarks>
+    internal static FirearmId LoadoutForIndex(int index) =>
+        index % 4 == 3 ? FirearmId.Beretta92Fs : FirearmId.Ak47;
+
     internal static MissionState BuildInitialState(int operatorCount, ulong seed, int packingSide)
     {
         var rng = new SplitMix64(seed);
@@ -408,7 +445,10 @@ public static class HeadlessRunner
                 WeaponChainRemainingTicks: 0,
                 MagazineRounds: 30,
                 CyclicFireAccumulator: 0,
-                SuppressionCounter: 0));
+                SuppressionCounter: 0)
+            {
+                Firearm = LoadoutForIndex(index),
+            });
         }
 
         var built = operators.MoveToImmutable();

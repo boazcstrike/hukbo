@@ -386,4 +386,103 @@ public sealed class LocalAvoidanceTests
             }
         }
     }
+
+    /// <summary>
+    /// Task 89's recorded gap, pinned here from 2026-08-11: a mover whose
+    /// desired step is blocked by a body that never moves refuses the step,
+    /// takes its single <see cref="SidestepRules.Sidestep"/> retry, has that
+    /// refused too, and then repeats both refusals for as long as the caller
+    /// keeps asking. It never re-plans and it never gets past.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This pins a known gap, not a desired outcome.</b> Design section 8
+    /// states the rule in full — "if that is also blocked, it waits a tick" —
+    /// and says nothing about a blocker that never moves. Head on, a
+    /// 22.5-degree rotation does not clear a body whose radius exceeds the
+    /// step that turns. If a future change lets a blocked mover route around a
+    /// static body, this test fails, and the right response then is to delete
+    /// it rather than to widen it.
+    /// </para>
+    /// <para>
+    /// <b>Why it lives at stage 10 rather than in <c>TickPipelineTests</c>.</b>
+    /// It used to be reproduced through <c>SandataSimulation.RunTick</c>
+    /// against an opposing-faction blocker. On 2026-08-11 stage 9 gained the
+    /// halt-to-engage rule, so that fixture's leader now stops to shoot the
+    /// blocker before it can ever walk into it and the stall became
+    /// unreachable from there — the old test failed on its own guard
+    /// assertion, which is exactly what that assertion was for. Down here
+    /// there is no sensing, no intent, and no faction, so no future combat
+    /// rule can quietly stop this fixture from reaching the defect.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void CommitAgainstAStaticBody_StallsForeverBecauseTheOneSidestepIsBlockedToo()
+    {
+        const ulong moverId = 1UL;
+        const ulong blockerId = 3UL;
+
+        // Head on, along +X. The mover starts clear of the blocker — 24 raw
+        // apart against a body diameter of 20, so nothing overlaps at rest and
+        // the resolver has no reason to push anybody anywhere. The step of 12
+        // would close that to 12, well inside the diameter, so the full step
+        // overlaps and so does its single 22.5-degree rotation.
+        const int blockerXRaw = 200;
+        const int moverStartXRaw = blockerXRaw - (BodyRadiusRaw * 2) - 4;
+        const int yRaw = 500;
+        const int stepRaw = 12;
+
+        var avoidance = new LocalAvoidance(CellSizeRaw, BodyRadiusRaw);
+
+        var moverXRaw = moverStartXRaw;
+        var moverYRaw = yRaw;
+
+        for (var tick = 0; tick < 40; tick++)
+        {
+            var proposals = new[]
+            {
+                new MovementProposal(
+                    moverId, moverXRaw, moverYRaw, moverXRaw + stepRaw, moverYRaw, GroupId: 1UL, SlotIndex: 0),
+                // The blocker proposes its own position every tick: it is the
+                // static body the whole finding is about.
+                new MovementProposal(
+                    blockerId, blockerXRaw, yRaw, blockerXRaw, yRaw, GroupId: 2UL, SlotIndex: 0),
+            };
+
+            var results = avoidance.Commit(proposals);
+
+            var mover = results.Single(r => r.EntityId == moverId);
+            var blocker = results.Single(r => r.EntityId == blockerId);
+
+            Assert.Equal(blockerXRaw, blocker.CommittedXRaw);
+            Assert.Equal(yRaw, blocker.CommittedYRaw);
+
+            Assert.True(
+                mover.CommittedXRaw == moverXRaw && mover.CommittedYRaw == moverYRaw,
+                $"tick {tick}: the mover advanced from ({moverXRaw}, {moverYRaw}) to " +
+                $"({mover.CommittedXRaw}, {mover.CommittedYRaw}). If stage 10 now routes around a " +
+                "static body, delete this test rather than widening it.");
+
+            moverXRaw = mover.CommittedXRaw;
+            moverYRaw = mover.CommittedYRaw;
+        }
+
+        // Not "it did not move": it did not move *and* it was still trying,
+        // from a position that is genuinely short of the blocker rather than
+        // resting on top of it.
+        Assert.Equal(moverStartXRaw, moverXRaw);
+
+        // At rest the two are clear of each other, so nothing above was the
+        // resolver merely refusing to let bodies interpenetrate...
+        Assert.True(
+            blockerXRaw - moverXRaw >= BodyRadiusRaw * 2,
+            $"the mover should be resting clear of the blocker, but the gap is " +
+            $"{blockerXRaw - moverXRaw} raw against a body diameter of {BodyRadiusRaw * 2}");
+
+        // ...and one full step would genuinely overlap, so the mover really is
+        // blocked rather than having quietly arrived somewhere acceptable.
+        Assert.True(
+            blockerXRaw - (moverXRaw + stepRaw) < BodyRadiusRaw * 2,
+            "the fixture must actually be blocked for this finding to mean anything");
+    }
 }
