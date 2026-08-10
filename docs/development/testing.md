@@ -4202,13 +4202,13 @@ of the whole route and never does anything.
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| SD-1 | Launch, then zoom from the closest tier out to the furthest | The window opens, the map draws, and the operators stay legible at every zoom level | | PENDING |
-| SD-2 | Watch a squad path across the 26.57-degree diagonal wall | The funnel path visibly follows the wall as a straight line rather than a staircase | | PENDING |
-| SD-3 | Send a squad through the entry door and on into the room behind it | The squad visibly collapses to single file at the door and re-expands inside | | PENDING |
+| SD-1 | Launch, then zoom from the closest tier out to the furthest | The window opens, the map draws, and the operators stay legible at every zoom level | 2026-08-11, tester at the desktop: "there was only 2 of them, so no" — an operator could not be told from a piece of cover at the tiers tried. Ally versus enemy *was* tellable, but by colour alone. The row asks about operator-versus-cover legibility, which is the half that failed. | FAIL |
+| SD-2 | Watch a squad path across the 26.57-degree diagonal wall | The funnel path visibly follows the wall as a straight line rather than a staircase | 2026-08-11, attempted: "i am unsure which is which". Investigated after the run and the row cannot be judged by anyone — `SandataGame.DrawOrderPath` renders only `_pathDrawState.Nodes`, the polyline the player is drawing by right-click. No published autonomous group path is drawn anywhere in `Sandata.Client`, so there is no line on screen to call straight or stepped. Becomes executable when the published path is rendered. | BLOCKED |
+| SD-3 | Send a squad through the entry door and on into the room behind it | The squad visibly collapses to single file at the door and re-expands inside | 2026-08-11, tester at the desktop: "single file" — the collapse at the door was observed. The re-expansion inside the room was not separately reported, so only the first half of the expected observation is evidenced. | PASS |
 | SD-4 | Watch a rifle operator cross a doorway, then a pistol operator cross the same one | The rifle operator lowers the weapon and re-raises it; the pistol operator does not | Cannot be run by anyone: every operator draws the same placeholder weapon appearance, so the two halves of the comparison are visually identical. Becomes executable when per-weapon operator appearances ship. | BLOCKED |
 | SD-5 | Hold sustained automatic fire from the maximum operator count | Automatic fire sounds continuous rather than machine-gun-stuttered, and no audio drops out | Cannot be run by anyone: Sandata ships no sound files at all. Becomes executable when the audio generation run is authorized and its slots exist. See the note below the table. | BLOCKED |
-| SD-6 | Look at a fire cone at every detail tier, zoomed in and out | The cone reads at every tier and does not fade with zoom | | PENDING |
-| SD-7a | View a friendly and a hostile contact side by side in `night-ops`, then judge them again ignoring colour | The two are distinguishable at a glance, and remain distinguishable by shape alone | | PENDING |
+| SD-6 | Look at a fire cone at every detail tier, zoomed in and out | The cone reads at every tier and does not fade with zoom | 2026-08-11, tester at the desktop: "readable but not understandable". The row's literal criterion — the cone stays visible at every tier and does not fade with zoom — was met. That it does not communicate *what it means* to a viewer is a real separate finding and is recorded below the table, not folded into this row's status. | PASS |
+| SD-7a | View a friendly and a hostile contact side by side in `night-ops`, then judge them again ignoring colour | The two are distinguishable at a glance, and remain distinguishable by shape alone | 2026-08-11, tester at the desktop: distinguishable at a glance, yes — "not distinguishable by shape" with colour ignored. The row requires both halves, and the colour-independent half is the accessibility half, so the row fails. | FAIL |
 | SD-7b | View friendly, hostile, and unknown contacts in every shipped theme | All three are distinguishable in `daylight-ops` as well as `night-ops` | Cannot be run by anyone: `LoadTheme` always takes `catalog.DefaultThemeId`, so `daylight-ops` is unreachable from the client, and no unknown-contact state exists to render. Becomes executable when a theme switcher and an unknown-contact state ship. | BLOCKED |
 | SD-8 | Click an operator that is holding position | The inspector explains the hold: reason code, path state, and weapon chain phase | Cannot be run by anyone: `Sandata.Client` has no `SpriteFont` and makes no `DrawString` call, so the inspector renders no characters at all. Becomes executable when text rendering ships. | BLOCKED |
 
@@ -4242,6 +4242,52 @@ blocked either. `SD-7a` is the half a tester can finish; `SD-7b` is the half
 that waits on a theme switcher and an unknown-contact state. The colour-removed
 judgement stays with `SD-7a`, because shape-alone distinguishability is
 testable in the one reachable theme.
+
+### First Sandata smoke run — 2026-08-11
+
+The first time a person has run Sandata and reported what they saw. Five rows
+were attemptable; the result was two `PASS`, two `FAIL`, and one row that
+turned out to be unjudgeable and is now `BLOCKED`. The transport controls,
+which no row covers, were confirmed to do what they claim.
+
+Four findings came out of it. None is a regression — all four are things that
+were never built, surfaced by the first person to look at the screen.
+
+**1. Gunfire is completely invisible, and it is a dead code path rather than a
+missing feature.** `OperatorGeometry` has a muzzle-flash layer, anchored at
+`OperatorLayout.WeaponMuzzleAnchor`, gated on an `isFiring` flag.
+`SandataGame.cs:1279` supplies that flag as
+`operatorState.WeaponChainPhase == (int)WeaponChainPhase.Firing`. That
+comparison is **always false**: `WeaponChain`'s own remarks state that
+`Firing` "is not a wait: entering it always records one resolved shot and
+moves on to `Resetting` within the same pass, so it is never the phase this
+method returns." The stored phase on `OperatorState` therefore never holds
+`Firing`, the flash never draws a pixel, and no tracer, impact, or hit effect
+was ever built to stand in for it. Combined with finding 2 below, a firefight
+renders as two shapes drifting together until one stops. The tester read it as
+melee combat, which is the correct reading of what is on screen.
+
+**2. Nothing makes an operator stop at weapon range to engage.** A search of
+`SandataSimulation` and `Sandata.Core/Squads` for any effective-range,
+engagement-range, or stop-to-fire concept returns nothing. `InitialSquadGroups`
+sends each assaulting squad to a map objective, a defender is standing on that
+objective, and the squad walks to the waypoint. Closing to contact is the
+absence of engagement behaviour, not a decision any code makes.
+
+**3. No autonomous path is drawn.** See `SD-2`'s row above.
+
+**4. The fire cone is readable but carries no meaning.** Recorded from `SD-6`.
+The cone renders at every tier as the row requires, but a viewer cannot tell
+what it represents. This is the section 10 discoverability standard —
+*can a spectator discover this effect without reading source code?* — and the
+answer today is no. It is not an `SD-6` failure, because `SD-6` asks about
+legibility rather than comprehension; it is a gap the row was never written to
+catch.
+
+Findings 1, 2, and 3 are each a plain absence with a known fix. Finding 4, and
+the `SD-1` and `SD-7a` failures, are the same underlying problem stated three
+ways: the client draws untextured primitives with no shape vocabulary, so
+everything on screen depends on colour to mean anything.
 
 ### Weapon identity and attributes smoke (preset V2)
 
