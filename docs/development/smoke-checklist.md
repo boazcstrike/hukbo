@@ -23,16 +23,20 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-11
 
-322 rows across 27 subsections: **280 `PENDING`, 14 `BLOCKED`, 24 `PASS`,
+307 rows across 26 subsections: **265 `PENDING`, 14 `BLOCKED`, 24 `PASS`,
 3 `FAIL`, 1 `DECLINED`**, recounted from the status column of this file on
-2026-08-11 after the `V2` weapon-identity re-run closed its last four rows,
-that completed family was archived out, and the DPI awareness fix returned
-`UI-2`, `UI-4`, and `UI-6` from `FAIL` to `PENDING` for a re-run. The count fell rather than rose because
-those ten `PASS` rows left the file; they are in
-[`../archives/2026-08-11/2026-08-11-weapon-identity-smoke.md`](../archives/2026-08-11/2026-08-11-weapon-identity-smoke.md)
-and are not lost. The `CL` weapon-clash family left the same way earlier the
-same day, into
-[`../archives/2026-08-11/2026-08-11-weapon-clash-smoke.md`](../archives/2026-08-11/2026-08-11-weapon-clash-smoke.md).
+2026-08-11 after the collision, battle-report and window-shell family closed all
+fifteen of its rows on one interactive run and was archived out. Earlier the
+same day the `V2` weapon-identity re-run closed its last four rows and was
+archived, the `CL` weapon-clash family closed and was archived before that, and
+the DPI awareness fix returned `UI-2`, `UI-4`, and `UI-6` from `FAIL` to
+`PENDING` for a re-run. The totals fall rather than rise on a good day, because
+a family that closes leaves the file. The three archived families are in
+[`../archives/2026-08-11/2026-08-11-collision-report-window-shell-smoke.md`](../archives/2026-08-11/2026-08-11-collision-report-window-shell-smoke.md),
+[`../archives/2026-08-11/2026-08-11-weapon-identity-smoke.md`](../archives/2026-08-11/2026-08-11-weapon-identity-smoke.md),
+and
+[`../archives/2026-08-11/2026-08-11-weapon-clash-smoke.md`](../archives/2026-08-11/2026-08-11-weapon-clash-smoke.md),
+and their 37 `PASS` rows are not lost.
 
 Three earlier figures here were wrong — 105 rows across 29 subsections, which
 appears to have survived the split out of `docs/development/testing.md`; 333
@@ -1068,38 +1072,22 @@ disposition of its own "Manual visual verification" section from
 Eighteen new rows (116 through 133) were created by this task, all `PENDING`.
 No row born flipped, per VIS-043's own prohibited-scope clause.
 
-## Collision firmness, battle report, and window shell smoke (2026-07-28)
+## Collision firmness, battle report, and window shell smoke — complete, archived
 
-Added by the collision report and window shell plan. The canonical
-gate passed on 2026-07-28 with `stateHash A080E28DA7C79C20`,
-`eventHash 2B6FB3A9A9C1960D`, `measuredTicks 1677`, `outcome Faction0Victory`,
-`deterministic true`, `maximumPenetrationRaw 0`, and
-`longestBlockedStreakTicks 88`. **A passing gate proves none of the rows below.**
-Every one of them needs a human at an interactive desktop, and no agent may flip
-one to `PASS`.
+**All fifteen rows, 134 through 148, are `PASS` and this section has moved.** It
+closed on 2026-08-11 on a single interactive run, with no code change needed
+between attempts. The rows, the observations, and the note on which SDL
+P/Invokes that run does and does not vouch for are in
+[`../archives/2026-08-11/2026-08-11-collision-report-window-shell-smoke.md`](../archives/2026-08-11/2026-08-11-collision-report-window-shell-smoke.md).
 
-The minimize row deserves particular suspicion. `SDL_MinimizeWindow` is reached
-through a `[LibraryImport("SDL2")]` P/Invoke that compiles cleanly but has never
-been executed in this repository. A clean build is no evidence at all that the
-native call works; if it fails, the button is dead with no visible error.
+Row 137 executed `SDL_MinimizeWindow` for the first time in this repository and
+it worked. That says nothing about `SDL_MaximizeWindow`, `SDL_RestoreWindow`, or
+`SDL_GetWindowFlags`, which are still unexecuted and are covered by rows 165 to
+167 in the section immediately below.
 
-| # | Step | Expected | Result | Status |
-| --- | --- | --- | --- | --- |
-| 134. Watch a battle at the enlarged body radius | Crowds pack visibly tighter and the melee front blocks more firmly than at the old four-world-unit radius. No unit is stranded and no line gridlocks. | Not run | PENDING |
-| 135. Run several battles to a terminal outcome | Every battle reaches a decisive result or a legitimate draw. None stalls at the tick limit with both factions alive and unable to move. | Not run | PENDING |
-| 136. Confirm the OS title bar is gone | The window has no title bar and no operating-system exit, minimize, or maximize buttons. | Not run | PENDING |
-| 137. Click the new Min button | The window minimizes to the taskbar. Clicking the taskbar icon restores it. Watch the taskbar — do not infer this from the button reacting. | Not run | PENDING |
-| 138. Click the new Close button | The game exits cleanly. | Not run | PENDING |
-| 139. Press Alt+F4, and use Escape then Exit Game | Both still quit the game. | Not run | PENDING |
-| 140. Confirm the window still resizes | Dragging a window edge resizes the window, and the layout adapts. `AllowUserResizing` was deliberately left true. | Not run | PENDING |
-| 141. Check all six control-bar buttons | Play, Pause, Menu, Sounds, Min, and Close all render fully inside the bar. The Close button is not clipped at the right edge. | Not run | PENDING |
-| 142. Open the unit setup menu | Every label, including `Kalis — Thrusting Blade (shielded)`, renders fully inside its row and does not overrun the stepper controls. | Not run | PENDING |
-| 143. Check the stepper still reads clearly | The unit count, up to its 250 maximum, centres cleanly in the narrowed value column between the two arrows. | Not run | PENDING |
-| 144. Play a battle to the end and open the battle report | The Battle Report button appears on the match summary and opens the report panel. It does not crash. | Not run | PENDING |
-| 145. Read the battle report numbers | Kills, damage dealt and taken, accuracy, faction totals, and the highlight lines are populated and plausible against the battle just watched. | Not run | PENDING |
-| 146. Scroll the kill leaderboard | The leaderboard scrolls and clips correctly inside its section, and the panel stays inside the arena bounds. | Not run | PENDING |
-| 147. Confirm weapon names in the report | Every weapon appears in pair form, for example `Kampilan — Great Blade`, never as a bare cultural name. | Not run | PENDING |
-| 148. Start a second battle after finishing one | Next Round and Full Reset both clear the report. The second battle reports its own statistics with nothing carried over from the first. | Not run | PENDING |
+Nothing in the archive is an instruction. If a later change touches collision
+firmness, the battle report panel, or the borderless window shell, write fresh
+rows here rather than re-running the archived ones.
 
 ## Quit confirmation, maximize, and Core faction metrics smoke (2026-07-28)
 
@@ -1778,7 +1766,7 @@ measurement, not a visual one, and it flips no row below.
 ## Battlefield realism cohort and retreat smoke (task 18)
 
 Added by the battlefield realism change
-([2026-08-11-battlefield-realism.md](../plans/2026-08-11-battlefield-realism.md)),
+([2026-08-11-battlefield-realism.md](../archives/2026-08-11/2026-08-11-battlefield-realism.md), archived once its build merged),
 which flips the client's default preset combination to `PrecolonialPhilippinesV5`
 plus `MovementPresetId.BattlefieldRealismV10`. **No interactive run was
 performed for this change.** Every row below is `PENDING` with its evidence
