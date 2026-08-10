@@ -150,7 +150,226 @@ public sealed class RangedRetreatTests
             () => simulation.NearestMeleeThreatSquaredForTesting(shooter.EntityId));
     }
 
+    // ----- Task 8: the retreat rung itself -----
+
+    /// <summary>
+    /// A stationary melee enemy placed well inside the threat radius, far
+    /// from every map edge: the shooter ends the tick strictly farther from
+    /// it than it started -- design 5.2 rung 1 made concrete. The enemy is
+    /// held at zero speed so the only thing that can change the separation
+    /// is the shooter's own retreat step.
+    /// </summary>
+    [Fact]
+    public void AThreatenedShooterEndsTheTickFartherFromTheThreatThanItBegan()
+    {
+        var scenario = CreateScenario();
+        var rules = RangedRules();
+        var standoffRaw = rules
+            .ResolveWeaponProfile(Bangkaw.Weapon, Bangkaw.Shield)
+            .StandoffDistanceRaw;
+        var threatRadiusRaw = RangedRetreatRules.ThreatRadiusRaw(standoffRaw);
+
+        const int centerRaw = 250 * FixedPoint.Scale;
+        var shooter = CreateAgent(1, factionId: 0, xRaw: centerRaw, yRaw: centerRaw, scenario, rules, Bangkaw);
+        var threat = CreateAgent(
+            2,
+            factionId: 1,
+            xRaw: centerRaw + (threatRadiusRaw / 2),
+            yRaw: centerRaw,
+            scenario,
+            rules,
+            Kampilan,
+            movementSpeedRawOverride: 0);
+
+        var simulation = BattleSimulation.CreateForTesting(scenario, rules, shooter, threat);
+
+        var startingSquared = SquaredDistanceRaw(shooter.XRaw, shooter.YRaw, threat.XRaw, threat.YRaw);
+
+        simulation.AdvanceOneTick();
+
+        var endingSquared = SquaredDistanceRaw(shooter.XRaw, shooter.YRaw, threat.XRaw, threat.YRaw);
+
+        Assert.True(shooter.XRaw < centerRaw, $"Expected the shooter to step away from the threat, got XRaw={shooter.XRaw}.");
+        Assert.True(
+            endingSquared > startingSquared,
+            $"Expected the separation to grow: started at {startingSquared}, ended at {endingSquared}.");
+    }
+
+    /// <summary>
+    /// A shooter placed at the map's low-X edge -- exactly
+    /// <c>CollisionGeometry.ClampCenterToBounds</c>'s own low bound,
+    /// <c>BodyRadiusRaw</c> -- with a melee enemy inside the threat radius on
+    /// its +X side. The reflected retreat destination is strictly further
+    /// -X, which the bounds clamp pulls straight back to where the shooter
+    /// already stands (design 5.5, hazard one), so the cornered warrior
+    /// reads <see cref="AgentIntent.Holding"/> and never
+    /// <see cref="AgentIntent.BackingAway"/>. Checked on the second tick, not
+    /// the first, for the same reason
+    /// <c>RangedStandoffTests.RangedWarriorInsideStandoffDistanceHoldsAndDoesNotMove</c>
+    /// checks its own hold on the second tick: the first tick's launch can
+    /// re-mark <c>Intent</c> to <see cref="AgentIntent.Attacking"/>, and the
+    /// weapon's cooldown then keeps the second tick from firing again, so
+    /// whatever the movement stage decided is what survives.
+    /// </summary>
+    [Fact]
+    public void ACorneredShooterReadsHoldingNeverBackingAway()
+    {
+        var scenario = CreateScenario();
+        var rules = RangedRules();
+        var standoffRaw = rules
+            .ResolveWeaponProfile(Bangkaw.Weapon, Bangkaw.Shield)
+            .StandoffDistanceRaw;
+        var threatRadiusRaw = RangedRetreatRules.ThreatRadiusRaw(standoffRaw);
+
+        const int centerYRaw = 250 * FixedPoint.Scale;
+        var shooter = CreateAgent(
+            1, factionId: 0, xRaw: scenario.BodyRadiusRaw, yRaw: centerYRaw, scenario, rules, Bangkaw);
+        var threat = CreateAgent(
+            2,
+            factionId: 1,
+            xRaw: scenario.BodyRadiusRaw + (threatRadiusRaw / 2),
+            yRaw: centerYRaw,
+            scenario,
+            rules,
+            Kampilan,
+            movementSpeedRawOverride: 0);
+
+        var simulation = BattleSimulation.CreateForTesting(scenario, rules, shooter, threat);
+
+        simulation.AdvanceOneTick(); // Launch tick: Intent may be re-marked Attacking.
+        simulation.AdvanceOneTick(); // Cooldown active: the movement stage's verdict stands.
+
+        Assert.Equal(AgentIntent.Holding, shooter.Intent);
+        Assert.Equal(scenario.BodyRadiusRaw, shooter.XRaw);
+        Assert.Equal(centerYRaw, shooter.YRaw);
+    }
+
+    /// <summary>
+    /// A shooter far from every map edge, threatened by a stationary melee
+    /// enemy for long enough to cross <see cref="FormationRules.StallEscapeStreakTicks"/>
+    /// twice over: design 5.5's hazard two, made observable. An open retreat
+    /// is never obstructed, so <c>LongestBlockedStreakTicks</c> never leaves
+    /// zero, and on every tick the shooter reads
+    /// <see cref="AgentIntent.BackingAway"/> its separation from the threat
+    /// only grows -- proof the retreat rung never reads
+    /// <c>CollisionScratch.StallGeneration</c> and never builds the
+    /// sidestepping-pursuit proposal that would close the distance instead.
+    /// </summary>
+    [Fact]
+    public void RetreatingShooterNeverAccumulatesABlockedStreakAndNeverClosesOnTheThreat()
+    {
+        const int ticksToRun = FormationRules.StallEscapeStreakTicks * 2;
+        var scenario = CreateScenario() with
+        {
+            MapWidth = 4_000,
+            MapHeight = 4_000,
+            TickLimit = ticksToRun + 10,
+        };
+        var rules = RangedRules();
+        var standoffRaw = rules
+            .ResolveWeaponProfile(Bangkaw.Weapon, Bangkaw.Shield)
+            .StandoffDistanceRaw;
+        var threatRadiusRaw = RangedRetreatRules.ThreatRadiusRaw(standoffRaw);
+
+        const int centerRaw = 2_000 * FixedPoint.Scale;
+        var shooter = CreateAgent(1, factionId: 0, xRaw: centerRaw, yRaw: centerRaw, scenario, rules, Bangkaw);
+        var threat = CreateAgent(
+            2,
+            factionId: 1,
+            xRaw: centerRaw + (threatRadiusRaw / 2),
+            yRaw: centerRaw,
+            scenario,
+            rules,
+            Kampilan,
+            movementSpeedRawOverride: 0);
+
+        var simulation = BattleSimulation.CreateForTesting(scenario, rules, shooter, threat);
+
+        var sawBackingAway = false;
+        var previousBackingAwaySquared = -1L;
+        for (var tick = 0; tick < ticksToRun; tick++)
+        {
+            simulation.AdvanceOneTick();
+
+            if (shooter.Intent == AgentIntent.BackingAway)
+            {
+                sawBackingAway = true;
+                var currentSquared =
+                    SquaredDistanceRaw(shooter.XRaw, shooter.YRaw, threat.XRaw, threat.YRaw);
+                if (previousBackingAwaySquared >= 0)
+                {
+                    Assert.True(
+                        currentSquared >= previousBackingAwaySquared,
+                        "A BackingAway tick must never close on the threat -- " +
+                        $"was {previousBackingAwaySquared}, now {currentSquared}.");
+                }
+
+                previousBackingAwaySquared = currentSquared;
+            }
+        }
+
+        Assert.True(sawBackingAway, "Expected at least one BackingAway tick.");
+        Assert.Equal(0L, simulation.LongestBlockedStreakTicks);
+    }
+
+    /// <summary>
+    /// The same geometry as <see cref="ACorneredShooterReadsHoldingNeverBackingAway"/>'s
+    /// threat placement -- a melee enemy inside what would be V10's threat
+    /// radius -- run under <see cref="MovementPresetId.RangedStandoffV8"/>
+    /// instead: the widened preset equality test in
+    /// <c>GatherMovementProposals</c> must never let V8 reach the retreat
+    /// rung, so the shooter follows exactly the V8 two-way ladder it always
+    /// has -- holds, because the enemy also sits inside its own standoff
+    /// distance -- and never once reads <see cref="AgentIntent.BackingAway"/>.
+    /// This is the regression proof that the predicate widening in this task
+    /// was inert for V8, alongside the nine frozen digests.
+    /// </summary>
+    [Fact]
+    public void V8NeverReadsBackingAwayEvenWithAMeleeEnemyInsideWhatWouldBeV10sThreatRadius()
+    {
+        var scenario = CreateScenario() with
+        {
+            MovementPreset = MovementPresetId.RangedStandoffV8,
+        };
+        var rules = RangedRules();
+        var standoffRaw = rules
+            .ResolveWeaponProfile(Bangkaw.Weapon, Bangkaw.Shield)
+            .StandoffDistanceRaw;
+        var threatRadiusRaw = RangedRetreatRules.ThreatRadiusRaw(standoffRaw);
+
+        const int centerRaw = 250 * FixedPoint.Scale;
+        var shooter = CreateAgent(1, factionId: 0, xRaw: centerRaw, yRaw: centerRaw, scenario, rules, Bangkaw);
+        var meleeEnemy = CreateAgent(
+            2,
+            factionId: 1,
+            xRaw: centerRaw + (threatRadiusRaw / 2),
+            yRaw: centerRaw,
+            scenario,
+            rules,
+            Kampilan,
+            movementSpeedRawOverride: 0);
+
+        var simulation = BattleSimulation.CreateForTesting(scenario, rules, shooter, meleeEnemy);
+
+        for (var tick = 0; tick < 10; tick++)
+        {
+            simulation.AdvanceOneTick();
+            Assert.NotEqual(AgentIntent.BackingAway, shooter.Intent);
+        }
+
+        Assert.Equal(AgentIntent.Holding, shooter.Intent);
+        Assert.Equal(centerRaw, shooter.XRaw);
+        Assert.Equal(centerRaw, shooter.YRaw);
+    }
+
     // ----- Helpers -----
+
+    private static long SquaredDistanceRaw(int x1, int y1, int x2, int y2)
+    {
+        var deltaX = (long)x2 - x1;
+        var deltaY = (long)y2 - y1;
+        return checked((deltaX * deltaX) + (deltaY * deltaY));
+    }
 
     private static CombatRuleset RangedRules() =>
         CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV5);
@@ -187,6 +406,10 @@ public sealed class RangedRetreatTests
     /// attack range, damage, and cooldown from the ruleset's
     /// <see cref="WeaponProfile"/> so a hand-placed agent carries a real
     /// weapon's real fields rather than the scenario-wide defaults.
+    /// <paramref name="movementSpeedRawOverride"/> mirrors the same helper's
+    /// own parameter, letting task 8's tests hold a threat stationary so the
+    /// only thing that can change a separation is the shooter's own retreat
+    /// step.
     /// </summary>
     private static AgentState CreateAgent(
         ulong entityId,
@@ -195,7 +418,8 @@ public sealed class RangedRetreatTests
         int yRaw,
         Scenario scenario,
         CombatRuleset rules,
-        CombatLoadout loadout)
+        CombatLoadout loadout,
+        int? movementSpeedRawOverride = null)
     {
         var profile = rules.ResolveWeaponProfile(loadout.Weapon, loadout.Shield);
         return new(
@@ -204,7 +428,7 @@ public sealed class RangedRetreatTests
             xRaw,
             yRaw,
             scenario.MaximumHitPoints,
-            scenario.MovementSpeedRaw,
+            movementSpeedRawOverride ?? scenario.MovementSpeedRaw,
             scenario.PerceptionRangeRaw,
             profile.AttackRangeRaw,
             profile.DamagePerAttack,
