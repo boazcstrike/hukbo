@@ -521,8 +521,40 @@ public sealed class AgentInspectorContentTests
             StringComparison.OrdinalIgnoreCase);
         Assert.Contains(
             "gameplay model",
-            AgentInspectorContent.GameplayModelNote,
+            AgentInspectorContent.IntentGameplayModelNote,
             StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "gameplay model",
+            AgentInspectorContent.ContingentGameplayModelNote,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The defect fix: the contingent note must never point a spectator at
+    /// the battlefield-realism design document, because the contingent row
+    /// and its badge render under every preset — including the shipped
+    /// default <c>PersistentContingentsV4</c>, which never ran V10's
+    /// weapon-cohort or shield-forward assignment. The intent note keeps the
+    /// pointer, because <see cref="AgentIntent.BackingAway"/> exists only
+    /// under <see cref="MovementPresetId.BattlefieldRealismV10"/>, so the
+    /// pointer is always correct for whatever produced that row.
+    /// </summary>
+    [Fact]
+    public void ContingentGameplayModelNote_NamesNoDesignDocument_UnlikeTheIntentNote()
+    {
+        Assert.DoesNotContain(
+            "2026-08-11-battlefield-realism-design.md",
+            AgentInspectorContent.ContingentGameplayModelNote,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "docs/plans",
+            AgentInspectorContent.ContingentGameplayModelNote,
+            StringComparison.Ordinal);
+
+        Assert.Contains(
+            "2026-08-11-battlefield-realism-design.md",
+            AgentInspectorContent.IntentGameplayModelNote,
+            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -551,7 +583,8 @@ public sealed class AgentInspectorContentTests
             AgentInspectorContent.FormatIntentGameplayModelNoteLine(),
             AgentInspectorContent.FormatContingentGameplayModelTierLine(),
             AgentInspectorContent.FormatContingentGameplayModelNoteLine(),
-            AgentInspectorContent.GameplayModelNote,
+            AgentInspectorContent.IntentGameplayModelNote,
+            AgentInspectorContent.ContingentGameplayModelNote,
         ];
 
         foreach (var text in badgeText)

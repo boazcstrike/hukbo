@@ -466,20 +466,47 @@ internal static class AgentInspectorContent
         };
 
     /// <summary>
-    /// The plain-language note shared by every battlefield-realism V10
+    /// The plain-language note for the intent row's battlefield-realism V10
     /// gameplay-model badge (design section 10, "And the label";
     /// docs/plans/2026-08-11-battlefield-realism-design.md sections 2.1,
     /// 2.2). <c>CLAUDE.md</c> section 7 draws a hard line between the three
     /// historical evidence tiers — Documented, Documented form uncertain,
     /// Provisional reconstruction — and a gameplay rule, which is none of
     /// them and must say so plainly rather than being left to read as a
-    /// bare "Provisional reconstruction" historical claim. This note is
-    /// that plain statement, shared by <see cref="FormatContingentGameplayModelNoteLine"/>
-    /// and <see cref="FormatIntentGameplayModelNoteLine"/>.
+    /// bare "Provisional reconstruction" historical claim. This note points
+    /// at the design document because it is correct to do so here:
+    /// <see cref="AgentIntent.BackingAway"/> exists only under
+    /// <see cref="MovementPresetId.BattlefieldRealismV10"/> — the row it
+    /// decorates is gated on that preset by construction (see
+    /// <see cref="FormatIntentLine"/> and its callers), so a spectator
+    /// reading this note is always looking at a battle that document
+    /// actually describes.
     /// </summary>
-    internal const string GameplayModelNote =
+    internal const string IntentGameplayModelNote =
         "Gameplay model — not a historical formation or behavior. See " +
         "docs/plans/2026-08-11-battlefield-realism-design.md.";
+
+    /// <summary>
+    /// The plain-language note for the contingent row's gameplay-model
+    /// badge. Unlike <see cref="IntentGameplayModelNote"/>, this note names
+    /// no design document and makes no claim about weapon cohorts or shield
+    /// placement: the contingent row and its badge render under
+    /// <em>every</em> preset (<see cref="FormatContingentLine"/>'s own
+    /// remarks), including the shipped default <c>PersistentContingentsV4</c>,
+    /// which derives its contingents by the older equal-split lattice and
+    /// never ran a weapon-cohort or shield-forward assignment. Pointing a
+    /// spectator on that preset at the battlefield-realism design document —
+    /// which documents V10's grouping and shield-forward behaviour alone —
+    /// would send them to a description of a mechanic their battle never
+    /// ran. This note instead states the one fact that holds under every
+    /// preset: a contingent is a gameplay grouping, not an attested
+    /// historical formation (<c>docs/research/ARMY-COMPOSITION.md</c>
+    /// §11.1, "the contingent concept is already the right shape, for the
+    /// wrong reason").
+    /// </summary>
+    internal const string ContingentGameplayModelNote =
+        "Gameplay model — a contingent is a gameplay grouping, not an " +
+        "attested historical formation.";
 
     /// <summary>
     /// The evidence-tier badge for the intent row (design section 10),
@@ -498,7 +525,7 @@ internal static class AgentInspectorContent
         "— gameplay model";
 
     internal static string FormatIntentGameplayModelNoteLine() =>
-        $"        {GameplayModelNote}";
+        $"        {IntentGameplayModelNote}";
 
     /// <summary>
     /// The evidence-tier badge for the contingent row (design section 10),
@@ -515,7 +542,7 @@ internal static class AgentInspectorContent
         "— gameplay model";
 
     internal static string FormatContingentGameplayModelNoteLine() =>
-        $"        {GameplayModelNote}";
+        $"        {ContingentGameplayModelNote}";
 
     internal static string FormatMovementLine(MovementResolution resolution) =>
         $"Movement: {GetMovementLabel(resolution)}";
