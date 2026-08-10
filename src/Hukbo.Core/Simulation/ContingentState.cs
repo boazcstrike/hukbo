@@ -7,7 +7,13 @@ namespace Hukbo.Core.Simulation;
 /// <see cref="AgentState.ContingentState"/>, written every tick by the tick
 /// stage that resolves it. This is a behavioural mode, never a positional
 /// assignment — no agent is ever assigned to a rank, a file, or a named
-/// formation slot. Numeric values are pinned and this enum is append-only
+/// formation slot. Under <c>MovementPresetId.BattlefieldRealismV10</c>,
+/// a separate spawn-time mechanism — not this enum — deliberately diverges
+/// from that rule by giving shield bearers the forward-most slots of their
+/// own contingent, labelled a Provisional reconstruction / gameplay model
+/// rather than a historical claim; see
+/// <c>docs/plans/2026-08-11-battlefield-realism-design.md</c> section 2.2.
+/// Numeric values are pinned and this enum is append-only
 /// from the day it ships, because it enters the state hash: reordering or
 /// renumbering a value requires a new preset version and new golden
 /// expectations, exactly as <see cref="MovementResolution"/> requires.

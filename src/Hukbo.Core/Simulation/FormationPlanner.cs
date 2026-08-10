@@ -19,7 +19,13 @@ namespace Hukbo.Core.Simulation;
 /// practical groups (people who share a boat, a leader, or a kin network), and
 /// that spacing inside such a group is irregular. Regular files, ranks, fixed
 /// frontage, depth doctrine, shield walls and named formations are explicitly
-/// <em>not attested</em> and are not claimed here.
+/// <em>not attested</em> and are not claimed here. Under
+/// <c>MovementPresetId.BattlefieldRealismV10</c>, the deployment pipeline
+/// deliberately builds two of these unattested shapes anyway — weapon-homogeneous
+/// contingents and shield bearers held to their contingent's forward-most slots —
+/// as a labelled Provisional reconstruction / gameplay model, never as a
+/// historical claim; see
+/// <c>docs/plans/2026-08-11-battlefield-realism-design.md</c> section 2.2.
 /// </para>
 /// <para>
 /// The lattice below is an engineering device for guaranteeing that no two
@@ -101,6 +107,12 @@ internal static class FormationPlanner
         // RosterCounts groups one weapon category into a contiguous run of
         // faction-local indices, so contiguous contingents would come out
         // weapon-homogeneous - a stronger claim than the evidence supports.
+        // Under MovementPresetId.BattlefieldRealismV10, this constraint is
+        // deliberately overridden downstream by CohortDeploymentAssignment,
+        // which reassigns contingent membership so each contingent reads as
+        // one weapon cohort - a labelled Provisional reconstruction / gameplay
+        // model, not a historical claim; see
+        // docs/plans/2026-08-11-battlefield-realism-design.md section 2.2.
         for (var localIndex = 0; localIndex < warriorCount; localIndex++)
         {
             var contingent = localIndex % contingentSizes.Length;
