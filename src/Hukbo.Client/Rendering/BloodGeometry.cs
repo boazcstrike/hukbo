@@ -462,14 +462,13 @@ internal static class BloodGeometry
         Mix(targetEntityId + TargetKey) ^
         Mix(sourceEntityId + SourceKey);
 
-    private static ulong Mix(ulong value)
-    {
-        value ^= value >> 30;
-        value *= 0xBF58476D1CE4E5B9UL;
-        value ^= value >> 27;
-        value *= 0x94D049BB133111EBUL;
-        return value ^ (value >> 31);
-    }
+    /// <summary>
+    /// Delegates to <see cref="PresentationHash.Mix"/>, which is this exact
+    /// finalizer lifted out when embedded projectiles became its second
+    /// consumer. Same value in, same value out — every burst, spurt, and
+    /// ground mark draws exactly as it did before the lift.
+    /// </summary>
+    private static ulong Mix(ulong value) => PresentationHash.Mix(value);
 
     private readonly record struct WeaponSprayProfile(
         int DropletCount,

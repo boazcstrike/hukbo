@@ -5498,6 +5498,34 @@ until those files land.
 | RG-9 | Compare a Bangkaw, a Busog, and an Arquebus warrior side by side at the High, Medium, and Low detail tiers, from a close-up zoom down to fully zoomed out | At every tier the three ranged silhouettes are distinguishable from each other and from the four existing melee silhouettes — the Bangkaw reads as spear-armed, the Busog as bow-armed, the Arquebus as carrying a long firearm. Failure is any two of the three collapsing into the same silhouette at the Low tier, or a ranged warrior being mistaken for a melee warrior at any tier | | PENDING |
 | RG-10 | Watch and listen to a battle fielding all three ranged weapons for several minutes | The Arquebus fires far less often than the Bangkaw or the Busog, matching its much longer authored shot interval, and each Arquebus shot is audibly louder and more distinctive than a Busog release or a Bangkaw throw — a spectator should be able to tell an Arquebus has fired without seeing which warrior fired it. Failure is the Arquebus firing at a cadence similar to the other two ranged weapons, or its report sounding unremarkable next to theirs. Cannot be fully attempted until the release-arquebus and attack-arquebus sound files from RU-31 exist; the firing-cadence half of this row does not depend on sound and can be attempted once RG-1 is attemptable | | PENDING |
 | RG-11 | Watch a Bangkaw or Busog shot whose flight path passes through or near a friendly warrior standing between the launcher and the target | **This row has no pass/fail criterion; it is an open question, not a check.** Phase 1 deliberately implements no friendly fire and no line of sight — a projectile resolves as a pure distance-and-timer hitscan against its chosen target, with nothing checked about who or what stands between launcher and target — and that gap is deferred to Phase 2 by design, not an oversight to correct here. Record in `Actual` whatever was actually observed: does the projectile visibly passing through the friendly warrior look wrong to a spectator, or does it go unnoticed at the pace and scale of a real battle? This is the one Phase 1 effect a spectator cannot discover for themselves through any other row above, which is why it needs a person to look at it deliberately rather than being inferred from the others | | PENDING |
+### Projectile props and embedded projectiles smoke (2026-08-11)
+
+**No interactive run was performed for this change.** Every row below is
+`PENDING`. The automated tests prove the three silhouettes are mutually
+distinct, that the prop is centred on the shot rather than anchored at the
+launcher, that it rotates to the direction of travel, that every one of the
+thirteen body parts resolves to an anchor inside the host's own visual bounds,
+that a shield block attaches to the shield rather than to the body part it also
+carries, that the pool never exceeds 256 slots and evicts oldest-first, and
+that the quad budget still fits. None of them prove that a spectator can tell a
+spear from an arrow from a lead ball while a battle is running, or that a stuck
+arrow reads as stuck rather than as a smear. Plan:
+`docs/plans/2026-08-11-projectile-props.md`.
+
+Rows PP-4 through PP-7 need a battle that actually lands ranged hits, so they
+cannot be attempted before RG-1 is attemptable.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| PP-1 | Watch a single Bangkaw or Busog shot from release to impact at default zoom, following the projectile with your eye | The drawn object is a small prop of fixed length that travels from launcher to target, and its length does not change during the flight. Failure is a line that grows out of the thrower and is longest at the moment of impact, which is the defect this change exists to fix | | PENDING |
+| PP-2 | Compare a Bangkaw shot, a Busog shot, and an Arquebus shot in flight, at default zoom | The three are distinguishable in the air without seeing who fired them: the spear is the longest and carries a visible head at its leading end, the arrow is markedly shorter with a pale fletched tail, and the arquebus shot is a small ball with no shaft at all. Failure is any two of the three reading as the same object in flight | | PENDING |
+| PP-3 | Watch a shot in flight while zooming from close in to fully zoomed out | The projectile stays visible at every zoom, including the most pulled-out one. Failure is a shot that scales down to nothing and disappears — the in-flight prop is deliberately never detail-gated, because at low detail it may be the only sign a ranged unit exists | | PENDING |
+| PP-4 | Watch a Busog shot land on an unshielded warrior, at a zoom close enough to see the pawn's body clearly | An arrow is left standing in the warrior, at the part of the body the shot struck, with its fletched tail outward. Failure is no arrow appearing, or one appearing somewhere unrelated to where the blow landed | | PENDING |
+| PP-5 | Watch a Bangkaw or Busog shot that a tall hardwood shield blocks | The projectile is left standing in the shield face rather than in the warrior behind it. Failure is an arrow appearing in the body of a warrior whose shield stopped the shot | | PENDING |
+| PP-6 | Find a warrior carrying at least one embedded projectile and follow it while it walks across the field | The projectile rides with the warrior, holding its position on the body and its angle, rather than staying behind at the spot where the hit occurred or sliding around the pawn. Failure is a projectile that detaches, drifts, or re-rolls its angle from frame to frame | | PENDING |
+| PP-7 | Watch a warrior carrying embedded projectiles while zooming out to a wide view of the whole battle, then zoom back in | The embedded projectiles stop being drawn as the camera pulls out and reappear on zooming back in, and the warriors themselves are unaffected. Failure is embedded projectiles still drawing at the widest zoom — they are deliberately detail-gated, unlike the in-flight prop — or the pawns changing in any other way as the gate crosses | | PENDING |
+| PP-8 | Watch an Arquebus shot land on a warrior | Nothing is left standing in the wound. Failure is a shaft appearing for a weapon that fires a lead ball | | PENDING |
+
 ### Attack animation V2 smoke (2026-08-08)
 
 **No interactive run was performed for this change.** Every row below is

@@ -300,11 +300,61 @@ public sealed class ProjectileFlightSystemTests
             $"Ingest allocated {allocatedBytes:N0} bytes once primed; expected 0.");
     }
 
+    [Theory]
+    [InlineData(WeaponId.Bangkaw)]
+    [InlineData(WeaponId.Busog)]
+    [InlineData(WeaponId.Arquebus)]
+    public void Ingest_CarriesTheLaunchingWeaponFromTheSourceViewOntoTheFlight(
+        WeaponId weapon)
+    {
+        var system = new ProjectileFlightSystem(capacity: 4);
+
+        // A Release event is classless — BattleEvent.NonAttack forces every
+        // combat-context field to null — so the weapon can only come from the
+        // launcher's own view, exactly as SoundDirector.ResolveReleaseSound
+        // reads it.
+        system.Ingest(
+            tick: 1,
+            [Release(sequence: 1, source: 10, target: 20, flightTicks: 8)],
+            [
+                Agent(10, xRaw: 0, yRaw: 0, isAlive: true, weapon),
+                Agent(20, xRaw: 4_096, yRaw: 0, isAlive: true),
+            ]);
+
+        var flight = Assert.Single(system.LiveFlights.ToArray());
+        Assert.Equal(weapon, flight.Weapon);
+    }
+
+    [Fact]
+    public void Ingest_KeepsTheWeaponOfAFlightWhoseLauncherHasLeftTheViewList()
+    {
+        var system = new ProjectileFlightSystem(capacity: 4);
+
+        system.Ingest(
+            tick: 1,
+            [Release(sequence: 1, source: 10, target: 20, flightTicks: 8)],
+            [
+                Agent(10, xRaw: 0, yRaw: 0, isAlive: true, WeaponId.Bangkaw),
+                Agent(20, xRaw: 4_096, yRaw: 0, isAlive: true),
+            ]);
+
+        // The launcher is gone by the next tick. A draw-time lookup would have
+        // nothing to resolve; the value captured at launch does not care.
+        system.Ingest(
+            tick: 2,
+            [],
+            [Agent(20, xRaw: 4_096, yRaw: 0, isAlive: true)]);
+
+        var flight = Assert.Single(system.LiveFlights.ToArray());
+        Assert.Equal(WeaponId.Bangkaw, flight.Weapon);
+    }
+
     private static AgentView Agent(
         ulong entityId,
         int xRaw,
         int yRaw,
-        bool isAlive) =>
+        bool isAlive,
+        WeaponId weapon = WeaponId.Kampilan) =>
         new(
             entityId,
             FactionId: 0,
@@ -316,7 +366,7 @@ public sealed class ProjectileFlightSystemTests
             Intent: AgentIntent.Idle,
             isAlive,
             Loadout: new CombatLoadout(
-                WeaponId.Kampilan,
+                weapon,
                 ArmorId.LightOrganic,
                 ShieldId.TallHardwood));
 
