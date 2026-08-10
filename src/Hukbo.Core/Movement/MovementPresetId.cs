@@ -172,4 +172,21 @@ public enum MovementPresetId
     /// byte-identical. See plan task RU-30.
     /// </summary>
     MonotoneAllyClearanceV9 = 9,
+
+    /// <summary>
+    /// The battlefield-realism preset. A verbatim restatement of
+    /// <see cref="RangedStandoffV8"/>'s registered field values under its own
+    /// <c>id</c>, following the same convention <see cref="RangedStandoffV8"/>
+    /// and <see cref="MonotoneAllyClearanceV9"/> already use: the behaviour is
+    /// gated on preset identity, never on a <see cref="MovementRuleset"/>
+    /// field, so this value carries no new field of its own. Three
+    /// behaviours are labelled as a gameplay model rather than a historical
+    /// measurement — deployment groups warriors by weapon so a body of
+    /// troops reads as one weapon rather than an even slice of the whole
+    /// army, shield bearers take the forward-most slots of their own
+    /// contingent, and a ranged warrior with a melee enemy inside a threat
+    /// radius backs away and resumes shooting once clear or cornered. See
+    /// docs/plans/2026-08-11-battlefield-realism-design.md.
+    /// </summary>
+    BattlefieldRealismV10 = 10,
 }

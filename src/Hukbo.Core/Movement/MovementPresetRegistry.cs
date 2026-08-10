@@ -525,6 +525,43 @@ public static class MovementPresetRegistry
         incomingDamageWeightBasisPoints: 0,
         allyCollapseWeightBasisPoints: 0);
 
+    /// <summary>
+    /// The battlefield-realism preset. A verbatim restatement of
+    /// <see cref="RangedStandoffV8Ruleset"/>'s field values under its own
+    /// <c>id</c> -- every field, including
+    /// <c>usesEquipmentRelativeFootwork: false</c> and
+    /// <c>appliesPressureInterrupt: false</c> -- because V10 carries no new
+    /// field of its own: its three behaviours are gated entirely on preset
+    /// identity at each of their own call sites, exactly the way V8's
+    /// standoff hold and V9's monotone clearance rule are already gated on
+    /// preset identity rather than on anything this ruleset stores. All
+    /// three behaviours are a labelled gameplay model, not a historical
+    /// measurement, under CLAUDE.md section 7. See
+    /// docs/plans/2026-08-11-battlefield-realism-design.md section 3.
+    /// </summary>
+    private static readonly MovementRuleset BattlefieldRealismV10Ruleset = new(
+        id: MovementPresetId.BattlefieldRealismV10,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: false,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0);
+
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
         {
@@ -537,6 +574,7 @@ public static class MovementPresetRegistry
             MovementPresetId.EquipmentRelativeFootworkV7 => true,
             MovementPresetId.RangedStandoffV8 => true,
             MovementPresetId.MonotoneAllyClearanceV9 => true,
+            MovementPresetId.BattlefieldRealismV10 => true,
             _ => false,
         };
 
@@ -552,6 +590,7 @@ public static class MovementPresetRegistry
             MovementPresetId.EquipmentRelativeFootworkV7 => EquipmentRelativeFootworkV7Ruleset,
             MovementPresetId.RangedStandoffV8 => RangedStandoffV8Ruleset,
             MovementPresetId.MonotoneAllyClearanceV9 => MonotoneAllyClearanceV9Ruleset,
+            MovementPresetId.BattlefieldRealismV10 => BattlefieldRealismV10Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,
