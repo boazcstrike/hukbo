@@ -4090,6 +4090,40 @@ Every subsection below except the first is Hukbo's, and is run with
 `./scripts/run.ps1`. The Sandata rows immediately below are run with
 `./scripts/run.ps1 -Game Sandata`.
 
+### Where the checklist stands, 2026-08-11
+
+105 rows across 29 subsections: **82 `PENDING`, 13 `BLOCKED`, 8 `PASS`,
+2 `FAIL`**. The families below are grouped by what a single launch can actually
+show, because the subsections are ordered by the change that created them
+rather than by what is on screen at once, and a person working down the file in
+order relaunches the game far more often than they need to.
+
+| Batch | Families | Rows | What one launch has to show |
+| --- | --- | --- | --- |
+| Ranged | `PP` 8, `RG` 11 | 19 `PENDING` | A battle fielding Bangkaw, Busog, and Arquebus warriors. The shipped client runs combat preset V5 and movement preset V8, so ranged units are on the field by default at roughly a 14 per cent share |
+| Pawn animation | `AA` 17, `GA` 14 | 31 `PENDING` | Warriors striking and walking, close in. `AA` also holds the one open `FAIL`, AA-22 |
+| Markers | `LC` 11, `L` 7 | 18 `PENDING` | Leaders and contingents at default zoom, plus the agent inspector |
+| Feed, UI, render | `CL` 9, `GR` 5 | 14 `PENDING` | The event feed, typography, and launch-time render behaviour |
+| Sandata | `SD` | 4 `BLOCKED`, 2 `PASS`, 1 `FAIL` | `./scripts/run.ps1 -Game Sandata` |
+| Pressure interrupt | `P` | 9 `BLOCKED`, 1 `PENDING` | **Not runnable today** — see below |
+
+**The 13 `BLOCKED` rows are blocked by the build, not by the reader.** Nine `P`
+rows need movement preset V7, which the client cannot select: `BuildScenario`
+overrides the preset to `RangedStandoffV8` and no preset selector is exposed, so
+under the shipped default no pressure mark is ever drawn and no pressure
+inspector row ever renders. Unblocking them is a code change, not an attempt.
+The four `SD` rows are blocked for reasons recorded in the Sandata subsection.
+
+**Controls, so no row has to be attempted by guesswork.** `Space` plays and
+pauses; `1`, `2`, and `4` set playback speed; `R` starts the next round and
+`Shift+R` is a full reset; `W`/`A`/`S`/`D` or the arrow keys pan; the mouse
+wheel zooms; a left click selects a warrior and opens the agent inspector; `F9`
+toggles the sound log.
+
+A row moves to `PASS` only when a person at an interactive desktop has seen the
+expected result. No agent may flip one, and a passing automated test is not a
+substitute for any row here.
+
 ### Sandata smoke (design section 13)
 
 Every row below is `PENDING`, and no agent may flip one. These eight rows are
