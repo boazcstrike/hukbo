@@ -103,6 +103,17 @@ are not Philippine tall shields.
 | THS-07 | Asymmetric carried load can affect balance and muscular demand. | Modern experiment, 2014 | [Park et al.](https://pubmed.ncbi.nlm.nih.gov/24021525/), pp. 430–435 | Load-carriage analogy | **Provisional reconstruction** | Loads are not shields | Calibrate modest pace/turn changes |
 | THS-08 | No reviewed source establishes a shield wall, fixed interval, or Kalis/Itak shield school. | Corpus boundary, 1521–modern | Sources above | Negative evidence boundary | **Unknown or unsupported** | Absence is corpus-bounded | Prohibit rigid ranks and historical technique names |
 
+---
+
+**V10 gameplay divergence (2026-08-11).** `MovementPresetId.BattlefieldRealismV10`
+(`docs/plans/2026-08-11-battlefield-realism-design.md`) places shield bearers at
+the forward-most slots of their own contingent. THS-08 above is unchanged by
+this: no source in this document establishes a fixed interval, a fixed rank, or
+a named shield school, and V10's forward placement is not offered as evidence
+that one existed. As a research claim, forward placement is none of Documented,
+Documented (form uncertain), or Provisional reconstruction — it is a gameplay
+model, adopted for legibility, and the evidence above does not support it.
+
 ## Shared shield movement layer
 
 The shield should express **protected deliberation at a modest mobility cost**,
