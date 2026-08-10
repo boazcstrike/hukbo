@@ -3,6 +3,20 @@ param()
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+# PowerShell 7 is a hard prerequisite of this script, not merely something it
+# reports on. The platform probe below calls
+# [System.Runtime.InteropServices.RuntimeInformation], which Windows PowerShell
+# 5.1 cannot resolve; under Set-StrictMode that probe throws a
+# PropertyNotFoundStrict error naming OSArchitecture. Collecting the version
+# into $failures further down would therefore never be reached, and an operator
+# on 5.1 would see the engine's error about a missing property instead of the
+# actionable message below. The check has to come first, and it has to stop the
+# script rather than accumulate a failure.
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    throw "PowerShell 7 or newer is required; detected $($PSVersionTable.PSVersion). Install with: winget install --id Microsoft.PowerShell --exact"
+}
+
 . (Join-Path $PSScriptRoot '_common.ps1')
 
 $root = Get-RepositoryRoot
@@ -21,13 +35,9 @@ else {
     $failures.Add("v0.1 requires Windows x64; detected $([System.Runtime.InteropServices.RuntimeInformation]::OSDescription) $architecture.")
 }
 
-$powerShellVersion = $PSVersionTable.PSVersion
-if ($powerShellVersion.Major -ge 7) {
-    Write-Host "[PASS] PowerShell: $powerShellVersion"
-}
-else {
-    $failures.Add("PowerShell 7 or newer is required; detected $powerShellVersion. Install with: winget install --id Microsoft.PowerShell --exact")
-}
+# The guard at the top of this script already stopped anything older than 7, so
+# reaching this line means the version is supported and only the report remains.
+Write-Host "[PASS] PowerShell: $($PSVersionTable.PSVersion)"
 
 $git = Get-Command git -ErrorAction SilentlyContinue
 if ($null -eq $git) {
