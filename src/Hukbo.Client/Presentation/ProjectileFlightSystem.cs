@@ -175,7 +175,12 @@ internal sealed class ProjectileFlightSystem
             destinationXRaw,
             destinationYRaw,
             CurrentXRaw: source.XRaw,
-            CurrentYRaw: source.YRaw));
+            CurrentYRaw: source.YRaw,
+            // Read from the launcher's view, never from the event: a Release
+            // event is classless and carries no weapon. Captured here, at
+            // launch, so a launcher that dies mid-flight cannot leave its own
+            // shot without a silhouette. See ProjectileFlight.Weapon.
+            source.Loadout.Weapon));
     }
 
     /// <summary>

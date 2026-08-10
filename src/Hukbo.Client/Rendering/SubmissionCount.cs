@@ -525,12 +525,49 @@ internal static class RenderBudgetEstimate
     // per-pawn quad owes a fresh measurement rather than an assumption.
     // The projectile draw itself landed in RU-25 as ArenaGame.DrawProjectiles
     // (ArenaGame.Rendering.cs), one stroked shaft per live flight, rather than
-    // as a ProjectileRenderer.cs of its own; that shaft has not yet been
-    // observed at runtime, because the RU-42 launch that proved the ranged
-    // pawns draw never advanced a tick, so this budget is still provisioned
-    // landing rather than measured against it; RenderBudgetEstimateTests
+    // as a ProjectileRenderer.cs of its own; RenderBudgetEstimateTests
     // reads Scenario.MaximumProjectilesInFlight's own default rather than
     // repeating 512 as a second literal, so the two cannot drift apart.
+    //
+    // projectile-props (docs/plans/2026-08-11-projectile-props.md) is the
+    // feature that note was written for, and it paid the debt: it wants both a
+    // second projectile quad and a new per-pawn population, which is the more
+    // expensive of the two shapes the note anticipated. The measurement is on
+    // record — tools/Hukbo.Tools.RenderProbe, 500 units, seed 1, Release,
+    // retrace disabled, 150 frames per station, 2026-08-11, report at
+    // artifacts/render-probe-projectile-props-500.json:
+    //
+    //   minimum-zoom  9,245 quads   p50 0.72 ms
+    //   default-fit   9,246 quads   p50 0.75 ms
+    //   maximum-zoom  1,547 quads   p50 0.32 ms
+    //
+    // The worst real frame at 500 units is 9,246 quads against a ceiling of
+    // 20,000. The 18,044 figure below is a stacked worst case — every visible
+    // unit a High-tier Busog, every backdrop population at its own cap in the
+    // same frame, and all 512 flight slots live at once — that no real frame
+    // approaches. THE CEILINGS STILL DO NOT MOVE. A measurement showing slack
+    // is not a licence to rewrite a budget to match it (R-W6.14, this class's
+    // own doc comment); a ceiling bounds the worst case rather than describing
+    // the median one. What the measurement buys is the answer to the question
+    // the RU-42 note actually asked, which is whether the thin estimated
+    // margin is a real risk. It is not.
+    //
+    // Two new terms, and note the first is a DELTA rather than a fresh cost —
+    // the projectile-props design's own budget table got this wrong, adding
+    // the full 1,024 on top of the 512 already charged above and arriving at
+    // 420 quads of headroom that were never actually spent:
+    //
+    //   in-flight prop     2 quads x 512 flights = 1,024 (was 512, so +512)
+    //   embedded pool      2 quads x 256 slots   =   512
+    //
+    //   17,532 + 1,024 + 512 = 19,068 quads (500 units), headroom 932
+    //    9,432 + 1,024 + 512 = 10,968 quads (200 units), headroom 1,032
+    //
+    // The embedded pool is detail-tier gated (design section 8 decision 4), so
+    // a real 500-unit frame — pulled far enough out for 500 units to be on
+    // screen at once — drops those 512 entirely and sits at 18,556, headroom
+    // 1,444. The gated figure is the likely one and the ungated figure is the
+    // one budgeted for, which is the correct way round.
 
     /// <summary>Arena-batch quad ceiling at 200 visible units.</summary>
     internal const int ArenaBatchQuadsAt200UnitsEstimate = 12_000;
@@ -539,10 +576,17 @@ internal static class RenderBudgetEstimate
     internal const int ArenaBatchQuadsAt500UnitsEstimate = 20_000;
 
     /// <summary>
-    /// Quad cost of one live in-flight projectile once a projectile renderer
-    /// exists: a single stroked line segment, matching the "one quad per live
-    /// instance" convention <see cref="BackdropQuadCount.TrampleMarks"/> and
-    /// <see cref="BackdropQuadCount.Decals"/> already use.
+    /// Quad cost of one live in-flight projectile: the two stroked segments
+    /// <see cref="ProjectileGeometry"/> builds — a shaft plus a head or a
+    /// fletch. An arquebus ball draws one rather than two, so this is the
+    /// bound rather than the exact cost of every flight, which is what a
+    /// budget term is for.
     /// </summary>
-    internal const int ProjectileQuadsPerProjectile = 1;
+    internal const int ProjectileQuadsPerProjectile = 2;
+
+    /// <summary>
+    /// Quad cost of one embedded projectile: a shaft plus a fletch, the same
+    /// two-element shape an arrow draws in flight.
+    /// </summary>
+    internal const int EmbeddedProjectileQuadsPerProjectile = 2;
 }

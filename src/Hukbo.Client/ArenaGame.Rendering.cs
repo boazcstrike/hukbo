@@ -41,11 +41,19 @@ public sealed partial class ArenaGame
     private static readonly Color ProjectileShaftColor = new(214, 178, 122);
 
     /// <summary>
-    /// RU-25. Screen-space pixel thickness of a drawn projectile shaft,
-    /// unscaled by camera zoom, matching <see cref="ClashEffectRenderer"/>'s
-    /// own fixed-thickness lines.
+    /// The metal tint of a spear head and of a lead ball — darker and cooler
+    /// than <see cref="ProjectileShaftColor"/> so the two parts of a spear
+    /// read as two parts. Provisional gameplay presentation rather than a
+    /// historical measurement (CLAUDE.md section 7).
     /// </summary>
-    private const float ProjectileShaftThickness = 2f;
+    private static readonly Color ProjectileHeadColor = new(168, 172, 178);
+
+    /// <summary>
+    /// The tint of an arrow's fletching. Pale enough to separate from
+    /// <see cref="ProjectileShaftColor"/> at the tail. Provisional gameplay
+    /// presentation rather than a historical measurement (CLAUDE.md section 7).
+    /// </summary>
+    private static readonly Color ProjectileFletchColor = new(236, 228, 208);
 
     /// <summary>
     /// GPU-004. The instant the current arena span opened, moved forward by
@@ -758,15 +766,27 @@ public sealed partial class ArenaGame
     }
 
     /// <summary>
-    /// RU-25. Draws every live <see cref="ProjectileFlight"/> as a shaft
-    /// from its launch point to its current interpolated position — the
-    /// same fixed-thickness pixel-stretch primitive
-    /// <see cref="ClashEffectRenderer"/> uses for its crosses. Drawn at
-    /// every detail configuration, never gated behind a low-detail switch:
-    /// this line may be the only thing telling a spectator a ranged unit
-    /// exists at all (RU-25 map, "Low tier projectile may only telling
-    /// spectator ranged unit exists").
+    /// Draws every live <see cref="ProjectileFlight"/> as the silhouette
+    /// <see cref="ProjectileGeometry"/> builds for its launching weapon,
+    /// centred on the shot's current interpolated position and rotated to its
+    /// direction of travel.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// RU-25 drew this as one quad stretched from the launch point to the
+    /// current position. That is a correct drawing of the wrong object: what a
+    /// spectator saw was a line anchored at the thrower, growing every tick and
+    /// longest at the instant of impact, which is backwards from how a missile
+    /// reads. Projectile-props replaced it with a small prop the eye can track.
+    /// </para>
+    /// <para>
+    /// Still drawn at every detail configuration, and still never gated behind
+    /// a low-detail switch, for RU-25's original reason: at low detail this may
+    /// be the only thing telling a spectator that a ranged unit exists at all.
+    /// The embedded projectiles in <see cref="DrawEmbeddedProjectiles"/> are
+    /// gated, because those decorate a pawn that is already drawn.
+    /// </para>
+    /// </remarks>
     private void DrawProjectiles(
         SpriteBatch spriteBatch,
         Texture2D pixel,
@@ -774,44 +794,80 @@ public sealed partial class ArenaGame
     {
         foreach (ref readonly var flight in _presentation.Projectiles.LiveFlights)
         {
-            var origin = _camera.WorldToScreen(
-                new Vector2(
-                    flight.OriginXRaw / (float)FixedPoint.Scale,
-                    flight.OriginYRaw / (float)FixedPoint.Scale),
-                arenaBounds);
             var current = _camera.WorldToScreen(
                 new Vector2(
                     flight.CurrentXRaw / (float)FixedPoint.Scale,
                     flight.CurrentYRaw / (float)FixedPoint.Scale),
                 arenaBounds);
-            DrawProjectileShaft(spriteBatch, pixel, origin, current);
+
+            // Destination minus origin, both fixed for the flight's whole
+            // life, so the prop holds one heading instead of swinging as the
+            // shot advances. Taken in world space and converted as a delta of
+            // two transformed points, so it picks up whatever the camera does
+            // to orientation without this method knowing what that is.
+            var origin = _camera.WorldToScreen(
+                new Vector2(
+                    flight.OriginXRaw / (float)FixedPoint.Scale,
+                    flight.OriginYRaw / (float)FixedPoint.Scale),
+                arenaBounds);
+            var destination = _camera.WorldToScreen(
+                new Vector2(
+                    flight.DestinationXRaw / (float)FixedPoint.Scale,
+                    flight.DestinationYRaw / (float)FixedPoint.Scale),
+                arenaBounds);
+
+            var layout = ProjectileGeometry.Create(
+                PawnAppearanceFactory.ToWeaponRole(flight.Weapon),
+                current,
+                destination - origin,
+                _camera.Zoom);
+
+            DrawProjectileElement(spriteBatch, pixel, layout.Primary, layout.RotationRadians);
+            DrawProjectileElement(spriteBatch, pixel, layout.Secondary, layout.RotationRadians);
         }
     }
 
-    private static void DrawProjectileShaft(
+    /// <summary>
+    /// Draws one element of a projectile silhouette, centred on its own
+    /// <see cref="ProjectilePropElement.Center"/> rather than anchored at an
+    /// end — the origin of <c>(0.5, 0.5)</c> is what makes the quad grow
+    /// symmetrically about the shot's position instead of trailing behind it.
+    /// </summary>
+    private static void DrawProjectileElement(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        Vector2 start,
-        Vector2 end)
+        ProjectilePropElement element,
+        float rotationRadians)
     {
-        var delta = end - start;
-        var length = delta.Length();
-        if (length <= float.Epsilon)
+        if (element.IsEmpty)
         {
             return;
         }
 
         spriteBatch.Draw(
             pixel,
-            start,
+            element.Center,
             sourceRectangle: null,
-            ProjectileShaftColor,
-            MathF.Atan2(delta.Y, delta.X),
-            new Vector2(0f, 0.5f),
-            new Vector2(length, ProjectileShaftThickness),
+            GetProjectileElementColor(element.Kind),
+            rotationRadians,
+            new Vector2(0.5f, 0.5f),
+            new Vector2(element.Length, element.Thickness),
             SpriteEffects.None,
             layerDepth: 0f);
     }
+
+    private static Color GetProjectileElementColor(ProjectilePropElementKind kind) =>
+        kind switch
+        {
+            ProjectilePropElementKind.Shaft => ProjectileShaftColor,
+            ProjectilePropElementKind.Head => ProjectileHeadColor,
+            ProjectilePropElementKind.Fletch => ProjectileFletchColor,
+            ProjectilePropElementKind.Ball => ProjectileHeadColor,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(kind),
+                kind,
+                null),
+        };
 
     private void DrawMapSurface(
         SpriteBatch spriteBatch,

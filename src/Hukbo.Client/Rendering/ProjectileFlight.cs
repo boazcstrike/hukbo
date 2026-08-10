@@ -1,3 +1,5 @@
+using Hukbo.Core.Combat;
+
 namespace Hukbo.Client.Rendering;
 
 /// <summary>
@@ -51,6 +53,28 @@ namespace Hukbo.Client.Rendering;
 /// <see cref="CurrentYRaw"/>, is the screen-space endpoint a renderer reads.
 /// </param>
 /// <param name="CurrentYRaw">The <c>y</c> counterpart of <see cref="CurrentXRaw"/>.</param>
+/// <param name="Weapon">
+/// The weapon that launched this shot, which decides which of the three
+/// silhouettes <see cref="ProjectileGeometry"/> draws for it.
+/// <para>
+/// Resolved once, in
+/// <see cref="Hukbo.Client.Presentation.ProjectileFlightSystem"/>'s own
+/// ingest, from the launching agent's <c>Loadout.Weapon</c> — a classless
+/// <c>Release</c> event cannot name its own weapon, because
+/// <c>BattleEvent.NonAttack</c> forces every combat-context field to
+/// <see langword="null"/> by construction (ranged-units design section 5.3),
+/// which is the same reason <c>SoundDirector.ResolveReleaseSound</c> reads the
+/// source view rather than the event.
+/// </para>
+/// <para>
+/// Stored on the record rather than looked up at draw time on purpose. The
+/// launcher may die while its own shot is still in the air, and a draw-time
+/// lookup would then have to decide what to draw for a warrior who is no
+/// longer there. Captured at launch, that case cannot arise: the value was
+/// resolved before the launcher fell and does not depend on the launcher
+/// still existing.
+/// </para>
+/// </param>
 internal readonly record struct ProjectileFlight(
     long Sequence,
     ulong? TargetEntityId,
@@ -61,4 +85,5 @@ internal readonly record struct ProjectileFlight(
     int DestinationXRaw,
     int DestinationYRaw,
     int CurrentXRaw,
-    int CurrentYRaw);
+    int CurrentYRaw,
+    WeaponId Weapon);
