@@ -225,6 +225,21 @@ internal static class PawnGeometry
     private const float HighDetailScale = 1.80f;
 
     /// <summary>
+    /// The camera zoom a pawn is actually drawn at, before
+    /// <see cref="PawnAppearance.StatureMultiplier"/> and before any
+    /// per-agent scale multiplier: every layout length below is a constant
+    /// number of layout units multiplied by this. Exposed rather than kept
+    /// inline because a click target that does not use the same number as the
+    /// drawn body is a click target that misses what the spectator can see —
+    /// see <see cref="Presentation.AgentPickTarget"/>.
+    /// </summary>
+    internal static float ResolveApparentScale(float cameraZoom) =>
+        Math.Clamp(
+            cameraZoom * ZoomScale,
+            MinimumApparentScale,
+            MaximumApparentScale);
+
+    /// <summary>
     /// PROVISIONAL. Share of the neutral reach added to the weapon line at an
     /// extension ratio of one, which is where a blow makes contact.
     /// </summary>
@@ -936,10 +951,7 @@ internal static class PawnGeometry
             throw new ArgumentOutOfRangeException(nameof(adornmentAccentMarkCount));
         }
 
-        var apparentScale = Math.Clamp(
-            cameraZoom * ZoomScale,
-            MinimumApparentScale,
-            MaximumApparentScale) * scaleMultiplier;
+        var apparentScale = ResolveApparentScale(cameraZoom) * scaleMultiplier;
         var detailTier = apparentScale switch
         {
             < MediumDetailScale => PawnDetailTier.Low,

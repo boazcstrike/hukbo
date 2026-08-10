@@ -2169,9 +2169,15 @@ public sealed partial class ArenaGame : Game
         var mouseWorld = _camera.ScreenToWorld(
             _input.MousePosition,
             arenaBounds);
-        var pointerXRaw = ToRawCoordinate(mouseWorld.X);
-        var pointerYRaw = ToRawCoordinate(mouseWorld.Y);
-        var pickRadius = MathF.Max(5f / _camera.Zoom, 1.5f);
+
+        // V2-3: the pointer is sampled at the warrior's foot anchor rather
+        // than where the cursor is, and the radius covers the drawn body
+        // rather than a flat five pixels. Both come from the geometry the
+        // renderer actually draws — see AgentPickTarget.
+        var samplePoint = AgentPickTarget.SamplePoint(mouseWorld, _camera.Zoom);
+        var pointerXRaw = ToRawCoordinate(samplePoint.X);
+        var pointerYRaw = ToRawCoordinate(samplePoint.Y);
+        var pickRadius = AgentPickTarget.RadiusWorldUnits(_camera.Zoom);
         var pickRadiusRaw = checked(
             (long)Math.Ceiling(pickRadius * FixedPoint.Scale));
         var maximumDistanceSquared = checked(pickRadiusRaw * pickRadiusRaw);
