@@ -158,4 +158,109 @@ public sealed class RangedTerminationTests
             $"The median decisive tick was {median}, above the " +
             $"{MedianDecisiveTickLimit} tick clause.");
     }
+
+    /// <summary>
+    /// The battlefield-realism package's task 10: the same both-factions-win
+    /// bar <see cref="SeedsOneThroughTwentyProduceVictoriesForBothFactionsUnderRangedStandoff"/>
+    /// applies to <see cref="MovementPresetId.RangedStandoffV8"/>, applied
+    /// instead to <see cref="MovementPresetId.BattlefieldRealismV10"/> — the
+    /// retreat rung design section 8.3 names as "the single most likely
+    /// thing to break the termination bar". Mirrors the V8 test's shape
+    /// exactly, including the weighted roster and the tick cap, so the two
+    /// results are read against the same yardstick; only the movement preset
+    /// differs. The sharper twenty-seed sweep design section 8.3 actually
+    /// requires — no seed reaching a 10,000-tick cap, seed 1 at or under
+    /// 1,962 ticks, and a median at or under 3,000 — is measured separately
+    /// through <c>scripts/benchmark.ps1</c> and recorded in
+    /// <c>docs/development/testing.md</c>; this test is the permanent
+    /// regression guard, not that sweep.
+    /// </summary>
+    [Fact]
+    public void SeedsOneThroughTwentyProduceVictoriesForBothFactionsUnderBattlefieldRealism()
+    {
+        const int Seeds = 20;
+        const int MinimumDecisiveSeeds = 19;
+        const int MedianDecisiveTickLimit = 5_000;
+        const int MinimumVictoriesPerFaction = 4;
+        const int TotalAgents = 200;
+
+        Assert.Equal(
+            PhilippineCombatPresetV5.Rules.Roster.Count,
+            RangedRosterShareWeights.Length);
+
+        var agentsPerFaction = TotalAgents / 2;
+        var rosterCounts = RangedCalibrationHarness.BuildRosterCounts(
+            agentsPerFaction,
+            RangedRosterShareWeights);
+
+        var faction0Victories = 0;
+        var faction1Victories = 0;
+        var decisiveTicks = new List<long>(Seeds);
+
+        for (ulong seed = 1; seed <= Seeds; seed++)
+        {
+            var scenario = Scenario.CreateDefault(seed, TotalAgents) with
+            {
+                CombatPreset = CombatPresetId.PrecolonialPhilippinesV5,
+                MovementPreset = MovementPresetId.BattlefieldRealismV10,
+                RosterCounts = rosterCounts,
+                TickLimit = MedianDecisiveTickLimit,
+            };
+            scenario.Validate();
+
+            var simulation = BattleSimulation.Create(scenario);
+
+            // Bounded. An unbounded loop turns a stall into a suite that
+            // hangs with no diagnosis rather than a test that fails and
+            // names the seed, which would defeat the whole point of the
+            // criterion.
+            while (simulation.Outcome == BattleOutcome.Ongoing &&
+                simulation.Tick < scenario.TickLimit)
+            {
+                simulation.AdvanceOneTick();
+            }
+
+            switch (simulation.Outcome)
+            {
+                case BattleOutcome.Faction0Victory:
+                    faction0Victories++;
+                    break;
+
+                case BattleOutcome.Faction1Victory:
+                    faction1Victories++;
+                    break;
+
+                case BattleOutcome.Ongoing:
+                case BattleOutcome.Draw:
+                default:
+                    break;
+            }
+
+            if (simulation.Outcome is BattleOutcome.Faction0Victory or
+                BattleOutcome.Faction1Victory or
+                BattleOutcome.Draw)
+            {
+                decisiveTicks.Add(simulation.Tick);
+            }
+        }
+
+        Assert.True(
+            faction0Victories >= MinimumVictoriesPerFaction &&
+            faction1Victories >= MinimumVictoriesPerFaction,
+            $"Faction 0 won {faction0Victories} of 20 seeds and faction 1 won " +
+            $"{faction1Victories}. Each faction must win at least " +
+            $"{MinimumVictoriesPerFaction}.");
+
+        Assert.True(
+            decisiveTicks.Count >= MinimumDecisiveSeeds,
+            $"Only {decisiveTicks.Count} of {Seeds} seeds decided before " +
+            $"the tick cap; at least {MinimumDecisiveSeeds} are required.");
+
+        var sorted = decisiveTicks.Order().ToArray();
+        var median = sorted[sorted.Length / 2];
+        Assert.True(
+            median <= MedianDecisiveTickLimit,
+            $"The median decisive tick was {median}, above the " +
+            $"{MedianDecisiveTickLimit} tick clause.");
+    }
 }
