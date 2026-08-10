@@ -602,6 +602,36 @@ public sealed class BattleSimulation
             faction1Deployment = EquipmentDeploymentAssignment.AssignForFaction(
                 deployment, faction1Loadouts, movement);
         }
+        else if (scenario.MovementPreset == MovementPresetId.BattlefieldRealismV10)
+        {
+            // Gated on preset identity, not on a movement-ruleset field:
+            // V10's registered ruleset is a verbatim copy of V8's, so
+            // UsesEquipmentRelativeFootwork is false for it and the V6
+            // branch above never fires for V10. This mirrors the V8 gate at
+            // the retreat rung further down (Scenario.MovementPreset ==
+            // MovementPresetId.RangedStandoffV8). CohortDeploymentAssignment
+            // never draws — random is not consulted here either — so the
+            // SplitMix64 stream is exactly what the planner left it, and it
+            // runs on the canonical, unmirrored deployment before the
+            // faction-1 mirror below, each faction pairing its own
+            // loadouts against that same canonical ranking (battlefield
+            // realism design, sections 4.2 to 4.6).
+            var faction0Loadouts = new CombatLoadout[scenario.AgentsPerFaction];
+            var faction1Loadouts = new CombatLoadout[scenario.AgentsPerFaction];
+            for (var index = 0; index < scenario.AgentsPerFaction; index++)
+            {
+                faction0Loadouts[index] = ResolveSpawnLoadout(
+                    checked((ulong)index + 1), index);
+                faction1Loadouts[index] = ResolveSpawnLoadout(
+                    checked((ulong)(scenario.AgentsPerFaction + index) + 1),
+                    index);
+            }
+
+            faction0Deployment = CohortDeploymentAssignment.AssignForFaction(
+                deployment, faction0Loadouts, rules);
+            faction1Deployment = CohortDeploymentAssignment.AssignForFaction(
+                deployment, faction1Loadouts, rules);
+        }
 
         for (var index = 0; index < scenario.AgentsPerFaction; index++)
         {
