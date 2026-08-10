@@ -1,5 +1,6 @@
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Rendering;
+using Hukbo.Core.Combat;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Tests;
@@ -179,6 +180,219 @@ public sealed class ProjectileGeometryTests
             cameraZoom: 1f);
 
         Assert.True(near.Primary.Length > far.Primary.Length);
+    }
+
+    [Theory]
+    [InlineData(BodyPart.WeaponArm)]
+    [InlineData(BodyPart.ShieldArm)]
+    [InlineData(BodyPart.Shoulder)]
+    [InlineData(BodyPart.Head)]
+    [InlineData(BodyPart.Neck)]
+    [InlineData(BodyPart.Face)]
+    [InlineData(BodyPart.Chest)]
+    [InlineData(BodyPart.Abdomen)]
+    [InlineData(BodyPart.Thigh)]
+    [InlineData(BodyPart.Knee)]
+    [InlineData(BodyPart.Shin)]
+    [InlineData(BodyPart.Hands)]
+    [InlineData(BodyPart.Feet)]
+    public void CreateEmbedded_AnchorsEveryBodyPartInsideTheHostsOwnVisualBounds(
+        BodyPart hitLocation)
+    {
+        var layout = HostLayout();
+
+        var prop = ProjectileGeometry.CreateEmbedded(
+            PawnWeaponRole.Busog,
+            layout,
+            hitLocation,
+            onShield: false,
+            seed: 12_345UL);
+
+        // Every one of the thirteen resolves, and none of them lands off the
+        // warrior it is supposed to be standing in. A body part with no
+        // rectangle of its own at this tier falls back to the torso rather
+        // than to the origin, which is what an unhandled case would produce.
+        Assert.True(
+            layout.VisualBounds.Contains(
+                (int)prop.Primary.Center.X,
+                (int)prop.Primary.Center.Y),
+            $"{hitLocation} anchored at {prop.Primary.Center}, outside the " +
+                $"pawn's own visual bounds {layout.VisualBounds}.");
+    }
+
+    [Fact]
+    public void CreateEmbedded_AnchorsAShieldBlockOnTheShield()
+    {
+        var layout = HostLayout(ShieldId.TallHardwood);
+        Assert.False(layout.ShieldBounds.IsEmpty);
+
+        var prop = ProjectileGeometry.CreateEmbedded(
+            PawnWeaponRole.Busog,
+            layout,
+            // A shield block carries a hit location too. The shield flag has
+            // to win, or the arrow stands in the warrior instead of the board.
+            hitLocation: null,
+            onShield: true,
+            seed: 999UL);
+
+        Assert.True(
+            layout.ShieldBounds.Contains(
+                (int)prop.Primary.Center.X,
+                (int)prop.Primary.Center.Y),
+            $"A shield block anchored at {prop.Primary.Center}, outside the " +
+                $"shield {layout.ShieldBounds}.");
+    }
+
+    [Fact]
+    public void CreateEmbedded_FallsBackToTheTorsoForAShieldBlockOnAnUnshieldedPawn()
+    {
+        var layout = HostLayout(ShieldId.None);
+        Assert.True(layout.ShieldBounds.IsEmpty);
+
+        var prop = ProjectileGeometry.CreateEmbedded(
+            PawnWeaponRole.Busog,
+            layout,
+            hitLocation: null,
+            onShield: true,
+            seed: 7UL);
+
+        Assert.True(
+            layout.VisualBounds.Contains(
+                (int)prop.Primary.Center.X,
+                (int)prop.Primary.Center.Y));
+    }
+
+    [Fact]
+    public void CreateEmbedded_DrawsTheSameProjectileTheSameWayEveryTime()
+    {
+        var layout = HostLayout();
+        var seed = ProjectileGeometry.CreateEmbeddedSeed(
+            sequence: 42,
+            hostEntityId: 7,
+            attackerEntityId: 11);
+
+        var first = ProjectileGeometry.CreateEmbedded(
+            PawnWeaponRole.Busog,
+            layout,
+            BodyPart.Chest,
+            onShield: false,
+            seed);
+        var second = ProjectileGeometry.CreateEmbedded(
+            PawnWeaponRole.Busog,
+            layout,
+            BodyPart.Chest,
+            onShield: false,
+            seed);
+
+        // Stable per instance rather than per frame: a stuck arrow that
+        // re-rolled its angle every frame would strobe.
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void CreateEmbeddedSeed_SeparatesTwoHitsThatDifferOnlyBySequence()
+    {
+        var first = ProjectileGeometry.CreateEmbeddedSeed(1, hostEntityId: 7, attackerEntityId: 11);
+        var second = ProjectileGeometry.CreateEmbeddedSeed(2, hostEntityId: 7, attackerEntityId: 11);
+
+        // Two arrows in the same warrior from the same archer must not stack
+        // into one silhouette.
+        Assert.NotEqual(first, second);
+    }
+
+    [Fact]
+    public void CreateEmbedded_SpreadsAnglesAcrossManyHitsRatherThanDrawingThemParallel()
+    {
+        var layout = HostLayout();
+
+        var angles = Enumerable
+            .Range(0, 32)
+            .Select(sequence => ProjectileGeometry.CreateEmbedded(
+                PawnWeaponRole.Busog,
+                layout,
+                BodyPart.Chest,
+                onShield: false,
+                ProjectileGeometry.CreateEmbeddedSeed(
+                    sequence,
+                    hostEntityId: 7,
+                    attackerEntityId: 11)).RotationRadians)
+            .Distinct()
+            .Count();
+
+        Assert.True(
+            angles > 8,
+            $"32 hits produced only {angles} distinct angles; a warrior full " +
+                "of parallel arrows reads as a decal rather than as arrows.");
+    }
+
+    [Fact]
+    public void CreateEmbedded_StandsAnArrowOutFletchFirstAndASpearOutButtFirst()
+    {
+        var layout = HostLayout();
+        const ulong Seed = 4UL;
+
+        var arrow = ProjectileGeometry.CreateEmbedded(
+            PawnWeaponRole.Busog,
+            layout,
+            BodyPart.Chest,
+            onShield: false,
+            Seed);
+        var spear = ProjectileGeometry.CreateEmbedded(
+            PawnWeaponRole.Bangkaw,
+            layout,
+            BodyPart.Chest,
+            onShield: false,
+            Seed);
+
+        // The end inside the target is the pointed one, so what a spectator
+        // sees standing out is the tail in both cases.
+        Assert.Equal(ProjectilePropElementKind.Fletch, arrow.Secondary.Kind);
+        Assert.Equal(ProjectilePropElementKind.Head, spear.Secondary.Kind);
+        Assert.True(spear.Primary.Length > arrow.Primary.Length);
+    }
+
+    [Theory]
+    [InlineData(PawnWeaponRole.Arquebus)]
+    [InlineData(PawnWeaponRole.Kampilan)]
+    public void CreateEmbedded_RejectsAWeaponThatLeavesNothingBehind(PawnWeaponRole role)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => ProjectileGeometry.CreateEmbedded(
+                role,
+                HostLayout(),
+                BodyPart.Chest,
+                onShield: false,
+                seed: 1UL));
+    }
+
+    [Fact]
+    public void CreateEmbedded_NeverExceedsTheBudgetedTwoQuadsPerSlot()
+    {
+        var prop = ProjectileGeometry.CreateEmbedded(
+            PawnWeaponRole.Busog,
+            HostLayout(),
+            BodyPart.Chest,
+            onShield: false,
+            seed: 3UL);
+
+        Assert.True(
+            prop.ElementCount <=
+                RenderBudgetEstimate.EmbeddedProjectileQuadsPerProjectile,
+            $"An embedded projectile drew {prop.ElementCount} quads against a " +
+                "budget term of " +
+                $"{RenderBudgetEstimate.EmbeddedProjectileQuadsPerProjectile}.");
+    }
+
+    /// <summary>
+    /// A High-tier host, so every optional rectangle an anchor might want —
+    /// the legs, the feet, the arms — is actually present.
+    /// </summary>
+    private static PawnLayout HostLayout(ShieldId shield = ShieldId.TallHardwood)
+    {
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan, shield);
+        var layout = PawnGeometry.Create(new Vector2(400f, 300f), 3f, appearance);
+        Assert.Equal(PawnDetailTier.High, layout.DetailTier);
+        return layout;
     }
 
     [Theory]

@@ -35,6 +35,7 @@ internal sealed class PresentationCoordinator
         int dustPuffCapacity = DustEffectSystem.Capacity,
         int gaitCapacity = PawnAppearanceCache.Capacity,
         int projectileCapacity = DefaultProjectileCapacity,
+        int embeddedProjectileCapacity = EmbeddedProjectileSystem.Capacity,
         int attackCapacity = PawnAppearanceCache.Capacity,
         IRenderMetricsRecorder? renderMetricsRecorder = null)
     {
@@ -51,6 +52,7 @@ internal sealed class PresentationCoordinator
         Dust = new DustEffectSystem(dustPuffCapacity);
         Gait = new GaitAnimationSystem(gaitCapacity);
         Projectiles = new ProjectileFlightSystem(projectileCapacity);
+        EmbeddedProjectiles = new EmbeddedProjectileSystem(embeddedProjectileCapacity);
         AttackFrames = new AttackFrameCoordinator(attackCapacity);
         DefenderReactions = new DefenderReactionSystem(attackCapacity);
         BattleReportAccumulator = new BattleReportAccumulator();
@@ -159,6 +161,21 @@ internal sealed class PresentationCoordinator
     /// <see cref="Gait"/>'s is.
     /// </summary>
     public ProjectileFlightSystem Projectiles { get; }
+
+    /// <summary>
+    /// The fixed-capacity population of projectiles left standing in what they
+    /// struck (docs/plans/2026-08-11-projectile-props.md). Fed from
+    /// <see cref="ReleaseAttackContactsForDraw"/> alongside every other
+    /// contact consumer, never from <see cref="IngestTick"/> — driving it from
+    /// the raw event stream would embed each arrow one animation early.
+    /// </summary>
+    /// <remarks>
+    /// Like <see cref="Trample"/> and unlike <see cref="HitEffects"/>, nothing
+    /// here ages out: an embedded projectile persists until the ring evicts it
+    /// or the round resets, so it is absent from
+    /// <see cref="AdvanceEffects"/> entirely.
+    /// </remarks>
+    public EmbeddedProjectileSystem EmbeddedProjectiles { get; }
 
     /// <summary>
     /// Accumulates the per-unit, per-faction, and battle-wide statistics
@@ -294,6 +311,7 @@ internal sealed class PresentationCoordinator
             }
 
             HitEffects.StartContact(contact, defender);
+            EmbeddedProjectiles.StartContact(contact);
             Blood.StartContact(contact, attacker, defender);
             ClashEffects.StartContact(contact, attacker, defender);
             DefenderReactions.StartContact(contact, attacker, defender);
@@ -368,6 +386,7 @@ internal sealed class PresentationCoordinator
         Dust.Clear();
         Gait.Clear();
         Projectiles.Clear();
+        EmbeddedProjectiles.Clear();
         GrassSwayClockSeconds = 0f;
         Summary = null;
         Report = null;

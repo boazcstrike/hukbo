@@ -1,4 +1,5 @@
 using Hukbo.Client.Presentation;
+using Hukbo.Core.Combat;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Rendering;
@@ -109,6 +110,46 @@ internal static class ProjectileGeometry
     private const float MinimumDimension = 1f;
 
     /// <summary>
+    /// How much of a shaft still shows once it is standing in something. The
+    /// rest reads as buried. Provisional reconstruction, like every other
+    /// proportion here.
+    /// </summary>
+    private const float EmbeddedLengthFraction = 0.55f;
+
+    /// <summary>
+    /// Half-width of the cone an embedded shaft may stand at, either side of
+    /// horizontal. Wide enough that two arrows in one warrior are visibly
+    /// separate, narrow enough that none of them lies flat along the body.
+    /// </summary>
+    private const float EmbeddedAngleSpreadRadians = 0.7f;
+
+    /// <summary>
+    /// How finely the cone above is subdivided. A discrete step count rather
+    /// than a float division of the raw seed, so the angle is exactly
+    /// reproducible from the seed with no rounding to argue about.
+    /// </summary>
+    private const ulong EmbeddedAngleSteps = 64;
+
+    /// <summary>
+    /// The seed bit deciding which side of the warrior a shaft stands out of.
+    /// Taken well above the bits <see cref="EmbeddedAngleSteps"/> consumes so
+    /// the side and the angle are not correlated.
+    /// </summary>
+    private const ulong EmbeddedMirrorBit = 1UL << 40;
+
+    // Where the trunk's own landmarks sit as fractions of torso height.
+    // Provisional presentation proportions, not anatomy.
+    private const float ChestHeightFraction = 0.3f;
+    private const float AbdomenHeightFraction = 0.75f;
+
+    // Distinct per-field keys, so that mixing (sequence, host, attacker) can
+    // never collapse to the same value when two of the three happen to be
+    // equal. Same three-key shape BloodGeometry seeds a burst with.
+    private const ulong EmbeddedSequenceKey = 0x9E3779B97F4A7C15UL;
+    private const ulong EmbeddedHostKey = 0xC2B2AE3D27D4EB4FUL;
+    private const ulong EmbeddedAttackerKey = 0x165667B19E3779F9UL;
+
+    /// <summary>
     /// Builds the silhouette for one live flight.
     /// </summary>
     /// <param name="weaponRole">
@@ -186,6 +227,189 @@ internal static class ProjectileGeometry
                 "warrior who cannot produce one."),
         };
     }
+
+    /// <summary>
+    /// Builds the silhouette of one projectile standing in the warrior or the
+    /// shield it struck, anchored to that warrior's own drawn geometry so it
+    /// rides with them as they move.
+    /// </summary>
+    /// <param name="weaponRole">
+    /// The launching weapon's role. Only <see cref="PawnWeaponRole.Bangkaw"/>
+    /// and <see cref="PawnWeaponRole.Busog"/> reach here —
+    /// <see cref="Presentation.EmbeddedProjectileSystem.Embeds"/> is the gate,
+    /// and it refuses an arquebus ball.
+    /// </param>
+    /// <param name="layout">
+    /// The host's posed layout for this frame. Every anchor is read off the
+    /// rectangles this already computes rather than re-derived from
+    /// <see cref="PawnLayout.WeaponStart"/> or
+    /// <see cref="PawnLayout.ShieldBounds"/>, per the composed-layer rule in
+    /// <see cref="PawnLayout"/>'s own documentation.
+    /// </param>
+    /// <param name="hitLocation">
+    /// The body part struck, or <see langword="null"/> when
+    /// <paramref name="onShield"/> is set.
+    /// </param>
+    /// <param name="onShield">Whether the shield took it.</param>
+    /// <param name="seed">
+    /// The stable per-projectile seed from
+    /// <see cref="CreateEmbeddedSeed"/>, which decides the angle the shaft
+    /// stands at. Same hit, same angle, every frame and every replay.
+    /// </param>
+    public static ProjectilePropLayout CreateEmbedded(
+        PawnWeaponRole weaponRole,
+        PawnLayout layout,
+        BodyPart? hitLocation,
+        bool onShield,
+        ulong seed)
+    {
+        if (weaponRole is not (PawnWeaponRole.Bangkaw or PawnWeaponRole.Busog))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(weaponRole),
+                weaponRole,
+                "Only a shafted projectile embeds. An arquebus ball does not " +
+                "stand out of a wound, and a melee weapon launches nothing.");
+        }
+
+        var anchor = ResolveAnchor(layout, hitLocation, onShield);
+        var direction = ResolveEmbeddedDirection(seed);
+
+        // Mostly buried, so shorter than the same shaft in flight. Scaled by
+        // the host's own apparent scale rather than the camera zoom, so a
+        // stuck arrow grows and shrinks with the warrior carrying it.
+        var scale = layout.ApparentScale * EmbeddedLengthFraction;
+
+        return weaponRole == PawnWeaponRole.Bangkaw
+            ? CreateShafted(
+                anchor,
+                direction,
+                MathF.Atan2(direction.Y, direction.X),
+                scale,
+                BangkawShaftUnits,
+                BangkawShaftThicknessUnits,
+                ProjectilePropElementKind.Head,
+                BangkawHeadUnits,
+                BangkawHeadThicknessUnits,
+                // The head is the end inside the target, so it points the
+                // opposite way from the visible shaft: the fletch end is what
+                // stands out.
+                secondaryAtLeadingEnd: false)
+            : CreateShafted(
+                anchor,
+                direction,
+                MathF.Atan2(direction.Y, direction.X),
+                scale,
+                BusogShaftUnits,
+                BusogShaftThicknessUnits,
+                ProjectilePropElementKind.Fletch,
+                BusogFletchUnits,
+                BusogFletchThicknessUnits,
+                secondaryAtLeadingEnd: true);
+    }
+
+    /// <summary>
+    /// The stable seed one embedded projectile draws its angle from, mixing
+    /// the contact sequence with both entity identifiers exactly as
+    /// <c>BloodGeometry</c> seeds a burst.
+    /// </summary>
+    public static ulong CreateEmbeddedSeed(
+        long sequence,
+        ulong hostEntityId,
+        ulong attackerEntityId) =>
+        PresentationHash.Mix((ulong)sequence + EmbeddedSequenceKey) ^
+        PresentationHash.Mix(hostEntityId + EmbeddedHostKey) ^
+        PresentationHash.Mix(attackerEntityId + EmbeddedAttackerKey);
+
+    /// <summary>
+    /// The point on the host that a projectile struck. Every one of the
+    /// thirteen <see cref="BodyPart"/> values resolves, and each falls back to
+    /// the torso when the rectangle it would rather use is empty — the leg and
+    /// foot rectangles are <see cref="Rectangle.Empty"/> at
+    /// <see cref="PawnDetailTier.Low"/>, and an unshielded warrior has no
+    /// shield block at any tier.
+    /// </summary>
+    private static Vector2 ResolveAnchor(
+        PawnLayout layout,
+        BodyPart? hitLocation,
+        bool onShield)
+    {
+        if (onShield && !layout.ShieldBounds.IsEmpty)
+        {
+            return Center(layout.ShieldBounds);
+        }
+
+        var torso = Center(layout.TorsoBounds);
+        if (hitLocation is not { } part)
+        {
+            return torso;
+        }
+
+        return part switch
+        {
+            BodyPart.Head or BodyPart.Face => CenterOrFallback(layout.HeadBounds, torso),
+            // Between the head and the trunk, so the top edge of the torso
+            // rather than either rectangle's own middle.
+            BodyPart.Neck => layout.TorsoBounds.IsEmpty
+                ? torso
+                : new Vector2(
+                    layout.TorsoBounds.Center.X,
+                    layout.TorsoBounds.Top),
+            BodyPart.Shoulder or BodyPart.Chest => layout.TorsoBounds.IsEmpty
+                ? torso
+                : new Vector2(
+                    layout.TorsoBounds.Center.X,
+                    layout.TorsoBounds.Top +
+                        (layout.TorsoBounds.Height * ChestHeightFraction)),
+            BodyPart.Abdomen => layout.TorsoBounds.IsEmpty
+                ? torso
+                : new Vector2(
+                    layout.TorsoBounds.Center.X,
+                    layout.TorsoBounds.Top +
+                        (layout.TorsoBounds.Height * AbdomenHeightFraction)),
+            BodyPart.WeaponArm or BodyPart.Hands =>
+                CenterOrFallback(layout.Arms.WeaponForearm.Bounds, torso),
+            BodyPart.ShieldArm =>
+                CenterOrFallback(layout.Arms.SupportForearm.Bounds, torso),
+            BodyPart.Thigh or BodyPart.Knee =>
+                CenterOrFallback(layout.LeftLegBounds, torso),
+            BodyPart.Shin => CenterOrFallback(layout.RightLegBounds, torso),
+            BodyPart.Feet => CenterOrFallback(layout.LeftFootBounds, torso),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(hitLocation),
+                hitLocation,
+                null),
+        };
+    }
+
+    /// <summary>
+    /// The angle the shaft stands at, spread across a cone either side of
+    /// horizontal so a warrior struck twice does not draw two parallel
+    /// arrows. Derived from the seed alone, so it never changes for a given
+    /// hit.
+    /// </summary>
+    private static Vector2 ResolveEmbeddedDirection(ulong seed)
+    {
+        // The low bits of a mixed value are as well distributed as the high
+        // ones, so a plain modulus is enough here and needs no rejection step.
+        var steps = (int)(seed % EmbeddedAngleSteps);
+        var fraction = steps / (float)(EmbeddedAngleSteps - 1);
+        var angle = -EmbeddedAngleSpreadRadians +
+            (fraction * 2f * EmbeddedAngleSpreadRadians);
+
+        // Half of them lean the other way, so arrows stand out of both sides
+        // of a warrior rather than all pointing right.
+        var mirrored = (seed & EmbeddedMirrorBit) != 0;
+        return mirrored
+            ? new Vector2(-MathF.Cos(angle), MathF.Sin(angle))
+            : new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+    }
+
+    private static Vector2 CenterOrFallback(Rectangle bounds, Vector2 fallback) =>
+        bounds.IsEmpty ? fallback : Center(bounds);
+
+    private static Vector2 Center(Rectangle bounds) =>
+        new(bounds.Center.X, bounds.Center.Y);
 
     private static ProjectilePropLayout CreateShafted(
         Vector2 center,

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Hukbo.Client.Presentation;
+using Hukbo.Client.Presentation.Catalogs;
 using Hukbo.Client.Rendering;
 using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
@@ -856,6 +857,68 @@ public sealed partial class ArenaGame
             layerDepth: 0f);
     }
 
+    /// <summary>
+    /// Draws whatever is still standing in one warrior, anchored to that
+    /// warrior's own posed layout so it rides with them as they move.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Called from inside the pawn loop, after the pawn itself is drawn, which
+    /// is what gives the population its lifetime for free: a pawn the loop
+    /// skips — culled off screen, or dead past its lethal hold — never reaches
+    /// this call, so nothing here has to know whether a host is alive. See the
+    /// plan's section 3.
+    /// </para>
+    /// <para>
+    /// Detail-gated, unlike the in-flight prop in
+    /// <see cref="DrawProjectiles"/>. An embedded projectile decorates a pawn
+    /// that is already drawn, so dropping it when the camera pulls out costs a
+    /// spectator no information — at 500 units a stuck arrow is a few pixels —
+    /// and it is the cheapest way to buy back the quads this feature spends.
+    /// </para>
+    /// </remarks>
+    private void DrawEmbeddedProjectiles(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        ulong hostEntityId,
+        PawnLayout layout)
+    {
+        if (!DetailTierGate.ShouldDraw(layout.ApparentScale, VisualDetailTier.Medium))
+        {
+            return;
+        }
+
+        foreach (ref readonly var embedded in
+            _presentation.EmbeddedProjectiles.ActiveProjectiles)
+        {
+            if (embedded.HostEntityId != hostEntityId)
+            {
+                continue;
+            }
+
+            var propLayout = ProjectileGeometry.CreateEmbedded(
+                PawnAppearanceFactory.ToWeaponRole(embedded.Weapon),
+                layout,
+                embedded.HitLocation,
+                embedded.OnShield,
+                ProjectileGeometry.CreateEmbeddedSeed(
+                    embedded.Sequence,
+                    embedded.HostEntityId,
+                    embedded.AttackerEntityId));
+
+            DrawProjectileElement(
+                spriteBatch,
+                pixel,
+                propLayout.Primary,
+                propLayout.RotationRadians);
+            DrawProjectileElement(
+                spriteBatch,
+                pixel,
+                propLayout.Secondary,
+                propLayout.RotationRadians);
+        }
+    }
+
     private static Color GetProjectileElementColor(ProjectilePropElementKind kind) =>
         kind switch
         {
@@ -1153,6 +1216,8 @@ public sealed partial class ArenaGame
                 contingentState: agent.ContingentState,
                 isLeader: agent.IsLeader,
                 brokeOffUnderPressure: agent.BrokeOffUnderPressure);
+
+            DrawEmbeddedProjectiles(spriteBatch, pixel, agent.EntityId, pawnLayout);
 
             OpenArenaGeometrySpan();
         }
