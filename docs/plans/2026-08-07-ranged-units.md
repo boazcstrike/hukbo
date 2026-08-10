@@ -534,8 +534,7 @@ picture with its own benchmark runs rather than accepting the report:
 | The figure this plan asked for | 1,140,221 |
 
 So 1,140,221 reproduces on **no** current preset. Two separate faults produced
-it. First, provenance: the number traces to
-`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md:523`, an
+it. First, provenance: the number traces to the movement V7 baseline record, an
 **archived** document, and `CLAUDE.md` section 6 states that archived files are
 deprecated by definition and may never be cited as justification for a change.
 Second, drift: it was recorded on 2026-07-31, and the tree has moved a long way
@@ -1027,8 +1026,8 @@ This is the same unowned-exhaustive-switch mechanism section 3 has now recorded 
 times, arriving through a mechanism none of the earlier six used: a second package,
 developed in parallel on `main`, wrote a new exhaustive switch over an enum this package
 had already widened on its own branch. Neither branch was wrong in isolation, and
-neither branch's suite could see it. The `attack-animation-v2` plan
-(`docs/archives/2026-08-10/2026-08-08-attack-animation-v2.md:53`) requires its catalog to cover *all
+neither branch's suite could see it. The `attack-animation-v2` plan, task 1,
+requires its catalog to cover *all
 registered* `WeaponId` values, so the obligation is real on both sides; it falls to this
 package because this package is the one adding the weapons.
 

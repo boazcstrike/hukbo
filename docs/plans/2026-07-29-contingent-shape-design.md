@@ -2,8 +2,7 @@
 
 Date: 2026-07-29
 Status: design only. This document does not authorize implementation. It is
-Phase C of the sequence set out in
-[`2026-07-29-warrior-standing-design.md`](../archives/2026-08-07/2026-07-29-warrior-standing-design.md)
+Phase C of the sequence set out in the warrior standing design
 §9, and it is explicitly **not** implemented in the same pass as Phase A or
 Phase B. A future task-planning pass against this document is required before
 any of the code below is touched.

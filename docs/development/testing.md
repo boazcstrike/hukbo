@@ -195,9 +195,8 @@ battlefield realism merge with identical results — both decide all twenty, V6'
 median decision tick is 1,651 against V4's 1,668. That the sweep did not move
 across the rebase is itself informative: battlefield realism's changes sit
 behind `BattlefieldRealismV10`, which the default workload never selects. The
-measurement is recorded in
-[`../archives/2026-08-11/2026-08-11-combat-cadence-v6.md`](../archives/2026-08-11/2026-08-11-combat-cadence-v6.md)
-under task 5.
+measurement is recorded under task 5 of the combat cadence V6 plan, since
+archived out of `docs/plans/`.
 
 `Hukbo.Core.Tests` grew from 2,470 to 2,492 and `Hukbo.Client.Tests` from 3,643
 to 3,651. The 22 new Core tests are `CombatCadenceV6Tests`; the 8 new Client
@@ -250,9 +249,7 @@ projectile-props smoke checklist are all `PENDING`.
 
 `./scripts/verify.ps1`, all five stages, exit code 0, run once on the
 `battlefield-realism` branch at `449a443`, rebased onto `main` at `0cc5ce5`,
-after all nineteen tasks of
-`docs/archives/2026-08-11/2026-08-11-battlefield-realism.md`
-landed:
+after all nineteen tasks of the battlefield realism plan landed:
 
 ```
 [PASS] Platform: Windows x64

@@ -1,9 +1,12 @@
 # Plans — what is live, and what each document is for
 
 Every file in this folder is live. Finished and superseded work moves to
-`docs/archives/<YYYY-MM-DD>/` under the rules in
-[`../archives/README.md`](../archives/README.md), so if a document is here it is
-still load-bearing for something.
+`docs/archives/<YYYY-MM-DD>/` under the rules that folder's own `README.md`
+states, so if a document is here it is still load-bearing for something.
+
+**Nothing in this folder may link into `docs/archives/`.** That folder is
+deleted periodically, so a path into it is a path that breaks. Name an archived
+document in prose when a reader needs to know it existed.
 
 "Live" does not mean "in progress". A design document that authorizes nothing, a
 backlog entry parked by user decision, and a completed package's measurement
@@ -11,8 +14,8 @@ record are all live, because a future session still has to read them. What none
 of them means is *go and build this* — only an explicit authorization does that,
 and section 6 of [`../../CLAUDE.md`](../../CLAUDE.md) says how one is given.
 
-Last reviewed 2026-08-11, when five finished documents left for
-[`../archives/2026-08-11/`](../archives/2026-08-11/): the projectile-props
+Last reviewed 2026-08-11, when five finished documents left this folder for the
+archive: the projectile-props
 plan, whose build merged at `3ec5523`; the Sandata playable-client plan, whose
 tasks `P1`–`P9` merged at `5508310` and `c13b696`; the wave-11 handoff,
 superseded when wave 12 closed; the combat-cadence V6 plan, whose twelve
@@ -35,9 +38,9 @@ long as source or tests cite it by path, however long ago it shipped.
 | [`2026-08-07-ranged-units.md`](2026-08-07-ranged-units.md) | The ranged package's plan **and its record**. Section 9 is the narrative, with the measurements and the corrections to fifteen known-wrong task rows | Build closed and merged; section 9 is why this stays |
 | [`2026-08-07-ranged-units-design.md`](2026-08-07-ranged-units-design.md) | The ranged design. Cited by name from `PhilippineCombatPresetV5.cs`, `RangedPhase.cs`, and the client's ranged geometry | Shipped; cited from source |
 | [`2026-08-09-ranged-units-handoff.md`](2026-08-09-ranged-units-handoff.md) | What is still open on the ranged package: RU-31's listening acceptance, the eleven `RG-*` smoke rows, the V9 termination gap, and the default-composition decision | Current status document |
-| [`2026-08-09-projectile-props-design.md`](2026-08-09-projectile-props-design.md) | In-flight projectile props and embedded projectiles, with the quad-budget arithmetic and five open decisions | Shipped at `3ec5523`. Its plan, which answered all five decisions and corrected the design's own quad arithmetic, is archived at [`../archives/2026-08-11/2026-08-11-projectile-props.md`](../archives/2026-08-11/2026-08-11-projectile-props.md) |
-| [`2026-08-11-combat-cadence-v6-design.md`](2026-08-11-combat-cadence-v6-design.md) | Why `PrecolonialPhilippinesV6` exists and why it is the shipped default: the melee cadence retune that halves the on-screen artefact rate at a near-constant damage per tick, and the ceiling on how fast an attack animation may be played. Cited by path from `CombatIdentity.cs`, `PhilippineCombatPresetV6.cs`, `Scenario.cs`, and `DeterminismTests.cs` | Shipped at `982bd6f`; cited from source. All twelve `CL-*` smoke rows `PASS`. Its plan is archived at [`../archives/2026-08-11/2026-08-11-combat-cadence-v6.md`](../archives/2026-08-11/2026-08-11-combat-cadence-v6.md) |
-| [`2026-08-11-battlefield-realism-design.md`](2026-08-11-battlefield-realism-design.md) | Why `BattlefieldRealismV10` exists: weapon-cohort deployment, shield bearers at the forward-most slots, and the ranged retreat rung. Sections 2.1 and 2.2 hold the evidence and the divergence register, all three behaviours shipping as a labelled gameplay model. Cited by path from `MovementPresetId.cs`, `MovementPresetRegistry.cs`, `FormationPlanner.cs`, `ContingentState.cs`, `ArenaGame.cs`, and `AgentInspectorContent.cs` | Shipped; cited from source. Its nineteen-task plan is archived at [`../archives/2026-08-11/2026-08-11-battlefield-realism.md`](../archives/2026-08-11/2026-08-11-battlefield-realism.md); ten smoke rows `PENDING` |
+| [`2026-08-09-projectile-props-design.md`](2026-08-09-projectile-props-design.md) | In-flight projectile props and embedded projectiles, with the quad-budget arithmetic and five open decisions | Shipped at `3ec5523`. Its plan, which answered all five decisions and corrected the design's own quad arithmetic, is archived |
+| [`2026-08-11-combat-cadence-v6-design.md`](2026-08-11-combat-cadence-v6-design.md) | Why `PrecolonialPhilippinesV6` exists and why it is the shipped default: the melee cadence retune that halves the on-screen artefact rate at a near-constant damage per tick, and the ceiling on how fast an attack animation may be played. Cited by path from `CombatIdentity.cs`, `PhilippineCombatPresetV6.cs`, `Scenario.cs`, and `DeterminismTests.cs` | Shipped at `982bd6f`; cited from source. All twelve `CL-*` smoke rows `PASS`. Its plan is archived |
+| [`2026-08-11-battlefield-realism-design.md`](2026-08-11-battlefield-realism-design.md) | Why `BattlefieldRealismV10` exists: weapon-cohort deployment, shield bearers at the forward-most slots, and the ranged retreat rung. Sections 2.1 and 2.2 hold the evidence and the divergence register, all three behaviours shipping as a labelled gameplay model. Cited by path from `MovementPresetId.cs`, `MovementPresetRegistry.cs`, `FormationPlanner.cs`, `ContingentState.cs`, `ArenaGame.cs`, and `AgentInspectorContent.cs` | Shipped; cited from source. Its nineteen-task plan is archived; ten smoke rows `PENDING` |
 | [`2026-08-11-display-dpi-awareness-design.md`](2026-08-11-display-dpi-awareness-design.md) | Why the client declares per-monitor DPI awareness, why the font ramp was not the cause of the pixelated text, and why the P/Invoke deliberately carries no test | Shipped at `b1152f7`; `UI-2`, `UI-4`, `UI-6` are `PENDING` re-runs |
 | [`2026-08-08-attack-animation-v2-design.md`](2026-08-08-attack-animation-v2-design.md) | The attack-animation V2 design. Authoritative over its backlog where the two disagree | Shipped |
 | [`2026-08-09-attack-animation-v2-backlog.md`](2026-08-09-attack-animation-v2-backlog.md) | What the twelve-task attack-animation plan left behind | Open |
@@ -58,14 +61,14 @@ long as source or tests cite it by path, however long ago it shipped.
 ## Where the rest of it went
 
 Finished plans, one-off orchestration prompts, and superseded handoffs live in
-`docs/archives/`. The most recent batch is
-[`2026-08-11/`](../archives/2026-08-11/): the projectile-props plan, the Sandata
-playable-client plan, and the Sandata wave-11 handoff. The batch before it is
-[`2026-08-10/`](../archives/2026-08-10/): the attack-animation V2 implementation
-plan and its continuation prompt, the gait animation plan, the 2026-08-08 ranged
-handoff, the Sandata wave-5 continuation prompt, and the three July orchestration
-prompts. Read one to answer "why was it built this way"; never to decide what to
-do next.
+`docs/archives/`, in dated batches. The most recent batch is `2026-08-11`: the
+projectile-props plan, the Sandata playable-client plan, and the Sandata wave-11
+handoff. The batch before it is `2026-08-10`: the attack-animation V2
+implementation plan and its continuation prompt, the gait animation plan, the
+2026-08-08 ranged handoff, the Sandata wave-5 continuation prompt, and the three
+July orchestration prompts. Read one to answer "why was it built this way";
+never to decide what to do next. Do not link to one — the folder is deleted
+periodically.
 
 Session continuation prompts live in [`../prompts/`](../prompts/). The current
 one is

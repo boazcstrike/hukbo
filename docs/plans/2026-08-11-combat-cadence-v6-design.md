@@ -3,10 +3,9 @@
 **Status:** shipped, merged to `main` at `982bd6f` on 2026-08-11. This document
 stays live rather than archived because it is cited by path from
 `CombatIdentity.cs`, `PhilippineCombatPresetV6.cs`, `Scenario.cs`, and
-`DeterminismTests.cs`. Its plan document is finished and archived at
-[`../archives/2026-08-11/2026-08-11-combat-cadence-v6.md`](../archives/2026-08-11/2026-08-11-combat-cadence-v6.md);
-that document holds the ordered task list, the twenty-seed measurement, and the
-record of what each task actually did.
+`DeterminismTests.cs`. Its plan document is finished and archived out of
+`docs/plans/`; that document held the ordered task list, the twenty-seed
+measurement, and the record of what each task actually did.
 
 **Outcome:** all twelve `CL-*` smoke rows `PASS`. CL-1, CL-3, CL-7a, and CL-7b
 were re-run by a person after this change and every one of them passed, so the

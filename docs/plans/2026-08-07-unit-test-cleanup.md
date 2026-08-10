@@ -164,9 +164,8 @@ done against nine rows instead of six.
 says so: the entry point compiles only under the `HUKBO_CALIBRATION`
 preprocessor symbol, which no script and no gate stage defines. It reaches a
 private `BattleSimulation._pressureInterruptFired` field by reflection. It
-implements task E0 of
-`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt.md`
-— an archived plan, and archived plans are reference only.
+implements task E0 of the movement V7 pressure-interrupt plan — an archived
+plan, and archived plans are reference only.
 
 V7 closed on 2026-08-06. The measurement this harness exists to produce has been
 taken, and its verdict was recorded: no tuning of the pressure interrupt meets

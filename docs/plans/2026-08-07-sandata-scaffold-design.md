@@ -2218,8 +2218,8 @@ consolidation's own list and the eleventh was added on 2026-08-10.
     and change what that workload does — the operators would start walking —
     which is a gameplay change to the reference workload, not merely a moved
     digest. When the real clearing model is designed, moving it into the
-    simulation is the point at which that cost is worth paying. Recorded in
-    `docs/archives/2026-08-11/2026-08-10-sandata-playable-client.md`.
+    simulation is the point at which that cost is worth paying. Recorded in the
+    Sandata playable-client plan, since archived out of `docs/plans/`.
 
     **Corrected 2026-08-11.** This paragraph previously ended "and move a
     recorded state hash, which is a new preset version". That gloss is wrong

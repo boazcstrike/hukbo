@@ -1,9 +1,8 @@
 # Attack animation V2 — backlog after the twelve-task plan
 
 Date: 2026-08-09
-Status: open. The twelve-task plan in
-`docs/archives/2026-08-10/2026-08-08-attack-animation-v2.md` is complete and merged; this
-records what it left behind.
+Status: open. The twelve-task attack animation V2 plan is complete and merged,
+and has been archived out of `docs/plans/`; this records what it left behind.
 
 The implementation plan and its design are the context for everything below.
 Read `docs/plans/2026-08-08-attack-animation-v2-design.md` first — it is

@@ -10,9 +10,9 @@ presentation-only naming layer in `Hukbo.Client`, shown in the battle report
 and the agent inspector. That implementation ships only the region-scoped
 ledger of recorded forms and none of the optional layers: no titles, no
 parenthood forms, no reputation or friendship names, no Christian-plus-local
-forms, and no famous historical bearers. See
-[docs/archives/2026-08-07/2026-07-29-warrior-personal-names-design.md](../archives/2026-08-07/2026-07-29-warrior-personal-names-design.md)
-for what was cleared, what was excluded, and which tests pin each exclusion.
+forms, and no famous historical bearers. The warrior personal names design
+recorded what was cleared, what was excluded, and which tests pin each
+exclusion.
 Nothing in this document is superseded by that implementation.
 
 This document asks what personal names Hukbo could eventually use for people

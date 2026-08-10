@@ -278,8 +278,8 @@ first task determines. Choosing before that measurement would be guessing.
 **Every option except 6.1 changes committed positions, and therefore changes
 both the state hash and the event hash on every seed.**
 
-That is the opposite requirement from the collision work described in
-`docs/archives/2026-08-07/2026-07-28-collision-resolution-scaling-design.md`, which is
+That is the opposite requirement from the collision work described in the
+collision resolution scaling design, which is
 strictly hash-neutral and whose section 13 puts "anything that changes a
 committed position, a preset version, or a golden expectation" out of scope.
 These two documents touch the same file and the same method and must not be

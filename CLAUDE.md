@@ -341,9 +341,14 @@ Never execute an archived plan, never treat its versions or tooling references a
 current, and never cite one as justification for a change. Active work lives in
 `docs/plans/`; the live contract is this file, `SIMULATION-GAME-STANDARDS.md`,
 `docs/development/testing.md`, `docs/development/smoke-checklist.md`, and
-`.claude/skills/`. Archived files are grouped
-into dated subfolders — full rules, including the layout, in
-[docs/archives/README.md](docs/archives/README.md).
+`.claude/skills/`. Archived files are grouped into dated subfolders, and that
+folder's own `README.md` holds the layout rules.
+
+**No file outside `docs/archives/` may link to a file inside it.** The folder is
+deleted periodically, so a path into it is a path that breaks. Name the archived
+document in prose if a reader needs to know it existed; never write the path as a
+link. This applies to documentation, plans, research notes, skills, and source
+comments alike.
 6. Every feature proposal answers the nine questions in
    `SIMULATION-GAME-STANDARDS.md` §10, including: *can a spectator discover this
    effect without reading source code?* If not, the feature is incomplete.

@@ -507,7 +507,7 @@ worry about.
 
 **Under the shipped default `PersistentContingentsV4`, battles terminate.** The
 task F2 re-measurement arm at
-`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md:679-710`
+the movement V7 calibration record (archived)
 ran ten cells — seeds 1, 2, 3, 5, 8 at both 200 and 500 agents — on
 `PersistentContingentsV4` and every one reached a decisive outcome:
 
@@ -517,7 +517,7 @@ ran ten cells — seeds 1, 2, 3, 5, 8 at both 200 and 500 agents — on
 | 500 | 2,551 – 4,405 | 4 × `Faction0Victory`, 1 × `Faction1Victory` |
 
 Source: the table at
-`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md:687-698`,
+the movement V7 calibration record (archived),
 summarised at line 712: "All ten V4 cells reach a decisive outcome, between
 1,279 and 4,405 ticks."
 
@@ -544,10 +544,10 @@ two sibling ranged-package research files.
 
 > All ten `EquipmentRelativeFootworkV6` cells ended in `Draw` at the 10,000-tick
 > limit. Not one of them reached a decisive outcome.
-> — `docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md:283-285`
+> — the movement V7 baseline record (archived)
 
 The per-cell table is at
-`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md:207-221`.
+the movement V7 baseline record (archived).
 Survivors when the limit arrived ran between 43.4% and 75.5% of the starting
 roster (`baseline.md:289-298`), with the two sides finishing within nine warriors
 of each other in every 200-agent cell and within five in every 500-agent cell
@@ -557,9 +557,9 @@ standoff."
 
 **Fact two — the ratio. 349 to 1.** From the 200-agent seed-1 cell's
 `movementMetrics` block, recorded at
-`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md:307-312`
+the movement V7 baseline record (archived)
 and again at
-`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md:548-553`:
+the movement V7 calibration record (archived):
 
 | Metric | Agent-ticks |
 | --- | --- |
@@ -579,7 +579,7 @@ are occupied "for 349 ticks out of every 350".
 `PersistentContingentsV4` cell at the same size and seed — a V4 run that lasted
 1,279 ticks rather than 10,000. "V6 lands about a third as many blows in roughly
 eight times the duration."
-(`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md:312-315`.)
+(Movement V7 baseline record, archived.)
 
 ### 4.2 What was tried, and what it measured
 
@@ -590,7 +590,7 @@ abandons a committed blow and resolves to `FootworkPhase.Disengage`
 
 Six candidate tunings were measured over the three shared weights and the six
 per-row thresholds, recorded individually at
-`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md:176-345`:
+the movement V7 calibration record (archived):
 
 | Candidate | What it varied | Result |
 | --- | --- | --- |
@@ -1141,7 +1141,7 @@ candidate pairs per tick. Whole-run simulation cost at that size was 813 ms for
 **The caveat that matters more than the number.** `ResolveCollisions` is
 already 63 % to 75 % of tick time, and V6's `p50` is already 3.44× V4's at 200
 agents and 4.02× at 500
-(`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md:721-722`).
+(the movement V7 calibration record, archived).
 The V7 record names `ResolveCollisions` as "the flagged suspect" and is explicit
 that flagging it is not authorization to touch it
 (`calibration-record.md:743-746`). A ranged design that adds a per-agent

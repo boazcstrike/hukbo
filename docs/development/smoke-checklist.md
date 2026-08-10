@@ -23,15 +23,18 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-11
 
-221 rows across 23 subsections: **203 `PENDING`, 14 `BLOCKED`, 3 `FAIL`,
-1 `DECLINED`**, counted from the status column of this file on 2026-08-11.
+192 rows across 22 subsections: **174 `PENDING`, 14 `BLOCKED`, 3 `FAIL`,
+1 `DECLINED`**, counted from the status column of this file on 2026-08-11,
+after the improve-visuals smoke run closed 29 of its 32 rows and they were
+lifted out.
 
-**There is no `PASS` column any more, and that is deliberate.** The last 22
-passing rows were lifted out on 2026-08-11. Every row in this file is now
-something a person still has to do: 203 never attempted, 14 that cannot be
-attempted until the build changes, 3 that were attempted and failed, and 1
-declined. If a `PASS` ever appears here again it is a row that has just closed
-and has not yet been lifted — not a row that belongs.
+**There is no `PASS` column any more, and that is deliberate.** 51 passing rows
+were lifted out on 2026-08-11 — 22 of them from families that stayed, then 29
+more when both improve-visuals families were run for the first time. Every row
+in this file is now something a person still has to do: 174 never attempted, 14
+that cannot be attempted until the build changes, 3 that were attempted and
+failed, and 1 declined. If a `PASS` ever appears here again it is a row that
+has just closed and has not yet been lifted — not a row that belongs.
 
 **Recount before trusting that total.** Every figure here that was ever taken
 on faith turned out to be wrong. Count the status column itself, and count
@@ -45,10 +48,12 @@ entirely `PASS` — an open `FAIL` or `BLOCKED` row is unfinished work and stays
 here where a reader will see it. One section has no `PENDING` rows today and
 stays for exactly that reason: Sandata, which holds 2 `FAIL` and 5 `BLOCKED`.
 
-**A single passing row is lifted out the same way, without its section.** Four
+**A single passing row is lifted out the same way, without its section.** Five
 sections still carrying open work had rows that closed — Sandata, the `UI`
-family, the persistent-contingent section, and attack animation V2 — and those
-22 rows left on 2026-08-11 while their sections stayed. Each of the four names,
+family, the persistent-contingent section, attack animation V2, and the
+improve-visuals families, whose two sections were merged into one when 29 of
+their 32 rows left. The first 22 of those rows left on 2026-08-11 while their
+sections stayed, and the improve-visuals 29 left the same day. Each section names,
 in its own preamble, which of its rows closed and what to be careful of when
 reading the archived result: two of them closed under a preset or a viewport
 that is no longer the shipped one, which is exactly the trap an undated `PASS`
@@ -85,6 +90,7 @@ order relaunches the game far more often than they need to.
 | Render | `GR` 5 | 5 `PENDING` | Launch-time render behaviour |
 | Battlefield realism | task 18 rows | 10 `PENDING` | Cohort deployment and the V10 retreat rung |
 | Menu, display, motion | `UI` 3 of 16 | 3 `PENDING` | Run on 2026-08-11; the other 13 passed and were lifted out. The three open rows, `UI-2`, `UI-4`, and `UI-6`, all failed that run on one shared cause — the process never declared DPI awareness, so Windows rendered the game at a virtualised size and bitmap-stretched the result. **That is fixed**; the three are re-runs, not fresh checks. Set UI Scale to Auto first. See finding 1 in that section |
+| Improve visuals | `VIS` 3 of 32 | 3 `PENDING` | Run on 2026-08-11; the other 29 passed and were lifted out. The three open rows — 128 armor bulk, 129 adornment accents, 131 trampled ground — all failed that run, each on its own cause. **All three are fixed**; they are re-runs, not fresh checks. 128 and 129 want the maximum-zoom station; 131 wants a battle that has produced casualties |
 | Sandata | `SD` 7 of 9 | 5 `BLOCKED`, 2 `FAIL` | `./scripts/run.ps1 -Game Sandata`. The other 2 passed and were lifted out |
 | Pressure interrupt | `P` | 9 `BLOCKED`, 1 `PENDING` | **Not runnable today** — see below |
 
@@ -686,25 +692,34 @@ rows are `PENDING`.**
 | 99. Watch the battle event feed during a live run | Events appear correctly and in the correct order for the whole run; nothing is missing, duplicated, or out of sequence. | Not run | PENDING |
 | 100. Pause, resume, and change speed repeatedly during a run | The feed survives every pause and every speed change without losing or duplicating a single entry. | Not run | PENDING |
 | 101. Let a battle run to its end | Once the battle ends, the feed shows nothing stale left over from the last live tick. | Not run | PENDING |
+
 ## Visual improvement smoke — the three open rows
 
 Both improve-visuals families, `VIS-041` (rows 102 to 115) and `VIS-043` (rows
 116 to 133), were run by a person at an interactive Windows desktop on
 2026-08-11. It was the first time any of the thirty-two rows had been
-attempted; both sections had stood entirely `PENDING` since they were written.
+attempted; both had stood entirely `PENDING` since they were written.
 
-**Twenty-nine of the thirty-two rows passed and have been archived.** They are
-in
-[`../archives/2026-08-11/2026-08-11-visual-improvement-smoke.md`](../archives/2026-08-11/2026-08-11-visual-improvement-smoke.md),
-together with the session's evidence fields and the dagger notes that belonged
-to rows 106, 114, 121, and 133. Nothing there is an instruction, and nothing
-there is outstanding. If a later change touches weapon tints, shield skins, the
-appearance roster, the grass ground, the sway setting, or the visual-catalog
-fallback path, write fresh rows here rather than reviving the archived ones.
+**Twenty-nine of the thirty-two rows passed and were lifted out.** They left
+this file on 2026-08-11 with the session's evidence fields and the dagger notes
+that belonged to rows 106, 114, 121, and 133. The record is titled **"Visual
+improvement smoke (VIS-041 and VIS-043) — passed rows"**; find it by that title
+rather than by a path:
 
-**Three rows failed and stay here.** They are below, with what the tester
-actually said. A failing row is unfinished work, so it is not archived: the
-live checklist is where an open defect belongs.
+```powershell
+git log --diff-filter=A --name-only --format='%h %s' -- 'docs/archives/**' |
+  Select-String 'visual-improvement-smoke'
+```
+
+If a later change touches weapon tints, shield skins, the appearance roster,
+the grass ground, the sway setting, or the visual-catalog fallback path, write
+fresh rows here rather than reviving the lifted ones.
+
+**Three rows failed that run and stay here.** All three have since had a fix
+shipped, so each is back at `PENDING` and each keeps the observation that
+failed it, exactly as this file's reopening rule requires. They are re-runs,
+not fresh checks. Read the `Actual` column before attempting one — it says what
+was on screen and why.
 
 | Evidence field | Recorded value |
 | --- | --- |
@@ -716,23 +731,25 @@ live checklist is where an open defect belongs.
 
 | Check | Expected observation | Actual | Status |
 | --- | --- | --- | --- |
-| 128. Armored figures read as bulkier, not as shielded | At the default-fit or maximum-zoom station, default theme, compare a pawn wearing an armor-layer component (F2 through F5) against an unarmored pawn and against a shield-bearing pawn. The armored pawn reads as visibly bulkier through the torso, and does not read as if it were carrying a shield. | 2026-08-11, tester at the desktop: not clear. Investigated after the run and the cause is in the draw, not in the eye: `PawnRenderer.DrawArmor` filled the whole widened capsule solid in `BarkBrown`, replacing the torso's dye, outline, and belt with a flat block — a recolour rather than bulk, and a flat single block over the body is the silhouette a held shield draws. The widening itself was under a pixel at the default-fit station. A remedy shipped the same day; see the note below the table. | FAIL |
-| 129. Adornment accents visible at maximum zoom without breaking any read | At the maximum-zoom station, default theme, close in on a pawn wearing adornment accents (gold accents I4/I5, or the C3 gold-edged putong). The accents are visible without breaking weapon-role, faction, or equipment recognition. | 2026-08-11, tester at the desktop: not clear. Investigated after the run: `PawnGeometry.CreateAdornmentAccents` sized a mark as `min(2, round(2 × apparentScale))`, which can never exceed 2 because the constant appears on both sides of the `min`. An accent was two pixels at every zoom including the clamp ceiling, so this row could not have been passed at any station. A remedy shipped the same day; see the note below the table. | FAIL |
-| 131. Trampled areas visibly thin where fighting happened | During or after a battle with visible casualties, observe the grass around a cluster of `Death` events. The grass there reads as visibly thinned or trampled compared to untouched ground elsewhere on the field. | 2026-08-11, tester at the desktop: not clear. Investigated after the run: a trample mark drew at shade interpolation `0.22`, the exact tone of a Large grass cluster, with the grass drawn on top of it — the worn ground and the grass that was supposed to have thinned had no contrast against each other at all. The suppression radius of 40 world units also thinned part of one clump rather than an area. A remedy shipped the same day; see the note below the table. | FAIL |
+| 128. Armored figures read as bulkier, not as shielded | At the default-fit or maximum-zoom station, default theme, compare a pawn wearing an armor-layer component (F2 through F5) against an unarmored pawn and against a shield-bearing pawn. The armored pawn reads as visibly bulkier through the torso, and does not read as if it were carrying a shield. | 2026-08-11, tester at the desktop: `FAIL` — not clear. Investigated after the run and the cause is in the draw, not in the eye: `PawnRenderer.DrawArmor` filled the whole widened capsule solid in `BarkBrown`, replacing the torso's dye, outline, and belt with a flat block — a recolour rather than bulk, and a flat single block over the body is the silhouette a held shield draws. The widening itself was under a pixel at the default-fit station. Reopened `PENDING` against the fix below. | PENDING |
+| 129. Adornment accents visible at maximum zoom without breaking any read | At the maximum-zoom station, default theme, close in on a pawn wearing adornment accents (gold accents I4/I5, or the C3 gold-edged putong). The accents are visible without breaking weapon-role, faction, or equipment recognition. | 2026-08-11, tester at the desktop: `FAIL` — not clear. Investigated after the run: `PawnGeometry.CreateAdornmentAccents` sized a mark as `min(2, round(2 × apparentScale))`, which can never exceed 2 because the constant appears on both sides of the `min`. An accent was two pixels at every zoom including the clamp ceiling, so this row could not have been passed at any station by anyone. Reopened `PENDING` against the fix below. | PENDING |
+| 131. Trampled areas visibly thin where fighting happened | During or after a battle with visible casualties, observe the grass around a cluster of `Death` events. The grass there reads as visibly thinned or trampled compared to untouched ground elsewhere on the field. | 2026-08-11, tester at the desktop: `FAIL` — not clear. Investigated after the run: a trample mark drew at shade interpolation `0.22`, the exact tone of a Large grass cluster, with the grass drawn on top of it — the worn ground and the grass that was supposed to have thinned had no contrast against each other at all. The suppression radius of 40 world units also thinned part of one clump rather than an area. Reopened `PENDING` against the fix below. | PENDING |
 
-**A remedy for all three shipped on 2026-08-11 and none of these rows may be
-flipped on account of it.** The design is
-[`../plans/2026-08-11-armor-accent-trample-legibility-design.md`](../plans/2026-08-11-armor-accent-trample-legibility-design.md).
-In short: armor now draws as two symmetric flank bars that thicken the body and
-leave the torso's dye visible, instead of one slab covering it; the accent area
-cap is read as the scale-relative bound R-W3.6's own wording states, so a mark
-is two pixels at apparent scale 1 and five at the clamp ceiling instead of two
-everywhere; and trampled stubble drops to a shade below every grass tone while
-the mark covers real ground, so a worn area has a boundary against the grass
-around it. The canonical gate passed with the seed-1 hashes unmoved, which is
-what a presentation-only change owes. **A green gate proves none of these three
-rows.** Each stays `FAIL` until a person at an interactive desktop looks at the
-screen again and says otherwise.
+**The fix, shipped the same day.** The design is
+`docs/plans/2026-08-11-armor-accent-trample-legibility-design.md`. Armor now
+draws as two symmetric flank bars that thicken the body and leave the torso's
+dye, outline, and belt visible down the middle, instead of one slab covering
+them. The accent area cap is read as the scale-relative bound R-W3.6's own
+wording states, so a mark is two pixels at apparent scale 1 and five at the
+apparent-scale clamp ceiling rather than two everywhere. Trampled stubble drops
+to a shade below every grass tone, the mark covers real ground, and adjacent
+marks merge, so a worn area has a boundary against the grass around it. No
+pinned constant changed value and no shade exceeds the backdrop ceiling.
+
+The canonical gate passed with the seed-1 hashes unmoved, which is what a
+presentation-only change owes. **A green gate proves none of these three
+rows**, and neither does the design document. Each closes only when a person at
+an interactive desktop looks at the screen again.
 
 **Still outstanding, and not a row.** Both the implementation plan draft and
 `warrior-appearance-design.md` called for a line-by-line historical review of

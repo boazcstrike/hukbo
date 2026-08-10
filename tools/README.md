@@ -14,10 +14,8 @@ visual-system integration design; the sixth,
 and the seventh, `Hukbo.Tools.ContingentShape`, produces the evidence behind
 the two failed rows of the persistent-contingent smoke pass in that same file;
 and the eighth, `Hukbo.Tools.CohesionTrace`, produces the gate-by-gate evidence
-in section 9 of
-[`docs/archives/2026-08-07/2026-07-28-cohesion-scan-narrowing-design.md`](../docs/archives/2026-08-07/2026-07-28-cohesion-scan-narrowing-design.md),
-which is what established why contingent cohesion appeared to stop firing
-partway through an advance. All eight let those numbers be reproduced later.
+that established why contingent cohesion appeared to stop firing partway
+through an advance. All eight let those numbers be reproduced later.
 
 Two of them read `internal` members of `Hukbo.Core`.
 `Hukbo.Tools.DeadlockProbe` needs exactly one — `CollisionPriority.Resolve`, the

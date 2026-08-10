@@ -1,8 +1,8 @@
 # Ranged units — session handoff, 2026-08-09
 
-Supersedes [`2026-08-08-ranged-units-handoff.md`](../archives/2026-08-10/2026-08-08-ranged-units-handoff.md),
-which is frozen at wave 4 and whose every count, commit and status is stale. Read
-that one only for durable reasoning.
+Supersedes the 2026-08-08 ranged units handoff, which is frozen at wave 4 and
+whose every count, commit and status is stale. Read that one only for durable
+reasoning.
 
 **The package's goal has been reached.** A ranged battle has been played by a
 person, with sound, without crashing. That had never happened before today.

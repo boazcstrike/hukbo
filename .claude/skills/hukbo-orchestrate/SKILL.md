@@ -113,8 +113,10 @@ documentation, commits, and user-facing prose may not.
 3. Record evidence honestly. No agent may flip an interactive smoke-checklist
    row.
 4. Move the finished plan to `docs/archives/<YYYY-MM-DD>/`, dated for the day
-   of archiving, with the "Archived: reference only" banner. See
-   `docs/archives/README.md` for the layout rules.
+   of archiving, with the "Archived: reference only" banner. That folder's own
+   `README.md` holds the layout rules. Never leave a link pointing into the
+   archive behind — the folder is deleted periodically, so name the moved
+   document in prose instead.
 
 ## Known failure modes
 

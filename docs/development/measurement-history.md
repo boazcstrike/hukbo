@@ -203,9 +203,8 @@ attribution would need per-frame span records, which the report does not retain.
 
 #### Phase 1 exit criteria
 
-Assessed against section 5.1 of
-`docs/archives/2026-08-07/gpu-render/2026-07-28-gpu-render.md` (that plan was
-archived on 2026-08-07; it lived at `docs/plans/gpu-render/` while the work ran).
+Assessed against section 5.1 of the GPU render plan, which lived at
+`docs/plans/gpu-render/` while the work ran and was archived on 2026-08-07.
 
 1. Matrix run at 200, 500 and 1 000 units, seed 1, 120 frames per station,
    Release, retrace disabled, fingerprint stating the retrace setting — **met**.
@@ -502,8 +501,8 @@ This supersedes the timing columns of the 4.25-radius sweep in the next section
 below, and nothing else. The hashes are the point: they did not move.
 
 The collision resolver now answers both of its obstacle queries through bounded
-uniform-grid lookups instead of two linear scans, under
-[docs/archives/2026-08-07/2026-07-28-collision-resolution-scaling.md](../archives/2026-08-07/2026-07-28-collision-resolution-scaling.md).
+uniform-grid lookups instead of two linear scans, under the collision
+resolution scaling plan, since archived.
 That change is hash-neutral by construction, so this sweep is simultaneously the
 performance measurement and the correctness evidence: had any committed position
 changed, a hash would have moved.
@@ -827,8 +826,8 @@ logging-neutrality Fact, all added by task F0. The Client figure includes
 The gate's workload runs under the shipped default `PersistentContingentsV4`,
 so its `movementMetrics` block reads zero throughout and this run says nothing
 about V7. V7's own evidence is its pinned content hash, its trajectory digest
-freeze test, the F0 Facts, and the twenty-cell matrix in section 7 of
-`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md`.
+freeze test, the F0 Facts, and the twenty-cell matrix in section 7 of the
+movement V7 calibration record, since archived.
 
 `Scenario.MovementPreset` is still `PersistentContingentsV4`, which decision D6
 requires and which this workstream's measurement now makes permanent with

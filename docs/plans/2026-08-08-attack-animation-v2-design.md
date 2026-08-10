@@ -1,9 +1,8 @@
 # Attack animation V2 — design
 
 Date: 2026-08-08
-Status: approved. The companion implementation plan is
-`docs/archives/2026-08-10/2026-08-08-attack-animation-v2.md`; code changes begin only by
-executing that plan.
+Status: approved. The companion implementation plan is complete and has been
+archived out of `docs/plans/`; code changes begin only by executing that plan.
 
 ## 1. Goal
 

@@ -1,9 +1,8 @@
 # Movement gait animation — design
 
 Status: design only. This document does not authorize implementation. The
-ordered task list lives in
-[`2026-08-07-movement-gait-animation.md`](../archives/2026-08-10/2026-08-07-movement-gait-animation.md),
-now archived.
+ordered task list lived in the movement gait animation plan, now archived out
+of `docs/plans/`.
 
 ## 1. What the spectator asked for
 

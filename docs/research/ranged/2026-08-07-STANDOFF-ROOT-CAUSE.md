@@ -92,7 +92,7 @@ Two further standards clauses bind the shape of a fix:
 
 The V7 workstream did not use the 5,000-tick standards bar. It used a
 6,000-tick bar drawn from its own design section 2.1, recorded in
-`docs/archives/2026-08-06/movement/AGENT-BACKLOG.md:88-90` (historical): "Zero
+the movement agent backlog, archived and historical: "Zero
 of ten cells reached a decisive outcome within 6,000 ticks; all ten still draw
 at the 10,000-tick limit." The discrepancy does not change any conclusion below,
 because the measured result is a `Draw` at 10,000 ticks in every cell, which
@@ -128,7 +128,7 @@ reachable only through explicit selection — the shipped default stays
 ### 2.2 Recorded terminal ticks, per seed, both presets
 
 All twenty cells below are historical measurements recorded in
-`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md`, section
+the movement V7 baseline record (archived), section
 9.3, lines 543 through 562. Each row of that block carries, in order, the cell
 name, `measuredTicks`, `outcome`, both survivor counts, timings, allocation, the
 determinism flag, and both hashes. The figures were produced by the headless
@@ -181,9 +181,9 @@ moved by a single tick."
 
 The figure quoted in the brief as "around 349:1" appears verbatim in four
 archived documents. Its primary statement is
-`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md:307-315`,
+the movement V7 baseline record (archived),
 and it is restated as a table at
-`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md:551-560`.
+the movement V7 calibration record (archived).
 
 It is a ratio of **agent-ticks in one set of footwork phases to agent-ticks in
 another**, taken from a single cell: `EquipmentRelativeFootworkV6`, 200 agents,
@@ -742,7 +742,7 @@ of six rows, and the three directions offered do not point out of it.
 
 **Superseded arithmetic, corrected 2026-08-07 during RU-06.** The numbers in the
 block below come from
-`docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md:523`, which
+the movement V7 baseline record (archived), which
 is an archived document recording a **V7** cell on 2026-07-31. Two things are
 wrong with using it here: `CLAUDE.md` section 6 forbids citing an archived file as
 justification, and the tree has drifted since it was written. Measured directly on

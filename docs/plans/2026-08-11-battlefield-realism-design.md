@@ -1,9 +1,9 @@
 # Battlefield realism — design
 
-Status: design. A design document does not authorize implementation; the plan
-document `docs/archives/2026-08-11/2026-08-11-battlefield-realism.md` does. That
-plan was archived on 2026-08-11 once its nineteen tasks merged; this design
-stays live because source and tests cite it by path.
+Status: design. A design document does not authorize implementation; the
+battlefield realism plan document does. That plan was archived out of
+`docs/plans/` on 2026-08-11 once its nineteen tasks merged; this design stays
+live because source and tests cite it by path.
 
 Date: 2026-08-11. Branch: `battlefield-realism`. Base commit: `c13b696`.
 
