@@ -25,7 +25,14 @@ The design's section 8 parked five decisions. All five now have answers.
 
 `tools/Hukbo.Tools.RenderProbe`, 500 units, seed 1, Release, vertical retrace
 disabled, 150 frames per station, run on 2026-08-11. Report at
-`artifacts/render-probe-projectile-props-500.json`.
+`docs/development/render-baselines/render-baseline-projectile-props-500-2026-08-11.json`.
+
+That path is a tracked one on purpose. The probe writes to `artifacts/`, which
+`.gitignore` excludes, so the report as written existed on one machine and
+nowhere else — the same defect
+`SourceHygieneTests.EveryCitedRenderBaselineArtifactExistsInTheRepository` was
+written to catch for the earlier baselines. It was copied into the tracked
+baselines directory before the worktree holding it was removed.
 
 | Station | quads (max) | triangles (max) | frame p50 | frame p95 |
 | --- | --- | --- | --- | --- |

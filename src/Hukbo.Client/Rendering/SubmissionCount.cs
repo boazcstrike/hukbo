@@ -535,7 +535,7 @@ internal static class RenderBudgetEstimate
     // expensive of the two shapes the note anticipated. The measurement is on
     // record — tools/Hukbo.Tools.RenderProbe, 500 units, seed 1, Release,
     // retrace disabled, 150 frames per station, 2026-08-11, report at
-    // artifacts/render-probe-projectile-props-500.json:
+    // docs/development/render-baselines/render-baseline-projectile-props-500-2026-08-11.json:
     //
     //   minimum-zoom  9,245 quads   p50 0.72 ms
     //   default-fit   9,246 quads   p50 0.75 ms
