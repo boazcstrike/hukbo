@@ -190,7 +190,7 @@ Non-trivial work: a design doc in `docs/plans/` first (does not authorize
 implementation), then a plan doc with the ordered task list, then
 implementation, then the canonical gate with its real output recorded.
 Interactive behavior is proven only by the manual checklist in
-`docs/development/testing.md` — a passing build or test suite does not
+`docs/development/smoke-checklist.md` — a passing build or test suite does not
 authorize marking a checklist row `PASS`; leave it `PENDING` or report
 `BLOCKED` honestly. Full rules: `CLAUDE.md` §6.
 

@@ -280,5 +280,5 @@ if ($Execute) {
     Write-Host ''
     Write-Host 'Nothing here has been heard yet. Run ./scripts/sfx.ps1 -List to confirm'
     Write-Host 'all twenty-six slots report present, then launch the game and listen.'
-    Write-Host 'Only a person may flip the RG rows in docs/development/testing.md.'
+    Write-Host 'Only a person may flip the RG rows in docs/development/smoke-checklist.md.'
 }

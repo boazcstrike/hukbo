@@ -70,7 +70,7 @@ Related rules from `CLAUDE.md` §5 that cause most real failures:
 re-records it and this skill file is a periodic snapshot copied from it; if the two ever disagree,
 believe `docs/development/testing.md`, not the table below.
 
-From `docs/development/testing.md`'s record of T6 in
+From `docs/development/measurement-history.md`'s record of T6 in
 the contingent close-latch plan, seed 1, 200 agents, run after T6 flipped
 `Scenario.MovementPreset`'s shipped default from `PersistentContingentsV2` to
 `PersistentContingentsV3`:
@@ -92,7 +92,7 @@ is the first registered preset to carry a non-zero close fraction (`1, 2`) rathe
 every other preset still carries — a real behaviour change, not a representational one. A replay
 run with `-MovementPreset PersistentContingentsV2` named explicitly still reproduces the older,
 frozen pair, and `-MovementPreset IndependentPursuitV1` still reproduces its own frozen pair
-unchanged; see `docs/development/testing.md` for those separate, unmoved records.
+unchanged; see `docs/development/measurement-history.md` for those separate, unmoved records.
 
 Both frozen presets are held down by a per-tick trajectory digest fixture under
 `tests/Hukbo.Core.Tests/Fixtures/` — `seed-1-200-agents-movement-v1-digest.json` for

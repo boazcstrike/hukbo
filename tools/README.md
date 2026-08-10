@@ -4,8 +4,9 @@ Eight console programs that measure things about Hukbo which are otherwise
 argued about rather than known. Three exist to produce the evidence in
 [`docs/research/SOUND-CAPACITY-MEASUREMENTS.md`](../docs/research/SOUND-CAPACITY-MEASUREMENTS.md);
 `Hukbo.Tools.WeaponBalance` produces the per-weapon evidence in
-[`docs/development/testing.md`](../docs/development/testing.md) under "T32 —
-weapon balance measurement"; the fifth, `Hukbo.Tools.RenderProbe`, produces
+[`docs/development/measurement-history.md`](../docs/development/measurement-history.md)
+under "T32 — weapon balance measurement"; the fifth,
+`Hukbo.Tools.RenderProbe`, produces
 the render-performance evidence named in R-W6.12 through R-W6.14 of the
 visual-system integration design; the sixth,
 `Hukbo.Tools.DeadlockProbe`, produces the collision-stall evidence in

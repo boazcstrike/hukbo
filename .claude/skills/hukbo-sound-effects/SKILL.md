@@ -146,7 +146,7 @@ Generation is not proof. To confirm a sound actually works:
 Only a human at an interactive desktop may report that step as passing. Follow
 the honesty protocol in `hukbo-verify-and-record`: compiling the client or
 listing the file does not let you flip a smoke-test row in
-`docs/development/testing.md` to `PASS`.
+`docs/development/smoke-checklist.md` to `PASS`.
 
 Adding a WAV file touches no C# code, so the canonical gate does not need to be
 re-run for a sound change alone. Run it if any client code changed alongside it.

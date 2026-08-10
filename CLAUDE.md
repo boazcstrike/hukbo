@@ -262,7 +262,9 @@ because Sandata is the newer game:
   pinned by a test, under the same rule Hukbo's presets follow.
 - **`SandataRuleset.ContentHash` is `8_955_292_433_887_190_872`** and is pinned
   in `SandataRulesetTests`. Sandata's recorded seed-1 baseline is in
-  `docs/development/testing.md`, and its golden replay baselines are the two
+  `docs/development/testing.md` (the smoke rows are in
+  `docs/development/smoke-checklist.md` and the superseded runs in
+  `docs/development/measurement-history.md`), and its golden replay baselines are the two
   fixtures in `tests/Sandata.Core.Tests/Fixtures/seed-1-baseline.json`. That
   JSON file is where a Sandata run's digest belongs: exactly one absolute
   state-hash literal is permitted in C# under `tests/Sandata.Core.Tests/`, and
@@ -327,7 +329,7 @@ Debug logging (full design in
    list and verification criteria.
 3. Implement, then run the canonical gate and record the exact result.
 4. Interactive behavior is only proven by the manual checklist in
-   `docs/development/testing.md`. Compilation, unit tests, or a
+   `docs/development/smoke-checklist.md`. Compilation, unit tests, or a
    window-opening probe do not let you flip a row to `PASS`. Leave untouched
    rows `PENDING`; report `BLOCKED` honestly.
 5. Move finished plans to `docs/archives/<YYYY-MM-DD>/`, dated for the day of
@@ -338,7 +340,8 @@ abandoned work, kept only so a past decision can be traced to its reasoning.
 Never execute an archived plan, never treat its versions or tooling references as
 current, and never cite one as justification for a change. Active work lives in
 `docs/plans/`; the live contract is this file, `SIMULATION-GAME-STANDARDS.md`,
-`docs/development/testing.md`, and `.claude/skills/`. Archived files are grouped
+`docs/development/testing.md`, `docs/development/smoke-checklist.md`, and
+`.claude/skills/`. Archived files are grouped
 into dated subfolders — full rules, including the layout, in
 [docs/archives/README.md](docs/archives/README.md).
 6. Every feature proposal answers the nine questions in

@@ -368,8 +368,9 @@ ran a line of it. Report the two results separately or not at all.
 Actions workflow and no hosted CI service, and it is not going to acquire one.
 Run the gate on the integration workstation and record its exact output.
 Interactive behavior is proven only by the manual checklist in
-[`docs/development/testing.md`](docs/development/testing.md) — compiling is not
-a passing test run, and a passing test run is not a smoke check.
+[`docs/development/smoke-checklist.md`](docs/development/smoke-checklist.md) —
+compiling is not a passing test run, and a passing test run is not a smoke
+check.
 
 Package the self-contained Windows client with:
 
@@ -536,8 +537,12 @@ output, or in a commit message.
   contract, tick order, benchmark workloads, reviewer checklist, the gates
 - [Agent instructions](CLAUDE.md) — the contract coding agents work under
 - [`AGENTS.md`](AGENTS.md) — the standalone version for non-Claude tools
-- [Testing and verification](docs/development/testing.md) — the gate, the
-  recorded baselines for both games, the manual smoke checklists
+- [Testing and verification](docs/development/testing.md) — the gate and the
+  recorded baselines for both games
+- [Smoke checklist](docs/development/smoke-checklist.md) — every manual row,
+  and the only place a human `PASS` may be recorded
+- [Measurement history](docs/development/measurement-history.md) — dated
+  records of runs that have since been superseded
 
 **Sandata** — the second game
 

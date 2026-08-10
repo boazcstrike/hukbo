@@ -314,26 +314,42 @@ public sealed class SourceHygieneTests
     }
 
     /// <summary>
-    /// Every recorded render-baseline artifact that
-    /// <c>docs/development/testing.md</c> cites resolves to a file the
-    /// repository actually carries.
+    /// Every recorded render-baseline artifact that the development
+    /// verification documents cite resolves to a file the repository actually
+    /// carries.
     /// </summary>
     /// <remarks>
-    /// The measurement tables in that document are only as trustworthy as the
-    /// JSON they were read from. The first baselines were written under
+    /// <para>
+    /// The measurement tables in those documents are only as trustworthy as
+    /// the JSON they were read from. The first baselines were written under
     /// <c>artifacts/</c>, which <c>.gitignore</c> excludes, so the citation
     /// named a path that existed on one machine and nowhere else; a fresh
     /// clone could read the tables but could not open the evidence behind
     /// them. Scanning the citations here means a baseline can never again be
     /// quoted from a file the repository does not hold.
+    /// </para>
+    /// <para>
+    /// Scanned across every Markdown file in <c>docs/development</c> rather
+    /// than against one named document. The citations lived in
+    /// <c>testing.md</c> until 2026-08-11, when that file was split three ways
+    /// and the render sections moved to <c>measurement-history.md</c>; the
+    /// single-file scan then found nothing and this test failed on its own
+    /// <c>NotEmpty</c> guard, which is the guard working. Scanning the
+    /// directory means the next reorganisation moves the citations without
+    /// moving this test.
+    /// </para>
     /// </remarks>
     [Fact]
     public void EveryCitedRenderBaselineArtifactExistsInTheRepository()
     {
         var root = GetRepositoryRoot();
-        var testingDocumentPath = Path.Combine(
-            root, "docs", "development", "testing.md");
-        var content = File.ReadAllText(testingDocumentPath);
+        var developmentDirectory = Path.Combine(root, "docs", "development");
+        var content = string.Join(
+            '\n',
+            Directory
+                .EnumerateFiles(developmentDirectory, "*.md")
+                .Order(StringComparer.Ordinal)
+                .Select(File.ReadAllText));
 
         // A cited path is a backtick-quoted token naming a render-baseline
         // JSON file. Matching on the file name rather than on the directory

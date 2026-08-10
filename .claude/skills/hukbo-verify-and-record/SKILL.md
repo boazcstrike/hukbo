@@ -64,10 +64,13 @@ the tick loop, so it covers simulation allocation only.
 ## Recording evidence
 
 Automated results prove the **non-interactive** gate and nothing else. Write
-them into the "Latest non-interactive result" section of
-`docs/development/testing.md` with the exact numbers, not a summary adjective.
+them into `docs/development/testing.md` as a dated "Canonical gate result"
+section, with the exact numbers rather than a summary adjective. Superseded
+records move to `docs/development/measurement-history.md`; they are never
+edited in place, because a recorded run is evidence.
 
-The interactive smoke checklist in the same file is a different claim.
+The interactive smoke checklist, in `docs/development/smoke-checklist.md`, is a
+different claim.
 
 - A row may only become `PASS` after a human ran `./scripts/run.ps1` on an
   interactive Windows desktop and observed the expected behavior.
