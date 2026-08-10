@@ -25,12 +25,40 @@ public sealed class UiFontRampTests
     [InlineData(2560, 1440, UiScale.Percent150)]
     [InlineData(3840, 2160, UiScale.Percent200)]
     [InlineData(3440, 1080, UiScale.Percent125)]
+    [InlineData(2048, 1152, UiScale.Percent125)]
     public void AutoScaleUsesBothViewportAxes(
         int width,
         int height,
         UiScale expected)
     {
         Assert.Equal(expected, UiScalePolicy.Resolve(UiScale.Auto, width, height));
+    }
+
+    /// <summary>
+    /// The two viewports a 2560x1440 display at 125% Windows scaling produces,
+    /// depending on whether the process declared DPI awareness.
+    /// </summary>
+    /// <remarks>
+    /// A DPI-unaware process is told the desktop is 2048x1152, which clears
+    /// this policy's 1920x1080 threshold but misses its 2560x1440 one, so it
+    /// selects the 125% bake on a panel that deserves the 150% one. That is
+    /// half of what smoke row UI-4 failed on, and it is a symptom of the
+    /// fabricated viewport rather than a fault in the thresholds — which is
+    /// why the fix is <see cref="Settings.ProcessDpiAwareness"/> and this
+    /// policy is unchanged. Pinned as a pair so the connection survives any
+    /// later threshold edit.
+    /// </remarks>
+    [Fact]
+    public void TheVirtualisedViewportSelectsALowerTierThanTheRealOne()
+    {
+        var virtualised = UiScalePolicy.Resolve(UiScale.Auto, 2048, 1152);
+        var real = UiScalePolicy.Resolve(UiScale.Auto, 2560, 1440);
+
+        Assert.Equal(UiScale.Percent125, virtualised);
+        Assert.Equal(UiScale.Percent150, real);
+        Assert.True(
+            UiScalePolicy.GetPercent(virtualised)
+                < UiScalePolicy.GetPercent(real));
     }
 
     [Theory]

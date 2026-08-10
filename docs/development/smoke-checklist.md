@@ -23,10 +23,11 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-11
 
-322 rows across 27 subsections: **277 `PENDING`, 14 `BLOCKED`, 24 `PASS`,
-6 `FAIL`, 1 `DECLINED`**, recounted from the status column of this file on
-2026-08-11 after the `V2` weapon-identity re-run closed its last four rows and
-that completed family was archived out. The count fell rather than rose because
+322 rows across 27 subsections: **280 `PENDING`, 14 `BLOCKED`, 24 `PASS`,
+3 `FAIL`, 1 `DECLINED`**, recounted from the status column of this file on
+2026-08-11 after the `V2` weapon-identity re-run closed its last four rows,
+that completed family was archived out, and the DPI awareness fix returned
+`UI-2`, `UI-4`, and `UI-6` from `FAIL` to `PENDING` for a re-run. The count fell rather than rose because
 those ten `PASS` rows left the file; they are in
 [`../archives/2026-08-11/2026-08-11-weapon-identity-smoke.md`](../archives/2026-08-11/2026-08-11-weapon-identity-smoke.md)
 and are not lost. The `CL` weapon-clash family left the same way earlier the
@@ -47,10 +48,17 @@ section every one of whose rows is `PASS` is a record rather than a checklist,
 and leaving it here makes the file longer without giving a tester anything to
 do. A section is archived only when it is entirely `PASS`: an open `FAIL` or
 `BLOCKED` row is unfinished work, and burying it in `docs/archives/` would hide
-a defect behind a folder nobody is allowed to cite. Two sections have no
-`PENDING` rows today and both stay here for exactly that reason — Sandata,
-which holds 2 `FAIL` and 5 `BLOCKED`, and the `UI` family, which holds 3
-`FAIL`.
+a defect behind a folder nobody is allowed to cite. One section has no
+`PENDING` rows today and stays here for exactly that reason: Sandata, which
+holds 2 `FAIL` and 5 `BLOCKED`.
+
+**A fixed row goes back to `PENDING`, never straight to `PASS`.** The `UI`
+family briefly had no `PENDING` rows either, on 13 `PASS` and 3 `FAIL`. The
+three failures were then fixed the same day, and the fix does not close them —
+`UI-2`, `UI-4`, and `UI-6` are `PENDING` again, each keeping its `FAIL`
+observation in `Actual` so the re-run is judged against what was actually seen.
+This is the same pattern the `CL` clash rows followed across the combat-cadence
+change. An agent may write the fix; only a person may close the row.
 
 The families below are grouped by what a single launch can actually
 show, because the subsections are ordered by the change that created them
@@ -64,7 +72,7 @@ order relaunches the game far more often than they need to.
 | Markers | `LC` 11, `L` 7 | 18 `PENDING` | Leaders and contingents at default zoom, plus the agent inspector |
 | Render | `GR` 5 | 5 `PENDING` | Launch-time render behaviour. The `CL` clash family that used to share this batch is complete and archived |
 | Battlefield realism | task 18 rows | 10 `PENDING` | Cohort deployment and the V10 retreat rung |
-| Menu, display, motion | `UI` 16 | 13 `PASS`, 3 `FAIL` | Run on 2026-08-11. **The `UI` family is complete** — nothing here is `PENDING`. The three failures, `UI-2`, `UI-4`, and `UI-6`, share one cause: the process never declares DPI awareness, so Windows renders the game at a virtualised size and bitmap-stretches the result. See finding 1 in that section |
+| Menu, display, motion | `UI` 16 | 13 `PASS`, 3 `PENDING` | Run on 2026-08-11. The three open rows, `UI-2`, `UI-4`, and `UI-6`, all failed that run on one shared cause — the process never declared DPI awareness, so Windows rendered the game at a virtualised size and bitmap-stretched the result. **That is fixed**; the three are re-runs, not fresh checks. Set UI Scale to Auto first. See finding 1 in that section |
 | Sandata | `SD` | 5 `BLOCKED`, 2 `PASS`, 2 `FAIL` | `./scripts/run.ps1 -Game Sandata` |
 | Pressure interrupt | `P` | 9 `BLOCKED`, 1 `PENDING` | **Not runnable today** — see below |
 
@@ -576,8 +584,16 @@ all three failed for the same single cause, recorded as finding 1 below the
 table. The automated layout tests prove containment and hit-target invariants
 at representative viewports; what this run adds is that the menu, the focus
 order, the three motion intensities, and all five interpolated accents behave
-as written, and that glyphs stop being crisp the moment the window fills the
-screen.
+as written, and that glyphs stopped being crisp the moment the window filled
+the screen.
+
+**That cause was fixed the same day and the three rows are now `PENDING`
+re-runs.** The fix is the DPI awareness declaration described in finding 1 and
+designed in
+[`../plans/2026-08-11-display-dpi-awareness-design.md`](../plans/2026-08-11-display-dpi-awareness-design.md).
+A fix is not a result: no agent may close these three, and the `FAIL`
+observation stays in each `Actual` column so the re-run is judged against what
+was actually seen rather than against an empty row.
 
 | Evidence field | Recorded value |
 | --- | --- |
@@ -590,11 +606,11 @@ screen.
 | Check | Expected observation | Actual | Status |
 | --- | --- | --- | --- |
 | UI-1. Minimum-size menu containment | At 1024x720 and UI Scale Auto, the complete two-column menu remains inside the window; its 12 controls, labels, arrows, and helper text neither overlap nor clip. | 2026-08-11, tester at the desktop: the whole two-column menu stayed inside the window with nothing overlapping or clipped | PASS |
-| UI-2. Common landscape and maximised layouts | At 1280x720, 1920x1080, and the maximised desktop size, the menu stays centred and balanced, the arena HUD remains readable, and no panel covers an unrelated control. | 2026-08-11, tester at the desktop. Layout held: the menu stayed centred and balanced and no panel covered an unrelated control at any of the three sizes. The row also asks that the arena HUD remain **readable**, and at the maximised desktop size it does not — every glyph is visibly pixelated. The layout half passed and the readability half failed, and a row is a single status, so the row fails. Cause in finding 1 | FAIL |
+| UI-2. Common landscape and maximised layouts | At 1280x720, 1920x1080, and the maximised desktop size, the menu stays centred and balanced, the arena HUD remains readable, and no panel covers an unrelated control. | 2026-08-11, tester at the desktop. Layout held: the menu stayed centred and balanced and no panel covered an unrelated control at any of the three sizes. The row also asks that the arena HUD remain **readable**, and at the maximised desktop size it does not — every glyph is visibly pixelated. The layout half passed and the readability half failed, and a row is a single status, so the row fails. Cause in finding 1. **Fixed the same day** by the DPI awareness declaration; a logged run now reports a 2560x1440 viewport where it reported the virtualised size before. Back to `PENDING` because only a person can say the glyphs read as crisp | PENDING |
 | UI-3. Tall-window layout | At 1440x1920, the menu and HUD remain contained and readable without stretched text or misplaced pointer hit targets. | 2026-08-11, tester at the desktop: contained and readable, no stretched text, hit targets landed where they were drawn | PASS |
-| UI-4. Preferred UI scales and safety cap | Select Auto, 100%, 125%, 150%, and 200%. The selected preference persists after restart; when the viewport is too small for it, the active tier is safely capped while the preferred value remains selected in the menu. | 2026-08-11, tester at the desktop. Selection, persistence across a restart, and the safety cap all behaved as written. But no tier renders crisply once the window fills the screen, and the tier the policy selects at that size is itself wrong: on this 2560x1440 display the game is handed a virtualised 2048x1152 viewport, which clears `UiScalePolicy`'s 1920x1080 bar but not its 2560x1440 one, so Auto resolves to 125% where the real screen deserves 150%. Cause in finding 1 | FAIL |
+| UI-4. Preferred UI scales and safety cap | Select Auto, 100%, 125%, 150%, and 200%. The selected preference persists after restart; when the viewport is too small for it, the active tier is safely capped while the preferred value remains selected in the menu. | 2026-08-11, tester at the desktop. Selection, persistence across a restart, and the safety cap all behaved as written. But no tier renders crisply once the window fills the screen, and the tier the policy selects at that size is itself wrong: on this 2560x1440 display the game is handed a virtualised 2048x1152 viewport, which clears `UiScalePolicy`'s 1920x1080 bar but not its 2560x1440 one, so Auto resolves to 125% where the real screen deserves 150%. Cause in finding 1. **Fixed the same day**: the viewport is now real, so Auto resolves correctly with no change to `UiScalePolicy` itself. Back to `PENDING` for a re-run. **Set UI Scale to Auto before re-running** — the saved preference on the reporting machine is an explicit `100`, left over from this row's own sweep, and an explicit preference is honoured rather than overridden, so a re-run that skips this step measures the 100% tier and learns nothing about Auto | PENDING |
 | UI-5. Windowed startup | Select Windowed, close the game fully, and relaunch. It opens at 1280x720, cannot be resized below 1024x720, and all UI remains contained. | 2026-08-11, tester at the desktop: Windowed persisted across a full close and relaunch, the minimum size held, and the UI stayed contained | PASS |
-| UI-6. Fullscreen startup | Select Fullscreen, close the game fully, and relaunch. It opens in soft fullscreen at the current desktop resolution. Select Windowed, restart again, and confirm normal windowed startup returns. | 2026-08-11, tester at the desktop. The mode round-trip worked: Fullscreen persisted across a full close and relaunch, opened in soft fullscreen, and selecting Windowed restored normal windowed startup. It does not open at "the current desktop resolution" — it opens at the virtualised 2048x1152 the OS reports instead of the true 2560x1440 — and the text is pixelated throughout. Cause in finding 1 | FAIL |
+| UI-6. Fullscreen startup | Select Fullscreen, close the game fully, and relaunch. It opens in soft fullscreen at the current desktop resolution. Select Windowed, restart again, and confirm normal windowed startup returns. | 2026-08-11, tester at the desktop. The mode round-trip worked: Fullscreen persisted across a full close and relaunch, opened in soft fullscreen, and selecting Windowed restored normal windowed startup. It does not open at "the current desktop resolution" — it opens at the virtualised 2048x1152 the OS reports instead of the true 2560x1440 — and the text is pixelated throughout. Cause in finding 1. **Fixed the same day**: a logged fullscreen run now reports `client` and `viewport` both at the display's true 2560x1440. Back to `PENDING` because the row's own wording — that it opens at the current desktop resolution — is now satisfied in the log but has not been seen by a person | PENDING |
 | UI-7. Keyboard traversal | Open Menu and use Tab, Shift+Tab, W/S, and Up/Down. Focus visits the theme selector, six action buttons, gore, motion, auto camera, UI scale, and startup display exactly once before wrapping. Left/Right changes only the focused selector. | 2026-08-11, tester at the desktop: focus visited every control once and wrapped, and Left/Right moved only the focused selector | PASS |
 | UI-8. Motion Off | Select Motion Off. Hover, focus, and press menu and HUD buttons: state changes are immediate, with no animated positional movement, while hit targets remain stable. | 2026-08-11, tester at the desktop: state changes were immediate, nothing animated its position, hit targets held | PASS |
 | UI-9. Motion Reduced | Select Motion Reduced. Hover, focus, and press buttons: color transitions remain gentle, no control shifts position, and the setting takes effect immediately. | 2026-08-11, tester at the desktop: colour transitions stayed gentle, no control moved, and the setting applied without a restart | PASS |
@@ -655,16 +671,35 @@ always meant to select at that size.
 the typography section, "Display scaling", is the gated measurement task this
 finding is the other half of; it is marked `DECLINED` because the 150% Windows
 scaling reading was declined on 2026-07-28. That decision is what left the
-awareness declaration unbuilt. Fixing it is a code change and needs its own
-plan document.
+awareness declaration unbuilt, and the defect stayed latent until somebody ran
+the game on a scaled display. Row 75 stays `DECLINED`: it asked for a
+measurement to justify building this, and the justification arrived instead as
+three failed rows, which is the better evidence.
 
-**One measurement is still missing and should be taken before the fix.** No
-debug log was captured during this run. `ArenaGame.LogViewport` already writes
-client bounds, viewport, back-buffer size, display mode, and the active scale
-tier on every viewport change, so a single `./scripts/run.ps1 -Configuration
-Debug` run, maximised once, records the fabricated 2048x1152 directly rather
-than leaving it inferred from the registry. Capture it, then capture it again
-after the fix, and the two lines are the before-and-after evidence.
+**Fixed on 2026-08-11.** `ProcessDpiAwareness.Apply` declares per-monitor v2
+awareness from `Program.Main`, before `ArenaGame` builds its
+`GraphicsDeviceManager` and before SDL creates a window, which is the ordering
+the declaration requires. The design, the rejected manifest alternative, and
+the reason the P/Invoke itself carries no test are in
+[`../plans/2026-08-11-display-dpi-awareness-design.md`](../plans/2026-08-11-display-dpi-awareness-design.md).
+`UiScalePolicy` is unchanged — it was never wrong, only fed a fabricated
+number.
+
+**The measurement this finding originally asked for was taken, after the fix
+rather than before it.** A logged run on the reporting machine now writes
+`boot.dpi.awareness` with `state` `applied`, and the `render.viewport.changed`
+line that follows reports `client` and `viewport` both at **2560x1440** — the
+display's true resolution, where an unaware process would have reported
+2048x1152. The pre-fix line was never captured and now cannot be, since the
+build that produced it no longer exists; the registry reading and the policy
+threshold arithmetic are what stand behind the 2048x1152 figure.
+
+**A re-run needs one setup step.** The saved `uiScale` preference on the
+reporting machine is an explicit `100`, left behind by `UI-4`'s own sweep
+through every tier, and an explicit preference is honoured rather than
+overridden — the logged run above resolved `Percent100` at 2560x1440 for
+exactly that reason, correctly. Set UI Scale back to Auto before re-running, or
+the re-run measures the 100% tier and says nothing about the fix.
 
 **2. The `Cebu 1521 — Provisional` theme is disliked, and that is not what
 `UI-11` measures.** Every criterion the row states was met — the label, the

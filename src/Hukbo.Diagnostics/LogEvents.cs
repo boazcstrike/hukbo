@@ -22,6 +22,14 @@ public static class LogEvents
     // Boot channel.
     public const string BootCrashed = "boot.crashed";
 
+    // Records whether the process managed to declare per-monitor DPI
+    // awareness before its first window existed. Without that declaration
+    // Windows hands the game a virtualised viewport and upscales the finished
+    // frame, which is what made text pixelated in the 2026-08-11 smoke run.
+    // The payload carries the resulting state so a log says which run is
+    // which. See docs/plans/2026-08-11-display-dpi-awareness-design.md.
+    public const string BootDpiAwareness = "boot.dpi.awareness";
+
     // Sandata's own boot lifecycle events (plan task 14 of
     // docs/plans/2026-08-07-sandata-scaffold.md). Named with a "sandata"
     // middle segment rather than a "sandata." leading prefix, because
