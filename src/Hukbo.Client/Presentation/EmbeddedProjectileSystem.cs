@@ -6,7 +6,8 @@ namespace Hukbo.Client.Presentation;
 /// <summary>
 /// Fixed-capacity, oldest-replaced population of projectiles left standing in
 /// the warriors and shields they struck
-/// (docs/plans/2026-08-11-projectile-props.md, task B1). Client-only: never
+/// (docs/archives/2026-08-11/2026-08-11-projectile-props.md, task B1).
+/// Client-only: never
 /// persisted, never snapshotted, never read by the simulation, and cleared
 /// only when the scenario resets.
 /// </summary>

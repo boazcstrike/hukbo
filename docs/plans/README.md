@@ -11,7 +11,11 @@ record are all live, because a future session still has to read them. What none
 of them means is *go and build this* — only an explicit authorization does that,
 and section 6 of [`../../CLAUDE.md`](../../CLAUDE.md) says how one is given.
 
-Last reviewed 2026-08-10.
+Last reviewed 2026-08-11, when three finished documents left for
+[`../archives/2026-08-11/`](../archives/2026-08-11/): the projectile-props
+plan, whose build merged at `3ec5523`; the Sandata playable-client plan, whose
+tasks `P1`–`P9` merged at `5508310` and `c13b696`; and the wave-11 handoff,
+superseded when wave 12 closed.
 
 ## Hukbo
 
@@ -21,7 +25,7 @@ Last reviewed 2026-08-10.
 | [`2026-08-07-ranged-units.md`](2026-08-07-ranged-units.md) | The ranged package's plan **and its record**. Section 9 is the narrative, with the measurements and the corrections to fifteen known-wrong task rows | Build closed and merged; section 9 is why this stays |
 | [`2026-08-07-ranged-units-design.md`](2026-08-07-ranged-units-design.md) | The ranged design. Cited by name from `PhilippineCombatPresetV5.cs`, `RangedPhase.cs`, and the client's ranged geometry | Shipped; cited from source |
 | [`2026-08-09-ranged-units-handoff.md`](2026-08-09-ranged-units-handoff.md) | What is still open on the ranged package: RU-31's listening acceptance, the eleven `RG-*` smoke rows, the V9 termination gap, and the default-composition decision | Current status document |
-| [`2026-08-09-projectile-props-design.md`](2026-08-09-projectile-props-design.md) | In-flight projectile props and embedded projectiles, with the quad-budget arithmetic and five open decisions | Design only; parked in `TODO.md` |
+| [`2026-08-09-projectile-props-design.md`](2026-08-09-projectile-props-design.md) | In-flight projectile props and embedded projectiles, with the quad-budget arithmetic and five open decisions | Shipped at `3ec5523`. Its plan, which answered all five decisions and corrected the design's own quad arithmetic, is archived at [`../archives/2026-08-11/2026-08-11-projectile-props.md`](../archives/2026-08-11/2026-08-11-projectile-props.md) |
 | [`2026-08-08-attack-animation-v2-design.md`](2026-08-08-attack-animation-v2-design.md) | The attack-animation V2 design. Authoritative over its backlog where the two disagree | Shipped |
 | [`2026-08-09-attack-animation-v2-backlog.md`](2026-08-09-attack-animation-v2-backlog.md) | What the twelve-task attack-animation plan left behind | Open |
 | [`2026-08-07-movement-gait-animation-design.md`](2026-08-07-movement-gait-animation-design.md) | The gait design — legs, feet, stride phase, tier gating | Shipped; `GA-1`–`GA-14` smoke rows `PENDING` |
@@ -37,12 +41,13 @@ Last reviewed 2026-08-10.
 | --- | --- | --- |
 | [`2026-08-07-sandata-scaffold-design.md`](2026-08-07-sandata-scaffold-design.md) | **Sandata's binding document.** It outranks everything else about Sandata, including `CLAUDE.md`'s summary of it | Live contract |
 | [`2026-08-07-sandata-scaffold.md`](2026-08-07-sandata-scaffold.md) | The twelve-wave task plan and every wave's measured result | Executed and merged; task list empty, nine design questions open |
-| [`2026-08-08-sandata-wave-11-handoff.md`](2026-08-08-sandata-wave-11-handoff.md) | Handoff written at the end of the wave-10 session | Superseded on its task list; kept for its reasoning |
 
 ## Where the rest of it went
 
 Finished plans, one-off orchestration prompts, and superseded handoffs live in
 `docs/archives/`. The most recent batch is
+[`2026-08-11/`](../archives/2026-08-11/): the projectile-props plan, the Sandata
+playable-client plan, and the Sandata wave-11 handoff. The batch before it is
 [`2026-08-10/`](../archives/2026-08-10/): the attack-animation V2 implementation
 plan and its continuation prompt, the gait animation plan, the 2026-08-08 ranged
 handoff, the Sandata wave-5 continuation prompt, and the three July orchestration

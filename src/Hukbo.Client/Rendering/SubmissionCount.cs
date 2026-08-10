@@ -529,7 +529,8 @@ internal static class RenderBudgetEstimate
     // reads Scenario.MaximumProjectilesInFlight's own default rather than
     // repeating 512 as a second literal, so the two cannot drift apart.
     //
-    // projectile-props (docs/plans/2026-08-11-projectile-props.md) is the
+    // projectile-props
+    // (docs/archives/2026-08-11/2026-08-11-projectile-props.md) is the
     // feature that note was written for, and it paid the debt: it wants both a
     // second projectile quad and a new per-pawn population, which is the more
     // expensive of the two shapes the note anticipated. The measurement is on

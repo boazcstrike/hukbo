@@ -1,6 +1,11 @@
 # Projectile props and embedded projectiles — plan
 
-Design: [2026-08-09-projectile-props-design.md](2026-08-09-projectile-props-design.md).
+> **Archived: reference only.** Finished work, kept so a past decision can be
+> traced to its reasoning. Never execute it, never treat it as current, and never
+> cite it as justification for a change. The live contract is `CLAUDE.md`,
+> `SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, and `docs/plans/`.
+
+Design: [2026-08-09-projectile-props-design.md](../../plans/2026-08-09-projectile-props-design.md).
 That document remains the reference for intent and for the nine questions; this
 one carries the ordered task list, the decisions that were taken to authorize
 it, and the corrections that measurement and code reading have since forced on

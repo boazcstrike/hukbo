@@ -1,5 +1,13 @@
 # Sandata — making the client playable — 2026-08-10
 
+> **Archived: reference only.** Finished work, kept so a past decision can be
+> traced to its reasoning. Never execute it, never treat it as current, and never
+> cite it as justification for a change. The live contract is `CLAUDE.md`,
+> `SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, and `docs/plans/`.
+>
+> The status line below is stale in one respect: the work was committed, as
+> `5508310` and `c13b696`.
+
 Status: P1 through P9 complete, both gates green, not yet committed. Binding
 design document remains
 `docs/plans/2026-08-07-sandata-scaffold-design.md`; where this plan and that

@@ -1,5 +1,13 @@
 # Sandata — handoff into wave 11
 
+> **Archived: reference only.** Finished work, kept so a past decision can be
+> traced to its reasoning. Never execute it, never treat it as current, and never
+> cite it as justification for a change. The live contract is `CLAUDE.md`,
+> `SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, and `docs/plans/`.
+>
+> Section 1's outstanding commit was made long ago, and every wave through 12
+> closed on 2026-08-09. Nothing in this document is still to be done.
+
 Written 2026-08-08 at the end of the wave-10 session. Read this before doing
 anything. Do not re-derive what is below.
 

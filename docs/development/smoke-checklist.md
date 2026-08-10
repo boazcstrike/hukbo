@@ -23,8 +23,12 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-11
 
-105 rows across 29 subsections: **82 `PENDING`, 13 `BLOCKED`, 8 `PASS`,
-2 `FAIL`**. The families below are grouped by what a single launch can actually
+332 rows across 28 subsections: **294 `PENDING`, 15 `BLOCKED`, 20 `PASS`,
+3 `FAIL`**, counted from the status column of this file on 2026-08-11. The
+earlier figure here, 105 rows across 29 subsections, did not match the file and
+appears to have survived the split out of `docs/development/testing.md`;
+recount before trusting any total. The families below are grouped by what a
+single launch can actually
 show, because the subsections are ordered by the change that created them
 rather than by what is on screen at once, and a person working down the file in
 order relaunches the game far more often than they need to.
@@ -35,15 +39,18 @@ order relaunches the game far more often than they need to.
 | Pawn animation | `AA` 17, `GA` 14 | 31 `PENDING` | Warriors striking and walking, close in. `AA` also holds the one open `FAIL`, AA-22 |
 | Markers | `LC` 11, `L` 7 | 18 `PENDING` | Leaders and contingents at default zoom, plus the agent inspector |
 | Feed, UI, render | `CL` 9, `GR` 5 | 14 `PENDING` | The event feed, typography, and launch-time render behaviour |
-| Sandata | `SD` | 4 `BLOCKED`, 2 `PASS`, 1 `FAIL` | `./scripts/run.ps1 -Game Sandata` |
+| Sandata | `SD` | 5 `BLOCKED`, 2 `PASS`, 2 `FAIL` | `./scripts/run.ps1 -Game Sandata` |
 | Pressure interrupt | `P` | 9 `BLOCKED`, 1 `PENDING` | **Not runnable today** — see below |
+| Weapon identity | `V2` | 6 `PASS`, 3 `PENDING`, 1 `BLOCKED` | Run on 2026-08-11. The three `PENDING` rows are re-runs: one waiting on the click-target fix that landed the same day, two rewritten after the run |
 
-**The 13 `BLOCKED` rows are blocked by the build, not by the reader.** Nine `P`
+**The 15 `BLOCKED` rows are blocked by the build, not by the reader.** Nine `P`
 rows need movement preset V7, which the client cannot select: `BuildScenario`
 overrides the preset to `RangedStandoffV8` and no preset selector is exposed, so
 under the shipped default no pressure mark is ever drawn and no pressure
 inspector row ever renders. Unblocking them is a code change, not an attempt.
-The four `SD` rows are blocked for reasons recorded in the Sandata subsection.
+The `SD` rows are blocked for reasons recorded in the Sandata subsection.
+`V2-10` is blocked because the row asks a person to isolate one weapon's sound
+in a battle of hundreds.
 
 **Controls, so no row has to be attempted by guesswork.** `Space` plays and
 pauses; `1`, `2`, and `4` set playback speed; `R` starts the next round and
@@ -81,7 +88,7 @@ move under any circumstances. That is fixed: the client now runs
 `SandataSimulation.RunTick` on a fixed 20-millisecond timestep, draws every
 pawn from live `MissionState`, and gives the assaulting squad an objective to
 walk to without being asked. The full record is
-`docs/plans/2026-08-10-sandata-playable-client.md`.
+`docs/archives/2026-08-11/2026-08-10-sandata-playable-client.md`.
 
 **Controls.**
 
@@ -256,24 +263,83 @@ everything on screen depends on colour to mean anything.
 
 ## Weapon identity and attributes smoke (preset V2)
 
-**No interactive run was performed for this change.** Every row below is
-`PENDING`. The automated tests prove the labels, the profiles, the resolver,
-the reach floor, and the panel arithmetic; none of them prove that an axe reads
-as an axe on screen, that a shield block is visible at battle scale, or that
-the six-row composition panel fits the window.
+**Run by a person on 2026-08-11.** Every row was attempted. The automated
+tests prove the labels, the profiles, the resolver, the reach floor, and the
+panel arithmetic; what this run adds is that an axe does read as an axe on
+screen and a shield block is visible at battle scale, that a warrior could not
+be clicked at all, and that the six-row composition panel two of these rows
+were written against does not exist. See the findings below the table.
+
+`V2-7` and `V2-8` have been **rewritten**. They described a six-weapon-category
+composition panel; the panel that ships is the four-rank one, and no code has
+ever implemented the other. The rewritten rows describe the panel that exists,
+so the two `FAIL` results the original wording produced are recorded in
+finding 3 rather than left as rows nobody can ever pass. The six-weapon panel
+is deferred, not cancelled — it is a feature nobody has designed yet.
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| V2-1 | Watch the battle event feed for one exchange | Attack lines read `Kampilan — Great Blade`, `Wasay — War Axe`, `Kalis — Thrusting Blade (solo)`, `Kalis — Thrusting Blade (shielded)`, `Itak — Work Blade (solo)`, `Itak — Work Blade (shielded)`, with differing damage values | | PENDING |
-| V2-2 | Watch the two-handed weapons in the feed | Neither Kampilan nor Wasay ever carries a `(solo)` or `(shielded)` suffix | | PENDING |
-| V2-3 | Click a warrior, then a second of the same weapon and the other grip | The inspector shows the pair label, the evidence tier, the grip, and the three attribute values, and the two differ by one damage and one reach | | PENDING |
-| V2-4 | Look at the battlefield at default zoom | Shield bearers are distinguishable from solo warriors of the same weapon without clicking either | | PENDING |
-| V2-5 | Zoom out to the lowest detail tier | The shield block is still visible; the Wasay is still distinguishable from the Kampilan | | PENDING |
-| V2-6 | Compare a Wasay warrior against a Kampilan warrior up close | The Wasay reads as a hafted axe with a distinct head, not as a narrow blade | | PENDING |
-| V2-7 | Open the army composition panel | Six rows, each naming its weapon in pair form and its grip where the weapon appears twice; every row and both buttons are fully on screen | | PENDING |
-| V2-8 | Use Distribute Evenly, then Apply, then Full Reset | The battle fields the chosen composition across all six categories | | PENDING |
-| V2-9 | Launch with an existing pre-V2 settings file present | Settings reset to defaults without an error dialog or a crash; the composition is the six-category default | | PENDING |
-| V2-10 | Listen during a Wasay attack | The war-axe sound plays; no slot is silent | | PENDING |
+| V2-1 | Watch the battle event feed for one exchange | Attack lines read `Kampilan — Great Blade`, `Wasay — War Axe`, `Kalis — Thrusting Blade (solo)`, `Kalis — Thrusting Blade (shielded)`, `Itak — Work Blade (solo)`, `Itak — Work Blade (shielded)`, with differing damage values | Pair-form labels appeared in the feed and the damage values differed between them | PASS |
+| V2-2 | Watch the two-handed weapons in the feed | Neither Kampilan nor Wasay ever carries a `(solo)` or `(shielded)` suffix | The `(shielded)` suffix appeared only on Kalis and Itak lines; no Kampilan or Wasay line carried a suffix. No `(solo)` line was noticed at all during the run — see finding 1 | PASS |
+| V2-3 | Click a warrior, then a second of the same weapon and the other grip | The inspector shows the pair label, the evidence tier, the grip, and the three attribute values, and the two differ by one damage and one reach | Attempted 2026-08-11 and `BLOCKED`: no warrior could be selected, because the click target was about five screen pixels wide and sat at the warrior's feet rather than on its body. Fixed the same day by `AgentPickTarget` — needs a re-run, and stays `PENDING` until a person confirms it | PENDING |
+| V2-4 | Look at the battlefield at default zoom | Shield bearers are distinguishable from solo warriors of the same weapon without clicking either | Shield bearers were clearly distinguishable | PASS |
+| V2-5 | Zoom out to the lowest detail tier | The shield block is still visible; the Wasay is still distinguishable from the Kampilan | Both held at the lowest tier | PASS |
+| V2-6 | Compare a Wasay warrior against a Kampilan warrior up close | The Wasay reads as a hafted axe with a distinct head, not as a narrow blade | The Wasay read as an axe | PASS |
+| V2-7 | Open the army composition panel | Four stepper rows, one per rank — `Datu`, `Maharlika`, `Timawa`, `Aliping Namamahay` — above a units-per-team row; every row and every button is fully on screen | The 2026-08-11 run saw the four rank rows and reached every button. Rewritten after that run, so it stays `PENDING` until a person confirms the wording it now carries | PENDING |
+| V2-8 | Use Distribute Evenly, then Apply, then Full Reset | The battle fields the chosen composition: each rank's count is spread across every combat-preset V5 roster row carrying that rank, so moving the `Timawa` stepper visibly changes how many Kalis, Bangkaw, Busog, and Arquebus warriors take the field | All three buttons worked and the battle fielded what was chosen. Rewritten after that run, so it stays `PENDING` until a person confirms the roster effect this wording now asks for | PENDING |
+| V2-9 | Launch with an existing pre-V2 settings file present | Settings reset to defaults without an error dialog or a crash; the composition is the four-rank default | Launched cleanly, no dialog and no crash | PASS |
+| V2-10 | Listen during a Wasay attack | The war-axe sound plays; no slot is silent | A wood-chop sound was audible and no slot was silent, but too many warriors were fighting at once to attribute any one sound to a Wasay attack — see finding 4 | BLOCKED |
+
+### Findings from the 2026-08-11 V2 run
+
+**1. No `(solo)` line was seen, and this is an observation rather than a
+confirmed defect.** `BattleEventFormatter.GetGripSuffix` returns `solo` for any
+one-handed weapon carrying `ShieldId.None`, and the client's own scenario does
+field solo rows: `ArenaGame.CalibratedRosterEntryWeights` gives solo Kalis a
+weight of 10 against 44 for the whole Timawa group, and solo Itak a weight of 9
+against 18 for Aliping Namamahay, so roughly a quarter of Timawa and half of
+Aliping Namamahay start the battle without a shield. The suffix should
+therefore appear. Nothing in this run proves it does not — the feed retains 200
+events and scrolls quickly, and the tester was watching for the two-handed case
+the row asks about. Re-run `V2-1` and `V2-2` with the feed paused before
+treating this as a bug.
+
+**2. A warrior could not be clicked. Fixed on 2026-08-11.** The click target
+was computed in `ArenaGame.SelectAtPointer` as
+`MathF.Max(5f / _camera.Zoom, 1.5f)` world units — about five screen pixels —
+and it was centred on the agent's own world position, which is the warrior's
+foot anchor. A pawn draws entirely *above* that anchor, so the part of a
+warrior a spectator aims at was never inside the target at any zoom. Both
+halves are now derived from the geometry the renderer actually draws:
+`Presentation/AgentPickTarget.cs` samples at the foot anchor rather than at the
+cursor, and sizes the target at half the drawn body's height with a
+ten-pixel floor, using the same `PawnGeometry.ResolveApparentScale` every pawn
+layout length is multiplied by. `AgentPickTargetTests` pins it across the whole
+`0.05`–`12` zoom range: a click on the feet, the waist, the chest, or the head
+selects the warrior, and a click clear of the body still selects nothing.
+`V2-3` is `PENDING` rather than `PASS` because no agent may flip a row — a
+person has to click a warrior and see the inspector.
+
+**3. The six-category composition panel was never built; the panel is the
+four-rank one.** This was a plan-versus-repository mismatch rather than a
+regression. `ArmyCompositionStepper.CategoryCount` is `4`, and
+`ArmyCompositionPanel.CategoryLabels` is `Datu`, `Maharlika`, `Timawa`, and
+`AlipingNamamahay` — rank names, not weapon pair-form labels.
+`Settings.ArmyComposition` carries one slider per rank, and
+`ArenaGame.ExpandCompositionToRosterCounts` spreads each rank's slider across
+every combat-preset V5 roster row that carries that rank. So the sliders do
+move real warriors and `V2-8`'s buttons do work; what does not exist is any
+per-weapon control. `V2-7` and `V2-8` have been rewritten against the panel
+that ships. Building a genuine six-weapon panel would widen the stepper, change
+the persisted settings schema and its reset-on-old-file path, rewire the roster
+expansion, and retune the calibrated share weights — a feature needing its own
+design document, not a smoke-row fix.
+
+**4. `V2-10` is not judgeable as written.** The row asks the tester to isolate
+one weapon's sound in a battle of hundreds of simultaneous attacks. Sound was
+present and a wood-chop timbre was heard, but attribution is impossible at
+battle scale. Rewrite the row to field a single Wasay pair, or drop it in
+favour of the existing sound-gain section.
 
 ## Weapon clash smoke (preset V2)
 
@@ -1555,7 +1621,7 @@ carries, that the pool never exceeds 256 slots and evicts oldest-first, and
 that the quad budget still fits. None of them prove that a spectator can tell a
 spear from an arrow from a lead ball while a battle is running, or that a stuck
 arrow reads as stuck rather than as a smear. Plan:
-`docs/plans/2026-08-11-projectile-props.md`.
+`docs/archives/2026-08-11/2026-08-11-projectile-props.md`.
 
 Rows PP-4 through PP-7 need a battle that actually lands ranged hits, so they
 cannot be attempted before RG-1 is attemptable.
