@@ -59,6 +59,23 @@ if ($Game -eq 'Hukbo') {
         Preset = 'PrecolonialPhilippinesV5'
         MovementPreset = 'RangedStandoffV8'
     }
+
+    # Neither invocation above ever exercises the V10 retreat rung: the V8
+    # workload holds a threatened shooter in place forever, so a broken
+    # BackingAway path -- a shooter that never retreats, one that retreats
+    # into a deadlock, or a corrupted three-way standoff ladder -- would
+    # still leave this gate green. PrecolonialPhilippinesV5 pairs with
+    # BattlefieldRealismV10 here on purpose; see design section 9.2 for why
+    # this is a third block rather than a repointed V8 block.
+    Invoke-RepositoryScript -Name 'benchmark.ps1' -Parameters @{
+        Agents = 200
+        Ticks = 10000
+        Seed = 1
+        NoBuild = $true
+        Game = $Game
+        Preset = 'PrecolonialPhilippinesV5'
+        MovementPreset = 'BattlefieldRealismV10'
+    }
 }
 
 Write-Host '[PASS] Canonical repository verification completed.'
