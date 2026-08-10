@@ -143,53 +143,64 @@ which was confirmed by listing discovered tests with and without them.
 
 ## Canonical gate result — Hukbo, 2026-08-11 (combat cadence V6)
 
-**This is the live Hukbo baseline.** It supersedes the projectile-props block
-below for the default workload only; the explicit ranged workload's digests are
-unchanged and are the same pair both blocks record.
+**This is the live Hukbo baseline.** It supersedes the battlefield realism
+block below for **workload 1 only**. Workloads 2 and 3 are unchanged, and this
+run is the third independent capture of both.
 
 `./scripts/verify.ps1 -SkipBootstrap`, exit code 0, on branch
-`combat-cadence-v6` at base commit `0cc5ce5`:
+`combat-cadence-v6` rebased onto `main` at `817c900`, the battlefield realism
+merge:
 
 ```
-Formatted 0 of 729 files.
+Formatted 0 of 737 files.
 [PASS] Formatting verification completed.
 [PASS] Release solution build completed.
-Hukbo.Core.Tests     Total tests: 2455   Passed: 2455
-Hukbo.Client.Tests   Total tests: 3569   Passed: 3569
+Hukbo.Core.Tests     Total tests: 2492   Passed: 2492
+Hukbo.Client.Tests   Total tests: 3651   Passed: 3651
 [PASS] Release repository tests completed.
 stateHash 5460D13E3F7FD3E5   eventHash 8E18ED1437B2924B   combatPreset 6   movementPreset 4
 [PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
 stateHash C8023D3B5BEB005E   eventHash F709A345E2F7370E   combatPreset 5   movementPreset 8
 [PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+stateHash 7C145A9E05916E4C   eventHash 77626E104234206C   combatPreset 5   movementPreset 10
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
 [PASS] Canonical repository verification completed.
 ```
 
-**The first pair moved and the second did not, which is exactly the required
-result.** The first workload names no preset, so it follows
-`Scenario.CombatPreset`, which this change flipped from
-`PrecolonialPhilippinesV4` to `PrecolonialPhilippinesV6` — V4's tables with
-every melee attack cooldown, combo cooldown, and damage retuned. Both of its
-hashes had to move: the preset identifier folds into the state hash, and
-halving the attack rate changes the ordered event stream from the first
-exchange onward. The superseded pair is `1B73FC5923879AA0` (state) and
-`AC55684F24D39344` (event).
+**Exactly one of the three pairs moved, which is the required result.**
 
-The second workload names `PrecolonialPhilippinesV5` and `RangedStandoffV8`
-explicitly, and printed `C8023D3B5BEB005E` / `F709A345E2F7370E` — **byte-
-identical to its recorded baseline**. That is the check that proves V6 is a new
-preset rather than an in-place edit: had anything reached V5, this pair would
-have moved and the change would have been wrong.
+**Workload 1, the shipped default, moved and had to.** It names no preset, so
+it follows `Scenario.CombatPreset`, which this change flipped from
+`PrecolonialPhilippinesV4` to `PrecolonialPhilippinesV6` — V4's tables with
+every melee attack cooldown, combo cooldown, and damage retuned. Both hashes
+had to move: the preset identifier folds into the state hash, and halving the
+attack rate changes the ordered event stream from the first exchange onward.
+The superseded pair is `1B73FC5923879AA0` (state) and `AC55684F24D39344`
+(event). `movementPreset` is still 4 — this change does not touch the movement
+default.
+
+**Workloads 2 and 3 are byte-identical to the pairs battlefield realism
+recorded** — `C8023D3B5BEB005E` / `F709A345E2F7370E` for
+`PrecolonialPhilippinesV5` with `RangedStandoffV8`, and `7C145A9E05916E4C` /
+`77626E104234206C` for `PrecolonialPhilippinesV5` with
+`BattlefieldRealismV10`. Both name their combat preset explicitly, so both are
+leak detectors: had V6 been an in-place edit of V4 rather than a new preset, or
+had anything reached V5, these pairs would have moved. They did not.
 
 The default workload also decided faster, at 885 ticks against the previous
 981, with `Faction0Victory` replacing `Faction1Victory`. A different winner on
 a retuned ruleset is expected, not a regression. Twenty seeds were measured
-against both presets before the flip — both decide all twenty, V6's median
-decision tick is 1,651 against V4's 1,668 — and that measurement is recorded in
+against both presets before the flip, and re-measured after the rebase onto the
+battlefield realism merge with identical results — both decide all twenty, V6's
+median decision tick is 1,651 against V4's 1,668. That the sweep did not move
+across the rebase is itself informative: battlefield realism's changes sit
+behind `BattlefieldRealismV10`, which the default workload never selects. The
+measurement is recorded in
 [`../plans/2026-08-11-combat-cadence-v6.md`](../plans/2026-08-11-combat-cadence-v6.md)
 under task 5.
 
-`Hukbo.Core.Tests` grew from 2,433 to 2,455 and `Hukbo.Client.Tests` from 3,561
-to 3,569. The 22 new Core tests are `CombatCadenceV6Tests`; the 8 new Client
+`Hukbo.Core.Tests` grew from 2,470 to 2,492 and `Hukbo.Client.Tests` from 3,643
+to 3,651. The 22 new Core tests are `CombatCadenceV6Tests`; the 8 new Client
 tests are the attack-animation speed ceiling.
 
 Still no evidence about anything interactive. CL-1, CL-3, CL-7a, and CL-7b in

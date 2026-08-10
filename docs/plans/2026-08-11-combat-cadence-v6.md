@@ -127,6 +127,13 @@ PrecolonialPhilippinesV4: decisive 20/20  medianDecisionTick 1668  minTicks 939 
 PrecolonialPhilippinesV6: decisive 20/20  medianDecisionTick 1651  minTicks 885  maxTicks 2238
 ```
 
+Re-measured after the branch was rebased onto `main` at `817c900`, the
+battlefield realism merge, because that merge changed `BattleSimulation`, the
+retreat rules, and `AgentIntent` underneath this branch. **Every figure above is
+unchanged**, which is itself the useful result: battlefield realism's behaviour
+sits behind `MovementPresetId.BattlefieldRealismV10`, and this sweep runs the
+shipped `PersistentContingentsV4`, so the two changes do not interact.
+
 **The bar is met.** V6 decides every one of the twenty seeds, exactly as V4
 does, and its median decision tick is 1.0 per cent *faster* rather than slower —
 seventeen ticks, which is under a second of simulated time and well inside the
@@ -262,7 +269,13 @@ through 9 were authorised rather than skipped.
 | 9. Re-measure the baseline | Done | `docs/development/testing.md`, new dated block |
 | 10. The 4x half of CL-7 | Done | `AttackAnimationSystem.MaximumAnimationSpeedMultiplier`, 8 new tests |
 | 11. Re-open the smoke rows | Done | CL-1, CL-3, CL-7a, CL-7b all `PENDING` |
-| 12. Run the canonical gate | Done | Exit code 0; output in `docs/development/testing.md` |
+| 12. Run the canonical gate | Done | Exit code 0 on the rebase onto `817c900`; output in `docs/development/testing.md` |
+
+The gate now runs **three** headless workloads rather than the two this plan was
+written against — battlefield realism added a `BattlefieldRealismV10` block on
+2026-08-11. Both of the explicitly-preset workloads printed their recorded
+baselines unchanged, so there are now two independent leak detectors proving V6
+is a new preset rather than an edit of V4, where the plan assumed one.
 
 **Task 7 in detail, because reading each call site was the task.** Four sites
 meant "the shipped default" and were re-pointed at V6: `ScenarioTests:24`,
