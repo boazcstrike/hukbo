@@ -104,6 +104,23 @@ public sealed class BattleSimulation
     private readonly LoadoutCompositionCounts[] _factionSurvivingCompositions;
     private long _localMovementContextDerivations;
 
+    // Ranged-retreat threat-observation scratch (battlefield realism design,
+    // section 5.3). One long per scenario agent, allocated once here, sized
+    // zero under every preset except BattlefieldRealismV10 so a V1-through-V9
+    // battle carries no per-agent storage for a rung it never runs. Cleared
+    // and refilled every tick by SelectTargetsAndIntents, fused into the same
+    // candidate loop that already computes each candidate's squared distance
+    // for target selection and (under V6) the local-context accumulation --
+    // no second scan. The value is the squared distance to the nearest living
+    // enemy whose weapon is melee, observed only for an actor whose own
+    // weapon is ranged, or long.MaxValue when no such enemy is observed; a
+    // plain minimum over a totally ordered domain needs no EntityId
+    // tie-break, because the reduction is order-independent. Derived scratch
+    // in the same mould as _localMovementContexts: never hashed, never
+    // snapshotted, never carried across ticks -- this is recomputed from
+    // nothing every tick inside an existing loop, not a target cache.
+    private readonly long[] _nearestMeleeThreatSquared;
+
     // Equipment-relative footwork pipeline scratch (weapon-relative movement
     // design, sections 8 through 11). Every array is allocated once here and
     // sized zero under every legacy preset, so a V1-through-V5 battle
@@ -234,6 +251,12 @@ public sealed class BattleSimulation
         _factionRallyEntityIds = new ulong[2];
         _localMovementContexts = _movementRules.UsesEquipmentRelativeFootwork
             ? new LocalMovementContext[agents.Length]
+            : [];
+        // Gated on preset identity, not on a movement-ruleset field, matching
+        // the V10 deployment branch in Create: V10's registered ruleset is a
+        // verbatim copy of V8's, so no ruleset flag distinguishes it.
+        _nearestMeleeThreatSquared = scenario.MovementPreset == MovementPresetId.BattlefieldRealismV10
+            ? new long[agents.Length]
             : [];
         _factionSurvivingCompositions = new LoadoutCompositionCounts[2];
         var usesFootwork = _movementRules.UsesEquipmentRelativeFootwork;
@@ -469,6 +492,28 @@ public sealed class BattleSimulation
         }
 
         return _localMovementContexts[_agentIndexes[entityId]];
+    }
+
+    /// <summary>
+    /// The nearest-melee-threat scratch derived for one agent by the tick
+    /// just completed (battlefield realism design, section 5.3): the squared
+    /// distance to the nearest living enemy whose weapon is melee, or
+    /// <see cref="long.MaxValue"/> when the agent's own weapon is not ranged
+    /// or no such enemy was observed. Derived scratch: never hashed, never
+    /// snapshotted, never persisted. Throws under any preset other than
+    /// <see cref="MovementPresetId.BattlefieldRealismV10"/>, which observes
+    /// no threat at all.
+    /// </summary>
+    internal long NearestMeleeThreatSquaredForTesting(ulong entityId)
+    {
+        if (Scenario.MovementPreset != MovementPresetId.BattlefieldRealismV10)
+        {
+            throw new InvalidOperationException(
+                "No nearest-melee-threat scratch is derived under movement " +
+                $"preset {Scenario.MovementPreset}.");
+        }
+
+        return _nearestMeleeThreatSquared[_agentIndexes[entityId]];
     }
 
     /// <summary>
@@ -1168,6 +1213,15 @@ public sealed class BattleSimulation
         // the body radius is scenario-wide, so they are identical for every
         // actor.
         var derivesLocalContext = _movementRules.UsesEquipmentRelativeFootwork;
+
+        // The ranged-retreat threat observation (battlefield realism design,
+        // section 5.3) is gated on preset identity, matching
+        // _nearestMeleeThreatSquared's own sizing in the constructor: V10's
+        // registered ruleset is a verbatim copy of V8's, so no
+        // MovementRuleset flag distinguishes it from every other preset that
+        // derives no local context either.
+        var observesNearestMeleeThreat =
+            Scenario.MovementPreset == MovementPresetId.BattlefieldRealismV10;
         Int128 immediateRadiusSquared = 0;
         Int128 supportRadiusSquared = 0;
         if (derivesLocalContext)
@@ -1199,6 +1253,14 @@ public sealed class BattleSimulation
                     _localMovementContexts[agentIndex] = default;
                 }
 
+                if (observesNearestMeleeThreat)
+                {
+                    // Dead agents observe no threat; clear the row so a stale
+                    // value from the tick this agent died on can never be
+                    // read back, matching the local-context clear just above.
+                    _nearestMeleeThreatSquared[agentIndex] = long.MaxValue;
+                }
+
                 continue;
             }
 
@@ -1217,6 +1279,16 @@ public sealed class BattleSimulation
             var selectedDistance = long.MaxValue;
             var perceptionSquared = checked(
                 (long)agent.PerceptionRangeRaw * agent.PerceptionRangeRaw);
+
+            // Battlefield realism design, section 5.3: the trigger reads the
+            // nearest living enemy whose weapon is melee, observed only when
+            // the actor's own weapon is ranged (StandoffDistanceRaw != 0 --
+            // the same test GatherMovementProposals' V8 standoff arm already
+            // uses). Resolved once per actor, not per candidate, since it
+            // does not depend on the candidate.
+            var nearestMeleeThreatSquared = long.MaxValue;
+            var actorObservesMeleeThreats = observesNearestMeleeThreat &&
+                ResolveAttackerWeaponProfile(agent.Loadout).StandoffDistanceRaw != 0;
 
             foreach (var candidate in _agentStates)
             {
@@ -1287,6 +1359,22 @@ public sealed class BattleSimulation
                         candidate.EntityId, candidate.Loadout, distance);
                 }
 
+                // The ranged-retreat threat fuse of design section 5.3, beside
+                // the V6 context fuse above: the same already-computed,
+                // already-perception-filtered distance is minimised into
+                // nearestMeleeThreatSquared when the candidate's weapon is
+                // melee (StandoffDistanceRaw == 0). No new scan, no new
+                // distance computation -- distance is exactly the value target
+                // selection below also reads. A plain minimum over squared
+                // distances needs no EntityId tie-break: the reduction is
+                // order-independent regardless of scan order.
+                if (actorObservesMeleeThreats &&
+                    distance < nearestMeleeThreatSquared &&
+                    ResolveAttackerWeaponProfile(candidate.Loadout).StandoffDistanceRaw == 0)
+                {
+                    nearestMeleeThreatSquared = distance;
+                }
+
                 if (distance < selectedDistance ||
                     (distance == selectedDistance &&
                         (selectedTarget is null ||
@@ -1304,6 +1392,11 @@ public sealed class BattleSimulation
                     contextAccumulator.Complete(selectedTarget?.EntityId);
                 _localMovementContextDerivations = checked(
                     _localMovementContextDerivations + 1);
+            }
+
+            if (observesNearestMeleeThreat)
+            {
+                _nearestMeleeThreatSquared[agentIndex] = nearestMeleeThreatSquared;
             }
 
             if (selectedTarget is null)
