@@ -8,7 +8,8 @@ namespace Hukbo.Client.Tests;
 /// Proves the acceptance criterion for plan task 47
 /// (docs/plans/2026-08-07-sandata-scaffold.md), the RU-29 extension
 /// (docs/plans/2026-08-07-ranged-units.md), and task 14
-/// (docs/plans/2026-08-11-battlefield-realism.md): scripts/verify.ps1 gains
+/// (docs/archives/2026-08-11/2026-08-11-battlefield-realism.md, archived once
+/// its build merged): scripts/verify.ps1 gains
 /// a -Game parameter and passes it through to test.ps1 and benchmark.ps1,
 /// and with no -Game argument on the command line it runs exactly three
 /// benchmark.ps1 invocations -- the original canonical workload at

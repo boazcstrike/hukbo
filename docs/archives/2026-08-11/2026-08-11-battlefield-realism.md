@@ -1,5 +1,13 @@
 # Battlefield realism — plan
 
+**Archived: reference only.** All nineteen tasks are merged, and the gate
+result and the twenty-seed V10 sweep were recorded at `0037bc9`. Its ten smoke
+rows are still `PENDING` and live in `docs/development/smoke-checklist.md`, not
+here — a plan is archived when its build is finished, not when a person has
+finished looking at the screen. The design document this implements stays live
+at `docs/plans/2026-08-11-battlefield-realism-design.md`, because eight source
+and test files cite it by path. Never execute this task list.
+
 Design document: `docs/plans/2026-08-11-battlefield-realism-design.md`. It
 outranks this file wherever the two disagree; this file is the ordered task
 list and the verification criteria.

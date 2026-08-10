@@ -250,7 +250,8 @@ projectile-props smoke checklist are all `PENDING`.
 
 `./scripts/verify.ps1`, all five stages, exit code 0, run once on the
 `battlefield-realism` branch at `449a443`, rebased onto `main` at `0cc5ce5`,
-after all nineteen tasks of `docs/plans/2026-08-11-battlefield-realism.md`
+after all nineteen tasks of
+`docs/archives/2026-08-11/2026-08-11-battlefield-realism.md`
 landed:
 
 ```
