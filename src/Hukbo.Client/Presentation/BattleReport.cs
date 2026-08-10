@@ -50,6 +50,16 @@ internal readonly record struct UnitReportRow(
 /// not an event to accumulate. Stays <c>0</c> for a caller that never
 /// passes the roster to <see cref="BattleReportAccumulator.Ingest"/>.
 /// </param>
+/// <param name="BackingAwayCount">
+/// How many of this faction's living warriors carried
+/// <see cref="AgentIntent.BackingAway"/> as of the most recent tick
+/// <see cref="BattleReportAccumulator.Ingest"/> was handed the agent
+/// roster. Recomputed on exactly the same terms as
+/// <see cref="HoldingCount"/> above: a live per-tick snapshot, replaced
+/// rather than summed on every call, never retained past that call, and
+/// stays <c>0</c> for a caller that never passes the roster to
+/// <see cref="BattleReportAccumulator.Ingest"/>.
+/// </param>
 internal readonly record struct FactionReportTotals(
     int FactionId,
     int TotalKills,
@@ -59,7 +69,8 @@ internal readonly record struct FactionReportTotals(
     ulong? TopKillerEntityId,
     int TopKillerKills,
     CombatMetrics Combat,
-    int HoldingCount);
+    int HoldingCount,
+    int BackingAwayCount);
 
 /// <summary>
 /// One landed attack singled out as a battle highlight — either the first
