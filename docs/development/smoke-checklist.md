@@ -23,15 +23,34 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-11
 
-343 rows across 29 subsections: **296 `PENDING`, 15 `BLOCKED`, 29 `PASS`,
-3 `FAIL`**, recounted from the status column of this file on 2026-08-11 after
-the weapon-clash re-run and the battlefield realism rows landed. Two earlier
-figures here were wrong — 105 rows across 29 subsections, which appears to have
-survived the split out of `docs/development/testing.md`, and 333 rows across 28
-subsections, which was counted on a branch before battlefield realism's ten rows
-merged. **Recount before trusting any total**; that instruction has now been
-earned twice. The families below are grouped by what a single launch can
-actually
+332 rows across 28 subsections: **280 `PENDING`, 15 `BLOCKED`, 30 `PASS`,
+6 `FAIL`, 1 `DECLINED`**, recounted from the status column of this file on
+2026-08-11 after the `UI` run landed and the completed `CL` weapon-clash family
+was archived out. The count fell rather than rose because those twelve `PASS`
+rows left the file; they are in
+[`../archives/2026-08-11/2026-08-11-weapon-clash-smoke.md`](../archives/2026-08-11/2026-08-11-weapon-clash-smoke.md)
+and are not lost.
+
+Three earlier figures here were wrong — 105 rows across 29 subsections, which
+appears to have survived the split out of `docs/development/testing.md`; 333
+rows across 28 subsections, which was counted on a branch before battlefield
+realism's ten rows merged; and 343 rows with no `DECLINED` column, which
+dropped typography row 75 out of the total because its status is neither
+`PENDING` nor a result. **Recount before trusting any total**; that instruction
+has now been earned three times, and the third time it was a status nobody
+thought to count rather than a stale branch.
+
+**A completed family is archived out of this file, not left sitting in it.** A
+section every one of whose rows is `PASS` is a record rather than a checklist,
+and leaving it here makes the file longer without giving a tester anything to
+do. A section is archived only when it is entirely `PASS`: an open `FAIL` or
+`BLOCKED` row is unfinished work, and burying it in `docs/archives/` would hide
+a defect behind a folder nobody is allowed to cite. Two sections have no
+`PENDING` rows today and both stay here for exactly that reason — Sandata,
+which holds 2 `FAIL` and 5 `BLOCKED`, and the `UI` family, which holds 3
+`FAIL`.
+
+The families below are grouped by what a single launch can actually
 show, because the subsections are ordered by the change that created them
 rather than by what is on screen at once, and a person working down the file in
 order relaunches the game far more often than they need to.
@@ -41,8 +60,9 @@ order relaunches the game far more often than they need to.
 | Ranged | `PP` 8, `RG` 11 | 19 `PENDING` | A battle fielding Bangkaw, Busog, and Arquebus warriors. The shipped client runs combat preset V5 and movement preset V8, so ranged units are on the field by default at roughly a 14 per cent share |
 | Pawn animation | `AA` 17, `GA` 14 | 31 `PENDING` | Warriors striking and walking, close in. `AA` also holds the one open `FAIL`, AA-22 |
 | Markers | `LC` 11, `L` 7 | 18 `PENDING` | Leaders and contingents at default zoom, plus the agent inspector |
-| Feed, UI, render | `CL` 12, `GR` 5 | 5 `PENDING`, 12 `PASS` | Typography and launch-time render behaviour. **The `CL` clash family is complete** — all 12 rows `PASS` as of 2026-08-11, the last four after the combat-cadence change |
+| Render | `GR` 5 | 5 `PENDING` | Launch-time render behaviour. The `CL` clash family that used to share this batch is complete and archived |
 | Battlefield realism | task 18 rows | 10 `PENDING` | Cohort deployment and the V10 retreat rung |
+| Menu, display, motion | `UI` 16 | 13 `PASS`, 3 `FAIL` | Run on 2026-08-11. **The `UI` family is complete** — nothing here is `PENDING`. The three failures, `UI-2`, `UI-4`, and `UI-6`, share one cause: the process never declares DPI awareness, so Windows renders the game at a virtualised size and bitmap-stretches the result. See finding 1 in that section |
 | Sandata | `SD` | 5 `BLOCKED`, 2 `PASS`, 2 `FAIL` | `./scripts/run.ps1 -Game Sandata` |
 | Pressure interrupt | `P` | 9 `BLOCKED`, 1 `PENDING` | **Not runnable today** — see below |
 | Weapon identity | `V2` | 6 `PASS`, 3 `PENDING`, 1 `BLOCKED` | Run on 2026-08-11. The three `PENDING` rows are re-runs: one waiting on the click-target fix that landed the same day, two rewritten after the run |
@@ -345,61 +365,17 @@ present and a wood-chop timbre was heard, but attribution is impossible at
 battle scale. Rewrite the row to field a single Wasay pair, or drop it in
 favour of the existing sound-gain section.
 
-## Weapon clash smoke (preset V2)
+## Weapon clash smoke (preset V2) — complete, archived
 
-**This family is complete: all twelve rows `PASS`.** It took two interactive
-runs and a ruleset change between them.
+**All twelve `CL` rows are `PASS` and this section has moved.** It closed on
+2026-08-11 after two interactive runs and the combat-cadence change between
+them, and it is the first family in this checklist to close completely. The
+rows, both runs' observations, and the reasoning that connects them are in
+[`../archives/2026-08-11/2026-08-11-weapon-clash-smoke.md`](../archives/2026-08-11/2026-08-11-weapon-clash-smoke.md).
 
-The first run, on 2026-08-11 at commit `0c3f7f2`, passed eight rows and failed
-three — CL-1, CL-3, and CL-7. None was a logic failure. Every effect rendered;
-they simply overlapped each other densely enough that a spectator could not
-attribute an individual one to an individual blow. The observer's own diagnosis
-was that blows arrived too often, and it was right.
-
-The combat cadence change answered it. `PrecolonialPhilippinesV6` restates V4's
-tables and retunes only cadence and damage, so blows land roughly half as often
-and hurt roughly twice as much at a near-constant damage per tick — the
-artefact rate is the attack rate, so halving one halves the other without
-changing how long a battle lasts. CL-7 turned out to be two defects wearing one
-row and was split: CL-7a is the 1x cadence, and CL-7b is the 4x animation
-compression, which no simulation change could have fixed because it was applied
-on top of whatever cadence the simulation produced. That half needed
-`AttackAnimationSystem.MaximumAnimationSpeedMultiplier`. See
-[`../plans/2026-08-11-combat-cadence-v6-design.md`](../plans/2026-08-11-combat-cadence-v6-design.md),
-section 4.
-
-The second run, later the same day, passed all four re-opened rows. Both
-observations are preserved in the `Actual` column of each, because a row that
-records only its final state does not explain why the code looks the way it
-does.
-
-Rows marked with a dagger (†) are the ones that decide something about the
-design rather than merely confirm it — see design section 3.8 for the recorded
-disposition if the void-versus-landed row returns `FAIL`. Both returned `PASS`,
-so that disposition was never needed.
-
-| Evidence field | Recorded value |
-| --- | --- |
-| Date | 2026-08-11, two runs |
-| Machine/platform | Microsoft Windows 10.0.26200 (Windows 11 Pro) x64 |
-| Source commit | `0c3f7f2` for the first run; the four re-runs were at or after the combat-cadence change, `main` at `982bd6f` |
-| Launch path (`source` or package path) | `source`, via `./scripts/run.ps1` |
-| Optional screenshot paths | None recorded |
-
-| # | Step | Expected | Actual | Status |
-| --- | --- | --- | --- | --- |
-| CL-1 | Watch the battle event feed for one exchange of each resolution | The five lines are distinguishable: a damage line for `Landed`, "stopped by the shield" for `ShieldBlocked`, "parried" for `Parried`, "turned aside" for `Deflected`, "stepped off the line" for `Evaded` | 2026-08-11 FAIL at `0c3f7f2`: not distinguishable in practice. The five wordings exist, but too many resolutions arrived at once for an observer to match a line to the blow that produced it. The combat-cadence change roughly halves the line rate; whether that is enough is what this re-run decides Re-run 2026-08-11 after the combat-cadence change: **PASS**. The observer's words: "now it is clearer". The five wordings are distinguishable at the halved line rate | PASS |
-| CL-2 | Watch a shield-blocked, parried, or deflected blow | No blood spray and no impact ring appear for any of the three | As expected | PASS |
-| CL-3 | Watch the clash cross render | It appears for `ShieldBlocked`, `Parried`, and `Deflected`, and for neither `Landed` nor `Evaded` | 2026-08-11 FAIL at `0c3f7f2`: too fast to attribute. Individual clash crosses overlapped one another, so a shield block, a parry, and a deflection could not be told apart in flight. The combat-cadence change roughly halves the clash-cross rate Re-run 2026-08-11 after the combat-cadence change: **PASS**. Clash crosses no longer overlap one another at the halved attack rate, so a shield block, a parry, and a deflection can be told apart in flight | PASS |
-| CL-4 † | Distinguish a void from a shield block | An `Evaded` blow (no clash cross, follow-through swing) reads differently on screen from a `ShieldBlocked` blow (clash cross, recoil) without reading the event log | As expected | PASS |
-| CL-5 † | Distinguish a void from a landed blow | An `Evaded` blow (follow-through swing, no blood, no impact ring) reads differently on screen from a `Landed` blow (stops on target, blood, impact ring) without reading the event log | As expected | PASS |
-| CL-6 | Watch any warrior attack | Weapons visibly swing through an arc rather than sitting static during an attack | As expected | PASS |
-| CL-7a | Watch one attack at 1x | The swing reads as one countable action, with visible rest either side of it rather than running straight into the next swing | 2026-08-11 FAIL at `0c3f7f2`: the single-action reading was not visible enough to confirm. Under the old cadence an Itak swung every 200 ms while its recovery animation ran 170 ms, so consecutive swings very nearly abutted; the cadence change roughly doubles the interval Re-run 2026-08-11 after the combat-cadence change: **PASS**. The doubled attack interval leaves visible rest either side of a swing, so it reads as one countable action | PASS |
-| CL-7b | Watch the same weapon at 4x | The swing is still drawn long enough to read as one action rather than smearing into a blur | 2026-08-11 FAIL at `0c3f7f2`, as part of the undivided CL-7. Attack timelines were aged by the full playback multiplier, so a 0.17-second recovery drew in 0.0425 seconds — two to three frames at 60 Hz. `AttackAnimationSystem.MaximumAnimationSpeedMultiplier` now holds the animation clock at 2x Re-run 2026-08-11 after the animation-speed ceiling: **PASS**. The swing no longer compresses past 2x and stays legible at 4x | PASS |
-| CL-8 | Compare a `Parried` or `Deflected` blow, a `Landed` blow, and an `Evaded` blow | The clashed blow visibly recoils, the landed blow stops on the target, and the void follows through past it | As expected | PASS |
-| CL-9 | Zoom to high detail, then to low detail, during a swing | The swing arc trail is visible at high zoom and absent at low zoom | As expected | PASS |
-| CL-10 | Pan the camera so a swinging weapon crosses the arena panel edge | A weapon tip may be visibly clipped at the panel edge while panning — this is the accepted cost of the pose-blind frustum cull, not a defect | As expected | PASS |
-| CL-11 | Observe the merged pawn silhouette in motion, both a shield-bearing and a solo warrior | The silhouette under D7 (main's geometry constants plus the clash branch's swing pose applied on top) reads correctly: shield block and swing pose both present, axe head distinguishable from blade, no visual corruption | As expected | PASS |
+Nothing there is an instruction. If a later change touches clash resolution,
+weapon swing arcs, or attack cadence, write fresh rows here rather than
+re-running the archived ones.
 
 ## Spectator clarity smoke
 
@@ -672,7 +648,7 @@ screen.
 | --- | --- |
 | Date | 2026-08-11 |
 | Machine/platform | Microsoft Windows 10.0.26200 (Windows 11 Pro) x64, NVIDIA GeForce RTX 4070 SUPER, 2560x1440 display at 125% Windows scaling (`AppliedDPI` 120) |
-| Source commit | Not captured by the tester. `main` was at `8bbcfd8` when these results were transcribed; the uncommitted working-tree changes at that moment were documentation-only and build the identical binary |
+| Source commit | Not captured by the tester. `main` was at `ae64485` when these results were transcribed, and every commit between that and the run was documentation-only, so the binary is unchanged. Capture the commit on the next run — this row should not say "not captured" twice |
 | Launch path (`source` or package path) | `source`, via `./scripts/run.ps1` |
 | Optional screenshot paths | None recorded |
 
@@ -694,6 +670,82 @@ screen.
 | UI-14. Selector arrow and active-marker interpolation | In the menu, hover the pointer over a selector's previous and next arrows (theme, gore, motion, auto camera, or UI scale) and change the selector's value. At Motion Off, the hovered arrow's highlight and the active-value marker snap instantly with no fade, and hit targets are unaffected. At Motion Reduced and Motion Full, the hovered arrow eases toward its highlighted colour and the marker eases toward its emphasis colour over the selector's pulse duration, and the two intensities look identical to each other. Moving focus without changing the selector's value does not retrigger the marker pulse. | 2026-08-11, tester at the desktop: arrows and the active marker snapped at Motion Off and eased at both Reduced and Full, hit targets were unaffected, and moving focus alone did not pulse the marker | PASS |
 | UI-15. Control-bar active strip | On the control bar, toggle play/pause and change the simulation speed. At Motion Off, each button's active strip snaps instantly to its active colour at its existing six-pixel width. At Motion Reduced and Motion Full, the strip's colour eases from the inactive border colour toward the active colour over roughly 120 ms when a button becomes active, and eases back when it deactivates; the two intensities look identical to each other. The strip's width and the button's hit target never change at any intensity. | 2026-08-11, tester at the desktop: the strip snapped at Motion Off and eased both ways at Reduced and Full, and its width and hit target never moved | PASS |
 | UI-16. Status-badge emphasis (one-shot, non-looping) | Cause the battle outcome to change, or toggle play/pause so the playing flag changes, and watch the status badge for several seconds afterward. At Motion Off, the badge's fill snaps to the new state's colour immediately with no pulse. At Motion Reduced and Motion Full, the badge briefly pulses toward its emphasis colour and settles back within roughly 450 to 650 ms, and the two intensities look identical to each other; the badge does not pulse again on its own while the state stays unchanged. Toggling the same state change again triggers a fresh, single pulse each time. | 2026-08-11, tester at the desktop: the badge snapped at Motion Off, pulsed once and settled at both Reduced and Full, never pulsed again on its own, and pulsed afresh on each repeat toggle | PASS |
+
+### Findings from the 2026-08-11 UI run
+
+**1. Text is pixelated whenever the window fills the screen, and the cause is
+that the process never declares DPI awareness.** This is the single cause behind
+all three failures — `UI-2`, `UI-4`, and `UI-6` — and it is not a defect in the
+font ramp.
+
+The typography pipeline is doing exactly what it was designed to do.
+`UiFontRamp` bakes twenty-four separate `SpriteFont` atlases, one per role per
+tier, and `UiPrimitives.DrawText` and `UiPrimitives.DrawCenteredText` both draw
+at a hardcoded scale of `1f` from a whole-pixel origin snapped by
+`UiTextGeometry.SnapToPixel`. There is no render target, no float resampling,
+and no scale multiplier anywhere on the text path. Every glyph is crisp when it
+leaves the game.
+
+What resamples it is Windows. Nothing in the repository declares a DPI
+awareness level: `src/Hukbo.Client/Hukbo.Client.csproj` has no
+`ApplicationManifest`, there is no `app.manifest` anywhere in the tree, no code
+calls `SetProcessDpiAwarenessContext`, and neither the client nor its launch
+script sets SDL's `SDL_WINDOWS_DPI_AWARENESS` hint. A process that says nothing
+is treated as DPI-unaware, so Windows reports a virtualised desktop size, lets
+the application render at that size, and then bitmap-stretches the finished
+frame up to the real panel. On the machine this run was performed on the
+stretch factor is 1.25 and non-integer, which is precisely what a pixelated
+glyph looks like.
+
+The machine's numbers: the display is 2560x1440 and Windows display scaling is
+125%, read from `HKCU:\Control Panel\Desktop\WindowMetrics\AppliedDPI`, which is
+`120`. A DPI-unaware process on that machine is told the desktop is 2048x1152.
+
+That mis-report has a second consequence, which is why `UI-4` fails as well as
+looking bad. `UiScalePolicy.Resolve` picks a tier from the viewport in pixels:
+2048x1152 clears its 1920x1080 threshold but not its 2560x1440 one, so Auto
+resolves to `Percent125` on a display that should be getting `Percent150`. The
+tier is chosen from a number the operating system fabricated.
+
+The remedy is to declare per-monitor awareness once, before the graphics device
+exists — a `SetProcessDpiAwarenessContext(PER_MONITOR_AWARE_V2)` call at the top
+of `Program.Main`, which matches the `LibraryImport` P/Invoke pattern
+`ArenaGame` already uses for its SDL window-chrome calls, or an
+`ApplicationManifest` declaring `PerMonitorV2`. Either one makes
+`GraphicsAdapter.DefaultAdapter.CurrentDisplayMode` report 2560x1440, removes
+the OS stretch entirely, and lets `UiScalePolicy` select the 150% bake it was
+always meant to select at that size.
+
+**This has been recorded once before and was deliberately deferred.** Row 75 of
+the typography section, "Display scaling", is the gated measurement task this
+finding is the other half of; it is marked `DECLINED` because the 150% Windows
+scaling reading was declined on 2026-07-28. That decision is what left the
+awareness declaration unbuilt. Fixing it is a code change and needs its own
+plan document.
+
+**One measurement is still missing and should be taken before the fix.** No
+debug log was captured during this run. `ArenaGame.LogViewport` already writes
+client bounds, viewport, back-buffer size, display mode, and the active scale
+tier on every viewport change, so a single `./scripts/run.ps1 -Configuration
+Debug` run, maximised once, records the fabricated 2048x1152 directly rather
+than leaving it inferred from the registry. Capture it, then capture it again
+after the fix, and the two lines are the before-and-after evidence.
+
+**2. The `Cebu 1521 — Provisional` theme is disliked, and that is not what
+`UI-11` measures.** Every criterion the row states was met — the label, the
+palette's reading, and the legibility of text and faction signals — so the row
+is `PASS`. Separately, the tester does not like how the theme looks. That is a
+real report and worth acting on, but it is a design preference rather than a
+failure of any stated criterion, and folding it into `UI-11`'s status would
+leave a row nobody could ever close without agreeing on taste.
+
+Acting on it needs the preference turned into a criterion first: which of the
+five palette anchors is wrong, and wrong against what. The theme is a
+**Provisional reconstruction** under the historical accuracy policy in section
+7 of `CLAUDE.md`, so a change to it is a change to a labelled provisional
+interpretation and needs the evidence tier restated alongside it, not just a
+new set of colours. Until that is written down, no row here covers the
+complaint.
 
 ## Last-stand formation smoke
 
