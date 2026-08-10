@@ -38,4 +38,23 @@ public enum AgentIntent
     /// unused until the hold arm lands.
     /// </remarks>
     Holding = 5,
+
+    /// <summary>
+    /// A ranged warrior with a melee enemy inside its threat radius is
+    /// stepping directly away from that enemy rather than fighting or
+    /// advancing.
+    /// </summary>
+    /// <remarks>
+    /// CONTRACT: this value has exactly one producer in the whole codebase —
+    /// the V10 retreat rung. It may never be written by a rejection, a
+    /// collision, a blocked proposal, or a failed route search. Those are the
+    /// cases <see cref="Movement.FootworkPhase.Refuse"/> already conflates,
+    /// and that conflation is the verified root cause of the V6/V7 standoff —
+    /// a warrior that could not advance and a warrior that chose not to were
+    /// indistinguishable, and the standoff was undiagnosable until they were
+    /// pulled apart. <see cref="Holding"/> proved the pattern first;
+    /// <see cref="BackingAway"/> keeps the same single-producer discipline so
+    /// a retreat stays distinguishable from every rejection and every stall.
+    /// </remarks>
+    BackingAway = 6,
 }

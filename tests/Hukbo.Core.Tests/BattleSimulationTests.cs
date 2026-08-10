@@ -17,7 +17,8 @@ public sealed class BattleSimulationTests
         Assert.Equal(3, (int)AgentIntent.Dead);
         Assert.Equal(4, (int)AgentIntent.Regrouping);
         Assert.Equal(5, (int)AgentIntent.Holding);
-        Assert.Equal(6, Enum.GetValues<AgentIntent>().Length);
+        Assert.Equal(6, (int)AgentIntent.BackingAway);
+        Assert.Equal(7, Enum.GetValues<AgentIntent>().Length);
     }
 
     [Fact]
