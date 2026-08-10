@@ -685,4 +685,57 @@ public sealed class GrassGeometryTests
             0f,
             PlainsBackdropGeometry.MaximumBackdropInterpolation);
     }
+
+    [Fact]
+    public void TrampleStubbleShadeInterpolation_NeverExceedsTheBackdropCeiling()
+    {
+        Assert.InRange(
+            GrassGeometry.TrampleStubbleShadeInterpolation,
+            0f,
+            PlainsBackdropGeometry.MaximumBackdropInterpolation);
+    }
+
+    /// <summary>
+    /// The whole point of the stubble tone: a trample-suppressed cluster must
+    /// read as closer to bare ground than every untouched grass shade,
+    /// otherwise the trampled patch has no boundary against the grass around
+    /// it. That was the state until 2026-08-11, when a suppressed Large
+    /// cluster drew at the same <c>0.22</c> the mark beneath it uses
+    /// (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// section 4).
+    /// </summary>
+    [Fact]
+    public void TrampleStubbleShadeInterpolation_SitsBelowEveryGrassShade()
+    {
+        foreach (var grassShade in GrassGeometry.GrassShadeInterpolation)
+        {
+            Assert.True(
+                GrassGeometry.TrampleStubbleShadeInterpolation < grassShade,
+                $"Stubble at {GrassGeometry.TrampleStubbleShadeInterpolation} " +
+                $"must sit below the grass shade {grassShade}.");
+        }
+    }
+
+    /// <summary>
+    /// The stubble tone is deliberately a value already on the ground ladder,
+    /// so it introduces no new point into the shade band and no new case for
+    /// the faction-signal contrast guard.
+    /// </summary>
+    [Fact]
+    public void TrampleStubbleShadeInterpolation_IsAlreadyOnTheGroundShadeLadder() =>
+        Assert.Contains(
+            GrassGeometry.TrampleStubbleShadeInterpolation,
+            PlainsBackdropGeometry.GroundShadeInterpolation);
+
+    /// <summary>
+    /// A trample mark thins a whole clump rather than part of one: the
+    /// suppression radius covers the cluster scatter radius tufts are drawn
+    /// within, which is what makes adjacent marks merge into one worn area
+    /// instead of reading as one blot per body.
+    /// </summary>
+    [Fact]
+    public void TrampleSuppressionRadius_CoversAWholeClusterScatterRadius() =>
+        Assert.True(
+            GrassGeometry.TrampleSuppressionRadius >= 48f,
+            "The suppression radius must cover a cluster's own scatter radius.");
 }

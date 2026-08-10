@@ -141,6 +141,53 @@ attack-animation V2 work merged, which is where the Client suite's growth from
 documentation edits made on this day altered test discovery in either suite,
 which was confirmed by listing discovered tests with and without them.
 
+## Canonical gate result — Hukbo, 2026-08-11 (armor, accent, and trample legibility)
+
+**This run supersedes nothing.** All three pairs are byte-identical to the
+combat cadence V6 block below, which remains the live baseline. That is the
+whole point of recording it: the change it covers is presentation-only —
+`PawnRenderer.DrawArmor`, `PawnGeometry`'s accent sizing, and the grass and
+trample shading — so a moved hash would have meant a renderer had reached into
+the simulation.
+
+`./scripts/verify.ps1 -SkipBootstrap`, exit code 0, on `main`:
+
+```
+Formatted 0 of 739 files.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Hukbo.Core.Tests     Total tests: 2492   Passed: 2492
+Hukbo.Client.Tests   Total tests: 3682   Passed: 3682
+[PASS] Release repository tests completed.
+measuredTicks 885    outcome Faction0Victory
+stateHash 5460D13E3F7FD3E5   eventHash 8E18ED1437B2924B   combatPreset 6   movementPreset 4
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+measuredTicks 1764   outcome Faction1Victory
+stateHash C8023D3B5BEB005E   eventHash F709A345E2F7370E   combatPreset 5   movementPreset 8
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+measuredTicks 1888   outcome Faction0Victory
+stateHash 7C145A9E05916E4C   eventHash 77626E104234206C   combatPreset 5   movementPreset 10
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+`deterministic true` on all three.
+
+**Read the Client test count with care.** It is 3,682 against the 3,651 the
+combat cadence V6 block records. Twenty-three of those thirty-one new tests
+belong to this change — the armor flank-bar helper, the scale-relative accent
+cap, and the trample stubble shade. **The other eight come from a separate,
+uncommitted display-DPI change another session had in the same working tree
+when this gate ran**, and they are not part of the commit this block documents.
+The suite stood at 3,659 with that change present and this one absent, which is
+where both figures come from.
+The hashes are unaffected either way: both changes are `Hukbo.Client` only, and
+the headless workloads never load the client.
+
+**A green gate proves nothing about smoke rows 128, 129, and 131.** Those three
+are the reason this change exists and every one of them needs a person at an
+interactive desktop. See `docs/development/smoke-checklist.md`.
+
 ## Canonical gate result — Hukbo, 2026-08-11 (combat cadence V6)
 
 **This is the live Hukbo baseline.** It supersedes the battlefield realism

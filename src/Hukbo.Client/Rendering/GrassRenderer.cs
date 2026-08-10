@@ -30,9 +30,13 @@ internal static class GrassRenderer
     /// <summary>
     /// PROVISIONAL: screen-pixel radius, at apparent scale 1, one trample
     /// mark's flattened ellipse draws with (battlefield-environment-design.md,
-    /// "Trampled and sparse areas").
+    /// "Trampled and sparse areas"). Raised from <c>16f</c> on 2026-08-11 so a
+    /// single mark covers ground rather than a spot and adjacent marks merge
+    /// into one worn area
+    /// (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// section 4).
     /// </summary>
-    private const float TrampleMarkBaseRadius = 16f;
+    private const float TrampleMarkBaseRadius = 28f;
 
     /// <summary>
     /// PROVISIONAL: vertical squash applied to a trample mark's ellipse,
@@ -45,9 +49,13 @@ internal static class GrassRenderer
     /// PROVISIONAL: factor a suppressed cluster's quad height is scaled by,
     /// keeping the bottom edge anchored to the ground so a trampled tuft
     /// reads as shorter rather than floating (battlefield-environment-
-    /// design.md, "Trampled and sparse areas").
+    /// design.md, "Trampled and sparse areas"). Cut from <c>0.55f</c> on
+    /// 2026-08-11, where a suppressed tuft kept over half its height and read
+    /// as slightly shorter rather than as stubble
+    /// (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// section 4).
     /// </summary>
-    private const float TrampleHeightReductionFactor = 0.55f;
+    private const float TrampleHeightReductionFactor = 0.28f;
 
     public static void Draw(
         SpriteBatch spriteBatch,
@@ -110,11 +118,18 @@ internal static class GrassRenderer
                 band,
                 isSuppressed);
 
+            // A suppressed cluster drops to the trample stubble tone instead
+            // of its size class's own, which for a Large cluster was the very
+            // shade the mark beneath it draws at — trampled grass was
+            // indistinguishable from the worn ground it stood on until
+            // 2026-08-11 (design section 4).
             var shade = GetShade(
                 theme,
-                GrassGeometry.GetShadeInterpolation(
-                    cluster.SizeClass,
-                    isHighContrastTheme));
+                isSuppressed
+                    ? GrassGeometry.TrampleStubbleShadeInterpolation
+                    : GrassGeometry.GetShadeInterpolation(
+                        cluster.SizeClass,
+                        isHighContrastTheme));
 
             var swayOffset = GrassSway.GrassSwayOffset(
                 swayClockSeconds,

@@ -218,7 +218,15 @@ internal static class PawnQuadCount
 
     private static int CountSteppedCapsule(Rectangle bounds) => IsEmpty(bounds) ? 0 : 3;
 
-    private static int CountArmor(Rectangle bounds) => IsEmpty(bounds) ? 0 : 1;
+    /// <summary>
+    /// <c>PawnRenderer.DrawArmor</c>: nothing for an unarmored pawn or at
+    /// <see cref="PawnDetailTier.Low"/>, otherwise one fill per flank bar —
+    /// two, since 2026-08-11 replaced the single torso-covering slab with the
+    /// symmetric pair <c>PawnGeometry.GetArmorFlankBars</c> derives
+    /// (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// section 2).
+    /// </summary>
+    private static int CountArmor(Rectangle bounds) => IsEmpty(bounds) ? 0 : 2;
 
     private static int CountSash(Rectangle bounds) => IsEmpty(bounds) ? 0 : 1;
 

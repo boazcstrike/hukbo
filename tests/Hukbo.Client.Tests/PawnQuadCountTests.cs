@@ -161,8 +161,12 @@ public sealed class PawnQuadCountTests
         // movement-gait-animation T4: +4 over the pre-gait pin of 40, same
         // leg/foot arithmetic as the plain High-tier pin above — this High
         // Selected layout also carries four non-empty leg/foot rectangles.
+        // 2026-08-11: +1 more, from 44, because DrawArmor now fills two flank
+        // bars in place of one torso-covering slab
+        // (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+        // section 2).
         Assert.Equal(
-            44,
+            45,
             PawnQuadCount.Count(layout, appearance, PawnVisualState.Selected));
     }
 

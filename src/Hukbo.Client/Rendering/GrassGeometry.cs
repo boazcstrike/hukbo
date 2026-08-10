@@ -394,19 +394,39 @@ internal static class GrassGeometry
     /// grass cluster is suppressed — reduced height, zero sway
     /// (battlefield-environment-design.md, "Trampled and sparse areas",
     /// R-W4.7, R-W5.9). Chosen relative to <see cref="ClusterScatterRadius"/>
-    /// so one mark visibly thins the clump nearest a fallen agent without
-    /// reaching neighboring clusters.
+    /// so one mark thins a whole clump and reaches into its neighbours, and
+    /// adjacent marks merge into a single worn area whose size grows with the
+    /// number of casualties. Raised from <c>40f</c> on 2026-08-11, where it
+    /// thinned part of one clump and the effect read as one blot per body
+    /// rather than as ground worn by fighting
+    /// (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// section 4).
     /// </summary>
-    public const float TrampleSuppressionRadius = 40f;
+    public const float TrampleSuppressionRadius = 80f;
 
     /// <summary>
-    /// The trample mark's own shade interpolation toward
-    /// <c>ArenaBorder</c> — darker than every grass shade in
-    /// <see cref="GrassShadeInterpolation"/>, still at or below
-    /// <see cref="PlainsBackdropGeometry.MaximumBackdropInterpolation"/>
-    /// (R-W4.2). Pinned by test.
+    /// The trample mark's own shade interpolation toward <c>ArenaBorder</c>,
+    /// at the <see cref="PlainsBackdropGeometry.MaximumBackdropInterpolation"/>
+    /// ceiling (R-W4.2) and therefore as far from the
+    /// <c>0.00</c>/<c>0.06</c>/<c>0.12</c> ground ladder as the shade band
+    /// allows. Pinned by test.
     /// </summary>
     internal const float TrampleMarkShadeInterpolation = 0.22f;
+
+    /// <summary>
+    /// The shade interpolation a trample-suppressed cluster draws at, in place
+    /// of its size class's entry in <see cref="GrassShadeInterpolation"/>.
+    /// Below every value in that array, so trampled stubble reads as closer to
+    /// bare ground than the untouched grass around it — the contrast smoke row
+    /// 131 asks for, which did not exist while a suppressed tuft kept a shade
+    /// as bright as <see cref="TrampleMarkShadeInterpolation"/> itself
+    /// (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// section 4). Deliberately a value already on
+    /// <see cref="PlainsBackdropGeometry.GroundShadeInterpolation"/>'s ladder,
+    /// so this adds no new point to the shade band and no new case to the
+    /// faction-signal contrast guard. Pinned by test.
+    /// </summary>
+    internal const float TrampleStubbleShadeInterpolation = 0.12f;
 
     /// <summary>
     /// True when <paramref name="clusterWorldPosition"/> lies within

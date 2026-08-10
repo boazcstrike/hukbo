@@ -2043,15 +2043,114 @@ internal static class PawnGeometry
     /// additionally empty whenever <paramref name="accentMarkCount"/> is
     /// exactly one. Each side is at most
     /// <see cref="AppearanceComponentCatalog.MaxAccentPixelSizeAtApparentScale1"/>
-    /// pixels regardless of apparent scale — the design's "at most 2 pixels
-    /// each at apparent scale 1" area cap (R-W3.6) read as a hard ceiling
-    /// rather than a value that grows past it at higher zoom. The primary
+    /// pixels <em>at apparent scale 1</em>, and scales with
+    /// <paramref name="apparentScale"/> above it — the design's "at most 2
+    /// pixels each at apparent scale 1" area cap (R-W3.6) read as the
+    /// scale-relative footprint bound its own wording states, rather than as
+    /// an absolute pixel ceiling. Under the absolute reading an accent stayed
+    /// two pixels at every zoom including the
+    /// <see cref="MaximumApparentScale"/> clamp, which is what made VIS-023's
+    /// maximum-zoom smoke row unreadable
+    /// (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// section 3). The primary
     /// mark (I4, gold earrings) is inscribed inside
     /// <paramref name="headBounds"/>; the secondary (I5 gold necklace / C3
     /// gold-edged putong) sits at the top of <paramref name="torsoBounds"/>
     /// — both zero-overhang placements, comfortably inside the design's "at
     /// most one pixel of accent overhang" allowance.
     /// </summary>
+    /// <summary>
+    /// The side length, in whole pixels, of one adornment accent mark at
+    /// <paramref name="apparentScale"/>: exactly
+    /// <see cref="AppearanceComponentCatalog.MaxAccentPixelSizeAtApparentScale1"/>
+    /// at apparent scale 1, scaling proportionally above and below it, and
+    /// never below one pixel. Public so the accent's scale-relative ceiling
+    /// can be pinned directly instead of being inferred from a composed
+    /// layout. Pure and allocation free.
+    /// </summary>
+    public static int GetAdornmentAccentSize(float apparentScale)
+    {
+        if (!float.IsFinite(apparentScale) || apparentScale <= 0f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(apparentScale));
+        }
+
+        return Math.Max(
+            1,
+            (int)MathF.Round(
+                AppearanceComponentCatalog.MaxAccentPixelSizeAtApparentScale1 *
+                apparentScale));
+    }
+
+    /// <summary>
+    /// The two flank bars <c>PawnRenderer.DrawArmor</c> fills for a worn armor
+    /// option, in place of the single torso-covering slab it drew until
+    /// 2026-08-11 (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// section 2). Each bar spans <paramref name="armorBounds"/>'s full
+    /// vertical extent and covers the widening margin outside
+    /// <paramref name="torsoBounds"/> plus a shell of the torso's own flank,
+    /// so the armored body reads as thickened on both sides while the torso's
+    /// dye, outline, and belt stay visible down the middle. Symmetric by
+    /// construction — a single-sided block is what a held shield draws, and
+    /// row 128's failure clause is precisely that armor must not read as one.
+    ///
+    /// Bar width is <c>max(round(apparentScale), widening)</c>, where
+    /// <c>widening</c> is the whole-pixel difference between the armored and
+    /// unarmored capsule widths: the first term keeps the bars from rounding
+    /// away at the apparent-scale floor, where
+    /// <see cref="AppearanceComponentCatalog.MaxArmorWidthFactor"/> buys under
+    /// a pixel of total widening; the second guarantees each bar spans its
+    /// whole margin outside the torso and still laps a pixel or more onto the
+    /// torso's own flank, which is what makes the thickening read as part of
+    /// the body rather than as a detached outline. Both bars stay inside
+    /// <paramref name="armorBounds"/>, so this thickens the draw without
+    /// widening the layout and <see cref="ConservativePawnCull"/>'s visual
+    /// bounds are untouched.
+    ///
+    /// Returns a pair of <see cref="Rectangle.Empty"/> when
+    /// <paramref name="armorBounds"/> is empty — the unarmored and
+    /// <see cref="PawnDetailTier.Low"/> cases <see cref="CreateArmor"/>
+    /// already decides. Pure and allocation free.
+    /// </summary>
+    public static (Rectangle Left, Rectangle Right) GetArmorFlankBars(
+        Rectangle armorBounds,
+        Rectangle torsoBounds,
+        float apparentScale)
+    {
+        if (!float.IsFinite(apparentScale) || apparentScale <= 0f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(apparentScale));
+        }
+
+        if (armorBounds.IsEmpty)
+        {
+            return (Rectangle.Empty, Rectangle.Empty);
+        }
+
+        var widening = Math.Max(0, armorBounds.Width - torsoBounds.Width);
+        var barWidth = Math.Max(
+            Math.Max(1, (int)MathF.Round(apparentScale)),
+            widening);
+
+        // Two bars must never meet in the middle, or the pair degenerates back
+        // into the solid slab this replaces and the torso's dye is covered
+        // again. On a capsule too narrow to hold both, each takes at most half.
+        barWidth = Math.Min(barWidth, Math.Max(1, armorBounds.Width / 2));
+
+        var left = new Rectangle(
+            armorBounds.Left,
+            armorBounds.Top,
+            barWidth,
+            armorBounds.Height);
+        var right = new Rectangle(
+            armorBounds.Right - barWidth,
+            armorBounds.Top,
+            barWidth,
+            armorBounds.Height);
+
+        return (left, right);
+    }
+
     private static (Rectangle Primary, Rectangle Secondary) CreateAdornmentAccents(
         Rectangle headBounds,
         Rectangle torsoBounds,
@@ -2064,13 +2163,7 @@ internal static class PawnGeometry
             return (Rectangle.Empty, Rectangle.Empty);
         }
 
-        var size = Math.Max(
-            1,
-            Math.Min(
-                AppearanceComponentCatalog.MaxAccentPixelSizeAtApparentScale1,
-                (int)MathF.Round(
-                    AppearanceComponentCatalog.MaxAccentPixelSizeAtApparentScale1 *
-                    apparentScale)));
+        var size = GetAdornmentAccentSize(apparentScale);
 
         var primary = new Rectangle(
             headBounds.Right - size,

@@ -1591,8 +1591,128 @@ public sealed class PawnGeometryTests
         Assert.Equal(new Rectangle(92, 44, 17, 17), layout.HeadBounds);
         Assert.Equal(new Rectangle(90, 62, 20, 19), layout.ArmorBounds);
         Assert.Equal(new Rectangle(93, 72, 15, 2), layout.SashBounds);
-        Assert.Equal(new Rectangle(107, 51, 2, 2), layout.AdornmentAccentPrimaryBounds);
-        Assert.Equal(new Rectangle(99, 63, 2, 2), layout.AdornmentAccentSecondaryBounds);
+        // The two accent rectangles moved from 2x2 to 5x5 on 2026-08-11, when
+        // the area cap was read as the scale-relative bound R-W3.6's own
+        // wording states ("at most 2 pixels each at apparent scale 1") rather
+        // than as an absolute ceiling that never grew. This layout's apparent
+        // scale is the 2.40 clamp maximum, so 2 x 2.40 rounds to 5. See
+        // docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+        // section 3.
+        Assert.Equal(new Rectangle(104, 50, 5, 5), layout.AdornmentAccentPrimaryBounds);
+        Assert.Equal(new Rectangle(98, 63, 5, 5), layout.AdornmentAccentSecondaryBounds);
+    }
+
+    /// <summary>
+    /// <see cref="PawnGeometry.GetArmorFlankBars"/> returns two bars of equal
+    /// width, one flush against each edge of the armored capsule, spanning its
+    /// full vertical extent and never meeting in the middle — the symmetry
+    /// that keeps armor reading as bulk on both flanks rather than as the
+    /// single offset block a held shield draws (smoke row 128).
+    /// </summary>
+    [Fact]
+    public void GetArmorFlankBars_ReturnsSymmetricBarsInsideTheArmoredCapsule()
+    {
+        var torsoBounds = new Rectangle(92, 63, 17, 19);
+        var armorBounds = new Rectangle(90, 62, 20, 19);
+
+        var (left, right) = PawnGeometry.GetArmorFlankBars(
+            armorBounds,
+            torsoBounds,
+            apparentScale: 2.4f);
+
+        Assert.Equal(left.Width, right.Width);
+        Assert.Equal(armorBounds.Left, left.Left);
+        Assert.Equal(armorBounds.Right, right.Right);
+        Assert.Equal(armorBounds.Top, left.Top);
+        Assert.Equal(armorBounds.Top, right.Top);
+        Assert.Equal(armorBounds.Height, left.Height);
+        Assert.Equal(armorBounds.Height, right.Height);
+        Assert.True(armorBounds.Contains(left));
+        Assert.True(armorBounds.Contains(right));
+        Assert.True(left.Right <= right.Left, "The two bars must not meet.");
+    }
+
+    /// <summary>
+    /// Each bar is at least as wide as the whole widening margin, so it covers
+    /// the ground the armored capsule gained over the bare torso and laps onto
+    /// the torso's own flank rather than floating outside it as an outline.
+    /// </summary>
+    [Fact]
+    public void GetArmorFlankBars_EachBarSpansTheWholeWideningMargin()
+    {
+        var torsoBounds = new Rectangle(92, 63, 17, 19);
+        var armorBounds = new Rectangle(90, 62, 20, 19);
+        var widening = armorBounds.Width - torsoBounds.Width;
+
+        var (left, right) = PawnGeometry.GetArmorFlankBars(
+            armorBounds,
+            torsoBounds,
+            apparentScale: 2.4f);
+
+        Assert.True(left.Width >= widening);
+        Assert.True(right.Width >= widening);
+        Assert.True(left.Right > torsoBounds.Left);
+        Assert.True(right.Left < torsoBounds.Right);
+    }
+
+    /// <summary>
+    /// At the apparent-scale floor the widening
+    /// <see cref="AppearanceComponentCatalog.MaxArmorWidthFactor"/> buys is
+    /// under a pixel, which is exactly the case that made the old single-slab
+    /// draw invisible. Both bars still come back at least one pixel wide.
+    /// </summary>
+    [Theory]
+    [InlineData(0.95f)]
+    [InlineData(1f)]
+    [InlineData(2.4f)]
+    public void GetArmorFlankBars_NeverRoundsAwayAtAnyApparentScale(float apparentScale)
+    {
+        var torsoWidth = Math.Max(1, (int)MathF.Round(7f * apparentScale));
+        var armorWidth = Math.Max(
+            torsoWidth,
+            (int)MathF.Round(torsoWidth * AppearanceComponentCatalog.MaxArmorWidthFactor));
+        var torsoBounds = new Rectangle(0, 0, torsoWidth, 20);
+        var armorBounds = new Rectangle(0, 0, armorWidth, 20);
+
+        var (left, right) = PawnGeometry.GetArmorFlankBars(
+            armorBounds,
+            torsoBounds,
+            apparentScale);
+
+        Assert.True(left.Width >= 1);
+        Assert.True(right.Width >= 1);
+    }
+
+    /// <summary>
+    /// An unarmored pawn, and a <see cref="PawnDetailTier.Low"/> one, both
+    /// reach here with an empty <c>ArmorBounds</c>
+    /// (<c>PawnGeometry.CreateArmor</c> decides both) and must draw nothing.
+    /// </summary>
+    [Fact]
+    public void GetArmorFlankBars_ReturnsEmptyPairForAnEmptyArmorRectangle()
+    {
+        var (left, right) = PawnGeometry.GetArmorFlankBars(
+            Rectangle.Empty,
+            new Rectangle(92, 63, 17, 19),
+            apparentScale: 2.4f);
+
+        Assert.True(left.IsEmpty);
+        Assert.True(right.IsEmpty);
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-1f)]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    public void GetArmorFlankBars_ThrowsOnANonPositiveOrNonFiniteApparentScale(
+        float apparentScale)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            PawnGeometry.GetArmorFlankBars(
+                new Rectangle(90, 62, 20, 19),
+                new Rectangle(92, 63, 17, 19),
+                apparentScale));
     }
 
     [Theory]
@@ -1866,38 +1986,96 @@ public sealed class PawnGeometryTests
     }
 
     /// <summary>
-    /// R-W3.6, "Area cap": each accent mark is at most
+    /// R-W3.6, "Area cap", read as the scale-relative bound its own wording
+    /// states — "at most
     /// <see cref="AppearanceComponentCatalog.MaxAccentPixelSizeAtApparentScale1"/>
-    /// pixels on a side — a hard ceiling this layer never draws past,
-    /// regardless of how far apparent scale climbs above 1.
+    /// pixels each <em>at apparent scale 1</em>". An accent's footprint is
+    /// therefore capped relative to the pawn, not to the screen: it is exactly
+    /// the constant at apparent scale 1 and never exceeds the constant times
+    /// apparent scale anywhere else. This replaced an absolute-ceiling reading
+    /// on 2026-08-11, under which an accent stayed two pixels at every zoom
+    /// and smoke row 129 could not be closed at any station. See
+    /// docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// section 3.
+    /// </summary>
+    [Theory]
+    [InlineData(0.72f)]
+    [InlineData(1f)]
+    [InlineData(1.8f)]
+    [InlineData(2.4f)]
+    public void GetAdornmentAccentSize_NeverExceedsTheScaleRelativeCap(float apparentScale)
+    {
+        var size = PawnGeometry.GetAdornmentAccentSize(apparentScale);
+
+        Assert.True(size >= 1);
+        Assert.True(
+            size <=
+            AppearanceComponentCatalog.MaxAccentPixelSizeAtApparentScale1 * apparentScale + 1f,
+            $"An accent of {size}px exceeds the scale-relative cap at apparent scale {apparentScale}.");
+    }
+
+    /// <summary>
+    /// The cap's own anchor: at apparent scale 1 exactly, an accent mark is
+    /// exactly <see cref="AppearanceComponentCatalog.MaxAccentPixelSizeAtApparentScale1"/>
+    /// pixels on a side — the literal reading of R-W3.6's sentence, unchanged
+    /// by the 2026-08-11 correction.
     /// </summary>
     [Fact]
-    public void Create_AdornmentAccentRectanglesNeverExceedTheNamedPixelSizeCap()
+    public void GetAdornmentAccentSize_EqualsTheNamedConstantAtApparentScaleOne()
+    {
+        Assert.Equal(
+            AppearanceComponentCatalog.MaxAccentPixelSizeAtApparentScale1,
+            PawnGeometry.GetAdornmentAccentSize(1f));
+    }
+
+    /// <summary>
+    /// The accent grows with zoom rather than staying pinned at the constant,
+    /// which is the behaviour smoke row 129 failed on. Composed through
+    /// <c>Create</c> rather than the helper, so this fails if the layout stops
+    /// routing through it.
+    /// </summary>
+    [Fact]
+    public void Create_AdornmentAccentRectanglesGrowWithApparentScale()
     {
         var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan, ShieldId.None);
 
-        var layout = PawnGeometry.Create(
+        var near = PawnGeometry.Create(
             new Vector2(100, 100),
             cameraZoom: 3f,
             appearance,
             scaleMultiplier: 1f,
             swingPose: null,
             adornmentAccentMarkCount: AppearanceComponentCatalog.MaxAccentMarksPerPawn);
+        // Apparent scale is zoom x 1.35 clamped to [0.72, 2.40], so a zoom of
+        // 3 already sits on the clamp ceiling. 1.4 gives 1.89 — still above
+        // the High-tier threshold accents require, and genuinely smaller.
+        var closer = PawnGeometry.Create(
+            new Vector2(100, 100),
+            cameraZoom: 1.4f,
+            appearance,
+            scaleMultiplier: 1f,
+            swingPose: null,
+            adornmentAccentMarkCount: AppearanceComponentCatalog.MaxAccentMarksPerPawn);
 
-        Assert.Equal(PawnDetailTier.High, layout.DetailTier);
+        Assert.Equal(PawnDetailTier.High, near.DetailTier);
+        Assert.Equal(PawnDetailTier.High, closer.DetailTier);
         Assert.True(
-            layout.AdornmentAccentPrimaryBounds.Width <=
+            near.AdornmentAccentPrimaryBounds.Width >
             AppearanceComponentCatalog.MaxAccentPixelSizeAtApparentScale1);
         Assert.True(
-            layout.AdornmentAccentPrimaryBounds.Height <=
-            AppearanceComponentCatalog.MaxAccentPixelSizeAtApparentScale1);
-        Assert.True(
-            layout.AdornmentAccentSecondaryBounds.Width <=
-            AppearanceComponentCatalog.MaxAccentPixelSizeAtApparentScale1);
-        Assert.True(
-            layout.AdornmentAccentSecondaryBounds.Height <=
-            AppearanceComponentCatalog.MaxAccentPixelSizeAtApparentScale1);
+            near.AdornmentAccentPrimaryBounds.Width >
+            closer.AdornmentAccentPrimaryBounds.Width);
     }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-1f)]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    public void GetAdornmentAccentSize_ThrowsOnANonPositiveOrNonFiniteApparentScale(
+        float apparentScale) =>
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            PawnGeometry.GetAdornmentAccentSize(apparentScale));
 
     /// <summary>
     /// R-W3.6, "Area cap": <paramref name="accentMarkCount"/> controls how

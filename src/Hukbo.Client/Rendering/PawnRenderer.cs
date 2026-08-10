@@ -627,9 +627,19 @@ internal static class PawnRenderer
     /// for an unarmored pawn and at <see cref="PawnDetailTier.Low"/>
     /// (<c>PawnGeometry.CreateArmor</c> decides both), so this is a no-op in
     /// exactly those cases — the documented rollback ("no-op the three layer
-    /// slots"). Otherwise a single fill in <paramref name="armorMaterialTone"/>,
-    /// already routed through the caller's single hit-pulse blend point
-    /// (<see cref="Draw"/>) before it reaches here.
+    /// slots").
+    ///
+    /// Otherwise two fills in <paramref name="armorMaterialTone"/>, one per
+    /// flank, at the rectangles
+    /// <see cref="PawnGeometry.GetArmorFlankBars"/> derives. Until 2026-08-11
+    /// this was a single fill covering the whole widened capsule, which
+    /// replaced the torso's dye, outline, and belt with a flat block — a
+    /// recolour rather than bulk, and the same single-sided-block silhouette a
+    /// held shield draws, which is what smoke row 128 failed on. Both fills go
+    /// through the caller's single hit-pulse blend point (<see cref="Draw"/>)
+    /// before reaching here. See
+    /// docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// section 2.
     /// </remarks>
     private static void DrawArmor(
         SpriteBatch spriteBatch,
@@ -642,7 +652,13 @@ internal static class PawnRenderer
             return;
         }
 
-        spriteBatch.Draw(pixel, layout.ArmorBounds, armorMaterialTone);
+        var (left, right) = PawnGeometry.GetArmorFlankBars(
+            layout.ArmorBounds,
+            layout.TorsoBounds,
+            layout.ApparentScale);
+
+        spriteBatch.Draw(pixel, left, armorMaterialTone);
+        spriteBatch.Draw(pixel, right, armorMaterialTone);
     }
 
     /// <summary>
