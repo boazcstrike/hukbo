@@ -4136,10 +4136,10 @@ of the whole route and never does anything.
 
 - **No text anywhere.** The client has no font: every HUD panel is an empty
   outline, and the operator inspector, contact list, mission clock, roster
-  strip, order queue, and go-code panel are all blank rectangles. **Row SD-8
-  cannot be attempted at all** — the inspector it asks you to read does not
-  render a single character. There is no on-screen tick counter, no score, and
-  no victory banner.
+  strip, order queue, and go-code panel are all blank rectangles. **Row SD-8 is
+  `BLOCKED` on this** — the inspector it asks you to read does not render a
+  single character. There is no on-screen tick counter, no score, and no
+  victory banner.
 - **The mission never ends.** Nothing in the client checks an outcome; the run
   simply stops at the 36,000-tick limit, about twelve minutes at normal speed.
 - **A blocked operator stalls permanently.** If a mover's route runs into a
@@ -4151,12 +4151,14 @@ of the whole route and never does anything.
   operators it is unlikely but possible.
 - **Only one theme is reachable.** `daylight-ops` ships in the theme catalog
   and nothing in the client can switch to it, and there is no unknown-contact
-  state to look at either. **Row SD-7 cannot be completed**, though the
-  friendly-versus-hostile half of it can be judged in `night-ops`.
+  state to look at either. **Row SD-7b is `BLOCKED` on this. Row SD-7a is not**
+  — the friendly-versus-hostile judgement, including the shape-alone half, is
+  reachable in `night-ops` and is yours to close.
 - **No sound at all**, for the reason recorded under the table below. **Row
-  SD-5 cannot be attempted.**
+  SD-5 is `BLOCKED` on this.**
 - **Every operator carries the same placeholder weapon appearance**, so row
-  SD-4's rifle-versus-pistol comparison has nothing visible to compare.
+  SD-4's rifle-versus-pistol comparison has nothing visible to compare. **Row
+  SD-4 is `BLOCKED` on this.**
 - **Accuracy is effectively range-only**, so a defender inside sensing range
   is hit reliably. This is a deferred design question, not a defect to report.
 - The mission clock in the log stops updating after the last casualty: the
@@ -4169,27 +4171,43 @@ of the whole route and never does anything.
 | SD-1 | Launch, then zoom from the closest tier out to the furthest | The window opens, the map draws, and the operators stay legible at every zoom level | | PENDING |
 | SD-2 | Watch a squad path across the 26.57-degree diagonal wall | The funnel path visibly follows the wall as a straight line rather than a staircase | | PENDING |
 | SD-3 | Send a squad through the entry door and on into the room behind it | The squad visibly collapses to single file at the door and re-expands inside | | PENDING |
-| SD-4 | Watch a rifle operator cross a doorway, then a pistol operator cross the same one | The rifle operator lowers the weapon and re-raises it; the pistol operator does not | | PENDING |
-| SD-5 | Hold sustained automatic fire from the maximum operator count | Automatic fire sounds continuous rather than machine-gun-stuttered, and no audio drops out | | PENDING |
+| SD-4 | Watch a rifle operator cross a doorway, then a pistol operator cross the same one | The rifle operator lowers the weapon and re-raises it; the pistol operator does not | Cannot be run by anyone: every operator draws the same placeholder weapon appearance, so the two halves of the comparison are visually identical. Becomes executable when per-weapon operator appearances ship. | BLOCKED |
+| SD-5 | Hold sustained automatic fire from the maximum operator count | Automatic fire sounds continuous rather than machine-gun-stuttered, and no audio drops out | Cannot be run by anyone: Sandata ships no sound files at all. Becomes executable when the audio generation run is authorized and its slots exist. See the note below the table. | BLOCKED |
 | SD-6 | Look at a fire cone at every detail tier, zoomed in and out | The cone reads at every tier and does not fade with zoom | | PENDING |
-| SD-7 | View friendly, hostile, and unknown contacts in every shipped theme, then again with colour removed | The three are distinguishable at a glance in every theme, and remain distinguishable by shape alone | | PENDING |
-| SD-8 | Click an operator that is holding position | The inspector explains the hold: reason code, path state, and weapon chain phase | | PENDING |
+| SD-7a | View a friendly and a hostile contact side by side in `night-ops`, then judge them again ignoring colour | The two are distinguishable at a glance, and remain distinguishable by shape alone | | PENDING |
+| SD-7b | View friendly, hostile, and unknown contacts in every shipped theme | All three are distinguishable in `daylight-ops` as well as `night-ops` | Cannot be run by anyone: `LoadTheme` always takes `catalog.DefaultThemeId`, so `daylight-ops` is unreachable from the client, and no unknown-contact state exists to render. Becomes executable when a theme switcher and an unknown-contact state ship. | BLOCKED |
+| SD-8 | Click an operator that is holding position | The inspector explains the hold: reason code, path state, and weapon chain phase | Cannot be run by anyone: `Sandata.Client` has no `SpriteFont` and makes no `DrawString` call, so the inspector renders no characters at all. Becomes executable when text rendering ships. | BLOCKED |
 
-**SD-5 cannot be attempted yet, and its status stays `PENDING` rather than
-becoming `BLOCKED`, because the blocker is upstream of the smoke run.** Sandata
-ships no sound files: its catalog is 106 slots expanding to 524 variant files,
-roughly 104,800 ElevenLabs credits, and that spend is not authorized. The row is
-listed in full so that it is not quietly forgotten once the audio question is
-answered.
+**SD-5's blocker in full.** Sandata ships no sound files: its catalog is 106
+slots expanding to 524 variant files, roughly 104,800 ElevenLabs credits, and
+that spend is not authorized. The row is listed in full so that it is not
+quietly forgotten once the audio question is answered.
 
-**Which rows a tester can actually reach today.** SD-1, SD-2, SD-3, and SD-6
-are all attemptable now that the client runs the simulation and the assaulting
-squad walks a real route. SD-7 is half attemptable — friendly against hostile
-in `night-ops`, and nothing else. SD-4, SD-5, and SD-8 cannot be attempted at
-all, for the three reasons listed above: one placeholder weapon appearance, no
-sound files, and no text rendering. Each stays `PENDING` rather than becoming
-`BLOCKED`, because in every case the blocker is upstream of the smoke run
-rather than something the run discovered.
+**Which rows a tester can actually reach today: SD-1, SD-2, SD-3, SD-6, and
+SD-7a — five of the nine.** All five are attemptable now that the client runs
+the simulation and the assaulting squad walks a real route. The other four are
+`BLOCKED`.
+
+**Why those four are `BLOCKED` and not `PENDING`, corrected 2026-08-11.** They
+were recorded `PENDING` when the table was written, on the reasoning that the
+blocker was upstream of the smoke run rather than something the run
+discovered. That reasoning does not survive this document's own rule, stated
+for the V7 pressure-interrupt rows in "Why `BLOCKED` and not `PENDING`" later
+in this file: *`PENDING` asserts that a check has not been run yet*, and that
+assertion is false for a check no person can run at all. Recording SD-4, SD-5,
+SD-7b, and SD-8 as `PENDING` misrepresented four impossible checks as four
+untried ones, which is precisely the failure that rule exists to prevent.
+Each row now names its own blocker and the condition that makes it executable,
+in its `Actual` column, so a tester reading only the table learns it there
+rather than from prose above it.
+
+**SD-7 was one row and is now two, split 2026-08-11.** Its friendly-versus-
+hostile half is reachable in `night-ops` today and its all-themes half is not,
+so as a single row it could never be closed and could never be honestly
+blocked either. `SD-7a` is the half a tester can finish; `SD-7b` is the half
+that waits on a theme switcher and an unknown-contact state. The colour-removed
+judgement stays with `SD-7a`, because shape-alone distinguishability is
+testable in the one reachable theme.
 
 ### Weapon identity and attributes smoke (preset V2)
 
