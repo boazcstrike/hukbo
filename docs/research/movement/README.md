@@ -171,6 +171,17 @@ Examples include:
 - equipment-specific ally/enemy thresholds; and
 - an archipelago-wide weapon doctrine.
 
+---
+
+**V10 gameplay divergence (2026-08-11).** `MovementPresetId.BattlefieldRealismV10`
+(`docs/plans/2026-08-11-battlefield-realism-design.md`) places shield bearers at
+the forward-most slots of their own contingent, one of the items this list
+names as unsupported. The finding is unchanged: nothing above becomes source
+support for that placement. As a research claim, forward placement is none of
+Documented, Documented (form uncertain), or Provisional reconstruction — it is
+a gameplay model, adopted for legibility, and the list above does not support
+it as history.
+
 ## Source hierarchy
 
 Research should descend this hierarchy and record when a higher tier is silent.

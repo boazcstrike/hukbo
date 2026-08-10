@@ -287,6 +287,119 @@ public sealed class BattleReportAccumulatorTests
         Assert.Equal(0, factionZero.HoldingCount);
     }
 
+    // ===== Task 12: live per-faction BackingAway count =====
+
+    [Fact]
+    public void Ingest_WithAgents_CountsLivingBackingAwayWarriorsPerFaction()
+    {
+        var accumulator = new BattleReportAccumulator();
+        var agents = new[]
+        {
+            Agent(entityId: 1, factionId: 0, intent: AgentIntent.BackingAway),
+            Agent(entityId: 2, factionId: 0, intent: AgentIntent.BackingAway),
+            Agent(entityId: 3, factionId: 0, intent: AgentIntent.Moving),
+            Agent(entityId: 4, factionId: 1, intent: AgentIntent.BackingAway),
+            // Dead, so it must not count despite carrying BackingAway.
+            Agent(entityId: 5, factionId: 1, intent: AgentIntent.BackingAway, isAlive: false),
+        };
+
+        // Both factions must already be "observed" (a unit row exists) for
+        // BuildFactionTotals to emit a row at all, exactly as the Holding
+        // count test above relies on.
+        var events = new[]
+        {
+            Death(seq: 1, tick: 1, source: 900, factionId: 0),
+            Death(seq: 2, tick: 1, source: 901, factionId: 1),
+        };
+
+        accumulator.Ingest(events, default, agents);
+        var report = accumulator.Snapshot(terminalTick: 1);
+
+        var factionZero = report.Factions.Single(faction => faction.FactionId == 0);
+        var factionOne = report.Factions.Single(faction => faction.FactionId == 1);
+        Assert.Equal(2, factionZero.BackingAwayCount);
+        Assert.Equal(1, factionOne.BackingAwayCount);
+    }
+
+    /// <summary>
+    /// BackingAway is a momentary per-tick state, not an event to sum: the
+    /// second and third Ingest calls' rosters must each replace the prior
+    /// call's count rather than add to it. Three calls with three different
+    /// values, so a summing bug could not hide behind a two-call test.
+    /// </summary>
+    [Fact]
+    public void Ingest_WithAgents_ReplacesTheBackingAwayCountRatherThanAccumulatingIt()
+    {
+        var accumulator = new BattleReportAccumulator();
+        var seedFactionZero = new[] { Death(seq: 1, tick: 1, source: 900, factionId: 0) };
+
+        accumulator.Ingest(
+            seedFactionZero,
+            default,
+            new[]
+            {
+                Agent(entityId: 1, factionId: 0, intent: AgentIntent.BackingAway),
+                Agent(entityId: 2, factionId: 0, intent: AgentIntent.BackingAway),
+            });
+        var firstReport = accumulator.Snapshot(terminalTick: 1);
+        var firstFactionZero = firstReport.Factions.Single(faction => faction.FactionId == 0);
+        Assert.Equal(2, firstFactionZero.BackingAwayCount);
+
+        accumulator.Ingest(
+            Array.Empty<BattleEvent>(),
+            default,
+            new[] { Agent(entityId: 1, factionId: 0, intent: AgentIntent.BackingAway) });
+        var secondReport = accumulator.Snapshot(terminalTick: 2);
+        var secondFactionZero = secondReport.Factions.Single(faction => faction.FactionId == 0);
+        Assert.Equal(1, secondFactionZero.BackingAwayCount);
+
+        accumulator.Ingest(
+            Array.Empty<BattleEvent>(),
+            default,
+            new[] { Agent(entityId: 1, factionId: 0, intent: AgentIntent.Moving) });
+        var thirdReport = accumulator.Snapshot(terminalTick: 3);
+        var thirdFactionZero = thirdReport.Factions.Single(faction => faction.FactionId == 0);
+        Assert.Equal(0, thirdFactionZero.BackingAwayCount);
+    }
+
+    /// <summary>
+    /// A caller that never passes the roster must still compile and must
+    /// report 0 rather than throwing, matching the HoldingCount default.
+    /// </summary>
+    [Fact]
+    public void Ingest_WithoutAgents_LeavesBackingAwayCountAtZero()
+    {
+        var accumulator = new BattleReportAccumulator();
+
+        accumulator.Ingest(
+            new[] { Attack(seq: 1, tick: 1, source: 1, target: 100, damage: 5, factionId: 0) },
+            default);
+
+        var report = accumulator.Snapshot(terminalTick: 1);
+
+        var factionZero = report.Factions.Single(faction => faction.FactionId == 0);
+        Assert.Equal(0, factionZero.BackingAwayCount);
+    }
+
+    [Fact]
+    public void Clear_ResetsTheBackingAwayCount()
+    {
+        var accumulator = new BattleReportAccumulator();
+        accumulator.Ingest(
+            Array.Empty<BattleEvent>(),
+            default,
+            new[] { Agent(entityId: 1, factionId: 0, intent: AgentIntent.BackingAway) });
+
+        accumulator.Clear();
+        accumulator.Ingest(
+            new[] { Attack(seq: 1, tick: 1, source: 2, target: 100, damage: 5, factionId: 0) },
+            default);
+        var report = accumulator.Snapshot(terminalTick: 1);
+
+        var factionZero = report.Factions.Single(faction => faction.FactionId == 0);
+        Assert.Equal(0, factionZero.BackingAwayCount);
+    }
+
     private static AgentView Agent(
         ulong entityId,
         int factionId,

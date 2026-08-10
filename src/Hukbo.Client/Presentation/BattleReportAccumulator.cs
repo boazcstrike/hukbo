@@ -66,6 +66,13 @@ internal sealed class BattleReportAccumulator
     // faction 0, index 1 is faction 1, matching _factionCombat above.
     private readonly int[] _holdingCounts = new int[2];
 
+    // Live per-faction count of AgentIntent.BackingAway warriors, recomputed
+    // on exactly the same terms as _holdingCounts above: replaced (not
+    // summed) on every Ingest call that is handed the agent roster, and
+    // never retained past that call. Index 0 is faction 0, index 1 is
+    // faction 1, matching _holdingCounts above.
+    private readonly int[] _backingAwayCounts = new int[2];
+
     /// <summary>
     /// Folds one tick's events into the running counters. Never retains
     /// <paramref name="events"/> beyond this call: the simulation
@@ -98,6 +105,7 @@ internal sealed class BattleReportAccumulator
         if (agents is not null)
         {
             UpdateHoldingCounts(agents);
+            UpdateBackingAwayCounts(agents);
         }
 
         foreach (var battleEvent in events)
@@ -141,6 +149,30 @@ internal sealed class BattleReportAccumulator
     }
 
     /// <summary>
+    /// Replaces the running <see cref="_backingAwayCounts"/> with a fresh
+    /// count over <paramref name="agents"/>, on exactly the same terms as
+    /// <see cref="UpdateHoldingCounts"/> above: <see cref="AgentIntent.BackingAway"/>
+    /// is a momentary per-tick state, not an event to sum, so each call
+    /// overwrites rather than adds, and a dead agent never counts.
+    /// </summary>
+    private void UpdateBackingAwayCounts(IReadOnlyList<AgentView> agents)
+    {
+        Array.Clear(_backingAwayCounts);
+        foreach (var agent in agents)
+        {
+            if (!agent.IsAlive || agent.Intent != AgentIntent.BackingAway)
+            {
+                continue;
+            }
+
+            if (agent.FactionId >= 0 && agent.FactionId < _backingAwayCounts.Length)
+            {
+                _backingAwayCounts[agent.FactionId]++;
+            }
+        }
+    }
+
+    /// <summary>
     /// Clears every accumulated counter and highlight. Called on every round
     /// reset, alongside the presentation coordinator's other clears.
     /// </summary>
@@ -151,6 +183,7 @@ internal sealed class BattleReportAccumulator
         _decisiveKill = null;
         Array.Clear(_factionCombat);
         Array.Clear(_holdingCounts);
+        Array.Clear(_backingAwayCounts);
     }
 
     /// <summary>
@@ -390,6 +423,12 @@ internal sealed class BattleReportAccumulator
                 ? _holdingCounts[factionId]
                 : 0;
 
+            // The live per-faction BackingAway count, same bounds guard as
+            // holdingCount above.
+            var backingAwayCount = factionId >= 0 && factionId < _backingAwayCounts.Length
+                ? _backingAwayCounts[factionId]
+                : 0;
+
             factions.Add(new FactionReportTotals(
                 factionId,
                 totalKills,
@@ -401,7 +440,8 @@ internal sealed class BattleReportAccumulator
                 topKillerEntityId,
                 Math.Max(0, topKillerKills),
                 combat,
-                holdingCount));
+                holdingCount,
+                backingAwayCount));
         }
 
         return factions;

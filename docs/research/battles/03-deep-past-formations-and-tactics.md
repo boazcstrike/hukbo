@@ -78,6 +78,18 @@ These unsupported items must not be introduced with phrases such as "the
 ancient Filipinos formed..." A game may invent readable group states, but the
 synthesis must label those as simulation abstractions.
 
+---
+
+**V10 gameplay divergence (2026-08-11).** `MovementPresetId.BattlefieldRealismV10`
+(`docs/plans/2026-08-11-battlefield-realism-design.md`) is exactly such a
+labelled simulation abstraction: it places shield bearers at the forward-most
+slots of their own contingent, one of the items the list above names as
+unattested. The finding is unchanged; V10's placement is not offered as
+evidence that one existed. As a research claim, forward placement is none of
+Documented, Documented (form uncertain), or Provisional reconstruction — it is
+a gameplay model, adopted for legibility, and the list above does not support
+it as history.
+
 ## What archaeology can reveal about geometry
 
 Archaeology is stronger at reconstructing **places and constraints** than

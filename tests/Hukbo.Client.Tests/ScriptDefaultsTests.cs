@@ -6,33 +6,41 @@ namespace Hukbo.Client.Tests;
 
 /// <summary>
 /// Proves the acceptance criterion for plan task 47
-/// (docs/plans/2026-08-07-sandata-scaffold.md) plus the RU-29 extension
-/// (docs/plans/2026-08-07-ranged-units.md): scripts/verify.ps1 gains a
-/// -Game parameter and passes it through to test.ps1 and benchmark.ps1, and
-/// with no -Game argument on the command line it runs exactly two
+/// (docs/plans/2026-08-07-sandata-scaffold.md), the RU-29 extension
+/// (docs/plans/2026-08-07-ranged-units.md), and task 14
+/// (docs/plans/2026-08-11-battlefield-realism.md): scripts/verify.ps1 gains
+/// a -Game parameter and passes it through to test.ps1 and benchmark.ps1,
+/// and with no -Game argument on the command line it runs exactly three
 /// benchmark.ps1 invocations -- the original canonical workload at
-/// Agents 200 / Ticks 10000 / Seed 1, plus a second, Hukbo-guarded
-/// invocation that exercises the ranged combat preset
-/// (PrecolonialPhilippinesV5 / RangedStandoffV8). RU-29 added the second
-/// invocation on purpose: the previous single-workload gate never exercised
-/// the ranged path, so a completely broken ranged combat preset would have
-/// left the gate green.
+/// Agents 200 / Ticks 10000 / Seed 1, a second, Hukbo-guarded invocation
+/// that exercises the ranged combat preset (PrecolonialPhilippinesV5 /
+/// RangedStandoffV8), and a third, also Hukbo-guarded, that exercises the
+/// V10 retreat rung on the same map (PrecolonialPhilippinesV5 /
+/// BattlefieldRealismV10). RU-29 added the second invocation because the
+/// previous single-workload gate never exercised the ranged path; task 14
+/// added the third for the same reason, so a broken BackingAway retreat
+/// could not hide behind a green V8 workload that never reaches it. Design
+/// section 9.2 (docs/plans/2026-08-11-battlefield-realism-design.md) records
+/// why the V10 workload is a third block rather than a repointed V8 one: the
+/// V8 block and its frozen digest stay the leak detector proving V10's
+/// changes never reached V8.
 /// </summary>
 public sealed class ScriptDefaultsTests
 {
     [Fact]
-    public void VerifyInvokesBenchmarkExactlyTwiceWithTheCanonicalAndRangedWorkloads()
+    public void VerifyInvokesBenchmarkExactlyThriceWithTheCanonicalRangedAndV10Workloads()
     {
         var content = ReadScript("verify.ps1");
 
         var benchmarkInvocations = Regex.Matches(
             content, @"Invoke-RepositoryScript\s+-Name\s+'benchmark\.ps1'");
 
-        Assert.Equal(2, benchmarkInvocations.Count);
+        Assert.Equal(3, benchmarkInvocations.Count);
 
         var invocations = benchmarkInvocations.Cast<Match>().ToList();
         var canonicalInvocation = invocations[0];
         var rangedInvocation = invocations[1];
+        var v10Invocation = invocations[2];
 
         var canonicalBlock = ExtractBraceBlockAfter(content, canonicalInvocation.Index);
 
@@ -47,6 +55,13 @@ public sealed class ScriptDefaultsTests
         Assert.Contains(
             "MovementPreset = 'RangedStandoffV8'", rangedBlock, StringComparison.Ordinal);
 
+        var v10Block = ExtractBraceBlockAfter(content, v10Invocation.Index);
+
+        Assert.Contains(
+            "Preset = 'PrecolonialPhilippinesV5'", v10Block, StringComparison.Ordinal);
+        Assert.Contains(
+            "MovementPreset = 'BattlefieldRealismV10'", v10Block, StringComparison.Ordinal);
+
         var hukboGuard = Regex.Match(content, @"if\s*\(\s*\$Game\s+-eq\s+'Hukbo'\s*\)\s*\{");
         Assert.True(
             hukboGuard.Success,
@@ -58,10 +73,18 @@ public sealed class ScriptDefaultsTests
         Assert.True(
             hukboGuard.Index < rangedInvocation.Index,
             "The Hukbo guard must precede the ranged benchmark.ps1 invocation.");
+        Assert.True(
+            rangedInvocation.Index < v10Invocation.Index,
+            "The V10 benchmark.ps1 invocation must follow the ranged (V8) one -- " +
+            "the V8 block stays untouched and the V10 block is the addition.");
 
         var guardBlock = ExtractBraceBlockAfter(content, hukboGuard.Index);
         Assert.Contains(
             "Invoke-RepositoryScript -Name 'benchmark.ps1'",
+            guardBlock,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "MovementPreset = 'BattlefieldRealismV10'",
             guardBlock,
             StringComparison.Ordinal);
     }
@@ -80,7 +103,7 @@ public sealed class ScriptDefaultsTests
     /// <summary>
     /// verify.ps1 declares -Game with the same two-member ValidateSet and
     /// 'Hukbo' default as every other game-specific script, and passes it
-    /// through to the test.ps1 invocation and both benchmark.ps1
+    /// through to the test.ps1 invocation and all three benchmark.ps1
     /// invocations, so a caller that never passes -Game resolves to
     /// 'Hukbo' at every layer.
     /// </summary>
@@ -94,7 +117,7 @@ public sealed class ScriptDefaultsTests
         Assert.Contains("$Game = 'Hukbo'", content, StringComparison.Ordinal);
 
         var passThroughCount = Regex.Matches(content, @"Game\s*=\s*\$Game").Count;
-        Assert.Equal(3, passThroughCount);
+        Assert.Equal(4, passThroughCount);
     }
 
     private static string ExtractBraceBlockAfter(string content, int searchStartIndex)

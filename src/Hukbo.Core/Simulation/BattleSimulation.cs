@@ -104,6 +104,23 @@ public sealed class BattleSimulation
     private readonly LoadoutCompositionCounts[] _factionSurvivingCompositions;
     private long _localMovementContextDerivations;
 
+    // Ranged-retreat threat-observation scratch (battlefield realism design,
+    // section 5.3). One long per scenario agent, allocated once here, sized
+    // zero under every preset except BattlefieldRealismV10 so a V1-through-V9
+    // battle carries no per-agent storage for a rung it never runs. Cleared
+    // and refilled every tick by SelectTargetsAndIntents, fused into the same
+    // candidate loop that already computes each candidate's squared distance
+    // for target selection and (under V6) the local-context accumulation --
+    // no second scan. The value is the squared distance to the nearest living
+    // enemy whose weapon is melee, observed only for an actor whose own
+    // weapon is ranged, or long.MaxValue when no such enemy is observed; a
+    // plain minimum over a totally ordered domain needs no EntityId
+    // tie-break, because the reduction is order-independent. Derived scratch
+    // in the same mould as _localMovementContexts: never hashed, never
+    // snapshotted, never carried across ticks -- this is recomputed from
+    // nothing every tick inside an existing loop, not a target cache.
+    private readonly long[] _nearestMeleeThreatSquared;
+
     // Equipment-relative footwork pipeline scratch (weapon-relative movement
     // design, sections 8 through 11). Every array is allocated once here and
     // sized zero under every legacy preset, so a V1-through-V5 battle
@@ -234,6 +251,12 @@ public sealed class BattleSimulation
         _factionRallyEntityIds = new ulong[2];
         _localMovementContexts = _movementRules.UsesEquipmentRelativeFootwork
             ? new LocalMovementContext[agents.Length]
+            : [];
+        // Gated on preset identity, not on a movement-ruleset field, matching
+        // the V10 deployment branch in Create: V10's registered ruleset is a
+        // verbatim copy of V8's, so no ruleset flag distinguishes it.
+        _nearestMeleeThreatSquared = scenario.MovementPreset == MovementPresetId.BattlefieldRealismV10
+            ? new long[agents.Length]
             : [];
         _factionSurvivingCompositions = new LoadoutCompositionCounts[2];
         var usesFootwork = _movementRules.UsesEquipmentRelativeFootwork;
@@ -472,6 +495,28 @@ public sealed class BattleSimulation
     }
 
     /// <summary>
+    /// The nearest-melee-threat scratch derived for one agent by the tick
+    /// just completed (battlefield realism design, section 5.3): the squared
+    /// distance to the nearest living enemy whose weapon is melee, or
+    /// <see cref="long.MaxValue"/> when the agent's own weapon is not ranged
+    /// or no such enemy was observed. Derived scratch: never hashed, never
+    /// snapshotted, never persisted. Throws under any preset other than
+    /// <see cref="MovementPresetId.BattlefieldRealismV10"/>, which observes
+    /// no threat at all.
+    /// </summary>
+    internal long NearestMeleeThreatSquaredForTesting(ulong entityId)
+    {
+        if (Scenario.MovementPreset != MovementPresetId.BattlefieldRealismV10)
+        {
+            throw new InvalidOperationException(
+                "No nearest-melee-threat scratch is derived under movement " +
+                $"preset {Scenario.MovementPreset}.");
+        }
+
+        return _nearestMeleeThreatSquared[_agentIndexes[entityId]];
+    }
+
+    /// <summary>
     /// The global surviving composition of one faction as derived by the
     /// tick just completed (weapon-relative movement design, section 7.5).
     /// Derived scratch: never hashed, never snapshotted, never persisted,
@@ -601,6 +646,36 @@ public sealed class BattleSimulation
                 deployment, faction0Loadouts, movement);
             faction1Deployment = EquipmentDeploymentAssignment.AssignForFaction(
                 deployment, faction1Loadouts, movement);
+        }
+        else if (scenario.MovementPreset == MovementPresetId.BattlefieldRealismV10)
+        {
+            // Gated on preset identity, not on a movement-ruleset field:
+            // V10's registered ruleset is a verbatim copy of V8's, so
+            // UsesEquipmentRelativeFootwork is false for it and the V6
+            // branch above never fires for V10. This mirrors the V8 gate at
+            // the retreat rung further down (Scenario.MovementPreset ==
+            // MovementPresetId.RangedStandoffV8). CohortDeploymentAssignment
+            // never draws — random is not consulted here either — so the
+            // SplitMix64 stream is exactly what the planner left it, and it
+            // runs on the canonical, unmirrored deployment before the
+            // faction-1 mirror below, each faction pairing its own
+            // loadouts against that same canonical ranking (battlefield
+            // realism design, sections 4.2 to 4.6).
+            var faction0Loadouts = new CombatLoadout[scenario.AgentsPerFaction];
+            var faction1Loadouts = new CombatLoadout[scenario.AgentsPerFaction];
+            for (var index = 0; index < scenario.AgentsPerFaction; index++)
+            {
+                faction0Loadouts[index] = ResolveSpawnLoadout(
+                    checked((ulong)index + 1), index);
+                faction1Loadouts[index] = ResolveSpawnLoadout(
+                    checked((ulong)(scenario.AgentsPerFaction + index) + 1),
+                    index);
+            }
+
+            faction0Deployment = CohortDeploymentAssignment.AssignForFaction(
+                deployment, faction0Loadouts, rules);
+            faction1Deployment = CohortDeploymentAssignment.AssignForFaction(
+                deployment, faction1Loadouts, rules);
         }
 
         for (var index = 0; index < scenario.AgentsPerFaction; index++)
@@ -1138,6 +1213,15 @@ public sealed class BattleSimulation
         // the body radius is scenario-wide, so they are identical for every
         // actor.
         var derivesLocalContext = _movementRules.UsesEquipmentRelativeFootwork;
+
+        // The ranged-retreat threat observation (battlefield realism design,
+        // section 5.3) is gated on preset identity, matching
+        // _nearestMeleeThreatSquared's own sizing in the constructor: V10's
+        // registered ruleset is a verbatim copy of V8's, so no
+        // MovementRuleset flag distinguishes it from every other preset that
+        // derives no local context either.
+        var observesNearestMeleeThreat =
+            Scenario.MovementPreset == MovementPresetId.BattlefieldRealismV10;
         Int128 immediateRadiusSquared = 0;
         Int128 supportRadiusSquared = 0;
         if (derivesLocalContext)
@@ -1169,6 +1253,14 @@ public sealed class BattleSimulation
                     _localMovementContexts[agentIndex] = default;
                 }
 
+                if (observesNearestMeleeThreat)
+                {
+                    // Dead agents observe no threat; clear the row so a stale
+                    // value from the tick this agent died on can never be
+                    // read back, matching the local-context clear just above.
+                    _nearestMeleeThreatSquared[agentIndex] = long.MaxValue;
+                }
+
                 continue;
             }
 
@@ -1187,6 +1279,16 @@ public sealed class BattleSimulation
             var selectedDistance = long.MaxValue;
             var perceptionSquared = checked(
                 (long)agent.PerceptionRangeRaw * agent.PerceptionRangeRaw);
+
+            // Battlefield realism design, section 5.3: the trigger reads the
+            // nearest living enemy whose weapon is melee, observed only when
+            // the actor's own weapon is ranged (StandoffDistanceRaw != 0 --
+            // the same test GatherMovementProposals' V8 standoff arm already
+            // uses). Resolved once per actor, not per candidate, since it
+            // does not depend on the candidate.
+            var nearestMeleeThreatSquared = long.MaxValue;
+            var actorObservesMeleeThreats = observesNearestMeleeThreat &&
+                ResolveAttackerWeaponProfile(agent.Loadout).StandoffDistanceRaw != 0;
 
             foreach (var candidate in _agentStates)
             {
@@ -1257,6 +1359,22 @@ public sealed class BattleSimulation
                         candidate.EntityId, candidate.Loadout, distance);
                 }
 
+                // The ranged-retreat threat fuse of design section 5.3, beside
+                // the V6 context fuse above: the same already-computed,
+                // already-perception-filtered distance is minimised into
+                // nearestMeleeThreatSquared when the candidate's weapon is
+                // melee (StandoffDistanceRaw == 0). No new scan, no new
+                // distance computation -- distance is exactly the value target
+                // selection below also reads. A plain minimum over squared
+                // distances needs no EntityId tie-break: the reduction is
+                // order-independent regardless of scan order.
+                if (actorObservesMeleeThreats &&
+                    distance < nearestMeleeThreatSquared &&
+                    ResolveAttackerWeaponProfile(candidate.Loadout).StandoffDistanceRaw == 0)
+                {
+                    nearestMeleeThreatSquared = distance;
+                }
+
                 if (distance < selectedDistance ||
                     (distance == selectedDistance &&
                         (selectedTarget is null ||
@@ -1274,6 +1392,11 @@ public sealed class BattleSimulation
                     contextAccumulator.Complete(selectedTarget?.EntityId);
                 _localMovementContextDerivations = checked(
                     _localMovementContextDerivations + 1);
+            }
+
+            if (observesNearestMeleeThreat)
+            {
+                _nearestMeleeThreatSquared[agentIndex] = nearestMeleeThreatSquared;
             }
 
             if (selectedTarget is null)
@@ -1711,23 +1834,85 @@ public sealed class BattleSimulation
             {
                 var target = _agentStates[_agentIndexes[enemyTargetId]];
 
-                // Ranged standoff. Confined to RangedStandoffV8 so every other
-                // registered preset — PersistentContingentsV4 included — takes
-                // the unmodified path below regardless of which combat preset
-                // supplied the roster. A melee weapon's StandoffDistanceRaw is
-                // always 0, so a melee-only roster under V8 falls through this
-                // block untouched and is byte-identical to V4. Checked ahead of
-                // contingent cohesion below: cohesion's aim-point pursuit would
+                // Ranged standoff. Confined to RangedStandoffV8 and
+                // BattlefieldRealismV10 — battlefield realism design section
+                // 5.2 widens the preset equality test from a single value to
+                // this two-value predicate so V10 inherits the standoff hold
+                // unchanged, and adds its own retreat rung beneath it — so
+                // every other registered preset — PersistentContingentsV4
+                // included — still takes the unmodified path below regardless
+                // of which combat preset supplied the roster. A melee
+                // weapon's StandoffDistanceRaw is always 0, so a melee-only
+                // roster under V8 or V10 falls through this block untouched
+                // and is byte-identical to V4. Checked ahead of contingent
+                // cohesion below: cohesion's aim-point pursuit would
                 // otherwise close a held ranged warrior straight onto its
                 // target's body-contact ring, since that branch runs for every
                 // preset other than IndependentPursuitV1 and never consults
                 // StandoffDistanceRaw.
-                if (Scenario.MovementPreset == MovementPresetId.RangedStandoffV8)
+                if (Scenario.MovementPreset == MovementPresetId.RangedStandoffV8 ||
+                    Scenario.MovementPreset == MovementPresetId.BattlefieldRealismV10)
                 {
                     var standoffRaw =
                         ResolveAttackerWeaponProfile(agent.Loadout).StandoffDistanceRaw;
                     if (standoffRaw != 0)
                     {
+                        // Battlefield realism design section 5.2, rung 1: a
+                        // melee enemy inside the threat radius backs the
+                        // shooter directly away, ahead of the V8 hold rung
+                        // below. _nearestMeleeThreatSquared is populated only
+                        // under V10 (task 7), so RangedStandoffV8 never takes
+                        // this branch — its scratch row is zero-length and
+                        // this whole arm is gated on preset identity again,
+                        // not merely on the array being readable.
+                        if (Scenario.MovementPreset == MovementPresetId.BattlefieldRealismV10)
+                        {
+                            var nearestMeleeThreatSquared =
+                                _nearestMeleeThreatSquared[index];
+                            var threatRadiusRaw =
+                                RangedRetreatRules.ThreatRadiusRaw(standoffRaw);
+                            if (RangedRetreatRules.IsThreatened(
+                                nearestMeleeThreatSquared, threatRadiusRaw))
+                            {
+                                var threat = FindNearestMeleeThreatPosition(agent);
+                                if (TryBuildRetreatProposal(
+                                        agent,
+                                        threat.XRaw,
+                                        threat.YRaw,
+                                        threat.EntityId,
+                                        out var retreatProposal))
+                                {
+                                    // Design section 5.5, hazard two: the
+                                    // stall generation is never consulted on
+                                    // this rung. A blocked retreat simply
+                                    // fails to move this tick instead of
+                                    // starting a blocked streak that would
+                                    // route it into the sidestepping-pursuit
+                                    // branch below — straight back toward the
+                                    // very thing it is running from.
+                                    agent.Intent = AgentIntent.BackingAway;
+                                    _movementProposals[index] = retreatProposal;
+                                }
+                                else
+                                {
+                                    // Design section 5.5, hazard one: the
+                                    // reflected destination clamped to the
+                                    // map bounds on at least one axis, so the
+                                    // shooter cannot actually step back. No
+                                    // proposal is written —
+                                    // _movementProposals[index] is already
+                                    // null from the Array.Clear above — and
+                                    // the cornered warrior stands and fights
+                                    // instead of reading a "backing away"
+                                    // intent that would be a lie the
+                                    // spectator can see.
+                                    agent.Intent = AgentIntent.Holding;
+                                }
+
+                                continue;
+                            }
+                        }
+
                         if (SquaredDistance(agent, target) <=
                             checked((long)standoffRaw * standoffRaw))
                         {
@@ -4669,7 +4854,28 @@ public sealed class BattleSimulation
         int destinationXRaw,
         int destinationYRaw,
         ulong targetId,
-        int stopShortRaw)
+        int stopShortRaw) =>
+        BuildMovementProposal(
+            agent, destinationXRaw, destinationYRaw, targetId, stopShortRaw, out _);
+
+    /// <summary>
+    /// The full implementation every other overload delegates to. Identical
+    /// arithmetic and the identical <see cref="CollisionGeometry.ClampCenterToBounds"/>
+    /// call as before battlefield realism design section 5.5 — the only
+    /// addition is capturing the pre-clamp centre so
+    /// <paramref name="boundsClampChangedResult"/> can report whether the
+    /// bounds clamp changed either coordinate, which the retreat builder
+    /// below uses for its hazard-one check. Every pre-existing caller reaches
+    /// this through the five-argument overload above, which discards the new
+    /// output and is otherwise byte-identical to what it called before.
+    /// </summary>
+    private (int XRaw, int YRaw, ulong TargetId) BuildMovementProposal(
+        AgentState agent,
+        int destinationXRaw,
+        int destinationYRaw,
+        ulong targetId,
+        int stopShortRaw,
+        out bool boundsClampChangedResult)
     {
         var deltaX = (long)destinationXRaw - agent.XRaw;
         var deltaY = (long)destinationYRaw - agent.YRaw;
@@ -4703,15 +4909,119 @@ public sealed class BattleSimulation
             }
         }
 
+        var unclampedNextX = checked(agent.XRaw + (int)moveX);
+        var unclampedNextY = checked(agent.YRaw + (int)moveY);
         var nextX = CollisionGeometry.ClampCenterToBounds(
-            checked(agent.XRaw + (int)moveX),
+            unclampedNextX,
             checked(Scenario.MapWidth * FixedPoint.Scale),
             Scenario.BodyRadiusRaw);
         var nextY = CollisionGeometry.ClampCenterToBounds(
-            checked(agent.YRaw + (int)moveY),
+            unclampedNextY,
             checked(Scenario.MapHeight * FixedPoint.Scale),
             Scenario.BodyRadiusRaw);
+        boundsClampChangedResult = nextX != unclampedNextX || nextY != unclampedNextY;
         return (nextX, nextY, targetId);
+    }
+
+    /// <summary>
+    /// Battlefield realism design section 5.4's retreat builder: reflects the
+    /// melee threat through the actor — <c>(2 * agentX - threatX, 2 * agentY
+    /// - threatY)</c>, the point directly opposite the threat at the same
+    /// distance — and reuses the ordinary paced, tapered, clamped
+    /// movement-proposal arithmetic toward that reflected point. No new
+    /// movement arithmetic and no new clamping path: this only supplies a
+    /// different destination to the same <see cref="BuildMovementProposal(AgentState,int,int,ulong,int,out bool)"/>
+    /// used everywhere else.
+    /// </summary>
+    /// <returns>
+    /// <see langword="false"/>, writing no <paramref name="proposal"/>, when
+    /// the bounds clamp changed either coordinate (design 5.5, hazard one) —
+    /// the reflected destination would clamp to where the agent already
+    /// stands, so the caller assigns <see cref="AgentIntent.Holding"/>
+    /// instead of proposing a step that would silently do nothing.
+    /// </returns>
+    private bool TryBuildRetreatProposal(
+        AgentState agent,
+        int threatXRaw,
+        int threatYRaw,
+        ulong targetId,
+        out (int XRaw, int YRaw, ulong TargetId) proposal)
+    {
+        var destinationXRaw = checked((2 * agent.XRaw) - threatXRaw);
+        var destinationYRaw = checked((2 * agent.YRaw) - threatYRaw);
+
+        proposal = BuildMovementProposal(
+            agent,
+            destinationXRaw,
+            destinationYRaw,
+            targetId,
+            stopShortRaw: 0,
+            out var boundsClampChanged);
+
+        if (boundsClampChanged)
+        {
+            proposal = default;
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Battlefield realism design section 5.3's threat position: the live
+    /// position and id of the nearest living, opposing-faction, melee-weapon
+    /// agent — the same candidate <c>SelectTargetsAndIntents</c> already
+    /// reduced into <see cref="_nearestMeleeThreatSquared"/> by squared
+    /// distance alone. That scratch keeps only the distance, not the
+    /// position, so the retreat builder re-derives the position here. No
+    /// perception-range re-test is needed: perception filtering only ever
+    /// excludes a candidate whose distance exceeds
+    /// <see cref="AgentState.PerceptionRangeRaw"/>, so any candidate at or
+    /// inside the finite scratch distance that made this call reachable was
+    /// already perceived, and a plain global minimum over "alive, opposing
+    /// faction, melee weapon" reproduces exactly the entity that distance
+    /// came from. Ties break on the lower <see cref="AgentState.EntityId"/>,
+    /// matching every other multi-result query in this file. Throws if none
+    /// is found — reachable only after
+    /// <see cref="RangedRetreatRules.IsThreatened"/> has already read a
+    /// finite scratch value for this agent, so a miss here is a defect in
+    /// that invariant, never a real battlefield state.
+    /// </summary>
+    private (int XRaw, int YRaw, ulong EntityId) FindNearestMeleeThreatPosition(
+        AgentState agent)
+    {
+        AgentState? nearest = null;
+        var nearestSquared = long.MaxValue;
+        foreach (var candidate in _agentStates)
+        {
+            if (!candidate.IsAlive || candidate.FactionId == agent.FactionId)
+            {
+                continue;
+            }
+
+            if (ResolveAttackerWeaponProfile(candidate.Loadout).StandoffDistanceRaw != 0)
+            {
+                continue;
+            }
+
+            var distance = SquaredDistance(agent, candidate);
+            if (distance < nearestSquared ||
+                (distance == nearestSquared &&
+                    (nearest is null || candidate.EntityId < nearest.EntityId)))
+            {
+                nearest = candidate;
+                nearestSquared = distance;
+            }
+        }
+
+        if (nearest is null)
+        {
+            throw new InvalidOperationException(
+                "No nearest melee threat was found for an agent already " +
+                "reported as threatened.");
+        }
+
+        return (nearest.XRaw, nearest.YRaw, nearest.EntityId);
     }
 
     /// <summary>

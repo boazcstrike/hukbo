@@ -175,6 +175,118 @@ file this change touched is outside `Hukbo.Client`, its tests, and `docs/`.
 Still no evidence about anything interactive. The eight `PP-*` rows in the
 projectile-props smoke checklist are all `PENDING`.
 
+## Canonical gate result — Hukbo, 2026-08-11 — battlefield realism
+
+`./scripts/verify.ps1`, all five stages, exit code 0, run once on the
+`battlefield-realism` branch at `449a443`, rebased onto `main` at `0cc5ce5`,
+after all nineteen tasks of `docs/plans/2026-08-11-battlefield-realism.md`
+landed:
+
+```
+[PASS] Platform: Windows x64
+[PASS] PowerShell: 7.6.4
+[PASS] git version 2.55.0.windows.3
+[PASS] .NET SDK: 10.0.302
+[PASS] packages.lock.json present for all 21 projects.
+[PASS] MonoGame packages are centrally pinned: 3.8.5
+[PASS] Required prerequisites and repository configuration are present.
+[PASS] Locked package restore completed.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.   0 Error(s)
+Hukbo.Core.Tests     Total tests: 2470   Passed: 2470
+Hukbo.Client.Tests   Total tests: 3579   Passed: 3579
+[PASS] Release repository tests completed.
+measuredTicks 981   outcome Faction1Victory   survivors 0 / 6
+stateHash 1B73FC5923879AA0   eventHash AC55684F24D39344   combatPreset 4   movementPreset 4
+deterministic true   firstMismatchTick null
+p50 0.1324 ms   p95 0.9661 ms   p99 1.5207 ms   coreAllocatedBytes 154976
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+measuredTicks 1764   outcome Faction1Victory   survivors 0 / 20
+stateHash C8023D3B5BEB005E   eventHash F709A345E2F7370E   combatPreset 5   movementPreset 8
+deterministic true   firstMismatchTick null
+p50 0.1336 ms   p95 0.8155 ms   p99 1.3750 ms   coreAllocatedBytes 161168
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+measuredTicks 1888   outcome Faction0Victory   survivors 18 / 0
+stateHash 7C145A9E05916E4C   eventHash 77626E104234206C   combatPreset 5   movementPreset 10
+deterministic true   firstMismatchTick null
+p50 0.0804 ms   p95 0.7977 ms   p99 1.3022 ms   coreAllocatedBytes 161168
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+Three headless workloads now run inside the gate, added by task 14 of the
+battlefield realism plan: the shipped default, the V8 ranged-standoff preset,
+and the new `BattlefieldRealismV10` preset.
+
+**Workload 1, the shipped default (`combatPreset 4` / `movementPreset 4`), is
+byte-identical to the recorded baseline** — `stateHash 1B73FC5923879AA0`,
+`eventHash AC55684F24D39344`, `Faction1Victory`, 981 ticks — which is rule 1 of
+the plan holding: `PersistentContingentsV4` and `PrecolonialPhilippinesV4`
+never moved.
+
+**Workload 2, the V8 ranged preset (`combatPreset 5` / `movementPreset 8`), is
+byte-identical to the pre-change capture recorded above under "Canonical gate
+result — Hukbo, 2026-08-11"** — `stateHash C8023D3B5BEB005E`,
+`eventHash F709A345E2F7370E`, taken on the base commit before any battlefield
+realism task landed. That identity is the proof that `BattlefieldRealismV10`
+did not leak into `RangedStandoffV8Ruleset`'s behaviour.
+
+**Workload 3, `BattlefieldRealismV10` (`combatPreset 5` / `movementPreset 10`),
+is new.** `PrecolonialPhilippinesV5` paired with `BattlefieldRealismV10` ran
+1,888 ticks to `Faction0Victory`, 18 survivors on faction 0 against 0 on
+faction 1, `stateHash 7C145A9E05916E4C`, `eventHash 77626E104234206C`,
+deterministic true.
+
+`Hukbo.Core.Tests` grew from 2,433 to 2,470 and `Hukbo.Client.Tests` from 3,561
+to 3,579 over this package, with zero failures and zero skipped in either
+suite.
+
+This gate result is evidence about the build, the tests, and the three
+headless workloads only. It proves nothing about anything interactive: the
+`BR-1` through `BR-10` rows and the reset rows 102, 103, and 105 in
+`smoke-checklist.md` all stay `PENDING` and need a person at an interactive
+desktop.
+
+### Task 10 — the twenty-seed termination sweep
+
+`BattlefieldRealismV10` paired with `PrecolonialPhilippinesV5`, 200 agents,
+10,000-tick cap, seeds 1 through 20. Every seed reports `deterministic true`.
+
+| Seed | Ticks | Outcome | Faction 0 survivors | Faction 1 survivors | State hash | Event hash |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 1,888 | Faction0Victory | 18 | 0 | `7C145A9E05916E4C` | `77626E104234206C` |
+| 2 | 2,275 | Faction0Victory | 13 | 0 | `35F7ECFA46403889` | `3F93E64D6578A53F` |
+| 3 | 2,364 | Faction1Victory | 0 | 17 | `B36DA7A4959525DD` | `BBA3ABEC31567E2D` |
+| 4 | 2,007 | Faction1Victory | 0 | 19 | `E6D74A7955F105E6` | `8BC3971E36D892C1` |
+| 5 | 2,872 | Faction0Victory | 9 | 0 | `89466D8E0641AB6E` | `E9D51389BCA66123` |
+| 6 | 1,719 | Faction0Victory | 23 | 0 | `F0AFD0ED02E609A1` | `66E25E30CD49457C` |
+| 7 | 3,264 | Faction1Victory | 0 | 10 | `E9B9B7F47D1365EA` | `B67CC21198931F3D` |
+| 8 | 2,296 | Faction1Victory | 0 | 14 | `F68011F70E431BD7` | `DB439E52DFEA5D3E` |
+| 9 | 1,733 | Faction0Victory | 35 | 0 | `14507D8A7770A93B` | `265118917182DCCB` |
+| 10 | 1,987 | Faction0Victory | 20 | 0 | `DA4D017322E24E48` | `A870FB7F09F24621` |
+| 11 | 1,817 | Faction1Victory | 0 | 20 | `77D006A3051CABD6` | `B20546170E8A5692` |
+| 12 | 2,348 | Faction1Victory | 0 | 16 | `F810B5D60B287C5B` | `093740B9CA3A3D4D` |
+| 13 | 2,752 | Faction0Victory | 10 | 0 | `165EDA317EC630AA` | `F6F3CFD1906DB4E4` |
+| 14 | 2,019 | Faction1Victory | 0 | 18 | `D4CEB5E22BD71C78` | `BD78ABD40E3F77DA` |
+| 15 | 2,253 | Faction0Victory | 18 | 0 | `D092307F13143A60` | `F274E77FB594B464` |
+| 16 | 1,442 | Faction0Victory | 33 | 0 | `30355013F514E821` | `FF2EBFD56C01FE78` |
+| 17 | 1,554 | Faction0Victory | 28 | 0 | `531C95EBF673B0F7` | `95C60E98FCA241CA` |
+| 18 | 2,753 | Faction1Victory | 0 | 9 | `3B5F03CDC6D94A02` | `0BD6D3CA491A4925` |
+| 19 | 1,597 | Faction0Victory | 23 | 0 | `D11976D5E24AC65B` | `F631AA61F476A128` |
+| 20 | 2,750 | Faction1Victory | 0 | 8 | `E6BB5457DD6144A4` | `3FE8FA25B312AD11` |
+
+Against design section 8.3's bar, all four clauses passed on the first
+measurement, with no tuning performed and `ThreatRadiusBasisPoints` left at its
+committed value of 5,000:
+
+- **No seed reaches the 10,000-tick cap.** The longest run is seed 7 at 3,264
+  ticks.
+- **Seed 1 is at or under 1,962 ticks.** It measured 1,888.
+- **The median is at or under 3,000 ticks.** The median of the twenty measured
+  values is 2,253.
+- **Both factions win at least one battle.** Faction 0 wins 11 of the twenty
+  seeds; faction 1 wins 9.
+
 ## Sandata — recorded baselines and measurement runs, 2026-08-09
 
 This repository builds two games. Everything above and below this section, unless

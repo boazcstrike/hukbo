@@ -867,6 +867,22 @@ Three separate patterns, all **Documented**:
   ransomed at double — so capture was economically preferred to killing — but
   nothing describes the moment of surrender itself in a fight. **Documented**
   for the economics, **not supported** for the mechanic.
+
+---
+
+**V10 gameplay divergence (2026-08-11).** `MovementPresetId.BattlefieldRealismV10`
+(`docs/plans/2026-08-11-battlefield-realism-design.md`) makes a ranged warrior
+with a melee enemy inside a threat radius step directly away and resume
+shooting once it is clear or once it is cornered. The findings above are
+unchanged: breaking and running under pressure is documented, and a protected
+withdrawal through friendly close fighters remains not attested. V10 builds
+neither of those — it is a repeatable step back and shoot, with no role, no
+doctrine, and no passage through allies — and it is not offered as evidence of
+a skirmish-and-retire practice. As a research claim this behaviour is none of
+Documented, Documented (form uncertain), or Provisional reconstruction — it is
+a gameplay model, adopted for legibility, and the evidence above does not
+support it.
+
 ## 13. Comparative Southeast Asian evidence, and how far it may be carried
 
 Michael W. Charney's *Southeast Asian Warfare, 1300-1900* (Brill, 2004) is the
@@ -1152,6 +1168,20 @@ these was searched for in this pass and not found.
 
 Absence from this list is an evidence limit, not proof that something did not
 happen. It is, however, a hard boundary on what Hukbo may assert.
+
+---
+
+**V10 gameplay divergence (2026-08-11).** `MovementPresetId.BattlefieldRealismV10`
+(`docs/plans/2026-08-11-battlefield-realism-design.md`) fills a contingent from
+one weapon cohort where the arithmetic allows, so a body of warriors reads as
+a body of one weapon. The finding above at lines 1138 to 1140 is unchanged:
+this corpus draws no distinction, anywhere, between a missile specialist and a
+close fighter within the same following, and the specialists it does record
+are separate peoples supplying allied contingents. V10's grouping is not
+offered as evidence of an internal specialist role. As a research claim this
+behaviour is none of Documented, Documented (form uncertain), or Provisional
+reconstruction — it is a gameplay model, adopted for legibility, and the
+evidence above does not support it.
 
 ## 17. Open questions for a later research pass
 

@@ -548,8 +548,14 @@ property — no longer holds under `PersistentContingentsV2`. The deployment
 groups these rows describe are now the same contingents `ResolveContingentStates`
 carries forward and cycles between gathering and advancing for the rest of the
 battle, not a shape that exists only at tick 0 and dissolves on the first move.
-Rows 58 through 61 are unchanged and still test the opening frame only; row 61a
-below extends the same check past it.
+Rows 58 through 61 still test the opening frame only; row 61a below extends
+the same check past it.
+
+**Further amended by the battlefield-realism change (`BattlefieldRealismV10`).**
+Rows 58, 59, 60, 61, and 61a are reworded below to describe cohort-grouped
+deployment and the weaker, positionally-equivalent-but-not-per-index mirror
+the default rotating roster now produces, in place of the exact per-index
+mirror these rows previously asked a person to confirm.
 
 | Evidence field | Recorded value |
 | --- | --- |
@@ -561,11 +567,11 @@ below extends the same check past it.
 
 | Check | Expected observation | Actual | Status |
 | --- | --- | --- | --- |
-| 58. Read the opening frame | Before the armies move, each side reads as several separate groups of warriors rather than one undifferentiated cloud, at the default camera fit and without zooming in. | Not run | PENDING |
-| 59. Check the mirror | Pausing at tick 0 and comparing the two halves shows each side as the other's reflection across the centre line: same group positions, same group sizes, same ragged front. | Not run | PENDING |
-| 60. Confirm the groups look irregular | Within a group the spacing looks uneven rather than a snapped parade grid, and a new seed visibly reshuffles that spacing without moving the groups. | Not run | PENDING |
-| 61. Confirm the armies still meet promptly | The two sides close and fight without a long empty march, and the battle reaches a terminal outcome inside its tick limit. | Not run | PENDING |
-| 61a. Confirm the groups stay distinct past deployment | Added by the persistent-contingent movement change. Let the battle run several seconds past the opening frame, well before the armies meet. Each side still reads as several separate groups of warriors at the default camera fit, rather than merging into one crowd as soon as the armies start moving. | Not run | PENDING |
+| 58. Read the opening frame | Added by the battlefield-realism change (`BattlefieldRealismV10`). Before the armies move, each side reads as several separate groups of warriors rather than one undifferentiated cloud, and each group reads as mostly one weapon cohort rather than an even mix of every weapon in the roster, at the default camera fit and without zooming in. Failure is a field that reads as one undifferentiated cloud, or groups whose weapon mix looks as uniform as a random cross-section of the whole army. | Not run | PENDING |
+| 59. Check the mirror | Amended by the battlefield-realism change. Pausing at tick 0 and comparing the two halves shows each side with the same overall shape and depth as the other — the same number of groups, the same rough group sizes, the same ragged front — but under the default rotating roster the two halves are no longer exact reflections warrior-for-warrior: which weapon cohort lands where, and which warriors occupy the forward-most slots of their own contingent, can differ between the two sides in the fine detail. Only a fixed, identical roster on both sides produces an exact per-index mirror; the default launch does not use one. Failure is the two halves failing to look positionally equivalent at all — visibly more or larger groups on one side, or shield bearers sitting at the forward-most slots on one side's contingents but not the other's. | Not run | PENDING |
+| 60. Confirm the groups look irregular | Within a group the spacing looks uneven rather than a snapped parade grid, and a new seed visibly reshuffles that spacing without moving the groups or changing which weapon cohort they read as. Failure is warriors within a group snapping to a visible grid or ring, or a new seed producing no visible change in spacing. | Not run | PENDING |
+| 61. Confirm the armies still meet promptly | The two sides close and fight without a long empty march, and the battle reaches a terminal outcome inside its tick limit. Failure is a long empty march before contact, or a battle that runs out the tick cap with no winner declared. | Not run | PENDING |
+| 61a. Confirm the groups stay distinct past deployment | Added by the persistent-contingent movement change. Let the battle run several seconds past the opening frame, well before the armies meet. Each side still reads as several separate groups of warriors at the default camera fit, each still reading as mostly one weapon cohort, rather than merging into one crowd or losing its weapon identity as soon as the armies start moving. Failure is the groups blurring into one crowd within a few seconds of the opening frame, or a group's weapon identity becoming indistinguishable from its neighbours before the armies make contact. | Not run | PENDING |
 
 ## Typography smoke
 
@@ -1082,6 +1088,15 @@ inside a running simulation. None of it proves that the resulting movement
 reads as a group of warriors gathering and advancing together to a person
 watching it, which is the only thing these rows are for.
 
+**Correction — rows 102, 103, and 105 no longer describe what ships.** The
+client's default preset is now `BattlefieldRealismV10`, which groups each
+contingent's warriors into weapon cohorts (a contingent reads as mostly one
+weapon, split across at most `contingentCount - 1` boundaries) rather than the
+round-robin mix these three rows were observed against on 2026-07-28. The
+recorded passing evidence described a group composition that no longer exists
+under the shipped default, so all three are reset to `PENDING` with their
+evidence cleared until someone watches the cohort-grouped shape.
+
 **Scoping note — this is not the last-stand formation smoke.** The last-stand
 formation smoke above (rows 76 through 81) covers the whole-faction rally that
 fires only once a side is down to its final handful of warriors, gathering
@@ -1109,10 +1124,10 @@ window-opening probe do not.
 
 | Check | Expected observation | Actual | Status |
 | --- | --- | --- | --- |
-| 102. Read several distinct groups well past deployment | Each side stays readable as several distinct groups well past the opening frame, at the default camera fit, rather than merging into one crowd within a few seconds. | Each side split into about three readable groups, and those stayed distinct well past the opening frames. They merged into one crowd only late in the battle, once casualties had mounted. | PASS |
-| 103. Watch a strung-out group gather and resume | A group that has strung out visibly gathers on one of its own warriors, then resumes advancing, rather than gathering indefinitely or never gathering at all. | A group that had strung out was seen to fall back briefly, gather, and then carry on advancing with the group, rather than gathering indefinitely. | PASS |
+| 102. Read several distinct groups well past deployment | Each side stays readable as several distinct groups well past the opening frame, at the default camera fit, rather than merging into one crowd within a few seconds. | Not run | PENDING |
+| 103. Watch a strung-out group gather and resume | A group that has strung out visibly gathers on one of its own warriors, then resumes advancing, rather than gathering indefinitely or never gathering at all. | Not run | PENDING |
 | 104. Confirm the gathered shape is ragged | The gathered shape is ragged. It is not a ring, a line, an arc, a grid, or any shape that looks placed, and no warrior sits at an obviously exact distance from the one it gathered on. | Not run | PENDING |
-| 105. Watch a group arrive and break apart | On reaching the enemy, a group visibly stops holding together and its warriors fight as individuals. The transition reads as arriving, not as the group breaking apart. | The transition read as the group arriving rather than as the group falling apart. | PASS |
+| 105. Watch a group arrive and break apart | On reaching the enemy, a group visibly stops holding together and its warriors fight as individuals. The transition reads as arriving, not as the group breaking apart. | Not run | PENDING |
 | 106. Confirm warriors ease into contact | Warriors ease into contact rather than travelling at full speed and stopping dead against an enemy body. | Not run | PENDING |
 | 107. Confirm a warrior steps aside for its leader | A warrior standing in front of the warrior its group has gathered on steps aside rather than being walked through or standing there blocking it. | Not run | PENDING |
 | 108. Inspect the contingent row | Selecting any warrior shows a `Contingent: <n> — <state>` row in the inspector, and that state changes over the course of the battle rather than reading the same value throughout. | Not run | PENDING |
@@ -1603,8 +1618,8 @@ until those files land.
 | RG-3 | Watch one Bangkaw warrior go through a full ready, load, draw, release, recover cycle at default zoom, close enough to see the weapon | The sequence reads as a spear being thrown: the shaft draws back past the shoulder during Draw, then releases forward and returns to a neutral carry during Recover. Failure is a Bangkaw sequence that reads as a generic swing, or one that shows no visible change in weapon angle across the five phases | | PENDING |
 | RG-4 | Watch one Busog warrior go through a full ready, load, draw, release, recover cycle at default zoom, close enough to see the weapon | The sequence reads as a bow being drawn: the bow stave holds out from the body while the string hand draws back toward the cheek during Draw, then both return toward Ready after Release. Failure is a Busog sequence indistinguishable from the Bangkaw's throwing motion, or one that shows no build-up of draw tension before Release | | PENDING |
 | RG-5 | Watch one Imported Arquebus warrior go through a full ready, load, draw, release, recover cycle at default zoom, close enough to see the weapon | The sequence reads as a matchlock being fired: the weapon is shouldered and levelled, held on target through Release rather than swept quickly, with a long barrel plainly visible out in front of the warrior. Failure is an Arquebus sequence that reads as a spear or a bow, or one indistinguishable from the other two ranged weapons at a glance | | PENDING |
-| RG-6 | Watch a ranged warrior (Bangkaw, Busog, or Arquebus) approach its standoff distance from a target during an advance, alongside melee warriors closing on the same line | The ranged warrior visibly halts and holds its position once it reaches range, while melee warriors on the same approach keep walking forward and pass it. Failure is the ranged warrior continuing to close all the way to melee range like its comrades, or halting at a point indistinguishable from where a melee warrior would stop on its own | | PENDING |
-| RG-7 | Click a ranged warrior that has halted at its standoff distance and read its inspector panel | The intent row reads "Intent: Holding at range", not "Blocked" and not any other movement-refusal wording. Failure is the inspector showing "Blocked" — the movement row's own wording for a warrior whose route was rejected — for a warrior that is in fact deliberately choosing not to close | | PENDING |
+| RG-6 | Amended by the battlefield-realism change (`BattlefieldRealismV10`). Watch a ranged warrior (Bangkaw, Busog, or Arquebus) approach its standoff distance from a target during an advance, alongside melee warriors closing on the same line, and separately watch one that has a melee enemy close on it | While no melee enemy is inside its threat radius, the ranged warrior visibly halts and holds its position once it reaches range, while melee warriors on the same approach keep walking forward and pass it — this is now only the unthreatened case. Once a melee enemy closes inside the threat radius, the ranged warrior instead backs directly away from that enemy rather than holding still, continuing until it is clear of the threat again or is stopped by the map edge. Failure is the ranged warrior continuing to close all the way to melee range like its comrades, halting at a point indistinguishable from where a melee warrior would stop on its own, or standing still once a melee enemy is inside the threat radius instead of backing away | | PENDING |
+| RG-7 | Amended by the battlefield-realism change. Click a ranged warrior that has halted at its standoff distance with no melee enemy nearby, and separately click one that is currently backing away from a melee enemy | The unthreatened warrior's inspector reads "Intent: Holding at range". The threatened, backing-away warrior's inspector instead reads "Intent: Backing away from close fighters" — a second, distinct intent string that did not exist before this change — and switches back to reading "Intent: Holding at range" once the warrior is cornered by the map edge and can no longer retreat. Neither warrior's inspector ever reads "Blocked" or any other movement-refusal wording. Failure is either warrior's inspector showing "Blocked" — the movement row's own wording for a warrior whose route was rejected — or a cornered, retreat-blocked warrior continuing to read "Backing away from close fighters" instead of falling back to "Holding at range" | | PENDING |
 | RG-8 | Watch and listen to a ranged shot that resolves as a miss rather than a landed hit | A miss cue plays instead of the ordinary flesh-impact cue used for a landed blow. Failure is a missed shot playing the same body-hit sound as a hit would, or playing no sound where a miss cue exists for that weapon. Cannot be attempted until the miss-`<weapon>` sound files from RU-31 exist | | PENDING |
 | RG-9 | Compare a Bangkaw, a Busog, and an Arquebus warrior side by side at the High, Medium, and Low detail tiers, from a close-up zoom down to fully zoomed out | At every tier the three ranged silhouettes are distinguishable from each other and from the four existing melee silhouettes — the Bangkaw reads as spear-armed, the Busog as bow-armed, the Arquebus as carrying a long firearm. Failure is any two of the three collapsing into the same silhouette at the Low tier, or a ranged warrior being mistaken for a melee warrior at any tier | | PENDING |
 | RG-10 | Watch and listen to a battle fielding all three ranged weapons for several minutes | The Arquebus fires far less often than the Bangkaw or the Busog, matching its much longer authored shot interval, and each Arquebus shot is audibly louder and more distinctive than a Busog release or a Bangkaw throw — a spectator should be able to tell an Arquebus has fired without seeing which warrior fired it. Failure is the Arquebus firing at a cadence similar to the other two ranged weapons, or its report sounding unremarkable next to theirs. Cannot be fully attempted until the release-arquebus and attack-arquebus sound files from RU-31 exist; the firing-cadence half of this row does not depend on sound and can be attempted once RG-1 is attemptable | | PENDING |
@@ -1697,4 +1712,38 @@ measurement, not a visual one, and it flips no row below.
 | AA-22 | Watch a 500-warrior stress battle at minimum, default-fit, and maximum zoom | Frame pacing stays comfortable and the field does not turn into visual noise at any of the three | **Animations overlap and the battle reads as chaos**; the observer could not tell what was happening. Frame pacing was not reported as a problem. Two full 500-agent battles. | FAIL |
 | AA-23 | Watch a warrior strike while moving | The attack plants the stance and composes with the stride; the body does not jump between two poses | | PENDING |
 | AA-24 | Watch a warrior at the edge of the arena panel strike outward | The weapon does not pop in or out at the panel edge as the blow extends | | PENDING |
+
+## Battlefield realism cohort and retreat smoke (task 18)
+
+Added by the battlefield realism change
+([2026-08-11-battlefield-realism.md](../plans/2026-08-11-battlefield-realism.md)),
+which flips the client's default preset combination to `PrecolonialPhilippinesV5`
+plus `MovementPresetId.BattlefieldRealismV10`. **No interactive run was
+performed for this change.** Every row below is `PENDING` with its evidence
+cell empty. The automated suite proves the cohort sort order, the
+shield-bearer slot pairing inside each contingent, the threat-radius
+arithmetic, the retreat ladder's three rungs, the per-index and positional
+mirror assertions, and the twenty-seed termination sweep. None of it proves
+that a spectator can read a cohort as mostly one weapon, that a shield bearer
+visibly leads its own group, that a back-pedalling shooter reads as retreating
+rather than as fleeing or stuck, or that the taller inspector panel still fits
+the smallest supported window — which is what the rows below are for. Design:
+`docs/plans/2026-08-11-battlefield-realism-design.md`.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+certify one of these rows. Compilation, unit tests, and a window-opening probe
+do not.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| BR-1 | Watch a contingent form up after deployment, at the default camera fit | The contingent reads as mostly carrying one weapon, with only a few warriors of a different weapon visible at its edges, rather than an even mix across the group. Failure is a contingent that still looks like a uniform round-robin blend of every weapon in the roster, indistinguishable at a glance from the pre-V10 grouping | | PENDING |
+| BR-2 | Watch a contingent that includes shield bearers, before it makes contact with the enemy | The shield bearers are visibly at the forward-most slots of their own contingent — ahead of their contingent's other warriors on the approach — rather than scattered through the group or clustered only at the edge of the whole army. Failure is a contingent where a shield bearer cannot be picked out as leading its own group, or where the leading edge is indistinguishable from an unshielded warrior's | | PENDING |
+| BR-3 | Watch one contingent's shield bearers make first contact with the enemy, then watch how long the warriors behind them keep fighting | The shield bearers are the ones who take the opening blows, and the warriors sheltered behind them survive visibly longer than they would standing in the open — the shield bearers read as absorbing the first exchanges rather than being bypassed. Failure is the enemy reaching the unshielded warriors behind the shield bearers just as quickly as the shield bearers themselves, or the shield bearers falling in the opening exchange with no visible difference in how long their own contingent's other warriors then last | | PENDING |
+| BR-4 | Compare the two factions' starting deployments under the default rotating roster, at the default camera fit | The two sides read as positionally equivalent — similar contingent shapes and similar cohort groupings on each flank — without being warrior-for-warrior mirror images of each other; a warrior at a given position on one side does not necessarily correspond to the same weapon at the mirrored position on the other side. Failure is the two sides reading as exact per-index mirrors indistinguishable from the pre-V10 mirrored layout, or reading as unrelated rather than equivalent | | PENDING |
+| BR-5 | Watch a ranged warrior (Bangkaw, Busog, or Arquebus) whose standoff distance a melee enemy closes inside | The ranged warrior visibly backs directly away from the closing melee enemy rather than holding its ground and continuing to fire. Failure is the ranged warrior standing still and shooting as the melee enemy closes to contact, indistinguishable from its behaviour before this change | | PENDING |
+| BR-6 | Watch a ranged warrior that is backing away from a melee enemy until it is stopped by the map edge or a corner | Once cornered, the ranged warrior stops backing away and stands its ground rather than continuing to retreat in place or oscillating at the boundary. Failure is a cornered ranged warrior that appears to keep trying to back away indefinitely — visibly jittering, sliding along the edge, or kiting back and forth — instead of settling into a stationary hold | | PENDING |
+| BR-7 | Watch the same back-pedalling ranged warrior from BR-5 with an eye specifically toward how the motion reads, as distinct from whether it happens at all. **This row has no automated proxy; it is a judgement call only a person watching the game can make.** | The retreat reads as a warrior deliberately backing away from a threat — facing the danger, moving with evident purpose — rather than as panicked flight, and rather than as a warrior stuck sliding against terrain or another agent. Record in `Actual` which of the three readings the observer actually got: backing away, fleeing, or stuck | | PENDING |
+| BR-8 | Watch a full battle between two rosters that each field ranged warriors, under V10, to its conclusion | The battle reaches a terminal outcome — one side is defeated or the tick limit is reached with a clear winner — rather than a ranged side backing away for the whole of the tick limit and the battle never resolving. Failure is a battle that visibly stalls, with the ranged side perpetually retreating and no side able to close and finish the fight | | PENDING |
+| BR-9 | Click a ranged warrior that is backing away from a melee enemy, then click one that is holding at range with no melee threat nearby, and read both inspector panels | The two intent strings — "Backing away from close fighters" and "Holding at range" — are both legible at a glance and clearly distinct from each other; a spectator reading the inspector can tell which of the two states the warrior is in without needing to also watch the battlefield. Failure is either string being hard to read at the panel's default size, or the two strings reading as similar enough to be mistaken for each other | | PENDING |
+| BR-10 | Resize the game window down to the smallest supported size, 1024 by 720, and open the agent inspector on a warrior whose panel renders at its full 953-pixel height | The panel still fits within the window at that size without clipping against the window edge and without overlapping the HUD, the control bar, or the event feed. Failure is the taller panel running off the bottom or side of the window at the minimum size, or covering another HUD element that was clear of it before this change | | PENDING |
 
