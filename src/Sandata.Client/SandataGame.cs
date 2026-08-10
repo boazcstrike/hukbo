@@ -7,14 +7,17 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Sandata.Client.Audio;
 using Sandata.Client.Rendering;
+using Sandata.Client.Simulation;
 using Sandata.Client.Theming;
 using Sandata.Client.UI;
+using Sandata.Core.Combat;
 using Sandata.Core.Maps;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
 using Sandata.Core.Rules;
 using Sandata.Core.Simulation;
+using Sandata.Core.Weapons;
 
 namespace Sandata.Client;
 
@@ -136,18 +139,9 @@ internal sealed class SandataGame : Game
     /// </summary>
     private const float LineThicknessPixels = 2f;
 
-    // ---- Task 71 placeholders: no tick pipeline (task 49) is wired into the
-    // Sandata client yet, so every order this class submits — a drawn path,
-    // a go-code release — necessarily carries this task's own stand-in
-    // values rather than a real simulation clock or a real per-code roster.
-
-    /// <summary>
-    /// The <see cref="Order.TargetTick"/> every order this class submits
-    /// carries. No tick pipeline exists yet (task 49); <c>0</c> is the
-    /// earliest tick any pipeline can ever reach, so every order submitted
-    /// before task 49 exists necessarily lands on it.
-    /// </summary>
-    private const long PlaceholderOrderTargetTick = 0;
+    // ---- Task 71 placeholders. The tick-pipeline one is retired: this class
+    // now drives SandataSimulation.RunTick and therefore has a real clock. The
+    // per-code roster stand-in below is still a stand-in.
 
     /// <summary>
     /// The <see cref="Order.FactionId"/> every order this class submits
@@ -156,6 +150,17 @@ internal sealed class SandataGame : Game
     /// <c>spawn.Faction == 0</c> check above).
     /// </summary>
     private const int PlaceholderOrderFactionId = 0;
+
+    /// <summary>
+    /// The faction whose squads seek an objective on their own. Faction 0 is
+    /// already this class's "the spectator's own squad" convention, and on the
+    /// shipped <c>angle-house</c> map both <c>OBJECTIVE</c> records sit
+    /// exactly on faction 1's two spawn positions — so the map itself already
+    /// reads as "faction 0 assaults, faction 1 holds two rooms". Every other
+    /// faction holds, which is what <c>PathReasonCode.NoDestinationRequested</c>
+    /// already means for a group no <c>MissionState.Groups</c> entry names.
+    /// </summary>
+    private const int AssaultingFaction = 0;
 
     /// <summary>
     /// <see cref="Mission.Seed"/> for the <see cref="Mission"/> this class
@@ -263,6 +268,29 @@ internal sealed class SandataGame : Game
         SandataControlBar.Button.Restart,
     ];
 
+    /// <summary>
+    /// The speed fractions the <see cref="SandataControlBar.Button.Speed"/>
+    /// button cycles through, as (numerator, denominator) pairs handed
+    /// straight to <see cref="TickPacing.Advance"/>. Half speed exists because
+    /// a room entry at 50 ticks a second is roughly a fifth of a second of
+    /// real time and a spectator cannot see what happened inside it; the fast
+    /// steps exist because crossing the map takes about twenty seconds at
+    /// normal speed.
+    /// </summary>
+    private static readonly (int Numerator, int Denominator)[] SpeedSteps =
+    [
+        (1, 2),
+        (1, 1),
+        (2, 1),
+        (4, 1),
+    ];
+
+    /// <summary>
+    /// The index into <see cref="SpeedSteps"/> a run starts at — normal
+    /// speed, one simulation tick per 20 milliseconds of real time.
+    /// </summary>
+    private const int DefaultSpeedIndex = 1;
+
     private readonly DiagnosticLog _log;
     private readonly GraphicsDeviceManager _graphics;
     private readonly ImmutableArray<MapRecord> _mapRecords;
@@ -275,7 +303,9 @@ internal sealed class SandataGame : Game
     private readonly SandataTheme _theme;
     private readonly NavGrid _navGrid;
     private readonly WallBuckets _wallBuckets;
-    private readonly SandataSimulation _simulation;
+    private readonly ImmutableArray<ObjectiveRecord> _objectiveRecords;
+    private readonly Mission _mission;
+    private SandataSimulation _simulation;
     private readonly SandataSoundPlayer _soundPlayer;
     private readonly UndoStack<int> _undoStack = new();
     private readonly int _operatorCount;
@@ -291,6 +321,16 @@ internal sealed class SandataGame : Game
     private PathDrawState _pathDrawState = PathDrawState.CreateEmpty();
     private ImmutableArray<GoCodePanel.GoCodeEntry> _goCodeEntries = ImmutableArray<GoCodePanel.GoCodeEntry>.Empty;
     private ImmutableArray<OrderQueueView.Entry> _orderQueueEntries = ImmutableArray<OrderQueueView.Entry>.Empty;
+    private long _accumulatedMicroseconds;
+    private long _nextTick;
+    private bool _isPaused;
+    private int _speedIndex = DefaultSpeedIndex;
+    private int _pendingSingleSteps;
+
+    // -1 rather than the real starting counts, so the first tick of a run
+    // always writes one baseline roster line before any casualty can move it.
+    private int _lastLoggedAssaultingAlive = -1;
+    private int _lastLoggedDefendingAlive = -1;
 
     /// <summary>
     /// Builds the game window. <paramref name="mapRecords"/> is the already
@@ -307,6 +347,7 @@ internal sealed class SandataGame : Game
         _doorRecords = FindDoors(_mapRecords);
         _spawnRecords = FindSpawns(_mapRecords);
         _coverRecords = FindCovers(_mapRecords);
+        _objectiveRecords = FindObjectives(_mapRecords);
         _breachMarkerWorldShapes = BreachMarkerOverlay.CreateWorldShapes(_mapRecords);
 
         var operatorCount = 0;
@@ -361,7 +402,7 @@ internal sealed class SandataGame : Game
         var canonicalMapRecords = MapCanonicalizer.Canonicalize(_mapRecords);
         var mapContentHash = MapContentHash.Compute(canonicalMapRecords);
 
-        var mission = new Mission(
+        _mission = new Mission(
             formatVersion: Mission.CurrentFormatVersion,
             seed: PlaceholderMissionSeed,
             mapContentHash: mapContentHash,
@@ -371,9 +412,7 @@ internal sealed class SandataGame : Game
                 new MissionFactionSetup(FactionId: 1, OperatorCount: Math.Max(MinimumMissionFactionOperatorCount, _contactCount))),
             rulesetId: SandataPresetId.ModernTacticalV1);
 
-        var initialState = BuildInitialState(_spawnRecords);
-        _simulation = new SandataSimulation(
-            mission, SandataRuleset.ModernTacticalV1, _navGrid, _wallBuckets, initialState, _coverRecords);
+        _simulation = CreateSimulation();
 
         // Task 39 built SandataSoundPlayer and SandataSoundBudget but
         // deliberately left the MonoGame-backed ISandataSoundOutput to a
@@ -442,15 +481,268 @@ internal sealed class SandataGame : Game
             (float)gameTime.ElapsedGameTime.TotalSeconds);
         _previousScrollWheelValue = mouseState.ScrollWheelValue;
 
-        UpdateDragCapture(mouseState);
+        // Transport first: a click that lands on the control bar is consumed
+        // there and must not also begin a marquee drag, and design section
+        // 11's pointer-priority chain puts the in-world layer last.
+        var transportConsumedClick = UpdateTransportControls(mouseState, keyboardState);
+
+        if (!transportConsumedClick)
+        {
+            UpdateDragCapture(mouseState);
+        }
+
         UpdatePathDrawing(mouseState);
         UpdatePathSubmission(keyboardState);
         UpdateGoCodeReleases(keyboardState);
+
+        AdvanceSimulation(gameTime);
 
         _previousMouseState = mouseState;
         _previousKeyboardState = keyboardState;
 
         base.Update(gameTime);
+    }
+
+    /// <summary>
+    /// Runs the simulation forward by however many whole 20-millisecond ticks
+    /// this frame earned, per <see cref="TickPacing.Advance"/>. A paused run
+    /// executes only the single steps
+    /// <see cref="SandataControlBar.Button.StepOneTick"/> has queued, and
+    /// banks no time at all while paused — so unpausing resumes rather than
+    /// fast-forwarding through however long the pause lasted.
+    /// </summary>
+    /// <remarks>
+    /// The mission's own <see cref="MissionTickPolicy.TickLimit"/> is the hard
+    /// stop. Nothing here inspects the simulation's outcome: deciding a
+    /// mission is over is a simulation decision and this class makes none.
+    /// </remarks>
+    private void AdvanceSimulation(GameTime gameTime)
+    {
+        if (_nextTick >= _mission.TickPolicy.TickLimit)
+        {
+            return;
+        }
+
+        int ticksToRun;
+
+        if (_isPaused)
+        {
+            _accumulatedMicroseconds = 0;
+            ticksToRun = _pendingSingleSteps;
+            _pendingSingleSteps = 0;
+        }
+        else
+        {
+            var (numerator, denominator) = SpeedSteps[_speedIndex];
+            var elapsedMicroseconds = (long)gameTime.ElapsedGameTime.TotalMilliseconds * 1_000;
+
+            (_accumulatedMicroseconds, ticksToRun) = TickPacing.Advance(
+                _accumulatedMicroseconds,
+                elapsedMicroseconds,
+                numerator,
+                denominator,
+                TickPacing.DefaultMaxTicksPerFrame);
+        }
+
+        for (var step = 0; step < ticksToRun && _nextTick < _mission.TickPolicy.TickLimit; step++)
+        {
+            _simulation.RunTick(_nextTick);
+            _nextTick++;
+            LogRosterIfChanged();
+        }
+    }
+
+    /// <summary>
+    /// Writes one <see cref="LogEvents.SimSandataRoster"/> line on each tick
+    /// where a faction's living count changed, so a run leaves behind a record
+    /// of when its casualties happened. Nothing is written on a tick where
+    /// nobody died, which in a whole mission is almost every tick.
+    /// </summary>
+    /// <remarks>
+    /// The counting loop runs only when the line would actually be emitted —
+    /// the level and channel are tested first, so a <c>Release</c> run, or a
+    /// run with the <c>sim</c> channel filtered out, does no work and
+    /// allocates nothing. That is the debug-logging standard's allocation
+    /// rule, and it is why this method reads state the caller already holds
+    /// rather than asking the simulation a question the frame would not
+    /// otherwise ask.
+    /// </remarks>
+    private void LogRosterIfChanged()
+    {
+        if (!_log.IsEnabledFor(LogLevel.Debug, LogChannel.Simulation))
+        {
+            return;
+        }
+
+        var assaulting = 0;
+        var defending = 0;
+        foreach (var operatorState in _simulation.State.Operators)
+        {
+            if (!DamageResolution.IsAlive(operatorState.Health))
+            {
+                continue;
+            }
+
+            if (operatorState.Faction == AssaultingFaction)
+            {
+                assaulting++;
+            }
+            else
+            {
+                defending++;
+            }
+        }
+
+        if (assaulting == _lastLoggedAssaultingAlive && defending == _lastLoggedDefendingAlive)
+        {
+            return;
+        }
+
+        _lastLoggedAssaultingAlive = assaulting;
+        _lastLoggedDefendingAlive = defending;
+
+        _log.SetTick(_nextTick);
+        _log.Write(
+            LogLevel.Debug, LogChannel.Simulation, LogEvents.SimSandataRoster,
+            "assaultingAlive", assaulting, "defendingAlive", defending);
+    }
+
+    /// <summary>
+    /// The four spectator transport controls, reachable both from the control
+    /// bar and from the keyboard: Space toggles pause, the period key steps
+    /// one tick while paused, the Tab key cycles the speed fraction, the R key
+    /// restarts, and Escape closes the window — the same five
+    /// <c>scripts/run.ps1</c> tells a person about on launch.
+    /// </summary>
+    /// <returns>
+    /// Whether this frame's left-button press landed on a control-bar button
+    /// and was consumed there, in which case the caller must not also treat it
+    /// as the start of a marquee drag.
+    /// </returns>
+    private bool UpdateTransportControls(MouseState mouseState, KeyboardState keyboardState)
+    {
+        if (WasJustPressed(keyboardState, Keys.Escape))
+        {
+            Exit();
+            return false;
+        }
+
+        if (WasJustPressed(keyboardState, Keys.Space))
+        {
+            TogglePause();
+        }
+
+        if (WasJustPressed(keyboardState, Keys.OemPeriod))
+        {
+            StepOneTick();
+        }
+
+        if (WasJustPressed(keyboardState, Keys.Tab))
+        {
+            CycleSpeed();
+        }
+
+        // F5 rather than R: UpdateGoCodeReleases treats every one of Keys.A
+        // through Keys.Z as a go-code release, so a letter key bound here
+        // would fire a transport control and submit an order from one press.
+        if (WasJustPressed(keyboardState, Keys.F5))
+        {
+            RestartMission();
+        }
+
+        var wasPressed = _previousMouseState.LeftButton == ButtonState.Pressed;
+        var isPressed = mouseState.LeftButton == ButtonState.Pressed;
+        if (!isPressed || wasPressed)
+        {
+            return false;
+        }
+
+        var barBounds = SandataControlBar.CalculateBounds(GraphicsDevice.Viewport.Bounds);
+        foreach (var button in ControlBarButtons)
+        {
+            if (!SandataControlBar.CalculateButtonBounds(barBounds, button).Contains(mouseState.Position))
+            {
+                continue;
+            }
+
+            switch (button)
+            {
+                case SandataControlBar.Button.Pause:
+                    TogglePause();
+                    break;
+                case SandataControlBar.Button.StepOneTick:
+                    StepOneTick();
+                    break;
+                case SandataControlBar.Button.Speed:
+                    CycleSpeed();
+                    break;
+                case SandataControlBar.Button.Restart:
+                    RestartMission();
+                    break;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool WasJustPressed(KeyboardState keyboardState, Keys key) =>
+        keyboardState.IsKeyDown(key) && !_previousKeyboardState.IsKeyDown(key);
+
+    private void TogglePause()
+    {
+        _isPaused = !_isPaused;
+        _log.Write(
+            LogLevel.Debug, LogChannel.Input, LogEvents.InputSandataTransport,
+            "control", "pause", "paused", _isPaused, "tick", _nextTick);
+    }
+
+    /// <summary>
+    /// Queues one tick. Pauses first when the run is playing, because "step
+    /// one tick" while thirty more are arriving every second is not a step a
+    /// spectator can see.
+    /// </summary>
+    private void StepOneTick()
+    {
+        _isPaused = true;
+        _pendingSingleSteps++;
+        _log.Write(
+            LogLevel.Debug, LogChannel.Input, LogEvents.InputSandataTransport,
+            "control", "step", "paused", _isPaused, "tick", _nextTick);
+    }
+
+    private void CycleSpeed()
+    {
+        _speedIndex = (_speedIndex + 1) % SpeedSteps.Length;
+        _log.Write(
+            LogLevel.Debug, LogChannel.Input, LogEvents.InputSandataTransport,
+            "control", "speed", "speedNumerator", SpeedSteps[_speedIndex].Numerator,
+            "speedDenominator", SpeedSteps[_speedIndex].Denominator, "tick", _nextTick);
+    }
+
+    /// <summary>
+    /// Rebuilds the simulation from the map and returns every spectator-facing
+    /// selection and draft to its launch state. The camera is deliberately
+    /// left where the spectator put it: a restart re-runs the mission, it does
+    /// not re-frame the window.
+    /// </summary>
+    private void RestartMission()
+    {
+        _simulation = CreateSimulation();
+        _nextTick = 0;
+        _accumulatedMicroseconds = 0;
+        _pendingSingleSteps = 0;
+        _lastLoggedAssaultingAlive = -1;
+        _lastLoggedDefendingAlive = -1;
+        _multiSelect = MultiSelectState.Empty;
+        _pathDrawState = PathDrawState.CreateEmpty();
+        _goCodeEntries = ImmutableArray<GoCodePanel.GoCodeEntry>.Empty;
+        _orderQueueEntries = ImmutableArray<OrderQueueView.Entry>.Empty;
+
+        _log.Write(
+            LogLevel.Information, LogChannel.Input, LogEvents.InputSandataTransport,
+            "control", "restart", "paused", _isPaused, "tick", _nextTick);
     }
 
     /// <summary>
@@ -541,7 +833,12 @@ internal sealed class SandataGame : Game
         (_pathDrawState, _orderQueueEntries) = SubmitDrawnPath(
             _pathDrawState,
             addressees,
-            PlaceholderOrderTargetTick,
+                // The next tick this window will execute. Not zero: stage 1
+                // applies an order only on the tick that equals its
+                // TargetTick exactly ("order.TargetTick != currentTick"), so
+                // an order targeting tick 0 submitted at tick 900 would be
+                // accepted, queued, hashed — and never applied to anybody.
+                _nextTick,
             PlaceholderOrderFactionId,
             _simulation,
             _orderQueueEntries);
@@ -579,7 +876,12 @@ internal sealed class SandataGame : Game
             (_goCodeEntries, _orderQueueEntries) = ReleaseGoCode(
                 letter,
                 addressees,
-                PlaceholderOrderTargetTick,
+                // The next tick this window will execute. Not zero: stage 1
+                // applies an order only on the tick that equals its
+                // TargetTick exactly ("order.TargetTick != currentTick"), so
+                // an order targeting tick 0 submitted at tick 900 would be
+                // accepted, queued, hashed — and never applied to anybody.
+                _nextTick,
                 PlaceholderOrderFactionId,
                 _simulation,
                 _goCodeEntries,
@@ -836,22 +1138,43 @@ internal sealed class SandataGame : Game
         return builder.MoveToImmutable();
     }
 
+    /// <summary>
+    /// One marquee candidate per living operator, at its live simulated
+    /// position and carrying its real <c>OperatorState.EntityId</c> — the
+    /// spawn index this used as a placeholder before the client ticked the
+    /// simulation is retired, so a selection now addresses the entity the
+    /// order layer expects. A casualty is not a candidate: selecting one and
+    /// drawing it a path would submit an order no living operator can carry
+    /// out.
+    /// </summary>
     private ImmutableArray<MarqueeCandidate> BuildMarqueeCandidates(Rectangle contentBounds)
     {
-        var builder = ImmutableArray.CreateBuilder<MarqueeCandidate>(_spawnRecords.Length);
-        for (var index = 0; index < _spawnRecords.Length; index++)
+        var operators = _simulation.State.Operators;
+        if (operators.IsDefaultOrEmpty)
         {
-            var spawn = _spawnRecords[index];
-            var screenPosition = _camera.WorldToScreen(new Vector2(spawn.X, spawn.Y), contentBounds);
-            builder.Add(new MarqueeCandidate(
-                // Placeholder entity id: the spawn's own index. No
-                // OperatorState/EntityId exists yet to replace it.
-                EntityId: index,
-                ScreenPosition: new Point((int)MathF.Round(screenPosition.X), (int)MathF.Round(screenPosition.Y)),
-                IsHostile: spawn.Faction != 0));
+            return ImmutableArray<MarqueeCandidate>.Empty;
         }
 
-        return builder.MoveToImmutable();
+        var builder = ImmutableArray.CreateBuilder<MarqueeCandidate>(operators.Length);
+        foreach (var operatorState in operators)
+        {
+            if (!DamageResolution.IsAlive(operatorState.Health))
+            {
+                continue;
+            }
+
+            var worldPosition = new Vector2(
+                (float)operatorState.PositionX.ToDouble(),
+                (float)operatorState.PositionY.ToDouble());
+            var screenPosition = _camera.WorldToScreen(worldPosition, contentBounds);
+
+            builder.Add(new MarqueeCandidate(
+                EntityId: (int)operatorState.EntityId,
+                ScreenPosition: new Point((int)MathF.Round(screenPosition.X), (int)MathF.Round(screenPosition.Y)),
+                IsHostile: operatorState.Faction != AssaultingFaction));
+        }
+
+        return builder.ToImmutable();
     }
 
     protected override void Draw(GameTime gameTime)
@@ -925,13 +1248,21 @@ internal sealed class SandataGame : Game
     /// </summary>
     private void DrawOperatorsAndFireCones(SpriteBatch spriteBatch, Rectangle contentBounds)
     {
-        for (var index = 0; index < _spawnRecords.Length; index++)
+        var operators = _simulation.State.Operators;
+        if (operators.IsDefaultOrEmpty)
         {
-            var spawn = _spawnRecords[index];
-            var isFriendly = spawn.Faction == 0;
-            var worldPosition = new Vector2(spawn.X, spawn.Y);
-            var facing = new Bam16((ushort)spawn.FacingBam);
-            var isSelected = _multiSelect.SelectedEntityIds.Contains(index);
+            return;
+        }
+
+        foreach (var operatorState in operators)
+        {
+            var isFriendly = operatorState.Faction == AssaultingFaction;
+            var isAlive = DamageResolution.IsAlive(operatorState.Health);
+            var worldPosition = new Vector2(
+                (float)operatorState.PositionX.ToDouble(),
+                (float)operatorState.PositionY.ToDouble());
+            var facing = operatorState.AimAngle;
+            var isSelected = _multiSelect.SelectedEntityIds.Contains((int)operatorState.EntityId);
 
             var layout = OperatorGeometry.Create(
                 rootPosition: _camera.WorldToScreen(worldPosition, contentBounds),
@@ -945,10 +1276,16 @@ internal sealed class SandataGame : Game
                 // the real per-operator state a future task supplies.
                 previousDisplayRotationRawUnits: 0f,
                 smoothingFactor: 1f,
-                isFiring: false,
-                isSelected: isSelected);
+                isFiring: operatorState.WeaponChainPhase == (int)WeaponChainPhase.Firing,
+                isSelected: isSelected && isAlive);
 
-            var bodyColor = isFriendly ? _theme.Colors.Friendly : _theme.Colors.Hostile;
+            // A casualty stays on the map and reads as one. Removing the pawn
+            // instead would leave a spectator unable to tell a death from an
+            // operator who walked out of view, which is exactly the question
+            // the fire-cone and roster panels cannot answer either.
+            var bodyColor = isAlive
+                ? (isFriendly ? _theme.Colors.Friendly : _theme.Colors.Hostile)
+                : _theme.Colors.Downed;
 
             OperatorRenderer.Draw(
                 spriteBatch,
@@ -962,7 +1299,12 @@ internal sealed class SandataGame : Game
                 muzzleFlashColor: _theme.Colors.StatusDanger,
                 selectionColor: _theme.Colors.SelectedTrooper);
 
-            DrawFireCone(spriteBatch, contentBounds, worldPosition, facing);
+            // A dead operator watches nothing. Drawing its last fire cone
+            // would read as a live field of view.
+            if (isAlive)
+            {
+                DrawFireCone(spriteBatch, contentBounds, worldPosition, facing);
+            }
         }
     }
 
@@ -1355,7 +1697,26 @@ internal sealed class SandataGame : Game
     /// production template for this shape, and the only one this task's file
     /// list permits reading rather than editing.
     /// </summary>
-    private static MissionState BuildInitialState(ImmutableArray<SpawnRecord> spawnRecords)
+    /// <summary>
+    /// Builds a fresh simulation over this window's already-built mission,
+    /// grid, wall buckets, and map records. Called once from the constructor
+    /// and once per <see cref="SandataControlBar.Button.Restart"/>: a restart
+    /// is a new <see cref="SandataSimulation"/> over a newly built initial
+    /// state, because <see cref="SandataSimulation"/> has no reset of its own
+    /// and its <c>PathService</c>, order queue, and event feed all carry the
+    /// previous run's history.
+    /// </summary>
+    private SandataSimulation CreateSimulation()
+    {
+        var initialState = BuildInitialState(_spawnRecords, _objectiveRecords, _navGrid);
+        return new SandataSimulation(
+            _mission, SandataRuleset.ModernTacticalV1, _navGrid, _wallBuckets, initialState, _coverRecords);
+    }
+
+    private static MissionState BuildInitialState(
+        ImmutableArray<SpawnRecord> spawnRecords,
+        ImmutableArray<ObjectiveRecord> objectiveRecords,
+        NavGrid navGrid)
     {
         var operators = ImmutableArray.CreateBuilder<OperatorState>(spawnRecords.Length);
         for (var index = 0; index < spawnRecords.Length; index++)
@@ -1388,9 +1749,41 @@ internal sealed class SandataGame : Game
             Operators = built,
             FactionAlerts = ImmutableArray.Create(new FactionAlertState(0, 0), new FactionAlertState(1, 0)),
             Doors = ImmutableArray<DoorState>.Empty,
-            Groups = ImmutableArray<GroupPathState>.Empty,
+
+            // Sandata's autonomous destination source. Before this, the array
+            // was empty and stage 7 ran its whole search-and-publish machinery
+            // every tick with nothing to act on, so no operator ever walked
+            // anywhere on its own. See InitialSquadGroups for the rule and for
+            // why it lives in the client rather than in the simulation.
+            Groups = InitialSquadGroups.Build(
+                built,
+                objectiveRecords,
+                navGrid,
+                SandataRuleset.ModernTacticalV1.GroupCohesionRadiusWu,
+                AssaultingFaction),
+
             RngStreams = ImmutableArray<RngStreamState>.Empty,
         };
+    }
+
+    /// <summary>
+    /// The parsed <c>OBJECTIVE</c> records this map carries, in the same
+    /// "filter <see cref="_mapRecords"/> once, at construction" shape as
+    /// <see cref="FindSpawns"/> — fed to <see cref="InitialSquadGroups"/> so
+    /// an assaulting squad has a destination on the first tick.
+    /// </summary>
+    private static ImmutableArray<ObjectiveRecord> FindObjectives(ImmutableArray<MapRecord> records)
+    {
+        var builder = ImmutableArray.CreateBuilder<ObjectiveRecord>();
+        foreach (var record in records)
+        {
+            if (record is ObjectiveRecord objective)
+            {
+                builder.Add(objective);
+            }
+        }
+
+        return builder.ToImmutable();
     }
 
     private static ImmutableArray<SpawnRecord> FindSpawns(ImmutableArray<MapRecord> records)

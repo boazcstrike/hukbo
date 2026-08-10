@@ -2104,8 +2104,8 @@ be confused for one another by a tired person or an over-eager agent.
 
 ## 15. Open questions
 
-Ten, of which the first five are carried directly from the research
-consolidation's own list.
+Eleven, of which the first five are carried directly from the research
+consolidation's own list and the eleventh was added on 2026-08-10.
 
 1. **Autonomous bots versus player orders. ANSWERED 2026-08-07: both.**
    Sections 2 and 16. The user was given three options — autonomous bots, a
@@ -2151,6 +2151,30 @@ consolidation's own list.
     `Directory.Build.props`, and `global.json` are all shared today. A 27 to
     46 MB audio library that every Hukbo clone pays for is the first real cost of
     staying, and it lands the moment question 5 is answered yes.
+11. **What an autonomous squad wants, and how its destination is chosen.
+    ADDED 2026-08-10. PARTIALLY ANSWERED.** Sections 7 and 8 specify in full
+    how a squad moves once it has a destination, and section 8's "stored per
+    group destination" names the field that holds one — but no section of this
+    document ever said what writes that field. The gap went unnoticed for
+    twelve waves: `MissionState.Groups` shipped empty, stage 7 ran its whole
+    search-and-publish machinery every tick with nothing to act on, and the
+    first person to launch the client found a map on which nothing ever moved.
+    A later session's handoff described this as an existing item in this
+    section; it was not. It is one now.
+
+    The intended model, from the user on 2026-08-10, is **per-area or
+    per-section clearing, with noise detection later attracting a squad toward
+    what it heard**. That is not specified here yet and nothing implements it.
+
+    What exists today is a deliberate stepping stone, and it lives in
+    `Sandata.Client` rather than in `Sandata.Core`: `InitialSquadGroups` gives
+    each assaulting squad a map objective to walk to, ranked by objective
+    index. It sits in the client because a destination source inside the
+    simulation would also fire for the 200-operator seed-1 headless workload
+    and move a recorded state hash, which is a new preset version. When the
+    real clearing model is designed, moving it into the simulation is the point
+    at which that cost is worth paying. Recorded in
+    `docs/plans/2026-08-10-sandata-playable-client.md`.
 
 ---
 

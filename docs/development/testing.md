@@ -3956,17 +3956,111 @@ Every subsection below except the first is Hukbo's, and is run with
 
 ### Sandata smoke (design section 13)
 
-**No interactive run has been performed for Sandata at all.** Every row below is
-`PENDING`, and no agent may flip one. These eight rows are the complete list of
-things Sandata's design records as checkable only by a person at a desktop; the
-automated suites prove the geometry, the funnel output, the collapse threshold,
-the lowered-weapon rule at its exact boundary, the theme contrast pairs, and the
-sound-slot lookup, and none of them proves that any of it reads correctly on a
-screen.
+Every row below is `PENDING`, and no agent may flip one. These eight rows are
+the complete list of things Sandata's design records as checkable only by a
+person at a desktop; the automated suites prove the geometry, the funnel
+output, the collapse threshold, the lowered-weapon rule at its exact boundary,
+the theme contrast pairs, and the sound-slot lookup, and none of them proves
+that any of it reads correctly on a screen.
 
 Run with the debug log on — `./scripts/run.ps1 -Game Sandata -Configuration
 Debug` — so that a row recorded `FAIL` or `BLOCKED` can be handed to someone
 else with `artifacts/logs/sandata-<utc>-<pid>.jsonl` attached.
+
+**Close the window to end a run. Never kill the process.** `JsonlLogSink` sets
+`AutoFlush = false` and the log is flushed when `Program` exits normally, so a
+terminated process leaves a zero-byte log file and the whole run's record is
+gone.
+
+#### Read this before the first run — 2026-08-10
+
+Until 2026-08-10 the Sandata client never advanced the simulation and drew its
+operators from the map's static `SPAWN` records, so nothing on screen could
+move under any circumstances. That is fixed: the client now runs
+`SandataSimulation.RunTick` on a fixed 20-millisecond timestep, draws every
+pawn from live `MissionState`, and gives the assaulting squad an objective to
+walk to without being asked. The full record is
+`docs/plans/2026-08-10-sandata-playable-client.md`.
+
+**Controls.**
+
+| Input | Effect |
+| --- | --- |
+| Space, or the first control-bar button | Play / pause |
+| Period (`.`), or the second control-bar button | Advance exactly one tick, pausing first |
+| Tab, or the third control-bar button | Cycle speed: half, normal, double, quadruple |
+| F5, or the fourth control-bar button | Restart the mission from tick zero |
+| Escape | Exit |
+| Mouse wheel | Zoom |
+| Left-drag on the map | Marquee-select friendly operators |
+| Right-click on the map | Add a node to a hand-drawn path |
+| Enter | Submit the drawn path to the selected operators |
+| Any letter key, released | Submit a go-code release order for the selection |
+
+**What the shipped map does on its own.** `angle-house` spawns two blue
+operators at the bottom wall and two red ones on the two yellow objective
+squares. The blue pair is one squad — they are 24 world units apart and the
+cohesion radius is 96 — and on tick zero it requests a path to the objective at
+the top right. Expect them to leave the bottom wall within a second or two,
+cross the house through the lower door, and reach the objective at roughly nine
+seconds of real time at normal speed. On the run this was written from, the
+defender holding that objective was killed at tick 459 and both attackers
+survived. The second defender, at the bottom-left objective, is out of range
+of the whole route and never does anything.
+
+**An ordered script for a first session.**
+
+1. `./scripts/run.ps1 -Game Sandata -Configuration Debug`. The window opens and
+   the map draws. Do not touch anything for fifteen seconds and watch the blue
+   pair cross the map. This is the whole game working; if they never move,
+   stop and report that before doing anything else.
+2. Press Space to pause, then the period key a dozen times, watching one step
+   at a time. Press Space again to resume. Press Tab to reach quadruple speed,
+   then press it again twice to come back around to half speed.
+3. Press F5. The pair returns to the bottom wall and walks the same route
+   again.
+4. Scroll from the closest zoom out to the furthest, at every stage asking
+   whether you can still tell an operator from a piece of cover. **That is
+   row SD-1.**
+5. While zoomed in, watch the pair cross the long diagonal wall in the middle
+   of the map, and then pass through the lower door. **Those are rows SD-2 and
+   SD-3.**
+6. At each zoom level, look at the yellow fire cones. **That is row SD-6.**
+7. Left-drag a box around the blue pair, then right-click three or four points
+   across the map, then press Enter. They should abandon the objective route
+   and walk your polyline instead.
+
+**What is knowingly not working. Do not spend your session rediscovering it.**
+
+- **No text anywhere.** The client has no font: every HUD panel is an empty
+  outline, and the operator inspector, contact list, mission clock, roster
+  strip, order queue, and go-code panel are all blank rectangles. **Row SD-8
+  cannot be attempted at all** — the inspector it asks you to read does not
+  render a single character. There is no on-screen tick counter, no score, and
+  no victory banner.
+- **The mission never ends.** Nothing in the client checks an outcome; the run
+  simply stops at the 36,000-tick limit, about twelve minutes at normal speed.
+- **A blocked operator stalls permanently.** If a mover's route runs into a
+  body that is standing still, it refuses the step, tries exactly one
+  22.5-degree sidestep, refuses that too, and then repeats both refusals for
+  the rest of the run. It never re-plans. This is task 89's recorded finding
+  and it is expected behaviour today, not a new bug — see
+  `src/Sandata.Core/Movement/LocalAvoidance.cs`. On this map with four
+  operators it is unlikely but possible.
+- **Only one theme is reachable.** `daylight-ops` ships in the theme catalog
+  and nothing in the client can switch to it, and there is no unknown-contact
+  state to look at either. **Row SD-7 cannot be completed**, though the
+  friendly-versus-hostile half of it can be judged in `night-ops`.
+- **No sound at all**, for the reason recorded under the table below. **Row
+  SD-5 cannot be attempted.**
+- **Every operator carries the same placeholder weapon appearance**, so row
+  SD-4's rifle-versus-pistol comparison has nothing visible to compare.
+- **Accuracy is effectively range-only**, so a defender inside sensing range
+  is hit reliably. This is a deferred design question, not a defect to report.
+- The mission clock in the log stops updating after the last casualty: the
+  `boot.sandata.stopped` line reports whatever tick the last
+  `sim.sandata.roster` line set, not the tick the run really ended on. The
+  roster line's own `t` field is correct.
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
@@ -3985,6 +4079,15 @@ ships no sound files: its catalog is 106 slots expanding to 524 variant files,
 roughly 104,800 ElevenLabs credits, and that spend is not authorized. The row is
 listed in full so that it is not quietly forgotten once the audio question is
 answered.
+
+**Which rows a tester can actually reach today.** SD-1, SD-2, SD-3, and SD-6
+are all attemptable now that the client runs the simulation and the assaulting
+squad walks a real route. SD-7 is half attemptable — friendly against hostile
+in `night-ops`, and nothing else. SD-4, SD-5, and SD-8 cannot be attempted at
+all, for the three reasons listed above: one placeholder weapon appearance, no
+sound files, and no text rendering. Each stays `PENDING` rather than becoming
+`BLOCKED`, because in every case the blocker is upstream of the smoke run
+rather than something the run discovered.
 
 ### Weapon identity and attributes smoke (preset V2)
 

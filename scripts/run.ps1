@@ -56,7 +56,16 @@ try {
 
     Write-Host "Debug log level: $effectiveLevel"
     Write-Host "Debug log directory: $(Join-Path $root 'artifacts/logs')"
-    Write-Host "Starting $Game. Press Escape for Play, Pause, and Exit Game."
+    # The two games have different controls, and printing Hukbo's menu hint for
+    # a Sandata run told a person about a menu Sandata does not have.
+    $controlHint = if ($Game -eq 'Sandata') {
+        'Space pauses, period steps one tick, Tab cycles speed, F5 restarts, Escape exits.'
+    }
+    else {
+        'Press Escape for Play, Pause, and Exit Game.'
+    }
+
+    Write-Host "Starting $Game. $controlHint"
     Invoke-DotNet -Arguments @(
         'run',
         '--project', $clientProject,

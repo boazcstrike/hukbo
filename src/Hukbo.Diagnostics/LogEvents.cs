@@ -63,6 +63,13 @@ public static class LogEvents
     public const string SimRoundStarted = "sim.round.started";
     public const string SimScenarioBuilt = "sim.scenario.built";
     public const string SimSpeedChanged = "sim.speed.changed";
+
+    // Sandata's living-roster line, written only on the tick a faction's
+    // living count actually changes rather than once per tick — a casualty is
+    // the one simulation event a spectator most often needs to place in time
+    // afterwards, and it fires a handful of times in a whole mission.
+    public const string SimSandataRoster = "sim.sandata.roster";
+
     public const string SimTick = "sim.tick";
 
     // Audio channel.
@@ -75,6 +82,13 @@ public static class LogEvents
     public const string InputFocusChanged = "input.focus.changed";
     public const string InputKey = "input.key";
     public const string InputPointer = "input.pointer";
+
+    // Sandata's spectator transport controls — pause, single step, speed, and
+    // restart, whether reached from the control bar or from the keyboard.
+    // Named with a "sandata" middle segment for the same reason the boot
+    // events above are: the leading segment has to be a declared channel wire
+    // name.
+    public const string InputSandataTransport = "input.sandata.transport";
 
     // Render channel.
     public const string RenderAttackContactCollapsed =
