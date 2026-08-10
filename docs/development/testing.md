@@ -117,6 +117,40 @@ attack-animation V2 work merged, which is where the Client suite's growth from
 documentation edits made on this day altered test discovery in either suite,
 which was confirmed by listing discovered tests with and without them.
 
+## Canonical gate result — Hukbo, 2026-08-11
+
+`./scripts/verify.ps1 -SkipBootstrap`, exit code 0, run on the merge of
+`projectile-props` into `main`:
+
+```
+Formatted 0 of 725 files.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Hukbo.Core.Tests     Total tests: 2433   Passed: 2433
+Hukbo.Client.Tests   Total tests: 3561   Passed: 3561
+[PASS] Release repository tests completed.
+stateHash 1B73FC5923879AA0   eventHash AC55684F24D39344   combatPreset 4   movementPreset 4
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+stateHash C8023D3B5BEB005E   eventHash F709A345E2F7370E   combatPreset 5   movementPreset 8
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+**Both hash pairs are byte-identical to the recorded baselines**, which is the
+result projectile-props needed rather than merely a green gate: the change is
+entirely presentation, so a moved hash would have meant something reached the
+simulation and the change was wrong. `Hukbo.Client.Tests` grew from 3,499 to
+3,561; the 62 new tests are the projectile silhouettes, the embedded-projectile
+ring buffer, and the attachment anchors.
+
+`Sandata.Core.Tests` moved from 1,113 to 1,118 and Sandata's own digests moved
+on the same day. **Neither is projectile-props.** Both come from the
+`MissionState.Tick` fix recorded under the Sandata gate result below, and no
+file this change touched is outside `Hukbo.Client`, its tests, and `docs/`.
+
+Still no evidence about anything interactive. The eight `PP-*` rows in the
+projectile-props smoke checklist are all `PENDING`.
+
 ## Sandata — recorded baselines and measurement runs, 2026-08-09
 
 This repository builds two games. Everything above and below this section, unless
