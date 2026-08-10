@@ -68,6 +68,7 @@ verification and still has no CI.
 | Determinism, tick order, reviewer checklist | `SIMULATION-GAME-STANDARDS.md` |
 | Verification and evidence | `docs/development/testing.md` |
 | Active plans | `docs/plans/` |
+| What each active plan is, and its state | `docs/plans/README.md` |
 | Task procedures | `.claude/skills/` |
 
 Every file here carries an "Archived: reference only" banner directly under its

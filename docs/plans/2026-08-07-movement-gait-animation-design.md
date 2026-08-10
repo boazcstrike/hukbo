@@ -2,7 +2,8 @@
 
 Status: design only. This document does not authorize implementation. The
 ordered task list lives in
-[`2026-08-07-movement-gait-animation.md`](2026-08-07-movement-gait-animation.md).
+[`2026-08-07-movement-gait-animation.md`](../archives/2026-08-10/2026-08-07-movement-gait-animation.md),
+now archived.
 
 ## 1. What the spectator asked for
 

@@ -1028,7 +1028,7 @@ times, arriving through a mechanism none of the earlier six used: a second packa
 developed in parallel on `main`, wrote a new exhaustive switch over an enum this package
 had already widened on its own branch. Neither branch was wrong in isolation, and
 neither branch's suite could see it. The `attack-animation-v2` plan
-(`docs/plans/2026-08-08-attack-animation-v2.md:53`) requires its catalog to cover *all
+(`docs/archives/2026-08-10/2026-08-08-attack-animation-v2.md:53`) requires its catalog to cover *all
 registered* `WeaponId` values, so the obligation is real on both sides; it falls to this
 package because this package is the one adding the weapons.
 

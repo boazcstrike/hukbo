@@ -1,7 +1,11 @@
 # Sandata scaffold — task plan
 
 Date: 2026-08-07
-Status: plan, not yet authorized for implementation
+Status: **executed and merged.** All twelve waves are on `main` as of 2026-08-09;
+every numbered task through 91 is done and the task list is empty. Kept live
+rather than archived because the wave results below are Sandata's only written
+record of what each change measured, and because nine design questions raised
+during execution are still open. New Sandata work gets its own plan document.
 Branch: `sandata-scaffold`, based on `main` at `8743e8b`
 Design: [2026-08-07-sandata-scaffold-design.md](2026-08-07-sandata-scaffold-design.md)
 Research: [../research/2026-08-07-sandata-research-consolidated.md](../research/2026-08-07-sandata-research-consolidated.md)

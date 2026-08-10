@@ -42,7 +42,7 @@ through 868, quoted here exactly:
 > cap, with a median decisive tick at or below 5,000. Preset V2's shipped tables
 > satisfy both the share band and the termination criterion; the recorded
 > figures are in
-> [docs/development/testing.md](docs/development/testing.md).
+> [docs/development/testing.md](../../development/testing.md).
 
 That is the only place in the standards that states a numeric termination bar,
 and it is stated as a property of the **defensive resolution contract** — it

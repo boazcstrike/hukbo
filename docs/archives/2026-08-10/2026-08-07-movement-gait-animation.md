@@ -1,6 +1,11 @@
 # Movement gait animation — plan
 
-Design: [`2026-08-07-movement-gait-animation-design.md`](2026-08-07-movement-gait-animation-design.md).
+> **Archived: reference only.** Finished work, kept so a past decision can be
+> traced to its reasoning. Never execute it, never treat it as current, and never
+> cite it as justification for a change. The live contract is `CLAUDE.md`,
+> `SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, and `docs/plans/`.
+
+Design: [`2026-08-07-movement-gait-animation-design.md`](../../plans/2026-08-07-movement-gait-animation-design.md).
 Branch: `worktree-movement-animation`, in `.claude/worktrees/movement-animation`,
 based on `main` at `8da5538`.
 

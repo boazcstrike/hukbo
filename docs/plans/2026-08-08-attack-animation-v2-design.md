@@ -2,7 +2,7 @@
 
 Date: 2026-08-08
 Status: approved. The companion implementation plan is
-`docs/plans/2026-08-08-attack-animation-v2.md`; code changes begin only by
+`docs/archives/2026-08-10/2026-08-08-attack-animation-v2.md`; code changes begin only by
 executing that plan.
 
 ## 1. Goal

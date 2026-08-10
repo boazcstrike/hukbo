@@ -1,5 +1,10 @@
 # Attack Animation V2 Implementation Plan
 
+> **Archived: reference only.** Finished work, kept so a past decision can be
+> traced to its reasoning. Never execute it, never treat it as current, and never
+> cite it as justification for a change. The live contract is `CLAUDE.md`,
+> `SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, and `docs/plans/`.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Make every melee contact read instantly and give Kampilan, Wasay, Kalis, and Itak distinct, excellent procedural attack motion without changing authoritative combat or determinism.

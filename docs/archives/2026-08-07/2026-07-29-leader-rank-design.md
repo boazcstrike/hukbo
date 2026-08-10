@@ -12,7 +12,7 @@ Parent design: [`2026-07-29-warrior-standing-design.md`](2026-07-29-warrior-stan
 §6.3, which this document expands into the full leadership account.
 
 This document commissions the leadership-first work named in
-`docs/prompts/2026-07-29-leader-standing-orchestration.md`: leadership is a
+`docs/archives/2026-08-10/2026-07-29-leader-standing-orchestration.md`: leadership is a
 first-class deliverable, not an optional tail on rank. It answers the nine
 `SIMULATION-GAME-STANDARDS.md` §10 acceptance questions for leadership on its
 own, separately from the rank ladder's own answers in the parent design.

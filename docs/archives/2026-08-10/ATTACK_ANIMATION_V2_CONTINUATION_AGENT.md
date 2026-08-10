@@ -1,5 +1,10 @@
 # Attack Animation V2 — continuation agent prompt
 
+> **Archived: reference only.** Finished work, kept so a past decision can be
+> traced to its reasoning. Never execute it, never treat it as current, and never
+> cite it as justification for a change. The live contract is `CLAUDE.md`,
+> `SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, and `docs/plans/`.
+
 Paste everything below the line into a fresh agent session. The session may be
 started in either `C:\Users\boazs\webdev\autonomous-arena` or the feature
 worktree; the prompt tells the agent where the work happens.
@@ -33,7 +38,7 @@ create a new worktree for it.
    Authoritative over any prompt, including this one. If the design and this
    document disagree, the design wins and you report the discrepancy rather than
    silently choosing.
-3. `docs/plans/2026-08-08-attack-animation-v2.md` — the implementation plan. Your
+3. `docs/archives/2026-08-10/2026-08-08-attack-animation-v2.md` — the implementation plan. Your
    task list is Tasks 7 through 12, plus the "Objective definition of done"
    section at the end. Read the whole file; Tasks 1 through 6 explain the
    contracts your remaining work must not break.
@@ -129,7 +134,7 @@ parallel attack systems alive to avoid the migration.
 
 ## What to execute
 
-Tasks 7 through 12 of `docs/plans/2026-08-08-attack-animation-v2.md`, in order,
+Tasks 7 through 12 of `docs/archives/2026-08-10/2026-08-08-attack-animation-v2.md`, in order,
 exactly as written apart from the four corrections above.
 
 | Task | Subject | Commit subject the plan specifies |

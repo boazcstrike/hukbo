@@ -1,15 +1,17 @@
 # Ranged units — session handoff, 2026-08-09
 
-Supersedes [`2026-08-08-ranged-units-handoff.md`](2026-08-08-ranged-units-handoff.md),
+Supersedes [`2026-08-08-ranged-units-handoff.md`](../archives/2026-08-10/2026-08-08-ranged-units-handoff.md),
 which is frozen at wave 4 and whose every count, commit and status is stale. Read
 that one only for durable reasoning.
 
 **The package's goal has been reached.** A ranged battle has been played by a
 person, with sound, without crashing. That had never happened before today.
 
-Branch `ranged-units`, worktree
-`C:\Users\boazs\webdev\autonomous-arena\.claude\worktrees\ranged-units`, head
-`78fc9ed`. Not merged to `main`, deliberately — see section 5.
+Branch `ranged-units` was merged to `main` on 2026-08-09 at `9daa271`. The tag
+`pre-main-merge-2026-08-09` marks the pre-merge state. **Corrected on
+2026-08-10:** this document originally said the merge had not been done, which
+was true when it was written and false a few hours later. Every other statement
+in it still holds.
 
 ## 1. What this session did
 
@@ -93,18 +95,17 @@ substitute for playing the game.
 
 ## 5. What is open
 
-**Merging to `main` has not been done and has not been proposed.** The user has
-not been asked this session and the previous session's reasoning still holds: RU-31
-is not closed and the RG rows are unflipped.
+**The merge to `main` happened on 2026-08-09 at `9daa271`,** after this section
+was written. What follows is what remains open, and none of it is code.
 
 - **The eleven `RG-*` rows in `docs/development/testing.md` are all `PENDING`.**
   A human at an interactive desktop. **No agent may flip one, for any reason,
   including a passing test.** Six of them were blocked on RU-31's files, which now
   exist, so they are attemptable for the first time.
-- **Sixty WAV files and `GENERATED.md` are uncommitted** in the worktree. Left
-  untracked on purpose: the user may re-roll takes after listening, and one commit
-  is cleaner than two. They belong on this branch when they are settled — the
-  existing 70 files in that folder are tracked.
+- **The sixty WAV files are committed.** `src/Hukbo.Client/Content/Audio` holds
+  130 tracked `.wav` files — the 70 that predate this package plus RU-31's 60,
+  spread over the thirteen new slots. Re-rolling a take after listening is still
+  fine; it is now an ordinary edit rather than a first commit.
 - **The V9 termination gap.** 14 of 20 decisive seeds against a bar of 19. V9 is
   opt-in, V4 remains the shipped default, and the user accepted it with the gap
   recorded. A second cause exists and is unidentified. Do not retune to chase it;

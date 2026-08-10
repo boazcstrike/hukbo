@@ -724,7 +724,7 @@ while attack reach decides who can strike — the two are deliberately different
 
 This subsection records the shipped last-stand rally behaviour. It is the game-rule statement of
 the approved design at
-[docs/plans/2026-07-27-last-stand-formation-design.md](docs/plans/2026-07-27-last-stand-formation-design.md),
+the last-stand formation design,
 which remains the authority on the numeric derivation and the rejected alternatives.
 
 **This is a game-design invention, not a historical claim, and the prohibition on named or
@@ -794,7 +794,7 @@ than they would under ordinary targeting. The current recorded oracle is in
 
 This section records the shipped weapon-clash mechanic: the step that decides whether an accepted
 attack actually lands. It is the game-rule statement of the decisions recorded in
-[docs/plans/2026-07-27-clash-preset-v2-integration-design.md](docs/plans/2026-07-27-clash-preset-v2-integration-design.md),
+the clash preset V2 integration design,
 which remains the authority on why each value was chosen and which alternatives were rejected. This
 section was dropped from the standards document when the original weapon-clash plan was superseded
 by the preset-V2 integration; it is restored here rather than left missing, because the mechanic it

@@ -39,7 +39,7 @@ internal static class CueSchedule
     // index. Slot 25 (misfire-arquebus) is listed for completeness but
     // MapSlot below never returns it, because SoundCueMapper.Map has no case
     // that reaches it — the arquebus misfire mechanic has no Phase 1 emission
-    // site (docs/plans/2026-08-08-ranged-units-handoff.md).
+    // site (docs/archives/2026-08-10/2026-08-08-ranged-units-handoff.md).
     private static readonly string[] SlotBaseNames =
     [
         "attack-kampilan",       // 0  AttackKampilan

@@ -90,7 +90,7 @@ iterations, separation weights, and deadlock escape rules are all
 `BattleSimulation` currently:
 
 - stores Q22.10-style positions with 1,024 raw units per logical unit
-  ([`FixedPoint`](../../src/Hukbo.Core/Mathematics/FixedPoint.cs));
+  ([`FixedPoint`](../../src/Hukbo.Shared.Core/Mathematics/FixedPoint.cs));
 - selects a target, gathers movement proposals from the pre-commit state, then
   commits proposals in the agent array's stable order
   ([`GatherAndCommitMovement`](../../src/Hukbo.Core/Simulation/BattleSimulation.cs));

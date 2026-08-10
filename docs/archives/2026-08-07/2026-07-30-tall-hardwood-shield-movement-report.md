@@ -8,7 +8,7 @@ Date: 2026-07-30
 Branch: `movement-shield`, based on `main` at `5afae08`.
 Executes: [`docs/archives/2026-07-31/movement/tall-hardwood-shield.md`](../../archives/2026-07-31/movement/tall-hardwood-shield.md)
 under the prompt in
-[`docs/prompts/2026-07-30-weapon-movement-weapon-template.md`](../../prompts/2026-07-30-weapon-movement-weapon-template.md).
+[`docs/archives/2026-08-10/2026-07-30-weapon-movement-weapon-template.md`](../2026-08-10/2026-07-30-weapon-movement-weapon-template.md).
 Consumes the handoff in
 [`2026-07-30-weapon-movement-foundation-report.md`](2026-07-30-weapon-movement-foundation-report.md)
 section 8.

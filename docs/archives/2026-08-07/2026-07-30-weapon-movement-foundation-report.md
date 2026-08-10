@@ -10,7 +10,7 @@ Executes: [`2026-07-30-weapon-movement-foundation.md`](2026-07-30-weapon-movemen
 and [`2026-07-30-weapon-movement-foundation-design.md`](2026-07-30-weapon-movement-foundation-design.md).
 
 This is the required output of the shared foundation session described in
-`docs/prompts/2026-07-30-weapon-movement-foundation.md`. The five weapon
+`docs/archives/2026-08-10/2026-07-30-weapon-movement-foundation.md`. The five weapon
 sessions start from this document.
 
 ## 1. Preflight findings

@@ -1,7 +1,12 @@
 # Ranged units — session handoff, 2026-08-08
 
+> **Archived: reference only.** Finished work, kept so a past decision can be
+> traced to its reasoning. Never execute it, never treat it as current, and never
+> cite it as justification for a change. The live contract is `CLAUDE.md`,
+> `SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, and `docs/plans/`.
+
 > **Superseded on 2026-08-09 by
-> [`2026-08-09-ranged-units-handoff.md`](2026-08-09-ranged-units-handoff.md).**
+> [`2026-08-09-ranged-units-handoff.md`](../../plans/2026-08-09-ranged-units-handoff.md).**
 > This document is frozen at wave 4. Every count, commit, and status in it is
 > stale, and the package has since reached its goal. Read it only for durable
 > reasoning about decisions that were taken here.

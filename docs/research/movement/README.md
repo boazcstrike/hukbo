@@ -22,13 +22,13 @@ research documents, one plan index, and five equipment implementation plans.
 
 | Research document | Plan document | Implemented identity | Player-facing descriptor |
 | --- | --- | --- | --- |
-| [`kampilan.md`](kampilan.md) | [`kampilan.md`](../../plans/movement/kampilan.md) | `WeaponId.Kampilan` | Kampilan — Great Blade |
-| [`wasay.md`](wasay.md) | [`wasay.md`](../../plans/movement/wasay.md) | `WeaponId.Wasay` | Wasay — War Axe |
-| [`kalis.md`](kalis.md) | [`kalis.md`](../../plans/movement/kalis.md) | `WeaponId.Kalis` | Kalis — Thrusting Blade |
-| [`itak.md`](itak.md) | [`itak.md`](../../plans/movement/itak.md) | `WeaponId.Itak` | Itak — Work Blade |
-| [`tall-hardwood-shield.md`](tall-hardwood-shield.md) | [`tall-hardwood-shield.md`](../../plans/movement/tall-hardwood-shield.md) | `ShieldId.TallHardwood` | Tall Hardwood Shield |
+| [`kampilan.md`](kampilan.md) | pruned 2026-08-07 | `WeaponId.Kampilan` | Kampilan — Great Blade |
+| [`wasay.md`](wasay.md) | pruned 2026-08-07 | `WeaponId.Wasay` | Wasay — War Axe |
+| [`kalis.md`](kalis.md) | pruned 2026-08-07 | `WeaponId.Kalis` | Kalis — Thrusting Blade |
+| [`itak.md`](itak.md) | pruned 2026-08-07 | `WeaponId.Itak` | Itak — Work Blade |
+| [`tall-hardwood-shield.md`](tall-hardwood-shield.md) | pruned 2026-08-07 | `ShieldId.TallHardwood` | Tall Hardwood Shield |
 
-The companion [`plans/movement/README.md`](../../plans/movement/README.md)
+The companion plan-side movement README, pruned on 2026-08-07,
 owns program-wide sequencing, shared code changes, dependencies, and
 verification. Equipment plan files own only the implementation tasks derived
 from their corresponding research files. Neither research nor plans authorize

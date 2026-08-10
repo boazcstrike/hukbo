@@ -2,7 +2,7 @@
 
 Date: 2026-08-09
 Status: open. The twelve-task plan in
-`docs/plans/2026-08-08-attack-animation-v2.md` is complete and merged; this
+`docs/archives/2026-08-10/2026-08-08-attack-animation-v2.md` is complete and merged; this
 records what it left behind.
 
 The implementation plan and its design are the context for everything below.

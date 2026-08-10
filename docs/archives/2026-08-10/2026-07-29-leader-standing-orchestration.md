@@ -1,5 +1,10 @@
 # Prompt — Leaders, standing, and research-backed army composition
 
+> **Archived: reference only.** Finished work, kept so a past decision can be
+> traced to its reasoning. Never execute it, never treat it as current, and never
+> cite it as justification for a change. The live contract is `CLAUDE.md`,
+> `SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, and `docs/plans/`.
+
 Date: 2026-07-29
 Hand this file to the agent verbatim, or paste the body below the horizontal
 rule. It is written to be self-contained: an agent that reads only this prompt

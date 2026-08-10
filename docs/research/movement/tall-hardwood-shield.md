@@ -263,7 +263,7 @@ sits exactly at the bottom edge of the same band. Both rows release from
 disengagement at 11,000 basis points, which is 1.10 enemies per ally, or a
 ratio of 0.909, and that value does sit inside the proposed `0.85–1.00` release
 band. Decision D4 of
-[`2026-07-31-movement-v7-calibration-decisions.md`](../../plans/2026-07-31-movement-v7-calibration-decisions.md)
+[`2026-07-31-movement-v7-calibration-decisions.md`](../../archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-decisions.md)
 ratified this departure on 2026-07-31 as deliberate rather than accidental:
 both shield rows tolerating more pressure before they disengage is the intended
 "protected deliberation" reading of the shield, and that reading is now signed
