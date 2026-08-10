@@ -176,11 +176,11 @@ stateHash 7C145A9E05916E4C   eventHash 77626E104234206C   combatPreset 5   movem
 **Read the Client test count with care.** It is 3,682 against the 3,651 the
 combat cadence V6 block records. Twenty-three of those thirty-one new tests
 belong to this change — the armor flank-bar helper, the scale-relative accent
-cap, and the trample stubble shade. **The other eight come from a separate,
-uncommitted display-DPI change another session had in the same working tree
-when this gate ran**, and they are not part of the commit this block documents.
-The suite stood at 3,659 with that change present and this one absent, which is
-where both figures come from.
+cap, and the trample stubble shade. **The other eight come from the separate
+display-DPI change another session had in the same working tree when this gate
+ran**, uncommitted at the time and landed as `b1152f7` shortly afterwards. They
+are not part of the commit this block documents. The suite stood at 3,659 with
+that change present and this one absent, which is where both figures come from.
 The hashes are unaffected either way: both changes are `Hukbo.Client` only, and
 the headless workloads never load the client.
 
