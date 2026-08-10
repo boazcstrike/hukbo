@@ -281,7 +281,11 @@ public sealed class PresentationCoordinatorTests
 
     /// <summary>
     /// The attack is the only action in progress rather than a wound already
-    /// dealt, so it is the only contact clock the playback speed touches.
+    /// dealt, so it is the only contact clock the playback speed touches — and
+    /// even that one is scaled only up to
+    /// <c>AttackAnimationSystem.MaximumAnimationSpeedMultiplier</c>. At the 4x
+    /// requested here the timeline therefore ages at 2x, which is what keeps a
+    /// swing drawn for more than two frames at the fastest speeds.
     /// </summary>
     [Fact]
     public void AdvanceEffects_ScalesOnlyTheAttackClockByTheSpeedMultiplier()
@@ -300,7 +304,7 @@ public sealed class PresentationCoordinatorTests
 
         var attack = Assert.Single(
             coordinator.AttackAnimations.ActiveAnimations.ToArray());
-        Assert.Equal(0.08f, attack.AgeSeconds, precision: 5);
+        Assert.Equal(0.04f, attack.AgeSeconds, precision: 5);
         var hit = Assert.Single(coordinator.HitEffects.ActiveEffects.ToArray());
         Assert.Equal(0.02f, hit.AgeSeconds, precision: 5);
         var burst = Assert.Single(coordinator.Blood.ActiveBursts.ToArray());

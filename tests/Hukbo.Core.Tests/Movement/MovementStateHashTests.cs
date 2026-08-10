@@ -783,6 +783,21 @@ public sealed class MovementStateHashTests
 
     // ----- Helpers -----
 
+    /// <summary>
+    /// The combat preset is pinned rather than defaulted, for the same reason
+    /// <see cref="MovementPresetId"/> is: <c>StateHasher.Compute</c> folds
+    /// <c>(int)scenario.CombatPreset</c>, so every literal
+    /// <see cref="TheVSixFoldOrderIsPinned"/> records would move whenever the
+    /// shipped default moved, and the test would report a fold-order
+    /// regression on a change that reordered nothing. This file asks whether
+    /// the fold layout is correct, never which preset ships, so its input is
+    /// frozen. The 2026-08-11 flip of the shipped default from
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV4"/> to
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV6"/> is exactly the
+    /// event this guards against, and it is why the pin is explicit now.
+    /// Contrast <c>DeterminismTests</c>, whose seed-1 Facts deliberately
+    /// track the shipped default and are recaptured when it moves.
+    /// </summary>
     private static Scenario CreateScenario(MovementPresetId movementPreset) =>
         new Scenario(
             Seed: 3,
@@ -793,6 +808,7 @@ public sealed class MovementStateHashTests
             TickLimit: 1_000) with
         {
             MovementPreset = movementPreset,
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV4,
         };
 
     /// <summary>

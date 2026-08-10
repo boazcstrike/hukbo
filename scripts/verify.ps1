@@ -43,8 +43,9 @@ Invoke-RepositoryScript -Name 'benchmark.ps1' -Parameters @{
 }
 
 # The invocation above never exercises the ranged combat preset: the
-# shipped default scenario stays on PrecolonialPhilippinesV4 and
-# PersistentContingentsV4, so a completely broken ranged path (every
+# shipped default scenario is PrecolonialPhilippinesV6 (V4's tables with a
+# retuned melee cadence, flipped 2026-08-11) and PersistentContingentsV4,
+# neither of which fields a ranged weapon, so a completely broken ranged path (every
 # projectile refused, every archer stalling to the tick cap) would leave
 # this gate green. Guarded to Hukbo only -- PrecolonialPhilippinesV5 and
 # RangedStandoffV8 are Hukbo-specific preset ids that do not exist in the

@@ -306,7 +306,7 @@ public sealed class ItakMovementScenarioTests
 
     /// <summary>
     /// The shipped default combat preset is the solo-only, four-entry
-    /// <see cref="CombatPresetId.PrecolonialPhilippinesV4"/> roster, so a
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV6"/> roster, so a
     /// six-entry Itak roster survives only by naming
     /// <see cref="CombatPresetId.PrecolonialPhilippinesV2"/> explicitly:
     /// the same counts validate under the explicit V2 preset and are a
@@ -331,7 +331,7 @@ public sealed class ItakMovementScenarioTests
         };
 
         Assert.Equal(
-            CombatPresetId.PrecolonialPhilippinesV4, defaulted.CombatPreset);
+            CombatPresetId.PrecolonialPhilippinesV6, defaulted.CombatPreset);
         Assert.Throws<ArgumentException>(defaulted.Validate);
     }
 

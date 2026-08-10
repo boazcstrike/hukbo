@@ -23,7 +23,7 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-11
 
-332 rows across 28 subsections: **294 `PENDING`, 15 `BLOCKED`, 20 `PASS`,
+333 rows across 28 subsections: **287 `PENDING`, 15 `BLOCKED`, 28 `PASS`,
 3 `FAIL`**, counted from the status column of this file on 2026-08-11. The
 earlier figure here, 105 rows across 29 subsections, did not match the file and
 appears to have survived the split out of `docs/development/testing.md`;
@@ -38,7 +38,7 @@ order relaunches the game far more often than they need to.
 | Ranged | `PP` 8, `RG` 11 | 19 `PENDING` | A battle fielding Bangkaw, Busog, and Arquebus warriors. The shipped client runs combat preset V5 and movement preset V8, so ranged units are on the field by default at roughly a 14 per cent share |
 | Pawn animation | `AA` 17, `GA` 14 | 31 `PENDING` | Warriors striking and walking, close in. `AA` also holds the one open `FAIL`, AA-22 |
 | Markers | `LC` 11, `L` 7 | 18 `PENDING` | Leaders and contingents at default zoom, plus the agent inspector |
-| Feed, UI, render | `CL` 9, `GR` 5 | 14 `PENDING` | The event feed, typography, and launch-time render behaviour |
+| Feed, UI, render | `CL` 12, `GR` 5 | 9 `PENDING`, 8 `PASS` | The event feed, typography, and launch-time render behaviour. The `CL` clash rows were run on 2026-08-11 — 8 `PASS`, and four re-runs after the combat-cadence change: CL-1, CL-3, CL-7a, CL-7b |
 | Sandata | `SD` | 5 `BLOCKED`, 2 `PASS`, 2 `FAIL` | `./scripts/run.ps1 -Game Sandata` |
 | Pressure interrupt | `P` | 9 `BLOCKED`, 1 `PENDING` | **Not runnable today** — see below |
 | Weapon identity | `V2` | 6 `PASS`, 3 `PENDING`, 1 `BLOCKED` | Run on 2026-08-11. The three `PENDING` rows are re-runs: one waiting on the click-target fix that landed the same day, two rewritten after the run |
@@ -343,27 +343,51 @@ favour of the existing sound-gain section.
 
 ## Weapon clash smoke (preset V2)
 
-**No interactive run was performed for this change.** Every row below is
-`PENDING`. The automated tests prove the resolver, the table coverage, the
-event packing, and the blood/label suppression; none of them prove that a
-spectator watching the arena can actually tell the five resolutions apart.
+An interactive run was performed on 2026-08-11 at commit `0c3f7f2`. Eight rows
+passed and three failed — CL-1, CL-3, and CL-7. All three were legibility
+failures rather than logic failures: the effects rendered, but they overlapped
+each other densely enough that a spectator could not attribute an individual one
+to an individual blow.
+
+**Those three rows have since been worked on and are `PENDING` again**, so they
+need a fresh interactive run. The 2026-08-11 observation is preserved in the
+`Actual` column of each, prefixed `2026-08-11 FAIL`, because a re-run is only
+meaningful against what was seen the first time. The eight passing rows keep
+their result; nothing in the combat-cadence change touches what they assert.
+CL-7 is now two rows, CL-7a and CL-7b, because it was two defects wearing one
+row — see section 4 of
+[`../plans/2026-08-11-combat-cadence-v6-design.md`](../plans/2026-08-11-combat-cadence-v6-design.md).
+
+**No agent may flip CL-1, CL-3, CL-7a, or CL-7b to `PASS`.** A person at an
+interactive desktop does that, after watching a battle. A green suite and a
+green gate are not evidence about any of them.
+
 Rows marked with a dagger (†) are the ones that decide something about the
-design rather than merely confirm it — see design section 3.8 for the
-recorded disposition if the void-versus-landed row returns `FAIL`.
+design rather than merely confirm it — see design section 3.8 for the recorded
+disposition if the void-versus-landed row returns `FAIL`.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | 2026-08-11 |
+| Machine/platform | Microsoft Windows 10.0.26200 (Windows 11 Pro) x64 |
+| Source commit | `0c3f7f2` for the eight recorded results; the four `PENDING` rows need a run at or after the combat-cadence change |
+| Launch path (`source` or package path) | `source`, via `./scripts/run.ps1` |
+| Optional screenshot paths | None recorded |
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| CL-1 | Watch the battle event feed for one exchange of each resolution | The five lines are distinguishable: a damage line for `Landed`, "stopped by the shield" for `ShieldBlocked`, "parried" for `Parried`, "turned aside" for `Deflected`, "stepped off the line" for `Evaded` | | PENDING |
-| CL-2 | Watch a shield-blocked, parried, or deflected blow | No blood spray and no impact ring appear for any of the three | | PENDING |
-| CL-3 | Watch the clash cross render | It appears for `ShieldBlocked`, `Parried`, and `Deflected`, and for neither `Landed` nor `Evaded` | | PENDING |
-| CL-4 † | Distinguish a void from a shield block | An `Evaded` blow (no clash cross, follow-through swing) reads differently on screen from a `ShieldBlocked` blow (clash cross, recoil) without reading the event log | | PENDING |
-| CL-5 † | Distinguish a void from a landed blow | An `Evaded` blow (follow-through swing, no blood, no impact ring) reads differently on screen from a `Landed` blow (stops on target, blood, impact ring) without reading the event log | | PENDING |
-| CL-6 | Watch any warrior attack | Weapons visibly swing through an arc rather than sitting static during an attack | | PENDING |
-| CL-7 | Watch one attack at 1x, then the same weapon at 4x | The swing reads as one countable action at 1x and does not smear into a blur at 4x | | PENDING |
-| CL-8 | Compare a `Parried` or `Deflected` blow, a `Landed` blow, and an `Evaded` blow | The clashed blow visibly recoils, the landed blow stops on the target, and the void follows through past it | | PENDING |
-| CL-9 | Zoom to high detail, then to low detail, during a swing | The swing arc trail is visible at high zoom and absent at low zoom | | PENDING |
-| CL-10 | Pan the camera so a swinging weapon crosses the arena panel edge | A weapon tip may be visibly clipped at the panel edge while panning — this is the accepted cost of the pose-blind frustum cull, not a defect | | PENDING |
-| CL-11 | Observe the merged pawn silhouette in motion, both a shield-bearing and a solo warrior | The silhouette under D7 (main's geometry constants plus the clash branch's swing pose applied on top) reads correctly: shield block and swing pose both present, axe head distinguishable from blade, no visual corruption | | PENDING |
+| CL-1 | Watch the battle event feed for one exchange of each resolution | The five lines are distinguishable: a damage line for `Landed`, "stopped by the shield" for `ShieldBlocked`, "parried" for `Parried`, "turned aside" for `Deflected`, "stepped off the line" for `Evaded` | 2026-08-11 FAIL at `0c3f7f2`: not distinguishable in practice. The five wordings exist, but too many resolutions arrived at once for an observer to match a line to the blow that produced it. The combat-cadence change roughly halves the line rate; whether that is enough is what this re-run decides | PENDING |
+| CL-2 | Watch a shield-blocked, parried, or deflected blow | No blood spray and no impact ring appear for any of the three | As expected | PASS |
+| CL-3 | Watch the clash cross render | It appears for `ShieldBlocked`, `Parried`, and `Deflected`, and for neither `Landed` nor `Evaded` | 2026-08-11 FAIL at `0c3f7f2`: too fast to attribute. Individual clash crosses overlapped one another, so a shield block, a parry, and a deflection could not be told apart in flight. The combat-cadence change roughly halves the clash-cross rate | PENDING |
+| CL-4 † | Distinguish a void from a shield block | An `Evaded` blow (no clash cross, follow-through swing) reads differently on screen from a `ShieldBlocked` blow (clash cross, recoil) without reading the event log | As expected | PASS |
+| CL-5 † | Distinguish a void from a landed blow | An `Evaded` blow (follow-through swing, no blood, no impact ring) reads differently on screen from a `Landed` blow (stops on target, blood, impact ring) without reading the event log | As expected | PASS |
+| CL-6 | Watch any warrior attack | Weapons visibly swing through an arc rather than sitting static during an attack | As expected | PASS |
+| CL-7a | Watch one attack at 1x | The swing reads as one countable action, with visible rest either side of it rather than running straight into the next swing | 2026-08-11 FAIL at `0c3f7f2`: the single-action reading was not visible enough to confirm. Under the old cadence an Itak swung every 200 ms while its recovery animation ran 170 ms, so consecutive swings very nearly abutted; the cadence change roughly doubles the interval | PENDING |
+| CL-7b | Watch the same weapon at 4x | The swing is still drawn long enough to read as one action rather than smearing into a blur | 2026-08-11 FAIL at `0c3f7f2`, as part of the undivided CL-7. Attack timelines were aged by the full playback multiplier, so a 0.17-second recovery drew in 0.0425 seconds — two to three frames at 60 Hz. `AttackAnimationSystem.MaximumAnimationSpeedMultiplier` now holds the animation clock at 2x | PENDING |
+| CL-8 | Compare a `Parried` or `Deflected` blow, a `Landed` blow, and an `Evaded` blow | The clashed blow visibly recoils, the landed blow stops on the target, and the void follows through past it | As expected | PASS |
+| CL-9 | Zoom to high detail, then to low detail, during a swing | The swing arc trail is visible at high zoom and absent at low zoom | As expected | PASS |
+| CL-10 | Pan the camera so a swinging weapon crosses the arena panel edge | A weapon tip may be visibly clipped at the panel edge while panning — this is the accepted cost of the pose-blind frustum cull, not a defect | As expected | PASS |
+| CL-11 | Observe the merged pawn silhouette in motion, both a shield-bearing and a solo warrior | The silhouette under D7 (main's geometry constants plus the clash branch's swing pose applied on top) reads correctly: shield block and swing pose both present, axe head distinguishable from blade, no visual corruption | As expected | PASS |
 
 ## Spectator clarity smoke
 

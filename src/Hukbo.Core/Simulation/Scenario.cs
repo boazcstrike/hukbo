@@ -81,21 +81,41 @@ public sealed record Scenario(
         DefaultMaximumProjectilesInFlight;
 
     /// <summary>
-    /// The combat ruleset this battle is fought under. Defaults to the
-    /// newest preset; earlier ones stay registered and unmodified so a
-    /// replay recorded against one remains reproducible by naming it here.
-    /// The shipped default has moved on from
+    /// The combat ruleset this battle is fought under. Earlier presets stay
+    /// registered and unmodified so a replay recorded against one remains
+    /// reproducible by naming it here.
+    /// <para>
+    /// The shipped default moved from
     /// <see cref="CombatPresetId.PrecolonialPhilippinesV2"/> to
     /// <see cref="CombatPresetId.PrecolonialPhilippinesV4"/>, the preset that
     /// assigns each roster entry a <see cref="RankId"/> and a per-rank
-    /// fighter level, so a spectator's default battle now carries the
-    /// visible rank the composition panel and agent inspector present.
-    /// <c>PrecolonialPhilippinesV1</c>, <c>V2</c>, and <c>V3</c> all stay
-    /// registered and byte-identical for a replay that names one of them
-    /// explicitly.
+    /// fighter level, so a spectator's default battle carries the visible rank
+    /// the composition panel and agent inspector present.
+    /// </para>
+    /// <para>
+    /// On 2026-08-11 it moved again, to
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV6"/>. V6 restates
+    /// every one of V4's tables unchanged and retunes only cadence and damage:
+    /// blows land roughly half as often and hurt roughly twice as much, at a
+    /// damage per tick held within two per cent of V4's. The reason is
+    /// legibility rather than balance — an interactive smoke run failed the
+    /// CL-1, CL-3, and CL-7 rows of docs/development/smoke-checklist.md
+    /// because event-feed lines and clash crosses arrived faster than a
+    /// spectator could attribute them to individual blows, and the artefact
+    /// rate is the attack rate. Twenty seeds were measured against both
+    /// presets before this flip: both decide all twenty, and V6's median
+    /// decision tick is 1,651 against V4's 1,668. See
+    /// docs/plans/2026-08-11-combat-cadence-v6-design.md.
+    /// </para>
+    /// <para>
+    /// Note that the default is <em>not</em> simply the highest-numbered
+    /// preset. <see cref="CombatPresetId.PrecolonialPhilippinesV5"/> fields
+    /// the three ranged weapons and remains deliberately opt-in; V6 descends
+    /// from V4 and fields no ranged row.
+    /// </para>
     /// </summary>
     public CombatPresetId CombatPreset { get; init; } =
-        CombatPresetId.PrecolonialPhilippinesV4;
+        CombatPresetId.PrecolonialPhilippinesV6;
 
     /// <summary>
     /// The movement preset this battle is fought under. Defaults to the

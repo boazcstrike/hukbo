@@ -817,8 +817,12 @@ public sealed class WasayMovementTests
         long separationRaw)
     {
         // Only the V2 combat preset fields all six canonical loadouts, so a
-        // shielded opponent needs it; the solo-only cells run on the current
-        // default instead. Neither is left implicit.
+        // shielded opponent needs it; the solo-only cells run on V4. Neither
+        // is left implicit. V4 is named here deliberately rather than tracking
+        // whatever the shipped default happens to be: the movement matrix is
+        // calibrated against V4's cadence, and the 2026-08-11 flip of the
+        // default to PrecolonialPhilippinesV6 doubled every attack cooldown.
+        // Following the default would have silently recalibrated these cells.
         var scenario = CreateScenario(
             combatPreset: opponent.Shield == ShieldId.TallHardwood
                 ? CombatPresetId.PrecolonialPhilippinesV2

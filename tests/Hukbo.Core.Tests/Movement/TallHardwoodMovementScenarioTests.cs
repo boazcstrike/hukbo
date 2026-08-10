@@ -1415,7 +1415,7 @@ public sealed class TallHardwoodMovementScenarioTests
 
     /// <summary>
     /// The shipped default combat preset is the solo-only four-entry
-    /// <see cref="CombatPresetId.PrecolonialPhilippinesV4"/> roster, so a
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV6"/> roster, so a
     /// six-entry roster carrying both shielded loadouts survives only by naming
     /// <see cref="CombatPresetId.PrecolonialPhilippinesV2"/> explicitly. The
     /// same counts validate under the explicit V2 preset and are a
@@ -1441,7 +1441,7 @@ public sealed class TallHardwoodMovementScenarioTests
         };
 
         Assert.Equal(
-            CombatPresetId.PrecolonialPhilippinesV4, defaulted.CombatPreset);
+            CombatPresetId.PrecolonialPhilippinesV6, defaulted.CombatPreset);
         Assert.Throws<ArgumentException>(defaulted.Validate);
     }
 
@@ -1573,24 +1573,23 @@ public sealed class TallHardwoodMovementScenarioTests
     /// <summary>
     /// The shipped combat default is solo-only, read off the registry rather
     /// than restated in prose: a default scenario names
-    /// <see cref="CombatPresetId.PrecolonialPhilippinesV4"/>, and neither the
-    /// V3 nor the V4 roster contains a single entry carrying a shield. Only
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV6"/>, and neither the
+    /// V4 nor the V6 roster contains a single entry carrying a shield — V6
+    /// restates V4's roster unchanged and retunes cadence only. Only
     /// <see cref="CombatPresetId.PrecolonialPhilippinesV2"/> fields both
-    /// shielded loadouts, which is why every shielded cell must name it. The
-    /// weapon plan's instruction to change a default assertion ahead of a V2
-    /// to V3 switch is obsolete: the default is already V4.
+    /// shielded loadouts, which is why every shielded cell must name it.
     /// </summary>
     [Fact]
     public void TheShippedCombatDefaultAndItsPredecessorFieldNoShieldedLoadout()
     {
         Assert.Equal(
-            CombatPresetId.PrecolonialPhilippinesV4,
+            CombatPresetId.PrecolonialPhilippinesV6,
             Scenario.CreateDefault().CombatPreset);
 
         foreach (var presetId in new[]
         {
-            CombatPresetId.PrecolonialPhilippinesV3,
             CombatPresetId.PrecolonialPhilippinesV4,
+            CombatPresetId.PrecolonialPhilippinesV6,
         })
         {
             var roster = CombatPresetRegistry.Get(presetId).Roster;

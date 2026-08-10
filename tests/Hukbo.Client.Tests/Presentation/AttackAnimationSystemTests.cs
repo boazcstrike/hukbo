@@ -149,8 +149,27 @@ public sealed class AttackAnimationSystemTests
     [Fact]
     public void Advance_ScalesNormalAndComboCadenceAtEveryPlaybackSpeed()
     {
+        // One attack interval of real time, played at each speed. Up to
+        // AttackAnimationSystem.MaximumAnimationSpeedMultiplier the timeline
+        // ages by exactly one interval however fast the battle runs, which is
+        // the playback-independence this test was written for. Past the
+        // ceiling it deliberately ages by less — at 4x, half an interval — so
+        // the swing is drawn for twice as many frames as a faithful timeline
+        // would give it. The expected value is written as the general form
+        // rather than three literals so both regimes read as one rule.
+        //
+        // The two cadences are the Itak's attack and combo cooldowns under the
+        // shipped combat preset, nine and five ticks at 20 Hz. They are
+        // illustrative constants, not values read from the preset; a cadence
+        // retune makes them stale prose rather than a failing assertion.
+        const float NormalCadencePresentationSeconds = 9f / 20f;
+        const float ComboCadencePresentationSeconds = 5f / 20f;
+
         foreach (var speed in new[] { 1f, 2f, 4f })
         {
+            var animationSpeed =
+                AttackAnimationSystem.ResolveAnimationSpeedMultiplier(speed);
+
             var system = new AttackAnimationSystem(capacity: 1);
             system.Ingest(
                 Contact(sequence: 1, tick: 10, weapon: WeaponId.Itak),
@@ -159,14 +178,13 @@ public sealed class AttackAnimationSystemTests
                 MotionIntensity.Full);
             Assert.True(system.AcknowledgeDraw(2, 1));
 
-            const float NormalCadencePresentationSeconds = 4f / 20f;
             system.Advance(
                 NormalCadencePresentationSeconds / speed,
                 speed);
 
             Assert.True(system.TryGetAnimation(2, out var afterNormalCadence));
             Assert.Equal(
-                NormalCadencePresentationSeconds,
+                NormalCadencePresentationSeconds * animationSpeed / speed,
                 afterNormalCadence.AgeSeconds,
                 precision: 5);
 
@@ -181,14 +199,13 @@ public sealed class AttackAnimationSystemTests
                 MotionIntensity.Full);
             Assert.True(system.AcknowledgeDraw(2, 2));
 
-            const float ComboCadencePresentationSeconds = 2f / 20f;
             system.Advance(
                 ComboCadencePresentationSeconds / speed,
                 speed);
 
             Assert.True(system.TryGetAnimation(2, out var afterComboCadence));
             Assert.Equal(
-                ComboCadencePresentationSeconds,
+                ComboCadencePresentationSeconds * animationSpeed / speed,
                 afterComboCadence.AgeSeconds,
                 precision: 5);
         }
@@ -232,14 +249,90 @@ public sealed class AttackAnimationSystemTests
                         system.Advance(1f / frameRate, speed);
                     }
 
+                    // Frame-rate independence is the property under test, so
+                    // the expected age is compared against the multiplier the
+                    // system actually ages by rather than the requested one.
+                    // Those are the same number at 1x and 2x and differ at 4x,
+                    // where MaximumAnimationSpeedMultiplier holds the timeline
+                    // down so a swing stays readable — see that constant.
                     Assert.True(system.TryGetAnimation(2, out var advanced));
-                    Assert.Equal(0.1f * speed, advanced.AgeSeconds, precision: 4);
+                    Assert.Equal(
+                        0.1f *
+                        AttackAnimationSystem.ResolveAnimationSpeedMultiplier(
+                            speed),
+                        advanced.AgeSeconds,
+                        precision: 4);
                     Assert.Equal(intensity, advanced.MotionIntensity);
                 }
             }
         }
 
         Assert.Equal(27, matrixCells);
+    }
+
+    [Theory]
+    // Requested playback speed, and the multiplier a timeline is aged by.
+    [InlineData(0.25f, 0.25f)]
+    [InlineData(1f, 1f)]
+    [InlineData(2f, 2f)]
+    [InlineData(4f, 2f)]
+    [InlineData(8f, 2f)]
+    [InlineData(1_000f, 2f)]
+    public void AnimationSpeed_IsFaithfulUpToTheCeilingAndHeldAboveIt(
+        float requested,
+        float expected)
+    {
+        // Below and at the ceiling the animation is exactly faithful to the
+        // simulation; above it the swing stops compressing further. This is
+        // the 4x half of the CL-7 legibility failure: at 4x an unclamped
+        // timeline drew the Itak's 0.17-second recovery in roughly two frames.
+        Assert.Equal(
+            expected,
+            AttackAnimationSystem.ResolveAnimationSpeedMultiplier(requested));
+    }
+
+    [Fact]
+    public void AnimationSpeed_IsBoundedAboveForEverySpeedTheCallerCanPass()
+    {
+        // The property, rather than the six sampled points: no multiplier
+        // produces a timeline that ages faster than the ceiling allows.
+        foreach (var requested in new[]
+        {
+            float.Epsilon, 0.5f, 1f, 1.5f, 2f, 3f, 4f, 16f, float.MaxValue,
+        })
+        {
+            var resolved =
+                AttackAnimationSystem.ResolveAnimationSpeedMultiplier(
+                    requested);
+
+            Assert.True(
+                resolved <=
+                AttackAnimationSystem.MaximumAnimationSpeedMultiplier,
+                $"Speed {requested} resolved to {resolved}, above the " +
+                "ceiling.");
+            Assert.True(resolved > 0f);
+            Assert.True(resolved <= requested);
+        }
+    }
+
+    [Fact]
+    public void Advance_DrawsAFourTimesSwingForTwiceAsLongAsAnUnclampedOne()
+    {
+        // The end-to-end statement of the same thing, through the system
+        // rather than the helper: one second of real time at 4x playback ages
+        // an acknowledged timeline by two seconds, not four.
+        var system = new AttackAnimationSystem(capacity: 1);
+        system.Ingest(
+            Contact(sequence: 1, tick: 1),
+            directionX: 1f,
+            directionY: 0f,
+            MotionIntensity.Full);
+        Assert.True(system.AcknowledgeDraw(attackerEntityId: 2, sequence: 1));
+
+        system.Advance(elapsedSeconds: 1f, speedMultiplier: 4f);
+
+        Assert.True(system.TryGetAnimation(2, out var animation));
+        Assert.Equal(2f, animation.AgeSeconds, precision: 4);
     }
 
     [Fact]

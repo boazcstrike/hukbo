@@ -542,10 +542,10 @@ public sealed class PhilippineCombatIntegrationTests
         // onward an active attack combination legitimately uses the shorter
         // WeaponProfile.ComboCooldownTicks instead -- see ComboChainTests,
         // which covers that behaviour explicitly against V3. Following the
-        // shipped default here (now PrecolonialPhilippinesV4, task P1 of
-        // the rank composition panel plan)
-        // would fail this case on real combo attacks rather than on a
-        // cooldown regression.
+        // shipped default here (PrecolonialPhilippinesV4 from task P1 of the
+        // rank composition panel plan, and PrecolonialPhilippinesV6 since the
+        // 2026-08-11 cadence flip) would fail this case on real combo attacks
+        // rather than on a cooldown regression.
         var scenario = Scenario.CreateDefault(seed: 55, totalAgents: 20) with
         {
             CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,

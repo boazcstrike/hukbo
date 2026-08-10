@@ -21,7 +21,7 @@ public sealed class ScenarioTests
         Assert.Equal(20, scenario.TickRate);
         Assert.Equal(10_000, scenario.TickLimit);
         Assert.Equal(
-            CombatPresetId.PrecolonialPhilippinesV4,
+            CombatPresetId.PrecolonialPhilippinesV6,
             scenario.CombatPreset);
     }
 

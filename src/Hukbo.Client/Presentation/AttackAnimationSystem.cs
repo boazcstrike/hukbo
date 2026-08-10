@@ -12,11 +12,41 @@ internal sealed class AttackAnimationSystem
     private readonly AttackAnimation[] _animations;
     private int _count;
 
+    /// <summary>
+    /// PROVISIONAL presentation constant. The ceiling on how fast an attack
+    /// timeline may be played, however fast the battle itself is being played.
+    /// </summary>
+    /// <remarks>
+    /// Attack timelines are the only presentation system aged by playback-
+    /// scaled time; blood, dust, clash crosses, hit effects, and defender
+    /// reactions all age in unscaled real seconds. Without a ceiling, a 4x
+    /// battle drew the Itak's 0.17-second recovery in 0.0425 seconds, which is
+    /// between two and three frames at 60 Hz, and the swing could not be read
+    /// as one action at all — the 4x half of the CL-7 smoke failure recorded
+    /// on 2026-08-11 in docs/development/smoke-checklist.md. Two is chosen so
+    /// that 1x and 2x playback stay exactly faithful to the simulation and
+    /// only the two fastest speeds trade fidelity for legibility. Above the
+    /// ceiling a timeline lags the tick that produced it, and a following
+    /// contact from the same attacker replaces it through <c>Upsert</c>
+    /// exactly as a combo contact already does.
+    /// </remarks>
+    internal const float MaximumAnimationSpeedMultiplier = 2f;
+
     public AttackAnimationSystem(int capacity)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         _animations = new AttackAnimation[capacity];
     }
+
+    /// <summary>
+    /// The playback multiplier an attack timeline is actually aged by, which
+    /// is the requested one held down to
+    /// <see cref="MaximumAnimationSpeedMultiplier"/>. Pure, so the ceiling is
+    /// testable without a system, a graphics device, or a frame.
+    /// </summary>
+    internal static float ResolveAnimationSpeedMultiplier(
+        float speedMultiplier) =>
+        MathF.Min(speedMultiplier, MaximumAnimationSpeedMultiplier);
 
     public ReadOnlySpan<AttackAnimation> ActiveAnimations =>
         _animations.AsSpan(0, _count);
@@ -73,9 +103,11 @@ internal sealed class AttackAnimationSystem
     }
 
     /// <summary>
-    /// Advances acknowledged timelines by playback-scaled presentation time.
-    /// A newly latched contact ignores any elapsed value until its actual draw
-    /// acknowledges the matching sequence.
+    /// Advances acknowledged timelines by playback-scaled presentation time,
+    /// with the scale held down to
+    /// <see cref="MaximumAnimationSpeedMultiplier"/> so a swing stays readable
+    /// at the fastest playback speeds. A newly latched contact ignores any
+    /// elapsed value until its actual draw acknowledges the matching sequence.
     /// </summary>
     public void Advance(float elapsedSeconds, float speedMultiplier = 1f)
     {
@@ -89,7 +121,8 @@ internal sealed class AttackAnimationSystem
             throw new ArgumentOutOfRangeException(nameof(speedMultiplier));
         }
 
-        var scaledSeconds = elapsedSeconds * speedMultiplier;
+        var scaledSeconds =
+            elapsedSeconds * ResolveAnimationSpeedMultiplier(speedMultiplier);
         if (!float.IsFinite(scaledSeconds))
         {
             throw new ArgumentOutOfRangeException(nameof(elapsedSeconds));

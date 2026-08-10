@@ -141,7 +141,67 @@ attack-animation V2 work merged, which is where the Client suite's growth from
 documentation edits made on this day altered test discovery in either suite,
 which was confirmed by listing discovered tests with and without them.
 
-## Canonical gate result — Hukbo, 2026-08-11
+## Canonical gate result — Hukbo, 2026-08-11 (combat cadence V6)
+
+**This is the live Hukbo baseline.** It supersedes the projectile-props block
+below for the default workload only; the explicit ranged workload's digests are
+unchanged and are the same pair both blocks record.
+
+`./scripts/verify.ps1 -SkipBootstrap`, exit code 0, on branch
+`combat-cadence-v6` at base commit `0cc5ce5`:
+
+```
+Formatted 0 of 729 files.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Hukbo.Core.Tests     Total tests: 2455   Passed: 2455
+Hukbo.Client.Tests   Total tests: 3569   Passed: 3569
+[PASS] Release repository tests completed.
+stateHash 5460D13E3F7FD3E5   eventHash 8E18ED1437B2924B   combatPreset 6   movementPreset 4
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+stateHash C8023D3B5BEB005E   eventHash F709A345E2F7370E   combatPreset 5   movementPreset 8
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+**The first pair moved and the second did not, which is exactly the required
+result.** The first workload names no preset, so it follows
+`Scenario.CombatPreset`, which this change flipped from
+`PrecolonialPhilippinesV4` to `PrecolonialPhilippinesV6` — V4's tables with
+every melee attack cooldown, combo cooldown, and damage retuned. Both of its
+hashes had to move: the preset identifier folds into the state hash, and
+halving the attack rate changes the ordered event stream from the first
+exchange onward. The superseded pair is `1B73FC5923879AA0` (state) and
+`AC55684F24D39344` (event).
+
+The second workload names `PrecolonialPhilippinesV5` and `RangedStandoffV8`
+explicitly, and printed `C8023D3B5BEB005E` / `F709A345E2F7370E` — **byte-
+identical to its recorded baseline**. That is the check that proves V6 is a new
+preset rather than an in-place edit: had anything reached V5, this pair would
+have moved and the change would have been wrong.
+
+The default workload also decided faster, at 885 ticks against the previous
+981, with `Faction0Victory` replacing `Faction1Victory`. A different winner on
+a retuned ruleset is expected, not a regression. Twenty seeds were measured
+against both presets before the flip — both decide all twenty, V6's median
+decision tick is 1,651 against V4's 1,668 — and that measurement is recorded in
+[`../plans/2026-08-11-combat-cadence-v6.md`](../plans/2026-08-11-combat-cadence-v6.md)
+under task 5.
+
+`Hukbo.Core.Tests` grew from 2,433 to 2,455 and `Hukbo.Client.Tests` from 3,561
+to 3,569. The 22 new Core tests are `CombatCadenceV6Tests`; the 8 new Client
+tests are the attack-animation speed ceiling.
+
+Still no evidence about anything interactive. CL-1, CL-3, CL-7a, and CL-7b in
+the weapon-clash smoke checklist are all `PENDING` and only a person may
+change that.
+
+## Canonical gate result — Hukbo, 2026-08-11 (projectile-props)
+
+> **Superseded for the default workload.** The `combatPreset 4` pair below was
+> the live baseline until the combat-cadence change flipped the shipped default
+> to `PrecolonialPhilippinesV6`; see the block above. The `combatPreset 5` pair
+> is still current and is unchanged.
 
 `./scripts/verify.ps1 -SkipBootstrap`, exit code 0, run on the merge of
 `projectile-props` into `main`:

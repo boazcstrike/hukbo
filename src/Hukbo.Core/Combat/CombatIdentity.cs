@@ -167,6 +167,25 @@ public enum CombatPresetId
     /// never a historical measurement.
     /// </summary>
     PrecolonialPhilippinesV5 = 5,
+
+    /// <summary>
+    /// V4's tables, roster, ranks, and clash profile restated without
+    /// modification, with the attack cooldown, combo cooldown, and damage of
+    /// all six melee loadouts retuned so that blows land roughly half as often
+    /// and hurt roughly twice as much. Damage per tick is held within two per
+    /// cent of V4's for every loadout, so time to kill is effectively
+    /// unchanged while the on-screen artefact rate — event-feed lines and
+    /// clash crosses — roughly halves. It exists to answer the CL-1, CL-3, and
+    /// CL-7 legibility failures recorded in
+    /// docs/development/smoke-checklist.md on 2026-08-11; the reasoning is in
+    /// docs/plans/2026-08-11-combat-cadence-v6-design.md. Descends from V4
+    /// rather than V5, so it fields the same four melee weapons and no ranged
+    /// row. V1 through V5 stay registered and unmodified so their replays
+    /// remain reproducible. Every value V6 retunes is a provisional
+    /// gameplay-tuning value under CLAUDE.md section 7, never a historical
+    /// measurement.
+    /// </summary>
+    PrecolonialPhilippinesV6 = 6,
 }
 
 /// <summary>

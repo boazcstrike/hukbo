@@ -582,13 +582,27 @@ public sealed class DeterminismTests
         // --agents 20 --ticks 200 --seed 1 --movement-preset
         // PersistentContingentsV2`.
         //
+        // Recaptured again on 2026-08-11, when the combat cadence package
+        // flipped Scenario.CombatPreset's shipped default from
+        // PrecolonialPhilippinesV4 to PrecolonialPhilippinesV6 -- V4's tables
+        // restated with every melee attack cooldown, combo cooldown, and
+        // damage retuned, so blows land roughly half as often and hurt roughly
+        // twice as much. Both hashes had to move: the preset identifier itself
+        // folds into the state hash, and halving the attack rate changes the
+        // ordered event stream from the first exchange onward. Same rationale
+        // as every recapture above -- this Fact follows the shipped default
+        // rather than pinning one. See
+        // docs/plans/2026-08-11-combat-cadence-v6-design.md.
+        //
         // Superseded values, in the order they were superseded. Against the
-        // PrecolonialPhilippinesV2 combat default: "62F0E17B85D5D590" (state)
-        // and "96A77A6AEEE24BB4" (event). Against the four-world-unit radius
-        // before that: "96D59BDBCDD05293" (state) and "12C14F63B4BA1E3B"
-        // (event).
-        Assert.Equal("41201454CCBADC75", stateHash);
-        Assert.Equal("514D986A2BD633E8", eventHash);
+        // PrecolonialPhilippinesV4 combat default: "41201454CCBADC75" (state)
+        // and "514D986A2BD633E8" (event). Against the
+        // PrecolonialPhilippinesV2 combat default before that:
+        // "62F0E17B85D5D590" (state) and "96A77A6AEEE24BB4" (event). Against
+        // the four-world-unit radius before that: "96D59BDBCDD05293" (state)
+        // and "12C14F63B4BA1E3B" (event).
+        Assert.Equal("DB25EB02805721BC", stateHash);
+        Assert.Equal("6F1A64795B7C8E96", eventHash);
     }
 
     /// <summary>
