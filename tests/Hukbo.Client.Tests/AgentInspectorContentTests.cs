@@ -221,14 +221,17 @@ public sealed class AgentInspectorContentTests
                 277,
                 AgentInspectorContent.ComputeContentWidthBudget(310));
 
-            // This baseline was 833 while MaximumLowerRowCount was 19. The
-            // pressure-interrupt row raised that reservation to 20, and the
-            // panel is sized for the worst case so it does not resize as
+            // This baseline was 833 while MaximumLowerRowCount was 19, then
+            // 857 once the pressure-interrupt row raised that reservation to
+            // 20. Battlefield-realism V10's two gameplay-model badges (each
+            // a tier line plus a note line) on the contingent row and the
+            // intent row raised it again, from 20 to 24 — four more rows of
+            // LineHeight 24 each, so the baseline moves 857 + (4 * 24) = 953.
+            // The panel is sized for the worst case so it does not resize as
             // conditional rows appear, exactly as the grip row and the
-            // reserved evidence and warrior-name lines already are. One
-            // LineHeight of 24 is therefore the whole difference: 833 + 24.
+            // reserved evidence and warrior-name lines already are.
             Assert.Equal(
-                857,
+                953,
                 AgentInspectorContent.ComputeRequiredHeight(
                     AgentInspectorContent.EvidenceReservedLineCount));
         });
@@ -280,7 +283,8 @@ public sealed class AgentInspectorContentTests
         Assert.Equal(labels.Length, labels.Distinct(StringComparer.Ordinal).Count());
     }
 
-    // ===== RU-16: AgentIntent.Holding as a first-class inspector reason code =====
+    // ===== RU-16: AgentIntent.Holding as a first-class inspector reason
+    // code, plus battlefield-realism V10's AgentIntent.BackingAway =====
 
     [Theory]
     [InlineData(AgentIntent.Idle, "Intent: Idle")]
@@ -289,6 +293,7 @@ public sealed class AgentInspectorContentTests
     [InlineData(AgentIntent.Dead, "Intent: Dead")]
     [InlineData(AgentIntent.Regrouping, "Intent: Regrouping")]
     [InlineData(AgentIntent.Holding, "Intent: Holding at range")]
+    [InlineData(AgentIntent.BackingAway, "Intent: Backing away from close fighters")]
     public void FormatIntentLineLabelsEveryIntentIncludingHolding(
         AgentIntent intent,
         string expected)
@@ -298,6 +303,17 @@ public sealed class AgentInspectorContentTests
         Assert.Equal(expected, line);
     }
 
+    /// <summary>
+    /// Task 11's own acceptance test (battlefield-realism plan, task 11
+    /// "Done when"): every <see cref="AgentIntent"/> value, now including
+    /// <see cref="AgentIntent.BackingAway"/>, maps to its own distinct
+    /// label. <see cref="AgentInspectorContent.GetIntentLabel"/> throws for
+    /// any value with no explicit arm rather than falling through to a
+    /// shared default, so this also proves <c>BackingAway</c> was given its
+    /// own arm — an omission here would throw
+    /// <see cref="ArgumentOutOfRangeException"/> instead of silently
+    /// passing.
+    /// </summary>
     [Fact]
     public void EveryAgentIntentHasADistinctSpectatorLabel()
     {
@@ -306,6 +322,23 @@ public sealed class AgentInspectorContentTests
             .ToArray();
 
         Assert.Equal(labels.Length, labels.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    /// <summary>
+    /// The whole point of <see cref="AgentIntent.BackingAway"/> existing as
+    /// its own value rather than reusing <see cref="AgentIntent.Holding"/>:
+    /// a spectator must be able to tell a warrior that chose to hold its
+    /// distance from one being driven off it by a close melee threat.
+    /// </summary>
+    [Fact]
+    public void FormatIntentLine_BackingAwayReadsDistinctFromHoldingAtRange()
+    {
+        var backingAwayLine = AgentInspectorContent.FormatIntentLine(AgentIntent.BackingAway);
+        var holdingLine = AgentInspectorContent.FormatIntentLine(AgentIntent.Holding);
+
+        Assert.NotEqual(backingAwayLine, holdingLine);
+        Assert.Equal("Intent: Backing away from close fighters", backingAwayLine);
+        Assert.DoesNotContain("Holding", backingAwayLine, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -343,6 +376,194 @@ public sealed class AgentInspectorContentTests
             "Documented");
 
         Assert.Equal("Intent: Holding at range", lines[0]);
+    }
+
+    /// <summary>
+    /// Battlefield-realism design section 10, "And the label": the intent
+    /// row's gameplay-model badge — an evidence-tier line plus a plain
+    /// "gameplay model" note — appears immediately below the intent line
+    /// exactly when <see cref="AgentIntent.BackingAway"/> is the intent, and
+    /// nowhere else on this agent's rows.
+    /// </summary>
+    [Fact]
+    public void BuildLowerLines_ForABackingAwayAgent_ShowsTheGameplayModelBadgeAfterIntent()
+    {
+        var backingAwayAgent = CreateAgentView(WeaponId.Kalis, ShieldId.TallHardwood) with
+        {
+            Intent = AgentIntent.BackingAway,
+        };
+
+        var lines = AgentInspectorContent.BuildLowerLines(
+            backingAwayAgent,
+            "Kalis — Thrusting Blade",
+            "Documented");
+
+        Assert.Equal("Intent: Backing away from close fighters", lines[0]);
+        Assert.Equal(AgentInspectorContent.FormatIntentGameplayModelTierLine(), lines[1]);
+        Assert.Equal(AgentInspectorContent.FormatIntentGameplayModelNoteLine(), lines[2]);
+    }
+
+    /// <summary>
+    /// The intent-row badge is specific to
+    /// <see cref="AgentIntent.BackingAway"/>: every other intent value —
+    /// including <see cref="AgentIntent.Holding"/>, which reads distinctly
+    /// on its own — carries no badge line.
+    /// </summary>
+    [Theory]
+    [InlineData(AgentIntent.Idle)]
+    [InlineData(AgentIntent.Moving)]
+    [InlineData(AgentIntent.Attacking)]
+    [InlineData(AgentIntent.Dead)]
+    [InlineData(AgentIntent.Regrouping)]
+    [InlineData(AgentIntent.Holding)]
+    public void BuildLowerLines_ForEveryNonBackingAwayIntent_OmitsTheIntentGameplayModelBadge(
+        AgentIntent intent)
+    {
+        var agent = CreateAgentView(WeaponId.Kalis, ShieldId.TallHardwood) with
+        {
+            Intent = intent,
+        };
+
+        var lines = AgentInspectorContent.BuildLowerLines(
+            agent,
+            "Kalis — Thrusting Blade",
+            "Documented");
+
+        Assert.DoesNotContain(
+            AgentInspectorContent.FormatIntentGameplayModelTierLine(),
+            lines);
+        Assert.DoesNotContain(
+            AgentInspectorContent.FormatIntentGameplayModelNoteLine(),
+            lines);
+    }
+
+    /// <summary>
+    /// Battlefield-realism design section 10: the contingent row's own
+    /// gameplay-model badge follows it whenever the contingent row itself
+    /// renders — this agent carries no V10-specific field, so the badge is
+    /// unconditional on the row's presence rather than on the preset.
+    /// </summary>
+    [Fact]
+    public void BuildLowerLines_ForAContingentAgent_ShowsTheGameplayModelBadgeAfterTheContingentRow()
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                contingentId: 3,
+                contingentState: ContingentState.Hold),
+            "Kalis — Thrusting Blade",
+            "Documented");
+
+        var list = lines.ToList();
+        var contingentIndex = list.FindIndex(
+            line => line.StartsWith("Contingent:", StringComparison.Ordinal));
+
+        Assert.True(contingentIndex >= 0);
+        Assert.Equal(
+            AgentInspectorContent.FormatContingentGameplayModelTierLine(),
+            list[contingentIndex + 1]);
+        Assert.Equal(
+            AgentInspectorContent.FormatContingentGameplayModelNoteLine(),
+            list[contingentIndex + 2]);
+    }
+
+    /// <summary>
+    /// The contingent badge is tied to the contingent row's presence, not to
+    /// leadership: the standalone leadership row
+    /// (<see cref="AgentInspectorContent.FormatLeadershipLine"/>) is not
+    /// itself "the contingent row" and carries no badge of its own.
+    /// </summary>
+    [Fact]
+    public void BuildLowerLines_ForALeaderWithNoContingentRow_ShowsNoContingentGameplayModelBadge()
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                contingentState: ContingentState.None,
+                isLeader: true),
+            "Kalis — Thrusting Blade",
+            "Documented");
+
+        Assert.DoesNotContain(
+            AgentInspectorContent.FormatContingentGameplayModelTierLine(),
+            lines);
+        Assert.DoesNotContain(
+            AgentInspectorContent.FormatContingentGameplayModelNoteLine(),
+            lines);
+    }
+
+    /// <summary>
+    /// CLAUDE.md section 7: a gameplay rule is not one of the three
+    /// historical evidence tiers on its own. Both badges must say "gameplay
+    /// model" plainly, in both the tier line and the note line, so the badge
+    /// can never be misread as a bare historical attestation.
+    /// </summary>
+    [Fact]
+    public void GameplayModelBadgeLines_SayGameplayModelPlainly()
+    {
+        Assert.Contains(
+            "gameplay model",
+            AgentInspectorContent.FormatIntentGameplayModelTierLine(),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "gameplay model",
+            AgentInspectorContent.FormatIntentGameplayModelNoteLine(),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "gameplay model",
+            AgentInspectorContent.FormatContingentGameplayModelTierLine(),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "gameplay model",
+            AgentInspectorContent.FormatContingentGameplayModelNoteLine(),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "gameplay model",
+            AgentInspectorContent.GameplayModelNote,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Plan "Rules that bind every task", item 6: the forbidden vocabulary
+    /// never appears in the badge or note text this task adds.
+    /// </summary>
+    [Fact]
+    public void GameplayModelBadgeLines_CarryNoForbiddenVocabulary()
+    {
+        string[] forbidden =
+        [
+            "shield wall",
+            "phalanx",
+            "shield line",
+            "front rank",
+            "squad",
+            "platoon",
+            "captain",
+            "sergeant",
+            "company",
+            "regiment",
+        ];
+        string[] badgeText =
+        [
+            AgentInspectorContent.FormatIntentGameplayModelTierLine(),
+            AgentInspectorContent.FormatIntentGameplayModelNoteLine(),
+            AgentInspectorContent.FormatContingentGameplayModelTierLine(),
+            AgentInspectorContent.FormatContingentGameplayModelNoteLine(),
+            AgentInspectorContent.GameplayModelNote,
+        ];
+
+        foreach (var text in badgeText)
+        {
+            foreach (var word in forbidden)
+            {
+                Assert.DoesNotContain(
+                    word,
+                    text,
+                    StringComparison.OrdinalIgnoreCase);
+            }
+        }
     }
 
     [Fact]
@@ -1624,11 +1845,13 @@ public sealed class AgentInspectorContentTests
     [Fact]
     public void LowerLinesWithAContingentRowAndTheRankReconstructionNoteNeverExceedTheRowBudget()
     {
-        // The deepest panel there is: shielded (grip row), contingent row,
-        // rank reconstruction note, all four V6 movement rows, and the V7
-        // pressure row. This is the exact case MaximumLowerRowCount is sized
-        // for, so the count must land on the budget, not merely under it — a
-        // raised budget without the rows to justify it fails here too.
+        // The deepest panel there is: shielded (grip row), contingent row
+        // plus its gameplay-model badge, rank reconstruction note, all four
+        // V6 movement rows, the V7 pressure row, and the BackingAway intent
+        // plus its own gameplay-model badge. This is the exact case
+        // MaximumLowerRowCount is sized for, so the count must land on the
+        // budget, not merely under it — a raised budget without the rows to
+        // justify it fails here too.
         var count = AgentInspectorContent.BuildLowerLines(
             DeepestView(),
             "Kalis — Thrusting Blade",
@@ -1636,13 +1859,15 @@ public sealed class AgentInspectorContentTests
             movementSpeedRaw: 512).Count;
 
         Assert.Equal(AgentInspectorContent.MaximumLowerRowCount, count);
-        Assert.Equal(20, AgentInspectorContent.MaximumLowerRowCount);
+        Assert.Equal(24, AgentInspectorContent.MaximumLowerRowCount);
     }
 
     /// <summary>
     /// The deepest warrior a panel can draw: shielded, in a contingent,
     /// carrying the rank reconstruction note, with all four V6 movement rows
-    /// and the V7 pressure row present.
+    /// and the V7 pressure row present, and — battlefield-realism V10 —
+    /// backing away, so both gameplay-model badges (intent row and
+    /// contingent row) render at once.
     /// </summary>
     private static AgentView DeepestView() =>
         CreateAgentView(
@@ -1656,7 +1881,10 @@ public sealed class AgentInspectorContentTests
             tacticalPosture: TacticalPosture.Advance,
             footworkPhase: FootworkPhase.Approach,
             pressureBasisPoints: 4200,
-            pressureThresholdBasisPoints: 6500);
+            pressureThresholdBasisPoints: 6500) with
+        {
+            Intent = AgentIntent.BackingAway,
+        };
 
     [Fact]
     public void ComputeRequiredHeightFitsTheDeepestRealRowCountIncludingThePressureRow()

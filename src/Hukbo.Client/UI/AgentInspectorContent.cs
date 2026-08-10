@@ -36,16 +36,34 @@ internal static class AgentInspectorContent
 
     /// <summary>
     /// The most lower detail rows <see cref="BuildLowerLines"/> can produce:
-    /// intent, contingent, target, position, rank, rank reconstruction note,
-    /// weapon, attributes, level, combo attributes, evidence tier, grip,
-    /// armor, shield, movement, facing, posture, footwork, pace, and
-    /// pressure. The contingent row is present exactly when the agent's
+    /// intent, the intent's gameplay-model evidence tier and note, contingent,
+    /// the contingent's gameplay-model evidence tier and note, target,
+    /// position, rank, rank reconstruction note, weapon, attributes, level,
+    /// combo attributes, evidence tier, grip, armor, shield, movement,
+    /// facing, posture, footwork, pace, and pressure. The contingent row is
+    /// present exactly when the agent's
     /// <see cref="AgentView.ContingentState"/> is not
     /// <see cref="ContingentState.None"/>; the standalone leadership row
     /// (leader rank plan L6, see <see cref="FormatLeadershipLine"/>) takes
     /// its place, never adding to the count, exactly when that state is
-    /// <see cref="ContingentState.None"/> and the agent is a leader. The rank
-    /// reconstruction note row
+    /// <see cref="ContingentState.None"/> and the agent is a leader. The
+    /// contingent's own gameplay-model evidence tier and note
+    /// (<see cref="FormatContingentGameplayModelTierLine"/>,
+    /// <see cref="FormatContingentGameplayModelNoteLine"/>) follow the
+    /// contingent row whenever it is present, regardless of preset — a
+    /// contingent's internal ordering is never a positional assignment under
+    /// any preset (<see cref="ContingentState"/>'s own remarks), so the
+    /// badge is not gated on
+    /// <see cref="MovementPresetId.BattlefieldRealismV10"/>, which
+    /// <see cref="AgentView"/> has no field to name (plan section
+    /// "Rules that bind every task", item 7: no new field). The intent row's
+    /// own gameplay-model evidence tier and note
+    /// (<see cref="FormatIntentGameplayModelTierLine"/>,
+    /// <see cref="FormatIntentGameplayModelNoteLine"/>) follow the intent row
+    /// exactly when <see cref="AgentView.Intent"/> is
+    /// <see cref="AgentIntent.BackingAway"/> — the one intent value V10
+    /// introduces (battlefield-realism design section 10, "And the label").
+    /// The rank reconstruction note row
     /// is present exactly when the agent's <see cref="AgentView.Rank"/>
     /// carries a <see cref="RankLabelEntry.ReconstructionNote"/> — today,
     /// only <see cref="RankId.AlipingNamamahay"/>. The combo attributes row
@@ -66,7 +84,7 @@ internal static class AgentInspectorContent
     /// A real panel therefore draws this many or fewer — the panel is sized
     /// for the maximum so the taller case never clips.
     /// </summary>
-    internal const int MaximumLowerRowCount = 20;
+    internal const int MaximumLowerRowCount = 24;
     internal const int PortraitBottomGap = 5;
     internal const int TopDetailBottomGap = 2;
 
@@ -182,10 +200,30 @@ internal static class AgentInspectorContent
             FormatIntentLine(agent.Intent),
         };
 
+        // Battlefield-realism design section 10 ("And the label"): the one
+        // intent value V10 introduces gets its own gameplay-model badge
+        // immediately below the intent row, so a spectator reading
+        // "Backing away from close fighters" cannot mistake it for an
+        // attested historical retreat drill.
+        if (agent.Intent == AgentIntent.BackingAway)
+        {
+            lines.Add(FormatIntentGameplayModelTierLine());
+            lines.Add(FormatIntentGameplayModelNoteLine());
+        }
+
         if (FormatContingentLine(agent.ContingentId, agent.ContingentState, agent.IsLeader)
             is { } contingentLine)
         {
             lines.Add(contingentLine);
+
+            // The same gameplay-model badge, on the contingent row. Shown
+            // whenever the row itself is shown, under every preset — a
+            // contingent's internal ordering is never a positional
+            // assignment (ContingentState.cs's own remarks), and AgentView
+            // carries no field naming the active preset for this to gate on
+            // (plan section "Rules that bind every task", item 7).
+            lines.Add(FormatContingentGameplayModelTierLine());
+            lines.Add(FormatContingentGameplayModelNoteLine());
         }
         else if (agent.IsLeader)
         {
@@ -380,12 +418,13 @@ internal static class AgentInspectorContent
     }
 
     /// <summary>
-    /// RU-16: the reason-code row, first-class for all six
-    /// <see cref="AgentIntent"/> values including <see cref="AgentIntent.Holding"/>.
-    /// This is one of the two defences against risk 8 — a ranged warrior
-    /// deliberately holding its preferred engagement distance must read as
-    /// visibly distinct from <see cref="FormatMovementLine"/>'s "Blocked",
-    /// the V6/V7 standoff bug this feature would otherwise look like
+    /// RU-16: the reason-code row, first-class for all seven
+    /// <see cref="AgentIntent"/> values including <see cref="AgentIntent.Holding"/>
+    /// and <see cref="AgentIntent.BackingAway"/>. This is one of the two
+    /// defences against risk 8 — a ranged warrior deliberately holding its
+    /// preferred engagement distance must read as visibly distinct from
+    /// <see cref="FormatMovementLine"/>'s "Blocked", the V6/V7 standoff bug
+    /// this feature would otherwise look like
     /// (docs/plans/2026-08-07-ranged-units.md, RU-16). Movement and intent
     /// are independent fields on <see cref="AgentView"/>, so this row and
     /// the movement row below it always render side by side rather than one
@@ -395,11 +434,20 @@ internal static class AgentInspectorContent
         $"Intent: {GetIntentLabel(intent)}";
 
     /// <summary>
-    /// The five pre-existing <see cref="AgentIntent"/> values read as their
-    /// bare enum name, unchanged. <see cref="AgentIntent.Holding"/> reads
-    /// "Holding at range" instead of the bare enum name "Holding" so it
-    /// cannot be misread beside <see cref="GetMovementLabel"/>'s "Blocked" —
-    /// see <see cref="FormatIntentLine"/>.
+    /// The five original <see cref="AgentIntent"/> values read as their bare
+    /// enum name, unchanged. <see cref="AgentIntent.Holding"/> reads "Holding
+    /// at range" instead of the bare enum name "Holding" so it cannot be
+    /// misread beside <see cref="GetMovementLabel"/>'s "Blocked" — see
+    /// <see cref="FormatIntentLine"/>. <see cref="AgentIntent.BackingAway"/>
+    /// — battlefield-realism design section 10 — reads "Backing away from
+    /// close fighters", deliberately distinct from "Holding at range": a
+    /// warrior that chose to hold its distance and a warrior driven off it
+    /// by a close melee threat must never read the same way to a spectator.
+    /// Every arm is explicit and the default throws rather than falling
+    /// through to a borrowed label, so a future value can never silently
+    /// collapse into an existing one here the way an unmapped
+    /// <see cref="MovementResolution"/> collapses into
+    /// <see cref="GetMovementLabel"/>'s "Holding" catch-all.
     /// </summary>
     internal static string GetIntentLabel(AgentIntent intent) =>
         intent switch
@@ -410,11 +458,64 @@ internal static class AgentInspectorContent
             AgentIntent.Dead => "Dead",
             AgentIntent.Regrouping => "Regrouping",
             AgentIntent.Holding => "Holding at range",
+            AgentIntent.BackingAway => "Backing away from close fighters",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(intent),
                 intent,
                 null),
         };
+
+    /// <summary>
+    /// The plain-language note shared by every battlefield-realism V10
+    /// gameplay-model badge (design section 10, "And the label";
+    /// docs/plans/2026-08-11-battlefield-realism-design.md sections 2.1,
+    /// 2.2). <c>CLAUDE.md</c> section 7 draws a hard line between the three
+    /// historical evidence tiers — Documented, Documented form uncertain,
+    /// Provisional reconstruction — and a gameplay rule, which is none of
+    /// them and must say so plainly rather than being left to read as a
+    /// bare "Provisional reconstruction" historical claim. This note is
+    /// that plain statement, shared by <see cref="FormatContingentGameplayModelNoteLine"/>
+    /// and <see cref="FormatIntentGameplayModelNoteLine"/>.
+    /// </summary>
+    internal const string GameplayModelNote =
+        "Gameplay model — not a historical formation or behavior. See " +
+        "docs/plans/2026-08-11-battlefield-realism-design.md.";
+
+    /// <summary>
+    /// The evidence-tier badge for the intent row (design section 10),
+    /// shown only when <see cref="AgentView.Intent"/> is
+    /// <see cref="AgentIntent.BackingAway"/> — the one intent value
+    /// battlefield-realism V10 introduces. Reuses the exact badge mechanism
+    /// <see cref="FormatVariantTierLine"/> and
+    /// <see cref="FormatShieldVariantTierLine"/> already draw for weapon and
+    /// shield variants: <see cref="FormatVisualEvidenceTierLabel"/> feeding a
+    /// prefixed tier line, suffixed with "gameplay model" so the tier
+    /// reading can never be mistaken for a bare historical attestation.
+    /// </summary>
+    internal static string FormatIntentGameplayModelTierLine() =>
+        $"        Intent evidence: " +
+        $"{FormatVisualEvidenceTierLabel(VisualEvidenceTier.ProvisionalReconstruction)} " +
+        "— gameplay model";
+
+    internal static string FormatIntentGameplayModelNoteLine() =>
+        $"        {GameplayModelNote}";
+
+    /// <summary>
+    /// The evidence-tier badge for the contingent row (design section 10),
+    /// shown whenever <see cref="FormatContingentLine"/> renders a row —
+    /// under every preset, since a contingent's internal ordering is never a
+    /// positional assignment regardless of which preset assembled it, and
+    /// <see cref="AgentView"/> carries no field naming the active preset for
+    /// this to gate on more narrowly. Reuses the same badge mechanism as
+    /// <see cref="FormatIntentGameplayModelTierLine"/>.
+    /// </summary>
+    internal static string FormatContingentGameplayModelTierLine() =>
+        $"        Contingent evidence: " +
+        $"{FormatVisualEvidenceTierLabel(VisualEvidenceTier.ProvisionalReconstruction)} " +
+        "— gameplay model";
+
+    internal static string FormatContingentGameplayModelNoteLine() =>
+        $"        {GameplayModelNote}";
 
     internal static string FormatMovementLine(MovementResolution resolution) =>
         $"Movement: {GetMovementLabel(resolution)}";
