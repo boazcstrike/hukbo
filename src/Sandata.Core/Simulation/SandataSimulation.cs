@@ -265,6 +265,41 @@ public sealed class SandataSimulation
     public MissionState State { get; private set; }
 
     /// <summary>
+    /// The only production-facing door onto the private <see cref="_pathService"/>
+    /// field: <paramref name="groupId"/>'s current published, line-of-sight-
+    /// smoothed path polyline, delegating verbatim to
+    /// <see cref="PathService.GetCurrentPath"/>. Returns
+    /// <see cref="ImmutableArray{T}.Empty"/> — never <see langword="null"/>,
+    /// never a throw — for a group id with no outstanding or published
+    /// request, exactly as <see cref="PathService.GetCurrentPath"/> already
+    /// does for one.
+    /// </summary>
+    /// <remarks>
+    /// <b>DERIVED — never hashed, never snapshotted.</b> The returned
+    /// polyline is design section 4's "published path polylines" under "what
+    /// is derived and never hashed": a pure function of the nav data, the
+    /// group's start cell, and its goal cell. Only the request that produced
+    /// it — <see cref="MissionState.Groups"/>' <see cref="GroupPathState"/>
+    /// entries — is authoritative, hashed, and snapshotted. On resume this
+    /// polyline is recomputed from that stored request by
+    /// <see cref="RecomputePublishedPaths"/> before the first tick executes,
+    /// so a caller must never persist a value read from this accessor: doing
+    /// so would create a second, driftable copy of state this simulation
+    /// already reconstructs on its own.
+    /// </remarks>
+    public ImmutableArray<PathPoint> GetPublishedPath(ulong groupId) => _pathService.GetCurrentPath(groupId);
+
+    /// <summary>
+    /// Companion to <see cref="GetPublishedPath"/>: why
+    /// <paramref name="groupId"/>'s published path currently looks the way it
+    /// does, delegating verbatim to <see cref="PathService.GetReasonCode"/>.
+    /// Costs nothing beyond that call — no extra state to maintain, no extra
+    /// query to run — and is exactly as derived as <see cref="GetPublishedPath"/>
+    /// itself: never hashed, never snapshotted, and safe to read every tick.
+    /// </summary>
+    public PathReasonCode GetPublishedPathReasonCode(ulong groupId) => _pathService.GetReasonCode(groupId);
+
+    /// <summary>
     /// Stage 9's write-only movement proposal buffer from the most recently
     /// completed tick — the "later run" (stages 10 through 14) consumes this.
     /// Empty before the first call to <see cref="RunTick"/>.
