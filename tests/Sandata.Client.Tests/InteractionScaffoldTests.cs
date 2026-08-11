@@ -62,6 +62,87 @@ public sealed class InteractionScaffoldTests
         Assert.Equal(1, state.SelectedEntityIds[0]);
     }
 
+    // ---- MultiSelectState: click selection ---------------------------------
+
+    [Fact]
+    public void FromClick_SelectsTheCandidateExactlyUnderTheClick()
+    {
+        var candidates = new List<MarqueeCandidate>
+        {
+            new(EntityId: 7, ScreenPosition: new Point(100, 100), IsHostile: false),
+        };
+
+        var state = MultiSelectState.FromClick(new Point(100, 100), pickRadiusPixels: 12, candidates);
+
+        Assert.Single(state.SelectedEntityIds);
+        Assert.Equal(7, state.SelectedEntityIds[0]);
+    }
+
+    [Fact]
+    public void FromClick_OnePixelOutsideTheRadiusSelectsNothing()
+    {
+        var candidates = new List<MarqueeCandidate>
+        {
+            new(EntityId: 7, ScreenPosition: new Point(100, 113), IsHostile: false), // 13px away, radius 12
+        };
+
+        var state = MultiSelectState.FromClick(new Point(100, 100), pickRadiusPixels: 12, candidates);
+
+        Assert.Empty(state.SelectedEntityIds);
+    }
+
+    [Fact]
+    public void FromClick_NeverSelectsAHostileEvenExactlyUnderTheClick()
+    {
+        var candidates = new List<MarqueeCandidate>
+        {
+            new(EntityId: 7, ScreenPosition: new Point(100, 100), IsHostile: true),
+        };
+
+        var state = MultiSelectState.FromClick(new Point(100, 100), pickRadiusPixels: 12, candidates);
+
+        Assert.Empty(state.SelectedEntityIds);
+    }
+
+    [Fact]
+    public void FromClick_TwoCandidatesAtTheSamePointResolveToTheLowestEntityId()
+    {
+        var candidates = new List<MarqueeCandidate>
+        {
+            new(EntityId: 9, ScreenPosition: new Point(100, 100), IsHostile: false),
+            new(EntityId: 3, ScreenPosition: new Point(100, 100), IsHostile: false),
+            new(EntityId: 5, ScreenPosition: new Point(100, 100), IsHostile: false),
+        };
+
+        var state = MultiSelectState.FromClick(new Point(100, 100), pickRadiusPixels: 12, candidates);
+
+        Assert.Single(state.SelectedEntityIds);
+        Assert.Equal(3, state.SelectedEntityIds[0]);
+    }
+
+    [Fact]
+    public void FromClick_PicksTheNearestCandidateWhenBothAreInsideTheRadius()
+    {
+        var candidates = new List<MarqueeCandidate>
+        {
+            new(EntityId: 1, ScreenPosition: new Point(105, 100), IsHostile: false), // 5px away
+            new(EntityId: 2, ScreenPosition: new Point(110, 100), IsHostile: false), // 10px away
+        };
+
+        var state = MultiSelectState.FromClick(new Point(100, 100), pickRadiusPixels: 12, candidates);
+
+        Assert.Single(state.SelectedEntityIds);
+        Assert.Equal(1, state.SelectedEntityIds[0]);
+    }
+
+    [Fact]
+    public void FromClick_OnAnEmptyCandidateListReturnsAnEmptySelection()
+    {
+        var state = MultiSelectState.FromClick(new Point(100, 100), pickRadiusPixels: 12, new List<MarqueeCandidate>());
+
+        Assert.Empty(state.SelectedEntityIds);
+    }
+
     // ---- DragCapture: pointer priority -------------------------------------
 
     [Fact]
