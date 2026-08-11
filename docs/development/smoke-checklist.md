@@ -48,6 +48,12 @@ entirely `PASS` — an open `FAIL` or `BLOCKED` row is unfinished work and stays
 here where a reader will see it. One section has no `PENDING` rows today and
 stays for exactly that reason: Sandata, which holds 2 `FAIL` and 5 `BLOCKED`.
 
+**Two families were deleted whole earlier the same day.** Spectator clarity, all
+fifty-two rows, and collision readability, all seven, were closed by a person at
+an interactive desktop on 2026-08-11 and left together. Their record is the
+2026-08-11 archive titled **"Spectator clarity and collision readability smoke"**,
+found the same way as the record named below.
+
 **A single passing row is lifted out the same way, without its section.** Five
 sections still carrying open work had rows that closed — Sandata, the `UI`
 family, the persistent-contingent section, attack animation V2, and the
