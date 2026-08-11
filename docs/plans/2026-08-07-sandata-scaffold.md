@@ -4686,6 +4686,19 @@ authorised. It stays `PENDING` with the reason stated rather than becoming
 `BLOCKED`, because the blocker is upstream of the smoke run and the row must not
 be quietly forgotten once the audio question is answered.
 
+> **Superseded on 2026-08-11.** Both halves of the paragraph above have since
+> changed and it is left standing only as the record of what was decided when it
+> was written. The row count is nine rather than eight, because SD-7 was split
+> into SD-7a and SD-7b; the four impossible rows were recorded `BLOCKED` rather
+> than `PENDING`, on this document's own reasoning that `PENDING` asserts a
+> check has not been run yet and that assertion is false for a check nobody can
+> run; and the audio question was answered in part. A narrow slice of the
+> catalog was authorized and generated — twenty-four files covering an
+> AK-pattern rifle and a Glock-pattern pistol at close and indoor range — and a
+> playback path shipped with it, so SD-5 is attemptable. The rest of the
+> catalog is still unauthorized. The live account of all nine rows is
+> `docs/development/smoke-checklist.md`; this document is not it.
+
 The allocation figure is recorded as a magnitude. Two further runs this session
 reported 42,184,440,712 and 42,184,446,456 bytes against the previously recorded
 42,184,446,424 and 42,184,447,672. All four mean "about 42.18 GB".

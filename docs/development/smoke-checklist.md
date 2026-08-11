@@ -23,18 +23,19 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-11
 
-191 rows across 22 subsections: **174 `PENDING`, 14 `BLOCKED`, 2 `FAIL`,
+191 rows across 22 subsections: **179 `PENDING`, 10 `BLOCKED`, 1 `FAIL`,
 1 `DECLINED`**, counted from the status column of this file on 2026-08-11,
 after the improve-visuals smoke run closed 29 of its 32 rows and they were
-lifted out, and after `SD-1` was re-checked and closed.
+lifted out, after `SD-1` was re-checked and closed, and after the Sandata fixes
+of the same day moved four `BLOCKED` rows and one `FAIL` row to `PENDING`.
 
 **There is no `PASS` column any more, and that is deliberate.** 52 passing rows
 were lifted out on 2026-08-11 — 22 of them from families that stayed, then 29
 more when both improve-visuals families were run for the first time, then
 `SD-1` when the tester re-checked it. Every row
-in this file is now something a person still has to do: 174 never attempted, 14
-that cannot be attempted until the build changes, 2 that were attempted and
-failed, and 1 declined. If a `PASS` ever appears here again it is a row that
+in this file is now something a person still has to do: 179 never attempted or
+awaiting a re-run, 10 that cannot be attempted until the build changes, 1 that
+was attempted and failed, and 1 declined. If a `PASS` ever appears here again it is a row that
 has just closed and has not yet been lifted — not a row that belongs.
 
 **Recount before trusting that total.** Every figure here that was ever taken
@@ -46,8 +47,11 @@ A family every one of whose rows is `PASS` is deleted from this file outright:
 it is a record rather than a checklist, and keeping it makes the file longer
 without giving a tester anything to do. A family is deleted only when it is
 entirely `PASS` — an open `FAIL` or `BLOCKED` row is unfinished work and stays
-here where a reader will see it. One section has no `PENDING` rows today and
-stays for exactly that reason: Sandata, which holds 1 `FAIL` and 5 `BLOCKED`.
+here where a reader will see it. Until earlier on 2026-08-11 the Sandata
+section was the standing example of a family kept for that reason alone, having
+no `PENDING` rows at all: it held 2 `FAIL` and 5 `BLOCKED`. The fixes of the
+same day left it with 5 `PENDING` re-runs and 1 `BLOCKED`, which is ordinary
+open work.
 
 **Two families were deleted whole earlier the same day.** Spectator clarity, all
 fifty-two rows, and collision readability, all seven, were closed by a person at
@@ -98,15 +102,18 @@ order relaunches the game far more often than they need to.
 | Battlefield realism | task 18 rows | 10 `PENDING` | Cohort deployment and the V10 retreat rung |
 | Menu, display, motion | `UI` 3 of 16 | 3 `PENDING` | Run on 2026-08-11; the other 13 passed and were lifted out. The three open rows, `UI-2`, `UI-4`, and `UI-6`, all failed that run on one shared cause — the process never declared DPI awareness, so Windows rendered the game at a virtualised size and bitmap-stretched the result. **That is fixed**; the three are re-runs, not fresh checks. Set UI Scale to Auto first. See finding 1 in that section |
 | Improve visuals | `VIS` 3 of 32 | 3 `PENDING` | Run on 2026-08-11; the other 29 passed and were lifted out. The three open rows — 128 armor bulk, 129 adornment accents, 131 trampled ground — all failed that run, each on its own cause. **All three are fixed**; they are re-runs, not fresh checks. 128 and 129 want the maximum-zoom station; 131 wants a battle that has produced casualties |
-| Sandata | `SD` 6 of 9 | 5 `BLOCKED`, 1 `FAIL` | `./scripts/run.ps1 -Game Sandata`. The other 3 passed and were lifted out |
+| Sandata | `SD` 6 of 9 | 5 `PENDING`, 1 `BLOCKED` | `./scripts/run.ps1 -Game Sandata`. The other 3 passed and were lifted out. Five rows were fixed on 2026-08-11 and are re-runs rather than fresh checks — read each row's `Actual` column before starting, because two of them carry the observation that failed |
 | Pressure interrupt | `P` | 9 `BLOCKED`, 1 `PENDING` | **Not runnable today** — see below |
 
-**The 14 `BLOCKED` rows are blocked by the build, not by the reader.** Nine `P`
+**The 10 `BLOCKED` rows are blocked by the build, not by the reader.** Nine `P`
 rows need movement preset V7, which the client cannot select: `BuildScenario`
 overrides the preset to `RangedStandoffV8` and no preset selector is exposed, so
 under the shipped default no pressure mark is ever drawn and no pressure
 inspector row ever renders. Unblocking them is a code change, not an attempt.
-The `SD` rows are blocked for reasons recorded in the Sandata subsection.
+The tenth is `SD-7b`, blocked for the reason recorded in its own row: no theme
+switcher and no unknown-contact state. The four other `SD` rows that were
+blocked stopped being so on 2026-08-11, when what each of them was waiting for
+was built.
 
 **Controls, so no row has to be attempted by guesswork.** `Space` plays and
 pauses; `1`, `2`, and `4` set playback speed; `R` starts the next round and
@@ -187,8 +194,10 @@ of the whole route and never does anything.
    `SD-1`, which closed on 2026-08-11 and is no longer in the table; it is
    still worth doing once as orientation before the rows that follow.
 5. While zoomed in, watch the pair cross the long diagonal wall in the middle
-   of the map, and then pass through the lower door. **Those are rows SD-2 and
-   SD-3.**
+   of the map, and then pass through the lower door. The dashed line they are
+   following is the route the simulation planned; the solid one, if you have
+   drawn one, is yours. **The dashed line is row SD-2.** The door half of this
+   step was row `SD-3`, which closed on 2026-08-11.
 6. At each zoom level, look at the yellow fire cones. **That is row SD-6.**
 7. Left-drag a box around the blue pair, then right-click three or four points
    across the map, then press Enter. They should abandon the objective route
@@ -196,11 +205,11 @@ of the whole route and never does anything.
 
 **What is knowingly not working. Do not spend your session rediscovering it.**
 
-- **No text anywhere.** The client has no font: every HUD panel is an empty
-  outline, and the operator inspector, contact list, mission clock, roster
-  strip, order queue, and go-code panel are all blank rectangles. **Row SD-8 is
-  `BLOCKED` on this** — the inspector it asks you to read does not render a
-  single character. There is no on-screen tick counter, no score, and no
+- **Almost no text.** The client had no font at all until 2026-08-11. It now
+  bakes two, and the operator inspector draws its rows when a warrior is
+  selected — that is the whole of what text does today. The contact list,
+  mission clock, roster strip, order queue, and go-code panel are still blank
+  rectangles, and there is still no on-screen tick counter, no score, and no
   victory banner.
 - **The mission never ends.** Nothing in the client checks an outcome; the run
   simply stops at the 36,000-tick limit, about twelve minutes at normal speed.
@@ -211,16 +220,22 @@ of the whole route and never does anything.
   and it is expected behaviour today, not a new bug — see
   `src/Sandata.Core/Movement/LocalAvoidance.cs`. On this map with four
   operators it is unlikely but possible.
+- **A click selects one operator; a drag selects several.** Before 2026-08-11
+  a click selected nothing at all, silently, which is worth knowing if you are
+  reading an older account of a session.
 - **Only one theme is reachable.** `daylight-ops` ships in the theme catalog
   and nothing in the client can switch to it, and there is no unknown-contact
   state to look at either. **Row SD-7b is `BLOCKED` on this. Row SD-7a is not**
   — the friendly-versus-hostile judgement, including the shape-alone half, is
   reachable in `night-ops` and is yours to close.
-- **No sound at all**, for the reason recorded under the table below. **Row
-  SD-5 is `BLOCKED` on this.**
-- **Every operator carries the same placeholder weapon appearance**, so row
-  SD-4's rifle-versus-pistol comparison has nothing visible to compare. **Row
-  SD-4 is `BLOCKED` on this.**
+- **Sound covers gunfire and nothing else.** There was none at all until
+  2026-08-11. Twenty-four generated gunshot files now ship, covering a rifle
+  and a pistol at close and indoor ranges; every other sound in the 106-slot
+  catalog, and three of the five acoustic environments for those two weapons,
+  are still absent and play as silence. The note under the table has the
+  detail.
+- **Only two weapon appearances exist**, a rifle and a pistol. Every operator
+  drew the same placeholder before 2026-08-11.
 - **Accuracy is effectively range-only**, so a defender inside sensing range
   is hit reliably. This is a deferred design question, not a defect to report.
 - The mission clock in the log stops updating after the last casualty: the
@@ -230,24 +245,39 @@ of the whole route and never does anything.
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| SD-2 | Watch a squad path across the 26.57-degree diagonal wall | The funnel path visibly follows the wall as a straight line rather than a staircase | 2026-08-11, attempted: "i am unsure which is which". Investigated after the run and the row cannot be judged by anyone — `SandataGame.DrawOrderPath` renders only `_pathDrawState.Nodes`, the polyline the player is drawing by right-click. No published autonomous group path is drawn anywhere in `Sandata.Client`, so there is no line on screen to call straight or stepped. Becomes executable when the published path is rendered. | BLOCKED |
-| SD-4 | Watch a rifle operator cross a doorway, then a pistol operator cross the same one | The rifle operator lowers the weapon and re-raises it; the pistol operator does not | Cannot be run by anyone: every operator draws the same placeholder weapon appearance, so the two halves of the comparison are visually identical. Becomes executable when per-weapon operator appearances ship. | BLOCKED |
-| SD-5 | Hold sustained automatic fire from the maximum operator count | Automatic fire sounds continuous rather than machine-gun-stuttered, and no audio drops out | Cannot be run by anyone: Sandata ships no sound files at all. Becomes executable when the audio generation run is authorized and its slots exist. See the note below the table. | BLOCKED |
-| SD-7a | View a friendly and a hostile contact side by side in `night-ops`, then judge them again ignoring colour | The two are distinguishable at a glance, and remain distinguishable by shape alone | 2026-08-11, tester at the desktop: distinguishable at a glance, yes — "not distinguishable by shape" with colour ignored. The row requires both halves, and the colour-independent half is the accessibility half, so the row fails. | FAIL |
+| SD-2 | Watch a squad path across the 26.57-degree diagonal wall | The funnel path visibly follows the wall as a straight line rather than a staircase | 2026-08-11, attempted: "i am unsure which is which". Investigated after the run and the row could not be judged by anyone — `SandataGame.DrawOrderPath` rendered only `_pathDrawState.Nodes`, the polyline the player draws by right-click, and no published autonomous group path was drawn anywhere in `Sandata.Client`. **Fixed the same day**: `SandataSimulation.GetPublishedPath` opened the read path and `SandataGame.DrawPublishedPaths` draws it, as a dashed line under the pawns, so a route and the player's own drawn path differ by shape rather than only by colour. Judge the *dashed* line, not the solid one | PENDING |
+| SD-4 | Watch a rifle operator cross a doorway, then a pistol operator cross the same one | The rifle operator lowers the weapon and re-raises it; the pistol operator does not | Could not be run by anyone: every operator drew the same placeholder weapon appearance, so the two halves of the comparison were visually identical. **Fixed 2026-08-11** on both counts. Operators now alternate between an AK-pattern rifle and a Glock-pattern pistol, so a pistol operator is one of the two who walk the route rather than a defender who never moves, and each draws its own top-down sprite — a long silhouette with a curved magazine against a short stubby one. Both sprites are greyscale and tinted by the faction role, so they read in either theme | PENDING |
+| SD-5 | Hold sustained automatic fire from the maximum operator count | Automatic fire sounds continuous rather than machine-gun-stuttered, and no audio drops out | Could not be run by anyone: Sandata shipped no sound files and had no playback path. **Both landed on 2026-08-11** under the narrow authorization recorded below the table. Read that note before running this row — only two of the five acoustic environments have files, so a shot beyond 200 world units is still silent, and that is expected rather than the drop-out this row is looking for | PENDING |
+| SD-7a | View a friendly and a hostile contact side by side in `night-ops`, then judge them again ignoring colour | The two are distinguishable at a glance, and remain distinguishable by shape alone | 2026-08-11, tester at the desktop: distinguishable at a glance, yes — "not distinguishable by shape" with colour ignored. The row requires both halves, and the colour-independent half is the accessibility half, so the row failed. **Fixed the same day**: a friendly keeps its square ground ring and gains a head pip, a hostile gets the same ring turned forty-five degrees into a diamond. The `FAIL` observation stays here so the re-run is judged against what was actually seen. Judge the shape half with the pawns filling a good part of the screen, then again zoomed out | PENDING |
 | SD-7b | View friendly, hostile, and unknown contacts in every shipped theme | All three are distinguishable in `daylight-ops` as well as `night-ops` | Cannot be run by anyone: `LoadTheme` always takes `catalog.DefaultThemeId`, so `daylight-ops` is unreachable from the client, and no unknown-contact state exists to render. Becomes executable when a theme switcher and an unknown-contact state ship. | BLOCKED |
-| SD-8 | Click an operator that is holding position | The inspector explains the hold: reason code, path state, and weapon chain phase | Cannot be run by anyone: `Sandata.Client` has no `SpriteFont` and makes no `DrawString` call, so the inspector renders no characters at all. Becomes executable when text rendering ships. | BLOCKED |
+| SD-8 | Click an operator that is holding position | The inspector explains the hold: reason code, path state, and weapon chain phase | Could not be run by anyone, for two separate reasons, and neither masked the other. A click selected nothing — every click went through the marquee path, and a click's marquee is zero pixels in both dimensions, which contains no point — and the inspector had no font to draw with. **Both fixed 2026-08-11.** Seven of the eleven inspector rows now carry real values, including the three this row names. The other four — the slot index and the three order-layer rows — render their documented empty form, because no order layer exists to source them; that is expected and is not what this row is judging | PENDING |
 
-**SD-5's blocker in full.** Sandata ships no sound files: its catalog is 106
+**SD-5's blocker, and what is left of it.** Sandata's sound catalog is 106
 slots expanding to 524 variant files, roughly 104,800 ElevenLabs credits, and
-that spend is not authorized. The row is listed in full so that it is not
-quietly forgotten once the audio question is answered.
+that spend as a whole is still not authorized. A narrow slice of it was
+authorized on 2026-08-11 and generated: twenty-four files covering an
+AK-pattern rifle in 7.62x39mm and a Glock-pattern pistol in 9x19mm, six
+variants each, in the `close` and `indoor` acoustic environments. Six variants
+per slot is not a preference — it is what `SandataSoundCatalog` declares for
+those rows, and `ShotSlotResolver` picks across all six, so shipping fewer
+would leave a proportion of shots resolving a filename that is not there.
+
+**Three of the five environments are still empty, and that is expected.**
+`outdoor`, `distant`, and `suppressed` have no files, so a shot that resolves
+one of them plays silence. The client passes a real range — the distance to the
+nearest living hostile — and hardcodes "not indoors" and "no suppressor",
+because nothing in `Sandata.Core` knows which side of a wall an operator is on
+and no weapon carries a suppressor. In practice that puts a shot inside 200
+world units on the `close` files and everything further out on nothing at all.
+The full provenance, including the prompt wording that decides whether a
+generated take is audible, is in `src/Sandata.Client/Content/Audio/README.md`.
 
 **`SD-1`, `SD-3`, and `SD-6` passed and are no longer in the table.** They were
 lifted
 out on 2026-08-11 into
 the 2026-08-11 record **"Closed rows lifted out of families that are still
 open"**, named rather than linked for the reason given at the top of this file,
-with their evidence, so what remains below is the open work: 1 `FAIL` and 5
+with their evidence, so what remains below is the open work: 5 `PENDING` and 1
 `BLOCKED`. Read `SD-6`'s archived entry before acting on finding 4 of the first
 run — the row passed on legibility, and the separate finding that the cone
 communicates nothing is recorded there rather than as a failure.
@@ -255,10 +285,16 @@ communicates nothing is recorded there rather than as a failure.
 **Which rows a tester could reach on the first run: SD-1, SD-2, SD-3, SD-6, and
 SD-7a — five of the nine.** All five were attemptable once the client ran the
 simulation and the assaulting squad walked a real route. `SD-3` and `SD-6`
-closed on that run; `SD-2` turned out to be unjudgeable and is now `BLOCKED`;
-`SD-1` and `SD-7a` failed. `SD-1` was re-checked later the same day and closed,
-so of the five only `SD-7a` is still open. The other four were `BLOCKED` from
-the start.
+closed on that run; `SD-2` turned out to be unjudgeable and was recorded
+`BLOCKED`; `SD-1` and `SD-7a` failed. `SD-1` was re-checked later the same day
+and closed. The other four were `BLOCKED` from the start.
+
+**All of that changed later on 2026-08-11, and the table above is the current
+account.** Four of the five blockers were built — the published path, the
+per-weapon appearance, the gunshot files and the playback path that plays them,
+and click selection together with a font for the inspector — and `SD-7a`'s
+shape complaint was answered. Eight of the nine rows can now be attempted by a
+person; only `SD-7b` still cannot.
 
 **Why those four are `BLOCKED` and not `PENDING`, corrected 2026-08-11.** They
 were recorded `PENDING` when the table was written, on the reasoning that the
@@ -294,7 +330,10 @@ the archive along with `SD-3` and `SD-6`. This section is kept as the record of
 the first run and is deliberately not rewritten to hide the reversal.
 
 Four findings came out of it. None is a regression — all four are things that
-were never built, surfaced by the first person to look at the screen.
+were never built, surfaced by the first person to look at the screen. Findings
+1 and 3 have since been built and are marked as such below; the text of each is
+kept as it was written so that a reader can see what the state of the client
+was, rather than being quietly rewritten into a description of the fix.
 
 **1. Gunfire is completely invisible, and it is a dead code path rather than a
 missing feature.** `OperatorGeometry` has a muzzle-flash layer, anchored at
@@ -310,6 +349,10 @@ was ever built to stand in for it. Combined with finding 2 below, a firefight
 renders as two shapes drifting together until one stops. The tester read it as
 melee combat, which is the correct reading of what is on screen.
 
+**Fixed.** `CombatFeedback` now drives the flash from the `ShotFired` event
+feed instead of from the stored phase, and adds tracers and an X-shaped impact
+mark. The same event feed also drives gunfire audio as of 2026-08-11.
+
 **2. Nothing makes an operator stop at weapon range to engage.** A search of
 `SandataSimulation` and `Sandata.Core/Squads` for any effective-range,
 engagement-range, or stop-to-fire concept returns nothing. `InitialSquadGroups`
@@ -317,7 +360,9 @@ sends each assaulting squad to a map objective, a defender is standing on that
 objective, and the squad walks to the waypoint. Closing to contact is the
 absence of engagement behaviour, not a decision any code makes.
 
-**3. No autonomous path is drawn.** See `SD-2`'s row above.
+**3. No autonomous path is drawn.** See `SD-2`'s row above. **Fixed
+2026-08-11**: it is drawn dashed, under the pawns, in the same role as the
+player's own solid drawn path.
 
 **4. The fire cone is readable but carries no meaning.** Recorded from `SD-6`.
 The cone renders at every tier as the row requires, but a viewer cannot tell
@@ -330,10 +375,16 @@ catch.
 Findings 1, 2, and 3 are each a plain absence with a known fix. Finding 4, and
 the `SD-1` and `SD-7a` failures, are the same underlying problem stated three
 ways: the client draws untextured primitives with no shape vocabulary, so
-everything on screen depends on colour to mean anything. `SD-1` has since
-closed, which narrows that problem without settling it — `SD-7a` asks for
-distinguishability with colour ignored, and no operator layer differs between
-the two factions by anything except its colour.
+everything on screen depends on colour to mean anything.
+
+That is the finding this whole day of work was really about, and it is the one
+worth carrying forward. `SD-1` closed on a re-check. `SD-7a`'s fix gave the two
+factions different shapes rather than different colours; the weapon sprites gave
+a rifle a different silhouette from a pistol; and the autonomous route was made
+dashed rather than merely a different shade of the blue its own operators are
+drawn in. Every one of those was chosen the same way, and the rule is worth
+stating for whoever adds the next thing to this screen: **if the only thing
+separating two meanings is a colour, it is not separated.**
 
 ## Auto camera modes smoke
 
