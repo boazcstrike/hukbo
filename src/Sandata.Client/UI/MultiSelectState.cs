@@ -68,6 +68,59 @@ internal readonly record struct MultiSelectState(ImmutableArray<int> SelectedEnt
         return new MultiSelectState(builder.ToImmutable());
     }
 
+    /// <summary>
+    /// The selection a single click at <paramref name="clickPosition"/>
+    /// produces: the nearest friendly candidate within
+    /// <paramref name="pickRadiusPixels"/> of the click, by squared integer
+    /// pixel distance — no floating point, no <see cref="Math.Sqrt"/>. A
+    /// hostile candidate is never picked, matching <see cref="FromMarquee"/>.
+    /// Ties — two candidates at the same distance, which happens when two
+    /// operators round to the same screen pixel — resolve to the lower
+    /// <see cref="MarqueeCandidate.EntityId"/> so the result is deterministic.
+    /// Never mutates <paramref name="candidates"/>; returns <see cref="Empty"/>,
+    /// never <c>null</c>, when nothing friendly falls within radius.
+    /// </summary>
+    internal static MultiSelectState FromClick(
+        Point clickPosition,
+        int pickRadiusPixels,
+        IReadOnlyList<MarqueeCandidate> candidates)
+    {
+        var radiusSquared = pickRadiusPixels * pickRadiusPixels;
+        var haveBest = false;
+        var bestDistanceSquared = 0;
+        var bestEntityId = 0;
+
+        foreach (var candidate in candidates)
+        {
+            if (candidate.IsHostile)
+            {
+                continue;
+            }
+
+            var dx = candidate.ScreenPosition.X - clickPosition.X;
+            var dy = candidate.ScreenPosition.Y - clickPosition.Y;
+            var distanceSquared = (dx * dx) + (dy * dy);
+
+            if (distanceSquared > radiusSquared)
+            {
+                continue;
+            }
+
+            if (!haveBest
+                || distanceSquared < bestDistanceSquared
+                || (distanceSquared == bestDistanceSquared && candidate.EntityId < bestEntityId))
+            {
+                haveBest = true;
+                bestDistanceSquared = distanceSquared;
+                bestEntityId = candidate.EntityId;
+            }
+        }
+
+        return haveBest
+            ? new MultiSelectState(ImmutableArray.Create(bestEntityId))
+            : Empty;
+    }
+
     public bool Equals(MultiSelectState other) => AreSelectedEntityIdsEqual(other.SelectedEntityIds);
 
     public override int GetHashCode()
