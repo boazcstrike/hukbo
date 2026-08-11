@@ -86,6 +86,15 @@ public static class LogEvents
     public const string AudioMuteToggled = "audio.mute.toggled";
     public const string AudioPlayerAttached = "audio.player.attached";
 
+    // Sandata's own gunfire playback, from MonoGameSandataSoundOutput. Named
+    // with a "sandata" middle segment rather than a "sandata." leading
+    // prefix, for the same LogEventCatalogTests reason the boot/sim/input
+    // sandata events above already are: the leading segment has to be a
+    // declared LogChannel wire name, "audio" here.
+    public const string AudioSandataCue = "audio.sandata.cue";
+    public const string AudioSandataCueLoadFailed = "audio.sandata.cueLoadFailed";
+    public const string AudioSandataCueMissing = "audio.sandata.cueMissing";
+
     // Input channel.
     public const string InputFocusChanged = "input.focus.changed";
     public const string InputKey = "input.key";
