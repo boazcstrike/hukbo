@@ -26,8 +26,9 @@ in the two acoustic environments an interior map reaches.
 
 Forty files. These four rows are the only ones in the whole 106-slot catalog
 that declare more than the ordinary six variants — `SandataSoundCatalog`
-raised each of them from six to ten on 2026-08-12 — and they are also the
-only four rows with a single real file on disk. That is not a coincidence.
+raised each of them from six to ten on 2026-08-12 — and they are also the only
+rows in that catalog with a single real file on disk. That is not a
+coincidence.
 `ShotSlotResolver` picks a variant uniformly across a row's declared
 `VariantCount`, so raising the declared count is the only way a newly
 generated take is ever actually heard; leaving it at six while adding a
