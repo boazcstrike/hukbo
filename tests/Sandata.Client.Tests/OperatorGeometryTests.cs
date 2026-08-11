@@ -2,19 +2,24 @@ using System.Linq;
 using Microsoft.Xna.Framework;
 using Sandata.Client.Rendering;
 using Sandata.Core.Mathematics;
+using Sandata.Core.Weapons;
 
 namespace Sandata.Client.Tests;
 
 /// <summary>
 /// Covers task 37's done-when bar for <see cref="OperatorGeometry"/> and
-/// <see cref="OperatorLayout"/>: every one of the fifteen layers design
-/// section 11 names
+/// <see cref="OperatorLayout"/>: every one of the sixteen layers design
+/// section 11 names, plus the friendly-only head pip
 /// (<c>docs/plans/2026-08-07-sandata-scaffold-design.md:1531-1567</c>) pinned
 /// at three detail tiers, absence expressed as <see cref="Rectangle.Empty"/>,
 /// continuous wrap-safe weapon rotation about a fixed grip anchor, the
-/// muzzle anchor as the weapon line's own rotated tip, and the
+/// muzzle anchor as the weapon line's own rotated tip, the
 /// presentation-only smoothing term's exclusion from
-/// <see cref="OperatorLayout"/> equality.
+/// <see cref="OperatorLayout"/> equality, and the SD-7a/SD-4 faction-shape
+/// and weapon-class silhouette additions: a rotated ground ring plus a
+/// head-top pip distinguishing friendly from hostile, and a shorter, thicker
+/// weapon body without a foregrip or sling distinguishing a pistol from a
+/// rifle.
 /// </summary>
 /// <remarks>
 /// No member of this class constructs a <c>GraphicsDevice</c>, a
@@ -41,6 +46,13 @@ public sealed class OperatorGeometryTests
     private static readonly Vector2 ExpectedGripAnchor = new(100f, 89f);
     private static readonly Vector2 ExpectedMuzzleAnchor = new(116f, 89f);
 
+    // rootPosition (100, 100) plus OperatorGeometry.HeadPipCenterYOffset
+    // (-24) at apparentScale 1: center (100, 76), a 2x2 box. Present at every
+    // tier whenever isFriendly is true (the default), because task SD-7a
+    // requires this cue to survive down to a few pixels, not just at High
+    // detail tier.
+    private static readonly Rectangle ExpectedFriendlyHeadPipBounds = new(99, 75, 2, 2);
+
     private static OperatorLayout CreateUnrotated(
         OperatorDetailTier tier, bool isFiring = false, bool isSelected = false) =>
         OperatorGeometry.Create(
@@ -59,11 +71,13 @@ public sealed class OperatorGeometryTests
         var layout = CreateUnrotated(OperatorDetailTier.Low);
 
         Assert.Equal(new Rectangle(94, 94, 12, 12), layout.GroundRingBounds);
+        Assert.Equal(0f, layout.GroundRingRotationRadians);
         Assert.Equal(new Rectangle(97, 96, 6, 4), layout.BootsBounds);
         Assert.Equal(new Rectangle(97, 91, 6, 6), layout.LegsBounds);
         Assert.Equal(new Rectangle(96, 83, 8, 10), layout.TorsoBounds);
         Assert.Equal(new Rectangle(92, 88, 16, 2), layout.WeaponBodyBounds);
         Assert.Equal(new Rectangle(98, 80, 4, 4), layout.HeadBounds);
+        Assert.Equal(ExpectedFriendlyHeadPipBounds, layout.HeadPipBounds);
 
         Assert.Equal(Rectangle.Empty, layout.PlateCarrierBounds);
         Assert.Equal(Rectangle.Empty, layout.ArmsBounds);
@@ -91,6 +105,7 @@ public sealed class OperatorGeometryTests
         Assert.Equal(new Rectangle(96, 83, 8, 10), layout.TorsoBounds);
         Assert.Equal(new Rectangle(92, 88, 16, 2), layout.WeaponBodyBounds);
         Assert.Equal(new Rectangle(98, 80, 4, 4), layout.HeadBounds);
+        Assert.Equal(ExpectedFriendlyHeadPipBounds, layout.HeadPipBounds);
 
         // Five gear layers switch on.
         Assert.Equal(new Rectangle(95, 84, 10, 6), layout.PlateCarrierBounds);
@@ -117,27 +132,54 @@ public sealed class OperatorGeometryTests
         Assert.Equal(new Rectangle(102, 88, 4, 2), layout.WeaponForegripBounds);
         Assert.Equal(new Rectangle(97, 78, 6, 6), layout.HelmetBounds);
         Assert.Equal(new Rectangle(95, 87, 10, 2), layout.SlingBounds);
+        Assert.Equal(ExpectedFriendlyHeadPipBounds, layout.HeadPipBounds);
 
         // The two High-only layers switch on.
         Assert.Equal(new Rectangle(99, 79, 2, 2), layout.NightVisionMountBounds);
         Assert.Equal(new Rectangle(111, 88, 2, 2), layout.SuppressionBracketBounds);
 
-        // Firing and selection unlock the last two layers, for fifteen
+        // Firing and selection unlock the last two layers, for sixteen
         // non-empty rectangles in total — every layer design section 11
-        // names.
+        // names, plus the friendly-only head pip.
         Assert.Equal(new Rectangle(114, 87, 4, 4), layout.MuzzleFlashBounds);
         Assert.Equal(new Rectangle(92, 92, 16, 16), layout.SelectionRingBounds);
 
-        var nonEmptyLayerCount = new[]
+        Assert.Equal(16, CountNonEmptyLayers(layout));
+    }
+
+    [Fact]
+    public void HostileAtHighTierOmitsThePipLayerLeavingEveryOtherLayerUnchanged()
+    {
+        var friendly = OperatorGeometry.Create(
+            RootPosition, ApparentScale, OperatorDetailTier.High, new Bam16(0), 0f, 1f,
+            isFiring: true, isSelected: true, isFriendly: true);
+        var hostile = OperatorGeometry.Create(
+            RootPosition, ApparentScale, OperatorDetailTier.High, new Bam16(0), 0f, 1f,
+            isFiring: true, isSelected: true, isFriendly: false);
+
+        Assert.Equal(16, CountNonEmptyLayers(friendly));
+        Assert.Equal(15, CountNonEmptyLayers(hostile));
+        Assert.Equal(Rectangle.Empty, hostile.HeadPipBounds);
+
+        // Every other layer's footprint is identical between the two —
+        // faction changes shape (the ring) and the pip only, never anything
+        // else.
+        Assert.Equal(friendly.BootsBounds, hostile.BootsBounds);
+        Assert.Equal(friendly.WeaponBodyBounds, hostile.WeaponBodyBounds);
+        Assert.Equal(friendly.HeadBounds, hostile.HeadBounds);
+        Assert.Equal(friendly.GroundRingBounds, hostile.GroundRingBounds);
+    }
+
+    private static int CountNonEmptyLayers(OperatorLayout layout) =>
+        new[]
         {
             layout.GroundRingBounds, layout.BootsBounds, layout.LegsBounds,
             layout.TorsoBounds, layout.PlateCarrierBounds, layout.ArmsBounds,
             layout.WeaponBodyBounds, layout.WeaponForegripBounds, layout.HeadBounds,
-            layout.HelmetBounds, layout.NightVisionMountBounds, layout.MuzzleFlashBounds,
-            layout.SlingBounds, layout.SuppressionBracketBounds, layout.SelectionRingBounds,
+            layout.HeadPipBounds, layout.HelmetBounds, layout.NightVisionMountBounds,
+            layout.MuzzleFlashBounds, layout.SlingBounds, layout.SuppressionBracketBounds,
+            layout.SelectionRingBounds,
         }.Count(bounds => bounds != Rectangle.Empty);
-        Assert.Equal(15, nonEmptyLayerCount);
-    }
 
     [Fact]
     public void MuzzleFlashAndSelectionRingAreEmptyByDefaultAtEveryTier()
@@ -173,6 +215,101 @@ public sealed class OperatorGeometryTests
 
         Assert.Equal(expectedTip.X, layout.WeaponMuzzleAnchor.X, precision: 3);
         Assert.Equal(expectedTip.Y, layout.WeaponMuzzleAnchor.Y, precision: 3);
+    }
+
+    [Fact]
+    public void HostileGroundRingIsRotatedAndFriendlyGroundRingIsNot()
+    {
+        var friendly = OperatorGeometry.Create(
+            RootPosition, ApparentScale, OperatorDetailTier.Low, new Bam16(0), 0f, 1f,
+            isFiring: false, isSelected: false, isFriendly: true);
+        var hostile = OperatorGeometry.Create(
+            RootPosition, ApparentScale, OperatorDetailTier.Low, new Bam16(0), 0f, 1f,
+            isFiring: false, isSelected: false, isFriendly: false);
+
+        Assert.Equal(0f, friendly.GroundRingRotationRadians);
+        Assert.Equal(MathF.PI / 4f, hostile.GroundRingRotationRadians, precision: 5);
+        Assert.NotEqual(0f, hostile.GroundRingRotationRadians);
+
+        // Rotation is a draw-time property, not a footprint change: the
+        // pinned square GroundRingBounds itself is identical either way, so
+        // task SD-7a's diamond comes entirely from OperatorRenderer rotating
+        // that same rectangle about its own center.
+        Assert.Equal(friendly.GroundRingBounds, hostile.GroundRingBounds);
+    }
+
+    [Fact]
+    public void FriendlyEmitsTheHeadPipAndHostileDoesNot()
+    {
+        var friendly = OperatorGeometry.Create(
+            RootPosition, ApparentScale, OperatorDetailTier.Low, new Bam16(0), 0f, 1f,
+            isFiring: false, isSelected: false, isFriendly: true);
+        var hostile = OperatorGeometry.Create(
+            RootPosition, ApparentScale, OperatorDetailTier.Low, new Bam16(0), 0f, 1f,
+            isFiring: false, isSelected: false, isFriendly: false);
+
+        Assert.Equal(ExpectedFriendlyHeadPipBounds, friendly.HeadPipBounds);
+        Assert.Equal(Rectangle.Empty, hostile.HeadPipBounds);
+    }
+
+    [Fact]
+    public void PistolOmitsForegripAndSlingAndHasAShorterThickerWeaponBodyThanRifle()
+    {
+        var rifle = OperatorGeometry.Create(
+            RootPosition, ApparentScale, OperatorDetailTier.Medium, new Bam16(0), 0f, 1f,
+            isFiring: false, isSelected: false, isFriendly: true, weaponClass: WeaponClass.Rifle);
+        var pistol = OperatorGeometry.Create(
+            RootPosition, ApparentScale, OperatorDetailTier.Medium, new Bam16(0), 0f, 1f,
+            isFiring: false, isSelected: false, isFriendly: true, weaponClass: WeaponClass.Pistol);
+
+        // The rifle path is untouched: byte-identical to the pre-WeaponClass
+        // pinned rectangle at OperatorGeometryTests.cs:92.
+        Assert.Equal(new Rectangle(92, 88, 16, 2), rifle.WeaponBodyBounds);
+        Assert.NotEqual(Rectangle.Empty, rifle.WeaponForegripBounds);
+        Assert.NotEqual(Rectangle.Empty, rifle.SlingBounds);
+
+        // OperatorGeometry.PistolWeaponLength (8, half of WeaponLength's 16)
+        // and PistolWeaponThickness (3, one unit over WeaponThickness's 2),
+        // centered on the same grip anchor (100, 89).
+        Assert.Equal(new Rectangle(96, 88, 8, 3), pistol.WeaponBodyBounds);
+        Assert.Equal(Rectangle.Empty, pistol.WeaponForegripBounds);
+        Assert.Equal(Rectangle.Empty, pistol.SlingBounds);
+
+        Assert.True(pistol.WeaponBodyBounds.Width < rifle.WeaponBodyBounds.Width);
+        Assert.True(pistol.WeaponBodyBounds.Height > rifle.WeaponBodyBounds.Height);
+    }
+
+    [Fact]
+    public void PistolMuzzleAnchorEqualsItsOwnShorterWeaponLineTip()
+    {
+        var layout = OperatorGeometry.Create(
+            RootPosition,
+            ApparentScale,
+            OperatorDetailTier.Low,
+            weaponAimBam: new Bam16(16_384), // an exact quarter turn.
+            previousDisplayRotationRawUnits: 0f,
+            smoothingFactor: 1f,
+            isFiring: false,
+            isSelected: false,
+            isFriendly: true,
+            weaponClass: WeaponClass.Pistol);
+
+        // Same independent-recomputation approach as MuzzleAnchorEqualsTheWeaponLineTip
+        // above, but tied to PistolWeaponLength rather than WeaponLength — the
+        // requirement that "the muzzle anchor must follow the shortened
+        // weapon length".
+        var rotationRadians = layout.DisplayRotationRawUnits / Bam16.UnitsPerTurn * MathF.Tau;
+        var direction = new Vector2(MathF.Cos(rotationRadians), MathF.Sin(rotationRadians));
+        var expectedTip = layout.WeaponGripAnchor +
+            (direction * (OperatorGeometry.PistolWeaponLength * ApparentScale));
+
+        Assert.Equal(expectedTip.X, layout.WeaponMuzzleAnchor.X, precision: 3);
+        Assert.Equal(expectedTip.Y, layout.WeaponMuzzleAnchor.Y, precision: 3);
+
+        // And it is indeed shorter than the rifle's own tip distance from the
+        // same grip anchor.
+        var radius = Vector2.Distance(layout.WeaponGripAnchor, layout.WeaponMuzzleAnchor);
+        Assert.True(radius < OperatorGeometry.WeaponLength * ApparentScale);
     }
 
     [Fact]
@@ -251,12 +388,40 @@ public sealed class OperatorGeometryTests
     [Fact]
     public void DisplayRotationRawUnitsIsExcludedFromEqualityAndHashCode()
     {
-        var baseLayout = new OperatorLayout(
+        var sample = MakeSampleLayout(groundRingRotationRadians: MathF.PI / 4f, headPipBounds: new Rectangle(20, 20, 2, 2));
+        var baseLayout = sample with { DisplayRotationRawUnits = 111f };
+
+        var sameExceptSmoothing = baseLayout with { DisplayRotationRawUnits = 999f };
+
+        Assert.NotEqual(baseLayout.DisplayRotationRawUnits, sameExceptSmoothing.DisplayRotationRawUnits);
+        Assert.Equal(baseLayout, sameExceptSmoothing);
+        Assert.Equal(baseLayout.GetHashCode(), sameExceptSmoothing.GetHashCode());
+    }
+
+    // Confirms task SD-7a's two new OperatorLayout members — added straight
+    // into the hand-written Equals/GetHashCode pair DisplayRotationRawUnits's
+    // own doc remarks warn any new member must join by hand — actually do
+    // fold into that equality, unlike DisplayRotationRawUnits itself above.
+    [Fact]
+    public void GroundRingRotationRadiansAndHeadPipBoundsParticipateInEqualityAndHashCode()
+    {
+        var withRotationAndPip = MakeSampleLayout(
+            groundRingRotationRadians: MathF.PI / 4f, headPipBounds: new Rectangle(20, 20, 2, 2));
+        var withoutRotationOrPip = MakeSampleLayout(
+            groundRingRotationRadians: 0f, headPipBounds: Rectangle.Empty);
+
+        Assert.NotEqual(withRotationAndPip, withoutRotationOrPip);
+        Assert.NotEqual(withRotationAndPip.GetHashCode(), withoutRotationOrPip.GetHashCode());
+    }
+
+    private static OperatorLayout MakeSampleLayout(float groundRingRotationRadians, Rectangle headPipBounds) =>
+        new(
             OperatorDetailTier.Medium,
             new Bam16(1_234),
             new Vector2(1f, 2f),
             new Vector2(3f, 4f),
             new Rectangle(0, 0, 1, 1),
+            groundRingRotationRadians,
             new Rectangle(1, 1, 2, 2),
             new Rectangle(2, 2, 3, 3),
             new Rectangle(3, 3, 4, 4),
@@ -265,20 +430,11 @@ public sealed class OperatorGeometryTests
             new Rectangle(6, 6, 7, 7),
             new Rectangle(7, 7, 8, 8),
             new Rectangle(8, 8, 9, 9),
+            headPipBounds,
             new Rectangle(9, 9, 10, 10),
             Rectangle.Empty,
             Rectangle.Empty,
             new Rectangle(10, 10, 11, 11),
             Rectangle.Empty,
-            Rectangle.Empty)
-        {
-            DisplayRotationRawUnits = 111f,
-        };
-
-        var sameExceptSmoothing = baseLayout with { DisplayRotationRawUnits = 999f };
-
-        Assert.NotEqual(baseLayout.DisplayRotationRawUnits, sameExceptSmoothing.DisplayRotationRawUnits);
-        Assert.Equal(baseLayout, sameExceptSmoothing);
-        Assert.Equal(baseLayout.GetHashCode(), sameExceptSmoothing.GetHashCode());
-    }
+            Rectangle.Empty);
 }

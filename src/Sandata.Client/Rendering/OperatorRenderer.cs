@@ -18,7 +18,7 @@ namespace Sandata.Client.Rendering;
 internal static class OperatorRenderer
 {
     /// <summary>
-    /// Draws every one of the fifteen layers on <paramref name="layout"/>
+    /// Draws every one of the sixteen layers on <paramref name="layout"/>
     /// that is not <see cref="Rectangle.Empty"/>, using
     /// <paramref name="pixel"/> — a shared one-by-one texture, the same
     /// convention every draw in <c>Hukbo.Client.Rendering.PawnRenderer</c>
@@ -42,7 +42,7 @@ internal static class OperatorRenderer
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(pixel);
 
-        DrawIfNotEmpty(spriteBatch, pixel, layout.GroundRingBounds, bodyColor);
+        DrawGroundRing(spriteBatch, pixel, layout, bodyColor);
         DrawIfNotEmpty(spriteBatch, pixel, layout.BootsBounds, bodyColor);
         DrawIfNotEmpty(spriteBatch, pixel, layout.LegsBounds, bodyColor);
         DrawIfNotEmpty(spriteBatch, pixel, layout.TorsoBounds, bodyColor);
@@ -61,6 +61,7 @@ internal static class OperatorRenderer
         DrawIfNotEmpty(spriteBatch, pixel, layout.WeaponForegripBounds, weaponColor);
 
         DrawIfNotEmpty(spriteBatch, pixel, layout.HeadBounds, bodyColor);
+        DrawIfNotEmpty(spriteBatch, pixel, layout.HeadPipBounds, bodyColor);
         DrawIfNotEmpty(spriteBatch, pixel, layout.HelmetBounds, bodyColor);
         DrawIfNotEmpty(spriteBatch, pixel, layout.NightVisionMountBounds, bodyColor);
         DrawIfNotEmpty(spriteBatch, pixel, layout.MuzzleFlashBounds, muzzleFlashColor);
@@ -86,6 +87,35 @@ internal static class OperatorRenderer
         {
             spriteBatch.Draw(pixel, bounds, color);
         }
+    }
+
+    /// <summary>
+    /// Draws <see cref="OperatorLayout.GroundRingBounds"/> plainly whenever
+    /// <see cref="OperatorLayout.GroundRingRotationRadians"/> is zero — the
+    /// friendly case, and the only case that shipped before faction shape
+    /// existed — and rotated about the ring's own center, via
+    /// <see cref="DrawRotatedBlock"/>, whenever it is not: the hostile
+    /// diamond.
+    /// </summary>
+    private static void DrawGroundRing(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        OperatorLayout layout,
+        Color color)
+    {
+        if (layout.GroundRingBounds == Rectangle.Empty)
+        {
+            return;
+        }
+
+        if (layout.GroundRingRotationRadians == 0f)
+        {
+            spriteBatch.Draw(pixel, layout.GroundRingBounds, color);
+            return;
+        }
+
+        var pivot = new Vector2(layout.GroundRingBounds.Center.X, layout.GroundRingBounds.Center.Y);
+        DrawRotatedBlock(spriteBatch, pixel, layout.GroundRingBounds, pivot, layout.GroundRingRotationRadians, color);
     }
 
     /// <summary>

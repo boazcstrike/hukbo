@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework;
 using Sandata.Core.Mathematics;
+using Sandata.Core.Weapons;
 
 namespace Sandata.Client.Rendering;
 
@@ -67,6 +68,26 @@ internal static class OperatorGeometry
     internal const float WeaponForegripHeight = 2f;
     internal const float MuzzleFlashSize = 4f;
 
+    // A WeaponClass.Pistol weapon body: roughly half of WeaponLength so it
+    // reads as a handgun rather than a shortened rifle, and one unit
+    // thicker than WeaponThickness so the stubbier silhouette is legible at
+    // Medium tier rather than just a shorter sliver of the same thickness.
+    internal const float PistolWeaponLength = 8f;
+    internal const float PistolWeaponThickness = 3f;
+
+    // The friendly-only head-top pip (the second of the two faction-shape
+    // cues design section 11's silhouette work calls for): a small square
+    // that has to read even when the operator itself is only a few pixels
+    // tall, so it is gated on isFriendly alone and never on detailTier the
+    // way the helmet layer it sits above is.
+    internal const float HeadPipSize = 2f;
+
+    // The ground ring's rotation when isFriendly is false: a 45-degree turn
+    // of the same square footprint into a diamond. GroundRingSize is the
+    // largest layer on purpose (see Create's isFriendly remarks), so this is
+    // the cue meant to survive at far zoom.
+    internal const float GroundRingHostileRotationRadians = MathF.PI / 4f;
+
     // Distances of the two weapon-mounted layers from the grip anchor, along
     // the weapon's own rotated direction vector, in the same units as
     // WeaponLength (a fraction of it, chosen as exact quarters so both stay
@@ -86,13 +107,18 @@ internal static class OperatorGeometry
     internal const float PlateCarrierCenterYOffset = -13f;
     internal const float ArmsCenterYOffset = -11f;
     internal const float HeadCenterYOffset = -18f;
+    // One unit clear of the helmet's own top edge (HelmetCenterYOffset minus
+    // half of HelmetSize, at -22), so the pip never overlaps the helmet at
+    // Medium+ tier or the bare head at Low tier (whose top edge, at -20, sits
+    // even lower than the helmet's).
+    internal const float HeadPipCenterYOffset = -24f;
     internal const float HelmetCenterYOffset = -19f;
     internal const float NightVisionMountCenterYOffset = -20f;
     internal const float SlingCenterYOffset = -12f;
     internal const float WeaponGripCenterYOffset = -11f;
 
     /// <summary>
-    /// Builds the fifteen-layer <see cref="OperatorLayout"/> for one operator
+    /// Builds the sixteen-layer <see cref="OperatorLayout"/> for one operator
     /// on one frame.
     /// </summary>
     /// <param name="rootPosition">
@@ -128,6 +154,26 @@ internal static class OperatorGeometry
     /// <see cref="OperatorLayout.WeaponMuzzleAnchor"/>.
     /// </param>
     /// <param name="isSelected">Gates the selection ring layer.</param>
+    /// <param name="isFriendly">
+    /// Gives friendly and hostile operators a shape a spectator can tell
+    /// apart without reading color: the default, <see langword="true"/>,
+    /// keeps every pre-existing pinned rectangle in this class unchanged — a
+    /// square <see cref="OperatorLayout.GroundRingBounds"/> footprint (no
+    /// rotation) plus the head-top <see cref="OperatorLayout.HeadPipBounds"/>
+    /// pip. <see langword="false"/> rotates the same ground ring footprint
+    /// <see cref="GroundRingHostileRotationRadians"/> into a diamond and
+    /// omits the pip, so a hostile reads as diamond-without-pip against a
+    /// friendly's square-with-pip at any zoom, including the few-pixel case
+    /// where every other layer has collapsed to noise.
+    /// </param>
+    /// <param name="weaponClass">
+    /// Gives a <see cref="WeaponClass.Pistol"/> operator a shorter, thicker
+    /// weapon body than the default <see cref="WeaponClass.Rifle"/>, and
+    /// drops the foregrip and sling layers a handgun does not have. The
+    /// rifle path is byte-identical to this parameter's introduction: every
+    /// rectangle a caller already depends on for <see cref="WeaponClass.Rifle"/>
+    /// is unchanged.
+    /// </param>
     internal static OperatorLayout Create(
         Vector2 rootPosition,
         float apparentScale,
@@ -136,7 +182,9 @@ internal static class OperatorGeometry
         float previousDisplayRotationRawUnits,
         float smoothingFactor,
         bool isFiring,
-        bool isSelected)
+        bool isSelected,
+        bool isFriendly = true,
+        WeaponClass weaponClass = WeaponClass.Rifle)
     {
         if (!float.IsFinite(apparentScale) || apparentScale <= 0f)
         {
@@ -169,10 +217,14 @@ internal static class OperatorGeometry
         var rotationRadians = RawUnitsToRadians(displayRotationRawUnits);
         var weaponDirection = new Vector2(MathF.Cos(rotationRadians), MathF.Sin(rotationRadians));
 
+        var isPistol = weaponClass == WeaponClass.Pistol;
+        var effectiveWeaponLength = isPistol ? PistolWeaponLength : WeaponLength;
+        var effectiveWeaponThickness = isPistol ? PistolWeaponThickness : WeaponThickness;
+
         var weaponGripAnchor = rootPosition +
             (new Vector2(0f, WeaponGripCenterYOffset) * apparentScale);
         var weaponMuzzleAnchor = weaponGripAnchor +
-            (weaponDirection * (WeaponLength * apparentScale));
+            (weaponDirection * (effectiveWeaponLength * apparentScale));
 
         var showGearLayer = detailTier is OperatorDetailTier.Medium or OperatorDetailTier.High;
         var showOpticsLayer = detailTier == OperatorDetailTier.High;
@@ -181,6 +233,7 @@ internal static class OperatorGeometry
             rootPosition + (new Vector2(0f, GroundRingCenterYOffset) * apparentScale),
             GroundRingSize * apparentScale,
             GroundRingSize * apparentScale);
+        var groundRingRotationRadians = isFriendly ? 0f : GroundRingHostileRotationRadians;
 
         var bootsBounds = CenteredRect(
             rootPosition + (new Vector2(0f, BootsCenterYOffset) * apparentScale),
@@ -213,10 +266,11 @@ internal static class OperatorGeometry
 
         var weaponBodyBounds = CenteredRect(
             weaponGripAnchor,
-            WeaponLength * apparentScale,
-            WeaponThickness * apparentScale);
+            effectiveWeaponLength * apparentScale,
+            effectiveWeaponThickness * apparentScale);
 
-        var weaponForegripBounds = showGearLayer
+        // A handgun has neither a foregrip nor a sling, regardless of tier.
+        var weaponForegripBounds = showGearLayer && !isPistol
             ? CenteredRect(
                 weaponGripAnchor + (weaponDirection * (ForegripDistanceFromGrip * apparentScale)),
                 WeaponForegripWidth * apparentScale,
@@ -227,6 +281,13 @@ internal static class OperatorGeometry
             rootPosition + (new Vector2(0f, HeadCenterYOffset) * apparentScale),
             HeadSize * apparentScale,
             HeadSize * apparentScale);
+
+        var headPipBounds = isFriendly
+            ? CenteredRect(
+                rootPosition + (new Vector2(0f, HeadPipCenterYOffset) * apparentScale),
+                HeadPipSize * apparentScale,
+                HeadPipSize * apparentScale)
+            : Rectangle.Empty;
 
         var helmetBounds = showGearLayer
             ? CenteredRect(
@@ -246,7 +307,8 @@ internal static class OperatorGeometry
             ? CenteredRect(weaponMuzzleAnchor, MuzzleFlashSize * apparentScale, MuzzleFlashSize * apparentScale)
             : Rectangle.Empty;
 
-        var slingBounds = showGearLayer
+        // A handgun has no sling, regardless of tier.
+        var slingBounds = showGearLayer && !isPistol
             ? CenteredRect(
                 rootPosition + (new Vector2(0f, SlingCenterYOffset) * apparentScale),
                 SlingWidth * apparentScale,
@@ -273,6 +335,7 @@ internal static class OperatorGeometry
             weaponGripAnchor,
             weaponMuzzleAnchor,
             groundRingBounds,
+            groundRingRotationRadians,
             bootsBounds,
             legsBounds,
             torsoBounds,
@@ -281,6 +344,7 @@ internal static class OperatorGeometry
             weaponBodyBounds,
             weaponForegripBounds,
             headBounds,
+            headPipBounds,
             helmetBounds,
             nightVisionMountBounds,
             muzzleFlashBounds,

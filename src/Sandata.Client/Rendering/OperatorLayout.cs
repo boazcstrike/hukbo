@@ -4,7 +4,7 @@ using Sandata.Core.Mathematics;
 namespace Sandata.Client.Rendering;
 
 /// <summary>
-/// Detail tier gating which of the fifteen operator layers (design section 11,
+/// Detail tier gating which of the sixteen operator layers (design section 11,
 /// <c>docs/plans/2026-08-07-sandata-scaffold-design.md:1531-1567</c>) currently
 /// draw. Declared independently of <c>Hukbo.Client.Rendering.PawnDetailTier</c>
 /// (<c>src/Hukbo.Client/Rendering/PawnGeometry.cs:7-12</c>) rather than shared
@@ -19,14 +19,15 @@ internal enum OperatorDetailTier
 }
 
 /// <summary>
-/// The pure geometry an operator renderer draws from: the fifteen composed
-/// layers design section 11 names — ground ring, boots, legs, torso, plate
-/// carrier, arms, weapon body, weapon foregrip, head, helmet, night-vision
-/// mount, muzzle flash, sling, suppression bracket, selection ring — each a
-/// <see cref="Rectangle"/> that is <see cref="Rectangle.Empty"/> whenever the
-/// layer contributes nothing at the current detail tier or firing/selection
-/// state. This is the same "pure output, empty when absent" convention
-/// <c>Hukbo.Client.Rendering.PawnLayout</c>
+/// The pure geometry an operator renderer draws from: the sixteen composed
+/// layers design section 11 names, plus the friendly-only head-top pip added
+/// for faction-shape legibility — ground ring, boots, legs, torso, plate
+/// carrier, arms, weapon body, weapon foregrip, head, head pip, helmet,
+/// night-vision mount, muzzle flash, sling, suppression bracket, selection
+/// ring — each a <see cref="Rectangle"/> that is <see cref="Rectangle.Empty"/>
+/// whenever the layer contributes nothing at the current detail tier,
+/// firing/selection state, faction, or weapon class. This is the same "pure
+/// output, empty when absent" convention <c>Hukbo.Client.Rendering.PawnLayout</c>
 /// (<c>src/Hukbo.Client/Rendering/PawnGeometry.cs:81-142</c>) already uses, and
 /// <see cref="OperatorGeometry.Create"/> is this record's only producer, the
 /// same split <c>PawnGeometry.Create</c> and <c>PawnRenderer.DrawLayout</c>
@@ -58,6 +59,7 @@ internal readonly record struct OperatorLayout(
     Vector2 WeaponGripAnchor,
     Vector2 WeaponMuzzleAnchor,
     Rectangle GroundRingBounds,
+    float GroundRingRotationRadians,
     Rectangle BootsBounds,
     Rectangle LegsBounds,
     Rectangle TorsoBounds,
@@ -66,6 +68,7 @@ internal readonly record struct OperatorLayout(
     Rectangle WeaponBodyBounds,
     Rectangle WeaponForegripBounds,
     Rectangle HeadBounds,
+    Rectangle HeadPipBounds,
     Rectangle HelmetBounds,
     Rectangle NightVisionMountBounds,
     Rectangle MuzzleFlashBounds,
@@ -91,6 +94,7 @@ internal readonly record struct OperatorLayout(
         WeaponGripAnchor == other.WeaponGripAnchor &&
         WeaponMuzzleAnchor == other.WeaponMuzzleAnchor &&
         GroundRingBounds == other.GroundRingBounds &&
+        GroundRingRotationRadians == other.GroundRingRotationRadians &&
         BootsBounds == other.BootsBounds &&
         LegsBounds == other.LegsBounds &&
         TorsoBounds == other.TorsoBounds &&
@@ -99,6 +103,7 @@ internal readonly record struct OperatorLayout(
         WeaponBodyBounds == other.WeaponBodyBounds &&
         WeaponForegripBounds == other.WeaponForegripBounds &&
         HeadBounds == other.HeadBounds &&
+        HeadPipBounds == other.HeadPipBounds &&
         HelmetBounds == other.HelmetBounds &&
         NightVisionMountBounds == other.NightVisionMountBounds &&
         MuzzleFlashBounds == other.MuzzleFlashBounds &&
@@ -115,6 +120,7 @@ internal readonly record struct OperatorLayout(
         hash.Add(WeaponGripAnchor);
         hash.Add(WeaponMuzzleAnchor);
         hash.Add(GroundRingBounds);
+        hash.Add(GroundRingRotationRadians);
         hash.Add(BootsBounds);
         hash.Add(LegsBounds);
         hash.Add(TorsoBounds);
@@ -123,6 +129,7 @@ internal readonly record struct OperatorLayout(
         hash.Add(WeaponBodyBounds);
         hash.Add(WeaponForegripBounds);
         hash.Add(HeadBounds);
+        hash.Add(HeadPipBounds);
         hash.Add(HelmetBounds);
         hash.Add(NightVisionMountBounds);
         hash.Add(MuzzleFlashBounds);
