@@ -522,6 +522,11 @@ catalog and traced the 484 back to this table, which predates the
 implementation. The catalog is authoritative; this table is kept as written so
 the error stays traceable.
 
+**Further correction, 2026-08-12.** Four of those 106 rows — the ones with
+real generated files — were raised from six declared variants to ten each, so
+the catalog's declared total is now 540 individual variant files, not 524.
+Every other row is unchanged.
+
 Environments are close-dry, indoor tail, outdoor tail, distant, and suppressed.
 Mechanism groups are AK, AR, bullpup, and pistol.
 
