@@ -17,7 +17,7 @@ row describes, write a fresh row in the live checklist instead.
 
 | Field | Value |
 | --- | --- |
-| Rows | 22 |
+| Rows | 23 |
 | Source families | 4 |
 | Lifted on | 2026-08-11 |
 | Live checklist | `docs/development/smoke-checklist.md` |
@@ -36,6 +36,7 @@ rather than trusting the one below.
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
+| SD-1 | Launch, then zoom from the closest tier out to the furthest | The window opens, the map draws, and the operators stay legible at every zoom level | This row was recorded `FAIL` earlier the same day, on the tester's report that "there was only 2 of them, so no" — an operator could not be told from a piece of cover at the tiers tried, and ally versus enemy was tellable by colour alone. The tester re-checked the row later on 2026-08-11 and reported it passing. The earlier observation is kept here in full so the reversal is visible rather than silent; no second-run narrative was recorded beyond the verdict, so a later change to operator or cover rendering should be covered by a fresh row rather than by this one. | PASS |
 | SD-3 | Send a squad through the entry door and on into the room behind it | The squad visibly collapses to single file at the door and re-expands inside | 2026-08-11, tester at the desktop: "single file" — the collapse at the door was observed. The re-expansion inside the room was not separately reported, so only the first half of the expected observation is evidenced. | PASS |
 | SD-6 | Look at a fire cone at every detail tier, zoomed in and out | The cone reads at every tier and does not fade with zoom | 2026-08-11, tester at the desktop: "readable but not understandable". The row's literal criterion — the cone stays visible at every tier and does not fade with zoom — was met. That it does not communicate *what it means* to a viewer is a real separate finding and is recorded below the table, not folded into this row's status. | PASS |
 

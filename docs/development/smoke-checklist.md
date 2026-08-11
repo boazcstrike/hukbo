@@ -23,16 +23,17 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-11
 
-192 rows across 22 subsections: **174 `PENDING`, 14 `BLOCKED`, 3 `FAIL`,
+191 rows across 22 subsections: **174 `PENDING`, 14 `BLOCKED`, 2 `FAIL`,
 1 `DECLINED`**, counted from the status column of this file on 2026-08-11,
 after the improve-visuals smoke run closed 29 of its 32 rows and they were
-lifted out.
+lifted out, and after `SD-1` was re-checked and closed.
 
-**There is no `PASS` column any more, and that is deliberate.** 51 passing rows
+**There is no `PASS` column any more, and that is deliberate.** 52 passing rows
 were lifted out on 2026-08-11 — 22 of them from families that stayed, then 29
-more when both improve-visuals families were run for the first time. Every row
+more when both improve-visuals families were run for the first time, then
+`SD-1` when the tester re-checked it. Every row
 in this file is now something a person still has to do: 174 never attempted, 14
-that cannot be attempted until the build changes, 3 that were attempted and
+that cannot be attempted until the build changes, 2 that were attempted and
 failed, and 1 declined. If a `PASS` ever appears here again it is a row that
 has just closed and has not yet been lifted — not a row that belongs.
 
@@ -46,7 +47,7 @@ it is a record rather than a checklist, and keeping it makes the file longer
 without giving a tester anything to do. A family is deleted only when it is
 entirely `PASS` — an open `FAIL` or `BLOCKED` row is unfinished work and stays
 here where a reader will see it. One section has no `PENDING` rows today and
-stays for exactly that reason: Sandata, which holds 2 `FAIL` and 5 `BLOCKED`.
+stays for exactly that reason: Sandata, which holds 1 `FAIL` and 5 `BLOCKED`.
 
 **Two families were deleted whole earlier the same day.** Spectator clarity, all
 fifty-two rows, and collision readability, all seven, were closed by a person at
@@ -97,7 +98,7 @@ order relaunches the game far more often than they need to.
 | Battlefield realism | task 18 rows | 10 `PENDING` | Cohort deployment and the V10 retreat rung |
 | Menu, display, motion | `UI` 3 of 16 | 3 `PENDING` | Run on 2026-08-11; the other 13 passed and were lifted out. The three open rows, `UI-2`, `UI-4`, and `UI-6`, all failed that run on one shared cause — the process never declared DPI awareness, so Windows rendered the game at a virtualised size and bitmap-stretched the result. **That is fixed**; the three are re-runs, not fresh checks. Set UI Scale to Auto first. See finding 1 in that section |
 | Improve visuals | `VIS` 3 of 32 | 3 `PENDING` | Run on 2026-08-11; the other 29 passed and were lifted out. The three open rows — 128 armor bulk, 129 adornment accents, 131 trampled ground — all failed that run, each on its own cause. **All three are fixed**; they are re-runs, not fresh checks. 128 and 129 want the maximum-zoom station; 131 wants a battle that has produced casualties |
-| Sandata | `SD` 7 of 9 | 5 `BLOCKED`, 2 `FAIL` | `./scripts/run.ps1 -Game Sandata`. The other 2 passed and were lifted out |
+| Sandata | `SD` 6 of 9 | 5 `BLOCKED`, 1 `FAIL` | `./scripts/run.ps1 -Game Sandata`. The other 3 passed and were lifted out |
 | Pressure interrupt | `P` | 9 `BLOCKED`, 1 `PENDING` | **Not runnable today** — see below |
 
 **The 14 `BLOCKED` rows are blocked by the build, not by the reader.** Nine `P`
@@ -119,8 +120,8 @@ substitute for any row here.
 
 ## Sandata smoke (design section 13)
 
-Every row below is `PENDING`, and no agent may flip one. These eight rows are
-the complete list of things Sandata's design records as checkable only by a
+No agent may flip a row below. These rows are what is left of the complete list
+of things Sandata's design records as checkable only by a
 person at a desktop; the automated suites prove the geometry, the funnel
 output, the collapse threshold, the lowered-weapon rule at its exact boundary,
 the theme contrast pairs, and the sound-slot lookup, and none of them proves
@@ -182,8 +183,9 @@ of the whole route and never does anything.
 3. Press F5. The pair returns to the bottom wall and walks the same route
    again.
 4. Scroll from the closest zoom out to the furthest, at every stage asking
-   whether you can still tell an operator from a piece of cover. **That is
-   row SD-1.**
+   whether you can still tell an operator from a piece of cover. This was row
+   `SD-1`, which closed on 2026-08-11 and is no longer in the table; it is
+   still worth doing once as orientation before the rows that follow.
 5. While zoomed in, watch the pair cross the long diagonal wall in the middle
    of the map, and then pass through the lower door. **Those are rows SD-2 and
    SD-3.**
@@ -228,7 +230,6 @@ of the whole route and never does anything.
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| SD-1 | Launch, then zoom from the closest tier out to the furthest | The window opens, the map draws, and the operators stay legible at every zoom level | 2026-08-11, tester at the desktop: "there was only 2 of them, so no" — an operator could not be told from a piece of cover at the tiers tried. Ally versus enemy *was* tellable, but by colour alone. The row asks about operator-versus-cover legibility, which is the half that failed. | FAIL |
 | SD-2 | Watch a squad path across the 26.57-degree diagonal wall | The funnel path visibly follows the wall as a straight line rather than a staircase | 2026-08-11, attempted: "i am unsure which is which". Investigated after the run and the row cannot be judged by anyone — `SandataGame.DrawOrderPath` renders only `_pathDrawState.Nodes`, the polyline the player is drawing by right-click. No published autonomous group path is drawn anywhere in `Sandata.Client`, so there is no line on screen to call straight or stepped. Becomes executable when the published path is rendered. | BLOCKED |
 | SD-4 | Watch a rifle operator cross a doorway, then a pistol operator cross the same one | The rifle operator lowers the weapon and re-raises it; the pistol operator does not | Cannot be run by anyone: every operator draws the same placeholder weapon appearance, so the two halves of the comparison are visually identical. Becomes executable when per-weapon operator appearances ship. | BLOCKED |
 | SD-5 | Hold sustained automatic fire from the maximum operator count | Automatic fire sounds continuous rather than machine-gun-stuttered, and no audio drops out | Cannot be run by anyone: Sandata ships no sound files at all. Becomes executable when the audio generation run is authorized and its slots exist. See the note below the table. | BLOCKED |
@@ -241,11 +242,12 @@ slots expanding to 524 variant files, roughly 104,800 ElevenLabs credits, and
 that spend is not authorized. The row is listed in full so that it is not
 quietly forgotten once the audio question is answered.
 
-**`SD-3` and `SD-6` passed and are no longer in the table.** They were lifted
+**`SD-1`, `SD-3`, and `SD-6` passed and are no longer in the table.** They were
+lifted
 out on 2026-08-11 into
 the 2026-08-11 record **"Closed rows lifted out of families that are still
 open"**, named rather than linked for the reason given at the top of this file,
-with their evidence, so what remains below is the open work: 2 `FAIL` and 5
+with their evidence, so what remains below is the open work: 1 `FAIL` and 5
 `BLOCKED`. Read `SD-6`'s archived entry before acting on finding 4 of the first
 run — the row passed on legibility, and the separate finding that the cone
 communicates nothing is recorded there rather than as a failure.
@@ -253,9 +255,10 @@ communicates nothing is recorded there rather than as a failure.
 **Which rows a tester could reach on the first run: SD-1, SD-2, SD-3, SD-6, and
 SD-7a — five of the nine.** All five were attemptable once the client ran the
 simulation and the assaulting squad walked a real route. `SD-3` and `SD-6`
-closed; `SD-2` turned out to be unjudgeable and is now `BLOCKED`; `SD-1` and
-`SD-7a` failed and are still open. The other four were `BLOCKED` from the
-start.
+closed on that run; `SD-2` turned out to be unjudgeable and is now `BLOCKED`;
+`SD-1` and `SD-7a` failed. `SD-1` was re-checked later the same day and closed,
+so of the five only `SD-7a` is still open. The other four were `BLOCKED` from
+the start.
 
 **Why those four are `BLOCKED` and not `PENDING`, corrected 2026-08-11.** They
 were recorded `PENDING` when the table was written, on the reasoning that the
@@ -284,6 +287,11 @@ The first time a person has run Sandata and reported what they saw. Five rows
 were attemptable; the result was two `PASS`, two `FAIL`, and one row that
 turned out to be unjudgeable and is now `BLOCKED`. The transport controls,
 which no row covers, were confirmed to do what they claim.
+
+One of the two failures did not stay a failure. `SD-1` was re-checked by the
+same tester later on 2026-08-11 and reported passing, so it left this file for
+the archive along with `SD-3` and `SD-6`. This section is kept as the record of
+the first run and is deliberately not rewritten to hide the reversal.
 
 Four findings came out of it. None is a regression — all four are things that
 were never built, surfaced by the first person to look at the screen.
@@ -322,7 +330,10 @@ catch.
 Findings 1, 2, and 3 are each a plain absence with a known fix. Finding 4, and
 the `SD-1` and `SD-7a` failures, are the same underlying problem stated three
 ways: the client draws untextured primitives with no shape vocabulary, so
-everything on screen depends on colour to mean anything.
+everything on screen depends on colour to mean anything. `SD-1` has since
+closed, which narrows that problem without settling it — `SD-7a` asks for
+distinguishability with colour ignored, and no operator layer differs between
+the two factions by anything except its colour.
 
 ## Auto camera modes smoke
 
