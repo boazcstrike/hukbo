@@ -251,18 +251,23 @@ of the whole route and never does anything.
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| SD-4 | Watch a rifle operator cross a doorway, then a pistol operator cross the same one | The rifle operator lowers the weapon and re-raises it; the pistol operator does not | Could not be run by anyone: every operator drew the same placeholder weapon appearance, so the two halves of the comparison were visually identical. **Fixed 2026-08-11** on both counts. Operators now alternate between an AK-pattern rifle and a Glock-pattern pistol, so a pistol operator is one of the two who walk the route rather than a defender who never moves, and each draws its own top-down sprite — a long silhouette with a curved magazine against a short stubby one. Both sprites are greyscale and tinted by the faction role, so they read in either theme | PENDING |
-| SD-5 | Hold sustained automatic fire from the maximum operator count | Automatic fire sounds continuous rather than machine-gun-stuttered, and no audio drops out | Could not be run by anyone: Sandata shipped no sound files and had no playback path. **Both landed on 2026-08-11** under the narrow authorization recorded below the table. Read that note before running this row — only two of the five acoustic environments have files, so a shot beyond 200 world units is still silent, and that is expected rather than the drop-out this row is looking for | PENDING |
+| SD-4 | Watch a rifle operator cross a doorway, then a pistol operator cross the same one | The rifle operator lowers the weapon and re-raises it; the pistol operator does not | Could not be run by anyone: every operator drew the same placeholder weapon appearance, so the two halves of the comparison were visually identical. **Fixed 2026-08-11** on both counts. Operators now alternate between an AK-pattern rifle and a Glock-pattern pistol, so a pistol operator is one of the two who walk the route rather than a defender who never moves, and each draws its own top-down sprite — a long silhouette with a curved magazine against a short stubby one. Both sprites are greyscale and tinted, so they read in either theme. **Attempted 2026-08-12 and not closed**: "this is ok, but still the guns are unclear". Three causes were found and fixed the same day — the weapon was tinted with the operator's *own faction colour*, so a gun was drawn blue on blue and could not separate from the body at all; `WeaponLength` was 16 world units against a 12-unit ground ring, so most of a rifle sat inside the body's own footprint; and the sprite batch was sampling linearly, which smears a 32-pixel sprite drawn at ten pixels into a smudge. The weapon now has its own gunmetal theme role, the rifle is 22 units and clears the ring, and sampling is point. **Zoom in before judging this row.** At the fitted camera an operator is about fourteen screen pixels tall and a weapon about eight, and no amount of art makes a gun legible at that size — the row asks you to watch an operator cross a doorway, which is a close-in observation | PENDING |
+| SD-5 | Hold sustained automatic fire from the maximum operator count | Automatic fire sounds continuous rather than machine-gun-stuttered, and no audio drops out | Could not be run by anyone: Sandata shipped no sound files and had no playback path. **Both landed on 2026-08-11** under the narrow authorization recorded below the table. Read that note before running this row — only two of the five acoustic environments have files, so a shot beyond 200 world units is still silent, and that is expected rather than the drop-out this row is looking for. **Attempted 2026-08-12 and not closed**: the sounds were audible, but "the sound doesnt sound like AK47s specifically". That is a report about the takes themselves rather than about continuity, which is what this row measures, so it is worth keeping the two apart when re-running. Sixteen more takes were generated on 2026-08-12 from prompts naming the weapon and its acoustic character rather than only its cartridge, and the four generated slots now declare ten variants each instead of six so that the newer takes are actually reached by the resolver. The original twenty-four are untouched and still in rotation | PENDING |
 | SD-7b | View friendly, hostile, and unknown contacts in every shipped theme | All three are distinguishable in `daylight-ops` as well as `night-ops` | Cannot be run by anyone: `LoadTheme` always takes `catalog.DefaultThemeId`, so `daylight-ops` is unreachable from the client, and no unknown-contact state exists to render. Becomes executable when a theme switcher and an unknown-contact state ship. | BLOCKED |
 **SD-5's blocker, and what is left of it.** Sandata's sound catalog is 106
-slots expanding to 524 variant files, roughly 104,800 ElevenLabs credits, and
-that spend as a whole is still not authorized. A narrow slice of it was
-authorized on 2026-08-11 and generated: twenty-four files covering an
-AK-pattern rifle in 7.62x39mm and a Glock-pattern pistol in 9x19mm, six
-variants each, in the `close` and `indoor` acoustic environments. Six variants
-per slot is not a preference — it is what `SandataSoundCatalog` declares for
-those rows, and `ShotSlotResolver` picks across all six, so shipping fewer
-would leave a proportion of shots resolving a filename that is not there.
+slots expanding to 540 variant files, and generating the whole of it is not
+authorized. A narrow slice of it was authorized on 2026-08-11 and generated:
+files covering an AK-pattern rifle in 7.62x39mm and a Glock-pattern pistol in
+9x19mm, in the `close` and `indoor` acoustic environments. Twenty-four files
+were made that day at six variants a slot, and sixteen more on 2026-08-12 when
+those four slots were raised to ten variants each, so forty files ship today.
+
+The variant count is not a preference — it is what `SandataSoundCatalog`
+declares, and `ShotSlotResolver` picks uniformly across the declared number, so
+a file past the declared count is never selected and a missing file inside it
+plays silence. That is why raising the count was the only way the newer takes
+could ever be heard, and why exactly those four rows were raised and no others:
+they are the only slots with real files on disk.
 
 **Three of the five environments are still empty, and that is expected.**
 `outdoor`, `distant`, and `suppressed` have no files, so a shot that resolves
