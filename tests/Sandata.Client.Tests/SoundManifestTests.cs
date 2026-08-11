@@ -361,7 +361,7 @@ public sealed class SoundManifestTests
     /// The manifest must describe every row the catalog declares — no more,
     /// no fewer. This is the number the task's "done when" calls "the row
     /// count the catalog declares": 106, not the 484 the plan row and the
-    /// design document both still say, and not the 524 individual variant
+    /// design document both still say, and not the 540 individual variant
     /// files those 106 rows expand to (asserted separately below).
     /// </summary>
     [Fact]
@@ -393,17 +393,63 @@ public sealed class SoundManifestTests
 
     /// <summary>
     /// The sum of every row's variant count is the true number of individual
-    /// files a full generation run would produce: 524, not the plan row's
-    /// and the design document's 484. Pinned here so a catalog edit that
-    /// moves this number is caught by a red test rather than a stale
-    /// document.
+    /// files a full generation run would produce: 540, not the plan row's
+    /// and the design document's 484, and not the 524 an earlier revision of
+    /// this catalog declared. The 540 comes from raising four single-shot
+    /// gun-report rows — 7.62x39 and 9x19, each in close-dry and indoor-tail —
+    /// from 6 declared takes to 10, since those four rows are the only ones
+    /// with real generated audio on disk; see
+    /// <see cref="SandataSoundCatalog"/>'s <c>GeneratedGunReportVariantCount</c>
+    /// doc comment. Pinned here so a catalog edit that moves this number is
+    /// caught by a red test rather than a stale document.
     /// </summary>
     [Fact]
-    public void TotalVariantFileCountIsFiveHundredTwentyFour()
+    public void TotalVariantFileCountIsFiveHundredForty()
     {
         var totalVariants = SandataSoundCatalog.Rows.Sum(row => (int)row.VariantCount);
 
-        Assert.Equal(524, totalVariants);
+        Assert.Equal(540, totalVariants);
+    }
+
+    /// <summary>
+    /// Exactly the four single-shot gun-report rows that have real generated
+    /// audio on disk today — 7.62x39 and 9x19, each in close-dry and
+    /// indoor-tail — must declare the elevated variant count, and every other
+    /// <see cref="SoundFamily.GunReport"/> / <see cref="FireMode.Single"/> row
+    /// must still declare the ordinary one. This is the assertion that
+    /// catches a later edit that widens or narrows
+    /// <c>SandataSoundCatalog.IsGeneratedGunReportRow</c> by accident.
+    /// </summary>
+    [Fact]
+    public void OnlyTheFourGeneratedGunReportRowsCarryTheElevatedVariantCount()
+    {
+        var elevatedCalibers = new[] { CaliberFamily.Cal762X39, CaliberFamily.Cal9X19 };
+        var elevatedEnvironments = new[] { SoundEnvironment.CloseDry, SoundEnvironment.IndoorTail };
+
+        var singleShotGunReportRows = SandataSoundCatalog.Rows
+            .Where(row => row.Family == SoundFamily.GunReport && row.Mode == FireMode.Single)
+            .ToList();
+
+        // Four elevated rows expected: 2 calibers x 2 environments.
+        var elevatedRows = 0;
+
+        foreach (var row in singleShotGunReportRows)
+        {
+            var caliber = (CaliberFamily)row.FamilyKey;
+            var isElevatedRow = elevatedCalibers.Contains(caliber) && elevatedEnvironments.Contains(row.Environment);
+
+            if (isElevatedRow)
+            {
+                elevatedRows++;
+                Assert.Equal(10, row.VariantCount);
+            }
+            else
+            {
+                Assert.Equal(6, row.VariantCount);
+            }
+        }
+
+        Assert.Equal(4, elevatedRows);
     }
 
     /// <summary>

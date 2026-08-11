@@ -39,6 +39,26 @@ internal static class SandataSoundCatalog
     /// <summary>The smallest legal <see cref="SoundSlot.VariantCount"/>.</summary>
     public const int MinVariantCount = 1;
 
+    /// <summary>
+    /// The declared take count for every row in the catalog that has no
+    /// generated audio yet. It is a placeholder, not a measurement: nothing
+    /// has been recorded against it, so it stays at the number the design
+    /// document originally picked until that family is actually generated.
+    /// </summary>
+    private const byte OrdinaryVariantCount = 6;
+
+    /// <summary>
+    /// The declared take count for the four single-shot gun-report rows that
+    /// already have real generated audio on disk: 7.62x39 and 9x19, each in
+    /// close-dry and indoor-tail. These are the only slots in the catalog
+    /// whose declared count is not theoretical, a repeated gunshot is the
+    /// most audible repetition in the game, and <see cref="ShotSlotResolver"/>
+    /// only ever plays a variant this row claims to have — so these four rows
+    /// carry more takes than the rest of the catalog on purpose, to widen the
+    /// rotation the player actually hears.
+    /// </summary>
+    private const byte GeneratedGunReportVariantCount = 10;
+
     // Dimension sizes for the flat lookup index below. FamilyKeySpan is sized
     // to the widest FamilyKey axis in use (CaliberFamily, at 8 members) so
     // every family fits in the same flat array without a per-family shape.
@@ -323,16 +343,32 @@ internal static class SandataSoundCatalog
         {
             foreach (var environment in AllRealEnvironments())
             {
+                var variantCount = IsGeneratedGunReportRow(caliber, environment)
+                    ? GeneratedGunReportVariantCount
+                    : OrdinaryVariantCount;
+
                 rows.Add(new SoundSlot(
                     SoundFamily.GunReport,
                     (int)caliber,
                     FireMode.Single,
                     environment,
-                    6,
+                    variantCount,
                     GunReportTailTicks));
             }
         }
     }
+
+    /// <summary>
+    /// True for exactly the four single-shot gun-report rows that have real
+    /// generated audio on disk today, per <see cref="GeneratedGunReportVariantCount"/>'s
+    /// doc comment. Kept as its own named predicate rather than inlined so a
+    /// later edit that widens this set has one place to change and one test,
+    /// <c>SoundManifestTests.OnlyTheFourGeneratedGunReportRowsCarryTheElevatedVariantCount</c>,
+    /// that fails if it drifts.
+    /// </summary>
+    private static bool IsGeneratedGunReportRow(CaliberFamily caliber, SoundEnvironment environment) =>
+        (caliber == CaliberFamily.Cal762X39 || caliber == CaliberFamily.Cal9X19) &&
+        (environment == SoundEnvironment.CloseDry || environment == SoundEnvironment.IndoorTail);
 
     private static void AddBakedBurst3(List<SoundSlot> rows)
     {
