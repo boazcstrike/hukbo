@@ -1490,12 +1490,15 @@ internal sealed class SandataGame : Game
             Draw(spriteBatch, breachShape, contentBounds, _theme.Colors.BreachPoint);
         }
 
+        // Under the pawns on purpose. A route is the ground a squad will walk
+        // over, and drawing it above the operators cut a line straight through
+        // every one of them.
+        DrawPublishedPaths(spriteBatch, contentBounds);
         DrawOperatorsAndFireCones(spriteBatch, contentBounds);
         // After the operators: a tracer that a body drew over would defeat the
         // point of drawing it. Before the order path, which is the player's
         // own input and outranks everything the simulation is saying.
         DrawCombatEffects(spriteBatch, contentBounds);
-        DrawPublishedPaths(spriteBatch, contentBounds);
         DrawOrderPath(spriteBatch, contentBounds);
 
         var hudLayout = ComposeHudLayout(contentBounds);
@@ -1795,14 +1798,15 @@ internal sealed class SandataGame : Game
     /// player's own right-click polyline, so the row could not be judged by
     /// anyone.
     /// <para>
-    /// The two are deliberately not drawn alike. A published path is the
-    /// simulation reporting what it decided, so it is drawn in
-    /// <c>StatusInfo</c> — the role already meaning "the simulation is telling
-    /// you something" — as a bare line with no waypoint markers. The drawn
-    /// path is the player's own instruction, keeps <c>OrderPath</c> and its
-    /// waypoint squares, and is drawn afterwards so it lies on top. Line
-    /// versus line-plus-squares reads without relying on colour, which is the
-    /// same lesson SD-7a taught.
+    /// The two are deliberately not drawn alike, and the difference is a
+    /// shape rather than a colour. Both use the <c>OrderPath</c> role, so a
+    /// viewer learns one colour for "a route"; the autonomous one is
+    /// <b>dashed</b> and carries no waypoint markers, and the player's own is
+    /// solid and keeps its waypoint squares. That is the SD-7a lesson applied
+    /// a second time — the first attempt drew this line in <c>StatusInfo</c>,
+    /// which on the shipped <c>night-ops</c> palette is within a few points of
+    /// the friendly operator blue, so a route and the warrior walking it were
+    /// the same colour.
     /// </para>
     /// <para>
     /// The polyline is re-fetched every frame and never stored. It is derived
@@ -1837,8 +1841,39 @@ internal sealed class SandataGame : Game
             var screenSegments = OrderPathOverlay.ToScreenSegments(worldSegments, _camera, contentBounds);
             foreach (var segment in screenSegments)
             {
-                DrawLine(spriteBatch, segment.Start, segment.End, _theme.Colors.StatusInfo);
+                DrawDashedLine(spriteBatch, segment.Start, segment.End, _theme.Colors.OrderPath);
             }
+        }
+    }
+
+    /// <summary>
+    /// Draws a line as a run of short dashes, in screen pixels, so that a
+    /// dashed route and a solid route can be told apart with colour ignored.
+    /// The dash length is fixed in pixels rather than in world units on
+    /// purpose: it is a legibility device for the person looking at the
+    /// screen, so it must not stretch or collapse with zoom.
+    /// </summary>
+    private void DrawDashedLine(SpriteBatch spriteBatch, Vector2 start, Vector2 end, Color color)
+    {
+        const float dashLengthPixels = 8f;
+        const float gapLengthPixels = 6f;
+
+        var direction = end - start;
+        var length = direction.Length();
+        if (length <= float.Epsilon)
+        {
+            return;
+        }
+
+        direction /= length;
+        for (var travelled = 0f; travelled < length; travelled += dashLengthPixels + gapLengthPixels)
+        {
+            var dashEnd = MathF.Min(travelled + dashLengthPixels, length);
+            DrawLine(
+                spriteBatch,
+                start + (direction * travelled),
+                start + (direction * dashEnd),
+                color);
         }
     }
 
