@@ -12,13 +12,28 @@
 
 #---------------------------------- Content ---------------------------------#
 
-# Sandata v0.1 ships no font, sprite, or audio content through the MonoGame
-# content pipeline yet (design section 11: "the content pipeline ships fonts
-# only", and no font task exists for Sandata before plan task 33). This file
-# exists so `dotnet build` has a valid, empty MGCB document for
-# MonoGame.Content.Builder.Task to process; it intentionally declares zero
-# #begin blocks. The theme catalog JSON that SandataGame reads at run time
-# (Content/Themes/sandata-theme-standards.json) ships as a plain copied file
-# through Sandata.Client.csproj's own CopyToOutputDirectory rule, not through
-# this pipeline — it is data the client parses itself, not an asset MonoGame's
-# content pipeline needs to process.
+# Sandata ships two fonts through the MonoGame content pipeline (plan task 33):
+# Body for HUD row content and Label for panel headers, both baked from the
+# vendored Rajdhani SemiBold face in Fonts/Rajdhani-SemiBold.ttf. See
+# Fonts/README.md for the size ramp and why Sandata needs only these two
+# rungs, and Theming/SandataFontRamp.cs for the pure asset-id/pixel-size
+# source of truth these #begin blocks must stay in sync with. The theme
+# catalog JSON that SandataGame reads at run time
+# (Content/Themes/sandata-theme-standards.json) still ships as a plain copied
+# file through Sandata.Client.csproj's own CopyToOutputDirectory rule, not
+# through this pipeline — it is data the client parses itself, not an asset
+# MonoGame's content pipeline needs to process.
+
+#begin Fonts/SandataBody.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Color
+/build:Fonts/SandataBody.spritefont
+
+#begin Fonts/SandataLabel.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Color
+/build:Fonts/SandataLabel.spritefont
