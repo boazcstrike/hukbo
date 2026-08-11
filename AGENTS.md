@@ -235,10 +235,16 @@ at all. Full rules: `docs/research/HISTORICAL_1500s_WEAPONS.md` and
   as a shortcut around that rule.
 - Report a green `./scripts/verify.ps1` as evidence about Sandata. Without
   `-Game Sandata` the gate never built or ran a line of it.
-- Run `./scripts/sfx.ps1` for Sandata. Its audio catalog is 106 slots expanding
-  to 524 variant files, roughly 104,800 ElevenLabs credits, and the spend is
-  **not authorized**. `scripts/sfx-manifest.ps1` is the network-free script that
-  produces the dry-run manifest that would have to be reviewed first.
+- Run `./scripts/sfx.ps1` for Sandata beyond the narrow slice authorized on
+  2026-08-11. That slice generated twenty-four files covering the AK-pattern
+  rifle and the Glock-pattern pistol in the two acoustic environments an
+  interior map reaches, and those files, plus the MonoGame-backed playback
+  path that plays them, are already committed; the provenance is recorded in
+  `src/Sandata.Client/Content/Audio/README.md`. The remaining catalog is still
+  106 slots expanding to 524 variant files, roughly 104,800 ElevenLabs
+  credits, and that remaining spend is **not authorized**.
+  `scripts/sfx-manifest.ps1` is the network-free script that produces the
+  dry-run manifest that would have to be reviewed first.
 
 The full rules are in `CLAUDE.md` and `SIMULATION-GAME-STANDARDS.md`. Keep
 this file and `CLAUDE.md` consistent.

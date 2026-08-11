@@ -490,10 +490,19 @@ presentation-only), `game-ui-ux` (HUD anchoring, controller focus),
   tier-1 rule, and never as a shortcut around this one.
 - Report a green `./scripts/verify.ps1` as evidence about Sandata. Without
   `-Game Sandata` the gate never built or ran a line of it.
-- Run `./scripts/sfx.ps1` for Sandata. Its audio catalog is roughly 104,800
-  ElevenLabs credits and the spend is **not authorized**; design section 15
-  keeps it behind a reviewed dry-run manifest, and `scripts/sfx-manifest.ps1`
-  is the network-free script that produces one.
+- Run `./scripts/sfx.ps1` for Sandata beyond the narrow slice authorized on
+  2026-08-11. That slice generated twenty-four files — six variants each of
+  `gun-762x39-single-close`, `gun-762x39-single-indoor`,
+  `gun-9x19-single-close`, and `gun-9x19-single-indoor`, covering the
+  AK-pattern rifle and the Glock-pattern pistol in the two acoustic
+  environments an interior map reaches — and both those files and the
+  MonoGame-backed playback path that plays them are already committed; the
+  full provenance is recorded in `src/Sandata.Client/Content/Audio/README.md`.
+  The remaining catalog is still 106 slots expanding to 524 variant files,
+  roughly 104,800 ElevenLabs credits, and that remaining spend is **not
+  authorized**; design section 15 keeps it behind a reviewed dry-run
+  manifest, and `scripts/sfx-manifest.ps1` is the network-free script that
+  produces one.
 
 ## 10. Agent orchestration
 

@@ -73,9 +73,13 @@ scope by definition rather than by judgement:
 - **A map editor.** Maps are hand-written `.hkmap` files in v0.1.
 - **Multiplayer, mod APIs, persistence migrations, and hosted CI.** Same
   prohibitions as Hukbo, for the same reasons.
-- **Generating any audio.** The audio work in v0.1 stops at a dry-run manifest.
-  Nothing calls ElevenLabs without the user reviewing that manifest and
-  authorising the spend.
+- **Generating audio beyond the narrow slice authorized on 2026-08-11.** That
+  slice — twenty-four files for the AK-pattern rifle and the Glock-pattern
+  pistol, in the two acoustic environments an interior map reaches — has
+  already been generated and committed, with its provenance recorded in
+  `src/Sandata.Client/Content/Audio/README.md`. The rest of the audio work in
+  v0.1 stops at a dry-run manifest; nothing calls ElevenLabs beyond that slice
+  without the user reviewing the manifest and authorising the spend.
 
 ### The name is deferred
 
@@ -1513,11 +1517,20 @@ audio — the 70 shipped WAVs total 1,289,596 bytes — that every clone pays fo
 and there is no Git LFS configuration in this repository. That is a risk-register
 row, not a footnote.
 
-Therefore, and without exception:
+On 2026-08-11 the user authorized one narrow exception to that hard stop: the
+two firearms a spectator actually meets on the shipped `angle-house` mission,
+in the two acoustic environments an interior map reaches. `./scripts/sfx.ps1
+-Batch` ran against a four-row manifest and produced twenty-four files, all
+committed under `src/Sandata.Client/Content/Audio/`, with the full provenance
+recorded in that folder's own `README.md`. That slice is a small fraction of
+the 104,800-credit catalog above, and it does not reopen the rest of the gate.
 
-> **The audio work in v0.1 produces a dry-run manifest and stops. No task in the
-> plan document calls ElevenLabs. Nothing is generated until the user reviews the
-> manifest and authorises the spend.**
+Therefore, for everything the narrow slice above does not cover:
+
+> **The rest of the audio work in v0.1 produces a dry-run manifest and stops.
+> No task in the plan document calls ElevenLabs beyond the slice authorized on
+> 2026-08-11. Nothing further is generated until the user reviews the manifest
+> and authorises the remaining spend.**
 
 ### Measured 2026-08-11: 156 of the 372 gun-family files cannot be selected
 
@@ -2170,7 +2183,13 @@ consolidation's own list and the eleventh was added on 2026-08-10.
    by a government are materially safer: M4, Mk 18, L85, QBZ-191, M7, MP-443. The
    design puts the choice behind one field; the choice itself is the user's.
 5. **Authorisation to spend on the audio generation run.** Section 10. 22 USD
-   best case, 99 USD likely. Nothing runs until a dry-run manifest is reviewed.
+   best case, 99 USD likely, for the full catalog. Partly answered on
+   2026-08-11: the user authorized a narrow slice — the AK-pattern rifle and
+   the Glock-pattern pistol, in the two acoustic environments an interior map
+   reaches — and it has been generated and committed, with its provenance
+   recorded in `src/Sandata.Client/Content/Audio/README.md`. Authorisation for
+   the rest of the 106-slot catalog is still open; nothing further runs until
+   a dry-run manifest for the remainder is reviewed.
 6. **The 50 Hz tick rate and the 16-world-units-per-metre scale.** Section 4.
    Both are chosen here with reasons, and both are pinned into the content hash
    the moment the first golden vector exists. Changing either afterwards is a new
