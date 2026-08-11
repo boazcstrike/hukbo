@@ -13,6 +13,39 @@
   </ItemGroup>
   <ItemGroup>
     <!--
+      Sandata shipped no content through the pipeline until the font and
+      sprite work of 2026-08-11, and until then MonoGame.Content.Builder.Task
+      found Content.mgcb only through its default glob. That was enough while
+      the document declared zero assets and produced nothing; it is not
+      something to keep relying on now that a missing bake means a HUD with no
+      text and an operator with no weapon. Declaring the reference makes the
+      dependency explicit and matches Hukbo.Client.
+    -->
+    <MonoGameContentReference Include="Content/Content.mgcb" />
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      The Open Font License text has to travel with the vendored face, so it
+      is copied beside the binary rather than left in the source tree.
+    -->
+    <None Update="Content/Fonts/OFL-*.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      Sound files bypass the content pipeline entirely, exactly as Hukbo's do:
+      SandataSoundLibrary reads raw PCM WAV from
+      AppContext.BaseDirectory/Content/Audio at run time through
+      SoundEffect.FromStream. Baking them to .xnb would buy nothing and would
+      make an authoring run (scripts/sfx.ps1) require a rebuild before the new
+      sound could be heard. The relative path under Content is preserved in
+      the output directory, matching where the library looks.
+    -->
+    <None Include="Content\Audio\*.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <!--
       Task 13 (SandataThemeCatalog / sandata-theme-standards.json) never
       shipped this file to a packaged build: SandataThemeTests only passed by
       reading the source tree directly through LogPaths.FindRepositoryRoot,

@@ -37,3 +37,31 @@
 /processorParam:PremultiplyAlpha=True
 /processorParam:TextureFormat=Color
 /build:Fonts/SandataLabel.spritefont
+
+# The two weapon sprites go through the pipeline rather than being read as raw
+# PNG at run time, and the reason is the one processor parameter below.
+# SpriteBatch draws with premultiplied alpha by default, and Texture2D.FromStream
+# does not premultiply — a straight-alpha PNG loaded that way fringes dark
+# around every edge. Letting the processor premultiply once, at build time, is
+# what keeps a rotated weapon silhouette clean against the arena surface.
+# Both sprites are greyscale plus alpha and are tinted by a theme role at draw
+# time; see Sprites/README.md for the pixel contract, including that they point
+# along +X and rotate about a recorded grip anchor.
+
+#begin Sprites/weapon-rifle.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyEnabled=False
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Color
+/build:Sprites/weapon-rifle.png
+
+#begin Sprites/weapon-pistol.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyEnabled=False
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Color
+/build:Sprites/weapon-pistol.png

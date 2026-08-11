@@ -77,12 +77,19 @@ internal static class InitialSquadGroups
     /// The groups array, empty when there is no roster, no objective, or no
     /// assaulting operator.
     /// </returns>
+    /// <param name="membership">
+    /// When supplied, receives one <see cref="GroupMember"/> per assaulting
+    /// operator naming the group it landed in. <see cref="BuildMembership"/>
+    /// is the caller that uses it; every other caller passes nothing and pays
+    /// for nothing.
+    /// </param>
     internal static ImmutableArray<GroupPathState> Build(
         ImmutableArray<OperatorState> operators,
         ImmutableArray<ObjectiveRecord> objectives,
         NavGrid navGrid,
         int groupCohesionRadiusWu,
-        int assaultingFaction)
+        int assaultingFaction,
+        ImmutableArray<GroupMember>.Builder? membership = null)
     {
         ArgumentNullException.ThrowIfNull(navGrid);
         ArgumentOutOfRangeException.ThrowIfNegative(groupCohesionRadiusWu);
@@ -188,10 +195,62 @@ internal static class InitialSquadGroups
                 StartCellIndex: startCell,
                 GoalCellIndex: goalCell,
                 RequestTick: 0));
+
+            if (membership is not null)
+            {
+                var leaderRoot = componentRoots[rank];
+                for (var index = 0; index < count; index++)
+                {
+                    if (operators[index].Faction == assaultingFaction &&
+                        Find(parent, index) == leaderRoot)
+                    {
+                        membership.Add(new GroupMember(operators[index].EntityId, leader.EntityId));
+                    }
+                }
+            }
         }
 
         return builder.ToImmutable();
     }
+
+    /// <summary>
+    /// Which group each assaulting operator belongs to, under exactly the same
+    /// clustering <see cref="Build"/> uses — the two are one pass, so they can
+    /// never disagree.
+    /// <para>
+    /// This exists because <c>MissionState</c> carries no operator-to-group
+    /// link: <c>GroupPathState</c> names a group and its request, and
+    /// <c>OperatorState</c> names an operator, and nothing in between says
+    /// which operator is in which squad. The operator inspector needs that
+    /// link to answer smoke row SD-8's question — why is this operator holding
+    /// — because the reason code is a property of the group's path request,
+    /// not of the operator. Deriving it here rather than guessing at inspector
+    /// time is what keeps the answer true.
+    /// </para>
+    /// <para>
+    /// It is a tick-zero fact. Squad membership at tick zero is what
+    /// <see cref="Build"/> froze into the <c>Groups</c> array, and nothing in
+    /// the simulation re-clusters, so the mapping stays valid for as long as
+    /// that array does.
+    /// </para>
+    /// </summary>
+    internal static ImmutableArray<GroupMember> BuildMembership(
+        ImmutableArray<OperatorState> operators,
+        ImmutableArray<ObjectiveRecord> objectives,
+        NavGrid navGrid,
+        int groupCohesionRadiusWu,
+        int assaultingFaction)
+    {
+        var membership = ImmutableArray.CreateBuilder<GroupMember>();
+        Build(operators, objectives, navGrid, groupCohesionRadiusWu, assaultingFaction, membership);
+        return membership.ToImmutable();
+    }
+
+    /// <summary>
+    /// One operator's squad membership: the operator, and the group whose
+    /// <c>GroupPathState.GroupId</c> covers it.
+    /// </summary>
+    internal readonly record struct GroupMember(ulong EntityId, ulong GroupId);
 
     /// <summary>
     /// The world-unit value of a fixed-point coordinate, truncated toward

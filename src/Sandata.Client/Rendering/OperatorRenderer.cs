@@ -30,6 +30,20 @@ internal static class OperatorRenderer
     /// a shield sub-element that has to stay rigid with the rest of the
     /// shield as it turns.
     /// </summary>
+    /// <param name="weaponSprite">
+    /// The weapon texture for this operator's weapon class, or <c>null</c>.
+    /// When it is <c>null</c> — a checkout whose content never baked, or a
+    /// load that failed — the primitive weapon bar that shipped before the
+    /// sprites existed is drawn instead, so a missing texture costs detail
+    /// rather than costing the weapon entirely.
+    /// </param>
+    /// <param name="weaponSpriteGripAnchor">
+    /// The pixel inside <paramref name="weaponSprite"/> that sits on
+    /// <see cref="OperatorLayout.WeaponGripAnchor"/> and that the sprite
+    /// rotates about. Recorded per sprite in
+    /// <c>src/Sandata.Client/Content/Sprites/README.md</c> and in the
+    /// generator that writes them.
+    /// </param>
     public static void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
@@ -37,7 +51,9 @@ internal static class OperatorRenderer
         Color bodyColor,
         Color weaponColor,
         Color muzzleFlashColor,
-        Color selectionColor)
+        Color selectionColor,
+        Texture2D? weaponSprite = null,
+        Vector2 weaponSpriteGripAnchor = default)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(pixel);
@@ -51,14 +67,27 @@ internal static class OperatorRenderer
 
         var rotationRadians = layout.DisplayRotationRawUnits /
             Bam16UnitsPerTurn * MathF.Tau;
-        DrawRotatedBlock(
-            spriteBatch,
-            pixel,
-            layout.WeaponBodyBounds,
-            layout.WeaponGripAnchor,
-            rotationRadians,
-            weaponColor);
-        DrawIfNotEmpty(spriteBatch, pixel, layout.WeaponForegripBounds, weaponColor);
+        if (weaponSprite is null)
+        {
+            DrawRotatedBlock(
+                spriteBatch,
+                pixel,
+                layout.WeaponBodyBounds,
+                layout.WeaponGripAnchor,
+                rotationRadians,
+                weaponColor);
+            DrawIfNotEmpty(spriteBatch, pixel, layout.WeaponForegripBounds, weaponColor);
+        }
+        else
+        {
+            DrawWeaponSprite(
+                spriteBatch,
+                weaponSprite,
+                weaponSpriteGripAnchor,
+                layout,
+                rotationRadians,
+                weaponColor);
+        }
 
         DrawIfNotEmpty(spriteBatch, pixel, layout.HeadBounds, bodyColor);
         DrawIfNotEmpty(spriteBatch, pixel, layout.HeadPipBounds, bodyColor);
@@ -116,6 +145,49 @@ internal static class OperatorRenderer
 
         var pivot = new Vector2(layout.GroundRingBounds.Center.X, layout.GroundRingBounds.Center.Y);
         DrawRotatedBlock(spriteBatch, pixel, layout.GroundRingBounds, pivot, layout.GroundRingRotationRadians, color);
+    }
+
+    /// <summary>
+    /// Draws the weapon texture in place of the primitive bar, pinned so that
+    /// <paramref name="spriteGripAnchor"/> lands exactly on
+    /// <see cref="OperatorLayout.WeaponGripAnchor"/> and the sprite turns
+    /// about that same point. The scale is derived so that the sprite's own
+    /// muzzle lands on <see cref="OperatorLayout.WeaponMuzzleAnchor"/> — the
+    /// distance from the grip anchor to the sprite's forward edge is made
+    /// equal to the distance the layout puts between grip and muzzle. Scaling
+    /// by the sprite's full width instead would leave the muzzle flash
+    /// floating ahead of the barrel, and a pistol's flash floating further
+    /// than a rifle's. Everything else follows from that: a pistol's shorter
+    /// weapon body shrinks its sprite by the same ratio, and zoom keeps
+    /// working without this path knowing what zoom is.
+    /// </summary>
+    private static void DrawWeaponSprite(
+        SpriteBatch spriteBatch,
+        Texture2D sprite,
+        Vector2 spriteGripAnchor,
+        OperatorLayout layout,
+        float rotationRadians,
+        Color color)
+    {
+        var spritePixelsGripToMuzzle = sprite.Width - spriteGripAnchor.X;
+        if (layout.WeaponBodyBounds == Rectangle.Empty || spritePixelsGripToMuzzle <= 0f)
+        {
+            return;
+        }
+
+        var screenPixelsGripToMuzzle =
+            (layout.WeaponMuzzleAnchor - layout.WeaponGripAnchor).Length();
+        var scale = screenPixelsGripToMuzzle / spritePixelsGripToMuzzle;
+        spriteBatch.Draw(
+            sprite,
+            layout.WeaponGripAnchor,
+            sourceRectangle: null,
+            color,
+            rotationRadians,
+            spriteGripAnchor,
+            scale,
+            SpriteEffects.None,
+            layerDepth: 0f);
     }
 
     /// <summary>

@@ -50,6 +50,11 @@ public static class LogEvents
     public const string AssetsSoundLoadFailed = "assets.sound.loadFailed";
     public const string AssetsSoundMissing = "assets.sound.missing";
     public const string AssetsSoundScanned = "assets.sound.scanned";
+    // Sandata's weapon sprites — the first textures either client loads
+    // through the content pipeline. A run that draws the primitive weapon bar
+    // instead of a silhouette has one of these at warn level saying why.
+    public const string AssetsSpriteFailed = "assets.sprite.failed";
+    public const string AssetsSpriteLoaded = "assets.sprite.loaded";
     public const string AssetsThemeFallback = "assets.theme.fallback";
     public const string AssetsThemeLoaded = "assets.theme.loaded";
     public const string AssetsVisualCatalogInvalid = "assets.visual.catalogInvalid";

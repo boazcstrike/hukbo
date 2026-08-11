@@ -3,6 +3,7 @@ using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
 using Hukbo.Diagnostics;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Sandata.Client.Audio;
@@ -11,6 +12,7 @@ using Sandata.Client.Simulation;
 using Sandata.Client.Theming;
 using Sandata.Client.UI;
 using Sandata.Core.Combat;
+using Sandata.Core.Events;
 using Sandata.Core.Maps;
 using Sandata.Core.Mathematics;
 using Sandata.Core.Navigation;
@@ -128,6 +130,28 @@ internal sealed class SandataGame : Game
     /// puts the mark at roughly the width of the operator it is drawn on.
     /// </summary>
     private const float ImpactMarkArmWu = 6f;
+
+    /// <summary>
+    /// The two weapon sprite asset ids, and the pixel inside each sprite that
+    /// sits on the operator's grip and that the sprite rotates about. Both
+    /// numbers are authored by
+    /// <c>tools/sandata-weapon-sprites/generate.py</c> and restated in
+    /// <c>src/Sandata.Client/Content/Sprites/README.md</c>; changing one place
+    /// without the other swings the weapon about a point off in space.
+    /// </summary>
+    private const string RifleSpriteAssetId = "Sprites/weapon-rifle";
+    private const string PistolSpriteAssetId = "Sprites/weapon-pistol";
+    private static readonly Vector2 RifleSpriteGripAnchor = new(10f, 7f);
+    private static readonly Vector2 PistolSpriteGripAnchor = new(4f, 6f);
+
+    /// <summary>
+    /// How far from a click, in screen pixels, an operator can be and still be
+    /// the one the click selected. An operator's ground ring is 12 world units
+    /// across, which at the zoom a spectator actually plays at is a mark of
+    /// roughly this size, so a radius of 12 makes the pawn itself the target
+    /// rather than demanding a hit on its centre pixel.
+    /// </summary>
+    private const int OperatorPickRadiusPixels = 12;
 
     /// <summary>
     /// The alert level every draw reads for <see cref="UI.AlertIndicator"/>.
@@ -309,10 +333,21 @@ internal sealed class SandataGame : Game
     private readonly SandataCamera _camera;
     private readonly SandataTheme _theme;
     private readonly NavGrid _navGrid;
+
+    /// <summary>
+    /// Which squad each assaulting operator belongs to, frozen at tick zero
+    /// from the same clustering that produced <c>MissionState.Groups</c>.
+    /// <c>MissionState</c> exposes no operator-to-group link of its own, and
+    /// the operator inspector needs one to report a path reason code that
+    /// belongs to the group rather than to the operator.
+    /// </summary>
+    private ImmutableArray<InitialSquadGroups.GroupMember> _groupMembership =
+        ImmutableArray<InitialSquadGroups.GroupMember>.Empty;
     private readonly WallBuckets _wallBuckets;
     private readonly ImmutableArray<ObjectiveRecord> _objectiveRecords;
     private readonly Mission _mission;
     private SandataSimulation _simulation;
+    private readonly MonoGameSandataSoundOutput _soundOutput;
     private readonly SandataSoundPlayer _soundPlayer;
     private readonly UndoStack<int> _undoStack = new();
     private readonly int _operatorCount;
@@ -320,6 +355,24 @@ internal sealed class SandataGame : Game
 
     private SpriteBatch? _spriteBatch;
     private Texture2D? _pixel;
+
+    /// <summary>
+    /// The baked font atlases, or <c>null</c> when the content pipeline
+    /// produced nothing for this build. Every text draw checks it first: a
+    /// missing font costs the labels and leaves the panels, which is what the
+    /// client did in full before 2026-08-11, rather than crashing a run that
+    /// would otherwise be playable.
+    /// </summary>
+    private SandataFontSet? _fonts;
+
+    /// <summary>
+    /// The two weapon textures, or <c>null</c> on the same terms as
+    /// <see cref="_fonts"/>. <see cref="OperatorRenderer"/> falls back to the
+    /// primitive weapon bar when a sprite is missing.
+    /// </summary>
+    private Texture2D? _rifleSprite;
+    private Texture2D? _pistolSprite;
+
     private int _previousScrollWheelValue;
     private MouseState _previousMouseState;
     private KeyboardState _previousKeyboardState;
@@ -430,15 +483,18 @@ internal sealed class SandataGame : Game
 
         _simulation = CreateSimulation();
 
-        // Task 39 built SandataSoundPlayer and SandataSoundBudget but
-        // deliberately left the MonoGame-backed ISandataSoundOutput to a
-        // later task — no SoundEffectInstance-backed implementation exists
-        // anywhere in this codebase yet, and this task's file list forbids
-        // adding a new file for one. NullSandataSoundOutput below is
-        // constructed here so the player's budget bookkeeping exists; nothing
-        // in this class calls HandleShotFired or HandleAutomaticFireStopped,
-        // since no shot-event source exists yet either.
-        _soundPlayer = new SandataSoundPlayer(new NullSandataSoundOutput(), new SandataSoundBudget());
+        // Task 39 built SandataSoundPlayer and SandataSoundBudget against a
+        // null output, on the reasoning that no MonoGame-backed
+        // ISandataSoundOutput existed and no shot-event source did either.
+        // The second half of that was already wrong when it was written:
+        // MissionEventKind.ShotFired has been emitted by SandataSimulation
+        // since the caliber work, and CombatFeedback reads it to draw a muzzle
+        // flash. Both halves are answered now — SoundShotsFiredOn feeds the
+        // player from that same event feed, and the output below actually
+        // plays a file.
+        _soundOutput = new MonoGameSandataSoundOutput(
+            SandataSoundLibrary.GetDefaultDirectoryPath(), _log);
+        _soundPlayer = new SandataSoundPlayer(_soundOutput, new SandataSoundBudget());
 
         _graphics = new GraphicsDeviceManager(this)
         {
@@ -477,10 +533,66 @@ internal sealed class SandataGame : Game
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData([Color.White]);
+
+        LoadFonts();
+        LoadWeaponSprites();
+    }
+
+    /// <summary>
+    /// Loads the two baked font atlases. A failure is recorded and swallowed
+    /// rather than rethrown, which is the opposite of what
+    /// <c>Hukbo.Client.ArenaGame</c> does with its own fonts, and the reason
+    /// is that Hukbo cannot draw a single panel without text while Sandata
+    /// drew every panel without text for its whole life before this. A
+    /// Sandata run with no font is degraded; it is not broken.
+    /// </summary>
+    private void LoadFonts()
+    {
+        try
+        {
+            _fonts = SandataFontSet.Load(Content.Load<SpriteFont>);
+            _log.Write(
+                LogLevel.Information, LogChannel.Assets, LogEvents.AssetsFontLoaded,
+                "roleCount", SandataFontRamp.AllRoles.Count);
+        }
+        catch (ContentLoadException exception)
+        {
+            _fonts = null;
+            _log.Write(
+                LogLevel.Warning, LogChannel.Assets, LogEvents.AssetsFontFailed,
+                "msg", exception.Message);
+        }
+    }
+
+    /// <summary>
+    /// Loads the weapon silhouettes on the same terms as
+    /// <see cref="LoadFonts"/>: a missing sprite leaves
+    /// <see cref="OperatorRenderer"/> drawing the primitive weapon bar it drew
+    /// before the textures existed.
+    /// </summary>
+    private void LoadWeaponSprites()
+    {
+        try
+        {
+            _rifleSprite = Content.Load<Texture2D>(RifleSpriteAssetId);
+            _pistolSprite = Content.Load<Texture2D>(PistolSpriteAssetId);
+            _log.Write(
+                LogLevel.Information, LogChannel.Assets, LogEvents.AssetsSpriteLoaded,
+                "spriteCount", 2);
+        }
+        catch (ContentLoadException exception)
+        {
+            _rifleSprite = null;
+            _pistolSprite = null;
+            _log.Write(
+                LogLevel.Warning, LogChannel.Assets, LogEvents.AssetsSpriteFailed,
+                "msg", exception.Message);
+        }
     }
 
     protected override void UnloadContent()
     {
+        _soundOutput.Dispose();
         _pixel?.Dispose();
         _spriteBatch?.Dispose();
         base.UnloadContent();
@@ -582,8 +694,108 @@ internal sealed class SandataGame : Game
                     healthBefore,
                     executedTick));
 
+            SoundShotsFiredOn(executedTick);
             LogRosterIfChanged();
         }
+    }
+
+    /// <summary>
+    /// Plays a gunshot for every <c>ShotFired</c> event the tick just executed
+    /// emitted. Nothing called <see cref="SandataSoundPlayer.HandleShotFired"/>
+    /// before 2026-08-11, on the belief that no shot-event source existed;
+    /// <c>MissionEventKind.ShotFired</c> has been emitted by
+    /// <c>SandataSimulation</c> since the caliber work, and
+    /// <see cref="CombatFeedback.ObserveTick"/> was already reading the same
+    /// events to draw a muzzle flash.
+    /// <para>
+    /// Range is real — the distance to the nearest living hostile, which is
+    /// the engagement the shot belongs to. Indoors and suppressor are not:
+    /// nothing in <c>Sandata.Core</c> knows which side of a wall an operator
+    /// is on, and no weapon carries a suppressor, so both are false. That
+    /// puts a shot inside 200 world units on the <c>close</c> files and
+    /// everything further out on <c>outdoor</c> or <c>distant</c> files that
+    /// are not on disk, which plays as silence rather than as an error. The
+    /// gap is recorded in <c>Content/Audio/README.md</c>.
+    /// </para>
+    /// </summary>
+    private void SoundShotsFiredOn(long executedTick)
+    {
+        var feed = _simulation.State.EventFeed.Events;
+        if (feed.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        foreach (var missionEvent in feed)
+        {
+            if (missionEvent.Kind != MissionEventKind.ShotFired ||
+                missionEvent.Tick != executedTick)
+            {
+                continue;
+            }
+
+            var shooterEntityId = unchecked((ulong)missionEvent.SubjectId);
+            if (!TryFindOperator(shooterEntityId, out var shooter))
+            {
+                continue;
+            }
+
+            _soundPlayer.HandleShotFired(
+                FirearmCatalog.Rows[(int)shooter.Firearm].Caliber,
+                FireMode.Single,
+                RangeToNearestHostileWu(shooter),
+                shooterIsIndoors: false,
+                suppressorFitted: false,
+                executedTick,
+                shooterEntityId);
+        }
+    }
+
+    private bool TryFindOperator(ulong entityId, out OperatorState found)
+    {
+        foreach (var operatorState in _simulation.State.Operators)
+        {
+            if (operatorState.EntityId == entityId)
+            {
+                found = operatorState;
+                return true;
+            }
+        }
+
+        found = default!;
+        return false;
+    }
+
+    /// <summary>
+    /// The distance from <paramref name="shooter"/> to the nearest living
+    /// operator of another faction, in whole world units. This is
+    /// presentation-side arithmetic feeding a sound choice, never a
+    /// simulation decision, so ordinary floating point is fine here in a way
+    /// it would not be inside <c>Sandata.Core</c>.
+    /// </summary>
+    private int RangeToNearestHostileWu(OperatorState shooter)
+    {
+        var nearestSquared = double.MaxValue;
+        foreach (var candidate in _simulation.State.Operators)
+        {
+            if (candidate.Faction == shooter.Faction ||
+                !DamageResolution.IsAlive(candidate.Health))
+            {
+                continue;
+            }
+
+            var deltaX = candidate.PositionX.ToDouble() - shooter.PositionX.ToDouble();
+            var deltaY = candidate.PositionY.ToDouble() - shooter.PositionY.ToDouble();
+            var distanceSquared = (deltaX * deltaX) + (deltaY * deltaY);
+            if (distanceSquared < nearestSquared)
+            {
+                nearestSquared = distanceSquared;
+            }
+        }
+
+        return nearestSquared == double.MaxValue
+            ? 0
+            : (int)Math.Sqrt(nearestSquared);
     }
 
     /// <summary>
@@ -785,6 +997,15 @@ internal sealed class SandataGame : Game
     /// HUD panel produces a marquee; releasing it selects every friendly
     /// placeholder operator pawn inside it, exactly as
     /// <see cref="UI.MultiSelectState.FromMarquee"/> already defines.
+    /// <para>
+    /// A plain click is routed to <see cref="UI.MultiSelectState.FromClick"/>
+    /// instead, and until 2026-08-11 it was not routed anywhere. Every click
+    /// went through the marquee path, and a click's marquee is zero pixels
+    /// wide and zero pixels tall — <c>Rectangle.Contains</c> is false for
+    /// every point inside a degenerate rectangle, so clicking an operator
+    /// selected nothing, every time, with no error to say so. That is what a
+    /// tester meant by "i cannot click any operators".
+    /// </para>
     /// </summary>
     private void UpdateDragCapture(MouseState mouseState)
     {
@@ -808,7 +1029,18 @@ internal sealed class SandataGame : Game
             if (_dragCapture.MarqueeBounds is { } marqueeBounds)
             {
                 var candidates = BuildMarqueeCandidates(windowBounds);
-                _multiSelect = MultiSelectState.FromMarquee(marqueeBounds, candidates);
+                _multiSelect = marqueeBounds is { Width: 0, Height: 0 }
+                    ? MultiSelectState.FromClick(
+                        mouseState.Position, OperatorPickRadiusPixels, candidates)
+                    : MultiSelectState.FromMarquee(marqueeBounds, candidates);
+
+                _log.Write(
+                    LogLevel.Debug, LogChannel.Input, LogEvents.InputPointer,
+                    "action", marqueeBounds is { Width: 0, Height: 0 } ? "click" : "marquee",
+                    "x", mouseState.Position.X,
+                    "y", mouseState.Position.Y,
+                    "candidates", candidates.Length,
+                    "selected", _multiSelect.SelectedEntityIds.Length);
             }
 
             _dragCapture = _dragCapture.End();
@@ -1263,6 +1495,7 @@ internal sealed class SandataGame : Game
         // point of drawing it. Before the order path, which is the player's
         // own input and outranks everything the simulation is saying.
         DrawCombatEffects(spriteBatch, contentBounds);
+        DrawPublishedPaths(spriteBatch, contentBounds);
         DrawOrderPath(spriteBatch, contentBounds);
 
         var hudLayout = ComposeHudLayout(contentBounds);
@@ -1301,6 +1534,7 @@ internal sealed class SandataGame : Game
                 (float)operatorState.PositionY.ToDouble());
             var facing = operatorState.AimAngle;
             var isSelected = _multiSelect.SelectedEntityIds.Contains((int)operatorState.EntityId);
+            var weaponClass = FirearmCatalog.Rows[(int)operatorState.Firearm].Class;
 
             var layout = OperatorGeometry.Create(
                 rootPosition: _camera.WorldToScreen(worldPosition, contentBounds),
@@ -1321,7 +1555,15 @@ internal sealed class SandataGame : Game
                 // marks from the ShotFired event feed are the real answer —
                 // see CombatFeedback's remarks.
                 isFiring: CombatFeedback.IsFiring(_combatEffects, operatorState.EntityId),
-                isSelected: isSelected && isAlive);
+                isSelected: isSelected && isAlive,
+                // Faction shape, added 2026-08-11. Smoke row SD-7a failed
+                // because colour was the only thing separating a friendly from
+                // a hostile, which is no separation at all for a colour-blind
+                // viewer or for anyone looking at a two-pixel mark. A friendly
+                // keeps the square ground ring and gains a head pip; a hostile
+                // gets the same ring turned forty-five degrees into a diamond.
+                isFriendly: isFriendly,
+                weaponClass: weaponClass);
 
             // A casualty stays on the map and reads as one. Removing the pawn
             // instead would leave a spectator unable to tell a death from an
@@ -1341,7 +1583,11 @@ internal sealed class SandataGame : Game
                 // unlisted 40th role.
                 weaponColor: bodyColor,
                 muzzleFlashColor: _theme.Colors.StatusDanger,
-                selectionColor: _theme.Colors.SelectedTrooper);
+                selectionColor: _theme.Colors.SelectedTrooper,
+                weaponSprite: weaponClass == WeaponClass.Pistol ? _pistolSprite : _rifleSprite,
+                weaponSpriteGripAnchor: weaponClass == WeaponClass.Pistol
+                    ? PistolSpriteGripAnchor
+                    : RifleSpriteGripAnchor);
 
             // A dead operator watches nothing. Drawing its last fire cone
             // would read as a live field of view.
@@ -1427,6 +1673,92 @@ internal sealed class SandataGame : Game
     }
 
     /// <summary>
+    /// Draws the selected operator's inspector rows. This is the half of
+    /// smoke row SD-8 that had nothing to do with clicking: the inspector's
+    /// eleven formatted lines have existed and been unit tested since task 44,
+    /// and until 2026-08-11 nothing in this client drew a single character of
+    /// them, because <c>Sandata.Client</c> had no font.
+    /// <para>
+    /// With no font loaded, or with nothing selected, this draws nothing and
+    /// the panel stays the empty outline it has always been.
+    /// </para>
+    /// </summary>
+    private void DrawOperatorInspectorText(SpriteBatch spriteBatch, Rectangle panelBounds)
+    {
+        if (_fonts is null || _multiSelect.SelectedEntityIds.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        var selectedEntityId = (ulong)_multiSelect.SelectedEntityIds[0];
+        if (!TryFindOperator(selectedEntityId, out var selected))
+        {
+            return;
+        }
+
+        var font = _fonts.Get(SandataFontRole.Body);
+        var lines = OperatorInspector.BuildLines(BuildInspectorContent(selected));
+        var x = panelBounds.Left + OperatorInspector.Margin;
+        var y = panelBounds.Top + OperatorInspector.Margin;
+
+        foreach (var line in lines)
+        {
+            if (y + OperatorInspector.LineHeight > panelBounds.Bottom)
+            {
+                break;
+            }
+
+            spriteBatch.DrawString(font, line, new Vector2(x, y), _theme.Colors.TextPrimary);
+            y += OperatorInspector.LineHeight;
+        }
+    }
+
+    /// <summary>
+    /// Fills the inspector's content record for one operator from the state
+    /// this client can actually see.
+    /// <para>
+    /// Four of the eleven rows have no source in <c>MissionState</c> yet and
+    /// render their own documented empty form rather than a fabricated value:
+    /// the slot index, and the three order-layer rows, whose types design
+    /// section 16 has not landed. Cover is <c>NotInCover</c> for the same
+    /// reason — <c>OperatorState</c> carries no cover affiliation. The rows
+    /// SD-8 actually asks about are all real: the weapon chain phase and its
+    /// remaining ticks come straight off the operator, and the path reason
+    /// code comes from the operator's own group, found through
+    /// <see cref="InitialSquadGroups.BuildMembership"/> because nothing links
+    /// an operator to a group otherwise.
+    /// </para>
+    /// </summary>
+    private OperatorInspector.InspectorContent BuildInspectorContent(OperatorState selected)
+    {
+        var groupId = 0UL;
+        foreach (var member in _groupMembership)
+        {
+            if (member.EntityId == selected.EntityId)
+            {
+                groupId = member.GroupId;
+                break;
+            }
+        }
+
+        return new OperatorInspector.InspectorContent(
+            Intent: selected.Intent,
+            ReasonCode: _simulation.GetPublishedPathReasonCode(groupId),
+            ChainPhase: (WeaponChainPhase)selected.WeaponChainPhase,
+            ChainRemainingTicks: selected.WeaponChainRemainingTicks,
+            Cover: CoverState.NotInCover,
+            GroupId: groupId,
+            SlotIndex: null,
+            DecisionPositionX: selected.PositionX,
+            DecisionPositionY: selected.PositionY,
+            ResolutionPositionX: selected.PositionX,
+            ResolutionPositionY: selected.PositionY,
+            ActiveOrderId: null,
+            OrderNodeIndex: null,
+            OrderClearReasonCode: null);
+    }
+
+    /// <summary>
     /// Task 45's order-path overlay, now (task 71) fed the real in-progress
     /// drawn path's nodes via <see cref="ToOrderPathWaypointsWu"/> instead of
     /// the placeholder empty list task 69 composed it with.
@@ -1455,6 +1787,62 @@ internal sealed class SandataGame : Game
     }
 
     /// <summary>
+    /// Draws the route each autonomous group is actually walking, which
+    /// nothing in this client drew before 2026-08-11. Smoke row SD-2 asks a
+    /// tester to judge whether a squad's path across the map's 26.57-degree
+    /// diagonal wall follows the wall as a straight line rather than as a
+    /// staircase, and until this existed the only line on screen was the
+    /// player's own right-click polyline, so the row could not be judged by
+    /// anyone.
+    /// <para>
+    /// The two are deliberately not drawn alike. A published path is the
+    /// simulation reporting what it decided, so it is drawn in
+    /// <c>StatusInfo</c> — the role already meaning "the simulation is telling
+    /// you something" — as a bare line with no waypoint markers. The drawn
+    /// path is the player's own instruction, keeps <c>OrderPath</c> and its
+    /// waypoint squares, and is drawn afterwards so it lies on top. Line
+    /// versus line-plus-squares reads without relying on colour, which is the
+    /// same lesson SD-7a taught.
+    /// </para>
+    /// <para>
+    /// The polyline is re-fetched every frame and never stored. It is derived
+    /// state — not hashed, not snapshotted, recomputed from its stored request
+    /// on resume — and caching it here would be caching something the
+    /// simulation is entitled to recompute differently.
+    /// </para>
+    /// </summary>
+    private void DrawPublishedPaths(SpriteBatch spriteBatch, Rectangle contentBounds)
+    {
+        var groups = _simulation.State.Groups;
+        if (groups.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        foreach (var group in groups)
+        {
+            var published = _simulation.GetPublishedPath(group.GroupId);
+            if (published.Length < 2)
+            {
+                continue;
+            }
+
+            var waypointsWu = ImmutableArray.CreateBuilder<Vector2>(published.Length);
+            foreach (var point in published)
+            {
+                waypointsWu.Add(new Vector2(point.X, point.Y));
+            }
+
+            var worldSegments = OrderPathOverlay.CreateWorldSegments(waypointsWu.MoveToImmutable());
+            var screenSegments = OrderPathOverlay.ToScreenSegments(worldSegments, _camera, contentBounds);
+            foreach (var segment in screenSegments)
+            {
+                DrawLine(spriteBatch, segment.Start, segment.End, _theme.Colors.StatusInfo);
+            }
+        }
+    }
+
+    /// <summary>
     /// Draws every panel <see cref="HudComposer.Layout"/> anchors — a filled,
     /// bordered background rectangle for each, since no font/text pipeline
     /// exists anywhere in <c>Sandata.Client</c> to render row content onto
@@ -1472,6 +1860,7 @@ internal sealed class SandataGame : Game
         DrawPanel(spriteBatch, layout.MissionClock);
         DrawPanel(spriteBatch, layout.EventLog);
         DrawPanel(spriteBatch, layout.OperatorInspector);
+        DrawOperatorInspectorText(spriteBatch, layout.OperatorInspector);
 
         DrawPanel(spriteBatch, layout.GoCodePanel);
         DrawGoCodeRows(spriteBatch, layout.GoCodePanel);
@@ -1817,6 +2206,13 @@ internal sealed class SandataGame : Game
     private SandataSimulation CreateSimulation()
     {
         var initialState = BuildInitialState(_spawnRecords, _objectiveRecords, _navGrid);
+        _groupMembership = InitialSquadGroups.BuildMembership(
+            initialState.Operators,
+            _objectiveRecords,
+            _navGrid,
+            SandataRuleset.ModernTacticalV1.GroupCohesionRadiusWu,
+            AssaultingFaction);
+
         return new SandataSimulation(
             _mission, SandataRuleset.ModernTacticalV1, _navGrid, _wallBuckets, initialState, _coverRecords);
     }
@@ -1847,7 +2243,10 @@ internal sealed class SandataGame : Game
                 WeaponChainRemainingTicks: 0,
                 MagazineRounds: 30,
                 CyclicFireAccumulator: 0,
-                SuppressionCounter: 0));
+                SuppressionCounter: 0)
+            {
+                Firearm = LoadoutForIndex(index),
+            });
         }
 
         var built = operators.MoveToImmutable();
@@ -1873,6 +2272,27 @@ internal sealed class SandataGame : Game
             RngStreams = ImmutableArray<RngStreamState>.Empty,
         };
     }
+
+    /// <summary>
+    /// Which weapon the operator at <paramref name="index"/> carries.
+    /// <c>MissionState.Firearm</c>'s own remarks say plainly that what decides
+    /// an operator's weapon is undesigned, and this does not design it. It is
+    /// the same placeholder shape <c>HeadlessRunner.LoadoutForIndex</c>
+    /// already uses, added here because a client where every operator fell to
+    /// the same default rifle made smoke row SD-4 — rifle silhouette versus
+    /// pistol silhouette — unrunnable by anyone.
+    /// <para>
+    /// It alternates rather than taking the headless runner's every-fourth
+    /// rule, and that difference is deliberate. The shipped <c>angle-house</c>
+    /// mission fields four operators in total, two per side, so every fourth
+    /// would arm exactly one of them, and that one is a defender standing
+    /// still on an objective. SD-4 asks a tester to watch a pistol operator
+    /// cross a doorway, which needs the pistol on somebody who walks. When a
+    /// real loadout model lands, both copies go.
+    /// </para>
+    /// </summary>
+    private static FirearmId LoadoutForIndex(int index) =>
+        index % 2 == 1 ? FirearmId.Glock17Gen5 : FirearmId.Ak47;
 
     /// <summary>
     /// The parsed <c>OBJECTIVE</c> records this map carries, in the same
@@ -1970,13 +2390,4 @@ internal sealed class SandataGame : Game
         return new SandataTheme("fallback", "Fallback", FallbackThemeColors, FallbackThemeMetrics);
     }
 
-    /// <summary>
-    /// A placeholder <see cref="ISandataSoundOutput"/> that never actually
-    /// plays audio — see this class's constructor for why one is
-    /// constructed at all.
-    /// </summary>
-    private sealed class NullSandataSoundOutput : ISandataSoundOutput
-    {
-        public bool Play(SoundSlot slot, int variantNumber, ulong shooterEntityId) => false;
-    }
 }
