@@ -62,7 +62,15 @@ internal static class OperatorGeometry
     internal const float SlingHeight = 2f;
     internal const float SuppressionBracketSize = 2f;
     internal const float SelectionRingSize = 16f;
-    internal const float WeaponLength = 16f;
+    // Raised from 16 to 22 on 2026-08-12. At 16 the rifle barely reached past
+    // the 12-unit ground ring, so at the zoom a spectator actually starts at
+    // the weapon was a couple of pixels buried inside the body's own
+    // footprint, and the report was "still the guns are unclear". At 22 the
+    // muzzle clears the ring by a body's width, which is what makes a rifle
+    // read as a rifle before anybody zooms in. The pistol below is unchanged,
+    // so the same edit widens the rifle-versus-pistol gap smoke row SD-4 asks
+    // a tester to see.
+    internal const float WeaponLength = 22f;
     internal const float WeaponThickness = 2f;
     internal const float WeaponForegripWidth = 4f;
     internal const float WeaponForegripHeight = 2f;

@@ -6,7 +6,7 @@ using Sandata.Client.Theming;
 namespace Sandata.Client.Tests;
 
 /// <summary>
-/// Covers the task 13 test bar: the 39-role contract (count and name set),
+/// Covers the task 13 test bar: the role contract (count and name set),
 /// unknown/missing role rejection, per-theme contrast, and the
 /// theme-independent faction constants. Mirrors
 /// <c>Hukbo.Client.Tests.UiThemeCatalogTests</c>'s intent for Sandata's own
@@ -16,7 +16,10 @@ public sealed class SandataThemeTests
 {
     // design/2026-08-07-sandata-scaffold-design.md section 11: 23 kept + 4
     // repurposed + 12 added = 39 roles, in the same order as
-    // SandataThemeColors's properties.
+    // SandataThemeColors's properties. A fortieth, "weapon", was added on
+    // 2026-08-12: the weapon was previously drawn in the operator's own
+    // faction colour, which made a gun and the body it is held by one
+    // undifferentiated blob at the zoom a spectator plays at.
     private static readonly string[] ExpectedRoles =
     [
         "canvasBackground",
@@ -55,6 +58,7 @@ public sealed class SandataThemeTests
         "breachPoint",
         "fireConeFill",
         "fireConeEdge",
+        "weapon",
         "alertCalm",
         "alertRaised",
         "alertBreach",
@@ -81,7 +85,7 @@ public sealed class SandataThemeTests
     private static string ReadCatalog() => File.ReadAllText(BuiltInCatalogPath);
 
     [Fact]
-    public void TypedContractDeclaresExactlyThirtyNineRoles()
+    public void TypedContractDeclaresExactlyFortyRoles()
     {
         var roles = typeof(SandataThemeColors)
             .GetProperties()
@@ -89,7 +93,7 @@ public sealed class SandataThemeTests
                 char.ToLowerInvariant(property.Name[0]) + property.Name[1..])
             .ToArray();
 
-        Assert.Equal(39, roles.Length);
+        Assert.Equal(40, roles.Length);
         Assert.Equal(
             ExpectedRoles.Order(StringComparer.Ordinal),
             roles.Order(StringComparer.Ordinal));
@@ -113,7 +117,7 @@ public sealed class SandataThemeTests
     }
 
     [Fact]
-    public void EveryShippedThemeCarriesAllThirtyNineRoles()
+    public void EveryShippedThemeCarriesAllFortyRoles()
     {
         var catalog = SandataThemeCatalog.Load(BuiltInCatalogPath);
 
@@ -160,11 +164,12 @@ public sealed class SandataThemeTests
                     colors.BreachPoint,
                     colors.FireConeFill,
                     colors.FireConeEdge,
+                    colors.Weapon,
                     colors.AlertCalm,
                     colors.AlertRaised,
                     colors.AlertBreach,
                 };
-                Assert.Equal(39, values.Length);
+                Assert.Equal(40, values.Length);
             });
     }
 

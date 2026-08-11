@@ -282,6 +282,7 @@ internal sealed class SandataGame : Game
         BreachPoint: new Color(255, 122, 69),
         FireConeFill: new Color(220, 60, 60, 60),
         FireConeEdge: new Color(220, 60, 60),
+        Weapon: new Color(220, 228, 238),
         AlertCalm: new Color(70, 130, 200),
         AlertRaised: new Color(220, 170, 60),
         AlertBreach: new Color(210, 70, 70));
@@ -1449,7 +1450,17 @@ internal sealed class SandataGame : Game
 
         var contentBounds = GraphicsDevice.Viewport.Bounds;
         var spriteBatch = _spriteBatch!;
-        spriteBatch.Begin();
+
+        // Point sampling, not the parameterless Begin's LinearClamp default.
+        // It made no difference at all while every draw was a 1x1 white pixel
+        // stretched into a rectangle, and it started mattering the moment the
+        // weapon sprites landed: a 32-pixel-wide silhouette drawn at ten
+        // pixels under bilinear filtering is smeared into an indistinct
+        // smudge, which is exactly what "still the guns are unclear" was
+        // describing. Text is unaffected either way, because it is drawn at
+        // scale 1 from a whole-pixel origin, so every texel already lands on
+        // exactly one pixel.
+        spriteBatch.Begin(samplerState: SamplerState.PointClamp);
 
         // Draw order follows the .hkmap canonical ordinals (design section
         // 12: wall, door, cover, objective) so a door always paints over the
@@ -1584,7 +1595,13 @@ internal sealed class SandataGame : Game
                 // The 39-role theme has no dedicated "weapon" role; reusing
                 // the operator's own faction color avoids inventing an
                 // unlisted 40th role.
-                weaponColor: bodyColor,
+                // Gunmetal, not the faction colour. The weapon used to be
+                // drawn in exactly the operator's own colour, which meant the
+                // gun and the body were one undifferentiated blob at the zoom
+                // a spectator actually plays at — "still the guns are unclear"
+                // was the report, and it was correct. A downed operator keeps
+                // its weapon greyed with the rest of it.
+                weaponColor: isAlive ? _theme.Colors.Weapon : _theme.Colors.Downed,
                 muzzleFlashColor: _theme.Colors.StatusDanger,
                 selectionColor: _theme.Colors.SelectedTrooper,
                 weaponSprite: weaponClass == WeaponClass.Pistol ? _pistolSprite : _rifleSprite,

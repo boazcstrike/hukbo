@@ -40,11 +40,13 @@ public sealed class OperatorGeometryTests
 
     // With rootPosition (100, 100) and apparentScale 1, an unrotated weapon
     // (aim angle zero) puts the grip at (100, 89) — rootPosition plus
-    // OperatorGeometry.WeaponGripCenterYOffset — and the muzzle sixteen units
-    // along +X at (116, 89) — OperatorGeometry.WeaponLength further along a
-    // direction vector of (1, 0).
+    // OperatorGeometry.WeaponGripCenterYOffset — and the muzzle twenty-two
+    // units along +X at (122, 89) — OperatorGeometry.WeaponLength further
+    // along a direction vector of (1, 0). WeaponLength was sixteen until
+    // 2026-08-12, when it was raised so a rifle's muzzle clears the operator's
+    // own ground ring; see that constant's own comment.
     private static readonly Vector2 ExpectedGripAnchor = new(100f, 89f);
-    private static readonly Vector2 ExpectedMuzzleAnchor = new(116f, 89f);
+    private static readonly Vector2 ExpectedMuzzleAnchor = new(122f, 89f);
 
     // rootPosition (100, 100) plus OperatorGeometry.HeadPipCenterYOffset
     // (-24) at apparentScale 1: center (100, 76), a 2x2 box. Present at every
@@ -75,7 +77,7 @@ public sealed class OperatorGeometryTests
         Assert.Equal(new Rectangle(97, 96, 6, 4), layout.BootsBounds);
         Assert.Equal(new Rectangle(97, 91, 6, 6), layout.LegsBounds);
         Assert.Equal(new Rectangle(96, 83, 8, 10), layout.TorsoBounds);
-        Assert.Equal(new Rectangle(92, 88, 16, 2), layout.WeaponBodyBounds);
+        Assert.Equal(new Rectangle(89, 88, 22, 2), layout.WeaponBodyBounds);
         Assert.Equal(new Rectangle(98, 80, 4, 4), layout.HeadBounds);
         Assert.Equal(ExpectedFriendlyHeadPipBounds, layout.HeadPipBounds);
 
@@ -103,7 +105,7 @@ public sealed class OperatorGeometryTests
         Assert.Equal(new Rectangle(97, 96, 6, 4), layout.BootsBounds);
         Assert.Equal(new Rectangle(97, 91, 6, 6), layout.LegsBounds);
         Assert.Equal(new Rectangle(96, 83, 8, 10), layout.TorsoBounds);
-        Assert.Equal(new Rectangle(92, 88, 16, 2), layout.WeaponBodyBounds);
+        Assert.Equal(new Rectangle(89, 88, 22, 2), layout.WeaponBodyBounds);
         Assert.Equal(new Rectangle(98, 80, 4, 4), layout.HeadBounds);
         Assert.Equal(ExpectedFriendlyHeadPipBounds, layout.HeadPipBounds);
 
@@ -141,7 +143,7 @@ public sealed class OperatorGeometryTests
         // Firing and selection unlock the last two layers, for sixteen
         // non-empty rectangles in total — every layer design section 11
         // names, plus the friendly-only head pip.
-        Assert.Equal(new Rectangle(114, 87, 4, 4), layout.MuzzleFlashBounds);
+        Assert.Equal(new Rectangle(120, 87, 4, 4), layout.MuzzleFlashBounds);
         Assert.Equal(new Rectangle(92, 92, 16, 16), layout.SelectionRingBounds);
 
         Assert.Equal(16, CountNonEmptyLayers(layout));
@@ -264,7 +266,7 @@ public sealed class OperatorGeometryTests
 
         // The rifle path is untouched: byte-identical to the pre-WeaponClass
         // pinned rectangle at OperatorGeometryTests.cs:92.
-        Assert.Equal(new Rectangle(92, 88, 16, 2), rifle.WeaponBodyBounds);
+        Assert.Equal(new Rectangle(89, 88, 22, 2), rifle.WeaponBodyBounds);
         Assert.NotEqual(Rectangle.Empty, rifle.WeaponForegripBounds);
         Assert.NotEqual(Rectangle.Empty, rifle.SlingBounds);
 

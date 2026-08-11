@@ -44,6 +44,7 @@
       "breachPoint",
       "fireConeFill",
       "fireConeEdge",
+      "weapon",
       "alertCalm",
       "alertRaised",
       "alertBreach"
@@ -76,6 +77,9 @@
     { "foreground": "coverNone", "background": "arenaSurface", "minimumRatio": 3.0 },
     { "foreground": "breachPoint", "background": "arenaSurface", "minimumRatio": 3.0 },
     { "foreground": "fireConeEdge", "background": "arenaSurface", "minimumRatio": 3.0 },
+    { "foreground": "weapon", "background": "arenaSurface", "minimumRatio": 3.0 },
+    { "foreground": "weapon", "background": "friendly", "minimumRatio": 1.6 },
+    { "foreground": "weapon", "background": "hostile", "minimumRatio": 1.6 },
     { "foreground": "alertCalm", "background": "statusSurface", "minimumRatio": 3.0 },
     { "foreground": "alertRaised", "background": "statusSurface", "minimumRatio": 3.0 },
     { "foreground": "alertBreach", "background": "statusSurface", "minimumRatio": 3.0 }
@@ -122,6 +126,7 @@
         "breachPoint": "#FF7A45",
         "fireConeFill": "#62B8FF33",
         "fireConeEdge": "#FFD45A",
+        "weapon": "#DCE4EE",
         "alertCalm": "#52D3A8",
         "alertRaised": "#FFD45A",
         "alertBreach": "#FF3B3B"
@@ -168,6 +173,7 @@
         "breachPoint": "#C9500B",
         "fireConeFill": "#1D6FBF33",
         "fireConeEdge": "#9C6B00",
+        "weapon": "#2B333D",
         "alertCalm": "#157A57",
         "alertRaised": "#9C6B00",
         "alertBreach": "#C22F3C"

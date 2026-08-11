@@ -77,6 +77,7 @@ internal sealed record SandataThemeColors(
     Color BreachPoint,
     Color FireConeFill,
     Color FireConeEdge,
+    Color Weapon,
     Color AlertCalm,
     Color AlertRaised,
     Color AlertBreach);

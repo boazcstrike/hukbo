@@ -145,6 +145,19 @@ internal sealed class SandataThemeCatalog
         ("coverNone", "arenaSurface"),
         ("breachPoint", "arenaSurface"),
         ("fireConeEdge", "arenaSurface"),
+
+        // The weapon role is checked against three backgrounds rather than
+        // one. It is drawn on top of an operator, so it has to separate from
+        // both faction colours, and it also overhangs the operator onto bare
+        // ground, so it has to separate from the arena as well. The two
+        // faction ratios are deliberately low: this is a silhouette read at a
+        // dozen pixels, not text, and demanding a text-grade ratio against a
+        // saturated blue and a saturated red at once leaves only black or
+        // white.
+        ("weapon", "arenaSurface"),
+        ("weapon", "friendly"),
+        ("weapon", "hostile"),
+
         ("alertCalm", "statusSurface"),
         ("alertRaised", "statusSurface"),
         ("alertBreach", "statusSurface"),
@@ -439,6 +452,7 @@ internal sealed class SandataThemeCatalog
                 Read("breachPoint"),
                 Read("fireConeFill"),
                 Read("fireConeEdge"),
+                Read("weapon"),
                 Read("alertCalm"),
                 Read("alertRaised"),
                 Read("alertBreach")),
@@ -524,6 +538,7 @@ internal sealed class SandataThemeCatalog
             "breachPoint" => colors.BreachPoint,
             "fireConeFill" => colors.FireConeFill,
             "fireConeEdge" => colors.FireConeEdge,
+            "weapon" => colors.Weapon,
             "alertCalm" => colors.AlertCalm,
             "alertRaised" => colors.AlertRaised,
             "alertBreach" => colors.AlertBreach,

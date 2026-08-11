@@ -69,6 +69,7 @@ public sealed class HudLayoutTests
             Suppressed: Color.Orange, Downed: Color.DarkRed, OrderPath: Color.Cyan,
             Waypoint: Color.Cyan, CoverGood: Color.Green, CoverNone: Color.Gray,
             BreachPoint: Color.Red, FireConeFill: Color.Yellow, FireConeEdge: Color.Orange,
+            Weapon: Color.LightGray,
             AlertCalm: Color.Green, AlertRaised: Color.Yellow, AlertBreach: Color.Red);
 
         var shapes = new[]
