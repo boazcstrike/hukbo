@@ -182,6 +182,24 @@ internal static class OperatorGeometry
     /// rectangle a caller already depends on for <see cref="WeaponClass.Rifle"/>
     /// is unchanged.
     /// </param>
+    /// <param name="isUnknownContact">
+    /// Task 10's unknown-contact marker: a hostile the assaulting faction has
+    /// only detected (<c>ContactTier.QuestionMark</c>), not identified, reads
+    /// as this shape rather than as a fully identified operator. The default,
+    /// <see langword="false"/>, leaves every existing rectangle unchanged.
+    /// <see langword="true"/> empties <see cref="OperatorLayout.WeaponBodyBounds"/>,
+    /// <see cref="OperatorLayout.WeaponForegripBounds"/>,
+    /// <see cref="OperatorLayout.MuzzleFlashBounds"/>, and
+    /// <see cref="OperatorLayout.SuppressionBracketBounds"/> — "no weapon", the
+    /// design's own words for this state — which also removes the only layer
+    /// that ever visibly rotates with <paramref name="weaponAimBam"/>, so the
+    /// remaining silhouette carries no facing either ("no facing"), without
+    /// this method needing a second angle-suppression branch of its own. The
+    /// friendly/hostile ground-ring shape and the friendly-only head pip are
+    /// untouched: <paramref name="isFriendly"/> alone still decides those, and
+    /// a caller marks an unknown contact <c>isFriendly: false</c> exactly as
+    /// it would for an identified hostile.
+    /// </param>
     internal static OperatorLayout Create(
         Vector2 rootPosition,
         float apparentScale,
@@ -192,7 +210,8 @@ internal static class OperatorGeometry
         bool isFiring,
         bool isSelected,
         bool isFriendly = true,
-        WeaponClass weaponClass = WeaponClass.Rifle)
+        WeaponClass weaponClass = WeaponClass.Rifle,
+        bool isUnknownContact = false)
     {
         if (!float.IsFinite(apparentScale) || apparentScale <= 0f)
         {
@@ -272,13 +291,17 @@ internal static class OperatorGeometry
                 ArmsHeight * apparentScale)
             : Rectangle.Empty;
 
-        var weaponBodyBounds = CenteredRect(
-            weaponGripAnchor,
-            effectiveWeaponLength * apparentScale,
-            effectiveWeaponThickness * apparentScale);
+        var weaponBodyBounds = isUnknownContact
+            ? Rectangle.Empty
+            : CenteredRect(
+                weaponGripAnchor,
+                effectiveWeaponLength * apparentScale,
+                effectiveWeaponThickness * apparentScale);
 
         // A handgun has neither a foregrip nor a sling, regardless of tier.
-        var weaponForegripBounds = showGearLayer && !isPistol
+        // An unknown contact has no weapon layer at all, regardless of tier
+        // or weapon class — see isUnknownContact's own remarks.
+        var weaponForegripBounds = showGearLayer && !isPistol && !isUnknownContact
             ? CenteredRect(
                 weaponGripAnchor + (weaponDirection * (ForegripDistanceFromGrip * apparentScale)),
                 WeaponForegripWidth * apparentScale,
@@ -311,7 +334,7 @@ internal static class OperatorGeometry
                 NightVisionMountHeight * apparentScale)
             : Rectangle.Empty;
 
-        var muzzleFlashBounds = isFiring
+        var muzzleFlashBounds = isFiring && !isUnknownContact
             ? CenteredRect(weaponMuzzleAnchor, MuzzleFlashSize * apparentScale, MuzzleFlashSize * apparentScale)
             : Rectangle.Empty;
 
@@ -323,7 +346,7 @@ internal static class OperatorGeometry
                 SlingHeight * apparentScale)
             : Rectangle.Empty;
 
-        var suppressionBracketBounds = showOpticsLayer
+        var suppressionBracketBounds = showOpticsLayer && !isUnknownContact
             ? CenteredRect(
                 weaponGripAnchor + (weaponDirection * (SuppressionBracketDistanceFromGrip * apparentScale)),
                 SuppressionBracketSize * apparentScale,
