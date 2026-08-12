@@ -112,6 +112,15 @@ public static class LogEvents
     // name.
     public const string InputSandataTransport = "input.sandata.transport";
 
+    // Sandata's order submissions — every drawn path and every go-code
+    // release, accepted or rejected. Design section 16 requires that a
+    // rejection be observable; until 2026-08-12 the only trace an order left
+    // was one differently-coloured rectangle in a panel that drew no text, so
+    // a tester whose polyline crossed a wall saw a squad ignore the order and
+    // had nothing to read afterwards. Named with a "sandata" middle segment
+    // for the same reason the transport event above is.
+    public const string InputSandataOrder = "input.sandata.order";
+
     // Render channel.
     public const string RenderAttackContactCollapsed =
         "render.attackContactCollapsed";

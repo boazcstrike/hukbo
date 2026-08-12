@@ -2,6 +2,7 @@
   "_comment": "Task 52b golden replay baselines. Both missions are the exact same seed-1, 8-operator (4v4) fixture built through Sandata.Headless.HeadlessRunner.BuildOpenGrid(8) and Sandata.Headless.HeadlessRunner.BuildInitialState(8, 1, packingSide) -- the same dense, alternating-faction packing HeadlessRunnerTests and the seed-1 benchmark workload use -- ticked for 40 ticks with MissionTickPolicy.StateHashCadenceTicks=1 and TickLimit=1000. EmptyOrderStream submits no orders (the pure autonomous case). NonEmptyOrderStream submits, at tick 0 through SandataSimulation.SubmitOrder: a MoveAlongPath order for faction 0's entity 1 along the two-node path (4,4)->(12,4), and a Hold order for faction 1's entity 2. Both orders were accepted (no rejection). Every hash below was measured by running a temporary capture test (removed once these values were recorded), never calculated or typed by hand. TickStateHashesHex[i] is SandataSimulation.LastStateHash immediately after RunTick(i), formatted X16.",
   "_rerecorded2026-08-11a": "First re-measurement of the day, when SandataSimulation.RunTick began writing MissionState.Tick. Until then nothing in Sandata.Core ever wrote that field, so it stayed 0 for a whole run: SandataStateHasher folded a constant and every emitted event carried tick 0 regardless of when it fired. Both tick-0 state hashes were byte-identical across that change, which was its expected signature -- on tick 0 the field was already 0, so only tick 1 onward could move.",
   "_rerecorded2026-08-11b": "Second re-measurement, and the values below are from it. Two changes landed together. (1) HeadlessRunner.BuildInitialState now assigns a firearm: every fourth operator carries FirearmId.Beretta92Fs and the rest carry FirearmId.Ak47. Before this nothing in src/ assigned OperatorState.Firearm at all, so every operator in every run carried the default Ak47 and the roster in play was one weapon. (2) SandataSimulation stage 9 now halts an operator that stage 8 gave OperatorIntent.Engage when its best contact is inside its firearm's MaxEffectiveWu, so an operator in a position to shoot stands still to do it instead of walking into the body it is shooting at. Unlike the first re-measurement, the tick-0 hashes move too: the loadout is part of the initial state and SandataStateHasher folds OperatorState.Firearm. NEITHER change is a new SandataPresetId. Design section 4's trigger list is an enum value or order, a roster order, a weapon weight, the tick rate, the millisecond conversion rule, or a hash mixer. The FirearmId enum, the FirearmCatalog rows, and FirearmRuleset.ContentHash (12611003062847309889) are all untouched -- this only chooses which existing rows the workload uses -- and SandataRuleset.ContentHash is unchanged at 8955292433887190872.",
+  "_rerecorded2026-08-12": "Third re-measurement, and the values below are from it, taken by a temporary capture test (TempBaselineCapture.cs) deleted in the same change. Three defects closed together, all three of them a fully implemented rule with no production caller: (1) stage 1 now advances OrderAssignment.CurrentNodeIndex and clears an assignment through MovementSource.Evaluate, so an ordered operator walks its whole polyline instead of stopping on its first node forever; (2) stage 11 now stores OperatorState.WeaponLowered from WeaponLoweredRules.IsForcedLowered and emits WeaponLowered/WeaponRaised on the transition, where before the flag was folded into the state hash while never once being assigned; (3) stage 11 now selects a fire mode through FireModeSelection.SelectMode and drives CyclicFireAccumulator for Auto, so a rifle inside its auto band fires at its cyclic rate instead of once per weapon-chain cycle, and MissionEvent.ShotFired carries that mode in its reason code. EmptyOrderStream's per-tick hashes are byte-identical through tick 36 and diverge from tick 37, which is the signature this change should have on a wall-free fixture: no wall means no lowered transition, and no order means no assignment, so only automatic fire could move it, and only once the first burst had resolved. Both event hashes moved because ShotFired's reason code is no longer a constant 0. NEITHER change is a new SandataPresetId: design section 4's trigger list is an enum value or order, a roster order, a weapon weight, the tick rate, the millisecond conversion rule, or a hash mixer. MissionEventKind gained two members at free ordinals 4 and 5 with nothing renumbered, and SandataRuleset.ContentHash is unchanged at 8955292433887190872. NonEmptyOrderStream's authored path was also lengthened in the same change, from (4,4)->(12,4) to (4,4)->(36,4): eight world units is half the node-arrival radius stage 1 now uses, so the old path completed on the tick after it was given and this baseline would have carried an order nobody ever walked. Its hashes therefore move at tick 0, not at tick 37 like the empty stream's.",
   "EmptyOrderStream": {
     "OperatorCount": 8,
     "TickCount": 40,
@@ -16,26 +17,26 @@
       "2DEB18CF3C01476C", "4721EB2539477991", "815943D25FA66C60", "1ABDF91A66CC066D",
       "044FBA2B745C44F2", "0424CE8C5492253F", "BA5EEC34432FE70C", "F9D2FCB613053181",
       "A6D49BBE56734182", "729C7F2132AA3D6F", "77392A12117036F4", "F8DC346AEC85D4A1",
-      "FA6E6EDF63F83C66", "AC5DEA2515623C2A", "64F6BF8815E1E20E", "4815A24342620C86"
+      "FA6E6EDF63F83C66", "9ECEDF04A71784F6", "C8A2B91AA93BE878", "CD3AA2A9DD2F05B6"
     ],
-    "FinalEventHashHex": "4767673009E09A65"
+    "FinalEventHashHex": "107684FBFCFE69E5"
   },
   "NonEmptyOrderStream": {
     "OperatorCount": 8,
     "TickCount": 40,
     "Seed": 1,
     "TickStateHashesHex": [
-      "960D85C8A8E7FD55", "EB99B57CC48B4318", "549856A5EF39C03B", "D70FBB3A739D4CE0",
-      "AE14DB35B062E883", "BBB368FD694AD712", "EBCFAA10ECE3807D", "1572C69B7A9CEEFC",
-      "4AFE773DBF16A14F", "DC917AD2D90D9C8E", "767D3E1607A5A649", "89588695BCFE8ED8",
-      "6C925D0A25BD7C6D", "E49032D54F436A0C", "16D8A3CA3258707B", "6776D21F3F896542",
-      "8B71FA87830F1201", "1BC3A76901BD5260", "CAA8A1574D25E0C3", "64AF7276311F1F72",
-      "41C211F3AB594701", "6B665793B382C47C", "A09CB457E95061EF", "58BB94F7413F95C2",
-      "E22FDD2129D6C9ED", "15368D94E069CA90", "950B2D44A08384E1", "DFE1EF7970FE016C",
-      "F9EBC7AEB5FEC5F3", "509B9E9CA4E288BE", "01171E336623E98D", "4BCCB873CD774280",
-      "ECF84593C8180283", "4E1996EBCE0B60EE", "4DB555126B8D1B75", "DB919AC12BA465A0",
-      "4E02091DD56E0967", "47F45F3E3F185B2B", "6FBCB18ABD150D0F", "12357B1862385987"
+      "2548ADDF2D7EC815", "E5D2C5FCCED5E0D9", "7C6383F4167B7CBA", "6EC9FFF111A1A0A1",
+      "F45658B0E0D23A82", "A23983EEC45432D3", "139AD75F14253CFC", "C0E000E0C7E284BD",
+      "A4F2EA479EC7354E", "D6CA8B52E3583A4F", "D071B11FE7563A48", "83919715C7492C99",
+      "945D8A584CFF38EC", "DEC94355598E07CD", "3EA3D118599A2CFA", "4DFCED109A92C103",
+      "D1B37802B37E6400", "B37DEC1F9FC1A621", "10EA1ED27D9532C2", "FC69B72CCF237333",
+      "88038F6EDBC89900", "16D391D900C85A3D", "C867E1A610921E6E", "3F41AFE89C48F183",
+      "09FB0A6F5118866C", "FBBCA8863B732651", "A92365041883FF60", "8B4F29BEBE43972D",
+      "0E03FF6E2DFF4072", "FC08D8E1F2281E7F", "5B0B913D45D47D8C", "3252D36528809E41",
+      "3339C30EF8875482", "F986D1311B50F6AF", "61CD8CD1E38D95F4", "734BDF77C9A8B961",
+      "621A40DD4D6E83E6", "09F87133CDC00C76", "357209164D2A0E1B", "9101E1739F9CFA15"
     ],
-    "FinalEventHashHex": "4767673009E09A65"
+    "FinalEventHashHex": "107684FBFCFE69E5"
   }
 }

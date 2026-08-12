@@ -1388,11 +1388,19 @@ public sealed class TickPipelineTests
 
         // Two far nodes, neither at the spawn point: an authored path needs
         // at least two nodes (Order.MaxAuthoredPathNodeCount's own lower
-        // bound, OrderValidation.ValidateMoveAlongPath), and
-        // CurrentNodeIndex is never advanced anywhere in production code
-        // today (confirmed by search - it is written once, at order
-        // submission, and never written again), so node 0 is the operator's
-        // target for this whole test and must not equal the spawn point.
+        // bound, OrderValidation.ValidateMoveAlongPath).
+        //
+        // Amended 2026-08-12. This test used to assert that the operator's X
+        // came to rest exactly on node 0, at 40 wu, and its own comment
+        // explained why that was safe: "CurrentNodeIndex is never advanced
+        // anywhere in production code today (confirmed by search)". That was
+        // true and it was the defect — an operator handed a polyline walked to
+        // its first node and stood there for the rest of the run. Stage 1 now
+        // advances the index and clears the assignment at the final node, so
+        // the operator passes node 0 without stopping on it and comes to rest
+        // near node 1 instead. What this test measures — that the per-tick
+        // displacement never exceeds the sprint cap, and that a far waypoint
+        // takes more than one tick — is unchanged.
         var pathNodes = ImmutableArray.Create(new OrderPathNode(40, 0), new OrderPathNode(60, 0));
         var (_, _, rejection) = sim.SubmitOrder(
             targetTick: 0,
@@ -1409,10 +1417,13 @@ public sealed class TickPipelineTests
         var movementSpeedRaw = (80L * FixedPoint.Scale) / SandataRuleset.ModernTacticalV1.TickRate;
 
         var previousXRaw = 0L;
-        var reachedWaypoint = false;
+        var reachedFinalWaypoint = false;
         var ticksRun = 0;
 
-        for (var tick = 0; tick < 60 && !reachedWaypoint; tick++)
+        // The assignment clears once the final node is reached, so the loop
+        // watches the assignment rather than an exact coordinate: an operator
+        // is "arrived" when stage 1 has stopped giving it somewhere to be.
+        for (var tick = 0; tick < 80 && !reachedFinalWaypoint; tick++)
         {
             sim.RunTick(tick);
             ticksRun++;
@@ -1426,11 +1437,18 @@ public sealed class TickPipelineTests
                 $"tick {tick}: displacement {deltaX} raw exceeds the per-tick cap {movementSpeedRaw} raw");
 
             previousXRaw = current;
-            reachedWaypoint = current == 40L * FixedPoint.Scale;
+            reachedFinalWaypoint = sim.State.OrderAssignments.IsEmpty;
         }
 
-        Assert.True(reachedWaypoint, "operator must eventually reach the authored waypoint");
+        Assert.True(reachedFinalWaypoint, "operator must eventually reach the authored polyline's final node");
         Assert.True(ticksRun > 1, "a 40 wu waypoint must take more than one tick at the designed sprint speed");
+
+        // It walked to the far end of the polyline rather than stopping on the
+        // first node it met.
+        var arrivedX = Assert.Single(sim.State.Operators).PositionX.RawValue;
+        Assert.True(
+            arrivedX > 40L * FixedPoint.Scale,
+            $"operator came to rest at {arrivedX} raw, at or before node 0 rather than past it");
     }
 
     /// <summary>

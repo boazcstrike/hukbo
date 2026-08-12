@@ -96,6 +96,25 @@ internal static class OperatorGeometry
     // the cue meant to survive at far zoom.
     internal const float GroundRingHostileRotationRadians = MathF.PI / 4f;
 
+    // A lowered weapon: how far its drawn direction turns away from the aim
+    // direction, and how much of its length survives the turn. Design section
+    // 9 makes the lowered flag hashed state and requires its transition to be
+    // observable, but says nothing about what a lowered weapon looks like from
+    // directly overhead, so both values below are PROVISIONAL presentation
+    // decisions made on 2026-08-12 for smoke row SD-4.
+    //
+    // The pair is chosen to read as "port arms" from above: the muzzle swings
+    // roughly fifty degrees off the aim line and the barrel foreshortens,
+    // which is what a weapon pulled in across the chest actually projects to
+    // on the ground plane. Rotation alone was rejected — at the zoom a
+    // spectator plays at, a rifle turned fifty degrees still reads as a rifle
+    // pointing somewhere, and the row asks whether the weapon came *down*.
+    // Shortening alone was rejected for the opposite reason: a shorter bar in
+    // the same direction reads as a different weapon rather than as the same
+    // weapon lowered.
+    internal const float LoweredCarryRotationRadians = 0.9f;
+    internal const float LoweredWeaponLengthScale = 0.55f;
+
     // Distances of the two weapon-mounted layers from the grip anchor, along
     // the weapon's own rotated direction vector, in the same units as
     // WeaponLength (a fraction of it, chosen as exact quarters so both stay
@@ -182,6 +201,17 @@ internal static class OperatorGeometry
     /// rectangle a caller already depends on for <see cref="WeaponClass.Rifle"/>
     /// is unchanged.
     /// </param>
+    /// <param name="isWeaponLowered">
+    /// The simulation's own <c>OperatorState.WeaponLowered</c>. When
+    /// <see langword="true"/> every weapon-mounted layer is built from a
+    /// direction turned <see cref="LoweredCarryRotationRadians"/> away from
+    /// the aim line, the weapon body is scaled by
+    /// <see cref="LoweredWeaponLengthScale"/>, and the muzzle flash cannot
+    /// draw — a lowered weapon does not fire, so a flash at its muzzle would
+    /// render something that did not happen. The default,
+    /// <see langword="false"/>, leaves every rectangle this class produces
+    /// exactly as it was before this parameter existed.
+    /// </param>
     internal static OperatorLayout Create(
         Vector2 rootPosition,
         float apparentScale,
@@ -192,7 +222,8 @@ internal static class OperatorGeometry
         bool isFiring,
         bool isSelected,
         bool isFriendly = true,
-        WeaponClass weaponClass = WeaponClass.Rifle)
+        WeaponClass weaponClass = WeaponClass.Rifle,
+        bool isWeaponLowered = false)
     {
         if (!float.IsFinite(apparentScale) || apparentScale <= 0f)
         {
@@ -218,15 +249,29 @@ internal static class OperatorGeometry
                 "Smoothing factor must lie in the closed range [0, 1].");
         }
 
-        var displayRotationRawUnits = BlendTowardTarget(
+        var aimRotationRawUnits = BlendTowardTarget(
             previousDisplayRotationRawUnits,
             weaponAimBam,
             smoothingFactor);
+
+        // A lowered weapon is drawn turned away from the aim line, so the
+        // rotation every weapon-mounted layer below is built from is the aim
+        // rotation plus the carry offset. DisplayRotationRawUnits carries the
+        // same value, because it is what OperatorRenderer rotates the weapon
+        // sprite by: if the two disagreed, the sprite and the block geometry
+        // beneath it would point in different directions.
+        var displayRotationRawUnits = isWeaponLowered
+            ? aimRotationRawUnits + RadiansToRawUnits(LoweredCarryRotationRadians)
+            : aimRotationRawUnits;
+
         var rotationRadians = RawUnitsToRadians(displayRotationRawUnits);
         var weaponDirection = new Vector2(MathF.Cos(rotationRadians), MathF.Sin(rotationRadians));
 
         var isPistol = weaponClass == WeaponClass.Pistol;
-        var effectiveWeaponLength = isPistol ? PistolWeaponLength : WeaponLength;
+        var baseWeaponLength = isPistol ? PistolWeaponLength : WeaponLength;
+        var effectiveWeaponLength = isWeaponLowered
+            ? baseWeaponLength * LoweredWeaponLengthScale
+            : baseWeaponLength;
         var effectiveWeaponThickness = isPistol ? PistolWeaponThickness : WeaponThickness;
 
         var weaponGripAnchor = rootPosition +
@@ -311,7 +356,7 @@ internal static class OperatorGeometry
                 NightVisionMountHeight * apparentScale)
             : Rectangle.Empty;
 
-        var muzzleFlashBounds = isFiring
+        var muzzleFlashBounds = isFiring && !isWeaponLowered
             ? CenteredRect(weaponMuzzleAnchor, MuzzleFlashSize * apparentScale, MuzzleFlashSize * apparentScale)
             : Rectangle.Empty;
 
@@ -370,6 +415,14 @@ internal static class OperatorGeometry
     /// </summary>
     private static float RawUnitsToRadians(float rawUnits) =>
         WrapRawUnits(rawUnits) / Bam16.UnitsPerTurn * MathF.Tau;
+
+    /// <summary>
+    /// The inverse of <see cref="RawUnitsToRadians"/>, for the one angle in
+    /// this file authored in radians rather than in
+    /// <see cref="Bam16"/> raw units: <see cref="LoweredCarryRotationRadians"/>.
+    /// </summary>
+    private static float RadiansToRawUnits(float radians) =>
+        radians / MathF.Tau * Bam16.UnitsPerTurn;
 
     /// <summary>
     /// Moves <paramref name="previousRawUnits"/> a <paramref name="smoothingFactor"/>
