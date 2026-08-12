@@ -332,7 +332,17 @@ internal sealed class SandataGame : Game
     private readonly ImmutableArray<CoverRecord> _coverRecords;
     private readonly ImmutableArray<WorldRenderer.DrawShape> _breachMarkerWorldShapes;
     private readonly SandataCamera _camera;
-    private readonly SandataTheme _theme;
+
+    /// <summary>
+    /// Every theme the shipped catalog declares, with the catalog's own
+    /// default theme first — or, on a load failure, the single hardcoded
+    /// <see cref="FallbackThemeColors"/> theme. Task 9's F6 switcher cycles
+    /// <see cref="_theme"/> through this array via <see cref="NextThemeId"/>;
+    /// before that task the client only ever read <c>catalog.DefaultThemeId</c>
+    /// and kept nothing else the catalog offered.
+    /// </summary>
+    private readonly ImmutableArray<SandataTheme> _themes;
+    private SandataTheme _theme;
     private readonly NavGrid _navGrid;
 
     /// <summary>
@@ -419,7 +429,8 @@ internal sealed class SandataGame : Game
     {
         _log = log ?? DiagnosticLog.Disabled;
         _mapRecords = mapRecords.IsDefault ? ImmutableArray<MapRecord>.Empty : mapRecords;
-        _theme = LoadTheme();
+        _themes = LoadThemes();
+        _theme = _themes[0];
 
         _wallRecords = FindWalls(_mapRecords);
         _doorRecords = FindDoors(_mapRecords);
@@ -631,6 +642,7 @@ internal sealed class SandataGame : Game
         UpdatePathDrawing(mouseState);
         UpdatePathSubmission(keyboardState);
         UpdateGoCodeReleases(keyboardState);
+        UpdateThemeSwitch(keyboardState);
 
         AdvanceSimulation(gameTime);
 
@@ -1678,6 +1690,22 @@ internal sealed class SandataGame : Game
         {
             var isFriendly = operatorState.Faction == AssaultingFaction;
             var isAlive = DamageResolution.IsAlive(operatorState.Health);
+
+            // Task 10: contact-tier gating applies only to a living hostile.
+            // A friendly is always fully drawn, and a casualty stays visible
+            // on the terms SD-7a already established below regardless of
+            // whether anybody ever identified it alive — this is not fog of
+            // war, and hiding a corpse would make it one.
+            var appearance = isFriendly || !isAlive
+                ? ContactAppearance.Identified
+                : ContactAppearanceResolver.ResolveHostileAppearance(
+                    operators, AssaultingFaction, operatorState.EntityId);
+            if (appearance == ContactAppearance.Hidden)
+            {
+                continue;
+            }
+
+            var isUnknownContact = appearance == ContactAppearance.Unknown;
             var worldPosition = new Vector2(
                 (float)operatorState.PositionX.ToDouble(),
                 (float)operatorState.PositionY.ToDouble());
@@ -1719,14 +1747,17 @@ internal sealed class SandataGame : Game
                 // since the weapon chain landed, but never stored the result,
                 // so this flag was a constant false for the whole of every
                 // run — see SandataSimulation.AdvanceWeaponChain.
-                isWeaponLowered: operatorState.WeaponLowered);
+                isWeaponLowered: operatorState.WeaponLowered,
+                isUnknownContact: isUnknownContact);
 
             // A casualty stays on the map and reads as one. Removing the pawn
             // instead would leave a spectator unable to tell a death from an
             // operator who walked out of view, which is exactly the question
             // the fire-cone and roster panels cannot answer either.
             var bodyColor = isAlive
-                ? (isFriendly ? _theme.Colors.Friendly : _theme.Colors.Hostile)
+                ? (isUnknownContact
+                    ? _theme.Colors.UnknownContact
+                    : (isFriendly ? _theme.Colors.Friendly : _theme.Colors.Hostile))
                 : _theme.Colors.Downed;
 
             OperatorRenderer.Draw(
@@ -1742,7 +1773,9 @@ internal sealed class SandataGame : Game
                 // gun and the body were one undifferentiated blob at the zoom
                 // a spectator actually plays at — "still the guns are unclear"
                 // was the report, and it was correct. A downed operator keeps
-                // its weapon greyed with the rest of it.
+                // its weapon greyed with the rest of it. An unknown contact
+                // never draws a weapon layer at all (isUnknownContact above),
+                // so this color is unused for it either way.
                 weaponColor: isAlive ? _theme.Colors.Weapon : _theme.Colors.Downed,
                 muzzleFlashColor: _theme.Colors.StatusDanger,
                 selectionColor: _theme.Colors.SelectedTrooper,
@@ -1751,9 +1784,11 @@ internal sealed class SandataGame : Game
                     ? PistolSpriteGripAnchor
                     : RifleSpriteGripAnchor);
 
-            // A dead operator watches nothing. Drawing its last fire cone
-            // would read as a live field of view.
-            if (isAlive)
+            // A dead operator watches nothing, and an unknown contact shows
+            // no facing at all (see OperatorGeometry.Create's isUnknownContact
+            // remarks) — drawing its fire cone would assert a facing the
+            // marker itself does not display.
+            if (isAlive && !isUnknownContact)
             {
                 DrawFireCone(spriteBatch, contentBounds, worldPosition, facing);
             }
@@ -2582,7 +2617,15 @@ internal sealed class SandataGame : Game
         return builder.ToImmutable();
     }
 
-    private SandataTheme LoadTheme()
+    /// <summary>
+    /// Loads the whole shipped theme catalog, ordered with
+    /// <c>catalog.DefaultThemeId</c>'s theme first so index 0 is always what
+    /// a run opens on, exactly as the single-theme <c>LoadTheme</c> this
+    /// replaced did. On any load or validation failure the returned array
+    /// holds only the single hardcoded fallback theme, so <see cref="_theme"/>
+    /// and F6 cycling both still have exactly one theme to work with.
+    /// </summary>
+    private ImmutableArray<SandataTheme> LoadThemes()
     {
         var catalogPath = Path.Combine(
             AppContext.BaseDirectory,
@@ -2593,15 +2636,26 @@ internal sealed class SandataGame : Game
         try
         {
             var catalog = SandataThemeCatalog.Load(catalogPath);
-            if (catalog.TryGet(catalog.DefaultThemeId, out var theme))
+            if (catalog.TryGet(catalog.DefaultThemeId, out var defaultTheme))
             {
                 _log.Write(
                     LogLevel.Information,
                     LogChannel.Assets,
                     LogEvents.AssetsThemeLoaded,
                     "themeId",
-                    theme.Id);
-                return theme;
+                    defaultTheme.Id);
+
+                var ordered = ImmutableArray.CreateBuilder<SandataTheme>(catalog.Themes.Count);
+                ordered.Add(defaultTheme);
+                foreach (var theme in catalog.Themes)
+                {
+                    if (!string.Equals(theme.Id, defaultTheme.Id, StringComparison.Ordinal))
+                    {
+                        ordered.Add(theme);
+                    }
+                }
+
+                return ordered.ToImmutable();
             }
         }
         catch (Exception exception) when (
@@ -2619,7 +2673,74 @@ internal sealed class SandataGame : Game
                 true);
         }
 
-        return new SandataTheme("fallback", "Fallback", FallbackThemeColors, FallbackThemeMetrics);
+        return ImmutableArray.Create(
+            new SandataTheme("fallback", "Fallback", FallbackThemeColors, FallbackThemeMetrics));
+    }
+
+    /// <summary>
+    /// Task 9's F6 cycle helper: a pure function over the catalog's own
+    /// theme order and the currently displayed id, with no
+    /// <c>GraphicsDevice</c> and no keyboard state, so
+    /// <c>tests/Sandata.Client.Tests</c> can pin it directly. Wraps from the
+    /// last theme back to the first; returns <paramref name="currentId"/>
+    /// unchanged when <paramref name="themes"/> has one entry or fewer, and
+    /// returns the first theme's id when <paramref name="currentId"/> is not
+    /// found at all (defensive only — every real caller passes an id this
+    /// same list produced).
+    /// </summary>
+    internal static string NextThemeId(IReadOnlyList<SandataTheme> themes, string currentId)
+    {
+        if (themes.Count <= 1)
+        {
+            return currentId;
+        }
+
+        var currentIndex = -1;
+        for (var index = 0; index < themes.Count; index++)
+        {
+            if (string.Equals(themes[index].Id, currentId, StringComparison.Ordinal))
+            {
+                currentIndex = index;
+                break;
+            }
+        }
+
+        var nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % themes.Count;
+        return themes[nextIndex].Id;
+    }
+
+    /// <summary>
+    /// F6 cycles <see cref="_theme"/> through <see cref="_themes"/> — not a
+    /// letter key, and not persisted: see the key's own remarks at its
+    /// <see cref="Keys.F6"/> check in <see cref="UpdateTransportControls"/>'s
+    /// sibling call site in <see cref="Update"/>. Sandata has no settings
+    /// file, so the choice reverts to the catalog default on the next run.
+    /// </summary>
+    private void UpdateThemeSwitch(KeyboardState keyboardState)
+    {
+        if (!WasJustPressed(keyboardState, Keys.F6))
+        {
+            return;
+        }
+
+        var nextId = NextThemeId(_themes, _theme.Id);
+        foreach (var theme in _themes)
+        {
+            if (!string.Equals(theme.Id, nextId, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            _theme = theme;
+            _log.SetTick(_nextTick);
+            _log.Write(
+                LogLevel.Information,
+                LogChannel.Assets,
+                LogEvents.AssetsThemeLoaded,
+                "themeId",
+                _theme.Id);
+            break;
+        }
     }
 
 }

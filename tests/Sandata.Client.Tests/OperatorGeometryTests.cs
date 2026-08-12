@@ -416,6 +416,61 @@ public sealed class OperatorGeometryTests
         Assert.NotEqual(withRotationAndPip.GetHashCode(), withoutRotationOrPip.GetHashCode());
     }
 
+    // Task 10, design section 6's D5: an unknown-contact marker has "no
+    // facing and no weapon". OperatorGeometry.Create implements "no facing"
+    // by removing the only layer that ever visibly rotates with
+    // weaponAimBam (the weapon), rather than a second suppression branch —
+    // see isUnknownContact's own remarks.
+    [Fact]
+    public void UnknownContactEmptiesEveryWeaponLayerAtHighTierWhileFiringAndLeavesEveryOtherLayerUnchanged()
+    {
+        var identified = OperatorGeometry.Create(
+            RootPosition, ApparentScale, OperatorDetailTier.High, new Bam16(0), 0f, 1f,
+            isFiring: true, isSelected: false, isFriendly: false);
+        var unknown = OperatorGeometry.Create(
+            RootPosition, ApparentScale, OperatorDetailTier.High, new Bam16(0), 0f, 1f,
+            isFiring: true, isSelected: false, isFriendly: false, isUnknownContact: true);
+
+        Assert.Equal(Rectangle.Empty, unknown.WeaponBodyBounds);
+        Assert.Equal(Rectangle.Empty, unknown.WeaponForegripBounds);
+        Assert.Equal(Rectangle.Empty, unknown.MuzzleFlashBounds);
+        Assert.Equal(Rectangle.Empty, unknown.SuppressionBracketBounds);
+
+        Assert.NotEqual(Rectangle.Empty, identified.WeaponBodyBounds);
+        Assert.NotEqual(Rectangle.Empty, identified.WeaponForegripBounds);
+        Assert.NotEqual(Rectangle.Empty, identified.MuzzleFlashBounds);
+        Assert.NotEqual(Rectangle.Empty, identified.SuppressionBracketBounds);
+
+        // Every non-weapon layer is untouched — the hostile diamond ground
+        // ring, the omitted friendly pip, the body, and the gear all read
+        // exactly as an identified hostile's would.
+        Assert.Equal(identified.GroundRingBounds, unknown.GroundRingBounds);
+        Assert.Equal(identified.GroundRingRotationRadians, unknown.GroundRingRotationRadians);
+        Assert.Equal(identified.HeadPipBounds, unknown.HeadPipBounds);
+        Assert.Equal(identified.BootsBounds, unknown.BootsBounds);
+        Assert.Equal(identified.LegsBounds, unknown.LegsBounds);
+        Assert.Equal(identified.TorsoBounds, unknown.TorsoBounds);
+        Assert.Equal(identified.PlateCarrierBounds, unknown.PlateCarrierBounds);
+        Assert.Equal(identified.ArmsBounds, unknown.ArmsBounds);
+        Assert.Equal(identified.HeadBounds, unknown.HeadBounds);
+        Assert.Equal(identified.HelmetBounds, unknown.HelmetBounds);
+        Assert.Equal(identified.NightVisionMountBounds, unknown.NightVisionMountBounds);
+        Assert.Equal(identified.SlingBounds, unknown.SlingBounds);
+    }
+
+    [Fact]
+    public void UnknownContactDefaultsToFalseSoEveryExistingCallSiteIsUnchanged()
+    {
+        var withoutArgument = OperatorGeometry.Create(
+            RootPosition, ApparentScale, OperatorDetailTier.High, new Bam16(0), 0f, 1f,
+            isFiring: true, isSelected: false, isFriendly: false);
+        var withExplicitFalse = OperatorGeometry.Create(
+            RootPosition, ApparentScale, OperatorDetailTier.High, new Bam16(0), 0f, 1f,
+            isFiring: true, isSelected: false, isFriendly: false, isUnknownContact: false);
+
+        Assert.Equal(withExplicitFalse, withoutArgument);
+    }
+
     private static OperatorLayout MakeSampleLayout(float groundRingRotationRadians, Rectangle headPipBounds) =>
         new(
             OperatorDetailTier.Medium,
