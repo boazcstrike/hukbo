@@ -551,7 +551,14 @@ public sealed class SandataSimulation
     /// Stage 11's per-tick record of one operator's completed shot: who fired
     /// and at whom, for <see cref="ProposeFire"/> to resolve.
     /// </summary>
-    private readonly record struct FiredShot(ulong ShooterEntityId, ulong TargetEntityId);
+    /// <param name="Mode">
+    /// The single mode <see cref="FireModeSelection.SelectMode"/> resolved for
+    /// this round, carried through to <see cref="MissionEvent.ShotFired"/>'s
+    /// reason code — design section 9: "the simulation picks the mode, and the
+    /// mode picks the sound slot."
+    /// </param>
+    private readonly record struct FiredShot(
+        ulong ShooterEntityId, ulong TargetEntityId, FireModeSet Mode);
 
     /// <summary>
     /// Stage 11, <see cref="TickStage.WeaponChain"/>. Advances every living
@@ -620,6 +627,7 @@ public sealed class SandataSimulation
 
         var updated = ImmutableArray.CreateBuilder<OperatorState>(operators.Length);
         var fired = ImmutableArray.CreateBuilder<FiredShot>();
+        var loweredTransitions = ImmutableArray.CreateBuilder<(ulong EntityId, bool Lowered)>();
 
         for (var i = 0; i < operators.Length; i++)
         {
@@ -648,6 +656,7 @@ public sealed class SandataSimulation
             var arcWithinTolerance = false;
             var offCentreBam = 0;
             ulong? targetEntityId = null;
+            var targetRangeWu = 0;
 
             if (raiseRequested &&
                 TryFindBestContact(op.ContactMemory, out var contactId) &&
@@ -657,6 +666,17 @@ public sealed class SandataSimulation
                 var targetXWu = WorldUnits.FromFixedPoint(target.PositionX);
                 var targetYWu = WorldUnits.FromFixedPoint(target.PositionY);
                 var bearing = new Bam16(Cordic.Atan2(targetYWu - positionYWu, targetXWu - positionXWu));
+
+                // The engagement range design section 9's band rule selects a
+                // fire mode from. Measured here, from the same committed
+                // positions the bearing above is measured from, rather than
+                // re-measured in stage 12 — a mode chosen from one tick's
+                // range and a shot resolved against another's would disagree
+                // with itself on the tick a target crosses a band boundary.
+                var rangeDeltaXWu = targetXWu - positionXWu;
+                var rangeDeltaYWu = targetYWu - positionYWu;
+                targetRangeWu = IntegerSqrt(
+                    checked((rangeDeltaXWu * rangeDeltaXWu) + (rangeDeltaYWu * rangeDeltaYWu)));
 
                 var arc = Bam16.ShortestArc(aimAngle, bearing);
                 offCentreBam = Math.Abs((int)arc);
@@ -682,21 +702,156 @@ public sealed class SandataSimulation
                 aimTicks,
                 resetTicks);
 
+            // Design section 9: the lowered flag is hashed state. Until
+            // 2026-08-12 this loop computed forceLowered, handed it to the
+            // chain, and threw it away: OperatorState.WeaponLowered was folded
+            // into the state hash on every tick of every run while never once
+            // being assigned, so it was a constant false and no renderer could
+            // have drawn it even if one had tried to.
+            //
+            // It is the rule's own output, not the resolved chain phase.
+            // Deriving it from the phase was tried first and is wrong for this
+            // field: WeaponChainPhase.Lowered is also the phase of an operator
+            // who simply has not raised yet, which is every operator with no
+            // contact, so the flag would read true for almost everybody almost
+            // always and the doorway transition smoke row SD-4 asks a person
+            // to watch would be invisible inside it. This field means "the
+            // weapon-lowered rule is forcing this weapon down", which is
+            // exactly what design section 9 makes observable, and it is false
+            // for a pistol at all times because that rule exempts one.
+            var lowered = forceLowered;
+            if (lowered != op.WeaponLowered)
+            {
+                loweredTransitions.Add((op.EntityId, lowered));
+            }
+
+            var (shotCount, cyclicAccumulator, selectedMode) = ResolveShotsThisTick(
+                op, definition, result, targetEntityId, targetRangeWu, arcWithinTolerance, lowered);
+
             updated.Add(op with
             {
                 WeaponChainPhase = (int)result.Phase,
                 WeaponChainRemainingTicks = result.RemainingTicks,
                 AimAngle = aimAngle,
+                WeaponLowered = lowered,
+                CyclicFireAccumulator = cyclicAccumulator,
             });
 
-            if (result.Fired && targetEntityId is ulong firedTargetId)
+            if (targetEntityId is ulong firedTargetId && selectedMode is { } mode)
             {
-                fired.Add(new FiredShot(op.EntityId, firedTargetId));
+                for (var shot = 0; shot < shotCount; shot++)
+                {
+                    fired.Add(new FiredShot(op.EntityId, firedTargetId, mode));
+                }
             }
         }
 
         State = State with { Operators = updated.MoveToImmutable() };
         _pendingFiredShots = fired.ToImmutable();
+
+        // Emitted after the loop, in ascending operator order, because the
+        // loop walks MissionState.Operators (already ascending by EntityId)
+        // and because an event's sequence number must not depend on which
+        // half of a tick a state write happened in.
+        var state = State;
+        foreach (var (entityId, lowered) in loweredTransitions)
+        {
+            state = EmitWeaponLoweredEvent(state, entityId, lowered);
+        }
+
+        State = state;
+    }
+
+    /// <summary>
+    /// Stage 11's fire-mode and cadence decision for one operator on one tick:
+    /// how many rounds leave the barrel, what the operator's cyclic-fire
+    /// accumulator holds going into the next tick, and which
+    /// <see cref="FireModeSet"/> mode those rounds were fired under.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Mode selection.</b> Design section 9's ordered band rule, through
+    /// <see cref="FireModeSelection.SelectMode"/>, against the firearm's own
+    /// bands and the range measured this tick. A <see langword="null"/> result
+    /// is the rule's "no engagement" outcome — the target is beyond the
+    /// weapon's single-fire band — and produces no round even on a tick the
+    /// chain itself resolved one. Until 2026-08-12 this rule had no production
+    /// caller at all: every shot in the game came out of the weapon chain's
+    /// own <c>Aiming → Firing → Resetting</c> cycle, one round per cycle, for
+    /// every weapon at every range, so no weapon in the roster had ever fired
+    /// automatically.
+    /// </para>
+    /// <para>
+    /// <b>Automatic cadence.</b> For <see cref="FireModeSet.Auto"/> the chain
+    /// still owns ready, turn, and aim, and its own first resolved shot is the
+    /// burst's first round. From then on
+    /// <see cref="CyclicFireAccumulator.Advance"/> — design section 9's
+    /// driftless per-round scheduler — produces the subsequent rounds at the
+    /// firearm's <see cref="FirearmDefinition.CyclicRpm"/>, for as long as the
+    /// operator is still aimed within tolerance and not lowered. Section 9:
+    /// "automatic fire stops when the magazine empties, the target leaves the
+    /// cone, or the intent changes; there is no burst length random draw."
+    /// Magazine depletion is the one of those three not tested here, because
+    /// nothing in this worktree consumes
+    /// <see cref="OperatorState.MagazineRounds"/> yet.
+    /// </para>
+    /// <para>
+    /// <b>The accumulator is the burst latch.</b> It resets to zero on any
+    /// tick the operator is not sustaining automatic fire, and
+    /// <see cref="CyclicFireAccumulator.Advance"/> never returns zero once
+    /// started at this tick rate, so a non-zero accumulator means "a burst is
+    /// in progress" without a second stored flag to keep in step with it.
+    /// </para>
+    /// </remarks>
+    private (int ShotCount, int CyclicAccumulator, FireModeSet? Mode) ResolveShotsThisTick(
+        OperatorState op,
+        FirearmDefinition definition,
+        WeaponChainAdvanceResult result,
+        ulong? targetEntityId,
+        int targetRangeWu,
+        bool arcWithinTolerance,
+        bool lowered)
+    {
+        if (targetEntityId is null)
+        {
+            return (0, 0, null);
+        }
+
+        var mode = FireModeSelection.SelectMode(
+            definition.Modes,
+            targetRangeWu,
+            definition.AutoBandMaxWu,
+            definition.BurstBandMaxWu,
+            definition.SingleBandMaxWu);
+
+        if (mode is not { } selectedMode)
+        {
+            return (0, 0, null);
+        }
+
+        var shotCount = result.Fired ? 1 : 0;
+
+        if (selectedMode != FireModeSet.Auto || lowered || !arcWithinTolerance)
+        {
+            return (shotCount, 0, selectedMode);
+        }
+
+        if (!result.Fired && op.CyclicFireAccumulator == 0)
+        {
+            // Aimed, in an automatic band, but the chain has not yet resolved
+            // the burst's first round. Nothing to sustain.
+            return (shotCount, 0, selectedMode);
+        }
+
+        var advance = CyclicFireAccumulator.Advance(
+            op.CyclicFireAccumulator, _ruleset.TickRate, definition.CyclicRpm);
+
+        if (!result.Fired)
+        {
+            shotCount = advance.ShotsFired;
+        }
+
+        return (shotCount, advance.Accumulator, selectedMode);
     }
 
     /// <summary>
@@ -895,7 +1050,7 @@ public sealed class SandataSimulation
             var halfAngleBam = SubtendedHalfAngleBam(rangeWu);
             var isHit = Math.Abs(angularErrorBam) <= halfAngleBam;
 
-            state = EmitShotFiredEvent(state, shooter.EntityId);
+            state = EmitShotFiredEvent(state, shooter.EntityId, shot.Mode);
 
             if (isHit)
             {
@@ -1032,9 +1187,30 @@ public sealed class SandataSimulation
     /// per shot <see cref="ProposeFire"/> resolves, before the hit-or-miss
     /// outcome event.
     /// </summary>
-    private static MissionState EmitShotFiredEvent(MissionState state, ulong shooterEntityId)
+    private static MissionState EmitShotFiredEvent(MissionState state, ulong shooterEntityId, FireModeSet mode)
     {
-        var missionEvent = MissionEvent.ShotFired(state.NextEventSequence, state.Tick, shooterEntityId);
+        var missionEvent = MissionEvent.ShotFired(state.NextEventSequence, state.Tick, shooterEntityId, mode);
+
+        return state with
+        {
+            NextEventSequence = state.NextEventSequence + 1,
+            EventFeed = state.EventFeed.Append(missionEvent),
+        };
+    }
+
+    /// <summary>
+    /// Stage 11's event-emission call site for a weapon-lowered transition —
+    /// the same "assign then advance
+    /// <see cref="MissionState.NextEventSequence"/>" shape every other emitter
+    /// in this class uses. Emitted only on the tick the stored flag actually
+    /// changes, so a weapon held lowered for a hundred ticks emits one event
+    /// rather than a hundred.
+    /// </summary>
+    private static MissionState EmitWeaponLoweredEvent(
+        MissionState state, ulong operatorEntityId, bool lowered)
+    {
+        var missionEvent = MissionEvent.WeaponLoweredChanged(
+            state.NextEventSequence, state.Tick, operatorEntityId, lowered);
 
         return state with
         {
@@ -1264,9 +1440,9 @@ public sealed class SandataSimulation
     /// every non-<see cref="OrderKind.MoveAlongPath"/> kind is this task's
     /// best-effort reading, not a value taken from that section verbatim.
     /// </remarks>
-    private static MissionState ApplyOrders(MissionState state, long currentTick)
+    private MissionState ApplyOrders(MissionState state, long currentTick)
     {
-        var assignments = state.OrderAssignments;
+        var assignments = AdvanceOrderAssignments(state);
 
         foreach (var order in state.OrderQueue.InApplicationOrder())
         {
@@ -1318,6 +1494,183 @@ public sealed class SandataSimulation
         }
 
         return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// How close an ordered operator's committed position must come to its
+    /// current authored node, in world units, before that node counts as
+    /// reached. <b>PROVISIONAL:</b> design section 16 names no arrival radius,
+    /// and this value is not derived from one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why it is this large rather than as tight as possible.</b> One
+    /// authored order addresses several operators at once, and
+    /// <see cref="ComputeMovementProposals"/>' ordered branch sends every one
+    /// of them at the node itself rather than at a formation slot around it —
+    /// design section 16: "An authored polyline is authoritative, not
+    /// derived... never re-smoothed". <see cref="CollisionBodyRadiusRaw"/> is
+    /// 4,352 raw, which is 4.25 world units, so two bodies can never approach
+    /// closer than 8.5 world units centre to centre. An arrival radius under
+    /// that would let the first operator of a pair arrive while the second is
+    /// held off it by collision forever: never arriving, never advancing its
+    /// node index, and never clearing its assignment. That permanent stall
+    /// would read on screen exactly like the defect this whole sub-step exists
+    /// to remove, so the radius clears two body radii with margin instead.
+    /// </para>
+    /// <para>
+    /// Sixteen world units is one metre at design section 4's scale, and is
+    /// far below any plausible spacing between two hand-drawn nodes, so a
+    /// radius this wide cannot make one node swallow the next.
+    /// </para>
+    /// </remarks>
+    private const int NodeArrivalRadiusWu = 16;
+
+    /// <summary>
+    /// Stage 1's first half: advances and clears the assignments already in
+    /// flight, before <see cref="ApplyOrders"/> applies any order targeting
+    /// this tick. Returns the surviving assignments, ascending by
+    /// <see cref="OrderAssignment.EntityId"/> exactly as
+    /// <see cref="MissionState.OrderAssignments"/> requires.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Until 2026-08-12 nothing in <c>src/</c> ever called
+    /// <see cref="MovementSource.Evaluate"/> and nothing ever advanced
+    /// <see cref="OrderAssignment.CurrentNodeIndex"/>, so an operator handed a
+    /// drawn polyline walked to its first node and stood on it for the rest of
+    /// the run — it never reached node 1, never reached the final node, and
+    /// never returned to its squad's autonomous route. That is what a tester
+    /// meant on 2026-08-12 by "they don't follow the key points created".
+    /// </para>
+    /// <para>
+    /// <b>Why this runs before application rather than after it.</b> An order
+    /// applied this tick creates an assignment at
+    /// <see cref="OrderAssignment.CurrentNodeIndex"/> 0. Testing arrival
+    /// immediately afterwards would clear a brand-new assignment on the very
+    /// tick it was given whenever the operator already happens to stand within
+    /// <see cref="NodeArrivalRadiusWu"/> of its own first node — a player who
+    /// draws the first node under an operator's feet would watch the order
+    /// evaporate. Evaluating the previous tick's assignments first removes that
+    /// case entirely.
+    /// </para>
+    /// <para>
+    /// <b>Why <c>cancelOrderApplied</c> is <see langword="false"/>.</b> Design
+    /// section 16's condition 2 is handled by application rather than by
+    /// evaluation: <see cref="ApplyOrders"/> clears an addressee's assignment
+    /// for every <see cref="OrderKind"/> other than
+    /// <see cref="OrderKind.MoveAlongPath"/>, which covers both
+    /// <see cref="OrderKind.Cancel"/> and <see cref="OrderKind.Hold"/>, and it
+    /// runs after this method inside the same stage. A cancel submitted for
+    /// this tick is therefore honoured on this tick regardless of what this
+    /// method reports.
+    /// </para>
+    /// <para>
+    /// <b>Positions are last tick's committed positions.</b> This runs before
+    /// <see cref="CaptureTickStartView"/>, reads only
+    /// <see cref="MissionState.Operators"/>, and recomputes nothing.
+    /// </para>
+    /// </remarks>
+    private ImmutableArray<OrderAssignment> AdvanceOrderAssignments(MissionState state)
+    {
+        var assignments = state.OrderAssignments;
+        if (assignments.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<OrderAssignment>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<OrderAssignment>(assignments.Length);
+
+        foreach (var assignment in assignments)
+        {
+            var isAlive = TryFindOperatorIndex(state.Operators, assignment.EntityId, out var index) &&
+                DamageResolution.IsAlive(state.Operators[index].Health);
+
+            var advanced = assignment;
+            var reachedFinalNode = false;
+
+            if (isAlive)
+            {
+                advanced = AdvanceNodeIndex(assignment, state.Operators[index], out reachedFinalNode);
+            }
+
+            var evaluation = MovementSource.Evaluate(
+                advanced,
+                operatorIsAlive: isAlive,
+                cancelOrderApplied: false,
+                reachedFinalNode: reachedFinalNode,
+                navGrid: _navGrid);
+
+            if (evaluation.Assignment is { } surviving)
+            {
+                builder.Add(surviving);
+            }
+        }
+
+        return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Returns <paramref name="assignment"/> with
+    /// <see cref="OrderAssignment.CurrentNodeIndex"/> advanced past every node
+    /// <paramref name="operatorState"/> has already reached, and reports
+    /// through <paramref name="reachedFinalNode"/> whether the polyline's last
+    /// node is one of them — design section 16's condition 1, which
+    /// <see cref="MovementSource.Evaluate"/> consumes as a caller-supplied
+    /// fact.
+    /// </summary>
+    /// <remarks>
+    /// The loop advances rather than stepping once so that a polyline whose
+    /// consecutive nodes sit closer together than
+    /// <see cref="NodeArrivalRadiusWu"/> cannot leave the operator standing
+    /// between two nodes it has both already reached. It is bounded by the
+    /// node count, which <see cref="Order.MaxAuthoredPathNodeCount"/> caps at
+    /// submission.
+    /// </remarks>
+    private static OrderAssignment AdvanceNodeIndex(
+        OrderAssignment assignment, OperatorState operatorState, out bool reachedFinalNode)
+    {
+        reachedFinalNode = false;
+
+        var nodes = assignment.PathNodes;
+        if (nodes.IsDefaultOrEmpty)
+        {
+            return assignment;
+        }
+
+        var lastIndex = nodes.Length - 1;
+        var nodeIndex = Math.Clamp(assignment.CurrentNodeIndex, 0, lastIndex);
+
+        while (IsAtNode(operatorState, nodes[nodeIndex]))
+        {
+            if (nodeIndex == lastIndex)
+            {
+                reachedFinalNode = true;
+                break;
+            }
+
+            nodeIndex++;
+        }
+
+        return nodeIndex == assignment.CurrentNodeIndex
+            ? assignment
+            : assignment with { CurrentNodeIndex = nodeIndex };
+    }
+
+    /// <summary>
+    /// Whether <paramref name="operatorState"/>'s committed position lies
+    /// within <see cref="NodeArrivalRadiusWu"/> of <paramref name="node"/>.
+    /// Compared squared, in raw fixed-point units, so no square root is taken
+    /// and no world-unit truncation happens before the comparison.
+    /// </summary>
+    private static bool IsAtNode(OperatorState operatorState, OrderPathNode node)
+    {
+        var dxRaw = (long)operatorState.PositionX.RawValue - RawFromWorldUnits(node.X);
+        var dyRaw = (long)operatorState.PositionY.RawValue - RawFromWorldUnits(node.Y);
+
+        var radiusRaw = (long)NodeArrivalRadiusWu * FixedPoint.Scale;
+
+        return checked((dxRaw * dxRaw) + (dyRaw * dyRaw)) <= checked(radiusRaw * radiusRaw);
     }
 
     /// <summary>

@@ -55,4 +55,26 @@ public enum MissionEventKind
     /// after it, for the same shot.
     /// </summary>
     ShotMissed = 3,
+
+    /// <summary>
+    /// Design section 9, "The weapon-lowered rule": "the lowered flag is
+    /// hashed state, and the transition into it emits an authoritative event
+    /// so the spectator can see the cause rather than only the effect."
+    /// Emitted by <see cref="Simulation.SandataSimulation.AdvanceWeaponChain"/>
+    /// on the tick <see cref="Simulation.OperatorState.WeaponLowered"/> goes
+    /// from <see langword="false"/> to <see langword="true"/>, once per
+    /// transition and never once per tick spent lowered.
+    /// </summary>
+    WeaponLowered = 4,
+
+    /// <summary>
+    /// The other half of the same transition: emitted on the tick
+    /// <see cref="Simulation.OperatorState.WeaponLowered"/> goes from
+    /// <see langword="true"/> to <see langword="false"/>. Design section 9
+    /// names only the transition into the lowered state, so this member is
+    /// this change's own addition, on the reasoning that an event stream
+    /// recording only half of a two-state transition cannot be read back as a
+    /// history of that state at all.
+    /// </summary>
+    WeaponRaised = 5,
 }

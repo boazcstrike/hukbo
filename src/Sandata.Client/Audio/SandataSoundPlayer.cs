@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Sandata.Core.Weapons;
 
 namespace Sandata.Client.Audio;
@@ -64,6 +65,14 @@ internal sealed class SandataSoundPlayer
 {
     private readonly ISandataSoundOutput _output;
     private readonly SandataSoundBudget _budget;
+
+    /// <summary>
+    /// Every shooter whose current burst had its loop cue refused, and is
+    /// therefore being carried by one report per round — see
+    /// <see cref="PlayAutomaticRoundReport"/>. Cleared for a shooter when its
+    /// burst ends, in <see cref="HandleAutomaticFireStopped"/>.
+    /// </summary>
+    private ImmutableArray<ulong> _loopFallbackShooters = ImmutableArray<ulong>.Empty;
 
     public SandataSoundPlayer(ISandataSoundOutput output, SandataSoundBudget budget)
     {
@@ -134,6 +143,8 @@ internal sealed class SandataSoundPlayer
         long tick,
         ulong shooterEntityId)
     {
+        _loopFallbackShooters = _loopFallbackShooters.Remove(shooterEntityId);
+
         var tailSlot = ShotSlotResolver.ResolveGunTailSlot(
             caliber, rangeWu, shooterIsIndoors, suppressorFitted);
         var variantNumber = ShotSlotResolver.SelectVariantNumber(
@@ -147,6 +158,50 @@ internal sealed class SandataSoundPlayer
         _output.Play(tailSlot, variantNumber, shooterEntityId);
     }
 
+    /// <summary>
+    /// Plays one automatic round's report when the loop cue for that burst was
+    /// declined — which, today, is what a burst always gets, because no
+    /// <see cref="SoundFamily.GunLoop"/> file exists on disk.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is a documented degradation, not the model.</b> Design section
+    /// 10's model is one loop instance and one tail instance per shooter, and
+    /// <see cref="HandleAutomaticRound"/> implements exactly that. The
+    /// authorized audio slice covers four slots — an AK-pattern rifle and a
+    /// Glock-pattern pistol firing <em>single</em> shots, close and indoor —
+    /// so <see cref="ISandataSoundOutput.Play"/> returns
+    /// <see langword="false"/> for every loop cue it is ever handed, and
+    /// wiring automatic fire without this fallback would have turned audible
+    /// single shots into silence. That is worse than the defect it was fixing.
+    /// </para>
+    /// <para>
+    /// A report per round at 600 rounds per minute is one cue every five ticks
+    /// at a tick rate of 50. It is audible and continuous, and it is honestly
+    /// not a loop sample. This whole method disappears the day real loop and
+    /// tail files exist.
+    /// </para>
+    /// </remarks>
+    private void PlayAutomaticRoundReport(
+        CaliberFamily caliber,
+        int rangeWu,
+        bool shooterIsIndoors,
+        bool suppressorFitted,
+        long tick,
+        ulong shooterEntityId)
+    {
+        var reportResolution = ShotSlotResolver.Resolve(
+            caliber, FireMode.Single, rangeWu, shooterIsIndoors, suppressorFitted, tick, shooterEntityId);
+
+        if (!_budget.TryReserve(
+                shooterEntityId, reportResolution.Slot.Family, tick, reportResolution.Slot.TailTicks, out _))
+        {
+            return;
+        }
+
+        _output.Play(reportResolution.Slot, reportResolution.VariantNumber, shooterEntityId);
+    }
+
     private void HandleAutomaticRound(
         CaliberFamily caliber,
         int rangeWu,
@@ -158,12 +213,26 @@ internal sealed class SandataSoundPlayer
         var loopResolution = ShotSlotResolver.Resolve(
             caliber, FireMode.Auto, rangeWu, shooterIsIndoors, suppressorFitted, tick, shooterEntityId);
 
-        if (_budget.TryReserve(
-                shooterEntityId, loopResolution.Slot.Family, tick, loopResolution.Slot.TailTicks,
-                out var loopIsNewReservation) &&
-            loopIsNewReservation)
+        var loopReserved = _budget.TryReserve(
+            shooterEntityId, loopResolution.Slot.Family, tick, loopResolution.Slot.TailTicks,
+            out var loopIsNewReservation);
+
+        if (loopReserved && loopIsNewReservation &&
+            !_output.Play(loopResolution.Slot, loopResolution.VariantNumber, shooterEntityId))
         {
-            _output.Play(loopResolution.Slot, loopResolution.VariantNumber, shooterEntityId);
+            // Remembered for the rest of this burst: the loop is attempted
+            // once, on the round that takes the reservation, and every later
+            // round only renews it. Without this the renewals could not tell a
+            // playing loop from a refused one.
+            _loopFallbackShooters = _loopFallbackShooters.Add(shooterEntityId);
+        }
+
+        if (!loopReserved || _loopFallbackShooters.Contains(shooterEntityId))
+        {
+            // No loop sample exists for this row, so the burst is carried by
+            // one report per round instead — see PlayAutomaticRoundReport.
+            PlayAutomaticRoundReport(
+                caliber, rangeWu, shooterIsIndoors, suppressorFitted, tick, shooterEntityId);
         }
 
         var tailSlot = ShotSlotResolver.ResolveGunTailSlot(

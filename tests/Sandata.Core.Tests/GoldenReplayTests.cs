@@ -6,6 +6,7 @@ using System.Text.Json;
 using Sandata.Core.Combat;
 using Sandata.Core.Events;
 using Sandata.Core.Maps;
+using Sandata.Core.Mathematics;
 using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
 using Sandata.Core.Rules;
@@ -204,9 +205,16 @@ public sealed class GoldenReplayTests
             factionId: 0,
             addressees: ImmutableArray.Create(1UL),
             kind: OrderKind.MoveAlongPath,
+            // Lengthened 2026-08-12, from (4,4)->(12,4). Eight world units is
+            // half the node-arrival radius stage 1 now uses, so the old path
+            // was finished on the tick after it was given and the operator
+            // never walked a step of it — the order would have been in this
+            // baseline in name only. Thirty-two world units is several seconds
+            // of walking and stays inside the 40 wu open grid
+            // HeadlessRunner.BuildOpenGrid(8) returns.
             pathNodes: ImmutableArray.Create(
                 new OrderPathNode(4, 4),
-                new OrderPathNode(12, 4)));
+                new OrderPathNode(36, 4)));
         Assert.Null(moveResult.Rejection);
         Assert.NotNull(moveResult.Submitted);
 
@@ -231,9 +239,37 @@ public sealed class GoldenReplayTests
         Assert.Contains(
             sim.State.Operators,
             op => op.Health < 100);
+        // Amended 2026-08-12, and the amendment is worth reading before
+        // trusting either half.
+        //
+        // This used to assert that entity 1's OrderAssignment was still
+        // present after forty ticks. It always was, because nothing in the
+        // pipeline ever advanced or cleared an assignment — the same
+        // assertion was satisfied by an operator that had walked the whole
+        // polyline and by one that had never moved, and on this fixture it was
+        // the second.
+        //
+        // Stage 1 now clears an assignment under design section 16's four
+        // conditions, and on this fixture the condition that fires is the
+        // third: entity 1 is dead before tick 40. This is a dense 4v4 packing
+        // where every operator is inside identify range from tick 0, so an
+        // ordered operator is halted to engage by stage 9 long before it walks
+        // anywhere, and then loses the firefight. That is why there is no
+        // position assertion here and no "it reached its waypoint" assertion
+        // either — neither would be true, and writing one that passed would
+        // mean writing one that measured nothing.
+        //
+        // What is asserted instead is the order's own authoritative trace: the
+        // queue still carries it (design section 16: "the queue is
+        // authoritative state"), and the assignment is gone for a reason this
+        // test pins rather than assumes.
         Assert.Contains(
-            sim.State.OrderAssignments,
-            a => a.EntityId == 1UL);
+            sim.State.OrderQueue.Orders,
+            order => order.Kind == OrderKind.MoveAlongPath && order.Addressees.Contains(1UL));
+
+        var ordered = Assert.Single(sim.State.Operators, op => op.EntityId == 1UL);
+        Assert.False(DamageResolution.IsAlive(ordered.Health));
+        Assert.Empty(sim.State.OrderAssignments);
 
         // Prove the order stream itself moved the needle, not just that the
         // mission fought: re-run the identical fixture with an empty order

@@ -286,12 +286,25 @@ public sealed class DeterminismEquivalenceTests
     {
         const int MidpointTick = TickCount / 2;
 
+        // Amended 2026-08-12. This order used to target tick 0, and the
+        // assignment it created was still sitting on the operator thirty ticks
+        // later because nothing in the pipeline ever advanced or cleared one.
+        // Stage 1 now does both, and this fixture's authored path is a single
+        // cell long — <see cref="BuildEntityOneEastwardPath"/> ends four world
+        // units east of where the operator already stands, well inside the
+        // node-arrival radius — so an order given at tick 0 is finished by tick
+        // 1 and there would be no live assignment left at the midpoint for the
+        // snapshot to round-trip. Targeting the tick before the midpoint keeps
+        // exactly what this test exists to check: an assignment that is alive
+        // at the moment the snapshot is taken.
+        const int OrderTargetTick = MidpointTick - 1;
+
         var (mission, grid, wallBuckets, initialState) = BuildFixture();
         var pathNodes = BuildEntityOneEastwardPath(initialState);
 
         var reference = NewSimulation(mission, grid, wallBuckets, initialState);
         var (_, _, referenceRejection) = reference.SubmitOrder(
-            targetTick: 0, factionId: 0, addressees: ImmutableArray.Create(1UL),
+            targetTick: OrderTargetTick, factionId: 0, addressees: ImmutableArray.Create(1UL),
             kind: OrderKind.MoveAlongPath, pathNodes: pathNodes);
         Assert.Null(referenceRejection);
 
@@ -307,7 +320,7 @@ public sealed class DeterminismEquivalenceTests
 
         var stopped = NewSimulation(mission, grid, wallBuckets, initialState);
         var (_, _, stoppedRejection) = stopped.SubmitOrder(
-            targetTick: 0, factionId: 0, addressees: ImmutableArray.Create(1UL),
+            targetTick: OrderTargetTick, factionId: 0, addressees: ImmutableArray.Create(1UL),
             kind: OrderKind.MoveAlongPath, pathNodes: pathNodes);
         Assert.Null(stoppedRejection);
 

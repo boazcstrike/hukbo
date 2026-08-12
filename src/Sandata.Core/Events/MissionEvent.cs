@@ -1,4 +1,5 @@
 using Sandata.Core.Orders;
+using Sandata.Core.Weapons;
 
 namespace Sandata.Core.Events;
 
@@ -89,8 +90,8 @@ public readonly record struct MissionEvent
     /// <summary>
     /// Creates a validated <see cref="MissionEventKind.ShotFired"/> event —
     /// task 79d-1: stage 12's weapon chain completed a shot this tick,
-    /// before hit resolution runs. <see cref="ReasonCode"/> carries no
-    /// meaning for this kind and is always <c>0</c>.
+    /// before hit resolution runs. <see cref="ReasonCode"/> carries the fire
+    /// mode the shot was fired under.
     /// </summary>
     /// <param name="sequence">
     /// The value <see cref="Simulation.MissionState.NextEventSequence"/> held
@@ -103,7 +104,18 @@ public readonly record struct MissionEvent
     /// <c>unchecked((long)value)</c> way every other entity-id-carrying fold
     /// in this project reinterprets a <see langword="ulong"/> entity id.
     /// </param>
-    public static MissionEvent ShotFired(long sequence, long tick, ulong shooterEntityId)
+    /// <param name="mode">
+    /// The single mode <see cref="Combat.FireModeSelection.SelectMode"/>
+    /// resolved for this shot, stored in <see cref="ReasonCode"/> as its
+    /// numeric <see cref="FireModeSet"/> value. Design section 9: "the
+    /// simulation picks the mode, and the mode picks the sound slot" — this
+    /// field is how the mode crosses out of <c>Sandata.Core</c> to the client
+    /// that owns the sound catalog, without the client re-deriving a decision
+    /// the simulation already made. Never a combination and never
+    /// <see cref="FireModeSet.Safe"/>, both of which
+    /// <see cref="Combat.FireModeSelection.SelectMode"/> already guarantees.
+    /// </param>
+    public static MissionEvent ShotFired(long sequence, long tick, ulong shooterEntityId, FireModeSet mode)
     {
         if (sequence < 0)
         {
@@ -111,7 +123,48 @@ public readonly record struct MissionEvent
                 nameof(sequence), sequence, "An event sequence must not be negative.");
         }
 
-        return new MissionEvent(sequence, tick, MissionEventKind.ShotFired, unchecked((long)shooterEntityId), 0);
+        return new MissionEvent(
+            sequence, tick, MissionEventKind.ShotFired, unchecked((long)shooterEntityId), (int)mode);
+    }
+
+    /// <summary>
+    /// Creates a validated <see cref="MissionEventKind.WeaponLowered"/> or
+    /// <see cref="MissionEventKind.WeaponRaised"/> event — design section 9:
+    /// "the transition into it emits an authoritative event so the spectator
+    /// can see the cause rather than only the effect."
+    /// <see cref="ReasonCode"/> carries no meaning for either kind and is
+    /// always <c>0</c>; which of the two states was entered is the kind
+    /// itself, not a code.
+    /// </summary>
+    /// <param name="sequence">
+    /// The value <see cref="Simulation.MissionState.NextEventSequence"/> held
+    /// at the moment of emission.
+    /// </param>
+    /// <param name="tick">The mission tick the transition happened on.</param>
+    /// <param name="operatorEntityId">
+    /// The transitioning operator's
+    /// <see cref="Simulation.OperatorState.EntityId"/>, folded into
+    /// <see cref="SubjectId"/> exactly as <see cref="ShotFired"/> folds it.
+    /// </param>
+    /// <param name="lowered">
+    /// <see langword="true"/> for the transition into the lowered state,
+    /// <see langword="false"/> for the transition out of it.
+    /// </param>
+    public static MissionEvent WeaponLoweredChanged(
+        long sequence, long tick, ulong operatorEntityId, bool lowered)
+    {
+        if (sequence < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(sequence), sequence, "An event sequence must not be negative.");
+        }
+
+        return new MissionEvent(
+            sequence,
+            tick,
+            lowered ? MissionEventKind.WeaponLowered : MissionEventKind.WeaponRaised,
+            unchecked((long)operatorEntityId),
+            0);
     }
 
     /// <summary>

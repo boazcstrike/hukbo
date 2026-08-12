@@ -60,8 +60,9 @@ public sealed class CombatFeedbackTests
             CyclicFireAccumulator: 0,
             SuppressionCounter: 0);
 
-    private static MissionEventFeed FeedWithShot(long tick, ulong shooterEntityId, long sequence = 0) =>
-        MissionEventFeed.Empty.Append(MissionEvent.ShotFired(sequence, tick, shooterEntityId));
+    private static MissionEventFeed FeedWithShot(
+        long tick, ulong shooterEntityId, long sequence = 0, FireModeSet mode = FireModeSet.Single) =>
+        MissionEventFeed.Empty.Append(MissionEvent.ShotFired(sequence, tick, shooterEntityId, mode));
 
     // ---- The shot produces marks ----------------------------------------
 
