@@ -433,6 +433,12 @@ a red Hukbo one.
 | `Sandata.Core.Tests` | 1,113 | 4.5 s |
 | `Sandata.Client.Tests` | 199 | 0.5 s |
 
+**Both counts have moved since; the timings have not.** The 2026-08-12 gate
+result below records 1,132 core tests in 4.96 s and 295 client tests in 0.63 s.
+The row above is kept because the paragraphs that follow it explain how the
+runtime got to where it is, and that explanation is about the 4.5 seconds rather
+than about the count.
+
 Tasks 88, 89, and 90 added seven tests to the core suite and no measurable time
 to it — the count moved from 1,106 to 1,113 while the runtime stayed where task
 91 left it.
@@ -502,8 +508,14 @@ defect in `SandataSimulation.RunTick` did.
 
 ### The seed-1 headless workload, re-measured 2026-08-11
 
-This is the live Sandata seed-1 baseline. It replaces the 2026-08-09 digests
-above.
+> **Superseded on 2026-08-12. Both hashes in this block are stale and must not
+> be compared against.** The live seed-1 baseline is the block under "The seed-1
+> headless workload, re-measured 2026-08-12" below. Everything else this block
+> records — the outcome, both survivor counts, the timings, and the allocation
+> magnitude — still holds.
+
+This block was the live Sandata seed-1 baseline between 2026-08-11 and
+2026-08-12. It replaced the 2026-08-09 digests above.
 
 ```
 BO | Microsoft Windows 10.0.26200 (X64) | 20 logical processors | .NET 10.0.10
@@ -557,6 +569,73 @@ thousands of bytes and mean the same thing. The figure to carry forward is
 "about 42.18 GB over ten thousand ticks, down from about 48.64 GB before the
 per-stage allocation work". A fourth run the same day reported
 42,184,446,456 bytes, which makes the point again.
+
+### The seed-1 headless workload, re-measured 2026-08-12
+
+This is the live Sandata seed-1 baseline. It replaces the 2026-08-11 digests
+above.
+
+```
+BO | Microsoft Windows 10.0.26200 (X64) | 20 logical processors | .NET 10.0.10
+```
+
+`./scripts/verify.ps1 -Game Sandata`, stage five, which is 200 operators — 100
+per faction — over 10,000 ticks:
+
+```
+measuredTicks 10000   outcome Ongoing   survivors 70 / 64
+stateHash A644B7F8A394885D   eventHash AEDE4D16B5E6FAAF   deterministic true
+p50 2.3630 ms   p95 3.3004 ms   p99 4.4539 ms   max 67.8065 ms
+durationMilliseconds 25188.5   allocatedBytes ~6.12 GB
+```
+
+**Both hashes moved, and nothing else did** — `outcome`, both survivor counts,
+and `deterministic: true` are identical to the two runs above. Three changes
+landed together, and each one is a rule that had been fully implemented and
+fully unit-tested in `Sandata.Core` while having no production caller anywhere
+in `src/`:
+
+- **Stage 1 now advances and clears an `OrderAssignment`.**
+  `MovementSource.Evaluate` had no caller and nothing ever advanced
+  `OrderAssignment.CurrentNodeIndex`, so an operator handed an authored
+  polyline walked to its first node and stood on it for the rest of the run.
+  This moves no hash in *this* workload, which carries no orders at all — see
+  "Two things this workload does not prove" below — but it moves both golden
+  replay fixtures.
+- **Stage 11 now stores `OperatorState.WeaponLowered`.** The field was folded
+  into the state hash on every tick of every run while never once being
+  assigned. It is written from `WeaponLoweredRules.IsForcedLowered`, and the
+  transition emits the authoritative event design section 9 requires. This
+  workload has no walls, so the flag stays false throughout it and this change
+  alone would not have moved either digest here either.
+- **Stage 11 now selects a fire mode and drives the cyclic accumulator.**
+  `FireModeSelection.SelectMode` and `CyclicFireAccumulator.Advance` both had no
+  caller, so every shot in the game came from the weapon chain's own cycle, one
+  round per cycle, for every weapon at every range. This is the change that
+  actually moved both digests here: a rifle inside its auto band now fires at
+  600 rounds per minute, which lands more rounds in the same ten thousand ticks.
+
+**This is deliberately not a new `SandataPresetId`**, for the same reasons the
+2026-08-11 entry gives. `MissionEventKind` gained two members at free ordinals 4
+and 5 with nothing renumbered or reordered, `SandataRuleset.ContentHash` is
+unchanged at `8_955_292_433_887_190_872`, and no weapon row, tick rate, or hash
+mixer moved.
+
+The golden replay fixtures moved with it, re-measured in the same change by
+running a capture rather than by hand. `EmptyOrderStream`'s per-tick state
+hashes are byte-identical through tick 36 and differ from tick 37 onward, which
+is the signature this change should have on a wall-free, order-free fixture:
+only automatic fire could move it, and only once the first burst had resolved.
+Both event hashes moved because `MissionEvent.ShotFired`'s reason code now
+carries the fire mode instead of a constant zero.
+`MissionStateTests.PreTask79cBaselineHash` is unchanged and was not re-pinned,
+because it hashes a hand-built state and `SandataStateHasher` did not change.
+
+`NonEmptyOrderStream`'s authored path was lengthened in the same change, from
+`(4,4)->(12,4)` to `(4,4)->(36,4)`. Eight world units is half the node-arrival
+radius stage 1 now uses, so the old path was finished on the tick after it was
+given, and a baseline recording an order nobody ever walked is a baseline that
+proves less than it appears to.
 
 ### Canonical gate result — Sandata, 2026-08-09
 
@@ -622,6 +701,11 @@ durationMilliseconds 24853.4   allocatedBytes 6,080,464,120 (~6.08 GB)
 [PASS] Canonical repository verification completed.
 ```
 
+> **The two digests in the transcript above were superseded on 2026-08-12.**
+> The transcript is left as the run printed it. The live values are
+> `stateHash A644B7F8A394885D` and `eventHash AEDE4D16B5E6FAAF`; see the
+> 2026-08-12 gate result below.
+
 `Sandata.Core.Tests` is 1,118 rather than the 1,113 of the previous wave: the
 five added tests are the ones that bind the advancing tick, and all five were
 break-proofed by pinning `MissionState.Tick` back to 0 and confirming each one
@@ -648,6 +732,42 @@ a result:
 Both are why Sandata's behavioural evidence lives in `TickPipelineTests` and in
 the golden replay fixture rather than in this workload.
 
+### Canonical gate result — Sandata, 2026-08-12
+
+`./scripts/verify.ps1 -Game Sandata -SkipBootstrap`, exit code 0, run on the
+merge that closed the order layer, the lowered weapon, and automatic fire:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Sandata.Core.Tests     Total tests: 1132   Passed: 1132   Total time: 4.9632 Seconds
+Sandata.Client.Tests   Total tests:  295   Passed:  295   Total time: 0.6316 Seconds
+[PASS] Release repository tests completed.
+measuredTicks 10000   outcome Ongoing   survivors 70 / 64
+stateHash A644B7F8A394885D   eventHash AEDE4D16B5E6FAAF   deterministic true
+p50 2.3630 ms   p95 3.3004 ms   p99 4.4539 ms   max 67.8065 ms
+durationMilliseconds 25188.5   allocatedBytes 6,120,559,480 (~6.12 GB)
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+`-SkipBootstrap` was passed, so the prerequisite and locked-restore stage above
+is the one from the same day's earlier full run rather than from this one.
+
+`Sandata.Core.Tests` is 1,132 rather than 1,118: nine tests cover the three
+simulation changes and the rest come from the same wave's client work.
+`Sandata.Client.Tests` is 295 rather than 219, which is the theme switcher, the
+unknown-contact resolver, the lowered-weapon geometry, and the automatic-fire
+audio fallback.
+
+**The Hukbo gate was run separately on the same tree and is also green** — 2,492
+`Hukbo.Core.Tests` and 3,682 `Hukbo.Client.Tests`, with all three of its headless
+workloads passing. Two games, two gates, two results, never reported as one.
+
+This gate remains no evidence about anything interactive. `SD-4`, `SD-5`, and
+`SD-7b` all stay open in the smoke checklist until a person at a desktop says
+otherwise.
+
 ### Golden replay and determinism equivalence
 
 Sandata's pinned digests live in
@@ -659,9 +779,20 @@ Exactly one absolute state-hash literal is permitted in C# under
 `GoldenReplayTests` pins two seed-1 baselines over eight operators and forty
 ticks: one mission with an empty order stream and one with two real orders
 submitted through `SandataSimulation.SubmitOrder`. Both are asserted to be
-non-degenerate — each emits sixteen events including eight shots fired, and
-three operators end below full health — and the failure message names the first
+non-degenerate — each emits events including shots fired, and at least one
+operator ends below full health — and the failure message names the first
 mismatch tick.
+
+The non-empty baseline's own evidence changed on 2026-08-12 and the change is
+worth reading before trusting it. It used to assert that the ordered operator
+still held an `OrderAssignment` after forty ticks, which was always true because
+nothing ever cleared one, and which an operator that had walked nowhere
+satisfied exactly as well as one that had walked its whole polyline. On this
+dense 4v4 fixture every operator is inside identify range from tick 0, so the
+ordered operator is halted to engage before it walks anywhere and then loses the
+firefight; the assignment now clears under design section 16's third condition,
+the operator's death. The test asserts that death explicitly rather than
+asserting a waypoint it will never reach.
 
 `DeterminismEquivalenceTests` adds four relational tests that pin no absolute
 hash: a same-seed repeat in process, a cold-cache run whose derived structures

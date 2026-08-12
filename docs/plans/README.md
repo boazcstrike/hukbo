@@ -56,12 +56,18 @@ long as source or tests cite it by path, however long ago it shipped.
 | Document | What it is | State |
 | --- | --- | --- |
 | [`2026-08-07-sandata-scaffold-design.md`](2026-08-07-sandata-scaffold-design.md) | **Sandata's binding document.** It outranks everything else about Sandata, including `CLAUDE.md`'s summary of it | Live contract |
-| [`2026-08-07-sandata-scaffold.md`](2026-08-07-sandata-scaffold.md) | The twelve-wave task plan and every wave's measured result | Executed and merged; task list empty, nine design questions open |
+| [`2026-08-07-sandata-scaffold.md`](2026-08-07-sandata-scaffold.md) | The twelve-wave task plan and every wave's measured result | Executed and merged; task list empty, nine design questions open. Cited by path from 49 files under `src/` and `tests/`, so it stays here however finished it is |
+| [`2026-08-12-sandata-order-and-combat-legibility-design.md`](2026-08-12-sandata-order-and-combat-legibility-design.md) | Why an authored path was never walked, why a rejected order was invisible, why the lowered weapon and automatic fire did not exist, and what the theme switcher and unknown-contact state are. Three of the four were a finished, tested rule with no production caller | Shipped 2026-08-12; cited from tests |
+| [`2026-08-12-sandata-order-and-combat-legibility.md`](2026-08-12-sandata-order-and-combat-legibility.md) | That design's thirteen tasks across five waves, and the verification each one owed | Build finished and merged; both gates green. `SD-4`, `SD-5`, and `SD-7b` are `PENDING` re-runs |
 
 ## Where the rest of it went
 
 Finished plans, one-off orchestration prompts, and superseded handoffs live in
-`docs/archives/`, in dated batches. The most recent batch is `2026-08-11`: the
+`docs/archives/`, in dated batches. The most recent batch is `2026-08-12`, and
+it holds one document: the Sandata smoke checklist's own closed-row history and
+the record of the first two runs, lifted out when six of that section's nine
+rows had closed and the prose about them had outgrown the three rows a tester
+still had to run. The batch before it is `2026-08-11`: the
 projectile-props plan, the Sandata playable-client plan, and the Sandata wave-11
 handoff. The batch before it is `2026-08-10`: the attack-animation V2
 implementation plan and its continuation prompt, the gait animation plan, the
