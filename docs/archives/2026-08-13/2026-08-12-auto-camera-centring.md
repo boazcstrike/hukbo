@@ -5,8 +5,10 @@ Never execute it, never treat it as a live task list, and never cite it as the
 reason to make a change. The live contract for this project remains `CLAUDE.md`
 and `docs/development/smoke-checklist.md`; nothing in this file overrides
 either of those. Archived 2026-08-13, with `AC-T1` through `AC-T6` complete and
-the canonical gate recorded against `AC-T6`. Its one open item is the smoke row
-`AC-1`, which is `PENDING` in the live checklist and is tracked there.
+the canonical gate recorded against `AC-T6`. Its one open item was the smoke row
+`AC-1`; a person re-ran it at an interactive desktop later on 2026-08-13 and
+passed it, so nothing here is outstanding. That row's own record is the
+2026-08-13 archive titled **"Auto camera centring smoke — closed 2026-08-13"**.
 
 **Date:** 2026-08-12
 **Design:** `docs/plans/2026-08-12-auto-camera-centring-design.md`, which
@@ -34,6 +36,10 @@ them. AC-T6 is not delegated and runs once, after everything else has landed.
 `AC-1` is a manual row and only a person at an interactive desktop may flip it.
 Until they do, this plan is complete but the behaviour is unproven — a green
 gate says the tests pass, not that the camera now arrives centred.
+
+That happened on 2026-08-13. A person re-ran `AC-1` against the fix and reported
+it as passing, and the row was lifted out of the live checklist the same day, so
+this plan is closed on both counts.
 
 ## AC-T6 — the recorded gate result
 

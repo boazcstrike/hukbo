@@ -91,10 +91,11 @@ long as source or tests cite it by path, however long ago it shipped.
 
 Finished plans, one-off orchestration prompts, and superseded handoffs live in
 `docs/archives/`, in dated batches. The most recent batch is `2026-08-13`, and
-it holds fourteen documents, not two: the archive records for the smoke rows a
-person ran at an interactive desktop that day and removed from the live
-checklist. Some of those families closed entirely and some only in part, and
-each record's own title says which —
+it holds twenty-one documents, not two: sixteen of them are the archive records
+for the smoke rows a person ran at an interactive desktop that day and removed
+from the live checklist, and the other five are the finished plans and designs
+behind the fixes those runs called for. Some of those families closed entirely
+and some only in part, and each record's own title says which —
 "Typography smoke — closed 2026-08-13", "Responsive menu, startup display, and
 UI motion smoke — closed 2026-08-13", "Sound gain compensation smoke — closed
 2026-08-13", "Adornment accent legibility, smoke row 129 — closed 2026-08-13",
@@ -102,10 +103,11 @@ UI motion smoke — closed 2026-08-13", "Sound gain compensation smoke — close
 animations smoke — closed 2026-08-13", "Last-stand formation smoke — closed
 2026-08-13", "Persistent contingent smoke — closed 2026-08-13", "Quit
 confirmation, maximize, and Core faction metrics smoke — rows 156 to 170
-closed 2026-08-13", "Shield-clash audio smoke — rows 172, 174, 175, and
-176 closed 2026-08-13", "Leader marker and inspector annotation smoke — six
-rows closed 2026-08-13", "Attack animation V2 smoke — closed 2026-08-13",
-"Projectile props and embedded projectiles smoke — PARTIAL 2026-08-13", and
+closed 2026-08-13", "Shield-clash audio smoke — closed 2026-08-13",
+"Shield-clash loudness re-check smoke — closed 2026-08-13", "Leader marker and
+inspector annotation smoke — six rows closed 2026-08-13", "Attack animation V2
+smoke — closed 2026-08-13", "Projectile props and embedded projectiles smoke —
+closed 2026-08-13", "Auto camera centring smoke — closed 2026-08-13", and
 "Visual improvement smoke (VIS) — closed 2026-08-13".
 The batch before it is
 `2026-08-12`, and it holds two documents, not one: the Sandata smoke

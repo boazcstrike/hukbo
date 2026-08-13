@@ -23,8 +23,10 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-13
 
-75 rows across 12 subsections: **75 `PENDING`, and no `BLOCKED`, `FAIL`, or
+74 rows across 11 subsections: **74 `PENDING`, and no `BLOCKED`, `FAIL`, or
 `DECLINED` row** — counted from the status column of this file on 2026-08-13,
+after `AC-1` was re-run against the centring fix and closed `PASS` the same day,
+which emptied the auto camera centring family and took its subsection with it,
 after `PP-3` was re-run against the capped in-flight prop and closed `PASS` the
 same day, which emptied the projectile props family and took its subsection with
 it, after the movement-preset selector shipped that day and turned the last 10
@@ -41,8 +43,9 @@ Sandata fixes of the same day moved four `BLOCKED` rows and one `FAIL` row to
 2026-08-12, after the second Sandata smoke session of that day unblocked
 `SD-7b` by building the theme switcher and the unknown-contact state it was
 waiting for, after all seven rows of the auto camera modes family were run and
-closed `PASS` on 2026-08-12, leaving behind a single reopened row, `AC-1`, that
-carries a fresh finding about where a pan ends, and after the typography family
+closed `PASS` on 2026-08-12, leaving behind a single reopened row, `AC-1`, which
+carried a fresh finding about where a pan ends and which was fixed, re-run, and
+closed `PASS` on 2026-08-13, and after the typography family
 and the `UI` family were both run and closed on 2026-08-13, taking the file's
 only `DECLINED` row with them, and after the last-stand formation family and
 the sound gain compensation family were both run and closed the same day,
@@ -76,9 +79,10 @@ prop was capped at the pawns' own apparent-scale ceiling in response, shipping
 as commit `c772849`, and a person re-ran `PP-3` against that build and passed
 it. All eight rows are now lifted out.
 
-**There is no `PASS` column any more, and that is deliberate.** 170 passing rows
-have been lifted out — the most recent two being `SCL-1` and `SCL-2` on
-2026-08-13, which were written and closed on the same day — 52 on 2026-08-11 (22 of them from families that stayed,
+**There is no `PASS` column any more, and that is deliberate.** 171 passing rows
+have been lifted out — the most recent being `AC-1` on 2026-08-13, the day it was
+fixed and re-run, and the two before it `SCL-1` and `SCL-2`, which were written
+and closed on that same day — 52 on 2026-08-11 (22 of them from families that stayed,
 then 29 more when both improve-visuals families were run for the first time,
 then `SD-1` when the tester re-checked it), 10 more on 2026-08-12 (`SD-2`,
 `SD-7a`, and `SD-8`, re-checked and closed the same way, plus all seven rows of
@@ -102,7 +106,8 @@ together and the last two later that day, and
 7 more on the same day when seven of the eight projectile props rows, `PP-1`,
 `PP-2`, and `PP-4` through `PP-8`, were run and passed together, and 1 more on
 the same day when `PP-3` was re-run against the capped in-flight prop and passed
-alone, closing that family at 8 of 8.
+alone, closing that family at 8 of 8, and 1 more on the same day when `AC-1` was
+re-run against the centring fix and passed alone, closing that family at 1 of 1.
 Typography's
 row 75 closed on 2026-08-13 but is not in that count: it stayed `DECLINED`
 rather than turning `PASS`, so it left the
@@ -111,7 +116,7 @@ for the opposite reason: it passed on the same run but was reopened the same
 day and is still here, so it has not been lifted and must not be counted as
 though it had. Every row in this file is now
 something a person still has to do, and for the first time since this file was
-split out, every one of them is something a person **can** do: all 78 are
+split out, every one of them is something a person **can** do: all 74 are
 `PENDING`, never attempted or awaiting a re-run, and none is blocked by the
 build. Ten rows — `P-1` through `P-9`, and `L-7`, which was moved into their
 table when the leader marker family closed — waited on a missing movement-preset
@@ -146,9 +151,14 @@ smoke"**, found the same way as the record named below. Auto camera modes, all
 seven rows, closed `PASS` the same way on 2026-08-12, but unlike the first two,
 it left something behind: one row's own passing observation named a real,
 separate problem with where a pan ends when it moves in from an empty,
-no-fight screen, and that problem is now a fresh row, `AC-1`, in a new section
-of its own rather than a re-run of anything that closed. Its record is the
-2026-08-12 archive titled **"Auto camera modes smoke — closed 2026-08-12"**.
+no-fight screen, and that problem became a fresh row, `AC-1`, in a new section
+of its own rather than a re-run of anything that closed. The family's record is
+the 2026-08-12 archive titled **"Auto camera modes smoke — closed 2026-08-12"**.
+`AC-1` was fixed and passed its own re-run on 2026-08-13, so that section is
+gone as well; its record is the 2026-08-13 archive titled **"Auto camera
+centring smoke — closed 2026-08-13"**, which is the one to read before citing
+that pass, because a single-word verdict covered both halves of a two-part
+check.
 
 Typography and the `UI` family were the two closed on 2026-08-13, and neither
 left anything behind. Typography's rows 62 through 74 were run and passed, and
@@ -291,20 +301,21 @@ order relaunches the game far more often than they need to.
 | Battlefield realism | task 18 rows | 10 `PENDING` | Cohort deployment and the V10 retreat rung |
 | Sandata | `SD` 3 of 9 | 3 `PENDING` | `./scripts/run.ps1 -Game Sandata`. The other 6 passed and were lifted out. All three open rows are re-runs rather than fresh checks: `SD-4` and `SD-5` were each attempted twice and failed on causes fixed on 2026-08-12, and `SD-7b` was blocked from the day it was written until the same day. Read each row's `Actual` column before starting |
 | Pressure interrupt | `P` 10, plus `L-7` | 11 `PENDING` | **Runnable since 2026-08-13** — the movement-preset selector in the Army Composition panel is what made them so, and the section preamble says how to reach V7 and warns that a V7 battle does not terminate. Ten of these eleven rows were `BLOCKED` until that day. `L-7` joined this batch on 2026-08-13, from the leader marker family, because the missing selector blocked it in exactly the same way, and it is unblocked by the same change |
-| Auto camera centring | `AC` 1 | 1 `PENDING` | This one earns its own row: it did not exist before 2026-08-12, and unlike every other row above it is a fresh check rather than a re-run of one that closed. Pan away from every fight until the screen holds none, let the assistant take over, and watch where it leaves the camera when it moves back in |
 | Tactical hit animations | rows 92 and 94, of 9 | 2 `PENDING` | A 200-agent battle watched until warriors start dying, at normal speed and at fitted zoom. Both rows are re-runs against the 2026-08-13 lethal-blow legibility change, not fresh checks: 92 never passed and 94 passed against the older, lighter effects. Watch a single kill first, then a crowded exchange, and read both rows' `Actual` columns before starting |
 | Last-stand engagement | `LS` 1 | 1 `PENDING` | Written on 2026-08-13 out of the last-stand formation family that closed the same day. A full 200-agent battle run to its final few warriors. It was `FAIL` while the cause was measured and no repair existed; the authoritative simulation change it was waiting on shipped the same day as `MovementPresetId.LastStandEngagementV11` and the client selects it, so the row is a re-run rather than a blocked one. Its `Actual` column keeps the original `FAIL` observation, which is what the re-run is judged against |
 
-**The 10 `BLOCKED` rows are blocked by the build, not by the reader.** Nine are
-`P` rows needing movement preset V7 and the tenth is `L-7`, which needs
-`IndependentPursuitV1`; the client can select neither. `ArenaGame.BuildScenario`
-overrides the movement preset — as of 2026-08-13 to
-`MovementPresetId.LastStandEngagementV11`, verified at
-`src/Hukbo.Client/ArenaGame.cs:1451-1452` rather than taken from
-`Scenario.CreateDefault`, which the client does not use — and no preset selector
-is exposed. Under the shipped default no pressure mark is ever drawn, no
-pressure inspector row ever renders, and no run without a leader mark can be
-staged. Unblocking any of them is a code change, not an attempt. Every `SD` row that was once blocked has stopped being so — four on
+**No row in this file is blocked by the build any longer, and this paragraph
+used to say the opposite.** Ten rows were: nine `P` rows needing movement preset
+V7, and `L-7`, which needs `IndependentPursuitV1`. The client could select
+neither, because it took its movement preset from a hard-coded value rather than
+from anything a player could reach. That changed on 2026-08-13. The movement
+preset now travels into `ArenaGame.BuildScenario` as a parameter, its default is
+`ClientSettingsStore.DefaultMovementPreset`, which is
+`MovementPresetId.LastStandEngagementV11`, and the Army Composition panel lists
+every registered preset for selection. Under that shipped default no pressure
+mark is drawn and no pressure inspector row renders, which is exactly what
+`P-10` and `L-7` exist to confirm rather than a thing standing in their way.
+Every `SD` row that was once blocked has stopped being so — four on
 2026-08-11 and `SD-7b` on 2026-08-12, each when what it was waiting for was
 built.
 
@@ -455,24 +466,6 @@ is a diamond without a pip, a friendly is a square with one, an unknown contact
 carries no weapon at all, a rifle's silhouette is longer than a pistol's, and
 the simulation's own planned route is dashed where a hand-drawn one is solid.
 
-
-## Auto camera centring smoke (2026-08-12)
-
-This row is the one thing left of a seven-row auto camera modes family that
-ran and closed `PASS` in full on 2026-08-12 and was lifted out of this file.
-
-| Evidence field | Recorded value |
-| --- | --- |
-| Date | Not recorded |
-| Machine/platform | Not recorded |
-| Source commit | Not recorded |
-| Launch path (`source` or package path) | Not recorded |
-| Optional screenshot paths | None recorded |
-
-| Check | Expected observation | Actual | Status |
-| --- | --- | --- | --- |
-| AC-1. Confirm a pan lands the fight near the middle | Pan away from every fight until the screen holds no fighting at all, let the assistant take over, and watch where the camera stops. The melee ends up near the middle of the screen — within roughly a fifth of the way from centre toward the edge — rather than pinned in a corner. Then check the other half: zoom in on a fight that is already on screen and leave the camera alone. It must not re-centre that one. Only a pan that began from an empty screen ends centred. | 2026-08-12, tester at the desktop, reporting on row 149 of the family that closed the same day: "yes, this is good; but usually it is not centered; and fighting usually stays at the corner of the screens; we need to fix to center, not when a battle happens, only when panning from an empty on-fight screen". The cause was measured rather than guessed: a pan ended as soon as any fighter reached seventy per cent of the visible half-extent, which put the fight 13.78 world units off centre on a 20-unit half-extent. **That is fixed**; this is a re-run against the observation above, not a fresh check. | PENDING |
-
 ## Starting deployment smoke
 
 Added by the mirrored starting-formation change. **Not performed.** The
@@ -528,9 +521,10 @@ git log --diff-filter=A --name-only --format='%h %s' -- 'docs/archives/**' |
 cause was measured and no repair existed, and two passages in this file — this
 one and the batch table above — went on saying so after the repair landed. The
 authoritative simulation change the row was waiting on shipped on 2026-08-13 as
-`MovementPresetId.LastStandEngagementV11`, which the client now selects, so the
-row is now exactly what `AC-1` above is: a person re-checking something already
-repaired. Read the row's `Actual` column, which keeps its original `FAIL`
+`MovementPresetId.LastStandEngagementV11`, which the client now selects, so all
+the row now needs is a person re-checking something already repaired. That is
+the same shape `AC-1` had until it was re-run and closed earlier the same day.
+Read the row's `Actual` column, which keeps its original `FAIL`
 observation so the re-run is judged against what was actually seen, and the
 finding beneath the table before running it.
 
