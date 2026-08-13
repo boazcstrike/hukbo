@@ -105,7 +105,9 @@ bodies overlap. This is a blocking problem, not a separation failure.
 - **The two seeds are two samples, not a distribution.** The 73% difference in
   blocking between them is real for those two runs and says nothing about the
   variance across seeds generally. A sweep over many seeds is the first task
-  any future plan here should carry.
+  any future plan here should carry. **That sweep was run on 2026-08-13 and
+  section 5 records it.** It answers this caveat in the direction the caveat
+  feared: a 73% gap is ordinary seed variance, not a finding.
 - **No cause is identified.** Whether the blocking comes from contingent
   shape, from approach geometry, from the rank-led leadership change, or from
   the preset's speed and radius values is exactly the open question. The
@@ -113,13 +115,15 @@ bodies overlap. This is a blocking problem, not a separation failure.
 
 ## 4. When this is picked up
 
-The related work already in `docs/plans/` is
-`2026-07-28-collision-resolution-scaling-design.md`,
-`2026-07-28-follower-trailing-deadlock-design.md`,
-`2026-07-29-approach-sidestep-design.md`, and
-`2026-07-29-contingent-shape-design.md`. A plan for this backlog entry should
-say which of those it extends rather than opening a fifth parallel account of
-the same crush.
+The related work still in `docs/plans/` is
+`2026-07-28-follower-trailing-deadlock-design.md` and
+`2026-07-29-contingent-shape-design.md`, whose own planning pass is
+`2026-08-13-contingent-shape.md`. A plan for this backlog entry should say which
+of those it extends rather than opening a third parallel account of the same
+crush. Two documents this section used to name,
+`2026-07-28-collision-resolution-scaling-design.md` and
+`2026-07-29-approach-sidestep-design.md`, have since been archived and are no
+longer in `docs/plans/`.
 
 A future change earns its place against this table. `blockedAgentTicks` falling
 while `landedAttacks`, `maximumPenetrationRaw`, and the outcome stay sane is an
@@ -127,3 +131,89 @@ improvement; `blockedAgentTicks` falling because warriors walk through each
 other is not. Any change to `Hukbo.Core` here moves both hashes and needs the
 preset-version and golden-expectation treatment in
 `SIMULATION-GAME-STANDARDS.md` §4 and the `hukbo-determinism-change` skill.
+
+## 5. The seed sweep, 2026-08-13
+
+Section 3 named a sweep over many seeds as the first task any future plan here
+should carry. This is that sweep. Twenty seeds, 500 agents, 2 000 ticks,
+`Release`, run through `./scripts/benchmark.ps1` with the presets the client
+actually launches — `-Preset PrecolonialPhilippinesV5 -MovementPreset
+LastStandEngagementV11`. Every one of the twenty runs reported
+`deterministic: true` with no mismatch tick, and every one reported
+`maximumPenetrationRaw` of 0.
+
+**These numbers do not extend the table in section 2, and no row below may be
+read as an improvement or a regression against it.** The 2026-07-30 baseline
+was taken under combat preset V4. The shipped combat preset is now V5, V5 and
+V6 are both new rulesets written after that date, and `MovementPresetRegistry`
+gained several hundred lines in the same span, so the simulation being measured
+is not the simulation that produced section 2. This is a fresh baseline that
+happens to use the same counters. Section 2 stays where it is as the record of
+what was measured then.
+
+The choice of presets is deliberate and is the second reason the two tables do
+not line up. A bare `./scripts/benchmark.ps1` run resolves
+`Scenario.CreateDefault`, which is combat V6 and movement `PersistentContingentsV4`;
+the client overrides both in `ArenaGame.BuildScenario`. The complaint this
+document exists to explain came from a spectator watching the game, so the
+sweep measures what a spectator sees rather than what the gate's own workload
+runs.
+
+| Seed | Measured ticks | Outcome | `blockedAgentTicks` | Longest streak | `attackCapableAgentTicks` | Blocked ÷ capable |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 2 000 | `Draw` | 79 332 | 588 | 177 116 | 0.448 |
+| 2 | 2 000 | `Draw` | 101 993 | 835 | 162 444 | 0.628 |
+| 3 | 2 000 | `Draw` | 74 074 | 478 | 160 555 | 0.461 |
+| 4 | 2 000 | `Draw` | 64 217 | 533 | 157 878 | 0.407 |
+| 5 | 1 557 | `Faction1Victory` | 44 741 | 434 | 135 740 | 0.330 |
+| 6 | 2 000 | `Draw` | 68 133 | 574 | 163 339 | 0.417 |
+| 7 | 2 000 | `Draw` | 71 931 | 470 | 174 584 | 0.412 |
+| 8 | 2 000 | `Draw` | 70 370 | 831 | 164 205 | 0.429 |
+| 9 | 2 000 | `Draw` | 57 410 | 451 | 165 332 | 0.347 |
+| 10 | 2 000 | `Draw` | 73 773 | 890 | 141 801 | 0.520 |
+| 11 | 2 000 | `Draw` | 46 543 | 495 | 157 749 | 0.295 |
+| 12 | 2 000 | `Draw` | 76 835 | 568 | 160 637 | 0.478 |
+| 13 | 1 954 | `Faction0Victory` | 63 152 | 468 | 143 865 | 0.439 |
+| 14 | 2 000 | `Draw` | 86 436 | 904 | 175 575 | 0.492 |
+| 15 | 2 000 | `Draw` | 87 311 | 531 | 176 201 | 0.495 |
+| 16 | 1 863 | `Faction1Victory` | 41 902 | 315 | 133 677 | 0.313 |
+| 17 | 1 832 | `Faction0Victory` | 83 935 | 851 | 153 664 | 0.546 |
+| 18 | 2 000 | `Draw` | 63 158 | 284 | 157 190 | 0.402 |
+| 19 | 2 000 | `Draw` | 76 851 | 384 | 150 247 | 0.512 |
+| 20 | 2 000 | `Draw` | 103 173 | 901 | 175 478 | 0.588 |
+
+Four readings, the first of which is the reason the sweep was worth running:
+
+- **A 73% gap between two seeds is ordinary variance, not a finding.**
+  `blockedAgentTicks` ranges from 41 902 to 103 173 across these twenty seeds,
+  a spread of 146% between the extremes, with a mean of 71 764 and a median of
+  72 852. Section 3 was right to refuse to generalize from two samples, and
+  section 1's second-round number should not be read as a distinct event. Any
+  future change here must be measured across a sweep, because a two-seed
+  comparison cannot clear this noise floor.
+- **The army is never blocked more than it is able to fight.** The blocked
+  against attack-capable ratio stays between 0.295 and 0.628 in every run. The
+  single sharpest statement in section 2 — round 2's ratio of 1.20, more
+  agent-ticks blocked than attack-capable — has no counterpart anywhere in
+  these twenty runs.
+- **The longest blocked streak is the number that should worry a reader.** It
+  reaches 904 ticks on seed 14 and exceeds 800 on four seeds. At a tick rate of
+  20 that is 45 seconds of one warrior standing still, in plain view, and the
+  worst case in section 2 was 178 ticks. The ratio reading above and this one
+  point in opposite directions: blocking is spread more thinly across the army
+  than it was, and the worst individual case is far longer.
+- **Sixteen of the twenty runs did not terminate.** They reached the 2 000-tick
+  cap as a `Draw`; only seeds 5, 13, 16, and 17 produced a winner. Termination
+  at 500 agents is its own open question and is not what this document set out
+  to measure, but a reader comparing outcome columns should know that the
+  undecided cap is the common case rather than the exception.
+
+Section 3's third caveat still stands unchanged: **no cause is identified.**
+The sweep bounds the symptom across seeds and says nothing about whether the
+blocking comes from contingent shape, approach geometry, or the preset's speed
+and radius values. What it removes is the temptation to chase the difference
+between two particular seeds.
+
+The twenty reports were written to `artifacts/blocking-sweep/seed-NN.json`.
+`artifacts/` is not tracked, so the figures are reproduced above in full and
+the directory can be deleted without losing them.
