@@ -102,9 +102,9 @@ foreach (var cue in cues)
 // returned a slot id), whether or not a file exists to play it — the true
 // demand figure. "playable" counts only cues that also resolved to a file on
 // disk, which is what the mixer actually renders. The two agree everywhere a
-// slot has shipped audio; they diverge for the thirteen ranged slots today
-// because RU-31 (the sound generation task this measurement gates) has not
-// run, so no ranged .wav file exists yet.
+// slot has shipped audio. They diverged for the thirteen ranged slots while
+// the ranged takes were still ungenerated; all sixty landed on 2026-08-13, so
+// the two figures now agree for those slots as well.
 Console.WriteLine("events mapped / cues playable per slot (26-slot catalog):");
 for (var slot = 0; slot < CueSchedule.SlotCount; slot++)
 {
@@ -172,9 +172,9 @@ foreach (var policy in policies)
     // the slot likeliest to clip once ranged combat lands. "mapped" is the
     // true per-shot demand (every Release event that resolved a launching
     // weapon); "playable" is how many of those found a .wav file and
-    // actually entered this render. They diverge today because no ranged
-    // audio exists yet (RU-31 has not run) — peak dBFS is correctly -Infinity
-    // whenever playable is 0, and that absence is not a suppression.
+    // actually entered this render. They diverged while the ranged takes were
+    // ungenerated; the sixty files landed on 2026-08-13. Peak dBFS is correctly
+    // -Infinity whenever playable is 0, and that absence is not a suppression.
     int[] releaseSlots = [13, 14, 15];
     foreach (var releaseSlot in releaseSlots)
     {
