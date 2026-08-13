@@ -705,10 +705,12 @@ public sealed class BattleSimulation
                     index);
             }
 
+            var spreadCohortsLaterally =
+                scenario.MovementPreset is MovementPresetId.CohortLateralSpreadV13;
             faction0Deployment = CohortDeploymentAssignment.AssignForFaction(
-                deployment, faction0Loadouts, rules);
+                deployment, faction0Loadouts, rules, spreadCohortsLaterally);
             faction1Deployment = CohortDeploymentAssignment.AssignForFaction(
-                deployment, faction1Loadouts, rules);
+                deployment, faction1Loadouts, rules, spreadCohortsLaterally);
         }
 
         for (var index = 0; index < scenario.AgentsPerFaction; index++)
@@ -1522,10 +1524,15 @@ public sealed class BattleSimulation
     /// <see cref="MovementPresetId.LastStandEngagementV11"/>'s behaviour, so
     /// it must keep V11's last-stand regroup yield unchanged before any
     /// contingent-shaping behaviour of its own is layered on top.
+    /// <see cref="MovementPresetId.CohortLateralSpreadV13"/> is admitted for
+    /// the same reason: it is a strict superset of V11's behaviour too, so
+    /// it must keep the same last-stand regroup yield unchanged before its
+    /// own lateral-riffle cohort traversal is layered on top.
     /// </summary>
     private static bool YieldsLastStandEngagement(MovementPresetId preset) =>
         preset is MovementPresetId.LastStandEngagementV11
-            or MovementPresetId.ContingentShapeV12;
+            or MovementPresetId.ContingentShapeV12
+            or MovementPresetId.CohortLateralSpreadV13;
 
     /// <summary>
     /// Derives <see cref="_factionRallyEngaged"/> for both factions: whether
@@ -5198,11 +5205,17 @@ public sealed class BattleSimulation
     /// <see cref="MovementPresetId.LastStandEngagementV11"/>'s behaviour, so it
     /// inherits all three of these battlefield-realism behaviours unchanged
     /// before any contingent-shaping behaviour of its own is layered on top.
+    /// <see cref="MovementPresetId.CohortLateralSpreadV13"/> is admitted for
+    /// the same reason: it is defined as a strict superset of V11's
+    /// behaviour too, so it inherits all three battlefield-realism
+    /// behaviours unchanged before the lateral-riffle cohort traversal of
+    /// its own is layered on top.
     /// </summary>
     private static bool UsesBattlefieldRealism(MovementPresetId preset) =>
         preset is MovementPresetId.BattlefieldRealismV10
             or MovementPresetId.LastStandEngagementV11
-            or MovementPresetId.ContingentShapeV12;
+            or MovementPresetId.ContingentShapeV12
+            or MovementPresetId.CohortLateralSpreadV13;
 
     /// <summary>
     /// The single approved reach test. Attack range is measured centre to
