@@ -1814,6 +1814,63 @@ were waiting on. It also produced the first genuine feature request against the
 ranged visuals, which is parked in `docs/plans/TODO.md` and designed in
 `docs/plans/2026-08-09-projectile-props-design.md`.
 
+### 2026-08-13: the ranged battle was run to a decisive state, and the two things that made the smoke rows un-attemptable are gone
+
+Three facts recorded above had gone stale, and the smoke checklist was telling a
+reader that eight of its eleven rows could not be attempted. All three were
+re-checked on 2026-08-13 against a clean worktree of `main` at `653d3fa`, taken
+before any of this session's edits.
+
+**The battle advances now, and it did not before.** The 2026-08-09 run that
+reported `simTicks` of 0 on every frame line was a paused client, which is how a
+launched client always starts (`ArenaGame.cs:425` states it as a contract), not a
+defect and not a stall. Driving playback through the render-probe opt-in
+(`Hukbo.Tools.RenderProbe`, seed 1, three camera stations, 150 sampled frames
+each) produced a battle that advanced to **tick 3,584** with 27 and 23 warriors
+alive and still falling, a debug log with **zero `err` lines**, and 16,794 audio
+cues of which every single one reports `Played` — no suppression at any point,
+which is consistent with RU-20's finding that the sixteen-per-slot cap does not
+bind.
+
+**Every one of the thirteen ranged sound slots fired in that run.**
+`ReleaseBangkaw` 1,565, `ReleaseBusog` 1,483, `ReleaseArquebus` 387,
+`AttackBangkaw` 962, `AttackBusog` 883, `AttackArquebus` 269, `MissBangkaw` 171,
+`MissBusog` 159, `MissArquebus` 41, and all three `ClashShield` slots. That is
+the first evidence in this package that the release, impact, and miss cues reach
+a real mixer in a real battle rather than only in `SoundCueMapperTests`, and it
+also settles the `Evaded`-to-`miss` routing end to end, since a `Miss` cue cannot
+fire without one of RU-14's two triggers.
+
+**No ranged-blind switch remains.** A read-only sweep of every switch in
+`Hukbo.Client` and `Hukbo.Core` keyed on `WeaponId`, `PawnWeaponRole`,
+`BattleEventKind`, `AgentIntent`, or `AttackResolution` found ranged arms present
+everywhere one is required. The handful of sites that ignore `Release` and `Miss`
+— `AttackContactDispatcher`, `BattleReportAccumulator`, `DustEffectSystem`,
+`HitEffectSystem`, `BloodEffectSystem` — all filter by kind rather than switching
+exhaustively with a throwing default, which is the pattern this document already
+recorded as safe on 2026-08-09. The zero-`err` battle above is the independent
+confirmation: the tenth crash of this shape would have fired long before tick
+3,584.
+
+**What this does not do is close a single smoke row.** A harness that drives
+playback is not a spectator. It proves the code path executes, does not throw,
+and submits a cue; it proves nothing about whether a Busog draw reads as a bow
+being drawn or whether an Arquebus report sounds distinct. All eleven `RG` rows
+remain `PENDING` and only a person at the screen may change that. What has
+changed is that all eleven are now attemptable, where eight of them previously
+were not.
+
+**One live claim in this plan is stale and is corrected here rather than in
+place.** RU-25's row and section 6 both describe the shipped client as running
+`PrecolonialPhilippinesV5` with `RangedStandoffV8`. It now runs V5 with
+`MovementPresetId.LastStandEngagementV11` (`ArenaGame.cs:1451-1452`), which
+arrived with later packages and carries V10's holding and backing-away rules
+forward unchanged. The RG-6 and RG-7 rows, which were amended for
+`BattlefieldRealismV10`, read correctly against V11. RU-23's Busog quad pin is
+likewise recorded twice in this document, at 25 in its own row and at 27 in
+RU-42's; **27 is the live figure** and `SubmissionCount.cs` is its source of
+truth.
+
 ### Task status
 
 | Task | Status |
@@ -1848,8 +1905,8 @@ ranged visuals, which is parked in `docs/plans/TODO.md` and designed in
 | RU-28 | **Done on branch `ru-28` at `9e95864`, merged into `ranged-units`.** Its row was the eleventh known-wrong one: `ProjectileTests.cs` already carried four of its eight pins, so the real scope was the remaining four plus an audit of the existing four. All four existing pins hold with no gap, and the allocation pin does run on a ranged roster. Four new pins added, no hash literal among them. See the result in section 9 |
 | RU-29 | **Done on branch `ru-29` at `e2f9c6a`, merged into `ranged-units`.** The gate now runs a second, ranged determinism workload, guarded so `-Game Sandata` skips it. Twenty-seed ranged termination test added with a guard fact tying the roster weights to `Rules.Roster.Count`. **The agent's own benchmark evidence was invalid — positional arguments meant it measured V4, not V5; re-run correctly by the orchestrator. See section 9** |
 | RU-30 | **Done on branch `ru-30` at `9369509`, merged into `ranged-units` — but its acceptance bar is NOT met.** The monotone predicate lands, V9 is registered, the leader fact closes, and **both suites are fully green for the first time in this package**. The diagnosis is confirmed: `routeRefusalLaneNotClear` falls from 347,375 to 38,209 at 200 agents, and termination goes from V6 drawing 0 of 20 seeds to V9 resolving 14 of 20. **The row requires 19 of 20.** Five seeds short, so a second cause remains beyond ally clearance. The ten-cell matrix was reported BLOCKED on prompt compression and is genuinely outstanding. See the RU-30 result in section 9 |
-| RU-31 | **Generated 2026-08-09 by the user, who ran every command. No agent generated a sound.** All sixty takes exist and `./scripts/sfx.ps1 -List` reports zero missing of twenty-six slots. `scripts/sfx-ranged.ps1` drove the run; `scripts/sfx.ps1`'s `attack-busog` prompts and two `extremity` arms were rewritten first, because their wording was instructing the model to produce inaudible takes. 17 of 58 takes needed a quiet-guard retry. **Not closed: its acceptance requires a person to have heard at least one take from each of the thirteen new slots, and that has not been recorded.** The files being present is not the criterion |
-| RU-32 | **Done on branch `ru-32` at `0be7425`, merged into `ranged-units`.** Eleven rows, `RG-1` through `RG-11`, every one `PENDING`. The diff is a pure addition of 53 lines — zero deletions, so no existing row's status or wording moved. `RG-11` ships with no pass/fail criterion, as an open question about an arrow passing through the friendly front rank. The section states plainly that the draw phases have never been observed at runtime because the one real Debug run never advanced a tick, and which rows cannot be attempted until RU-31's sound files exist. **The rows are delivered; the results are not, and no agent may supply them** |
+| RU-31 | **Generated 2026-08-09 by the user, who ran every command. No agent generated a sound.** All sixty takes exist and `./scripts/sfx.ps1 -List` reports zero missing of twenty-six slots. `scripts/sfx-ranged.ps1` drove the run; `scripts/sfx.ps1`'s `attack-busog` prompts and two `extremity` arms were rewritten first, because their wording was instructing the model to produce inaudible takes. 17 of 58 takes needed a quiet-guard retry. **Not closed: its acceptance requires a person to have heard at least one take from each of the thirteen new slots, and that has not been recorded.** The files being present is not the criterion. **2026-08-13:** every one of the thirteen slots was submitted to the real mixer and reported `Played` in a battle that ran to tick 3,584, so each slot is proven to be reachable, loadable, and audible-in-principle; the acceptance criterion is still a person listening and is still open |
+| RU-32 | **Done on branch `ru-32` at `0be7425`, merged into `ranged-units`.** Eleven rows, `RG-1` through `RG-11`, every one `PENDING`. The diff is a pure addition of 53 lines — zero deletions, so no existing row's status or wording moved. `RG-11` ships with no pass/fail criterion, as an open question about an arrow passing through the friendly front rank. The section states plainly that the draw phases have never been observed at runtime because the one real Debug run never advanced a tick, and which rows cannot be attempted until RU-31's sound files exist. **The rows are delivered; the results are not, and no agent may supply them.** **2026-08-13:** the two conditions the section's preamble named as making eight rows un-attemptable — the missing sound files and the battle that never advanced — are both gone, and the preamble has been rewritten to say so. All eleven rows are attemptable and all eleven are still `PENDING` |
 | RU-33 | **Done — the canonical gate is GREEN IN FULL**, run once by the orchestrator on the integration commit, never delegated. Every stage passes: prerequisites, locked restore, format at 0 of 707 files reformatted, Release build, Release tests, and **two** determinism workloads. The second is the ranged one — `combatPreset 5, movementPreset 8`, `deterministic: true`, reproducing `C8023D3B5BEB005E` / `F709A345E2F7370E`. V4's workload is unmoved at `1B73FC5923879AA0` / `AC55684F24D39344`. Full output in section 9 |
 | RU-34 | Done on branch `ru-34` at `7b80c24`, merged into `ranged-units` — took Core from 18 red to 10 |
 | RU-35 | Done on branch `ru-35` at `47b0719` — Client 34 red to 29 |
