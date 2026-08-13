@@ -494,37 +494,37 @@ Those four manager files are a live bucket D finding, not finished work.
 
 ### What the gate said, in full
 
-Run on the task branch rebased onto `main` at `04b23bc`.
+Run on the task branch rebased onto `main` at `bb7d229`, every stage green.
 
 | Stage | Result |
 | --- | --- |
 | Format verification | `[PASS] Formatting verification completed.` |
 | Release solution build | `[PASS] Release solution build completed.` Zero warnings, zero errors |
-| `Hukbo.Core.Tests` | `Total tests: 2539  Passed: 2539` |
-| `Hukbo.Client.Tests` | `Total tests: 3771  Passed: 3767  Failed: 4` |
+| `Hukbo.Core.Tests` | `Total tests: 2568  Passed: 2568` |
+| `Hukbo.Client.Tests` | `Total tests: 3771  Passed: 3771` |
+| Determinism workloads | five `[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.` |
+| Verdict | `[PASS] Canonical repository verification completed.` |
 
-The gate is red, and not because of this work. All four failures are
-`ClientSettingsStoreTests` methods asserting a default movement preset of
-`CohortLateralSpreadV13` against an actual `LastStandEngagementV11` — the V13
-selector work landing on `main` in a concurrent session. That was not taken on
-trust: the same four were run on unmodified `main` at `04b23bc` in a separate
-worktree and failed identically, `Failed: 4, Passed: 37`. Nothing in this task
-touches settings persistence or movement presets.
+All five seed-1 workloads report `deterministic: true`, and every digest matches
+its recorded baseline:
 
-Because the gate stops at its test stage, its determinism workloads never ran,
-so the workload was run on its own:
+| Workload | `stateHash` | `eventHash` |
+| --- | --- | --- |
+| `combatPreset 6` / `movementPreset 4` | `5460D13E3F7FD3E5` | `8E18ED1437B2924B` |
+| `combatPreset 5` / `movementPreset 8` | `C8023D3B5BEB005E` | `F709A345E2F7370E` |
+| `combatPreset 5` / `movementPreset 10` | `7C145A9E05916E4C` | `77626E104234206C` |
+| `combatPreset 5` / `movementPreset 11` | `6225182B4A470F91` | `C4DABE6AF98B6BEC` |
+| `combatPreset 5` / `movementPreset 13` | `4A0723BC9A1B924B` | `E0CE32CF8830A864` |
 
-```
-[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
-outcome Faction0Victory   faction0Survivors 9   faction1Survivors 0
-stateHash 5460D13E3F7FD3E5   eventHash 8E18ED1437B2924B
-deterministic true   combatPreset 6   movementPreset 4
-```
+Nothing under `src/Hukbo.Core` was touched, so no hash could have moved, and
+these are the measurements that say so rather than the assertion.
 
-Both digests are byte-identical to the recorded baseline for the shipped default
-workload. Nothing under `src/Hukbo.Core` was touched, so no hash could have
-moved, and this is the measurement that says so rather than the assertion.
-
-This section owes one thing still: a green gate. Once the V13 default settles on
-`main`, `./scripts/verify.ps1` should be run once more and its verdict recorded
-here, replacing this paragraph.
+**An earlier run of this same branch was red, and the reason is worth keeping.**
+Rebased onto `main` at `04b23bc`, four `ClientSettingsStoreTests` methods failed
+with `Expected: CohortLateralSpreadV13 / Actual: LastStandEngagementV11` — a
+concurrent session's V13 default, half-landed. That was not taken on trust and
+not absorbed as this task's problem: the same four were run on unmodified `main`
+at `04b23bc` in a detached probe worktree and failed identically, `Failed: 4,
+Passed: 37`. They went green on their own once `541b8d6` shipped the V13 default.
+A red gate on a shared checkout is a claim about the base until someone proves
+otherwise, and proving it costs one worktree.
