@@ -15,6 +15,25 @@ Everything below is checked against the working tree at `7dc1ddf`. Where the
 briefing that commissioned this document disagrees with disk, disk wins and the
 disagreement is tabled in section 9.
 
+**Amended 2026-08-14, after `CohortLateralSpreadV13` landed mid-flight.** While
+this document was being written, another session shipped
+`MovementPresetId.CohortLateralSpreadV13` and made it the client's default
+(`src/Hukbo.Client/Settings/ClientSettingsStore.cs:91-92`). Three things follow,
+and none of them changes a conclusion here:
+
+- Every reference below to V11 as "the client's default" now names V13 instead.
+  V11 remains the preset the measurements in section 5.2 were taken against, and
+  those numbers stand as recorded.
+- **The section 5.4 defect repeated itself immediately.** V13 was appended to
+  `ArmyCompositionPanel.MovementPresetOptions` while V12 was still missing from
+  it, so the shipped selector went from skipping one registered preset to
+  skipping one out of thirteen — with a green suite, because the test that
+  should have caught it still only compared the two lists against each other.
+  That is the strongest possible argument for the strengthening in section 7.1,
+  and it is why that work was done first rather than alongside.
+- The recommendation is unaffected. Nothing about V13 bears on whether a chief
+  belongs in every contingent.
+
 ---
 
 ## 0. The question that comes first: is this feature reachable at all?
@@ -27,7 +46,8 @@ with a visibly tighter army (front width 564,438 raw against V11's 728,288). It
 is **not** reachable in the shipped client, because the player-facing selector
 `ArmyCompositionPanel.MovementPresetOptions` stops at V11
 (`src/Hukbo.Client/UI/ArmyCompositionPanel.cs:111-125`) and the default is pinned
-to V11 at `src/Hukbo.Client/Settings/ClientSettingsStore.cs:85`. The selector
+to V11 at `src/Hukbo.Client/Settings/ClientSettingsStore.cs:85` — since amended
+to V13 at `:91-92`, with V12 still absent from the option list. The selector
 already exists and already works, so the prerequisite is not "build a preset
 selector" — it is appending one entry to a list and one display string beside
 it, which is far cheaper than any of the three options in section 6b and should
@@ -304,7 +324,8 @@ are the registry (`MovementPresetId.cs:255`,
 (`FormationPlanner.cs:233`). The client's `BuildScenario`
 (`src/Hukbo.Client/ArenaGame.cs:1468`) receives whatever preset the settings
 carry, and that default is `LastStandEngagementV11`
-(`src/Hukbo.Client/Settings/ClientSettingsStore.cs:85`).
+(`src/Hukbo.Client/Settings/ClientSettingsStore.cs:85`), since amended to
+`CohortLateralSpreadV13` at `:91-92`.
 
 It is **not** true that the canonical gate reports `movementPreset: 11` for its
 workloads. `scripts/verify.ps1` runs four headless workloads: the first
@@ -378,8 +399,8 @@ unselectable.
 The work to make V12 reachable in the client is therefore: one entry appended to
 `MovementPresetOptions`, one display string appended to `MovementPresetNames`,
 and — separately worth doing — strengthening that Client test to actually
-enumerate the registry. Whether the client *default* should move from V11 to V12
-is a distinct and larger decision, involving `ClientSettingsStore.cs:85` and a
+enumerate the registry. Whether the client *default* should move to V12
+is a distinct and larger decision, involving `ClientSettingsStore.cs` and a
 new gate workload in `scripts/verify.ps1`; it is not required to make the
 feature observable, since the selector is a staged, player-driven choice.
 

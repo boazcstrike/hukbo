@@ -116,10 +116,11 @@ The families below are grouped by what a single launch can actually
 show, because the subsections are ordered by the change that created them
 rather than by what is on screen at once, and a person working down the file in
 order relaunches the game far more often than they need to. The batch rows below
-sum to this file's own total of 16. They summed to 67 before 2026-08-14, because
+sum to this file's own total of 18. They summed to 67 before 2026-08-14, because
 two sections had never been given a row here at all; six more batches left the
 table later that day when their families closed in full, and the render and
-battlefield-realism batches shrank rather than leaving.
+battlefield-realism batches shrank rather than leaving. The contingent shape
+selector batch joined on 2026-08-14 at two rows.
 
 | Batch | Families | Rows | What one launch has to show |
 | --- | --- | --- | --- |
@@ -127,6 +128,7 @@ battlefield-realism batches shrank rather than leaving.
 | Battlefield realism | `BR` 5 of 10 | 5 `PENDING` | Cohort deployment only. The other 5 are the V10 retreat rung, which passed on 2026-08-14 and was lifted out. Three of these five failed that day and two were held back behind them, so none is a fresh check — read every `Actual` column before launching. `BR-10` is the odd one out: it needs the window resized to 1024 by 720 and the agent inspector open, not a battle watched |
 | Sandata | `SD` 3 of 9 | 3 `PENDING` | `./scripts/run.ps1 -Game Sandata`. The other 6 passed and were lifted out. All three open rows are re-runs rather than fresh checks: `SD-4` and `SD-5` were each attempted twice and failed on causes fixed on 2026-08-12, and `SD-7b` was blocked from the day it was written until the same day. Read each row's `Actual` column before starting |
 | Starting deployment | rows 58 through 61a | 3 `PASS`, 2 `PENDING` | The opening frame, paused at tick 0, and the first few seconds after it. These five were missing from this table until 2026-08-14 |
+| Contingent shape selector | `CS` 2 | 2 `PENDING` | The Army Composition panel's movement-preset row, then two opening deployments compared across a Full Reset. Neither row is a fresh feature check: both are checks that a preset the shipped client could not previously reach now reads correctly when a spectator selects it |
 
 **No row in this file is blocked by the build, and this paragraph used to say
 the opposite.** Every `SD` row that was once blocked has stopped being so — four

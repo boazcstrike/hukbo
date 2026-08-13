@@ -31,11 +31,13 @@ recorded three options and said none should be chosen under time pressure.
 
 **Not delivered, deliberately.**
 
-- The client *default* stays `MovementPresetId.LastStandEngagementV11`
-  (`src/Hukbo.Client/Settings/ClientSettingsStore.cs:83-84`). Moving it is a
-  separate decision that also implies a fifth workload block in
-  `scripts/verify.ps1`, and the selector is a staged, player-driven choice, so
-  observability does not depend on it.
+- The client *default* is not touched by this package. It was
+  `MovementPresetId.LastStandEngagementV11` when the design was written and is
+  now `MovementPresetId.CohortLateralSpreadV13`
+  (`src/Hukbo.Client/Settings/ClientSettingsStore.cs:91-92`), moved by another
+  session's V13 work while this was in flight. Pointing it at V12 was never
+  proposed and is not proposed now: the selector is a staged, player-driven
+  choice, so observability does not depend on the default.
 - `CohortDeploymentAssignment` is not modified. Options 2 and 3 of the design
   are not taken; the reasoning is design sections 2.2, 3, and 7.2.
 - No smoke row is flipped. Two new rows are added and left `PENDING` for a
