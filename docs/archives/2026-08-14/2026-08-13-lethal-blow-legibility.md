@@ -289,3 +289,15 @@ reaches a state hash. But the requirement this plan wrote for itself — one gre
 gate run isolating this change — has still never been satisfied, and archiving
 the plan does not satisfy it. If a future reader needs certainty that this
 change alone leaves the gate green, that run has yet to happen.
+
+**Later the same day, the gate did go green — but not in isolation.** Once the
+cohort lateral spread work had been committed, `./scripts/verify.ps1
+-SkipBootstrap` was run again on `main` and completed with `[PASS] Headless
+workload completed: agents=200 ticks=10000 seed=1.` and `[PASS] Canonical
+repository verification completed.`, exit code 0, at combat preset 5 and
+movement preset 13 with `"firstMismatchTick": null`. That run contained this
+change, so it proves this change does not break the gate. It is still not the
+isolating run described above: the tree it covered also carried a concurrent
+session's uncommitted agent-inspector work, and `main` had by then absorbed
+`CohortLateralSpreadV13` as the shipped default movement preset. Take it as
+strong evidence and not as the receipt this plan asked for.
