@@ -590,6 +590,19 @@ to that in-flight work and none of which this change touches. The worktree run
 is the verdict on this change; the main checkout cannot produce a clean one
 until the other session's work settles.
 
+**Re-run on main at `33de5cd`, also green.** Once the V13 work was on main, a
+concurrent session's commit `c7ecdec` — messaged as a documentation change —
+also carried nine `Hukbo.Client` source and test files, so the tree the gate
+above verified was no longer main's. The gate was run again from a clean
+worktree at `33de5cd`: every stage passed, `Hukbo.Core.Tests` 2,568 of 2,568,
+`Hukbo.Client.Tests` 3,771 of 3,771, and all five headless workloads
+`deterministic: true` with the five state hashes byte-identical to the table
+above, `4A0723BC9A1B924B` included. The Client count fell from 3,791 to 3,771
+because a concurrent unit-test cleanup merge removed twenty tests; no test of
+this change's was among them. Main has moved on past `33de5cd` since, so that
+commit is the last point this workstream verified, not a claim about whatever
+main holds now.
+
 **Still no evidence about anything interactive.** Smoke rows 58 and 59 are what
 this change was made for, and both are `PENDING` a re-run against a V13 build.
 Rows 60, 61 and 61a passed on 2026-08-14 against the pre-V13 build.
