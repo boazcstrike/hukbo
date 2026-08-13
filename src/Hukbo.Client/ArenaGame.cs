@@ -1432,6 +1432,16 @@ public sealed partial class ArenaGame : Game
     // slider per rank; ExpandCompositionToRosterCounts spreads each rank's
     // slider count across every roster row that carries that rank, so the
     // sliders move real warriors again instead of being read and discarded.
+    //
+    // LS-1: the movement preset moved on again, to LastStandEngagementV11,
+    // which restates every one of V10's registered field values and adds the
+    // two last-stand regroup yields. The tester's finding was made against the
+    // shipped build, so the shipped build is what has to change: a follower
+    // whose rally agent is already fighting, or who has an enemy inside its own
+    // weapon reach, now closes on that enemy rather than parking 51 world units
+    // behind its leader. Every preset from V1 to V10 stays registered and
+    // byte-identical for a replay that names one of them. See
+    // docs/plans/2026-08-13-last-stand-engagement.md.
     private static Scenario BuildScenario(
         ulong seed,
         Settings.ArmyComposition composition)
@@ -1439,7 +1449,7 @@ public sealed partial class ArenaGame : Game
         var scenario = Scenario.CreateDefault(seed, composition.UnitsPerTeam * 2) with
         {
             CombatPreset = CombatPresetId.PrecolonialPhilippinesV5,
-            MovementPreset = MovementPresetId.BattlefieldRealismV10,
+            MovementPreset = MovementPresetId.LastStandEngagementV11,
         };
 
         var rules = CombatPresetRegistry.Get(scenario.CombatPreset);

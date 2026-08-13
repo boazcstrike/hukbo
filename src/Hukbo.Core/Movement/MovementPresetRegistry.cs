@@ -562,6 +562,37 @@ public static class MovementPresetRegistry
         incomingDamageWeightBasisPoints: 0,
         allyCollapseWeightBasisPoints: 0);
 
+    /// <summary>
+    /// The last-stand engagement preset. A verbatim restatement of
+    /// <see cref="BattlefieldRealismV10Ruleset"/>'s field values under its own
+    /// <c>id</c>, for the same reason V10 restates V8's: its two regroup
+    /// yields are gated on preset identity at their own call site, so it
+    /// carries no new field of its own. See
+    /// docs/plans/2026-08-13-last-stand-engagement.md.
+    /// </summary>
+    private static readonly MovementRuleset LastStandEngagementV11Ruleset = new(
+        id: MovementPresetId.LastStandEngagementV11,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: false,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0);
+
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
         {
@@ -575,6 +606,7 @@ public static class MovementPresetRegistry
             MovementPresetId.RangedStandoffV8 => true,
             MovementPresetId.MonotoneAllyClearanceV9 => true,
             MovementPresetId.BattlefieldRealismV10 => true,
+            MovementPresetId.LastStandEngagementV11 => true,
             _ => false,
         };
 
@@ -591,6 +623,7 @@ public static class MovementPresetRegistry
             MovementPresetId.RangedStandoffV8 => RangedStandoffV8Ruleset,
             MovementPresetId.MonotoneAllyClearanceV9 => MonotoneAllyClearanceV9Ruleset,
             MovementPresetId.BattlefieldRealismV10 => BattlefieldRealismV10Ruleset,
+            MovementPresetId.LastStandEngagementV11 => LastStandEngagementV11Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,

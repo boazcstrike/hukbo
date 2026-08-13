@@ -189,4 +189,42 @@ public enum MovementPresetId
     /// docs/plans/2026-08-11-battlefield-realism-design.md.
     /// </summary>
     BattlefieldRealismV10 = 10,
+
+    /// <summary>
+    /// The last-stand engagement preset. A verbatim restatement of
+    /// <see cref="BattlefieldRealismV10"/>'s registered field values under its
+    /// own <c>id</c>, carrying every one of that preset's behaviours forward
+    /// unchanged, and adding two yields to the last-stand regroup override.
+    /// A follower is no longer marked <c>AgentIntent.Regrouping</c> when its
+    /// faction's rally agent is itself within its own weapon reach of an
+    /// enemy, or when the follower's own selected enemy is within the
+    /// follower's own weapon reach. Both yields hand the warrior back to
+    /// ordinary pursuit, so it closes on the enemy target selection already
+    /// resolved for it rather than on a trail point behind its leader, and the
+    /// endgame reads as two small bands colliding rather than as a duel with
+    /// witnesses.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The last-stand code this changes is shared and unversioned: the
+    /// engagement gate is a <see cref="Simulation.Scenario"/> field and the
+    /// geometry is <c>const</c> on the static
+    /// <see cref="Simulation.FormationRules"/>, so neither is reachable from a
+    /// movement ruleset. Both yields are therefore gated on preset identity at
+    /// their own call site, the same convention
+    /// <see cref="RangedStandoffV8"/>, <see cref="MonotoneAllyClearanceV9"/>,
+    /// and <see cref="BattlefieldRealismV10"/> already use, and this value
+    /// carries no new <see cref="MovementRuleset"/> field of its own. Every
+    /// preset from V1 to V10 keeps its behaviour, its content hash, and its
+    /// frozen trajectory digest byte-identical.
+    /// </para>
+    /// <para>
+    /// Unlike V6 through V10, this preset is the shipped client default rather
+    /// than an opt-in: it exists because the shipped build is where the defect
+    /// was observed. See
+    /// docs/plans/2026-08-13-last-stand-engagement-design.md remedy C and
+    /// docs/plans/2026-08-13-last-stand-engagement.md.
+    /// </para>
+    /// </remarks>
+    LastStandEngagementV11 = 11,
 }

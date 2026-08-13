@@ -90,6 +90,18 @@ public sealed class BattleSimulation
     private readonly int[] _factionLivingCounts;
     private readonly ulong[] _factionRallyEntityIds;
 
+    // Whether each faction's rally agent is itself within its own weapon reach
+    // of a living enemy this tick, under the same perception filter target
+    // selection applies. Derived scratch beside the two arrays above: never
+    // hashed, never snapshotted, recomputed from scratch every tick before any
+    // intent is assigned, and always false under every preset before
+    // MovementPresetId.LastStandEngagementV11. It exists as a pre-pass rather
+    // than as a read of the rally agent's own Intent because
+    // SelectTargetsAndIntents is a single forward scan: a rally agent can sit
+    // after its own follower in _agentStates, so reading its intent mid-scan
+    // would make a follower's intent depend on array order.
+    private readonly bool[] _factionRallyEngaged;
+
     // Equipment-relative local-context scratch (weapon-relative movement
     // design, section 7). One row per scenario agent, allocated once here,
     // cleared and overwritten every tick by SelectTargetsAndIntents, and
@@ -249,13 +261,14 @@ public sealed class BattleSimulation
         _collision = new CollisionScratch(scenario, agents.Length);
         _factionLivingCounts = new int[2];
         _factionRallyEntityIds = new ulong[2];
+        _factionRallyEngaged = new bool[2];
         _localMovementContexts = _movementRules.UsesEquipmentRelativeFootwork
             ? new LocalMovementContext[agents.Length]
             : [];
         // Gated on preset identity, not on a movement-ruleset field, matching
         // the V10 deployment branch in Create: V10's registered ruleset is a
         // verbatim copy of V8's, so no ruleset flag distinguishes it.
-        _nearestMeleeThreatSquared = scenario.MovementPreset == MovementPresetId.BattlefieldRealismV10
+        _nearestMeleeThreatSquared = UsesBattlefieldRealism(scenario.MovementPreset)
             ? new long[agents.Length]
             : [];
         _factionSurvivingCompositions = new LoadoutCompositionCounts[2];
@@ -506,7 +519,7 @@ public sealed class BattleSimulation
     /// </summary>
     internal long NearestMeleeThreatSquaredForTesting(ulong entityId)
     {
-        if (Scenario.MovementPreset != MovementPresetId.BattlefieldRealismV10)
+        if (!UsesBattlefieldRealism(Scenario.MovementPreset))
         {
             throw new InvalidOperationException(
                 "No nearest-melee-threat scratch is derived under movement " +
@@ -647,7 +660,7 @@ public sealed class BattleSimulation
             faction1Deployment = EquipmentDeploymentAssignment.AssignForFaction(
                 deployment, faction1Loadouts, movement);
         }
-        else if (scenario.MovementPreset == MovementPresetId.BattlefieldRealismV10)
+        else if (UsesBattlefieldRealism(scenario.MovementPreset))
         {
             // Gated on preset identity, not on a movement-ruleset field:
             // V10's registered ruleset is a verbatim copy of V8's, so
@@ -1205,6 +1218,7 @@ public sealed class BattleSimulation
     private void SelectTargetsAndIntents()
     {
         ComputeRallyAgents();
+        ComputeRallyEngagement();
 
         // Equipment-relative local context (weapon-relative movement design,
         // section 7) is derived inside this same observation, fused into the
@@ -1221,7 +1235,7 @@ public sealed class BattleSimulation
         // MovementRuleset flag distinguishes it from every other preset that
         // derives no local context either.
         var observesNearestMeleeThreat =
-            Scenario.MovementPreset == MovementPresetId.BattlefieldRealismV10;
+            UsesBattlefieldRealism(Scenario.MovementPreset);
         Int128 immediateRadiusSquared = 0;
         Int128 supportRadiusSquared = 0;
         if (derivesLocalContext)
@@ -1423,7 +1437,8 @@ public sealed class BattleSimulation
                 agent.Intent == AgentIntent.Moving &&
                 _factionLivingCounts[agent.FactionId] <=
                     Scenario.LastStandThresholdAgents &&
-                agent.EntityId != _factionRallyEntityIds[agent.FactionId])
+                agent.EntityId != _factionRallyEntityIds[agent.FactionId] &&
+                !YieldsRegroupingToEngagement(agent, selectedDistance))
             {
                 agent.Intent = AgentIntent.Regrouping;
             }
@@ -1438,6 +1453,120 @@ public sealed class BattleSimulation
     /// <see cref="_agentStates"/>. Runs before any intent is assigned, so no
     /// warrior's intent can depend on scan order either.
     /// </summary>
+    /// <summary>
+    /// Whether a follower that would otherwise be marked
+    /// <see cref="AgentIntent.Regrouping"/> yields and keeps pursuing its own
+    /// enemy instead, under either of the two conditions
+    /// <see cref="MovementPresetId.LastStandEngagementV11"/> introduces: its
+    /// faction's rally agent is itself engaged, or the follower's own selected
+    /// enemy is already inside the follower's own weapon reach. Always
+    /// <see langword="false"/> under every earlier preset, whose last-stand
+    /// behaviour is therefore byte-identical to what it was before this
+    /// method existed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The yield deliberately does no destination work of its own. Leaving the
+    /// intent at <see cref="AgentIntent.Moving"/> routes the follower down the
+    /// ordinary pursuit path, which already aims it at the target selection
+    /// resolved for it a few lines above — nearest first, ties broken on
+    /// <see cref="AgentState.EntityId"/> — so no second scan is written and no
+    /// new ordering rule enters the tick. The standoff, cohesion, and
+    /// sidestep behaviours that path carries keep applying to a follower that
+    /// is now fighting rather than gathering.
+    /// </para>
+    /// <para>
+    /// Both conditions test weapon reach rather than body contact. The
+    /// existing override already yields at body contact by construction —
+    /// <see cref="AgentIntent.Attacking"/> is assigned at two body radii a few
+    /// lines above and beats <see cref="AgentIntent.Regrouping"/> — and it is
+    /// precisely the band between reach and contact in which a warrior who can
+    /// already strike is dragged away from the enemy it could strike.
+    /// </para>
+    /// </remarks>
+    private bool YieldsRegroupingToEngagement(
+        AgentState agent,
+        long selectedDistance) =>
+        YieldsLastStandEngagement(Scenario.MovementPreset) &&
+        (_factionRallyEngaged[agent.FactionId] ||
+            IsWithinAttackRange(agent, selectedDistance));
+
+    /// <summary>
+    /// The preset gate for both last-stand regroup yields, named once for the
+    /// same reason <see cref="UsesBattlefieldRealism"/> is: the last-stand code
+    /// it guards is shared and unversioned, so the set of presets that opt into
+    /// the new behaviour is stated in one place rather than at each call site.
+    /// </summary>
+    private static bool YieldsLastStandEngagement(MovementPresetId preset) =>
+        preset is MovementPresetId.LastStandEngagementV11;
+
+    /// <summary>
+    /// Derives <see cref="_factionRallyEngaged"/> for both factions: whether
+    /// each faction's rally agent has a living enemy inside its own weapon
+    /// reach. Runs immediately after <see cref="ComputeRallyAgents"/> and
+    /// before any intent is assigned, so no follower's intent can depend on
+    /// where its own rally agent happens to sit in the agent array.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The reduction is existential — does any qualifying enemy exist — which
+    /// is order-independent by construction and needs no tie-break: which
+    /// enemy satisfies it cannot change the answer, so the scan may stop at
+    /// the first one it finds.
+    /// </para>
+    /// <para>
+    /// The perception filter matches the one target selection applies, so this
+    /// answers exactly "is the rally agent's own selected target within its
+    /// reach" rather than a slightly different question about an enemy the
+    /// rally agent cannot see. It costs nothing under any preset that does not
+    /// opt in, and nothing in a battle with no faction at or below the
+    /// last-stand threshold, because both are rejected before the scan.
+    /// </para>
+    /// </remarks>
+    private void ComputeRallyEngagement()
+    {
+        _factionRallyEngaged[0] = false;
+        _factionRallyEngaged[1] = false;
+
+        if (Scenario.LastStandThresholdAgents <= 0 ||
+            !YieldsLastStandEngagement(Scenario.MovementPreset))
+        {
+            return;
+        }
+
+        for (var faction = 0; faction < 2; faction++)
+        {
+            if (_factionLivingCounts[faction] >
+                    Scenario.LastStandThresholdAgents ||
+                _factionRallyEntityIds[faction] == 0 ||
+                !_agentIndexes.TryGetValue(
+                    _factionRallyEntityIds[faction], out var rallyIndex))
+            {
+                continue;
+            }
+
+            var rallyAgent = _agentStates[rallyIndex];
+            var perceptionSquared = checked(
+                (long)rallyAgent.PerceptionRangeRaw * rallyAgent.PerceptionRangeRaw);
+
+            foreach (var candidate in _agentStates)
+            {
+                if (!candidate.IsAlive || candidate.FactionId == faction)
+                {
+                    continue;
+                }
+
+                var distance = SquaredDistance(rallyAgent, candidate);
+                if (distance <= perceptionSquared &&
+                    IsWithinAttackRange(rallyAgent, distance))
+                {
+                    _factionRallyEngaged[faction] = true;
+                    break;
+                }
+            }
+        }
+    }
+
     private void ComputeRallyAgents()
     {
         _factionLivingCounts[0] = 0;
@@ -1851,7 +1980,7 @@ public sealed class BattleSimulation
                 // preset other than IndependentPursuitV1 and never consults
                 // StandoffDistanceRaw.
                 if (Scenario.MovementPreset == MovementPresetId.RangedStandoffV8 ||
-                    Scenario.MovementPreset == MovementPresetId.BattlefieldRealismV10)
+                    UsesBattlefieldRealism(Scenario.MovementPreset))
                 {
                     var standoffRaw =
                         ResolveAttackerWeaponProfile(agent.Loadout).StandoffDistanceRaw;
@@ -1865,7 +1994,7 @@ public sealed class BattleSimulation
                         // this branch — its scratch row is zero-length and
                         // this whole arm is gated on preset identity again,
                         // not merely on the array being readable.
-                        if (Scenario.MovementPreset == MovementPresetId.BattlefieldRealismV10)
+                        if (UsesBattlefieldRealism(Scenario.MovementPreset))
                         {
                             var nearestMeleeThreatSquared =
                                 _nearestMeleeThreatSquared[index];
@@ -5023,6 +5152,24 @@ public sealed class BattleSimulation
 
         return (nearest.XRaw, nearest.YRaw, nearest.EntityId);
     }
+
+    /// <summary>
+    /// The single approved battlefield-realism gate. The three behaviours the
+    /// battlefield realism design introduced — cohort deployment, the
+    /// nearest-melee-threat scratch, and the ranged retreat rung — are gated on
+    /// preset identity rather than on a <see cref="MovementRuleset"/> field,
+    /// because <see cref="MovementPresetId.BattlefieldRealismV10"/>'s
+    /// registered ruleset is a verbatim copy of
+    /// <see cref="MovementPresetId.RangedStandoffV8"/>'s and no flag
+    /// distinguishes it. Every later preset that inherits those behaviours has
+    /// to be admitted at every one of their call sites at once, so the set is
+    /// named here rather than spelled out six times: a preset added to the
+    /// enum and missed at one call site would silently lose one behaviour and
+    /// keep the other two, which no single-file reading would catch.
+    /// </summary>
+    private static bool UsesBattlefieldRealism(MovementPresetId preset) =>
+        preset is MovementPresetId.BattlefieldRealismV10
+            or MovementPresetId.LastStandEngagementV11;
 
     /// <summary>
     /// The single approved reach test. Attack range is measured centre to
