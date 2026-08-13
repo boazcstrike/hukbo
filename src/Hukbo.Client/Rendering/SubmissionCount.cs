@@ -590,6 +590,28 @@ internal static class RenderBudgetEstimate
     // screen at once — drops those 512 entirely and sits at 18,556, headroom
     // 1,444. The gated figure is the likely one and the ungated figure is the
     // one budgeted for, which is the correct way round.
+    //
+    // gait-default-visibility (docs/plans/2026-08-13-gait-default-visibility.md)
+    // raises the client's default window from 1280 x 720 to 1600 x 900, which
+    // raises the default camera fit's apparent scale above MediumDetailScale.
+    // Every term above assumed the default view resolved PawnDetailTier.Low —
+    // 17 quads for an unshielded, unarmoured Kampilan
+    // (PawnQuadCountTests.cs:38). After that change the default view resolves
+    // PawnDetailTier.Medium instead, 23 quads for the same pawn
+    // (PawnQuadCountTests.cs:53). This is the ordinary spectator view, not a
+    // worst case, so it is an ADDITIONAL term rather than a replacement for
+    // the stacked High-tier Busog worst case above, which stays exactly what
+    // it was:
+    //
+    //   (23 quads/pawn x 200 units) + 4,032 backdrop =  8,632 quads
+    //   (23 quads/pawn x 500 units) + 4,032 backdrop = 15,532 quads
+    //
+    // Both figures sit below the 27-quad worst-case terms above (9,432 and
+    // 17,532 before the projectile-props deltas) and further still below the
+    // 12,000 / 20,000 ceilings below. The default view's move from Low to
+    // Medium does not change which term is binding — the stacked worst case
+    // is still the ceiling's binding term — so no pinned quad count and no
+    // ceiling changes as a result of this note.
 
     /// <summary>Arena-batch quad ceiling at 200 visible units.</summary>
     internal const int ArenaBatchQuadsAt200UnitsEstimate = 12_000;
