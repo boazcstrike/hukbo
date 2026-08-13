@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using Hukbo.Client.Presentation.Catalogs;
 using Hukbo.Client.Theming;
+using Hukbo.Core.Movement;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -89,15 +90,59 @@ internal sealed partial class ArmyCompositionPanel
     /// roster cannot leave the last category unreachable by keyboard focus.
     /// </summary>
     internal const int ControlCount =
-        ArmyCompositionStepper.CategoryCount + 5;
+        ArmyCompositionStepper.CategoryCount + 6;
     internal const int UnitsPerTeamControlIndex =
         ArmyCompositionStepper.CategoryCount;
     internal const int DistributeEvenlyControlIndex =
         UnitsPerTeamControlIndex + 1;
     internal const int ResetToDefaultControlIndex =
         DistributeEvenlyControlIndex + 1;
-    internal const int CancelControlIndex = ResetToDefaultControlIndex + 1;
+    internal const int MovementPresetControlIndex =
+        ResetToDefaultControlIndex + 1;
+    internal const int CancelControlIndex = MovementPresetControlIndex + 1;
     internal const int ApplyControlIndex = CancelControlIndex + 1;
+
+    /// <summary>
+    /// Every registered <see cref="MovementPresetId"/>, in enum order. The
+    /// player-facing selector on the Army Composition panel; a staged choice,
+    /// consumed by <c>ArenaGame.BuildScenario</c> only on the next Full Reset
+    /// — see the pressure-interrupt observability design section 2.
+    /// </summary>
+    internal static readonly IReadOnlyList<MovementPresetId>
+        MovementPresetOptions =
+        [
+            MovementPresetId.IndependentPursuitV1,
+            MovementPresetId.PersistentContingentsV2,
+            MovementPresetId.PersistentContingentsV3,
+            MovementPresetId.PersistentContingentsV4,
+            MovementPresetId.PersistentContingentsV5,
+            MovementPresetId.EquipmentRelativeFootworkV6,
+            MovementPresetId.EquipmentRelativeFootworkV7,
+            MovementPresetId.RangedStandoffV8,
+            MovementPresetId.MonotoneAllyClearanceV9,
+            MovementPresetId.BattlefieldRealismV10,
+            MovementPresetId.LastStandEngagementV11,
+        ];
+
+    /// <summary>
+    /// Human-readable names for <see cref="MovementPresetOptions"/>, in the
+    /// same order — never the bare enum spelling, per the selector's own
+    /// display convention.
+    /// </summary>
+    internal static readonly IReadOnlyList<string> MovementPresetNames =
+        [
+            "V1 Independent Pursuit",
+            "V2 Persistent Contingents",
+            "V3 Contingent Close-Latch",
+            "V4 Narrowed Cohesion Scan",
+            "V5 Rank-Aware Leader Scan",
+            "V6 Equipment-Relative Footwork",
+            "V7 Pressure Interrupt",
+            "V8 Ranged Standoff",
+            "V9 Monotone Ally Clearance",
+            "V10 Battlefield Realism",
+            "V11 Last-Stand Engagement",
+        ];
 
     /// <summary>
     /// One label per roster entry, in declared roster-index order — Datu,
@@ -148,17 +193,46 @@ internal sealed partial class ArmyCompositionPanel
 
     private readonly UiSelectorMotion _unitsPerTeamArrowMotion = new();
 
+    /// <summary>
+    /// Reused verbatim from <see cref="SettingsChoiceSelector{T}"/> — the same
+    /// control the menu's UI-scale and startup-display rows use — rather than
+    /// a hand-rolled cycling widget. Only its pure helpers
+    /// (<c>GetNext</c>/<c>GetPrevious</c>/<c>GetDisplayName</c>/<c>Draw</c>/
+    /// <c>AdvanceMotion</c>/<c>PreviousBounds</c>/<c>NextBounds</c>) are used;
+    /// its own self-contained <c>Update</c> is not, because this panel's
+    /// focus-then-arrow-key convention differs from the menu's per-selector
+    /// dispatch and mixing both would double-handle one input.
+    /// </summary>
+    private readonly SettingsChoiceSelector<MovementPresetId>
+        _movementPresetSelector;
+
+    private readonly UiThemeSelectorLayout _selectorLayout;
+
     private ArmyComposition _draft;
     private ArmyComposition _saved;
+    private MovementPresetId _draftMovementPreset;
+    private MovementPresetId _savedMovementPreset;
     private int _focusedControlIndex;
 
     public ArmyCompositionPanel(
         ArmyComposition saved,
-        UiArmyCompositionLayout metrics)
+        MovementPresetId savedMovementPreset,
+        UiArmyCompositionLayout metrics,
+        UiThemeStandards standards)
     {
+        ArgumentNullException.ThrowIfNull(standards);
         _saved = saved;
         _draft = saved;
+        _savedMovementPreset = savedMovementPreset;
+        _draftMovementPreset = savedMovementPreset;
         _metrics = metrics;
+        _selectorLayout = standards.Shared.Selector;
+        _movementPresetSelector = new SettingsChoiceSelector<MovementPresetId>(
+            "MOVEMENT PRESET",
+            MovementPresetOptions,
+            MovementPresetNames,
+            "NEXT FULL RESET",
+            standards);
     }
 
     private static UiSelectorMotion[] CreateArrowMotionArray()
@@ -175,6 +249,10 @@ internal sealed partial class ArmyCompositionPanel
     public ArmyComposition Draft => _draft;
 
     public ArmyComposition Saved => _saved;
+
+    public MovementPresetId DraftMovementPreset => _draftMovementPreset;
+
+    public MovementPresetId SavedMovementPreset => _savedMovementPreset;
 
     /// <summary>
     /// Test seam onto the per-row arrow-hover motion — pure reads of state
@@ -202,14 +280,26 @@ internal sealed partial class ArmyCompositionPanel
 
     public int Unassigned => _draft.Unassigned;
 
-    public bool CanApply => IsApplyEnabled(_draft, _saved);
+    /// <summary>
+    /// Enabled by either an unassigned-free composition change or a movement
+    /// preset change, since the two are independent staged choices sharing
+    /// one Apply button. The composition-only static
+    /// <see cref="IsApplyEnabled"/> stays untouched underneath — existing
+    /// tests call it directly — this only adds the second, independent
+    /// reason Apply may light up.
+    /// </summary>
+    public bool CanApply =>
+        _draft.Unassigned == 0 &&
+        (!_draft.Equals(_saved) || _draftMovementPreset != _savedMovementPreset);
 
     public int FocusedControlIndex => _focusedControlIndex;
 
-    public void Open(ArmyComposition saved)
+    public void Open(ArmyComposition saved, MovementPresetId savedMovementPreset)
     {
         _saved = saved;
         _draft = saved;
+        _savedMovementPreset = savedMovementPreset;
+        _draftMovementPreset = savedMovementPreset;
         _focusedControlIndex = 0;
     }
 
@@ -224,6 +314,17 @@ internal sealed partial class ArmyCompositionPanel
 
     public void AdjustFocusedValue(int direction, bool isShiftHeld)
     {
+        if (_focusedControlIndex == MovementPresetControlIndex)
+        {
+            _draftMovementPreset = direction switch
+            {
+                > 0 => _movementPresetSelector.GetNext(_draftMovementPreset),
+                < 0 => _movementPresetSelector.GetPrevious(_draftMovementPreset),
+                _ => _draftMovementPreset,
+            };
+            return;
+        }
+
         _draft = AdjustValue(
             _draft,
             _focusedControlIndex,
@@ -252,6 +353,7 @@ internal sealed partial class ArmyCompositionPanel
 
             case ArmyCompositionPanelAction.Cancel:
                 _draft = _saved;
+                _draftMovementPreset = _savedMovementPreset;
                 return new ArmyCompositionInteraction(
                     ArmyCompositionPanelResult.Cancelled,
                     true);
@@ -265,6 +367,7 @@ internal sealed partial class ArmyCompositionPanel
                 }
 
                 _saved = _draft;
+                _savedMovementPreset = _draftMovementPreset;
                 return new ArmyCompositionInteraction(
                     ArmyCompositionPanelResult.Applied,
                     true);

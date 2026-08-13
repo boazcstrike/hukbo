@@ -94,6 +94,7 @@ public sealed class UiScaledChromeTests
     [InlineData(UiScale.Percent200)]
     public void ArmyCompositionScalesEveryThemeDefinedMetric(UiScale scale)
     {
+        var standards = LoadCatalog().Standards;
         var metrics = new UiArmyCompositionLayout(
             PanelWidth: 640,
             PanelHeight: 648,
@@ -112,7 +113,8 @@ public sealed class UiScaledChromeTests
                 UiScaleContext.Pixels(720));
             var layout = ArmyCompositionPanel.CalculateLayout(
                 screenBounds,
-                metrics);
+                metrics,
+                standards.Shared.Selector);
 
             Assert.Equal(
                 UiScaleContext.Pixels(metrics.PanelWidth),

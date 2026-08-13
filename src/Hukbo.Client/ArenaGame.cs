@@ -213,6 +213,7 @@ public sealed partial class ArenaGame : Game
     private UiFontSet? _fonts;
     private MonoGameSoundPlayer? _soundPlayer;
     private Settings.ArmyComposition _activeComposition;
+    private MovementPresetId _activeMovementPreset;
     private bool _isSoundLogVisible;
     private bool _isBattleReportVisible;
     private bool _isArmyCompositionPanelVisible;
@@ -343,7 +344,10 @@ public sealed partial class ArenaGame : Game
         // repeated call is a pure, allocation-cheap read, not a second
         // source of truth.
         var startupScenarioForCapacity = scenarioOverride ??
-            BuildScenario(_matchSeries.CurrentSeed, initialSettings.Composition);
+            BuildScenario(
+                _matchSeries.CurrentSeed,
+                initialSettings.Composition,
+                initialSettings.MovementPreset);
         _presentation = new PresentationCoordinator(
             EventHistoryCapacity,
             projectileCapacity: startupScenarioForCapacity.MaximumProjectilesInFlight,
@@ -355,9 +359,12 @@ public sealed partial class ArenaGame : Game
         _presentation.Dust.MotionIntensity = _motionManager.Value;
         _menu = new MenuOverlay(catalog.Themes, catalog.Standards);
         _activeComposition = initialSettings.Composition;
+        _activeMovementPreset = initialSettings.MovementPreset;
         _armyCompositionPanel = new ArmyCompositionPanel(
             ToPanelComposition(_activeComposition),
-            catalog.Standards.Shared.ArmyComposition);
+            _activeMovementPreset,
+            catalog.Standards.Shared.ArmyComposition,
+            catalog.Standards);
 
         var displayMode = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
         var startupGraphics = StartupDisplayPolicy.Resolve(
@@ -387,7 +394,10 @@ public sealed partial class ArenaGame : Game
         IsFixedTimeStep = false;
 
         _scenario = scenarioOverride ??
-            BuildScenario(_matchSeries.CurrentSeed, _activeComposition);
+            BuildScenario(
+                _matchSeries.CurrentSeed,
+                _activeComposition,
+                _activeMovementPreset);
         _simulation = BattleSimulation.Create(_scenario);
         _camera = new SpectatorCamera(_scenario.MapWidth, _scenario.MapHeight);
         _plainsDecals = PlainsBackdropGeometry.GenerateDecals(
@@ -1342,8 +1352,10 @@ public sealed partial class ArenaGame : Game
 
     private void OpenArmyCompositionPanel()
     {
-        var saved = _settingsStore.Load(_themeManager.ActiveTheme.Id).Composition;
-        _armyCompositionPanel.Open(ToPanelComposition(saved));
+        var saved = _settingsStore.Load(_themeManager.ActiveTheme.Id);
+        _armyCompositionPanel.Open(
+            ToPanelComposition(saved.Composition),
+            saved.MovementPreset);
         _isArmyCompositionPanelVisible = true;
     }
 
@@ -1362,6 +1374,7 @@ public sealed partial class ArenaGame : Game
                         SelectedThemeId = _themeManager.ActiveTheme.Id,
                         Composition = ToSettingsComposition(
                             _armyCompositionPanel.Saved),
+                        MovementPreset = _armyCompositionPanel.SavedMovementPreset,
                     });
                 _isCompositionStaged = true;
                 _isArmyCompositionPanelVisible = false;
@@ -1444,12 +1457,13 @@ public sealed partial class ArenaGame : Game
     // docs/plans/2026-08-13-last-stand-engagement.md.
     private static Scenario BuildScenario(
         ulong seed,
-        Settings.ArmyComposition composition)
+        Settings.ArmyComposition composition,
+        MovementPresetId movementPreset)
     {
         var scenario = Scenario.CreateDefault(seed, composition.UnitsPerTeam * 2) with
         {
             CombatPreset = CombatPresetId.PrecolonialPhilippinesV5,
-            MovementPreset = MovementPresetId.LastStandEngagementV11,
+            MovementPreset = movementPreset,
         };
 
         var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
@@ -2105,8 +2119,9 @@ public sealed partial class ArenaGame : Game
         if (resetCommand == ClientCommand.FullReset)
         {
             _matchSeries.FullReset();
-            _activeComposition =
-                _settingsStore.Load(_themeManager.ActiveTheme.Id).Composition;
+            var reloaded = _settingsStore.Load(_themeManager.ActiveTheme.Id);
+            _activeComposition = reloaded.Composition;
+            _activeMovementPreset = reloaded.MovementPreset;
             _isCompositionStaged = false;
         }
         else if (resetCommand == ClientCommand.NextRound)
@@ -2121,7 +2136,10 @@ public sealed partial class ArenaGame : Game
                 "Only round reset commands can reset the simulation.");
         }
 
-        _scenario = BuildScenario(_matchSeries.CurrentSeed, _activeComposition);
+        _scenario = BuildScenario(
+            _matchSeries.CurrentSeed,
+            _activeComposition,
+            _activeMovementPreset);
         _simulation = BattleSimulation.Create(_scenario);
         _loggedOutcomeTick = -1;
 

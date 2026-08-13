@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Hukbo.Core.Movement;
 using Hukbo.Diagnostics;
 
 namespace Hukbo.Client.Settings;
@@ -35,18 +36,22 @@ internal sealed class ClientSettingsStore
     /// <see cref="StartupDisplayMode"/> settings. This is backward compatible:
     /// a version 7 file loads through <see cref="AcceptedSchemaVersions"/>
     /// with only those absent fields defaulting.
+    /// Raised again from 8 to 9 by the <see cref="MovementPresetId"/> setting.
+    /// This is backward compatible on the same terms as the 7-to-8 bump: a
+    /// version 8 file loads through <see cref="AcceptedSchemaVersions"/> with
+    /// only that absent field defaulting.
     /// </summary>
-    public const int SupportedSchemaVersion = 8;
+    public const int SupportedSchemaVersion = 9;
 
     /// <summary>
     /// Schema versions <see cref="Load"/> accepts without discarding the
-    /// whole file. Version 7 and the current version qualify because the
-    /// 7-to-8 change only adds independently defaulted fields. Versions before
-    /// 7 remain incompatible because of the deliberate composition resets
-    /// recorded on <see cref="ArmyComposition"/>.
+    /// whole file. Version 8 and the current version qualify because the
+    /// 8-to-9 change only adds an independently defaulted field. Versions
+    /// before 8 remain incompatible because of the deliberate composition
+    /// resets recorded on <see cref="ArmyComposition"/>.
     /// </summary>
     private static readonly int[] AcceptedSchemaVersions =
-        [7, SupportedSchemaVersion];
+        [8, SupportedSchemaVersion];
 
     // Moved from Stylized to Full on 2026-08-13
     // (docs/plans/2026-08-13-lethal-blow-legibility-design.md) on the
@@ -65,6 +70,19 @@ internal sealed class ClientSettingsStore
 
     private const StartupDisplayMode DefaultStartupDisplayMode =
         StartupDisplayMode.Windowed;
+
+    /// <summary>
+    /// The client's own hardcoded value before this setting existed
+    /// (<c>ArenaGame.BuildScenario</c>), so a spectator who never touches the
+    /// selector sees no change of any kind. It moved from
+    /// <see cref="MovementPresetId.BattlefieldRealismV10"/> to
+    /// <see cref="MovementPresetId.LastStandEngagementV11"/> when the last-stand
+    /// engagement fix shipped; this default tracks the client's default rather
+    /// than naming a preset of its own, and moves again the next time that one
+    /// does.
+    /// </summary>
+    private const MovementPresetId DefaultMovementPreset =
+        MovementPresetId.LastStandEngagementV11;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -152,7 +170,8 @@ internal sealed class ClientSettingsStore
                 ResolveMotionIntensity(raw.MotionIntensity),
                 ResolveAutoCameraMode(raw.AutoCameraMode),
                 ResolveUiScale(raw.UiScale),
-                ResolveStartupDisplayMode(raw.StartupDisplayMode));
+                ResolveStartupDisplayMode(raw.StartupDisplayMode),
+                ResolveMovementPreset(raw.MovementPreset));
             _log.Write(
                 LogLevel.Debug,
                 LogChannel.Settings,
@@ -199,7 +218,8 @@ internal sealed class ClientSettingsStore
         MotionIntensity motionIntensity,
         AutoCameraMode autoCameraMode,
         UiScale uiScale,
-        StartupDisplayMode startupDisplayMode)
+        StartupDisplayMode startupDisplayMode,
+        MovementPresetId movementPreset)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(selectedThemeId);
         ArgumentNullException.ThrowIfNull(composition);
@@ -224,7 +244,8 @@ internal sealed class ClientSettingsStore
                 ResolveMotionIntensity(motionIntensity),
                 ResolveAutoCameraMode(autoCameraMode),
                 ResolveUiScale(uiScale),
-                ResolveStartupDisplayMode(startupDisplayMode));
+                ResolveStartupDisplayMode(startupDisplayMode),
+                ResolveMovementPreset(movementPreset));
             using (var stream = new FileStream(
                 temporaryPath,
                 FileMode.CreateNew,
@@ -306,7 +327,8 @@ internal sealed class ClientSettingsStore
             next.MotionIntensity,
             next.AutoCameraMode,
             next.UiScale,
-            next.StartupDisplayMode);
+            next.StartupDisplayMode,
+            next.MovementPreset);
     }
 
     private void LogDefaulted(string defaultThemeId, string reason) =>
@@ -332,7 +354,8 @@ internal sealed class ClientSettingsStore
             DefaultMotionIntensity,
             DefaultAutoCameraMode,
             DefaultUiScale,
-            DefaultStartupDisplayMode);
+            DefaultStartupDisplayMode,
+            DefaultMovementPreset);
 
     /// <summary>
     /// A missing or out-of-range gore level resolves to the default without
@@ -387,6 +410,24 @@ internal sealed class ClientSettingsStore
             ? value
             : DefaultStartupDisplayMode;
 
+    /// <summary>
+    /// A missing, out-of-range, or unregistered movement preset resolves to
+    /// the default without invalidating any sibling field. Unregistered is
+    /// deliberately checked separately from <see cref="Enum.IsDefined"/>:
+    /// every enum value is a defined <see cref="MovementPresetId"/>, but
+    /// <c>Scenario.Validate</c> throws for one that
+    /// <see cref="MovementPresetRegistry"/> has not registered, and this
+    /// resolver's job is to never hand that value onward. Missing is what a
+    /// version 8 file - written before this field existed - looks like.
+    /// </summary>
+    private static MovementPresetId ResolveMovementPreset(
+        MovementPresetId? persisted) =>
+        persisted is { } value &&
+        Enum.IsDefined(value) &&
+        MovementPresetRegistry.IsRegistered(value)
+            ? value
+            : DefaultMovementPreset;
+
     private static void TryDelete(string path)
     {
         try
@@ -415,5 +456,6 @@ internal sealed class ClientSettingsStore
         MotionIntensity? MotionIntensity,
         AutoCameraMode? AutoCameraMode,
         UiScale? UiScale,
-        StartupDisplayMode? StartupDisplayMode);
+        StartupDisplayMode? StartupDisplayMode,
+        MovementPresetId? MovementPreset);
 }
