@@ -184,6 +184,33 @@ public sealed class ProjectileGeometryTests
     }
 
     [Theory]
+    [InlineData(4f)]
+    [InlineData(12f)]
+    public void Create_NeverOutgrowsThePawnAtHighZoom(float cameraZoom)
+    {
+        var prop = ProjectileGeometry.Create(
+            PawnWeaponRole.Bangkaw,
+            Anywhere,
+            East,
+            cameraZoom);
+        var propLength = prop.Primary.Length + prop.Secondary.Length;
+
+        // Built at the same zoom the prop was, and taken from VisualBounds —
+        // the union of the pawn's rendered and selection bounds, the most
+        // generous height the pawn ever draws at. A looser bound means this
+        // test can only go red for one reason: an oversized prop.
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kampilan, ShieldId.TallHardwood);
+        var pawnLayout = PawnGeometry.Create(new Vector2(400f, 300f), cameraZoom, appearance);
+        var pawnHeight = pawnLayout.VisualBounds.Height;
+
+        Assert.True(
+            propLength < 0.9f * pawnHeight,
+            $"Bangkaw prop drew {propLength}px against a pawn {pawnHeight}px " +
+                $"tall at zoom {cameraZoom} — a thrown spear must never draw " +
+                "longer than the warriors it flies past.");
+    }
+
+    [Theory]
     [InlineData(BodyPart.WeaponArm)]
     [InlineData(BodyPart.ShieldArm)]
     [InlineData(BodyPart.Shoulder)]
