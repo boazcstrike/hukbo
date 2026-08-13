@@ -77,12 +77,19 @@ internal sealed class ClientSettingsStore
     /// selector sees no change of any kind. It moved from
     /// <see cref="MovementPresetId.BattlefieldRealismV10"/> to
     /// <see cref="MovementPresetId.LastStandEngagementV11"/> when the last-stand
-    /// engagement fix shipped; this default tracks the client's default rather
-    /// than naming a preset of its own, and moves again the next time that one
-    /// does.
+    /// engagement fix shipped, and again to
+    /// <see cref="MovementPresetId.CohortLateralSpreadV13"/> when the cohort
+    /// lateral spread fix shipped; this default tracks the client's default
+    /// rather than naming a preset of its own, and moves again the next time
+    /// that one does. A settings file that already recorded a movement
+    /// preset — including a version 9 file recording
+    /// <see cref="MovementPresetId.LastStandEngagementV11"/> from before this
+    /// bump — is read back verbatim through <see cref="ResolveMovementPreset"/>
+    /// and is unaffected: this constant only governs what a spectator who has
+    /// never chosen a preset, or whose file failed to load, receives.
     /// </summary>
     private const MovementPresetId DefaultMovementPreset =
-        MovementPresetId.LastStandEngagementV11;
+        MovementPresetId.CohortLateralSpreadV13;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
