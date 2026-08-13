@@ -170,9 +170,9 @@ internal sealed class ArenaAutoPanController
     }
 
     /// <summary>
-    /// Keeps travelling until a fighter is comfortably inside the screen, not
-    /// merely touching its edge, refreshing the target on a fixed cadence so
-    /// the camera converges on a fight that is still moving. Gives up at
+    /// Keeps travelling until a fighter is near the centre of the screen, not
+    /// merely inside it, refreshing the target on a fixed cadence so the
+    /// camera converges on a fight that is still moving. Gives up at
     /// <see cref="ArenaAutoPan.MaximumPanSeconds"/> whatever the agents do.
     /// </summary>
     private Vector2 ContinuePan(
@@ -185,8 +185,8 @@ internal sealed class ArenaAutoPanController
     {
         _panElapsed += elapsedSeconds;
 
-        var settleExtents = halfExtents * ArenaAutoPan.SettleFraction;
-        if (ArenaAutoPan.HasFighterInside(agents, center, settleExtents) ||
+        var centeredExtents = halfExtents * ArenaAutoPan.CenteredFraction;
+        if (ArenaAutoPan.HasFighterInside(agents, center, centeredExtents) ||
             _panElapsed >= ArenaAutoPan.MaximumPanSeconds)
         {
             Settle(tuning);

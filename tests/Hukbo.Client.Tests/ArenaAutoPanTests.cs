@@ -414,6 +414,40 @@ public sealed class ArenaAutoPanTests
         Assert.True(center.X > 500f - edgeX);
     }
 
+    /// <summary>
+    /// A pan must end with the fight near the middle of the screen, not the
+    /// instant the fight first crosses into the frame at its edge.
+    /// </summary>
+    /// <remarks>
+    /// The band below is a literal on purpose. Deriving it from
+    /// <see cref="ArenaAutoPan.CenteredFraction"/> would move the assertion
+    /// with the constant it exists to guard, and the test would then pass at
+    /// the old 0.7 band as readily as at the new one — which it did, before
+    /// this literal replaced it. A quarter of the half-extent is this test's
+    /// own statement of what "near the middle" means.
+    /// </remarks>
+    [Fact]
+    public void Controller_EndsAPanWithTheFightNearTheCentreNotTheEdge()
+    {
+        const float CentredBand = 0.25f;
+
+        var controller = new ArenaAutoPanController();
+        AgentView[] agents = [CreateAgent(1, 500f, 0f, AgentIntent.Attacking)];
+
+        var center = RunOutIdleGrace(controller, agents, Vector2.Zero);
+        for (var frame = 0; frame < 600 && controller.IsPanning; frame++)
+        {
+            center = Update(controller, agents, center);
+        }
+
+        Assert.False(controller.IsPanning);
+        Assert.True(
+            MathF.Abs(500f - center.X) <= HalfExtents.X * CentredBand,
+            $"pan stopped {MathF.Abs(500f - center.X)} from the fight, " +
+            $"outside the {HalfExtents.X * CentredBand} centred band");
+        Assert.True(MathF.Abs(center.Y) <= HalfExtents.Y * CentredBand);
+    }
+
     [Fact]
     public void Controller_YieldsToManualPanAndHoldsOffForTheOverrideWindow()
     {
@@ -562,7 +596,7 @@ public sealed class ArenaAutoPanTests
     }
 
     private static bool IsSettled(Vector2 center) =>
-        MathF.Abs(500f - center.X) <= HalfExtents.X * ArenaAutoPan.SettleFraction;
+        MathF.Abs(500f - center.X) <= HalfExtents.X * ArenaAutoPan.CenteredFraction;
 
     /// <summary>
     /// Runs frames until the idle grace has expired and a pan has begun, so a

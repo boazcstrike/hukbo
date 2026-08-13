@@ -40,11 +40,22 @@ internal static class ArenaAutoPan
     internal const float ClusterRadius = 14f;
 
     /// <summary>
-    /// Fraction of the visible rectangle that must contain a fighter before
-    /// auto-pan lets go. Below one, so the camera does not stop with the fight
-    /// pinned to the screen edge and immediately re-engage.
+    /// Fraction of the visible rectangle searched for a fighter when deciding
+    /// whether the spectator can already see a fight, in
+    /// <see cref="AutoCameraMode.Follow"/>. This has no part in ending a pan;
+    /// see <see cref="CenteredFraction"/> for that.
     /// </summary>
-    internal const float SettleFraction = 0.7f;
+    internal const float FollowOnScreenFraction = 0.7f;
+
+    /// <summary>
+    /// Fraction of the half-extent the melee must be brought inside before a
+    /// pan is finished. Small on purpose: stopping as soon as the first
+    /// fighter crossed the frame left the fight pinned to a screen corner.
+    /// Not zero, because arrival is asymptotic and a live melee keeps
+    /// drifting, so demanding the exact centre would burn
+    /// <see cref="MaximumPanSeconds"/> on every pan.
+    /// </summary>
+    internal const float CenteredFraction = 0.2f;
 
     /// <summary>
     /// Screen pixels per second, converted to world units by the caller using
@@ -125,7 +136,7 @@ internal static class ArenaAutoPan
             ? new AutoCameraTuning(
                 FollowIdleGraceSeconds,
                 FollowDwellSeconds,
-                SettleFraction)
+                FollowOnScreenFraction)
             : new AutoCameraTuning(
                 AssistedIdleGraceSeconds,
                 AssistedDwellSeconds,
