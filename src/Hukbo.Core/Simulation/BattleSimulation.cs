@@ -1496,9 +1496,16 @@ public sealed class BattleSimulation
     /// same reason <see cref="UsesBattlefieldRealism"/> is: the last-stand code
     /// it guards is shared and unversioned, so the set of presets that opt into
     /// the new behaviour is stated in one place rather than at each call site.
+    /// <see cref="MovementPresetId.ContingentShapeV12"/> is admitted for the
+    /// same reason <see cref="UsesBattlefieldRealism"/> admits it: it is
+    /// defined as a strict superset of
+    /// <see cref="MovementPresetId.LastStandEngagementV11"/>'s behaviour, so
+    /// it must keep V11's last-stand regroup yield unchanged before any
+    /// contingent-shaping behaviour of its own is layered on top.
     /// </summary>
     private static bool YieldsLastStandEngagement(MovementPresetId preset) =>
-        preset is MovementPresetId.LastStandEngagementV11;
+        preset is MovementPresetId.LastStandEngagementV11
+            or MovementPresetId.ContingentShapeV12;
 
     /// <summary>
     /// Derives <see cref="_factionRallyEngaged"/> for both factions: whether

@@ -63,7 +63,8 @@ public sealed class ContingentShapeV12Tests
         Assert.NotEqual(v11.ContentHash, v12.ContentHash);
     }
 
-    // ----- BattleSimulation.UsesBattlefieldRealism admits V12 -----
+    // ----- BattleSimulation.UsesBattlefieldRealism and
+    // BattleSimulation.YieldsLastStandEngagement both admit V12 -----
 
     /// <summary>
     /// A full seed-1, two-hundred-agent battle under
@@ -71,37 +72,23 @@ public sealed class ContingentShapeV12Tests
     /// same trajectory -- per-agent position, hit points, intent, target,
     /// and movement resolution on every tick, plus the exact ordered event
     /// stream -- as the same battle under
-    /// <see cref="MovementPresetId.LastStandEngagementV11"/>. V12 carries no
-    /// ruleset field that differs from V11 (<see
+    /// <see cref="MovementPresetId.LastStandEngagementV11"/>, at the
+    /// scenario's default <c>LastStandThresholdAgents</c> of six, where
+    /// <c>BattleSimulation</c>'s last-stand regroup yield actually fires.
+    /// V12 carries no ruleset field that differs from V11 (<see
     /// cref="ContingentShapeV12CarriesItsOwnIdentity"/> proves that), so
-    /// this is what proves V12 is a true behavioural superset of V11 for the
-    /// three behaviours <c>UsesBattlefieldRealism</c> admits it to -- cohort
-    /// deployment, the nearest-melee-threat scratch, and the ranged retreat
-    /// rung -- before any contingent-shaping behaviour is layered on top of
-    /// it. Before the fix this diverges at tick 1 on the deployment
-    /// permutation alone, which is the failure this test exists to catch.
+    /// this is what proves V12 is a true behavioural superset of V11 --
+    /// both the three <c>UsesBattlefieldRealism</c> behaviours (cohort
+    /// deployment, the nearest-melee-threat scratch, the ranged retreat
+    /// rung) and the last-stand regroup yield <c>YieldsLastStandEngagement</c>
+    /// gates -- before any contingent-shaping behaviour is layered on top of
+    /// it. Before <c>YieldsLastStandEngagement</c> admitted V12 this
+    /// diverged at tick 1629, entity 197's <c>Move</c> event naming enemy
+    /// 100 under V11 (the yield lets it keep pursuing) against rally agent
+    /// 123 under V12 (no yield, so it regrouped instead); that is the
+    /// failure this test exists to catch.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <c>LastStandThresholdAgents</c> is pinned to zero here, disabling the
-    /// last-stand regroup yield entirely, deliberately mirroring
-    /// <c>LastStandEngagementV11Tests.WithNoLastStandV11RunsByteIdenticallyToV10</c>'s
-    /// identical scoping choice for the V10/V11 pair. <c>BattleSimulation</c>
-    /// gates that yield through a second, separate predicate,
-    /// <c>YieldsLastStandEngagement</c>, which is not
-    /// <c>UsesBattlefieldRealism</c> and is out of this task's owned scope
-    /// -- and it does not admit V12 either. Measured directly: with the
-    /// default <c>LastStandThresholdAgents</c> of six, this same comparison
-    /// diverges at tick 1629, entity 197's <c>Move</c> event naming enemy
-    /// 100 under V11 (the yield lets it keep pursuing) against rally agent
-    /// 123 under V12 (no yield, so it regroups instead). That is a second,
-    /// separate defect -- <c>YieldsLastStandEngagement</c> also needs
-    /// <c>MovementPresetId.ContingentShapeV12</c> admitted before V12 is a
-    /// true superset of V11 under every scenario -- reported here rather
-    /// than silently fixed, because this task owns only
-    /// <c>UsesBattlefieldRealism</c>.
-    /// </para>
-    /// <para>
     /// <c>Scenario.MovementPreset</c> folds directly into
     /// <c>BattleSimulation.ComputeStateHash()</c>, and
     /// <c>MovementRuleset.ContentHash</c> folds its own <c>Id</c>, so two
@@ -113,15 +100,37 @@ public sealed class ContingentShapeV12Tests
     /// suites already use for the same reason: full per-agent field
     /// equality every tick plus full <c>LastEvents</c> equality, which
     /// together also fold to the same ordered event hash.
-    /// </para>
     /// </remarks>
     [Fact]
     public void ContingentShapeV12ProducesAByteIdenticalFullBattleToLastStandEngagementV11()
     {
+        AssertFullBattlesAreByteIdentical(lastStandThresholdAgents: null);
+    }
+
+    /// <summary>
+    /// The same byte-identical full-battle comparison as
+    /// <see cref="ContingentShapeV12ProducesAByteIdenticalFullBattleToLastStandEngagementV11"/>,
+    /// re-run with <c>LastStandThresholdAgents</c> pinned to zero, which
+    /// disables the last-stand regroup yield entirely for both presets.
+    /// Kept alongside the default-threshold case because it exercises a
+    /// distinct regime -- no faction ever reaches the last-stand threshold
+    /// -- rather than because it substitutes for the default-threshold
+    /// proof; the default-threshold case above is the one that proves the
+    /// last-stand behaviour itself is reproduced, not just the case where it
+    /// never fires.
+    /// </summary>
+    [Fact]
+    public void WithNoLastStandContingentShapeV12RunsByteIdenticallyToLastStandEngagementV11()
+    {
+        AssertFullBattlesAreByteIdentical(lastStandThresholdAgents: 0);
+    }
+
+    private static void AssertFullBattlesAreByteIdentical(int? lastStandThresholdAgents)
+    {
         var v11 = CreateFullBattleControlRun(
-            MovementPresetId.LastStandEngagementV11, lastStandThresholdAgents: 0);
+            MovementPresetId.LastStandEngagementV11, lastStandThresholdAgents);
         var v12 = CreateFullBattleControlRun(
-            MovementPresetId.ContingentShapeV12, lastStandThresholdAgents: 0);
+            MovementPresetId.ContingentShapeV12, lastStandThresholdAgents);
 
         var v11EventFold = Fnv1a.OffsetBasis;
         var v12EventFold = Fnv1a.OffsetBasis;
@@ -231,10 +240,12 @@ public sealed class ContingentShapeV12Tests
     /// scenario that cannot silently drift out from under it when an
     /// unrelated default changes elsewhere in the codebase.
     /// <paramref name="lastStandThresholdAgents"/> defaults to
-    /// <c>Scenario.CreateDefault</c>'s own value (six) and is overridden to
-    /// zero by the one comparison that must stay clear of the separate,
-    /// unadmitted <c>YieldsLastStandEngagement</c> gate documented on
-    /// <see cref="ContingentShapeV12ProducesAByteIdenticalFullBattleToLastStandEngagementV11"/>.
+    /// <c>Scenario.CreateDefault</c>'s own value (six) so that callers which
+    /// pass <see langword="null"/> exercise <c>YieldsLastStandEngagement</c>'s
+    /// last-stand regroup yield at its real, shipped threshold; it is
+    /// overridden to zero by
+    /// <see cref="WithNoLastStandContingentShapeV12RunsByteIdenticallyToLastStandEngagementV11"/>
+    /// to exercise the disabled regime instead.
     /// </summary>
     private static BattleSimulation CreateFullBattleControlRun(
         MovementPresetId movementPreset,
