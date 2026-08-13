@@ -23,18 +23,21 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-14
 
-18 rows across 5 subsections: **15 `PENDING`, 3 `PASS`, and no `BLOCKED`,
+13 rows across 4 subsections: **13 `PENDING`, and no `PASS`, `BLOCKED`,
 `FAIL`, or `DECLINED` row** — recounted from the status column of this file on
-2026-08-14, after seven families closed in full that day and their subsections
+2026-08-14, after eight families closed in full that day and their subsections
 were deleted whole, and after the contingent shape selector family added `CS-1`
 and `CS-2` as two new `PENDING` rows in a subsection of their own.
 
-The previous count said sixteen rows, all `PENDING`. Sixteen was right; all
-`PENDING` was not — rows 60, 61, and 61a of the starting deployment section were
-already `PASS` when it was written, and they are the three `PASS` rows counted
-above. No row's status was changed to arrive at this count.
+The count before this one said eighteen rows, of which three were `PASS`.
+Those three were rows 60, 61 and 61a of the starting deployment section. That
+family's last two rows, 58 and 59, were run and passed on 2026-08-14, so all
+five closed and the section was deleted whole under this file's own rule. Its
+record is the 2026-08-14 archive titled **"Starting deployment smoke"**, named
+here in prose rather than linked because that folder is pruned periodically. No
+row's status was changed to arrive at this count.
 
-**Three of the fifteen `PENDING` rows carry a failing observation in `Actual` while sitting
+**Three of the thirteen `PENDING` rows carry a failing observation in `Actual` while sitting
 at `PENDING`, and that is the rule rather than an inconsistency.** `BR-1`,
 `BR-2` and `BR-10` were run on 2026-08-14 and did not pass; a row that has been
 observed to fail and has a fix in flight goes back to `PENDING` carrying what
@@ -59,7 +62,7 @@ three.
 
 Every row left here is something a person still has to do, and every one of them
 is something a person **can** do: none is blocked by the build, and none is
-waiting on a feature that does not exist. 229 rows have been lifted out of this
+waiting on a feature that does not exist. 234 rows have been lifted out of this
 file since it was split out of `docs/development/testing.md`. A closed row is
 not described here once it leaves; its record is the dated archive that carries
 its family's name, and this file is only what is left to run.
@@ -116,9 +119,10 @@ The families below are grouped by what a single launch can actually
 show, because the subsections are ordered by the change that created them
 rather than by what is on screen at once, and a person working down the file in
 order relaunches the game far more often than they need to. The batch rows below
-sum to this file's own total of 18. They summed to 67 before 2026-08-14, because
-two sections had never been given a row here at all; six more batches left the
-table later that day when their families closed in full, and the render and
+sum to this file's own total of 13. They summed to 67 before 2026-08-14, because
+two sections had never been given a row here at all; seven more batches left the
+table later that day when their families closed in full — the starting
+deployment batch last, when its rows 58 and 59 passed — and the render and
 battlefield-realism batches shrank rather than leaving. The contingent shape
 selector batch joined on 2026-08-14 at two rows.
 
@@ -127,7 +131,6 @@ selector batch joined on 2026-08-14 at two rows.
 | Render | `GR` 3 of 5 | 3 `PENDING` | Launch-time render behaviour at the largest battle the panel allows. `GR-1` and `GR-2` passed on 2026-08-14 and were lifted out. All three rows left were attempted that day and not run; the section preamble records why, and why two of the three reasons do not hold |
 | Battlefield realism | `BR` 5 of 10 | 5 `PENDING` | Cohort deployment only. The other 5 are the V10 retreat rung, which passed on 2026-08-14 and was lifted out. Three of these five failed that day and two were held back behind them, so none is a fresh check — read every `Actual` column before launching. `BR-10` is the odd one out: it needs the window resized to 1024 by 720 and the agent inspector open, not a battle watched |
 | Sandata | `SD` 3 of 9 | 3 `PENDING` | `./scripts/run.ps1 -Game Sandata`. The other 6 passed and were lifted out. All three open rows are re-runs rather than fresh checks: `SD-4` and `SD-5` were each attempted twice and failed on causes fixed on 2026-08-12, and `SD-7b` was blocked from the day it was written until the same day. Read each row's `Actual` column before starting |
-| Starting deployment | rows 58 through 61a | 3 `PASS`, 2 `PENDING` | The opening frame, paused at tick 0, and the first few seconds after it. These five were missing from this table until 2026-08-14 |
 | Contingent shape selector | `CS` 2 | 2 `PENDING` | The Army Composition panel's movement-preset row, then two opening deployments compared across a Full Reset. Neither row is a fresh feature check: both are checks that a preset the shipped client could not previously reach now reads correctly when a spectator selects it |
 
 **No row in this file is blocked by the build, and this paragraph used to say
@@ -293,86 +296,6 @@ only thing separating two meanings is a colour, it is not separated.** A hostile
 is a diamond without a pip, a friendly is a square with one, an unknown contact
 carries no weapon at all, a rifle's silhouette is longer than a pistol's, and
 the simulation's own planned route is dashed where a hand-drawn one is solid.
-
-## Starting deployment smoke
-
-Added by the mirrored starting-formation change. **Not performed.** The
-automated evidence proves the arrangement is symmetric, separated and
-overlap-free in numbers; none of it proves the opening frame reads that way to a
-person watching it, which is the only thing these rows are for.
-
-**Amended by the persistent-contingent movement change (T18).** This section's
-premise — that the grouping this checklist describes is only an opening-frame
-property — no longer holds under `PersistentContingentsV2`. The deployment
-groups these rows describe are now the same contingents `ResolveContingentStates`
-carries forward and cycles between gathering and advancing for the rest of the
-battle, not a shape that exists only at tick 0 and dissolves on the first move.
-Rows 58 through 61 still test the opening frame only; row 61a below extends
-the same check past it.
-
-**Further amended by the battlefield-realism change (`BattlefieldRealismV10`).**
-Rows 58, 59, 60, 61, and 61a are reworded below to describe cohort-grouped
-deployment and the weaker, positionally-equivalent-but-not-per-index mirror
-the default rotating roster now produces, in place of the exact per-index
-mirror these rows previously asked a person to confirm.
-
-**Further amended by the cohort lateral spread change
-(`CohortLateralSpreadV13`, 2026-08-14).** A person ran this family on
-2026-08-14 against the pre-V13 build. Rows 60, 61 and 61a passed and are
-recorded below. Rows 58 and 59 failed, and both are back to `PENDING` a re-run
-against a build carrying `CohortLateralSpreadV13`, which is the client's
-default movement preset from that date.
-
-Two things changed in the rows themselves as a result.
-
-Row 58 gains the clause it was missing. What the tester found was that the
-grouping worked — each group did read as mostly one weapon — but that the
-groups were laid across the map in sorted order, so one end of a line was the
-shield-bearing group and the cohorts were not spread across a team's own
-frontage. The row now asks for that spread explicitly, because the previous
-wording could be satisfied by the arrangement that failed.
-
-Row 59's premise was simply wrong and is corrected. The row asked a person to
-accept a weaker-than-exact mirror "under the default rotating roster", but the
-launched client does not use a rotating roster: `ArenaGame.BuildScenario`
-always populates `RosterCounts`, so both factions resolve identical loadouts
-per faction-local index and tick 0 owes an **exact** per-index mirror. The
-rotating roster the old wording described belongs to `Scenario.CreateDefault`,
-which is what the gate and the headless runner use, not the player. A Core test
-now proves the exact tick-0 mirror at the shipped shape — 250 a side,
-`PrecolonialPhilippinesV5`, V13, populated `RosterCounts` — so a failure of
-this row means either the camera framing or something the automated evidence
-cannot see. The row also now states that the mirror is **expected** to decay
-once the battle advances, because cohesion jitter and every combat roll fold
-the absolute `EntityId` and faction 1's ids are offset by `AgentsPerFaction`;
-a tester who unpauses and sees the two armies diverge is watching intended
-behaviour, not a defect.
-
-| Evidence field | Recorded value |
-| --- | --- |
-| Date | 2026-08-14, for rows 60, 61 and 61a only |
-| Machine/platform | Not recorded |
-| Source commit | Not recorded; the run predates `CohortLateralSpreadV13` |
-| Launch path (`source` or package path) | Not recorded |
-| Optional screenshot paths | None recorded |
-
-Rows 60, 61 and 61a were observed on the pre-V13 build. V13 changes only which
-contingent a weapon cohort is dealt to, and leaves the within-group spacing,
-the jitter draw, the contingent persistence and the closing distance untouched,
-so nothing those three rows judge is altered by it. Row 61's second clause — a
-terminal outcome inside the tick limit — is additionally corroborated under V13
-by the gate's fifth headless workload, recorded in
-`docs/development/testing.md`. Row 61's first clause and rows 60 and 61a remain
-visual judgements, and if a re-run of rows 58 and 59 is done on a V13 build it
-costs nothing to look at these three again in the same sitting.
-
-| Check | Expected observation | Actual | Status |
-| --- | --- | --- | --- |
-| 58. Read the opening frame | Added by the battlefield-realism change (`BattlefieldRealismV10`). Before the armies move, each side reads as several separate groups of warriors rather than one undifferentiated cloud, and each group reads as mostly one weapon cohort rather than an even mix of every weapon in the roster, at the default camera fit and without zooming in. Amended again by the cohort lateral spread change: those groups must also be spread across the team's own frontage rather than laid down it in sorted order, so that no single weapon cohort — the shield-bearing warriors above all — occupies one end of the line by itself. Failure is a field that reads as one undifferentiated cloud, groups whose weapon mix looks as uniform as a random cross-section of the whole army, or weapon cohorts collected toward one edge of a team's own frontage instead of distributed across it. | Failed 2026-08-14 on the pre-V13 build: the groups did each read as one weapon, but the cohorts were laid across the map in sorted order, with one cluster of shields and the weapon types unevenly distributed across each team's frontage | PENDING |
-| 59. Check the mirror | Premise corrected by the cohort lateral spread change; the earlier "default rotating roster" wording was false for the launched client and is withdrawn. Pause at tick 0 before anything moves. The two halves are an exact reflection of each other across the vertical centre line: the same number of groups, the same group sizes, the same ragged front, the same weapon cohort in the mirrored lane, and shield bearers on the forward-most slots of a contingent on one side wherever they are on the other. Then unpause: the two armies are **expected** to drift out of exact symmetry as the battle runs, because per-warrior cohesion offsets and combat rolls are keyed on absolute entity id. Failure is the two halves not matching **at tick 0** — a different number or size of groups, a weapon cohort in a lane whose mirror holds a different one, or shield bearers forward on one side only. Divergence after the battle starts is not a failure of this row. | Failed 2026-08-14 on the pre-V13 build; the tester reported the enemy team not mirroring. Not reproduced in source or in tests: a Core test proves the exact per-index tick-0 mirror at the shipped 250-a-side shape. Re-run needed to establish whether what was seen was the row-58 lopsidedness, the assisted camera framing an off-centre view, or a frame past tick 0 | PENDING |
-| 60. Confirm the groups look irregular | Within a group the spacing looks uneven rather than a snapped parade grid, and a new seed visibly reshuffles that spacing without moving the groups or changing which weapon cohort they read as. Failure is warriors within a group snapping to a visible grid or ring, or a new seed producing no visible change in spacing. | Observed 2026-08-14 on the pre-V13 build; the groups looked irregular | PASS |
-| 61. Confirm the armies still meet promptly | The two sides close and fight without a long empty march, and the battle reaches a terminal outcome inside its tick limit. Failure is a long empty march before contact, or a battle that runs out the tick cap with no winner declared. | Observed 2026-08-14 on the pre-V13 build; the armies met promptly | PASS |
-| 61a. Confirm the groups stay distinct past deployment | Added by the persistent-contingent movement change. Let the battle run several seconds past the opening frame, well before the armies meet. Each side still reads as several separate groups of warriors at the default camera fit, each still reading as mostly one weapon cohort, rather than merging into one crowd or losing its weapon identity as soon as the armies start moving. Failure is the groups blurring into one crowd within a few seconds of the opening frame, or a group's weapon identity becoming indistinguishable from its neighbours before the armies make contact. | Observed 2026-08-14 on the pre-V13 build; the groups stayed distinct past deployment | PASS |
 
 ## GPU render smoke (gpu-render Phases 1 and 2)
 

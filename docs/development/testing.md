@@ -603,9 +603,14 @@ this change's was among them. Main has moved on past `33de5cd` since, so that
 commit is the last point this workstream verified, not a claim about whatever
 main holds now.
 
-**Still no evidence about anything interactive.** Smoke rows 58 and 59 are what
-this change was made for, and both are `PENDING` a re-run against a V13 build.
-Rows 60, 61 and 61a passed on 2026-08-14 against the pre-V13 build.
+**The interactive evidence arrived the same day.** Smoke rows 58 and 59, which
+this change was made for, were re-run by a person against a build carrying
+`CohortLateralSpreadV13` and both passed: the weapon groups read as spread
+across each team's frontage, and the two sides showed the same group counts.
+With rows 60, 61 and 61a already passed on the pre-V13 build, the starting
+deployment family closed at five of five and left the live checklist. Its record
+is the 2026-08-14 archive titled **"Starting deployment smoke"**, named in prose
+rather than linked because that folder is pruned periodically.
 
 ## Canonical gate result — Hukbo, 2026-08-14 (agent inspector row wrapping)
 
