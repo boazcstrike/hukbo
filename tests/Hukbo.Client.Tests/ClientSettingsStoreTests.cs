@@ -201,7 +201,8 @@ public sealed class ClientSettingsStoreTests
                 MotionIntensity.Full,
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
-                StartupDisplayMode.Windowed));
+                StartupDisplayMode.Windowed,
+                MovementPresetId.LastStandEngagementV11));
 
             var settings = store.Load("signal");
 
