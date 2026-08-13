@@ -85,7 +85,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_common.ps1')
 
-# RU-31's take counts, and how the attack takes are spread across the six
+# The ranged take counts, and how the attack takes are spread across the six
 # hit classes. The totals are the plan's: twenty per weapon, sixty in all.
 #
 # The plan fixes the per-slot totals and requires ribcage to exist for

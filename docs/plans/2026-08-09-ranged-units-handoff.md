@@ -51,15 +51,22 @@ ticks, seed 1 and reproduced their recorded pairs byte for byte. Use named
 parameters — `-Preset` and `-MovementPreset` — never positional ones. A ranged
 roster runs under V4 or V8 movement and nothing else.
 
-## 3. RU-31 is generated but not closed
+## 3. The ranged sound takes are generated; the listening check is not recorded
 
 All sixty sound files exist. `./scripts/sfx.ps1 -List` reports zero missing of
 twenty-six slots. **The user ran every generating command; no agent generated a
 sound, and none may.**
 
-Its acceptance criterion is not "the files exist". It is that a person has heard
+The acceptance criterion is not "the files exist". It is that a person has heard
 at least one take from each of the thirteen new slots. That has not been recorded,
-so the row stays open.
+so the item stays open.
+
+**2026-08-13.** A `Hukbo.Tools.RenderProbe` run drove a ranged battle to tick
+3,584 with zero `err` lines, and all thirteen ranged slots were submitted to the
+real mixer and reported `Played` — `ReleaseBangkaw` 1,565, `ReleaseBusog` 1,483,
+`ReleaseArquebus` 387, the three `Attack` slots, the three `Miss` slots and the
+three `ClashShield` slots. That proves every slot is reachable and loadable. It
+is not a person listening, and it does not close this item.
 
 Two operational facts worth keeping. The model returns an inaudible take roughly
 one time in four, and `scripts/sfx-ranged.ps1` retries only that failure while
@@ -98,10 +105,12 @@ substitute for playing the game.
 **The merge to `main` happened on 2026-08-09 at `9daa271`,** after this section
 was written. What follows is what remains open, and none of it is code.
 
-- **The eleven `RG-*` rows in `docs/development/testing.md` are all `PENDING`.**
-  A human at an interactive desktop. **No agent may flip one, for any reason,
-  including a passing test.** Six of them were blocked on RU-31's files, which now
-  exist, so they are attemptable for the first time.
+- **The eleven `RG-*` rows are all `PENDING`.** They live in
+  `docs/development/smoke-checklist.md`, not in `docs/development/testing.md` as
+  this document originally said. A human at an interactive desktop flips them.
+  **No agent may flip one, for any reason, including a passing test.** Since
+  2026-08-13 all eleven are attemptable: the sound files exist, and a battle
+  with ranged warriors on the field has been driven to tick 3,584.
 - **The sixty WAV files are committed.** `src/Hukbo.Client/Content/Audio` holds
   130 tracked `.wav` files — the 70 that predate this package plus RU-31's 60,
   spread over the thirteen new slots. Re-rolling a take after listening is still
