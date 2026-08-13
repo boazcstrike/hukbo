@@ -81,6 +81,31 @@ public sealed class GaitAnimationSystemTests
     }
 
     [Fact]
+    public void Ingest_SubCrawlThresholdDisplacementResolvesStanceAndEasesPhaseTowardNeutral()
+    {
+        var system = new GaitAnimationSystem(capacity: 8);
+        system.Ingest([Agent(2, 0, 0)]);
+        system.Ingest([Agent(2, 400, 0)]);
+        Assert.True(system.TryGetEntry(2, out var moving));
+        var phaseWhileMoving = moving.PhaseTurns;
+
+        // Below the arrival taper's floor of 1 raw unit per tick, a closing
+        // attacker steps this slowly for hundreds of ticks. Each step is far
+        // below CrawlThresholdRawPerTick, so every one of these resolves
+        // Stance rather than a frozen mid-swing Walk offset.
+        system.Ingest([Agent(2, 401, 0)]);
+        system.Ingest([Agent(2, 402, 0)]);
+        system.Ingest([Agent(2, 403, 0)]);
+
+        Assert.True(system.TryGetEntry(2, out var crawling));
+        Assert.Equal(GaitMode.Stance, crawling.Mode);
+        var nearestNeutral = MathF.Round(phaseWhileMoving * 2f) / 2f;
+        Assert.True(
+            MathF.Abs(crawling.PhaseTurns - nearestNeutral) <
+            MathF.Abs(phaseWhileMoving - nearestNeutral));
+    }
+
+    [Fact]
     public void Ingest_NoTickAfterTheFirstAdvancesNoPhase()
     {
         var system = new GaitAnimationSystem(capacity: 8);

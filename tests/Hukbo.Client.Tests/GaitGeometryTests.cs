@@ -23,6 +23,19 @@ public sealed class GaitGeometryTests
     }
 
     [Fact]
+    public void ResolveMode_BelowCrawlThresholdIsStance()
+    {
+        Assert.Equal(GaitMode.Stance, GaitGeometry.ResolveMode(1f));
+        Assert.Equal(GaitMode.Stance, GaitGeometry.ResolveMode(59f));
+    }
+
+    [Fact]
+    public void ResolveMode_AtCrawlThresholdIsWalk()
+    {
+        Assert.Equal(GaitMode.Walk, GaitGeometry.ResolveMode(60f));
+    }
+
+    [Fact]
     public void ResolveMode_AtOrAboveRunThresholdIsRun()
     {
         Assert.Equal(GaitMode.Run, GaitGeometry.ResolveMode(1600f));

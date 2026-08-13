@@ -302,6 +302,46 @@ public sealed class AttackPoseRenderingTests
     }
 
     /// <summary>
+    /// Section 5 of the strike-while-moving design pinned a one-pixel floor
+    /// for the gait-only case (<c>PawnGeometryTests.cs:766</c>) but found no
+    /// equivalent for the composed attack-plus-gait case: the only composed
+    /// test runs at High tier and asserts only that the striking stride is
+    /// smaller than the walking one, with no pixel floor. At Medium tier with
+    /// a 10-pixel leg, <c>PlantStride</c>'s full damping (40 per cent of the
+    /// stride survives a fully committed attack) leaves a planted stride of
+    /// 0.32 * 0.4 * 10 = 1.28 px against an unplanted 3.20 px — close enough
+    /// to zero that rounding through the drawn rectangle, not the raw
+    /// arithmetic, is the only way to know it survives.
+    /// </summary>
+    [Fact]
+    public void AttackStance_KeepsAtLeastOnePixelOfLegOffsetAtMediumDetail()
+    {
+        var gait = new GaitPose(
+            GaitMode.Walk,
+            PhaseTurns: 0.25f,
+            LeftLegOffsetRatio: 0.32f,
+            RightLegOffsetRatio: -0.32f,
+            LeftFootLiftRatio: 0.15f,
+            RightFootLiftRatio: 0f,
+            TorsoLeanX: 0f,
+            TorsoLeanY: 0f,
+            DirectionSign: 1f);
+        var striking = Posed(WeaponId.Itak, MediumZoom, gaitPose: gait);
+
+        Assert.Equal(PawnDetailTier.Medium, striking.DetailTier);
+        Assert.False(striking.LeftLegBounds.IsEmpty);
+        Assert.False(striking.RightLegBounds.IsEmpty);
+
+        var strikingStride = MathF.Abs(
+            striking.LeftLegBounds.Center.X - striking.RightLegBounds.Center.X);
+
+        Assert.True(
+            strikingStride >= 1f,
+            $"stride {strikingStride} rounded below the one-pixel floor at " +
+            "Medium tier.");
+    }
+
+    /// <summary>
     /// Neutral geometry stays bit-for-bit what it was. An attack pose that is
     /// not active may not move a single rectangle.
     /// </summary>
