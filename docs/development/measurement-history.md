@@ -866,9 +866,13 @@ the expected result: the change is entirely inside
 `Hukbo.Client` and `Hukbo.Diagnostics` and nothing it touches reaches a state
 hash.
 
-**This proves the non-interactive gate only.** Whether the camera now feels
-calm is a question about motion on a screen, and every row in the "Auto camera
-modes smoke" checklist below is `PENDING`.
+**This proves the non-interactive gate only.** Whether the camera now felt
+calm was a question about motion on a screen, decided later by a person at an
+interactive desktop rather than by this run: all seven rows of the auto camera
+modes family were run and closed `PASS` on 2026-08-12. One of them, row 149,
+surfaced a real, separate finding about where a pan ends when it moves in from
+an empty, no-fight screen, and that finding was reopened as a new row, `AC-1`,
+in the live checklist.
 
 ## Previous non-interactive result — movement preset default flips to PersistentContingentsV3 (T6), 2026-07-28
 
@@ -932,6 +936,196 @@ is what its digest fixture proves.
 
 **This supersedes the `C79B76AE81C300CB` pair recorded below** as the seed-1,
 200-agent, 10,000-tick baseline for the shipped default.
+
+## Persistent contingent shape measurement behind smoke rows 104 and 114, 2026-07-28
+
+These two entries are the `Hukbo.Tools.ContingentShape` sweeps that stood
+behind smoke-checklist rows 104 and 114 of the persistent contingent family.
+That family was run in full, and passed in full, by a person at an
+interactive desktop on 2026-08-13, and the family was then removed from
+`docs/development/smoke-checklist.md`. That closure is named here in prose as
+**Persistent contingent smoke — closed 2026-08-13**. These measurements move
+here so the numbers outlive the checklist rows that originally cited them.
+
+**Measurement behind rows 104 and 114.** Both failures recorded in smoke rows
+104 and 114 were judgements by eye. `Hukbo.Tools.ContingentShape`
+(see [tools/README.md](../../tools/README.md)) attaches numbers to them. The
+figures below are from a five-seed sweep, 200 agents, 10 000-tick limit, run at
+commit `8f4e426`:
+
+```powershell
+dotnet build src/Hukbo.Core/Hukbo.Core.csproj -c Release
+dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5
+dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5 IndependentPursuitV1
+```
+
+**Row 114 is confirmed, and one rule causes it.** Of the fifty
+contingent-battles observed, all fifty reached `ContingentState.Close`, and
+none of the fifty ever returned to `ContingentState.Hold` afterward. Hold ticks
+after a contingent's first `Close`: zero. Hold episodes after a contingent's
+first `Close`: zero. Contingents spend 63.69 % of their living ticks in `Close`
+and a further 23.51 % in `Break`, against 3.09 % in `Hold`. The denial
+attribution puts 63.69 % of all contingent-ticks on transition rule 3 — an
+enemy within the close radius — while the two geometric gates account for
+1.81 % and 1.07 %, and a shut duty-cycle window for 1.12 %. Rule 3 tests the
+minimum distance over *every* member of the contingent, so one warrior of forty
+reaching contact puts the whole contingent into `Close`, and in a converged
+melee that condition never lifts again.
+
+**Row 104 is not reproduced by the shape metric, and points at the same
+cause.** Across 1 671 `Hold` samples the principal-axis aspect ratio has a
+median of 1.56, a 99th percentile of 3.06, and a maximum of 5.17; 79.29 % of
+gathers sit below 2.0. That is a clump, not a line. The two hypotheses that
+would have produced a line are both refuted for `Hold`: the gathered cloud
+aligns more with the contingent's own direction of advance (mean 12.21°) than
+with a world axis (mean 22.09°), which is the opposite of what an
+axis-aligned bias square would produce; and no `Hold` or `Advance` sample in
+the whole sweep fell within sixty ticks of a leader change, because leader
+changes require deaths and deaths only begin once a contingent has already
+latched into `Close`. What the observer saw mid-battle was therefore almost
+certainly not a `Hold` at all — `Close` contingents have a median aspect of
+3.60 and a 90th percentile of 7.73 — which makes rows 104 and 114 two faces of
+one defect rather than two.
+
+**Control.** The same sweep under the frozen `IndependentPursuitV1` preset
+leaves every contingent in `ContingentState.None` for 100 % of its ticks, and
+the same nominal groups then show a median aspect of 5.09 with both angles at
+44.1°, which is the uniform-random value. The cohesion that `Hold` applies is
+doing real work when it is allowed to run; it is almost never allowed to run.
+
+## Re-measurement after the `Close` latch fix (T7), 2026-07-28
+
+The measurement above is the "before" picture, taken at commit `8f4e426`,
+before any rule change from this workstream landed. This is the "after"
+picture, taken once T1 through T6 of
+the contingent close-latch plan
+had landed (commits `bde702f` through `855c797`): `MovementRuleset` now
+carries `CloseFractionNumerator` and `CloseFractionDenominator`; transition
+rule 3 counts members in contact against those fractions instead of taking a
+minimum distance; `PersistentContingentsV3` is registered with `(1, 2)` —
+close at half the living members in contact, re-open below a quarter; and
+`Scenario`'s shipped default has moved from `PersistentContingentsV2` to
+`PersistentContingentsV3`.
+
+Both runs use the same workload the before-table used — a five-seed sweep,
+200 agents, a 10 000-tick limit, read from this file rather than assumed:
+
+```powershell
+dotnet build src/Hukbo.Core/Hukbo.Core.csproj -c Release
+dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5 PersistentContingentsV3
+dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5 PersistentContingentsV2
+```
+
+**A note on the command line actually run.** The plan's T7 section writes the
+first command with no fourth argument, relying on the tool's default. That
+default is a literal hardcoded in `tools/Hukbo.Tools.ContingentShape/Program.cs`
+(`MovementPresetId.PersistentContingentsV2`), independent of `Scenario`'s
+shipped default — T5 and T6 did not touch it, and this task's file ownership
+does not extend to changing it either. Running the tool with no fourth
+argument today therefore still measures V2, not the new shipped default, so
+both runs below pass the preset explicitly instead. The second run
+(`PersistentContingentsV2`) is the control the plan asks for either way.
+
+**Occupancy and denial attribution.**
+
+| State / denial reason | V2 (control) share | V3 share |
+| --- | --- | --- |
+| `Close` / `close-enemy-within-close-radius` (rule 3) | 63.69 % | 53.11 % |
+| `Break` / `break-attrition` (rule 2) | 23.51 % | 30.45 % |
+| `Advance`, cohesion not needed / `already-gathered` | 5.71 % | 6.77 % |
+| `gate6-square-overlap` | 1.81 % | 3.89 % |
+| `Hold` / `none-cohesion-granted` | 3.09 % | 3.39 % |
+| `window-shut` (duty cycle) | 1.12 % | 1.22 % |
+| `gate5-map-edge` | 1.07 % | 1.17 % |
+
+Design section 5 predicted the geometric gates and rule 2 (attrition) might
+become the new ceiling once rule 3 stopped locking every contingent into
+`Close` on a single member's contact. That prediction held: `break-attrition`
+rose from 23.51 % to 30.45 %, and `gate6-square-overlap` roughly doubled, from
+1.81 % to 3.89 %. `close-enemy-within-close-radius` fell from 63.69 % to
+53.11 %, which is the fix doing what it was built to do — contingents spend
+markedly less of the battle latched into `Close`.
+
+**1. Hold episodes after first `Close` — must be non-zero.** V3: 1 episode,
+14 ticks, across 50 contingent-battles, all 50 of which reached `Close`. V2
+control: 0 episodes, 0 ticks, matching the frozen before-table exactly. The
+count is non-zero, so the change did not fail at its stated purpose, but the
+margin is thin: one `Hold` episode across the whole five-seed sweep is a long
+way from "several small contingents repeatedly gathering and re-forming during
+the advance," which is the spectator-visible behaviour rows 104 and 114
+actually describe. That gap is recorded here as a finding rather than rounded
+up.
+
+**2. `Hold` aspect-ratio distribution.**
+
+| Metric | V2 (today's baseline) | V3 |
+| --- | --- | --- |
+| Median | 1.56 | 1.59 |
+| p99 | 3.06 | 5.04 |
+| Max | 5.17 | 14.21 |
+| Share below 2.0 | 79.29 % | 75.74 % |
+
+The median barely moves. The tail does: p99 rises from 3.06 to 5.04 and the
+observed maximum from 5.17 to 14.21, and the share of gathers reading as a
+tight clump (aspect below 2.0) drops from 79.29 % to 75.74 %. That is a
+materially worse tail, not a materially worse typical case, and the plan is
+explicit that a worse distribution is new information rather than a thing to
+quietly tune away. It is recorded here as a finding: whatever `Hold` episodes
+now occur mid-battle (after a contingent has already passed through `Close` at
+least once) evidently include some shaped less like a clump than the
+approach-phase gathers the before-table measured. With only 1 mid-battle
+`Hold` episode observed for V3 in this sweep, that is the most likely driver,
+but the tool does not yet split `Hold` samples by before/after first `Close`
+the way it splits ticks and episodes — the numbers above are the aggregate
+across all `Hold` samples, exactly as the before-table reported them, and
+that split is not built.
+
+**3. Denial attribution**, repeated in one line per rule or gate for the
+report contract: `close-enemy-within-close-radius` (rule 3) 53.11 % V3 vs
+63.69 % V2; `break-attrition` (rule 2) 30.45 % V3 vs 23.51 % V2;
+`already-gathered` 6.77 % V3 vs 5.71 % V2; `gate6-square-overlap` 3.89 % V3 vs
+1.81 % V2; `none-cohesion-granted` (`Hold`) 3.39 % V3 vs 3.09 % V2;
+`window-shut` 1.22 % V3 vs 1.12 % V2; `gate5-map-edge` 1.17 % V3 vs 1.07 % V2.
+
+**4. `Close` state-flip frequency.** `Hukbo.Tools.ContingentShape` gained one
+new counter for this task, `closeReentries`, printed as `Close re-entries
+(state-flip)`. It counts a transition into `Close` that is not the
+contingent's first entry into `Close` in that battle — the first entry is
+excluded so the counter measures only re-entry after the contingent left for
+some other state. Across the same five-seed, 200-agent sweep: V3 reports 10
+re-entries, V2 reports 12. Both are non-zero: V2's rule 3 is symmetric at the
+`(0, 1)` fraction (entry and exit threshold both collapse to `Max(1, ...)`),
+so a contingent can in principle leave `Close` whenever the very last member
+in contact drops out and re-enter once contact resumes, and the measurement
+confirms that happens — twelve times across fifty contingent-battles, even
+though no `Hold` episode ever followed any of those twelve. The V3 count (10)
+is marginally lower than the V2 count (12), not higher: halving the entry
+fraction to build the exit threshold did not produce a materially different
+amount of state churn either way. That is the answer design section 7 asked
+for — the two bands produce a similar order of magnitude of `Close` flipping,
+and in both cases the flip essentially never routes back through `Hold`
+before contact is re-established, on this five-seed sample.
+
+**Outcome and battle length.** V2 and V3 simulate different behaviour, so the
+five seeds do not produce the same terminal ticks or winners under the two
+presets — that is expected and is not a determinism concern; determinism
+within one preset is what `DeterminismTests` and the canonical gate check, not
+agreement between two different presets. V2 control: 1064, 1712, 858, 1635,
+2234 ticks (matching commit `8f4e426`'s frozen values exactly — seed 1
+reproduces `Faction0Victory` at tick 1064). V3: 1334, 1909, 917, 1437, 2285
+ticks.
+
+**Verdict on the fix.** The fix works at the narrowest reading of its stated
+purpose: `Hold` episodes after first `Close` are non-zero where they were
+zero, and contingents spend materially less of the battle latched in `Close`
+(53.11 % against 63.69 %). It does not yet produce the richer "repeatedly
+gathering and re-forming during the advance" picture the design document and
+rows 104 and 114 describe — one `Hold` episode in fifty contingent-battles is
+a rare event on this sample, not a repeated behaviour, and the `Hold` shape
+that does occur reads worse in the tail (p99 and max) than the approach-phase
+gathers the before-table measured. Whether that is nonetheless visible to a
+human at the default camera fit is exactly what T10's reset of rows 104 and
+114 exists to find out, and no agent may answer that question.
 
 ## Previous non-interactive result — movement preset default flips to PersistentContingentsV2 (T15), 2026-07-28
 
@@ -2436,8 +2630,12 @@ every cue played, zero suppressed, and peak level between −6.1 and −0.2 dBFS
 with zero flattened samples at 200 and 500 agents and at 1x and 4x. Before the
 change the same workloads peaked between +7.7 and +11.0 dBFS.
 
-Every row in the sound gain compensation smoke checklist is `PENDING`. Nothing
-here proves how it sounds.
+Nothing here proves how it sounds. That half was settled separately: all eight
+sound gain compensation smoke rows were run by a person at an interactive
+desktop on 2026-08-13 and passed, so the family closed and left the live
+checklist. Its record is the 2026-08-13 archive titled **"Sound gain
+compensation smoke — closed 2026-08-13"**, named rather than linked because
+that folder is pruned periodically.
 
 ## Superseded: the collision priority fairness run
 
@@ -3026,18 +3224,22 @@ starting-formation deployment change before this font work began, and it was
 cited as one, and it is not the pair this run reproduced.
 
 These results proved the non-interactive gate only. No visual claim was made by
-this entry. The "Typography smoke" subsection in the interactive checklist
-below remains `PENDING`, and the display-scaling measurement task (gated,
-separate, and requiring a human at an interactive Windows desktop) remains
-untouched by this run.
+this entry. The "Typography smoke" family of rows was run and closed by a
+person at an interactive Windows desktop on 2026-08-13, and the family then
+left the interactive checklist for the archive record "Typography smoke —
+closed 2026-08-13". The display-scaling measurement task (gated, separate, and
+requiring a human at an interactive Windows desktop) remains untouched by this
+run.
 
 ### Font plan closeout — T29–T31, 2026-07-28
 
 T29 (display scaling, measure only) was closed as declined: the 100% reading
 was taken (viewport 1280×720, client bounds 1280×720, equal), then the user
 declined the 150% reading, having no use for the remedy it would have gated.
-T30 is therefore also closed as declined, and row 75 above is marked
-`DECLINED` rather than left `PENDING`. T31 (archive both plan documents) was
+T30 is therefore also closed as declined, and row 75 stayed `DECLINED` rather
+than being left `PENDING`; row 75 left the interactive checklist on
+2026-08-13 with the rest of its family and is carried in the archive record
+"Typography smoke — closed 2026-08-13". T31 (archive both plan documents) was
 completed: both files were moved out of `docs/plans/` into `docs/archives/`,
 each bannered, with every stale `docs/plans/...` cross-reference in the
 repository repointed. Both archived files were later removed from the

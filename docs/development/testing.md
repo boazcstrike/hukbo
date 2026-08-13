@@ -356,8 +356,10 @@ on the same day. **Neither is projectile-props.** Both come from the
 `MissionState.Tick` fix recorded under the Sandata gate result below, and no
 file this change touched is outside `Hukbo.Client`, its tests, and `docs/`.
 
-Still no evidence about anything interactive. The eight `PP-*` rows in the
-projectile-props smoke checklist are all `PENDING`.
+Still no evidence about anything interactive. All eight `PP-*` rows in the
+projectile-props smoke checklist were `PENDING` when this gate ran. They stayed
+that way until 2026-08-13, when a person ran the family and passed seven of
+them; the eighth, `PP-3`, did not pass, and only it is still open.
 
 ## Canonical gate result — Hukbo, 2026-08-11 — battlefield realism
 
@@ -426,9 +428,10 @@ suite.
 
 This gate result is evidence about the build, the tests, and the three
 headless workloads only. It proves nothing about anything interactive: the
-`BR-1` through `BR-10` rows and the reset rows 102, 103, and 105 in
-`smoke-checklist.md` all stay `PENDING` and need a person at an interactive
-desktop.
+`BR-1` through `BR-10` rows in `smoke-checklist.md` all stay `PENDING` and
+need a person at an interactive desktop. The persistent-contingent reset rows
+that used to sit alongside them closed on 2026-08-13; their record is the
+archive document titled "Persistent contingent smoke — closed 2026-08-13".
 
 ### Task 10 — the twenty-seed termination sweep
 

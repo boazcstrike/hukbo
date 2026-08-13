@@ -21,27 +21,85 @@ The gate, the current gate results, and the recorded baselines live in
 `docs/development/testing.md`. Superseded measurement runs live in
 `docs/development/measurement-history.md`.
 
-## Where the checklist stands, 2026-08-12
+## Where the checklist stands, 2026-08-13
 
-188 rows across 22 subsections: **177 `PENDING`, 9 `BLOCKED`, 1 `FAIL`,
-1 `DECLINED`**, counted from the status column of this file on 2026-08-12,
+82 rows across 14 subsections: **73 `PENDING`, 9 `BLOCKED`, and no `FAIL` or
+`DECLINED` row** — counted from the status column of this file on 2026-08-13,
 after the improve-visuals smoke run closed 29 of its 32 rows and they were
 lifted out, after `SD-1` was re-checked and closed on 2026-08-11, after the
 Sandata fixes of the same day moved four `BLOCKED` rows and one `FAIL` row to
 `PENDING`, after `SD-2`, `SD-7a`, and `SD-8` were re-checked and closed on
-2026-08-12, and after the second Sandata smoke session of that day unblocked
+2026-08-12, after the second Sandata smoke session of that day unblocked
 `SD-7b` by building the theme switcher and the unknown-contact state it was
-waiting for.
+waiting for, after all seven rows of the auto camera modes family were run and
+closed `PASS` on 2026-08-12, leaving behind a single reopened row, `AC-1`, that
+carries a fresh finding about where a pan ends, and after the typography family
+and the `UI` family were both run and closed on 2026-08-13, taking the file's
+only `DECLINED` row with them, and after the last-stand formation family and
+the sound gain compensation family were both run and closed the same day,
+leaving behind one new row, `LS-1`, that carries a fresh finding about
+how the final engagement is fought and that was fixed and reopened as `PENDING`
+the same day, and after the tactical hit animations
+family was run the same day and closed eight of its nine rows, seven of which
+were lifted out while the eighth was reopened by the change made in response to
+the ninth, and after three further families were run on 2026-08-13: the
+persistent contingent family, which passed in full and was deleted whole; the
+quit confirmation family, which passed fifteen of its sixteen rows; and the
+shield-clash audio family, which passed four of its five and left the fifth,
+row 173, `FAIL`. Two more closures landed the same day: the event feed lifetime
+family, all three of whose rows passed and which was deleted whole; and the
+improve-visuals family, which finally closed at 32 of 32 and was deleted whole.
+That family took three attempts in one day to finish. Its re-run passed 129 and
+went backwards on the other two — 128 failed a second time, on a different cause
+from the first, and 131 turned `BLOCKED` when the tester found that a casualty is
+not visible on the field long enough to locate one. A second armor fix and a
+corpse placeholder followed, and a further re-run the same day passed both. The last closure of
+2026-08-13 was the attack animation V2 family, which closed at 24 of 24 and was
+deleted whole. Sixteen of its eighteen open rows passed in a first pass; `AA-23`
+failed that pass and `AA-22` was re-attempted, and both then passed later the
+same day. **Three of that family's rows closed without anything being fixed**,
+which its archive record states plainly — `AA-22` on an unchanged 500-agent
+density, `AA-23` with both of its measured causes intact, and `AA-24` against a
+feature that was never built. The projectile props family closed on the same day as well: seven of
+its eight rows passed and were lifted out, leaving only `PP-3`, which the tester
+found draws too large in flight and which is awaiting a re-run against the fix
+made in response.
 
-**There is no `PASS` column any more, and that is deliberate.** 55 passing rows
+**There is no `PASS` column any more, and that is deliberate.** 160 passing rows
 have been lifted out — 52 on 2026-08-11 (22 of them from families that stayed,
 then 29 more when both improve-visuals families were run for the first time,
-then `SD-1` when the tester re-checked it), and 3 more on 2026-08-12 (`SD-2`,
-`SD-7a`, and `SD-8`, re-checked and closed the same way). Every row
-in this file is now something a person still has to do: 177 never attempted or
-awaiting a re-run, 9 that cannot be attempted until the build changes, 1 that
-was attempted and failed, and 1 declined. If a `PASS` ever appears here again it is a row that
-has just closed and has not yet been lifted — not a row that belongs.
+then `SD-1` when the tester re-checked it), 10 more on 2026-08-12 (`SD-2`,
+`SD-7a`, and `SD-8`, re-checked and closed the same way, plus all seven rows of
+the auto camera modes family, closed the same day), and 16 more on 2026-08-13
+(the 13 typography rows, 62 through 74, plus the three remaining `UI` rows,
+`UI-2`, `UI-4`, and `UI-6`), and 14 more on the same day when the six
+last-stand formation rows, 76 through 81, and the eight sound gain
+compensation rows, 82 through 89, were run and passed together, and 7 more on
+the same day when the tactical hit animations family was run and rows 90, 91,
+93, and 95 through 98 were lifted out, and 31 more on the same day when the
+twelve persistent contingent rows, 102 through 110 and 112 through 114, the
+fifteen quit confirmation rows, 156 through 170, and four of the five
+shield-clash audio rows, 172, 174, 175, and 176, were run and passed, and 4
+more on the same day when the three event feed lifetime rows, 99 through 101,
+were run and passed together and row 129 passed its re-run alone, and 2 more on
+the same day when rows 128 and 131 passed on a further re-run and closed the
+improve-visuals family at 32 of 32, and 18 more
+on the same day when the attack animation V2 rows `AA-5`, `AA-7` through
+`AA-16`, and `AA-18` through `AA-24` were run and passed, sixteen of them
+together and the last two later that day, and
+7 more on the same day when seven of the eight projectile props rows, `PP-1`,
+`PP-2`, and `PP-4` through `PP-8`, were run and passed together.
+Typography's
+row 75 closed on 2026-08-13 but is not in that count: it stayed `DECLINED`
+rather than turning `PASS`, so it left the
+file without ever entering the passing tally. Row 94 is not in it either,
+for the opposite reason: it passed on the same run but was reopened the same
+day and is still here, so it has not been lifted and must not be counted as
+though it had. Every row in this file is now
+something a person still has to do: 73 never attempted or awaiting a re-run,
+and 9 that cannot be attempted until the build changes. No row in this file is
+`FAIL` any more. If a `PASS` ever appears here again it is a row that has just
+closed and has not yet been lifted — not a row that belongs.
 
 **Recount before trusting that total.** Every figure here that was ever taken
 on faith turned out to be wrong. Count the status column itself, and count
@@ -59,18 +117,90 @@ closed had grown longer than the three rows a tester still had to run. All of
 that history left for the archive in one piece and the section was rewritten
 around the three open rows.
 
-**Two families were deleted whole earlier the same day.** Spectator clarity, all
-fifty-two rows, and collision readability, all seven, were closed by a person at
-an interactive desktop on 2026-08-11 and left together. Their record is the
-2026-08-11 archive titled **"Spectator clarity and collision readability smoke"**,
-found the same way as the record named below.
+**Two families were deleted whole on 2026-08-11, a third followed on
+2026-08-12, and six more followed on 2026-08-13.** Spectator clarity, all
+fifty-two rows, and collision readability, all seven, were closed by a person
+at an interactive desktop on 2026-08-11 and left together. Their record is the
+2026-08-11 archive titled **"Spectator clarity and collision readability
+smoke"**, found the same way as the record named below. Auto camera modes, all
+seven rows, closed `PASS` the same way on 2026-08-12, but unlike the first two,
+it left something behind: one row's own passing observation named a real,
+separate problem with where a pan ends when it moves in from an empty,
+no-fight screen, and that problem is now a fresh row, `AC-1`, in a new section
+of its own rather than a re-run of anything that closed. Its record is the
+2026-08-12 archive titled **"Auto camera modes smoke — closed 2026-08-12"**.
 
-**A single passing row is lifted out the same way, without its section.** Five
-sections still carrying open work had rows that closed — Sandata, the `UI`
-family, the persistent-contingent section, attack animation V2, and the
-improve-visuals families, whose two sections were merged into one when 29 of
-their 32 rows left. The first 22 of those rows left on 2026-08-11 while their
-sections stayed, and the improve-visuals 29 left the same day. Each section names,
+Typography and the `UI` family were the two closed on 2026-08-13, and neither
+left anything behind. Typography's rows 62 through 74 were run and passed, and
+row 75 stayed `DECLINED` as it already was, so the family carried no open row
+of any kind and was deleted whole; its record is the 2026-08-13 archive titled
+**"Typography smoke — closed 2026-08-13"**. The `UI` family's last three open
+rows — `UI-2`, `UI-4`, and `UI-6` — were the re-runs the DPI awareness fix had
+been waiting for, and all three passed, closing the family entirely; its
+record is the 2026-08-13 archive titled **"Responsive menu, startup display,
+and UI motion smoke — closed 2026-08-13"**.
+
+The last-stand formation family and the sound gain compensation family were
+the other two closed on 2026-08-13, and they closed differently from each
+other. Sound gain, all eight rows, passed cleanly and left nothing behind; its
+record is the 2026-08-13 archive titled **"Sound gain compensation smoke —
+closed 2026-08-13"**. The last-stand formation family, all six rows, also
+passed, but like auto camera modes before it, one row's own passing report
+named a separate problem the row never stated as a criterion: the survivors
+gather correctly and then fight one pair at a time. That is now the fresh row
+`LS-1`, in a section of its own. It was `FAIL` rather than `PENDING` while the
+cause was measured and no fix had been made; the fix landed the same day, so it
+is now `PENDING` and needs a person to watch a final engagement. The family's record is
+the 2026-08-13 archive titled **"Last-stand formation smoke — closed
+2026-08-13"**, which also answers the tester's question about whether the
+gathered shape is historically accurate.
+
+The shield-clash audio family was the sixth deleted whole on 2026-08-13, and
+it is the one worth reading the record of. Four of its five rows passed
+outright. Row 173, which asks a listener to tell the four melee clash slots
+apart, failed on the first listen — "i cannot distinguish, sounds the same for
+most" — and the cause was measured rather than guessed: the sixteen clash
+takes on disk are not level-matched, and the spread between takes inside one
+slot is wider than the spread between the four slots, so which take fires
+decided how loud a block sounded. A fix landed the same day that normalises
+each take at load and gives the four slots their own level and pitch, and the
+tester then closed the row on their own judgement that the sounds are
+acceptable, declining a regeneration of the takes. Its record is the
+2026-08-13 archive titled **"Shield-clash audio smoke — closed 2026-08-13"**,
+which states plainly that rows 172 and 175 passed against the loudness the fix
+replaced, so a later question about clash loudness needs a fresh row rather
+than a reading of theirs.
+
+The persistent contingent family was the fifth deleted whole on 2026-08-13.
+All twelve of its open rows — 102 through 110 and 112 through 114 — were run
+and passed in one session, including rows 104 and 114, which had failed at
+commit `8f4e426` and had stood reopened ever since. Its record is the
+2026-08-13 archive titled **"Persistent contingent smoke — closed
+2026-08-13"**. The section carried two long measurement passages behind rows
+104 and 114, and those are measurements rather than checklist rows, so they
+moved to `docs/development/measurement-history.md` instead of leaving with the
+record. One thing that family left behind is already tracked: its 2026-07-28
+observation that the last survivors fought one at a time is the finding row
+`LS-1` now records with a measured cause.
+
+**A single passing row is lifted out the same way, without its section.** Six
+sections still carrying open work had rows that closed — Sandata, attack
+animation V2, which lost sixteen more rows on 2026-08-13 and is now down to the
+two that are still open, tactical hit animations, which lost seven of
+its nine rows on 2026-08-13 and kept the two that are still open, and the three
+that closed the same day down to a single row each: quit confirmation, which
+kept only row 171 because that row compares a printed figure against a headless
+run rather than watching the screen, and projectile props, which kept only
+`PP-3` because that row did not pass. Shield-clash audio was briefly on this
+list too, holding row 173 alone after its other four closed, until row 173
+closed as well later the same day and the section went entirely. The `UI` family used to belong on this list too, closing single rows
+while its section stayed, right up until the run that closed the section
+itself on 2026-08-13; it is named in the paragraph above instead, with the
+rest of that history. The improve-visuals family used to belong on this list as
+well — 29 of its 32 rows left on 2026-08-11 and row 129 left alone on 2026-08-13,
+all while its section stayed — right up until rows 128 and 131 passed later the
+same day and the section was deleted whole at 32 of 32. The first 22 of the rows
+still on this list left on 2026-08-11 while their sections stayed. Each section names,
 in its own preamble, which of its rows closed and what to be careful of when
 reading the archived result: two of them closed under a preset or a viewport
 that is no longer the shipped one, which is exactly the trap an undated `PASS`
@@ -101,15 +231,16 @@ order relaunches the game far more often than they need to.
 
 | Batch | Families | Rows | What one launch has to show |
 | --- | --- | --- | --- |
-| Ranged | `PP` 8, `RG` 11 | 19 `PENDING` | A battle fielding Bangkaw, Busog, and Arquebus warriors. The shipped client runs combat preset V5 and movement preset V8, so ranged units are on the field by default at roughly a 14 per cent share |
-| Pawn animation | `AA` 18 of 24, `GA` 14 | 31 `PENDING`, 1 `FAIL` | Warriors striking and walking, close in. `AA` also holds the one open `FAIL`, AA-22, and its other 6 rows passed and were lifted out |
+| Ranged | `PP` 1, `RG` 11 | 12 `PENDING` | A battle fielding Bangkaw, Busog, and Arquebus warriors. The shipped client runs combat preset V5 and movement preset V8, so ranged units are on the field by default at roughly a 14 per cent share |
+| Pawn animation | `GA` 14 | 14 `PENDING` | Warriors walking, close in. The attack animation `AA` family that used to share this batch closed at 24 of 24 on 2026-08-13 and was deleted whole |
 | Markers | `LC` 11, `L` 7 | 18 `PENDING` | Leaders and contingents at default zoom, plus the agent inspector |
 | Render | `GR` 5 | 5 `PENDING` | Launch-time render behaviour |
 | Battlefield realism | task 18 rows | 10 `PENDING` | Cohort deployment and the V10 retreat rung |
-| Menu, display, motion | `UI` 3 of 16 | 3 `PENDING` | Run on 2026-08-11; the other 13 passed and were lifted out. The three open rows, `UI-2`, `UI-4`, and `UI-6`, all failed that run on one shared cause — the process never declared DPI awareness, so Windows rendered the game at a virtualised size and bitmap-stretched the result. **That is fixed**; the three are re-runs, not fresh checks. Set UI Scale to Auto first. See finding 1 in that section |
-| Improve visuals | `VIS` 3 of 32 | 3 `PENDING` | Run on 2026-08-11; the other 29 passed and were lifted out. The three open rows — 128 armor bulk, 129 adornment accents, 131 trampled ground — all failed that run, each on its own cause. **All three are fixed**; they are re-runs, not fresh checks. 128 and 129 want the maximum-zoom station; 131 wants a battle that has produced casualties |
 | Sandata | `SD` 3 of 9 | 3 `PENDING` | `./scripts/run.ps1 -Game Sandata`. The other 6 passed and were lifted out. All three open rows are re-runs rather than fresh checks: `SD-4` and `SD-5` were each attempted twice and failed on causes fixed on 2026-08-12, and `SD-7b` was blocked from the day it was written until the same day. Read each row's `Actual` column before starting |
 | Pressure interrupt | `P` | 9 `BLOCKED`, 1 `PENDING` | **Not runnable today** — see below |
+| Auto camera centring | `AC` 1 | 1 `PENDING` | This one earns its own row: it did not exist before 2026-08-12, and unlike every other row above it is a fresh check rather than a re-run of one that closed. Pan away from every fight until the screen holds none, let the assistant take over, and watch where it leaves the camera when it moves back in |
+| Tactical hit animations | rows 92 and 94, of 9 | 2 `PENDING` | A 200-agent battle watched until warriors start dying, at normal speed and at fitted zoom. Both rows are re-runs against the 2026-08-13 lethal-blow legibility change, not fresh checks: 92 never passed and 94 passed against the older, lighter effects. Watch a single kill first, then a crowded exchange, and read both rows' `Actual` columns before starting |
+| Last-stand engagement | `LS` 1 | 1 `FAIL` | Written on 2026-08-13 out of the last-stand formation family that closed the same day. A full 200-agent battle run to its final few warriors. It is `FAIL` on the observation already recorded, and the fix is an authoritative simulation change nobody has authorised yet, so there is nothing to re-run until that is decided |
 
 **The 9 `BLOCKED` rows are blocked by the build, not by the reader.** All nine
 are `P` rows needing movement preset V7, which the client cannot select:
@@ -283,7 +414,7 @@ ran and closed `PASS` in full on 2026-08-12 and was lifted out of this file.
 
 | Check | Expected observation | Actual | Status |
 | --- | --- | --- | --- |
-| AC-1. Confirm a pan lands the fight near the middle | Pan away from every fight until the screen holds no fighting at all, let the assistant take over, and watch where the camera stops. The melee ends up near the middle of the screen — within roughly a fifth of the way from centre toward the edge — rather than pinned in a corner; the fight is re-centred once the camera has to come find it from an empty screen. This row was fixed and reopened on 2026-08-12 carrying that observation, so it starts `PENDING`, never straight to `PASS`. | Not run | PENDING |
+| AC-1. Confirm a pan lands the fight near the middle | Pan away from every fight until the screen holds no fighting at all, let the assistant take over, and watch where the camera stops. The melee ends up near the middle of the screen — within roughly a fifth of the way from centre toward the edge — rather than pinned in a corner. Then check the other half: zoom in on a fight that is already on screen and leave the camera alone. It must not re-centre that one. Only a pan that began from an empty screen ends centred. | 2026-08-12, tester at the desktop, reporting on row 149 of the family that closed the same day: "yes, this is good; but usually it is not centered; and fighting usually stays at the corner of the screens; we need to fix to center, not when a battle happens, only when panning from an empty on-fight screen". The cause was measured rather than guessed: a pan ended as soon as any fighter reached seventy per cent of the visible half-extent, which put the fight 13.78 world units off centre on a 20-unit half-extent. **That is fixed**; this is a re-run against the observation above, not a fresh check. | PENDING |
 
 ## Starting deployment smoke
 
@@ -323,741 +454,134 @@ mirror these rows previously asked a person to confirm.
 | 61. Confirm the armies still meet promptly | The two sides close and fight without a long empty march, and the battle reaches a terminal outcome inside its tick limit. Failure is a long empty march before contact, or a battle that runs out the tick cap with no winner declared. | Not run | PENDING |
 | 61a. Confirm the groups stay distinct past deployment | Added by the persistent-contingent movement change. Let the battle run several seconds past the opening frame, well before the armies meet. Each side still reads as several separate groups of warriors at the default camera fit, each still reading as mostly one weapon cohort, rather than merging into one crowd or losing its weapon identity as soon as the armies start moving. Failure is the groups blurring into one crowd within a few seconds of the opening frame, or a group's weapon identity becoming indistinguishable from its neighbours before the armies make contact. | Not run | PENDING |
 
-## Typography smoke
+## Last-stand engagement smoke (2026-08-13)
 
-Added by the font and text quality change. **Not performed.** The automated
-gate proves the ramp is internally consistent, the theme catalog resolves
-every role, and text positions round to whole pixels; none of that proves the
-resulting text reads as crisp, correctly sized, or correctly hierarchical to a
-person watching it, which is the only thing these rows are for.
-
-**Correction — there is no automated em-dash check.** An earlier revision of
-this section claimed a "compiled em-dash byte assertion passes". No such
-assertion exists. Searching `tests/` for `.xnb`, `CharacterMap`, `2014`,
-`8212`, or `em-dash` returns nothing. The only thing backing the em dash is the
-second `CharacterRegion` in each of the 24 `.spritefont` files under
-`src/Hukbo.Client/Content/Fonts/`, which spans `&#8211;` to `&#8212;` and so
-asks the content builder to include the glyph. Whether the builder actually
-produced it, and whether the running game draws it instead of throwing, is
-verified by row 71 below and by nothing else. That row is `PENDING`.
-
-Per `CLAUDE.md` section 6, only a human at an interactive Windows desktop may
-flip one of these rows to `PASS`. Compilation, unit tests, and a
-window-opening probe do not.
-
-| Evidence field | Recorded value |
-| --- | --- |
-| Date | Not recorded |
-| Machine/platform | Not recorded |
-| Source commit | Not recorded |
-| Launch path (`source` or package path) | Not recorded |
-| Optional screenshot paths | None recorded |
-
-| Check | Expected observation | Actual | Status |
-| --- | --- | --- | --- |
-| 62. Glyph crispness at the smallest rung | Event log and sound log rows have solid stems and clean edges, with no grey mush and no ragged stair-stepping. | Not run | PENDING |
-| 63. Glyph crispness at the largest rung | The wordmark is sharp at every edge with no fringing. | Not run | PENDING |
-| 64. Wordmark hierarchy | The wordmark is unmistakably larger and heavier than the subtitle beneath it. | Not run | PENDING |
-| 65. Header face renders as capitals | Every panel header renders fully and unclipped inside its header strip. | Not run | PENDING |
-| 66. Mixed-case strings stay on the body face | Theme names, gore levels, the controls label, the winner line, the distribute action, and every inspector line render with real lowercase letters. | Not run | PENDING |
-| 67. No vertical clipping | No descender is cut off in any panel at any rung. | Not run | PENDING |
-| 68. No horizontal overflow | No label spills past its panel, button, chip, or column, and no ellipsis appears where text previously fit. | Not run | PENDING |
-| 69. Row alignment | Event log columns, sound log rows, and inspector rows sit on consistent baselines with no drift down the list. | Not run | PENDING |
-| 70. Agent inspector evidence note | The longest evidence note wraps fully inside the panel with nothing cut off. | Not run | PENDING |
-| 71. Em-dash regression | Staging an army composition change renders the notice with a real em dash and does not crash. | Not run | PENDING |
-| 72. Theme cycling | All six themes render text at the active UI scale with correct contrast, and no theme reveals a clipped or misaligned label the others hide. | Not run | PENDING |
-| 73. Window resize and automatic scale tiers | With UI Scale set to Auto, resizing selects 100% at 1280x720, 125% at 1920x1080, 150% at 2560x1440, and 200% at 3840x2160. Each tier stays crisp, re-lays out without clipping, and keeps every menu control visible. | Not run | PENDING |
-| 74. Subpixel blur is gone | Panning, zooming, and pausing produce no shimmering or swimming text. | Not run | PENDING |
-| 75. Display scaling | Record the appearance at 100% and at 150% Windows scaling. Fed the separate, gated display-scaling measurement task. | The 100% reading was taken during implementation (viewport 1280×720, client bounds 1280×720, equal). The user declined the 150% reading on 2026-07-28, having no use for the display-scaling remedy this row was gating. | DECLINED |
-
-## Responsive menu, startup display, and UI motion smoke
-
-Added by the UI/UX completion work. **Run by a person on 2026-08-11.** Every
-row was attempted. Thirteen passed. Three failed — `UI-2`, `UI-4`, and `UI-6`,
-the three rows a person exercises at a maximised or fullscreen viewport — and
-all three failed for the same single cause, recorded as finding 1 below the
-table. The automated layout tests prove containment and hit-target invariants
-at representative viewports; what this run adds is that the menu, the focus
-order, the three motion intensities, and all five interpolated accents behave
-as written, and that glyphs stopped being crisp the moment the window filled
-the screen.
-
-**Only the three open rows are listed below.** The thirteen that passed —
-`UI-1`, `UI-3`, `UI-5`, `UI-7` through `UI-16` — were lifted out on 2026-08-11
-into
-the 2026-08-11 record **"Closed rows lifted out of families that are still
-open"**, named rather than linked for the reason given at the top of this file,
-with their evidence intact, so this table shows what is left to do rather than
-what is already done. `UI-5` is worth re-reading there before the re-run: it
-asserts the window opens at 1280x720, which now means 1280x720 real pixels
-rather than virtual ones, so it is physically smaller than it was when it
-passed.
-
-**That cause was fixed the same day and the three rows are now `PENDING`
-re-runs.** The fix is the DPI awareness declaration described in finding 1 and
-designed in
-[`../plans/2026-08-11-display-dpi-awareness-design.md`](../plans/2026-08-11-display-dpi-awareness-design.md).
-A fix is not a result: no agent may close these three, and the `FAIL`
-observation stays in each `Actual` column so the re-run is judged against what
-was actually seen rather than against an empty row.
-
-| Evidence field | Recorded value |
-| --- | --- |
-| Date | 2026-08-11 |
-| Machine/platform | Microsoft Windows 10.0.26200 (Windows 11 Pro) x64, NVIDIA GeForce RTX 4070 SUPER, 2560x1440 display at 125% Windows scaling (`AppliedDPI` 120) |
-| Source commit | Not captured by the tester. `main` was at `ae64485` when these results were transcribed, and every commit between that and the run was documentation-only, so the binary is unchanged. Capture the commit on the next run — this row should not say "not captured" twice |
-| Launch path (`source` or package path) | `source`, via `./scripts/run.ps1` |
-| Optional screenshot paths | None recorded |
-
-| Check | Expected observation | Actual | Status |
-| --- | --- | --- | --- |
-| UI-2. Common landscape and maximised layouts | At 1280x720, 1920x1080, and the maximised desktop size, the menu stays centred and balanced, the arena HUD remains readable, and no panel covers an unrelated control. | 2026-08-11, tester at the desktop. Layout held: the menu stayed centred and balanced and no panel covered an unrelated control at any of the three sizes. The row also asks that the arena HUD remain **readable**, and at the maximised desktop size it does not — every glyph is visibly pixelated. The layout half passed and the readability half failed, and a row is a single status, so the row fails. Cause in finding 1. **Fixed the same day** by the DPI awareness declaration; a logged run now reports a 2560x1440 viewport where it reported the virtualised size before. Back to `PENDING` because only a person can say the glyphs read as crisp | PENDING |
-| UI-4. Preferred UI scales and safety cap | Select Auto, 100%, 125%, 150%, and 200%. The selected preference persists after restart; when the viewport is too small for it, the active tier is safely capped while the preferred value remains selected in the menu. | 2026-08-11, tester at the desktop. Selection, persistence across a restart, and the safety cap all behaved as written. But no tier renders crisply once the window fills the screen, and the tier the policy selects at that size is itself wrong: on this 2560x1440 display the game is handed a virtualised 2048x1152 viewport, which clears `UiScalePolicy`'s 1920x1080 bar but not its 2560x1440 one, so Auto resolves to 125% where the real screen deserves 150%. Cause in finding 1. **Fixed the same day**: the viewport is now real, so Auto resolves correctly with no change to `UiScalePolicy` itself. Back to `PENDING` for a re-run. **Set UI Scale to Auto before re-running** — the saved preference on the reporting machine is an explicit `100`, left over from this row's own sweep, and an explicit preference is honoured rather than overridden, so a re-run that skips this step measures the 100% tier and learns nothing about Auto | PENDING |
-| UI-6. Fullscreen startup | Select Fullscreen, close the game fully, and relaunch. It opens in soft fullscreen at the current desktop resolution. Select Windowed, restart again, and confirm normal windowed startup returns. | 2026-08-11, tester at the desktop. The mode round-trip worked: Fullscreen persisted across a full close and relaunch, opened in soft fullscreen, and selecting Windowed restored normal windowed startup. It does not open at "the current desktop resolution" — it opens at the virtualised 2048x1152 the OS reports instead of the true 2560x1440 — and the text is pixelated throughout. Cause in finding 1. **Fixed the same day**: a logged fullscreen run now reports `client` and `viewport` both at the display's true 2560x1440. Back to `PENDING` because the row's own wording — that it opens at the current desktop resolution — is now satisfied in the log but has not been seen by a person | PENDING |
-
-### Findings from the 2026-08-11 UI run
-
-**1. Text is pixelated whenever the window fills the screen, and the cause is
-that the process never declares DPI awareness.** This is the single cause behind
-all three failures — `UI-2`, `UI-4`, and `UI-6` — and it is not a defect in the
-font ramp.
-
-The typography pipeline is doing exactly what it was designed to do.
-`UiFontRamp` bakes twenty-four separate `SpriteFont` atlases, one per role per
-tier, and `UiPrimitives.DrawText` and `UiPrimitives.DrawCenteredText` both draw
-at a hardcoded scale of `1f` from a whole-pixel origin snapped by
-`UiTextGeometry.SnapToPixel`. There is no render target, no float resampling,
-and no scale multiplier anywhere on the text path. Every glyph is crisp when it
-leaves the game.
-
-What resamples it is Windows. Nothing in the repository declares a DPI
-awareness level: `src/Hukbo.Client/Hukbo.Client.csproj` has no
-`ApplicationManifest`, there is no `app.manifest` anywhere in the tree, no code
-calls `SetProcessDpiAwarenessContext`, and neither the client nor its launch
-script sets SDL's `SDL_WINDOWS_DPI_AWARENESS` hint. A process that says nothing
-is treated as DPI-unaware, so Windows reports a virtualised desktop size, lets
-the application render at that size, and then bitmap-stretches the finished
-frame up to the real panel. On the machine this run was performed on the
-stretch factor is 1.25 and non-integer, which is precisely what a pixelated
-glyph looks like.
-
-The machine's numbers: the display is 2560x1440 and Windows display scaling is
-125%, read from `HKCU:\Control Panel\Desktop\WindowMetrics\AppliedDPI`, which is
-`120`. A DPI-unaware process on that machine is told the desktop is 2048x1152.
-
-That mis-report has a second consequence, which is why `UI-4` fails as well as
-looking bad. `UiScalePolicy.Resolve` picks a tier from the viewport in pixels:
-2048x1152 clears its 1920x1080 threshold but not its 2560x1440 one, so Auto
-resolves to `Percent125` on a display that should be getting `Percent150`. The
-tier is chosen from a number the operating system fabricated.
-
-The remedy is to declare per-monitor awareness once, before the graphics device
-exists — a `SetProcessDpiAwarenessContext(PER_MONITOR_AWARE_V2)` call at the top
-of `Program.Main`, which matches the `LibraryImport` P/Invoke pattern
-`ArenaGame` already uses for its SDL window-chrome calls, or an
-`ApplicationManifest` declaring `PerMonitorV2`. Either one makes
-`GraphicsAdapter.DefaultAdapter.CurrentDisplayMode` report 2560x1440, removes
-the OS stretch entirely, and lets `UiScalePolicy` select the 150% bake it was
-always meant to select at that size.
-
-**This has been recorded once before and was deliberately deferred.** Row 75 of
-the typography section, "Display scaling", is the gated measurement task this
-finding is the other half of; it is marked `DECLINED` because the 150% Windows
-scaling reading was declined on 2026-07-28. That decision is what left the
-awareness declaration unbuilt, and the defect stayed latent until somebody ran
-the game on a scaled display. Row 75 stays `DECLINED`: it asked for a
-measurement to justify building this, and the justification arrived instead as
-three failed rows, which is the better evidence.
-
-**Fixed on 2026-08-11.** `ProcessDpiAwareness.Apply` declares per-monitor v2
-awareness from `Program.Main`, before `ArenaGame` builds its
-`GraphicsDeviceManager` and before SDL creates a window, which is the ordering
-the declaration requires. The design, the rejected manifest alternative, and
-the reason the P/Invoke itself carries no test are in
-[`../plans/2026-08-11-display-dpi-awareness-design.md`](../plans/2026-08-11-display-dpi-awareness-design.md).
-`UiScalePolicy` is unchanged — it was never wrong, only fed a fabricated
-number.
-
-**The measurement this finding originally asked for was taken, after the fix
-rather than before it.** A logged run on the reporting machine now writes
-`boot.dpi.awareness` with `state` `applied`, and the `render.viewport.changed`
-line that follows reports `client` and `viewport` both at **2560x1440** — the
-display's true resolution, where an unaware process would have reported
-2048x1152. The pre-fix line was never captured and now cannot be, since the
-build that produced it no longer exists; the registry reading and the policy
-threshold arithmetic are what stand behind the 2048x1152 figure.
-
-**A re-run needs one setup step.** The saved `uiScale` preference on the
-reporting machine is an explicit `100`, left behind by `UI-4`'s own sweep
-through every tier, and an explicit preference is honoured rather than
-overridden — the logged run above resolved `Percent100` at 2560x1440 for
-exactly that reason, correctly. Set UI Scale back to Auto before re-running, or
-the re-run measures the 100% tier and says nothing about the fix.
-
-**2. The `Cebu 1521 — Provisional` theme is disliked, and that is not what
-`UI-11` measures.** Every criterion the row states was met — the label, the
-palette's reading, and the legibility of text and faction signals — so the row
-is `PASS`. Separately, the tester does not like how the theme looks. That is a
-real report and worth acting on, but it is a design preference rather than a
-failure of any stated criterion, and folding it into `UI-11`'s status would
-leave a row nobody could ever close without agreeing on taste.
-
-Acting on it needs the preference turned into a criterion first: which of the
-five palette anchors is wrong, and wrong against what. The theme is a
-**Provisional reconstruction** under the historical accuracy policy in section
-7 of `CLAUDE.md`, so a change to it is a change to a labelled provisional
-interpretation and needs the evidence tier restated alongside it, not just a
-new set of colours. Until that is written down, no row here covers the
-complaint.
-
-## Last-stand formation smoke
-
-Added by the last-stand formation change. **Not performed.** The automated
-tests prove the trigger, the rally-agent choice, the deterministic offset, the
-trail distance, the give-way rule, and that a last stand still resolves inside
-the tick limit. None of them prove that the resulting endgame reads as a
-converging last stand rather than as warriors wandering, which is the only
-thing these rows are for. Only a human running `./scripts/run.ps1` on an
-interactive Windows desktop may flip one of these rows to `PASS`. Compilation,
-unit tests, and a window-opening probe do not.
-
-| Evidence field | Recorded value |
-| --- | --- |
-| Date | Not recorded |
-| Machine/platform | Not recorded |
-| Source commit | Not recorded |
-| Launch path (`source` or package path) | Not recorded |
-| Optional screenshot paths | None recorded |
-
-| Check | Expected observation | Actual | Status |
-| --- | --- | --- | --- |
-| 76. Watch the endgame converge | Let a full 200-agent battle run to its final handful of warriors on each side. As each side thins out, its survivors visibly turn toward one another and gather instead of continuing to spread across the map. | Not run | PENDING |
-| 77. Confirm the cluster is irregular | The gathered survivors form a ragged clump. They do not form a ring, a grid, a line, an arc, or any shape that looks placed. No warrior sits at an obviously exact distance from the one it gathered on. | Not run | PENDING |
-| 78. Confirm the cluster advances as a body | The gathered survivors travel toward the enemy together rather than one at a time. The group arrives roughly at once, and the fight that follows is a group fight rather than a sequence of separate duels. | Not run | PENDING |
-| 79. Watch a leader fall | When the warrior the group has gathered on is killed, the group re-forms on another warrior within a moment. The re-form is a short, small adjustment, not a sudden jump across the screen or a scatter. | Not run | PENDING |
-| 80. Inspect a regrouping warrior | Selecting a survivor that is closing on its comrades shows `Intent: Regrouping` in the inspector, and the battle event log shows its movement naming the warrior it is closing on rather than an enemy. The intent changes to `Attacking` once it is actually swinging at an enemy. | Not run | PENDING |
-| 81. Confirm regrouping never stops the fight | A warrior that is regrouping still strikes any enemy it passes within reach. The final engagement is not delayed by warriors refusing to fight while they are still gathering, and the match reaches a terminal outcome rather than two clusters standing apart. | Not run | PENDING |
-
-## Sound gain compensation smoke
-
-Covers the change recorded in
-the sound gain compensation plan. The measured evidence is in
-`docs/research/SOUND-CAPACITY-MEASUREMENTS.md`; these rows are the part that
-only a person with working speakers can settle.
-
-| Evidence field | Recorded value |
-| --- | --- |
-| Date | Not recorded |
-| Machine/platform | Not recorded |
-| Source commit | Not recorded |
-| Launch path (`source` or package path) | Not recorded |
-| Optional screenshot paths | None recorded |
-
-| Check | Expected observation | Actual | Status |
-| --- | --- | --- | --- |
-| 82. Hear a busy melee without distortion | Let a 200-agent battle reach its densest fighting at normal speed. Blows stay individually distinguishable. There is no continuous rasp, crackle, or buzz underneath the fighting, and no moment where the sound seems to break up or drop out. | Not run | PENDING |
-| 83. Compare a duel with a melee | The final one-on-one survivors sound clearly louder per blow than the same weapon does in the middle of the melee. The change is gradual as the fight thins out, not a sudden jump. | Not run | PENDING |
-| 84. Watch the voice count and gain react | Open the sound log with `F9`. During heavy fighting `VOICES` climbs into the tens and `GAIN` falls well below 0.65; as the battle thins both recover, and `GAIN` returns to `0.65` once nothing is sounding. | Not run | PENDING |
-| 85. Confirm nothing is being limited | Through a full 200-agent battle at normal speed, the sound log shows no `LIMITED` row and no `REFUSED` row. | Not run | PENDING |
-| 86. Check 4x speed | At 4x the audio stays clean and undistorted, `VOICES` climbs higher than at 1x, and `GAIN` falls further. Still no `LIMITED` or `REFUSED` rows. | Not run | PENDING |
-| 87. Confirm mute still works | Toggling `MUTE` silences everything immediately and unmuting resumes without a burst of backed-up sound. | Not run | PENDING |
-| 88. Confirm a new round starts at full gain | After a match ends and a new one starts, the first blow of the new battle is at full volume rather than carrying the previous battle's reduction. | Not run | PENDING |
-| 89. Confirm the header stays readable | The `VOICES n GAIN 0.nn` text in the sound log header does not overflow its panel, overlap the `MUTE` button, or clip at any of the six themes. | Not run | PENDING |
-
-## Tactical hit animations smoke
-
-Covers the change recorded in
-the tactical hit animations plan, whose Task 6 requires a
-manual checklist that this document was previously missing. **Not performed.**
-`HitEffectSystemTests.cs` and `HitEffectGeometryTests.cs` prove that the effect
-buffer has a fixed capacity and replaces its oldest entry in a defined order,
-that ordinary and lethal effects expire on their stated schedules, that each
-damage event produces exactly one effect, and that a reset clears every effect.
-The system lives entirely in `Hukbo.Client`, so it cannot reach the simulation
-by construction; no test asserts that a battle's tick count, outcome, state
-hash, or event hash is unchanged, and row 98 below is the only check of that.
-Nothing automated proves that a hit reads as a hit to a person watching the
-screen, or that the effects stay legible when the fighting gets crowded, which
-is the only thing these rows are for. Only a human running
-`./scripts/run.ps1` on an interactive Windows desktop may flip one of these rows
-to `PASS`. Compilation, unit tests, and a window-opening probe do not.
-
-| Evidence field | Recorded value |
-| --- | --- |
-| Date | Not recorded |
-| Machine/platform | Not recorded |
-| Source commit | Not recorded |
-| Launch path (`source` or package path) | Not recorded |
-| Optional screenshot paths | None recorded |
-
-| Check | Expected observation | Actual | Status |
-| --- | --- | --- | --- |
-| 90. Read an ordinary hit at 1x | At normal speed a non-lethal blow produces a brief pulse on the struck pawn, one thin ring, and a small restrained shard burst. The blow is unmistakable without the screen filling with debris. | Not run | PENDING |
-| 91. Check hits survive 4x | At 4x, hits landed on consecutive simulation ticks are each still visible, rather than only the last tick's hit appearing in each drawn frame. | Not run | PENDING |
-| 92. Tell a lethal hit apart | A killing blow reads as clearly heavier than an ordinary one: a larger double ring and longer shards, appearing after the pawn has disappeared rather than on top of it. | Not run | PENDING |
-| 93. Check readability across the zoom range | At fitted, minimum, and maximum zoom the primary ring stays readable. Zooming out reduces clutter without removing the ring, so a hit is never invisible at any zoom the spectator can reach. | Not run | PENDING |
-| 94. Watch a crowded exchange | With many pawns trading blows at once the effects stay bounded. No persistent trail, smear, or lingering colour builds up on the arena, and the fighting stays legible underneath. | Not run | PENDING |
-| 95. Pause and resume | Pausing lets effects already on screen finish while the simulation stops advancing. Resuming produces new effects normally, with no burst of stored-up effects on the first frame. | Not run | PENDING |
-| 96. Reset clears everything | Next Round (`R`) and Full Reset (`Shift+R`) both clear every pulse and burst immediately. No effect from the previous match survives into the new one. | Not run | PENDING |
-| 97. Check the arena edges | Resize the window and zoom in near each arena edge. No ring or shard draws over the status bar, the agent inspector, the event log, the match summary, or the menu overlay. | Not run | PENDING |
-| 98. Confirm the effects change nothing | Run to a terminal result. Effects expire on their own, and the outcome, tick count, state hash, and event hash match a run of the same seed with the effects never observed. | Not run | PENDING |
-
-## Event feed lifetime smoke (T17)
-
-Covers the change recorded under T7 of
-the Arch-informed performance hardening plan:
-`LastEvents` now returns one of two permanent double-buffered collections
-instead of a fresh one created each tick. The automated tests — the seed-1
-hash equality above, `LastEventsRemainsACompletedTickSnapshot`,
-`RetainedLastEventsReferenceIsNotValidPastTheProducingTick`, and
-`BattleEventFeedTests.Ingest_CopiesEventValuesRatherThanRetainingTheSourceBuffer`
-— prove the buffer contract and the copy-out behavior in isolation; none of
-them prove that a spectator watching the live feed on screen ever sees the
-effect of the changed lifetime. These three rows are the only rows this
-workstream adds to this checklist. They exist because T7 changed the lifetime
-of the collection `LastEvents` returns, and only a person at an interactive
-Windows desktop may flip one of them to `PASS`. **Not performed. All three
-rows are `PENDING`.**
-
-| Evidence field | Recorded value |
-| --- | --- |
-| Date | Not recorded |
-| Machine/platform | Not recorded |
-| Source commit | Not recorded |
-| Launch path (`source` or package path) | Not recorded |
-| Optional screenshot paths | None recorded |
-
-| Check | Expected observation | Actual | Status |
-| --- | --- | --- | --- |
-| 99. Watch the battle event feed during a live run | Events appear correctly and in the correct order for the whole run; nothing is missing, duplicated, or out of sequence. | Not run | PENDING |
-| 100. Pause, resume, and change speed repeatedly during a run | The feed survives every pause and every speed change without losing or duplicating a single entry. | Not run | PENDING |
-| 101. Let a battle run to its end | Once the battle ends, the feed shows nothing stale left over from the last live tick. | Not run | PENDING |
-
-## Visual improvement smoke — the three open rows
-
-Both improve-visuals families, `VIS-041` (rows 102 to 115) and `VIS-043` (rows
-116 to 133), were run by a person at an interactive Windows desktop on
-2026-08-11. It was the first time any of the thirty-two rows had been
-attempted; both had stood entirely `PENDING` since they were written.
-
-**Twenty-nine of the thirty-two rows passed and were lifted out.** They left
-this file on 2026-08-11 with the session's evidence fields and the dagger notes
-that belonged to rows 106, 114, 121, and 133. The record is titled **"Visual
-improvement smoke (VIS-041 and VIS-043) — passed rows"**; find it by that title
-rather than by a path:
+This row is the one thing left of a six-row last-stand formation family that ran
+and closed `PASS` in full on 2026-08-13 and was lifted out of this file. Its
+record is the 2026-08-13 archive titled **"Last-stand formation smoke — closed
+2026-08-13"**, named rather than linked because that folder is pruned
+periodically. Find it the same way any archived record is found:
 
 ```powershell
 git log --diff-filter=A --name-only --format='%h %s' -- 'docs/archives/**' |
-  Select-String 'visual-improvement-smoke'
+  Select-String 'last-stand-formation-smoke'
 ```
 
-If a later change touches weapon tints, shield skins, the appearance roster,
-the grass ground, the sway setting, or the visual-catalog fallback path, write
-fresh rows here rather than reviving the lifted ones.
-
-**Three rows failed that run and stay here.** All three have since had a fix
-shipped, so each is back at `PENDING` and each keeps the observation that
-failed it, exactly as this file's reopening rule requires. They are re-runs,
-not fresh checks. Read the `Actual` column before attempting one — it says what
-was on screen and why.
+**This row is `FAIL`, and the fix has not been made.** Unlike `AC-1` above, it
+is not waiting on a person to re-check something already repaired. The cause is
+known and measured, and repairing it is an authoritative simulation change that
+moves both hashes, so it needs a decision before it needs an implementer. Read
+the row's `Actual` column and the finding beneath the table before running it.
 
 | Evidence field | Recorded value |
 | --- | --- |
-| Date | 2026-08-11 |
-| Machine/platform | Microsoft Windows 10.0.26200 (Windows 11 Pro) x64 |
-| Source commit | `4fbbdf9`, the repository head at the time of the run |
+| Date | 2026-08-13 |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
 | Launch path (`source` or package path) | `source`, via `./scripts/run.ps1` |
 | Optional screenshot paths | None recorded |
 
 | Check | Expected observation | Actual | Status |
 | --- | --- | --- | --- |
-| 128. Armored figures read as bulkier, not as shielded | At the default-fit or maximum-zoom station, default theme, compare a pawn wearing an armor-layer component (F2 through F5) against an unarmored pawn and against a shield-bearing pawn. The armored pawn reads as visibly bulkier through the torso, and does not read as if it were carrying a shield. | 2026-08-11, tester at the desktop: `FAIL` — not clear. Investigated after the run and the cause is in the draw, not in the eye: `PawnRenderer.DrawArmor` filled the whole widened capsule solid in `BarkBrown`, replacing the torso's dye, outline, and belt with a flat block — a recolour rather than bulk, and a flat single block over the body is the silhouette a held shield draws. The widening itself was under a pixel at the default-fit station. Reopened `PENDING` against the fix below. | PENDING |
-| 129. Adornment accents visible at maximum zoom without breaking any read | At the maximum-zoom station, default theme, close in on a pawn wearing adornment accents (gold accents I4/I5, or the C3 gold-edged putong). The accents are visible without breaking weapon-role, faction, or equipment recognition. | 2026-08-11, tester at the desktop: `FAIL` — not clear. Investigated after the run: `PawnGeometry.CreateAdornmentAccents` sized a mark as `min(2, round(2 × apparentScale))`, which can never exceed 2 because the constant appears on both sides of the `min`. An accent was two pixels at every zoom including the clamp ceiling, so this row could not have been passed at any station by anyone. Reopened `PENDING` against the fix below. | PENDING |
-| 131. Trampled areas visibly thin where fighting happened | During or after a battle with visible casualties, observe the grass around a cluster of `Death` events. The grass there reads as visibly thinned or trampled compared to untouched ground elsewhere on the field. | 2026-08-11, tester at the desktop: `FAIL` — not clear. Investigated after the run: a trample mark drew at shade interpolation `0.22`, the exact tone of a Large grass cluster, with the grass drawn on top of it — the worn ground and the grass that was supposed to have thinned had no contrast against each other at all. The suppression radius of 40 world units also thinned part of one clump rather than an area. Reopened `PENDING` against the fix below. | PENDING |
+| LS-1. Confirm the last stand ends as a group fight | Let a full 200-agent battle run to its final handful of warriors on each side and watch the last engagement. Several warriors from each side are in contact at once, so the ending reads as two small bands colliding. Failure is the survivors gathering correctly and then fighting one pair at a time, with the rest standing off and waiting their turn. | 2026-08-13, tester at the desktop, reporting on row 76 of the family that closed the same day: "passed, but not extremely clear. Since I am still seeing 1v1 in the endgame." The cause was measured rather than guessed and is stated below: a follower's aim point is 51 world units behind its rally agent, against a longest melee reach of 16, so only the rally agent ever reaches an enemy. **Fixed the same day** by `MovementPresetId.LastStandEngagementV11`, which the client now selects: a follower stops regrouping and closes on its own enemy once its rally agent is within its own weapon reach of an enemy, or once the follower's own enemy is within its own reach. Back to `PENDING` because only a person watching a final engagement can say whether it now reads as two bands colliding. | PENDING |
 
-**The fix, shipped the same day.** The design is
-`docs/plans/2026-08-11-armor-accent-trample-legibility-design.md`. Armor now
-draws as two symmetric flank bars that thicken the body and leave the torso's
-dye, outline, and belt visible down the middle, instead of one slab covering
-them. The accent area cap is read as the scale-relative bound R-W3.6's own
-wording states, so a mark is two pixels at apparent scale 1 and five at the
-apparent-scale clamp ceiling rather than two everywhere. Trampled stubble drops
-to a shade below every grass tone, the mark covers real ground, and adjacent
-marks merge, so a worn area has a boundary against the grass around it. No
-pinned constant changed value and no shade exceeds the backdrop ceiling.
+### Finding — followers park three weapon-lengths behind the warrior they gathered on
 
-The canonical gate passed with the seed-1 hashes unmoved, which is what a
-presentation-only change owes. **A green gate proves none of these three
-rows**, and neither does the design document. Each closes only when a person at
-an interactive desktop looks at the screen again.
+A regrouping follower does not aim at its rally agent. It aims at a point
+`RallyTrailRadiusMultiplier` body radii behind that agent, on the far side from
+the enemy the agent is closing on, and it stops on arrival. The multiplier is 12
+(`src/Hukbo.Core/Simulation/FormationRules.cs:188`) and the default body radius
+is 4.25 world units (`src/Hukbo.Core/Simulation/CollisionRules.cs:72`), so the
+aim point sits 51 world units behind the leader. The longest melee reach in the
+shipped combat preset is 16
+(`src/Hukbo.Core/Combat/PhilippineCombatPresetV5.cs:188`).
 
-**Still outstanding, and not a row.** Both the implementation plan draft and
-`warrior-appearance-design.md` called for a line-by-line historical review of
-the full preset roster table against
-`docs/research/improve-visuals/warrior-appearance-historical-research.md`. That
-is a human read-through of one document against another rather than an
-observation of the running game, so it never was a checklist row and the
-2026-08-11 session did not touch it. It has not been performed. A failure found
-during it routes to a content-correction task, not to a change in this
-document.
+The rally agent is exempt from regrouping
+(`src/Hukbo.Core/Simulation/BattleSimulation.cs:1426`), so it alone closes and
+fights. Both factions do this symmetrically once each is at or below the default
+threshold of six living agents, so two rally agents meet and duel while every
+other survivor holds station out of reach; when one falls, the next-lowest
+living `EntityId` takes over and the same duel repeats. The behaviour is
+deterministic and does not depend on the seed.
+
+**Lowering the trail alone is not a fix.** `FormationRules` requires
+`RallyTrailRadiusMultiplier` to exceed `RallyJitterRadiusMultiplier * sqrt(2) + 2`
+(`src/Hukbo.Core/Simulation/FormationRules.cs:180-188`), which with the jitter
+multiplier at 6 puts the floor at about 10.49 — so 12 is already close to it,
+and the jitter has to come down with it. Both constants reach the state hash, so
+any change here is an authoritative simulation change needing a new preset
+version and re-recorded golden expectations under `CLAUDE.md` section 5.
+
+## Tactical hit animations smoke
+
+All nine rows of this family were run by a person at an interactive desktop on
+2026-08-13. Eight of them passed, and seven of those eight left this file for
+good. Their record is the 2026-08-13 archive titled **"Tactical hit animations
+smoke — closed 2026-08-13"**. Two rows are still open, and they are open for
+opposite reasons.
+
+**Row 92 never passed.** It asks whether a killing blow reads as clearly heavier
+than an ordinary one, and the tester's answer was that it does not. A design and
+a plan were written the same day in response — see
+[`../plans/2026-08-13-lethal-blow-legibility-design.md`](../plans/2026-08-13-lethal-blow-legibility-design.md)
+— and the row below is a re-run against that change, carrying the original
+observation so the next tester knows what they are checking against.
+
+**Row 94 passed and was reopened the same day.** It passed against the effect
+values that were shipping when it was run. The change built in response to row
+92 raises the number of primitives a kill draws and makes the heavier gore level
+the default, so a crowded exchange is exactly the thing that change could have
+broken. Carrying its old `PASS` forward would have been a claim about a build
+nobody watched. It is a re-run, not a fresh check.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+flip either of these rows to `PASS`. Compilation, unit tests, and a
+window-opening probe do not. Nothing automated can prove that a kill reads as a
+kill, or that the fighting stays legible when it gets crowded, which is the only
+thing these two rows are for.
+
+| Evidence field | Recorded value |
+| --- | --- |
+| Date | Not recorded for the re-run. The run that closed the other seven rows was 2026-08-13 |
+| Machine/platform | Not recorded |
+| Source commit | Not recorded |
+| Launch path (`source` or package path) | Not recorded |
+| Optional screenshot paths | None recorded |
+
+| Check | Expected observation | Actual | Status |
+| --- | --- | --- | --- |
+| 92. Tell a lethal hit apart | A killing blow reads as clearly heavier than an ordinary one, and reads that way without the spectator having been told where to look. The pawn is still on screen for the loudest part of its own death, the blow marks the body it killed, and the blood is heavy enough that a kill is never mistaken for a graze. | 2026-08-13, tester at the desktop, on the first run of the family: "it's not extremely clear, we need improve this so i can really see, more blood and gore". Four causes were measured rather than guessed: the pawn was removed after `0.10` seconds while the ring lived `0.28` and the blood burst `0.42`, so most of a kill drew over bare ground; lethal blows were the only blows excluded from the hit pulse, so a kill never marked its victim; the lethal and ordinary ring colours were eleven units apart in a single channel; and the default gore level produced no sustained blood at all. **All four are changed**; this is a re-run against that observation, not a fresh check. | PENDING |
+| 94. Watch a crowded exchange | With many pawns trading blows at once the effects stay bounded. No persistent trail, smear, or lingering colour builds up on the arena, and the fighting stays legible underneath. | 2026-08-13, tester at the desktop: passed, with no separate note recorded. **Reopened the same day**, unrun against the current build: the row-92 change raises the per-kill droplet cap from 8 to 12, lengthens every lethal blood lifetime, and makes `Full` the default gore level, so more is drawn per kill than when this row passed. There is no total-screen quad ceiling in the effect code to appeal to instead — only per-record caps — so a person has to look. | PENDING |
 
 ## Quit confirmation, maximize, and Core faction metrics smoke (2026-07-28)
 
 Added by the quit-confirmation, maximize and faction metrics plan.
-**A passing gate proves none of the rows below.** Every one needs a human at an
-interactive desktop, and no agent may flip one to `PASS`.
+**Fifteen of this section's sixteen rows closed on 2026-08-13** and were lifted
+out. Rows 156 through 170 were run by a person at an interactive Windows
+desktop and all fifteen passed; their record is the 2026-08-13 archive titled
+**"Quit confirmation, maximize, and Core faction metrics smoke — rows 156 to
+170 closed 2026-08-13"**, named rather than linked because that folder is
+pruned periodically. Find it the same way any archived record is found:
 
-The maximize and restore rows deserve particular suspicion:
-`SDL_MaximizeWindow`, `SDL_RestoreWindow`, and `SDL_GetWindowFlags` are
-P/Invokes that compile cleanly and have never been executed in this repository.
-A clean build is no evidence that any of them works. `SDL_MinimizeWindow` has
-been executed and does work, which says nothing about these three.
+```powershell
+git log --diff-filter=A --name-only --format='%h %s' -- 'docs/archives/**' |
+  Select-String 'quit-confirmation-maximize-metrics-smoke'
+```
+
+That run is also the first time `SDL_MaximizeWindow`, `SDL_RestoreWindow`, and
+`SDL_GetWindowFlags` were ever executed in this repository. They had compiled
+cleanly for weeks without proof that any of them worked; rows 165, 166, and 167
+are that proof, and the archived record is where it lives.
+
+**Row 171 is the one row left, and it did not close because it is not an
+observation of the screen.** It compares the faction accuracy the battle report
+prints against a headless run of the same seed, so running it means running the
+game and the headless runner and holding the two figures side by side. A
+passing gate proves nothing about it, and no agent may flip it to `PASS`.
 
 | # | Step | Expected | Result | Status |
 | --- | --- | --- | --- | --- |
-| 156. Click `Close` on the control bar | A confirmation prompt appears. The game does not quit. The battle behind it is dimmed. | Not run | PENDING |
-| 157. Cancel the prompt | The prompt closes and the battle continues untouched. | Not run | PENDING |
-| 158. Confirm the prompt | The game exits. | Not run | PENDING |
-| 159. Open the prompt and press `Enter` immediately | Cancel holds focus, so `Enter` cancels rather than quitting. | Not run | PENDING |
-| 160. Open the prompt and press `Escape` | The prompt cancels. If the menu was open behind it, the menu stays open — `Escape` belonged to the prompt alone. | Not run | PENDING |
-| 161. Open the prompt, press Tab or an arrow key, then `Enter` | Focus moves to Quit and `Enter` then quits. | Not run | PENDING |
-| 162. Open the prompt and click well away from both buttons | Nothing happens. The click does not reach the control bar, the arena, or agent selection underneath. | Not run | PENDING |
-| 163. Menu, then `Exit Game` | The same prompt appears. The menu path does not quit directly. | Not run | PENDING |
-| 164. Press Alt+F4 | Quits immediately with no prompt, by design — it is the guaranteed escape hatch on a borderless window. | Not run | PENDING |
-| 165. Click `Max` | The window maximizes. | Not run | PENDING |
-| 166. Click `Max` again | The window restores to its previous size. | Not run | PENDING |
-| 167. Maximize outside the app (Windows snap or taskbar), then click `Max` | It restores rather than re-maximizing — the button read the real window state instead of a tracked flag. | Not run | PENDING |
-| 168. Check all seven control-bar buttons | Play, Pause, Menu, Sounds, Min, Max, and Close all render fully inside the bar. Close is not clipped at the right edge. | Not run | PENDING |
-| 169. Open the battle report and read a faction line | Attack, hit, and accuracy figures are present, and the estimated figures are marked with a tilde. | Not run | PENDING |
-| 170. Read the battle report disclosure line | It states that attacks and accuracy are simulation-reported while kills, damage, and warrior rows are estimated. | Not run | PENDING |
 | 171. Compare the reported faction accuracy against a headless run of the same seed | It matches the simulation own counters rather than an event-derived approximation. | Not run | PENDING |
-
-## Persistent contingent smoke
-
-Added by the formation and movement realism change (T18 of
-[2026-07-28-formation-movement-realism.md](../plans/2026-07-28-formation-movement-realism.md)),
-which flips the default `Scenario.MovementPreset` to `PersistentContingentsV2`.
-**Partially performed on 2026-07-28.** Rows 102, 103, 104, 105, 111 and 114 were
-observed in one hands-off pass at the default camera fit. Rows 106, 107, 108,
-109, 110, 112 and 113 remain unobserved. Rows 104 and 114 failed.
-
-**Row 111 passed and is no longer in the table**, lifted out on 2026-08-11 into
-the 2026-08-11 record **"Closed rows lifted out of families that are still
-open"**, named rather than linked for the reason given at the top of this file,
-with its evidence. It is the only row of this section that ever closed. Note
-that it closed under `PersistentContingentsV2`, and the shipped default is now
-`BattlefieldRealismV10`, so if a later question turns on whether the battle
-still resolves, write a fresh row rather than reading the archived one as
-current. The automated
-suite —
-`MovementPresetRegistryTests`, `FormationRulesTests`,
-`ContingentOffsetTests`, `ContingentStateMachineTests`, `ArrivalTaperTests`,
-`PersistentContingentTests` and `ContingentDeadlockTests` — proves the state
-machine's six priority-ordered transition rules, the duty cycle, the leader
-scan, the straggler gate, the two geometric gates, the arrival taper, and three
-engineered deadlock geometries all resolve correctly, both in isolation and
-inside a running simulation. None of it proves that the resulting movement
-reads as a group of warriors gathering and advancing together to a person
-watching it, which is the only thing these rows are for.
-
-**Correction — rows 102, 103, and 105 no longer describe what ships.** The
-client's default preset is now `BattlefieldRealismV10`, which groups each
-contingent's warriors into weapon cohorts (a contingent reads as mostly one
-weapon, split across at most `contingentCount - 1` boundaries) rather than the
-round-robin mix these three rows were observed against on 2026-07-28. The
-recorded passing evidence described a group composition that no longer exists
-under the shipped default, so all three are reset to `PENDING` with their
-evidence cleared until someone watches the cohort-grouped shape.
-
-**Scoping note — this is not the last-stand formation smoke.** The last-stand
-formation smoke above (rows 76 through 81) covers the whole-faction rally that
-fires only once a side is down to its final handful of warriors, gathering
-every survivor of that faction on one rally agent. This section covers a
-different mechanism that runs for the whole battle, not only its ending: from
-deployment onward each faction is divided into up to eight persistent
-contingents, and `ResolveContingentStates` cycles each one between gathering on
-its own leader and advancing independently throughout the match. A spectator
-should be able to see both behaviours in the same battle and tell them apart —
-several small contingents repeatedly gathering and re-forming during the
-advance, and then, only once a side is reduced to its last few warriors, the
-separate whole-faction convergence the last-stand rows describe.
-
-Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
-flip one of these rows to `PASS`. Compilation, unit tests, and a
-window-opening probe do not.
-
-| Evidence field | Recorded value |
-| --- | --- |
-| Date | 2026-07-28 |
-| Machine/platform | Windows 11 Pro 10.0.26200, win-x64 |
-| Source commit | 8f4e426, worktree `formation-movement-realism` |
-| Launch path (`source` or package path) | `source` — `./scripts/run.ps1 -Configuration Release` |
-| Optional screenshot paths | None recorded |
-
-| Check | Expected observation | Actual | Status |
-| --- | --- | --- | --- |
-| 102. Read several distinct groups well past deployment | Each side stays readable as several distinct groups well past the opening frame, at the default camera fit, rather than merging into one crowd within a few seconds. | Not run | PENDING |
-| 103. Watch a strung-out group gather and resume | A group that has strung out visibly gathers on one of its own warriors, then resumes advancing, rather than gathering indefinitely or never gathering at all. | Not run | PENDING |
-| 104. Confirm the gathered shape is ragged | The gathered shape is ragged. It is not a ring, a line, an arc, a grid, or any shape that looks placed, and no warrior sits at an obviously exact distance from the one it gathered on. | Not run | PENDING |
-| 105. Watch a group arrive and break apart | On reaching the enemy, a group visibly stops holding together and its warriors fight as individuals. The transition reads as arriving, not as the group breaking apart. | Not run | PENDING |
-| 106. Confirm warriors ease into contact | Warriors ease into contact rather than travelling at full speed and stopping dead against an enemy body. | Not run | PENDING |
-| 107. Confirm a warrior steps aside for its leader | A warrior standing in front of the warrior its group has gathered on steps aside rather than being walked through or standing there blocking it. | Not run | PENDING |
-| 108. Inspect the contingent row | Selecting any warrior shows a `Contingent: <n> — <state>` row in the inspector, and that state changes over the course of the battle rather than reading the same value throughout. | Not run | PENDING |
-| 109. Confirm the contingent ground tints are distinguishable | The eight contingent ground tints within one faction are distinguishable from each other at the default camera fit, and no tint is mistakable for the opposing faction's colour, at all six themes. | Not run | PENDING |
-| 110. Confirm the frozen preset is unaffected | Running the same seed under `IndependentPursuitV1` looks exactly as the game looks today: no gathering, no per-contingent tint, and no contingent row in the inspector. | Not run | PENDING |
-| 112. Watch a group reach a map edge or corner | A group whose warriors reach a map edge or a corner keeps moving and fighting there rather than piling into the boundary and staying put. This is the visible face of the map-edge open-ground rule in design section 3.5. | Not run | PENDING |
-| 113. Watch two groups collide and separate | Two groups on the same side that walk into each other come apart again and carry on advancing, rather than jamming into one stationary mass. This is the visible face of the cross-contingent rule in design section 3.5. | Not run | PENDING |
-| 114. Watch whether gathering keeps appearing across the whole advance | Groups read as groups for the whole of the advance, not only in the first few seconds after deployment. Watch a full battle at the default camera fit and judge whether gathering behaviour keeps appearing across several different groups as the armies converge, or whether it happens once near the start and then stops. This is the spectator half of the inertness bar in design section 10.3 — the automated half asserts thresholds on how often cohesion is granted, and only a person can say whether the result looks like several groups advancing or like one crowd that briefly twitched. | Not run | PENDING |
-
-**History.** Rows 104 and 114 both failed at commit `8f4e426`. The cause was
-movement transition rule 3 latching a whole contingent into
-`ContingentState.Close` as soon as a single member of that contingent reached
-contact. Both rows have been reset to `PENDING` and now await re-observation
-under `PersistentContingentsV3`. That re-observation is not expected to be a
-clean pass: the measurement taken after the fix shows `Hold` episodes after a
-contingent's first `Close` going from zero to one across a five-seed,
-fifty-contingent-battle sweep, `Close` occupancy falling from 63.69 % to
-53.11 %, attrition (rule 2) rising to 30.45 % and becoming the new ceiling on
-mid-battle gathering, and the `Hold` aspect-ratio tail getting worse (p99 from
-3.06 to 5.04, maximum from 5.17 to 14.21). See "Measurement behind rows 104 and
-114" and "Re-measurement after the `Close` latch fix (T7), 2026-07-28" below
-for the full after-table; it is not restated here.
-
-Two observations from the 2026-07-28 pass do not map to any row above, and are
-recorded here so that a later change can be judged against them. First, once one
-side was reduced to roughly twenty warriors, the survivors fought in the centre
-of the map in what the observer described as a line, taking each other on one at
-a time. Second, when two bodies of warriors met, only the front rank appeared to
-be fighting, and the contact edge read as a shallow concave curve. Neither
-observation has been traced to a cause yet, and both concern shapes that
-[03-deep-past-formations-and-tactics.md](../research/battles/03-deep-past-formations-and-tactics.md)
-lists among the formations Hukbo should not present as historical.
-
-## Measurement behind rows 104 and 114
-
-Both failures above were judgements by eye. `Hukbo.Tools.ContingentShape`
-(see [tools/README.md](../../tools/README.md)) attaches numbers to them. The
-figures below are from a five-seed sweep, 200 agents, 10 000-tick limit, run at
-commit `8f4e426`:
-
-```powershell
-dotnet build src/Hukbo.Core/Hukbo.Core.csproj -c Release
-dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5
-dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5 IndependentPursuitV1
-```
-
-**Row 114 is confirmed, and one rule causes it.** Of the fifty
-contingent-battles observed, all fifty reached `ContingentState.Close`, and
-none of the fifty ever returned to `ContingentState.Hold` afterward. Hold ticks
-after a contingent's first `Close`: zero. Hold episodes after a contingent's
-first `Close`: zero. Contingents spend 63.69 % of their living ticks in `Close`
-and a further 23.51 % in `Break`, against 3.09 % in `Hold`. The denial
-attribution puts 63.69 % of all contingent-ticks on transition rule 3 — an
-enemy within the close radius — while the two geometric gates account for
-1.81 % and 1.07 %, and a shut duty-cycle window for 1.12 %. Rule 3 tests the
-minimum distance over *every* member of the contingent, so one warrior of forty
-reaching contact puts the whole contingent into `Close`, and in a converged
-melee that condition never lifts again.
-
-**Row 104 is not reproduced by the shape metric, and points at the same
-cause.** Across 1 671 `Hold` samples the principal-axis aspect ratio has a
-median of 1.56, a 99th percentile of 3.06, and a maximum of 5.17; 79.29 % of
-gathers sit below 2.0. That is a clump, not a line. The two hypotheses that
-would have produced a line are both refuted for `Hold`: the gathered cloud
-aligns more with the contingent's own direction of advance (mean 12.21°) than
-with a world axis (mean 22.09°), which is the opposite of what an
-axis-aligned bias square would produce; and no `Hold` or `Advance` sample in
-the whole sweep fell within sixty ticks of a leader change, because leader
-changes require deaths and deaths only begin once a contingent has already
-latched into `Close`. What the observer saw mid-battle was therefore almost
-certainly not a `Hold` at all — `Close` contingents have a median aspect of
-3.60 and a 90th percentile of 7.73 — which makes rows 104 and 114 two faces of
-one defect rather than two.
-
-**Control.** The same sweep under the frozen `IndependentPursuitV1` preset
-leaves every contingent in `ContingentState.None` for 100 % of its ticks, and
-the same nominal groups then show a median aspect of 5.09 with both angles at
-44.1°, which is the uniform-random value. The cohesion that `Hold` applies is
-doing real work when it is allowed to run; it is almost never allowed to run.
-
-## Re-measurement after the `Close` latch fix (T7), 2026-07-28
-
-The measurement above is the "before" picture, taken at commit `8f4e426`,
-before any rule change from this workstream landed. This is the "after"
-picture, taken once T1 through T6 of
-the contingent close-latch plan
-had landed (commits `bde702f` through `855c797`): `MovementRuleset` now
-carries `CloseFractionNumerator` and `CloseFractionDenominator`; transition
-rule 3 counts members in contact against those fractions instead of taking a
-minimum distance; `PersistentContingentsV3` is registered with `(1, 2)` —
-close at half the living members in contact, re-open below a quarter; and
-`Scenario`'s shipped default has moved from `PersistentContingentsV2` to
-`PersistentContingentsV3`.
-
-Both runs use the same workload the before-table used — a five-seed sweep,
-200 agents, a 10 000-tick limit, read from this file rather than assumed:
-
-```powershell
-dotnet build src/Hukbo.Core/Hukbo.Core.csproj -c Release
-dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5 PersistentContingentsV3
-dotnet run --project tools/Hukbo.Tools.ContingentShape -c Release -- 10000 200 5 PersistentContingentsV2
-```
-
-**A note on the command line actually run.** The plan's T7 section writes the
-first command with no fourth argument, relying on the tool's default. That
-default is a literal hardcoded in `tools/Hukbo.Tools.ContingentShape/Program.cs`
-(`MovementPresetId.PersistentContingentsV2`), independent of `Scenario`'s
-shipped default — T5 and T6 did not touch it, and this task's file ownership
-does not extend to changing it either. Running the tool with no fourth
-argument today therefore still measures V2, not the new shipped default, so
-both runs below pass the preset explicitly instead. The second run
-(`PersistentContingentsV2`) is the control the plan asks for either way.
-
-**Occupancy and denial attribution.**
-
-| State / denial reason | V2 (control) share | V3 share |
-| --- | --- | --- |
-| `Close` / `close-enemy-within-close-radius` (rule 3) | 63.69 % | 53.11 % |
-| `Break` / `break-attrition` (rule 2) | 23.51 % | 30.45 % |
-| `Advance`, cohesion not needed / `already-gathered` | 5.71 % | 6.77 % |
-| `gate6-square-overlap` | 1.81 % | 3.89 % |
-| `Hold` / `none-cohesion-granted` | 3.09 % | 3.39 % |
-| `window-shut` (duty cycle) | 1.12 % | 1.22 % |
-| `gate5-map-edge` | 1.07 % | 1.17 % |
-
-Design section 5 predicted the geometric gates and rule 2 (attrition) might
-become the new ceiling once rule 3 stopped locking every contingent into
-`Close` on a single member's contact. That prediction held: `break-attrition`
-rose from 23.51 % to 30.45 %, and `gate6-square-overlap` roughly doubled, from
-1.81 % to 3.89 %. `close-enemy-within-close-radius` fell from 63.69 % to
-53.11 %, which is the fix doing what it was built to do — contingents spend
-markedly less of the battle latched into `Close`.
-
-**1. Hold episodes after first `Close` — must be non-zero.** V3: 1 episode,
-14 ticks, across 50 contingent-battles, all 50 of which reached `Close`. V2
-control: 0 episodes, 0 ticks, matching the frozen before-table exactly. The
-count is non-zero, so the change did not fail at its stated purpose, but the
-margin is thin: one `Hold` episode across the whole five-seed sweep is a long
-way from "several small contingents repeatedly gathering and re-forming during
-the advance," which is the spectator-visible behaviour rows 104 and 114
-actually describe. That gap is recorded here as a finding rather than rounded
-up.
-
-**2. `Hold` aspect-ratio distribution.**
-
-| Metric | V2 (today's baseline) | V3 |
-| --- | --- | --- |
-| Median | 1.56 | 1.59 |
-| p99 | 3.06 | 5.04 |
-| Max | 5.17 | 14.21 |
-| Share below 2.0 | 79.29 % | 75.74 % |
-
-The median barely moves. The tail does: p99 rises from 3.06 to 5.04 and the
-observed maximum from 5.17 to 14.21, and the share of gathers reading as a
-tight clump (aspect below 2.0) drops from 79.29 % to 75.74 %. That is a
-materially worse tail, not a materially worse typical case, and the plan is
-explicit that a worse distribution is new information rather than a thing to
-quietly tune away. It is recorded here as a finding: whatever `Hold` episodes
-now occur mid-battle (after a contingent has already passed through `Close` at
-least once) evidently include some shaped less like a clump than the
-approach-phase gathers the before-table measured. With only 1 mid-battle
-`Hold` episode observed for V3 in this sweep, that is the most likely driver,
-but the tool does not yet split `Hold` samples by before/after first `Close`
-the way it splits ticks and episodes — the numbers above are the aggregate
-across all `Hold` samples, exactly as the before-table reported them, and
-that split is not built.
-
-**3. Denial attribution**, repeated in one line per rule or gate for the
-report contract: `close-enemy-within-close-radius` (rule 3) 53.11 % V3 vs
-63.69 % V2; `break-attrition` (rule 2) 30.45 % V3 vs 23.51 % V2;
-`already-gathered` 6.77 % V3 vs 5.71 % V2; `gate6-square-overlap` 3.89 % V3 vs
-1.81 % V2; `none-cohesion-granted` (`Hold`) 3.39 % V3 vs 3.09 % V2;
-`window-shut` 1.22 % V3 vs 1.12 % V2; `gate5-map-edge` 1.17 % V3 vs 1.07 % V2.
-
-**4. `Close` state-flip frequency.** `Hukbo.Tools.ContingentShape` gained one
-new counter for this task, `closeReentries`, printed as `Close re-entries
-(state-flip)`. It counts a transition into `Close` that is not the
-contingent's first entry into `Close` in that battle — the first entry is
-excluded so the counter measures only re-entry after the contingent left for
-some other state. Across the same five-seed, 200-agent sweep: V3 reports 10
-re-entries, V2 reports 12. Both are non-zero: V2's rule 3 is symmetric at the
-`(0, 1)` fraction (entry and exit threshold both collapse to `Max(1, ...)`),
-so a contingent can in principle leave `Close` whenever the very last member
-in contact drops out and re-enter once contact resumes, and the measurement
-confirms that happens — twelve times across fifty contingent-battles, even
-though no `Hold` episode ever followed any of those twelve. The V3 count (10)
-is marginally lower than the V2 count (12), not higher: halving the entry
-fraction to build the exit threshold did not produce a materially different
-amount of state churn either way. That is the answer design section 7 asked
-for — the two bands produce a similar order of magnitude of `Close` flipping,
-and in both cases the flip essentially never routes back through `Hold`
-before contact is re-established, on this five-seed sample.
-
-**Outcome and battle length.** V2 and V3 simulate different behaviour, so the
-five seeds do not produce the same terminal ticks or winners under the two
-presets — that is expected and is not a determinism concern; determinism
-within one preset is what `DeterminismTests` and the canonical gate check, not
-agreement between two different presets. V2 control: 1064, 1712, 858, 1635,
-2234 ticks (matching commit `8f4e426`'s frozen values exactly — seed 1
-reproduces `Faction0Victory` at tick 1064). V3: 1334, 1909, 917, 1437, 2285
-ticks.
-
-**Verdict on the fix.** The fix works at the narrowest reading of its stated
-purpose: `Hold` episodes after first `Close` are non-zero where they were
-zero, and contingents spend materially less of the battle latched in `Close`
-(53.11 % against 63.69 %). It does not yet produce the richer "repeatedly
-gathering and re-forming during the advance" picture the design document and
-rows 104 and 114 describe — one `Hold` episode in fifty contingent-battles is
-a rare event on this sample, not a repeated behaviour, and the `Hold` shape
-that does occur reads worse in the tail (p99 and max) than the approach-phase
-gathers the before-table measured. Whether that is nonetheless visible to a
-human at the default camera fit is exactly what T10's reset of rows 104 and
-114 exists to find out, and no agent may answer that question.
-
-## Shield-clash audio smoke
-
-Added by the shield clash audio plan. **No interactive run was
-performed, so every row below is unrun and its verdict is still pending.** Each
-one needs a human at an interactive Windows desktop with working audio, and no
-agent may flip one to a passing verdict.
-
-Automated tests do exist for the parts of this change that can be tested without
-a window or a speaker. `SoundCatalogTests.EveryDefinedWeapon_HasAShieldClashSlot`
-proves that every defined weapon has a clash slot to route to.
-`SoundCueMapperTests.Map_RoutesAShieldBlockToTheMatchingClashSlot` and
-`Map_KeepsTheWeaponSlotForEveryOtherResolution` prove that a `ShieldBlocked`
-attack maps to the clash slot for its weapon while `Landed`, `Parried`,
-`Deflected`, and `Evaded` keep the weapon impact slot.
-`SoundDirectorTests.Ingest_UsesANullHitClassForAShieldBlockDespiteTheHitLocation`
-proves the director derives the hit class from the mapped slot rather than from
-the event, which is what keeps a clash cue from resolving `Missing` forever.
-`SoundLogPanelTests.ClampBindingScroll_ReachesTheLastRow`,
-`ClampBindingScroll_RefusesToScrollPastEitherEnd`,
-`ClampBindingScroll_ReturnsZeroWhenEveryRowFits`,
-`GetWheelTarget_RoutesTheWheelToTheListUnderThePointer`, and
-`GetWheelTarget_FallsBackToTheCueListOutsideBothLists` prove the scroll
-arithmetic and the wheel routing as pure functions.
-`CalculateLayout_FitsExactlyTenBindingRowsAtFourHundredAndSixteen` and
-`CalculateLayout_CapsTheBindingViewportAtTheSlotCountRegardlessOfHeight` pin the
-layout numbers.
-
-None of that proves what these rows are for. No test hears a sound, so no test
-can say whether a shield block reads as wood rather than as flesh, whether the
-four weapons are audibly distinct, or whether the cue becomes a wall of noise in
-a full battle. No test drives a real mouse wheel over a real panel, so none
-proves that the wheel reaches the right list on screen or that it does not leak
-into the arena camera. No test renders anything, so none proves that the battle
-event log below the taller sound log is still readable. The sixteen clash takes
-do not exist yet either — they are generated by hand in a later step — so every
-row that expects `READY (4)` is blocked until that generation happens.
-
-| # | Step | Expected | Result | Status |
-| --- | --- | --- | --- | --- |
-| 172. Listen to a shield-blocked blow | It sounds like a weapon striking a light wooden board, and it is plainly different from a landed cut. The difference is audible on its own, without reading the event log to find out which resolution occurred. | Not run | PENDING |
-| 173. Compare the four clash slots by ear | The War Axe reads heavier and blunter than the Work Blade against the same shield, and the Work Blade is the quietest of the four. | Not run | PENDING |
-| 174. Scroll the expected-files list | Open the sound log, put the pointer over the expected-files list, and scroll. The list moves through all thirty-seven rows, reaches the four clash slots at the bottom with each one reading `READY (4)`, refuses to scroll past either end, and shows no `+N more` line anywhere. Scrolling with the pointer over the cue log below still scrolls only the cue log, and neither scroll zooms the arena camera. A run with `-LogLevel dbg` whose `assets.sound.scanned` line reports thirteen slots and thirteen ready is a secondary confirmation of the same fact. | Not run | PENDING |
-| 175. Run a full 200-agent battle with the shield cue audible | The shield cue does not become a wall of noise, and the cue log shows no `LIMITED` or `REFUSED` row for any clash slot. | Not run | PENDING |
-| 176. Read the battle event log with the sound log open | At the sound log's new height the battle event log still reads: the selected-event pane shows its header and both detail lines, and nothing is clipped. **This row is the only check on the event-log cost of the 65 percent change.** `BattleEventLogPanel`'s layout constants are private and `ArenaGame` is banned from tests, so no automated test covers it. | Not run | PENDING |
 
 ## Leader marker and inspector annotation smoke (leader rank plan L4/L5)
 
@@ -1295,97 +819,29 @@ until those files land.
 | RG-11 | Watch a Bangkaw or Busog shot whose flight path passes through or near a friendly warrior standing between the launcher and the target | **This row has no pass/fail criterion; it is an open question, not a check.** Phase 1 deliberately implements no friendly fire and no line of sight — a projectile resolves as a pure distance-and-timer hitscan against its chosen target, with nothing checked about who or what stands between launcher and target — and that gap is deferred to Phase 2 by design, not an oversight to correct here. Record in `Actual` whatever was actually observed: does the projectile visibly passing through the friendly warrior look wrong to a spectator, or does it go unnoticed at the pace and scale of a real battle? This is the one Phase 1 effect a spectator cannot discover for themselves through any other row above, which is why it needs a person to look at it deliberately rather than being inferred from the others | | PENDING |
 ## Projectile props and embedded projectiles smoke (2026-08-11)
 
-**No interactive run was performed for this change.** Every row below is
-`PENDING`. The automated tests prove the three silhouettes are mutually
-distinct, that the prop is centred on the shot rather than anchored at the
-launcher, that it rotates to the direction of travel, that every one of the
-thirteen body parts resolves to an anchor inside the host's own visual bounds,
-that a shield block attaches to the shield rather than to the body part it also
-carries, that the pool never exceeds 256 slots and evicts oldest-first, and
-that the quad budget still fits. None of them prove that a spectator can tell a
-spear from an arrow from a lead ball while a battle is running, or that a stuck
-arrow reads as stuck rather than as a smear.
+**Seven of this family's eight rows closed on 2026-08-13** and have been lifted
+out into that day's archive record for this family, which is named here in prose
+rather than linked because the archive folder is deleted periodically. A person
+at an interactive desktop ran the family and passed `PP-1`, `PP-2`, and `PP-4`
+through `PP-8`. Only `PP-3` is still open.
 
-Rows PP-4 through PP-7 need a battle that actually lands ranged hits, so they
-cannot be attempted before RG-1 is attemptable.
+`PP-3` was attempted in the same run and did not pass. The tester found that the
+in-flight projectile draws too large: a spear reads as longer than the warriors
+it flies past, and it stays too large even with the camera zoomed in. The row as
+written asks about the opposite failure, a shot shrinking away to nothing, so the
+finding sits outside what the row itself covers, and the row stays here until it
+can be re-run against the fix made in response. That fix caps the in-flight prop
+at the same apparent-scale ceiling the pawns already obey; the plan is
+`docs/plans/2026-08-13-projectile-prop-scale.md`.
+
+Re-running `PP-3` means checking both ends of the zoom range in one sitting. The
+shot must still be drawn at the most pulled-out camera, which is what the row has
+always asked for, and at the tightest zoom it must no longer read as longer than
+a warrior is tall.
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| PP-1 | Watch a single Bangkaw or Busog shot from release to impact at default zoom, following the projectile with your eye | The drawn object is a small prop of fixed length that travels from launcher to target, and its length does not change during the flight. Failure is a line that grows out of the thrower and is longest at the moment of impact, which is the defect this change exists to fix | | PENDING |
-| PP-2 | Compare a Bangkaw shot, a Busog shot, and an Arquebus shot in flight, at default zoom | The three are distinguishable in the air without seeing who fired them: the spear is the longest and carries a visible head at its leading end, the arrow is markedly shorter with a pale fletched tail, and the arquebus shot is a small ball with no shaft at all. Failure is any two of the three reading as the same object in flight | | PENDING |
-| PP-3 | Watch a shot in flight while zooming from close in to fully zoomed out | The projectile stays visible at every zoom, including the most pulled-out one. Failure is a shot that scales down to nothing and disappears — the in-flight prop is deliberately never detail-gated, because at low detail it may be the only sign a ranged unit exists | | PENDING |
-| PP-4 | Watch a Busog shot land on an unshielded warrior, at a zoom close enough to see the pawn's body clearly | An arrow is left standing in the warrior, at the part of the body the shot struck, with its fletched tail outward. Failure is no arrow appearing, or one appearing somewhere unrelated to where the blow landed | | PENDING |
-| PP-5 | Watch a Bangkaw or Busog shot that a tall hardwood shield blocks | The projectile is left standing in the shield face rather than in the warrior behind it. Failure is an arrow appearing in the body of a warrior whose shield stopped the shot | | PENDING |
-| PP-6 | Find a warrior carrying at least one embedded projectile and follow it while it walks across the field | The projectile rides with the warrior, holding its position on the body and its angle, rather than staying behind at the spot where the hit occurred or sliding around the pawn. Failure is a projectile that detaches, drifts, or re-rolls its angle from frame to frame | | PENDING |
-| PP-7 | Watch a warrior carrying embedded projectiles while zooming out to a wide view of the whole battle, then zoom back in | The embedded projectiles stop being drawn as the camera pulls out and reappear on zooming back in, and the warriors themselves are unaffected. Failure is embedded projectiles still drawing at the widest zoom — they are deliberately detail-gated, unlike the in-flight prop — or the pawns changing in any other way as the gate crosses | | PENDING |
-| PP-8 | Watch an Arquebus shot land on a warrior | Nothing is left standing in the wound. Failure is a shaft appearing for a weapon that fires a lead ball | | PENDING |
-
-## Attack animation V2 smoke (2026-08-08)
-
-**Six rows passed and are no longer in the table** — `AA-1`, `AA-2`, `AA-3`,
-`AA-4`, `AA-6`, and `AA-17`, lifted out on 2026-08-11 into
-the 2026-08-11 record **"Closed rows lifted out of families that are still
-open"**, named rather than linked for the reason given at the top of this file,
-with their evidence. What remains below is 17 `PENDING` and one `FAIL`, `AA-22`.
-**Read the archived six against the note on fullscreen resolution in the run
-record beneath this paragraph**: they were observed at 2048x1152, which is the
-virtualised viewport a DPI-unaware process was handed on that display. The DPI
-awareness fix of 2026-08-11 means the same run today would be at 2560x1440, so
-any of the six that turned on glyph or silhouette legibility is worth a fresh
-row rather than trust in the archived result.
-
-**No interactive run was performed for the rows below when this section was
-written.** The automated tests prove the weapon-motion catalog, the
-contact-latched timeline, the target-local geometry, the articulated arm
-rectangles, the defender reaction offsets, the shield overlay legality, the
-motion-intensity policy, the quad accounting, and the conservative cull's
-containment of all of it. None of them prove that a Kampilan reads differently
-from a Kalis on screen, that a blow appears to land on the warrior it names, or
-that a dense battle of two hundred warriors striking at once reads as combat
-rather than as noise. Design:
-`docs/plans/2026-08-08-attack-animation-v2-design.md`.
-
-**Interactive runs, 2026-08-09.** Two runs against `codex/attack-animation-v2`
-at `3a63bb1`, both `Debug`/`dbg`, fullscreen 2048x1152, the shipped 500-agent
-default scenario. Logs:
-`artifacts/logs/hukbo-20260808-214856-3108.jsonl` (one battle, 107 s) and
-`artifacts/logs/hukbo-20260808-215507-26172.jsonl` (two battles, 224 s, three
-pause cycles, one Next Round). Across both: 6 386 Itak, 4 934 Kalis, 4 284
-Kampilan and 2 805 Wasay attack cues, 1 478 deaths, and **no `warn` or `err`
-line of any kind** — in particular no `render.attack.contact.collapsed`, so the
-five-bundle per-attacker buffer never overflowed.
-
-Rows below carry what the observer reported. Where an expectation could not be
-attributed to an individual exchange, the row stays `PENDING` rather than being
-credited from the log: the log proves an event occurred, never that a person
-could read it.
-
-The render probe measured the attack path directly at 200, 500, and 1 000
-agents across all three camera stations, with every station recording at least
-one frame holding an active attack pose (peaks of 2 to 20 poses per frame):
-`artifacts/attack-animation-v2/render-matrix.json`. That is a performance
-measurement, not a visual one, and it flips no row below.
-
-| ID | Action | Expected | Observed | Result |
-| --- | --- | --- | --- | --- |
-| AA-5 | Watch each of the four weapons at 1x, 2x, and 4x | Every blow stays individually visible; nothing blurs into a single continuous motion at 4x | | PENDING |
-| AA-7 | Watch a blow a shield blocks | The defender braces into the contact rather than being driven back, and the clash reads on the shield | Outcomes look distinct, but the observer reported being unable to follow which outcome resolved which exchange in a live 500-agent battle. Not certifiable at this density. | PENDING |
-| AA-8 | Watch a parried blow | Attacker and defender weapons visibly meet and redirect across the line of the blow | As AA-7: distinctness observed, individual attribution not possible at this density. | PENDING |
-| AA-9 | Watch a deflected blow | A shallower glance than the parry, continuing rather than reversing | As AA-7: distinctness observed, individual attribution not possible at this density. | PENDING |
-| AA-10 | Watch an evaded blow | Full follow-through with no blood, no clash cross, and no contact recoil | As AA-7: distinctness observed, individual attribution not possible at this density. | PENDING |
-| AA-11 | Watch a two-blow combo from one warrior | The second contact installs a new blow rather than restarting the first; the return side changes | | PENDING |
-| AA-12 | Watch a lethal blow at close zoom | The victim stays visible long enough for the weapon to reach it, then falls; it does not vanish before contact | | PENDING |
-| AA-13 | Watch a shielded Kalis warrior strike (registered V2 replay) | The block stays between the defender and the weapon line; the weapon arm does not cross or hide it | | PENDING |
-| AA-14 | Watch a shielded Itak warrior strike (registered V2 replay) | As AA-13, with the compact chop rather than the thrust | | PENDING |
-| AA-15 | Watch attacks at Low, Medium, and High detail | Low keeps direction and outcome with no arms and no trail; Medium and High draw the full rig | Articulated arms are present but reported as "not significantly seen" at the zoom used. The three tiers were not compared against each other. | PENDING |
-| AA-16 | Set motion to Full, then Reduced, then Off | All three keep direction, reach, and which outcome resolved the blow; Reduced damps the body; Off removes the trail entirely | | PENDING |
-| AA-18 | Pause during a catch-up burst, then resume | Queued contacts resume in order and none is duplicated or lost | | PENDING |
-| AA-19 | Next Round, then Full Reset, during active combat | Every attack pose, pending contact, reaction, and transient effect is cleared by both | Next Round exercised and the second battle ran clean; Full Reset was never triggered. | PENDING |
-| AA-20 | Watch a 200-warrior battle at close zoom | Individual exchanges are readable; the arms and trails do not obscure who is fighting whom | | PENDING |
-| AA-21 | Watch a 200-warrior battle at default fit | The formation still reads as a formation | | PENDING |
-| AA-22 | Watch a 500-warrior stress battle at minimum, default-fit, and maximum zoom | Frame pacing stays comfortable and the field does not turn into visual noise at any of the three | **Animations overlap and the battle reads as chaos**; the observer could not tell what was happening. Frame pacing was not reported as a problem. Two full 500-agent battles. | FAIL |
-| AA-23 | Watch a warrior strike while moving | The attack plants the stance and composes with the stride; the body does not jump between two poses | | PENDING |
-| AA-24 | Watch a warrior at the edge of the arena panel strike outward | The weapon does not pop in or out at the panel edge as the blow extends | | PENDING |
+| PP-3 | Watch a shot in flight while zooming from close in to fully zoomed out | The projectile stays visible at every zoom, including the most pulled-out one. Failure is a shot that scales down to nothing and disappears — the in-flight prop is deliberately never detail-gated, because at low detail it may be the only sign a ranged unit exists | 2026-08-13, tester at the desktop. The shot stayed visible across the zoom range, but the in-flight prop draws too large and still reads oversized even when the camera is zoomed in. Capped in response; awaiting a re-run against that fix. | PENDING |
 
 ## Battlefield realism cohort and retreat smoke (task 18)
 
