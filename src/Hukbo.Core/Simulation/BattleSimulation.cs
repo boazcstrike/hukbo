@@ -5166,10 +5166,16 @@ public sealed class BattleSimulation
     /// named here rather than spelled out six times: a preset added to the
     /// enum and missed at one call site would silently lose one behaviour and
     /// keep the other two, which no single-file reading would catch.
+    /// <see cref="MovementPresetId.ContingentShapeV12"/> is admitted for the
+    /// same reason: it is defined as a strict superset of
+    /// <see cref="MovementPresetId.LastStandEngagementV11"/>'s behaviour, so it
+    /// inherits all three of these battlefield-realism behaviours unchanged
+    /// before any contingent-shaping behaviour of its own is layered on top.
     /// </summary>
     private static bool UsesBattlefieldRealism(MovementPresetId preset) =>
         preset is MovementPresetId.BattlefieldRealismV10
-            or MovementPresetId.LastStandEngagementV11;
+            or MovementPresetId.LastStandEngagementV11
+            or MovementPresetId.ContingentShapeV12;
 
     /// <summary>
     /// The single approved reach test. Attack range is measured centre to
