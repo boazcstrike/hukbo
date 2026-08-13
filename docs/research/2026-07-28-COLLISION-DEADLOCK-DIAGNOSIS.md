@@ -152,6 +152,18 @@ that is permanently occupied.
 
 ## 5b. This is not a 4.5 problem. The shipping configuration has it too
 
+> **This section's headline claim is no longer true, as of `b9003a9` on
+> 2026-07-28.** The table below was measured before that commit, which lets a
+> rally follower give up an unreachable aim point after 192 blocked ticks.
+> Re-measured on 2026-08-13 against current code, same 200 seeds, same 18 agents,
+> same shipping body radius: threshold 6 gives **0 stalls in 200**, threshold 7
+> gives 2 (seeds 160, 161), threshold 8 gives 3 (seeds 95, 157, 177), and
+> threshold 9 gives **0**. The shipping default is 6, so the sentence "the
+> shipped game deadlocks on roughly one seed in a hundred" describes the code as
+> it was, not as it is. Consequences 1 and 2 below fall with it; consequence 3,
+> that seeds 1 to 20 cannot detect a one-percent failure, still stands and is why
+> the regression test now runs 200.
+
 The rally jitter target is drawn from a span of `8 * BodyRadiusRaw + 1`, so the
 body radius is the *modulus* of the draw. Changing it does not make the packing
 geometrically tighter or looser — it re-rolls every agent's target. That

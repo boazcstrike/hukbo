@@ -3,6 +3,44 @@
 Status: design only. This document does not authorize implementation. It states
 a problem, explains its cause, and lays out the options.
 
+> **Superseded in part on 2026-08-13. Read this before acting on anything
+> below.** The stall this document is about was largely fixed later on
+> 2026-07-28, by `b9003a9`, *after* this document and its findings note were
+> written. The fix is in the intent layer rather than the resolver: an agent
+> blocked for `FormationRules.StallEscapeStreakTicks` = 192 consecutive ticks
+> has proved its rally aim point unreachable and draws a different one, using a
+> monotonic per-agent generation held in `CollisionScratch`. None of this
+> document's five options was implemented, and `CollisionResolver` is unchanged.
+>
+> Re-measured on 2026-08-13 against current code, 200 seeds per threshold at the
+> shipping body radius, 18 agents:
+>
+> | `LastStandThresholdAgents` | Stalls in 200 |
+> | --- | --- |
+> | 6 — the shipping default | **0** |
+> | 7 | 2 — seeds 160, 161 |
+> | 8 | 3 — seeds 95, 157, 177 |
+> | 9 — `MaximumLastStandThresholdAgents` | **0** |
+>
+> **The shipping configuration no longer stalls.** Section 5b of the findings
+> note says the shipped game deadlocks on roughly one seed in a hundred; that
+> was true when it was written and is not true now. Thresholds 7 and 8 are the
+> only ones still affected, and neither is reachable from `Scenario.CreateDefault`
+> or from the client — only a test that sets `LastStandThresholdAgents` by hand
+> gets there.
+>
+> `b9003a9` records what the five residual stalls are anchored by: agents whose
+> intent is `Moving` rather than `Regrouping`, advancing on an enemy with no
+> escape in `BuildMovementProposal`, pushing into a comrade forever. It states
+> that closing them "needs a decision about what a warrior should do when a
+> comrade blocks its route to the enemy, which is a gameplay question rather
+> than a bug." That decision has not been taken.
+>
+> So section 6.1, "do nothing", is now much stronger than this document judged
+> it, and every other option would move both hashes on every seed and break every
+> frozen preset digest to fix something no spectator can reach. Do not implement
+> from this document without re-measuring first.
+
 **Updated 2026-07-28.** Section 4 was originally a hypothesis reasoned from the
 source, and section 9 made proving or refuting it the first task of any plan
 that followed. That measurement has since been taken and is recorded in
