@@ -1,8 +1,23 @@
 # Shield-clash audio legibility — design
 
+**Archived: reference only.** This is a finished design whose implementation
+landed in full. Never execute it, never treat it as a live task list, and never
+cite it as the reason to make a change. The live contract for this project
+remains `CLAUDE.md` and `docs/development/smoke-checklist.md`; nothing in this
+file overrides either of those. Archived 2026-08-13 alongside its plan
+document, "Shield-clash audio legibility — plan".
+
+The source files this design describes no longer name it by path. Six doc
+comments in `src/Hukbo.Client/Audio/` cited
+`docs/plans/2026-08-13-shield-clash-legibility-design.md` until 2026-08-13; they
+now name this document in prose instead, because a path into `docs/archives/`
+breaks when the folder is pruned. The constants they document — the reference
+peak of `0.85`, the four voicing rows, the melee-clash slot gate — are described
+in the comments themselves and do not depend on this file surviving.
+
 Written 2026-08-13, after row 173 of the shield-clash audio family failed at an
-interactive desktop. This document does not authorize implementation; the plan
-document beside it does.
+interactive desktop. This document did not authorize implementation; the plan
+document beside it did.
 
 ## 1. What failed
 
