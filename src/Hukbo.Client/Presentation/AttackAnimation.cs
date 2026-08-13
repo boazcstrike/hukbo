@@ -49,10 +49,16 @@ internal readonly record struct AttackAnimation(
     bool AwaitingDrawAcknowledgement)
 {
     /// <summary>
-    /// PROVISIONAL presentation time. Keeps a lethal defender available just
-    /// beyond the guaranteed contact draw before ordinary recovery begins.
+    /// PROVISIONAL presentation time. Keeps a lethal defender's body on
+    /// screen long enough for the ring, the pulse, and the blood burst to
+    /// play out over it. This is still a hold, not a corpse layer: the
+    /// defender leaves recovery and readiness exactly as before, just later.
+    /// Raised from 0.10f to 0.34f on 2026-08-13
+    /// (docs/plans/2026-08-13-lethal-blow-legibility.md) so a killing blow is
+    /// unmistakable on screen; see that design's section 4 for why the
+    /// shorter value existed first.
     /// </summary>
-    public const float LethalHoldSeconds = 0.10f;
+    public const float LethalHoldSeconds = 0.34f;
 
     public AttackAnimationPhase Phase
     {

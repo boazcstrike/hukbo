@@ -68,6 +68,39 @@ public sealed class DefenderReactionSystemTests
         Assert.False(system.TryGetReaction(7, out _));
     }
 
+    /// <summary>
+    /// Pins the ordering that keeps the lethal hold reachable: the reaction
+    /// record must outlive <c>LethalHoldSeconds</c> (0.34s) so the hold can
+    /// run its full duration, and it must not outlive it forever, so it
+    /// still expires at its own lifetime (0.50s). Asserted against literals,
+    /// not against the constants under test, per
+    /// docs/plans/2026-08-13-lethal-blow-legibility-design.md.
+    /// </summary>
+    [Fact]
+    public void Advance_KeepsLethalReactionThroughTheHoldButExpiresAtItsOwnLifetime()
+    {
+        var atHold = new DefenderReactionSystem(capacity: 1);
+        atHold.StartContact(
+            Contact(sequence: 1, isLethal: true),
+            Agent(2, 0, 0),
+            Agent(7, 100, 0, isAlive: false));
+
+        atHold.Advance(0.34f);
+
+        Assert.True(atHold.TryGetReaction(7, out _));
+        Assert.False(atHold.IsLethalHoldActive(7));
+
+        var atLifetime = new DefenderReactionSystem(capacity: 1);
+        atLifetime.StartContact(
+            Contact(sequence: 1, isLethal: true),
+            Agent(2, 0, 0),
+            Agent(7, 100, 0, isAlive: false));
+
+        atLifetime.Advance(0.50f);
+
+        Assert.False(atLifetime.TryGetReaction(7, out _));
+    }
+
     [Fact]
     public void ConstructorAndAdvance_RejectInvalidValues()
     {

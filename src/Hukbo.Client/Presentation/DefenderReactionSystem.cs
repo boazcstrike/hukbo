@@ -28,7 +28,18 @@ internal readonly record struct DefenderReaction(
     /// </summary>
     private const float LethalReactionScale = 1.55f;
 
-    public float LifetimeSeconds => IsLethal ? 0.28f : 0.18f;
+    /// <summary>
+    /// PROVISIONAL legibility tuning (CLAUDE.md section 7). The lethal side
+    /// must stay strictly greater than <see cref="LethalHoldSeconds"/>
+    /// (0.34s), which must stay strictly greater than
+    /// <c>HitEffectSystem.LethalPulseSeconds</c> (0.30s): 0.50 &gt; 0.34
+    /// &gt; 0.30. If this reaction expired first, the hold in
+    /// <see cref="DefenderReactionSystem.IsLethalHoldActive"/> would be
+    /// silently capped by the reaction's own removal, and the pawn would
+    /// vanish mid-pulse instead of holding through it. See
+    /// docs/plans/2026-08-13-lethal-blow-legibility-design.md.
+    /// </summary>
+    public float LifetimeSeconds => IsLethal ? 0.50f : 0.18f;
 
     /// <summary>
     /// The presentation-only displacement this defender is drawn at, in pawn

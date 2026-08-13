@@ -206,22 +206,31 @@ internal static class BloodGeometry
     /// </summary>
     private const float LowDetailScale = 0.76f;
 
-    private const int MaximumDropletCount = 8;
-    private const int LethalDropletBonus = 1;
+    // PROVISIONAL legibility tuning per CLAUDE.md section 7, widened
+    // 2026-08-13 (docs/plans/2026-08-13-lethal-blow-legibility-design.md) so
+    // a kill's spray is unmistakable next to an ordinary hit's. The cap
+    // rises; droplet counts stay hard-capped, they never grow unbounded.
+    private const int MaximumDropletCount = 12;
+    private const int LethalDropletBonus = 4;
     private const int SeverityDropletReduction = 3;
-    private const float LethalTravelMultiplier = 1.35f;
-    private const float LethalThicknessMultiplier = 1.25f;
+    private const float LethalTravelMultiplier = 1.75f;
+    private const float LethalThicknessMultiplier = 1.55f;
 
     private const int OrdinaryBlotCount = 2;
     private const int DenseBlotCount = 3;
     private const float OrdinaryMarkRadius = 3.4f;
-    private const float LethalMarkRadius = 5.6f;
+
+    // PROVISIONAL legibility tuning per CLAUDE.md section 7, widened
+    // 2026-08-13 (docs/plans/2026-08-13-lethal-blow-legibility-design.md).
+    private const float LethalMarkRadius = 8.4f;
     private const float OrdinaryMarkAlpha = 0.62f;
-    private const float LethalMarkAlpha = 0.85f;
+    private const float LethalMarkAlpha = 0.95f;
     private const float MarkGrowthFactor = 0.28f;
     private const float MarkBoundingFactor = 2.2f;
 
-    private const int SpurtStrandCount = 8;
+    // PROVISIONAL legibility tuning per CLAUDE.md section 7, widened
+    // 2026-08-13 (docs/plans/2026-08-13-lethal-blow-legibility-design.md).
+    private const int SpurtStrandCount = 10;
     private const float SpurtSpreadAngle = 0.55f;
     private const float SpurtLength = 17f;
     private const float SpurtThickness = 1.8f;

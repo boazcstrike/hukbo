@@ -108,6 +108,16 @@ public sealed class BloodGeometryTests
     }
 
     [Fact]
+    public void Create_LethalFullSeverityBurstNeverExceedsTwelveDroplets()
+    {
+        var layout = BloodGeometry.Create(
+            Burst(weapon: WeaponId.Wasay, severityRatio: 1f, isLethal: true),
+            cameraZoom: 1f);
+
+        Assert.True(layout.DropletCount <= 12);
+    }
+
+    [Fact]
     public void Create_OverkillSeverityClampsToTheSeverityOneVisuals()
     {
         var full = BloodGeometry.Create(Burst(severityRatio: 1f), 1f);

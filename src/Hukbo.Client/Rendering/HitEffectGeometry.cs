@@ -82,14 +82,14 @@ internal static class HitEffectGeometry
         var pulse = Math.Clamp(1f - (progress * 2f), 0f, 1f);
         var seed = CreateSeed(effect.Sequence, effect.TargetEntityId);
         var shardCount = effect.IsLethal
-            ? 8
+            ? 12
             : 4 + (int)(seed % 3);
         var visibleShardCount = !effect.IsLethal &&
             apparentScale < LowDetailScale
             ? (shardCount + 1) / 2
             : shardCount;
-        var ringStartRadius = (effect.IsLethal ? 8f : 6f) * apparentScale;
-        var ringTravel = (effect.IsLethal ? 18f : 11f) * apparentScale;
+        var ringStartRadius = (effect.IsLethal ? 11f : 6f) * apparentScale;
+        var ringTravel = (effect.IsLethal ? 30f : 11f) * apparentScale;
         var primaryRingRadius = ringStartRadius + (ringTravel * progress);
         var secondaryRingRadius = effect.IsLethal
             ? (ringStartRadius * 0.65f) + (ringTravel * progress * 0.72f)
@@ -108,10 +108,10 @@ internal static class HitEffectGeometry
             secondaryRingRadius,
             RingThickness: MathF.Max(
                 1f,
-                (effect.IsLethal ? 1.35f : 1f) * apparentScale),
+                (effect.IsLethal ? 2.1f : 1f) * apparentScale),
             startAngle,
-            ShardTravel: (effect.IsLethal ? 24f : 14f) * apparentScale,
-            ShardLength: (effect.IsLethal ? 8f : 5f) * apparentScale);
+            ShardTravel: (effect.IsLethal ? 38f : 14f) * apparentScale,
+            ShardLength: (effect.IsLethal ? 14f : 5f) * apparentScale);
     }
 
     private static ulong CreateSeed(long sequence, ulong targetEntityId) =>

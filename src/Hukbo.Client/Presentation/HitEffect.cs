@@ -9,5 +9,5 @@ internal readonly record struct HitEffect(
     bool IsLethal,
     float AgeSeconds)
 {
-    public float LifetimeSeconds => IsLethal ? 0.28f : 0.18f;
+    public float LifetimeSeconds => IsLethal ? 0.50f : 0.18f;
 }

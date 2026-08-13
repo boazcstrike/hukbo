@@ -47,7 +47,7 @@ public sealed class HitEffectGeometryTests
     }
 
     [Fact]
-    public void Create_LethalEffectsHaveTwoRingsAndEightLongerShards()
+    public void Create_LethalEffectsHaveTwoRingsAndTwelveLongerShards()
     {
         var ordinary = HitEffectGeometry.Create(
             Effect(isLethal: false),
@@ -57,8 +57,8 @@ public sealed class HitEffectGeometryTests
             cameraZoom: 1f);
 
         Assert.Equal(2, lethal.RingCount);
-        Assert.Equal(8, lethal.ShardCount);
-        Assert.Equal(8, lethal.VisibleShardCount);
+        Assert.Equal(12, lethal.ShardCount);
+        Assert.Equal(12, lethal.VisibleShardCount);
         Assert.True(lethal.ShardTravel > ordinary.ShardTravel);
         Assert.True(lethal.ShardLength > ordinary.ShardLength);
     }

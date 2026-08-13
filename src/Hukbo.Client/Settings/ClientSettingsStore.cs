@@ -48,7 +48,14 @@ internal sealed class ClientSettingsStore
     private static readonly int[] AcceptedSchemaVersions =
         [7, SupportedSchemaVersion];
 
-    private const GoreIntensity DefaultGoreIntensity = GoreIntensity.Stylized;
+    // Moved from Stylized to Full on 2026-08-13
+    // (docs/plans/2026-08-13-lethal-blow-legibility-design.md) on the
+    // explicit request of the person the presentation is for. This only
+    // changes which level a spectator gets on a fresh install or after a
+    // settings file with no recorded gore level; the enum's numeric values
+    // are unchanged, so an existing settings file that already recorded a
+    // level keeps resolving to that same level.
+    private const GoreIntensity DefaultGoreIntensity = GoreIntensity.Full;
     private const MotionIntensity DefaultMotionIntensity = MotionIntensity.Full;
 
     private const AutoCameraMode DefaultAutoCameraMode =

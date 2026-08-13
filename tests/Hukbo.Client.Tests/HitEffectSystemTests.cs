@@ -134,11 +134,11 @@ public sealed class HitEffectSystemTests
     }
 
     [Fact]
-    public void Advance_ExpiresLethalAt280Milliseconds()
+    public void Advance_ExpiresLethalAt500Milliseconds()
     {
         var system = CreateSystemWithHit(isLethal: true);
 
-        system.Advance(0.279f);
+        system.Advance(0.499f);
         Assert.Single(system.ActiveEffects.ToArray());
 
         system.Advance(0.001f);
@@ -202,20 +202,40 @@ public sealed class HitEffectSystemTests
     }
 
     [Fact]
-    public void GetPulseStrength_ReturnsPositiveOnlyForLivingHitWindow()
+    public void GetPulseStrength_ReturnsPositiveForBothOrdinaryAndLethalHitWindows()
     {
         var ordinary = CreateSystemWithHit(isLethal: false);
         var lethal = CreateSystemWithHit(isLethal: true);
 
         Assert.Equal(1f, ordinary.GetPulseStrength(7));
         Assert.Equal(0f, ordinary.GetPulseStrength(8));
-        Assert.Equal(0f, lethal.GetPulseStrength(7));
+        Assert.Equal(1f, lethal.GetPulseStrength(7));
 
         ordinary.Advance(0.045f);
         Assert.Equal(0.5f, ordinary.GetPulseStrength(7), precision: 5);
 
         ordinary.Advance(0.045f);
         Assert.Equal(0f, ordinary.GetPulseStrength(7));
+
+        lethal.Advance(0.15f);
+        Assert.Equal(0.5f, lethal.GetPulseStrength(7), precision: 5);
+    }
+
+    /// <summary>
+    /// Written against the literal 0.34f, not against
+    /// <see cref="AttackAnimation.LethalHoldSeconds"/>: the invariant this
+    /// protects is that the pulse has always faded out before the hold ends,
+    /// so recapturing this test against the constant under test would prove
+    /// nothing about that invariant.
+    /// </summary>
+    [Fact]
+    public void GetPulseStrength_LethalPulseHasFadedByThirtyFourHundredthsOfASecond()
+    {
+        var system = CreateSystemWithHit(isLethal: true);
+
+        system.Advance(0.34f);
+
+        Assert.Equal(0f, system.GetPulseStrength(7));
     }
 
     [Fact]
@@ -283,13 +303,13 @@ public sealed class HitEffectSystemTests
     }
 
     /// <summary>
-    /// The lethal-exclusion behaviour of the reference scan is load-bearing:
-    /// the lethal effect below is the fresher of the two and would score a full
-    /// 1 if it counted, so the surviving value can only come from the older,
-    /// non-lethal effect.
+    /// Since 2026-08-13 a lethal effect pulses on its own, longer schedule
+    /// instead of being excluded, so the fresher lethal effect below now
+    /// scores a full 1 and wins the maximum over the older, non-lethal
+    /// effect.
     /// </summary>
     [Fact]
-    public void BuildPulseLookup_ExcludesTheLethalEffectAndKeepsTheLivingOne()
+    public void BuildPulseLookup_TakesTheMaximumAcrossOrdinaryAndFreshLethalEffects()
     {
         var system = new HitEffectSystem(capacity: 8);
         AgentView[] living = [Agent(7, 100, 200, isAlive: true)];
@@ -311,18 +331,18 @@ public sealed class HitEffectSystemTests
 
         var lookup = system.BuildPulseLookup();
 
-        Assert.Equal(0.5f, lookup.GetPulseStrength(7), precision: 5);
+        Assert.Equal(1f, lookup.GetPulseStrength(7));
         Assert.Equal(system.GetPulseStrength(7), lookup.GetPulseStrength(7));
     }
 
     [Fact]
-    public void BuildPulseLookup_ReturnsZeroWhenEveryEffectOnTheEntityIsLethal()
+    public void BuildPulseLookup_ReturnsPositiveWhenEveryEffectOnTheEntityIsFreshAndLethal()
     {
         var system = CreateSystemWithHit(isLethal: true);
 
         var lookup = system.BuildPulseLookup();
 
-        Assert.Equal(0f, lookup.GetPulseStrength(7));
+        Assert.Equal(1f, lookup.GetPulseStrength(7));
         AssertLookupMatchesReferenceScan(system, 7UL, 8UL);
     }
 

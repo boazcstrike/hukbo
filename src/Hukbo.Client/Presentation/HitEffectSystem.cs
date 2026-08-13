@@ -7,6 +7,16 @@ internal sealed class HitEffectSystem
 {
     private const float PulseSeconds = 0.09f;
 
+    /// <summary>
+    /// PROVISIONAL legibility tuning (2026-08-13,
+    /// docs/plans/2026-08-13-lethal-blow-legibility.md): a killing blow gets
+    /// its own, longer pulse instead of being excluded from the pulse
+    /// entirely. This must stay strictly shorter than
+    /// <see cref="AttackAnimation.LethalHoldSeconds"/>, because once the hold
+    /// expires there is no pawn left for the pulse to play over.
+    /// </summary>
+    private const float LethalPulseSeconds = 0.30f;
+
     private readonly Dictionary<ulong, AgentView> _agentsById = [];
     private readonly HashSet<ulong> _deathEntityIds = [];
     private readonly Dictionary<ulong, float> _pulseByEntityId = [];
@@ -127,13 +137,14 @@ internal sealed class HitEffectSystem
         for (var index = 0; index < _count; index++)
         {
             var effect = _effects[index];
-            if (effect.TargetEntityId != entityId || effect.IsLethal)
+            if (effect.TargetEntityId != entityId)
             {
                 continue;
             }
 
+            var pulseSeconds = effect.IsLethal ? LethalPulseSeconds : PulseSeconds;
             var strength = Math.Clamp(
-                1f - (effect.AgeSeconds / PulseSeconds),
+                1f - (effect.AgeSeconds / pulseSeconds),
                 0f,
                 1f);
             maximumStrength = MathF.Max(maximumStrength, strength);
@@ -144,8 +155,8 @@ internal sealed class HitEffectSystem
 
     /// <summary>
     /// Builds the pulse strength of every entity that currently has at least
-    /// one non-lethal live effect, in a single pass over the live effects, and
-    /// returns a read-only view over the result.
+    /// one live effect, ordinary or lethal, in a single pass over the live
+    /// effects, and returns a read-only view over the result.
     /// </summary>
     /// <remarks>
     /// This is not a cache. The lookup is rebuilt from scratch on every call
@@ -170,13 +181,9 @@ internal sealed class HitEffectSystem
         for (var index = 0; index < _count; index++)
         {
             var effect = _effects[index];
-            if (effect.IsLethal)
-            {
-                continue;
-            }
-
+            var pulseSeconds = effect.IsLethal ? LethalPulseSeconds : PulseSeconds;
             var strength = Math.Clamp(
-                1f - (effect.AgeSeconds / PulseSeconds),
+                1f - (effect.AgeSeconds / pulseSeconds),
                 0f,
                 1f);
             if (_pulseByEntityId.TryGetValue(

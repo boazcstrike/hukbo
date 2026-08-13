@@ -194,12 +194,15 @@ public sealed class BloodEffectSystemTests
             NonAttackEvent(2, BattleEventKind.Death, source: 7),
         ], agents);
 
-        system.Advance(0.5f);
+        system.Advance(0.7f);
 
         Assert.Empty(system.ActiveBursts.ToArray());
         Assert.Single(system.ActiveGroundMarks.ToArray());
 
-        system.Advance(5f);
+        // Total elapsed age reaches 8.7s, past the 8s lethal ground-mark
+        // lifetime raised 2026-08-13
+        // (docs/plans/2026-08-13-lethal-blow-legibility-design.md).
+        system.Advance(8f);
 
         Assert.Empty(system.ActiveGroundMarks.ToArray());
     }

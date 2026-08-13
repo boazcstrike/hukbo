@@ -25,7 +25,7 @@ public sealed class ClientSettingsStoreTests
 
             Assert.Equal("command", settings.SelectedThemeId);
             Assert.Equal(ArmyComposition.Default, settings.Composition);
-            Assert.Equal(GoreIntensity.Stylized, settings.GoreIntensity);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
             Assert.Equal(MotionIntensity.Full, settings.MotionIntensity);
             Assert.Equal(AutoCameraMode.Assisted, settings.AutoCameraMode);
             Assert.Equal(UiScale.Auto, settings.UiScale);
@@ -175,6 +175,32 @@ public sealed class ClientSettingsStoreTests
         });
     }
 
+    /// <summary>
+    /// Proves the 2026-08-13 default change moved which level a spectator
+    /// gets when they never chose one, and nothing else: a settings file that
+    /// already recorded <c>Stylized</c> keeps resolving to <c>Stylized</c>,
+    /// not to the new default.
+    /// </summary>
+    [Fact]
+    public void AStoredStylizedGoreIntensitySurvivesTheNewDefaultBeingFull()
+    {
+        WithTemporarySettings((store, _) =>
+        {
+            Assert.True(store.TrySave(
+                "command",
+                SampleComposition,
+                GoreIntensity.Stylized,
+                MotionIntensity.Full,
+                AutoCameraMode.Assisted,
+                UiScale.Auto,
+                StartupDisplayMode.Windowed));
+
+            var settings = store.Load("signal");
+
+            Assert.Equal(GoreIntensity.Stylized, settings.GoreIntensity);
+        });
+    }
+
     [Fact]
     public void SavedMotionIntensityRoundTripsThroughTheStore()
     {
@@ -213,7 +239,7 @@ public sealed class ClientSettingsStoreTests
             var settings = store.Load("command");
 
             Assert.Equal("signal", settings.SelectedThemeId);
-            Assert.Equal(GoreIntensity.Stylized, settings.GoreIntensity);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
             Assert.Equal(MotionIntensity.Full, settings.MotionIntensity);
         });
     }
@@ -235,7 +261,7 @@ public sealed class ClientSettingsStoreTests
 
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(80, settings.Composition.UnitsPerTeam);
-            Assert.Equal(GoreIntensity.Stylized, settings.GoreIntensity);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
             Assert.Equal(MotionIntensity.Full, settings.MotionIntensity);
         });
     }
@@ -342,7 +368,7 @@ public sealed class ClientSettingsStoreTests
 
             Assert.Equal("command", settings.SelectedThemeId);
             Assert.Equal(ArmyComposition.Default, settings.Composition);
-            Assert.Equal(GoreIntensity.Stylized, settings.GoreIntensity);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
             Assert.Equal(MotionIntensity.Full, settings.MotionIntensity);
             Assert.Equal(AutoCameraMode.Assisted, settings.AutoCameraMode);
         });
@@ -567,7 +593,7 @@ public sealed class ClientSettingsStoreTests
 
             Assert.Equal("command", settings.SelectedThemeId);
             Assert.Equal(ArmyComposition.Default, settings.Composition);
-            Assert.Equal(GoreIntensity.Stylized, settings.GoreIntensity);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
             Assert.Equal(MotionIntensity.Full, settings.MotionIntensity);
         });
     }

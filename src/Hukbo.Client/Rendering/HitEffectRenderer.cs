@@ -10,6 +10,16 @@ internal static class HitEffectRenderer
     private static readonly Color WarmWhite = new(255, 244, 214);
     private static readonly Color WarmShard = new(255, 224, 174);
 
+    /// <summary>
+    /// PROVISIONAL legibility tuning (2026-08-13,
+    /// docs/plans/2026-08-13-lethal-blow-legibility.md), not a historical or
+    /// evidentiary claim: a killing blow's ring and shards draw in a hot tone
+    /// clearly distinct from the ordinary warm-white hit, rather than a
+    /// brighter shade of the same colour.
+    /// </summary>
+    private static readonly Color LethalHotRing = new(255, 64, 32);
+    private static readonly Color LethalHotShard = new(255, 120, 40);
+
     public static void Draw(
         ReadOnlySpan<HitEffect> effects,
         SpectatorCamera camera,
@@ -32,14 +42,14 @@ internal static class HitEffectRenderer
             var layout = HitEffectGeometry.Create(effect, cameraZoom);
             var ringAlpha = layout.Alpha *
                 (0.78f + (layout.Pulse * 0.22f));
-            var primaryColor = (effect.IsLethal ? Color.White : WarmWhite) *
+            var primaryColor = (effect.IsLethal ? LethalHotRing : WarmWhite) *
                 ringAlpha;
             DrawRing(
                 spriteBatch,
                 pixel,
                 center,
                 layout.PrimaryRingRadius,
-                effect.IsLethal ? 24 : 18,
+                effect.IsLethal ? 28 : 18,
                 primaryColor,
                 layout.RingThickness);
 
@@ -51,11 +61,11 @@ internal static class HitEffectRenderer
                     center,
                     layout.SecondaryRingRadius,
                     segments: 20,
-                    WarmWhite * (layout.Alpha * 0.82f),
+                    LethalHotRing * (layout.Alpha * 0.82f),
                     MathF.Max(1f, layout.RingThickness * 0.78f));
             }
 
-            var shardColor = (effect.IsLethal ? WarmWhite : WarmShard);
+            var shardColor = (effect.IsLethal ? LethalHotShard : WarmShard);
             for (var shardIndex = 0;
                  shardIndex < layout.VisibleShardCount;
                  shardIndex++)
