@@ -69,7 +69,7 @@ public sealed class CohortDeploymentAssignmentTests
         };
 
         var assigned = CohortDeploymentAssignment.AssignForFaction(
-            deployment, loadouts, Rules);
+            deployment, loadouts, Rules, false);
 
         var pureContingentMembers = 0;
         for (var index = 0; index < assigned.Length; index++)
@@ -132,7 +132,7 @@ public sealed class CohortDeploymentAssignmentTests
         };
 
         var assigned = CohortDeploymentAssignment.AssignForFaction(
-            deployment, loadouts, Rules);
+            deployment, loadouts, Rules, false);
 
         var actualSplits = CountCohortsSpanningMoreThanOneContingent(
             loadouts, assigned);
@@ -201,7 +201,7 @@ public sealed class CohortDeploymentAssignmentTests
         var loadouts = new[] { Kampilan, KalisShield, Wasay, ItakShield };
 
         var assigned = CohortDeploymentAssignment.AssignForFaction(
-            deployment, loadouts, Rules);
+            deployment, loadouts, Rules, false);
 
         Assert.Equal((3_000, 0, 0), assigned[1]);
         Assert.Equal((2_000, 0, 0), assigned[3]);
@@ -235,7 +235,7 @@ public sealed class CohortDeploymentAssignmentTests
         };
 
         var assigned = CohortDeploymentAssignment.AssignForFaction(
-            deployment, loadouts, Rules);
+            deployment, loadouts, Rules, false);
 
         Assert.Equal(
             SortedByCoordinate(deployment), SortedByCoordinate(assigned));
@@ -288,9 +288,9 @@ public sealed class CohortDeploymentAssignmentTests
         var loadouts = new[] { Kampilan, KalisShield, Wasay, ItakShield };
 
         var first = CohortDeploymentAssignment.AssignForFaction(
-            deployment, loadouts, Rules);
+            deployment, loadouts, Rules, false);
         var second = CohortDeploymentAssignment.AssignForFaction(
-            deployment, loadouts, Rules);
+            deployment, loadouts, Rules, false);
 
         Assert.Equal(first, second);
     }
@@ -304,7 +304,7 @@ public sealed class CohortDeploymentAssignmentTests
         var loadouts = new[] { Kampilan };
 
         var assigned = CohortDeploymentAssignment.AssignForFaction(
-            deployment, loadouts, Rules);
+            deployment, loadouts, Rules, false);
 
         Assert.Equal(deployment, assigned);
     }
@@ -326,7 +326,7 @@ public sealed class CohortDeploymentAssignmentTests
         var loadouts = new[] { Kampilan, KalisShield, Wasay, ItakShield };
 
         var assigned = CohortDeploymentAssignment.AssignForFaction(
-            deployment, loadouts, Rules);
+            deployment, loadouts, Rules, false);
 
         Assert.NotSame(deployment, assigned);
         Assert.Equal(snapshot, deployment);
@@ -343,7 +343,7 @@ public sealed class CohortDeploymentAssignmentTests
 
         Assert.Throws<ArgumentException>(
             () => CohortDeploymentAssignment.AssignForFaction(
-                deployment, new[] { Kampilan }, Rules));
+                deployment, new[] { Kampilan }, Rules, false));
     }
 
     [Fact]
@@ -355,6 +355,6 @@ public sealed class CohortDeploymentAssignmentTests
 
         Assert.Throws<InvalidOperationException>(
             () => CohortDeploymentAssignment.AssignForFaction(
-                deployment, new[] { offRoster }, Rules));
+                deployment, new[] { offRoster }, Rules, false));
     }
 }
