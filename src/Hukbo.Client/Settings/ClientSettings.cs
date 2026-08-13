@@ -1,3 +1,5 @@
+using Hukbo.Core.Movement;
+
 namespace Hukbo.Client.Settings;
 
 internal sealed record ClientSettings(
@@ -8,7 +10,8 @@ internal sealed record ClientSettings(
     MotionIntensity MotionIntensity,
     AutoCameraMode AutoCameraMode,
     UiScale UiScale,
-    StartupDisplayMode StartupDisplayMode);
+    StartupDisplayMode StartupDisplayMode,
+    MovementPresetId MovementPreset);
 
 /// <summary>
 /// A spectator-chosen army composition for both factions: the total units per

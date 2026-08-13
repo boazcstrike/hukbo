@@ -783,26 +783,49 @@ paths, and that the pose geometry and the inspector strings are wired and
 tested in isolation. None of that proves any of it reads correctly to a
 person watching the screen, which is the only thing the rows below are for.
 
-Two things are true about the current state of this package and both bear
-directly on these rows. First, a real `./scripts/run.ps1 -Configuration
-Debug` run built a 500-agent `PrecolonialPhilippinesV5` scenario and rendered
-52 seconds at 185 fps with zero `err` lines in the debug log, so the game
-does launch and does render ranged pawns without crashing or logging an
-error — but `simTicks` stayed 0 on every frame line of that run, meaning the
-battle never actually advanced a single tick. `RangedPhase` has therefore
-never been observed in a non-`None` state at runtime, and
-`WeaponAngleRadians`, `ExtensionRatio`, and `DrawTension` have never taken a
-non-zero value outside a unit test. Rows RG-1, RG-2, RG-3, RG-4, RG-5, RG-6,
-RG-8, and RG-10 below depend on exactly those runtime values and have
-therefore never been seen by anyone, agent or human; nothing above should be
-read as implying otherwise. Second, the sixty sound files task RU-31
-generates — including every `release-<weapon>`, `attack-<weapon>`,
-`clash-shield-<weapon>`, `miss-<weapon>`, and `misfire-arquebus` file the
-rows below reference — do not exist yet, because RU-31 is a paid, human-run
-task that has not been executed. Any row below that depends on a cue says so
-plainly and still ships `PENDING`, not `BLOCKED`: the row itself is not
-blocked by any defect, the attempt to run it is simply not yet possible
-until those files land.
+Two things used to stand between these rows and a person attempting them, and
+both were re-checked on 2026-08-13 and are no longer true. They are recorded
+here because the paragraph they replace said the opposite, and a reader who
+remembers the old wording should know why it changed.
+
+The first was that no battle had ever advanced with ranged warriors on the
+field. The earlier `./scripts/run.ps1 -Configuration Debug` run reported
+`simTicks` of 0 on every one of its frame lines, so nothing about
+`RangedPhase`, `WeaponAngleRadians`, `ExtensionRatio`, or `DrawTension` had
+been seen outside a unit test. That was a paused client, which is how a
+launched client always starts, rather than a defect. On 2026-08-13 the
+`Hukbo.Tools.RenderProbe` harness — which starts playback through the
+render-probe opt-in — was run against a clean worktree of `main` at `653d3fa`
+at seed 1, three camera stations, 150 sampled frames each. The battle
+advanced to **tick 3,584** with 27 and 23 warriors still alive and falling,
+the debug log carried **zero `err` lines**, and all 16,794 audio cues in it
+report `Played`. Every one of the thirteen ranged slots fired in that run:
+`ReleaseBangkaw` 1,565, `ReleaseBusog` 1,483, `ReleaseArquebus` 387,
+`AttackBangkaw` 962, `AttackBusog` 883, `AttackArquebus` 269, `MissBangkaw`
+171, `MissBusog` 159, `MissArquebus` 41, and all three `ClashShield` slots.
+
+The second was that the sixty sound files task RU-31 generates did not exist.
+They do: every `release-<weapon>`, `attack-<weapon>`, `clash-shield-<weapon>`,
+`miss-<weapon>`, and `misfire-arquebus` file is on disk under
+`src/Hukbo.Client/Content/Audio/`, and `./scripts/sfx.ps1 -List` reports zero
+missing slots.
+
+**Every row below is still `PENDING`, and nothing above changes that.** A
+measurement harness driving playback is not a spectator: it proves the code
+path executes and does not throw, and it proves a cue was submitted to the
+mixer, which is exactly what the rows below do not ask. Each row asks whether
+an effect reads correctly to a person watching the screen and listening. That
+person has not watched yet. What has changed is that every row is now
+attemptable — none of them is waiting on a missing file or a battle that will
+not start.
+
+One correction to the rows themselves: the shipped client pairs
+`CombatPresetId.PrecolonialPhilippinesV5` with
+`MovementPresetId.LastStandEngagementV11` (`src/Hukbo.Client/ArenaGame.cs:1451`),
+not with `RangedStandoffV8` as this package's plan describes, and not with
+`BattlefieldRealismV10` as the RG-6 and RG-7 amendments say. V11 carries V10's
+holding and backing-away rules forward unchanged, so those two rows read as
+written; they are simply being attempted against a later movement preset.
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |

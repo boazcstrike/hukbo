@@ -177,11 +177,14 @@ tier the policy selects from a real viewport. Both go through pure helpers.
   the wrong answer the fabricated viewport produces, so that if anyone later
   changes the thresholds the connection to this defect is not lost.
 
-The real verification of this change is `UI-2`, `UI-4`, and `UI-6` re-run by a
-person at a scaled display. **No automated test can close them and no agent may
-flip them.** They return to `PENDING` with their `FAIL` observation preserved,
-which is the same pattern the `CL` clash rows used across the combat-cadence
-change.
+The real verification of this change was `UI-2`, `UI-4`, and `UI-6` re-run by a
+person at a scaled display. **No automated test could close them and no agent
+could flip them.** They were returned to `PENDING` with their `FAIL`
+observation preserved, the same pattern the `CL` clash rows used across the
+combat-cadence change, and a person then re-ran and closed all three `PASS` on
+2026-08-13. The rows and their history now live in the archive record
+"Responsive menu, startup display, and UI motion smoke — closed 2026-08-13",
+since the family was deleted from the live checklist that day.
 
 ## 7. Scope: Hukbo only
 
@@ -215,9 +218,13 @@ is not rediscovered.
 4. Add `ProcessDpiAwarenessTests` to `tests/Hukbo.Client.Tests/`.
 5. Extend `UiFontRampTests`' `UiScalePolicy` theory with the 2048x1152 and
    2560x1440 viewports.
-6. Return `UI-2`, `UI-4`, and `UI-6` to `PENDING` in
+6. ~~Return `UI-2`, `UI-4`, and `UI-6` to `PENDING` in
    `docs/development/smoke-checklist.md`, preserving the `FAIL` observation in
-   `Actual`, and note that `UI-5` wants a re-run for the physical-size change.
+   `Actual`, and note that `UI-5` wants a re-run for the physical-size
+   change.~~ Done, and superseded on 2026-08-13: a person re-ran and closed
+   all three rows `PASS`, and the family then left the checklist for the
+   archive record "Responsive menu, startup display, and UI motion smoke —
+   closed 2026-08-13".
 7. Run `./scripts/verify.ps1` and record the real output.
 
 ## 9. Verification criteria
@@ -227,5 +234,8 @@ is not rediscovered.
 - A `Debug` run writes one `boot.dpi.awareness` line, and the following
   `render.viewport` line reports the display's real resolution rather than the
   virtualised one.
-- `UI-2`, `UI-4`, `UI-6` are `PENDING`, not `PASS`. Only a person at a scaled
-  display closes them.
+- `UI-2`, `UI-4`, `UI-6` were `PENDING`, not `PASS`, until a person at a
+  scaled display closed them — the principle this criterion states, and the
+  same person did exactly that on 2026-08-13, closing all three `PASS` and
+  retiring the family to the archive record "Responsive menu, startup
+  display, and UI motion smoke — closed 2026-08-13".

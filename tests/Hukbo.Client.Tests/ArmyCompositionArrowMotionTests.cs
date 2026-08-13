@@ -65,7 +65,17 @@ public sealed class ArmyCompositionArrowMotionTests
             new Hukbo.Client.UI.ArmyComposition(
                 ImmutableArray.Create(50, 50, 50, 50),
                 200),
-            TestLayout);
+            Hukbo.Core.Movement.MovementPresetId.BattlefieldRealismV10,
+            TestLayout,
+            TestStandards);
+
+    private static UiThemeStandards TestStandards =>
+        UiThemeCatalog.Load(
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "Content",
+                "Themes",
+                "ui-theme-standards.json")).Standards;
 
     private static InputEdges CreateInputAt(Point pointer)
     {
@@ -91,7 +101,8 @@ public sealed class ArmyCompositionArrowMotionTests
         var panel = CreatePanel();
         var layout = ArmyCompositionPanel.CalculateLayout(
             ScreenBounds,
-            TestLayout);
+            TestLayout,
+            TestStandards.Shared.Selector);
         var hoveredMinus = layout.CategoryRows[0].MinusBounds;
 
         panel.Update(
@@ -120,7 +131,8 @@ public sealed class ArmyCompositionArrowMotionTests
         var panel = CreatePanel();
         var layout = ArmyCompositionPanel.CalculateLayout(
             ScreenBounds,
-            TestLayout);
+            TestLayout,
+            TestStandards.Shared.Selector);
         var hoveredPlus = layout.UnitsPerTeamRow.PlusBounds;
 
         panel.Update(
@@ -139,7 +151,8 @@ public sealed class ArmyCompositionArrowMotionTests
     {
         var layout = ArmyCompositionPanel.CalculateLayout(
             ScreenBounds,
-            TestLayout);
+            TestLayout,
+            TestStandards.Shared.Selector);
         var row = layout.CategoryRows[0];
         var motion = new UiSelectorMotion();
 
@@ -169,7 +182,8 @@ public sealed class ArmyCompositionArrowMotionTests
         var panel = CreatePanel();
         var layout = ArmyCompositionPanel.CalculateLayout(
             ScreenBounds,
-            TestLayout);
+            TestLayout,
+            TestStandards.Shared.Selector);
         var hoveredMinus = layout.CategoryRows[2].MinusBounds;
         var input = CreateInputAt(hoveredMinus.Center);
 

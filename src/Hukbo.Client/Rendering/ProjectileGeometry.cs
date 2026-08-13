@@ -173,8 +173,8 @@ internal static class ProjectileGeometry
     /// The camera's zoom, applied to every world-unit dimension above, but
     /// capped at the pawn's own apparent-scale ceiling
     /// (<see cref="PawnGeometry.ResolveApparentScale"/>) so an in-flight prop
-    /// can never draw longer than the warriors it flies past. See
-    /// docs/plans/2026-08-13-projectile-prop-scale.md for the full reasoning.
+    /// can never draw longer than the warriors it flies past. The full
+    /// reasoning is recorded in the 2026-08-13 plan "Projectile prop scale".
     /// </param>
     public static ProjectilePropLayout Create(
         PawnWeaponRole weaponRole,
@@ -202,8 +202,8 @@ internal static class ProjectileGeometry
         // The resulting proportion between a flying shot and the warriors
         // around it is presentation tuning under CLAUDE.md section 7 — a
         // Provisional reconstruction, not a measurement, exactly like the
-        // base unit constants above it. Full reasoning in
-        // docs/plans/2026-08-13-projectile-prop-scale.md.
+        // base unit constants above it. The full reasoning is recorded in
+        // the 2026-08-13 plan "Projectile prop scale".
         var scale = MathF.Min(cameraZoom, PawnGeometry.ResolveApparentScale(cameraZoom));
 
         return weaponRole switch

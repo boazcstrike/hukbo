@@ -9,6 +9,65 @@ Read `docs/plans/2026-08-08-attack-animation-v2-design.md` first — it is
 authoritative over this document, and where the two disagree the design wins
 and the discrepancy is worth reporting.
 
+## Status after the 2026-08-13 smoke run
+
+**Section 6 of this document is spent, and section 2's premise is now contested.
+Read this before acting on either.**
+
+On 2026-08-13 a person at an interactive Windows desktop ran the whole of the
+attack animation V2 family. **Every one of the twenty-four `AA` rows has now
+passed**, and the family's section was deleted from
+`docs/development/smoke-checklist.md` outright under that file's rule that a
+wholly passing family is a record rather than a checklist. The record is the
+2026-08-13 archive titled "Attack animation V2 smoke — closed 2026-08-13".
+
+**Three of those rows closed without anything being fixed**, and that is the
+single most important thing on this page for a later reader. `AA-22` passed
+after failing, on an unchanged 500-agent density. `AA-23` passed after failing,
+with both of its measured causes intact. `AA-24` passed against a feature that
+was never built. None of the three is evidence that the item this backlog
+describes was addressed.
+
+What that run does to this document, section by section:
+
+- **Section 6, "Smoke rows still unobserved", is spent.** It names AA-5, AA-11,
+  AA-12, AA-13, AA-14, AA-15, AA-16, AA-18, AA-19, and AA-23. Nine of those ten
+  passed, and `AA-23` passed on a second attempt later the same day. Section
+  6's framing of these as "never toggled" or "unreachable on the shipped V4
+  roster" is history, not a live task list. `AA-23`'s first attempt did fail,
+  and the two causes measured against it are written up in
+  `docs/plans/2026-08-13-strike-while-moving-legibility-design.md`: at the
+  default camera fit a pawn resolves `PawnDetailTier.Low` and has no legs at
+  all, and a closing attacker under the arrival taper advances its stride phase
+  one cycle per 300 seconds. Neither was fixed before the row passed.
+- **Section 1, "The readability failure (AA-22)", no longer has a failing row,
+  and its hypothesis was borne out.** Section 1's own recommended next
+  measurement was to watch a **200-agent** battle rather than the 500-agent
+  default, on the grounds that nobody knew whether the chaos was the feature or
+  the density. That measurement has now been made: `AA-20` and `AA-21`, the two
+  200-warrior rows it says had never been run for that reason, were run on
+  2026-08-13 and both passed — and `AA-22` itself then passed on a later
+  attempt, with nothing about the density, the trail count, or the arm gating
+  changed in between. The two contributors section 1 identifies, arms close to
+  sub-pixel at fit zoom and trails multiplying at density, are still real and
+  still undressed; what has changed is that no smoke row is waiting on them.
+- **Section 2, "The conservative cull is not wired, so AA-24 has no
+  implementation", disagrees with the checklist and must not be resolved by
+  assumption.** `ConservativePawnCull` still has no production caller — the only
+  two references to it under `src/` are doc comments in
+  `src/Hukbo.Client/Rendering/PawnGeometry.cs`, at lines 2136 and 2241 — so
+  nothing this section describes has been built. A person nevertheless passed
+  `AA-24` at the desktop on the same day. Both records are true as written: the
+  row asks whether a weapon pops in or out at the panel edge, and the live
+  pose-blind path may simply be wide enough in practice for what the tester
+  watched. Do not read the passing row as evidence that the cull was wired, and
+  do not read this section as grounds to reopen the row — the row is closed and
+  its family is gone from the checklist. Section 2 remains an accurate
+  description of the code and is the reason this document is still open.
+
+Nothing above authorizes a change. It records which parts of this document a
+later reader may still act on and which parts are now a record.
+
 ## What shipped
 
 The contact-latched attack rig: an exhaustive weapon-motion catalog, a bounded

@@ -1,4 +1,5 @@
 using Hukbo.Client.Settings;
+using Hukbo.Core.Movement;
 
 namespace Hukbo.Client.Tests;
 
@@ -32,6 +33,9 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal(
                 StartupDisplayMode.Windowed,
                 settings.StartupDisplayMode);
+            Assert.Equal(
+                MovementPresetId.LastStandEngagementV11,
+                settings.MovementPreset);
         });
     }
 
@@ -47,7 +51,8 @@ public sealed class ClientSettingsStoreTests
                 MotionIntensity.Full,
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
-                StartupDisplayMode.Windowed));
+                StartupDisplayMode.Windowed,
+                MovementPresetId.LastStandEngagementV11));
             Assert.True(store.TrySave(
                 "broadcast",
                 ArmyComposition.Default,
@@ -55,7 +60,8 @@ public sealed class ClientSettingsStoreTests
                 MotionIntensity.Full,
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
-                StartupDisplayMode.Windowed));
+                StartupDisplayMode.Windowed,
+                MovementPresetId.LastStandEngagementV11));
 
             var settings = store.Load("command");
 
@@ -145,7 +151,8 @@ public sealed class ClientSettingsStoreTests
                 MotionIntensity.Full,
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
-                StartupDisplayMode.Windowed));
+                StartupDisplayMode.Windowed,
+                MovementPresetId.LastStandEngagementV11));
 
             var settings = store.Load("command");
 
@@ -165,7 +172,8 @@ public sealed class ClientSettingsStoreTests
                 MotionIntensity.Full,
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
-                StartupDisplayMode.Windowed));
+                StartupDisplayMode.Windowed,
+                MovementPresetId.LastStandEngagementV11));
 
             var settings = store.Load("signal");
 
@@ -193,7 +201,8 @@ public sealed class ClientSettingsStoreTests
                 MotionIntensity.Full,
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
-                StartupDisplayMode.Windowed));
+                StartupDisplayMode.Windowed,
+                MovementPresetId.LastStandEngagementV11));
 
             var settings = store.Load("signal");
 
@@ -213,7 +222,8 @@ public sealed class ClientSettingsStoreTests
                 MotionIntensity.Off,
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
-                StartupDisplayMode.Windowed));
+                StartupDisplayMode.Windowed,
+                MovementPresetId.LastStandEngagementV11));
 
             var settings = store.Load("signal");
 
@@ -343,7 +353,10 @@ public sealed class ClientSettingsStoreTests
     /// (version 6) and the four-rank composition shape (version 7) cannot be
     /// read forward that way — a saved composition always overrides the
     /// default, and version 6's field names do not even exist on the version
-    /// 7 record — so every earlier version is discarded whole.
+    /// 7 record — so every version through 7 is discarded whole. Version 7
+    /// itself moved into this theory when the 8-to-9 bump narrowed the
+    /// accepted window to <c>[8, SupportedSchemaVersion]</c>, the same
+    /// precedent the 7-to-8 bump set for version 6.
     /// </summary>
     [Theory]
     [InlineData(2)]
@@ -351,7 +364,8 @@ public sealed class ClientSettingsStoreTests
     [InlineData(4)]
     [InlineData(5)]
     [InlineData(6)]
-    public void EverySchemaVersionBeforeSevenIsDiscardedWhole(int schemaVersion)
+    [InlineData(7)]
+    public void EverySchemaVersionBeforeEightIsDiscardedWhole(int schemaVersion)
     {
         WithTemporarySettings((store, settingsPath) =>
         {
@@ -411,44 +425,15 @@ public sealed class ClientSettingsStoreTests
                 MotionIntensity.Full,
                 AutoCameraMode.Follow,
                 UiScale.Auto,
-                StartupDisplayMode.Windowed));
-
-            var settings = store.Load("command");
-
-            Assert.Equal(AutoCameraMode.Follow, settings.AutoCameraMode);
-            Assert.Equal(
-                ClientSettingsStore.SupportedSchemaVersion,
-                settings.SchemaVersion);
-        });
-    }
-
-    [Fact]
-    public void AVersionSevenFilePreservesExistingFieldsAndDefaultsNewFields()
-    {
-        WithTemporarySettings((store, settingsPath) =>
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
-            File.WriteAllText(
-                settingsPath,
-                "{\"schemaVersion\":7,\"selectedThemeId\":\"signal\"," +
-                ValidCompositionJson +
-                ",\"goreIntensity\":2,\"motionIntensity\":0," +
-                "\"autoCameraMode\":2}");
-
-            var settings = store.Load("command");
-
-            Assert.Equal(
-                ClientSettingsStore.SupportedSchemaVersion,
-                settings.SchemaVersion);
-            Assert.Equal("signal", settings.SelectedThemeId);
-            Assert.Equal(80, settings.Composition.UnitsPerTeam);
-            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
-            Assert.Equal(MotionIntensity.Off, settings.MotionIntensity);
-            Assert.Equal(AutoCameraMode.Follow, settings.AutoCameraMode);
-            Assert.Equal(UiScale.Auto, settings.UiScale);
-            Assert.Equal(
                 StartupDisplayMode.Windowed,
-                settings.StartupDisplayMode);
+                MovementPresetId.LastStandEngagementV11));
+
+            var settings = store.Load("command");
+
+            Assert.Equal(AutoCameraMode.Follow, settings.AutoCameraMode);
+            Assert.Equal(
+                ClientSettingsStore.SupportedSchemaVersion,
+                settings.SchemaVersion);
         });
     }
 
@@ -469,7 +454,8 @@ public sealed class ClientSettingsStoreTests
                 MotionIntensity.Reduced,
                 AutoCameraMode.Follow,
                 uiScale,
-                StartupDisplayMode.Fullscreen));
+                StartupDisplayMode.Fullscreen,
+                MovementPresetId.LastStandEngagementV11));
 
             var settings = store.Load("command");
 
@@ -500,7 +486,8 @@ public sealed class ClientSettingsStoreTests
                 MotionIntensity.Reduced,
                 AutoCameraMode.Follow,
                 UiScale.Percent150,
-                startupDisplayMode));
+                startupDisplayMode,
+                MovementPresetId.LastStandEngagementV11));
 
             var settings = store.Load("command");
 
@@ -630,7 +617,8 @@ public sealed class ClientSettingsStoreTests
                 MotionIntensity.Full,
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
-                StartupDisplayMode.Windowed));
+                StartupDisplayMode.Windowed,
+                MovementPresetId.LastStandEngagementV11));
 
             Assert.True(store.TryUpdate(
                 "command",
@@ -685,7 +673,8 @@ public sealed class ClientSettingsStoreTests
                 MotionIntensity.Full,
                 AutoCameraMode.Assisted,
                 UiScale.Percent150,
-                StartupDisplayMode.Fullscreen));
+                StartupDisplayMode.Fullscreen,
+                MovementPresetId.LastStandEngagementV11));
             using var locked = new FileStream(
                 settingsPath,
                 FileMode.Open,
@@ -699,7 +688,8 @@ public sealed class ClientSettingsStoreTests
                 MotionIntensity.Off,
                 AutoCameraMode.Assisted,
                 UiScale.Percent100,
-                StartupDisplayMode.Windowed));
+                StartupDisplayMode.Windowed,
+                MovementPresetId.LastStandEngagementV11));
             Assert.Empty(
                 Directory.GetFiles(
                     Path.GetDirectoryName(settingsPath)!,
@@ -714,6 +704,144 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal(
                 StartupDisplayMode.Fullscreen,
                 settings.StartupDisplayMode);
+        });
+    }
+
+    [Fact]
+    public void ASavedMovementPresetSurvivesARoundTrip()
+    {
+        WithTemporarySettings((store, _) =>
+        {
+            Assert.True(store.TrySave(
+                "signal",
+                SampleComposition,
+                GoreIntensity.Full,
+                MotionIntensity.Reduced,
+                AutoCameraMode.Follow,
+                UiScale.Percent150,
+                StartupDisplayMode.Fullscreen,
+                MovementPresetId.EquipmentRelativeFootworkV7));
+
+            var settings = store.Load("command");
+
+            Assert.Equal(
+                MovementPresetId.EquipmentRelativeFootworkV7,
+                settings.MovementPreset);
+        });
+    }
+
+    [Fact]
+    public void AFileMissingMovementPresetLoadsCleanlyAndDefaultsIt()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0}");
+
+            var settings = store.Load("command");
+
+            // An absent field defaults rather than rejecting the file, so a
+            // version 8 file — written before this setting existed — still
+            // loads cleanly.
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(
+                MovementPresetId.LastStandEngagementV11,
+                settings.MovementPreset);
+        });
+    }
+
+    [Fact]
+    public void AnOutOfRangeMovementPresetResetsOnlyThatField()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"movementPreset\":99}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(80, settings.Composition.UnitsPerTeam);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(
+                MovementPresetId.LastStandEngagementV11,
+                settings.MovementPreset);
+        });
+    }
+
+    /// <summary>
+    /// No registered <see cref="MovementPresetId"/> value is currently
+    /// unregistered — <see cref="MovementPresetRegistry.IsRegistered"/>
+    /// returns true for every named value 1 through 10 — so an out-of-range
+    /// numeric value is the only reachable way to exercise "unregistered"
+    /// today, and it exercises <c>Enum.IsDefined</c> and
+    /// <see cref="MovementPresetRegistry.IsRegistered"/> together rather than
+    /// in isolation. What this test pins is the observable contract: a value
+    /// <c>Scenario.Validate</c> would reject never reaches
+    /// <see cref="ClientSettings.MovementPreset"/>.
+    /// </summary>
+    [Fact]
+    public void AnUnregisteredMovementPresetFallsBackToTheDefaultRatherThanFailingValidation()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"movementPreset\":11}");
+
+            var settings = store.Load("command");
+
+            Assert.True(Enum.IsDefined(settings.MovementPreset));
+            Assert.True(
+                MovementPresetRegistry.IsRegistered(settings.MovementPreset));
+            Assert.Equal(
+                MovementPresetId.LastStandEngagementV11,
+                settings.MovementPreset);
+        });
+    }
+
+    [Fact]
+    public void ASchemaEightFileStillLoadsAndDefaultsTheMovementPreset()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":8,\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiScale\":2," +
+                "\"startupDisplayMode\":1}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal(
+                ClientSettingsStore.SupportedSchemaVersion,
+                settings.SchemaVersion);
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(
+                MovementPresetId.LastStandEngagementV11,
+                settings.MovementPreset);
         });
     }
 
