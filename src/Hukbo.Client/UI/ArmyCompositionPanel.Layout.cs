@@ -19,6 +19,7 @@ internal readonly record struct ArmyCompositionPanelLayout(
     Rectangle UnassignedBounds,
     Rectangle DistributeEvenlyBounds,
     Rectangle ResetToDefaultBounds,
+    Rectangle MovementPresetBounds,
     Rectangle CancelBounds,
     Rectangle ApplyBounds);
 
@@ -26,7 +27,8 @@ internal sealed partial class ArmyCompositionPanel
 {
     internal static ArmyCompositionPanelLayout CalculateLayout(
         Rectangle screenBounds,
-        UiArmyCompositionLayout metrics)
+        UiArmyCompositionLayout metrics,
+        UiThemeSelectorLayout selectorLayout)
     {
         metrics = new UiArmyCompositionLayout(
             UiScaleContext.Pixels(metrics.PanelWidth),
@@ -87,6 +89,14 @@ internal sealed partial class ArmyCompositionPanel
             metrics.RowHeight);
         top += metrics.RowHeight + metrics.RowGap;
 
+        var selectorHeight = UiScaleContext.Pixels(selectorLayout.Height);
+        var movementPresetBounds = new Rectangle(
+            rowLeft,
+            top,
+            rowWidth,
+            selectorHeight);
+        top += selectorHeight + metrics.RowGap;
+
         var halfWidth = (rowWidth - metrics.RowGap) / 2;
         var cancelBounds = new Rectangle(
             rowLeft,
@@ -107,6 +117,7 @@ internal sealed partial class ArmyCompositionPanel
             unassignedBounds,
             distributeEvenlyBounds,
             resetToDefaultBounds,
+            movementPresetBounds,
             cancelBounds,
             applyBounds);
     }
@@ -173,6 +184,11 @@ internal sealed partial class ArmyCompositionPanel
         if (layout.ResetToDefaultBounds.Contains(pointer))
         {
             return ResetToDefaultControlIndex;
+        }
+
+        if (layout.MovementPresetBounds.Contains(pointer))
+        {
+            return MovementPresetControlIndex;
         }
 
         if (layout.CancelBounds.Contains(pointer))

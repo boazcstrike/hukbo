@@ -3,6 +3,7 @@ using System.Globalization;
 using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Hukbo.Core.Combat;
+using Hukbo.Core.Movement;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Tests;
@@ -18,7 +19,11 @@ public sealed class ArmyCompositionPanelTests
         new(ImmutableArray.Create(a, b, c, d), unitsPerTeam);
 
     private static ArmyCompositionPanel CreatePanel(ArmyComposition saved) =>
-        new(saved, TestArmyCompositionLayout);
+        new(
+            saved,
+            MovementPresetId.BattlefieldRealismV10,
+            TestArmyCompositionLayout,
+            TestStandards);
 
     private static Hukbo.Client.Theming.UiArmyCompositionLayout
         TestArmyCompositionLayout =>
@@ -29,6 +34,14 @@ public sealed class ArmyCompositionPanelTests
             RowGap: 8,
             StepperWidth: 148,
             ArrowWidth: 44);
+
+    private static UiThemeStandards TestStandards =>
+        UiThemeCatalog.Load(
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "Content",
+                "Themes",
+                "ui-theme-standards.json")).Standards;
 
     [Fact]
     public void EveryCategoryIsOneRosterEntryOfTheActivePreset()
@@ -85,7 +98,8 @@ public sealed class ArmyCompositionPanelTests
         // that catches it rather than a spectator finding a clipped button.
         var layout = ArmyCompositionPanel.CalculateLayout(
             new Rectangle(0, 0, 1280, 720),
-            TestArmyCompositionLayout);
+            TestArmyCompositionLayout,
+            TestStandards.Shared.Selector);
         var margin = TestArmyCompositionLayout.RowGap * 2;
 
         Assert.Equal(
@@ -119,7 +133,8 @@ public sealed class ArmyCompositionPanelTests
         // shipping.
         var layout = ArmyCompositionPanel.CalculateLayout(
             new Rectangle(0, 0, 1280, 720),
-            TestArmyCompositionLayout);
+            TestArmyCompositionLayout,
+            TestStandards.Shared.Selector);
         var advancePx = UiFontRamp.GetApproximateAdvancePx(UiFontRole.Label);
 
         for (var index = 0; index < layout.CategoryRows.Length; index++)
@@ -157,7 +172,8 @@ public sealed class ArmyCompositionPanelTests
 
         var layout = ArmyCompositionPanel.CalculateLayout(
             new Rectangle(0, 0, 1280, 720),
-            TestArmyCompositionLayout);
+            TestArmyCompositionLayout,
+            TestStandards.Shared.Selector);
         var advancePx = UiFontRamp.GetApproximateAdvancePx(UiFontRole.Label);
         var requiredPx = widest.Length * advancePx;
 
@@ -189,6 +205,7 @@ public sealed class ArmyCompositionPanelTests
         yield return layout.UnassignedBounds;
         yield return layout.DistributeEvenlyBounds;
         yield return layout.ResetToDefaultBounds;
+        yield return layout.MovementPresetBounds;
         yield return layout.CancelBounds;
         yield return layout.ApplyBounds;
     }
@@ -200,7 +217,7 @@ public sealed class ArmyCompositionPanelTests
         // the four buttons. Derived from the category count so growing the
         // roster cannot leave the last category unreachable by keyboard.
         Assert.Equal(
-            ArmyCompositionStepper.CategoryCount + 5,
+            ArmyCompositionStepper.CategoryCount + 6,
             ArmyCompositionPanel.ControlCount);
         Assert.Equal(
             ArmyCompositionPanel.ControlCount - 1,
@@ -322,5 +339,111 @@ public sealed class ArmyCompositionPanelTests
             ArmyCompositionPanelAction.None,
             ArmyCompositionPanel.ResolveActivatedAction(
                 ArmyCompositionPanel.UnitsPerTeamControlIndex));
+    }
+
+    [Fact]
+    public void EveryRegisteredMovementPresetHasAMatchingDisplayName()
+    {
+        Assert.Equal(
+            ArmyCompositionPanel.MovementPresetOptions.Count,
+            ArmyCompositionPanel.MovementPresetNames.Count);
+        Assert.Equal(
+            ArmyCompositionPanel.MovementPresetOptions.Count,
+            ArmyCompositionPanel.MovementPresetOptions.Distinct().Count());
+    }
+
+    [Fact]
+    public void ArrowKeysCycleTheDraftMovementPresetWhileFocusedOnItsRow()
+    {
+        var saved = CreateComposition(50, 50, 50, 50, 200);
+        var panel = CreatePanel(saved);
+        Assert.Equal(
+            MovementPresetId.BattlefieldRealismV10,
+            panel.DraftMovementPreset);
+
+        panel.MoveFocus(
+            keyboardDirection: 0,
+            hoveredControlIndex: ArmyCompositionPanel.MovementPresetControlIndex);
+        panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
+
+        Assert.Equal(
+            MovementPresetId.IndependentPursuitV1,
+            panel.DraftMovementPreset);
+
+        panel.AdjustFocusedValue(direction: -1, isShiftHeld: false);
+
+        Assert.Equal(
+            MovementPresetId.BattlefieldRealismV10,
+            panel.DraftMovementPreset);
+    }
+
+    [Fact]
+    public void ApplyIsEnabledWhenOnlyTheMovementPresetChanged()
+    {
+        var saved = CreateComposition(50, 50, 50, 50, 200);
+        var panel = CreatePanel(saved);
+
+        Assert.False(panel.CanApply);
+
+        panel.MoveFocus(
+            keyboardDirection: 0,
+            hoveredControlIndex: ArmyCompositionPanel.MovementPresetControlIndex);
+        panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
+
+        Assert.True(panel.CanApply);
+    }
+
+    [Fact]
+    public void CancelDiscardsTheDraftMovementPresetAndRestoresTheSavedOne()
+    {
+        var saved = CreateComposition(50, 50, 50, 50, 200);
+        var panel = CreatePanel(saved);
+
+        panel.MoveFocus(
+            keyboardDirection: 0,
+            hoveredControlIndex: ArmyCompositionPanel.MovementPresetControlIndex);
+        panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
+        Assert.NotEqual(
+            MovementPresetId.BattlefieldRealismV10,
+            panel.DraftMovementPreset);
+
+        panel.PerformAction(ArmyCompositionPanelAction.Cancel);
+
+        Assert.Equal(
+            MovementPresetId.BattlefieldRealismV10,
+            panel.DraftMovementPreset);
+        Assert.Equal(
+            MovementPresetId.BattlefieldRealismV10,
+            panel.SavedMovementPreset);
+    }
+
+    [Fact]
+    public void ApplyCommitsTheDraftMovementPresetAsTheSavedOne()
+    {
+        var saved = CreateComposition(50, 50, 50, 50, 200);
+        var panel = CreatePanel(saved);
+
+        panel.MoveFocus(
+            keyboardDirection: 0,
+            hoveredControlIndex: ArmyCompositionPanel.MovementPresetControlIndex);
+        panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
+
+        var interaction = panel.PerformAction(ArmyCompositionPanelAction.Apply);
+
+        Assert.Equal(ArmyCompositionPanelResult.Applied, interaction.Result);
+        Assert.Equal(
+            MovementPresetId.IndependentPursuitV1,
+            panel.SavedMovementPreset);
+    }
+
+    [Fact]
+    public void FocusIncludesTheMovementPresetRowBetweenResetAndCancel()
+    {
+        Assert.Equal(
+            ArmyCompositionPanel.ResetToDefaultControlIndex + 1,
+            ArmyCompositionPanel.MovementPresetControlIndex);
+        Assert.Equal(
+            ArmyCompositionPanel.MovementPresetControlIndex + 1,
+            ArmyCompositionPanel.CancelControlIndex);
     }
 }

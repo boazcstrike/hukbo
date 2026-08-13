@@ -26,7 +26,7 @@ internal sealed partial class ArmyCompositionPanel
         TimeSpan elapsed,
         MotionIntensity motionIntensity)
     {
-        var layout = CalculateLayout(bounds, _metrics);
+        var layout = CalculateLayout(bounds, _metrics, _selectorLayout);
         AdvanceArrowMotion(input, layout, elapsed, motionIntensity);
         var pointerInsidePanel = layout.PanelBounds.Contains(
             input.MousePosition);
@@ -118,6 +118,30 @@ internal sealed partial class ArmyCompositionPanel
             string.Empty,
             elapsed,
             motionIntensity);
+
+        _movementPresetSelector.Bounds = layout.MovementPresetBounds;
+        _movementPresetSelector.AdvanceMotion(
+            input,
+            elapsed,
+            motionIntensity,
+            _draftMovementPreset);
+    }
+
+    /// <summary>
+    /// Arrow hit-test for the movement preset row. A separate helper from
+    /// <see cref="GetArrowClickDirection"/> because that one reads
+    /// <see cref="ArmyCompositionStepperRowLayout"/> bounds, and the
+    /// movement preset row is a reused <see cref="SettingsChoiceSelector{T}"/>
+    /// whose arrow rectangles are derived from its own <c>Bounds</c> instead.
+    /// </summary>
+    private int GetMovementPresetArrowClickDirection(Point pointer)
+    {
+        if (_movementPresetSelector.PreviousBounds.Contains(pointer))
+        {
+            return -1;
+        }
+
+        return _movementPresetSelector.NextBounds.Contains(pointer) ? 1 : 0;
     }
 
     private ArmyCompositionInteraction? HandlePointerClick(
@@ -130,6 +154,12 @@ internal sealed partial class ArmyCompositionPanel
             layout,
             _focusedControlIndex,
             pointer);
+        if (arrowDirection == 0 &&
+            _focusedControlIndex == MovementPresetControlIndex)
+        {
+            arrowDirection = GetMovementPresetArrowClickDirection(pointer);
+        }
+
         if (arrowDirection != 0)
         {
             AdjustFocusedValue(arrowDirection, isShiftHeld);
@@ -154,7 +184,7 @@ internal sealed partial class ArmyCompositionPanel
         Rectangle screenBounds,
         UiTheme theme)
     {
-        var layout = CalculateLayout(screenBounds, _metrics);
+        var layout = CalculateLayout(screenBounds, _metrics, _selectorLayout);
         var colors = theme.Colors;
         var titleFont = fonts.Get(UiFontRole.Title);
         var bodyFont = fonts.Get(UiFontRole.Body);
@@ -241,6 +271,15 @@ internal sealed partial class ArmyCompositionPanel
             isEnabled: true,
             _focusedControlIndex == ResetToDefaultControlIndex,
             theme);
+        _movementPresetSelector.Bounds = layout.MovementPresetBounds;
+        _movementPresetSelector.Draw(
+            spriteBatch,
+            pixel,
+            fonts,
+            theme,
+            _draftMovementPreset,
+            _focusedControlIndex == MovementPresetControlIndex);
+
         DrawActionRow(
             spriteBatch,
             pixel,
