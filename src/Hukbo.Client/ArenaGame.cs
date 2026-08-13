@@ -24,8 +24,18 @@ namespace Hukbo.Client;
 
 public sealed partial class ArenaGame : Game
 {
-    private const int InitialWindowWidth = 1280;
-    private const int InitialWindowHeight = 720;
+    // The default window is 1600x900, not the more common 1280x720, because
+    // the smaller size draws no pawn legs at all. ComputeLayout gives a
+    // 1600x900 window an arena panel of 1146x820; SpectatorCamera.Fit takes
+    // the smaller-axis fit against a 1280x720 map, horizontalZoom =
+    // 1146 * 0.88 / 1280 = 0.7879, which wins over the vertical axis;
+    // PawnGeometry.ResolveApparentScale then multiplies by ZoomScale = 1.35
+    // to reach apparentScale = 0.7879 * 1.35 = 1.0637. That clears
+    // MediumDetailScale = 0.95, so the default view resolves
+    // PawnDetailTier.Medium and CreateLegsAndFeet draws legs and feet
+    // instead of the four empty rectangles it returns at PawnDetailTier.Low.
+    private const int InitialWindowWidth = 1600;
+    private const int InitialWindowHeight = 900;
     private const int MinimumWindowWidth = 1024;
     private const int MinimumWindowHeight = 720;
 
