@@ -1,0 +1,2079 @@
+{
+  "cases": [
+    {
+      "name": "Default200",
+      "initialState": "0000000000000001",
+      "finalState": "9B5718EB7230F069",
+      "members": [
+        {
+          "xRaw": 320082,
+          "yRaw": 43787,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 192348,
+          "yRaw": 176616,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 316207,
+          "yRaw": 327348,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 198344,
+          "yRaw": 477869,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 322466,
+          "yRaw": 615648,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 346182,
+          "yRaw": 44201,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 221200,
+          "yRaw": 191327,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 336836,
+          "yRaw": 325888,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 216251,
+          "yRaw": 468304,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 348793,
+          "yRaw": 620079,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 364124,
+          "yRaw": 43906,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 237214,
+          "yRaw": 184583,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 374660,
+          "yRaw": 324097,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 246165,
+          "yRaw": 478630,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 375570,
+          "yRaw": 627866,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 401858,
+          "yRaw": 43124,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 272642,
+          "yRaw": 179781,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 392557,
+          "yRaw": 328015,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 268002,
+          "yRaw": 470377,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 388509,
+          "yRaw": 618895,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 413179,
+          "yRaw": 38965,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 293563,
+          "yRaw": 177779,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 413429,
+          "yRaw": 323897,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 289486,
+          "yRaw": 478195,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 417381,
+          "yRaw": 616170,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 323501,
+          "yRaw": 59237,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 199117,
+          "yRaw": 201764,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 323393,
+          "yRaw": 356096,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 211921,
+          "yRaw": 504962,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 337427,
+          "yRaw": 650343,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 359860,
+          "yRaw": 70277,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 235727,
+          "yRaw": 217356,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 355853,
+          "yRaw": 352615,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 228006,
+          "yRaw": 502562,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 354108,
+          "yRaw": 648404,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 385990,
+          "yRaw": 72048,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 260499,
+          "yRaw": 203484,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 375909,
+          "yRaw": 350245,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 252529,
+          "yRaw": 508565,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 387421,
+          "yRaw": 649193,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 405806,
+          "yRaw": 62840,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 281100,
+          "yRaw": 204328,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 400781,
+          "yRaw": 357758,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 279159,
+          "yRaw": 498026,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 402546,
+          "yRaw": 641495,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 440746,
+          "yRaw": 56722,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 314020,
+          "yRaw": 206680,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 442032,
+          "yRaw": 353774,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 311031,
+          "yRaw": 493840,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 427293,
+          "yRaw": 642287,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 311684,
+          "yRaw": 93756,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 199841,
+          "yRaw": 235487,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 321260,
+          "yRaw": 385105,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 200575,
+          "yRaw": 519989,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 318297,
+          "yRaw": 664733,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 336507,
+          "yRaw": 97911,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 215792,
+          "yRaw": 236795,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 342570,
+          "yRaw": 381207,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 219493,
+          "yRaw": 520792,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 343209,
+          "yRaw": 680899,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 362516,
+          "yRaw": 95253,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 241200,
+          "yRaw": 235705,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 361698,
+          "yRaw": 382461,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 244840,
+          "yRaw": 531497,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 370119,
+          "yRaw": 680785,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 392330,
+          "yRaw": 98719,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 271764,
+          "yRaw": 227934,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 403426,
+          "yRaw": 376518,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 272535,
+          "yRaw": 528526,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 400323,
+          "yRaw": 667305,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 429085,
+          "yRaw": 90250,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 295890,
+          "yRaw": 235851,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 424877,
+          "yRaw": 376558,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 302262,
+          "yRaw": 528038,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 428843,
+          "yRaw": 668582,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 323180,
+          "yRaw": 107877,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 210477,
+          "yRaw": 259079,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 326971,
+          "yRaw": 406222,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 204602,
+          "yRaw": 561400,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 325658,
+          "yRaw": 702401,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 358685,
+          "yRaw": 122002,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 229196,
+          "yRaw": 261872,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 363310,
+          "yRaw": 411444,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 231578,
+          "yRaw": 550560,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 349023,
+          "yRaw": 692763,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 374335,
+          "yRaw": 110269,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 252883,
+          "yRaw": 262013,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 385151,
+          "yRaw": 410090,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 260983,
+          "yRaw": 547503,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 385604,
+          "yRaw": 697458,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 402855,
+          "yRaw": 109831,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 281280,
+          "yRaw": 268509,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 415441,
+          "yRaw": 414804,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 283768,
+          "yRaw": 553517,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 415236,
+          "yRaw": 690694,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 432340,
+          "yRaw": 109654,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 310293,
+          "yRaw": 255269,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 442024,
+          "yRaw": 408439,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 309630,
+          "yRaw": 549550,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 425336,
+          "yRaw": 705346,
+          "contingentId": 4
+        }
+      ]
+    },
+    {
+      "name": "MinimumMap",
+      "initialState": "0000000000000001",
+      "finalState": "3C6EF372FE94F82B",
+      "members": [
+        {
+          "xRaw": 289,
+          "yRaw": 512,
+          "contingentId": 0
+        }
+      ]
+    },
+    {
+      "name": "HalfNarrowerThanOneBody",
+      "initialState": "0000000000000001",
+      "finalState": "0000000000000001",
+      "members": [
+        {
+          "xRaw": 4352,
+          "yRaw": 51200,
+          "contingentId": 0
+        }
+      ]
+    },
+    {
+      "name": "DenseBlockFallback",
+      "initialState": "0000000000000006",
+      "finalState": "0000000000000006",
+      "members": [
+        {
+          "xRaw": 8190,
+          "yRaw": 12028,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 16895,
+          "yRaw": 12028,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 25600,
+          "yRaw": 12028,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 34305,
+          "yRaw": 12028,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 43010,
+          "yRaw": 12028,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 8190,
+          "yRaw": 20733,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 16895,
+          "yRaw": 20733,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 25600,
+          "yRaw": 20733,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 34305,
+          "yRaw": 20733,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 43010,
+          "yRaw": 20733,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 8190,
+          "yRaw": 29438,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 16895,
+          "yRaw": 29438,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 25600,
+          "yRaw": 29438,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 34305,
+          "yRaw": 29438,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 43010,
+          "yRaw": 29438,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 8190,
+          "yRaw": 38143,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 16895,
+          "yRaw": 38143,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 25600,
+          "yRaw": 38143,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 34305,
+          "yRaw": 38143,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 43010,
+          "yRaw": 38143,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 8190,
+          "yRaw": 46848,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 16895,
+          "yRaw": 46848,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 25600,
+          "yRaw": 46848,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 34305,
+          "yRaw": 46848,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 43010,
+          "yRaw": 46848,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 8190,
+          "yRaw": 55553,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 16895,
+          "yRaw": 55553,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 25600,
+          "yRaw": 55553,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 34305,
+          "yRaw": 55553,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 43010,
+          "yRaw": 55553,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 8190,
+          "yRaw": 64258,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 16895,
+          "yRaw": 64258,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 25600,
+          "yRaw": 64258,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 34305,
+          "yRaw": 64258,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 43010,
+          "yRaw": 64258,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 8190,
+          "yRaw": 72963,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 16895,
+          "yRaw": 72963,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 25600,
+          "yRaw": 72963,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 34305,
+          "yRaw": 72963,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 43010,
+          "yRaw": 72963,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 8190,
+          "yRaw": 81668,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 16895,
+          "yRaw": 81668,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 25600,
+          "yRaw": 81668,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 34305,
+          "yRaw": 81668,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 43010,
+          "yRaw": 81668,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 8190,
+          "yRaw": 90373,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 16895,
+          "yRaw": 90373,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 25600,
+          "yRaw": 90373,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 34305,
+          "yRaw": 90373,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 43010,
+          "yRaw": 90373,
+          "contingentId": 1
+        }
+      ]
+    },
+    {
+      "name": "EightContingentCeiling",
+      "initialState": "0000000000000001",
+      "finalState": "6EF372FE94F82A01",
+      "members": [
+        {
+          "xRaw": 307026,
+          "yRaw": 72274,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 179292,
+          "yRaw": 314300,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 303151,
+          "yRaw": 574229,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 185288,
+          "yRaw": 833947,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 309410,
+          "yRaw": 1080923,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 184134,
+          "yRaw": 1347248,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 304912,
+          "yRaw": 1603571,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 174788,
+          "yRaw": 1847329,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 326075,
+          "yRaw": 59646,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 212857,
+          "yRaw": 320618,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 324956,
+          "yRaw": 582217,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 198046,
+          "yRaw": 832091,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 335492,
+          "yRaw": 1080802,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 206997,
+          "yRaw": 1344532,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 336402,
+          "yRaw": 1602965,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 213698,
+          "yRaw": 1855995,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 356354,
+          "yRaw": 62553,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 230509,
+          "yRaw": 319984,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 351714,
+          "yRaw": 571543,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 226461,
+          "yRaw": 829258,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 347899,
+          "yRaw": 1087100,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 228283,
+          "yRaw": 1335111,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 348149,
+          "yRaw": 1590426,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 224206,
+          "yRaw": 1853921,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 378213,
+          "yRaw": 61797,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 252845,
+          "yRaw": 316524,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 374221,
+          "yRaw": 568248,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 252737,
+          "yRaw": 831777,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 387025,
+          "yRaw": 1089840,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 266771,
+          "yRaw": 1344418,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 385972,
+          "yRaw": 1602124,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 261839,
+          "yRaw": 1858400,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 408077,
+          "yRaw": 63560,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 280230,
+          "yRaw": 322704,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 406332,
+          "yRaw": 577743,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 289222,
+          "yRaw": 839159,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 409491,
+          "yRaw": 1079792,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 279141,
+          "yRaw": 1335750,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 401521,
+          "yRaw": 1603267,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 290653,
+          "yRaw": 1853092,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 431918,
+          "yRaw": 65215,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 307212,
+          "yRaw": 315900,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 426893,
+          "yRaw": 578527,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 305271,
+          "yRaw": 827992,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 428658,
+          "yRaw": 1080658,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 317866,
+          "yRaw": 1333657,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 436900,
+          "yRaw": 1592812,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 319152,
+          "yRaw": 1849103,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 316407,
+          "yRaw": 85182,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 186909,
+          "yRaw": 342826,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 311684,
+          "yRaw": 605955,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 199841,
+          "yRaw": 856883,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 321260,
+          "yRaw": 1115698,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 200575,
+          "yRaw": 1359779,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 318297,
+          "yRaw": 1613720,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 187515,
+          "yRaw": 1884670,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 338672,
+          "yRaw": 93455,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 219690,
+          "yRaw": 347064,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 342373,
+          "yRaw": 595846,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 220329,
+          "yRaw": 865150,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 336404,
+          "yRaw": 1117276,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 215088,
+          "yRaw": 1366925,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 335586,
+          "yRaw": 1622878,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 218728,
+          "yRaw": 1881111,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 370119,
+          "yRaw": 100300,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 243338,
+          "yRaw": 356006,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 368532,
+          "yRaw": 594418,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 254434,
+          "yRaw": 852199,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 369303,
+          "yRaw": 1113404,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 251331,
+          "yRaw": 1361380,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 376861,
+          "yRaw": 1622097,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 243666,
+          "yRaw": 1876895,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 398765,
+          "yRaw": 87503,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 276150,
+          "yRaw": 348180,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 402731,
+          "yRaw": 597921,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 265580,
+          "yRaw": 848876,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 398637,
+          "yRaw": 1109275,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 269371,
+          "yRaw": 1365615,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 392762,
+          "yRaw": 1629990,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 268058,
+          "yRaw": 1880188,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 423965,
+          "yRaw": 98265,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 294476,
+          "yRaw": 347332,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 428590,
+          "yRaw": 606101,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 296858,
+          "yRaw": 854414,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 414303,
+          "yRaw": 1105814,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 290623,
+          "yRaw": 1361092,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 414931,
+          "yRaw": 1622033,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 301439,
+          "yRaw": 1879307,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 449143,
+          "yRaw": 86621,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 328004,
+          "yRaw": 345773,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 442023,
+          "yRaw": 595918,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 320448,
+          "yRaw": 863793,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 454609,
+          "yRaw": 1119285,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 322936,
+          "yRaw": 1367195,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 454404,
+          "yRaw": 1613569,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 322516,
+          "yRaw": 1870301,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 302613,
+          "yRaw": 111929,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 188584,
+          "yRaw": 374296,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 301950,
+          "yRaw": 624604,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 171896,
+          "yRaw": 889597,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 295917,
+          "yRaw": 1132455,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 182933,
+          "yRaw": 1389300,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 305324,
+          "yRaw": 1654081,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 188236,
+          "yRaw": 1901233,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 336551,
+          "yRaw": 125473,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 202104,
+          "yRaw": 369022,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 329052,
+          "yRaw": 629161,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 211736,
+          "yRaw": 884706,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 331985,
+          "yRaw": 1145004,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 206067,
+          "yRaw": 1386422,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 322334,
+          "yRaw": 1647788,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 204799,
+          "yRaw": 1901532,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 360983,
+          "yRaw": 110224,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 234083,
+          "yRaw": 370215,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 360365,
+          "yRaw": 625146,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 225393,
+          "yRaw": 884359,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 354359,
+          "yRaw": 1138518,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 227843,
+          "yRaw": 1398840,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 356785,
+          "yRaw": 1651548,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 230584,
+          "yRaw": 1902603,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 386924,
+          "yRaw": 111813,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 267103,
+          "yRaw": 367610,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 389006,
+          "yRaw": 620684,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 259047,
+          "yRaw": 875467,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 382035,
+          "yRaw": 1147024,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 265728,
+          "yRaw": 1396081,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 390197,
+          "yRaw": 1649646,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 259120,
+          "yRaw": 1902670,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 415716,
+          "yRaw": 119622,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 281492,
+          "yRaw": 375778,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 411807,
+          "yRaw": 628692,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 290078,
+          "yRaw": 889248,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 408441,
+          "yRaw": 1132876,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 277505,
+          "yRaw": 1397990,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 407853,
+          "yRaw": 1651019,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 291110,
+          "yRaw": 1900556,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 436994,
+          "yRaw": 118231,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 316680,
+          "yRaw": 369206,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 433376,
+          "yRaw": 628166,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 316607,
+          "yRaw": 890522,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 428666,
+          "yRaw": 1137005,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 315014,
+          "yRaw": 1388397,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 426371,
+          "yRaw": 1644685,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 313605,
+          "yRaw": 1904595,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 312891,
+          "yRaw": 151395,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 193438,
+          "yRaw": 400620,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 309607,
+          "yRaw": 661991,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 199071,
+          "yRaw": 905468,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 309615,
+          "yRaw": 1159312,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 202165,
+          "yRaw": 1424299,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 311442,
+          "yRaw": 1675857,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 192377,
+          "yRaw": 1935033,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 338090,
+          "yRaw": 150069,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 213119,
+          "yRaw": 396768,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 350643,
+          "yRaw": 654918,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 220086,
+          "yRaw": 916982,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 338424,
+          "yRaw": 1157213,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 219043,
+          "yRaw": 1421875,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 337460,
+          "yRaw": 1680654,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 225329,
+          "yRaw": 1927192,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 367560,
+          "yRaw": 151440,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 240990,
+          "yRaw": 398127,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 362176,
+          "yRaw": 662517,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 244491,
+          "yRaw": 911432,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 373899,
+          "yRaw": 1166235,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 248234,
+          "yRaw": 1413117,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 363972,
+          "yRaw": 1677829,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 246365,
+          "yRaw": 1933297,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 402307,
+          "yRaw": 144177,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 276054,
+          "yRaw": 407591,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 394689,
+          "yRaw": 657431,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 272234,
+          "yRaw": 902738,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 403350,
+          "yRaw": 1157915,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 268391,
+          "yRaw": 1413728,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 393381,
+          "yRaw": 1674336,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 276066,
+          "yRaw": 1926688,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 423582,
+          "yRaw": 152485,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 301019,
+          "yRaw": 407551,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 412841,
+          "yRaw": 657632,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 290868,
+          "yRaw": 917835,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 425362,
+          "yRaw": 1165836,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 290110,
+          "yRaw": 1423663,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 428550,
+          "yRaw": 1669257,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 298470,
+          "yRaw": 1922830,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 450872,
+          "yRaw": 143973,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 324577,
+          "yRaw": 396549,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 453529,
+          "yRaw": 658279,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 327451,
+          "yRaw": 915357,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 450008,
+          "yRaw": 1165015,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 332358,
+          "yRaw": 1420215,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 450865,
+          "yRaw": 1681635,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 317888,
+          "yRaw": 1931577,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 309644,
+          "yRaw": 171453,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 178355,
+          "yRaw": 432362,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 303511,
+          "yRaw": 675087,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 182847,
+          "yRaw": 937062,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 297010,
+          "yRaw": 1183692,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 185813,
+          "yRaw": 1446157,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 309121,
+          "yRaw": 1694924,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 175426,
+          "yRaw": 1947830,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 324909,
+          "yRaw": 162859,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 207121,
+          "yRaw": 427431,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 321696,
+          "yRaw": 672396,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 204970,
+          "yRaw": 928733,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 327233,
+          "yRaw": 1185727,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 203500,
+          "yRaw": 1445559,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 330470,
+          "yRaw": 1701177,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 208748,
+          "yRaw": 1952472,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 354460,
+          "yRaw": 175830,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 228283,
+          "yRaw": 420845,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 350795,
+          "yRaw": 679548,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 231821,
+          "yRaw": 938307,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 356513,
+          "yRaw": 1195610,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 225185,
+          "yRaw": 1444243,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 363002,
+          "yRaw": 1708992,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 225477,
+          "yRaw": 1961039,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 380823,
+          "yRaw": 171315,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 265743,
+          "yRaw": 430869,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 380128,
+          "yRaw": 685522,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 262229,
+          "yRaw": 942461,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 385947,
+          "yRaw": 1192923,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 261634,
+          "yRaw": 1438551,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 384856,
+          "yRaw": 1705379,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 256586,
+          "yRaw": 1959108,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 401595,
+          "yRaw": 169038,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 291267,
+          "yRaw": 421906,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 399743,
+          "yRaw": 673575,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 291408,
+          "yRaw": 928083,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 399153,
+          "yRaw": 1194352,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 289084,
+          "yRaw": 1443105,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 399480,
+          "yRaw": 1695870,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 277560,
+          "yRaw": 1955828,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 431279,
+          "yRaw": 175062,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 304560,
+          "yRaw": 433163,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 434145,
+          "yRaw": 675607,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 311976,
+          "yRaw": 939107,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 431264,
+          "yRaw": 1192423,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 312369,
+          "yRaw": 1450614,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 430993,
+          "yRaw": 1692556,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 316578,
+          "yRaw": 1947844,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 311458,
+          "yRaw": 195571,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 196368,
+          "yRaw": 445593,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 310377,
+          "yRaw": 714459,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 200771,
+          "yRaw": 956903,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 318326,
+          "yRaw": 1223549,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 185604,
+          "yRaw": 1476030,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 315517,
+          "yRaw": 1733983,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 193438,
+          "yRaw": 1983525,
+          "contingentId": 7
+        },
+        {
+          "xRaw": 333942,
+          "yRaw": 197911,
+          "contingentId": 0
+        },
+        {
+          "xRaw": 225897,
+          "yRaw": 460488,
+          "contingentId": 1
+        },
+        {
+          "xRaw": 337402,
+          "yRaw": 707684,
+          "contingentId": 2
+        },
+        {
+          "xRaw": 218535,
+          "yRaw": 954328,
+          "contingentId": 3
+        },
+        {
+          "xRaw": 343674,
+          "yRaw": 1224037,
+          "contingentId": 4
+        },
+        {
+          "xRaw": 224607,
+          "yRaw": 1479446,
+          "contingentId": 5
+        },
+        {
+          "xRaw": 334102,
+          "yRaw": 1722643,
+          "contingentId": 6
+        },
+        {
+          "xRaw": 221647,
+          "yRaw": 1981744,
+          "contingentId": 7
+        }
+      ]
+    }
+  ]
+}
