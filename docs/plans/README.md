@@ -14,10 +14,15 @@ record are all live, because a future session still has to read them. What none
 of them means is *go and build this* — only an explicit authorization does that,
 and section 6 of [`../../CLAUDE.md`](../../CLAUDE.md) says how one is given.
 
-Last reviewed 2026-08-13. Three documents left this folder in this review and
-one joined it. The three that left are the projectile prop scale plan, the
-shield-clash audio legibility plan, and the shield-clash audio legibility
-design, each archived once its build finished. The design was held back at first
+Last reviewed 2026-08-13. Five documents left this folder in this review and
+one joined it. The five that left are the projectile prop scale plan, the
+shield-clash audio legibility plan, the shield-clash audio legibility
+design, and the auto camera centring plan and its design, each archived once
+its build finished. The auto camera centring pair went last, after the
+canonical gate was finally recorded against its task `AC-T6`, which had been
+the one thing its task table still owed; neither file was cited by path from
+any source or test file, so the source-cited rule below did not hold either of
+them here. The design was held back at first
 under this README's rule that a source-cited design stays live, because six doc
 comments under `src/Hukbo.Client/Audio` cited it by path. It went later the same
 day: those six comments were rewritten to name the document in prose instead,
@@ -36,7 +41,8 @@ and three of the four questions it left open are now closed in the new plan.
 
 **A plan is archived when its build is finished, not when its smoke rows are.**
 The battlefield-realism and projectile-props plans both left with rows still
-`PENDING` — projectile-props is now down to the single row `PP-3` — because
+`PENDING` when they were archived — projectile-props has since closed all eight
+of its rows, the last of them `PP-3` on 2026-08-13 — because
 those rows live in
 [`../development/smoke-checklist.md`](../development/smoke-checklist.md) and are
 tracked there. A design document is a separate question: it stays here for as
@@ -64,8 +70,6 @@ long as source or tests cite it by path, however long ago it shipped.
 | [`2026-08-13-contingent-shape.md`](2026-08-13-contingent-shape.md) | The planning pass Phase C asked for: nine ordered tasks, the blast radius across thirteen `FormationPlannerTests` and nine frozen digests, and the finding that `BattlefieldRealismV10` and `LastStandEngagementV11` — the presets the client actually ships — have no frozen trajectory digest at all | Plan only; authorizes nothing. Tasks 2, 8, and 9 are unblocked; tasks 1, 6, and 7 need decisions nobody has taken |
 | [`2026-07-28-follower-trailing-deadlock-design.md`](2026-07-28-follower-trailing-deadlock-design.md) | The follower-trailing mutual block in the collision resolver, with its diagnosis measured | Design only; options unchosen |
 | [`UI/`](UI/README.md) | The 2026-07-31 UI and UX package — audit, visual direction, plan, implementation report | Implemented; manual smoke rows `PENDING` |
-| [`2026-08-12-auto-camera-centring-design.md`](2026-08-12-auto-camera-centring-design.md) | Why an assisted pan used to stop with the fight in a corner: one constant serving both `Follow`'s on-screen band and the pan-end band. Splits it into `FollowOnScreenFraction` and `CenteredFraction`, and states what the fix deliberately does not do | Shipped 2026-08-12; gate green, `AC-1` `PENDING` |
-| [`2026-08-12-auto-camera-centring.md`](2026-08-12-auto-camera-centring.md) | That design's six tasks and the verification each one owed | Executed; the new regression test fails at the old band by 13.78 world units and passes at the new one |
 | [`2026-08-13-last-stand-engagement-design.md`](2026-08-13-last-stand-engagement-design.md) | Why the endgame is still fought one pair at a time: a follower's aim point sits 51 world units behind its rally agent against a longest melee reach of 16. Three candidate remedies, each an authoritative change needing a new preset version and re-recorded goldens | Design only; it authorizes nothing itself, but its section 6 question was answered and remedy C was adopted — the plan row directly below carries the twelve tasks that executed it. `LS-1` was `FAIL` while no repair existed and has been `PENDING` since `MovementPresetId.LastStandEngagementV11` shipped |
 | [`2026-08-13-last-stand-engagement.md`](2026-08-13-last-stand-engagement.md) | That design's twelve tasks, and the three decisions the design did not take. The last-stand code turned out to be shared and unversioned by every preset from V1 to V10, so a new movement preset is the only safe carrier for a change to it, the shipped client has to be moved onto that preset for the fix to be a fix at all, and the gate needs a fourth stage-5 block rather than the three re-recorded baselines the design asked for. Cited by path from `MovementPresetId.cs`, `MovementPresetRegistry.cs`, `ArenaGame.cs`, and `ScriptDefaultsTests.cs` | Executed and merged at `d17c8a3`; `MovementPresetId.LastStandEngagementV11` ships and the client selects it. `LS-1` is back to `PENDING` as a re-run |
 | [`2026-08-13-lethal-blow-legibility-design.md`](2026-08-13-lethal-blow-legibility-design.md) | Why a kill does not read as a kill: the pawn is removed 0.10 seconds in while its effects run for 0.28 to 0.85, lethal blows are the only blows excluded from the hit pulse, the two ring colours are eleven units apart in one channel, and the default gore level produces no sustained blood. Section 4 records the evidence-based restraint the change deliberately reverses | Shipped 2026-08-13, presentation only; smoke rows 92 and 94 `PENDING` |

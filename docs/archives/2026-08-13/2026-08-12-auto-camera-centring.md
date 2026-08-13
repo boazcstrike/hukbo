@@ -1,5 +1,13 @@
 # Auto camera centring — plan
 
+**Archived: reference only.** This is a finished plan whose tasks all landed.
+Never execute it, never treat it as a live task list, and never cite it as the
+reason to make a change. The live contract for this project remains `CLAUDE.md`
+and `docs/development/smoke-checklist.md`; nothing in this file overrides
+either of those. Archived 2026-08-13, with `AC-T1` through `AC-T6` complete and
+the canonical gate recorded against `AC-T6`. Its one open item is the smoke row
+`AC-1`, which is `PENDING` in the live checklist and is tracked there.
+
 **Date:** 2026-08-12
 **Design:** `docs/plans/2026-08-12-auto-camera-centring-design.md`, which
 outranks this file wherever the two disagree.

@@ -1,5 +1,13 @@
 # Auto camera centring — design
 
+**Archived: reference only.** This is a finished design whose change shipped.
+Never execute it, never treat it as a live task list, and never cite it as the
+reason to make a change. The live contract for this project remains `CLAUDE.md`
+and `docs/development/smoke-checklist.md`; nothing in this file overrides
+either of those. Archived 2026-08-13. It leaves this folder's live half because
+no source or test file cites it by path, which is the rule that keeps a shipped
+design document in `docs/plans/`.
+
 **Date:** 2026-08-12
 **Scope:** `src/Hukbo.Client` only. Presentation. Nothing here reaches a state
 hash, an event, or a snapshot.
