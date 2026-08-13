@@ -1,5 +1,14 @@
 # Agent inspector row wrapping — plan
 
+**Archived: reference only.** This is a finished plan. Its six tasks were built
+and merged at `b566f88`, and the smoke row it existed to close, `BR-10`, was
+re-run by a person at an interactive desktop on 2026-08-14 and passed. Never
+execute it, never treat it as a live task list, and never cite it as the reason
+to make a change. The live contract for this project remains `CLAUDE.md` and
+`docs/development/smoke-checklist.md`. The design it executes is still live at
+`docs/plans/2026-08-14-inspector-row-wrapping-design.md`, and the vertical fit
+question that design leaves open in its section 6 is still open.
+
 Design: `docs/plans/2026-08-14-inspector-row-wrapping-design.md`. Read it first;
 it carries the decisions D1 through D6 that the tasks below execute and the
 reasoning for the two alternatives that were rejected.

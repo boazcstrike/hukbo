@@ -511,9 +511,10 @@ to `MovementPresetNames` (`:144`), strengthen
 `EveryRegisteredMovementPresetHasAMatchingDisplayName`
 (`tests/Hukbo.Client.Tests/ArmyCompositionPanelTests.cs:344`) to enumerate
 `MovementPresetRegistry` so the next preset cannot go missing the same way, and
-add a `PENDING` smoke row beside the existing `BR-1` and `BR-4` for how a
+add a `PENDING` smoke row beside the then-open `BR-1` and `BR-4` for how a
 chief-derived deployment reads on screen. That row is a person's to flip, never
-an agent's.
+an agent's. It became `CS-1` and `CS-2`, and a person ran and passed both on
+2026-08-14; `BR-1` and `BR-4` closed the same day.
 
 This is a small, self-contained package with no determinism surface, and it
 converts an unobservable feature into an observable one, which

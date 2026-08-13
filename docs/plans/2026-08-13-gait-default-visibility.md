@@ -200,11 +200,15 @@ outcome of a first interactive run, not a failure of this plan.
 ## 7. Rows elsewhere in the checklist that this change touches
 
 Raising the default window changes what "the default camera fit" means for every
-row phrased against it. Three rows are affected and all three are currently
-`PENDING`, so no recorded result is invalidated:
+row phrased against it. Three rows were affected and all three were `PENDING`
+when this landed, so no recorded result was invalidated. All three have since
+closed:
 
-- `BR-1` — contingent form-up at the default camera fit.
+- `BR-1` — contingent form-up at the default camera fit. Closed `PASS` on
+  2026-08-14, recorded in the archived record titled "Battlefield realism
+  cohort smoke — closed 2026-08-14".
 - `BR-4` — the two factions' starting deployments at the default camera fit.
+  Closed `PASS` on 2026-08-14 in the same record.
 - `RG-9` — ranged silhouettes compared across all three detail tiers. `Low`
   remains reachable, so this row is unaffected in substance, but the zoom at
   which the tester finds each tier moves. `RG-9` closed `PASS` on 2026-08-14,

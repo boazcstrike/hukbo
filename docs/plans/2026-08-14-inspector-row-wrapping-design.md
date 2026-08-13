@@ -1,7 +1,12 @@
 # Agent inspector row wrapping — design
 
-Status: proposed. A design document does not authorize implementation; the plan
-document `docs/plans/2026-08-14-inspector-row-wrapping.md` does.
+Status: **shipped and closed.** The six tasks below were built and merged at
+`b566f88`, and smoke row `BR-10` was re-run by a person at an interactive
+desktop on 2026-08-14 and passed. The plan document that authorized the work is
+archived under the title "Agent inspector row wrapping — plan", named here in
+prose because nothing outside `docs/archives/` may link into it. This design
+stays live only because `tests/Hukbo.Client.Tests/AgentInspectorContentTests.cs`
+cites it by name; the open vertical question in section 6 is still open.
 
 ## 1. The defect
 

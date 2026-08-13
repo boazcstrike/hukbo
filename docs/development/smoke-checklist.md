@@ -23,26 +23,30 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-14
 
-13 rows across 4 subsections: **13 `PENDING`, and no `PASS`, `BLOCKED`,
+5 rows across 2 subsections: **5 `PENDING`, and no `PASS`, `BLOCKED`,
 `FAIL`, or `DECLINED` row** — recounted from the status column of this file on
-2026-08-14, after eight families closed in full that day and their subsections
-were deleted whole, and after the contingent shape selector family added `CS-1`
-and `CS-2` as two new `PENDING` rows in a subsection of their own.
+2026-08-14, after ten families closed in full that day and their subsections
+were deleted whole. The contingent shape selector family both joined this file
+and left it on that day: `CS-1` and `CS-2` were written as two new `PENDING`
+rows in a subsection of their own, then run and passed before the day was out.
 
-The count before this one said eighteen rows, of which three were `PASS`.
-Those three were rows 60, 61 and 61a of the starting deployment section. That
-family's last two rows, 58 and 59, were run and passed on 2026-08-14, so all
-five closed and the section was deleted whole under this file's own rule. Its
-record is the 2026-08-14 archive titled **"Starting deployment smoke"**, named
-here in prose rather than linked because that folder is pruned periodically. No
-row's status was changed to arrive at this count.
+The count before this one said thirteen rows, all `PENDING`. Eight of those
+thirteen closed on 2026-08-14: battlefield realism's last five rows, `BR-1`
+through `BR-4` and `BR-10`; the contingent shape selector's `CS-1` and `CS-2`;
+and the render family's `GR-4`. The first two families are therefore gone from
+this file whole and the render family is down to the two rows below. Their
+records are the 2026-08-14 archives titled **"Battlefield realism cohort
+smoke"**, **"Contingent shape selector smoke"**, and **"GPU render smoke —
+`GR-4`"**, named here in prose rather than linked because that folder is pruned
+periodically. No row's status was changed to arrive at this count.
 
-**Three of the thirteen `PENDING` rows carry a failing observation in `Actual` while sitting
-at `PENDING`, and that is the rule rather than an inconsistency.** `BR-1`,
-`BR-2` and `BR-10` were run on 2026-08-14 and did not pass; a row that has been
-observed to fail and has a fix in flight goes back to `PENDING` carrying what
-the tester saw, so the re-run is judged against the observation instead of a
-blank cell. Do not read `PENDING` here as "nobody has looked". The last-stand engagement family went first, at one row. Three more
+**No row left in this file carries a failing observation.** The three that did —
+`BR-1`, `BR-2` and `BR-10` — were re-run on 2026-08-14 against the fixes they
+had been waiting on, passed, and left with their family. Every row below sits at
+`PENDING` because nobody has watched it, not because somebody watched it fail.
+
+The families that closed on 2026-08-14 went in roughly this order.
+The last-stand engagement family went first, at one row. Three more
 followed in one sitting: leader identification at eleven rows, movement gait
 animation at fourteen, and ranged units at eleven, all thirty-six run and passed
 by a person at an interactive Windows desktop. Three more closed later the same
@@ -50,19 +54,19 @@ day: tactical hit animations, whose last two rows were 92 and 94; quit
 confirmation, maximize, and Core faction metrics, whose last row was 171; and
 footwork pressure interrupt, all eleven of whose rows — `P-1` through `P-10` and
 `L-7` — were run for the first time and passed together. That last closure took
-the leader marker family with it, because `L-7` was its final open row.
+the leader marker family with it, because `L-7` was its final open row. Starting
+deployment closed after them at five rows, and battlefield realism and the
+contingent shape selector closed last, at ten rows and two.
 
-Two families were run on 2026-08-14 and did not close. GPU render passed two of
-its five rows, `GR-1` and `GR-2`, and they were lifted out; its other three stay
-below with the reason they were not run recorded against them. Battlefield
-realism passed five of its ten — `BR-5` through `BR-9`, the whole ranged-retreat
-half — and those five were lifted out; its other five stay below, three of them
-carrying a failing observation and two deliberately not attempted behind those
-three.
+One family was run on 2026-08-14 and did not close. GPU render has passed three
+of its five rows — `GR-1` and `GR-2` early in the day, `GR-4` later — and all
+three were lifted out; its other two stay below with the reason they were not
+run recorded against them, and the section preamble records why that reason does
+not hold.
 
 Every row left here is something a person still has to do, and every one of them
 is something a person **can** do: none is blocked by the build, and none is
-waiting on a feature that does not exist. 234 rows have been lifted out of this
+waiting on a feature that does not exist. 242 rows have been lifted out of this
 file since it was split out of `docs/development/testing.md`. A closed row is
 not described here once it leaves; its record is the dated archive that carries
 its family's name, and this file is only what is left to run.
@@ -119,19 +123,17 @@ The families below are grouped by what a single launch can actually
 show, because the subsections are ordered by the change that created them
 rather than by what is on screen at once, and a person working down the file in
 order relaunches the game far more often than they need to. The batch rows below
-sum to this file's own total of 13. They summed to 67 before 2026-08-14, because
-two sections had never been given a row here at all; seven more batches left the
-table later that day when their families closed in full — the starting
-deployment batch last, when its rows 58 and 59 passed — and the render and
-battlefield-realism batches shrank rather than leaving. The contingent shape
-selector batch joined on 2026-08-14 at two rows.
+sum to this file's own total of 5. They summed to 67 before 2026-08-14, because
+two sections had never been given a row here at all; nine more batches left the
+table later that day when their families closed in full — the battlefield
+realism batch last, and the contingent shape selector batch, which had joined
+the table that same morning at two rows, immediately before it. The render batch
+shrank rather than leaving.
 
 | Batch | Families | Rows | What one launch has to show |
 | --- | --- | --- | --- |
-| Render | `GR` 3 of 5 | 3 `PENDING` | Launch-time render behaviour at the largest battle the panel allows. `GR-1` and `GR-2` passed on 2026-08-14 and were lifted out. All three rows left were attempted that day and not run; the section preamble records why, and why two of the three reasons do not hold |
-| Battlefield realism | `BR` 5 of 10 | 5 `PENDING` | Cohort deployment only. The other 5 are the V10 retreat rung, which passed on 2026-08-14 and was lifted out. Three of these five failed that day and two were held back behind them, so none is a fresh check — read every `Actual` column before launching. `BR-10` is the odd one out: it needs the window resized to 1024 by 720 and the agent inspector open, not a battle watched |
+| Render | `GR` 2 of 5 | 2 `PENDING` | Launch-time render behaviour at the largest battle the panel allows. `GR-1`, `GR-2` and `GR-4` passed on 2026-08-14 and were lifted out. Both rows left were attempted that day and not run; the section preamble records why, and why the stated reason does not hold |
 | Sandata | `SD` 3 of 9 | 3 `PENDING` | `./scripts/run.ps1 -Game Sandata`. The other 6 passed and were lifted out. All three open rows are re-runs rather than fresh checks: `SD-4` and `SD-5` were each attempted twice and failed on causes fixed on 2026-08-12, and `SD-7b` was blocked from the day it was written until the same day. Read each row's `Actual` column before starting |
-| Contingent shape selector | `CS` 2 | 2 `PENDING` | The Army Composition panel's movement-preset row, then two opening deployments compared across a Full Reset. Neither row is a fresh feature check: both are checks that a preset the shipped client could not previously reach now reads correctly when a spectator selects it |
 
 **No row in this file is blocked by the build, and this paragraph used to say
 the opposite.** Every `SD` row that was once blocked has stopped being so — four
@@ -143,12 +145,12 @@ because nobody has watched it yet, not because the build stands in the way.
 
 **One thing a tester still has to set deliberately.** The client's shipped
 movement preset is `ClientSettingsStore.DefaultMovementPreset`, which is
-`MovementPresetId.LastStandEngagementV11`, and the Army Composition panel lists
-every registered preset. A preset chosen there is staged for the **next Full
-Reset** rather than applied to the battle in progress, so a round started before
-the reset is still running the previous preset. Any row below that names a
-preset is read against the preset actually in force, not the one most recently
-clicked.
+`MovementPresetId.CohortLateralSpreadV13` and was `LastStandEngagementV11` until
+2026-08-14, and the Army Composition panel lists every registered preset. A
+preset chosen there is staged for the **next Full Reset** rather than applied to
+the battle in progress, so a round started before the reset is still running the
+previous preset. No row left below names a preset, so all of them are read
+against that shipped default unless the tester deliberately changes it.
 
 **Controls, so no row has to be attempted by guesswork.** `Space` plays and
 pauses; `1`, `2`, and `4` set playback speed; `R` starts the next round and
@@ -299,17 +301,19 @@ the simulation's own planned route is dashed where a hand-drawn one is solid.
 
 ## GPU render smoke (gpu-render Phases 1 and 2)
 
-**This family was run for the first time on 2026-08-14 and two of its five rows
-closed.** `GR-1` and `GR-2` passed and were lifted out; their record is the
-2026-08-14 archive titled **"GPU render smoke — PARTIAL 2026-08-14"**, named
-here in prose rather than linked because that folder is pruned periodically. The
-three rows below are what is left, and all three are `PENDING`. These rows were
+**This family was run for the first time on 2026-08-14 and three of its five
+rows closed.** `GR-1` and `GR-2` passed early in the day and were lifted out,
+and `GR-4` — the two-build Phase 2 comparison — passed later the same day and
+was lifted out with them. Their records are the 2026-08-14 archives titled
+**"GPU render smoke — PARTIAL 2026-08-14"** and **"GPU render smoke — `GR-4`"**,
+named here in prose rather than linked because that folder is pruned
+periodically. The two rows below are what is left, and both are `PENDING`. These rows were
 drafted in the plan on 2026-07-28 and moved here on 2026-08-07; they were never
 in this file while the workstream ran, which is why no human had worked from
 them before that day. This copy is the live one.
 
 **Read this before deciding `GR-3` or `GR-5` cannot be run.** The tester who ran
-this family on 2026-08-14 stopped at all three remaining rows for one stated
+this family on 2026-08-14 stopped at both of these rows for one stated
 reason: the team size cannot be raised above 500. That observation is correct
 and it is exactly what `GR-2` asks for, but it is not a blockage, because the
 ceiling is **per team, not per battle**.
@@ -319,13 +323,6 @@ labelled `Units Per Team`, and `ArenaGame` builds the scenario with
 produces exactly the 1,000-unit battle these rows ask for. `GR-3` and `GR-5` are
 runnable today; they have simply not been run.
 
-`GR-4` is the one row here with a real obstacle. It asks for the same battle to
-be compared *before and after* the Phase 2 commits, which means building a
-pre-Phase-2 revision alongside the current one. That is a two-build comparison
-rather than an observation of the shipped game, and no route to it has been
-written down. It is left `PENDING` rather than `BLOCKED` because nobody has yet
-established that it cannot be done — only that nobody has described how.
-
 What the automated work already proves, and what it does not: the render probe
 recorded a 1,000-unit default-fit `Draw` p95 of 3 276.6 us against an 8.0 ms
 budget, `PawnGeometryTests` pins the two-stage geometry path bit-identical to the
@@ -334,9 +331,11 @@ entry points it replaced over a 73,728-case grid, `PawnQuadCountTests` still pin
 and the capacity bound, `HitEffectSystemTests` proves the per-frame pulse lookup
 returns what the per-pawn scan returned, and `ArmyCompositionStepperTests` proves
 the stepper clamps at 500 per team. None of that proves that a 1,000-unit battle
-is watchable rather than merely measurable, that the composition panel still fits
-the window at the new maximum, or that Phase 2 changed no pixel — which is the
-one claim the whole phase rests on.
+is watchable rather than merely measurable, or that the composition panel still
+fits the window at the new maximum. The one claim the whole phase rested on —
+that Phase 2 changed no pixel — is no longer open: `GR-4` was run and passed on
+2026-08-14, and a person compared the two builds at the same tick and camera
+station.
 
 Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
 flip one of these rows. Compilation, unit tests, and a window-opening probe run
@@ -345,98 +344,7 @@ do not. Leave untouched rows `PENDING`; report `BLOCKED` honestly.
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
 | GR-3 | Set `Units Per Team` to 500 for both teams, start the resulting 1,000-unit battle, and watch one full engagement | The battle renders and remains watchable; pawns, shields, swings, and hit pulses all read correctly at all three camera stations | Attempted 2026-08-14 and not run. The tester reported that the size cannot be raised above 500; that ceiling is per team, so 500 on each side is the 1,000-unit battle this row wants | PENDING |
-| GR-4 | Compare a seed-1 200-unit battle before and after the Phase 2 commits at the same tick and camera station | No visible difference. Phase 2 is pure removal of duplicated work; any visible difference is a defect, not a new baseline | Attempted 2026-08-14 and not run. This row needs two builds, not two settings, and no route to the pre-Phase-2 build has been written down | PENDING |
 | GR-5 | Watch hit pulses in a dense 1,000-unit melee | Pulse strength and timing read exactly as before the per-frame lookup replaced the per-pawn scan | Attempted 2026-08-14 and not run, for the same reason recorded against `GR-3` | PENDING |
 
 Phase 3's rows GR-6 through GR-10 are deliberately absent. They covered the
 instanced backend, which the NO-GO verdict closed and which does not exist.
-
-## Battlefield realism cohort and retreat smoke (task 18)
-
-Added by the battlefield realism change,
-which flips the client's default preset combination to `PrecolonialPhilippinesV5`
-plus `MovementPresetId.BattlefieldRealismV10`. Design:
-`docs/plans/2026-08-11-battlefield-realism-design.md`.
-
-**This family was run at an interactive desktop on 2026-08-14 and split in
-two.** Five of its ten rows passed — `BR-5` through `BR-9`, the whole of the
-ranged-retreat half — and were lifted out of this file. Their record is the
-2026-08-14 archive titled **"Battlefield realism cohort and retreat smoke — rows
-BR-5 to BR-9 closed 2026-08-14"**, named rather than linked because that folder
-is pruned periodically. Find it the same way any archived record is found:
-
-```powershell
-git log --diff-filter=A --name-only --format='%h %s' -- 'docs/archives/**' |
-  Select-String 'battlefield-realism-retreat-smoke'
-```
-
-The five rows below are what is left, and none of them is merely unattempted.
-`BR-1`, `BR-2` and `BR-10` were observed and failed; each carries what the
-tester actually saw in its `Actual` column, so the re-run is judged against the
-observation rather than against a blank cell. `BR-3` and `BR-4` were
-deliberately not attempted, because both are downstream of the deployment shape
-the first two found wanting. **A fix is in progress for all three failures and
-none of them is fixed yet** — read each row's `Actual` before starting.
-
-The automated suite proves the cohort sort order, the shield-bearer slot pairing
-inside each contingent, the threat-radius arithmetic, the retreat ladder's three
-rungs, the per-index and positional mirror assertions, and the twenty-seed
-termination sweep. None of it proved any of the three failures above, and two of
-them — a panel with no horizontal clip, and contingents that dissolve into
-individual pursuit — had passing suites over them the whole time.
-
-**What "the default camera fit" means for `BR-1` and `BR-4`, since 2026-08-13.**
-Both rows are read at the default camera fit, and what that fit shows changed on
-that day. The default window was 1280 by 720, at which the fit resolved the Low
-detail tier and a pawn was drawn with no legs at all; it is now 1600 by 900,
-which resolves the Medium tier at the fit, so arms, the armor silhouette, the
-sash, the head treatment, and the legs are all visible without zooming in. That
-change arrived with the gait default visibility plan,
-`docs/plans/2026-08-13-gait-default-visibility.md`. Both rows were `PENDING`
-when it landed, so no recorded result was invalidated by it.
-
-Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
-certify one of these rows. Compilation, unit tests, and a window-opening probe
-do not.
-
-| # | Step | Expected | Actual | Status |
-| --- | --- | --- | --- | --- |
-| BR-1 | Watch a contingent form up after deployment, at the default camera fit | The contingent reads as mostly carrying one weapon, with only a few warriors of a different weapon visible at its edges, rather than an even mix across the group. Failure is a contingent that still looks like a uniform round-robin blend of every weapon in the roster, indistinguishable at a glance from the pre-V10 grouping | 2026-08-14, tester at the desktop: "they visibly form up but not enough, some just charged and fought". The weapon-grouping half works — the groups were visible. What failed is cohesion. The cause was traced in source: under `ContingentState.Advance`, `MovementRules.IsCohesionEligible` gate 4 denies a cohesion destination to every member that is **not** straggling, so those members fall through to the individual pursuit path; and a contingent reaches the gathering `Hold` state only when its geometric gates pass, which a 24-body-radius cohesion square shared by eight contingents in one map half rarely allows. Contingents therefore sit in `Advance`, where only stragglers close up and the core charges. A design for this is written and is **not yet implemented**; see `../plans/2026-08-14-contingent-cohesion-before-contact-design.md` | PENDING |
-| BR-2 | Watch a contingent that includes shield bearers, before it makes contact with the enemy | The shield bearers are visibly at the forward-most slots of their own contingent — ahead of their contingent's other warriors on the approach — rather than scattered through the group or clustered only at the edge of the whole army. Failure is a contingent where a shield bearer cannot be picked out as leading its own group, or where the leading edge is indistinguishable from an unshielded warrior's | 2026-08-14, tester at the desktop: "some deployments have the shield bearers at the back". It is *some* deployments rather than all, so this is conditional rather than a flat inversion. The within-contingent rule was read against disk and is correct — `CohortDeploymentAssignment.AssignWithinContingent` sorts slots by depth and pairs shield bearers to the forward-most ones. The row's other named failure is the live one: the shield cohort collects at **one edge of the whole army** rather than being distributed across its frontage, and an all-shield contingent has no internal contrast to show. Addressed by `CohortLateralSpreadV13` under `../plans/2026-08-14-cohort-lateral-spread-design.md`, which riffles cohort runs onto non-adjacent lanes | PENDING |
-| BR-3 | Watch one contingent's shield bearers make first contact with the enemy, then watch how long the warriors behind them keep fighting | The shield bearers are the ones who take the opening blows, and the warriors sheltered behind them survive visibly longer than they would standing in the open — the shield bearers read as absorbing the first exchanges rather than being bypassed. Failure is the enemy reaching the unshielded warriors behind the shield bearers just as quickly as the shield bearers themselves, or the shield bearers falling in the opening exchange with no visible difference in how long their own contingent's other warriors then last | Deliberately not attempted on 2026-08-14. It is downstream of the deployment shape `BR-1` and `BR-2` found wanting, so attempting it now would measure a known defect rather than the thing this row is for. Attempt it after those two pass | PENDING |
-| BR-4 | Compare the two factions' starting deployments at the default camera fit, paused at tick 0 | **Premise corrected on 2026-08-14; this row as originally written could only be passed by a broken build.** It asked a tester to confirm that the two sides are *not* warrior-for-warrior mirrors, and named an exact per-index mirror as the failure. The launched client has no rotating roster: `ArenaGame.BuildScenario` always populates `RosterCounts`, so both factions resolve identical loadouts per faction-local index and an exact per-index mirror at tick 0 is the correct result, not a failure. The rotating roster this row was written against belongs to `Scenario.CreateDefault`, which no client launch uses. What to look for is therefore what row 59 already asks for, and this row is subsumed by it: an exact reflection at tick 0, drifting apart once the battle runs | Not attempted. Superseded by row 59; run that row instead and record the result there | PENDING |
-| BR-10 | Resize the game window down to the smallest supported size, 1024 by 720, and open the agent inspector on a warrior whose panel renders at its full 953-pixel height | The panel still fits within the window at that size without clipping against the window edge and without overlapping the HUD, the control bar, or the event feed. Failure is the taller panel running off the bottom or side of the window at the minimum size, or covering another HUD element that was clear of it before this change | 2026-08-14, tester at the desktop: "it does render, but the width of the texts overextends the current small width of the info panel". The fault is horizontal, not the vertical one this row was written to catch, and it fails as written because the row's expected observation names no axis. The cause was measured rather than guessed: the panel has **no horizontal clip at all** — its two bounds tests both compare a row's bottom against a maximum row bottom — and only five prose blocks are wrapped, while the four top-detail rows and the roughly twenty-six lower rows are handed to a plain `DrawString` as finished single-line strings against a 277-pixel budget. The longest, the combo-attributes row, reaches 99 characters. A fix is in progress; this row is a re-run against that change, not a fresh check | PENDING |
-
-
-## Contingent shape selector smoke (V12)
-
-Added by the contingent chief membership change, which made
-`MovementPresetId.ContingentShapeV12` selectable in the Army Composition panel.
-V12 was registered on 2026-08-13 but absent from the panel's option list, so no
-spectator could reach it at all — and on 2026-08-14 `CohortLateralSpreadV13` was
-appended to that same list while V12 was still missing from it, so the omission
-happened twice before it was caught. The Client suite now enumerates
-`MovementPresetRegistry` and fails if a registered preset is missing from the
-selector. **No interactive run was performed for this change.** Both rows below
-are `PENDING` with their evidence cells empty.
-
-What the automated suite does prove: that the option list contains every
-registered preset, that arrow keys reach V12 and wrap past the end of the list,
-and that a seed-1 headless run under V12 terminates deterministically with an
-army 22 per cent narrower and 27 per cent shallower than V11's. What it does not
-prove is that either of those things reads correctly on screen — which is what
-the rows below are for. Design:
-`docs/plans/2026-08-14-contingent-chief-membership-design.md`.
-
-The client default is `V13 Cohort Lateral Spread`, so reaching V12 means
-selecting it on the panel, applying, and then performing a **Full Reset** — the
-selector stages a preset and the next full reset is what consumes it.
-
-Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
-certify one of these rows. Compilation, unit tests, and a window-opening probe
-do not.
-
-| # | Step | Expected | Actual | Status |
-| --- | --- | --- | --- | --- |
-| CS-1 | Open the Army Composition panel, focus the movement-preset row, and step through the whole list from the default `V13 Cohort Lateral Spread`. Select `V12 Contingent Shape`, apply, then perform a Full Reset | Both `V12 Contingent Shape` and `V13 Cohort Lateral Spread` appear in the selector, V12 immediately before V13, each label legible at the panel's default width without clipping or truncation, and the battle that follows the Full Reset is fought under V12. Failure is either preset being absent from the selector, a label overflowing the row, or the reset producing a battle indistinguishable from the V13 one because the staged preset was not consumed | | PENDING |
-| CS-2 | With the same army composition, watch the opening deployment under `V11 Last-Stand Engagement` and then under `V12 Contingent Shape`, both at the default camera fit, and compare how the two armies are grouped | The V12 army reads as more, smaller contingents than the V11 one, and as occupying visibly less width and depth on the field. Failure is the two deployments being indistinguishable at a glance, or the V12 deployment reading as crowded, overlapping, or clipped against the map edge rather than merely tighter. Record in `Actual` roughly how many separate groups each side reads as, for both presets | | PENDING |

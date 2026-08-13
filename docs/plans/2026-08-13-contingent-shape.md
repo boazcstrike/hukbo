@@ -463,8 +463,9 @@ archive-link violation, only a false location claim.
   makes that claim honest rather than merely positional.
 - No smoke row may be flipped by any agent. If this work reaches the screen it
   earns new rows in `docs/development/smoke-checklist.md`, left `PENDING` for a
-  person. The nearest existing rows are `BR-1` and `BR-4`, both `PENDING`, both
-  about how a contingent reads on deployment.
+  person. The nearest rows were `BR-1` and `BR-4`, both about how a contingent
+  reads on deployment; both were run by a person and closed `PASS` on
+  2026-08-14, and their family has left the checklist.
 
 ## 6a. Result, 2026-08-13
 
@@ -569,8 +570,9 @@ the client's player-facing preset selector, so no spectator could reach it.
 That was two list entries in `src/Hukbo.Client/UI/ArmyCompositionPanel.cs`, and
 the Client test that should have caught the absence —
 `EveryRegisteredMovementPresetHasAMatchingDisplayName` — never consulted
-`MovementPresetRegistry` and now does. See
-`docs/plans/2026-08-14-contingent-chief-membership.md`.
+`MovementPresetRegistry` and now does. That work is recorded in the archived
+plan titled "Contingent chief membership — task plan", named here in prose
+because nothing outside `docs/archives/` may link into it.
 
 ## 7. Status
 
@@ -594,4 +596,5 @@ sub-agent.
 
 One thing this plan still does not do: it flips no smoke row. If the unequal
 contingents and the chief-per-contingent reach the screen, they earn new rows
-left `PENDING` for a person, alongside the existing `BR-1` and `BR-4`.
+left `PENDING` for a person. The rows that stood beside this work, `BR-1` and
+`BR-4`, were run and closed `PASS` on 2026-08-14 and are no longer live.

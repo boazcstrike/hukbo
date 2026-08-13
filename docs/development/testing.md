@@ -489,8 +489,13 @@ suite.
 
 This gate result is evidence about the build, the tests, and the three
 headless workloads only. It proves nothing about anything interactive: the
-`BR-1` through `BR-10` rows in `smoke-checklist.md` all stay `PENDING` and
-need a person at an interactive desktop. The persistent-contingent reset rows
+`BR-1` through `BR-10` rows needed a person at an interactive desktop, and got
+one. All ten were run and passed on 2026-08-14 — `BR-5` through `BR-9` first,
+then the other five once the fixes they were waiting on landed — so the family
+left `smoke-checklist.md` whole. Its records are the two archive documents
+titled "Battlefield realism cohort and retreat smoke — rows BR-5 to BR-9 closed
+2026-08-14" and "Battlefield realism cohort smoke — closed 2026-08-14". The
+persistent-contingent reset rows
 that used to sit alongside them closed on 2026-08-13; their record is the
 archive document titled "Persistent contingent smoke — closed 2026-08-13".
 
@@ -660,8 +665,10 @@ worse than it was and the change does not claim otherwise. It is the open
 question in section 6 of the inspector row wrapping design.
 
 **No evidence about anything interactive.** Smoke row `BR-10` is what this change
-was made for and it stays `PENDING`, carrying the observation that failed it.
-Only a person at an interactive desktop may close it.
+was made for, and a person at an interactive desktop re-ran it against this fix
+on 2026-08-14 and closed it `PASS`. The row is no longer in the live checklist;
+its record is the archive document titled "Battlefield realism cohort smoke —
+closed 2026-08-14".
 
 ## Sandata — recorded baselines and measurement runs, 2026-08-09
 

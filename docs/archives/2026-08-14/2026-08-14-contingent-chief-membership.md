@@ -1,10 +1,17 @@
 # Contingent chief membership — task plan
 
+**Archived: reference only.** This is a finished plan. Its seven tasks were
+built and merged at `46ea971`, amended at `b8a3f97`, and the two smoke rows it
+left for a person, `CS-1` and `CS-2`, were run at an interactive desktop on
+2026-08-14 and both passed. Never execute it, never treat it as a live task
+list, and never cite it as the reason to make a change. The live contract for
+this project remains `CLAUDE.md` and `docs/development/smoke-checklist.md`.
+
 Date: 2026-08-14
 Status: plan document. The design pass it converts into tasks is
-[`2026-08-14-contingent-chief-membership-design.md`](2026-08-14-contingent-chief-membership-design.md),
-and that document's sections A through G are authoritative over the summaries
-here.
+`docs/plans/2026-08-14-contingent-chief-membership-design.md`, which is still
+live, and that document's sections A through G are authoritative over the
+summaries here.
 
 **Implementation was authorized on 2026-08-14**, after the design was written
 and after the user took the decision it was written to make. The decision, in

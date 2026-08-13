@@ -4,6 +4,20 @@ Status: proposed, and **deliberately not yet planned**. A design document does
 not authorize implementation, and this one is additionally blocked: it edits
 files another workstream is holding. See section 7.
 
+**The row that motivated this document has since closed, and none of this
+document was built.** `BR-1` was re-run by a person at an interactive desktop on
+2026-08-14 and passed, so the smoke family left the live checklist; its record
+is the archived document titled "Battlefield realism cohort smoke — closed
+2026-08-14". What changed between the failing run and the passing one was
+`CohortLateralSpreadV13` becoming the client's default movement preset, which
+changes how the army is laid out laterally, not how a contingent coheres. The
+two remedies below, R1 and R2, were checked against the code on 2026-08-14 and
+are both still absent: `MovementRules.IsCohesionEligible` still applies the
+binary straggler test under `ContingentState.Advance`, and `BattleSimulation`
+still marks every excluded slot as overlapping regardless of state. This
+document therefore stays live as a standing diagnosis of gates that have not
+moved — not as work anybody is waiting on.
+
 ## 1. What a person reported
 
 A tester ran the battlefield realism smoke family on 2026-08-14 and reported of
