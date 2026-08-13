@@ -154,6 +154,165 @@ public sealed class AgentInspectorContentTests
             line => Assert.True(measure(line) <= maxWidthPx));
     }
 
+    // Task 1 of the inspector row-wrapping plan: a wrapping helper that
+    // applies a hanging indent to continuation lines, reusing WrapText's
+    // own word-splitting rather than writing a second splitter.
+    [Fact]
+    public void WrapTextWithHangingIndent_ShortStringReturnsOneLineUnchanged()
+    {
+        const string shortText = "Faction: Blue";
+        var measure = FixedWidthMeasure(6f);
+
+        var lines = AgentInspectorContent.WrapTextWithHangingIndent(
+            shortText,
+            277f,
+            measure,
+            AgentInspectorContent.HangingIndent);
+
+        Assert.Equal([shortText], lines);
+    }
+
+    [Theory]
+    [InlineData(5f)]
+    [InlineData(6f)]
+    [InlineData(7f)]
+    [InlineData(8f)]
+    public void WrapTextWithHangingIndent_LongStringIndentsOnlyContinuationLines(
+        float pixelsPerCharacter)
+    {
+        const string longText =
+            "Footwork: Disengaging (broke off under pressure)";
+        var measure = FixedWidthMeasure(pixelsPerCharacter);
+
+        var lines = AgentInspectorContent.WrapTextWithHangingIndent(
+            longText,
+            60f,
+            measure,
+            AgentInspectorContent.HangingIndent);
+
+        Assert.True(
+            lines.Count > 1,
+            "This string must wrap at a 60px budget for the test to prove " +
+            "anything about the indent.");
+        Assert.False(
+            lines[0].StartsWith(
+                AgentInspectorContent.HangingIndent,
+                StringComparison.Ordinal));
+        Assert.All(
+            lines.Skip(1),
+            line => Assert.StartsWith(
+                AgentInspectorContent.HangingIndent,
+                line,
+                StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(5f)]
+    [InlineData(6f)]
+    [InlineData(7f)]
+    [InlineData(8f)]
+    public void WrapTextWithHangingIndent_NoReturnedLineExceedsWidthBudget(
+        float pixelsPerCharacter)
+    {
+        const string longText =
+            "Pressure: 9999 of 9999 basis points to break off";
+        const float maxWidthPx = 277f;
+        var measure = FixedWidthMeasure(pixelsPerCharacter);
+
+        var lines = AgentInspectorContent.WrapTextWithHangingIndent(
+            longText,
+            maxWidthPx,
+            measure,
+            AgentInspectorContent.HangingIndent);
+
+        Assert.All(
+            lines,
+            line => Assert.True(measure(line) <= maxWidthPx));
+    }
+
+    /// <summary>
+    /// Design decision D6: the suite pins that wrapped content fits the
+    /// budget, but nothing pinned that an *unwrapped* row fits it — the
+    /// exact gap the defect fell through, since every row here reached
+    /// <c>DrawText</c> as a single unmeasured string before this plan.
+    /// Every string a lower-row formatter can produce at its longest
+    /// realistic value, wrapped with the hanging-indent helper at the
+    /// panel's 277px budget across the same 5, 6, 7 and 8
+    /// pixels-per-character theory the rest of this file uses, must never
+    /// return a line wider than the budget.
+    /// </summary>
+    [Theory]
+    [InlineData(5f)]
+    [InlineData(6f)]
+    [InlineData(7f)]
+    [InlineData(8f)]
+    public void LongestRealisticLowerRows_NeverExceedTheWidthBudgetWhenWrapped(
+        float pixelsPerCharacter)
+    {
+        const float maxWidthPx = 277f;
+        var measure = FixedWidthMeasure(pixelsPerCharacter);
+
+        var reconstructionNote =
+            RankLabelCatalog.Get(RankId.AlipingNamamahay).ReconstructionNote;
+        Assert.NotNull(reconstructionNote);
+
+        string?[] longestRealisticRows =
+        [
+            // The design document's own pathological-row table
+            // (2026-08-14-inspector-row-wrapping-design.md section 2).
+            AgentInspectorContent.FormatFootworkLine(
+                FootworkPhase.Disengage,
+                ticksRemaining: 0,
+                brokeOffUnderPressure: true),
+            AgentInspectorContent.FormatPressureLine(
+                pressureBasisPoints: 9_999,
+                thresholdBasisPoints: 9_999),
+            AgentInspectorContent.FormatIntentLine(AgentIntent.BackingAway),
+            // The longest single row this panel can produce at all — the
+            // rank reconstruction note, present only for
+            // RankId.AlipingNamamahay.
+            AgentInspectorContent.FormatRankReconstructionNoteLine(
+                reconstructionNote!),
+            // The D3 split rows, each still checked even though D3 already
+            // shortened them well under the budget.
+            .. AgentInspectorContent.FormatAttributeLines(
+                new WeaponProfile(
+                    DamagePerAttack: 999,
+                    AttackRangeRaw: 999 * FixedPoint.Scale,
+                    AttackCooldownTicks: 999,
+                    ComboOpenChanceBasisPoints: 9_999,
+                    ComboContinueChanceBasisPoints: 9_999,
+                    ComboMaxSteps: 99,
+                    ComboCooldownTicks: 999)),
+            .. AgentInspectorContent.FormatComboAttributeLines(
+                new WeaponProfile(
+                    DamagePerAttack: 999,
+                    AttackRangeRaw: 999 * FixedPoint.Scale,
+                    AttackCooldownTicks: 999,
+                    ComboOpenChanceBasisPoints: 9_999,
+                    ComboContinueChanceBasisPoints: 9_999,
+                    ComboMaxSteps: 99,
+                    ComboCooldownTicks: 999)),
+        ];
+
+        foreach (var row in longestRealisticRows)
+        {
+            Assert.NotNull(row);
+            var wrapped = AgentInspectorContent.WrapTextWithHangingIndent(
+                row,
+                maxWidthPx,
+                measure,
+                AgentInspectorContent.HangingIndent);
+
+            Assert.All(
+                wrapped,
+                line => Assert.True(
+                    measure(line) <= maxWidthPx,
+                    $"\"{line}\" measures {measure(line)}px against a " +
+                    $"budget of {maxWidthPx}px (source row: \"{row}\")."));
+        }
+    }
+
     [Theory]
     [InlineData(5f)]
     [InlineData(6f)]
@@ -226,12 +385,20 @@ public sealed class AgentInspectorContentTests
             // 20. Battlefield-realism V10's two gameplay-model badges (each
             // a tier line plus a note line) on the contingent row and the
             // intent row raised it again, from 20 to 24 — four more rows of
-            // LineHeight 24 each, so the baseline moves 857 + (4 * 24) = 953.
+            // LineHeight 24 each, so the baseline moved 857 + (4 * 24) = 953.
+            // Design decision D3 split the combo-attributes and attributes
+            // rows into one row per value group, raising the raw row count
+            // from 24 to 29. Design decision D1 then required every row to
+            // be wrapped before it is drawn, so MaximumLowerRowCount was
+            // raised again, from 29 to 47, to reserve the wrapped worst case
+            // rather than the raw row count. MaximumLowerRowCount moved from
+            // 24 to 47 in total, twenty-three more rows of LineHeight 24
+            // each, so the baseline moves 953 + (23 * 24) = 1505.
             // The panel is sized for the worst case so it does not resize as
             // conditional rows appear, exactly as the grip row and the
             // reserved evidence and warrior-name lines already are.
             Assert.Equal(
-                953,
+                1505,
                 AgentInspectorContent.ComputeRequiredHeight(
                     AgentInspectorContent.EvidenceReservedLineCount));
         });
@@ -647,12 +814,17 @@ public sealed class AgentInspectorContentTests
             lines,
             line => line.Contains("Documented", StringComparison.Ordinal));
 
-        // The paired Kalis profile: 10 damage, 12 world units, 5 ticks.
+        // The paired Kalis profile: 10 damage, 12 world units, 5 ticks — now
+        // three separate rows (design decision D3), not one packed string.
         Assert.Contains(
             lines,
-            line => line.Contains("10 dmg", StringComparison.Ordinal) &&
-                line.Contains("12 reach", StringComparison.Ordinal) &&
-                line.Contains("5 tick recovery", StringComparison.Ordinal));
+            line => line.Contains("10 dmg", StringComparison.Ordinal));
+        Assert.Contains(
+            lines,
+            line => line.Contains("12 reach", StringComparison.Ordinal));
+        Assert.Contains(
+            lines,
+            line => line.Contains("5 tick recovery", StringComparison.Ordinal));
         Assert.Contains(
             lines,
             line => line.Contains("shielded", StringComparison.Ordinal));
@@ -667,12 +839,13 @@ public sealed class AgentInspectorContentTests
     }
 
     [Fact]
-    public void FormatComboAttributeLineRendersAllFourComboFieldsAsPercentagesAndCounts()
+    public void FormatComboAttributeLinesRendersAllFourComboFieldsAsSeparateRows()
     {
         // Kalis solo, PhilippineCombatPresetV3.Profile's exact authored
         // values: ComboOpenChanceBasisPoints 3,500,
         // ComboContinueChanceBasisPoints 4,500, ComboMaxSteps 4,
-        // ComboCooldownTicks 3.
+        // ComboCooldownTicks 3. Design decision D3: one row per value group,
+        // not one packed string.
         var profile = new WeaponProfile(
             DamagePerAttack: 11,
             AttackRangeRaw: 13 * FixedPoint.Scale,
@@ -682,12 +855,43 @@ public sealed class AgentInspectorContentTests
             ComboMaxSteps: 4,
             ComboCooldownTicks: 3);
 
-        var line = AgentInspectorContent.FormatComboAttributeLine(profile);
+        var lines = AgentInspectorContent.FormatComboAttributeLines(profile);
 
         Assert.Equal(
-            "        35% combo open / 45% combo continue / " +
-            "4 max steps / 3 tick combo cooldown",
-            line);
+            [
+                "        35% combo open",
+                "        45% combo continue",
+                "        4 max steps",
+                "        3 tick combo cooldown",
+            ],
+            lines);
+    }
+
+    [Fact]
+    public void FormatAttributeLinesRendersAllThreeAttributeFieldsAsSeparateRows()
+    {
+        // Kalis solo, PhilippineCombatPresetV3.Profile's exact authored
+        // values: 10 damage, 12 world units of reach, 5 ticks of recovery.
+        // Design decision D3: one row per value group, not one packed
+        // string.
+        var profile = new WeaponProfile(
+            DamagePerAttack: 10,
+            AttackRangeRaw: 12 * FixedPoint.Scale,
+            AttackCooldownTicks: 5,
+            ComboOpenChanceBasisPoints: 0,
+            ComboContinueChanceBasisPoints: 0,
+            ComboMaxSteps: 0,
+            ComboCooldownTicks: 0);
+
+        var lines = AgentInspectorContent.FormatAttributeLines(profile);
+
+        Assert.Equal(
+            [
+                "        10 dmg",
+                "        12 reach",
+                "        5 tick recovery",
+            ],
+            lines);
     }
 
     [Fact]
@@ -707,20 +911,28 @@ public sealed class AgentInspectorContentTests
         // section 5):
         // ComboOpenChanceBasisPoints 0, ComboContinueChanceBasisPoints
         // 4,500, ComboMaxSteps 4, ComboCooldownTicks 3 — rendered here
-        // exactly as authored, and immediately below the V2 attribute
-        // line and the level line.
-        var attributeLineIndex = lines.ToList().FindIndex(
+        // exactly as authored, as four separate rows (design decision D3)
+        // immediately below the three V2 attribute rows and the level line.
+        var list = lines.ToList();
+        var attributeLineIndex = list.FindIndex(
             line => line.Contains("10 dmg", StringComparison.Ordinal));
-        var levelLineIndex = lines.ToList().FindIndex(
-            line => line == "Level: 3");
-        var comboLineIndex = lines.ToList().FindIndex(
-            line => line ==
-                "        0% combo open / 45% combo continue / " +
-                "4 max steps / 3 tick combo cooldown");
+        var levelLineIndex = list.FindIndex(line => line == "Level: 3");
+        var comboLineIndex = list.FindIndex(
+            line => line == "        0% combo open");
 
         Assert.True(attributeLineIndex >= 0);
-        Assert.Equal(attributeLineIndex + 1, levelLineIndex);
+        // Three attribute rows (dmg, reach, tick recovery) sit between the
+        // first attribute row and the level row.
+        Assert.Equal(attributeLineIndex + 3, levelLineIndex);
         Assert.Equal(levelLineIndex + 1, comboLineIndex);
+        Assert.Equal(
+            [
+                "        0% combo open",
+                "        45% combo continue",
+                "        4 max steps",
+                "        3 tick combo cooldown",
+            ],
+            list.GetRange(comboLineIndex, 4));
     }
 
     [Fact]
@@ -1882,17 +2094,28 @@ public sealed class AgentInspectorContentTests
         // plus its gameplay-model badge, rank reconstruction note, all four
         // V6 movement rows, the V7 pressure row, and the BackingAway intent
         // plus its own gameplay-model badge. This is the exact case
-        // MaximumLowerRowCount is sized for, so the count must land on the
-        // budget, not merely under it — a raised budget without the rows to
-        // justify it fails here too.
-        var count = AgentInspectorContent.BuildLowerLines(
+        // MaximumLowerRowCount is sized for. Design decision D1 means the
+        // budget is no longer sized against the raw row count — it is sized
+        // against the wrapped worst case, so the count that must land on
+        // the budget (not merely under it, per the same reasoning the old
+        // raw-count assertion used) is the wrapped total at the same
+        // 8-pixels-per-character theory the constant's own doc comment
+        // cites, not AgentInspectorContent.BuildLowerLines(...).Count.
+        var rawLines = AgentInspectorContent.BuildLowerLines(
             DeepestView(),
             "Kalis — Thrusting Blade",
             "Documented",
-            movementSpeedRaw: 512).Count;
+            movementSpeedRaw: 512);
+        var wrappedCount = rawLines
+            .SelectMany(line => AgentInspectorContent.WrapTextWithHangingIndent(
+                line,
+                AgentInspectorContent.ComputeContentWidthBudget(310),
+                candidate => candidate.Length * 8,
+                AgentInspectorContent.HangingIndent))
+            .Count();
 
-        Assert.Equal(AgentInspectorContent.MaximumLowerRowCount, count);
-        Assert.Equal(24, AgentInspectorContent.MaximumLowerRowCount);
+        Assert.Equal(AgentInspectorContent.MaximumLowerRowCount, wrappedCount);
+        Assert.Equal(47, AgentInspectorContent.MaximumLowerRowCount);
     }
 
     /// <summary>

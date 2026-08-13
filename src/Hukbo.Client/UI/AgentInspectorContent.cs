@@ -38,9 +38,12 @@ internal static class AgentInspectorContent
     /// The most lower detail rows <see cref="BuildLowerLines"/> can produce:
     /// intent, the intent's gameplay-model evidence tier and note, contingent,
     /// the contingent's gameplay-model evidence tier and note, target,
-    /// position, rank, rank reconstruction note, weapon, attributes, level,
-    /// combo attributes, evidence tier, grip, armor, shield, movement,
-    /// facing, posture, footwork, pace, and pressure. The contingent row is
+    /// position, rank, rank reconstruction note, weapon, the three attribute
+    /// value rows (<see cref="FormatAttributeLines"/>, design decision D3),
+    /// level, the four combo attribute value rows
+    /// (<see cref="FormatComboAttributeLines"/>, design decision D3),
+    /// evidence tier, grip, armor, shield, movement, facing, posture,
+    /// footwork, pace, and pressure. The contingent row is
     /// present exactly when the agent's
     /// <see cref="AgentView.ContingentState"/> is not
     /// <see cref="ContingentState.None"/>; the standalone leadership row
@@ -66,10 +69,11 @@ internal static class AgentInspectorContent
     /// The rank reconstruction note row
     /// is present exactly when the agent's <see cref="AgentView.Rank"/>
     /// carries a <see cref="RankLabelEntry.ReconstructionNote"/> — today,
-    /// only <see cref="RankId.AlipingNamamahay"/>. The combo attributes row
-    /// is present exactly when the attributes row is (both come from the
-    /// same resolved <see cref="WeaponProfile"/>), and the grip row is
-    /// absent for a two-handed weapon. The four movement rows — facing,
+    /// only <see cref="RankId.AlipingNamamahay"/>. The four combo attribute
+    /// rows are present exactly when the three attribute rows are (both
+    /// groups come from the same resolved <see cref="WeaponProfile"/>,
+    /// design decision D3), and the grip row is absent for a two-handed
+    /// weapon. The four movement rows — facing,
     /// posture, footwork, pace — are present only under a movement preset
     /// that uses equipment-relative footwork; under every legacy preset the
     /// projected fields hold their defaults and all four formatters return
@@ -81,10 +85,39 @@ internal static class AgentInspectorContent
     /// <see cref="FormatPressureLine"/> then returns
     /// <see langword="null"/> (pressure-interrupt design, section 3,
     /// question 8, channel 3).
-    /// A real panel therefore draws this many or fewer — the panel is sized
-    /// for the maximum so the taller case never clips.
+    /// A real panel therefore draws this many or fewer raw rows before
+    /// wrapping — the panel is sized for the maximum so the taller case
+    /// never clips.
+    ///
+    /// Row-wrapping design decision D1 changed what this constant has to
+    /// cover: <see cref="AgentInspectorPanel.Draw"/> now routes every one of
+    /// these raw rows through the hanging-indent wrap helper before drawing
+    /// it, so one raw row can cost more than one drawn line, and
+    /// <see cref="ComputeRequiredHeight"/> has to reserve room for the
+    /// wrapped total, not the raw count, or a long row (chiefly the
+    /// <see cref="RankId.AlipingNamamahay"/> reconstruction note) would
+    /// silently push every row below it past the panel bottom for no
+    /// reason a person watching the screen could see. The value is the
+    /// wrapped line total the "deepest panel there is" fixture
+    /// (<c>AgentInspectorContentTests.DeepestView</c>) produces once every
+    /// raw row it returns is wrapped at the panel's 277px content-width
+    /// budget under the same 8-pixels-per-character theory
+    /// <see cref="EvidenceReservedLineCount"/> already brackets — the
+    /// widest-character end of that range, because it produces the most
+    /// wrapped lines and is therefore the conservative choice. This is
+    /// still a sizing estimate, not a hard limit — the vertical guard in
+    /// <see cref="AgentInspectorPanel"/> refuses to draw any wrapped line
+    /// that would fall past the panel bounds, so an under-estimate here can
+    /// only drop a line, never overflow the panel (design decision D5).
+    ///
+    /// History: 19, then 20 once the pressure-interrupt row landed, then 24
+    /// once battlefield-realism V10's two gameplay-model badges landed, then
+    /// 29 once design decision D3 split the combo-attributes and attributes
+    /// rows into one row per value group, then 47 once design decision D1
+    /// required every row to be wrapped and this constant to reserve the
+    /// wrapped worst case rather than the raw row count.
     /// </summary>
-    internal const int MaximumLowerRowCount = 24;
+    internal const int MaximumLowerRowCount = 47;
     internal const int PortraitBottomGap = 5;
     internal const int TopDetailBottomGap = 2;
 
@@ -244,14 +277,14 @@ internal static class AgentInspectorContent
         var profile = TryResolveProfile(loadout);
         if (profile is { } resolvedProfile)
         {
-            lines.Add(FormatAttributeLine(resolvedProfile));
+            lines.AddRange(FormatAttributeLines(resolvedProfile));
         }
 
         lines.Add(FormatLevelLine(agent.Level));
 
         if (profile is { } comboProfile)
         {
-            lines.Add(FormatComboAttributeLine(comboProfile));
+            lines.AddRange(FormatComboAttributeLines(comboProfile));
         }
 
         lines.Add(FormatEvidenceTierLine(evidenceTierLabel));
@@ -788,19 +821,26 @@ internal static class AgentInspectorContent
         $"        {note}";
 
     /// <summary>
-    /// The three attributes the weapon and shield resolve to, in the units a
-    /// spectator can check against the event feed: damage as it appears in an
-    /// attack line, reach in world units, recovery in ticks.
+    /// The three attributes the weapon and shield resolve to, one row per
+    /// value, in the units a spectator can check against the event feed:
+    /// damage as it appears in an attack line, reach in world units,
+    /// recovery in ticks. Design decision D3: packed onto a single row this
+    /// reaches 47 characters at its longest known shape and wraps to
+    /// ragged, hard-to-read lines at the panel's ~277px text budget; three
+    /// short rows read better and stay clear of that budget with no
+    /// wrapping needed at all.
     /// </summary>
     /// <remarks>
-    /// This is the line that makes the solo-versus-shielded trade readable
-    /// without watching two battles. Reach is converted out of raw
+    /// This is the row group that makes the solo-versus-shielded trade
+    /// readable without watching two battles. Reach is converted out of raw
     /// fixed-point here because nobody reasons in raw units.
     /// </remarks>
-    internal static string FormatAttributeLine(WeaponProfile profile) =>
-        $"        {profile.DamagePerAttack} dmg / " +
-        $"{profile.AttackRangeRaw / FixedPoint.Scale} reach / " +
-        $"{profile.AttackCooldownTicks} tick recovery";
+    internal static IReadOnlyList<string> FormatAttributeLines(WeaponProfile profile) =>
+    [
+        $"        {profile.DamagePerAttack} dmg",
+        $"        {profile.AttackRangeRaw / FixedPoint.Scale} reach",
+        $"        {profile.AttackCooldownTicks} tick recovery",
+    ];
 
     /// <summary>
     /// This warrior's level, set once at spawn from
@@ -813,22 +853,26 @@ internal static class AgentInspectorContent
         $"Level: {level}";
 
     /// <summary>
-    /// The four attack-combination attributes a weapon's profile declares:
-    /// the opening-roll chance, the continuation-roll chance, the maximum
-    /// chain length, and the faster cooldown a chain uses while active. This
-    /// is where a spectator confirms, for example, that the itak chains more
-    /// often than the wasay, rather than inferring it from a sample of
-    /// battles. Basis points are out of <see cref="ClashProfile.
-    /// BasisPointScale"/> (10,000), so dividing by 100 renders a whole or
-    /// fractional percentage.
+    /// The four attack-combination attributes a weapon's profile declares,
+    /// one row per value: the opening-roll chance, the continuation-roll
+    /// chance, the maximum chain length, and the faster cooldown a chain
+    /// uses while active. This is where a spectator confirms, for example,
+    /// that the itak chains more often than the wasay, rather than
+    /// inferring it from a sample of battles. Basis points are out of
+    /// <see cref="ClashProfile.BasisPointScale"/> (10,000), so dividing by
+    /// 100 renders a whole or fractional percentage. Design decision D3:
+    /// packed onto a single row this reaches 99 characters at its longest
+    /// known shape, more than three times the panel's ~277px text budget,
+    /// and wraps to ragged, hard-to-read lines; four short rows read better
+    /// and stay clear of that budget with no wrapping needed at all.
     /// </summary>
-    internal static string FormatComboAttributeLine(WeaponProfile profile) =>
-        $"        {profile.ComboOpenChanceBasisPoints / 100.0:0.##}% " +
-        $"combo open / " +
-        $"{profile.ComboContinueChanceBasisPoints / 100.0:0.##}% " +
-        $"combo continue / " +
-        $"{profile.ComboMaxSteps} max steps / " +
-        $"{profile.ComboCooldownTicks} tick combo cooldown";
+    internal static IReadOnlyList<string> FormatComboAttributeLines(WeaponProfile profile) =>
+    [
+        $"        {profile.ComboOpenChanceBasisPoints / 100.0:0.##}% combo open",
+        $"        {profile.ComboContinueChanceBasisPoints / 100.0:0.##}% combo continue",
+        $"        {profile.ComboMaxSteps} max steps",
+        $"        {profile.ComboCooldownTicks} tick combo cooldown",
+    ];
 
     /// <summary>
     /// Which of the weapon's profiles is active, and nothing at all for a
@@ -1493,6 +1537,62 @@ internal static class AgentInspectorContent
         }
 
         return lines;
+    }
+
+    /// <summary>
+    /// The hanging indent <see cref="WrapTextWithHangingIndent"/> prefixes
+    /// onto every continuation line of a wrapped top-detail or
+    /// <see cref="BuildLowerLines"/> row (design decision D2), so a wrapped
+    /// row reads as one row that ran on rather than two unrelated rows. Two
+    /// spaces — narrower than the eight-space indent already used for the
+    /// panel's own sub-detail rows (for example
+    /// <see cref="FormatAttributeLines"/>), so a hanging-indent continuation
+    /// line is never visually mistaken for one of those already-established
+    /// sub-rows.
+    /// </summary>
+    internal const string HangingIndent = "  ";
+
+    /// <summary>
+    /// Wraps <paramref name="text"/> exactly like <see cref="WrapText"/>,
+    /// then prefixes every line after the first with
+    /// <paramref name="indent"/> so a wrapped row reads as one continued
+    /// thought rather than two unrelated rows (design decision D2). Reuses
+    /// <see cref="WrapText"/>'s own greedy word-splitting rather than a
+    /// second splitter: when the text needs more than one line,
+    /// <paramref name="text"/> is wrapped a second time against
+    /// <paramref name="maxWidthPx"/> minus the indent's own measured width,
+    /// so every line's width, once the indent is prefixed, stays at or
+    /// under <paramref name="maxWidthPx"/> — the same invariant
+    /// <see cref="WrapText"/> already holds for an unindented line. Applied
+    /// by the helper itself rather than by each caller, so no caller can
+    /// forget it (plan task 1).
+    /// </summary>
+    internal static IReadOnlyList<string> WrapTextWithHangingIndent(
+        string? text,
+        float maxWidthPx,
+        Func<string, float> measureWidth,
+        string indent)
+    {
+        ArgumentNullException.ThrowIfNull(measureWidth);
+        ArgumentNullException.ThrowIfNull(indent);
+
+        var firstPass = WrapText(text, maxWidthPx, measureWidth);
+        if (firstPass.Count <= 1)
+        {
+            return firstPass;
+        }
+
+        var indentWidth = measureWidth(indent);
+        var continuationBudget = Math.Max(0f, maxWidthPx - indentWidth);
+        var narrowLines = WrapText(text, continuationBudget, measureWidth);
+
+        var result = new List<string>(narrowLines.Count);
+        for (var i = 0; i < narrowLines.Count; i++)
+        {
+            result.Add(i == 0 ? narrowLines[i] : indent + narrowLines[i]);
+        }
+
+        return result;
     }
 
     private static string AppendWord(

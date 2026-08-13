@@ -115,6 +115,11 @@ internal sealed class AgentInspectorPanel
 
         var titleFont = fonts.Get(UiFontRole.Title);
         var bodyFont = fonts.Get(UiFontRole.Body);
+        // Computed once, up front, so both the top-detail rows and the lower
+        // rows (design decision D1) can be wrapped through the same budget
+        // and measure delegate the five prose blocks already used.
+        var contentWidthBudget = AgentInspectorContent.ComputeContentWidthBudget(
+            Bounds.Width);
         var textX = Bounds.Left + padding + accentWidth;
         var textY = Bounds.Top + padding;
         UiPrimitives.DrawText(
@@ -211,20 +216,36 @@ internal sealed class AgentInspectorPanel
             selected.EntityId,
             selected.FactionId,
             scenarioSeed);
-        DrawLine(
+        // The top-detail block starts at detailX, not textX, so its own
+        // width budget is narrower than ComputeContentWidthBudget assumes
+        // (design decision D1 covers this block too, not only the lower
+        // rows). Each raw row is wrapped with a hanging indent (D2) before
+        // any of it reaches DrawLine; if the four rows wrap into more lines
+        // than TopDetailRowCount reserves, the tail is dropped rather than
+        // overlapping the lower-row block below it — the same "drop rather
+        // than overflow" guarantee design decision D5 states for the
+        // vertical case, extended here to this width-triggered one.
+        var topDetailWidthBudget = Math.Max(0, Bounds.Right - padding - detailX);
+        var topDetailLines = new[]
+        {
             AgentInspectorContent.FormatWarriorNameLine(
                 warriorName,
                 selected.EntityId),
-            detailX,
-            textY,
-            0);
-        DrawLine($"Faction: {factionLabel}", detailX, textY, 1);
-        DrawLine($"State: {stateLabel}", detailX, textY, 2);
-        DrawLine(
+            $"Faction: {factionLabel}",
+            $"State: {stateLabel}",
             $"HP: {selected.HitPoints}/{selected.MaximumHitPoints}",
-            detailX,
-            textY,
-            3);
+        }
+            .SelectMany(line => AgentInspectorContent.WrapTextWithHangingIndent(
+                line,
+                topDetailWidthBudget,
+                candidate => bodyFont.MeasureString(candidate).X,
+                AgentInspectorContent.HangingIndent))
+            .Take(AgentInspectorContent.TopDetailRowCount)
+            .ToArray();
+        for (var row = 0; row < topDetailLines.Length; row++)
+        {
+            DrawLine(topDetailLines[row], detailX, textY, row);
+        }
 
         var lowerTextY = Math.Max(
             portraitBounds.Bottom
@@ -242,7 +263,19 @@ internal sealed class AgentInspectorPanel
             appearance.WeaponLabel,
             appearance.EvidenceTierLabel,
             movementSpeedRaw);
-        for (var row = 0; row < lowerLines.Count; row++)
+        // Every lower row is wrapped with a hanging indent (design decisions
+        // D1, D2) before it reaches DrawLine, so row order is preserved but
+        // row *count* is not — a wrapped row can now cost more than one
+        // drawn line, which is exactly what MaximumLowerRowCount is sized
+        // for (AgentInspectorContent.cs).
+        var wrappedLowerLines = lowerLines
+            .SelectMany(line => AgentInspectorContent.WrapTextWithHangingIndent(
+                line,
+                contentWidthBudget,
+                candidate => bodyFont.MeasureString(candidate).X,
+                AgentInspectorContent.HangingIndent))
+            .ToArray();
+        for (var row = 0; row < wrappedLowerLines.Length; row++)
         {
             var rowBottom = lowerTextY + (row * lineHeight) + lineHeight;
             if (rowBottom > maxRowBottom)
@@ -250,11 +283,9 @@ internal sealed class AgentInspectorPanel
                 break;
             }
 
-            DrawLine(lowerLines[row], textX, lowerTextY, row);
+            DrawLine(wrappedLowerLines[row], textX, lowerTextY, row);
         }
 
-        var contentWidthBudget = AgentInspectorContent.ComputeContentWidthBudget(
-            Bounds.Width);
         var evidenceLines = AgentInspectorContent.WrapText(
             appearance.EvidenceNote,
             contentWidthBudget,
@@ -323,7 +354,7 @@ internal sealed class AgentInspectorPanel
 
         for (var i = 0; i < extraLines.Length; i++)
         {
-            var row = lowerLines.Count + i;
+            var row = wrappedLowerLines.Length + i;
             var rowBottom = lowerTextY + (row * lineHeight) + lineHeight;
             if (rowBottom > maxRowBottom)
             {
