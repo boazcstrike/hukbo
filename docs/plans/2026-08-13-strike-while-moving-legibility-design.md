@@ -1,9 +1,12 @@
 # Strike-while-moving legibility (`AA-23`) — design
 
 Date: 2026-08-13
-Status: design only. **This document authorizes no implementation.** Its
-section 6 asks one question, and nothing here may be built until that question
-is answered.
+Status: **answered and implemented on 2026-08-13.** This document was design
+only, and section 6's question blocked all work until it was answered. It has
+since been answered — with a fourth option this document did not table — and
+both causes below have been repaired. Section 6 records the decision and the
+reasoning that rejected the three options originally offered. The ordered task
+list lives in the gait default visibility plan.
 
 **The row that prompted this document has since closed, and nothing was fixed.**
 `AA-23` was re-attempted later on 2026-08-13 and passed, so the whole attack
@@ -177,9 +180,56 @@ composed case**; the only composed-case test runs at High tier
 asserts only that the striking stride is smaller than the walking one, with no
 pixel floor. That gap is worth closing whichever way section 6 is answered.
 
-## 6. The question this document exists to ask
+## 6. The question this document existed to ask, and its answer
 
 **Should the default camera fit draw legs?**
+
+**Answered on 2026-08-13: yes, and by none of the three options below.** The
+client's default window was raised from 1280 × 720 to 1600 × 900, which moves
+the default camera fit above the `Medium` threshold without touching the detail
+tier ladder at all. The arena panel becomes 1146 × 820, the fit becomes
+`1146 * 0.88 / 1280 = 0.7879`, and `apparentScale` becomes `1.0637`, clearing
+`MediumDetailScale = 0.95`. The whole map still fits in the panel, `Low` stays
+reachable by zooming out and so keeps doing the job it exists for, and the
+minimum 1024 × 720 window still resolves `Low` unchanged.
+
+Call it option D. It was not in the table below because the table assumed the
+only lever was the tier ladder. The window size is the other end of the same
+arithmetic, and it is the cheaper end.
+
+Each of the three tabled options was rejected for a specific reason:
+
+- **A** concedes that a spectator at the default view never sees a warrior walk,
+  which abandons the gait feature's own stated outcome rather than delivering
+  it.
+- **B** contradicts smoke row `GA-7`, which exists precisely to check that legs
+  and feet disappear cleanly at the lowest tier, and it spends quads at the tier
+  a 500-warrior battle is watched at.
+- **C** looked cheapest and is the most damaging. `ResolveApparentScale` clamps
+  its result to a floor of `0.72`, so moving `MediumDetailScale` below `0.767`
+  would leave `Low` alive only across `[0.72, 0.767)` — roughly five per cent of
+  the scale range. The tier that keeps a large battle readable would become
+  nearly unreachable and `GA-7` nearly unattemptable. This document's own cost
+  column did not catch that, because it reasoned about the threshold without
+  reasoning about the clamp beneath it.
+
+Cause two was answered separately, and this document was right that it is
+separable. Displacement below a crawl threshold now resolves `Stance` rather
+than `Walk`. The threshold is derived from the criterion it serves rather than
+chosen by eye: a stride slower than one full cycle every five seconds is not one
+a spectator can read as walking, which gives
+`6000 / (5 * 20) = 60` raw units per tick. It clears the arrival-taper floor of
+1 and stays well below the pinned walk magnitude of 400, so every existing walk
+and run classification is unchanged. The alternative shape — advancing phase by
+elapsed time whenever the mode is `Walk` — was rejected because it reintroduces
+exactly the wall-clock dependence the gait design removed on purpose.
+
+The composed-case pixel floor that section 5 identified as untested has also
+been closed, with a `Medium`-tier test asserting the composed attack-and-walk
+stride keeps at least one pixel of leg offset. It measures exactly one pixel, so
+the assertion sits on the boundary rather than comfortably above it.
+
+The original table follows, unchanged, as the record of what was considered.
 
 Every remedy for cause one is a change to the detail-tier ladder, and `Low` is
 the tier a 500-warrior battle is watched at. When this document was written that
@@ -221,6 +271,12 @@ doing; the first is closer to what the row asks to see.
   `ArenaGame.cs:1451-1452` rather than against `Scenario.CreateDefault`.
 - Whichever option is chosen, the missing composed-case pixel floor at Medium
   tier described in section 5 should be closed with it.
-- **No smoke row is waiting on this.** `AA-23` and `AA-22` both closed `PASS` on
-  2026-08-13 and their family was deleted from the live checklist. If work
-  starts here it needs fresh rows written for it; do not revive the closed ones.
+- **No `AA` row is waiting on this.** `AA-23` and `AA-22` both closed `PASS` on
+  2026-08-13 and their family was deleted from the live checklist. Do not revive
+  the closed ones.
+- **The fourteen `GA` rows are waiting on it, and that is why the work was
+  done.** The movement gait animation smoke section has never been run by
+  anyone. Both causes above stood between a spectator and the rows that ask
+  whether a warrior visibly walks at the default zoom, so both were repaired
+  before the section was handed to a tester. Repairing them does not pass those
+  rows and does not predict that they will pass.
