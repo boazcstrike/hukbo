@@ -1,6 +1,15 @@
 # Shield-clash audio legibility — plan
 
-Implements `docs/plans/2026-08-13-shield-clash-legibility-design.md`. Opened
+**Archived: reference only.** This is a finished plan whose tasks all landed.
+Never execute it, never treat it as a live task list, and never cite it as the
+reason to make a change. The live contract for this project remains `CLAUDE.md`
+and `docs/development/smoke-checklist.md`; nothing in this file overrides
+either of those. Archived 2026-08-13, with every task from `SC-1` to `SC-6`
+merged and smoke row 173 closed.
+
+Implements `docs/archives/2026-08-13/2026-08-13-shield-clash-legibility-design.md`,
+which was archived beside this file on 2026-08-13 and which no longer sits in
+`docs/plans/`. Opened
 2026-08-13 after row 173 of the shield-clash audio family failed at an
 interactive desktop with the verdict "i cannot distinguish, sounds the same for
 most".
@@ -41,3 +50,61 @@ does not regenerate a single sound file, and it does not spend an ElevenLabs
 credit. Regenerating the sixteen clash takes with consistent generation
 parameters remains the better answer to the timbral half of row 173 and remains
 unauthorised.
+
+## How this actually closed, 2026-08-13
+
+Everything above is the plan as written. This section is what happened, and it
+differs from the plan in one important place. Read it before trusting the task
+table.
+
+`SC-1`, `SC-2`, `SC-3`, `SC-4`, and `SC-6` landed as written, in that order, and
+are merged. `SC-5` did not happen as written, and verification criterion 3 was
+overtaken by events.
+
+**Row 173 did not stay open.** The plan said it must, and said that nothing in
+the plan could close it. What closed it was not the plan but the tester: after
+the fix merged, the person at the interactive desktop listened again and closed
+row 173 `PASS` on their own judgement, in their own words "sounds are ok anyway,
+so no worries for now, let's pass the test for this", declining a regeneration
+of the takes. That was their call to make and it stands. What it means for a
+later reader is that row 173's `PASS` rests on a judgement that the sounds are
+acceptable, not on a demonstration that the four slots read as four weapons; the
+2026-08-13 archive record titled "Shield-clash audio smoke — closed 2026-08-13"
+says so plainly in its section "How row 173 closed", and that is the section to
+read before citing the pass.
+
+**The two fresh rows `SC-5` owed were not added when the family closed.** They
+were added later the same day, as `SCL-1` and `SCL-2`, in a subsection of
+`docs/development/smoke-checklist.md` titled "Shield-clash loudness re-check
+(2026-08-13)". Both are `PENDING`. They exist because rows 172 and 175 passed
+against the loudness this change replaced, so under the checklist's own rule
+they are owed fresh rows rather than a revival of the lifted ones. `SCL-1` asks
+whether a block still reads as wood rather than as a landed cut; `SCL-2` asks
+whether a 200-agent battle has become a wall of clash noise now that the
+previously inaudible takes are audible.
+
+**Two acceptance clauses had no test until they were chased.** `SC-3` required
+that the loudest clash cue the pipeline can now produce be below the loudest it
+could produce before, and `SC-6` required that a non-clash slot's bytes be left
+untouched. Both were true in the code and neither was asserted anywhere.
+`SoundCatalog.IsMeleeShieldClash`, the gate that decides which slots are
+normalised at all, had no test of any kind. Two tests were added on 2026-08-13
+to close both clauses: `LoudestClashCue_PlaysQuieterThanTheFullScaleTakeDidBefore`
+pins the product `0.85 × 1.00 × 0.65 = 0.5525` against the old `0.65` ceiling,
+and `IsMeleeShieldClash_IsTrueForExactlyFourOfTheWholeCatalog` enumerates all
+twenty-six catalog slots and requires exactly four of them to be normalised.
+
+**Verification criteria 1 and 2 were met, and late.** The gate was not run when
+the work merged. It was run on 2026-08-13 against the merged result and is
+recorded in `docs/development/testing.md` as "Canonical gate result — Hukbo,
+2026-08-13 (shield-clash audio legibility)": exit code 0, both suites green at
+2,503 and 3,783 tests, and all four seed-1 workloads byte-identical to the
+baseline they had before this change. No hash moved, which is what a
+presentation-only change owes.
+
+**One cleanup this document caused.** Six doc comments in
+`src/Hukbo.Client/Audio/` cited the design document by path. Archiving the
+design would have left six paths into `docs/archives/`, which the repository
+forbids because that folder is pruned periodically, so those comments now name
+the design in prose instead. The design document is archived under the title
+"Shield-clash audio legibility — design".

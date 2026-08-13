@@ -23,8 +23,13 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-13
 
-82 rows across 14 subsections: **73 `PENDING`, 9 `BLOCKED`, and no `FAIL` or
+78 rows across 14 subsections: **78 `PENDING`, and no `BLOCKED`, `FAIL`, or
 `DECLINED` row** — counted from the status column of this file on 2026-08-13,
+after the movement-preset selector shipped that day and turned the last 10
+`BLOCKED` rows into `PENDING` ones, which is the first time since this file was
+split out that every open row is one a person can actually attempt,
+after the shield-clash loudness fix added the two fresh rows it owed, `SCL-1`
+and `SCL-2`, in a subsection of their own,
 after the improve-visuals smoke run closed 29 of its 32 rows and they were
 lifted out, after `SD-1` was re-checked and closed on 2026-08-11, after the
 Sandata fixes of the same day moved four `BLOCKED` rows and one `FAIL` row to
@@ -65,7 +70,7 @@ its eight rows passed and were lifted out, leaving only `PP-3`, which the tester
 found draws too large in flight and which is awaiting a re-run against the fix
 made in response.
 
-**There is no `PASS` column any more, and that is deliberate.** 160 passing rows
+**There is no `PASS` column any more, and that is deliberate.** 167 passing rows
 have been lifted out — 52 on 2026-08-11 (22 of them from families that stayed,
 then 29 more when both improve-visuals families were run for the first time,
 then `SD-1` when the tester re-checked it), 10 more on 2026-08-12 (`SD-2`,
@@ -96,8 +101,14 @@ file without ever entering the passing tally. Row 94 is not in it either,
 for the opposite reason: it passed on the same run but was reopened the same
 day and is still here, so it has not been lifted and must not be counted as
 though it had. Every row in this file is now
-something a person still has to do: 73 never attempted or awaiting a re-run,
-and 9 that cannot be attempted until the build changes. No row in this file is
+something a person still has to do, and for the first time since this file was
+split out, every one of them is something a person **can** do: all 78 are
+`PENDING`, never attempted or awaiting a re-run, and none is blocked by the
+build. Ten rows — `P-1` through `P-9`, and `L-7`, which was moved into their
+table when the leader marker family closed — waited on a missing movement-preset
+selector from the day they were written. That selector shipped on 2026-08-13 and
+they are ordinary open rows now. Their count read 9 for a time and was wrong;
+it was 10, and it is 0. No row in this file is
 `FAIL` any more. If a `PASS` ever appears here again it is a row that has just
 closed and has not yet been lifted — not a row that belongs.
 
@@ -169,7 +180,11 @@ acceptable, declining a regeneration of the takes. Its record is the
 2026-08-13 archive titled **"Shield-clash audio smoke — closed 2026-08-13"**,
 which states plainly that rows 172 and 175 passed against the loudness the fix
 replaced, so a later question about clash loudness needs a fresh row rather
-than a reading of theirs.
+than a reading of theirs. Those fresh rows now exist: `SCL-1` and `SCL-2`, in
+the subsection "Shield-clash loudness re-check (2026-08-13)" below. They were
+added on 2026-08-13, the same day the family closed, and they are the reason
+this file has a shield-clash subsection again after the original one was
+deleted whole.
 
 The persistent contingent family was the fifth deleted whole on 2026-08-13.
 All twelve of its open rows — 102 through 110 and 112 through 114 — were run
@@ -183,23 +198,42 @@ record. One thing that family left behind is already tracked: its 2026-07-28
 observation that the last survivors fought one at a time is the finding row
 `LS-1` now records with a measured cause.
 
+**Two more sections went on 2026-08-13, and they went for different reasons.**
+Attack animation V2 closed at 24 of 24 and was deleted whole under the ordinary
+rule; its record is the 2026-08-13 archive titled **"Attack animation V2 smoke —
+closed 2026-08-13"**, and that record's "What closed without a fix" section is
+the part worth reading, because three of those rows passed against a build
+nobody changed for them. The leader marker family is the odder case: six of its
+seven rows passed and were lifted out, and the seventh, `L-7`, could not be run
+at all, so rather than keep a section for one row it was **moved into the
+footwork pressure interrupt table**, which already holds every other row blocked
+by the missing preset selector. Its record is the 2026-08-13 archive titled
+**"Leader marker and inspector annotation smoke — six rows closed 2026-08-13"**.
+Read that record's note on which preset `L-1` was actually observed under before
+citing it.
+
 **A single passing row is lifted out the same way, without its section.** Six
-sections still carrying open work had rows that closed — Sandata, attack
-animation V2, which lost sixteen more rows on 2026-08-13 and is now down to the
-two that are still open, tactical hit animations, which lost seven of
+sections still carrying open work had rows that closed — Sandata, tactical hit
+animations, which lost seven of
 its nine rows on 2026-08-13 and kept the two that are still open, and the three
 that closed the same day down to a single row each: quit confirmation, which
 kept only row 171 because that row compares a printed figure against a headless
 run rather than watching the screen, and projectile props, which kept only
 `PP-3` because that row did not pass. Shield-clash audio was briefly on this
 list too, holding row 173 alone after its other four closed, until row 173
-closed as well later the same day and the section went entirely. The `UI` family used to belong on this list too, closing single rows
+closed as well later the same day and the section went entirely. What stands
+under that name now is not the same section: it is the two fresh rows the
+loudness fix owed, `SCL-1` and `SCL-2`, and none of the original five rows
+came back. The `UI` family used to belong on this list too, closing single rows
 while its section stayed, right up until the run that closed the section
 itself on 2026-08-13; it is named in the paragraph above instead, with the
 rest of that history. The improve-visuals family used to belong on this list as
 well — 29 of its 32 rows left on 2026-08-11 and row 129 left alone on 2026-08-13,
 all while its section stayed — right up until rows 128 and 131 passed later the
-same day and the section was deleted whole at 32 of 32. The first 22 of the rows
+same day and the section was deleted whole at 32 of 32. Attack animation V2 was
+the last to leave this list: it lost six rows on 2026-08-11 and sixteen more on
+2026-08-13 while its section stayed, until `AA-22` and `AA-23` passed later that
+day and it too was deleted whole at 24 of 24. The first 22 of the rows
 still on this list left on 2026-08-11 while their sections stayed. Each section names,
 in its own preamble, which of its rows closed and what to be careful of when
 reading the archived result: two of them closed under a preset or a viewport
@@ -233,21 +267,25 @@ order relaunches the game far more often than they need to.
 | --- | --- | --- | --- |
 | Ranged | `PP` 1, `RG` 11 | 12 `PENDING` | A battle fielding Bangkaw, Busog, and Arquebus warriors. The shipped client runs combat preset V5 and movement preset V8, so ranged units are on the field by default at roughly a 14 per cent share |
 | Pawn animation | `GA` 14 | 14 `PENDING` | Warriors walking, close in. The attack animation `AA` family that used to share this batch closed at 24 of 24 on 2026-08-13 and was deleted whole |
-| Markers | `LC` 11, `L` 7 | 18 `PENDING` | Leaders and contingents at default zoom, plus the agent inspector |
+| Markers | `LC` 11 | 11 `PENDING` | Leaders and contingents at default zoom, plus the agent inspector. The `L` family that used to share this batch closed on 2026-08-13: six rows passed and were lifted out, and its seventh, `L-7`, moved to the pressure interrupt batch below because it is blocked by the same missing preset selector |
 | Render | `GR` 5 | 5 `PENDING` | Launch-time render behaviour |
 | Battlefield realism | task 18 rows | 10 `PENDING` | Cohort deployment and the V10 retreat rung |
 | Sandata | `SD` 3 of 9 | 3 `PENDING` | `./scripts/run.ps1 -Game Sandata`. The other 6 passed and were lifted out. All three open rows are re-runs rather than fresh checks: `SD-4` and `SD-5` were each attempted twice and failed on causes fixed on 2026-08-12, and `SD-7b` was blocked from the day it was written until the same day. Read each row's `Actual` column before starting |
-| Pressure interrupt | `P` | 9 `BLOCKED`, 1 `PENDING` | **Not runnable today** — see below |
+| Pressure interrupt | `P` 10, plus `L-7` | 11 `PENDING` | **Runnable since 2026-08-13** — the movement-preset selector in the Army Composition panel is what made them so, and the section preamble says how to reach V7 and warns that a V7 battle does not terminate. Ten of these eleven rows were `BLOCKED` until that day. `L-7` joined this batch on 2026-08-13, from the leader marker family, because the missing selector blocked it in exactly the same way, and it is unblocked by the same change |
 | Auto camera centring | `AC` 1 | 1 `PENDING` | This one earns its own row: it did not exist before 2026-08-12, and unlike every other row above it is a fresh check rather than a re-run of one that closed. Pan away from every fight until the screen holds none, let the assistant take over, and watch where it leaves the camera when it moves back in |
 | Tactical hit animations | rows 92 and 94, of 9 | 2 `PENDING` | A 200-agent battle watched until warriors start dying, at normal speed and at fitted zoom. Both rows are re-runs against the 2026-08-13 lethal-blow legibility change, not fresh checks: 92 never passed and 94 passed against the older, lighter effects. Watch a single kill first, then a crowded exchange, and read both rows' `Actual` columns before starting |
-| Last-stand engagement | `LS` 1 | 1 `FAIL` | Written on 2026-08-13 out of the last-stand formation family that closed the same day. A full 200-agent battle run to its final few warriors. It is `FAIL` on the observation already recorded, and the fix is an authoritative simulation change nobody has authorised yet, so there is nothing to re-run until that is decided |
+| Last-stand engagement | `LS` 1 | 1 `PENDING` | Written on 2026-08-13 out of the last-stand formation family that closed the same day. A full 200-agent battle run to its final few warriors. It was `FAIL` while the cause was measured and no repair existed; the authoritative simulation change it was waiting on shipped the same day as `MovementPresetId.LastStandEngagementV11` and the client selects it, so the row is a re-run rather than a blocked one. Its `Actual` column keeps the original `FAIL` observation, which is what the re-run is judged against |
 
-**The 9 `BLOCKED` rows are blocked by the build, not by the reader.** All nine
-are `P` rows needing movement preset V7, which the client cannot select:
-`BuildScenario` overrides the preset to `RangedStandoffV8` and no preset selector
-is exposed, so under the shipped default no pressure mark is ever drawn and no
-pressure inspector row ever renders. Unblocking them is a code change, not an
-attempt. Every `SD` row that was once blocked has stopped being so — four on
+**The 10 `BLOCKED` rows are blocked by the build, not by the reader.** Nine are
+`P` rows needing movement preset V7 and the tenth is `L-7`, which needs
+`IndependentPursuitV1`; the client can select neither. `ArenaGame.BuildScenario`
+overrides the movement preset — as of 2026-08-13 to
+`MovementPresetId.LastStandEngagementV11`, verified at
+`src/Hukbo.Client/ArenaGame.cs:1451-1452` rather than taken from
+`Scenario.CreateDefault`, which the client does not use — and no preset selector
+is exposed. Under the shipped default no pressure mark is ever drawn, no
+pressure inspector row ever renders, and no run without a leader mark can be
+staged. Unblocking any of them is a code change, not an attempt. Every `SD` row that was once blocked has stopped being so — four on
 2026-08-11 and `SD-7b` on 2026-08-12, each when what it was waiting for was
 built.
 
@@ -467,11 +505,15 @@ git log --diff-filter=A --name-only --format='%h %s' -- 'docs/archives/**' |
   Select-String 'last-stand-formation-smoke'
 ```
 
-**This row is `FAIL`, and the fix has not been made.** Unlike `AC-1` above, it
-is not waiting on a person to re-check something already repaired. The cause is
-known and measured, and repairing it is an authoritative simulation change that
-moves both hashes, so it needs a decision before it needs an implementer. Read
-the row's `Actual` column and the finding beneath the table before running it.
+**This row is `PENDING`, and the fix has been made.** It read `FAIL` while the
+cause was measured and no repair existed, and two passages in this file — this
+one and the batch table above — went on saying so after the repair landed. The
+authoritative simulation change the row was waiting on shipped on 2026-08-13 as
+`MovementPresetId.LastStandEngagementV11`, which the client now selects, so the
+row is now exactly what `AC-1` above is: a person re-checking something already
+repaired. Read the row's `Actual` column, which keeps its original `FAIL`
+observation so the re-run is judged against what was actually seen, and the
+finding beneath the table before running it.
 
 | Evidence field | Recorded value |
 | --- | --- |
@@ -583,33 +625,21 @@ passing gate proves nothing about it, and no agent may flip it to `PASS`.
 | --- | --- | --- | --- | --- |
 | 171. Compare the reported faction accuracy against a headless run of the same seed | It matches the simulation own counters rather than an event-derived approximation. | Not run | PENDING |
 
-## Leader marker and inspector annotation smoke (leader rank plan L4/L5)
-
-**No interactive run was performed for this change.** Every row below is
-`PENDING`. `ExactlyOneLivingLeaderPerNonEmptyContingentAcrossEveryRegisteredMovementPreset`
-in `BattleSimulationTests` and the `AgentInspectorContentTests` assertions
-prove that `AgentView.IsLeader` is wired correctly and that the inspector's
-contingent line carries the `(leading)` suffix exactly when it should; neither
-proves that the pawn marker reads as intended on a real battlefield at
-default zoom, that it does not clash visually with the selection ring or the
-adornment accent, or that it visibly changes pawn the tick a contingent's
-ranking member dies.
-
-| # | Step | Expected | Actual | Status |
-| --- | --- | --- | --- | --- |
-| L-1 | Look at the battlefield at default zoom under a contingent-aware movement preset (`PersistentContingentsV2` through `V5`) | Exactly one warrior per visible, non-empty contingent shows the leader mark above its head | | PENDING |
-| L-2 | Watch a contingent whose leader is killed | The leader mark visibly moves to a different warrior once the next scan reassigns leadership | | PENDING |
-| L-3 | Select the current leader | The selection ring and the leader mark are both visible at once, not fighting for the same screen space | | PENDING |
-| L-4 | Watch the leader die in the event feed, before the next scan | The dead mark (crossed lines) and the leader mark are both visible on that one warrior for that one tick | | PENDING |
-| L-5 | Click the current leader to open the inspector | The contingent line reads `Contingent: {id} — {label} (leading)` | | PENDING |
-| L-6 | Click a non-leader member of the same contingent | The contingent line carries no `(leading)` suffix | | PENDING |
-| L-7 | Launch under `IndependentPursuitV1` | No warrior ever shows the leader mark, and no inspector contingent line ever carries `(leading)` | | PENDING |
-
 ## Footwork pressure interrupt smoke (movement V7 plan F1)
 
-**No interactive run was performed for this change.** None of the rows below has
-ever been executed. Nine of the ten are `BLOCKED` rather than `PENDING`, for the
-reason set out below; only the legacy-regression row P-10 is `PENDING`.
+**No interactive run has been performed for this change, but every row here is
+now runnable.** None of the rows below has ever been executed. Nine of them,
+plus `L-7`, stood `BLOCKED` from the day they were written until 2026-08-13,
+because there was no supported way to reach the presets they ask about. The
+movement-preset selector built that day removed that obstacle, so all eleven
+rows are now `PENDING`: never attempted, rather than impossible to attempt.
+
+**`L-7` was moved into this section's table on 2026-08-13** and is the eleventh
+row here. It is not a pressure interrupt row at all — it belongs to the leader
+marker family, whose other six rows were run and passed at an interactive
+desktop that day — but it was blocked by exactly the same missing preset
+selector, so it sits with the rows that share its cause rather than alone in a
+section of its own. It is unblocked by the same change.
 
 What the automated tests already prove, and what they do not:
 `FootworkPressureInterruptTests` covers the `ShouldPressureInterrupt` predicate
@@ -630,33 +660,47 @@ as distinct from the leader mark and the dead mark at 1× speed rather than only
 in placement arithmetic, or that the two inspector rows are legible at their
 shipped colour and position.
 
-**These rows cannot be executed today, and that is a property of the build, not
-an omission by the person reading this.** `MovementPresetId.EquipmentRelativeFootworkV7`
-is reachable only by explicit selection, `Scenario.MovementPreset` remains
-`PersistentContingentsV4` under decision D6, and the client exposes no
-movement-preset selector — `ArenaGame.BuildScenario` calls
-`Scenario.CreateDefault` and overrides only `RosterCounts`, so the client always
-runs the shipped default. Under that default `AppliesPressureInterrupt` is
-`false`, all three new `AgentView` members stay at their defaults, no mark is
-ever drawn, and no pressure row ever renders. A human at an interactive desktop
-therefore has no supported route to a V7 battle in the game window.
+**How to reach a V7 battle.** Open the Army Composition panel and use the
+movement-preset selector added on 2026-08-13. Choose **V7 Pressure Interrupt**,
+apply it, and then perform a **Full Reset** — the selector stages a preset for
+the next full reset rather than changing the battle in progress, and its own
+hint says `NEXT FULL RESET`. A round started before the reset is still running
+the previous preset, and reading these rows against it is the one mistake that
+will make every row look like a failure.
 
-**Why `BLOCKED` and not `PENDING`.** `PENDING` asserts that a check has not been
-run yet. That would be false here: these nine checks *cannot* be run by anyone,
-and recording them as merely not-yet-done would misrepresent the state of the
-work to the next reader. `CLAUDE.md` section 6 is explicit that a blocked row is
-reported honestly as blocked. This is not a gap in V7's implementation — the
-three spectator channels are built, unit-tested, and will apply unchanged to
-whatever interrupt-applying preset eventually becomes selectable. It is a gap
-between the feature and the player, and the honest record of it is `BLOCKED`.
+`EquipmentRelativeFootworkV7` is the only preset in the list with
+`AppliesPressureInterrupt = true`; all ten others pass `false`. Under any of
+them all three pressure-related `AgentView` members stay at their defaults, no
+break-off mark is ever drawn, and no pressure row ever renders — which is what
+`P-10` and `L-7` exist to confirm, and which is why the preset shown in the HUD
+must be checked before any row here is judged.
 
-These rows become executable the day any preset with
-`AppliesPressureInterrupt = true` can be selected from the client, whether by a
-preset selector or by the default moving. Neither is authorized by this
-workstream: decision D6 moves the default only once the termination bar passes,
-and section 7 of the calibration record establishes that V7 never will. When
-that day comes, the rows are already worded and waiting. Until then no row may
-be flipped by anyone, agent or human, who has not actually seen the screen.
+The client's own shipped default is `LastStandEngagementV11` with combat preset
+`PrecolonialPhilippinesV5`, both set explicitly in `ArenaGame.BuildScenario`
+rather than taken from `Scenario.CreateDefault`. An earlier version of this
+preamble named `PersistentContingentsV4` as the shipped default; that was true
+when the rows were written and has not been true for several presets.
+
+**Why these rows stood `BLOCKED`, and why they no longer do.** `PENDING`
+asserts that a check has not been run yet. That was false while the preset was
+unreachable: those checks *could not* be run by anyone, and recording them as
+merely not-yet-done would have misrepresented the state of the work to the next
+reader. `CLAUDE.md` section 6 is explicit that a blocked row is reported
+honestly as blocked. The blockage was never a gap in V7's implementation — the
+three spectator channels were built and unit-tested from the start — it was a
+gap between the feature and the player. The selector closes that gap, so the
+honest record is now `PENDING`, and every one of these rows still needs a person
+who has actually seen the screen. **Nothing here has been observed. The rows
+became runnable; none of them became true.**
+
+**Expect to wait, and do not read waiting as failure.** The calibration record
+measures the interrupt firing on well under one per cent of agent-ticks, so a
+spectator may watch for some time before seeing a break-off at all. Worse for a
+tester's patience, **V7 does not terminate**: decision D6 keeps the shipped
+default off V7 precisely because V7 never passes the termination bar, so a V7
+battle is expected to run to its tick cap as a draw rather than resolve. Plan
+the session around that — a V7 round will not end on its own, and ending it
+manually is the normal way to finish one of these rows.
 
 The rows below also assume a V7 battle that reaches `Commit` or `Recover` often
 enough to interrupt. The calibration record measures the interrupt firing on
@@ -666,16 +710,18 @@ automatically a failure of the mark.
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| P-1 | Watch a V7 battle at default zoom and 1× speed | A warrior that breaks off under pressure shows the break-off mark above its head, and the mark is noticeable at 1× without pausing or zooming | | BLOCKED |
-| P-2 | Watch a warrior that is losing a local fight — outnumbered, taking hits, allies dying around it | It visibly peels out of the knot, and a spectator can tell that it chose to disengage rather than that it died or was pushed. **This is the section 10 discoverability row: the effect must be readable without reading source code.** | | BLOCKED |
-| P-3 | Find a warrior showing both the break-off mark and the leader mark | Both are visible at once and neither is hidden by the other | | BLOCKED |
-| P-4 | Select a warrior showing the break-off mark | The selection ring, the leader mark where present, and the break-off mark are all legible together, none fighting for the same screen space | | BLOCKED |
-| P-5 | Watch a warrior carrying the break-off mark as it is killed | The dead mark and the break-off mark do not merge into an unreadable smear on that warrior | | BLOCKED |
-| P-6 | Click a warrior that has just broken off | The footwork row reads `Footwork: Disengaging (broke off under pressure)`, distinct from an ordinary `Footwork: Disengaging` | | BLOCKED |
-| P-7 | Click any warrior in a V7 battle | The pressure row reads `Pressure: {value} of {threshold} basis points to break off`, and the value visibly moves as the warrior's local situation changes | | BLOCKED |
-| P-8 | Click warriors carrying each of the six weapon rows | Each shows its own threshold, and the ordering matches the shipped values — Kampilan and Wasay highest, Itak lowest | | BLOCKED |
-| P-9 | Compare an ordinary `Disengaging` warrior with a broken-off one | The two footwork rows are distinguishable at a glance, not only by careful reading | | BLOCKED |
+| P-1 | Watch a V7 battle at default zoom and 1× speed | A warrior that breaks off under pressure shows the break-off mark above its head, and the mark is noticeable at 1× without pausing or zooming | | PENDING |
+| P-2 | Watch a warrior that is losing a local fight — outnumbered, taking hits, allies dying around it | It visibly peels out of the knot, and a spectator can tell that it chose to disengage rather than that it died or was pushed. **This is the section 10 discoverability row: the effect must be readable without reading source code.** | | PENDING |
+| P-3 | Find a warrior showing both the break-off mark and the leader mark | Both are visible at once and neither is hidden by the other | | PENDING |
+| P-4 | Select a warrior showing the break-off mark | The selection ring, the leader mark where present, and the break-off mark are all legible together, none fighting for the same screen space | | PENDING |
+| P-5 | Watch a warrior carrying the break-off mark as it is killed | The dead mark and the break-off mark do not merge into an unreadable smear on that warrior. **What the break-off mark looks like:** a short horizontal orange bar above the head, roughly two-thirds of the head's width and a sixth of its height, sitting one slot above the leader band. It is deliberately wider than the leader band and a different colour, because one slot of separation alone is not enough to tell two thin horizontal bands apart at ordinary zoom — so the failure to watch for is the two bands reading as one thick smudge, not their absence | | PENDING |
+| P-6 | Click a warrior that has just broken off | The footwork row reads `Footwork: Disengaging (broke off under pressure)`, distinct from an ordinary `Footwork: Disengaging` | | PENDING |
+| P-7 | Click any warrior in a V7 battle | The pressure row reads `Pressure: {value} of {threshold} basis points to break off`, and the value visibly moves as the warrior's local situation changes | | PENDING |
+| P-8 | Click warriors carrying each of the six weapon rows | The ordering matches the shipped values — Kampilan and Wasay highest, Itak lowest. **Two of the six thresholds are ties, and a tie is the expected result, not a defect:** Kampilan and Wasay are both 10 000 basis points, and unshielded Kalis and shielded Itak are both 7 500. The full shipped order is Kampilan 10 000 = Wasay 10 000, then shielded Kalis 8 750, then Kalis 7 500 = shielded Itak 7 500, then Itak 6 250. Read the row as a check on that ordering; two warriors of different weapons showing the same number is correct | | PENDING |
+| P-9 | Compare an ordinary `Disengaging` warrior with a broken-off one | The two footwork rows are distinguishable at a glance, not only by careful reading | | PENDING |
 | P-10 | Legacy regression: launch under `PersistentContingentsV4` | No warrior ever shows the break-off mark, and no inspector line ever carries the pressure row. This is the L-7-equivalent row: it proves the feature is gated, and it is the one row here that **is** runnable today, because V4 is the shipped default | | PENDING |
+| L-7 | Launch under `IndependentPursuitV1` | No warrior ever shows the leader mark, and no inspector contingent line ever carries `(leading)` | Moved here on 2026-08-13 out of the leader marker family, whose other six rows were run and passed at an interactive desktop the same day and were lifted out. It stood `BLOCKED` for exactly the reason the nine `P` rows did: `ArenaGame.BuildScenario` overrode the movement preset and the client exposed no selector, so a tester had no supported route to an `IndependentPursuitV1` battle. The selector added later the same day gives it one, so the row is now merely unattempted. Select `V1 Independent Pursuit` and perform a Full Reset, exactly as the `P` rows describe for V7. It is the leader family's gating row — the one that proves the mark is absent when it should be | PENDING |
+
 
 ## GPU render smoke (gpu-render Phases 1 and 2)
 
@@ -854,8 +900,11 @@ it flies past, and it stays too large even with the camera zoomed in. The row as
 written asks about the opposite failure, a shot shrinking away to nothing, so the
 finding sits outside what the row itself covers, and the row stays here until it
 can be re-run against the fix made in response. That fix caps the in-flight prop
-at the same apparent-scale ceiling the pawns already obey; the plan is
-`docs/plans/2026-08-13-projectile-prop-scale.md`.
+at the same apparent-scale ceiling the pawns already obey. That fix shipped on
+2026-08-13 as commit `c772849`, verified by a green `./scripts/verify.ps1` whose
+seed-1 digests were unchanged, and its plan document — "Projectile prop scale" —
+was archived the same day now that the build is finished. It is named here in
+prose rather than linked, because the archive folder is deleted periodically.
 
 Re-running `PP-3` means checking both ends of the zoom range in one sitting. The
 shot must still be drawn at the most pulled-out camera, which is what the row has
@@ -865,6 +914,36 @@ a warrior is tall.
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
 | PP-3 | Watch a shot in flight while zooming from close in to fully zoomed out | The projectile stays visible at every zoom, including the most pulled-out one. Failure is a shot that scales down to nothing and disappears — the in-flight prop is deliberately never detail-gated, because at low detail it may be the only sign a ranged unit exists | 2026-08-13, tester at the desktop. The shot stayed visible across the zoom range, but the in-flight prop draws too large and still reads oversized even when the camera is zoomed in. Capped in response; awaiting a re-run against that fix. | PENDING |
+
+## Shield-clash loudness re-check (2026-08-13)
+
+**These two rows are owed by a fix, not by a new feature.** The shield-clash
+audio family closed whole on 2026-08-13 and its five rows were lifted out into
+that day's archive record, which is named here in prose rather than linked
+because the archive folder is deleted periodically. Two of those closed rows,
+172 and 175, passed *before* the loudness fix was written: 172 asked whether a
+blocked blow reads as wood rather than as a landed cut, and 175 asked whether a
+full 200-agent battle stays clear of a wall of clash noise. Both were answered
+against the levels the fix then replaced.
+
+What the fix changed is exactly the thing those two rows measured. Every melee
+clash take is now normalised in the sample domain at load, toward a reference
+peak of `0.85`, and the four melee clash slots carry their own relative level
+and pitch offset on top of that. The loudest clash cue the pipeline can produce
+is lower than it was, but the quiet end rises a great deal — the quietest take
+on disk peaked at 0.096 and now reaches the same reference as the rest. Blocks
+a listener previously did not register as blocks at all are now audible, which
+is the whole point of the change and also the reason the aggregate of many
+simultaneous clashes is louder than it was.
+
+Under this file's own rule, a change that touches what a closed row tested owes
+fresh rows rather than a revival of the lifted ones. These are those two rows.
+They are not a re-run of 172 and 175 and must not be recorded as one.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| SCL-1 | Listen to a shield-blocked blow after the loudness normalisation | It still sounds like a weapon striking a light wooden board, and it is still plainly different from a landed cut, without reading the event log to find out which resolution occurred. Failure is a normalised block now reading as a landed hit, or as a click, a thump, or clipped noise rather than as wood | | PENDING |
+| SCL-2 | Run a full 200-agent battle with the shield cue audible | The clash cue does not become a wall of noise now that the previously inaudible takes play at full reference level, and the cue log shows no `LIMITED` or `REFUSED` row for any clash slot. Failure is a continuous clatter in which individual blocks stop being separable, or a clash slot appearing as `LIMITED` or `REFUSED` where it did not before | | PENDING |
 
 ## Battlefield realism cohort and retreat smoke (task 18)
 
