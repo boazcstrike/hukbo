@@ -367,7 +367,7 @@ public sealed class ArmyCompositionPanelTests
         panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
 
         Assert.Equal(
-            MovementPresetId.IndependentPursuitV1,
+            MovementPresetId.CohortLateralSpreadV13,
             panel.DraftMovementPreset);
 
         panel.AdjustFocusedValue(direction: -1, isShiftHeld: false);
@@ -432,7 +432,7 @@ public sealed class ArmyCompositionPanelTests
 
         Assert.Equal(ArmyCompositionPanelResult.Applied, interaction.Result);
         Assert.Equal(
-            MovementPresetId.IndependentPursuitV1,
+            MovementPresetId.CohortLateralSpreadV13,
             panel.SavedMovementPreset);
     }
 

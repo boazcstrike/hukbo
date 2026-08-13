@@ -122,6 +122,7 @@ internal sealed partial class ArmyCompositionPanel
             MovementPresetId.MonotoneAllyClearanceV9,
             MovementPresetId.BattlefieldRealismV10,
             MovementPresetId.LastStandEngagementV11,
+            MovementPresetId.CohortLateralSpreadV13,
         ];
 
     /// <summary>
@@ -142,6 +143,7 @@ internal sealed partial class ArmyCompositionPanel
             "V9 Monotone Ally Clearance",
             "V10 Battlefield Realism",
             "V11 Last-Stand Engagement",
+            "V13 Cohort Lateral Spread",
         ];
 
     /// <summary>
