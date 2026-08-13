@@ -40,8 +40,8 @@ namespace Hukbo.Core.Tests;
 /// <item>
 /// <description>
 /// <c>PersistentContingentsV3</c>, <c>PersistentContingentsV4</c>, and
-/// <c>PersistentContingentsV5</c>, captured by
-/// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T1, before a
+/// <c>PersistentContingentsV5</c>, captured by task T1 of the 2026-07-30
+/// weapon-relative movement shared foundation task list, before a
 /// single line of the weapon-relative-movement workstream existed. That
 /// workstream adds <c>EquipmentRelativeFootworkV6</c> and touches the
 /// simulation pipeline every legacy preset runs through, so every later
@@ -51,8 +51,8 @@ namespace Hukbo.Core.Tests;
 /// </item>
 /// <item>
 /// <description>
-/// <c>EquipmentRelativeFootworkV6</c>, captured by
-/// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T12, from the
+/// <c>EquipmentRelativeFootworkV6</c>, captured by task T12 of the
+/// 2026-07-30 weapon-relative movement shared foundation task list, from the
 /// build that completed the weapon-relative-movement foundation. Unlike the
 /// legacy fixtures it freezes a brand-new opt-in preset at the moment it
 /// shipped, so any later change that moves the V6 trajectory -- a profile
@@ -62,8 +62,8 @@ namespace Hukbo.Core.Tests;
 /// </item>
 /// <item>
 /// <description>
-/// <c>EquipmentRelativeFootworkV7</c>, captured by
-/// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt.md task E2, from the
+/// <c>EquipmentRelativeFootworkV7</c>, captured by task E2 of the
+/// 2026-07-31 movement V7 pressure interrupt task plan, from the
 /// build whose task E1 settled the pressure interrupt's four tuning values
 /// for good. Like the V6 fixture it freezes a brand-new opt-in preset at the
 /// moment it shipped rather than a legacy trajectory, so any later change
@@ -163,8 +163,8 @@ public sealed class MovementPresetFreezeTests
     /// the final per-agent rows -- including the real
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
-    /// -- match the fixture exactly. See
-    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T1: this
+    /// -- match the fixture exactly. See task T1 of the 2026-07-30
+    /// weapon-relative movement shared foundation task list: this
     /// fixture is the oracle every later task in that plan replays against
     /// before it is allowed to touch the shared movement pipeline.
     /// </summary>
@@ -184,8 +184,8 @@ public sealed class MovementPresetFreezeTests
     /// the final per-agent rows -- including the real
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
-    /// -- match the fixture exactly. See
-    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T1: this
+    /// -- match the fixture exactly. See task T1 of the 2026-07-30
+    /// weapon-relative movement shared foundation task list: this
     /// fixture is the oracle every later task in that plan replays against
     /// before it is allowed to touch the shared movement pipeline.
     /// </summary>
@@ -205,8 +205,8 @@ public sealed class MovementPresetFreezeTests
     /// the final per-agent rows -- including the real
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
-    /// -- match the fixture exactly. See
-    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T1: this
+    /// -- match the fixture exactly. See task T1 of the 2026-07-30
+    /// weapon-relative movement shared foundation task list: this
     /// fixture is the oracle every later task in that plan replays against
     /// before it is allowed to touch the shared movement pipeline.
     /// </summary>
@@ -226,8 +226,8 @@ public sealed class MovementPresetFreezeTests
     /// and the final per-agent rows -- including the real
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
-    /// -- match the fixture exactly. See
-    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation.md task T12: this
+    /// -- match the fixture exactly. See task T12 of the 2026-07-30
+    /// weapon-relative movement shared foundation task list: this
     /// fixture freezes the opt-in preset's trajectory at the commit that
     /// completed the weapon-relative-movement foundation, with the control
     /// run selecting <c>CombatPresetId.PrecolonialPhilippinesV2</c>
@@ -250,8 +250,8 @@ public sealed class MovementPresetFreezeTests
     /// and the final per-agent rows -- including the real
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
-    /// -- match the fixture exactly. See
-    /// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt.md task E2: this
+    /// -- match the fixture exactly. See task E2 of the 2026-07-31
+    /// movement V7 pressure interrupt task plan: this
     /// fixture freezes the pressure-interrupt preset's trajectory at the
     /// commit that settled its four tuning values, with the control run
     /// selecting <c>CombatPresetId.PrecolonialPhilippinesV2</c> explicitly,

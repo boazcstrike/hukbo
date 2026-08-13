@@ -6,7 +6,7 @@ using Hukbo.Core.Simulation;
 namespace Hukbo.Core.Tests;
 
 /// <summary>
-/// Task C3 of docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt.md: the
+/// Task C3 of the 2026-07-31 movement V7 pressure interrupt task plan: the
 /// combo-chain coverage the V7 pressure interrupt needs and that
 /// <see cref="ComboChainTests"/> cannot provide.
 /// </summary>

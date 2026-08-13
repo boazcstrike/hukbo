@@ -53,7 +53,7 @@ namespace Hukbo.Core.Movement;
 /// through V6 unchanged. The gate itself is not folded: inside its own branch
 /// it is always <see langword="true"/>, so it would contribute a constant and
 /// discriminate nothing. See
-/// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt-design.md section 6.
+/// the 2026-07-31 movement V7 pressure interrupt design section 6.
 /// </remarks>
 public sealed class MovementRuleset
 {

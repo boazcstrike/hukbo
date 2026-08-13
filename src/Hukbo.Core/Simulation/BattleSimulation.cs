@@ -3787,7 +3787,7 @@ public sealed class BattleSimulation
     /// <remarks>
     /// <para>
     /// Only reached at a non-zero stall generation. The design is in
-    /// <c>docs/archives/2026-08-07/2026-07-29-approach-sidestep-design.md</c>, and its section
+    /// the 2026-07-29 approach sidestep design, and its section
     /// 2 records why the rally escape alone was not enough: that escape lives in
     /// <see cref="BuildRegroupingProposal"/> and a pursuing warrior never
     /// reaches it, so a locked cluster could contain warriors with a way out and

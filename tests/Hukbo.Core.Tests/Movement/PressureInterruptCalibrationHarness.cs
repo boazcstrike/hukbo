@@ -20,8 +20,8 @@ namespace Hukbo.Core.Tests.Movement;
 /// <remarks>
 /// <para>
 /// <b>Provenance, not instruction.</b> This file was written as task E0 of the
-/// V7 pressure-interrupt work, whose plan and design now live under
-/// <c>docs/archives/2026-08-06/movement/</c>. Those documents are archived and
+/// V7 pressure-interrupt work, whose plan and design now live among
+/// the archived 2026-07-31 movement V7 documents. Those documents are archived and
 /// closed: the V7 measurement was taken, its verdict recorded — no tuning of
 /// the interrupt meets the termination bar, because the cause sits upstream of
 /// it — and nothing here authorizes executing an archived plan. The file is
@@ -196,7 +196,7 @@ internal static class PressureInterruptCalibrationHarness
     /// The scenario body radius. It defaults to the shipped
     /// <see cref="CollisionRules.DefaultBodyRadiusRaw"/> because that is what
     /// <c>scripts/benchmark.ps1</c> used to produce the "before" numbers in
-    /// <c>docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md</c>, and a p50
+    /// the 2026-07-31 movement V7 pre-change baseline record, and a p50
     /// compared against those medians has to have been measured under the same
     /// radius. The V6 trajectory fixture pins <c>4 * FixedPoint.Scale</c>
     /// instead, for reasons that belong to a frozen fixture and not to a

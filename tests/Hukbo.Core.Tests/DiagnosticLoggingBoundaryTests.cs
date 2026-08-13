@@ -114,7 +114,7 @@ public sealed class DiagnosticLoggingBoundaryTests
     }
 
     /// <summary>
-    /// Task F0 of docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt.md. The
+    /// Task F0 of the 2026-07-31 movement V7 pressure interrupt task plan. The
     /// same claim as
     /// <see cref="FullTraceLoggingDoesNotChangeTheSimulationResult"/>, made
     /// again under <c>EquipmentRelativeFootworkV7</c>. The preset above it runs

@@ -17,7 +17,7 @@ namespace Hukbo.Core.Simulation;
 /// branch of the movement-proposal loop entirely and, before this type existed,
 /// had no escape at all. Two such warriors were enough to hold a whole battle
 /// open to the tick limit. See
-/// <c>docs/archives/2026-08-07/2026-07-29-approach-sidestep-design.md</c> section 2 for the
+/// the 2026-07-29 approach sidestep design section 2 for the
 /// measurement.
 /// </para>
 /// <para>

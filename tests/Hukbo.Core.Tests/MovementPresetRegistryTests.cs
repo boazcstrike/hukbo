@@ -98,8 +98,8 @@ public sealed class MovementPresetRegistryTests
     /// <remarks>
     /// Task E1 measured that V7's tuning does not meet the design section 2.1
     /// termination bar at any setting it tried, and left the values where they
-    /// stand for the reasons recorded in
-    /// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md. That is a
+    /// stand for the reasons recorded in the 2026-07-31 movement V7
+    /// pressure interrupt calibration record. That is a
     /// finding about what the preset achieves; this literal records what the
     /// preset is, which is frozen either way.
     /// </remarks>

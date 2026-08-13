@@ -79,8 +79,8 @@ public enum MovementPresetId
     /// be a defect in the bar's own gate-6 reconstruction, which scanned every
     /// living contingent while measuring the one preset whose distinguishing
     /// rule is that it does not; with the observer corrected, all three clauses
-    /// pass on this preset. The evidence is recorded in
-    /// docs/archives/2026-08-07/2026-07-28-cohesion-scan-narrowing-design.md.
+    /// pass on this preset. The evidence is recorded in the 2026-07-28
+    /// cohesion scan narrowing design.
     /// Section 13 question 7 — whether the three thresholds are the right ones
     /// — is still open, so do not read a bar that no longer fails as a bar
     /// proved right.
@@ -94,7 +94,7 @@ public enum MovementPresetId
     /// <c>(RankId ascending, EntityId ascending)</c> instead of
     /// <c>EntityId</c> alone, so a contingent's highest-ranking living
     /// member leads it rather than its lowest-entity-id living member. See
-    /// docs/archives/2026-08-07/2026-07-29-leader-rank-design.md for the reasoning and
+    /// the 2026-07-29 leader rank design for the reasoning and
     /// the leader rank plan task L1 for this
     /// preset's derivation.
     /// </summary>
@@ -113,7 +113,7 @@ public enum MovementPresetId
     /// <see cref="PersistentContingentsV4"/> — and every profile value it
     /// carries is a provisional reconstruction for gameplay tuning, not a
     /// historical measurement. See
-    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation-design.md sections 3,
+    /// the 2026-07-30 weapon-relative movement shared foundation design sections 3,
     /// 5, and 13.
     /// </summary>
     EquipmentRelativeFootworkV6 = 6,
@@ -139,7 +139,7 @@ public enum MovementPresetId
     /// stays <see cref="PersistentContingentsV4"/> — and every weight and
     /// threshold it carries is a provisional reconstruction for gameplay
     /// tuning under CLAUDE.md section 7, not a historical measurement. See
-    /// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt-design.md sections
+    /// the 2026-07-31 movement V7 pressure interrupt design sections
     /// 4.6, 6.2, and 6.3.
     /// </summary>
     EquipmentRelativeFootworkV7 = 7,

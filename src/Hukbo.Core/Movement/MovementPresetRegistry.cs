@@ -159,7 +159,7 @@ public static class MovementPresetRegistry
     /// in favour of narrowing. Adopting it appeared not to clear the bar, until
     /// the bar's own gate-6 reconstruction was found to be measuring V4 with
     /// V3's rule; see
-    /// docs/archives/2026-08-07/2026-07-28-cohesion-scan-narrowing-design.md
+    /// the 2026-07-28 cohesion scan narrowing design
     /// for that measurement. It lands as a
     /// new preset rather than as an edit to
     /// <see cref="PersistentContingentsV3Ruleset"/> because V3 has already
@@ -208,7 +208,7 @@ public static class MovementPresetRegistry
     /// version plus new golden expectations for any change that moves
     /// simulated behaviour, and V1 through V4 all keep the behaviour their
     /// own recorded expectations pin. See
-    /// docs/archives/2026-08-07/2026-07-29-leader-rank-design.md section 2 for why this
+    /// the 2026-07-29 leader rank design section 2 for why this
     /// comparator swap reaches further into the simulation than the leader
     /// scan itself.
     /// </remarks>
@@ -254,7 +254,7 @@ public static class MovementPresetRegistry
     /// nonetheless stays
     /// <see cref="MovementPresetId.PersistentContingentsV4"/>, and the preset
     /// is reachable only through explicit selection. See
-    /// docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation-design.md sections 3,
+    /// the 2026-07-30 weapon-relative movement shared foundation design sections 3,
     /// 5, and 13.
     /// This entry registers
     /// <see cref="MovementRuleset.AppliesPressureInterrupt"/>
@@ -314,7 +314,7 @@ public static class MovementPresetRegistry
     /// The shipped default nonetheless stays
     /// <see cref="MovementPresetId.PersistentContingentsV4"/>, and this preset
     /// is reachable only through explicit selection. See
-    /// docs/archives/2026-08-06/movement/2026-07-31-movement-v7-pressure-interrupt-design.md sections
+    /// the 2026-07-31 movement V7 pressure interrupt design sections
     /// 4.6, 6.2, and 6.3.
     /// </summary>
     /// <remarks>
@@ -388,7 +388,7 @@ public static class MovementPresetRegistry
             // configuration task E1 measured, including a probe that
             // registered the minimum threshold of 1 on all six rows and so
             // fired on every agent-tick the predicate can ever fire on. See
-            // docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md.
+            // the 2026-07-31 movement V7 pressure interrupt calibration record.
             KampilanMovementProfile.Row
                 .WithPressureInterruptThreshold(10_000),
             WasayMovementProfile.Row
@@ -424,7 +424,7 @@ public static class MovementPresetRegistry
         // drew every cell they were measured over, as this split does. The
         // full record, with the numbers and with the reason the interrupt
         // cannot reach the standoff at any tuning, is
-        // docs/archives/2026-08-06/movement/2026-07-31-movement-v7-calibration-record.md.
+        // the 2026-07-31 movement V7 pressure interrupt calibration record.
         supportPressureWeightBasisPoints: 5_000,
         incomingDamageWeightBasisPoints: 3_000,
         allyCollapseWeightBasisPoints: 2_000);

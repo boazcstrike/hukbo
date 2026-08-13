@@ -86,7 +86,7 @@ internal static class RangedCalibrationHarness
     /// prints beside its own ten-cell matrix, reproduced verbatim from
     /// <c>docs/research/ranged/2026-08-07-STANDOFF-ROOT-CAUSE.md:140-149</c>,
     /// itself sourced from
-    /// <c>docs/archives/2026-08-06/movement/2026-07-31-movement-v7-baseline.md:553-562</c>.
+    /// the 2026-07-31 movement V7 pre-change baseline record, lines 553 to 562.
     /// Printed for comparison only — this harness does not re-run V4.
     /// </summary>
     private static readonly (int Agents, ulong Seed, long TerminalTick, string Outcome)[]

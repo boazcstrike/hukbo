@@ -8,7 +8,7 @@ namespace Hukbo.Core.Tests.Movement;
 /// rate, and it never buys speed. Every asserted number is a <b>Provisional
 /// reconstruction: gameplay tuning; no historical measurement</b>, drawn from
 /// <c>docs/research/movement/kalis.md</c> section 7 and materialised by
-/// <c>docs/archives/2026-08-07/2026-07-30-weapon-movement-foundation-design.md</c>
+/// the 2026-07-30 weapon-relative movement shared foundation design,
 /// section 13.
 /// </summary>
 /// <remarks>
