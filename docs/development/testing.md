@@ -533,6 +533,66 @@ committed value of 5,000:
 - **Both factions win at least one battle.** Faction 0 wins 11 of the twenty
   seeds; faction 1 wins 9.
 
+## Canonical gate result — Hukbo, 2026-08-14 (cohort lateral spread)
+
+`./scripts/verify.ps1` with no arguments, run at commit `541b8d6`, green in
+full. Every stage passed: prerequisites, locked restore for all 21 projects,
+formatting verification, the Release solution build, the Release test suites,
+and the headless determinism workloads.
+
+| Stage | Result |
+| --- | --- |
+| Prerequisites (.NET SDK 10.0.302, PowerShell 7.6.4) | `[PASS]` |
+| Locked package restore | `[PASS]` |
+| Formatting verification | `[PASS]` |
+| Release solution build | `[PASS]` |
+| `Hukbo.Core.Tests` | 2,568 passed, 0 failed |
+| `Hukbo.Client.Tests` | 3,791 passed, 0 failed |
+| Headless workloads, 200 agents / 10,000 ticks / seed 1 | five, all `deterministic: true`, `firstMismatchTick: null` |
+
+The gate ran five headless workloads rather than four for the first time. The
+fifth was added by this change, because the fourth block existed to exercise
+whatever preset the client actually ships, and `CohortLateralSpreadV13` is now
+that preset. The `LastStandEngagementV11` block was kept rather than repointed
+— the same choice the V11 and V10 blocks each record for their predecessor —
+and it is what proves the new riffled deployment never leaked into the
+ascending traversal every earlier preset still uses.
+
+| Workload | Combat / movement preset | Outcome | State hash | Event hash |
+| --- | --- | --- | --- | --- |
+| Canonical | 6 / 4 | `Faction0Victory` | `5460D13E3F7FD3E5` | `8E18ED1437B2924B` |
+| Ranged | 5 / 8 | `Faction1Victory` | `C8023D3B5BEB005E` | `F709A345E2F7370E` |
+| Battlefield realism | 5 / 10 | `Faction0Victory` | `7C145A9E05916E4C` | `77626E104234206C` |
+| Last stand | 5 / 11 | `Faction0Victory` | `6225182B4A470F91` | `C4DABE6AF98B6BEC` |
+| Cohort lateral spread | 5 / 13 | `Faction1Victory` | `4A0723BC9A1B924B` | `E0CE32CF8830A864` |
+
+**The first four digests are byte-identical to the values already recorded in
+this file.** That is the load-bearing result, not the fifth row: the whole
+point of introducing a new preset id rather than editing a registered one was
+that no existing golden expectation should move, and none did.
+`FormationDeploymentFreezeTests` and `MovementPresetFreezeTests` — the fourteen
+facts that exist to catch exactly this — are green untouched, which is the
+evidence that `FormationPlanner` was not modified.
+
+The V13 workload's own digest is a new baseline, recorded here for the first
+time. Its seed-1 battle ends at a terminal outcome well inside the tick cap, so
+the second half of smoke row 61 holds under the new preset; the first half of
+that row is a visual judgement and is not evidence this gate can produce.
+
+**This gate was run in an isolated worktree at `541b8d6`, not in the main
+checkout.** Another session was working in the shared tree at the time, with
+uncommitted changes to `AgentInspectorContent.cs`, `AgentInspectorPanel.cs` and
+`AgentInspectorContentTests.cs`. A gate run in the main checkout failed three
+`AgentInspectorContentTests` facts — an inspector geometry baseline, a row
+budget, and a `ZZZ_TEMP_Diagnostic` test left in the suite — all of which belong
+to that in-flight work and none of which this change touches. The worktree run
+is the verdict on this change; the main checkout cannot produce a clean one
+until the other session's work settles.
+
+**Still no evidence about anything interactive.** Smoke rows 58 and 59 are what
+this change was made for, and both are `PENDING` a re-run against a V13 build.
+Rows 60, 61 and 61a passed on 2026-08-14 against the pre-V13 build.
+
 ## Sandata — recorded baselines and measurement runs, 2026-08-09
 
 This repository builds two games. Everything above and below this section, unless
