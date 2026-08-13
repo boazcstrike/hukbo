@@ -300,9 +300,10 @@ internal sealed class SoundDirector
     /// This is the one place <see cref="SoundVoicing"/> is applied: the
     /// slot's relative level is folded into the volume handed to
     /// <see cref="ISoundPlayer.Play"/> here, and its pitch offset is passed
-    /// through as the new pitch parameter, so <c>MonoGameSoundPlayer.Play</c>
-    /// only ever has to apply its own per-take normalisation multiplier on
-    /// top. Applying the slot level again there would double it.
+    /// through as the new pitch parameter. Per-take loudness normalisation is
+    /// no longer a play-time step at all — <c>MonoGameSoundPlayer</c> bakes it
+    /// into the loaded clip's own samples, so <c>Play</c> here applies
+    /// nothing further and voicing is applied exactly once end to end.
     /// </remarks>
     private void Resolve(
         GameSoundId sound,

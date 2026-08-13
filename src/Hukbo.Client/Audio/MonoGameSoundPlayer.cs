@@ -10,7 +10,8 @@ namespace Hukbo.Client.Audio;
 internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
 {
     /// <summary>
-    /// The common peak every loaded take is normalised toward. See
+    /// The common peak every sample-domain-normalised take is scaled toward.
+    /// See
     /// <c>docs/plans/2026-08-13-shield-clash-legibility-design.md</c>
     /// section 4 for why <c>0.85</c> keeps the loudest possible cue under the
     /// full-scale level today's flat <c>CueVolume</c> could already reach.
@@ -18,7 +19,7 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
     internal const float ReferencePeak = 0.85f;
 
     /// <summary>
-    /// Bounds on the per-take normalisation multiplier. A near-silent take
+    /// Bounds on the per-take normalisation scale factor. A near-silent take
     /// would otherwise be amplified into noise; a take that is already at or
     /// above the reference peak is only ever attenuated a little.
     /// </summary>
@@ -27,7 +28,6 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
     internal const float MaximumMultiplier = 6.0f;
 
     private readonly Dictionary<(GameSoundId Sound, HitClass? HitClass), SoundEffect[]> _effects;
-    private readonly Dictionary<(GameSoundId Sound, HitClass? HitClass), float[]> _multipliers;
     private readonly Dictionary<(GameSoundId Sound, HitClass? HitClass), SoundBindingStatus> _variantStatuses;
     private readonly SoundBinding[] _bindings;
     private bool _isDisposed;
@@ -36,13 +36,11 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
         string directoryPath,
         SoundBinding[] bindings,
         Dictionary<(GameSoundId, HitClass?), SoundEffect[]> effects,
-        Dictionary<(GameSoundId, HitClass?), float[]> multipliers,
         Dictionary<(GameSoundId, HitClass?), SoundBindingStatus> variantStatuses)
     {
         DirectoryPath = directoryPath;
         _bindings = bindings;
         _effects = effects;
-        _multipliers = multipliers;
         _variantStatuses = variantStatuses;
     }
 
@@ -65,7 +63,6 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
         var variantLists = SoundLibrary.ResolveVariants(directoryPath, fileNames);
 
         var effects = new Dictionary<(GameSoundId, HitClass?), SoundEffect[]>();
-        var multipliers = new Dictionary<(GameSoundId, HitClass?), float[]>();
         var variantStatuses = new Dictionary<(GameSoundId, HitClass?), SoundBindingStatus>();
 
         foreach (var variantList in variantLists)
@@ -77,15 +74,15 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
                 continue;
             }
 
-            var loaded = LoadEffects(directoryPath, variantList.FileNames);
+            var normalize = SoundCatalog.IsMeleeShieldClash(variantList.Sound);
+            var loaded = LoadEffects(directoryPath, variantList.FileNames, normalize);
             if (loaded.Count == 0)
             {
                 variantStatuses[key] = SoundBindingStatus.LoadFailed;
                 continue;
             }
 
-            effects[key] = [.. loaded.Select(variant => variant.Effect)];
-            multipliers[key] = [.. loaded.Select(variant => variant.Multiplier)];
+            effects[key] = [.. loaded];
             variantStatuses[key] = SoundBindingStatus.Ready;
         }
 
@@ -94,7 +91,6 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
             directoryPath,
             adjustedBindings,
             effects,
-            multipliers,
             variantStatuses);
     }
 
@@ -118,13 +114,19 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
             : 0;
 
     /// <summary>
-    /// Applies this variant's load-time normalisation multiplier on top of the
-    /// caller's volume. <see cref="SoundDirector"/> already folds the slot's
+    /// Plays a loaded variant at the caller's volume and pitch.
+    /// <see cref="SoundDirector"/> already folds the slot's
     /// <see cref="SoundVoicing"/> level into <paramref name="volume"/> and its
     /// pitch offset into <paramref name="pitch"/> before calling here — see the
-    /// remark on <see cref="SoundDirector.Resolve"/> — so this is the only
-    /// place the per-take multiplier is applied, and voicing is applied
-    /// exactly once end to end.
+    /// remark on <see cref="SoundDirector.Resolve"/>. Per-take loudness
+    /// normalisation is no longer applied here: it is baked into the sample
+    /// data of the loaded <see cref="SoundEffect"/> itself at load time by
+    /// <see cref="TryBuildNormalizedEffect"/>, because a
+    /// <see cref="SoundEffectInstance"/> volume multiplier clamped to
+    /// <c>[0, 1]</c> can only ever attenuate and could never lift a quiet take
+    /// — see
+    /// <c>docs/plans/2026-08-13-shield-clash-legibility-design.md</c>
+    /// section 3.
     /// </summary>
     public bool Play(GameSoundId sound, HitClass? hitClass, int variantIndex, float volume, float pitch)
     {
@@ -136,11 +138,6 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
             return false;
         }
 
-        var multiplier = _multipliers.TryGetValue((sound, hitClass), out var loadedMultipliers) &&
-            variantIndex < loadedMultipliers.Length
-                ? loadedMultipliers[variantIndex]
-                : 1.0f;
-
         try
         {
             // Both refusal paths are reported. Play returns false when
@@ -148,7 +145,7 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
             // beneath it throws when its source list is. Silently swallowing
             // either one is what made an earlier audio investigation slow.
             return loaded[variantIndex].Play(
-                Math.Clamp(volume * multiplier, 0f, 1f),
+                Math.Clamp(volume, 0f, 1f),
                 pitch: Math.Clamp(pitch, -1f, 1f),
                 pan: 0f);
         }
@@ -182,17 +179,18 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
         _effects.Clear();
     }
 
-    private static List<(SoundEffect Effect, float Multiplier)> LoadEffects(
+    private static List<SoundEffect> LoadEffects(
         string directoryPath,
-        IReadOnlyList<string> fileNames)
+        IReadOnlyList<string> fileNames,
+        bool normalize)
     {
-        var loaded = new List<(SoundEffect Effect, float Multiplier)>(fileNames.Count);
+        var loaded = new List<SoundEffect>(fileNames.Count);
         foreach (var fileName in fileNames)
         {
             var filePath = Path.Combine(directoryPath, fileName);
-            if (TryLoadEffect(filePath, out var effect, out var multiplier))
+            if (TryLoadEffect(filePath, normalize, out var effect))
             {
-                loaded.Add((effect, multiplier));
+                loaded.Add(effect);
             }
         }
 
@@ -247,23 +245,31 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
     }
 
     /// <summary>
-    /// Reads a variant's bytes exactly once and builds both the playable
-    /// <see cref="SoundEffect"/> and its load-time normalisation
-    /// <paramref name="multiplier"/> from that single buffer, so the file is
-    /// never opened a second time to measure it.
+    /// Reads a variant's bytes exactly once and builds the playable
+    /// <see cref="SoundEffect"/> from that single buffer. When
+    /// <paramref name="normalize"/> is set — the four melee shield-clash
+    /// slots only, see <see cref="SoundCatalog.IsMeleeShieldClash"/> — the
+    /// effect is built from a sample-domain-scaled copy of the PCM data via
+    /// <see cref="TryBuildNormalizedEffect"/>. Every other slot, and any
+    /// clash take <see cref="TryBuildNormalizedEffect"/> declines, loads
+    /// unmodified through <see cref="SoundEffect.FromStream"/> instead.
     /// </summary>
     private static bool TryLoadEffect(
         string filePath,
-        out SoundEffect effect,
-        out float multiplier)
+        bool normalize,
+        out SoundEffect effect)
     {
-        multiplier = 1.0f;
         try
         {
             var bytes = File.ReadAllBytes(filePath);
+            if (normalize && TryBuildNormalizedEffect(bytes, out var normalizedEffect))
+            {
+                effect = normalizedEffect;
+                return true;
+            }
+
             using var stream = new MemoryStream(bytes, writable: false);
             effect = SoundEffect.FromStream(stream);
-            multiplier = ComputeMultiplier(bytes);
             return true;
         }
         catch (Exception exception) when (
@@ -280,18 +286,41 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
     }
 
     /// <summary>
-    /// The per-take gain multiplier that brings this variant's peak to
-    /// <see cref="ReferencePeak"/>. An unreadable take or one that measures as
-    /// silence gets identity multiplier <c>1.0</c> rather than a division by
-    /// zero or an arbitrarily large boost.
+    /// Builds a clip from a sample-domain-scaled copy of
+    /// <paramref name="wavBytes"/>, so the loaded <see cref="SoundEffect"/>
+    /// itself peaks at <see cref="ReferencePeak"/> rather than relying on a
+    /// play-time volume multiplier — <see cref="SoundEffectInstance"/> volume
+    /// clamps to <c>[0, 1]</c>, so a multiplier could only ever attenuate and
+    /// could never lift the quietest measured take, which is the defect this
+    /// method exists to fix. See
+    /// <c>docs/plans/2026-08-13-shield-clash-legibility-design.md</c>
+    /// section 3. Returns <see langword="false"/> — never throws — for a take
+    /// <see cref="WavePeak.TryReadPcm"/> cannot parse or that measures as pure
+    /// silence, so <see cref="TryLoadEffect"/> falls back to the unmodified
+    /// <see cref="SoundEffect.FromStream"/> path for either case.
     /// </summary>
-    private static float ComputeMultiplier(byte[] wavBytes)
+    private static bool TryBuildNormalizedEffect(byte[] wavBytes, out SoundEffect effect)
     {
-        if (!WavePeak.TryReadPeak(wavBytes, out var peak) || peak <= 0f)
+        effect = null!;
+
+        if (!WavePeak.TryReadPcm(
+                wavBytes,
+                out var sampleRate,
+                out var channelCount,
+                out var pcmData,
+                out var peak) ||
+            peak <= 0f)
         {
-            return 1.0f;
+            return false;
         }
 
-        return Math.Clamp(ReferencePeak / peak, MinimumMultiplier, MaximumMultiplier);
+        var scale = WavePeak.ComputeScaleFactor(
+            peak,
+            ReferencePeak,
+            MinimumMultiplier,
+            MaximumMultiplier);
+        var scaledPcm = WavePeak.ApplyGain(pcmData, scale);
+        effect = new SoundEffect(scaledPcm, sampleRate, (AudioChannels)channelCount);
+        return true;
     }
 }

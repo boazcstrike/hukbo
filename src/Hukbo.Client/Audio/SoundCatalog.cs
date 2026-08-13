@@ -126,6 +126,21 @@ internal static class SoundCatalog
             GameSoundId.AttackArquebus;
 
     /// <summary>
+    /// Whether a slot is one of the four melee shield-clash slots that
+    /// <see cref="MonoGameSoundPlayer"/> normalises in the sample domain at
+    /// load. See
+    /// <c>docs/plans/2026-08-13-shield-clash-legibility-design.md</c>
+    /// sections 3 and 5: only these four slots are touched, and every other
+    /// slot — including the three ranged clash slots — loads byte-identical
+    /// to today.
+    /// </summary>
+    public static bool IsMeleeShieldClash(GameSoundId sound) =>
+        sound is GameSoundId.ClashShieldKampilan or
+            GameSoundId.ClashShieldWasay or
+            GameSoundId.ClashShieldKalis or
+            GameSoundId.ClashShieldItak;
+
+    /// <summary>
     /// The file-name prefix shared by every numbered take of one hit class,
     /// e.g. <c>attack-kampilan-skull-</c>. Only valid for a slot where
     /// <see cref="IsHitLocationDriven"/> is <c>true</c>. Used both to build a

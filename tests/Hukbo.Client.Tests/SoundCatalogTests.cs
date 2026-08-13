@@ -165,6 +165,26 @@ public sealed class SoundCatalogTests
         bool expected) =>
         Assert.Equal(expected, SoundCatalog.IsHitLocationDriven((GameSoundId)sound));
 
+    // The sound parameter is an int because xunit requires public test
+    // methods and GameSoundId is internal to Hukbo.Client.
+    [Theory]
+    [InlineData((int)GameSoundId.ClashShieldKampilan, true)]
+    [InlineData((int)GameSoundId.ClashShieldWasay, true)]
+    [InlineData((int)GameSoundId.ClashShieldKalis, true)]
+    [InlineData((int)GameSoundId.ClashShieldItak, true)]
+    [InlineData((int)GameSoundId.AttackKampilan, false)]
+    [InlineData((int)GameSoundId.Death, false)]
+    [InlineData((int)GameSoundId.UiClick, false)]
+    [InlineData((int)GameSoundId.ClashShieldBangkaw, false)]
+    [InlineData((int)GameSoundId.ClashShieldBusog, false)]
+    [InlineData((int)GameSoundId.ClashShieldArquebus, false)]
+    [InlineData((int)GameSoundId.ReleaseBangkaw, false)]
+    [InlineData((int)GameSoundId.MisfireArquebus, false)]
+    public void IsMeleeShieldClash_IsTrueOnlyForTheFourMeleeClashSlots(
+        int sound,
+        bool expected) =>
+        Assert.Equal(expected, SoundCatalog.IsMeleeShieldClash((GameSoundId)sound));
+
     [Fact]
     public void GetVariantFileName_BuildsTheSlotClassIndexPattern() =>
         Assert.Equal(

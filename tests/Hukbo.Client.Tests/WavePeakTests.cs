@@ -122,6 +122,180 @@ public sealed class WavePeakTests
         Assert.Equal(0f, peak);
     }
 
+    [Fact]
+    public void TryReadPcm_ValidMonoFile_ReturnsFormatDataAndPeak()
+    {
+        var wav = BuildPcm16Wav(channelCount: 1, samples: [16384, -1000, 500]);
+
+        var succeeded = WavePeak.TryReadPcm(
+            wav,
+            out var sampleRate,
+            out var channelCount,
+            out var pcmData,
+            out var peak);
+
+        Assert.True(succeeded);
+        Assert.Equal(44100, sampleRate);
+        Assert.Equal(1, channelCount);
+        Assert.Equal(0.5f, peak);
+        Assert.Equal(6, pcmData.Length);
+        Assert.Equal(
+            (short)16384,
+            System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(pcmData[..2]));
+    }
+
+    [Fact]
+    public void TryReadPcm_TruncatedBuffer_ReturnsFalse()
+    {
+        var wav = BuildPcm16Wav(channelCount: 1, samples: [short.MinValue, 1000]);
+        var truncated = wav[..^4];
+
+        var succeeded = WavePeak.TryReadPcm(
+            truncated,
+            out var sampleRate,
+            out var channelCount,
+            out var pcmData,
+            out var peak);
+
+        Assert.False(succeeded);
+        Assert.Equal(0, sampleRate);
+        Assert.Equal(0, channelCount);
+        Assert.Equal(0, pcmData.Length);
+        Assert.Equal(0f, peak);
+    }
+
+    [Fact]
+    public void ComputeScaleFactor_QuietTake_ScalesUpToTheReferencePeak()
+    {
+        // Take 04 of clash-shield-wasay from the design doc's measured table:
+        // peak 0.096.
+        var scale = WavePeak.ComputeScaleFactor(
+            peak: 0.096f,
+            referencePeak: 0.85f,
+            minimumScale: 0.5f,
+            maximumScale: 6.0f);
+
+        // 0.85 / 0.096 = 8.854..., clamped down to the ceiling of 6.0.
+        Assert.Equal(6.0f, scale);
+    }
+
+    [Fact]
+    public void ComputeScaleFactor_FullScaleTake_IsAttenuatedNotAmplified()
+    {
+        var scale = WavePeak.ComputeScaleFactor(
+            peak: 1.0f,
+            referencePeak: 0.85f,
+            minimumScale: 0.5f,
+            maximumScale: 6.0f);
+
+        Assert.Equal(0.85f, scale);
+        Assert.True(scale < 1.0f);
+    }
+
+    [Fact]
+    public void ComputeScaleFactor_ClampsAtTheMinimumBound()
+    {
+        var scale = WavePeak.ComputeScaleFactor(
+            peak: 10.0f,
+            referencePeak: 0.85f,
+            minimumScale: 0.5f,
+            maximumScale: 6.0f);
+
+        Assert.Equal(0.5f, scale);
+    }
+
+    [Fact]
+    public void ComputeScaleFactor_ClampsAtTheMaximumBound()
+    {
+        var scale = WavePeak.ComputeScaleFactor(
+            peak: 0.001f,
+            referencePeak: 0.85f,
+            minimumScale: 0.5f,
+            maximumScale: 6.0f);
+
+        Assert.Equal(6.0f, scale);
+    }
+
+    [Fact]
+    public void ApplyGain_QuietBuffer_RaisesItsPeakToTheReferencePeak()
+    {
+        // Peak sample 3146 / 32768 = 0.096, matching take 04 of
+        // clash-shield-wasay in the design doc's measured table. Scaling by
+        // 6.0 (the clamped factor for that take) lifts the peak to 18876,
+        // which is 0.576 of full scale — audibly present rather than the
+        // 0.096 a listener could not hear at all.
+        var pcm = BuildPcmBytes([3146, -1000, 500]);
+
+        var scaled = WavePeak.ApplyGain(pcm, scale: 6.0f);
+
+        Assert.Equal(
+            (short)18876,
+            System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(scaled.AsSpan(0, 2)));
+        Assert.Equal(
+            (short)-6000,
+            System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(scaled.AsSpan(2, 2)));
+        Assert.Equal(
+            (short)3000,
+            System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(scaled.AsSpan(4, 2)));
+    }
+
+    [Fact]
+    public void ApplyGain_FullScaleBuffer_IsAttenuated()
+    {
+        var pcm = BuildPcmBytes([short.MaxValue]);
+
+        var scaled = WavePeak.ApplyGain(pcm, scale: 0.5f);
+
+        Assert.Equal(
+            (short)16384,
+            System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(scaled.AsSpan(0, 2)));
+    }
+
+    [Fact]
+    public void ApplyGain_PositiveSampleScaledPastFullScale_SaturatesAtShortMaxValueWithoutWrapping()
+    {
+        var pcm = BuildPcmBytes([short.MaxValue]);
+
+        var scaled = WavePeak.ApplyGain(pcm, scale: 6.0f);
+
+        var result = System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(scaled.AsSpan(0, 2));
+        Assert.Equal(short.MaxValue, result);
+        Assert.True(result > 0);
+    }
+
+    [Fact]
+    public void ApplyGain_NegativeSampleScaledPastFullScale_SaturatesAtShortMinValueWithoutWrapping()
+    {
+        var pcm = BuildPcmBytes([short.MinValue]);
+
+        var scaled = WavePeak.ApplyGain(pcm, scale: 6.0f);
+
+        var result = System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(scaled.AsSpan(0, 2));
+        Assert.Equal(short.MinValue, result);
+        Assert.True(result < 0);
+    }
+
+    [Fact]
+    public void ApplyGain_IdentityScale_LeavesEverySampleUnchanged()
+    {
+        var pcm = BuildPcmBytes([1234, -5678, 0, short.MaxValue, short.MinValue]);
+
+        var scaled = WavePeak.ApplyGain(pcm, scale: 1.0f);
+
+        Assert.Equal(pcm, scaled);
+    }
+
+    private static byte[] BuildPcmBytes(short[] samples)
+    {
+        var bytes = new byte[samples.Length * 2];
+        for (var index = 0; index < samples.Length; index++)
+        {
+            BitConverter.GetBytes(samples[index]).CopyTo(bytes, index * 2);
+        }
+
+        return bytes;
+    }
+
     private static byte[] BuildPcm16Wav(ushort channelCount, short[] samples)
     {
         var dataBytes = new byte[samples.Length * 2];
