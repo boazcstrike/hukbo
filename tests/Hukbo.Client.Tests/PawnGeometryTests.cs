@@ -1604,10 +1604,12 @@ public sealed class PawnGeometryTests
 
     /// <summary>
     /// <see cref="PawnGeometry.GetArmorFlankBars"/> returns two bars of equal
-    /// width, one flush against each edge of the armored capsule, spanning its
-    /// full vertical extent and never meeting in the middle — the symmetry
-    /// that keeps armor reading as bulk on both flanks rather than as the
-    /// single offset block a held shield draws (smoke row 128).
+    /// width, one flush against each edge of the armored capsule, inset by one
+    /// pixel top and bottom (2026-08-13, row 128's second failure) so their
+    /// square corners sit inside the stepped capsule's rounded profile, and
+    /// never meeting in the middle — the symmetry that keeps armor reading as
+    /// bulk on both flanks rather than as the single offset block a held
+    /// shield draws (smoke row 128).
     /// </summary>
     [Fact]
     public void GetArmorFlankBars_ReturnsSymmetricBarsInsideTheArmoredCapsule()
@@ -1623,10 +1625,10 @@ public sealed class PawnGeometryTests
         Assert.Equal(left.Width, right.Width);
         Assert.Equal(armorBounds.Left, left.Left);
         Assert.Equal(armorBounds.Right, right.Right);
-        Assert.Equal(armorBounds.Top, left.Top);
-        Assert.Equal(armorBounds.Top, right.Top);
-        Assert.Equal(armorBounds.Height, left.Height);
-        Assert.Equal(armorBounds.Height, right.Height);
+        Assert.Equal(armorBounds.Top + 1, left.Top);
+        Assert.Equal(armorBounds.Top + 1, right.Top);
+        Assert.Equal(armorBounds.Height - 2, left.Height);
+        Assert.Equal(armorBounds.Height - 2, right.Height);
         Assert.True(armorBounds.Contains(left));
         Assert.True(armorBounds.Contains(right));
         Assert.True(left.Right <= right.Left, "The two bars must not meet.");
@@ -1656,6 +1658,109 @@ public sealed class PawnGeometryTests
     }
 
     /// <summary>
+    /// The floor <see cref="PawnGeometry.GetArmorFlankBars"/> raised from one
+    /// pixel to two on 2026-08-13 — row 128's second failure ("not bulky
+    /// enough") — checked against every worn
+    /// <see cref="AppearanceComponentCatalog.ArmorWidthFactor"/> value that
+    /// actually ships (0.86/1.00/1.18's build spread does not enter here; the
+    /// factor is what drives the widening) at
+    /// <see cref="PawnDetailTier.Medium"/>'s own floor apparent scale — the
+    /// lowest apparent scale <c>PawnGeometry.CreateArmor</c> ever draws armor
+    /// at, and the exact scale where the old one-pixel floor produced the
+    /// colour-fringe bug rather than a thickened body.
+    /// </summary>
+    [Theory]
+    [InlineData(1.06f)]
+    [InlineData(1.12f)]
+    [InlineData(1.18f)]
+    public void GetArmorFlankBars_IsAtLeastTwoPixelsWideForEveryWornArmorOption(
+        float armorWidthFactor)
+    {
+        // 0.95f mirrors PawnGeometry's own private MediumDetailScale — the
+        // lowest apparent scale at which CreateArmor ever returns a non-empty
+        // ArmorBounds, so the lowest scale a worn armor option is ever drawn
+        // at.
+        const float apparentScale = 0.95f;
+        var torsoWidth = Math.Max(1, (int)MathF.Round(7f * apparentScale));
+        var armorWidth = Math.Max(
+            torsoWidth,
+            (int)MathF.Round(torsoWidth * armorWidthFactor));
+        var torsoBounds = new Rectangle(0, 0, torsoWidth, 20);
+        var armorBounds = new Rectangle(0, 0, armorWidth, 20);
+
+        var (left, right) = PawnGeometry.GetArmorFlankBars(
+            armorBounds,
+            torsoBounds,
+            apparentScale);
+
+        Assert.Equal(2, left.Width);
+        Assert.Equal(2, right.Width);
+        Assert.Equal(left.Width, right.Width);
+    }
+
+    /// <summary>
+    /// The torso's dye strip left visible between the two bars never drops
+    /// below one third of the armored capsule's width, rounded down — the
+    /// cap that keeps armor reading as two flank bars around a visible body
+    /// rather than the single slab row 128 originally failed on — at every
+    /// apparent scale between <see cref="PawnGeometry"/>'s own minimum and
+    /// maximum clamps.
+    /// </summary>
+    [Theory]
+    [InlineData(0.72f)]
+    [InlineData(0.95f)]
+    [InlineData(1f)]
+    [InlineData(1.8f)]
+    [InlineData(2.4f)]
+    public void GetArmorFlankBars_LeavesAtLeastAThirdOfTheCapsuleAsTheMiddleStrip(
+        float apparentScale)
+    {
+        var torsoWidth = Math.Max(1, (int)MathF.Round(7f * apparentScale));
+        var armorWidth = Math.Max(
+            torsoWidth,
+            (int)MathF.Round(torsoWidth * AppearanceComponentCatalog.MaxArmorWidthFactor));
+        var torsoBounds = new Rectangle(0, 0, torsoWidth, 20);
+        var armorBounds = new Rectangle(0, 0, armorWidth, 20);
+
+        var (left, right) = PawnGeometry.GetArmorFlankBars(
+            armorBounds,
+            torsoBounds,
+            apparentScale);
+
+        var middleStrip = armorBounds.Width - left.Width - right.Width;
+        var expectedMinimumMiddleStrip = Math.Max(1, armorBounds.Width / 3);
+
+        Assert.True(
+            middleStrip >= expectedMinimumMiddleStrip,
+            $"middle strip {middleStrip} was below the required {expectedMinimumMiddleStrip} " +
+            $"for a {armorBounds.Width}px capsule.");
+    }
+
+    /// <summary>
+    /// Both bars stay inside <c>armorBounds</c> on all four sides, and sit
+    /// inset by exactly one pixel top and bottom (2026-08-13) so their square
+    /// corners do not poke past the stepped capsule's rounded profile.
+    /// </summary>
+    [Fact]
+    public void GetArmorFlankBars_StaysInsideArmorBoundsAndInsetsVerticallyByOnePixel()
+    {
+        var torsoBounds = new Rectangle(92, 63, 17, 19);
+        var armorBounds = new Rectangle(90, 62, 20, 19);
+
+        var (left, right) = PawnGeometry.GetArmorFlankBars(
+            armorBounds,
+            torsoBounds,
+            apparentScale: 2.4f);
+
+        Assert.True(armorBounds.Contains(left));
+        Assert.True(armorBounds.Contains(right));
+        Assert.Equal(armorBounds.Top + 1, left.Top);
+        Assert.Equal(armorBounds.Top + 1, right.Top);
+        Assert.Equal(armorBounds.Bottom - 1, left.Bottom);
+        Assert.Equal(armorBounds.Bottom - 1, right.Bottom);
+    }
+
+    /// <summary>
     /// At the apparent-scale floor the widening
     /// <see cref="AppearanceComponentCatalog.MaxArmorWidthFactor"/> buys is
     /// under a pixel, which is exactly the case that made the old single-slab
@@ -1681,6 +1786,61 @@ public sealed class PawnGeometryTests
 
         Assert.True(left.Width >= 1);
         Assert.True(right.Width >= 1);
+    }
+
+    /// <summary>
+    /// Each bar strictly exceeds the widening margin — not merely spans it —
+    /// at every apparent scale between <see cref="PawnGeometry"/>'s own
+    /// minimum and maximum clamps and for every worn
+    /// <see cref="AppearanceComponentCatalog.ArmorWidthFactor"/> that ships.
+    /// A bar equal to the margin stops exactly at the plain torso's own edge,
+    /// where <c>PawnRenderer.DrawTorso</c> already drew a dark outline
+    /// column; that outline stayed visible past the armor at real window
+    /// sizes (1920x1080 and 2560x1440 at 2026-08-13's default map) and the
+    /// pawn read as a plate strapped on rather than a thicker body, row 128's
+    /// third failure. The bar must lap at least one pixel past the margin
+    /// onto the torso's own flank to cover that column.
+    /// </summary>
+    [Theory]
+    [InlineData(0.72f, 1.06f)]
+    [InlineData(0.72f, 1.12f)]
+    [InlineData(0.72f, 1.18f)]
+    [InlineData(0.95f, 1.06f)]
+    [InlineData(0.95f, 1.12f)]
+    [InlineData(0.95f, 1.18f)]
+    [InlineData(1f, 1.06f)]
+    [InlineData(1f, 1.12f)]
+    [InlineData(1f, 1.18f)]
+    [InlineData(1.8f, 1.06f)]
+    [InlineData(1.8f, 1.12f)]
+    [InlineData(1.8f, 1.18f)]
+    [InlineData(2.4f, 1.06f)]
+    [InlineData(2.4f, 1.12f)]
+    [InlineData(2.4f, 1.18f)]
+    public void GetArmorFlankBars_AlwaysLapsPastTheWideningMarginByAtLeastOnePixel(
+        float apparentScale, float armorWidthFactor)
+    {
+        var torsoWidth = Math.Max(1, (int)MathF.Round(7f * apparentScale));
+        var armorWidth = Math.Max(
+            torsoWidth,
+            (int)MathF.Round(torsoWidth * armorWidthFactor));
+        var torsoBounds = new Rectangle(0, 0, torsoWidth, 20);
+        var armorBounds = new Rectangle(0, 0, armorWidth, 20);
+        var widening = armorBounds.Width - torsoBounds.Width;
+
+        var (left, right) = PawnGeometry.GetArmorFlankBars(
+            armorBounds,
+            torsoBounds,
+            apparentScale);
+
+        Assert.True(
+            left.Width > widening,
+            $"left bar {left.Width}px did not exceed widening margin {widening}px " +
+            $"at scale {apparentScale}, factor {armorWidthFactor}.");
+        Assert.True(
+            right.Width > widening,
+            $"right bar {right.Width}px did not exceed widening margin {widening}px " +
+            $"at scale {apparentScale}, factor {armorWidthFactor}.");
     }
 
     /// <summary>

@@ -164,9 +164,12 @@ public sealed class PawnQuadCountTests
         // 2026-08-11: +1 more, from 44, because DrawArmor now fills two flank
         // bars in place of one torso-covering slab
         // (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
-        // section 2).
+        // section 2). 2026-08-13: +4 more, from 45, because each flank bar
+        // now costs three quads at this High tier — the fill plus an
+        // outer-edge outline column plus an inner-edge darkened column —
+        // instead of one, per row 128's second failure ("not bulky enough").
         Assert.Equal(
-            45,
+            49,
             PawnQuadCount.Count(layout, appearance, PawnVisualState.Selected));
     }
 

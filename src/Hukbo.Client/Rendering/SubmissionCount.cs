@@ -108,7 +108,7 @@ internal static class PawnQuadCount
         total += torsoResolutionStep == VisualFallbackStep.DiagnosticPlaceholder
             ? CountPlaceholder(layout.PlaceholderBounds)
             : CountTorso(layout);
-        total += CountArmor(layout.ArmorBounds);
+        total += CountArmor(layout.ArmorBounds, layout.DetailTier);
         total += CountSash(layout.SashBounds);
         total += CountShield(layout, appearance);
         total += CountHead(layout.HeadBounds);
@@ -220,13 +220,26 @@ internal static class PawnQuadCount
 
     /// <summary>
     /// <c>PawnRenderer.DrawArmor</c>: nothing for an unarmored pawn or at
-    /// <see cref="PawnDetailTier.Low"/>, otherwise one fill per flank bar —
-    /// two, since 2026-08-11 replaced the single torso-covering slab with the
-    /// symmetric pair <c>PawnGeometry.GetArmorFlankBars</c> derives
+    /// <see cref="PawnDetailTier.Low"/>. Otherwise, since 2026-08-13,
+    /// <c>DrawArmorFlankBar</c> draws each of the two flank bars as a fill
+    /// plus a one-pixel outer-edge outline column — four quads — plus, at
+    /// <see cref="PawnDetailTier.High"/> only, a one-pixel inner-edge
+    /// darkened column per bar — two more, six total. Until 2026-08-13 this
+    /// was one fill per bar with no edge columns at any tier
     /// (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
-    /// section 2).
+    /// section 2); the edge columns are what let the armored silhouette's
+    /// outline sit at armored width instead of unarmored torso width.
     /// </summary>
-    private static int CountArmor(Rectangle bounds) => IsEmpty(bounds) ? 0 : 2;
+    private static int CountArmor(Rectangle bounds, PawnDetailTier detailTier)
+    {
+        if (IsEmpty(bounds))
+        {
+            return 0;
+        }
+
+        var perBar = detailTier == PawnDetailTier.High ? 3 : 2;
+        return perBar * 2;
+    }
 
     private static int CountSash(Rectangle bounds) => IsEmpty(bounds) ? 0 : 1;
 

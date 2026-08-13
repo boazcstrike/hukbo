@@ -2086,26 +2086,54 @@ internal static class PawnGeometry
     /// The two flank bars <c>PawnRenderer.DrawArmor</c> fills for a worn armor
     /// option, in place of the single torso-covering slab it drew until
     /// 2026-08-11 (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
-    /// section 2). Each bar spans <paramref name="armorBounds"/>'s full
-    /// vertical extent and covers the widening margin outside
-    /// <paramref name="torsoBounds"/> plus a shell of the torso's own flank,
-    /// so the armored body reads as thickened on both sides while the torso's
-    /// dye, outline, and belt stay visible down the middle. Symmetric by
-    /// construction — a single-sided block is what a held shield draws, and
-    /// row 128's failure clause is precisely that armor must not read as one.
+    /// section 2). Each bar spans <paramref name="armorBounds"/>'s vertical
+    /// extent inset by one pixel top and bottom — so its square corners sit
+    /// inside the stepped capsule's rounded profile instead of poking past
+    /// it — and covers the widening margin outside <paramref name="torsoBounds"/>
+    /// plus a shell of the torso's own flank, so the armored body reads as
+    /// thickened on both sides while the torso's dye, outline, and belt stay
+    /// visible down the middle. Symmetric by construction — a single-sided
+    /// block is what a held shield draws, and row 128's failure clause is
+    /// precisely that armor must not read as one.
     ///
-    /// Bar width is <c>max(round(apparentScale), widening)</c>, where
+    /// Bar width is <c>max(round(apparentScale), widening + 1, 2)</c>, where
     /// <c>widening</c> is the whole-pixel difference between the armored and
-    /// unarmored capsule widths: the first term keeps the bars from rounding
-    /// away at the apparent-scale floor, where
-    /// <see cref="AppearanceComponentCatalog.MaxArmorWidthFactor"/> buys under
-    /// a pixel of total widening; the second guarantees each bar spans its
-    /// whole margin outside the torso and still laps a pixel or more onto the
-    /// torso's own flank, which is what makes the thickening read as part of
-    /// the body rather than as a detached outline. Both bars stay inside
-    /// <paramref name="armorBounds"/>, so this thickens the draw without
-    /// widening the layout and <see cref="ConservativePawnCull"/>'s visual
-    /// bounds are untouched.
+    /// unarmored capsule widths. The floor of 2 — raised from 1 on
+    /// 2026-08-13, row 128's second failure ("not bulky enough") — is what
+    /// lets <c>PawnRenderer.DrawArmor</c> spend one of a bar's own pixels on
+    /// an outline column at its outer edge: at 1 px wide a bar had no pixel
+    /// left over for that outline, so the pawn's dark silhouette edge stayed
+    /// at unarmored torso width and the bar read as a colour fringe beside
+    /// the body rather than as part of it.
+    ///
+    /// The <c>widening + 1</c> term, also 2026-08-13, is a second and
+    /// independent requirement: the bar must exceed the widening margin by at
+    /// least one pixel so it always laps onto the torso's own flank, not just
+    /// covers the margin outside it. <c>PawnRenderer.DrawTorso</c>
+    /// draws its own dark outline column at the plain
+    /// torso's edge before <c>DrawArmor</c> ever runs; a bar that stops
+    /// exactly at that edge (<c>widening</c> alone, this method's rule before
+    /// 2026-08-13) leaves the torso's outline column standing, so a spectator
+    /// at a real default-fit or larger window reads dark armor edge, brown
+    /// fill, dark torso outline, dye — two dark lines with brown between
+    /// them, which is a plate strapped outside a normal-width body rather
+    /// than a thicker one. A bar has to reach at least one pixel past that
+    /// column to cover it. Both the <c>round(apparentScale)</c> and
+    /// <c>widening + 1</c> terms remain lower bounds beneath the floor of 2,
+    /// so a large apparent scale or a wide widening margin still wins over
+    /// it.
+    ///
+    /// The two bars are then capped so the torso's dye strip between them —
+    /// the visible proof the pair is two bars and not one slab — never drops
+    /// below one third of <paramref name="armorBounds"/>'s width, rounded
+    /// down, and never below one pixel even on a capsule too narrow to hold a
+    /// full third. That cap replaces the plain "never meet in the middle"
+    /// guard this method carried before 2026-08-13: a strip of at least a
+    /// third is strictly wider than the single pixel the old guard promised,
+    /// and it is what a spectator reads as the torso's own dye rather than a
+    /// seam. Both bars stay inside <paramref name="armorBounds"/>, so this
+    /// thickens the draw without widening the layout and
+    /// <see cref="ConservativePawnCull"/>'s visual bounds are untouched.
     ///
     /// Returns a pair of <see cref="Rectangle.Empty"/> when
     /// <paramref name="armorBounds"/> is empty — the unarmored and
@@ -2129,24 +2157,30 @@ internal static class PawnGeometry
 
         var widening = Math.Max(0, armorBounds.Width - torsoBounds.Width);
         var barWidth = Math.Max(
-            Math.Max(1, (int)MathF.Round(apparentScale)),
-            widening);
+            Math.Max(2, (int)MathF.Round(apparentScale)),
+            widening + 1);
 
-        // Two bars must never meet in the middle, or the pair degenerates back
-        // into the solid slab this replaces and the torso's dye is covered
-        // again. On a capsule too narrow to hold both, each takes at most half.
-        barWidth = Math.Min(barWidth, Math.Max(1, armorBounds.Width / 2));
+        // The torso's dye must stay visible down the middle for at least a
+        // third of the armored capsule's width — rounded down, never below
+        // one pixel — or the pair degenerates back into the solid slab this
+        // replaces, which is what row 128 failed on the first time.
+        var minMiddleStrip = Math.Max(1, armorBounds.Width / 3);
+        var maxBarWidth = Math.Max(1, (armorBounds.Width - minMiddleStrip) / 2);
+        barWidth = Math.Min(barWidth, maxBarWidth);
+
+        var barTop = armorBounds.Top + 1;
+        var barHeight = Math.Max(1, armorBounds.Height - 2);
 
         var left = new Rectangle(
             armorBounds.Left,
-            armorBounds.Top,
+            barTop,
             barWidth,
-            armorBounds.Height);
+            barHeight);
         var right = new Rectangle(
             armorBounds.Right - barWidth,
-            armorBounds.Top,
+            barTop,
             barWidth,
-            armorBounds.Height);
+            barHeight);
 
         return (left, right);
     }

@@ -629,15 +629,23 @@ internal static class PawnRenderer
     /// exactly those cases — the documented rollback ("no-op the three layer
     /// slots").
     ///
-    /// Otherwise two fills in <paramref name="armorMaterialTone"/>, one per
-    /// flank, at the rectangles
-    /// <see cref="PawnGeometry.GetArmorFlankBars"/> derives. Until 2026-08-11
-    /// this was a single fill covering the whole widened capsule, which
-    /// replaced the torso's dye, outline, and belt with a flat block — a
-    /// recolour rather than bulk, and the same single-sided-block silhouette a
-    /// held shield draws, which is what smoke row 128 failed on. Both fills go
-    /// through the caller's single hit-pulse blend point (<see cref="Draw"/>)
-    /// before reaching here. See
+    /// Otherwise, for each of the two flank bars
+    /// <see cref="PawnGeometry.GetArmorFlankBars"/> derives: a fill in
+    /// <paramref name="armorMaterialTone"/>, then a one-pixel outline column
+    /// on the bar's outer edge, then — at <see cref="PawnDetailTier.High"/>
+    /// only — a one-pixel darkened column on the bar's inner edge. Until
+    /// 2026-08-11 this was a single fill covering the whole widened capsule,
+    /// which replaced the torso's dye, outline, and belt with a flat block —
+    /// a recolour rather than bulk, and the same single-sided-block
+    /// silhouette a held shield draws, which is what smoke row 128 failed on
+    /// first. That fix's two-bar pair still left the pawn's dark silhouette
+    /// edge at unarmored torso width, with the armor color sitting outside it
+    /// as a fringe rather than as part of the body, which is what row 128
+    /// failed on again on 2026-08-13: the outer-edge outline column moves the
+    /// silhouette edge out to armored width, and the inner-edge darkened
+    /// column reads as the near side of a rounded, shaded volume rather than
+    /// a flat tone. All three fills go through the caller's single hit-pulse
+    /// blend point (<see cref="Draw"/>) before reaching here. See
     /// docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
     /// section 2.
     /// </remarks>
@@ -657,8 +665,51 @@ internal static class PawnRenderer
             layout.TorsoBounds,
             layout.ApparentScale);
 
-        spriteBatch.Draw(pixel, left, armorMaterialTone);
-        spriteBatch.Draw(pixel, right, armorMaterialTone);
+        DrawArmorFlankBar(
+            spriteBatch, pixel, left, armorMaterialTone, isLeftBar: true, layout.DetailTier);
+        DrawArmorFlankBar(
+            spriteBatch, pixel, right, armorMaterialTone, isLeftBar: false, layout.DetailTier);
+    }
+
+    /// <summary>
+    /// One flank bar's three-layer fill, in draw order: the material tone,
+    /// then a one-pixel <see cref="OutlineColor"/> column on the bar's outer
+    /// edge (the edge away from the torso center, which is what makes the
+    /// pawn's dark silhouette sit at armored width), then, at
+    /// <see cref="PawnDetailTier.High"/> only, a one-pixel darkened column on
+    /// the bar's inner edge (see <see cref="DarkenChannels"/>). Both edge
+    /// columns collapse into the fill they overwrite when
+    /// <paramref name="bar"/> is only one pixel wide, which
+    /// <c>PawnGeometry.GetArmorFlankBars</c>'s own two-pixel floor keeps to a
+    /// theoretical edge case rather than the common one.
+    /// </summary>
+    private static void DrawArmorFlankBar(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        Rectangle bar,
+        Color armorMaterialTone,
+        bool isLeftBar,
+        PawnDetailTier detailTier)
+    {
+        spriteBatch.Draw(pixel, bar, armorMaterialTone);
+
+        var outerEdge = new Rectangle(
+            isLeftBar ? bar.Left : bar.Right - 1,
+            bar.Top,
+            1,
+            bar.Height);
+        spriteBatch.Draw(pixel, outerEdge, OutlineColor);
+
+        if (detailTier == PawnDetailTier.High)
+        {
+            var innerEdge = new Rectangle(
+                isLeftBar ? bar.Right - 1 : bar.Left,
+                bar.Top,
+                1,
+                bar.Height);
+            spriteBatch.Draw(
+                pixel, innerEdge, DarkenChannels(armorMaterialTone, ArmorInnerEdgeDarkenFactor));
+        }
     }
 
     /// <summary>
@@ -906,6 +957,15 @@ internal static class PawnRenderer
     /// second material.
     /// </summary>
     private const float ShieldEdgeToneDarkenFactor = 0.35f;
+
+    /// <summary>
+    /// The channel-scale factor <see cref="DarkenChannels"/> applies to build
+    /// <see cref="DrawArmorFlankBar"/>'s inner-edge column from the passed
+    /// <c>armorMaterialTone</c>: each channel keeps 62% of its value, which
+    /// reads as a shaded near side of a rounded volume rather than a second
+    /// material or a black seam.
+    /// </summary>
+    private const float ArmorInnerEdgeDarkenFactor = 0.62f;
 
     /// <summary>
     /// The shield block beside the torso. Drawn at every detail tier: a
@@ -1788,4 +1848,19 @@ internal static class PawnRenderer
 
     private static Color ApplyHitPulse(Color color, float strength) =>
         Color.Lerp(color, HitPulseColor, strength * 0.55f);
+
+    /// <summary>
+    /// Scales <paramref name="color"/>'s red, green, and blue channels by
+    /// <paramref name="factor"/>, leaving alpha untouched — a multiplicative
+    /// darken rather than a lerp toward a fixed tone, so the result stays the
+    /// same hue as whatever hit-pulse- and dead-state-adjusted colour the
+    /// caller already computed instead of drifting toward
+    /// <see cref="OutlineColor"/> or any other palette constant.
+    /// </summary>
+    private static Color DarkenChannels(Color color, float factor) =>
+        new(
+            (byte)(color.R * factor),
+            (byte)(color.G * factor),
+            (byte)(color.B * factor),
+            color.A);
 }
