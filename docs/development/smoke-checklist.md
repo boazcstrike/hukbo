@@ -794,6 +794,32 @@ the armor, the sash, and the adornment accents up by six pixels at the test
 fixture's scale. Nothing automated can say whether the result still reads as a
 warrior.
 
+**Two defects that made these rows unobservable were repaired on 2026-08-13,
+before this section was first attempted.** Read this before running it, because
+the build a tester sees now is not the build the rows were written against.
+
+- **The default camera fit drew no legs at all.** At the old 1280 × 720 default
+  window the arena panel was 826 × 640, the camera fit was 0.5682, and
+  `apparentScale` reached only 0.7671 — below `MediumDetailScale`, so every pawn
+  resolved the Low detail tier, where the leg and foot rectangles are empty.
+  Every row below that names the default zoom was impossible to observe. The
+  default window is now 1600 × 900, which resolves the Medium tier at the fit.
+- **A closing attacker's stride was effectively frozen.** Stride phase advances
+  by distance travelled, and the arrival taper floors a closing attacker's step
+  at one raw unit per tick, which worked out to one stride cycle every 300
+  seconds while the warrior was still classified as walking. Displacement below
+  a crawl threshold now resolves the neutral stance instead.
+
+Two consequences for whoever runs this section. First, the default view is now
+the Medium detail tier rather than Low, so arms, the armor silhouette, the sash,
+and the head treatment are all visible at the default zoom alongside the legs.
+Second, `GA-7` asks for the lowest detail tier, which is still reached by
+zooming out — it is no longer where the camera starts.
+
+The same change moves what "the default camera fit" means for `BR-1`, `BR-4`,
+and `RG-9` elsewhere in this file. All three were `PENDING` when it landed, so
+no recorded result was invalidated.
+
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
 | GA-1 | Watch one warrior cross open ground at default zoom | The legs visibly alternate and the feet lift and plant; the warrior does not slide | | PENDING |
