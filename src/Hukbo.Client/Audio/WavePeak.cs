@@ -43,8 +43,8 @@ internal static class WavePeak
     /// the format fields and the raw sample bytes needed to rebuild a scaled
     /// clip via <see cref="ApplyGain"/> and MonoGame's
     /// <c>SoundEffect(byte[], int, AudioChannels)</c> constructor. See
-    /// <c>docs/plans/2026-08-13-shield-clash-legibility-design.md</c>
-    /// section 3.
+    /// section 3 of the shield-clash audio legibility design of
+    /// 2026-08-13 (archived).
     /// </summary>
     public static bool TryReadPcm(
         ReadOnlySpan<byte> wavBytes,
