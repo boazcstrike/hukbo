@@ -74,7 +74,7 @@ public sealed class DefenderReactionSystemTests
     /// run its full duration, and it must not outlive it forever, so it
     /// still expires at its own lifetime (0.50s). Asserted against literals,
     /// not against the constants under test, per
-    /// docs/plans/2026-08-13-lethal-blow-legibility-design.md.
+    /// the lethal blow legibility design.
     /// </summary>
     [Fact]
     public void Advance_KeepsLethalReactionThroughTheHoldButExpiresAtItsOwnLifetime()

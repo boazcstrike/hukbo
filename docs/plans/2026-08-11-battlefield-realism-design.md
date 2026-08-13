@@ -144,8 +144,22 @@ the sources say.
 | Behaviour | Evidence position | What the game does | Tier as shipped |
 | --- | --- | --- | --- |
 | Weapon-homogeneous contingents | Not attested; specialists in the record are separate allied peoples | A contingent is filled from one weapon cohort where the arithmetic allows | **Provisional reconstruction — gameplay model** |
-| Shield bearers forward inside a contingent | Shield walls, ranks, and fixed depth explicitly unsupported; shields are ordinary equipment | Shield bearers take the forward-most slots of their own contingent only | **Provisional reconstruction — gameplay model** |
+| Shield bearers forward inside a contingent | Shield walls, ranks, and fixed depth explicitly unsupported; shields are ordinary equipment | Shield bearers take the forward-most slots of their own contingent only | **Gameplay model — no evidence tier at all** |
 | Ranged warriors back away from close melee | Breaking and running is documented; a skirmish-and-retire role is not | A shooter with a melee enemy inside a threat radius steps directly away and resumes shooting when clear | **Provisional reconstruction — gameplay model** |
+
+**The second row's tier was corrected on 2026-08-14, and the correction matters
+more than it looks.** It previously read "Provisional reconstruction — gameplay
+model", which joins an evidence tier to the statement that there is no evidence
+tier. `docs/research/movement/README.md` is explicit that forward placement "is
+none of Documented, Documented (form uncertain), or Provisional reconstruction —
+it is a gameplay model, adopted for legibility", and `docs/research/battles/03-deep-past-formations-and-tactics.md`
+and `docs/research/movement/tall-hardwood-shield.md` say the same. Under
+`CLAUDE.md` section 7 the research documents are the historical authority and
+this design is not, so the table now records what they record. A **Provisional
+reconstruction** is a claim the evidence underdetermines; a **gameplay model** is
+a shape adopted for legibility that the evidence does not support at all. Writing
+the two joined by an em dash let the second borrow the first's credibility, which
+is exactly the flattening this policy exists to prevent.
 
 The distinction the third row rests on is worth stating in full, because it is
 the one a careless reading would flatten. The sources record men with bows and

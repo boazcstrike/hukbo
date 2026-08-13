@@ -11,8 +11,8 @@ internal static class HitEffectRenderer
     private static readonly Color WarmShard = new(255, 224, 174);
 
     /// <summary>
-    /// PROVISIONAL legibility tuning (2026-08-13,
-    /// docs/plans/2026-08-13-lethal-blow-legibility.md), not a historical or
+    /// PROVISIONAL legibility tuning from the lethal blow legibility plan
+    /// (2026-08-13), not a historical or
     /// evidentiary claim: a killing blow's ring and shards draw in a hot tone
     /// clearly distinct from the ordinary warm-white hit, rather than a
     /// brighter shade of the same colour.

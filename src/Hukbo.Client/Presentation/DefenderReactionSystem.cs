@@ -37,7 +37,7 @@ internal readonly record struct DefenderReaction(
     /// <see cref="DefenderReactionSystem.IsLethalHoldActive"/> would be
     /// silently capped by the reaction's own removal, and the pawn would
     /// vanish mid-pulse instead of holding through it. See
-    /// docs/plans/2026-08-13-lethal-blow-legibility-design.md.
+    /// the lethal blow legibility design.
     /// </summary>
     public float LifetimeSeconds => IsLethal ? 0.50f : 0.18f;
 

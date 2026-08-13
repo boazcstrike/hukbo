@@ -52,13 +52,19 @@ reword the rows, to draw a reduced leg pair at `Low`, or to move
   it.
 - Drawing legs at `Low` contradicts smoke row `GA-7`, which exists to check that
   legs and feet disappear cleanly at the lowest tier, and it adds primitives at
-  exactly the tier a 500-warrior battle is watched at.
+  exactly the tier a 500-warrior battle is watched at. `GA-7` closed `PASS` on
+  2026-08-14, recorded in the archived movement gait animation smoke section
+  titled "Movement gait animation smoke — closed 2026-08-14"; the reasoning
+  above is retained because it is why the constraint exists, not because the
+  row is still open.
 - Moving `MediumDetailScale` below `0.767` collapses the `Low` tier into a dead
   band. `ResolveApparentScale` clamps its result to a floor of `0.72`
   (`PawnGeometry.cs:222`), so `Low` would survive only across the interval
   `[0.72, 0.767)` — roughly five per cent of the scale range. The tier that
   exists to keep a large battle readable would become almost unreachable, and
-  `GA-7` would become nearly impossible to attempt.
+  `GA-7` would become nearly impossible to attempt. `GA-7` also closed `PASS`
+  on 2026-08-14; this argument is kept because it is why the constraint
+  exists, not because the row is still waiting.
 
 **The decision is to raise the client's default window from 1280 × 720 to
 1600 × 900.** This moves the default camera fit above the `Medium` threshold
@@ -88,7 +94,9 @@ rather than assumed:
 - **The `Low` tier stays reachable and stays meaningful.** Legs exist at and
   above `cameraZoom 0.7037`. The default fit is `0.7879`, so zooming out crosses
   back into `Low` well before the zoom floor. `GA-7` remains attemptable exactly
-  as written.
+  as written, and it in fact closed `PASS` on 2026-08-14; the point above is
+  retained because it explains why the row could be attempted, not because it
+  is still pending.
 - **The minimum window is unaffected.** At the 1024 × 720 minimum
   (`ArenaGame.cs:29-30`) the arena panel is 649 × 640, the fit is `0.4462`, and
   `apparentScale` clamps to the `0.72` floor — still `Low`, unchanged.
@@ -199,6 +207,9 @@ row phrased against it. Three rows are affected and all three are currently
 - `BR-4` — the two factions' starting deployments at the default camera fit.
 - `RG-9` — ranged silhouettes compared across all three detail tiers. `Low`
   remains reachable, so this row is unaffected in substance, but the zoom at
-  which the tester finds each tier moves.
+  which the tester finds each tier moves. `RG-9` closed `PASS` on 2026-08-14,
+  recorded in the archived ranged units smoke section titled "Ranged units
+  smoke — closed 2026-08-14"; this note is retained because it records why
+  the row was unaffected, not because the row is still open.
 
 Whoever runs those rows should be told the default view is now `Medium`.

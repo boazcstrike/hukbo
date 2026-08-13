@@ -413,13 +413,14 @@ file this change touched is outside `Hukbo.Client`, its tests, and `docs/`.
 Still no evidence about anything interactive. All eight `PP-*` rows in the
 projectile-props smoke checklist were `PENDING` when this gate ran. They stayed
 that way until 2026-08-13, when a person ran the family and passed seven of
-them; the eighth, `PP-3`, did not pass, and only it is still open. What that
-tester found was an in-flight prop drawing far larger than the warriors it flew
-past, which is the opposite of the failure the row is written against. The
-in-flight prop was capped at the pawns' own apparent-scale ceiling in response,
-shipping on 2026-08-13 as commit `c772849` under a green `./scripts/verify.ps1`
-whose seed-1 digests did not move. `PP-3` stays open until a person re-runs it
-against that build.
+them; the eighth, `PP-3`, did not pass on that sitting. What that tester found
+was an in-flight prop drawing far larger than the warriors it flew past, which
+is the opposite of the failure the row is written against. The in-flight prop
+was capped at the pawns' own apparent-scale ceiling in response, shipping on
+2026-08-13 as commit `c772849` under a green `./scripts/verify.ps1` whose seed-1
+digests did not move. A person then re-ran `PP-3` against that build and passed
+it, so the family is closed at 8 of 8 and none of it is evidence about this
+gate, which ran before the cap existed.
 
 ## Canonical gate result — Hukbo, 2026-08-11 — battlefield realism
 
@@ -592,6 +593,57 @@ until the other session's work settles.
 **Still no evidence about anything interactive.** Smoke rows 58 and 59 are what
 this change was made for, and both are `PENDING` a re-run against a V13 build.
 Rows 60, 61 and 61a passed on 2026-08-14 against the pre-V13 build.
+
+## Canonical gate result — Hukbo, 2026-08-14 (agent inspector row wrapping)
+
+`./scripts/verify.ps1 -SkipBootstrap`, run in the main checkout on 2026-08-14.
+**Verdict: pass.** The run ended:
+
+```
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+The headless workload reported `"firstMismatchTick": null`, `"combatPreset": 5`,
+`"movementPreset": 13`, `"coreAllocatedBytes": 154976`, 2 487 accepted attacks
+and 1 710 landed, and `"maximumPenetrationRaw": 0`.
+
+**This run is not a clean verdict on the inspector change alone, and must not be
+cited as one.** `"movementPreset": 13` says what the working tree was: the
+cohort lateral spread workstream's uncommitted `CohortLateralSpreadV13` was
+present and was the selected default, alongside its uncommitted client
+presentation work. The run is evidence that the two changes are green
+*together* in this tree at this moment. Whoever commits either one separately
+owes a gate run against that commit.
+
+What the inspector change itself is entitled to claim is narrower and cleaner:
+`./scripts/test.ps1 -Configuration Release` reported **2 568 of 2 568 Core tests
+passed** and **3 805 of 3 805 Client tests passed**. The change touches three
+files under `src/Hukbo.Client/UI` and `tests/Hukbo.Client.Tests`, no
+`Hukbo.Core` file, no preset and no ruleset, so it cannot move either hash — and
+the identical `movementPreset` and null mismatch tick above are consistent with
+that rather than proof of it.
+
+**The new width test was proven able to fail** before being trusted. Removing
+the helper's second, narrower wrap pass — so a continuation line was measured
+against the full budget instead of the budget less the indent — turned the
+width-budget sweep red at all four pixels-per-character theories, with
+overflow assertions naming the 277-pixel budget. Restoring it returned both
+suites to green. That falsification matters here more than usual: this
+repository has shipped assertions that passed in both directions.
+
+**One consequence is recorded rather than buried.** Wrapping raises the reserved
+lower-row count from 24 to 47, and the panel's height baseline from 953 to
+1 505 pixels. At the smallest supported 1024 × 720 window that panel is more
+than twice the window height, so a fully-loaded warrior drops more trailing
+provenance rows than before. The panel refuses those rows rather than drawing
+past its bounds, which is the pre-existing contract, but the vertical fit is
+worse than it was and the change does not claim otherwise. It is the open
+question in section 6 of the inspector row wrapping design.
+
+**No evidence about anything interactive.** Smoke row `BR-10` is what this change
+was made for and it stays `PENDING`, carrying the observation that failed it.
+Only a person at an interactive desktop may close it.
 
 ## Sandata — recorded baselines and measurement runs, 2026-08-09
 

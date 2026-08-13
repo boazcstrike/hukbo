@@ -53,9 +53,9 @@ internal sealed class ClientSettingsStore
     private static readonly int[] AcceptedSchemaVersions =
         [8, SupportedSchemaVersion];
 
-    // Moved from Stylized to Full on 2026-08-13
-    // (docs/plans/2026-08-13-lethal-blow-legibility-design.md) on the
-    // explicit request of the person the presentation is for. This only
+    // Moved from Stylized to Full on 2026-08-13 by the lethal blow
+    // legibility design, on the explicit request of the person the
+    // presentation is for. This only
     // changes which level a spectator gets on a fresh install or after a
     // settings file with no recorded gore level; the enum's numeric values
     // are unchanged, so an existing settings file that already recorded a

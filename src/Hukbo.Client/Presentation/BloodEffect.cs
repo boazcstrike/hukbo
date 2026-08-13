@@ -55,7 +55,7 @@ internal readonly record struct BloodBurst(
     private const float OrdinaryLifetimeSeconds = 0.26f;
 
     // PROVISIONAL legibility tuning per CLAUDE.md section 7, raised
-    // 2026-08-13 (docs/plans/2026-08-13-lethal-blow-legibility-design.md) so
+    // 2026-08-13 (the lethal blow legibility design) so
     // the burst still has a body to draw over for the widened lethal hold.
     private const float LethalLifetimeSeconds = 0.62f;
 
@@ -88,7 +88,7 @@ internal readonly record struct GroundMark(
     private const float OrdinaryLifetimeSeconds = 2.6f;
 
     // PROVISIONAL legibility tuning per CLAUDE.md section 7, raised
-    // 2026-08-13 (docs/plans/2026-08-13-lethal-blow-legibility-design.md) so
+    // 2026-08-13 (the lethal blow legibility design) so
     // a killing blow's stain reads as heavier and outlives the fight longer.
     private const float LethalLifetimeSeconds = 8f;
     private const float DenseLifetimeMultiplier = 1.75f;
@@ -106,7 +106,7 @@ internal readonly record struct GroundMark(
 /// <c>GoreIntensity.Full</c>. Until 2026-08-13 the Stylized default never
 /// produced one, because a sustained spurt carries an anatomical reading the
 /// evidence does not support. That restraint was overridden on 2026-08-13
-/// (docs/plans/2026-08-13-lethal-blow-legibility-design.md) on the explicit
+/// (the lethal blow legibility design) on the explicit
 /// request of the person the presentation is for, after they reported that a
 /// killing blow did not read as clearly heavier than an ordinary one. The
 /// override is provisional legibility tuning per <c>CLAUDE.md</c> section 7,
@@ -128,7 +128,7 @@ internal readonly record struct LethalSpurt(
     float AgeSeconds) : IBloodEffect<LethalSpurt>
 {
     // PROVISIONAL legibility tuning per CLAUDE.md section 7, raised
-    // 2026-08-13 (docs/plans/2026-08-13-lethal-blow-legibility-design.md) to
+    // 2026-08-13 (the lethal blow legibility design) to
     // match the widened lethal hold and pulse.
     private const float SpurtLifetimeSeconds = 1.1f;
 

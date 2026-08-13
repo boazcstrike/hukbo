@@ -53,10 +53,9 @@ internal readonly record struct AttackAnimation(
     /// screen long enough for the ring, the pulse, and the blood burst to
     /// play out over it. This is still a hold, not a corpse layer: the
     /// defender leaves recovery and readiness exactly as before, just later.
-    /// Raised from 0.10f to 0.34f on 2026-08-13
-    /// (docs/plans/2026-08-13-lethal-blow-legibility.md) so a killing blow is
-    /// unmistakable on screen; see that design's section 4 for why the
-    /// shorter value existed first.
+    /// Raised from 0.10f to 0.34f on 2026-08-13 by the lethal blow
+    /// legibility plan so a killing blow is unmistakable on screen; see
+    /// that design's section 4 for why the shorter value existed first.
     /// </summary>
     public const float LethalHoldSeconds = 0.34f;
 

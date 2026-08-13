@@ -105,12 +105,19 @@ substitute for playing the game.
 **The merge to `main` happened on 2026-08-09 at `9daa271`,** after this section
 was written. What follows is what remains open, and none of it is code.
 
-- **The eleven `RG-*` rows are all `PENDING`.** They live in
+- **The eleven `RG-*` rows were closed `PASS` on 2026-08-14.** They had lived in
   `docs/development/smoke-checklist.md`, not in `docs/development/testing.md` as
-  this document originally said. A human at an interactive desktop flips them.
-  **No agent may flip one, for any reason, including a passing test.** Since
-  2026-08-13 all eleven are attemptable: the sound files exist, and a battle
-  with ranged warriors on the field has been driven to tick 3,584.
+  this document originally said, and only a human at an interactive desktop may
+  flip such a row — no agent may flip one, for any reason, including a passing
+  test. That is exactly what happened: a person at an interactive Windows
+  desktop ran all eleven rows on 2026-08-14 and every one passed. The ranged
+  units smoke section was then deleted whole from the smoke checklist, and its
+  record now lives in the 2026-08-14 archive titled "Ranged units smoke —
+  closed 2026-08-14". One caveat survives the closure: RG-11 was never a
+  pass/fail check, only an open question about whether a projectile visibly
+  passing through a friendly warrior looks wrong, and it was closed with no
+  written observation recorded. That question is therefore still unanswered
+  and still needs a fresh row.
 - **The sixty WAV files are committed.** `src/Hukbo.Client/Content/Audio` holds
   130 tracked `.wav` files — the 70 that predate this package plus RU-31's 60,
   spread over the thirteen new slots. Re-rolling a take after listening is still

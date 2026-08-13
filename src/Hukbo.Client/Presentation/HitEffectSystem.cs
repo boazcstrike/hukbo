@@ -8,10 +8,10 @@ internal sealed class HitEffectSystem
     private const float PulseSeconds = 0.09f;
 
     /// <summary>
-    /// PROVISIONAL legibility tuning (2026-08-13,
-    /// docs/plans/2026-08-13-lethal-blow-legibility.md): a killing blow gets
-    /// its own, longer pulse instead of being excluded from the pulse
-    /// entirely. This must stay strictly shorter than
+    /// PROVISIONAL legibility tuning (2026-08-13, the lethal blow
+    /// legibility plan): a killing blow gets its own, longer pulse instead
+    /// of being excluded from the pulse entirely. This must stay strictly
+    /// shorter than
     /// <see cref="AttackAnimation.LethalHoldSeconds"/>, because once the hold
     /// expires there is no pawn left for the pulse to play over.
     /// </summary>

@@ -200,8 +200,8 @@ public sealed class BloodEffectSystemTests
         Assert.Single(system.ActiveGroundMarks.ToArray());
 
         // Total elapsed age reaches 8.7s, past the 8s lethal ground-mark
-        // lifetime raised 2026-08-13
-        // (docs/plans/2026-08-13-lethal-blow-legibility-design.md).
+        // lifetime raised 2026-08-13, per the lethal blow legibility
+        // design.
         system.Advance(8f);
 
         Assert.Empty(system.ActiveGroundMarks.ToArray());

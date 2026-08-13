@@ -1,5 +1,13 @@
 # Lethal blow legibility: plan
 
+**Archived: reference only.** This is a finished plan. Its tasks were built and
+merged, and the two smoke rows it existed to close, 92 and 94, were re-run by a
+person on 2026-08-14 and both passed. Never execute it, never treat it as a live
+task list, and never cite it as the reason to make a change. The live contract
+for this project remains `CLAUDE.md` and `docs/development/smoke-checklist.md`.
+Read "How this closed, 2026-08-14" at the foot of this document before assuming
+every requirement in it was met — one was not.
+
 Date: 2026-08-13
 Design: [`2026-08-13-lethal-blow-legibility-design.md`](2026-08-13-lethal-blow-legibility-design.md)
 
@@ -213,7 +221,7 @@ What was run instead, with the real results:
 
 Those two digests are identical to the recorded baseline for the shipped default
 workload — combat preset 6, movement preset 4 — in
-[`../development/testing.md`](../development/testing.md). That is the automated
+`docs/development/testing.md`. That is the automated
 half of the guarantee that this change is presentation only. The interactive
 half is smoke row 98, which a person already passed.
 
@@ -240,3 +248,44 @@ Every task above can be green while a kill still fails to read on screen. Row 92
 closes when the person who reported it says a kill is unmistakable, and row 94
 closes when the same person confirms a crowded exchange stayed legible and
 bounded. No test, no build, and no gate may flip either.
+
+## How this closed, 2026-08-14
+
+**Both rows passed.** A person at an interactive desktop re-ran row 92 and row
+94 against the shipped build on 2026-08-14 and passed both, with no separate
+observation recorded for either. That closed the tactical hit animations family
+at 9 of 9, its section was deleted from the live checklist, and the two verdicts
+are recorded in the 2026-08-14 archive titled **"Tactical hit animations smoke —
+closed 2026-08-14"**, named here in prose rather than linked.
+
+**The green single-plan gate run this document asks for was never obtained, and
+this plan is being archived without it.** The requirement is the one stated
+above: once the concurrent armor-bar work had landed, `./scripts/verify.ps1` was
+to be run on an uncontaminated tree and its output recorded here. It was
+attempted on 2026-08-14 and it failed, for a new reason rather than the old one.
+The gate stopped at its Release build stage with ten instances of `error CS7036`
+in `tests/Hukbo.Core.Tests/Movement/CohortDeploymentAssignmentTests.cs`,
+reporting no argument for a required `spreadCohortsLaterally` parameter on
+`CohortDeploymentAssignment.AssignForFaction`. That is a concurrent session's
+in-progress cohort lateral spread work, which had added the parameter without
+yet updating the test's call sites. Nothing in this plan touches cohort
+deployment.
+
+What was run instead on 2026-08-14, with the real results:
+
+| Stage | Command | Result |
+| --- | --- | --- |
+| Canonical gate | `./scripts/verify.ps1 -SkipBootstrap` | **FAILED** at the Release build stage. `Build FAILED. 0 Warning(s) 10 Error(s)`, all ten `CS7036` in `CohortDeploymentAssignmentTests.cs`, from concurrent unrelated work |
+| Format verification | `./scripts/format.ps1 -Verify` | `[PASS] Formatting verification completed.` Formatted 0 of 762 files |
+| Client tests | `dotnet test tests/Hukbo.Client.Tests/Hukbo.Client.Tests.csproj -c Release` | `Passed! - Failed: 0, Passed: 3791, Skipped: 0, Total: 3791` |
+
+Every project this plan touches — `Hukbo.Client` and `Hukbo.Client.Tests` —
+built and passed in that run. The determinism workload was not reached, because
+the gate never got past its build stage.
+
+**Read this as the debt it is.** The two rows above are closed on a person's
+eyes, and this change is presentation-only by construction, so nothing here
+reaches a state hash. But the requirement this plan wrote for itself — one green
+gate run isolating this change — has still never been satisfied, and archiving
+the plan does not satisfy it. If a future reader needs certainty that this
+change alone leaves the gate green, that run has yet to happen.

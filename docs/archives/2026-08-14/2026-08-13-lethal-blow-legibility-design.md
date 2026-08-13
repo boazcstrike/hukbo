@@ -1,5 +1,11 @@
 # Lethal blow legibility: design
 
+**Archived: reference only.** This design was implemented, and the smoke rows it
+was written to close — 92 and 94 — were re-run by a person on 2026-08-14 and
+both passed. Never execute it, never treat it as current, and never cite it as
+the reason to make a change. The live contract for this project remains
+`CLAUDE.md` and `docs/development/smoke-checklist.md`.
+
 Date: 2026-08-13
 Status: proposed. This document does not authorize implementation; its plan,
 `2026-08-13-lethal-blow-legibility.md`, does.

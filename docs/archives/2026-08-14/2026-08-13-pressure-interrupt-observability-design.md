@@ -1,5 +1,11 @@
 # Pressure interrupt observability — design
 
+**Archived: reference only.** This design was implemented, and the eleven smoke
+rows it was written to unblock — `P-1` through `P-10` and `L-7` — were run by a
+person on 2026-08-14 and all passed. Never execute it, never treat it as
+current, and never cite it as the reason to make a change. The live contract for
+this project remains `CLAUDE.md` and `docs/development/smoke-checklist.md`.
+
 **Date:** 2026-08-13
 **Status:** design. This document does not authorize implementation; the plan
 document beside it does.

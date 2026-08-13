@@ -106,3 +106,27 @@ squared distances — an order-independent reduction that needs no tie-break.
 - Both test suites run. A `Hukbo.Core` change has reddened `Hukbo.Client.Tests`
   in this repository before.
 - `LS-1` stays unflipped. Only a person at an interactive desktop may pass it.
+
+## Closure — 2026-08-14
+
+`LS-1`, "Confirm the last stand ends as a group fight", was re-run on 2026-08-14
+by a person at an interactive desktop and closed `PASS`. That is the observation
+task 12 reopened the row for, and it is the only kind of evidence that could
+close it: the row asks what the endgame looks like on screen, which no test in
+either suite can answer. What was recorded is a pass and nothing more — no
+written description of the final engagement accompanied it — so the claim this
+plan may now make is that the row's criterion was judged satisfied under
+`MovementPresetId.LastStandEngagementV11`, not that any particular number of
+warriors was observed in contact.
+
+`LS-1` was the only row of its family, so the family closed at one row of one
+and its whole section was deleted from
+[`../development/smoke-checklist.md`](../development/smoke-checklist.md) rather
+than left standing with every row struck through. Its record — the original
+observation, the run history, and the closing verdict — is the archive titled
+"Last-stand engagement smoke — closed 2026-08-14". It is named here rather than
+linked, because nothing outside `docs/archives/` may hold a path into it.
+
+Nothing else in this document changes. The task table above records what was
+true when each task ran, including task 12's own `PENDING` state, and it is left
+as it was written.

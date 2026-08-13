@@ -3,9 +3,9 @@
 **Archived: reference only.** This is a finished plan. Every task in it was
 built, verified, and merged. Never execute it, never treat it as a live task
 list, and never cite it as the reason to make a change. The live contract for
-this project remains `CLAUDE.md` and `docs/development/smoke-checklist.md`. One
-manual smoke row, `PP-3`, is still open against the shipped change, and it is
-tracked in the smoke checklist rather than here.
+this project remains `CLAUDE.md` and `docs/development/smoke-checklist.md`. The
+manual smoke row this change owed, `PP-3`, was re-run by a person against the
+shipped build on 2026-08-13 and passed, so nothing here is outstanding.
 
 Date: 2026-08-13
 
@@ -228,7 +228,14 @@ contaminated-tree caveat noted above:
 
 This plan is therefore archived under the rule stated in `docs/plans/README.md`:
 a plan is archived when the build is finished, not when its smoke rows are.
-`PP-3` remains open and remains a human's to run.
+
+Step 3 closed later the same day. A person at an interactive desktop re-ran
+`PP-3` against the shipped build and passed it, confirming both halves the row
+asks for: the shot is still drawn at the most pulled-out camera, and at the
+tightest zoom a spear no longer reads as longer than the warriors around it.
+That verdict is a human's and is recorded in the projectile props smoke archive
+record for 2026-08-13, which closes at 8 of 8. Nothing in this plan is
+outstanding.
 
 ## 6. What this plan does not do
 

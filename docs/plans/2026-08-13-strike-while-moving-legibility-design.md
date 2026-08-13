@@ -204,14 +204,20 @@ Each of the three tabled options was rejected for a specific reason:
   it.
 - **B** contradicts smoke row `GA-7`, which exists precisely to check that legs
   and feet disappear cleanly at the lowest tier, and it spends quads at the tier
-  a 500-warrior battle is watched at.
+  a 500-warrior battle is watched at. `GA-7` closed `PASS` on 2026-08-14,
+  recorded in the archived movement gait animation smoke section titled
+  "Movement gait animation smoke — closed 2026-08-14"; the point above is
+  retained because it is why the constraint exists, not because the row is
+  still open.
 - **C** looked cheapest and is the most damaging. `ResolveApparentScale` clamps
   its result to a floor of `0.72`, so moving `MediumDetailScale` below `0.767`
   would leave `Low` alive only across `[0.72, 0.767)` — roughly five per cent of
   the scale range. The tier that keeps a large battle readable would become
   nearly unreachable and `GA-7` nearly unattemptable. This document's own cost
   column did not catch that, because it reasoned about the threshold without
-  reasoning about the clamp beneath it.
+  reasoning about the clamp beneath it. `GA-7` closed `PASS` on 2026-08-14; the
+  reasoning above is kept because it is why the constraint exists, not because
+  the row is still waiting.
 
 Cause two was answered separately, and this document was right that it is
 separable. Displacement below a crawl threshold now resolves `Stance` rather
