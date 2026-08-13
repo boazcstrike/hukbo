@@ -5,6 +5,7 @@ using Hukbo.Client.Rendering;
 using Hukbo.Client.Theming;
 using Hukbo.Client.UI;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Simulation;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -451,12 +452,16 @@ public sealed partial class ArenaGame
 
         foreach (var agent in _simulation.Agents)
         {
-            if (!agent.IsAlive &&
-                !_presentation.DefenderReactions.IsLethalHoldActive(
-                    agent.EntityId))
-            {
-                continue;
-            }
+            // Corpse layer (2026-08-13, smoke row 131). A dead agent is no
+            // longer skipped: it is drawn — and so counted here — for the
+            // rest of the battle. The lethal-hold lookup only runs for a
+            // dead agent, matching the short-circuit the removed
+            // "!IsAlive && !IsLethalHoldActive" skip used to give it for
+            // free.
+            var isAlive = agent.IsAlive;
+            var isLethalHoldActive = !isAlive &&
+                _presentation.DefenderReactions.IsLethalHoldActive(
+                    agent.EntityId);
 
             var worldPosition = new Vector2(
                 agent.XRaw / (float)FixedPoint.Scale,
@@ -497,19 +502,23 @@ public sealed partial class ArenaGame
                 continue;
             }
 
-            var attackPose = _attackPoses.TryGetValue(
+            var state = PawnVisualStateResolver.Resolve(
                 agent.EntityId,
-                out var pose)
+                selectedEntityId,
+                hoveredEntityId,
+                isAlive,
+                isLethalHoldActive);
+
+            // A corpse does not animate: no attack pose, matching the draw
+            // path's own null-pose rule (see DrawPawns).
+            var attackPose = state != PawnVisualState.Dead &&
+                _attackPoses.TryGetValue(agent.EntityId, out var pose)
                 ? pose
                 : (AttackPose?)null;
             var layout = pawnPrefix.CompleteAttackPosedLayout(
                 attackPose,
                 gaitPose: null,
                 ResolveReactionOffset(agent.EntityId));
-            var state = GetPawnVisualState(
-                agent.EntityId,
-                selectedEntityId,
-                hoveredEntityId);
 
             RecordQuads(PawnQuadCount.Count(
                 layout,
@@ -519,11 +528,13 @@ public sealed partial class ArenaGame
         }
 
         // GPU-005, as amended by GPU-014. One pawn-layout construction begun
-        // per living agent, and no second one for the agents that survived the
-        // cull: since GPU-014 those finish the construction stage one started
-        // rather than starting another. Counted at the call site rather than
-        // inside the helper so that this file's own per-agent work stays
-        // visible in the file that causes it.
+        // per agent this method walks — every agent, since the corpse layer
+        // removed the living-only skip — and no second one for the agents
+        // that survived the cull: since GPU-014 those finish the
+        // construction stage one started rather than starting another.
+        // Counted at the call site rather than inside the helper so that
+        // this file's own per-agent work stays visible in the file that
+        // causes it.
         _frameProbePassPawnGeometryInvocations = pawnGeometryInvocations;
     }
 
@@ -865,8 +876,12 @@ public sealed partial class ArenaGame
     /// <para>
     /// Called from inside the pawn loop, after the pawn itself is drawn, which
     /// is what gives the population its lifetime for free: a pawn the loop
-    /// skips — culled off screen, or dead past its lethal hold — never reaches
-    /// this call, so nothing here has to know whether a host is alive. See the
+    /// culls off screen never reaches this call. Corpse layer (2026-08-13):
+    /// a pawn dead past its lethal hold now does reach this call, same as a
+    /// living one, so an embedded arrow or spear stays visible in a body
+    /// after death rather than vanishing with it — the physically correct
+    /// reading, and free, because <see cref="PawnRenderer.DrawLayout"/>
+    /// already draws the corpse's posed layout this call anchors to. See the
     /// plan's section 3.
     /// </para>
     /// <para>
@@ -1050,7 +1065,9 @@ public sealed partial class ArenaGame
         // would shift every later agent's ordinal the moment somebody fell,
         // which the stored-key check would catch as a miss rather than as a
         // wrong appearance — correct, but with the hit rate destroyed and this
-        // task pointless.
+        // task pointless. The corpse layer's own two-pass draw order (below)
+        // depends on the same invariant: both passes walk the identical
+        // ordinal-indexed roster, so neither renumbers or compacts it either.
         var agents = _simulation.Agents;
 
         // GPU-020. One pass over the at-most-256 live effects for the whole
@@ -1079,13 +1096,103 @@ public sealed partial class ArenaGame
         // work actually saved.
         var hitPulses = _presentation.HitEffects.BuildPulseLookup();
 
+        // Corpse layer (2026-08-13, smoke row 131). Two passes over the same
+        // roster, in the same order, rather than one: the first draws only
+        // the agents PawnVisualStateResolver resolves to
+        // PawnVisualState.Dead, the second draws everyone else (living, and
+        // dead-but-still-in-their-lethal-hold, which still reads as Normal).
+        // Drawing the corpses first and the fighters second is what keeps a
+        // body from occluding a fight — nothing about draw order otherwise
+        // guarantees that, since a corpse's ordinal can sit anywhere in the
+        // roster relative to a nearby survivor's. Both passes read
+        // agents[ordinal] for the same ordinal range, so the appearance
+        // cache indexing GPU-018 depends on is untouched by the split; each
+        // pass only chooses, per agent, whether this is its turn to draw.
+        DrawPawnPass(
+            spriteBatch,
+            pixel,
+            arenaBounds,
+            agents,
+            selectedEntityId,
+            hoveredEntityId,
+            hitPulses,
+            drawDeadPass: true,
+            ref pawnGeometryInvocations);
+        DrawPawnPass(
+            spriteBatch,
+            pixel,
+            arenaBounds,
+            agents,
+            selectedEntityId,
+            hoveredEntityId,
+            hitPulses,
+            drawDeadPass: false,
+            ref pawnGeometryInvocations);
+
+        CloseArenaGeometrySpan();
+
+        if (_renderProbeEnabled)
+        {
+            // GPU-005. One integer store per frame. The geometry span has
+            // already closed on the line above, so this store lands in the
+            // submission span, and the two local increments above land in the
+            // geometry span — a register increment and a single store against
+            // spans reported in hundreds of microseconds. Both are stated here
+            // rather than left for a reader to discover. Everything costlier
+            // — the run-total accumulation and the recorder call — happens in
+            // Draw, after both spans have closed, so nothing that could
+            // meaningfully move a figure is charged to the figure it explains.
+            _frameDrawPathPawnGeometryInvocations = pawnGeometryInvocations;
+        }
+    }
+
+    /// <summary>
+    /// One pass of <see cref="DrawPawns"/>'s two-pass corpse-layer draw
+    /// order. Walks the whole roster every time it is called — once with
+    /// <paramref name="drawDeadPass"/> <c>true</c>, once <c>false</c> — and,
+    /// for each agent, resolves the same <see cref="PawnVisualState"/> the
+    /// old single pass resolved and draws the agent only if that state's
+    /// "is this a corpse" answer matches the pass. Everything below the
+    /// pass-membership check is the per-agent body <see cref="DrawPawns"/>
+    /// used to run once inline; splitting it into a shared method rather
+    /// than duplicating it under two loops is what keeps the two passes from
+    /// drifting apart the next time either one is edited.
+    /// </summary>
+    private void DrawPawnPass(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        Rectangle arenaBounds,
+        IReadOnlyList<AgentView> agents,
+        ulong? selectedEntityId,
+        ulong? hoveredEntityId,
+        HitPulseLookup hitPulses,
+        bool drawDeadPass,
+        ref int pawnGeometryInvocations)
+    {
         for (var ordinal = 0; ordinal < agents.Count; ordinal++)
         {
             var agent = agents[ordinal];
 
-            if (!agent.IsAlive &&
-                !_presentation.DefenderReactions.IsLethalHoldActive(
-                    agent.EntityId))
+            // Corpse layer (2026-08-13, smoke row 131). Nothing is skipped
+            // for being dead any more — that is the whole point of the
+            // feature — but a pass still skips an agent that belongs to the
+            // other pass, decided from the same resolved state
+            // PawnRenderer.DrawLayout is given further down, so "which pass
+            // draws this agent" and "what state does this agent draw as"
+            // can never disagree.
+            var isAlive = agent.IsAlive;
+            var isLethalHoldActive = !isAlive &&
+                _presentation.DefenderReactions.IsLethalHoldActive(
+                    agent.EntityId);
+            var state = PawnVisualStateResolver.Resolve(
+                agent.EntityId,
+                selectedEntityId,
+                hoveredEntityId,
+                isAlive,
+                isLethalHoldActive);
+            var isDead = state == PawnVisualState.Dead;
+
+            if (isDead != drawDeadPass)
             {
                 continue;
             }
@@ -1141,22 +1248,30 @@ public sealed partial class ArenaGame
                 continue;
             }
 
-            // The four values below were argument expressions on the
+            // The two values below were argument expressions on the
             // PawnRenderer.Draw call this replaces, evaluated left to right in
             // exactly this order. Each is a side-effect-free read, so naming
             // them as locals changes nothing about what is drawn; it only puts
             // them on the geometry side of the boundary, where per-agent CPU
-            // work belongs.
+            // work belongs. state itself was resolved above, before the
+            // pass-membership check, and is reused rather than re-resolved.
             var factionColor = FactionColorPalette.GetPawnColor(agent.FactionId);
-            var state = GetPawnVisualState(
-                agent.EntityId,
-                selectedEntityId,
-                hoveredEntityId);
             // GPU-020. One hashed read against the frame's snapshot, in place
             // of a full scan of the live-effect buffer per pawn. Same value,
             // same position in the same left-to-right argument order.
             var hitPulseStrength = hitPulses.GetPulseStrength(agent.EntityId);
 
+            // Corpse layer (2026-08-13, smoke row 131). A corpse does not
+            // animate: no ranged pose, no attack pose, no gait pose. The gait
+            // store already gates its own entries on IsAlive
+            // (GaitAnimationSystem.Ingest, Presentation/GaitAnimationSystem.cs
+            // line 123), so GaitPoseResolver.TryGetPose below already returns
+            // false for a dead agent without this method duplicating that
+            // gate. The ranged and attack lookups are not documented to gate
+            // on aliveness the same way, so isDead short-circuits both here
+            // explicitly, rather than trusting an absence this method cannot
+            // see the guarantee for.
+            //
             // RU-25. A ranged pose and an attack pose write the same
             // weapon-line rotation and reach channels into the one weapon
             // line a pawn has (RangedPoseResolver.SuppressesSwing), so a
@@ -1169,15 +1284,17 @@ public sealed partial class ArenaGame
             // channel, not the type: whatever writes the weapon line is what
             // a ranged pose must exclude, or a drawing archer would have its
             // bow arm fighting a sword swing for the same weapon line.
-            var rangedPose = RangedPoseResolver.TryGetPose(
-                _rangedPoses,
-                agent.EntityId,
-                out var resolvedRangedPose)
+            var rangedPose = !isDead &&
+                RangedPoseResolver.TryGetPose(
+                    _rangedPoses,
+                    agent.EntityId,
+                    out var resolvedRangedPose)
                 ? resolvedRangedPose
                 : (RangedPose?)null;
-            var attackPose = !RangedPoseResolver.SuppressesSwing(
-                _rangedPoses,
-                agent.EntityId) &&
+            var attackPose = !isDead &&
+                !RangedPoseResolver.SuppressesSwing(
+                    _rangedPoses,
+                    agent.EntityId) &&
                 _attackPoses.TryGetValue(
                     agent.EntityId,
                     out var pose)
@@ -1221,33 +1338,7 @@ public sealed partial class ArenaGame
 
             OpenArenaGeometrySpan();
         }
-
-        CloseArenaGeometrySpan();
-
-        if (_renderProbeEnabled)
-        {
-            // GPU-005. One integer store per frame. The geometry span has
-            // already closed on the line above, so this store lands in the
-            // submission span, and the two local increments above land in the
-            // geometry span — a register increment and a single store against
-            // spans reported in hundreds of microseconds. Both are stated here
-            // rather than left for a reader to discover. Everything costlier
-            // — the run-total accumulation and the recorder call — happens in
-            // Draw, after both spans have closed, so nothing that could
-            // meaningfully move a figure is charged to the figure it explains.
-            _frameDrawPathPawnGeometryInvocations = pawnGeometryInvocations;
-        }
     }
-
-    private static PawnVisualState GetPawnVisualState(
-        ulong entityId,
-        ulong? selectedEntityId,
-        ulong? hoveredEntityId) =>
-        entityId == selectedEntityId
-            ? PawnVisualState.Selected
-            : entityId == hoveredEntityId
-                ? PawnVisualState.Hovered
-                : PawnVisualState.Normal;
 
     /// <summary>
     /// The presentation-only body displacement a warrior struck this contact
