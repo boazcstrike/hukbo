@@ -11,10 +11,11 @@ internal readonly record struct GoreSelectorInteraction(
     bool PointerConsumed);
 
 /// <summary>
-/// Cycles the three blood rendering levels. Mirrors
-/// <see cref="UiThemeSelector"/>'s shape: every decision is a pure method the
-/// tests exercise directly, and <see cref="Draw"/> only paints what those
-/// methods already decided.
+/// Cycles the three blood rendering levels. All mechanics — bounds, wrapping,
+/// keyboard and pointer selection, motion, and drawing — are delegated to the
+/// shared <see cref="SettingsChoiceSelector{T}"/>; this type declares only the
+/// per-type option table, names, and label, mirroring
+/// <see cref="MotionIntensitySelector"/> and <see cref="AutoCameraModeSelector"/>.
 /// </summary>
 internal sealed class GoreIntensitySelector
 {
@@ -34,121 +35,77 @@ internal sealed class GoreIntensitySelector
         "Full",
     ];
 
-    private static readonly Keys[] ActivationKeys =
-    [
-        Keys.Left,
-        Keys.Right,
-        Keys.Enter,
-        Keys.Space,
-    ];
-
-    private readonly UiThemeSelectorLayout _layout;
-    private readonly UiTextRoles _textRoles;
-    private readonly UiSelectorMotion _motion = new();
+    private readonly SettingsChoiceSelector<GoreIntensity> _selector;
 
     public GoreIntensitySelector(UiThemeStandards standards)
     {
         ArgumentNullException.ThrowIfNull(standards);
-        _layout = standards.Shared.Selector;
-        _textRoles = standards.Shared.TextRoles;
+        _selector = new SettingsChoiceSelector<GoreIntensity>(
+            Label,
+            Options,
+            Names,
+            "ACTIVE",
+            standards);
     }
 
-    public Rectangle Bounds { get; set; }
+    public Rectangle Bounds
+    {
+        get => _selector.Bounds;
+        set => _selector.Bounds = value;
+    }
 
-    public Rectangle PreviousBounds =>
-        new(Bounds.Left, Bounds.Top, GetArrowWidth(), Bounds.Height);
+    public Rectangle PreviousBounds => _selector.PreviousBounds;
 
-    public Rectangle NextBounds =>
-        new(
-            Bounds.Right - GetArrowWidth(),
-            Bounds.Top,
-            GetArrowWidth(),
-            Bounds.Height);
+    public Rectangle NextBounds => _selector.NextBounds;
 
-    public IReadOnlyList<string> OptionNames => Names;
+    public IReadOnlyList<string> OptionNames => _selector.OptionNames;
 
     public static string GetDisplayName(GoreIntensity value) =>
         Names[GetIndex(value)];
 
     public GoreIntensity GetPrevious(GoreIntensity current) =>
-        GetRelative(current, -1);
+        _selector.GetPrevious(current);
 
     public GoreIntensity GetNext(GoreIntensity current) =>
-        GetRelative(current, 1);
+        _selector.GetNext(current);
 
     public string GetPositionText(GoreIntensity current) =>
-        $"{GetIndex(current) + 1} / {Options.Length}";
+        _selector.GetPositionText(current);
 
     public string GetSelectedMarkerText(GoreIntensity current) =>
-        $"ACTIVE  -  {GetPositionText(current)}";
+        _selector.GetSelectedMarkerText(current);
 
     public GoreIntensity? GetKeyboardSelection(
         Keys key,
         bool isFocused,
-        GoreIntensity current)
-    {
-        if (!isFocused)
-        {
-            return null;
-        }
+        GoreIntensity current) =>
+        _selector.GetKeyboardSelection(key, isFocused, current);
 
-        return key switch
-        {
-            Keys.Left => GetPrevious(current),
-            Keys.Right or Keys.Enter or Keys.Space => GetNext(current),
-            _ => null,
-        };
-    }
-
+    /// <summary>
+    /// Delegates to <see cref="SettingsChoiceSelector{T}.GetPointerSelection"/>,
+    /// whose extra <c>!Bounds.Contains(pointer)</c> guard is a no-op here: both
+    /// <see cref="PreviousBounds"/> and <see cref="NextBounds"/> share
+    /// <see cref="Bounds"/>'s top and height and are anchored inside its left
+    /// and right edges, so any pointer landing in either arrow rectangle
+    /// already satisfies that guard. A pointer failing the guard therefore also
+    /// fails both arrow-rectangle checks, and the two implementations agree on
+    /// every input.
+    /// </summary>
     public GoreIntensity? GetPointerSelection(
         Point pointer,
         bool activated,
-        GoreIntensity current)
-    {
-        if (!activated)
-        {
-            return null;
-        }
-
-        if (PreviousBounds.Contains(pointer))
-        {
-            return GetPrevious(current);
-        }
-
-        return NextBounds.Contains(pointer)
-            ? GetNext(current)
-            : null;
-    }
+        GoreIntensity current) =>
+        _selector.GetPointerSelection(pointer, activated, current);
 
     public GoreSelectorInteraction Update(
         InputEdges input,
         bool isFocused,
         GoreIntensity current)
     {
-        var pointerInside = Bounds.Contains(input.MousePosition);
-        var pointerSelection = GetPointerSelection(
-            input.MousePosition,
-            input.WasLeftMousePressed(),
-            current);
-        if (pointerSelection is { } pointerValue)
-        {
-            return new GoreSelectorInteraction(pointerValue, true);
-        }
-
-        if (isFocused)
-        {
-            foreach (var key in ActivationKeys)
-            {
-                if (input.WasPressed(key))
-                {
-                    return new GoreSelectorInteraction(
-                        GetKeyboardSelection(key, true, current),
-                        true);
-                }
-            }
-        }
-
-        return new GoreSelectorInteraction(null, pointerInside);
+        var result = _selector.Update(input, isFocused, current);
+        return new GoreSelectorInteraction(
+            result.SelectedValue,
+            result.PointerConsumed);
     }
 
     /// <summary>
@@ -161,16 +118,8 @@ internal sealed class GoreIntensitySelector
         InputEdges input,
         TimeSpan elapsed,
         MotionIntensity intensity,
-        GoreIntensity current)
-    {
-        _motion.AdvanceMotion(
-            input.MousePosition,
-            PreviousBounds,
-            NextBounds,
-            GetSelectedMarkerText(current),
-            elapsed,
-            intensity);
-    }
+        GoreIntensity current) =>
+        _selector.AdvanceMotion(input, elapsed, intensity, current);
 
     public void Draw(
         SpriteBatch spriteBatch,
@@ -178,79 +127,9 @@ internal sealed class GoreIntensitySelector
         UiFontSet fonts,
         UiTheme activeTheme,
         GoreIntensity current,
-        bool isFocused)
-    {
-        var colors = activeTheme.Colors;
-        spriteBatch.Draw(pixel, Bounds, colors.PanelAlternate);
-        UiPrimitives.DrawBorder(
-            spriteBatch,
-            pixel,
-            Bounds,
-            isFocused ? colors.ActionFocus : colors.PanelBorder,
-            UiScaleContext.Pixels(
-                isFocused
-                    ? activeTheme.Metrics.FocusThickness
-                    : activeTheme.Metrics.BorderThickness));
-
-        UiPrimitives.DrawCenteredText(
-            spriteBatch,
-            fonts.Get(_textRoles.SelectorArrow),
-            "<",
-            PreviousBounds.Center.ToVector2(),
-            _motion.PreviousArrowColor(colors));
-        UiPrimitives.DrawCenteredText(
-            spriteBatch,
-            fonts.Get(_textRoles.SelectorArrow),
-            ">",
-            NextBounds.Center.ToVector2(),
-            _motion.NextArrowColor(colors));
-
-        var centerX = Bounds.Center.X;
-        UiPrimitives.DrawCenteredText(
-            spriteBatch,
-            fonts.Get(_textRoles.SelectorLabel),
-            Label,
-            new Vector2(
-                centerX,
-                Bounds.Top +
-                    UiScaleContext.Pixels(_layout.LabelTopOffset)),
-            colors.TextSecondary);
-        UiPrimitives.DrawCenteredText(
-            spriteBatch,
-            fonts.Get(_textRoles.SelectorName),
-            GetDisplayName(current),
-            new Vector2(
-                centerX,
-                Bounds.Top +
-                    UiScaleContext.Pixels(_layout.NameTopOffset)),
-            colors.TextPrimary);
-
-        // The level is stated as text as well as position, so the control never
-        // relies on color alone to say which level is active.
-        UiPrimitives.DrawCenteredText(
-            spriteBatch,
-            fonts.Get(_textRoles.SelectorMarker),
-            GetSelectedMarkerText(current),
-            new Vector2(
-                centerX,
-                Bounds.Top +
-                    UiScaleContext.Pixels(_layout.MarkerTopOffset)),
-            _motion.MarkerColor(colors));
-    }
-
-    private int GetArrowWidth() =>
-        Math.Max(
-            UiScaleContext.Pixels(_layout.ArrowWidth),
-            UiScaleContext.Pixels(_layout.MinimumTargetSize));
-
-    private static GoreIntensity GetRelative(
-        GoreIntensity current,
-        int direction)
-    {
-        var index = GetIndex(current);
-        index = (index + direction + Options.Length) % Options.Length;
-        return Options[index];
-    }
+        bool isFocused) =>
+        _selector.Draw(
+            spriteBatch, pixel, fonts, activeTheme, current, isFocused);
 
     /// <summary>
     /// An unknown value resolves to the first option rather than throwing, so a
