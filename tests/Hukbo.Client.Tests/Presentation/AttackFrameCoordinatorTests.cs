@@ -91,6 +91,33 @@ public sealed class AttackFrameCoordinatorTests
         Assert.Equal(0, coordinator.Dispatcher.PendingCount);
     }
 
+    [Fact]
+    public void ReleaseForDraw_WithNoPendingContacts_ReturnsEmptyAndLeavesLaterLatchIntact()
+    {
+        var coordinator = new AttackFrameCoordinator(attackerCapacity: 1);
+        AgentView[] agents = [Agent(2, 0), Agent(7, 300)];
+
+        Assert.Empty(
+            coordinator.ReleaseForDraw(
+                agents,
+                MotionIntensity.Full,
+                allowRelease: true).ToArray());
+        Assert.Equal(0, coordinator.Dispatcher.PendingCount);
+
+        coordinator.Ingest([AttackEvent(sequence: 1, attacker: 2, defender: 7)]);
+        var released = Assert.Single(
+            coordinator.ReleaseForDraw(
+                agents,
+                MotionIntensity.Full,
+                allowRelease: true).ToArray());
+
+        Assert.Equal(1, released.Sequence);
+        Assert.True(coordinator.TryGetAgent(2, out var attacker));
+        Assert.True(coordinator.TryGetAgent(7, out var defender));
+        Assert.Equal(2ul, attacker.EntityId);
+        Assert.Equal(7ul, defender.EntityId);
+    }
+
     private static AgentView Agent(ulong entityId, int xRaw) =>
         new(
             entityId,

@@ -216,3 +216,37 @@ answered by a person.
   `ArenaGame.SetProbePlaybackStarted()` exists behind the `HUKBO_RENDER_PROBE`
   opt-in for exactly this reason. Check `activeAttackPosesMaximum` in any probe
   report before trusting its numbers as an attack budget.
+
+## 8. Two of section 5's smaller items are fixed, 2026-08-14
+
+`RenderAttackContactCollapsed` now logs at `dbg`. The condition is bursty by
+construction, and the logging standard in `CLAUDE.md` section 5 puts anything
+firing more than once a second at `dbg` or below. The line carried no `msg`
+field, so nothing had to be removed when the level dropped — the payload is
+still `attackerId`, `collapsedCount`, `sequence`, and `tick`.
+
+`AttackContactDispatcherTests.Ingest_RetainsFivePerAttackerAndCoalescesTheSixthWholeBundle`
+observed the line through a log configured at `Warning`, so it went red the
+moment the level moved. Its threshold is now `Debug` and it additionally asserts
+that the emitted `lvl` is `dbg`. Every other assertion in it is unchanged. The
+test now pins the level deliberately rather than observing it by accident, which
+is the difference between a test that survived the change and one that was made
+to survive it.
+
+`ReleaseForDraw` returns early when nothing is pending. It rebuilt its whole
+agent dictionary before it ever consulted the pending count, one insert per
+agent on frames that latch nothing. The returned span is unchanged, and the
+reason is checkable rather than assumed: `AttackContactDispatcher.TryLatchNext`
+already returns false immediately at a zero pending count, so the release loop
+never ran and the span was already empty. The dictionary is read only through
+`TryGetAgent`, whose single caller reads it only while iterating that span, so
+an unrebuilt dictionary is never observed. A regression test covers the
+zero-pending frame and proves that a later real latch still resolves its agent.
+
+The other four items in section 5 are untouched and still open, as are sections
+2, 3, and 4. The two fixed here were the two that needed no decision. Items 3
+and 4 both do: whether a collapsed bundle should be made visible or proved
+unreachable, and whether `AcknowledgeDraw` should consult cull survival. The six
+unread `AttackPose` fields and the `RecordPawnQuads` `gaitPose` mismatch were
+left alone for the same reason — dropping a field and changing what the probe
+pass records are both choices, not cleanups.
