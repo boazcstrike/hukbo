@@ -11,10 +11,10 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
 {
     /// <summary>
     /// The common peak every sample-domain-normalised take is scaled toward.
-    /// See
-    /// <c>docs/plans/2026-08-13-shield-clash-legibility-design.md</c>
-    /// section 4 for why <c>0.85</c> keeps the loudest possible cue under the
-    /// full-scale level today's flat <c>CueVolume</c> could already reach.
+    /// See section 4 of the shield-clash audio legibility design of
+    /// 2026-08-13 (archived) for why <c>0.85</c> keeps the loudest possible
+    /// cue under the full-scale level today's flat <c>CueVolume</c> could
+    /// already reach.
     /// </summary>
     internal const float ReferencePeak = 0.85f;
 
@@ -124,9 +124,8 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
     /// <see cref="TryBuildNormalizedEffect"/>, because a
     /// <see cref="SoundEffectInstance"/> volume multiplier clamped to
     /// <c>[0, 1]</c> can only ever attenuate and could never lift a quiet take
-    /// — see
-    /// <c>docs/plans/2026-08-13-shield-clash-legibility-design.md</c>
-    /// section 3.
+    /// — see section 3 of the shield-clash audio legibility design of
+    /// 2026-08-13 (archived).
     /// </summary>
     public bool Play(GameSoundId sound, HitClass? hitClass, int variantIndex, float volume, float pitch)
     {
@@ -292,9 +291,9 @@ internal sealed class MonoGameSoundPlayer : ISoundPlayer, IDisposable
     /// play-time volume multiplier — <see cref="SoundEffectInstance"/> volume
     /// clamps to <c>[0, 1]</c>, so a multiplier could only ever attenuate and
     /// could never lift the quietest measured take, which is the defect this
-    /// method exists to fix. See
-    /// <c>docs/plans/2026-08-13-shield-clash-legibility-design.md</c>
-    /// section 3. Returns <see langword="false"/> — never throws — for a take
+    /// method exists to fix. See section 3 of the shield-clash audio
+    /// legibility design of 2026-08-13 (archived). Returns
+    /// <see langword="false"/> — never throws — for a take
     /// <see cref="WavePeak.TryReadPcm"/> cannot parse or that measures as pure
     /// silence, so <see cref="TryLoadEffect"/> falls back to the unmodified
     /// <see cref="SoundEffect.FromStream"/> path for either case.

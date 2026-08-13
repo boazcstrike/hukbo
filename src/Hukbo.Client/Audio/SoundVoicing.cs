@@ -15,7 +15,8 @@ namespace Hukbo.Client.Audio;
 /// lowest, the Kampilan just behind it, the Kalis in the middle, and the Itak
 /// the lightest, highest, and quietest of the four. None of it is a
 /// measurement of a real weapon and none of it is a historical claim; see
-/// <c>docs/plans/2026-08-13-shield-clash-legibility-design.md</c> section 3.
+/// section 3 of the shield-clash audio legibility design of 2026-08-13
+/// (archived).
 /// </remarks>
 internal static class SoundVoicing
 {
