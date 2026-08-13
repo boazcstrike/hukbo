@@ -585,4 +585,79 @@ public sealed class CohortLateralSpreadV13Tests
             Assert.Equal(left.Loadout, right.Loadout);
         }
     }
+
+    // ----- Task 9: full-battle trajectory pin -----
+
+    /// <summary>
+    /// Plan task 9: pins <see cref="MovementPresetId.CohortLateralSpreadV13"/>'s
+    /// own full-battle trajectory the way
+    /// <c>ContingentShapeV12Tests.BattlefieldRealismV10FullBattleReproducesItsPinnedTrajectory</c>
+    /// and its V11 twin pin theirs -- terminal tick, outcome, state hash, and
+    /// ordered-event fold, against the same 200-warrior,
+    /// <c>PrecolonialPhilippinesV2</c>, seed-1 control shape those two use,
+    /// with only the movement preset changed to V13. The four literals below
+    /// were captured from a real run of this implemented build (not copied
+    /// from V11, which shares every ruleset field but not the deployment
+    /// permutation that decides who stands next to whom); see the class-level
+    /// return report for that captured run's outcome.
+    /// </summary>
+    [Fact]
+    public void CohortLateralSpreadV13FullBattleReproducesItsPinnedTrajectory()
+    {
+        var simulation = CreateFullBattleControlRun();
+        var result = RunToCompletion(simulation);
+
+        Assert.Equal(1353L, result.Tick);
+        Assert.Equal(BattleOutcome.Faction0Victory, result.Outcome);
+        Assert.Equal(0xF3ED8F6CE6C27C1EUL, result.StateHash);
+        Assert.Equal(0xA9A8CBE67AE6BC5CUL, result.EventFold);
+    }
+
+    /// <summary>
+    /// Same control shape <c>ContingentShapeV12Tests.CreateFullBattleControlRun</c>
+    /// uses for V10 and V11 -- 200 warriors, seed 1,
+    /// <c>PrecolonialPhilippinesV2</c>, the pinned body radius -- with the
+    /// movement preset fixed to <see cref="MovementPresetId.CohortLateralSpreadV13"/>
+    /// so a fixture cannot silently drift out from under the pinned literals
+    /// above.
+    /// </summary>
+    private static BattleSimulation CreateFullBattleControlRun()
+    {
+        const int CapturedBodyRadiusRaw = 4 * FixedPoint.Scale;
+
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            MovementPreset = MovementPresetId.CohortLateralSpreadV13,
+            BodyRadiusRaw = CapturedBodyRadiusRaw,
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+        };
+
+        scenario.Validate();
+        return BattleSimulation.Create(scenario);
+    }
+
+    /// <summary>
+    /// Runs <paramref name="simulation"/> to its own termination, folding the
+    /// ordered event stream into a single running FNV-1a hash exactly the
+    /// way <c>HeadlessRunner</c> folds it for the determinism workload --
+    /// the same helper shape as <c>ContingentShapeV12Tests.RunToCompletion</c>,
+    /// restated here because this project's test classes do not share
+    /// private helpers across files.
+    /// </summary>
+    private static (long Tick, BattleOutcome Outcome, ulong StateHash, ulong EventFold)
+        RunToCompletion(BattleSimulation simulation)
+    {
+        var fold = Fnv1a.OffsetBasis;
+        while (simulation.Outcome == BattleOutcome.Ongoing)
+        {
+            simulation.AdvanceOneTick();
+
+            foreach (var battleEvent in simulation.LastEvents)
+            {
+                HeadlessRunner.AddEventToHash(ref fold, battleEvent);
+            }
+        }
+
+        return (simulation.Tick, simulation.Outcome, simulation.ComputeStateHash(), fold);
+    }
 }
