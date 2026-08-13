@@ -120,4 +120,18 @@ having, but it is not the row.
 battle to the point where casualties have accumulated, finds a cluster of bodies,
 and reports whether the ground under them reads as visibly worn compared to
 untouched field.** Until this change that person had nothing to look for. The row
-moves from `BLOCKED` back to `PENDING` when the change lands — not to `PASS`.
+moved from `BLOCKED` back to `PENDING` when the change landed — not to `PASS`,
+because landing this change only made the row runnable.
+
+It was then run, and it passed. On 2026-08-13 a person at an interactive Windows
+desktop re-ran row 131 with the corpse placeholder in the build and reported
+`PASS`: a cluster of bodies gave them somewhere to look, and the ground beneath
+it read as visibly worn against untouched field. The caution above still stands
+as written — a landing change is not a passing row, and the row went to `PENDING`
+first — it simply did not have to wait long for the run that closed it. With row
+131 closed the improve-visuals smoke family finished at thirty-two rows of
+thirty-two and was deleted from `docs/development/smoke-checklist.md`, which by
+its own rule holds open work only. The history of the family, including why this
+row was blocked rather than failed, is preserved in the archived record titled
+"Visual improvement smoke (VIS) — closed 2026-08-13"; find it by title rather
+than by path.

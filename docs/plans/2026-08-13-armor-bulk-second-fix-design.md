@@ -167,6 +167,18 @@ is the row.
 
 **Row 128 closes only when a person at an interactive Windows desktop looks at
 the screen again and reports that an armored warrior reads as bulkier through
-the torso without reading as if it were carrying a shield.** That has now been
-attempted twice and failed twice, so the row stays open, carrying the observation
-that failed it, until a third run says otherwise.
+the torso without reading as if it were carrying a shield.** That had been
+attempted twice and failed twice when this document was written, so the row was
+left open, carrying the observation that failed it, until a third run said
+otherwise.
+
+The third run happened on 2026-08-13, and it said otherwise. A person at an
+interactive Windows desktop looked at the screen again with this second fix in
+the build and reported `PASS` for row 128. The prediction above was therefore
+borne out on the third attempt rather than the second, and the row is now
+closed. With it the whole improve-visuals smoke family closed at thirty-two rows
+of thirty-two and was deleted from `docs/development/smoke-checklist.md`, which
+by its own rule holds open work only. The history of those thirty-two rows,
+including both of row 128's failures and the two separate fixes they produced,
+is preserved in the archived record titled "Visual improvement smoke (VIS) —
+closed 2026-08-13"; find it by title rather than by path.

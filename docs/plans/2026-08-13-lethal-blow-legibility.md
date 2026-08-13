@@ -166,9 +166,11 @@ rather than an evidentiary claim. Name this design document in the comment.
 
 **D1. Record the smoke result.** Rows 90, 91, and 93 through 98 of
 `## Tactical hit animations smoke` in `docs/development/smoke-checklist.md`
-closed `PASS` on 2026-08-13. Lift them into
-`docs/archives/2026-08-13/2026-08-13-tactical-hit-animations-smoke.md` in the
-same shape as the other records already in that folder. Row 92 stays in the
+closed `PASS` on 2026-08-13. Lift them into a dated archive record titled
+"Tactical hit animations smoke — closed 2026-08-13", written in the same shape
+as the other records already archived under that date; name it by its title
+rather than by its path, because no file outside the archive folder may write a
+path into it. Row 92 stays in the
 checklist, rewritten to carry the tester's verbatim observation and what was
 changed in response, and stays `PENDING`. Row 94 is reopened by this change and
 returns to the checklist as a re-run, with section 6 of the design as its
@@ -218,6 +220,19 @@ half is smoke row 98, which a person already passed.
 **The gate still owes a green run.** Once the armor-bar work has landed,
 `./scripts/verify.ps1` must be run once on an uncontaminated tree and its output
 recorded here, replacing this section rather than sitting beside it.
+
+**Interim note, 2026-08-13.** Later the same day `./scripts/verify.ps1
+-SkipBootstrap` was run and completed with `[PASS] Canonical repository
+verification completed.` and exit code 0. That result is recorded here for what
+it is and for nothing more. It does **not** satisfy the requirement above,
+because the working tree it ran over was not an uncontaminated one: alongside
+this change it carried the armor-bulk second fix, the corpse placeholder, the
+projectile prop scale change, and the auto-camera centring change. A green
+verdict over four other changes at once tells us that the five together do not
+break the gate; it does not isolate this plan, which is the whole point of the
+run the requirement asks for. **The requirement is therefore not yet
+satisfied**, and this note stands beside it rather than replacing it until a
+single-plan gate run exists to record.
 
 ## What none of this proves
 

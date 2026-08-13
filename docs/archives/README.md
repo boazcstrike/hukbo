@@ -23,10 +23,15 @@ yet — `mkdir docs/archives/<today>` — rather than dropping the file at the
   not maintained.
 - **Never cite an archive as the reason to do something.** Cite the live
   contract instead.
-- **Never link into a dated subfolder from outside this directory without the
-  full path.** A link that reads `docs/archives/2026-07-26-foo.md` broke the
-  day this reorg landed — always include the date segment:
-  `docs/archives/2026-07-26/2026-07-26-foo.md`.
+- **No file outside `docs/archives/` may link or cite a path into it at all.**
+  Section 6 of `CLAUDE.md` states the rule without an exception: the folder is
+  deleted periodically, so a path into it is a path that breaks, and a
+  fully-qualified path with the date segment in it breaks exactly as readily as
+  a bare one. Name the archived document in prose if a reader needs to know it
+  existed — its **title**, so it can be found by searching for that title — and
+  never write the path as a link. This binds documentation, plans, research
+  notes, skills, and source comments alike. Inside this directory a path is
+  fine, because it dies with the folder it points into.
 - Reading one to answer "why was it built this way" is the intended use.
 
 ## Pruned on 2026-08-07
@@ -53,8 +58,17 @@ git show b144b7d --stat -- docs/archives | Select-String formation
 git show b144b7d:docs/archives/2026-07-28/2026-07-28-formation-movement-realism-design.md
 ```
 
-Documents archived on 2026-08-07 or later are still cited by path, because those
-files are present.
+Documents archived on 2026-08-07 or later may not be cited by path either.
+The rule above admits no date cutoff: a file outside this directory may not
+point at one inside it, however recently that file was archived and however
+plainly it is present today. A later archive prune removes it on the same terms
+the 2026-08-07 prune removed its predecessors, and a path written on the
+strength of the file being present now is a path that breaks then.
+
+Path citations written before that rule hardened do still survive here and
+there in the tree. They are known debt, not a licence: fix one when the
+surrounding file is being edited anyway, rewriting it to name the archived
+document's title in prose, and never add a new one.
 
 The earlier note about two plans listing GitHub Actions in their tech stack
 applied to files removed in that prune. The repository still uses local-only

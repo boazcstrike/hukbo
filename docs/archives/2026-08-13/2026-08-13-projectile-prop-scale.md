@@ -1,4 +1,11 @@
-# Projectile prop scale: plan
+# Projectile prop scale: plan — closed 2026-08-13
+
+**Archived: reference only.** This is a finished plan. Every task in it was
+built, verified, and merged. Never execute it, never treat it as a live task
+list, and never cite it as the reason to make a change. The live contract for
+this project remains `CLAUDE.md` and `docs/development/smoke-checklist.md`. One
+manual smoke row, `PP-3`, is still open against the shipped change, and it is
+tracked in the smoke checklist rather than here.
 
 Date: 2026-08-13
 
@@ -191,6 +198,37 @@ carried unrelated uncommitted work from a concurrent session, so the run proves
 the tree as a whole is green rather than isolating this change. The digests
 above are the evidence that this change in particular touched no simulation
 state.
+
+### Closure re-verification, 2026-08-13
+
+The change shipped as commit `c772849`, "fix: stop a projectile outgrowing the
+warrior who threw it at high zoom", which is now an ancestor of `main`. A
+separate audit of that commit against section 4 confirmed that it changes
+exactly three things and nothing else: the `cameraZoom` parameter's doc comment,
+the scale expression with its rationale comment block, and one added test
+method. The base unit constants, the embedded path, `PawnGeometry` and its
+clamp constants, the single production call site in `ArenaGame.Rendering.cs`,
+and the seven pre-existing tests this plan named as untouchable are all
+byte-identical to what they were before.
+
+Both verification steps were then re-run independently on the integrated tree
+rather than on the working copy the original record describes, which retires the
+contaminated-tree caveat noted above:
+
+- `./scripts/test.ps1 -Configuration Release` reported `Test Run Successful`
+  with 3,770 of 3,770 tests passed, exit code 0. The client suite is larger than
+  the 3,728 recorded above because unrelated work merged in the meantime; both
+  cases of `Create_NeverOutgrowsThePawnAtHighZoom` are among the passes.
+- `./scripts/verify.ps1` reported `[PASS] Canonical repository verification
+  completed`, exit code 0. The seed-1 workload under combat preset 5 and
+  movement preset 11 reported `deterministic: true`, `firstMismatchTick: null`,
+  `Faction0Victory` with 18 survivors, `stateHash 6225182B4A470F91`, and
+  `eventHash C4DABE6AF98B6BEC` — byte-identical to the baseline, which is what a
+  presentation-only change is required to produce.
+
+This plan is therefore archived under the rule stated in `docs/plans/README.md`:
+a plan is archived when the build is finished, not when its smoke rows are.
+`PP-3` remains open and remains a human's to run.
 
 ## 6. What this plan does not do
 
