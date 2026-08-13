@@ -197,8 +197,8 @@ internal static class ProjectileGeometry
         // warrior's height instead of roughly half of it. The floor half of
         // ResolveApparentScale's clamp — 0.72 — is deliberately NOT borrowed
         // here: applying it would inflate the prop at a pulled-out camera,
-        // where 500 warriors can be on screen at once, and put smoke rows
-        // PP-1 and PP-2 at risk to fix a defect neither of those rows covers.
+        // where 500 warriors can be on screen at once, and put already-verified
+        // smoke checklist coverage at risk to fix a defect none of it covers.
         // The resulting proportion between a flying shot and the warriors
         // around it is presentation tuning under CLAUDE.md section 7 — a
         // Provisional reconstruction, not a measurement, exactly like the

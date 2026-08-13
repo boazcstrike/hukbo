@@ -11,7 +11,7 @@ namespace Hukbo.Client.Audio;
 /// </summary>
 /// <remarks>
 /// Every value below is a provisional tuning value picked to match the
-/// ordering row 173 of the smoke checklist asked for — the Wasay heaviest and
+/// shield-clash ordering the smoke checklist asked for — the Wasay heaviest and
 /// lowest, the Kampilan just behind it, the Kalis in the middle, and the Itak
 /// the lightest, highest, and quietest of the four. None of it is a
 /// measurement of a real weapon and none of it is a historical claim; see

@@ -5,7 +5,7 @@ namespace Hukbo.Client.Tests;
 
 /// <summary>
 /// The bounded population of projectiles left standing in what they struck
-/// (docs/archives/2026-08-11/2026-08-11-projectile-props.md, task B1).
+/// (task B1 of the archived "Projectile props and embedded projectiles" plan).
 /// </summary>
 public sealed class EmbeddedProjectileSystemTests
 {

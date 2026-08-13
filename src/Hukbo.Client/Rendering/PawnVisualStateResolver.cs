@@ -9,9 +9,9 @@ namespace Hukbo.Client.Rendering;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The corpse layer (docs/plans/2026-08-13-corpse-placeholder-design.md;
-/// smoke row 131) is what gave a
-/// dead agent a second state to resolve to. Before it, <c>GetPawnVisualState</c>
+/// The corpse layer (docs/plans/2026-08-13-corpse-placeholder-design.md)
+/// is what gave a dead agent a second state to resolve to, closed and verified
+/// on the manual smoke checklist. Before it, <c>GetPawnVisualState</c>
 /// only ever chose among <see cref="PawnVisualState.Selected"/>,
 /// <see cref="PawnVisualState.Hovered"/>, and <see cref="PawnVisualState.Normal"/>,
 /// because a dead agent outside its lethal hold was never drawn at all — the

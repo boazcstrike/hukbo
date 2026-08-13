@@ -164,8 +164,8 @@ internal sealed class PresentationCoordinator
 
     /// <summary>
     /// The fixed-capacity population of projectiles left standing in what they
-    /// struck (docs/archives/2026-08-11/2026-08-11-projectile-props.md).
-    /// Fed from
+    /// struck (the 2026-08-11 projectile props and embedded projectiles
+    /// plan). Fed from
     /// <see cref="ReleaseAttackContactsForDraw"/> alongside every other
     /// contact consumer, never from <see cref="IngestTick"/> — driving it from
     /// the raw event stream would embed each arrow one animation early.

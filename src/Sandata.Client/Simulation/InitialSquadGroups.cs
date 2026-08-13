@@ -22,7 +22,7 @@ namespace Sandata.Client.Simulation;
 /// question</b> — "what an autonomous squad wants and how a destination is
 /// chosen". The intended model is per-area clearing with noise attraction,
 /// recorded in
-/// <c>docs/archives/2026-08-11/2026-08-10-sandata-playable-client.md</c>. What
+/// the 2026-08-10 Sandata playable client plan. What
 /// this type does is the smallest rule that makes the game demonstrate itself:
 /// each assaulting squad walks to a map objective.
 /// </para>

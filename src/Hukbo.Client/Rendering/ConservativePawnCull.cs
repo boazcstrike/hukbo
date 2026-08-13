@@ -17,8 +17,7 @@ namespace Hukbo.Client.Rendering;
 /// its brute-force containment proof are kept because
 /// <c>ConservativePawnCullTests</c> is the only thing that would catch the
 /// mirrored <see cref="PawnGeometry"/> constants below drifting from the real
-/// ones. See the archived plan at
-/// <c>docs/archives/2026-08-07/gpu-render/2026-07-28-gpu-render.md</c>.
+/// ones. See the 2026-07-28 GPU render plan.
 /// </para>
 /// <para>
 /// The purpose was the reordering described in the GPU render design's section

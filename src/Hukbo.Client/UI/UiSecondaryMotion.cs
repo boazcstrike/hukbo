@@ -6,9 +6,8 @@ namespace Hukbo.Client.UI;
 /// Shared duration constants for the UI-52 secondary-feedback surfaces —
 /// new-event row emphasis, selected-agent accent, selector arrow and marker
 /// interpolation, control-bar active strip, and status-badge emphasis. Each
-/// value is the midpoint of its published band in
-/// <c>docs/archives/2026-08-07/2026-08-07-ui-52-secondary-feedback-design.md</c>
-/// §4.4,
+/// value is the midpoint of its published band in the 2026-08-07 UI-52
+/// secondary feedback design §4.4,
 /// rounded to a round number of milliseconds. Kept in one class so every
 /// UI-52 duration can be asserted inside its band with a single test.
 /// </summary>

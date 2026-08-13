@@ -2154,7 +2154,8 @@ public sealed class PawnGeometryTests
     /// the constant at apparent scale 1 and never exceeds the constant times
     /// apparent scale anywhere else. This replaced an absolute-ceiling reading
     /// on 2026-08-11, under which an accent stayed two pixels at every zoom
-    /// and smoke row 129 could not be closed at any station. See
+    /// and the scale-relative behaviour this test pins could not be verified
+    /// at any station. See
     /// docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
     /// section 3.
     /// </summary>
@@ -2190,7 +2191,7 @@ public sealed class PawnGeometryTests
 
     /// <summary>
     /// The accent grows with zoom rather than staying pinned at the constant,
-    /// which is the behaviour smoke row 129 failed on. Composed through
+    /// which is the behaviour this test pins. Composed through
     /// <c>Create</c> rather than the helper, so this fails if the layout stops
     /// routing through it.
     /// </summary>

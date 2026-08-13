@@ -452,7 +452,7 @@ public sealed partial class ArenaGame
 
         foreach (var agent in _simulation.Agents)
         {
-            // Corpse layer (2026-08-13, smoke row 131). A dead agent is no
+            // Corpse layer (2026-08-13). A dead agent is no
             // longer skipped: it is drawn — and so counted here — for the
             // rest of the battle. The lethal-hold lookup only runs for a
             // dead agent, matching the short-circuit the removed
@@ -1096,7 +1096,7 @@ public sealed partial class ArenaGame
         // work actually saved.
         var hitPulses = _presentation.HitEffects.BuildPulseLookup();
 
-        // Corpse layer (2026-08-13, smoke row 131). Two passes over the same
+        // Corpse layer (2026-08-13). Two passes over the same
         // roster, in the same order, rather than one: the first draws only
         // the agents PawnVisualStateResolver resolves to
         // PawnVisualState.Dead, the second draws everyone else (living, and
@@ -1173,7 +1173,7 @@ public sealed partial class ArenaGame
         {
             var agent = agents[ordinal];
 
-            // Corpse layer (2026-08-13, smoke row 131). Nothing is skipped
+            // Corpse layer (2026-08-13). Nothing is skipped
             // for being dead any more — that is the whole point of the
             // feature — but a pass still skips an agent that belongs to the
             // other pass, decided from the same resolved state
@@ -1261,7 +1261,7 @@ public sealed partial class ArenaGame
             // same position in the same left-to-right argument order.
             var hitPulseStrength = hitPulses.GetPulseStrength(agent.EntityId);
 
-            // Corpse layer (2026-08-13, smoke row 131). A corpse does not
+            // Corpse layer (2026-08-13). A corpse does not
             // animate: no ranged pose, no attack pose, no gait pose. The gait
             // store already gates its own entries on IsAlive
             // (GaitAnimationSystem.Ingest, Presentation/GaitAnimationSystem.cs

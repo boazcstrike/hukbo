@@ -1456,7 +1456,7 @@ public sealed partial class ArenaGame : Game
     // slider count across every roster row that carries that rank, so the
     // sliders move real warriors again instead of being read and discarded.
     //
-    // LS-1: the movement preset moved on again, to LastStandEngagementV11,
+    // The movement preset moved on again, to LastStandEngagementV11,
     // which restates every one of V10's registered field values and adds the
     // two last-stand regroup yields. The tester's finding was made against the
     // shipped build, so the shipped build is what has to change: a follower

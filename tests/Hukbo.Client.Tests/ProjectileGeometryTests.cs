@@ -7,7 +7,7 @@ namespace Hukbo.Client.Tests;
 
 /// <summary>
 /// The in-flight projectile silhouettes
-/// (docs/archives/2026-08-11/2026-08-11-projectile-props.md, task A2).
+/// (task A2 of the archived "Projectile props and embedded projectiles" plan).
 /// Pure geometry, so
 /// every assertion here runs without a graphics device, a sprite batch, or a
 /// window.
