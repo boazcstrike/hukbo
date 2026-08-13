@@ -227,4 +227,30 @@ public enum MovementPresetId
     /// </para>
     /// </remarks>
     LastStandEngagementV11 = 11,
+
+    /// <summary>
+    /// The contingent-shape preset. A verbatim restatement of
+    /// <see cref="LastStandEngagementV11"/>'s registered field values under
+    /// its own <c>id</c>, following the same convention
+    /// <see cref="RangedStandoffV8"/>, <see cref="MonotoneAllyClearanceV9"/>,
+    /// <see cref="BattlefieldRealismV10"/>, and <see cref="LastStandEngagementV11"/>
+    /// already use: the behaviour is gated on preset identity at its own
+    /// call site, never on a <see cref="MovementRuleset"/> field, so this
+    /// value carries no new field of its own. It is reachable only through
+    /// explicit selection — the shipped default stays
+    /// <see cref="LastStandEngagementV11"/> — and is opt-in for the
+    /// <see cref="Simulation.FormationPlanner"/> to shape a contingent's
+    /// deployment footprint rather than its runtime cohesion behaviour. No
+    /// deployment or movement behaviour is gated on this identity yet, so a
+    /// full battle run under this preset is not currently guaranteed to be
+    /// byte-identical to <see cref="LastStandEngagementV11"/>: the
+    /// weapon-grouped cohort deployment gate already checks preset identity
+    /// with a closed <c>is BattlefieldRealismV10 or LastStandEngagementV11</c>
+    /// pattern rather than a monotone "V10 or later" test, and this value
+    /// falls outside it. Whichever call site introduces this preset's
+    /// contingent-shape behaviour must also decide whether to extend that
+    /// gate. See docs/plans/2026-08-13-contingent-shape.md and
+    /// docs/plans/2026-07-29-contingent-shape-design.md.
+    /// </summary>
+    ContingentShapeV12 = 12,
 }
