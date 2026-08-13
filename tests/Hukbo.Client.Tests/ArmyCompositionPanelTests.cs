@@ -341,6 +341,17 @@ public sealed class ArmyCompositionPanelTests
                 ArmyCompositionPanel.UnitsPerTeamControlIndex));
     }
 
+    /// <summary>
+    /// The registry is the authority on which presets exist, so this test asks
+    /// it rather than only checking the two lists against each other. It was
+    /// strengthened on 2026-08-14 for a concrete reason: it previously
+    /// asserted equal counts and no duplicates and nothing else, which
+    /// <see cref="MovementPresetId.ContingentShapeV12"/> passed while being
+    /// absent from both lists and therefore unselectable by any spectator —
+    /// a registered preset the shipped game could not reach, with a green
+    /// suite. See docs/plans/2026-08-14-contingent-chief-membership-design.md
+    /// section 5.4.
+    /// </summary>
     [Fact]
     public void EveryRegisteredMovementPresetHasAMatchingDisplayName()
     {
@@ -350,8 +361,39 @@ public sealed class ArmyCompositionPanelTests
         Assert.Equal(
             ArmyCompositionPanel.MovementPresetOptions.Count,
             ArmyCompositionPanel.MovementPresetOptions.Distinct().Count());
+
+        var registered = Enum.GetValues<MovementPresetId>()
+            .Where(MovementPresetRegistry.IsRegistered)
+            .ToList();
+
+        Assert.Equal(registered, ArmyCompositionPanel.MovementPresetOptions);
+
+        // Named explicitly rather than left to the sequence equality above,
+        // because a missing preset and a reordered one fail that assertion
+        // identically and only one of them is the failure this test was
+        // strengthened to catch.
+        foreach (var preset in registered)
+        {
+            Assert.Contains(preset, ArmyCompositionPanel.MovementPresetOptions);
+        }
+
+        foreach (var option in ArmyCompositionPanel.MovementPresetOptions)
+        {
+            Assert.True(
+                MovementPresetRegistry.IsRegistered(option),
+                $"The selector offers {option}, which is not registered.");
+        }
     }
 
+    /// <summary>
+    /// A forward step, a backward step, and the wrap at the end of the option
+    /// list. The wrap is the part worth keeping, so this walks from the
+    /// panel's own starting preset to the last entry and only then steps past
+    /// it, rather than assuming the starting preset is the last one — the
+    /// assumption that broke twice on 2026-08-14, once when
+    /// <see cref="MovementPresetId.ContingentShapeV12"/> was appended and once
+    /// when <see cref="MovementPresetId.CohortLateralSpreadV13"/> was.
+    /// </summary>
     [Fact]
     public void ArrowKeysCycleTheDraftMovementPresetWhileFocusedOnItsRow()
     {
@@ -367,13 +409,26 @@ public sealed class ArmyCompositionPanelTests
         panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
 
         Assert.Equal(
+            MovementPresetId.ContingentShapeV12,
+            panel.DraftMovementPreset);
+
+        panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
+
+        Assert.Equal(
             MovementPresetId.CohortLateralSpreadV13,
+            panel.DraftMovementPreset);
+
+        // One more forward step from the last entry wraps to the first.
+        panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
+
+        Assert.Equal(
+            MovementPresetId.IndependentPursuitV1,
             panel.DraftMovementPreset);
 
         panel.AdjustFocusedValue(direction: -1, isShiftHeld: false);
 
         Assert.Equal(
-            MovementPresetId.LastStandEngagementV11,
+            MovementPresetId.CohortLateralSpreadV13,
             panel.DraftMovementPreset);
     }
 
@@ -431,8 +486,12 @@ public sealed class ArmyCompositionPanelTests
         var interaction = panel.PerformAction(ArmyCompositionPanelAction.Apply);
 
         Assert.Equal(ArmyCompositionPanelResult.Applied, interaction.Result);
+
+        // Whichever preset one forward step from the panel's starting value
+        // lands on — the point here is that Apply commits the draft, not which
+        // preset the draft holds.
         Assert.Equal(
-            MovementPresetId.CohortLateralSpreadV13,
+            MovementPresetId.ContingentShapeV12,
             panel.SavedMovementPreset);
     }
 

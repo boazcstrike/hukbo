@@ -375,6 +375,11 @@ and unamended. Nothing in this task competes with it.
 - Verification: under V12, every contingent contains at least one `Datu`-rank
   agent whenever the roster fields at least as many chiefs as contingents. Under
   V1-V11, membership is unchanged.
+- **CLOSED AS ACCEPTED, 2026-08-14. Not delivered, and deliberately not.** The
+  verification above holds at `FormationPlanner.PlanFactionDeployment`'s own
+  output and is undone downstream by `CohortDeploymentAssignment`; section 6b.1
+  records the decision and its reasoning. This task is not reopened by a future
+  session without a new decision.
 
 ### Task 6 — chief-derived contingent count — BLOCKED, needs section 2.4 decided
 
@@ -533,10 +538,50 @@ Nothing here should be chosen under time pressure. Until it is, V12's honest
 description is "contingent count follows fielded chiefs, and sizes may be
 authored" — not "every contingent has a chief".
 
+### 6b.1 Resolved 2026-08-14: option 1, accept
+
+The three options were priced against the code in
+[`2026-08-14-contingent-chief-membership-design.md`](2026-08-14-contingent-chief-membership-design.md),
+and the user took **option 1** on 2026-08-14. Task 7 is closed as accepted, not
+delivered: V12 ships chief-derived contingent *count*, the chief-per-contingent
+claim is withdrawn, and `docs/plans/2026-07-29-contingent-shape-design.md`
+section 4 and its acceptance answer 1 were corrected to say so.
+
+The two findings that decided it:
+
+- **Option 2 pays a visible cost for an invisible benefit.** Reserving a chief
+  slot before weapon grouping never pushes a chief in front of a shield bearer
+  — every shipped `Datu` roster row is `ShieldId.None`, so `ShieldRank`
+  (`src/Hukbo.Core/Movement/CohortDeploymentAssignment.cs:252`) already sorts
+  chiefs behind every shield bearer in their contingent. But it does move the
+  cohort cut boundaries by one per contingent, redistributing shield bearers
+  between contingents, and that *is* on screen. What it buys is discoverable
+  only by clicking agents one at a time and joining the inspector's contingent
+  row against its rank row.
+- **Option 3 loses two behaviours it never meant to touch.**
+  `UsesBattlefieldRealism` (`src/Hukbo.Core/Simulation/BattleSimulation.cs:5202-5205`)
+  gates three behaviours at once, and avoiding that means a third closed preset
+  gate in the same file — the duplication that already produced two missed call
+  sites in this package.
+
+**The prerequisite that was done first.** V12 was registered but absent from
+the client's player-facing preset selector, so no spectator could reach it.
+That was two list entries in `src/Hukbo.Client/UI/ArmyCompositionPanel.cs`, and
+the Client test that should have caught the absence —
+`EveryRegisteredMovementPresetHasAMatchingDisplayName` — never consulted
+`MovementPresetRegistry` and now does. See
+`docs/plans/2026-08-14-contingent-chief-membership.md`.
+
 ## 7. Status
 
 All three blocking decisions were taken on 2026-08-13 and are recorded in
 section 0. Nothing in this plan is blocked any more.
+
+**Updated 2026-08-14.** Task 7 is closed as accepted rather than delivered, per
+section 6b.1. Tasks 1 through 6 shipped. The package is finished, and V12's
+honest description is settled: contingent count follows fielded chiefs, sizes
+may be authored, and no claim is made about a chief being present in every
+contingent.
 
 Tasks 8 and 9 are done, in the main checkout, because both are documentation
 edits. Tasks 1 through 7 are executing on the branch `contingent-shape`, in a

@@ -191,6 +191,24 @@ is present, and needs its own review of `FormationPlanner`'s existing lattice
 and spacing invariants before any placement rule is written. This document
 does not propose a specific placement rule; it records that one is needed.
 
+**Corrected 2026-08-14: this section is withdrawn, and "close to automatic" is
+wrong.** A chief per contingent is not deliverable on top of the deployment
+pipeline as it stands, and the obstacle is not placement — it is membership.
+`FormationPlanner.PlanFactionDeployment` does seat one chief in every
+contingent under `MovementPresetId.ContingentShapeV12`, and then
+`CohortDeploymentAssignment.AssignForFaction` reassigns membership by weapon
+cohort immediately downstream and discards that arrangement, at
+`src/Hukbo.Core/Movement/CohortDeploymentAssignment.cs:170`. A set of warriors
+cannot be partitioned by weapon and by rank at the same time, and weapon
+grouping is a shipped behaviour of V10 and V11 that V12 inherits.
+
+The three ways out were priced in
+[`2026-08-14-contingent-chief-membership-design.md`](2026-08-14-contingent-chief-membership-design.md),
+and on 2026-08-14 the first was taken: **accept the loss and drop the claim**.
+What V12 delivers is that contingent *count* follows the number of fielded
+chiefs, and that contingent sizes may be authored. It does not deliver a chief
+in every contingent, and this document no longer asks for one.
+
 ## 5. Follower capacity, revisited
 
 The parent design's Decisions item 5 deferred a fourth per-rank attribute —
@@ -295,6 +313,17 @@ guessing ahead of the task-planning pass this document exists to feed.
    current uniform lattice of equal-sized groups. Visible on screen the
    moment deployment is drawn, per `ARMY-COMPOSITION.md` §11.5's own
    discoverability note.
+
+   **Corrected 2026-08-14.** The second clause is withdrawn along with section
+   4: a chief is *not* present in every contingent under the shipped pipeline,
+   for the reason recorded there. What remains true, and what V12 actually
+   delivers, is the first and third clauses — a contingent count that follows
+   the number of fielded chiefs rather than the square root of headcount, and
+   sizes that a scenario may author. Both are visible the moment deployment is
+   drawn; a seed-1 headless comparison measured V12's army at 22% narrower and
+   27% shallower than V11's, recorded in
+   [`2026-08-14-contingent-chief-membership-design.md`](2026-08-14-contingent-chief-membership-design.md)
+   section 5.2.
 2. **Tick stage and state read/written.** Resolved once, at
    `BattleSimulation.Create`, before the first tick — the same point
    `ResolveContingentSizes` already runs at today. No tick stage mutates
@@ -372,7 +401,7 @@ that a reader can see what was open and what settled it.
   `EntityId` ascending — the discipline the leader election already uses at
   `src/Hukbo.Core/Movement/MovementRules.cs:96-140`. Proposed, not yet signed
   off, since it is still a rule about who leads.*
-- **STILL OPEN, and harder than when this was written.** Where inside a
+- **CLOSED 2026-08-14, by withdrawal rather than by answer.** Where inside a
   contingent's lattice cell its founding chief is placed, and whether that
   placement is privileged in any way. *`CohortDeploymentAssignment.AssignForFaction`
   (`src/Hukbo.Core/Movement/CohortDeploymentAssignment.cs:47`) now owns
@@ -381,7 +410,9 @@ that a reader can see what was open and what settled it.
   chief-placement rule would be a second claim on that same ordering, and the
   two have to be reconciled rather than merely composed. Nothing reads `RankId`
   at deployment time today. This is a gameplay decision, not a research
-  finding.*
+  finding.* **The decision taken on 2026-08-14 was to stop asking the question:
+  section 4's chief-per-contingent claim is withdrawn, so there is no founding
+  chief whose placement needs deciding.**
 - **CLOSED.** Whether `Scenario.ContingentSizes`'s validation belongs on
   `Scenario` itself or on a new value type, and how it interacts with
   `Scenario.RosterCounts`'s existing roster-length validation. *Answer: on
@@ -397,6 +428,12 @@ that a reader can see what was open and what settled it.
   folded is that ruleset's own `Id` at `CombatRuleset.cs:761`. Section 6's
   content-hash claim is therefore confirmed, and confirmed unconditionally
   rather than subject to its own hedge.*
+
+**Updated 2026-08-14: nothing in this section is open any more.** The fourth
+question was closed by withdrawing the claim that raised it, not by answering
+it, which is a real outcome rather than a deferral and is recorded as such
+above. The paragraph below is kept because its reasoning is why the question
+survived three passes without being guessed at.
 
 The one remaining open question is deliberately not resolved here. Resolving it
 under time pressure during an implementation pass is exactly the failure mode

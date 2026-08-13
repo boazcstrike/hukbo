@@ -107,6 +107,18 @@ internal sealed partial class ArmyCompositionPanel
     /// player-facing selector on the Army Composition panel; a staged choice,
     /// consumed by <c>ArenaGame.BuildScenario</c> only on the next Full Reset
     /// — see the pressure-interrupt observability design section 2.
+    /// <para>
+    /// "Every registered" is enforced rather than intended:
+    /// <c>ArmyCompositionPanelTests.EveryRegisteredMovementPresetHasAMatchingDisplayName</c>
+    /// enumerates <see cref="MovementPresetRegistry"/> and fails if a
+    /// registered preset is missing here. It did not always do that, and
+    /// <see cref="MovementPresetId.ContingentShapeV12"/> was registered but
+    /// absent from this list — and so unreachable by any spectator — until
+    /// 2026-08-14. The same omission happened a second time on the same day,
+    /// when <see cref="MovementPresetId.CohortLateralSpreadV13"/> was appended
+    /// here while V12 was still missing, which is why the test now asks the
+    /// registry rather than only checking these two lists against each other.
+    /// </para>
     /// </summary>
     internal static readonly IReadOnlyList<MovementPresetId>
         MovementPresetOptions =
@@ -122,6 +134,7 @@ internal sealed partial class ArmyCompositionPanel
             MovementPresetId.MonotoneAllyClearanceV9,
             MovementPresetId.BattlefieldRealismV10,
             MovementPresetId.LastStandEngagementV11,
+            MovementPresetId.ContingentShapeV12,
             MovementPresetId.CohortLateralSpreadV13,
         ];
 
@@ -143,6 +156,7 @@ internal sealed partial class ArmyCompositionPanel
             "V9 Monotone Ally Clearance",
             "V10 Battlefield Realism",
             "V11 Last-Stand Engagement",
+            "V12 Contingent Shape",
             "V13 Cohort Lateral Spread",
         ];
 

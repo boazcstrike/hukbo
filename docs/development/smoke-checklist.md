@@ -23,12 +23,18 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-14
 
-16 rows across 4 subsections: **16 `PENDING`, and no `BLOCKED`, `FAIL`, or
-`DECLINED` row** — counted from the status column of this file on 2026-08-14,
-after seven families closed in full that day and their subsections were deleted
-whole.
+18 rows across 5 subsections: **15 `PENDING`, 3 `PASS`, and no `BLOCKED`,
+`FAIL`, or `DECLINED` row** — recounted from the status column of this file on
+2026-08-14, after seven families closed in full that day and their subsections
+were deleted whole, and after the contingent shape selector family added `CS-1`
+and `CS-2` as two new `PENDING` rows in a subsection of their own.
 
-**Three of those sixteen carry a failing observation in `Actual` while sitting
+The previous count said sixteen rows, all `PENDING`. Sixteen was right; all
+`PENDING` was not — rows 60, 61, and 61a of the starting deployment section were
+already `PASS` when it was written, and they are the three `PASS` rows counted
+above. No row's status was changed to arrive at this count.
+
+**Three of the fifteen `PENDING` rows carry a failing observation in `Actual` while sitting
 at `PENDING`, and that is the rule rather than an inconsistency.** `BR-1`,
 `BR-2` and `BR-10` were run on 2026-08-14 and did not pass; a row that has been
 observed to fail and has a fix in flight goes back to `PENDING` carrying what
@@ -476,3 +482,36 @@ do not.
 | BR-4 | Compare the two factions' starting deployments at the default camera fit, paused at tick 0 | **Premise corrected on 2026-08-14; this row as originally written could only be passed by a broken build.** It asked a tester to confirm that the two sides are *not* warrior-for-warrior mirrors, and named an exact per-index mirror as the failure. The launched client has no rotating roster: `ArenaGame.BuildScenario` always populates `RosterCounts`, so both factions resolve identical loadouts per faction-local index and an exact per-index mirror at tick 0 is the correct result, not a failure. The rotating roster this row was written against belongs to `Scenario.CreateDefault`, which no client launch uses. What to look for is therefore what row 59 already asks for, and this row is subsumed by it: an exact reflection at tick 0, drifting apart once the battle runs | Not attempted. Superseded by row 59; run that row instead and record the result there | PENDING |
 | BR-10 | Resize the game window down to the smallest supported size, 1024 by 720, and open the agent inspector on a warrior whose panel renders at its full 953-pixel height | The panel still fits within the window at that size without clipping against the window edge and without overlapping the HUD, the control bar, or the event feed. Failure is the taller panel running off the bottom or side of the window at the minimum size, or covering another HUD element that was clear of it before this change | 2026-08-14, tester at the desktop: "it does render, but the width of the texts overextends the current small width of the info panel". The fault is horizontal, not the vertical one this row was written to catch, and it fails as written because the row's expected observation names no axis. The cause was measured rather than guessed: the panel has **no horizontal clip at all** — its two bounds tests both compare a row's bottom against a maximum row bottom — and only five prose blocks are wrapped, while the four top-detail rows and the roughly twenty-six lower rows are handed to a plain `DrawString` as finished single-line strings against a 277-pixel budget. The longest, the combo-attributes row, reaches 99 characters. A fix is in progress; this row is a re-run against that change, not a fresh check | PENDING |
 
+
+## Contingent shape selector smoke (V12)
+
+Added by the contingent chief membership change, which made
+`MovementPresetId.ContingentShapeV12` selectable in the Army Composition panel.
+V12 was registered on 2026-08-13 but absent from the panel's option list, so no
+spectator could reach it at all — and on 2026-08-14 `CohortLateralSpreadV13` was
+appended to that same list while V12 was still missing from it, so the omission
+happened twice before it was caught. The Client suite now enumerates
+`MovementPresetRegistry` and fails if a registered preset is missing from the
+selector. **No interactive run was performed for this change.** Both rows below
+are `PENDING` with their evidence cells empty.
+
+What the automated suite does prove: that the option list contains every
+registered preset, that arrow keys reach V12 and wrap past the end of the list,
+and that a seed-1 headless run under V12 terminates deterministically with an
+army 22 per cent narrower and 27 per cent shallower than V11's. What it does not
+prove is that either of those things reads correctly on screen — which is what
+the rows below are for. Design:
+`docs/plans/2026-08-14-contingent-chief-membership-design.md`.
+
+The client default is `V13 Cohort Lateral Spread`, so reaching V12 means
+selecting it on the panel, applying, and then performing a **Full Reset** — the
+selector stages a preset and the next full reset is what consumes it.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+certify one of these rows. Compilation, unit tests, and a window-opening probe
+do not.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| CS-1 | Open the Army Composition panel, focus the movement-preset row, and step through the whole list from the default `V13 Cohort Lateral Spread`. Select `V12 Contingent Shape`, apply, then perform a Full Reset | Both `V12 Contingent Shape` and `V13 Cohort Lateral Spread` appear in the selector, V12 immediately before V13, each label legible at the panel's default width without clipping or truncation, and the battle that follows the Full Reset is fought under V12. Failure is either preset being absent from the selector, a label overflowing the row, or the reset producing a battle indistinguishable from the V13 one because the staged preset was not consumed | | PENDING |
+| CS-2 | With the same army composition, watch the opening deployment under `V11 Last-Stand Engagement` and then under `V12 Contingent Shape`, both at the default camera fit, and compare how the two armies are grouped | The V12 army reads as more, smaller contingents than the V11 one, and as occupying visibly less width and depth on the field. Failure is the two deployments being indistinguishable at a glance, or the V12 deployment reading as crowded, overlapping, or clipped against the map edge rather than merely tighter. Record in `Actual` roughly how many separate groups each side reads as, for both presets | | PENDING |
