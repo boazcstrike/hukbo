@@ -161,6 +161,21 @@ public sealed record Scenario(
     public ImmutableArray<int> RosterCounts { get; init; } =
         ImmutableArray<int>.Empty;
 
+    /// <summary>
+    /// Per-faction, per-contingent warrior counts, one entry per founding
+    /// chief, applied identically to both factions. Empty (the default)
+    /// means the existing contingent-count-and-size arithmetic in
+    /// <see cref="FormationPlanner"/> runs unchanged, so every scenario that
+    /// does not opt in stays byte-identical to today. Check
+    /// <see cref="ImmutableArray{T}.IsDefaultOrEmpty"/>, not <c>== default</c>
+    /// or <c>.Length == 0</c> alone: the compiler default and an explicitly
+    /// empty array are different values under <c>==</c>, and only the
+    /// default check treats them the same. See
+    /// docs/plans/2026-07-29-contingent-shape-design.md section 3.
+    /// </summary>
+    public ImmutableArray<int> ContingentSizes { get; init; } =
+        ImmutableArray<int>.Empty;
+
     public int TotalAgents => checked(AgentsPerFaction * 2);
 
     /// <summary>
@@ -202,7 +217,8 @@ public sealed record Scenario(
             CombatPreset == other.CombatPreset &&
             MovementPreset == other.MovementPreset &&
             PlaceholderFighterLevel == other.PlaceholderFighterLevel &&
-            RosterCountsSpan.SequenceEqual(other.RosterCountsSpan);
+            RosterCountsSpan.SequenceEqual(other.RosterCountsSpan) &&
+            ContingentSizesSpan.SequenceEqual(other.ContingentSizesSpan);
     }
 
     public override int GetHashCode()
@@ -232,11 +248,19 @@ public sealed record Scenario(
             hash.Add(count);
         }
 
+        foreach (var size in ContingentSizesSpan)
+        {
+            hash.Add(size);
+        }
+
         return hash.ToHashCode();
     }
 
     private ReadOnlySpan<int> RosterCountsSpan =>
         RosterCounts.IsDefault ? ReadOnlySpan<int>.Empty : RosterCounts.AsSpan();
+
+    private ReadOnlySpan<int> ContingentSizesSpan =>
+        ContingentSizes.IsDefault ? ReadOnlySpan<int>.Empty : ContingentSizes.AsSpan();
 
     public static Scenario CreateDefault(ulong seed = 1, int totalAgents = 200)
     {
@@ -352,6 +376,36 @@ public sealed record Scenario(
                     "Roster counts must sum to exactly AgentsPerFaction " +
                     $"({AgentsPerFaction}); actual sum was {sum}.",
                     nameof(RosterCounts));
+            }
+        }
+
+        if (!ContingentSizes.IsDefaultOrEmpty)
+        {
+            if (ContingentSizes.Length > FormationPlanner.MaximumContingents)
+            {
+                throw new ArgumentException(
+                    "Contingent sizes length must not exceed " +
+                    $"MaximumContingents ({FormationPlanner.MaximumContingents}).",
+                    nameof(ContingentSizes));
+            }
+
+            var contingentSizeSum = 0;
+            for (var index = 0; index < ContingentSizes.Length; index++)
+            {
+                ValidateInRange(
+                    ContingentSizes[index],
+                    1,
+                    AgentsPerFaction,
+                    $"{nameof(ContingentSizes)}[{index}]");
+                contingentSizeSum = checked(contingentSizeSum + ContingentSizes[index]);
+            }
+
+            if (contingentSizeSum != AgentsPerFaction)
+            {
+                throw new ArgumentException(
+                    "Contingent sizes must sum to exactly AgentsPerFaction " +
+                    $"({AgentsPerFaction}); actual sum was {contingentSizeSum}.",
+                    nameof(ContingentSizes));
             }
         }
 

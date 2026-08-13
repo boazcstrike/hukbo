@@ -459,6 +459,100 @@ public sealed class ScenarioTests
     }
 
     [Fact]
+    public void DefaultContingentSizesAreEmptyAndSkipValidation()
+    {
+        var scenario = Scenario.CreateDefault();
+
+        Assert.True(scenario.ContingentSizes.IsDefaultOrEmpty);
+        scenario.Validate();
+    }
+
+    [Fact]
+    public void ValidateAcceptsAnExplicitlyEmptyContingentSizeArray()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 200) with
+        {
+            ContingentSizes = ImmutableArray<int>.Empty,
+        };
+
+        scenario.Validate();
+    }
+
+    [Fact]
+    public void ValidateAcceptsContingentSizesSummingToAgentsPerFaction()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 200) with
+        {
+            ContingentSizes = ImmutableArray.Create(20, 20, 20, 20, 20),
+        };
+
+        scenario.Validate();
+    }
+
+    [Fact]
+    public void ValidateRejectsAContingentSizeOfZero()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 200) with
+        {
+            ContingentSizes = ImmutableArray.Create(0, 100),
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateRejectsANegativeContingentSize()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 200) with
+        {
+            ContingentSizes = ImmutableArray.Create(-1, 101),
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateRejectsMoreContingentSizesThanMaximumContingents()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 200) with
+        {
+            ContingentSizes = ImmutableArray.Create(1, 1, 1, 1, 1, 1, 1, 1, 1),
+        };
+
+        Assert.Throws<ArgumentException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidateRejectsContingentSizesThatDoNotSumToAgentsPerFaction()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 200) with
+        {
+            ContingentSizes = ImmutableArray.Create(50, 49),
+        };
+
+        Assert.Throws<ArgumentException>(scenario.Validate);
+    }
+
+    [Fact]
+    public void ValidatePassesWithBothRosterCountsAndContingentSizesSupplied()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 200) with
+        {
+            RosterCounts = ImmutableArray.Create(25, 25, 25, 25),
+            ContingentSizes = ImmutableArray.Create(20, 20, 20, 20, 20),
+        };
+
+        scenario.Validate();
+
+        Assert.True(
+            scenario.RosterCounts.AsSpan().SequenceEqual(
+                ImmutableArray.Create(25, 25, 25, 25).AsSpan()));
+        Assert.True(
+            scenario.ContingentSizes.AsSpan().SequenceEqual(
+                ImmutableArray.Create(20, 20, 20, 20, 20).AsSpan()));
+    }
+
+    [Fact]
     public void EqualityComparesRosterCountsElementwiseRatherThanByReference()
     {
         var first = Scenario.CreateDefault(totalAgents: 200) with
