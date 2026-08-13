@@ -1,5 +1,6 @@
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Core.Tests;
@@ -1111,6 +1112,19 @@ public sealed class LastStandFormationTests
             simulation.Agents,
             agent => agent.EntityId == entityId);
 
+    /// <summary>
+    /// The movement preset is named rather than inherited from
+    /// <see cref="Scenario"/>'s own default. Every assertion in this file
+    /// describes the unconditional trail-plus-jitter behaviour, which
+    /// <see cref="MovementPresetId.LastStandEngagementV11"/> changes: a
+    /// follower under that preset stops regrouping once its rally agent is
+    /// engaged or its own enemy is inside its own reach. These tests freeze the
+    /// input they were written against instead of tracking whatever the shipped
+    /// default becomes, and the new behaviour has its own suite in
+    /// <c>LastStandEngagementV11Tests</c>. Naming V4 here changes nothing
+    /// today — it is what the default already resolved to — and stops a later
+    /// default flip from silently rewriting what this file asserts.
+    /// </summary>
     private static Scenario CreateTestScenario(int lastStandThreshold) =>
         new(
             Seed: 1,
@@ -1128,6 +1142,7 @@ public sealed class LastStandFormationTests
             MovementSpeedRaw = FixedPoint.Scale / 2,
             AttackCooldownTicks = 1,
             LastStandThresholdAgents = lastStandThreshold,
+            MovementPreset = MovementPresetId.PersistentContingentsV4,
         };
 
     private static AgentState CreateAgent(

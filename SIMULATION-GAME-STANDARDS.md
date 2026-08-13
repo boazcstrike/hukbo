@@ -784,6 +784,33 @@ duel. Attack eligibility is unchanged by any of this: it is decided entirely by 
 centre-to-centre range, so a regrouping warrior that passes an enemy inside reach still strikes it
 and is re-marked `Attacking` in the same tick.
 
+**Under `MovementPresetId.LastStandEngagementV11` the formation yields once the fighting starts.** The
+rule above describes what a follower does while its side is gathering, and until that preset it
+described what a follower did for the whole of the last stand — including after the rally agent had
+reached the enemy. The consequence was that only the rally agent ever fought: a follower's aim point
+sits 51 world units behind its leader against a longest melee reach of 16, both factions did this
+symmetrically, and the ending read as a sequence of single combats rather than as two small bands
+colliding. Two yields fix it, and both are gated on that preset alone, because the last-stand code
+is shared by every preset and unversioned.
+
+A follower is not marked `Regrouping` when its own faction's rally agent is itself within its own
+weapon reach of a living enemy, and it is not marked `Regrouping` when its own selected enemy is
+already within its own weapon reach. In either case the warrior keeps `AgentIntent.Moving` and takes
+the ordinary pursuit path, so it closes on the enemy target selection already resolved for it, and
+its `Move` event names that enemy rather than the rally agent. Both conditions test weapon reach
+rather than body contact: the override already yields at body contact by construction, since
+`Attacking` is assigned at two body radii and beats `Regrouping`, and it is exactly the band between
+reach and contact in which a warrior who could already strike was being dragged away from the enemy
+it could strike.
+
+The rally agent's engagement is derived in its own pass immediately after the rally scan and before
+any intent is assigned, never by reading the rally agent's own `Intent` mid-scan.
+`SelectTargetsAndIntents` is a single forward pass over the agent array and a rally agent can sit
+after its own follower in it, so reading its intent there would make a follower's intent depend on
+array order. The derived value is existential — does any living enemy within the rally agent's
+perception lie inside its reach — which is order-independent by construction and needs no tie-break.
+It is derived scratch: never hashed, never snapshotted, recomputed every tick.
+
 Both the state hash and the event hash move whenever a last stand is active. `Scenario.LastStandThresholdAgents`
 enters the scenario block of `StateHasher.Compute`, `AgentIntent.Regrouping` enters the state hash
 through the existing per-agent `Intent` write, and regrouping survivors stand in different places

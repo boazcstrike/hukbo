@@ -188,11 +188,78 @@ the headless workloads never load the client.
 are the reason this change exists and every one of them needs a person at an
 interactive desktop. See `docs/development/smoke-checklist.md`.
 
+## Canonical gate result — Hukbo, 2026-08-13 (last-stand engagement)
+
+**This is the live Hukbo baseline.** It supersedes the combat cadence V6 block
+below by adding a **fourth workload** and changing nothing else. Workloads 1, 2,
+and 3 are byte-identical to that block, and this run is their next independent
+capture.
+
+`./scripts/verify.ps1`, exit code 0, on branch `ls-endgame` off `main` at
+`8da5d92`:
+
+```
+Formatted 0 of 753 files.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Hukbo.Core.Tests     Total tests: 2503   Passed: 2503
+Hukbo.Client.Tests   Total tests: 3682   Passed: 3682
+[PASS] Release repository tests completed.
+stateHash 5460D13E3F7FD3E5   eventHash 8E18ED1437B2924B   combatPreset 6   movementPreset 4
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+stateHash C8023D3B5BEB005E   eventHash F709A345E2F7370E   combatPreset 5   movementPreset 8
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+stateHash 7C145A9E05916E4C   eventHash 77626E104234206C   combatPreset 5   movementPreset 10
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+stateHash 6225182B4A470F91   eventHash C4DABE6AF98B6BEC   combatPreset 5   movementPreset 11
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+**None of the three existing pairs moved, which is the required result.** The
+last-stand regroup yields change shared, unversioned simulation code, so the
+whole point of carrying them on a new movement preset is that every preset from
+V1 to V10 keeps its behaviour. Workload 1 (`combatPreset 6` / `movementPreset
+4`), workload 2 (`5` / `8`), and workload 3 (`5` / `10`) are each byte-identical
+to the pairs recorded in the combat cadence V6 block. Had the yields leaked past
+their preset gate, or had the six battlefield-realism identity gates been
+rewritten wrongly when V11 was admitted to them, workload 3 in particular would
+have moved.
+
+**Workload 4, `LastStandEngagementV11` (`combatPreset 5` / `movementPreset 11`),
+is new**, and it is the preset the client now selects. `PrecolonialPhilippinesV5`
+paired with it ran 200 agents to a decision at tick 2,037 with `Faction0Victory`
+and 18 survivors, `stateHash 6225182B4A470F91`, `eventHash C4DABE6AF98B6BEC`,
+`deterministic true`.
+
+It is worth reading workload 4 against workload 3, since V11 restates every one
+of V10's registered field values and differs only by the two yields. Same
+outcome and the same 18 survivors, but 2,037 ticks against V10's 1,888. The
+trajectory diverging is the change working: followers that used to hold station
+51 world units behind their rally agent now close on their own enemies once the
+fighting starts. A byte-identical pair here would have meant the yields never
+fired.
+
+`Hukbo.Core.Tests` grew from 2,492 to 2,503 and `Hukbo.Client.Tests` from 3,651
+to 3,682. The 11 new Core tests are `LastStandEngagementV11Tests`; the Client
+growth is not this change's, which only edited two assertions in
+`ScriptDefaultsTests` to match the fourth gate block.
+
+**Note on running the suites in `Debug`.** Two allocation-budget tests —
+`MovementContextObservationTests.RepeatedQuietV6TicksHaveBoundedAllocations` and
+`MovementPipelineIntegrationTests.RepeatedVSixCollisionTicksHaveBoundedAllocations`
+— fail under `dotnet test -c Debug` and pass in the `Release` run the gate
+makes. This was confirmed to be pre-existing by running them on unmodified
+`main`, where they fail the same way. Do not read a red pair there as a
+regression, and do not adjust either budget on the strength of a `Debug` run.
+
 ## Canonical gate result — Hukbo, 2026-08-11 (combat cadence V6)
 
-**This is the live Hukbo baseline.** It supersedes the battlefield realism
-block below for **workload 1 only**. Workloads 2 and 3 are unchanged, and this
-run is the third independent capture of both.
+**Superseded by the 2026-08-13 last-stand engagement block above**, which adds a
+fourth workload and reproduces all three of this block's pairs unchanged. It
+superseded the battlefield realism block below for **workload 1 only**.
+Workloads 2 and 3 were unchanged, and this run was the third independent capture
+of both.
 
 `./scripts/verify.ps1 -SkipBootstrap`, exit code 0, on branch
 `combat-cadence-v6` rebased onto `main` at `817c900`, the battlefield realism

@@ -77,6 +77,22 @@ if ($Game -eq 'Hukbo') {
         Preset = 'PrecolonialPhilippinesV5'
         MovementPreset = 'BattlefieldRealismV10'
     }
+
+    # None of the three invocations above runs the preset the client actually
+    # ships. LastStandEngagementV11 became that preset when the last-stand
+    # regroup yields landed, and V10 stays registered and covered by the block
+    # above rather than being repointed -- the same choice the V10 block itself
+    # records for V8. Without this fourth block a broken yield could leave the
+    # whole gate green while every shipped battle ran it.
+    Invoke-RepositoryScript -Name 'benchmark.ps1' -Parameters @{
+        Agents = 200
+        Ticks = 10000
+        Seed = 1
+        NoBuild = $true
+        Game = $Game
+        Preset = 'PrecolonialPhilippinesV5'
+        MovementPreset = 'LastStandEngagementV11'
+    }
 }
 
 Write-Host '[PASS] Canonical repository verification completed.'
