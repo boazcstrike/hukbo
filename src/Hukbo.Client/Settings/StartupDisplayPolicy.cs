@@ -40,8 +40,8 @@ internal static class StartupDisplayPolicy
 
         var isFullScreen = preferredMode == StartupDisplayMode.Fullscreen;
         return new StartupGraphicsConfiguration(
-            isFullScreen ? displayWidth : windowWidth,
-            isFullScreen ? displayHeight : windowHeight,
+            isFullScreen ? displayWidth : Math.Min(windowWidth, displayWidth),
+            isFullScreen ? displayHeight : Math.Min(windowHeight, displayHeight),
             isFullScreen,
             HardwareModeSwitch: false);
     }
