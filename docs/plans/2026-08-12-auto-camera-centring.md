@@ -26,3 +26,46 @@ them. AC-T6 is not delegated and runs once, after everything else has landed.
 `AC-1` is a manual row and only a person at an interactive desktop may flip it.
 Until they do, this plan is complete but the behaviour is unproven — a green
 gate says the tests pass, not that the camera now arrives centred.
+
+## AC-T6 — the recorded gate result
+
+`./scripts/verify.ps1` was run once on the integrated tree at `c15ca63` on
+2026-08-13 and passed.
+
+**What that tree contained, stated plainly.** The run covered this change
+together with the lethal blow legibility change, the armor bulk second fix, the
+corpse placeholder, the projectile prop scale fix, and the movement preset
+selector — each a separate commit, but all present in the one tree the gate
+built. So this is evidence that the six together do not break the gate and that
+none of them moved a hash. It is not an isolated single-plan run, and anyone
+who needs that stronger claim has to make it themselves.
+
+```
+[PASS] Required prerequisites and repository configuration are present.
+[PASS] Locked package restore completed.
+Formatted 0 of 759 files.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Test Run Successful.  Total tests: 2503   Passed: 2503     (Hukbo.Core.Tests)
+Test Run Successful.  Total tests: 3781   Passed: 3781     (Hukbo.Client.Tests)
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+Both hashes are byte-identical to the recorded seed-1 baseline on every one of
+stage five's four workloads, which is the expected result for a change confined
+to `Hukbo.Client`:
+
+| combat / movement preset | ticks | outcome | `stateHash` | `eventHash` |
+| --- | --- | --- | --- | --- |
+| 6 / 4 | 885 | `Faction0Victory` | `5460D13E3F7FD3E5` | `8E18ED1437B2924B` |
+| 5 / 8 | 1 764 | `Faction1Victory` | `C8023D3B5BEB005E` | `F709A345E2F7370E` |
+| 5 / 10 | 1 888 | `Faction0Victory` | `7C145A9E05916E4C` | `77626E104234206C` |
+| 5 / 11 | 2 037 | `Faction0Victory` | `6225182B4A470F91` | `C4DABE6AF98B6BEC` |
+
+This closes AC-T6. It does not close `AC-1`, which is a manual row and stays
+`PENDING` until a person at an interactive desktop watches where a pan stops.

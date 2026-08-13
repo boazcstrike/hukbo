@@ -4,6 +4,17 @@ Date: 2026-07-27
 Status: Evidence. This document records measurements only. It does not propose a
 change and it does not authorize implementation.
 
+**Superseded conditions, noted 2026-08-13.** Several measurements below report
+the thirteen ranged slots as structurally silent because no ranged `.wav` file
+existed on disk and no code path emitted a `Release` event. Both conditions
+ended: the sixty ranged takes are tracked under
+`src/Hukbo.Client/Content/Audio/`, and a battle driven to tick 3,584 on
+2026-08-13 submitted every one of the thirteen slots to the mixer —
+`ReleaseBangkaw` 1,565 cues, `ReleaseBusog` 1,483, `ReleaseArquebus` 387, plus
+the three `Attack`, three `Miss` and three `ClashShield` slots, all reporting
+`Played`. The measurements below stand as what was true on their own dates; the
+zero-cue and −∞ dBFS figures for the ranged slots no longer describe the game.
+
 ## 1. Why this exists
 
 The owner reported that battle audio is audible at the start of a match but

@@ -186,6 +186,21 @@ public sealed class SoundCatalogTests
         Assert.Equal(expected, SoundCatalog.IsMeleeShieldClash((GameSoundId)sound));
 
     [Fact]
+    public void IsMeleeShieldClash_IsTrueForExactlyFourOfTheWholeCatalog()
+    {
+        // Walks the live enum rather than a hand-listed table, so a future
+        // slot added to GameSoundId without a matching IsMeleeShieldClash
+        // arm is caught here even if the InlineData table above is not
+        // updated. MonoGameSoundPlayer's per-take normalisation gate reads
+        // this predicate directly, so a slot wrongly admitted here would be
+        // rewritten in the sample domain it should never touch.
+        var clashCount = Enum.GetValues<GameSoundId>()
+            .Count(SoundCatalog.IsMeleeShieldClash);
+
+        Assert.Equal(4, clashCount);
+    }
+
+    [Fact]
     public void GetVariantFileName_BuildsTheSlotClassIndexPattern() =>
         Assert.Equal(
             "attack-kampilan-skull-01.wav",

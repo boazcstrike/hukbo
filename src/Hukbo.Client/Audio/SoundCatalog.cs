@@ -128,11 +128,10 @@ internal static class SoundCatalog
     /// <summary>
     /// Whether a slot is one of the four melee shield-clash slots that
     /// <see cref="MonoGameSoundPlayer"/> normalises in the sample domain at
-    /// load. See
-    /// <c>docs/plans/2026-08-13-shield-clash-legibility-design.md</c>
-    /// sections 3 and 5: only these four slots are touched, and every other
-    /// slot — including the three ranged clash slots — loads byte-identical
-    /// to today.
+    /// load. See sections 3 and 5 of the shield-clash audio legibility design
+    /// of 2026-08-13 (archived): only these four slots are touched, and every
+    /// other slot — including the three ranged clash slots — loads
+    /// byte-identical to today.
     /// </summary>
     public static bool IsMeleeShieldClash(GameSoundId sound) =>
         sound is GameSoundId.ClashShieldKampilan or

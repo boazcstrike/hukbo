@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
     Drives scripts/sfx.ps1 across the ranged-units package's sixty sound
-    takes (RU-31), skipping files that already exist and retrying a take
-    the quiet guard rejected.
+    takes, skipping files that already exist and retrying a take the quiet
+    guard rejected.
 
 .DESCRIPTION
-    RU-31 asks for sixty files, twenty per ranged weapon, spread over the
+    The package asks for sixty files, twenty per ranged weapon, spread over the
     thirteen ranged slots PrecolonialPhilippinesV5 added to the catalog.
     Generating them one command at a time works, but the model returns a
     near-silent take often enough that scripts/sfx.ps1's quiet guard throws
@@ -33,9 +33,13 @@
     spending anything.
 
     Verification is unchanged and this script does not touch it: no
-    automated test can confirm a sound was heard, so RU-31 is finished only
-    when a person has listened to at least one take from each of the
-    thirteen slots and flipped the smoke-checklist row themselves.
+    automated test can confirm a sound was heard, so the generation step is
+    finished only when a person has listened to at least one take from each
+    of the thirteen slots and flipped the smoke-checklist row themselves.
+
+    All sixty takes were generated on 2026-08-13 and are tracked under
+    src/Hukbo.Client/Content/Audio/. A re-run without -Execute now resolves
+    every take as already present and requests nothing.
 
 .PARAMETER Execute
     Actually calls the ElevenLabs API through scripts/sfx.ps1. Without it
@@ -81,7 +85,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_common.ps1')
 
-# RU-31's take counts, and how the attack takes are spread across the six
+# The ranged take counts, and how the attack takes are spread across the six
 # hit classes. The totals are the plan's: twenty per weapon, sixty in all.
 #
 # The plan fixes the per-slot totals and requires ribcage to exist for
@@ -163,7 +167,7 @@ function Get-TakeFileName {
 }
 
 $plannedTotal = ($takeMatrix | Measure-Object -Property Count -Sum).Sum
-Write-Host "Ranged sound takes (RU-31): $plannedTotal declared across $($takeMatrix.Count) rows."
+Write-Host "Ranged sound takes: $plannedTotal declared across $($takeMatrix.Count) rows."
 Write-Host "Output directory: $audioDirectory"
 if (-not $Execute) {
     Write-Host '-Execute was not set. Nothing will be requested and nothing will be written.'
