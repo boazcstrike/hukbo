@@ -1,5 +1,15 @@
 # Armor bulk, second fix — design
 
+**Archived: reference only.** This is a finished design. It shipped at
+`736c868`, and smoke row 128 — the row it existed to close, failed twice before
+it — closed `PASS` on its third run on 2026-08-13, finishing the improve-visuals
+family at thirty-two rows of thirty-two. Never execute it, never treat it as a
+live task list, and never cite it as the reason to make a change. The live
+contract for this project remains `CLAUDE.md` and
+`docs/development/smoke-checklist.md`. No file under `src/` or `tests/` cites
+this document by path, which is what made it archivable while the corpse
+placeholder design of the same day stays live.
+
 Date: 2026-08-13. Scope: `Hukbo.Client` presentation only. No simulation type,
 no tick stage, and no hash is touched by anything in this document.
 
