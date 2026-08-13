@@ -125,6 +125,44 @@ Short files work best. Keep a hit around a tenth of a second and normalise the
 files against each other, because the game plays every cue at one fixed volume
 and does not mix or duck anything.
 
+## Shield-clash normalisation
+
+The sixteen takes behind the four melee shield-clash slots —
+`clash-shield-kampilan`, `clash-shield-wasay`, `clash-shield-kalis`, and
+`clash-shield-itak`, four numbered takes each — were never level-matched
+against one another. Measuring the peak amplitude of each take directly from
+its WAV samples gave the following, on a scale where `1.000` is full scale:
+
+| Slot | Take 01 | Take 02 | Take 03 | Take 04 |
+| --- | --- | --- | --- | --- |
+| `clash-shield-kampilan` | 0.207 | 0.449 | 1.000 | 0.302 |
+| `clash-shield-wasay` | 0.096 | 1.000 | 0.160 | 0.200 |
+| `clash-shield-kalis` | 0.926 | 0.168 | 0.882 | 0.717 |
+| `clash-shield-itak` | 0.189 | 1.000 | 0.393 | 1.000 |
+
+The spread within a single slot is larger than the spread between the four
+slots, so which take a block happened to draw mattered more than which weapon
+struck. A tester reported this directly on 2026-08-13: unable to tell the four
+slots apart by ear.
+
+The game now corrects this at load rather than by re-recording anything.
+Every clash take's peak is read once when the file loads, using the same
+`WavePeak` reader documented in `src/Hukbo.Client/Audio/WavePeak.cs`, and
+turned into a per-take gain multiplier that brings that take to a common
+reference peak of `0.85`. On top of that, the four slots carry a small,
+deliberately provisional voicing table — a relative level and a pitch offset
+each — so that once the takes are level-matched, the four weapons still read
+as different from one another: the Wasay plays heaviest and lowest, the
+Kampilan close behind it, the Kalis in the middle, and the Itak lightest,
+highest, and quietest. See `src/Hukbo.Client/Audio/SoundVoicing.cs` for the
+exact values and their reasoning.
+
+No sound file was regenerated to make this change, and no ElevenLabs credit
+was spent producing it. The sixteen files on disk are exactly the ones that
+were already there; only how loudly and at what pitch the game plays them
+changed. Every other slot in the catalog is unaffected and still plays at the
+flat volume and zero pitch offset described elsewhere on this page.
+
 ## Which folder
 
 Two locations work:
