@@ -425,3 +425,106 @@ those tasks no longer exist. The file still contributes zero cases to the gate.
   a further **93** cases net. The section also missed that
   `MovementProfileRegistrationTests` was already the table test for the row
   literals, which is why two whole files could be deleted rather than trimmed.
+
+## 12. T6 and T7, executed 2026-08-14
+
+Both remaining tasks are done. The bucket D finding this plan opened — three
+independently copied selectors and nine test files holding them to one
+behaviour — is closed.
+
+### T6, the source consolidation
+
+`MotionIntensitySelector`, `GoreIntensitySelector`, and
+`AutoCameraModeSelector` were 271 near-identical lines each. Each now holds one
+`SettingsChoiceSelector<T>`, built in its constructor with its own label,
+options, names, and the `ACTIVE` marker prefix, and forwards every member to it.
+
+| File | Before | After |
+| --- | --- | --- |
+| `MotionIntensitySelector.cs` | 271 | 150 |
+| `GoreIntensitySelector.cs` | 271 | 150 |
+| `AutoCameraModeSelector.cs` | 271 | 147 |
+
+The per-type `Options` and `Names` arrays and the static `GetDisplayName` stay
+where they are. They are the per-type configuration, not the duplication this
+task existed to remove.
+
+Section 8's acceptance criterion held exactly as written: all nine selector and
+manager test files passed unchanged. That is what proved the delegation
+preserved behaviour, and it is why the task was ordered before T7 rather than
+merged into it.
+
+One behavioural difference had to be reconciled rather than assumed away.
+`MotionIntensitySelector` and `GoreIntensitySelector` omitted the generic
+method's `Bounds.Contains` guard from `GetPointerSelection`;
+`AutoCameraModeSelector` already had it. The two agree, because `PreviousBounds`
+and `NextBounds` share the top and height of `Bounds` and are anchored inside
+its left and right edges, so a pointer inside either arrow rectangle is already
+inside `Bounds`. That reasoning is recorded in a doc comment at each call site
+rather than left for the next reader to re-derive.
+
+### T7, the test consolidation
+
+Six methods per file — wrap at both ends, the undefined-value fallback, the
+four-key focused-activation theory, unrelated-key rejection, pointer activation
+versus hover, and the arrow minimum target size — were the same assertions
+written three times against what is now one implementation. They moved to
+`SettingsChoiceSelectorTests`, asserted against two differently shaped
+instantiations rather than one. Each concrete type kept a single wiring test
+pinning its own option names and marker text.
+
+| | Methods | Lines |
+| --- | --- | --- |
+| Before | 50 | 1,030 |
+| After | 35 | 743 |
+
+The Client suite fell from 3,792 cases to 3,771. The arithmetic is exact: the
+three per-type theories dropped nine cases each and the shared suite gained six.
+
+Two of the nine files were deliberately not folded, and the reason is this
+plan's own criterion 4. `UiThemeSelector` does not delegate to
+`SettingsChoiceSelector<T>` at all — it carries its own bounds math, swatch
+rendering, and the provisional-reconstruction label — so its five tests still
+hold real behaviour that nothing else asserts. Nor does any shared manager type
+exist: `MotionIntensityManager`, `GoreIntensityManager`, and
+`AutoCameraModeManager` are still three independently copied classes. Folding
+their twenty test methods would delete real coverage for a source duplication
+nobody has consolidated, which is the exact mistake section 6 warned against.
+Those four manager files are a live bucket D finding, not finished work.
+
+### What the gate said, in full
+
+Run on the task branch rebased onto `main` at `04b23bc`.
+
+| Stage | Result |
+| --- | --- |
+| Format verification | `[PASS] Formatting verification completed.` |
+| Release solution build | `[PASS] Release solution build completed.` Zero warnings, zero errors |
+| `Hukbo.Core.Tests` | `Total tests: 2539  Passed: 2539` |
+| `Hukbo.Client.Tests` | `Total tests: 3771  Passed: 3767  Failed: 4` |
+
+The gate is red, and not because of this work. All four failures are
+`ClientSettingsStoreTests` methods asserting a default movement preset of
+`CohortLateralSpreadV13` against an actual `LastStandEngagementV11` — the V13
+selector work landing on `main` in a concurrent session. That was not taken on
+trust: the same four were run on unmodified `main` at `04b23bc` in a separate
+worktree and failed identically, `Failed: 4, Passed: 37`. Nothing in this task
+touches settings persistence or movement presets.
+
+Because the gate stops at its test stage, its determinism workloads never ran,
+so the workload was run on its own:
+
+```
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+outcome Faction0Victory   faction0Survivors 9   faction1Survivors 0
+stateHash 5460D13E3F7FD3E5   eventHash 8E18ED1437B2924B
+deterministic true   combatPreset 6   movementPreset 4
+```
+
+Both digests are byte-identical to the recorded baseline for the shipped default
+workload. Nothing under `src/Hukbo.Core` was touched, so no hash could have
+moved, and this is the measurement that says so rather than the assertion.
+
+This section owes one thing still: a green gate. Once the V13 default settles on
+`main`, `./scripts/verify.ps1` should be run once more and its verdict recorded
+here, replacing this paragraph.
