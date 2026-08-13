@@ -124,4 +124,24 @@ public sealed class SoundVoicingTests
         // this count assertion is the tripwire.
         Assert.Equal(22, nonClashSlots.Length);
     }
+
+    [Fact]
+    public void LoudestClashCue_PlaysQuieterThanTheFullScaleTakeDidBefore()
+    {
+        // Section 4 of the shield-clash audio legibility design (2026-08-13,
+        // archived) commits to this ceiling: per-take normalisation plus the
+        // heaviest slot's voicing level must never let a clash cue reach the
+        // full-scale level a flat CueVolume alone could reach before this
+        // table existed. Wasay carries the highest clash level, so it is the
+        // slot that could regress this ceiling first.
+        var highestClashLevel = SoundVoicing.Get(GameSoundId.ClashShieldWasay).Level;
+
+        var loudestClashCueNow =
+            MonoGameSoundPlayer.ReferencePeak * highestClashLevel * SoundDirector.CueVolume;
+        var loudestCueBefore = 1.0f * SoundDirector.CueVolume;
+
+        Assert.Equal(0.5525f, loudestClashCueNow, 4);
+        Assert.Equal(0.65f, loudestCueBefore, 4);
+        Assert.True(loudestClashCueNow < loudestCueBefore);
+    }
 }
