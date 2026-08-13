@@ -14,12 +14,18 @@ record are all live, because a future session still has to read them. What none
 of them means is *go and build this* — only an explicit authorization does that,
 and section 6 of [`../../CLAUDE.md`](../../CLAUDE.md) says how one is given.
 
-Last reviewed 2026-08-13. Two documents left this folder in this review and one
-joined it. The two that left are the projectile prop scale plan and the
-shield-clash audio legibility plan, each archived once its build finished — the
-shield-clash design stays behind, because six files under
-`src/Hukbo.Client/Audio` cite that design by path and this README's own rule
-keeps a source-cited design live. The one that joined is
+Last reviewed 2026-08-13. Three documents left this folder in this review and
+one joined it. The three that left are the projectile prop scale plan, the
+shield-clash audio legibility plan, and the shield-clash audio legibility
+design, each archived once its build finished. The design was held back at first
+under this README's rule that a source-cited design stays live, because six doc
+comments under `src/Hukbo.Client/Audio` cited it by path. It went later the same
+day: those six comments were rewritten to name the document in prose instead,
+which is what the rule against paths into `docs/archives/` requires of them, and
+once nothing cited the design by path there was nothing keeping it here. The
+constants those comments document — the `0.85` reference peak, the four voicing
+rows, the melee-clash slot gate — are described in the comments themselves and
+do not depend on the design surviving. The one that joined is
 `2026-08-13-contingent-shape.md`, the
 planning pass the 2026-07-29 contingent shape design has been waiting on since
 it was written. Two documents' states changed. The display DPI awareness
@@ -67,7 +73,6 @@ long as source or tests cite it by path, however long ago it shipped.
 | [`2026-08-13-lethal-blow-legibility.md`](2026-08-13-lethal-blow-legibility.md) | That design's two parallel workstreams — hit effect, pulse, and hold; blood and gore level — with the value table each one owed and the pinned tests each one had to recapture | Executed; the gate result is recorded in the plan itself |
 | [`2026-08-13-armor-bulk-second-fix-design.md`](2026-08-13-armor-bulk-second-fix-design.md) | Why smoke row 128 failed a second time, with the verdict "not bulky enough", after the first fix had replaced the solid armor slab with two flank bars. The first design decided in as many words to keep `MaxArmorWidthFactor` at 1.18 because the ceiling was not the problem; the second failure says it was part of it. Section 4 makes each bar exceed the capsule's own margin by at least a pixel so the armor carries the silhouette edge instead of sitting beside it | Shipped at `736c868`; row 128 closed `PASS` on its third run, on 2026-08-13, and the improve-visuals family finished at thirty-two rows of thirty-two |
 | [`2026-08-13-corpse-placeholder-design.md`](2026-08-13-corpse-placeholder-design.md) | Why smoke row 131 could not be run at all rather than merely failing: a fallen warrior is drawn for its death animation and then stops being drawn, so with no minimap and no position on an event-feed entry a spectator has nowhere to look for the ground the row asks about. Four rules keep a body on the field for the rest of the battle, unanimated, drawn beneath the living, without renumbering the ordinals the appearance cache addresses its slots by. Section 2 is emphatic that this is a placeholder and not a casualty system | Shipped at `4b9253d`; row 131 moved from `BLOCKED` back to `PENDING` when it landed and then closed `PASS` on 2026-08-13 |
-| [`2026-08-13-shield-clash-legibility-design.md`](2026-08-13-shield-clash-legibility-design.md) | Why a listener could not tell the four melee shield-clash slots apart on smoke row 173: the sixteen takes on disk were never level-matched, and the spread between takes inside one slot is wider than the spread between the four slots, so which take was drawn decided how loud a block sounded rather than which weapon struck. Section 2 tabulates the measured peak of every take | Shipped 2026-08-13; row 173 closed `PASS` on the tester's own judgement that the sounds are acceptable. Because rows 172 and 175 had passed against the loudness this change replaced, it owes two fresh rows, `SCL-1` and `SCL-2`, both `PENDING` |
 
 ## Sandata
 
