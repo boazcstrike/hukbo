@@ -55,7 +55,7 @@ internal sealed class AttackFrameCoordinator
         }
 
         _releasedCount = 0;
-        if (!allowRelease)
+        if (!allowRelease || Dispatcher.PendingCount == 0)
         {
             return ReleasedThisFrame;
         }

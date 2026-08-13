@@ -70,7 +70,7 @@ public sealed class AttackContactDispatcherTests
     {
         var writer = new StringWriter();
         using var diagnostics = DiagnosticLog.CreateForWriter(
-            new LogOptions(LogLevel.Warning, LogChannel.Render, null),
+            new LogOptions(LogLevel.Debug, LogChannel.Render, null),
             writer);
         var dispatcher = new AttackContactDispatcher(
             attackerCapacity: 1,
@@ -107,6 +107,7 @@ public sealed class AttackContactDispatcherTests
         Assert.Equal(
             LogEvents.RenderAttackContactCollapsed,
             root.GetProperty("ev").GetString());
+        Assert.Equal("dbg", root.GetProperty("lvl").GetString());
         Assert.Equal(2UL, root.GetProperty("attackerId").GetUInt64());
         Assert.Equal(1, root.GetProperty("collapsedCount").GetInt32());
         Assert.Equal(6, root.GetProperty("sequence").GetInt64());

@@ -287,7 +287,7 @@ internal sealed class AttackContactDispatcher
     {
         CollapsedContactCount++;
         _diagnostics.Write(
-            LogLevel.Warning,
+            LogLevel.Debug,
             LogChannel.Render,
             LogEvents.RenderAttackContactCollapsed,
             "attackerId",
