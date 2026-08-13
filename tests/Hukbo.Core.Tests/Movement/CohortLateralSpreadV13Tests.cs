@@ -538,4 +538,51 @@ public sealed class CohortLateralSpreadV13Tests
     private static System.Collections.Immutable.ImmutableArray<int>
         ShippedDefaultRosterCounts() =>
         [63, 63, 14, 31, 16, 11, 8, 13, 31];
+
+    // ----- Task 8: shipped-shape mirror test (row 59) -----
+
+    /// <summary>
+    /// Plan task 8 / smoke row 59: at the exact shipped shape -- 250 a side,
+    /// <c>PrecolonialPhilippinesV5</c>, <see cref="MovementPresetId.CohortLateralSpreadV13"/>,
+    /// <see cref="ShippedDefaultRosterCounts"/> -- the two factions are exact
+    /// per-index mirrors at tick 0, the same claim
+    /// <c>BattlefieldRealismV10Tests.PopulatedRosterCountsMirrorExactlyUnderV10</c>
+    /// proves for V10 with a small synthetic roster, run here at the shape
+    /// row 59 actually asks about instead. Design section 5 argues this
+    /// premise is already satisfied by the shipped build;
+    /// <c>CohortDeploymentAssignment</c> is faction-blind by its own
+    /// remarks, so a symmetric <c>RosterCounts</c> plus an identical
+    /// permutation applied to both factions' identically-ordered
+    /// faction-local loadout sequences should hold the mirror through the
+    /// riffle traversal too. If it does not, that is a real defect, not a
+    /// test to adjust -- the assertions below are not softened for a
+    /// mismatch.
+    /// </summary>
+    [Fact]
+    public void ShippedShapeMirrorsExactlyPerIndexAtTickZero()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 500) with
+        {
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV5,
+            MovementPreset = MovementPresetId.CohortLateralSpreadV13,
+            RosterCounts = ShippedDefaultRosterCounts(),
+        };
+        scenario.Validate();
+        var mapWidthRaw = checked(scenario.MapWidth * FixedPoint.Scale);
+
+        var simulation = BattleSimulation.Create(scenario);
+
+        for (var index = 0; index < scenario.AgentsPerFaction; index++)
+        {
+            var left = simulation.Agents[index];
+            var right = simulation.Agents[scenario.AgentsPerFaction + index];
+
+            Assert.Equal(0, left.FactionId);
+            Assert.Equal(1, right.FactionId);
+            Assert.Equal(checked(mapWidthRaw - left.XRaw), right.XRaw);
+            Assert.Equal(left.YRaw, right.YRaw);
+            Assert.Equal(left.ContingentId, right.ContingentId);
+            Assert.Equal(left.Loadout, right.Loadout);
+        }
+    }
 }
