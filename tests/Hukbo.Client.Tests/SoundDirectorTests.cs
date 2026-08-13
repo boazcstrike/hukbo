@@ -111,6 +111,39 @@ public sealed class SoundDirectorTests
     }
 
     [Fact]
+    public void Ingest_ScalesAShieldClashGainAndPassesItsPitchThroughToThePlayer()
+    {
+        // Proves SoundVoicing actually reaches the player rather than sitting
+        // unused: a Kampilan shield clash must arrive scaled by its 0.95 level
+        // and carrying its -0.20 pitch offset, not the flat CueVolume and
+        // pitch: 0f every other slot still gets.
+        var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
+        var director = new SoundDirector(logCapacity: 64, player);
+
+        director.BeginFrame(elapsedSeconds: 1.0);
+        director.Ingest(
+        [
+            BattleEvent.Attack(
+                sequence: 1,
+                tick: 5,
+                sourceEntityId: 1,
+                targetEntityId: 2,
+                damage: 0,
+                factionId: 0,
+                WeaponId.Kampilan,
+                ShieldId.None,
+                BodyPart.Head,
+                AttackResolution.ShieldBlocked),
+        ],
+        []);
+
+        var played = Assert.Single(player.Played);
+        Assert.Equal(GameSoundId.ClashShieldKampilan, played.Sound);
+        Assert.Equal(SoundDirector.CueVolume * 0.95f, played.Volume);
+        Assert.Equal(-0.20f, played.Pitch);
+    }
+
+    [Fact]
     public void Ingest_UsesANullHitClassForAnEventWithNoHitLocation()
     {
         var player = new RecordingSoundPlayer(SoundBindingStatus.Ready);
@@ -705,7 +738,7 @@ public sealed class SoundDirectorTests
 
         public IReadOnlyList<SoundBinding> Bindings { get; }
 
-        public List<(GameSoundId Sound, HitClass? HitClass, int VariantIndex, float Volume)>
+        public List<(GameSoundId Sound, HitClass? HitClass, int VariantIndex, float Volume, float Pitch)>
             Played
         { get; } = [];
 
@@ -724,7 +757,8 @@ public sealed class SoundDirectorTests
             GameSoundId sound,
             HitClass? hitClass,
             int variantIndex,
-            float volume)
+            float volume,
+            float pitch)
         {
             if (_status != SoundBindingStatus.Ready)
             {
@@ -737,7 +771,7 @@ public sealed class SoundDirectorTests
                 return false;
             }
 
-            Played.Add((sound, hitClass, variantIndex, volume));
+            Played.Add((sound, hitClass, variantIndex, volume, pitch));
             return true;
         }
     }

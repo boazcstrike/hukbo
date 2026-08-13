@@ -252,7 +252,8 @@ public sealed class AttackContactIntegrationTests
             GameSoundId sound,
             HitClass? hitClass,
             int variantIndex,
-            float volume)
+            float volume,
+            float pitch)
         {
             Played.Add((sound, hitClass));
             return true;

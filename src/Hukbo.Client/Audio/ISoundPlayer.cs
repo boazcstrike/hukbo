@@ -42,7 +42,10 @@ internal interface ISoundPlayer
     /// (<paramref name="sound"/>, <paramref name="hitClass"/>) pair whose
     /// status is <see cref="SoundBindingStatus.Ready"/>, with
     /// <paramref name="variantIndex"/> in
-    /// <c>[0, GetVariantCount(sound, hitClass))</c>.
+    /// <c>[0, GetVariantCount(sound, hitClass))</c>. <paramref name="pitch"/>
+    /// is the slot's <see cref="SoundVoicing"/> pitch offset, already inside
+    /// MonoGame's <c>[-1, 1]</c> pitch range; the implementation still clamps
+    /// it, since a caller other than <c>SoundDirector</c> is not obliged to.
     /// </summary>
     /// <returns>
     /// <c>false</c> when the backend declined the cue — on MonoGame, an
@@ -50,7 +53,7 @@ internal interface ISoundPlayer
     /// <see cref="SoundCueStatus.Refused"/> rather than reporting a cue that
     /// never sounded as played.
     /// </returns>
-    bool Play(GameSoundId sound, HitClass? hitClass, int variantIndex, float volume);
+    bool Play(GameSoundId sound, HitClass? hitClass, int variantIndex, float volume, float pitch);
 }
 
 /// <summary>
@@ -100,7 +103,8 @@ internal sealed class SilentSoundPlayer : ISoundPlayer
         GameSoundId sound,
         HitClass? hitClass,
         int variantIndex,
-        float volume) =>
+        float volume,
+        float pitch) =>
         throw new InvalidOperationException(
             "The silent player has no ready bindings and must never be asked " +
             "to play a sound.");

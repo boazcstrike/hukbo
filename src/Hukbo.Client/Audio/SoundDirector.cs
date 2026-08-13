@@ -296,6 +296,14 @@ internal sealed class SoundDirector
         _voices.Clear();
     }
 
+    /// <remarks>
+    /// This is the one place <see cref="SoundVoicing"/> is applied: the
+    /// slot's relative level is folded into the volume handed to
+    /// <see cref="ISoundPlayer.Play"/> here, and its pitch offset is passed
+    /// through as the new pitch parameter, so <c>MonoGameSoundPlayer.Play</c>
+    /// only ever has to apply its own per-take normalisation multiplier on
+    /// top. Applying the slot level again there would double it.
+    /// </remarks>
     private void Resolve(
         GameSoundId sound,
         HitClass? hitClass,
@@ -357,7 +365,8 @@ internal sealed class SoundDirector
         // derived from, not that count plus this cue.
         var voicesBefore = _voices.SoundingVoices;
         var gain = _voices.GetGainForNextCue(CueVolume);
-        if (!Player.Play(sound, hitClass, variantIndex, gain))
+        var voicing = SoundVoicing.Get(sound);
+        if (!Player.Play(sound, hitClass, variantIndex, gain * voicing.Level, voicing.Pitch))
         {
             Record(
                 tick,
