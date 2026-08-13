@@ -1,5 +1,6 @@
 using Hukbo.Core.Determinism;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 
 namespace Hukbo.Core.Simulation;
 
@@ -91,9 +92,18 @@ internal static class FormationPlanner
         var warriorCount = scenario.AgentsPerFaction;
 
         var region = ResolveRegion(mapWidthRaw, mapHeightRaw, radiusRaw);
-        var contingentSizes = ResolveContingentSizes(warriorCount);
+        var contingentSizes = ResolveContingentSizes(scenario);
         var laneSpan = (region.MaxY - region.MinY) / contingentSizes.Length;
-        var lattice = ResolveLattice(contingentSizes[0], laneSpan, region, radiusRaw);
+        var largestContingent = contingentSizes[0];
+        for (var index = 1; index < contingentSizes.Length; index++)
+        {
+            if (contingentSizes[index] > largestContingent)
+            {
+                largestContingent = contingentSizes[index];
+            }
+        }
+
+        var lattice = ResolveLattice(largestContingent, laneSpan, region, radiusRaw);
 
         if (!lattice.Fits(laneSpan, region))
         {
@@ -102,6 +112,7 @@ internal static class FormationPlanner
 
         var positions = new (int XRaw, int YRaw, int ContingentId)[warriorCount];
         var placedPerContingent = new int[contingentSizes.Length];
+        var contingent = 0;
 
         // Warriors are dealt round-robin rather than in contiguous runs.
         // RosterCounts groups one weapon category into a contiguous run of
@@ -113,9 +124,24 @@ internal static class FormationPlanner
         // one weapon cohort - a labelled Provisional reconstruction / gameplay
         // model, not a historical claim; see
         // docs/plans/2026-08-11-battlefield-realism-design.md section 2.2.
+        //
+        // The cursor advances one contingent per warrior and wraps, skipping
+        // any contingent that has already reached its own declared size. For
+        // the square-root split every contingent's size already equals the
+        // count plain `localIndex % contingentSizes.Length` dealing would
+        // give it, so no contingent is ever full ahead of its own natural
+        // turn and this is byte-identical to that simpler rule. Under
+        // MovementPresetId.ContingentShapeV12's authored, unequal sizes that
+        // is no longer true in general, and honouring each contingent's own
+        // declared size - rather than an even split of the same count of
+        // groups - is the point of authoring them.
         for (var localIndex = 0; localIndex < warriorCount; localIndex++)
         {
-            var contingent = localIndex % contingentSizes.Length;
+            while (placedPerContingent[contingent] >= contingentSizes[contingent])
+            {
+                contingent = (contingent + 1) % contingentSizes.Length;
+            }
+
             var memberIndex = placedPerContingent[contingent]++;
 
             var (xRaw, yRaw) = PlaceMember(
@@ -128,6 +154,7 @@ internal static class FormationPlanner
                 mapWidthRaw,
                 ref random);
             positions[localIndex] = (xRaw, yRaw, contingent);
+            contingent = (contingent + 1) % contingentSizes.Length;
         }
 
         return positions;
@@ -168,10 +195,34 @@ internal static class FormationPlanner
     }
 
     /// <summary>
+    /// The faction's contingent sizes: the scenario's own authored array under
+    /// <see cref="MovementPresetId.ContingentShapeV12"/> when one is present,
+    /// or the square-root split every earlier preset uses otherwise.
+    /// </summary>
+    /// <remarks>
+    /// Gated on both the preset identity and the field's presence, never on
+    /// the field alone, so that populating <c>ContingentSizes</c> under any
+    /// other preset -- including a scenario built for
+    /// <see cref="MovementPresetId.LastStandEngagementV11"/> that happens to
+    /// carry the field -- has no effect: this method, and therefore every
+    /// preset from V1 through V11, stays byte-identical to today's behaviour.
+    /// </remarks>
+    private static int[] ResolveContingentSizes(Scenario scenario)
+    {
+        if (scenario.MovementPreset == MovementPresetId.ContingentShapeV12 &&
+            !scenario.ContingentSizes.IsDefaultOrEmpty)
+        {
+            return [.. scenario.ContingentSizes];
+        }
+
+        return ResolveContingentSizesBySquareRoot(scenario.AgentsPerFaction);
+    }
+
+    /// <summary>
     /// Splits the faction into contingents of as near equal size as possible,
     /// the remainder going to the earliest contingents.
     /// </summary>
-    private static int[] ResolveContingentSizes(int warriorCount)
+    private static int[] ResolveContingentSizesBySquareRoot(int warriorCount)
     {
         var contingentCount = Math.Clamp(
             IntegerSquareRoot(warriorCount) / 2,

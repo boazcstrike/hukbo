@@ -1,5 +1,7 @@
+using System.Collections.Immutable;
 using Hukbo.Core.Determinism;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Core.Tests;
@@ -358,6 +360,220 @@ public sealed class FormationPlannerTests
                 localIndex % contingentCount,
                 deployment[localIndex].ContingentId);
         }
+    }
+
+    // ----- Task 5: exact draw-count contract -----
+    //
+    // NextJitter (FormationPlanner.cs) draws once per axis per warrior when
+    // its lattice's JitterLimit is positive, and draws nothing at all when
+    // JitterLimit is zero or when the dense-block fallback runs (it never
+    // receives `ref random`). SplitMix64's gamma is fixed per draw, so the
+    // post-call State uniquely encodes how many draws happened for a known
+    // seed: replaying the same seed for the known-correct draw count and
+    // comparing states is an exact assertion on draw count, not merely a
+    // before/after inequality.
+
+    [Fact]
+    public void DefaultTwoHundredAgentScenarioDrawsExactlyTwoHundredTimes()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200);
+
+        AssertDrawCount(scenario, expectedDrawCount: 200);
+    }
+
+    [Fact]
+    public void FiveHundredTwelveAgentScenarioDrawsExactlyFiveHundredTwelveTimes()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 512) with
+        {
+            MapHeight = 2_000,
+        };
+        scenario.Validate();
+
+        AssertDrawCount(scenario, expectedDrawCount: 512);
+    }
+
+    [Fact]
+    public void TheMinimumMapScenarioDrawsExactlyTwoTimes()
+    {
+        var scenario = Scenario.CreateDefault(totalAgents: 2) with
+        {
+            MapWidth = 1,
+            MapHeight = 1,
+            AttackRangeRaw = 2,
+            PerceptionRangeRaw = FixedPoint.Scale,
+            MovementSpeedRaw = 1,
+            BodyRadiusRaw = 1,
+        };
+
+        AssertDrawCount(scenario, expectedDrawCount: 2);
+    }
+
+    [Fact]
+    public void AHalfNarrowerThanOneBodyScenarioLeavesTheStreamUntouched()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 2) with
+        {
+            MapWidth = 9,
+            MapHeight = 100,
+        };
+        scenario.Validate();
+
+        AssertDrawCount(scenario, expectedDrawCount: 0);
+    }
+
+    [Fact]
+    public void ACrowdedDenseBlockFallbackScenarioLeavesTheStreamUntouched()
+    {
+        var scenario = Scenario.CreateDefault(seed: 6, totalAgents: 100) with
+        {
+            MapWidth = 100,
+            MapHeight = 100,
+        };
+        scenario.Validate();
+
+        AssertDrawCount(scenario, expectedDrawCount: 0);
+    }
+
+    // ----- Task 4: MovementPresetId.ContingentShapeV12 authored sizes -----
+
+    /// <summary>
+    /// Under <see cref="MovementPresetId.ContingentShapeV12"/> with an
+    /// authored <see cref="Scenario.ContingentSizes"/>, membership is still
+    /// dealt round-robin (as
+    /// <see cref="MembershipDealsRoundRobinAcrossContingentsOnBothPlacementPaths"/>
+    /// proves for the square-root split), so the resulting per-contingent
+    /// counts land on the authored array exactly, including its earliest
+    /// entry, which is deliberately not the largest.
+    /// </summary>
+    [Fact]
+    public void AuthoredContingentSizesUnderContingentShapeV12AreDealtExactly()
+    {
+        var authoredSizes = ImmutableArray.Create(10, 30, 60);
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            MovementPreset = MovementPresetId.ContingentShapeV12,
+            ContingentSizes = authoredSizes,
+        };
+        scenario.Validate();
+        var random = new SplitMix64(scenario.Seed);
+
+        var deployment = FormationPlanner.PlanFactionDeployment(scenario, ref random);
+
+        var counts = new int[authoredSizes.Length];
+        foreach (var member in deployment)
+        {
+            counts[member.ContingentId]++;
+        }
+
+        Assert.Equal(authoredSizes, counts);
+    }
+
+    /// <summary>
+    /// Authored sizes whose earliest entry is not the largest
+    /// (<c>[10, 30, 60]</c>) must still size the shared lattice off the
+    /// largest contingent, not off index zero: the named hazard this task
+    /// guards against. If the lattice were sized for the smallest contingent
+    /// instead, the sixty-member contingent would overflow its cell and land
+    /// on top of a neighbour.
+    /// </summary>
+    [Fact]
+    public void AuthoredContingentSizesWhoseEarliestEntryIsNotTheLargestProduceNoOverlap()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            MovementPreset = MovementPresetId.ContingentShapeV12,
+            ContingentSizes = ImmutableArray.Create(10, 30, 60),
+        };
+        scenario.Validate();
+
+        var simulation = BattleSimulation.Create(scenario);
+
+        AssertClearOfContact(simulation, scenario.BodyRadiusRaw);
+    }
+
+    /// <summary>
+    /// <see cref="MovementPresetId.ContingentShapeV12"/> with no authored
+    /// <see cref="Scenario.ContingentSizes"/> deploys byte-identically to
+    /// <see cref="MovementPresetId.LastStandEngagementV11"/>: the gate in
+    /// <c>FormationPlanner.ResolveContingentSizes</c> requires the field to
+    /// be present, not just the preset identity.
+    /// </summary>
+    [Fact]
+    public void ContingentShapeV12WithoutAuthoredSizesDeploysIdenticallyToLastStandEngagementV11()
+    {
+        var v11 = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            MovementPreset = MovementPresetId.LastStandEngagementV11,
+        };
+        var v12 = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            MovementPreset = MovementPresetId.ContingentShapeV12,
+        };
+        v11.Validate();
+        v12.Validate();
+        var randomV11 = new SplitMix64(v11.Seed);
+        var randomV12 = new SplitMix64(v12.Seed);
+
+        var deploymentV11 = FormationPlanner.PlanFactionDeployment(v11, ref randomV11);
+        var deploymentV12 = FormationPlanner.PlanFactionDeployment(v12, ref randomV12);
+
+        Assert.Equal(deploymentV11, deploymentV12);
+        Assert.Equal(randomV11.State, randomV12.State);
+    }
+
+    /// <summary>
+    /// <see cref="MovementPresetId.LastStandEngagementV11"/> with an authored
+    /// <see cref="Scenario.ContingentSizes"/> populated deploys
+    /// byte-identically to the same scenario without the field: the gate is
+    /// on preset identity, and a populated field alone admits nothing under
+    /// any preset except <see cref="MovementPresetId.ContingentShapeV12"/>.
+    /// </summary>
+    [Fact]
+    public void LastStandEngagementV11IgnoresAnAuthoredContingentSizesField()
+    {
+        var withoutField = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            MovementPreset = MovementPresetId.LastStandEngagementV11,
+        };
+        var withField = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            MovementPreset = MovementPresetId.LastStandEngagementV11,
+            ContingentSizes = ImmutableArray.Create(10, 30, 60),
+        };
+        withoutField.Validate();
+        withField.Validate();
+        var randomWithoutField = new SplitMix64(withoutField.Seed);
+        var randomWithField = new SplitMix64(withField.Seed);
+
+        var deploymentWithoutField =
+            FormationPlanner.PlanFactionDeployment(withoutField, ref randomWithoutField);
+        var deploymentWithField =
+            FormationPlanner.PlanFactionDeployment(withField, ref randomWithField);
+
+        Assert.Equal(deploymentWithoutField, deploymentWithField);
+        Assert.Equal(randomWithoutField.State, randomWithField.State);
+    }
+
+    /// <summary>
+    /// Replays <paramref name="scenario"/>'s own seed for
+    /// <paramref name="expectedDrawCount"/> raw draws and asserts the
+    /// resulting state matches the state <see cref="FormationPlanner"/>
+    /// actually leaves the stream in, so the assertion pins the exact draw
+    /// count rather than only whether the state moved.
+    /// </summary>
+    private static void AssertDrawCount(Scenario scenario, int expectedDrawCount)
+    {
+        var actual = new SplitMix64(scenario.Seed);
+        FormationPlanner.PlanFactionDeployment(scenario, ref actual);
+
+        var expected = new SplitMix64(scenario.Seed);
+        for (var index = 0; index < expectedDrawCount; index++)
+        {
+            expected.NextUInt64();
+        }
+
+        Assert.Equal(expected.State, actual.State);
     }
 
     private static List<int> GroupSizesByVerticalGap(
