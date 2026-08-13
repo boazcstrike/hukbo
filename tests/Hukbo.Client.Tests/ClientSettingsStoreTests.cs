@@ -34,7 +34,7 @@ public sealed class ClientSettingsStoreTests
                 StartupDisplayMode.Windowed,
                 settings.StartupDisplayMode);
             Assert.Equal(
-                MovementPresetId.BattlefieldRealismV10,
+                MovementPresetId.LastStandEngagementV11,
                 settings.MovementPreset);
         });
     }
@@ -52,7 +52,7 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.BattlefieldRealismV10));
+                MovementPresetId.LastStandEngagementV11));
             Assert.True(store.TrySave(
                 "broadcast",
                 ArmyComposition.Default,
@@ -61,7 +61,7 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.BattlefieldRealismV10));
+                MovementPresetId.LastStandEngagementV11));
 
             var settings = store.Load("command");
 
@@ -152,7 +152,7 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.BattlefieldRealismV10));
+                MovementPresetId.LastStandEngagementV11));
 
             var settings = store.Load("command");
 
@@ -173,7 +173,7 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.BattlefieldRealismV10));
+                MovementPresetId.LastStandEngagementV11));
 
             var settings = store.Load("signal");
 
@@ -196,7 +196,7 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.BattlefieldRealismV10));
+                MovementPresetId.LastStandEngagementV11));
 
             var settings = store.Load("signal");
 
@@ -399,7 +399,7 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Follow,
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.BattlefieldRealismV10));
+                MovementPresetId.LastStandEngagementV11));
 
             var settings = store.Load("command");
 
@@ -428,7 +428,7 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Follow,
                 uiScale,
                 StartupDisplayMode.Fullscreen,
-                MovementPresetId.BattlefieldRealismV10));
+                MovementPresetId.LastStandEngagementV11));
 
             var settings = store.Load("command");
 
@@ -460,7 +460,7 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Follow,
                 UiScale.Percent150,
                 startupDisplayMode,
-                MovementPresetId.BattlefieldRealismV10));
+                MovementPresetId.LastStandEngagementV11));
 
             var settings = store.Load("command");
 
@@ -591,7 +591,7 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.BattlefieldRealismV10));
+                MovementPresetId.LastStandEngagementV11));
 
             Assert.True(store.TryUpdate(
                 "command",
@@ -647,7 +647,7 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Percent150,
                 StartupDisplayMode.Fullscreen,
-                MovementPresetId.BattlefieldRealismV10));
+                MovementPresetId.LastStandEngagementV11));
             using var locked = new FileStream(
                 settingsPath,
                 FileMode.Open,
@@ -662,7 +662,7 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Percent100,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.BattlefieldRealismV10));
+                MovementPresetId.LastStandEngagementV11));
             Assert.Empty(
                 Directory.GetFiles(
                     Path.GetDirectoryName(settingsPath)!,
@@ -724,7 +724,7 @@ public sealed class ClientSettingsStoreTests
             // loads cleanly.
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(
-                MovementPresetId.BattlefieldRealismV10,
+                MovementPresetId.LastStandEngagementV11,
                 settings.MovementPreset);
         });
     }
@@ -750,7 +750,7 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal(80, settings.Composition.UnitsPerTeam);
             Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
             Assert.Equal(
-                MovementPresetId.BattlefieldRealismV10,
+                MovementPresetId.LastStandEngagementV11,
                 settings.MovementPreset);
         });
     }
@@ -787,7 +787,7 @@ public sealed class ClientSettingsStoreTests
             Assert.True(
                 MovementPresetRegistry.IsRegistered(settings.MovementPreset));
             Assert.Equal(
-                MovementPresetId.BattlefieldRealismV10,
+                MovementPresetId.LastStandEngagementV11,
                 settings.MovementPreset);
         });
     }
@@ -813,7 +813,7 @@ public sealed class ClientSettingsStoreTests
                 settings.SchemaVersion);
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(
-                MovementPresetId.BattlefieldRealismV10,
+                MovementPresetId.LastStandEngagementV11,
                 settings.MovementPreset);
         });
     }

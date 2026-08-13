@@ -21,7 +21,7 @@ public sealed class ArmyCompositionPanelTests
     private static ArmyCompositionPanel CreatePanel(ArmyComposition saved) =>
         new(
             saved,
-            MovementPresetId.BattlefieldRealismV10,
+            MovementPresetId.LastStandEngagementV11,
             TestArmyCompositionLayout,
             TestStandards);
 
@@ -358,7 +358,7 @@ public sealed class ArmyCompositionPanelTests
         var saved = CreateComposition(50, 50, 50, 50, 200);
         var panel = CreatePanel(saved);
         Assert.Equal(
-            MovementPresetId.BattlefieldRealismV10,
+            MovementPresetId.LastStandEngagementV11,
             panel.DraftMovementPreset);
 
         panel.MoveFocus(
@@ -373,7 +373,7 @@ public sealed class ArmyCompositionPanelTests
         panel.AdjustFocusedValue(direction: -1, isShiftHeld: false);
 
         Assert.Equal(
-            MovementPresetId.BattlefieldRealismV10,
+            MovementPresetId.LastStandEngagementV11,
             panel.DraftMovementPreset);
     }
 
@@ -404,16 +404,16 @@ public sealed class ArmyCompositionPanelTests
             hoveredControlIndex: ArmyCompositionPanel.MovementPresetControlIndex);
         panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
         Assert.NotEqual(
-            MovementPresetId.BattlefieldRealismV10,
+            MovementPresetId.LastStandEngagementV11,
             panel.DraftMovementPreset);
 
         panel.PerformAction(ArmyCompositionPanelAction.Cancel);
 
         Assert.Equal(
-            MovementPresetId.BattlefieldRealismV10,
+            MovementPresetId.LastStandEngagementV11,
             panel.DraftMovementPreset);
         Assert.Equal(
-            MovementPresetId.BattlefieldRealismV10,
+            MovementPresetId.LastStandEngagementV11,
             panel.SavedMovementPreset);
     }
 
