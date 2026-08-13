@@ -93,6 +93,24 @@ if ($Game -eq 'Hukbo') {
         Preset = 'PrecolonialPhilippinesV5'
         MovementPreset = 'LastStandEngagementV11'
     }
+
+    # None of the four invocations above runs the preset the client ships
+    # after 2026-08-14. CohortLateralSpreadV13 became that preset when the
+    # cohort lateral spread landed
+    # (docs/plans/2026-08-14-cohort-lateral-spread-design.md), and V11 stays
+    # registered and covered by the block above rather than being repointed --
+    # the same choice the V11 block itself records for V10. The V11 block is
+    # now the leak detector proving V13's riffled deployment never reached the
+    # ascending traversal every earlier preset still uses.
+    Invoke-RepositoryScript -Name 'benchmark.ps1' -Parameters @{
+        Agents = 200
+        Ticks = 10000
+        Seed = 1
+        NoBuild = $true
+        Game = $Game
+        Preset = 'PrecolonialPhilippinesV5'
+        MovementPreset = 'CohortLateralSpreadV13'
+    }
 }
 
 Write-Host '[PASS] Canonical repository verification completed.'

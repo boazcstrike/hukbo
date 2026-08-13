@@ -11,7 +11,7 @@ namespace Hukbo.Client.Tests;
 /// (docs/archives/2026-08-11/2026-08-11-battlefield-realism.md, archived once
 /// its build merged): scripts/verify.ps1 gains
 /// a -Game parameter and passes it through to test.ps1 and benchmark.ps1,
-/// and with no -Game argument on the command line it runs exactly four
+/// and with no -Game argument on the command line it runs exactly five
 /// benchmark.ps1 invocations -- the original canonical workload at
 /// Agents 200 / Ticks 10000 / Seed 1, a second, Hukbo-guarded invocation
 /// that exercises the ranged combat preset (PrecolonialPhilippinesV5 /
@@ -29,25 +29,29 @@ namespace Hukbo.Client.Tests;
 /// changes never reached V8. The last-stand engagement plan
 /// (docs/plans/2026-08-13-last-stand-engagement.md, task 11) added the fourth
 /// under that same precedent, when V11 rather than V10 became what the client
-/// selects.
+/// selects. The cohort lateral spread plan
+/// (docs/plans/2026-08-14-cohort-lateral-spread.md, task 13) added the fifth
+/// on 2026-08-14, when CohortLateralSpreadV13 in turn became what the client
+/// selects; the V11 block stays as the leak detector for it.
 /// </summary>
 public sealed class ScriptDefaultsTests
 {
     [Fact]
-    public void VerifyInvokesBenchmarkExactlyFourTimesWithTheCanonicalRangedV10AndV11Workloads()
+    public void VerifyInvokesBenchmarkExactlyFiveTimesWithTheCanonicalRangedV10V11AndV13Workloads()
     {
         var content = ReadScript("verify.ps1");
 
         var benchmarkInvocations = Regex.Matches(
             content, @"Invoke-RepositoryScript\s+-Name\s+'benchmark\.ps1'");
 
-        Assert.Equal(4, benchmarkInvocations.Count);
+        Assert.Equal(5, benchmarkInvocations.Count);
 
         var invocations = benchmarkInvocations.Cast<Match>().ToList();
         var canonicalInvocation = invocations[0];
         var rangedInvocation = invocations[1];
         var v10Invocation = invocations[2];
         var v11Invocation = invocations[3];
+        var v13Invocation = invocations[4];
 
         var canonicalBlock = ExtractBraceBlockAfter(content, canonicalInvocation.Index);
 
@@ -78,6 +82,15 @@ public sealed class ScriptDefaultsTests
             v11Block,
             StringComparison.Ordinal);
 
+        var v13Block = ExtractBraceBlockAfter(content, v13Invocation.Index);
+
+        Assert.Contains(
+            "Preset = 'PrecolonialPhilippinesV5'", v13Block, StringComparison.Ordinal);
+        Assert.Contains(
+            "MovementPreset = 'CohortLateralSpreadV13'",
+            v13Block,
+            StringComparison.Ordinal);
+
         var hukboGuard = Regex.Match(content, @"if\s*\(\s*\$Game\s+-eq\s+'Hukbo'\s*\)\s*\{");
         Assert.True(
             hukboGuard.Success,
@@ -98,6 +111,11 @@ public sealed class ScriptDefaultsTests
             "The V11 benchmark.ps1 invocation must follow the V10 one, for the " +
             "same reason: earlier blocks stay untouched and each new shipped " +
             "preset appends its own.");
+        Assert.True(
+            v11Invocation.Index < v13Invocation.Index,
+            "The V13 benchmark.ps1 invocation must follow the V11 one, for the " +
+            "same reason again: the V11 block stays untouched as the leak " +
+            "detector proving V13's riffled deployment never reached it.");
 
         var guardBlock = ExtractBraceBlockAfter(content, hukboGuard.Index);
         Assert.Contains(
@@ -124,7 +142,7 @@ public sealed class ScriptDefaultsTests
     /// <summary>
     /// verify.ps1 declares -Game with the same two-member ValidateSet and
     /// 'Hukbo' default as every other game-specific script, and passes it
-    /// through to the test.ps1 invocation and all four benchmark.ps1
+    /// through to the test.ps1 invocation and all five benchmark.ps1
     /// invocations, so a caller that never passes -Game resolves to
     /// 'Hukbo' at every layer.
     /// </summary>
@@ -138,7 +156,7 @@ public sealed class ScriptDefaultsTests
         Assert.Contains("$Game = 'Hukbo'", content, StringComparison.Ordinal);
 
         var passThroughCount = Regex.Matches(content, @"Game\s*=\s*\$Game").Count;
-        Assert.Equal(5, passThroughCount);
+        Assert.Equal(6, passThroughCount);
     }
 
     private static string ExtractBraceBlockAfter(string content, int searchStartIndex)
