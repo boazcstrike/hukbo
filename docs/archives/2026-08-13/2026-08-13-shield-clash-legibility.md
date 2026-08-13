@@ -76,12 +76,22 @@ read before citing the pass.
 **The two fresh rows `SC-5` owed were not added when the family closed.** They
 were added later the same day, as `SCL-1` and `SCL-2`, in a subsection of
 `docs/development/smoke-checklist.md` titled "Shield-clash loudness re-check
-(2026-08-13)". Both are `PENDING`. They exist because rows 172 and 175 passed
-against the loudness this change replaced, so under the checklist's own rule
-they are owed fresh rows rather than a revival of the lifted ones. `SCL-1` asks
-whether a block still reads as wood rather than as a landed cut; `SCL-2` asks
-whether a 200-agent battle has become a wall of clash noise now that the
-previously inaudible takes are audible.
+(2026-08-13)". They existed because rows 172 and 175 passed against the loudness
+this change replaced, so under the checklist's own rule they were owed fresh
+rows rather than a revival of the lifted ones. `SCL-1` asked whether a block
+still reads as wood rather than as a landed cut; `SCL-2` asked whether a
+200-agent battle had become a wall of clash noise now that the previously
+inaudible takes are audible.
+
+**Both of them passed the same day**, at an interactive desktop, and the
+subsection was deleted whole. Their record is the 2026-08-13 archive titled
+"Shield-clash loudness re-check smoke — closed 2026-08-13". That closes every
+row this change owed. What it does not close is the question row 173 originally
+asked — whether a listener can tell the four melee clash slots apart by ear —
+because `SCL-1` and `SCL-2` were never asked it. Row 173's own `PASS` rests on
+the tester's judgement that the sounds are acceptable, and regenerating the
+sixteen takes with consistent generation parameters remains the better answer to
+that half of it, and remains unauthorised.
 
 **Two acceptance clauses had no test until they were chased.** `SC-3` required
 that the loudest clash cue the pipeline can now produce be below the loudest it

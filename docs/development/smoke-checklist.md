@@ -23,13 +23,17 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-13
 
-78 rows across 14 subsections: **78 `PENDING`, and no `BLOCKED`, `FAIL`, or
+75 rows across 12 subsections: **75 `PENDING`, and no `BLOCKED`, `FAIL`, or
 `DECLINED` row** — counted from the status column of this file on 2026-08-13,
-after the movement-preset selector shipped that day and turned the last 10
+after `PP-3` was re-run against the capped in-flight prop and closed `PASS` the
+same day, which emptied the projectile props family and took its subsection with
+it, after the movement-preset selector shipped that day and turned the last 10
 `BLOCKED` rows into `PENDING` ones, which is the first time since this file was
 split out that every open row is one a person can actually attempt,
 after the shield-clash loudness fix added the two fresh rows it owed, `SCL-1`
-and `SCL-2`, in a subsection of their own,
+and `SCL-2`, in a subsection of their own, and after both of those passed later
+the same day and that subsection went too — it is the shortest-lived section
+this file has had, opened and closed inside one day,
 after the improve-visuals smoke run closed 29 of its 32 rows and they were
 lifted out, after `SD-1` was re-checked and closed on 2026-08-11, after the
 Sandata fixes of the same day moved four `BLOCKED` rows and one `FAIL` row to
@@ -65,13 +69,16 @@ failed that pass and `AA-22` was re-attempted, and both then passed later the
 same day. **Three of that family's rows closed without anything being fixed**,
 which its archive record states plainly — `AA-22` on an unchanged 500-agent
 density, `AA-23` with both of its measured causes intact, and `AA-24` against a
-feature that was never built. The projectile props family closed on the same day as well: seven of
-its eight rows passed and were lifted out, leaving only `PP-3`, which the tester
-found draws too large in flight and which is awaiting a re-run against the fix
-made in response.
+feature that was never built. The projectile props family closed on the same day as well, though it took two
+sittings: seven of its eight rows passed on the first, and `PP-3` failed it
+because the in-flight prop drew far larger than the warriors it flew past. The
+prop was capped at the pawns' own apparent-scale ceiling in response, shipping
+as commit `c772849`, and a person re-ran `PP-3` against that build and passed
+it. All eight rows are now lifted out.
 
-**There is no `PASS` column any more, and that is deliberate.** 167 passing rows
-have been lifted out — 52 on 2026-08-11 (22 of them from families that stayed,
+**There is no `PASS` column any more, and that is deliberate.** 170 passing rows
+have been lifted out — the most recent two being `SCL-1` and `SCL-2` on
+2026-08-13, which were written and closed on the same day — 52 on 2026-08-11 (22 of them from families that stayed,
 then 29 more when both improve-visuals families were run for the first time,
 then `SD-1` when the tester re-checked it), 10 more on 2026-08-12 (`SD-2`,
 `SD-7a`, and `SD-8`, re-checked and closed the same way, plus all seven rows of
@@ -93,7 +100,9 @@ on the same day when the attack animation V2 rows `AA-5`, `AA-7` through
 `AA-16`, and `AA-18` through `AA-24` were run and passed, sixteen of them
 together and the last two later that day, and
 7 more on the same day when seven of the eight projectile props rows, `PP-1`,
-`PP-2`, and `PP-4` through `PP-8`, were run and passed together.
+`PP-2`, and `PP-4` through `PP-8`, were run and passed together, and 1 more on
+the same day when `PP-3` was re-run against the capped in-flight prop and passed
+alone, closing that family at 8 of 8.
 Typography's
 row 75 closed on 2026-08-13 but is not in that count: it stayed `DECLINED`
 rather than turning `PASS`, so it left the
@@ -167,7 +176,9 @@ the 2026-08-13 archive titled **"Last-stand formation smoke — closed
 gathered shape is historically accurate.
 
 The shield-clash audio family was the sixth deleted whole on 2026-08-13, and
-it is the one worth reading the record of. Four of its five rows passed
+it is the one worth reading the record of — with the caveat that it is one of
+two shield-clash families deleted whole that day, the second being the
+two-row loudness re-check its own fix created. Four of its five rows passed
 outright. Row 173, which asks a listener to tell the four melee clash slots
 apart, failed on the first listen — "i cannot distinguish, sounds the same for
 most" — and the cause was measured rather than guessed: the sixteen clash
@@ -180,11 +191,15 @@ acceptable, declining a regeneration of the takes. Its record is the
 2026-08-13 archive titled **"Shield-clash audio smoke — closed 2026-08-13"**,
 which states plainly that rows 172 and 175 passed against the loudness the fix
 replaced, so a later question about clash loudness needs a fresh row rather
-than a reading of theirs. Those fresh rows now exist: `SCL-1` and `SCL-2`, in
-the subsection "Shield-clash loudness re-check (2026-08-13)" below. They were
-added on 2026-08-13, the same day the family closed, and they are the reason
-this file has a shield-clash subsection again after the original one was
-deleted whole.
+than a reading of theirs. Those fresh rows were written the same day, as
+`SCL-1` and `SCL-2`, and both passed the same day as well, so they are no longer
+in this file either. Their record is the 2026-08-13 archive titled
+**"Shield-clash loudness re-check smoke — closed 2026-08-13"**, which is the
+one to read for what the fix was actually checked against: `SCL-1` that a block
+still reads as wood rather than as a landed cut, and `SCL-2` that a 200-agent
+battle did not become a wall of clatter once the previously inaudible takes
+became audible. Neither of them asked whether the four slots read as four
+weapons, which is the question row 173 asked and closed on judgement.
 
 The persistent contingent family was the fifth deleted whole on 2026-08-13.
 All twelve of its open rows — 102 through 110 and 112 through 114 — were run
@@ -219,12 +234,16 @@ its nine rows on 2026-08-13 and kept the two that are still open, and the three
 that closed the same day down to a single row each: quit confirmation, which
 kept only row 171 because that row compares a printed figure against a headless
 run rather than watching the screen, and projectile props, which kept only
-`PP-3` because that row did not pass. Shield-clash audio was briefly on this
+`PP-3` because that row did not pass on its first attempt, and which then went
+entirely once the fix landed and a person passed the row on a second sitting.
+Shield-clash audio was briefly on this
 list too, holding row 173 alone after its other four closed, until row 173
-closed as well later the same day and the section went entirely. What stands
-under that name now is not the same section: it is the two fresh rows the
-loudness fix owed, `SCL-1` and `SCL-2`, and none of the original five rows
-came back. The `UI` family used to belong on this list too, closing single rows
+closed as well later the same day and the section went entirely. A second
+section did briefly stand under that name — the two fresh rows the loudness fix
+owed, `SCL-1` and `SCL-2`, with none of the original five coming back — and it
+went the same way on the same day when both of those passed. Two shield-clash
+sections were therefore opened and closed on 2026-08-13, and they have separate
+archive records. The `UI` family used to belong on this list too, closing single rows
 while its section stayed, right up until the run that closed the section
 itself on 2026-08-13; it is named in the paragraph above instead, with the
 rest of that history. The improve-visuals family used to belong on this list as
@@ -912,64 +931,6 @@ written; they are simply being attempted against a later movement preset.
 | RG-9 | Compare a Bangkaw, a Busog, and an Arquebus warrior side by side at the High, Medium, and Low detail tiers, from a close-up zoom down to fully zoomed out | At every tier the three ranged silhouettes are distinguishable from each other and from the four existing melee silhouettes — the Bangkaw reads as spear-armed, the Busog as bow-armed, the Arquebus as carrying a long firearm. Failure is any two of the three collapsing into the same silhouette at the Low tier, or a ranged warrior being mistaken for a melee warrior at any tier | | PENDING |
 | RG-10 | Watch and listen to a battle fielding all three ranged weapons for several minutes | The Arquebus fires far less often than the Bangkaw or the Busog, matching its much longer authored shot interval, and each Arquebus shot is audibly louder and more distinctive than a Busog release or a Bangkaw throw — a spectator should be able to tell an Arquebus has fired without seeing which warrior fired it. Failure is the Arquebus firing at a cadence similar to the other two ranged weapons, or its report sounding unremarkable next to theirs. The firing-cadence half of this row does not depend on sound and can be attempted once RG-1 is attemptable | | PENDING |
 | RG-11 | Watch a Bangkaw or Busog shot whose flight path passes through or near a friendly warrior standing between the launcher and the target | **This row has no pass/fail criterion; it is an open question, not a check.** Phase 1 deliberately implements no friendly fire and no line of sight — a projectile resolves as a pure distance-and-timer hitscan against its chosen target, with nothing checked about who or what stands between launcher and target — and that gap is deferred to Phase 2 by design, not an oversight to correct here. Record in `Actual` whatever was actually observed: does the projectile visibly passing through the friendly warrior look wrong to a spectator, or does it go unnoticed at the pace and scale of a real battle? This is the one Phase 1 effect a spectator cannot discover for themselves through any other row above, which is why it needs a person to look at it deliberately rather than being inferred from the others | | PENDING |
-## Projectile props and embedded projectiles smoke (2026-08-11)
-
-**Seven of this family's eight rows closed on 2026-08-13** and have been lifted
-out into that day's archive record for this family, which is named here in prose
-rather than linked because the archive folder is deleted periodically. A person
-at an interactive desktop ran the family and passed `PP-1`, `PP-2`, and `PP-4`
-through `PP-8`. Only `PP-3` is still open.
-
-`PP-3` was attempted in the same run and did not pass. The tester found that the
-in-flight projectile draws too large: a spear reads as longer than the warriors
-it flies past, and it stays too large even with the camera zoomed in. The row as
-written asks about the opposite failure, a shot shrinking away to nothing, so the
-finding sits outside what the row itself covers, and the row stays here until it
-can be re-run against the fix made in response. That fix caps the in-flight prop
-at the same apparent-scale ceiling the pawns already obey. That fix shipped on
-2026-08-13 as commit `c772849`, verified by a green `./scripts/verify.ps1` whose
-seed-1 digests were unchanged, and its plan document — "Projectile prop scale" —
-was archived the same day now that the build is finished. It is named here in
-prose rather than linked, because the archive folder is deleted periodically.
-
-Re-running `PP-3` means checking both ends of the zoom range in one sitting. The
-shot must still be drawn at the most pulled-out camera, which is what the row has
-always asked for, and at the tightest zoom it must no longer read as longer than
-a warrior is tall.
-
-| # | Step | Expected | Actual | Status |
-| --- | --- | --- | --- | --- |
-| PP-3 | Watch a shot in flight while zooming from close in to fully zoomed out | The projectile stays visible at every zoom, including the most pulled-out one. Failure is a shot that scales down to nothing and disappears — the in-flight prop is deliberately never detail-gated, because at low detail it may be the only sign a ranged unit exists | 2026-08-13, tester at the desktop. The shot stayed visible across the zoom range, but the in-flight prop draws too large and still reads oversized even when the camera is zoomed in. Capped in response; awaiting a re-run against that fix. | PENDING |
-
-## Shield-clash loudness re-check (2026-08-13)
-
-**These two rows are owed by a fix, not by a new feature.** The shield-clash
-audio family closed whole on 2026-08-13 and its five rows were lifted out into
-that day's archive record, which is named here in prose rather than linked
-because the archive folder is deleted periodically. Two of those closed rows,
-172 and 175, passed *before* the loudness fix was written: 172 asked whether a
-blocked blow reads as wood rather than as a landed cut, and 175 asked whether a
-full 200-agent battle stays clear of a wall of clash noise. Both were answered
-against the levels the fix then replaced.
-
-What the fix changed is exactly the thing those two rows measured. Every melee
-clash take is now normalised in the sample domain at load, toward a reference
-peak of `0.85`, and the four melee clash slots carry their own relative level
-and pitch offset on top of that. The loudest clash cue the pipeline can produce
-is lower than it was, but the quiet end rises a great deal — the quietest take
-on disk peaked at 0.096 and now reaches the same reference as the rest. Blocks
-a listener previously did not register as blocks at all are now audible, which
-is the whole point of the change and also the reason the aggregate of many
-simultaneous clashes is louder than it was.
-
-Under this file's own rule, a change that touches what a closed row tested owes
-fresh rows rather than a revival of the lifted ones. These are those two rows.
-They are not a re-run of 172 and 175 and must not be recorded as one.
-
-| # | Step | Expected | Actual | Status |
-| --- | --- | --- | --- | --- |
-| SCL-1 | Listen to a shield-blocked blow after the loudness normalisation | It still sounds like a weapon striking a light wooden board, and it is still plainly different from a landed cut, without reading the event log to find out which resolution occurred. Failure is a normalised block now reading as a landed hit, or as a click, a thump, or clipped noise rather than as wood | | PENDING |
-| SCL-2 | Run a full 200-agent battle with the shield cue audible | The clash cue does not become a wall of noise now that the previously inaudible takes play at full reference level, and the cue log shows no `LIMITED` or `REFUSED` row for any clash slot. Failure is a continuous clatter in which individual blocks stop being separable, or a clash slot appearing as `LIMITED` or `REFUSED` where it did not before | | PENDING |
 
 ## Battlefield realism cohort and retreat smoke (task 18)
 
