@@ -463,8 +463,13 @@ archive-link violation, only a false location claim.
 
 ## 6a. Result, 2026-08-13
 
-`./scripts/verify.ps1 -SkipBootstrap`, run on branch `contingent-shape` at
-`c74b50f`:
+`./scripts/verify.ps1 -SkipBootstrap`, run **twice**. The first run was against a
+branch base that had gone forty commits stale while the work proceeded, so it was
+not evidence about what would actually be merged. The branch was rebased onto
+`8033410`, the `docs/plans/README.md` conflict resolved in favour of main — which
+had meanwhile archived the auto camera centring pair, and had already picked up
+this plan's own index row — and the gate was then run again. The second run is
+the evidence, and it is what merged as `52b5f0b`:
 
 ```
 [PASS] Formatting verification completed.
