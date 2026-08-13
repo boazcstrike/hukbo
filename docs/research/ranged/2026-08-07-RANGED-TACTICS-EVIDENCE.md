@@ -883,6 +883,12 @@ Documented, Documented (form uncertain), or Provisional reconstruction — it is
 a gameplay model, adopted for legibility, and the evidence above does not
 support it.
 
+**V13 gameplay divergence (2026-08-14).** `MovementPresetId.CohortLateralSpreadV13`
+(`docs/plans/2026-08-14-cohort-lateral-spread-design.md`) spreads weapon-cohort
+groups laterally across a team's own frontage in place of collecting them
+toward one edge; like V10's placement above, this is a gameplay legibility
+choice, not a claim about a historical formation.
+
 ## 13. Comparative Southeast Asian evidence, and how far it may be carried
 
 Michael W. Charney's *Southeast Asian Warfare, 1300-1900* (Brill, 2004) is the
@@ -1182,6 +1188,12 @@ offered as evidence of an internal specialist role. As a research claim this
 behaviour is none of Documented, Documented (form uncertain), or Provisional
 reconstruction — it is a gameplay model, adopted for legibility, and the
 evidence above does not support it.
+
+**V13 gameplay divergence (2026-08-14).** `MovementPresetId.CohortLateralSpreadV13`
+(`docs/plans/2026-08-14-cohort-lateral-spread-design.md`) spreads weapon-cohort
+groups laterally across a team's own frontage in place of collecting them
+toward one edge; like V10's grouping above, this is a gameplay legibility
+choice, not a claim about a historical formation.
 
 ## 17. Open questions for a later research pass
 

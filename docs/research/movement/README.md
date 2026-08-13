@@ -182,6 +182,12 @@ Documented, Documented (form uncertain), or Provisional reconstruction — it is
 a gameplay model, adopted for legibility, and the list above does not support
 it as history.
 
+**V13 gameplay divergence (2026-08-14).** `MovementPresetId.CohortLateralSpreadV13`
+(`docs/plans/2026-08-14-cohort-lateral-spread-design.md`) spreads weapon-cohort
+groups laterally across a team's own frontage in place of collecting them
+toward one edge; like V10's forward placement above, this is a gameplay
+legibility choice, not a claim about a historical formation.
+
 ## Source hierarchy
 
 Research should descend this hierarchy and record when a higher tier is silent.
