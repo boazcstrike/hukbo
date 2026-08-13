@@ -66,10 +66,25 @@ internal static class CohortDeploymentAssignment
     /// <see cref="CombatRuleset.Roster"/> defines cohort identity and
     /// cohort ordering.
     /// </param>
+    /// <param name="spreadCohortsLaterally">
+    /// When <see langword="false"/>, the run-cut traversal visits
+    /// contingent ids ranked by original slot count descending, then
+    /// contingent id ascending — the behaviour every registered preset
+    /// through <see cref="MovementPresetId.ContingentShapeV12"/> uses, and
+    /// the value this parameter must be passed for all of them. When
+    /// <see langword="true"/>, the traversal instead visits contingent ids
+    /// in lateral-riffle order — even ids ascending, then odd ids
+    /// ascending — so that cohort runs ranked adjacent by size land on
+    /// non-adjacent lanes instead of collecting at one edge of the army's
+    /// frontage (design docs/plans/2026-08-14-cohort-lateral-spread-design.md
+    /// section 3). Only <see cref="MovementPresetId.CohortLateralSpreadV13"/>
+    /// passes <see langword="true"/>.
+    /// </param>
     internal static (int XRaw, int YRaw, int ContingentId)[] AssignForFaction(
         (int XRaw, int YRaw, int ContingentId)[] canonicalDeployment,
         ReadOnlySpan<CombatLoadout> loadoutsByFactionLocalIndex,
-        CombatRuleset rules)
+        CombatRuleset rules,
+        bool spreadCohortsLaterally)
     {
         ArgumentNullException.ThrowIfNull(canonicalDeployment);
         ArgumentNullException.ThrowIfNull(rules);
@@ -119,19 +134,9 @@ internal static class CohortDeploymentAssignment
             contingentSizes[slot.ContingentId]++;
         }
 
-        var contingentOrder = new int[contingentCount];
-        for (var contingent = 0; contingent < contingentCount; contingent++)
-        {
-            contingentOrder[contingent] = contingent;
-        }
-
-        Array.Sort(contingentOrder, (left, right) =>
-        {
-            // Slot count descending, then contingent id ascending (design
-            // section 4.4).
-            var bySize = contingentSizes[right].CompareTo(contingentSizes[left]);
-            return bySize != 0 ? bySize : left.CompareTo(right);
-        });
+        var contingentOrder = spreadCohortsLaterally
+            ? BuildLateralRiffleOrder(contingentCount)
+            : BuildSizeRankedOrder(contingentCount, contingentSizes);
 
         var cohortOrderedWarriors = new int[warriorCount];
         for (var index = 0; index < warriorCount; index++)
@@ -185,6 +190,61 @@ internal static class CohortDeploymentAssignment
         }
 
         return assigned;
+    }
+
+    /// <summary>
+    /// The traversal order every registered preset through
+    /// <see cref="MovementPresetId.ContingentShapeV12"/> uses: contingent
+    /// ids ranked by original slot count descending, then contingent id
+    /// ascending (design section 4.4). Under a planner-produced,
+    /// non-increasing size table this makes ascending contingent id exactly
+    /// ascending rank, which is the row-58 defect
+    /// docs/plans/2026-08-14-cohort-lateral-spread-design.md section 2
+    /// traces; this order is kept, unchanged, for every preset that already
+    /// shipped it.
+    /// </summary>
+    private static int[] BuildSizeRankedOrder(int contingentCount, int[] contingentSizes)
+    {
+        var order = new int[contingentCount];
+        for (var contingent = 0; contingent < contingentCount; contingent++)
+        {
+            order[contingent] = contingent;
+        }
+
+        Array.Sort(order, (left, right) =>
+        {
+            // Slot count descending, then contingent id ascending (design
+            // section 4.4).
+            var bySize = contingentSizes[right].CompareTo(contingentSizes[left]);
+            return bySize != 0 ? bySize : left.CompareTo(right);
+        });
+
+        return order;
+    }
+
+    /// <summary>
+    /// The <see cref="MovementPresetId.CohortLateralSpreadV13"/> traversal
+    /// order: even contingent ids ascending, then odd contingent ids
+    /// ascending — for seven contingents, <c>0, 2, 4, 6, 1, 3, 5</c>. This
+    /// is a total order over the distinct integers
+    /// <c>[0, contingentCount)</c>, so it needs no tie-break and draws no
+    /// random numbers (design section 3).
+    /// </summary>
+    private static int[] BuildLateralRiffleOrder(int contingentCount)
+    {
+        var order = new int[contingentCount];
+        var next = 0;
+        for (var contingentId = 0; contingentId < contingentCount; contingentId += 2)
+        {
+            order[next++] = contingentId;
+        }
+
+        for (var contingentId = 1; contingentId < contingentCount; contingentId += 2)
+        {
+            order[next++] = contingentId;
+        }
+
+        return order;
     }
 
     /// <summary>
