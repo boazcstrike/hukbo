@@ -76,14 +76,31 @@ internal static class FormationPlanner
     /// </summary>
     /// <remarks>
     /// Called once per battle. Everything here is a pure function of the
-    /// scenario and the caller's stream, so mirroring the single result is what
-    /// makes the two armies equivalent. Planning each faction separately was
-    /// measured and rejected: independent per-warrior jitter changed which
-    /// bodies stood where without changing which faction won, so it bought
-    /// nothing and cost the exact symmetry.
+    /// scenario, <paramref name="fieldedChiefCount"/>, and the caller's
+    /// stream, so mirroring the single result is what makes the two armies
+    /// equivalent. Planning each faction separately was measured and
+    /// rejected: independent per-warrior jitter changed which bodies stood
+    /// where without changing which faction won, so it bought nothing and
+    /// cost the exact symmetry.
     /// </remarks>
+    /// <param name="scenario">The scenario to plan a deployment for.</param>
+    /// <param name="fieldedChiefCount">
+    /// How many Datu-rank warriors the faction fielded, counted by the
+    /// caller from its own already-resolved loadouts. This planner never
+    /// resolves a loadout and never learns what a Datu is (contingent-shape
+    /// design section 2) -- the count arrives pre-computed and is consulted
+    /// only under <see cref="MovementPresetId.ContingentShapeV12"/> with no
+    /// authored <see cref="Scenario.ContingentSizes"/>, where it decides the
+    /// contingent count (tasks 6 and 7 of
+    /// docs/plans/2026-08-13-contingent-shape.md). Every earlier preset, and
+    /// every V12 scenario that authors its own sizes, ignores this parameter
+    /// entirely, so a caller planning one of those may pass any value,
+    /// including zero.
+    /// </param>
+    /// <param name="random">The caller's determinism stream.</param>
     internal static (int XRaw, int YRaw, int ContingentId)[] PlanFactionDeployment(
         Scenario scenario,
+        int fieldedChiefCount,
         ref SplitMix64 random)
     {
         var radiusRaw = (long)scenario.BodyRadiusRaw;
@@ -92,7 +109,7 @@ internal static class FormationPlanner
         var warriorCount = scenario.AgentsPerFaction;
 
         var region = ResolveRegion(mapWidthRaw, mapHeightRaw, radiusRaw);
-        var contingentSizes = ResolveContingentSizes(scenario);
+        var contingentSizes = ResolveContingentSizes(scenario, fieldedChiefCount);
         var laneSpan = (region.MaxY - region.MinY) / contingentSizes.Length;
         var largestContingent = contingentSizes[0];
         for (var index = 1; index < contingentSizes.Length; index++)
@@ -197,25 +214,33 @@ internal static class FormationPlanner
     /// <summary>
     /// The faction's contingent sizes: the scenario's own authored array under
     /// <see cref="MovementPresetId.ContingentShapeV12"/> when one is present,
-    /// or the square-root split every earlier preset uses otherwise.
+    /// the chief-derived count under V12 when one is not, or the square-root
+    /// split every earlier preset uses.
     /// </summary>
     /// <remarks>
-    /// Gated on both the preset identity and the field's presence, never on
-    /// the field alone, so that populating <c>ContingentSizes</c> under any
-    /// other preset -- including a scenario built for
-    /// <see cref="MovementPresetId.LastStandEngagementV11"/> that happens to
-    /// carry the field -- has no effect: this method, and therefore every
-    /// preset from V1 through V11, stays byte-identical to today's behaviour.
+    /// Gated on preset identity first: any preset other than V12 takes the
+    /// square-root path regardless of <paramref name="fieldedChiefCount"/> or
+    /// of whether <c>ContingentSizes</c> happens to carry a value -- including
+    /// a scenario built for <see cref="MovementPresetId.LastStandEngagementV11"/>
+    /// that populates either field -- so this method, and therefore every
+    /// preset from V1 through V11, stays byte-identical to its behaviour
+    /// before tasks 6 and 7 of docs/plans/2026-08-13-contingent-shape.md.
+    /// Only once the preset is V12 does the authored array, then the
+    /// chief-derived count, come into play.
     /// </remarks>
-    private static int[] ResolveContingentSizes(Scenario scenario)
+    private static int[] ResolveContingentSizes(Scenario scenario, int fieldedChiefCount)
     {
-        if (scenario.MovementPreset == MovementPresetId.ContingentShapeV12 &&
-            !scenario.ContingentSizes.IsDefaultOrEmpty)
+        if (scenario.MovementPreset != MovementPresetId.ContingentShapeV12)
+        {
+            return ResolveContingentSizesBySquareRoot(scenario.AgentsPerFaction);
+        }
+
+        if (!scenario.ContingentSizes.IsDefaultOrEmpty)
         {
             return [.. scenario.ContingentSizes];
         }
 
-        return ResolveContingentSizesBySquareRoot(scenario.AgentsPerFaction);
+        return ResolveContingentSizesByChiefCount(fieldedChiefCount, scenario.AgentsPerFaction);
     }
 
     /// <summary>
@@ -228,6 +253,61 @@ internal static class FormationPlanner
             IntegerSquareRoot(warriorCount) / 2,
             1,
             Math.Min(MaximumContingents, warriorCount));
+
+        return SplitEvenly(contingentCount, warriorCount);
+    }
+
+    /// <summary>
+    /// One contingent per fielded Datu-rank warrior, floored at one so a
+    /// chiefless faction still forms a single body rather than producing zero
+    /// contingents, and capped at <see cref="MaximumContingents"/> so a
+    /// heavily led faction does not fragment past the lattice's own limit
+    /// (contingent-shape design section 2). The chief is not privileged in
+    /// placement: this method only decides how many contingents there are and
+    /// how big each one is, the same even split
+    /// <see cref="ResolveContingentSizesBySquareRoot"/> already uses, and the
+    /// round-robin dealing loop in <see cref="PlanFactionDeployment"/> (never
+    /// modified by this task) is what actually seats every warrior, chief or
+    /// not, in turn.
+    /// </summary>
+    /// <remarks>
+    /// The round-robin dealing loop deals contingent
+    /// <c>localIndex % contingentSizes.Length</c> to every faction-local
+    /// index whenever every contingent's declared size already equals what
+    /// that plain modulus would give it -- true here because
+    /// <see cref="SplitEvenly"/> only ever varies sizes by one, the same
+    /// argument that already lets the square-root split use it (see the
+    /// dealing loop's own remarks). One contingent per chief therefore
+    /// guarantees every contingent receives at least one chief whenever
+    /// <paramref name="fieldedChiefCount"/> is at least the resulting
+    /// contingent count: the chiefs occupy faction-local indices whose
+    /// residues mod the contingent count cover every value from zero up to
+    /// one less than the chief count, and the contingent count here never
+    /// exceeds the chief count except when the floor at one raises it above a
+    /// chief count of zero.
+    /// </remarks>
+    private static int[] ResolveContingentSizesByChiefCount(
+        int fieldedChiefCount,
+        int warriorCount)
+    {
+        var contingentCount = Math.Clamp(
+            fieldedChiefCount,
+            1,
+            Math.Min(MaximumContingents, warriorCount));
+
+        return SplitEvenly(contingentCount, warriorCount);
+    }
+
+    /// <summary>
+    /// Splits <paramref name="warriorCount"/> warriors into
+    /// <paramref name="contingentCount"/> contingents of as near equal size as
+    /// possible, the remainder going to the earliest contingents. Shared by
+    /// both contingent-count rules so a lattice, a fit test, or a dealing
+    /// argument that depends only on sizes differing by at most one never has
+    /// to be proven twice.
+    /// </summary>
+    private static int[] SplitEvenly(int contingentCount, int warriorCount)
+    {
         var sizes = new int[contingentCount];
         var baseSize = warriorCount / contingentCount;
         var remainder = warriorCount % contingentCount;

@@ -611,13 +611,7 @@ public sealed class BattleSimulation
         var random = new SplitMix64(scenario.Seed);
         var agents = new AgentState[scenario.TotalAgents];
         var mapWidthRaw = checked(scenario.MapWidth * FixedPoint.Scale);
-        // One deployment is planned and mirrored across the vertical centre
-        // line, so the two armies open in exactly the same shape. Both are
-        // drawn from the same roster, so any positional difference at tick 0
-        // would be seed noise that the battle then amplifies.
-        var deployment = FormationPlanner.PlanFactionDeployment(
-            scenario,
-            ref random);
+
         var rosterCountsAreEmpty = scenario.RosterCounts.IsDefaultOrEmpty;
         var expandedRosterIndices = rosterCountsAreEmpty
             ? ImmutableArray<int>.Empty
@@ -630,6 +624,32 @@ public sealed class BattleSimulation
             rosterCountsAreEmpty
                 ? rules.ResolveLoadout(entityId)
                 : rules.Roster[expandedRosterIndices[localIndex]];
+
+        // Faction 0's own fielded Datu count, resolved before deployment is
+        // planned so FormationPlanner can size
+        // MovementPresetId.ContingentShapeV12's contingents off it without
+        // ever learning what a Datu is (tasks 6 and 7 of
+        // docs/plans/2026-08-13-contingent-shape.md). One deployment is
+        // planned once and mirrored onto both factions below, so faction 0's
+        // chief count is the one value the planner needs; every preset
+        // before V12 ignores it entirely.
+        var fieldedChiefCount = 0;
+        for (var index = 0; index < scenario.AgentsPerFaction; index++)
+        {
+            if (ResolveSpawnLoadout(checked((ulong)index + 1), index).Rank == RankId.Datu)
+            {
+                fieldedChiefCount++;
+            }
+        }
+
+        // One deployment is planned and mirrored across the vertical centre
+        // line, so the two armies open in exactly the same shape. Both are
+        // drawn from the same roster, so any positional difference at tick 0
+        // would be seed noise that the battle then amplifies.
+        var deployment = FormationPlanner.PlanFactionDeployment(
+            scenario,
+            fieldedChiefCount,
+            ref random);
 
         // V6 alone reassigns warriors across the slots already planned
         // above (weapon-relative movement design, section 12). The

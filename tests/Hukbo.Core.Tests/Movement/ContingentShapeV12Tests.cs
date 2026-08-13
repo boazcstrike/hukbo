@@ -125,6 +125,56 @@ public sealed class ContingentShapeV12Tests
         AssertFullBattlesAreByteIdentical(lastStandThresholdAgents: 0);
     }
 
+    /// <summary>
+    /// Documents a known interaction, not a guarantee. FormationPlanner's
+    /// round-robin dealing gives every contingent at least one fielded chief
+    /// whenever the chief count is at least the contingent count (see
+    /// <c>FormationPlannerTests.EveryContingentReceivesAtLeastOneOfTheFirstFieldedChiefCountLocalIndices</c>),
+    /// but <see cref="MovementPresetId.ContingentShapeV12"/> also admits
+    /// <c>BattleSimulation.UsesBattlefieldRealism</c>, which runs
+    /// <c>CohortDeploymentAssignment</c> -- V10's weapon-cohort deployment
+    /// permutation, deliberately unmodified by tasks 6 and 7 of
+    /// docs/plans/2026-08-13-contingent-shape.md -- downstream of that
+    /// planning step. That pass reassigns membership purely by weapon-cohort
+    /// rank and has no knowledge of <see cref="RankId"/>, so it can undo the
+    /// planner's per-chief spread whenever the chiefs' weapon cohort is not
+    /// the largest one: every fielded chief lands wherever that cohort's cut
+    /// of the cohort-ordered warrior list falls, which is one contingent, not
+    /// eight. This scenario -- eight Datu-rank chiefs, the smallest of four
+    /// cohorts by member count -- is exactly that case: all eight chiefs land
+    /// in a single contingent and the other seven receive none. "Every
+    /// contingent contains at least one Datu" is therefore a property of
+    /// <c>FormationPlanner.PlanFactionDeployment</c>'s own output, never a
+    /// property of the agents <c>BattleSimulation.Create</c> actually spawns
+    /// under this preset, and this test pins that fact so a future change
+    /// that quietly narrows it is caught rather than assumed.
+    /// </summary>
+    [Fact]
+    public void CohortDeploymentAssignmentCanConcentrateEveryFieldedChiefIntoOneContingent()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            MovementPreset = MovementPresetId.ContingentShapeV12,
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV6,
+            RosterCounts = [8, 30, 31, 31],
+        };
+        scenario.Validate();
+
+        var simulation = BattleSimulation.Create(scenario);
+        var faction0 = simulation.Agents.Take(scenario.AgentsPerFaction).ToList();
+
+        var contingentCount = faction0.Select(agent => agent.ContingentId).Distinct().Count();
+        var chiefContingents = faction0
+            .Where(agent => agent.Rank == RankId.Datu)
+            .Select(agent => agent.ContingentId)
+            .Distinct()
+            .ToList();
+
+        Assert.Equal(8, contingentCount);
+        Assert.Single(chiefContingents);
+        Assert.Equal(7, chiefContingents[0]);
+    }
+
     private static void AssertFullBattlesAreByteIdentical(int? lastStandThresholdAgents)
     {
         var v11 = CreateFullBattleControlRun(
@@ -259,6 +309,25 @@ public sealed class ContingentShapeV12Tests
             BodyRadiusRaw = CapturedBodyRadiusRaw,
             CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
         };
+
+        if (movementPreset == MovementPresetId.ContingentShapeV12)
+        {
+            // CombatPresetId.PrecolonialPhilippinesV2 fields zero Datu-rank
+            // warriors, so without an authored override tasks 6 and 7's
+            // chief-derived contingent count would floor to one contingent
+            // here and this control run would stop matching V11's own
+            // five-way square-root split (100 warriors per faction:
+            // IntegerSquareRoot(100) / 2 = 5). Authoring the exact split V11
+            // derives on its own keeps this comparison proving what it has
+            // always proved -- that V12 carries no independent tick
+            // behaviour of its own -- instead of papering over a real
+            // divergence the chief-derived rule now introduces whenever no
+            // size is authored.
+            scenario = scenario with
+            {
+                ContingentSizes = [20, 20, 20, 20, 20],
+            };
+        }
 
         if (lastStandThresholdAgents.HasValue)
         {

@@ -132,7 +132,11 @@ public sealed class FormationDeploymentFreezeTests
 
         var random = new SplitMix64(scenario.Seed);
         var initialState = random.State;
-        var deployment = FormationPlanner.PlanFactionDeployment(scenario, ref random);
+        // fieldedChiefCount: 0 -- every fixture case below uses the default
+        // MovementPresetId (never ContingentShapeV12), so the parameter is
+        // ignored; see FormationPlanner.ResolveContingentSizes.
+        var deployment = FormationPlanner.PlanFactionDeployment(
+            scenario, fieldedChiefCount: 0, ref random);
         var finalState = random.State;
 
         Assert.Equal(expected!.InitialState, initialState);
@@ -280,7 +284,8 @@ public sealed class FormationDeploymentFreezeTests
         {
             var random = new SplitMix64(scenario.Seed);
             var initialState = random.State;
-            var deployment = FormationPlanner.PlanFactionDeployment(scenario, ref random);
+            var deployment = FormationPlanner.PlanFactionDeployment(
+                scenario, fieldedChiefCount: 0, ref random);
             var finalState = random.State;
 
             caseDocuments.Add(new

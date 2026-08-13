@@ -480,7 +480,12 @@ public sealed class EquipmentFormationAssignmentTests
         Scenario scenario)
     {
         var random = new SplitMix64(scenario.Seed);
-        return FormationPlanner.PlanFactionDeployment(scenario, ref random);
+        // fieldedChiefCount: 0 -- every scenario this helper plans uses
+        // MovementPresetId.PersistentContingentsV4 or
+        // EquipmentRelativeFootworkV6, never ContingentShapeV12, so the
+        // parameter is ignored; see FormationPlanner.ResolveContingentSizes.
+        return FormationPlanner.PlanFactionDeployment(
+            scenario, fieldedChiefCount: 0, ref random);
     }
 
     /// <summary>

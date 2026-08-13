@@ -351,7 +351,11 @@ public sealed class FormationPlannerTests
         scenario.Validate();
         var random = new SplitMix64(scenario.Seed);
 
-        var deployment = FormationPlanner.PlanFactionDeployment(scenario, ref random);
+        // fieldedChiefCount: 0 -- this scenario uses the default
+        // MovementPresetId (never ContingentShapeV12), so the parameter is
+        // ignored; see FormationPlanner.ResolveContingentSizes.
+        var deployment = FormationPlanner.PlanFactionDeployment(
+            scenario, fieldedChiefCount: 0, ref random);
 
         var contingentCount = deployment.Max(member => member.ContingentId) + 1;
         for (var localIndex = 0; localIndex < deployment.Length; localIndex++)
@@ -458,7 +462,11 @@ public sealed class FormationPlannerTests
         scenario.Validate();
         var random = new SplitMix64(scenario.Seed);
 
-        var deployment = FormationPlanner.PlanFactionDeployment(scenario, ref random);
+        // fieldedChiefCount: 0 -- ContingentSizes is authored, so the
+        // authored-array branch wins regardless of chief count; see
+        // FormationPlanner.ResolveContingentSizes.
+        var deployment = FormationPlanner.PlanFactionDeployment(
+            scenario, fieldedChiefCount: 0, ref random);
 
         var counts = new int[authoredSizes.Length];
         foreach (var member in deployment)
@@ -493,36 +501,6 @@ public sealed class FormationPlannerTests
     }
 
     /// <summary>
-    /// <see cref="MovementPresetId.ContingentShapeV12"/> with no authored
-    /// <see cref="Scenario.ContingentSizes"/> deploys byte-identically to
-    /// <see cref="MovementPresetId.LastStandEngagementV11"/>: the gate in
-    /// <c>FormationPlanner.ResolveContingentSizes</c> requires the field to
-    /// be present, not just the preset identity.
-    /// </summary>
-    [Fact]
-    public void ContingentShapeV12WithoutAuthoredSizesDeploysIdenticallyToLastStandEngagementV11()
-    {
-        var v11 = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
-        {
-            MovementPreset = MovementPresetId.LastStandEngagementV11,
-        };
-        var v12 = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
-        {
-            MovementPreset = MovementPresetId.ContingentShapeV12,
-        };
-        v11.Validate();
-        v12.Validate();
-        var randomV11 = new SplitMix64(v11.Seed);
-        var randomV12 = new SplitMix64(v12.Seed);
-
-        var deploymentV11 = FormationPlanner.PlanFactionDeployment(v11, ref randomV11);
-        var deploymentV12 = FormationPlanner.PlanFactionDeployment(v12, ref randomV12);
-
-        Assert.Equal(deploymentV11, deploymentV12);
-        Assert.Equal(randomV11.State, randomV12.State);
-    }
-
-    /// <summary>
     /// <see cref="MovementPresetId.LastStandEngagementV11"/> with an authored
     /// <see cref="Scenario.ContingentSizes"/> populated deploys
     /// byte-identically to the same scenario without the field: the gate is
@@ -546,13 +524,148 @@ public sealed class FormationPlannerTests
         var randomWithoutField = new SplitMix64(withoutField.Seed);
         var randomWithField = new SplitMix64(withField.Seed);
 
-        var deploymentWithoutField =
-            FormationPlanner.PlanFactionDeployment(withoutField, ref randomWithoutField);
-        var deploymentWithField =
-            FormationPlanner.PlanFactionDeployment(withField, ref randomWithField);
+        // fieldedChiefCount: 0 -- MovementPresetId.LastStandEngagementV11
+        // always takes the square-root path, so the parameter is ignored on
+        // both scenarios here; see FormationPlanner.ResolveContingentSizes.
+        var deploymentWithoutField = FormationPlanner.PlanFactionDeployment(
+            withoutField, fieldedChiefCount: 0, ref randomWithoutField);
+        var deploymentWithField = FormationPlanner.PlanFactionDeployment(
+            withField, fieldedChiefCount: 0, ref randomWithField);
 
         Assert.Equal(deploymentWithoutField, deploymentWithField);
         Assert.Equal(randomWithoutField.State, randomWithField.State);
+    }
+
+    // ----- Tasks 6 and 7: MovementPresetId.ContingentShapeV12's
+    // chief-derived contingent count -----
+    //
+    // FormationPlanner never resolves a loadout and never learns what a Datu
+    // is (contingent-shape design section 2); the caller
+    // (BattleSimulation.Create) counts fielded chiefs once, from its own
+    // already-resolved loadouts, and passes the count in. The retired test
+    // this section replaces,
+    // ContingentShapeV12WithoutAuthoredSizesDeploysIdenticallyToLastStandEngagementV11,
+    // asserted that an unauthored V12 scenario deployed exactly like its V11
+    // twin; that premise is what tasks 6 and 7 exist to end, so the four
+    // cases below pin the chief-derived rule itself, directly against
+    // FormationPlanner's public entry point, rather than depending on any
+    // particular combat preset's roster shape to produce a given chief count.
+
+    [Fact]
+    public void ZeroFieldedChiefsFloorsToOneContingent()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            MovementPreset = MovementPresetId.ContingentShapeV12,
+        };
+        scenario.Validate();
+        var random = new SplitMix64(scenario.Seed);
+
+        var deployment = FormationPlanner.PlanFactionDeployment(
+            scenario, fieldedChiefCount: 0, ref random);
+
+        Assert.Equal(0, deployment.Max(member => member.ContingentId));
+    }
+
+    [Fact]
+    public void OneFieldedChiefProducesOneContingent()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            MovementPreset = MovementPresetId.ContingentShapeV12,
+        };
+        scenario.Validate();
+        var random = new SplitMix64(scenario.Seed);
+
+        var deployment = FormationPlanner.PlanFactionDeployment(
+            scenario, fieldedChiefCount: 1, ref random);
+
+        Assert.Equal(0, deployment.Max(member => member.ContingentId));
+    }
+
+    [Fact]
+    public void ExactlyEightFieldedChiefsProduceExactlyEightContingents()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            MovementPreset = MovementPresetId.ContingentShapeV12,
+        };
+        scenario.Validate();
+        var random = new SplitMix64(scenario.Seed);
+
+        var deployment = FormationPlanner.PlanFactionDeployment(
+            scenario, fieldedChiefCount: 8, ref random);
+
+        Assert.Equal(7, deployment.Max(member => member.ContingentId));
+    }
+
+    [Fact]
+    public void MoreThanEightFieldedChiefsAreCappedAtEightContingents()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            MovementPreset = MovementPresetId.ContingentShapeV12,
+        };
+        scenario.Validate();
+        var random = new SplitMix64(scenario.Seed);
+
+        var deployment = FormationPlanner.PlanFactionDeployment(
+            scenario, fieldedChiefCount: 12, ref random);
+
+        Assert.Equal(7, deployment.Max(member => member.ContingentId));
+    }
+
+    /// <summary>
+    /// The planning-level half of the "every contingent gets a chief"
+    /// guarantee (task 7): <see cref="RosterCountExpansion.Expand"/> groups a
+    /// rank's warriors into a contiguous block of the lowest faction-local
+    /// indices when that rank occupies roster row zero -- true of both
+    /// combat presets Hukbo ships, <c>PrecolonialPhilippinesV5</c> and
+    /// <c>PrecolonialPhilippinesV6</c> -- so the first
+    /// <paramref name="fieldedChiefCount"/> faction-local indices are exactly
+    /// where the chiefs stand. Since <c>ResolveContingentSizesByChiefCount</c>
+    /// sets the contingent count to that same
+    /// <paramref name="fieldedChiefCount"/> (clamped only by the cap and the
+    /// warrior-count floor, neither of which binds here), and the dealing
+    /// loop in <see cref="FormationPlanner.PlanFactionDeployment"/> (never
+    /// modified by this task) deals contingent
+    /// <c>localIndex % contingentCount</c> whenever every declared size
+    /// already equals what that plain modulus gives it -- true of an even
+    /// split that never varies by more than one -- those first
+    /// <paramref name="fieldedChiefCount"/> indices land on every contingent
+    /// id exactly once. This is the guarantee proven, and the only level it
+    /// is proven at: what happens to it afterward, under a preset that also
+    /// runs <c>CohortDeploymentAssignment</c>, is a separate, documented
+    /// caveat (see
+    /// <c>ContingentShapeV12Tests.CohortDeploymentAssignmentCanConcentrateEveryFieldedChiefIntoOneContingent</c>).
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(8)]
+    public void EveryContingentReceivesAtLeastOneOfTheFirstFieldedChiefCountLocalIndices(
+        int fieldedChiefCount)
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            MovementPreset = MovementPresetId.ContingentShapeV12,
+        };
+        scenario.Validate();
+        var random = new SplitMix64(scenario.Seed);
+
+        var deployment = FormationPlanner.PlanFactionDeployment(
+            scenario, fieldedChiefCount, ref random);
+
+        var contingentCount = deployment.Max(member => member.ContingentId) + 1;
+        Assert.Equal(fieldedChiefCount, contingentCount);
+
+        var contingentsAmongChiefs = deployment
+            .Take(fieldedChiefCount)
+            .Select(member => member.ContingentId)
+            .Distinct()
+            .Count();
+
+        Assert.Equal(contingentCount, contingentsAmongChiefs);
     }
 
     /// <summary>
@@ -565,7 +678,10 @@ public sealed class FormationPlannerTests
     private static void AssertDrawCount(Scenario scenario, int expectedDrawCount)
     {
         var actual = new SplitMix64(scenario.Seed);
-        FormationPlanner.PlanFactionDeployment(scenario, ref actual);
+        // fieldedChiefCount: 0 -- every caller of this helper uses the
+        // default MovementPresetId (never ContingentShapeV12), so the
+        // parameter is ignored; see FormationPlanner.ResolveContingentSizes.
+        FormationPlanner.PlanFactionDeployment(scenario, fieldedChiefCount: 0, ref actual);
 
         var expected = new SplitMix64(scenario.Seed);
         for (var index = 0; index < expectedDrawCount; index++)
