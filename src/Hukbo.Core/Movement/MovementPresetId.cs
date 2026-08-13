@@ -240,17 +240,44 @@ public enum MovementPresetId
     /// explicit selection — the shipped default stays
     /// <see cref="LastStandEngagementV11"/> — and is opt-in for the
     /// <see cref="Simulation.FormationPlanner"/> to shape a contingent's
-    /// deployment footprint rather than its runtime cohesion behaviour. No
-    /// deployment or movement behaviour is gated on this identity yet, so a
-    /// full battle run under this preset is not currently guaranteed to be
-    /// byte-identical to <see cref="LastStandEngagementV11"/>: the
-    /// weapon-grouped cohort deployment gate already checks preset identity
-    /// with a closed <c>is BattlefieldRealismV10 or LastStandEngagementV11</c>
-    /// pattern rather than a monotone "V10 or later" test, and this value
-    /// falls outside it. Whichever call site introduces this preset's
-    /// contingent-shape behaviour must also decide whether to extend that
-    /// gate. See docs/plans/2026-08-13-contingent-shape.md and
+    /// deployment footprint rather than its runtime cohesion behaviour.
+    /// <see cref="Simulation.FormationPlanner.ResolveContingentSizes"/> now
+    /// gates its authored-sizes path on this identity (commit 0766ee7), so a
+    /// full battle run under this preset derives contingent count from
+    /// fielded chiefs rather than the square-root or chief-count formulas
+    /// V10 and V11 use; it is not guaranteed to be byte-identical to
+    /// <see cref="LastStandEngagementV11"/> for that reason. The
+    /// weapon-grouped cohort deployment gate at
+    /// <see cref="Simulation.BattleSimulation"/> still checks preset
+    /// identity with a closed <c>is BattlefieldRealismV10 or
+    /// LastStandEngagementV11</c> pattern rather than a monotone "V10 or
+    /// later" test, and this value falls outside that gate too. See
+    /// docs/plans/2026-08-13-contingent-shape.md and
     /// docs/plans/2026-07-29-contingent-shape-design.md.
     /// </summary>
     ContingentShapeV12 = 12,
+
+    /// <summary>
+    /// The cohort lateral-spread preset. A verbatim restatement of
+    /// <see cref="LastStandEngagementV11"/>'s registered field values under
+    /// its own <c>id</c>, following the same convention
+    /// <see cref="ContingentShapeV12"/> uses: the behaviour is gated on
+    /// preset identity at its own call site, so this value carries no new
+    /// field of its own. It is admitted to both the
+    /// weapon-grouped-cohort-deployment gate and the last-stand-engagement
+    /// gate at <see cref="Simulation.BattleSimulation"/>, so it inherits
+    /// <see cref="LastStandEngagementV11"/>'s behaviour whole, plus one
+    /// change: <see cref="CohortDeploymentAssignment.AssignForFaction"/>
+    /// cuts its cohort-ordered warrior runs across contingent ids visited in
+    /// lateral-riffle order — even ids ascending, then odd ids ascending —
+    /// instead of size-descending, id-ascending order, so weapon cohorts are
+    /// spread across an army's frontage rather than laid down sorted from
+    /// one edge of the map to the other. It is not admitted to the
+    /// <see cref="ContingentShapeV12"/> branch of
+    /// <see cref="Simulation.FormationPlanner.ResolveContingentSizes"/>, so
+    /// it takes the square-root sizing path V11 does. See
+    /// docs/plans/2026-08-14-cohort-lateral-spread-design.md and
+    /// docs/plans/2026-08-14-cohort-lateral-spread.md.
+    /// </summary>
+    CohortLateralSpreadV13 = 13,
 }
