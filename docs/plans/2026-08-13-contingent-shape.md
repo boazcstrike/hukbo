@@ -461,6 +461,73 @@ archive-link violation, only a false location claim.
   person. The nearest existing rows are `BR-1` and `BR-4`, both `PENDING`, both
   about how a contingent reads on deployment.
 
+## 6a. Result, 2026-08-13
+
+`./scripts/verify.ps1 -SkipBootstrap`, run on branch `contingent-shape` at
+`c74b50f`:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+Suites: `Hukbo.Core.Tests` 2,539 passed, `Hukbo.Client.Tests` 3,724 passed, no
+failures and no skips. Every V1-V11 frozen trajectory digest and deployment
+fixture is byte-identical; `git diff --stat -- tests/Hukbo.Core.Tests/Fixtures`
+is empty across the whole branch.
+
+**What the gate did not do, stated plainly.** Its headless workloads report
+`"combatPreset": 5, "movementPreset": 11`. The gate never executed a single line
+of `ContingentShapeV12`'s new behaviour. All V12 coverage comes from the unit
+suites. A green gate here is evidence that V1-V11 are unmoved — which is the
+thing most worth proving — and is not evidence that V12 is correct.
+
+## 6b. Task 7 is not delivered, and the reason is structural
+
+Contingent **count** is chief-derived under V12, and that works. **A chief in
+every contingent does not**, and no amount of care in `FormationPlanner` will
+make it, because two shipped features want opposite groupings:
+
+- `CohortDeploymentAssignment` groups a contingent by **weapon cohort**. V12
+  inherits it from V10 and V11.
+- Chief-per-contingent groups by **rank**.
+
+A set of warriors cannot be simultaneously partitioned by weapon and by rank.
+`FormationPlanner.PlanFactionDeployment` does place one chief per contingent,
+and then `CohortDeploymentAssignment` reassigns membership by weapon immediately
+downstream and undoes it. With the shipped rosters the chiefs largely share a
+weapon, so they land together.
+
+This is pinned by a deliberately, honestly named regression test,
+`CohortDeploymentAssignmentCanConcentrateEveryFieldedChiefIntoOneContingent` in
+`tests/Hukbo.Core.Tests/Movement/ContingentShapeV12Tests.cs:153`. It asserts the
+behaviour that actually happens, not the behaviour that was wanted. **The
+guarantee holds only at `PlanFactionDeployment`'s own output, not at spawned
+agent state.**
+
+Three ways forward, none of them free, all needing a decision:
+
+1. **Accept it.** Ship chief-derived contingent *count* and drop the
+   chief-per-contingent claim. Cheapest, and it makes the design's section 4
+   and its answer to acceptance question 1 wrong — both would need correcting.
+2. **Make `CohortDeploymentAssignment` rank-aware** under V12, reserving one
+   slot per contingent for a chief before cohort grouping runs. This reopens
+   the placement question that section 0 decided, and it competes with the
+   shield-bearers-forward rule for the same slots.
+3. **Exclude V12 from cohort deployment.** Then V12 stops being a superset of
+   V11 and loses a shipped behaviour, which is the thing two separate fixes
+   this session went to some trouble to establish.
+
+Nothing here should be chosen under time pressure. Until it is, V12's honest
+description is "contingent count follows fielded chiefs, and sizes may be
+authored" — not "every contingent has a chief".
+
 ## 7. Status
 
 All three blocking decisions were taken on 2026-08-13 and are recorded in
