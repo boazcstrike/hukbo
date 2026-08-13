@@ -39,6 +39,24 @@ internal static class GaitGeometry
     private const float RunThresholdRawPerTick = 1600f;
 
     /// <summary>
+    /// Per-tick displacement, in the same raw units as
+    /// <see cref="RunThresholdRawPerTick"/>, below which a warrior is
+    /// classified as standing still rather than walking. This is a legibility
+    /// threshold derived from a stated criterion, not a provisional tuning
+    /// guess: <c>CrawlThresholdRawPerTick = StrideCycleDistanceRaw /
+    /// (MaxLegibleStrideCycleSeconds * TickRate) = 6000 / (5 * 20) = 60</c>.
+    /// A stride slower than one full cycle every five seconds is not one a
+    /// spectator can read as walking. At 60 raw units per tick a cycle takes
+    /// 100 ticks (5 s); at the pinned walk magnitude of 400 it takes 15 ticks
+    /// (0.75 s); at the arrival-taper floor of 1 raw unit per tick it would
+    /// have taken 6000 ticks (300 s) and now rests in the neutral stance
+    /// instead. For scale, full unimpeded speed is
+    /// <c>MovementSpeedRaw = 3 * FixedPoint.Scale = 3072</c> raw units per
+    /// tick.
+    /// </summary>
+    private const float CrawlThresholdRawPerTick = 60f;
+
+    /// <summary>
     /// PROVISIONAL. Fore/aft leg swing at <see cref="GaitMode.Walk"/>, as a
     /// ratio of leg length before apparent scale.
     /// </summary>
@@ -71,9 +89,11 @@ internal static class GaitGeometry
 
     /// <summary>
     /// Classifies a warrior's per-tick displacement into a stride state.
-    /// Exactly zero resolves <see cref="GaitMode.Stance"/>; anything below
+    /// Anything below <see cref="CrawlThresholdRawPerTick"/>, including exactly
+    /// zero, resolves <see cref="GaitMode.Stance"/>; anything from there below
     /// <see cref="RunThresholdRawPerTick"/> resolves <see cref="GaitMode.Walk"/>;
-    /// anything at or above it resolves <see cref="GaitMode.Run"/>.
+    /// anything at or above <see cref="RunThresholdRawPerTick"/> resolves
+    /// <see cref="GaitMode.Run"/>.
     /// </summary>
     /// <param name="displacementRawPerTick">
     /// The magnitude of the change in a warrior's raw position between one
@@ -90,7 +110,7 @@ internal static class GaitGeometry
                 nameof(displacementRawPerTick));
         }
 
-        if (displacementRawPerTick == 0f)
+        if (displacementRawPerTick < CrawlThresholdRawPerTick)
         {
             return GaitMode.Stance;
         }
