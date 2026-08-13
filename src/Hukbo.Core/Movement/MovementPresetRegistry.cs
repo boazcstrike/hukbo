@@ -623,6 +623,37 @@ public static class MovementPresetRegistry
         incomingDamageWeightBasisPoints: 0,
         allyCollapseWeightBasisPoints: 0);
 
+    /// <summary>
+    /// The cohort lateral-spread preset. A verbatim restatement of
+    /// <see cref="LastStandEngagementV11Ruleset"/>'s field values under its
+    /// own <c>id</c>, for the same reason <see cref="ContingentShapeV12Ruleset"/>
+    /// restates it: the lateral-riffle deployment change it gates is gated
+    /// on preset identity at its own call site, so it carries no new field
+    /// of its own. See docs/plans/2026-08-14-cohort-lateral-spread-design.md.
+    /// </summary>
+    private static readonly MovementRuleset CohortLateralSpreadV13Ruleset = new(
+        id: MovementPresetId.CohortLateralSpreadV13,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: false,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0);
+
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
         {
@@ -638,6 +669,7 @@ public static class MovementPresetRegistry
             MovementPresetId.BattlefieldRealismV10 => true,
             MovementPresetId.LastStandEngagementV11 => true,
             MovementPresetId.ContingentShapeV12 => true,
+            MovementPresetId.CohortLateralSpreadV13 => true,
             _ => false,
         };
 
@@ -656,6 +688,7 @@ public static class MovementPresetRegistry
             MovementPresetId.BattlefieldRealismV10 => BattlefieldRealismV10Ruleset,
             MovementPresetId.LastStandEngagementV11 => LastStandEngagementV11Ruleset,
             MovementPresetId.ContingentShapeV12 => ContingentShapeV12Ruleset,
+            MovementPresetId.CohortLateralSpreadV13 => CohortLateralSpreadV13Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,
