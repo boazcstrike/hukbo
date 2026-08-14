@@ -116,7 +116,6 @@ bodies overlap. This is a blocking problem, not a separation failure.
 ## 4. When this is picked up
 
 The related work still in `docs/plans/` is
-`2026-07-28-follower-trailing-deadlock-design.md` and
 the contingent shape design, whose own planning pass is the
 archived document titled "Contingent shape — task plan (Phase C)". A plan for
 this backlog entry should say which

@@ -3,9 +3,12 @@
 **Date:** 2026-07-28. Measured on `main` at `a6ca2a8` plus the collision scaling
 work, with `Hukbo.Tools.DeadlockProbe`.
 
-**What this settles.** Step 1 and step 2 of section 9 of
-[`docs/plans/2026-07-28-follower-trailing-deadlock-design.md`](../plans/2026-07-28-follower-trailing-deadlock-design.md),
-under the follower-trailing deadlock diagnostic plan.
+**What this settles.** Step 1 and step 2 of section 9 of the design titled
+"Follower-trailing mutual block in the collision resolver — design", under the
+follower-trailing deadlock diagnostic plan. That design has since been archived:
+its stall was closed in the intent layer by `b9003a9`, not by any of its five
+options, and a 2026-08-13 re-measurement found zero stalls at the shipping
+configuration.
 Until now that design's sections 4 and 6 were explicitly labelled hypothesis and
 no fix could be chosen honestly. They can be now.
 

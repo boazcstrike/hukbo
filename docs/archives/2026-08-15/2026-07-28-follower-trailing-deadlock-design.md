@@ -1,5 +1,24 @@
 # Follower-trailing mutual block in the collision resolver — design
 
+**Archived: reference only.** This design was never built, and it must not be
+built from. The stall it exists to fix was closed in the intent layer by
+`b9003a9` rather than in the resolver, and a re-measurement on 2026-08-13 over
+200 seeds found zero stalls at the shipping configuration; the only thresholds
+still affected, 7 and 8, are unreachable from `Scenario.CreateDefault` and from
+the client. None of its five options was chosen, `CollisionResolver` is
+unchanged, and every option except "do nothing" would move both hashes on every
+seed to fix something no spectator can reach. Never execute it, never treat it
+as a live task list, and never cite it as the reason to make a change. The live
+contract remains `CLAUDE.md`, `SIMULATION-GAME-STANDARDS.md`,
+`docs/development/testing.md`, and `docs/development/smoke-checklist.md`.
+
+Two things survive this document and are carried in `docs/plans/TODO.md` rather
+than only here: `CollisionRules.DefaultBodyRadiusRaw` is still 4.25 because 4.5
+hung the simulation in 2026-07-28's measurement rather than because anybody
+chose 4.25, and the 2,000-agent point is still the traffic jam section 2
+describes. Both would need fresh measurement before anyone acts on them, because
+the numbers below predate the intent-layer fix.
+
 Status: design only. This document does not authorize implementation. It states
 a problem, explains its cause, and lays out the options.
 

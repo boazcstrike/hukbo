@@ -5,9 +5,11 @@ Status: open. The twelve-task attack animation V2 plan is complete and merged,
 and has been archived out of `docs/plans/`; this records what it left behind.
 
 The implementation plan and its design are the context for everything below.
-Read `docs/plans/2026-08-08-attack-animation-v2-design.md` first — it is
+Read the design titled "Attack animation V2 — design" first — it is
 authoritative over this document, and where the two disagree the design wins
-and the discrepancy is worth reporting.
+and the discrepancy is worth reporting. That design shipped and was archived on
+2026-08-15, so it is a record rather than an instruction; this backlog is the
+live half of the pair.
 
 ## Status after the 2026-08-13 smoke run
 

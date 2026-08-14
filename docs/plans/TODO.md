@@ -38,6 +38,31 @@ is not authorized work; it is a reminder that the question was decided
   change has to beat are in
   [`2026-07-30-formation-blocking-baseline.md`](2026-07-30-formation-blocking-baseline.md).
 
+## From the follower-trailing deadlock diagnosis (2026-07-28, re-checked 2026-08-15)
+
+The design that carried these was archived on 2026-08-15 under the title
+"Follower-trailing mutual block in the collision resolver — design". It was
+never built, and none of its five resolver options may be built from it: the
+stall it existed to fix was closed in the intent layer by `b9003a9`, and a
+2026-08-13 re-measurement over 200 seeds found zero stalls at the shipping
+configuration. What survives is not the fix; it is two questions the fix did not
+answer.
+
+- **`CollisionRules.DefaultBodyRadiusRaw` is 4.25 because 4.5 hung the
+  simulation, not because anybody chose 4.25.** The constant's own remark records
+  the 2026-07-28 measurement: at 4.5, seed 12 stalled for 9,976 ticks with nine
+  agents alive on each side. That measurement predates the intent-layer stall
+  escape and has never been repeated since, so nobody knows today whether 4.5 is
+  still unreachable. Re-measuring is the whole of the work here; changing the
+  constant is a hash change on every seed and is not authorized by this entry.
+- **The 2,000-agent point is a traffic jam that contains a fight.** At the
+  shipping radius it measured 1,943,319 blocked agent-ticks, a longest blocked
+  streak of 108 ticks, a front that never widened past 104,460 raw units, and
+  1,352 of 2,000 agents still alive when the 10,000-tick cap arrived. 2,000 is a
+  stress point rather than a shipping configuration — the shipped default is 500
+  in total — and whether it is a supported population at all was never decided.
+  The thousand-unit performance design and plan own the population question now.
+
 ## From the ranged units package (2026-08-07)
 
 - **Sprite-frame animation pipeline.** Hand-authored image frames per action,
@@ -64,6 +89,34 @@ is not authorized work; it is a reminder that the question was decided
   embedded projectiles — plan". The quad-budget warning the entry carried is not
   lost with it: it lives in `src/Hukbo.Client/Rendering/SubmissionCount.cs` by
   name, which is where a future feature wanting a per-pawn quad will meet it.
+
+## From the ranged units closure record (2026-08-09, archived 2026-08-15)
+
+The handoff that carried these was archived on 2026-08-15 under the title
+"Ranged units — session handoff, 2026-08-09". The package itself is closed:
+merged at `9daa271`, sixty sound takes committed, all eleven `RG-*` smoke rows
+passed by a person on 2026-08-14. These three items outlived it.
+
+- **The V9 termination gap, accepted rather than fixed.** Movement preset V9
+  resolves 14 of 20 decisive seeds against a bar of 19. V9 is opt-in and V4
+  remains the shipped default, and the user accepted the gap with it recorded on
+  2026-08-14. One cause was identified and a second was not. Do not retune to
+  chase it; the refusal counters in `BattleSimulation` are the instrument for a
+  fresh investigation.
+- **Phase 2 of the ranged design: line of sight and friendly fire.** Deferred by
+  the design by construction, not left undone. A projectile today passes through
+  a friendly warrior; the user watched for exactly that on 2026-08-14 and
+  reported it does not look wrong at battle pace, which removes the urgency
+  without removing the debt.
+- **A scripted launch cannot start the battle.** `PlaybackController.IsPlaying`
+  defaults to `false` and the only producer of `Play()` is `ClientCommand.Play`,
+  reachable from input alone, so an agent-driven run renders a paused battle
+  forever and `simTicks` stays 0. A `HUKBO_AUTOPLAY=1` opt-in read once at
+  construction, exactly as `HUKBO_RENDER_PROBE` already is, plus an `-AutoPlay`
+  switch on `run.ps1`, would let a scripted Debug run drive a battle to
+  completion. Proposed twice on 2026-08-09 and not taken up; it is a new Client
+  feature needing its own row. It would not let an agent flip a smoke row —
+  only a person may do that. It would only mean the agent finds the crash first.
 
 ## From the unit test cleanup (2026-08-14)
 

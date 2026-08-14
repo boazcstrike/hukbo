@@ -1,5 +1,20 @@
 # Attack animation V2 — design
 
+**Archived: reference only.** This design shipped. Its twelve-task
+implementation plan is complete and merged, and all twenty-four `AA` smoke rows
+were run by a person at an interactive desktop and passed on 2026-08-13. Never
+execute it, never treat it as a live task list, and never cite it as the reason
+to make a change. The live contract remains `CLAUDE.md`,
+`SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, and
+`docs/development/smoke-checklist.md`.
+
+What the shipped rig left behind is still open and still lives in
+`docs/plans/2026-08-09-attack-animation-v2-backlog.md`, which this document
+remains authoritative over where the two disagree. The largest surviving item is
+that `ConservativePawnCull` has no production caller — re-checked on 2026-08-15
+and still true, its only references under `src/` being its own file and three
+comments in `PawnGeometry.cs`.
+
 Date: 2026-08-08
 Status: approved. The companion implementation plan is complete and has been
 archived out of `docs/plans/`; code changes begin only by executing that plan.
