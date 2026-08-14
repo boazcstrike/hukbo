@@ -410,12 +410,16 @@ public sealed partial class ArenaGame
     /// <summary>
     /// Recomputes each visible pawn's <see cref="PawnLayout"/> with the same
     /// inputs <see cref="DrawPawns"/> resolves — footAnchor, camera zoom,
-    /// appearance, swing pose, and every other pawn-geometry parameter left at
+    /// appearance, gait pose, and every other pawn-geometry parameter left at
     /// <see cref="DrawPawns"/>'s own implicit defaults — so
     /// <c>PawnQuadCount.Count</c>'s result matches what
-    /// <c>PawnRenderer.Draw</c> actually emits for that pawn this frame.
-    /// Mirrors <see cref="DrawPawns"/>'s two-stage geometry path element for
-    /// element, so the two passes cull the same agents.
+    /// <c>PawnRenderer.Draw</c> actually emits for that pawn this frame. Not
+    /// yet a literal element-for-element mirror of <see cref="DrawPawns"/>'s
+    /// two-stage geometry path: <see cref="DrawPawns"/> also resolves a
+    /// ranged pose and gates the attack pose on
+    /// <c>RangedPoseResolver.SuppressesSwing</c>, neither of which this
+    /// method reproduces. It does share <see cref="DrawPawns"/>'s cull
+    /// rectangle logic, so the two passes cull the same agents.
     /// </summary>
     private void RecordPawnQuads(Rectangle arenaBounds)
     {
@@ -523,9 +527,20 @@ public sealed partial class ArenaGame
                 _attackPoses.TryGetValue(agent.EntityId, out var pose)
                 ? pose
                 : (AttackPose?)null;
+
+            // Resolved the same way DrawPawns resolves it (see that method's
+            // own remark): the gait store already gates its own entries on
+            // IsAlive, so GaitPoseResolver.TryGetPose returns false for a
+            // dead agent without this method duplicating that gate.
+            var gaitPose = GaitPoseResolver.TryGetPose(
+                _gaitPoses,
+                agent.EntityId,
+                out var resolvedGaitPose)
+                ? resolvedGaitPose
+                : (GaitPose?)null;
             var layout = pawnPrefix.CompleteAttackPosedLayout(
                 attackPose,
-                gaitPose: null,
+                gaitPose,
                 ResolveReactionOffset(agent.EntityId),
                 rangedPose: null,
 
