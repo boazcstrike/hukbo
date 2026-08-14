@@ -107,13 +107,20 @@ public sealed class SandataSimulation
 
     /// <summary>
     /// Stage 7's cell-blocked-this-tick input to <see cref="PathService.Advance"/>,
-    /// allocated once and never written to after construction. Every element
-    /// stays its default <see langword="false"/> for this worktree's whole
-    /// lifetime — <see cref="AdvancePathService"/>'s own remarks explain why
-    /// no door-driven dynamic blocker source exists here — so a fresh array
-    /// every tick would only ever reproduce the same all-false content
-    /// <see cref="PathService.Advance"/> already reads through a
-    /// <see cref="ReadOnlySpan{T}"/> it never mutates.
+    /// allocated once and seeded once, in the constructor, from
+    /// <see cref="_navGrid"/>'s own baked <see cref="NavGrid.Passability"/> —
+    /// see <see cref="BuildPathBlockedCells"/>. That seed is the map's
+    /// <b>static</b> impassability: every cell a wall's inflation reached is
+    /// <see langword="true"/> here, and every <see cref="NavCellFlags.Door"/>
+    /// cell stays <see langword="false"/>, so a closed door is passable to
+    /// this array exactly as it already is to the planner at the cost
+    /// <see cref="NavGrid.Passability"/> alone encodes.
+    /// This array is never rewritten after construction. No door-driven or
+    /// otherwise dynamic blocker source exists in this worktree —
+    /// <see cref="AdvancePathService"/>'s own remarks explain why — so a
+    /// future task that adds one composes by writing into this same array
+    /// rather than allocating a second one; nothing here forbids that, and
+    /// nothing here does it yet.
     /// </summary>
     private readonly bool[] _pathBlockedCells;
 
@@ -196,8 +203,9 @@ public sealed class SandataSimulation
         var cohesionRadiusRaw = RawFromWorldUnits(ruleset.GroupCohesionRadiusWu);
         _cohesionGrid = new SandataCollisionGrid(CohesionCollisionCellSizeRaw(cohesionRadiusRaw));
 
-        // See _pathBlockedCells's own remarks: never written to after this.
-        _pathBlockedCells = new bool[navGrid.CellCount];
+        // See _pathBlockedCells's own remarks: seeded once, here, from the
+        // baked map, and never written to again.
+        _pathBlockedCells = BuildPathBlockedCells(navGrid);
 
         // A NavGrid's dimensions are fixed for its lifetime, so stage 5's
         // cell chain can be sized once here rather than grown.
@@ -206,6 +214,37 @@ public sealed class SandataSimulation
         State = initialState;
 
         RecomputePublishedPaths();
+    }
+
+    /// <summary>
+    /// Builds stage 7's <see cref="_pathBlockedCells"/> seed from
+    /// <paramref name="navGrid"/>'s own baked <see cref="NavGrid.Passability"/>:
+    /// <see langword="true"/> for every <see cref="NavCellFlags.Blocked"/>
+    /// cell, <see langword="false"/> for every <see cref="NavCellFlags.Open"/>
+    /// or <see cref="NavCellFlags.Door"/> cell. A closed door is deliberately
+    /// left passable here — <see cref="NavCellFlags"/>'s own remarks state
+    /// that a door cell is "passable to the planner at high cost", and
+    /// <see cref="WeaponLoweredRules"/> depends on an operator being able to
+    /// stand inside one, which a search that treats a door as blocked would
+    /// make unreachable. Called once, from the constructor, never per tick —
+    /// see <see cref="_pathBlockedCells"/>'s own remarks for why a fresh
+    /// array every tick would be wasted work.
+    /// </summary>
+    /// <param name="navGrid">The grid whose baked passability to read.</param>
+    /// <returns>A new array, one entry per <see cref="NavGrid.CellCount"/> cell.</returns>
+    internal static bool[] BuildPathBlockedCells(NavGrid navGrid)
+    {
+        ArgumentNullException.ThrowIfNull(navGrid);
+
+        var passability = navGrid.Passability;
+        var blocked = new bool[passability.Length];
+
+        for (var cellIndex = 0; cellIndex < passability.Length; cellIndex++)
+        {
+            blocked[cellIndex] = passability[cellIndex] == NavCellFlags.Blocked;
+        }
+
+        return blocked;
     }
 
     /// <summary>
@@ -1977,10 +2016,13 @@ public sealed class SandataSimulation
     /// sees this stage's search-and-publish machinery run every tick with
     /// nothing to act on, exactly as before this task — see
     /// <see cref="TickStage.PathService"/>'s own remarks.
-    /// <b>PROVISIONAL</b> <paramref name="currentTick"/>'s <c>blocked</c> span
-    /// is all-<see langword="false"/> — no door-driven dynamic blocker source
-    /// exists in this worktree (stage 4 is the same honest pass-through), so
-    /// every cell reports passable to the search this call may run.
+    /// This call's <c>blocked</c> span (<see cref="_pathBlockedCells"/>) carries
+    /// the map's <b>static</b> impassability, seeded once at construction by
+    /// <see cref="BuildPathBlockedCells"/> from <see cref="_navGrid"/>'s baked
+    /// passability. <b>PROVISIONAL</b>: no door-driven or otherwise dynamic
+    /// blocker source exists in this worktree yet (stage 4 is the same honest
+    /// pass-through) — a future one composes with the static seed by writing
+    /// into the same array, so this stage does not need to change to gain one.
     /// </summary>
     private void AdvancePathService(long currentTick)
     {
