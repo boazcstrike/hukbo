@@ -355,6 +355,13 @@ internal sealed class PresentationCoordinator
 
     public int AcknowledgeAttackDraw() => AttackFrames.AcknowledgeDraw();
 
+    /// <summary>
+    /// Records that <paramref name="entityId"/>'s pawn was actually drawn
+    /// this frame, feeding <see cref="AcknowledgeAttackDraw"/>'s cull-aware
+    /// release check. See <see cref="AttackFrameCoordinator.RecordDrawn"/>.
+    /// </summary>
+    public void RecordPawnDrawn(ulong entityId) => AttackFrames.RecordDrawn(entityId);
+
     public MatchSummary ProcessTerminal(
         BattleOutcome outcome,
         IReadOnlyList<AgentView> agents,

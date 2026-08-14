@@ -1387,6 +1387,12 @@ public sealed partial class ArenaGame
 
             DrawEmbeddedProjectiles(spriteBatch, pixel, agent.EntityId, pawnLayout);
 
+            // PV-11. This pawn reached an actual draw call this frame, dead
+            // pass or alive pass either one, so any latched attack contact of
+            // its is eligible to release when AcknowledgeAttackDraw runs
+            // below. See AttackFrameCoordinator.RecordDrawn.
+            _presentation.RecordPawnDrawn(agent.EntityId);
+
             OpenArenaGeometrySpan();
         }
     }

@@ -10,6 +10,18 @@ namespace Hukbo.Client.Presentation;
 internal sealed class AttackAnimationSystem
 {
     private readonly AttackAnimation[] _animations;
+
+    /// <summary>
+    /// Parallel to <see cref="_animations"/>, index for index: how many
+    /// consecutive Draw frames the slot's contact has gone unacknowledged.
+    /// Reset to zero every time <see cref="Upsert"/> writes a fresh contact
+    /// into a slot, so a combo contact never inherits its predecessor's
+    /// count. Read and incremented only through
+    /// <see cref="IncrementUndrawnFrames"/>, which
+    /// <see cref="AttackFrameCoordinator"/> uses to force a stuck latch open.
+    /// </summary>
+    private readonly int[] _undrawnFrames;
+
     private int _count;
 
     /// <summary>
@@ -36,6 +48,7 @@ internal sealed class AttackAnimationSystem
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         _animations = new AttackAnimation[capacity];
+        _undrawnFrames = new int[capacity];
     }
 
     /// <summary>
@@ -170,6 +183,33 @@ internal sealed class AttackAnimationSystem
         return false;
     }
 
+    /// <summary>
+    /// Records one more Draw frame in which the latch at
+    /// <paramref name="attackerEntityId"/>/<paramref name="sequence"/> was
+    /// still awaiting its draw acknowledgement, and returns the updated
+    /// count. A no-op returning zero if that latch is not the attacker's
+    /// current animation or is not awaiting acknowledgement, which happens
+    /// only if the caller's own pre-check already went stale.
+    /// </summary>
+    public int IncrementUndrawnFrames(ulong attackerEntityId, long sequence)
+    {
+        for (var index = 0; index < _count; index++)
+        {
+            var animation = _animations[index];
+            if (animation.AttackerEntityId != attackerEntityId ||
+                animation.Sequence != sequence ||
+                !animation.AwaitingDrawAcknowledgement)
+            {
+                continue;
+            }
+
+            _undrawnFrames[index]++;
+            return _undrawnFrames[index];
+        }
+
+        return 0;
+    }
+
     public bool TryGetAnimation(
         ulong attackerEntityId,
         out AttackAnimation animation)
@@ -192,6 +232,7 @@ internal sealed class AttackAnimationSystem
     public void Clear()
     {
         Array.Clear(_animations, 0, _count);
+        Array.Clear(_undrawnFrames, 0, _count);
         _count = 0;
     }
 
@@ -206,12 +247,14 @@ internal sealed class AttackAnimationSystem
             }
 
             _animations[index] = animation;
+            _undrawnFrames[index] = 0;
             return;
         }
 
         if (_count < _animations.Length)
         {
             _animations[_count] = animation;
+            _undrawnFrames[_count] = 0;
             _count++;
             return;
         }
@@ -232,5 +275,6 @@ internal sealed class AttackAnimationSystem
         }
 
         _animations[replacementIndex] = animation;
+        _undrawnFrames[replacementIndex] = 0;
     }
 }

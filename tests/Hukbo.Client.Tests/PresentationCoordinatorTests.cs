@@ -359,6 +359,7 @@ public sealed class PresentationCoordinatorTests
             ],
             agents, default);
         ReleaseContacts(coordinator, agents);
+        coordinator.RecordPawnDrawn(2);
         coordinator.AcknowledgeAttackDraw();
 
         coordinator.AdvanceEffects(0.02f, speedMultiplier: 4f);
@@ -432,6 +433,7 @@ public sealed class PresentationCoordinatorTests
         ReleaseContacts(coordinator, agents);
 
         Assert.True(coordinator.HasTerminalAttackPresentation);
+        coordinator.RecordPawnDrawn(1);
         Assert.Equal(1, coordinator.AcknowledgeAttackDraw());
         Assert.True(coordinator.HasTerminalAttackPresentation);
 
@@ -460,6 +462,7 @@ public sealed class PresentationCoordinatorTests
 
         Assert.True(coordinator.HasTerminalAttackPresentation);
         Assert.Equal(1, coordinator.AttackContacts.PendingCount);
+        coordinator.RecordPawnDrawn(1);
         Assert.Equal(1, coordinator.AcknowledgeAttackDraw());
         Assert.True(coordinator.HasTerminalAttackPresentation);
 
@@ -467,6 +470,7 @@ public sealed class PresentationCoordinatorTests
 
         Assert.Equal(0, coordinator.AttackContacts.PendingCount);
         Assert.True(coordinator.HasTerminalAttackPresentation);
+        coordinator.RecordPawnDrawn(1);
         Assert.Equal(1, coordinator.AcknowledgeAttackDraw());
         Assert.True(coordinator.HasTerminalAttackPresentation);
 
