@@ -10,19 +10,13 @@ namespace Hukbo.Client.Rendering;
 /// </summary>
 internal readonly record struct AttackPose(
     AttackAnimationPhase Phase,
-    Vector2 Forward,
-    Vector2 Right,
     Vector2 TorsoOffset,
     float TorsoRotationRadians,
     float StanceWeight,
     Vector2 WeaponHand,
-    Vector2 SupportHand,
     bool HasSupportHand,
     Vector2 WeaponTip,
-    Vector2 TrailStart,
-    Vector2 TrailEnd,
     float TrailStrength,
-    Vector2 ShieldHand,
     bool HasShield,
     AttackResolution Resolution,
     bool IsLethal);
@@ -72,45 +66,20 @@ internal static class AttackPoseResolver
         var weaponTip = weaponHand +
             (weaponDirection * geometry.WeaponReach);
 
-        var trailDirection = ToWorld(
-            MathF.Cos(geometry.TrailAngleRadians),
-            MathF.Sin(geometry.TrailAngleRadians),
-            forward,
-            right);
-        var trailStart = weaponHand +
-            (trailDirection * geometry.WeaponReach * 0.88f);
-
         var hasSupportHand = animation.MotionProfile.HandCount == 2;
-        var supportHand = torsoOffset + ToWorld(
-            forwardOffset: -0.04f,
-            lateralOffset: 0.04f +
-                (geometry.WeaponLateralOffset * 0.08f),
-            forward,
-            right);
         var hasShield = ResolveShieldOverlay(
             animation.AttackerShield,
             animation.MotionProfile.ShieldCompatible);
-        var shieldHand = torsoOffset + ToWorld(
-            forwardOffset: 0.16f,
-            lateralOffset: -0.58f,
-            forward,
-            right);
 
         return new AttackPose(
             animation.Phase,
-            forward,
-            right,
             torsoOffset,
             geometry.TorsoRotationRadians,
             geometry.StanceWeight,
             weaponHand,
-            supportHand,
             hasSupportHand,
             weaponTip,
-            trailStart,
-            weaponTip,
             geometry.TrailStrength,
-            shieldHand,
             hasShield,
             animation.Resolution,
             animation.IsLethal);
