@@ -56,17 +56,38 @@ namespace Sandata.Client.Audio;
 internal static class IndoorPresence
 {
     /// <summary>
-    /// The world-unit reach of each direction's line-of-sight probe. Chosen
-    /// to clear <c>angle-house.hkmap</c>'s roughly 32 world-unit corridors and
-    /// its smallest enclosed rooms (the closed-off room bounded by the walls
-    /// at world x = 60 and x = 180, roughly 120 world units apart) while
-    /// staying short enough that the bottom room holding both blue spawns —
-    /// itself walled on every side, but 640 world units wide — does not read
-    /// as enclosed from a spawn point close to only one or two of its walls.
-    /// A future map with rooms outside this size range would need a different
-    /// value, or the topological successor this type's remarks describe.
+    /// The world-unit reach of each direction's line-of-sight probe. This is a
+    /// room-size threshold in disguise: it has to exceed the distance from the
+    /// middle of the largest room that should read as interior to that room's
+    /// farthest wall, and stay under the same distance for the largest space
+    /// that should read as exterior.
+    /// <para>
+    /// <b>96 was too small by four world units, and a driven run is what
+    /// caught it.</b> The first value shipped at 96 and every indoor sound file
+    /// stayed unreachable, because the objective room in
+    /// <c>angle-house.hkmap</c> — bounded by the walls at world x = 420 and
+    /// x = 600 and at world y = 60 and y = 200 — holds the defender at
+    /// (500, 120), whose distances to those four walls are 80, 100, 60, and 80.
+    /// The single eastward probe overshot by four world units, one direction
+    /// out of eight failed, and the whole room read as open air. A trace-level
+    /// audio log from a real run showed seventeen cues, every one of them
+    /// <c>CloseDry</c> and not one <c>IndoorTail</c>; the unit tests had passed
+    /// throughout, because they asked about points this predicate already
+    /// agreed on.
+    /// </para>
+    /// <para>
+    /// 128 covers that room's 100-world-unit reach with margin, and still
+    /// leaves the bottom hall holding both blue spawns reading as exterior:
+    /// that space is 640 world units wide, so its east and west probes from
+    /// either spawn travel roughly 296 and 344 world units without meeting
+    /// anything. The gap between 100 and 296 is the whole margin this constant
+    /// has, and a future map with a room wider than 256 world units, or an
+    /// outdoor space narrower than 256, would collapse it — at which point the
+    /// topological successor this type's remarks describe is the answer rather
+    /// than another number here.
+    /// </para>
     /// </summary>
-    internal const long ProbeRangeWu = 96;
+    internal const long ProbeRangeWu = 128;
 
     /// <summary>
     /// The eight compass directions a probe is cast in, as unit steps applied
