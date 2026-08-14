@@ -37,6 +37,24 @@ internal sealed class MenuOverlay
     private const int ResponsivePanelHeight = 680;
     private const int ColumnGap = 40;
     private const int SettingsSelectorGap = 8;
+
+    /// <summary>
+    /// The number of selectors stacked in the settings column (the right-hand
+    /// column, at <c>settingsLeft</c> in <see cref="Layout"/>): gore, motion,
+    /// auto camera, UI scale, then startup display. Six selector fields exist
+    /// on this class, but the theme selector is not one of these five — it is
+    /// laid out in the button column instead, sharing <c>buttonLeft</c> with
+    /// the button stack, and its height is already added explicitly as the
+    /// standalone <c>selectorHeight</c> term in
+    /// <see cref="CalculateContentBottomOffset"/>'s button-column branch. Do
+    /// not raise this to 6 to "include" the theme selector; that would
+    /// double-count it and overstate the settings-column height by one
+    /// selector's worth of space. If a selector is added to the settings
+    /// column, raise this constant; if one is added to the button column
+    /// instead, extend the button-column branch's formula, not this constant.
+    /// <c>MenuOverlayFocusTests.SettingsColumnFormulaMatchesActualSettingsColumnGeometry</c>
+    /// fails if the two ever drift apart.
+    /// </summary>
     private const int SettingsSelectorCount = 5;
 
     internal static readonly (string Label, ClientCommand Command)[]

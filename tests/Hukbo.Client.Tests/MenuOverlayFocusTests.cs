@@ -202,6 +202,54 @@ public sealed class MenuOverlayFocusTests
             $"offers {panel.Height} px.");
     }
 
+    /// <summary>
+    /// <see cref="MenuOverlay.CalculateContentBottomOffset"/> reserves height
+    /// for the settings column (gore, motion, auto camera, UI scale, startup
+    /// display) using a private selector-count constant, separately from the
+    /// theme selector, which lives in the button column instead. This test
+    /// reads the settings column's actual on-screen extent from
+    /// <see cref="MenuOverlay.GetControlBounds"/> — skipping the theme
+    /// selector and every button, which come first in that list — and checks
+    /// it never exceeds what the formula reserved. If a selector is ever
+    /// appended to the settings column in <c>Layout</c> without raising the
+    /// private count constant that feeds the formula, the column grows past
+    /// its reservation and this assertion fails, independently of whether
+    /// <c>ThePanelIsTallEnoughForEveryMenuControl</c> still happens to pass.
+    /// </summary>
+    [Fact]
+    public void SettingsColumnFormulaMatchesActualSettingsColumnGeometry()
+    {
+        var path = Path.Combine(
+            AppContext.BaseDirectory,
+            "Content",
+            "Themes",
+            "ui-theme-standards.json");
+        var catalog = Theming.UiThemeCatalog.Load(path);
+        var standards = catalog.Standards;
+        var menu = new MenuOverlay(catalog.Themes, standards);
+        var screen = new Microsoft.Xna.Framework.Rectangle(0, 0, 1280, 720);
+
+        var panel = menu.GetPanelBounds(screen);
+        var controls = menu.GetControlBounds(screen);
+        var settingsColumnControls = controls
+            .Skip(1 + MenuOverlay.ButtonDefinitions.Length)
+            .ToArray();
+        var actualSettingsColumnBottomOffset =
+            settingsColumnControls[^1].Bottom - panel.Top;
+
+        var reservedHeight = MenuOverlay.CalculateContentBottomOffset(
+            standards.Shared.Menu,
+            standards.Shared.Selector,
+            MenuOverlay.ButtonDefinitions.Length);
+
+        Assert.True(
+            actualSettingsColumnBottomOffset <= reservedHeight,
+            $"Settings column now extends {actualSettingsColumnBottomOffset}px " +
+            $"from the panel top, but CalculateContentBottomOffset only " +
+            $"reserved {reservedHeight}px. A settings selector was likely " +
+            "added without raising MenuOverlay.SettingsSelectorCount.");
+    }
+
     [Theory]
     [InlineData(1024, 720)]
     [InlineData(1280, 720)]
