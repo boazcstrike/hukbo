@@ -168,19 +168,31 @@ public sealed class ShotSlotResolverTests
     }
 
     /// <summary>
-    /// No task before this one declares an <see cref="FireMode.Auto"/> row
-    /// for a pistol caliber — <c>AddAutomaticLoopAndTail</c> iterates only
-    /// the six rifle calibers. Resolving automatic fire for a pistol caliber
-    /// has no declared row and no valid fallback, so it must throw rather
-    /// than silently resolve to the wrong weapon's sound.
+    /// A pistol caliber resolves an <see cref="FireMode.Auto"/> row of its
+    /// own rather than throwing.
     /// </summary>
+    /// <remarks>
+    /// This test previously asserted the opposite, and pinned a latent crash
+    /// as though it were the contract: <c>AddAutomaticLoopAndTail</c> declared
+    /// automatic rows for the six rifle calibers only, so an automatic-capable
+    /// pistol reached <c>SandataSoundCatalog.Find</c>'s throwing last resort
+    /// and would have taken the client down on its first round. Decision D5 of
+    /// the 2026-08-14 lowered-weapon and automatic-fire design closes that by
+    /// declaring the rows for every caliber family the catalog knows, on the
+    /// grounds that a slot the resolver cannot name is a content bug and
+    /// should be impossible to construct rather than survivable at runtime.
+    /// Declaring a row creates no audio file; a row with no file on disk
+    /// already plays as silence through the existing negative-cache path.
+    /// </remarks>
     [Fact]
-    public void AutoModeForAPistolCaliberHasNoDeclaredRowAndThrows()
+    public void AutoModeForAPistolCaliberResolvesItsOwnRow()
     {
-        Assert.Throws<KeyNotFoundException>(() =>
-            ShotSlotResolver.Resolve(
-                CaliberFamily.Cal9X19, FireMode.Auto, rangeWu: 100, shooterIsIndoors: true,
-                suppressorFitted: false, tick: 6, shooterEntityId: 19));
+        var resolution = ShotSlotResolver.Resolve(
+            CaliberFamily.Cal9X19, FireMode.Auto, rangeWu: 100, shooterIsIndoors: true,
+            suppressorFitted: false, tick: 6, shooterEntityId: 19);
+
+        Assert.Equal(SoundFamily.GunLoop, resolution.Slot.Family);
+        Assert.Equal((int)CaliberFamily.Cal9X19, resolution.Slot.FamilyKey);
     }
 
     /// <summary>

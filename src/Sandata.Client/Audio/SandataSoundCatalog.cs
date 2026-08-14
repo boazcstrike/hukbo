@@ -80,16 +80,6 @@ internal static class SandataSoundCatalog
         SoundEnvironment.OutdoorTail,
     ];
 
-    private static readonly CaliberFamily[] RifleCalibers =
-    [
-        CaliberFamily.Cal762X39,
-        CaliberFamily.Cal545X39,
-        CaliberFamily.Cal556X45,
-        CaliberFamily.Cal762X51,
-        CaliberFamily.Cal68X51,
-        CaliberFamily.Cal58X42,
-    ];
-
     private static readonly CaliberFamily[] Burst2Calibers =
     [
         CaliberFamily.Cal545X39,
@@ -409,7 +399,15 @@ internal static class SandataSoundCatalog
             SoundEnvironment.OutdoorTail,
         ];
 
-        foreach (var caliber in RifleCalibers)
+        // Every caliber family, not just the six rifle calibers: an
+        // automatic-capable pistol (Cal9X19 or Cal58X21) must resolve a
+        // GunLoop and GunTail row exactly as a rifle does, or
+        // ShotSlotResolver.FindWithFallback's last resort,
+        // SandataSoundCatalog.Find, throws KeyNotFoundException on its first
+        // shot. Declaring the row does not create an audio file; a missing
+        // file already plays as silence through the existing negative-cache
+        // path in MonoGameSandataSoundOutput.
+        foreach (var caliber in Enum.GetValues<CaliberFamily>())
         {
             foreach (var environment in autoEnvironments)
             {

@@ -63,6 +63,38 @@ internal interface ISandataSoundOutput
 /// </remarks>
 internal sealed class SandataSoundPlayer
 {
+    /// <summary>
+    /// The pinned tick rate every Sandata preset bakes to, per design section
+    /// 4: "Time is an integer tick at a <c>TickRate</c> of 50, so one tick is
+    /// exactly 20 milliseconds." Reproduced as a small local constant rather
+    /// than reached through a <c>SandataRuleset</c> instance, exactly as
+    /// <c>Sandata.Client.Simulation.TickPacing.MicrosecondsPerTick</c> already
+    /// does for the same pinned number.
+    /// </summary>
+    private const int TickRate = 50;
+
+    /// <summary>
+    /// How many ticks a burst-end signal for a shooter must go without a
+    /// fresh automatic round before <see cref="HandleAutomaticFireStopped"/>
+    /// treats it as the burst genuinely ending rather than a quiet tick
+    /// between two rounds of the same burst.
+    /// </summary>
+    /// <remarks>
+    /// Sized from <see cref="Sandata.Core.Weapons.FirearmCatalog"/>'s slowest
+    /// automatic-capable cyclic rate at the moment this constant was written:
+    /// 600 rounds per minute, carried by several AK-pattern and AR-pattern
+    /// rows. At <see cref="TickRate"/> 50 that fires one round every five
+    /// ticks, so a weapon at that cadence goes silent for four ticks between
+    /// rounds, and the caller of <see cref="HandleAutomaticFireStopped"/> —
+    /// which today reports every tick a shooter did not fire on, not only the
+    /// tick a burst actually ended on — reports a false stop on every one of
+    /// those four ticks. The window is fixed one tick above that worst-case
+    /// gap so a real four-tick gap is always absorbed while any longer gap
+    /// still reads as a genuine end. If a future firearm row is ever slower
+    /// than 600 rounds per minute this constant needs to grow to match it.
+    /// </remarks>
+    private const int BurstEndGraceWindowTicks = 6;
+
     private readonly ISandataSoundOutput _output;
     private readonly SandataSoundBudget _budget;
 
@@ -73,6 +105,36 @@ internal sealed class SandataSoundPlayer
     /// burst ends, in <see cref="HandleAutomaticFireStopped"/>.
     /// </summary>
     private ImmutableArray<ulong> _loopFallbackShooters = ImmutableArray<ulong>.Empty;
+
+    /// <summary>
+    /// One shooter's most recent automatic round, as recorded by
+    /// <see cref="HandleAutomaticRound"/> and read by
+    /// <see cref="HandleAutomaticFireStopped"/>.
+    /// </summary>
+    /// <param name="ShooterEntityId">The shooter that fired the round.</param>
+    /// <param name="Tick">The tick that round was fired on.</param>
+    private readonly record struct AutomaticBurstRound(ulong ShooterEntityId, long Tick);
+
+    /// <summary>
+    /// The tick of the most recent <see cref="HandleAutomaticRound"/> call for
+    /// each shooter still considered mid-burst. <see cref="HandleAutomaticFireStopped"/>
+    /// compares its own tick against this to tell a real burst end from a
+    /// quiet tick between rounds — see <see cref="BurstEndGraceWindowTicks"/>.
+    /// A shooter is removed once its stop has actually been processed, so a
+    /// caller that keeps reporting the same stop every tick after that (as
+    /// today's caller does) only plays the tail once.
+    /// </summary>
+    /// <remarks>
+    /// A flat array scanned linearly rather than a <c>Dictionary</c>, which
+    /// <c>SandataSoundCatalogTests.SandataAudioCatalogSourceDeclaresNoDictionary</c>
+    /// forbids anywhere under <c>src/Sandata.Client/Audio</c>, and which
+    /// <see cref="_loopFallbackShooters"/> already avoids for the same reason.
+    /// The entry count is bounded by the number of operators firing
+    /// automatically on one tick, so a scan is cheaper than a hash lookup here
+    /// as well as being the house style.
+    /// </remarks>
+    private ImmutableArray<AutomaticBurstRound> _automaticBurstRounds =
+        ImmutableArray<AutomaticBurstRound>.Empty;
 
     public SandataSoundPlayer(ISandataSoundOutput output, SandataSoundBudget budget)
     {
@@ -129,11 +191,20 @@ internal sealed class SandataSoundPlayer
 
     /// <summary>
     /// Notifies the player that <paramref name="shooterEntityId"/>'s
-    /// automatic burst has ended, so the tail instance that follows a
-    /// sustained loop can play. Renews the tail reservation this shooter's
-    /// rounds already held — see this type's remarks — to the tail slot's
-    /// own <see cref="SoundSlot.TailTicks"/> from <paramref name="tick"/>,
-    /// then requests playback.
+    /// automatic burst may have ended, so the tail instance that follows a
+    /// sustained loop can play. Today's caller reports this every tick the
+    /// shooter did not fire on, not only the tick a burst actually ended on,
+    /// so this method only treats it as a real end when
+    /// <see cref="_automaticBurstRounds"/> shows the shooter's last round
+    /// was more than <see cref="BurstEndGraceWindowTicks"/> ticks ago — see
+    /// that constant's remarks. A call inside the grace window, or a call for
+    /// a shooter with no live burst at all (never fired, or already handled),
+    /// is a no-op. A real end renews the tail reservation this shooter's
+    /// rounds already held — see this type's remarks — to the tail slot's own
+    /// <see cref="SoundSlot.TailTicks"/> from <paramref name="tick"/>, then
+    /// requests playback, and removes the shooter from
+    /// <see cref="_automaticBurstRounds"/> so the caller's repeated reports
+    /// of the same stop do not replay the tail every tick after that.
     /// </summary>
     public void HandleAutomaticFireStopped(
         CaliberFamily caliber,
@@ -143,6 +214,22 @@ internal sealed class SandataSoundPlayer
         long tick,
         ulong shooterEntityId)
     {
+        var burstIndex = IndexOfBurstRound(shooterEntityId);
+        if (burstIndex < 0)
+        {
+            return;
+        }
+
+        if (tick - _automaticBurstRounds[burstIndex].Tick <= BurstEndGraceWindowTicks)
+        {
+            // A quiet tick between two rounds of the same burst, not a real
+            // end. Leave the last-round tick and the loop-fallback state
+            // alone so the next round in this burst still reads as a
+            // renewal, not a fresh burst.
+            return;
+        }
+
+        _automaticBurstRounds = _automaticBurstRounds.RemoveAt(burstIndex);
         _loopFallbackShooters = _loopFallbackShooters.Remove(shooterEntityId);
 
         var tailSlot = ShotSlotResolver.ResolveGunTailSlot(
@@ -210,6 +297,8 @@ internal sealed class SandataSoundPlayer
         long tick,
         ulong shooterEntityId)
     {
+        RecordAutomaticRound(shooterEntityId, tick);
+
         var loopResolution = ShotSlotResolver.Resolve(
             caliber, FireMode.Auto, rangeWu, shooterIsIndoors, suppressorFitted, tick, shooterEntityId);
 
@@ -242,5 +331,38 @@ internal sealed class SandataSoundPlayer
         // on why the tail's pool slot is held for the whole burst rather
         // than only claimed once fire stops.
         _budget.TryReserve(shooterEntityId, tailSlot.Family, tick, tailSlot.TailTicks, out _);
+    }
+
+    /// <summary>
+    /// Records <paramref name="shooterEntityId"/>'s most recent automatic
+    /// round in <see cref="_automaticBurstRounds"/>, replacing that shooter's
+    /// existing entry when it already has one.
+    /// </summary>
+    private void RecordAutomaticRound(ulong shooterEntityId, long tick)
+    {
+        var round = new AutomaticBurstRound(shooterEntityId, tick);
+        var existingIndex = IndexOfBurstRound(shooterEntityId);
+
+        _automaticBurstRounds = existingIndex < 0
+            ? _automaticBurstRounds.Add(round)
+            : _automaticBurstRounds.SetItem(existingIndex, round);
+    }
+
+    /// <summary>
+    /// The index of <paramref name="shooterEntityId"/>'s entry in
+    /// <see cref="_automaticBurstRounds"/>, or -1 when that shooter has no
+    /// live burst.
+    /// </summary>
+    private int IndexOfBurstRound(ulong shooterEntityId)
+    {
+        for (var index = 0; index < _automaticBurstRounds.Length; index++)
+        {
+            if (_automaticBurstRounds[index].ShooterEntityId == shooterEntityId)
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
 }
