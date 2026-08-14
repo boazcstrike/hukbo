@@ -48,18 +48,26 @@ public sealed class RenderBudgetEstimateTests
             BackdropQuadCount.TrampleMarks(TrampleMarkSystem.Capacity) +
             BackdropQuadCount.DustPuffs(WorstCaseDustPuffs(), cameraZoom: 3f);
 
-        var totalAt200Units = (perPawnQuads * 200) + backdropWorstCaseQuads;
-        var totalAt500Units = (perPawnQuads * 500) + backdropWorstCaseQuads;
+        var embeddedProjectileQuads =
+            EmbeddedProjectileSystem.Capacity *
+            RenderBudgetEstimate.EmbeddedProjectileQuadsPerProjectile;
+
+        var totalAt200Units =
+            (perPawnQuads * 200) + backdropWorstCaseQuads + embeddedProjectileQuads;
+        var totalAt500Units =
+            (perPawnQuads * 500) + backdropWorstCaseQuads + embeddedProjectileQuads;
 
         Assert.True(
             totalAt200Units <= RenderBudgetEstimate.ArenaBatchQuadsAt200UnitsEstimate,
             $"200-unit worst case ({totalAt200Units} quads: {perPawnQuads} per pawn x 200 + " +
-                $"{backdropWorstCaseQuads} backdrop) exceeds the ESTIMATE budget " +
+                $"{backdropWorstCaseQuads} backdrop + {embeddedProjectileQuads} embedded " +
+                $"projectiles) exceeds the ESTIMATE budget " +
                 $"({RenderBudgetEstimate.ArenaBatchQuadsAt200UnitsEstimate}).");
         Assert.True(
             totalAt500Units <= RenderBudgetEstimate.ArenaBatchQuadsAt500UnitsEstimate,
             $"500-unit worst case ({totalAt500Units} quads: {perPawnQuads} per pawn x 500 + " +
-                $"{backdropWorstCaseQuads} backdrop) exceeds the ESTIMATE budget " +
+                $"{backdropWorstCaseQuads} backdrop + {embeddedProjectileQuads} embedded " +
+                $"projectiles) exceeds the ESTIMATE budget " +
                 $"({RenderBudgetEstimate.ArenaBatchQuadsAt500UnitsEstimate}).");
     }
 
@@ -101,22 +109,30 @@ public sealed class RenderBudgetEstimateTests
         var projectileQuads =
             maximumProjectilesInFlight * RenderBudgetEstimate.ProjectileQuadsPerProjectile;
 
+        var embeddedProjectileQuads =
+            EmbeddedProjectileSystem.Capacity *
+            RenderBudgetEstimate.EmbeddedProjectileQuadsPerProjectile;
+
         var totalAt200Units =
-            (perPawnQuads * 200) + backdropWorstCaseQuads + projectileQuads;
+            (perPawnQuads * 200) + backdropWorstCaseQuads + projectileQuads +
+                embeddedProjectileQuads;
         var totalAt500Units =
-            (perPawnQuads * 500) + backdropWorstCaseQuads + projectileQuads;
+            (perPawnQuads * 500) + backdropWorstCaseQuads + projectileQuads +
+                embeddedProjectileQuads;
 
         Assert.True(
             totalAt200Units <= RenderBudgetEstimate.ArenaBatchQuadsAt200UnitsEstimate,
             $"200-unit all-ranged worst case ({totalAt200Units} quads: " +
                 $"{perPawnQuads} per pawn x 200 + {backdropWorstCaseQuads} backdrop + " +
-                $"{projectileQuads} projectiles) exceeds the ESTIMATE budget " +
+                $"{projectileQuads} in-flight projectiles + {embeddedProjectileQuads} " +
+                $"embedded projectiles) exceeds the ESTIMATE budget " +
                 $"({RenderBudgetEstimate.ArenaBatchQuadsAt200UnitsEstimate}).");
         Assert.True(
             totalAt500Units <= RenderBudgetEstimate.ArenaBatchQuadsAt500UnitsEstimate,
             $"500-unit all-ranged worst case ({totalAt500Units} quads: " +
                 $"{perPawnQuads} per pawn x 500 + {backdropWorstCaseQuads} backdrop + " +
-                $"{projectileQuads} projectiles) exceeds the ESTIMATE budget " +
+                $"{projectileQuads} in-flight projectiles + {embeddedProjectileQuads} " +
+                $"embedded projectiles) exceeds the ESTIMATE budget " +
                 $"({RenderBudgetEstimate.ArenaBatchQuadsAt500UnitsEstimate}).");
     }
 
