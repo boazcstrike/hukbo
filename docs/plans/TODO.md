@@ -81,3 +81,30 @@ is not authorized work; it is a reminder that the question was decided
   five tests hold behaviour nothing else asserts. Context: the archived unit
   test cleanup plan, "Unit test cleanup — what can be removed, and what must
   not be", section 12.
+
+## From the Sandata lowered-weapon and automatic-fire package (2026-08-14)
+
+- **No Sandata determinism fixture has ever run against a real map.** Both
+  golden replays, the recorded seed-1 baseline, and the gate's own headless
+  workload build their grid through `HeadlessRunner.BuildOpenGrid`, which ends
+  `Array.Fill(grid.Passability, NavCellFlags.Open)`. There are no walls, no
+  doors, and no map file in any of them. That is why a pathfinder which ignored
+  every wall on every map — `NavSearch` reads only the blocked span it is
+  handed, and `SandataSimulation` allocated that span once and never wrote to
+  it — survived a green gate and a green 1,113-test suite for the whole life of
+  the project, and why fixing it on 2026-08-14 moved not one pinned digest. The
+  standing consequence is that **the Sandata gate cannot detect a pathfinding
+  change that only manifests around geometry.** Closing the gap means a
+  determinism fixture over a real map, which is a new baseline with its own
+  capture, its own recorded digests, and its own decision about which map is
+  canonical; none of that belonged inside a smoke-row fix, so it was parked on
+  2026-08-14 rather than attempted. Context: the 2026-08-14 Sandata
+  lowered-weapon and automatic-fire design, section 6.
+- **`PlaceholderOperatorHealth` is tuning, not a measurement.** It was raised
+  from 100 to 300 on 2026-08-14 so that an automatic burst lasts long enough to
+  hear — at 100, against 7.62x39's 25 damage, the fourth round killed and no
+  burst could exceed 0.30 seconds. It lives in the client's scenario builder,
+  reaches no hash, and costs no preset version, but it does mean every
+  engagement on the placeholder map takes proportionally longer to resolve. The
+  real fix is a scenario system that carries health per spawn rather than a
+  single constant for every operator on the map.
