@@ -1,5 +1,7 @@
 # Pawn visual fidelity — design
 
+**Archived: reference only.** The design this document describes was built on 2026-08-14, on branch `pawn-visual-fidelity`, with one item — the `Medium`-tier swing trail removal — dropped by user decision and screen shake declined outright. **At the time of archiving that branch had not been merged into `main`.** Never execute it, never treat it as a live design, and never cite it as the reason to make a change.
+
 Date: 2026-08-14
 Status: design only. **This document authorizes nothing.** Under section 6 of
 `CLAUDE.md` a design document does not authorize implementation; the plan

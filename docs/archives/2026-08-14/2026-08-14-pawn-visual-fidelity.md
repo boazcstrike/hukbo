@@ -1,5 +1,7 @@
 # Pawn visual fidelity — plan
 
+**Archived: reference only.** This plan was executed on 2026-08-14. Fourteen of its fifteen tasks were built and tested on branch `pawn-visual-fidelity`, and the fifteenth, PV-3, was dropped by user decision rather than deferred. Both gates were green on that branch. **At the time of archiving the branch had not been merged into `main`**, and its two smoke rows, `PVF-1` and `PVF-2`, were `PENDING` and awaiting a person. Never execute it from this archive copy, never treat archived versions or paths as current, and never cite it as the reason to make a change.
+
 **This plan was not authorized when it was written.** Section 6 of `CLAUDE.md`
 is explicit that a design document does not authorize implementation, and
 neither does the plan that follows one.
@@ -45,7 +47,7 @@ if the retuned colours ever fail a ground shade.
 Date: 2026-08-14
 Design: [`2026-08-14-pawn-visual-fidelity-design.md`](2026-08-14-pawn-visual-fidelity-design.md),
 which outranks this document wherever the two disagree.
-Research: [`../research/2026-08-14-pawn-visual-fidelity-research.md`](../research/2026-08-14-pawn-visual-fidelity-research.md).
+Research: [`../../research/2026-08-14-pawn-visual-fidelity-research.md`](../../research/2026-08-14-pawn-visual-fidelity-research.md).
 
 ## 1. Baseline
 

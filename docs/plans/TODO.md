@@ -122,8 +122,7 @@ is not authorized work; it is a reminder that the question was decided
   characterization also recorded what the collapse diagnostic actually logs:
   it carries the REPLACING contact's sequence and tick, not the discarded
   contact's, at `AttackContactDispatcher.cs:283` and `:298`, so the log keeps
-  no trace of what was thrown away. Context: task PV-12 of
-  [`2026-08-14-pawn-visual-fidelity.md`](2026-08-14-pawn-visual-fidelity.md).
+  no trace of what was thrown away. Context: task PV-12 of the pawn visual fidelity plan.
 - **AA-22's first contributor, the sub-pixel arm question.** Deferred because
   the premise is false on disk. Arms are gated at `PawnDetailTier.Low`
   (`PawnGeometry.cs:1380`), not below a 1.35 camera zoom — the 1.35 the
@@ -132,8 +131,7 @@ is not authorized work; it is a reminder that the question was decided
   `MathF.Max(ArmMinimumHalfWidthPixels, ArmHalfWidthUnits * scale)` at
   `PawnGeometry.cs:1398` (with the two constants defined at `:289` and
   `:286`) already floors a full arm stroke at 1.2 pixels, so it is never
-  sub-pixel. Context: task PV-12 of
-  [`2026-08-14-pawn-visual-fidelity.md`](2026-08-14-pawn-visual-fidelity.md).
+  sub-pixel. Context: task PV-12 of the pawn visual fidelity plan.
 - **The `ConservativePawnCull` wiring decision.** Wiring `ConservativePawnCull`
   into the pawn draw loop cannot close AA-24, because the type's own remarks
   say its bound is "a genuine superset, never a replacement" and that
@@ -142,9 +140,7 @@ is not authorized work; it is a reminder that the question was decided
   at best, never a correctness or visibility one. The wiring decision itself
   is handed to the thousand-unit performance plan, which owns the whole-screen
   submission-count question (97,968 quads measured at 200 agents, 106,068 at
-  500) that wiring would have to be justified against. Context: task PV-5 of
-  [`2026-08-14-pawn-visual-fidelity.md`](2026-08-14-pawn-visual-fidelity.md),
-  handing off to
+  500) that wiring would have to be justified against. Context: task PV-5 of the pawn visual fidelity plan, handing off to
   [`2026-08-14-thousand-unit-performance.md`](2026-08-14-thousand-unit-performance.md).
 - **Effect-pool capacity sizing.** The five presentation effect pools —
   hit-effect, blood burst, blood ground mark, blood spurt, and clash
@@ -159,5 +155,4 @@ is not authorized work; it is a reminder that the question was decided
   `PawnAppearanceCache.Capacity`, is not decided here. Also recorded:
   `BloodEffectSystem`'s own constructor defaults of 256, 384, and 32 are dead
   in production, because every caller that matters goes through
-  `PresentationCoordinator`, which never uses them. Context: task PV-12 of
-  [`2026-08-14-pawn-visual-fidelity.md`](2026-08-14-pawn-visual-fidelity.md).
+  `PresentationCoordinator`, which never uses them. Context: task PV-12 of the pawn visual fidelity plan.
