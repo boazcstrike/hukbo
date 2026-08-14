@@ -670,6 +670,60 @@ on 2026-08-14 and closed it `PASS`. The row is no longer in the live checklist;
 its record is the archive document titled "Battlefield realism cohort smoke —
 closed 2026-08-14".
 
+## Canonical gate result — Hukbo, 2026-08-14 (ranged package closeout)
+
+`./scripts/verify.ps1 -SkipBootstrap`, run on 2026-08-14 in a dedicated
+integration worktree at branch `ranged-integration`, with both closeout branches
+merged in. **Verdict: pass, exit code 0.** The run reported:
+
+```
+Formatted 0 of 763 files.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Total tests: 2568     Passed: 2568
+Total tests: 3787     Passed: 3787
+[PASS] Release repository tests completed.
+[PASS] Canonical repository verification completed.
+```
+
+All five headless workloads reproduced their recorded pairs:
+
+| Workload | combat / movement | stateHash | eventHash |
+| --- | --- | --- | --- |
+| Default | 6 / 4 | `5460D13E3F7FD3E5` | `8E18ED1437B2924B` |
+| Ranged standoff | 5 / 8 | `C8023D3B5BEB005E` | `F709A345E2F7370E` |
+| Battlefield realism | 5 / 10 | `7C145A9E05916E4C` | `77626E104234206C` |
+| Last-stand engagement | 5 / 11 | `6225182B4A470F91` | `C4DABE6AF98B6BEC` |
+| Cohort lateral spread | 5 / 13 | `4A0723BC9A1B924B` | `E0CE32CF8830A864` |
+
+**Why this run was not made in the main checkout.** Another session's
+uncommitted death-collapse work was live in the shared working tree, including
+115 new lines in `PawnGeometry.cs`, which is a file the archiving change also
+edits. Merging into `main` would have required committing or stashing work that
+is not this session's to touch, so the merge and the gate were done in a
+separate worktree and `main` was left alone. **The two branches are therefore
+verified but unmerged**, and whoever merges them owes nothing further — this is
+the gate run for that merge, taken at the merged tree.
+
+**The ranged workload reproducing `C8023D3B5BEB005E` / `F709A345E2F7370E` is
+the load-bearing line here.** The composition change moves the client's default
+army, which is the sort of change that looks like it should move a hash. It does
+not, and this is the evidence rather than the argument: `ArmyComposition` is a
+`Hukbo.Client` settings record, the headless workloads build their scenarios
+without it, and every recorded pair is unchanged to the byte.
+
+**The Client suite fell from 3 805 to 3 787.** That is not a regression and not
+a deletion of coverage. The composition work replaced one test that asserted
+behaviour which no longer exists — a schema-8 file loading and defaulting its
+movement preset — with one asserting the behaviour that replaced it, and the
+roster-expansion suite's theory cases collapsed as the expected apportionment
+became a single calibrated array rather than several even-split cases.
+
+**No evidence about anything interactive.** The three new `AC-*` rows in the
+smoke checklist are what this change owes, and every one of them is `PENDING`.
+The gate never opened the Army Composition panel, never discarded a settings
+file, and never watched a battle.
+
 ## Sandata — recorded baselines and measurement runs, 2026-08-09
 
 This repository builds two games. Everything above and below this section, unless
