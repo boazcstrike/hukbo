@@ -1,5 +1,6 @@
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Presentation.Catalogs;
+using Hukbo.Client.Settings;
 using Hukbo.Client.UI;
 using Hukbo.Core.Simulation;
 using Hukbo.Diagnostics;
@@ -225,7 +226,10 @@ internal static class PawnRenderer
         int contingentId = 0,
         ContingentState contingentState = ContingentState.None,
         bool isLeader = false,
-        bool brokeOffUnderPressure = false)
+        bool brokeOffUnderPressure = false,
+        PawnVisualStyle pawnVisualStyle = PawnVisualStyle.Procedural,
+        Texture2D? bodyAtlas = null,
+        ulong entityId = 0)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(pixel);
@@ -256,7 +260,10 @@ internal static class PawnRenderer
             contingentId,
             contingentState,
             isLeader,
-            brokeOffUnderPressure);
+            brokeOffUnderPressure,
+            pawnVisualStyle,
+            bodyAtlas,
+            entityId);
     }
 
     /// <summary>
@@ -295,7 +302,10 @@ internal static class PawnRenderer
         int contingentId = 0,
         ContingentState contingentState = ContingentState.None,
         bool isLeader = false,
-        bool brokeOffUnderPressure = false)
+        bool brokeOffUnderPressure = false,
+        PawnVisualStyle pawnVisualStyle = PawnVisualStyle.Procedural,
+        Texture2D? bodyAtlas = null,
+        ulong entityId = 0)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(pixel);
@@ -368,6 +378,17 @@ internal static class PawnRenderer
             appearance.WeaponBladeColor,
             appearance.WeaponLashingBandColor,
             isDead);
+        // The 2026-08-15 pawn sprite body design, section 3. The sprite stands
+        // in for exactly three draws — the torso, the head, and the head
+        // treatment — because those are the parts the authored cell carries.
+        // Everything else on this pawn keeps drawing procedurally under both
+        // styles, and the order of every remaining draw is unchanged.
+        var drawsSpriteBody = DrawsSpriteBody(
+            pawnVisualStyle,
+            bodyAtlas is not null,
+            layout.DetailTier,
+            torsoResolutionStep);
+
         if (torsoResolutionStep == VisualFallbackStep.DiagnosticPlaceholder)
         {
             DrawPlaceholder(
@@ -383,7 +404,7 @@ internal static class PawnRenderer
                     TorsoPlaceholderRequestedId);
             }
         }
-        else
+        else if (!drawsSpriteBody)
         {
             DrawTorso(
                 spriteBatch,
@@ -406,16 +427,39 @@ internal static class PawnRenderer
             appearance.ShieldSkinId,
             appearance.ShieldFaceColor,
             isDead);
-        DrawHead(spriteBatch, pixel, layout.HeadBounds, skinColor, layout.Collapse);
-
-        if (layout.DetailTier != PawnDetailTier.Low)
+        if (drawsSpriteBody)
         {
-            DrawHeadTreatment(
+            // One textured quad in place of the torso, head, and head
+            // treatment. Drawn here, at the head's position in the order,
+            // so it still lands after the shield and before the arms — the
+            // sprite is the body, and the arms leave the body.
+            DrawSpriteBody(
                 spriteBatch,
-                pixel,
+                bodyAtlas!,
                 layout,
-                appearance.HeadTreatment,
-                headTreatmentColor);
+                entityId,
+                ApplyHitPulse(
+                    ApplyState(
+                        Color.Lerp(
+                            Color.White,
+                            groundBaseColor,
+                            SpriteBodyFactionWashStrength),
+                        isDead),
+                    hitPulseStrength));
+        }
+        else
+        {
+            DrawHead(spriteBatch, pixel, layout.HeadBounds, skinColor, layout.Collapse);
+
+            if (layout.DetailTier != PawnDetailTier.Low)
+            {
+                DrawHeadTreatment(
+                    spriteBatch,
+                    pixel,
+                    layout,
+                    appearance.HeadTreatment,
+                    headTreatmentColor);
+            }
         }
 
         DrawAdornments(spriteBatch, pixel, layout, adornmentAccentColor);
@@ -573,6 +617,117 @@ internal static class PawnRenderer
     /// Empty at <see cref="PawnDetailTier.Low"/>, skipped the same way
     /// <see cref="DrawLegs"/> skips its own empty rectangles.
     /// </remarks>
+    /// <summary>
+    /// How far one warrior's body sprite is washed toward its faction colour
+    /// (the 2026-08-15 pawn sprite body design, section 5).
+    /// </summary>
+    /// <remarks>
+    /// A drawn cell carries its own skin, garment, and headband colours, so
+    /// left untinted the two sides become hard to tell apart — the one thing
+    /// the flat quads did perfectly. A partial wash keeps the authored art
+    /// legible while restoring the faction read. PROVISIONAL: a tuning value
+    /// chosen by eye, not a measurement, and expected to move once the mode
+    /// has been looked at on a full field.
+    /// </remarks>
+    private const float SpriteBodyFactionWashStrength = 0.32f;
+
+    /// <summary>
+    /// Whether <see cref="DrawLayout"/> should draw the authored body sprite
+    /// in place of the procedural torso, head, and head treatment.
+    /// </summary>
+    /// <remarks>
+    /// Pulled out of <see cref="DrawLayout"/> as a pure function of value
+    /// types only — no <c>SpriteBatch</c>, no <c>GraphicsDevice</c> — so the
+    /// gate that picks sprite-body versus procedural drawing can be asserted
+    /// without a window. <see cref="DrawLayout"/> holds no second copy of
+    /// this condition; the four inputs below are exactly what it passes in.
+    /// </remarks>
+    /// <param name="style">
+    /// The pawn's configured visual style. Only <see
+    /// cref="PawnVisualStyle.SpriteBody"/> can produce <see langword="true"/>;
+    /// <see cref="PawnVisualStyle.Procedural"/> always draws the procedural
+    /// torso regardless of the other three inputs.
+    /// </param>
+    /// <param name="hasBodyAtlas">
+    /// Whether a body atlas texture was resolved for this draw. Without one
+    /// there is no authored cell to draw, so the procedural torso is the only
+    /// drawable.
+    /// </param>
+    /// <param name="detailTier">
+    /// The pawn's current <see cref="PawnDetailTier"/>. <see
+    /// cref="PawnDetailTier.Low"/> always draws procedurally: at that zoom a
+    /// face a few pixels tall buys nothing over the flat torso quad.
+    /// </param>
+    /// <param name="torsoResolutionStep">
+    /// The fallback step the torso's resolution reached. <see
+    /// cref="VisualFallbackStep.DiagnosticPlaceholder"/> always draws
+    /// procedurally — the conspicuous placeholder block has to stay visible,
+    /// not be hidden behind the sprite.
+    /// </param>
+    internal static bool DrawsSpriteBody(
+        PawnVisualStyle style,
+        bool hasBodyAtlas,
+        PawnDetailTier detailTier,
+        VisualFallbackStep torsoResolutionStep)
+    {
+        return style == PawnVisualStyle.SpriteBody &&
+            hasBodyAtlas &&
+            detailTier != PawnDetailTier.Low &&
+            torsoResolutionStep != VisualFallbackStep.DiagnosticPlaceholder;
+    }
+
+    /// <summary>
+    /// One warrior's authored body cell, drawn in place of the torso, head,
+    /// and head treatment.
+    /// </summary>
+    /// <remarks>
+    /// Routed through <see cref="PawnTransform"/> exactly as every quad on
+    /// this pawn is, so a collapsing body carries its sprite over with it and
+    /// no separate death path is needed. The axis-aligned branch is taken by
+    /// every living warrior, matching <see cref="DrawQuad"/>'s own reasoning
+    /// about sub-pixel rounding.
+    /// </remarks>
+    private static void DrawSpriteBody(
+        SpriteBatch spriteBatch,
+        Texture2D bodyAtlas,
+        PawnLayout layout,
+        ulong entityId,
+        Color tint)
+    {
+        var destination = PawnSpriteAtlas.GetDestinationBounds(
+            layout.HeadBounds,
+            layout.TorsoBounds);
+        if (destination.IsEmpty)
+        {
+            return;
+        }
+
+        var source = PawnSpriteAtlas.GetCellBounds(
+            PawnSpriteAtlas.GetVariantIndex(entityId));
+
+        if (layout.Collapse.IsIdentity)
+        {
+            spriteBatch.Draw(bodyAtlas, destination, source, tint);
+            return;
+        }
+
+        var center = layout.Collapse.Apply(
+            new Vector2(destination.Center.X, destination.Center.Y));
+
+        spriteBatch.Draw(
+            bodyAtlas,
+            center,
+            source,
+            tint,
+            layout.Collapse.Radians,
+            new Vector2(source.Width * 0.5f, source.Height * 0.5f),
+            new Vector2(
+                (float)destination.Width / source.Width,
+                (float)destination.Height / source.Height),
+            SpriteEffects.None,
+            layerDepth: 0f);
+    }
+
     private static void DrawFeet(
         SpriteBatch spriteBatch,
         Texture2D pixel,

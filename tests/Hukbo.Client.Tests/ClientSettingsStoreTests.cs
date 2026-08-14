@@ -967,10 +967,14 @@ public sealed class ClientSettingsStoreTests
     }
 
     /// <summary>
-    /// The literal <c>11</c> rather than
+    /// The literal <c>12</c> rather than
     /// <see cref="ClientSettingsStore.SupportedSchemaVersion"/> is asserted
     /// against here, so this test still catches the schema window narrowing
     /// unexpectedly even if the constant itself moves in the same change.
+    /// The input file itself stays at schema version 11 - a load always
+    /// normalizes the loaded settings' <c>SchemaVersion</c> to whatever is
+    /// currently supported, so the source file predating the pawn visual
+    /// style field is what this test still exercises.
     /// </summary>
     [Fact]
     public void ASchemaVersionElevenFileLoadsAndRoundTripsTheChromeStyle()
@@ -987,9 +991,135 @@ public sealed class ClientSettingsStoreTests
 
             var settings = store.Load("command");
 
-            Assert.Equal(11, settings.SchemaVersion);
+            Assert.Equal(12, settings.SchemaVersion);
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(UiChromeStyle.NineSlice, settings.UiChromeStyle);
+        });
+    }
+
+    [Theory]
+    [InlineData(PawnVisualStyle.Procedural)]
+    [InlineData(PawnVisualStyle.SpriteBody)]
+    public void EveryPawnVisualStyleValueSurvivesARoundTrip(
+        PawnVisualStyle pawnVisualStyle)
+    {
+        WithTemporarySettings((store, _) =>
+        {
+            Assert.True(store.TrySave(
+                "signal",
+                SampleComposition,
+                GoreIntensity.Full,
+                MotionIntensity.Reduced,
+                AutoCameraMode.Follow,
+                UiScale.Percent150,
+                StartupDisplayMode.Fullscreen,
+                MovementPresetId.LastStandEngagementV11,
+                UiChromeStyle.Procedural,
+                pawnVisualStyle));
+
+            var settings = store.Load("command");
+
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(SampleComposition, settings.Composition);
+            Assert.Equal(pawnVisualStyle, settings.PawnVisualStyle);
+        });
+    }
+
+    /// <summary>
+    /// A file at the current schema version but written before the pawn
+    /// visual style field existed looks exactly like one with the field
+    /// absent: it loads cleanly rather than being discarded, and the style
+    /// defaults to <see cref="PawnVisualStyle.Procedural"/> without
+    /// disturbing any sibling field.
+    /// </summary>
+    [Fact]
+    public void AFileMissingPawnVisualStyleLoadsCleanlyAndDefaultsIt()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiChromeStyle\":1}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal(
+                ClientSettingsStore.SupportedSchemaVersion,
+                settings.SchemaVersion);
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(UiChromeStyle.NineSlice, settings.UiChromeStyle);
+            Assert.Equal(
+                PawnVisualStyle.Procedural,
+                settings.PawnVisualStyle);
+        });
+    }
+
+    [Fact]
+    public void AnOutOfRangePawnVisualStyleResetsOnlyThatField()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiChromeStyle\":1," +
+                "\"pawnVisualStyle\":99}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(80, settings.Composition.UnitsPerTeam);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Off, settings.MotionIntensity);
+            Assert.Equal(AutoCameraMode.Follow, settings.AutoCameraMode);
+            Assert.Equal(UiChromeStyle.NineSlice, settings.UiChromeStyle);
+            Assert.Equal(
+                PawnVisualStyle.Procedural,
+                settings.PawnVisualStyle);
+        });
+    }
+
+    /// <summary>
+    /// A version 11 file predates the pawn visual style field, so it looks
+    /// exactly like a file with the field absent: it loads cleanly rather
+    /// than being discarded, and the style defaults to
+    /// <see cref="PawnVisualStyle.Procedural"/> without disturbing any
+    /// sibling field.
+    /// </summary>
+    [Fact]
+    public void ASchemaVersionElevenFileLoadsAndGetsPawnVisualStyleDefaulted()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":11,\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiChromeStyle\":1}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal(
+                ClientSettingsStore.SupportedSchemaVersion,
+                settings.SchemaVersion);
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(UiChromeStyle.NineSlice, settings.UiChromeStyle);
+            Assert.Equal(
+                PawnVisualStyle.Procedural,
+                settings.PawnVisualStyle);
         });
     }
 

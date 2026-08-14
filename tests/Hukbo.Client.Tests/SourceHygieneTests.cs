@@ -148,6 +148,20 @@ public sealed class SourceHygieneTests
     /// not open the pipeline to assets generally: a twenty-sixth entry still
     /// fails this test, and still needs its own decision.
     /// </para>
+    ///
+    /// <para>
+    /// The twenty-sixth entry, <c>Textures/PawnBodies.png</c>, is that
+    /// decision, taken on 2026-08-15 and recorded in section 7 of the pawn
+    /// sprite body design — find it by its title, "Pawn sprite body — design".
+    /// It is one atlas holding all fifty authored head-and-torso cells rather
+    /// than fifty separate entries, because fifty entries would be fifty
+    /// separate decisions and one texture switch per warrior drawn.
+    /// </para>
+    ///
+    /// <para>
+    /// The rule above is unchanged by it: a twenty-seventh entry still fails
+    /// this test, and still needs its own decision.
+    /// </para>
     /// </summary>
     private static readonly string[] PinnedContentPipelineEntries =
     [
@@ -176,16 +190,19 @@ public sealed class SourceHygieneTests
         "Fonts/UiTitle200.spritefont",
         "Fonts/UiDisplay200.spritefont",
         "Textures/UiChrome.png",
+        "Textures/PawnBodies.png",
     ];
 
     /// <summary>
     /// The only non-font content pipeline entries the client is allowed to
-    /// build. One entry, the placeholder nine-slice chrome atlas. Anything
+    /// build. Two entries: the placeholder nine-slice chrome atlas, and the
+    /// pawn body atlas. Anything
     /// else fails <see cref="ContentPipelineEntriesAreUnchangedFromThePinnedSpritefonts"/>.
     /// </summary>
     private static readonly string[] PinnedNonFontContentPipelineEntries =
     [
         "Textures/UiChrome.png",
+        "Textures/PawnBodies.png",
     ];
 
     /// <summary>

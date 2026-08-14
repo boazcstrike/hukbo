@@ -396,3 +396,25 @@ honestly.
 | --- | --- | --- | --- | --- |
 | PVF-1 | Watch warriors walking and running at each of the three camera stations in turn, and say at which station the legs stop reading as legs in motion | Leg motion is legible at the default fit, where a leg draws 10 pixels tall with 3 pixels of walk stride travel and 6 of run travel. It is still legible at maximum zoom, at 18 pixels with 6 and 11. At minimum zoom the pawn resolves `Low` and no legs are drawn at all, which is expected and is not a failure. Record which station is the last one where the walk and the run are distinguishable from each other | | PENDING |
 | PVF-2 | Cycle every ground theme with missile troops shooting, and watch arrows and shot in flight against each ground | On every theme, the projectile is visible in flight against the ground for its whole travel, and still reads as its own material — amber wood shaft, cool grey-blue metal head, pale cream fletch — rather than as an arbitrary bright marker. Record any theme where it either vanishes or looks like a glowing dot | | PENDING |
+
+## Pawn sprite body (the 2026-08-15 pawn sprite body design)
+
+The mode is off by default and is switched with the `B` key, which nothing on
+screen announces — the menu panel is full, and design section 9 records that as
+an open discoverability gap rather than a finished control. Every row below
+therefore begins by pressing `B`.
+
+Rows SB-5 through SB-8 exist because the sprite replaces only the head and
+torso. If any of them fails, the seam described in design section 3 has been
+broken and the sprite is covering something it was never meant to cover.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| SB-1 | Start a battle, let it run, press `B`, then press `B` again | Every warrior's head and torso changes to drawn art on the very next frame, and changes back on the second press. No stall, no flicker, and the battle does not pause or restart | | PENDING |
+| SB-2 | Press `B` to enable the mode, quit the game, relaunch | The game comes back up still drawing sprite bodies, because the choice was persisted | | PENDING |
+| SB-3 | With sprite bodies on, watch a full engagement at the default camera fit and say whether the two sides stay tellable apart | Team A still reads blue and Team B still reads red at a glance, without relying on the selection boxes. The faction wash is a provisional tuning value at 0.32; if the sides blur together, record that and the mode fails its own acceptance | | PENDING |
+| SB-4 | Zoom in on one contingent and compare warriors side by side | Warriors visibly differ from one another — skin tone, headband colour and presence, hair, facial hair, tattoos, build. They do not all share one body. Record roughly how many distinct bodies you can pick out | | PENDING |
+| SB-5 | Watch a warrior die with sprite bodies on | The drawn body rotates and falls with the collapse, staying attached to the legs. It does not stay standing upright while the rest of the pawn falls | | PENDING |
+| SB-6 | Watch a warrior walk and run with sprite bodies on | The legs still animate underneath the drawn torso. Gait is unaffected by the mode | | PENDING |
+| SB-7 | Watch a warrior fight with sprite bodies on | The weapon arm still swings and still points at the target, drawn over the body rather than under it. The shield still sits in front of the torso | | PENDING |
+| SB-8 | Zoom all the way out until pawns resolve the `Low` detail tier | The body falls back to the procedural quads with no flicker and no gap at the changeover. This is expected behaviour, not a defect | | PENDING |

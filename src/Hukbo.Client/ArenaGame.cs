@@ -152,6 +152,7 @@ public sealed partial class ArenaGame : Game
     private UiScale _configuredUiScale;
     private StartupDisplayMode _startupDisplayMode;
     private UiChromeStyle _configuredUiChromeStyle;
+    private PawnVisualStyle _configuredPawnVisualStyle;
 
     /// <summary>
     /// Reused each frame so the draw path allocates nothing. Contacts are
@@ -222,6 +223,7 @@ public sealed partial class ArenaGame : Game
     private RasterizerState? _arenaRasterizerState;
     private Texture2D? _pixel;
     private Texture2D? _chromeAtlas;
+    private Texture2D? _pawnBodyAtlas;
     private UiFontSet? _fonts;
     private MonoGameSoundPlayer? _soundPlayer;
     private Settings.ArmyComposition _activeComposition;
@@ -337,6 +339,7 @@ public sealed partial class ArenaGame : Game
         _configuredUiScale = initialSettings.UiScale;
         _startupDisplayMode = initialSettings.StartupDisplayMode;
         _configuredUiChromeStyle = initialSettings.UiChromeStyle;
+        _configuredPawnVisualStyle = initialSettings.PawnVisualStyle;
 
         // Resolved here, ahead of the coordinator below, because the
         // coordinator's appearance cache reports through it. _renderProbeEnabled
@@ -619,6 +622,44 @@ public sealed partial class ArenaGame : Game
                 UiChromeStyle = value,
             });
 
+    /// <summary>
+    /// Flips the warrior body between the procedural quads and the authored
+    /// sprite cells, and persists the result so the choice survives a restart.
+    /// </summary>
+    /// <remarks>
+    /// Takes effect on the very next frame, because
+    /// <c>ArenaGame.Rendering</c> reads the field on every pawn it submits.
+    /// That is the point of a live toggle rather than a startup switch: the
+    /// two styles can be compared against the same battle, at the same tick,
+    /// without relaunching.
+    /// </remarks>
+    private void ToggleWarriorBodyStyle()
+    {
+        var previous = _configuredPawnVisualStyle;
+        _configuredPawnVisualStyle =
+            previous == PawnVisualStyle.SpriteBody
+                ? PawnVisualStyle.Procedural
+                : PawnVisualStyle.SpriteBody;
+        TryPersistPawnVisualStyle(
+            _defaultThemeId,
+            _configuredPawnVisualStyle);
+        LogSettingChanged(
+            "pawnVisualStyle",
+            previous.ToString(),
+            _configuredPawnVisualStyle.ToString());
+    }
+
+    private bool TryPersistPawnVisualStyle(
+        string defaultThemeId,
+        PawnVisualStyle value) =>
+        _settingsStore.TryUpdate(
+            defaultThemeId,
+            current => current with
+            {
+                SelectedThemeId = _themeManager.ActiveTheme.Id,
+                PawnVisualStyle = value,
+            });
+
     protected override void Initialize()
     {
         base.Initialize();
@@ -676,6 +717,11 @@ public sealed partial class ArenaGame : Game
         // described on UiNineSlice, holding the surface and border regions
         // every panel-style call site tints at draw time.
         _chromeAtlas = Content.Load<Texture2D>("Textures/UiChrome");
+
+        // Loaded once here on the same terms as the chrome atlas above: the
+        // 50 authored head-and-torso cells PawnSpriteAtlas indexes, drawn only
+        // under PawnVisualStyle.SpriteBody and tinted per warrior at draw time.
+        _pawnBodyAtlas = Content.Load<Texture2D>("Textures/PawnBodies");
 
         _soundPlayer = MonoGameSoundPlayer.Load(
             SoundLibrary.GetDefaultDirectoryPath());
@@ -1232,6 +1278,11 @@ public sealed partial class ArenaGame : Game
             return LogKeyCommand("F9", ClientCommand.ToggleSoundLog);
         }
 
+        if (_input.WasPressed(Keys.B))
+        {
+            return LogKeyCommand("B", ClientCommand.ToggleWarriorBody);
+        }
+
         return ClientCommand.None;
     }
 
@@ -1349,6 +1400,9 @@ public sealed partial class ArenaGame : Game
                 return;
             case ClientCommand.ToggleBattleReport:
                 _isBattleReportVisible = !_isBattleReportVisible;
+                return;
+            case ClientCommand.ToggleWarriorBody:
+                ToggleWarriorBodyStyle();
                 return;
             case ClientCommand.Minimize:
                 SDL_MinimizeWindow(Window.Handle);

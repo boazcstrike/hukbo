@@ -12,7 +12,8 @@ internal sealed record ClientSettings(
     UiScale UiScale,
     StartupDisplayMode StartupDisplayMode,
     MovementPresetId MovementPreset,
-    UiChromeStyle UiChromeStyle = UiChromeStyle.Procedural);
+    UiChromeStyle UiChromeStyle = UiChromeStyle.Procedural,
+    PawnVisualStyle PawnVisualStyle = PawnVisualStyle.Procedural);
 
 /// <summary>
 /// A spectator-chosen army composition for both factions: the total units per
