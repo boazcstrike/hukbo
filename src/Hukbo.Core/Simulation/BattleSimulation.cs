@@ -953,7 +953,12 @@ public sealed class BattleSimulation
             // every preset up to and including PrecolonialPhilippinesV4
             // exactly where its pinned hash already is.
             _hasRangedWeapon,
-            new ReadOnlySpan<Projectile>(_projectiles, 0, _projectileLiveCount));
+            new ReadOnlySpan<Projectile>(_projectiles, 0, _projectileLiveCount),
+            // A third gate of its own, for the same reason the second is not
+            // folded inside the first. Only V14 registers this true, so every
+            // preset from V1 to V13 folds nothing here and keeps the hash it
+            // already has.
+            Scenario.MovementPreset is MovementPresetId.EvasiveFootworkV14);
 
     public BattleSnapshot CreateSnapshot()
     {

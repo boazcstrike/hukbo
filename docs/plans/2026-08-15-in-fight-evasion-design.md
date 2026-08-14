@@ -512,8 +512,23 @@ tick. It writes `_movementProposals` and, after the loop,
 
 **Hashing.** `EvasiveAction` folds as an `int` inside the per-agent block, after
 the pressure-interrupt block, gated on preset identity 14. Every other fold is
-untouched. Death cleanup clears the field to `None`, following the existing
-footwork-field precedent, so a corpse cannot carry a stale value into the hash.
+untouched.
+
+**A corpse must not carry a stale action into the hash, and the existing death
+cleanup cannot be the thing that prevents it.** The obvious precedent —
+`ApplyEquipmentAttackFootworkAndDeathCleanup`, which zeroes the footwork and
+pressure fields of a dead agent — is gated in its entirety on
+`UsesEquipmentRelativeFootwork` at `BattleSimulation.cs:890`, so it never runs
+under V13 or under V14. Dead agents are nevertheless still folded, so relying on
+that pass would leave a killed warrior's last evasive action in the state hash
+forever.
+
+`ApplyEvasiveFootwork` therefore owns the clearing itself. It walks every agent
+rather than only the living ones, and writes `None` for any agent that is not
+alive before considering a single rung. That is one branch in a pass that
+already runs every tick under V14, it is idempotent for an agent that died many
+ticks ago, and it keeps the invariant in the one place a reader will look for
+it.
 
 **What must stay byte-identical, and is the acceptance criterion for the whole
 package.** The five recorded gate baselines: 6/4 `5460D13E3F7FD3E5` /

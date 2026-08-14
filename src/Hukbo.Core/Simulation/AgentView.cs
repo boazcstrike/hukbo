@@ -158,4 +158,5 @@ public readonly record struct AgentView(
     int PressureBasisPoints = 0,
     int PressureThresholdBasisPoints = 0,
     RangedPhase RangedPhase = RangedPhase.None,
-    int RangedPhaseTicksRemaining = 0);
+    int RangedPhaseTicksRemaining = 0,
+    EvasiveAction EvasiveAction = EvasiveAction.None);
