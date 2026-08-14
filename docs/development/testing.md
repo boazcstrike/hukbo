@@ -672,19 +672,27 @@ closed 2026-08-14".
 
 ## Canonical gate result — Hukbo, 2026-08-14 (ranged package closeout)
 
-`./scripts/verify.ps1 -SkipBootstrap`, run on 2026-08-14 in a dedicated
-integration worktree at branch `ranged-integration`, with both closeout branches
-merged in. **Verdict: pass, exit code 0.** The run reported:
+`./scripts/verify.ps1 -SkipBootstrap`, run twice on 2026-08-14 in a dedicated
+integration worktree at branch `ranged-integration`. The first run had both
+closeout branches merged in and reported 763 files, 2 568 Core tests and 3 787
+Client tests. **The run recorded here is the second**, taken after `main` moved
+four commits underneath the branch — the death-collapse feature at `0d4b34e`,
+the nine-slice panel texture at `54c0bca`, an archive prune, and a backlog tidy
+— and `main` was merged into the branch. That merge produced no conflicts.
+**Verdict: pass, exit code 0.** The run reported:
 
 ```
-Formatted 0 of 763 files.
+Formatted 0 of 770 files.
 [PASS] Formatting verification completed.
 [PASS] Release solution build completed.
 Total tests: 2568     Passed: 2568
-Total tests: 3787     Passed: 3787
+Total tests: 3850     Passed: 3850
 [PASS] Release repository tests completed.
 [PASS] Canonical repository verification completed.
 ```
+
+The Client suite's rise from 3 787 to 3 850 is the death-collapse work's own
+tests arriving with the merge, not anything this closeout added.
 
 All five headless workloads reproduced their recorded pairs:
 
@@ -696,14 +704,17 @@ All five headless workloads reproduced their recorded pairs:
 | Last-stand engagement | 5 / 11 | `6225182B4A470F91` | `C4DABE6AF98B6BEC` |
 | Cohort lateral spread | 5 / 13 | `4A0723BC9A1B924B` | `E0CE32CF8830A864` |
 
-**Why this run was not made in the main checkout.** Another session's
-uncommitted death-collapse work was live in the shared working tree, including
-115 new lines in `PawnGeometry.cs`, which is a file the archiving change also
-edits. Merging into `main` would have required committing or stashing work that
-is not this session's to touch, so the merge and the gate were done in a
-separate worktree and `main` was left alone. **The two branches are therefore
-verified but unmerged**, and whoever merges them owes nothing further — this is
-the gate run for that merge, taken at the merged tree.
+**Why this run was not made in the main checkout.** Another session was working
+in the shared tree throughout. At first that was uncommitted death-collapse
+work, including 115 new lines in `PawnGeometry.cs`, a file the archiving change
+also edits; `git merge` refused outright rather than touching it. That session
+then committed, and by the time this second run finished it was holding
+`docs/development/smoke-checklist.md`, `docs/development/testing.md`, and
+`docs/plans/README.md` staged — the same three files this closeout changes. So
+the merge and both gate runs were done in a separate worktree and `main` was
+left alone throughout. **The closeout is therefore verified but unmerged**, and
+whoever merges it owes nothing further: this is the gate run for that merge,
+taken at the merged tree with `main`'s own latest work folded in.
 
 **The ranged workload reproducing `C8023D3B5BEB005E` / `F709A345E2F7370E` is
 the load-bearing line here.** The composition change moves the client's default
