@@ -1,8 +1,8 @@
 # UiChrome.png — placeholder nine-slice chrome atlas
 
-Authored 2026-08-14 for task CH-T1 of the UI chrome nine-slice package. The
-design and plan documents live in `docs/plans/` under the names "UI chrome
-nine-slice sprite skin — design" and "UI chrome nine-slice sprite skin — plan".
+Authored 2026-08-14 for task CH-T1 of the UI chrome nine-slice package. Its
+design document stays live in `docs/plans/` under the name "UI chrome
+nine-slice sprite skin — design"; the plan that executed it has been archived.
 
 **This is placeholder programmer art.** It exists so the primitive, the content
 pipeline, the toggle, and the scale behaviour can be proven before anyone
