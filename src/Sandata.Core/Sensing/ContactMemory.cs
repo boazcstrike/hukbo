@@ -189,11 +189,18 @@ public static class ContactMemory
     /// <see cref="ContactTier.QuestionMark"/> or <see cref="ContactTier.Identified"/>)
     /// this call; left unchanged on every ghost.
     /// </param>
+    /// <param name="deadEnemyEntityIds">
+    /// Every enemy that is no longer alive, in any order. A memory entry
+    /// naming one of these is dropped rather than carried forward as a ghost.
+    /// See this method's remarks on why death is the one thing a ghost does
+    /// not survive.
+    /// </param>
     public static ImmutableArray<Simulation.ContactMemoryEntry> Update(
         ImmutableArray<Simulation.ContactMemoryEntry> existingMemory,
         ReadOnlySpan<ContactObservation> observationsThisTick,
-        long currentTick) =>
-        Update(existingMemory, observationsThisTick, currentTick, scratch: default);
+        long currentTick,
+        ReadOnlySpan<ulong> deadEnemyEntityIds = default) =>
+        Update(existingMemory, observationsThisTick, currentTick, scratch: default, deadEnemyEntityIds);
 
     /// <summary>
     /// <see cref="Update(ImmutableArray{Simulation.ContactMemoryEntry}, ReadOnlySpan{ContactObservation}, long)"/>
@@ -211,11 +218,34 @@ public static class ContactMemory
     /// <see cref="ImmutableArray{T}"/> is built by copying out of it, so the
     /// buffer's prior contents can never reach a caller.
     /// </param>
+    /// <param name="deadEnemyEntityIds">
+    /// Every enemy that is no longer alive, in any order.
+    /// <para>
+    /// A ghost survives losing sight of its subject, by design — that is what
+    /// "world state is remembered rather than live" means. It does not survive
+    /// its subject dying, because nothing in this type decays a ghost and
+    /// nothing else forgets one: a contact identified once would otherwise
+    /// stay <see cref="ContactTier.Identified"/> for the rest of the mission,
+    /// and <c>IntentSelection</c> ranks an identified contact as
+    /// <c>Engage</c> above every other intent unconditionally. Measured
+    /// 2026-08-15 before this parameter existed: an operator whose target died
+    /// at tick 672 still held <c>Engage</c> at tick 35,999, standing over the
+    /// body while a live hostile elsewhere on the map was never approached.
+    /// </para>
+    /// <para>
+    /// Forgetting is deliberately not gated on the observer having seen the
+    /// death. Gating it that way would leave exactly the same permanent ghost
+    /// whenever the kill happened out of sight, and this type has no decay
+    /// rule to fall back on. Whether ghosts should age out on their own is a
+    /// separate, open design question this parameter does not answer.
+    /// </para>
+    /// </param>
     public static ImmutableArray<Simulation.ContactMemoryEntry> Update(
         ImmutableArray<Simulation.ContactMemoryEntry> existingMemory,
         ReadOnlySpan<ContactObservation> observationsThisTick,
         long currentTick,
-        Span<Simulation.ContactMemoryEntry> scratch)
+        Span<Simulation.ContactMemoryEntry> scratch,
+        ReadOnlySpan<ulong> deadEnemyEntityIds = default)
     {
         var existingSpan = existingMemory.IsDefault
             ? ReadOnlySpan<Simulation.ContactMemoryEntry>.Empty
@@ -236,6 +266,11 @@ public static class ContactMemory
         // observation, or carried forward unchanged as a ghost.
         foreach (var existing in existingSpan)
         {
+            if (Contains(deadEnemyEntityIds, existing.EnemyEntityId))
+            {
+                continue; // dead: forgotten outright, never carried forward.
+            }
+
             var matched = false;
             foreach (var observation in observationsThisTick)
             {
@@ -259,6 +294,15 @@ public static class ContactMemory
         // brand-new entry only if this tick actually clears Unknown.
         foreach (var observation in observationsThisTick)
         {
+            // An observation naming a dead enemy cannot reach here from the
+            // simulation's own sensing pass, which never observes one, but a
+            // direct caller can construct one — so the rule is applied on the
+            // creation path too rather than trusting every caller to hold it.
+            if (Contains(deadEnemyEntityIds, observation.EnemyEntityId))
+            {
+                continue;
+            }
+
             var alreadyHandled = false;
             foreach (var existing in existingSpan)
             {
@@ -295,6 +339,27 @@ public static class ContactMemory
         merged.Sort(EntityIdComparer.Instance);
 
         return ImmutableArray.Create((ReadOnlySpan<Simulation.ContactMemoryEntry>)merged);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="entityIds"/> names <paramref name="entityId"/>.
+    /// A linear scan rather than a <c>HashSet&lt;&gt;</c>, which
+    /// <c>CLAUDE.md</c> section 5 bans from <c>Sandata.Core</c> outright, and
+    /// which would be the wrong shape anyway: this span holds one entry per
+    /// dead operator, so it is empty for most of a mission and single-digit
+    /// for the rest.
+    /// </summary>
+    private static bool Contains(ReadOnlySpan<ulong> entityIds, ulong entityId)
+    {
+        foreach (var candidate in entityIds)
+        {
+            if (candidate == entityId)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

@@ -394,4 +394,57 @@ public sealed class RoomSweepAngleHouseTests
             objectiveDefender.Health < 100,
             $"the objective room's defender was never engaged (health {objectiveDefender.Health}).");
     }
+
+    /// <summary>
+    /// The squad has to be able to finish a fight. An operator holds
+    /// <see cref="OperatorIntent.Engage"/> off an identified contact, and
+    /// nothing decays a contact, so before a dead subject's contact was
+    /// forgotten the leader stayed in <c>Engage</c> for the rest of the
+    /// mission — measured at tick 35,999 against a target that died at 672 —
+    /// and the sweep, frozen by design decision 5 for any group holding an
+    /// identified contact, could never retarget.
+    /// </summary>
+    [Fact]
+    public void OnceItsTargetIsDead_TheLeaderLeavesEngageAndTheSweepMovesOn()
+    {
+        var (grid, buckets, layout) = BakeAngleHouse();
+
+        var groups = ImmutableArray.Create(new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: ObjectiveCellIndex,
+            HasOutstandingRequest: true,
+            StartCellIndex: SpawnCellIndex,
+            GoalCellIndex: ObjectiveCellIndex,
+            RequestTick: 0));
+
+        var sim = new SandataSimulation(
+            BuildMission(),
+            SandataRuleset.ModernTacticalV1,
+            grid,
+            buckets,
+            BuildState(BuildAngleHouseRoster(), groups),
+            ImmutableArray<CoverRecord>.Empty,
+            layout);
+
+        var everEngaged = false;
+        for (var tick = 0L; tick < 4_000; tick++)
+        {
+            sim.RunTick(tick);
+
+            if (sim.State.Operators.Single(o => o.EntityId == 1UL).Intent == (int)OperatorIntent.Engage)
+            {
+                everEngaged = true;
+            }
+        }
+
+        Assert.True(everEngaged, "the leader never engaged at all, so this test proves nothing about leaving it.");
+
+        var leader = sim.State.Operators.Single(o => o.EntityId == 1UL);
+        var objectiveDefender = sim.State.Operators.Single(o => o.EntityId == 4UL);
+        var group = sim.State.Groups.Single();
+
+        Assert.Equal(0, objectiveDefender.Health);
+        Assert.NotEqual((int)OperatorIntent.Engage, leader.Intent);
+        Assert.Equal(ClosetRoomId, group.TargetRoomId);
+    }
 }

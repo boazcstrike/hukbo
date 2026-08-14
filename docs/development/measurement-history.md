@@ -3817,3 +3817,11 @@ unchanged, when stage 8's selected intent began being written into
 `OperatorState.Intent`. Nothing had ever written that field, so the state hash
 had been folding a constant since the day it was declared. The event hash could
 not move, because an intent is state and not an event.
+
+That figure was itself superseded on 2026-08-15 by
+`stateHash DA3D1BEB99978A75` with `eventHash 260A20BC8F578E19`, when
+`ContactMemory.Update` began dropping a contact whose subject is no longer
+alive. Both hashes moved together this time: contact memory is hashed state, and
+an operator that stops holding `Engage` against a corpse resumes advancing, so
+the workload's shots, positions, and deaths all diverge from the recorded run.
+The current figure and the full reasoning live in `docs/development/testing.md`.

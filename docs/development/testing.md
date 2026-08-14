@@ -1222,6 +1222,61 @@ on the shared `LogEvents` catalog.
 Neither gate is evidence about anything interactive. `SD-4` and `SD-5` stay
 `FAIL` until a person at a desktop re-runs them.
 
+### Canonical gate result — both games, 2026-08-15 (a contact does not survive its subject's death)
+
+`./scripts/verify.ps1 -SkipBootstrap`, exit code 0, run on branch `sandata-rooms`
+after the room-sweep goal-cell fix, the option-A ordering correction, and the
+contact-forgetting fix below:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Hukbo.Core.Tests       Total tests: 2568   Passed: 2568
+Hukbo.Client.Tests     Total tests: 3962   Passed: 3962
+[PASS] Release repository tests completed.
+  5 headless workloads, every one deterministic true, every hash unchanged
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.   (x5)
+Sandata.Core.Tests     Total tests: 1166   Passed: 1166
+Sandata.Client.Tests   Total tests:  325   Passed:  325
+[PASS] Release repository tests completed.
+stateHash DA3D1BEB99978A75   eventHash 260A20BC8F578E19   deterministic true
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+**Sandata's current seed-1 baseline is `stateHash DA3D1BEB99978A75` with
+`eventHash 260A20BC8F578E19`.** Quote that pair, not `13EF0685BB46CA5E`, which
+this run supersedes and which moves to `docs/development/measurement-history.md`.
+Every one of Hukbo's five workloads is byte-identical to its recorded figure.
+
+**Both hashes moved this time, and both were supposed to.** `ContactMemory.Update`
+now drops a memory entry naming an operator that is no longer alive. Contact
+memory is hashed state, so the state hash had to move; and because an operator
+that stops holding `Engage` against a corpse goes back to advancing, the run's
+shots, positions, and deaths all diverge from the recorded one, so the event
+stream had to move as well. The narrower 40-tick golden replay fixtures moved
+only their per-tick state hashes and kept `finalEventHashHex` at
+`107684FBFCFE69E5`, because forty ticks is too early for the behaviour change to
+reach the event stream — the same fix showing one signature at one horizon and
+two at another.
+
+What the fix is for: nothing in `ContactMemory` decays a ghost and nothing else
+forgot one, so a contact identified once stayed `ContactTier.Identified` for the
+rest of the mission, and `IntentSelection` ranks an identified contact as
+`Engage` above every other intent unconditionally. Measured on the angle-house
+fixture before the fix: an operator whose target died at tick 672 still held
+`Engage` at tick 35,999, standing over the body, while a live hostile elsewhere
+on the map was never approached. After the fix it leaves `Engage` at tick 673 and
+its squad retargets at tick 675.
+
+**Whether a ghost should also age out on its own is still open.** This change
+forgets the dead only. An enemy that merely breaks line of sight is still
+remembered at full tier forever, which keeps its observer in `Engage`
+indefinitely, and no decay rule exists to fall back on.
+
+No new `SandataPresetId`. `SandataRuleset.ContentHash` is unchanged at
+`8_955_292_433_887_190_872`.
+
 ### Canonical gate result — Sandata, 2026-08-14 (the intent field is written)
 
 `./scripts/verify.ps1 -Game Sandata -SkipBootstrap`, exit code 0, run on branch

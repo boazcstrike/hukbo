@@ -150,6 +150,18 @@ public sealed class SandataSimulation
     private ContactMemoryEntry[] _contactMergeBuffer = [];
 
     /// <summary>
+    /// Stage 5's reused list of this tick's dead operators, one entry per
+    /// corpse, handed to every <see cref="ContactMemory.Update"/> call so a
+    /// contact naming a dead subject is forgotten rather than carried forward
+    /// as a permanent ghost. Grown on demand and never shrunk, like
+    /// <see cref="_contactMergeBuffer"/>, because the roster can grow through
+    /// stage 2 after this simulation was constructed. Capacity, never content:
+    /// only the first <c>deadCount</c> entries of any tick are ever read, and
+    /// they are rewritten from the frozen view before that read.
+    /// </summary>
+    private ulong[] _deadEntityBuffer = [];
+
+    /// <summary>
     /// Stage 11's write-only record of which operators fired this tick, and
     /// at which contact, for <see cref="ProposeFire"/> to consume. Empty
     /// before the first call to <see cref="RunTick"/>.
@@ -1942,6 +1954,27 @@ public sealed class SandataSimulation
             _contactMergeBuffer = new ContactMemoryEntry[requiredMergeLength];
         }
 
+        // The dead, gathered once for the whole tick rather than once per
+        // observer: every operator's memory is filtered against the same set,
+        // so building it inside the per-operator loop would repeat identical
+        // work count times. See ContactMemory.Update's own remarks for why a
+        // contact does not survive its subject's death.
+        if (_deadEntityBuffer.Length < count)
+        {
+            _deadEntityBuffer = new ulong[count];
+        }
+
+        var deadCount = 0;
+        for (var i = 0; i < count; i++)
+        {
+            if (!view.IsAlive(i))
+            {
+                _deadEntityBuffer[deadCount++] = view.EntityIds[i];
+            }
+        }
+
+        var deadEntityIds = _deadEntityBuffer.AsSpan(0, deadCount);
+
         for (var i = 0; i < count; i++)
         {
             if (!view.IsAlive(i))
@@ -1990,7 +2023,7 @@ public sealed class SandataSimulation
 
             var updatedMemory = ContactMemory.Update(
                 view.ContactMemory(i), observationBuffer.AsSpan(0, observationCount), currentTick,
-                _contactMergeBuffer);
+                _contactMergeBuffer, deadEntityIds);
             contactMemoryByIndex.Add(updatedMemory);
 
             foreach (var entry in updatedMemory.AsSpan())

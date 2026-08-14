@@ -185,11 +185,18 @@ change, an audio change, and a combat-rule change.
 
 **The state hash moved later the same day and the event hash did not.** The
 mission-never-ends fix writes each operator's selected intent into authoritative
-state, and intent is state rather than an event, so the current baseline is
+state, and intent is state rather than an event, so that day's baseline became
 `stateHash 13EF0685BB46CA5E` with `eventHash AEDE4D16B5E6FAAF` unchanged. One
 hash moving alone is the expected signature of that change and is what having
-two independent hashes is for. The superseded figure and the full reasoning are
-in `docs/development/testing.md`; quote the new one.
+two independent hashes is for.
+
+**Both hashes then moved on 2026-08-15, and the current baseline is
+`stateHash DA3D1BEB99978A75` with `eventHash 260A20BC8F578E19`.** Contact memory
+stopped carrying a contact whose subject is dead. Memory is hashed state, so the
+state hash had to move, and an operator that stops holding `Engage` against a
+corpse advances instead, so the run's shots and deaths diverge and the event
+stream had to move too. Every superseded figure and the full reasoning are in
+`docs/development/testing.md`; quote the newest one.
 
 Sandata's core suite runs 1,113 tests in about **4.5 seconds** inside the gate.
 It was 38 seconds until task 91, and 36 of those were a single `InlineData`

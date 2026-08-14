@@ -47,8 +47,8 @@
       "722F45025E2651E9",
       "8FF4B9631A3AE60E",
       "F3265307DB603206",
-      "CCEBAC0041A3467A",
-      "59390FC8ADA55598"
+      "F1911CF9633BFD20",
+      "8689249241FB6657"
     ],
     "FinalEventHashHex": "107684FBFCFE69E5"
   },
@@ -95,10 +95,11 @@
       "E30D7A39EE4656A9",
       "31E33688E92EA50E",
       "D9D9CEBCBDBBD106",
-      "9FE795A4B6E87859",
-      "A6366884906C26FB"
+      "53D2A03A135A95C3",
+      "67CEFED866A1AA14"
     ],
     "FinalEventHashHex": "107684FBFCFE69E5"
   },
-  "_rerecorded2026-08-14": "Fourth re-measurement, 2026-08-14, values below from it, taken by a temporary capture test (TempBaselineCapture.cs) deleted in the same change. One defect closed: stage 8's selected intent is now written into OperatorState.Intent, which nothing had ever done. IntentSelection.SelectAll ran every tick and its results were correct, but they lived only in SandataSimulation.PendingIntents, so the hashed and snapshotted Intent field read 0 -- OperatorIntent.Hold -- for every operator on every tick of every run ever simulated. Signature of the change, and it is the expected one: every per-tick STATE hash moved, and BOTH EVENT hashes are byte-identical at 107684FBFCFE69E5. Intent is state, not an event, so a change that writes it must move one hash and not the other -- which is the whole reason Sandata keeps two independent hashes. Tick 0 moved as well, unlike the 2026-08-11a re-measurement, because stage 8 runs and commits within tick 0 itself rather than depending on a field that starts at its default. NEITHER change needs a new SandataPresetId: design section 4's trigger list is an enum value or order, roster order, weapon weight, tick rate, the millisecond conversion rule, or a hash mixer, and none of those moved. OperatorIntent's members and numeric values are untouched, and SandataRuleset.ContentHash is unchanged at 8955292433887190872."
+  "_rerecorded2026-08-14": "Fourth re-measurement, 2026-08-14, values below from it, taken by a temporary capture test (TempBaselineCapture.cs) deleted in the same change. One defect closed: stage 8's selected intent is now written into OperatorState.Intent, which nothing had ever done. IntentSelection.SelectAll ran every tick and its results were correct, but they lived only in SandataSimulation.PendingIntents, so the hashed and snapshotted Intent field read 0 -- OperatorIntent.Hold -- for every operator on every tick of every run ever simulated. Signature of the change, and it is the expected one: every per-tick STATE hash moved, and BOTH EVENT hashes are byte-identical at 107684FBFCFE69E5. Intent is state, not an event, so a change that writes it must move one hash and not the other -- which is the whole reason Sandata keeps two independent hashes. Tick 0 moved as well, unlike the 2026-08-11a re-measurement, because stage 8 runs and commits within tick 0 itself rather than depending on a field that starts at its default. NEITHER change needs a new SandataPresetId: design section 4's trigger list is an enum value or order, roster order, weapon weight, tick rate, the millisecond conversion rule, or a hash mixer, and none of those moved. OperatorIntent's members and numeric values are untouched, and SandataRuleset.ContentHash is unchanged at 8955292433887190872.",
+  "_rerecorded2026-08-15": "Both per-tick state-hash arrays re-recorded after ContactMemory.Update began forgetting a contact whose subject is dead. Contact memory is hashed state and this fixture kills operators well before tick 40, so every tick from the first death onward moved. Both finalEventHashHex values are unchanged at 107684FBFCFE69E5: the fix drops remembered state and emits no event, which is exactly the one-hash-moves-alone signature two independent hashes exist to show."
 }

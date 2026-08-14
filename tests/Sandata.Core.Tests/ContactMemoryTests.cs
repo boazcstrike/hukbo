@@ -336,4 +336,95 @@ public sealed class ContactMemoryTests
         Assert.Equal(expected.ToArray(), actual.ToArray());
         Assert.Equal(3, actual.Length);
     }
+
+    // --- Update: a contact does not survive its subject's death ----------
+
+    /// <summary>
+    /// The one thing a ghost does not survive. Nothing in this type decays a
+    /// ghost, so a contact identified once would otherwise stay
+    /// <see cref="ContactTier.Identified"/> for the rest of the mission, and
+    /// <c>IntentSelection</c> ranks an identified contact as
+    /// <c>Engage</c> above every other intent unconditionally.
+    /// </summary>
+    [Fact]
+    public void Update_EnemyIsDead_ItsGhostIsForgotten()
+    {
+        var existing = ImmutableArray.Create(
+            new ContactMemoryEntry(3UL, 50, (int)ContactTier.Identified, 40L),
+            new ContactMemoryEntry(4UL, 60, (int)ContactTier.Identified, 41L));
+
+        var result = ContactMemory.Update(
+            existing,
+            observationsThisTick: default,
+            currentTick: 100,
+            deadEnemyEntityIds: new ulong[] { 3UL });
+
+        var survivor = Assert.Single(result);
+        Assert.Equal(4UL, survivor.EnemyEntityId);
+    }
+
+    /// <summary>
+    /// Forgetting does not depend on the observer having seen the death, and
+    /// does not depend on the entry being a ghost this tick: an enemy observed
+    /// with line of sight on the very tick it is reported dead is still
+    /// forgotten, because a live observation of a corpse is not a contact.
+    /// </summary>
+    [Fact]
+    public void Update_EnemyIsDeadAndStillObserved_IsStillForgotten()
+    {
+        var existing = ImmutableArray.Create(
+            new ContactMemoryEntry(3UL, 50, (int)ContactTier.Identified, 40L));
+        var observations = new ContactObservation[]
+        {
+            new(EnemyEntityId: 3, HasLineOfSightThisTick: true, RangeSquaredWu: 0, CurrentCellIndex: 51),
+        };
+
+        var result = ContactMemory.Update(
+            existing, observations, currentTick: 100, deadEnemyEntityIds: new ulong[] { 3UL });
+
+        Assert.Empty(result);
+    }
+
+    /// <summary>
+    /// A dead enemy with no prior entry is never given one either, so the
+    /// creation path cannot reintroduce what the carry-forward path just
+    /// dropped.
+    /// </summary>
+    [Fact]
+    public void Update_ADeadEnemyWithNoPriorEntry_NeverGainsOne()
+    {
+        var observations = new ContactObservation[]
+        {
+            new(EnemyEntityId: 7, HasLineOfSightThisTick: true, RangeSquaredWu: 0, CurrentCellIndex: 70),
+        };
+
+        var result = ContactMemory.Update(
+            ImmutableArray<ContactMemoryEntry>.Empty,
+            observations,
+            currentTick: 100,
+            deadEnemyEntityIds: new ulong[] { 7UL });
+
+        Assert.Empty(result);
+    }
+
+    /// <summary>
+    /// An empty dead list leaves every existing behaviour byte-identical —
+    /// the property every caller that passes nothing depends on.
+    /// </summary>
+    [Fact]
+    public void Update_NoDeadEnemies_MatchesTheResultWithNoDeadListAtAll()
+    {
+        var existing = ImmutableArray.Create(
+            new ContactMemoryEntry(3UL, 50, (int)ContactTier.Identified, 40L));
+        var observations = new ContactObservation[]
+        {
+            new(EnemyEntityId: 4, HasLineOfSightThisTick: true, RangeSquaredWu: 0, CurrentCellIndex: 60),
+        };
+
+        var withoutList = ContactMemory.Update(existing, observations, currentTick: 100);
+        var withEmptyList = ContactMemory.Update(
+            existing, observations, currentTick: 100, deadEnemyEntityIds: []);
+
+        Assert.Equal(withoutList.ToArray(), withEmptyList.ToArray());
+    }
 }
