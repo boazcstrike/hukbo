@@ -2467,6 +2467,193 @@ public sealed class AgentInspectorContentTests
                 movementSpeedRaw: 0));
     }
 
+    // ===== In-fight evasion: the evasion row (design section 6, question 8) =====
+
+    [Theory]
+    [InlineData(EvasiveAction.SlipLateral, "Evasion: Slipping")]
+    [InlineData(EvasiveAction.DodgeIncoming, "Evasion: Dodging")]
+    [InlineData(EvasiveAction.GiveGround, "Evasion: Giving ground")]
+    [InlineData(EvasiveAction.BreakOff, "Evasion: Breaking off")]
+    [InlineData(EvasiveAction.BreakOffArmed, "Evasion: Breaking off")]
+    public void FormatEvasiveActionLine_RendersPlainEnglishForEveryResolvedAction(
+        EvasiveAction action,
+        string expected)
+    {
+        Assert.Equal(
+            expected,
+            AgentInspectorContent.FormatEvasiveActionLine(action));
+    }
+
+    [Fact]
+    public void FormatEvasiveActionLine_ReturnsNullUnderALegacyPreset()
+    {
+        // Every preset from V1 to V13 leaves the field at None forever, as
+        // does death cleanup and any warrior outside an engagement, so the
+        // row is absent under all of them and the panel's row budget never
+        // moves.
+        Assert.Null(
+            AgentInspectorContent.FormatEvasiveActionLine(EvasiveAction.None));
+    }
+
+    [Fact]
+    public void GetEvasiveActionLabel_GivesEveryEngagedActionANonEmptyLabel()
+    {
+        // Nothing a spectator can be shown may be blank, and no label may
+        // read as flight: each of the five is movement inside a fight.
+        foreach (var action in Enum.GetValues<EvasiveAction>())
+        {
+            if (action == EvasiveAction.None)
+            {
+                continue;
+            }
+
+            Assert.False(
+                string.IsNullOrWhiteSpace(
+                    AgentInspectorContent.GetEvasiveActionLabel(action)),
+                $"{action} renders no label.");
+        }
+    }
+
+    [Fact]
+    public void GetEvasiveActionLabel_DistinguishesEveryActionExceptTheBreakOffCarrier()
+    {
+        // Four distinct manoeuvres, five members: BreakOffArmed deliberately
+        // shares BreakOff's label because the armed state is a one-tick
+        // carrier for the step owed next tick, which is bookkeeping rather
+        // than something happening in the fight.
+        var slip = AgentInspectorContent.GetEvasiveActionLabel(
+            EvasiveAction.SlipLateral);
+        var dodge = AgentInspectorContent.GetEvasiveActionLabel(
+            EvasiveAction.DodgeIncoming);
+        var giveGround = AgentInspectorContent.GetEvasiveActionLabel(
+            EvasiveAction.GiveGround);
+        var breakOff = AgentInspectorContent.GetEvasiveActionLabel(
+            EvasiveAction.BreakOff);
+        var breakOffArmed = AgentInspectorContent.GetEvasiveActionLabel(
+            EvasiveAction.BreakOffArmed);
+
+        Assert.Equal(
+            4,
+            new[] { slip, dodge, giveGround, breakOff }
+                .Distinct(StringComparer.Ordinal)
+                .Count());
+        Assert.Equal(breakOff, breakOffArmed);
+    }
+
+    [Fact]
+    public void GetEvasiveActionLabel_ThrowsForAValueOutsideTheEnum()
+    {
+        // The default arm throws for the same reason GetFootworkLabel's and
+        // GetPostureLabel's do: a member added upstream must fail loudly here
+        // rather than render a silently wrong row. None throws too — it has no
+        // label, and FormatEvasiveActionLine filters it before it arrives.
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => AgentInspectorContent.GetEvasiveActionLabel(
+                (EvasiveAction)99));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => AgentInspectorContent.GetEvasiveActionLabel(
+                EvasiveAction.None));
+    }
+
+    [Fact]
+    public void LowerLinesOmitTheEvasionRowUnderALegacyPreset()
+    {
+        // Legacy byte-identity: a view whose EvasiveAction holds its default
+        // gains no row, even when the caller supplies a movement speed.
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(WeaponId.Kalis, ShieldId.TallHardwood),
+            "Kalis — Thrusting Blade",
+            "Documented",
+            movementSpeedRaw: 512);
+
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("Evasion:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LowerLinesAppendTheEvasionRowAfterThePaceRowForAVFourteenWarrior()
+    {
+        var lines = AgentInspectorContent.BuildLowerLines(
+            CreateAgentView(
+                WeaponId.Kalis,
+                ShieldId.TallHardwood,
+                facing: Facing16.East,
+                movementPaceRaw: 256,
+                tacticalPosture: TacticalPosture.Advance,
+                footworkPhase: FootworkPhase.Approach) with
+            {
+                EvasiveAction = EvasiveAction.GiveGround,
+            },
+            "Kalis — Thrusting Blade",
+            "Documented",
+            movementSpeedRaw: 512);
+
+        var list = lines.ToList();
+        var paceIndex = list.FindIndex(
+            line => line.StartsWith("Pace:", StringComparison.Ordinal));
+        var evasionIndex = list.FindIndex(
+            line => line.StartsWith("Evasion:", StringComparison.Ordinal));
+
+        Assert.True(paceIndex >= 0);
+        Assert.Equal(paceIndex + 1, evasionIndex);
+        Assert.Equal("Evasion: Giving ground", list[evasionIndex]);
+    }
+
+    [Fact]
+    public void LowerLinesForTheDeepestVFourteenViewStayInsideTheRowBudget()
+    {
+        // EvasiveFootworkV14 registers neither equipment-relative footwork nor
+        // the pressure interrupt, so the deepest panel it can draw carries the
+        // contingent row and its badge, the rank reconstruction note, the
+        // BackingAway intent and its badge, and the evasion row — but none of
+        // the facing, posture, footwork, pace, or pressure rows. The evasion
+        // row is the widest of the five labels ("Giving ground"), so this is
+        // the worst wrapped case V14 has. It must fit the existing budget: a
+        // row added under a new preset may not raise MaximumLowerRowCount.
+        var rawLines = AgentInspectorContent.BuildLowerLines(
+            DeepestVFourteenShapedView(),
+            "Kalis — Thrusting Blade",
+            "Documented",
+            movementSpeedRaw: 512);
+        var wrappedCount = rawLines
+            .SelectMany(line => AgentInspectorContent.WrapTextWithHangingIndent(
+                line,
+                AgentInspectorContent.ComputeContentWidthBudget(310),
+                candidate => candidate.Length * 8,
+                AgentInspectorContent.HangingIndent))
+            .Count();
+
+        Assert.Contains(
+            rawLines,
+            line => line.StartsWith("Evasion:", StringComparison.Ordinal));
+        Assert.True(
+            wrappedCount <= AgentInspectorContent.MaximumLowerRowCount,
+            $"A V14 panel wraps to {wrappedCount} lines, past the budget of " +
+            $"{AgentInspectorContent.MaximumLowerRowCount}.");
+        Assert.Equal(46, AgentInspectorContent.MaximumLowerRowCount);
+    }
+
+    /// <summary>
+    /// The deepest warrior an <c>EvasiveFootworkV14</c> panel can draw:
+    /// shielded, in a contingent, carrying the rank reconstruction note,
+    /// backing away so both gameplay-model badges render, and resolving the
+    /// widest evasive action. The four equipment-relative movement rows and
+    /// the pressure row are all left at their defaults, because V14 registers
+    /// neither mechanic and therefore never projects them.
+    /// </summary>
+    private static AgentView DeepestVFourteenShapedView() =>
+        CreateAgentView(
+            WeaponId.Kalis,
+            ShieldId.TallHardwood,
+            contingentId: 3,
+            contingentState: ContingentState.Hold,
+            rank: RankId.AlipingNamamahay) with
+        {
+            Intent = AgentIntent.BackingAway,
+            EvasiveAction = EvasiveAction.GiveGround,
+        };
+
     [Fact]
     public void LowerLinesOmitAllFourMovementRowsUnderALegacyPreset()
     {

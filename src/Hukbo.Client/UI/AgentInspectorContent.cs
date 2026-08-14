@@ -85,6 +85,17 @@ internal static class AgentInspectorContent
     /// <see cref="FormatPressureLine"/> then returns
     /// <see langword="null"/> (pressure-interrupt design, section 3,
     /// question 8, channel 3).
+    /// The evasion row (in-fight evasion design, section 6, question 8) is
+    /// present only under <see cref="MovementPresetId.EvasiveFootworkV14"/>,
+    /// the one preset that resolves a non-<see cref="EvasiveAction.None"/>
+    /// action; under every preset from V1 to V13
+    /// <see cref="FormatEvasiveActionLine"/> returns <see langword="null"/>,
+    /// which is why that row did not move this constant. It cannot deepen the
+    /// worst case either: V14 registers neither equipment-relative footwork
+    /// nor the pressure interrupt, so the four movement rows and the pressure
+    /// row are all absent wherever the evasion row is present, and a V14 panel
+    /// is strictly shallower than the pre-V14 deepest panel this constant is
+    /// sized for.
     /// A real panel therefore draws this many or fewer raw rows before
     /// wrapping — the panel is sized for the maximum so the taller case
     /// never clips.
@@ -329,6 +340,18 @@ internal static class AgentInspectorContent
             is { } paceLine)
         {
             lines.Add(paceLine);
+        }
+
+        // The evasion row (in-fight evasion design, section 6, question 8),
+        // immediately after the pace row: both describe how this warrior is
+        // moving right now, and a spectator reading the two together sees the
+        // pace and the reason for it. EvasiveFootworkV14 is the only preset
+        // that ever resolves a non-None action, and it registers neither
+        // equipment-relative footwork nor the pressure interrupt, so this row
+        // and the four rows above it are mutually exclusive in practice.
+        if (FormatEvasiveActionLine(agent.EvasiveAction) is { } evasionLine)
+        {
+            lines.Add(evasionLine);
         }
 
         // The pressure row (pressure-interrupt design section 3, question 8,
@@ -754,6 +777,81 @@ internal static class AgentInspectorContent
         var percent = (int)((long)movementPaceRaw * 100 / movementSpeedRaw);
         return $"Pace: {percent}% of full speed";
     }
+
+    /// <summary>
+    /// The evasion row (in-fight evasion design, section 6, question 8): the
+    /// one evasive movement this warrior resolved on this tick, in plain
+    /// English. This is the channel through which a spectator discovers
+    /// in-fight evasion at all — without it the mechanic is visible only as
+    /// motion nobody can name.
+    /// </summary>
+    /// <remarks>
+    /// Presentation renders the authoritative
+    /// <see cref="AgentView.EvasiveAction"/> and nothing else: it never
+    /// re-derives which rung fired, and never infers one from a position
+    /// delta.
+    /// </remarks>
+    /// <param name="action">
+    /// The warrior's resolved evasive action for this tick.
+    /// </param>
+    /// <returns>
+    /// <see langword="null"/> for <see cref="EvasiveAction.None"/> — the value
+    /// every preset from V1 to V13 leaves forever, the value a warrior outside
+    /// an engagement holds, and the value death cleanup writes. The row is
+    /// therefore absent under all of those, their inspector output stays
+    /// byte-identical, and <see cref="MaximumLowerRowCount"/> is untouched.
+    /// This null return is load-bearing for the row budget, exactly as
+    /// <see cref="FormatPostureLine"/>'s and <see cref="FormatFootworkLine"/>'s
+    /// are.
+    /// </returns>
+    internal static string? FormatEvasiveActionLine(EvasiveAction action) =>
+        action == EvasiveAction.None
+            ? null
+            : $"Evasion: {GetEvasiveActionLabel(action)}";
+
+    /// <summary>
+    /// The plain English label for one resolved evasive movement. Every label
+    /// reads as movement inside a fight rather than as flight, because every
+    /// rung of the ladder fires only for a warrior that is already engaged
+    /// (<see cref="EvasiveAction"/>'s own remarks) — a warrior that is
+    /// regrouping or backing away can never reach one.
+    /// </summary>
+    /// <remarks>
+    /// The labels name no culture and no historical technique. CLAUDE.md
+    /// section 7 admits a Filipino term into player-facing text only in pair
+    /// form and only with a recorded evidence tier behind it, and none of
+    /// these manoeuvres has one, so all five are plain English.
+    /// </remarks>
+    /// <param name="action">The warrior's resolved evasive action.</param>
+    /// <returns>The spectator-facing label for that action.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown for <see cref="EvasiveAction.None"/>, which has no label and is
+    /// filtered by <see cref="FormatEvasiveActionLine"/> before it reaches
+    /// here, and for any value outside the enum. This mirrors
+    /// <see cref="GetFootworkLabel"/> and <see cref="GetPostureLabel"/>, whose
+    /// default arms throw for the same reason: a new member added upstream
+    /// must fail loudly here rather than render a silently wrong row.
+    /// </exception>
+    internal static string GetEvasiveActionLabel(EvasiveAction action) =>
+        action switch
+        {
+            EvasiveAction.SlipLateral => "Slipping",
+            EvasiveAction.DodgeIncoming => "Dodging",
+            EvasiveAction.GiveGround => "Giving ground",
+            EvasiveAction.BreakOff => "Breaking off",
+
+            // BreakOffArmed deliberately shares BreakOff's label. The armed
+            // state is a one-tick carrier for the break step owed on the next
+            // tick, and which of the two ticks a warrior is on is internal
+            // bookkeeping. Showing a spectator two different words for one
+            // manoeuvre would present that bookkeeping as a distinction in
+            // the fight, which it is not.
+            EvasiveAction.BreakOffArmed => "Breaking off",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(action),
+                action,
+                null),
+        };
 
     /// <summary>
     /// The pressure row (pressure-interrupt design section 3, question 8,
