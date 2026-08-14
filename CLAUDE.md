@@ -178,10 +178,18 @@ no `-Game` resolve to the same value and must not resolve to the same behaviour.
 
 The default was Hukbo alone until 2026-08-14. Design section 14 held it there
 until Sandata had a recorded, stable seed-1 baseline, so that a red Sandata
-workload could never be mistaken for a red Hukbo one. It now has one:
+workload could never be mistaken for a red Hukbo one. It got one:
 `stateHash A644B7F8A394885D` and `eventHash AEDE4D16B5E6FAAF` held unchanged
 across four gate runs that day, through a pathfinding change, an inspector
 change, an audio change, and a combat-rule change.
+
+**The state hash moved later the same day and the event hash did not.** The
+mission-never-ends fix writes each operator's selected intent into authoritative
+state, and intent is state rather than an event, so the current baseline is
+`stateHash 13EF0685BB46CA5E` with `eventHash AEDE4D16B5E6FAAF` unchanged. One
+hash moving alone is the expected signature of that change and is what having
+two independent hashes is for. The superseded figure and the full reasoning are
+in `docs/development/testing.md`; quote the new one.
 
 Sandata's core suite runs 1,113 tests in about **4.5 seconds** inside the gate.
 It was 38 seconds until task 91, and 36 of those were a single `InlineData`
