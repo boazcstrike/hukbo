@@ -495,6 +495,12 @@ presentation-only), `game-ui-ux` (HUD anchoring, controller focus),
   ammunition was not authorized and stays deferred. Sandata's own navigation
   and pathfinding are authorized by its design document and are not covered by
   that bar; Hukbo's are not.
+  **Sandata's magazine and reload were authorised on 2026-08-14**, in the
+  narrow form its own design recommends: a round is consumed per shot, a
+  reload costs the firearm's authored `ReloadMs` converted by the one pinned
+  rule, and **spare magazines are infinite**. A finite spare count is a
+  stock-and-consumption economy and is the thing this bullet exists to stop;
+  it stays unauthorised. Hukbo's ammunition remains deferred entirely.
 - Let either game reach into the other. No `Sandata.*` project may reference a
   `Hukbo.Core` or `Hukbo.Client` type, and no `Hukbo.*` project may reference a
   `Sandata.*` type. Move code into `Hukbo.Shared.Core` only under section 3's

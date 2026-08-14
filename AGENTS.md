@@ -231,6 +231,11 @@ at all. Full rules: `docs/research/HISTORICAL_1500s_WEAPONS.md` and
   ranged-units package (archived under the title "Ranged units — plan") alone;
   ammunition was not authorized and stays deferred. Sandata's own navigation
   and pathfinding are authorized by its design document; Hukbo's are not.
+  **Sandata's magazine and reload were authorized on 2026-08-14**, in the narrow
+  form its own design recommends: a round consumed per shot, a reload costing
+  the firearm's authored `ReloadMs`, and **infinite spare magazines**. A finite
+  spare count is the stock-and-consumption economy this bullet exists to stop
+  and stays unauthorized. Hukbo's ammunition remains deferred entirely.
 - Let either game reach into the other, or move code into `Hukbo.Shared.Core`
   as a shortcut around that rule.
 - Report one game's green as the other's. A bare `./scripts/verify.ps1` has run
