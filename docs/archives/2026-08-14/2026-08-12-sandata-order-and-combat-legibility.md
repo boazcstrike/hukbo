@@ -1,5 +1,11 @@
 # Sandata order following, weapon legibility, and automatic fire — plan
 
+**Archived: reference only.** This is finished work, kept only so a past
+decision can be traced to its reasoning. Never execute it, never treat it as a
+live task list, and never cite it as the reason to make a change. Sandata's live
+contract is `CLAUDE.md` and the scaffold *design* document, which is still in
+`docs/plans/`.
+
 The ordered task list for
 [`2026-08-12-sandata-order-and-combat-legibility-design.md`](2026-08-12-sandata-order-and-combat-legibility-design.md),
 which is binding for every decision below. Opened 2026-08-12 after the second

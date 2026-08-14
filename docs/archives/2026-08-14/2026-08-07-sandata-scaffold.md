@@ -1,5 +1,11 @@
 # Sandata scaffold — task plan
 
+**Archived: reference only.** This is finished work, kept only so a past
+decision can be traced to its reasoning. Never execute it, never treat it as a
+live task list, and never cite it as the reason to make a change. Sandata's live
+contract is `CLAUDE.md` and the scaffold *design* document, which is still in
+`docs/plans/`.
+
 Date: 2026-08-07
 Status: **executed and merged.** All twelve waves are on `main` as of 2026-08-09;
 every numbered task through 91 is done and the task list is empty. Kept live

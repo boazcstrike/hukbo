@@ -1,5 +1,11 @@
 # Sandata order following, weapon legibility, and automatic fire — design
 
+**Archived: reference only.** This is finished work, kept only so a past
+decision can be traced to its reasoning. Never execute it, never treat it as a
+live task list, and never cite it as the reason to make a change. Sandata's live
+contract is `CLAUDE.md` and the scaffold *design* document, which is still in
+`docs/plans/`.
+
 Written 2026-08-12, after the second Sandata smoke session. The tester ran
 `./scripts/run.ps1 -Game Sandata -Configuration Debug` seven times, worked down
 the ordered script in `docs/development/smoke-checklist.md`, and reported four

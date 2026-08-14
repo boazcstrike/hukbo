@@ -1325,7 +1325,7 @@ What those numbers say:
 output under `artifacts/`, which `.gitignore` excludes, so those files exist on
 the measuring workstation and in no clone of this repository. The transcript of
 record is the plan document,
-`docs/plans/2026-08-07-sandata-scaffold.md`, in the section titled "Task 53
+Sandata's archived scaffold plan, in the section titled "Task 53
 complete, after tasks 82 and 83". Nothing here should be read as a citation to a
 file a fresh clone can open, because there is no such file.
 
