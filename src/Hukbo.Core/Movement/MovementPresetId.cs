@@ -280,4 +280,46 @@ public enum MovementPresetId
     /// the cohort lateral spread plan.
     /// </summary>
     CohortLateralSpreadV13 = 13,
+
+    /// <summary>
+    /// The in-fight evasive footwork preset. A verbatim restatement of
+    /// <see cref="CohortLateralSpreadV13"/>'s registered field values under its
+    /// own <c>id</c>, following the convention
+    /// <see cref="ContingentShapeV12"/> and <see cref="CohortLateralSpreadV13"/>
+    /// both use: the behaviour is gated on preset identity at its own call
+    /// site, so this value carries no new ruleset field of its own. In
+    /// particular <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/>
+    /// stays <see langword="false"/> — this preset does not revive the
+    /// equipment-relative route pipeline, and no
+    /// <see cref="FootworkPhase"/> or <see cref="TacticalPosture"/> value is
+    /// resolved under it.
+    /// <para>
+    /// It is admitted to all three of the identity gates
+    /// <see cref="CohortLateralSpreadV13"/> reaches — the battlefield-realism
+    /// gate, the last-stand-engagement gate, and the lateral-riffle cohort
+    /// traversal — so it inherits V13's behaviour whole. It is not admitted to
+    /// the <see cref="ContingentShapeV12"/> branch of
+    /// <see cref="Simulation.FormationPlanner.ResolveContingentSizes"/>, so it
+    /// takes the square-root sizing path V11 and V13 take.
+    /// </para>
+    /// <para>
+    /// What it adds is a post-pass at the tail of the movement-proposal stage
+    /// that lets a warrior already engaged with a living enemy weave while
+    /// closing, circle after a blow is turned aside, step off the line of an
+    /// inbound missile, and yield a foot when the press pins it — without ever
+    /// writing <see cref="Simulation.AgentIntent"/>, dropping its target, or
+    /// leaving the fight. The resolved value is published on
+    /// <c>AgentState.EvasiveAction</c> and folded into the state hash behind a
+    /// gate of its own.
+    /// </para>
+    /// <para>
+    /// One consequence is deliberate and is not a defect. A projectile's clash
+    /// outcome is resolved from its launch tick, so a warrior that visibly
+    /// leaps off the line of an arrow can still be recorded as hit. That is
+    /// what the sixteenth-century account this rung is drawn from describes:
+    /// the men at Mactan leaped about and were struck through shield and arm
+    /// regardless. See the 2026-08-15 in-fight evasion design.
+    /// </para>
+    /// </summary>
+    EvasiveFootworkV14 = 14,
 }

@@ -654,6 +654,43 @@ public static class MovementPresetRegistry
         incomingDamageWeightBasisPoints: 0,
         allyCollapseWeightBasisPoints: 0);
 
+    /// <summary>
+    /// The in-fight evasive footwork preset. A verbatim restatement of
+    /// <see cref="CohortLateralSpreadV13Ruleset"/>'s field values under its own
+    /// <c>id</c>, for the same reason that ruleset restates V11's: the
+    /// behaviour it gates is gated on preset identity at its own call site, so
+    /// it carries no new field of its own.
+    /// <para>
+    /// <c>usesEquipmentRelativeFootwork</c> stays <see langword="false"/> and
+    /// the loadout profile array stays empty. This preset adds movement
+    /// <i>during</i> an engagement; it does not revive the equipment-relative
+    /// route pipeline, which is a separate and much larger change. See the
+    /// 2026-08-15 in-fight evasion design.
+    /// </para>
+    /// </summary>
+    private static readonly MovementRuleset EvasiveFootworkV14Ruleset = new(
+        id: MovementPresetId.EvasiveFootworkV14,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: false,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0);
+
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
         {
@@ -670,6 +707,7 @@ public static class MovementPresetRegistry
             MovementPresetId.LastStandEngagementV11 => true,
             MovementPresetId.ContingentShapeV12 => true,
             MovementPresetId.CohortLateralSpreadV13 => true,
+            MovementPresetId.EvasiveFootworkV14 => true,
             _ => false,
         };
 
@@ -689,6 +727,7 @@ public static class MovementPresetRegistry
             MovementPresetId.LastStandEngagementV11 => LastStandEngagementV11Ruleset,
             MovementPresetId.ContingentShapeV12 => ContingentShapeV12Ruleset,
             MovementPresetId.CohortLateralSpreadV13 => CohortLateralSpreadV13Ruleset,
+            MovementPresetId.EvasiveFootworkV14 => EvasiveFootworkV14Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,
