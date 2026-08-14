@@ -75,8 +75,11 @@ public sealed class MenuOverlayFocusTests
 
     /// <summary>
     /// The settings selectors occupy the right column in the order they were
-    /// added: gore, motion, auto camera, UI scale, then startup display. Each
-    /// new one takes the terminal index and grows
+    /// added: gore, motion, auto camera, UI scale, then startup display. The
+    /// panel-style selector was added after all of them and, despite sitting
+    /// in the button column visually, takes the next control index in the
+    /// same allocation chain rather than a column-relative one. Each new
+    /// selector takes the terminal index and grows
     /// <see cref="MenuOverlay.ControlCount"/> by one, which leaves every
     /// existing index unchanged.
     /// </summary>
@@ -97,17 +100,20 @@ public sealed class MenuOverlayFocusTests
             MenuOverlay.DisplayModeSelectorControlIndex);
         Assert.Equal(
             MenuOverlay.DisplayModeSelectorControlIndex + 1,
+            MenuOverlay.UiChromeSelectorControlIndex);
+        Assert.Equal(
+            MenuOverlay.UiChromeSelectorControlIndex + 1,
             MenuOverlay.ControlCount);
     }
 
     [Fact]
-    public void KeyboardFocusWrapsThroughTheTerminalDisplaySelectorIndex()
+    public void KeyboardFocusWrapsThroughTheTerminalChromeSelectorIndex()
     {
         var controlCount = MenuOverlay.ControlCount;
-        var displayIndex = MenuOverlay.DisplayModeSelectorControlIndex;
+        var chromeIndex = MenuOverlay.UiChromeSelectorControlIndex;
 
         Assert.Equal(
-            displayIndex,
+            chromeIndex,
             MenuOverlay.ResolveFocusedControlIndex(
                 currentIndex: 0,
                 keyboardDirection: -1,
@@ -116,14 +122,14 @@ public sealed class MenuOverlayFocusTests
         Assert.Equal(
             0,
             MenuOverlay.ResolveFocusedControlIndex(
-                currentIndex: displayIndex,
+                currentIndex: chromeIndex,
                 keyboardDirection: 1,
                 hoveredIndex: -1,
                 controlCount: controlCount));
         Assert.Equal(
-            displayIndex,
+            chromeIndex,
             MenuOverlay.ResolveFocusedControlIndex(
-                currentIndex: displayIndex - 1,
+                currentIndex: chromeIndex - 1,
                 keyboardDirection: 1,
                 hoveredIndex: -1,
                 controlCount: controlCount));
@@ -311,6 +317,7 @@ public sealed class MenuOverlayFocusTests
             AutoCameraMode.Assisted,
             UiScale.Percent100,
             StartupDisplayMode.Windowed,
+            UiChromeStyle.Procedural,
             TimeSpan.FromMilliseconds(40));
         var controls = menu.GetControlBounds(screen).ToArray();
 
@@ -326,6 +333,7 @@ public sealed class MenuOverlayFocusTests
             AutoCameraMode.Assisted,
             UiScale.Percent100,
             StartupDisplayMode.Windowed,
+            UiChromeStyle.Procedural,
             TimeSpan.Zero);
 
         Assert.Equal(1f, menu.ScrimOpacity);

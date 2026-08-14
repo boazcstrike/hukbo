@@ -304,12 +304,22 @@ internal sealed class ConfirmationPrompt
         return new UiInteraction(ClientCommand.None, true);
     }
 
+    /// <summary>
+    /// Margin, in unscaled pixels, between the panel's edge and the atlas
+    /// tiles when the nine-slice chrome style is active. Matches the margin
+    /// <see cref="MenuOverlay"/> uses for the same atlas, since both draw
+    /// from the same pinned <c>UiChrome.png</c> tile layout.
+    /// </summary>
+    private const int NineSliceMarginPixels = 12;
+
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
+        Texture2D? chromeAtlas,
         UiFontSet fonts,
         Rectangle availableBounds,
-        UiTheme theme)
+        UiTheme theme,
+        UiChromeStyle activeUiChromeStyle)
     {
         if (!IsVisible)
         {
@@ -329,15 +339,37 @@ internal sealed class ConfirmationPrompt
             availableBounds,
             scrimTheme.Colors.OverlayScrim);
         theme = UiMotionTheme.WithOpacity(theme, EntranceOpacity);
-        spriteBatch.Draw(pixel, layout.PanelBounds, theme.Colors.PanelSurface);
-        UiPrimitives.DrawBorder(
-            spriteBatch,
-            pixel,
-            layout.PanelBounds,
-            theme.Colors.StatusWarning,
-            Math.Max(
-                UiScaleContext.Pixels(3),
-                UiScaleContext.Pixels(theme.Metrics.BorderThickness)));
+
+        // The nine-slice style draws through the same atlas as the menu
+        // panel. When the atlas failed to load, this falls back to the
+        // procedural flat-fill path rather than crashing: a missing texture
+        // must never take down a confirmation modal.
+        if (activeUiChromeStyle == UiChromeStyle.NineSlice &&
+            chromeAtlas is not null)
+        {
+            UiNineSlice.DrawPanel(
+                spriteBatch,
+                chromeAtlas,
+                layout.PanelBounds,
+                theme.Colors.PanelSurface,
+                theme.Colors.StatusWarning,
+                UiScaleContext.Pixels(NineSliceMarginPixels));
+        }
+        else
+        {
+            spriteBatch.Draw(
+                pixel,
+                layout.PanelBounds,
+                theme.Colors.PanelSurface);
+            UiPrimitives.DrawBorder(
+                spriteBatch,
+                pixel,
+                layout.PanelBounds,
+                theme.Colors.StatusWarning,
+                Math.Max(
+                    UiScaleContext.Pixels(3),
+                    UiScaleContext.Pixels(theme.Metrics.BorderThickness)));
+        }
 
         if (layout.MessageBounds.Width > 0 &&
             layout.MessageBounds.Height > 0)

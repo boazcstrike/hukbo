@@ -16,7 +16,8 @@ internal readonly record struct MenuInteraction(
     AutoCameraMode? SelectedAutoCameraMode,
     UiScale? SelectedUiScale,
     StartupDisplayMode? SelectedStartupDisplayMode,
-    bool PointerConsumed)
+    bool PointerConsumed,
+    UiChromeStyle? SelectedUiChromeStyle = null)
 {
     public static MenuInteraction None =>
         new(
@@ -39,6 +40,16 @@ internal sealed class MenuOverlay
     private const int SettingsSelectorGap = 8;
 
     /// <summary>
+    /// Nine-slice margin, in unscaled pixels, passed to
+    /// <see cref="UiNineSlice.DrawPanel"/> for the menu panel. Matches the
+    /// 12-pixel margin the chrome atlas is authored at, documented on
+    /// <c>src/Hukbo.Client/Content/Textures/README.md</c>; scaled through
+    /// <see cref="UiScaleContext.Pixels"/> like every other chrome metric so
+    /// corners stay proportional as the interface scale changes.
+    /// </summary>
+    private const int NineSliceMarginPixels = 12;
+
+    /// <summary>
     /// The number of selectors stacked in the settings column (the right-hand
     /// column, at <c>settingsLeft</c> in <see cref="Layout"/>): gore, motion,
     /// auto camera, UI scale, then startup display. Six selector fields exist
@@ -56,6 +67,20 @@ internal sealed class MenuOverlay
     /// fails if the two ever drift apart.
     /// </summary>
     private const int SettingsSelectorCount = 5;
+
+    /// <summary>
+    /// The number of selectors stacked in the button column (the left-hand
+    /// column, at <c>buttonLeft</c> in <see cref="Layout"/>): the theme
+    /// selector, then the chrome selector directly beneath it. The settings
+    /// column was already full at five selectors against its 657-pixel
+    /// budget (see the UI chrome nine-slice design document, section 10a), so
+    /// the chrome selector was placed here instead. Both selectors' heights
+    /// and gaps are reserved explicitly by
+    /// <see cref="CalculateContentBottomOffset"/>'s button-column branch; do
+    /// not fold this into <see cref="SettingsSelectorCount"/>, since that
+    /// constant governs the settings column's arithmetic only.
+    /// </summary>
+    private const int ButtonColumnSelectorCount = 2;
 
     internal static readonly (string Label, ClientCommand Command)[]
         ButtonDefinitions =
@@ -81,6 +106,7 @@ internal sealed class MenuOverlay
     private readonly SettingsChoiceSelector<UiScale> _uiScaleSelector;
     private readonly SettingsChoiceSelector<StartupDisplayMode>
         _displayModeSelector;
+    private readonly SettingsChoiceSelector<UiChromeStyle> _uiChromeSelector;
     private readonly UiMenuLayout _layout;
     private readonly UiThemeSelectorLayout _selectorLayout;
     private readonly UiTextRoles _textRoles;
@@ -117,6 +143,15 @@ internal sealed class MenuOverlay
                 ["Windowed", "Fullscreen"],
                 "NEXT LAUNCH",
                 standards);
+        _uiChromeSelector = new SettingsChoiceSelector<UiChromeStyle>(
+            "PANEL STYLE",
+            [
+                UiChromeStyle.Procedural,
+                UiChromeStyle.NineSlice,
+            ],
+            ["Procedural", "Nine-Slice"],
+            "ACTIVE",
+            standards);
         _layout = standards.Shared.Menu;
         _selectorLayout = standards.Shared.Selector;
         _textRoles = standards.Shared.TextRoles;
@@ -157,7 +192,18 @@ internal sealed class MenuOverlay
     internal static int DisplayModeSelectorControlIndex =>
         UiScaleSelectorControlIndex + 1;
 
-    internal static int ControlCount => DisplayModeSelectorControlIndex + 1;
+    /// <summary>
+    /// The chrome selector is appended after the display-mode selector and
+    /// takes the new terminal index, even though it is laid out in the
+    /// button column, second from the top, directly under the theme
+    /// selector. Appending rather than interleaving keeps every existing
+    /// control's focus index unchanged; only the tab order, not the visual
+    /// position, moved it to the end.
+    /// </summary>
+    internal static int UiChromeSelectorControlIndex =>
+        DisplayModeSelectorControlIndex + 1;
+
+    internal static int ControlCount => UiChromeSelectorControlIndex + 1;
 
     internal static bool IsButtonControlIndex(int controlIndex) =>
         controlIndex > 0 && controlIndex <= ButtonDefinitions.Length;
@@ -173,8 +219,10 @@ internal sealed class MenuOverlay
         int buttonCount) =>
         Math.Max(
             UiScaleContext.Pixels(layout.SelectorTopOffset) +
-                UiScaleContext.Pixels(selectorLayout.Height) +
-                UiScaleContext.Pixels(SettingsSelectorGap) +
+                (ButtonColumnSelectorCount *
+                    UiScaleContext.Pixels(selectorLayout.Height)) +
+                (ButtonColumnSelectorCount *
+                    UiScaleContext.Pixels(SettingsSelectorGap)) +
                 (buttonCount * UiScaleContext.Pixels(layout.ButtonHeight)) +
                 (Math.Max(0, buttonCount - 1) *
                     UiScaleContext.Pixels(layout.ButtonGap)),
@@ -207,6 +255,7 @@ internal sealed class MenuOverlay
         AutoCameraMode activeAutoCameraMode,
         UiScale activeUiScale,
         StartupDisplayMode activeStartupDisplayMode,
+        UiChromeStyle activeUiChromeStyle,
         TimeSpan elapsed)
     {
         if (!IsVisible)
@@ -221,7 +270,7 @@ internal sealed class MenuOverlay
             hasScrim: true);
         Layout(screenBounds);
 
-        // All six selector instances advance their motion in one pass here,
+        // All seven selector instances advance their motion in one pass here,
         // before the early-returning interaction chain below. That chain
         // returns as soon as any one selector reports a selection; advancing
         // motion inside it would starve every selector below the one that
@@ -238,6 +287,8 @@ internal sealed class MenuOverlay
             input, elapsed, activeMotionIntensity, activeUiScale);
         _displayModeSelector.AdvanceMotion(
             input, elapsed, activeMotionIntensity, activeStartupDisplayMode);
+        _uiChromeSelector.AdvanceMotion(
+            input, elapsed, activeMotionIntensity, activeUiChromeStyle);
 
         var focusDirection = ResolveKeyboardFocusDirection(input);
 
@@ -287,6 +338,11 @@ internal sealed class MenuOverlay
         if (_displayModeSelector.Bounds.Contains(input.MousePosition))
         {
             hoveredControlIndex = DisplayModeSelectorControlIndex;
+        }
+
+        if (_uiChromeSelector.Bounds.Contains(input.MousePosition))
+        {
+            hoveredControlIndex = UiChromeSelectorControlIndex;
         }
 
         var resolvedFocus = ResolveFocusedControlIndex(
@@ -412,6 +468,24 @@ internal sealed class MenuOverlay
                 true);
         }
 
+        var uiChromeInteraction = _uiChromeSelector.Update(
+            input,
+            _focusedControlIndex == UiChromeSelectorControlIndex,
+            activeUiChromeStyle);
+        if (uiChromeInteraction.SelectedValue is { } selectedUiChromeStyle)
+        {
+            return new MenuInteraction(
+                ClientCommand.None,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                true,
+                selectedUiChromeStyle);
+        }
+
         if (input.WasLeftMousePressed() &&
             IsButtonControlIndex(hoveredControlIndex))
         {
@@ -458,6 +532,7 @@ internal sealed class MenuOverlay
     public void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
+        Texture2D? chromeAtlas,
         UiFontSet fonts,
         Rectangle screenBounds,
         UiTheme theme,
@@ -465,7 +540,8 @@ internal sealed class MenuOverlay
         MotionIntensity activeMotionIntensity,
         AutoCameraMode activeAutoCameraMode,
         UiScale activeUiScale,
-        StartupDisplayMode activeStartupDisplayMode)
+        StartupDisplayMode activeStartupDisplayMode,
+        UiChromeStyle activeUiChromeStyle)
     {
         if (!IsVisible)
         {
@@ -496,15 +572,34 @@ internal sealed class MenuOverlay
                 theme.Colors.CanvasBackground);
         }
 
-        spriteBatch.Draw(pixel, panelBounds, theme.Colors.PanelSurface);
-        UiPrimitives.DrawBorder(
-            spriteBatch,
-            pixel,
-            panelBounds,
-            theme.Colors.PanelBorder,
-            Math.Max(
-                UiScaleContext.Pixels(1),
-                UiScaleContext.Pixels(theme.Metrics.BorderThickness)));
+        // A style of NineSlice with no loaded atlas falls back to the
+        // Procedural path rather than crashing: chromeAtlas is nullable
+        // because it is only populated once ArenaGame's LoadContent has run,
+        // and this branch must stay safe for any caller that draws before
+        // that content is available.
+        if (activeUiChromeStyle == UiChromeStyle.NineSlice &&
+            chromeAtlas is not null)
+        {
+            UiNineSlice.DrawPanel(
+                spriteBatch,
+                chromeAtlas,
+                panelBounds,
+                theme.Colors.PanelSurface,
+                theme.Colors.PanelBorder,
+                UiScaleContext.Pixels(NineSliceMarginPixels));
+        }
+        else
+        {
+            spriteBatch.Draw(pixel, panelBounds, theme.Colors.PanelSurface);
+            UiPrimitives.DrawBorder(
+                spriteBatch,
+                pixel,
+                panelBounds,
+                theme.Colors.PanelBorder,
+                Math.Max(
+                    UiScaleContext.Pixels(1),
+                    UiScaleContext.Pixels(theme.Metrics.BorderThickness)));
+        }
 
         UiPrimitives.DrawCenteredText(
             spriteBatch,
@@ -581,6 +676,14 @@ internal sealed class MenuOverlay
             activeStartupDisplayMode,
             _focusedControlIndex == DisplayModeSelectorControlIndex);
 
+        _uiChromeSelector.Draw(
+            spriteBatch,
+            pixel,
+            fonts,
+            theme,
+            activeUiChromeStyle,
+            _focusedControlIndex == UiChromeSelectorControlIndex);
+
         UiPrimitives.DrawCenteredText(
             spriteBatch,
             fonts.Get(_textRoles.MenuHelper),
@@ -612,7 +715,12 @@ internal sealed class MenuOverlay
             panel.Top + UiScaleContext.Pixels(_layout.SelectorTopOffset),
             buttonWidth,
             selectorHeight);
-        var buttonTop = _themeSelector.Bounds.Bottom + selectorGap;
+        _uiChromeSelector.Bounds = new Rectangle(
+            buttonLeft,
+            _themeSelector.Bounds.Bottom + selectorGap,
+            buttonWidth,
+            selectorHeight);
+        var buttonTop = _uiChromeSelector.Bounds.Bottom + selectorGap;
 
         for (var index = 0; index < _buttons.Length; index++)
         {
@@ -685,9 +793,17 @@ internal sealed class MenuOverlay
     internal IReadOnlyList<Rectangle> GetControlBounds(Rectangle screenBounds)
     {
         Layout(screenBounds);
+
+        // The chrome selector's bounds sit right after the theme selector's,
+        // matching its position in the button column. Kept out of the
+        // trailing position deliberately: SettingsColumnFormulaMatchesActual-
+        // SettingsColumnGeometry reads the last element of this list as the
+        // settings column's bottom-most control, and the chrome selector is
+        // not in that column.
         return
         [
             _themeSelector.Bounds,
+            _uiChromeSelector.Bounds,
             .. _buttons.Select(button => button.Bounds),
             _goreSelector.Bounds,
             _motionSelector.Bounds,
