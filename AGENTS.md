@@ -100,10 +100,10 @@ hardcodes a project path, and tests assert both halves of that. `build.ps1`,
 whole solution, and `doctor.ps1` takes none because it checks every project's
 lock file rather than one game's.
 
-**`./scripts/verify.ps1` with no flag runs Hukbo only.** A green default gate is
-not evidence about Sandata, and the two results must never be reported as one.
-Sandata is deliberately not part of the default gate yet, so a red Sandata
-workload can never be mistaken for a red Hukbo one.
+**`./scripts/verify.ps1` with no flag runs both games, since 2026-08-14.** It
+runs the Hukbo workloads, then Sandata's suite and benchmark, with a banner
+between them. The two results must still never be reported as one. An explicit
+`-Game` runs exactly one game, byte-identically to before.
 
 ## Non-negotiables
 
@@ -233,8 +233,8 @@ at all. Full rules: `docs/research/HISTORICAL_1500s_WEAPONS.md` and
   and pathfinding are authorized by its design document; Hukbo's are not.
 - Let either game reach into the other, or move code into `Hukbo.Shared.Core`
   as a shortcut around that rule.
-- Report a green `./scripts/verify.ps1` as evidence about Sandata. Without
-  `-Game Sandata` the gate never built or ran a line of it.
+- Report one game's green as the other's. A bare `./scripts/verify.ps1` has run
+  both since 2026-08-14, but they remain two workloads with two results.
 - Run `./scripts/sfx.ps1` for Sandata beyond the slice authorized on
   2026-08-11 and extended on 2026-08-12. That slice now covers forty files —
   ten variants each of the AK-pattern rifle and the Glock-pattern pistol, in

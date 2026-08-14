@@ -43,7 +43,10 @@ public sealed class ScriptDefaultsTests
         var benchmarkInvocations = Regex.Matches(
             content, @"Invoke-RepositoryScript\s+-Name\s+'benchmark\.ps1'");
 
-        Assert.Equal(5, benchmarkInvocations.Count);
+        // Five Hukbo workloads, then Sandata's, which the bare gate adds and
+        // an explicit -Game does not reach. The five Hukbo blocks are asserted
+        // by position below and are unaffected by the sixth.
+        Assert.Equal(6, benchmarkInvocations.Count);
 
         var invocations = benchmarkInvocations.Cast<Match>().ToList();
         var canonicalInvocation = invocations[0];
@@ -128,15 +131,52 @@ public sealed class ScriptDefaultsTests
     }
 
     [Fact]
-    public void VerifyInvokesTestExactlyOnce()
+    public void VerifyInvokesTestOncePerGame()
     {
         var content = ReadScript("verify.ps1");
 
         var testInvocations = Regex.Matches(
             content, @"Invoke-RepositoryScript\s+-Name\s+'test\.ps1'");
 
-        Assert.Single(testInvocations.Cast<Match>());
+        Assert.Equal(2, testInvocations.Count);
+
+        // The second invocation is Sandata's, and it is reachable only when
+        // the caller named no game at all, so an explicit -Game still runs
+        // exactly one game's suite.
+        var second = testInvocations.Cast<Match>().ElementAt(1);
+        Assert.Contains(
+            BothGamesGuard,
+            content[..second.Index],
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Game = 'Sandata'",
+            ExtractBraceBlockAfter(content, second.Index),
+            StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// The bare gate runs both games and an explicit <c>-Game</c> runs one.
+    /// Sandata's stages sit behind a guard on whether the caller bound the
+    /// parameter at all, rather than behind a comparison against its value,
+    /// because <c>-Game Hukbo</c> and no <c>-Game</c> resolve to the same
+    /// value and must not resolve to the same behaviour.
+    /// </summary>
+    [Fact]
+    public void VerifyRunsBothGamesOnlyWhenTheCallerNamedNeither()
+    {
+        var content = ReadScript("verify.ps1");
+
+        Assert.Contains(BothGamesGuard, content, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The guard that makes the bare gate run both games. Matched literally,
+    /// so that rewriting it into a comparison against <c>$Game</c> — which
+    /// would silently make <c>-Game Hukbo</c> run Sandata as well — fails
+    /// here rather than doubling somebody's gate without telling them.
+    /// </summary>
+    private const string BothGamesGuard =
+        "if (-not $PSBoundParameters.ContainsKey('Game'))";
 
     /// <summary>
     /// verify.ps1 declares -Game with the same two-member ValidateSet and
