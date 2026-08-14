@@ -14,7 +14,31 @@ record are all live, because a future session still has to read them. What none
 of them means is *go and build this* — only an explicit authorization does that,
 and section 6 of [`../../CLAUDE.md`](../../CLAUDE.md) says how one is given.
 
-Swept a fourth time on 2026-08-14, and this pass changed the rule below rather
+Swept a fifth time on 2026-08-14, after the UI chrome nine-slice package
+finally reached `main`. Three documents left this folder and none joined it:
+the UI chrome nine-slice design, and the death-collapse plan and its design.
+Each was checked against code on `main` before it moved rather than against
+its own status line — `UiChromeStyle`, `UiNineSlice`, and the `PANEL STYLE`
+selector all exist on `main`, and the collapse pose, the per-warrior collapse
+clocks, and the prone-body pawn layout all ship there too. The chrome plan had
+already been archived on its own branch before that branch merged, so this
+pass only moved its design after it.
+
+Two things are worth carrying forward rather than leaving in a file nobody
+opens. The chrome design's persistence section describes a 9-to-10 settings
+schema bump that never happened that way: the calibrated army composition took
+version 10 on `main` first, so the chrome style shipped as version 11 with an
+accepted window of `[10, 11]`, and the archive banner records that. The chrome
+design's section 8 left one live question — whether linear filtering bleeds
+across the nine-slice seams, and therefore whether a nested `PointClamp` batch
+is worth splitting the interface batch into three — and that question, with the
+mitigation spelled out, now lives in the `CH-4` row's own preamble in the smoke
+checklist instead of in the archived design. No source, test, or live document
+cited any of the three by path, so nothing needed rewriting into prose. The
+death-collapse family's ten `DC` smoke rows are still `PENDING` and stay in the
+checklist; a plan is archived when its build is finished, not when its rows are.
+
+Swept a fourth time on 2026-08-14, and that pass changed the rule below rather
 than only applying it. Eleven finished designs left this folder and none joined
 it: the contingent shape design, the armor bulk, adornment accents, and trample
 legibility design, the battlefield realism design, the combat cadence V6
@@ -135,7 +159,6 @@ designs archived in the fourth sweep of 2026-08-14 left.
 | [`2026-08-09-attack-animation-v2-backlog.md`](2026-08-09-attack-animation-v2-backlog.md) | What the twelve-task attack-animation plan left behind. **All twenty-four `AA` smoke rows closed `PASS` on 2026-08-13**, so its section 6, "Smoke rows still unobserved", is spent outright and its section 1 no longer describes a failing row. What survives is the engineering: sections 3, 4, and 5, and section 2's finding that `ConservativePawnCull` has no production caller — which is still true, and which a person's `AA-24` `PASS` did not change | Open on its engineering items only; every smoke row it names has closed |
 | [`2026-07-30-formation-blocking-baseline.md`](2026-07-30-formation-blocking-baseline.md) | Formation blocking at 500 agents, with the measured baseline a future change has to beat. Section 5 is the twenty-seed sweep the document's own section 3 asked for, run on 2026-08-13 under the presets the client actually launches: it shows a 146 per cent ordinary spread in `blockedAgentTicks` across seeds, which retires the two-seed comparison the document was built on, and it records a longest blocked streak of 904 ticks — 45 seconds of one warrior standing still | Backlog; authorizes nothing. The sweep is a fresh baseline and is explicitly not comparable to the 2026-07-30 table above it |
 | [`2026-07-28-follower-trailing-deadlock-design.md`](2026-07-28-follower-trailing-deadlock-design.md) | The follower-trailing mutual block in the collision resolver, with its diagnosis measured | Design only; options unchosen |
-| [`2026-08-14-ui-chrome-nine-slice-design.md`](2026-08-14-ui-chrome-nine-slice-design.md) | The first half of a two-package sprite request: a switchable nine-slice sprite skin for panel chrome, defaulting to today's flat rectangles. Section 4 keeps `UiPrimitives.DrawBorder` untouched and puts the style branch at the call site instead, because that helper has roughly twenty-four callers. Section 8 records that panel chrome draws inside the interface batch's `LinearClamp`, which bleeds a pixel-authored atlas across slice seams, and leaves the nested `PointClamp` batch to be decided by a smoke row rather than asserted. Section 10 carries a discrepancy found while planning that turned out not to be one — `SettingsSelectorCount` reads 5 against six constructed selectors and is correct, because the theme selector lives in the button column — and section 10a carries what that investigation did find, which is that a sixth settings-column selector would overflow the menu panel by 81 pixels | Shipped; its nine-task plan is archived. Five of its six `CH` smoke rows were run by a person and passed on 2026-08-14 and left the checklist. This document stays live for `CH-4`, the one open row: section 8 is where its sampler question is set out, and answering it may still require a nested `PointClamp` batch |
 | [`2026-08-14-thousand-unit-performance-design.md`](2026-08-14-thousand-unit-performance-design.md) | Whether a 1,000-unit battle can be watched at all: the render matrix that predates the corpse layer, the gait legs, and the projectile props, and the per-tick scans in `BattleSimulation` that are quadratic in agent count. Section 2.4 closes the instanced-rendering question rather than leaving it open, and section 4.1 shows why a spatial index buys target selection nothing under the shipped scenario | Design only; authorizes nothing |
 | [`2026-08-14-thousand-unit-performance.md`](2026-08-14-thousand-unit-performance.md) | That design's sixteen tasks in four phases, every one of them hash-neutral by construction, with a genuine stop condition at TU-4: if re-measurement shows the 1,000-unit frame already inside budget, the correct action is to run `GR-3` and `GR-5` and close the workstream having written no code | Plan only; **not authorized**. Not started |
 

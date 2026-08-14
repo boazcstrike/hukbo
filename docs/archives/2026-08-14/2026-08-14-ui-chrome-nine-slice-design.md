@@ -1,5 +1,21 @@
 # UI chrome nine-slice sprite skin — design
 
+**Archived: reference only.** This design shipped. Its nine-task plan is
+archived alongside this file, and the package reached `main` on 2026-08-14
+under the merge commit that brought the `ui-chrome-nine-slice` branch across,
+with the canonical gate green on the integrated branch. Never execute it,
+never treat its file paths, anchors, or schema numbers as current, and never
+cite it as the reason to make a change. The live contract is `CLAUDE.md`,
+`SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, and
+`docs/development/smoke-checklist.md`.
+
+Two things here are already out of date at the moment of archiving. The
+persistence section was written for a 9-to-10 schema bump; the calibrated army
+composition took version 10 on `main` first, so the chrome style shipped as
+version 11 with an accepted window of `[10, 11]`. Section 8's sampler question
+is the one live thread this document leaves behind, and it is carried in prose
+by smoke row `CH-4` in the checklist rather than by this file.
+
 Date: 2026-08-14
 Status: design only. This document does not authorize implementation.
 Anchors verified against the working tree at commit `8f2207f` on 2026-08-14.

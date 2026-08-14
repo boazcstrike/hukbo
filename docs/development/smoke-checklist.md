@@ -329,8 +329,16 @@ Panel chrome draws inside the interface batch, which uses
 bleed neighbouring texels across the joins between corner and edge cells.
 Whether that artefact is actually visible is a question for eyes, and the
 answer decides whether the implementation needs a nested `PointClamp` batch
-around chrome draws. The design deliberately declined to assert an answer; find
-it by its title, "UI chrome nine-slice sprite skin — design", section 8.
+around chrome draws. The design deliberately declined to assert an answer; it
+was archived on 2026-08-14 once its package shipped, and is findable by its
+title, "UI chrome nine-slice sprite skin — design", section 8. The substance
+that row needs is here rather than there: panel chrome draws inside the
+interface `SpriteBatch` block, which begins with `SamplerState.LinearClamp`
+while the arena block above it uses `PointClamp`, so linear filtering can bleed
+neighbouring texels across the slice seams. The only mitigation on the table is
+a nested `Begin`/`End` pair using `PointClamp` around the chrome draws, and its
+cost is splitting the interface batch into three. Pay that cost only if a
+tester reports the artefact.
 
 The original row asked for all four interface-scale tiers. That was
 unrunnable: `UiScalePolicy.Resolve` caps the reachable tier by viewport, so 125
