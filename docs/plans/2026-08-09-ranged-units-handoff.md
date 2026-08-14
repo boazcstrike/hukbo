@@ -52,22 +52,26 @@ ticks, seed 1 and reproduced their recorded pairs byte for byte. Use named
 parameters — `-Preset` and `-MovementPreset` — never positional ones. A ranged
 roster runs under V4 or V8 movement and nothing else.
 
-## 3. The ranged sound takes are generated; the listening check is not recorded
+## 3. The ranged sound takes are generated, and the listening check is now closed
 
 All sixty sound files exist. `./scripts/sfx.ps1 -List` reports zero missing of
 twenty-six slots. **The user ran every generating command; no agent generated a
 sound, and none may.**
 
 The acceptance criterion is not "the files exist". It is that a person has heard
-at least one take from each of the thirteen new slots. That has not been recorded,
-so the item stays open.
+at least one take from each of the thirteen new slots.
+
+**Closed on 2026-08-14.** The user listened and accepted the takes. That is the
+only form of evidence this item was ever able to take, and no agent supplied it
+or could have.
 
 **2026-08-13.** A `Hukbo.Tools.RenderProbe` run drove a ranged battle to tick
 3,584 with zero `err` lines, and all thirteen ranged slots were submitted to the
 real mixer and reported `Played` — `ReleaseBangkaw` 1,565, `ReleaseBusog` 1,483,
 `ReleaseArquebus` 387, the three `Attack` slots, the three `Miss` slots and the
 three `ClashShield` slots. That proves every slot is reachable and loadable. It
-is not a person listening, and it does not close this item.
+was not a person listening, and it was not what closed this item; the listening
+session recorded above is.
 
 Two operational facts worth keeping. The model returns an inaudible take roughly
 one time in four, and `scripts/sfx-ranged.ps1` retries only that failure while
@@ -104,7 +108,16 @@ substitute for playing the game.
 ## 5. What is open
 
 **The merge to `main` happened on 2026-08-09 at `9daa271`,** after this section
-was written. What follows is what remains open, and none of it is code.
+was written.
+
+**As of 2026-08-14 this section records almost nothing that is still open.** The
+package's remaining questions were put to the user on that date and answered:
+the listening acceptance closed, RG-11's question answered, and the default
+composition moved onto the calibrated proportions. What survives is the V9
+termination gap, which the user accepted with the gap recorded rather than
+fixed, and Phase 2, which the design defers by construction rather than leaves
+undone. Each entry below is kept in place and marked with what happened to it,
+because a closure is only trustworthy if the thing it closed is still legible.
 
 - **The eleven `RG-*` rows were closed `PASS` on 2026-08-14.** They had lived in
   `docs/development/smoke-checklist.md`, not in `docs/development/testing.md` as
@@ -114,11 +127,17 @@ was written. What follows is what remains open, and none of it is code.
   desktop ran all eleven rows on 2026-08-14 and every one passed. The ranged
   units smoke section was then deleted whole from the smoke checklist, and its
   record now lives in the 2026-08-14 archive titled "Ranged units smoke —
-  closed 2026-08-14". One caveat survives the closure: RG-11 was never a
-  pass/fail check, only an open question about whether a projectile visibly
-  passing through a friendly warrior looks wrong, and it was closed with no
-  written observation recorded. That question is therefore still unanswered
-  and still needs a fresh row.
+  closed 2026-08-14". One caveat survived that closure and has since been
+  resolved: RG-11 was never a pass/fail check, only an open question about
+  whether a projectile visibly passing through a friendly warrior looks wrong,
+  and it was first closed with no written observation recorded. **The
+  observation was supplied by the user on 2026-08-14: it does not look wrong.**
+  A spectator watching at the pace and scale of a real battle does not notice
+  the projectile passing through the friendly warrior, so the Phase 1 gap is
+  not visible on the one channel that could have exposed it. That does not make
+  line of sight unnecessary — it is still owed, and Phase 2 still carries it —
+  but it does mean the gap is not costing the spectator anything today, and it
+  removes the argument for treating Phase 2 as urgent rather than merely owed.
 - **The sixty WAV files are committed.** `src/Hukbo.Client/Content/Audio` holds
   130 tracked `.wav` files — the 70 that predate this package plus RU-31's 60,
   spread over the thirteen new slots. Re-rolling a take after listening is still
@@ -128,12 +147,19 @@ was written. What follows is what remains open, and none of it is code.
   recorded. A second cause exists and is unidentified. Do not retune to chase it;
   the refusal counters at `BattleSimulation.cs:437` are the instrument for a fresh
   investigation.
-- **The default composition plays a 14 per cent ranged share, not the calibrated
-  25.** Every plan band still passes at 14, measured rather than assumed. Whether
-  to move `ArmyComposition.Default` onto the calibrated proportions is a design
-  decision and is still unanswered. If it is taken, the rank counts are 250 x
-  `[19, 19, 44, 18] / 100`, roughly Datu 48, Maharlika 47, Timawa 110, Aliping
-  Namamahay 45 — and note the 44, not the 54 this plan used to say.
+- **The default composition has been moved onto the calibrated proportions.**
+  It previously played a 14 per cent ranged share against a calibrated 25, on an
+  even four-way split of 250 per team. Every plan band passed at 14, measured
+  rather than assumed, so the move was a preference rather than a correction.
+  **The user took the decision on 2026-08-14 and the calibrated basis was
+  adopted.** The rank counts are 250 x `[19, 19, 44, 18] / 100` — Datu 48,
+  Maharlika 47, Timawa 110, Aliping Namamahay 45 — and note the 44, not the 54
+  this plan used to say. `ArmyComposition.Default` is a `Hukbo.Client` settings
+  value and reaches no state hash, no event hash, and no preset, so the change
+  needed no new preset version; what it did need was a schema-version bump, on
+  the precedent of the 5-to-6 bump, because a saved composition always wins over
+  the default and an existing settings file would otherwise have pinned the old
+  army forever.
 - **Projectile props and embedded projectiles — no longer open.** This was
   parked in [`TODO.md`](TODO.md) when this handoff was written. Both halves
   shipped at `3ec5523` on 2026-08-11, the five open decisions were answered by
