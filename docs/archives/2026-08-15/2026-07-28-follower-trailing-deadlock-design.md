@@ -5,9 +5,27 @@ built from. The stall it exists to fix was closed in the intent layer by
 `b9003a9` rather than in the resolver, and a re-measurement on 2026-08-13 over
 200 seeds found zero stalls at the shipping configuration; the only thresholds
 still affected, 7 and 8, are unreachable from `Scenario.CreateDefault` and from
-the client. None of its five options was chosen, `CollisionResolver` is
-unchanged, and every option except "do nothing" would move both hashes on every
-seed to fix something no spectator can reach. Never execute it, never treat it
+the client. Every option except "do nothing" would move both hashes on every
+seed to fix something no spectator can reach.
+
+**None of the five options is in the code, re-checked against `main` on
+2026-08-15 rather than taken from this document's own status line.** `Resolve`
+still runs `Reset`, `CommitStationaryBodies`, `CommitMovers` and stops, so there
+is no second pass over blocked movers (6.2); mover order is still the
+`CollisionPriority` key with no dependency edges (6.3); there is no cycle
+detection and no atomic multi-body commit (6.4); the candidate ladder is still
+the preferred step, the two single-axis slides, and `MaximumTruncationRungs` =
+11 truncation rungs before holding position, with no tangent projection (6.5);
+and `CollisionRules.DefaultBodyRadiusRaw` is still `(17 * FixedPoint.Scale) / 4`
+= 4.25. What did land is the intent-layer escape: `StallEscapeStreakTicks` = 192
+in `FormationRules`, consumed by `CollisionScratch` and `BattleSimulation`.
+
+One correction to the wording this document used elsewhere: `CollisionResolver`
+is not byte-unchanged since 2026-07-28. Its pending-at-start test is now a
+spatial-index query rather than the linear walk section 3 quotes. That is the
+collision resolution scaling work, which is a separate document and is
+hash-neutral by construction; the test's meaning, and therefore every committed
+position, is the same. Never execute it, never treat it
 as a live task list, and never cite it as the reason to make a change. The live
 contract remains `CLAUDE.md`, `SIMULATION-GAME-STANDARDS.md`,
 `docs/development/testing.md`, and `docs/development/smoke-checklist.md`.
