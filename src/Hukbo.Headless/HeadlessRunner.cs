@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
+using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 using Hukbo.Diagnostics;
@@ -392,6 +393,8 @@ public static class HeadlessRunner
         combatMetrics.Reset();
         var movementMetrics = new MovementBehaviorMetricsAccumulator();
         movementMetrics.Reset();
+        var evasionMetrics = new EvasiveMovementMetricsAccumulator();
+        evasionMetrics.Reset();
 
         // The derived movement observation of the weapon-relative movement
         // design, section 16: reconstructed here, outside the simulation, by
@@ -409,6 +412,16 @@ public static class HeadlessRunner
         {
             previousViews[index] = left.Agents[index];
         }
+
+        // The derived in-fight evasion observation of the 2026-08-15 evasion
+        // design, section 8: reconstructed here, outside the simulation, from
+        // the same consecutive-view comparison the block above uses. It is
+        // built for every preset rather than only for a footwork one, because
+        // its movement half — living agent-ticks, rooted agent-ticks, travel,
+        // retention, and net drift — is meaningful under all fourteen movement
+        // presets and is the baseline the V14 bars are measured against. The
+        // observer allocates its per-agent buffers once here and never again.
+        var evasionObserver = new EvasiveMovementObserver(left.Agents, scenario);
 
         var allocationStart = GC.GetAllocatedBytesForCurrentThread();
 
@@ -473,6 +486,19 @@ public static class HeadlessRunner
                 tickRefusals = movementTick.RefuseAgents;
             }
 
+            var evasionTick = evasionObserver.ObserveTick(left.Agents);
+            evasionMetrics.AddTick(
+                evasionTick.LivingAgents,
+                evasionTick.RootedAgents,
+                evasionTick.TravelRaw,
+                evasionTick.ReachRetentionAgents,
+                evasionTick.TargetHeldAgents,
+                evasionTick.SlipLateralAgents,
+                evasionTick.DodgeIncomingAgents,
+                evasionTick.GiveGroundAgents,
+                evasionTick.BreakOffAgents,
+                evasionTick.BreakOffArmedAgents);
+
             right.AdvanceOneTick();
             var leftStateHash = left.ComputeStateHash();
             var rightStateHash = right.ComputeStateHash();
@@ -523,6 +549,14 @@ public static class HeadlessRunner
             left.RouteRefusalStepEndpointRejected,
             left.RouteRefusalDirectCandidateOmitted,
             left.RouteRefusalLaneNotClear);
+
+        // Net drift is a property of the terminal snapshot rather than of any
+        // step, so it is the one evasion quantity computed after the loop
+        // instead of inside it. A corpse keeps its final position and is
+        // included, because where the dead lie is part of where the battle was
+        // fought.
+        evasionMetrics.RecordNetDisplacementSum(
+            evasionObserver.ComputeNetDisplacementSumRaw(left.Agents));
         var sortedDurations = tickDurations.Order().ToArray();
         var survivors = left.Agents
             .Where(agent => agent.IsAlive)
@@ -578,7 +612,8 @@ public static class HeadlessRunner
             coreAllocatedBytes,
             movementMetrics.ToMetrics(),
             scenario.CombatPreset,
-            scenario.MovementPreset);
+            scenario.MovementPreset,
+            evasionMetrics.ToMetrics());
     }
 
     /// <summary>
@@ -709,6 +744,352 @@ public static class HeadlessRunner
             postureTransitions,
             facingStepsTurned,
             disengagementEntries);
+    }
+
+    /// <summary>
+    /// One tick's derived in-fight evasion counts, reconstructed entirely from
+    /// views. Internal so the boundary test in <c>Hukbo.Core.Tests</c> can
+    /// exercise the exact production observation against an unobserved twin
+    /// simulation.
+    /// </summary>
+    /// <param name="LivingAgents">
+    /// Agents alive at both ends of this tick's step.
+    /// </param>
+    /// <param name="RootedAgents">
+    /// Of those, the ones whose displacement was strictly below
+    /// <see cref="EvasiveMovementMetrics.RootedDisplacementThresholdRawPerTick"/>.
+    /// </param>
+    /// <param name="TravelRaw">
+    /// The sum of this tick's displacement magnitudes across living agents, in
+    /// raw units. A <see cref="long"/> rather than an <see cref="int"/> because
+    /// it is a sum across the whole army rather than a per-agent figure.
+    /// </param>
+    /// <param name="ReachRetentionAgents">
+    /// Living agents holding a living enemy target inside their own attack
+    /// range, centre to centre.
+    /// </param>
+    /// <param name="TargetHeldAgents">
+    /// Living agents holding a living enemy target at any range.
+    /// </param>
+    /// <param name="SlipLateralAgents">
+    /// Living agents whose resolved action was
+    /// <see cref="EvasiveAction.SlipLateral"/>; likewise for the four fields
+    /// that follow.
+    /// </param>
+    /// <param name="DodgeIncomingAgents">
+    /// Living agents whose action was <see cref="EvasiveAction.DodgeIncoming"/>.
+    /// </param>
+    /// <param name="GiveGroundAgents">
+    /// Living agents whose action was <see cref="EvasiveAction.GiveGround"/>.
+    /// </param>
+    /// <param name="BreakOffAgents">
+    /// Living agents whose action was <see cref="EvasiveAction.BreakOff"/>.
+    /// </param>
+    /// <param name="BreakOffArmedAgents">
+    /// Living agents whose action was
+    /// <see cref="EvasiveAction.BreakOffArmed"/>.
+    /// </param>
+    internal readonly record struct EvasiveTickObservation(
+        int LivingAgents,
+        int RootedAgents,
+        long TravelRaw,
+        int ReachRetentionAgents,
+        int TargetHeldAgents,
+        int SlipLateralAgents,
+        int DodgeIncomingAgents,
+        int GiveGroundAgents,
+        int BreakOffAgents,
+        int BreakOffArmedAgents);
+
+    /// <summary>
+    /// Reconstructs the in-fight evasion metrics of the 2026-08-15 evasion
+    /// design outside the simulation, by comparing each tick's
+    /// <see cref="AgentView"/>s against the previous tick's. Holds the whole
+    /// run's per-agent scratch — spawn positions, previous positions, previous
+    /// liveness, resolved attack ranges, and the identifier-to-slot map — so
+    /// that the per-tick observation allocates nothing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every definition here deliberately matches
+    /// <c>EvasionCalibrationHarness</c> in <c>Hukbo.Core.Tests</c>, the
+    /// twenty-seed instrument that measured the V13 baseline the design's bars
+    /// are written against, so the two instruments report the same quantity.
+    /// The rooted test uses the same 60-raw threshold, and the retention test
+    /// uses each warrior's own attack range rather than body contact, which the
+    /// harness proved is always zero.
+    /// </para>
+    /// <para>
+    /// It observes and never influences: it holds no reference to the
+    /// simulation, it reads only the published view projection, and every
+    /// figure it produces reaches the report and nothing else.
+    /// </para>
+    /// </remarks>
+    internal sealed class EvasiveMovementObserver
+    {
+        private readonly int[] _spawnXRaw;
+        private readonly int[] _spawnYRaw;
+        private readonly int[] _previousXRaw;
+        private readonly int[] _previousYRaw;
+        private readonly bool[] _previousAlive;
+        private readonly long[] _attackRangeSquared;
+
+        // Read only by key and never enumerated, so no hash-set iteration
+        // order can reach a reported figure. An entity identifier never
+        // changes and no agent is ever added or removed mid-battle, so the map
+        // is built once at spawn.
+        private readonly Dictionary<ulong, int> _slotOfEntityId;
+
+        /// <summary>
+        /// Captures the spawn snapshot and resolves each warrior's own attack
+        /// range once, from the same weapon profile
+        /// <c>BattleSimulation.CreateAgent</c> reads. A loadout never changes
+        /// over a battle, so resolving it per tick would be waste.
+        /// </summary>
+        /// <param name="spawnViews">
+        /// The view projection as it stands before the first tick advances.
+        /// </param>
+        /// <param name="scenario">
+        /// The validated scenario the run is executing, read for its combat
+        /// preset and for its fallback attack range.
+        /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// <paramref name="spawnViews"/> is <see langword="null"/>.
+        /// </exception>
+        internal EvasiveMovementObserver(
+            IReadOnlyList<AgentView> spawnViews,
+            Scenario scenario)
+        {
+            ArgumentNullException.ThrowIfNull(spawnViews);
+
+            var agentSlots = spawnViews.Count;
+            _spawnXRaw = new int[agentSlots];
+            _spawnYRaw = new int[agentSlots];
+            _previousXRaw = new int[agentSlots];
+            _previousYRaw = new int[agentSlots];
+            _previousAlive = new bool[agentSlots];
+            _attackRangeSquared = new long[agentSlots];
+            _slotOfEntityId = new Dictionary<ulong, int>(agentSlots);
+
+            var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
+            for (var index = 0; index < agentSlots; index++)
+            {
+                var view = spawnViews[index];
+                _spawnXRaw[index] = view.XRaw;
+                _spawnYRaw[index] = view.YRaw;
+                _previousXRaw[index] = view.XRaw;
+                _previousYRaw[index] = view.YRaw;
+                _previousAlive[index] = view.IsAlive;
+                _slotOfEntityId[view.EntityId] = index;
+
+                var attackRangeRaw = rules.HasWeaponProfiles
+                    ? rules.ResolveWeaponProfile(
+                        view.Loadout.Weapon, view.Loadout.Shield).AttackRangeRaw
+                    : scenario.AttackRangeRaw;
+                _attackRangeSquared[index] =
+                    checked((long)attackRangeRaw * attackRangeRaw);
+            }
+        }
+
+        /// <summary>
+        /// Derives one tick's evasion counts from the current views, then
+        /// overwrites the retained positions and liveness so the next tick
+        /// compares against this one. Allocation-free: the observer owns the
+        /// single set of buffers for the whole run.
+        /// </summary>
+        /// <param name="currentViews">
+        /// The view projection republished by the tick that just advanced.
+        /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// <paramref name="currentViews"/> is <see langword="null"/>.
+        /// </exception>
+        /// <exception cref="ArgumentException">
+        /// <paramref name="currentViews"/> holds a different number of agents
+        /// than the spawn snapshot did.
+        /// </exception>
+        internal EvasiveTickObservation ObserveTick(
+            IReadOnlyList<AgentView> currentViews)
+        {
+            ArgumentNullException.ThrowIfNull(currentViews);
+            if (currentViews.Count != _previousAlive.Length)
+            {
+                throw new ArgumentException(
+                    $"The view buffers disagree on the agent count: " +
+                    $"{currentViews.Count} current versus " +
+                    $"{_previousAlive.Length} at spawn.",
+                    nameof(currentViews));
+            }
+
+            var livingAgents = 0;
+            var rootedAgents = 0;
+            var travelRaw = 0L;
+            var reachRetentionAgents = 0;
+            var targetHeldAgents = 0;
+            var slipLateralAgents = 0;
+            var dodgeIncomingAgents = 0;
+            var giveGroundAgents = 0;
+            var breakOffAgents = 0;
+            var breakOffArmedAgents = 0;
+
+            for (var index = 0; index < _previousAlive.Length; index++)
+            {
+                var view = currentViews[index];
+
+                // A displacement needs a living warrior at both ends of the
+                // step. A warrior that died on this tick contributes neither a
+                // living agent-tick nor a travel sample: dying is not standing
+                // still, and it is not moving either.
+                if (!view.IsAlive || !_previousAlive[index])
+                {
+                    _previousXRaw[index] = view.XRaw;
+                    _previousYRaw[index] = view.YRaw;
+                    _previousAlive[index] = view.IsAlive;
+                    continue;
+                }
+
+                livingAgents++;
+
+                var displacementRaw = FixedPoint.IntegerSquareRoot(
+                    CollisionGeometry.SquaredDistance(
+                        _previousXRaw[index],
+                        _previousYRaw[index],
+                        view.XRaw,
+                        view.YRaw));
+                travelRaw = checked(travelRaw + displacementRaw);
+                if (displacementRaw <
+                    EvasiveMovementMetrics.RootedDisplacementThresholdRawPerTick)
+                {
+                    rootedAgents++;
+                }
+
+                var targetSquaredDistance =
+                    SquaredDistanceToLivingEnemyTarget(view, currentViews);
+                if (targetSquaredDistance >= 0)
+                {
+                    targetHeldAgents++;
+                    if (targetSquaredDistance <= _attackRangeSquared[index])
+                    {
+                        reachRetentionAgents++;
+                    }
+                }
+
+                switch (view.EvasiveAction)
+                {
+                    case EvasiveAction.SlipLateral:
+                        slipLateralAgents++;
+                        break;
+                    case EvasiveAction.DodgeIncoming:
+                        dodgeIncomingAgents++;
+                        break;
+                    case EvasiveAction.GiveGround:
+                        giveGroundAgents++;
+                        break;
+                    case EvasiveAction.BreakOff:
+                        breakOffAgents++;
+                        break;
+                    case EvasiveAction.BreakOffArmed:
+                        breakOffArmedAgents++;
+                        break;
+                    case EvasiveAction.None:
+                    default:
+                        break;
+                }
+
+                _previousXRaw[index] = view.XRaw;
+                _previousYRaw[index] = view.YRaw;
+                _previousAlive[index] = view.IsAlive;
+            }
+
+            return new EvasiveTickObservation(
+                livingAgents,
+                rootedAgents,
+                travelRaw,
+                reachRetentionAgents,
+                targetHeldAgents,
+                slipLateralAgents,
+                dodgeIncomingAgents,
+                giveGroundAgents,
+                breakOffAgents,
+                breakOffArmedAgents);
+        }
+
+        /// <summary>
+        /// Sums the straight-line distance from every spawned agent's spawn
+        /// position to its position in <paramref name="terminalViews"/>. Every
+        /// slot contributes, alive or dead, because a corpse retains its final
+        /// position and where the dead lie is part of where the battle was
+        /// fought.
+        /// </summary>
+        /// <param name="terminalViews">
+        /// The view projection at the run's terminal tick.
+        /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// <paramref name="terminalViews"/> is <see langword="null"/>.
+        /// </exception>
+        /// <exception cref="ArgumentException">
+        /// <paramref name="terminalViews"/> holds a different number of agents
+        /// than the spawn snapshot did.
+        /// </exception>
+        internal long ComputeNetDisplacementSumRaw(
+            IReadOnlyList<AgentView> terminalViews)
+        {
+            ArgumentNullException.ThrowIfNull(terminalViews);
+            if (terminalViews.Count != _spawnXRaw.Length)
+            {
+                throw new ArgumentException(
+                    $"The view buffers disagree on the agent count: " +
+                    $"{terminalViews.Count} terminal versus " +
+                    $"{_spawnXRaw.Length} at spawn.",
+                    nameof(terminalViews));
+            }
+
+            var netDisplacementSumRaw = 0L;
+            for (var index = 0; index < _spawnXRaw.Length; index++)
+            {
+                var view = terminalViews[index];
+                netDisplacementSumRaw = checked(netDisplacementSumRaw +
+                    FixedPoint.IntegerSquareRoot(
+                        CollisionGeometry.SquaredDistance(
+                            _spawnXRaw[index],
+                            _spawnYRaw[index],
+                            view.XRaw,
+                            view.YRaw)));
+            }
+
+            return netDisplacementSumRaw;
+        }
+
+        /// <summary>
+        /// The squared centre distance from <paramref name="view"/> to its
+        /// currently selected target, when that target is a living warrior of
+        /// the other faction, and <c>-1</c> when the warrior holds no such
+        /// target at all. Returning the distance rather than a boolean is what
+        /// lets one pass over the views answer both retention questions — held
+        /// at all, and held inside reach.
+        /// </summary>
+        private long SquaredDistanceToLivingEnemyTarget(
+            AgentView view,
+            IReadOnlyList<AgentView> views)
+        {
+            if (view.TargetEntityId is not { } targetEntityId)
+            {
+                return -1;
+            }
+
+            if (!_slotOfEntityId.TryGetValue(targetEntityId, out var targetSlot))
+            {
+                return -1;
+            }
+
+            var target = views[targetSlot];
+            if (!target.IsAlive || target.FactionId == view.FactionId)
+            {
+                return -1;
+            }
+
+            return CollisionGeometry.SquaredDistance(
+                view.XRaw, view.YRaw, target.XRaw, target.YRaw);
+        }
     }
 
     /// <summary>

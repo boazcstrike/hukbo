@@ -76,4 +76,16 @@ public sealed record RunReport(
     // populates both from the validated scenario's real values, so 0
     // appears here only in a report that was never produced by a run.
     CombatPresetId CombatPreset = default,
-    MovementPresetId MovementPreset = default);
+    MovementPresetId MovementPreset = default,
+    // Defaulted for exactly the reason CombatMetrics and MovementMetrics are:
+    // every report written before this member existed deserializes to an
+    // all-zero block rather than failing, and a test building a report by hand
+    // does not have to supply a block it does not care about. The runner always
+    // populates it, for every preset, because the movement half of the block --
+    // living agent-ticks, rooted agent-ticks, travel, retention, net drift --
+    // is meaningful under all fourteen movement presets. Only the five
+    // EvasiveAction counters are preset-specific, and those are legitimately
+    // all-zero under every preset except EvasiveFootworkV14. Wholly derived
+    // observability: reconstructed outside the simulation from consecutive
+    // AgentView snapshots, never hashed, never snapshotted.
+    EvasiveMovementMetrics EvasionMetrics = default);
