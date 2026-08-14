@@ -517,6 +517,11 @@ public sealed class SandataSimulation
         // reader can observe it mid-range.
         State = CommitSensing(State, sensing);
 
+        // Stage 8's deferred commit, for the same reason and at the same
+        // point: the intent stage runs while the frozen view is held, so its
+        // result reaches authoritative state only after the view is released.
+        State = CommitIntents(State, PendingIntents);
+
         // Stage 10. Reads only PendingMovementProposals and State — the
         // frozen view above was already released before this line runs, and
         // none of stages 10 through 14 below ever takes a TickStartView
@@ -1951,6 +1956,59 @@ public sealed class SandataSimulation
     /// into <paramref name="state"/>'s <see cref="MissionState.Operators"/>
     /// and <see cref="MissionState.FactionAlerts"/>.
     /// </summary>
+    /// <summary>
+    /// Writes stage 8's selected intent into each operator's authoritative
+    /// <see cref="OperatorState.Intent"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Until 2026-08-14 nothing did this. <see cref="IntentSelection.SelectAll"/>
+    /// ran every tick, its results were correct, and they lived only in
+    /// <see cref="PendingIntents"/> — so the field read <c>0</c>, meaning
+    /// <see cref="OperatorIntent.Hold"/>, for every operator on every tick of
+    /// every run. A three-thousand-tick run of the shipped mission was the
+    /// measurement that found it: operators walked, engaged, and died while the
+    /// state said all four were holding.
+    /// </para>
+    /// <para>
+    /// The field is folded into the state hash by <see cref="SandataStateHasher"/>
+    /// and is carried in the snapshot, so leaving it unwritten meant hashing a
+    /// provable constant and resuming a mission with an intent that was never
+    /// true. It is also what the operator inspector's intent row reads, which
+    /// made that row a lie on screen.
+    /// </para>
+    /// <para>
+    /// The intent is stored as the enum's numeric value, matching how the field
+    /// was already declared and hashed. Stage 9 and stage 12 continue to read
+    /// <see cref="PendingIntents"/> rather than this field, because they run
+    /// inside the same tick and the frozen-view discipline gives them the
+    /// evaluated results directly; this commit is what the *next* tick, the
+    /// snapshot, and the client see.
+    /// </para>
+    /// </remarks>
+    private static MissionState CommitIntents(
+        MissionState state,
+        ImmutableArray<IntentSelectionResult> intents)
+    {
+        var operators = state.Operators;
+        if (operators.IsDefaultOrEmpty || intents.IsDefaultOrEmpty)
+        {
+            return state;
+        }
+
+        var updatedOperators = ImmutableArray.CreateBuilder<OperatorState>(operators.Length);
+        for (var i = 0; i < operators.Length; i++)
+        {
+            var intent = i < intents.Length ? (int)intents[i].Intent : operators[i].Intent;
+            updatedOperators.Add(
+                operators[i].Intent == intent
+                    ? operators[i]
+                    : operators[i] with { Intent = intent });
+        }
+
+        return state with { Operators = updatedOperators.ToImmutable() };
+    }
+
     private static MissionState CommitSensing(MissionState state, SensingOutcome outcome)
     {
         var operators = state.Operators;
