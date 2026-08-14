@@ -11,6 +11,15 @@ and the discrepancy is worth reporting. That design shipped and was archived on
 2026-08-15, so it is a record rather than an instruction; this backlog is the
 live half of the pair.
 
+**Audited against the code on disk on 2026-08-15.** Two engineering items
+survive that audit — section 2, the unwired conservative cull, and section 3,
+the collapsed contact that loses its whole bundle — plus one naming item,
+section 5's fifth bullet about `SwingPose`, `SwingPhase`, and `SwingTrail`.
+Everything else that this document describes as outstanding has since been
+fixed, and each such item now carries the evidence for that in place rather than
+having been deleted. Read the note attached to an item before acting on the item
+itself.
+
 ## Status after the 2026-08-13 smoke run
 
 **Section 6 of this document is spent, and section 2's premise is now contested.
@@ -148,6 +157,14 @@ to wire it into the live pawn loop at all has been handed to the thousand-unit
 performance workstream, which weighs it as one candidate among several rather
 than as a standalone fix for this row.
 
+**Still open, confirmed on disk on 2026-08-15.** `ConservativePawnCull` is
+declared at `src/Hukbo.Client/Rendering/ConservativePawnCull.cs:66` and still has
+no production caller. The only references to it outside the test project are the
+three comments in `src/Hukbo.Client/Rendering/PawnGeometry.cs`, at lines 925,
+2243, and 2348, and every call site is in
+`tests/Hukbo.Client.Tests/ConservativePawnCullTests.cs`. This section is an
+accurate description of the code today.
+
 ## 3. A collapsed contact silently loses its whole bundle
 
 When one attacker exceeds `MaximumPendingContactsPerAttacker` (five),
@@ -166,6 +183,13 @@ pause and resume cycles and a round transition, produced no
 correctly sized, and this is a latent path rather than an observed loss. Worth
 either proving unreachable or making the loss visible.
 
+**Still open, confirmed on disk on 2026-08-15.** `AttackContactDispatcher.Add`
+still calls `ReplacePending` at
+`src/Hukbo.Client/Presentation/AttackContactDispatcher.cs:237-239`, and
+`ReplacePending` at `:277-284` still overwrites the stored bundle and does
+nothing beyond calling `ReportCollapsed`. The discarded bundle is still lost
+whole.
+
 ## 4. `AcknowledgeDraw` acknowledges contacts that were never drawn
 
 `AttackFrameCoordinator.AcknowledgeDraw` documents itself as releasing "every
@@ -178,26 +202,53 @@ hold, has its contact frame acknowledged and its timeline advanced without ever
 having been drawn. The "guaranteed contact draw" the entire latch mechanism
 exists to provide does not hold in those cases.
 
+**Fixed, confirmed on disk on 2026-08-15.** `AcknowledgeDraw` now consults
+whether the pose was actually drawn: the release is gated on `WasDrawnThisFrame`
+at `src/Hukbo.Client/Presentation/AttackFrameCoordinator.cs:210-216`, backed by
+`RecordDrawn` at `:165-179` and by the `MaximumLatchFrames` bound at `:44-45`
+that stops a never-drawn latch from being held forever. The draw path records
+the pose through `src/Hukbo.Client/ArenaGame.Rendering.cs:1402`, by way of
+`src/Hukbo.Client/Presentation/PresentationCoordinator.cs:363`. The section above
+describes the old behaviour and is kept as the record of why the gate exists.
+
 ## 5. Smaller items
 
 - **`RenderAttackContactCollapsed` logs at `warn`, once per collapsed contact.**
   The condition is bursty by construction, so when it fires at all it fires many
   times per frame. `CLAUDE.md`'s logging standard puts anything firing more than
   once a second at `dbg` or below.
+  **Fixed, confirmed on disk on 2026-08-15:** the call site at
+  `src/Hukbo.Client/Presentation/AttackContactDispatcher.cs:290` passes
+  `LogLevel.Debug`.
 - **`ReleaseForDraw` rebuilds its whole agent dictionary every frame** before it
   ever consults `Dispatcher.PendingCount` — one insert per agent, on frames that
   latch nothing. An early return when the pending count is zero is safe.
+  **Fixed, confirmed on disk on 2026-08-15:** the early return is at
+  `src/Hukbo.Client/Presentation/AttackFrameCoordinator.cs:106-109`, ahead of the
+  dictionary rebuild.
 - **Six `AttackPose` fields have no reader anywhere in `src/`:** `Forward`,
   `Right`, `SupportHand`, `ShieldHand`, `TrailStart`, `TrailEnd`. The support
   hand is re-derived from the weapon line in `PawnGeometry`, and the shield
   guard uses a fixed offset by design. Either consume them or drop them.
+  **Fixed, confirmed on disk on 2026-08-15:** they were dropped.
+  `src/Hukbo.Client/Rendering/AttackPoseResolver.cs:11-22` declares none of the
+  six; the shape now carries `HasSupportHand`, `HasShield`, and `TrailStrength`.
 - **`RecordPawnQuads` passes `gaitPose: null` while `DrawPawns` passes the real
   pose**, under a comment claiming the probe pass mirrors the draw path element
   for element. Pre-existing, but the two call sites now make it explicit.
-- **`SwingPose`, `SwingPhase` and `SwingTrail` keep their old names**, moved to
-  `src/Hukbo.Client/Rendering/WeaponLinePose.cs`. The legacy swing *systems* are
-  deleted and only one attack path remains, so this is a naming cleanup rather
-  than a second path.
+  **Fixed, confirmed on disk on 2026-08-15:** `RecordPawnQuads` passes the real
+  gait pose at `src/Hukbo.Client/ArenaGame.Rendering.cs:535-543`, and the parity
+  of the two call sites is pinned by
+  `tests/Hukbo.Client.Tests/PawnGaitQuadParityTests.cs:10-14`.
+- **`SwingPose`, `SwingPhase` and `SwingTrail` keep their old names.** The
+  legacy swing *systems* are deleted and only one attack path remains, so this is
+  a naming cleanup rather than a second path.
+  **Still open, confirmed on disk on 2026-08-15, and this item's original
+  location claim was wrong.** The three types are not together in one file:
+  `SwingPhase` is at `src/Hukbo.Client/Rendering/WeaponLinePose.cs:16` and
+  `SwingPose` at `:56`, while `SwingTrail` is at
+  `src/Hukbo.Client/Rendering/PawnGeometry.cs:44`. A rename has to touch both
+  files.
 - **`tools/Hukbo.Tools.RenderProbe/packages.lock.json` gained eight lines** — a
   stale `Hukbo.Shared.Core` project-reference entry that a build regenerated. No
   new external package, but it rode in on this branch unreviewed.
@@ -266,3 +317,10 @@ unreachable, and whether `AcknowledgeDraw` should consult cull survival. The six
 unread `AttackPose` fields and the `RecordPawnQuads` `gaitPose` mismatch were
 left alone for the same reason — dropping a field and changing what the probe
 pass records are both choices, not cleanups.
+
+**The paragraph above was true on 2026-08-14 and is no longer true.** The
+2026-08-15 audit found that section 4, the six unread `AttackPose` fields, and
+the `RecordPawnQuads` `gaitPose` mismatch have all since been resolved; the
+evidence is recorded against each of them where they appear above. What remains
+open is section 2, section 3, and the naming of `SwingPose`, `SwingPhase`, and
+`SwingTrail`.

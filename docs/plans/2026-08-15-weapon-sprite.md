@@ -38,6 +38,23 @@ files. That work belongs to another session. Anything you see in the main
 checkout that this plan does not name is not yours; do not revert it, do not
 build on it, and do not assume it will land before this branch does.
 
+**Note, 2026-08-15: the pawn body package has since merged, and this section's
+baselines are superseded.** Verified on `main` today: the body package is no
+longer uncommitted work — `src/Hukbo.Client/Rendering/PawnSpriteAtlas.cs` and
+`src/Hukbo.Client/Settings/ClientSettings.cs:16` ship, and
+`src/Hukbo.Client/Content/Content.mgcb` now holds 26 entries including the pawn
+body atlas at `:195-205`, pinned by
+`tests/Hukbo.Client.Tests/SourceHygieneTests.cs:193` and `:205`. Second,
+`ClientSettingsStore.SupportedSchemaVersion` is already 12 on `main`
+(`src/Hukbo.Client/Settings/ClientSettingsStore.cs:64`, accepting
+`[10, 11, 12]`), spent on `PawnVisualStyle`. Third, the figures recorded above
+— 25 content entries, `PresentationSalts.All` at 14, and schema 11 — are all
+superseded. The consequence is that the schema collision this plan anticipated
+has already happened rather than merely being possible, so task 27 — settling
+on schema 13 once both packages are in — is now mandatory rather than
+contingent, and every integration baseline in this plan must be re-read from
+`main` before its numbers are trusted.
+
 ## Task list
 
 | Task | What | Files | Done when | Depends on | Verified by |

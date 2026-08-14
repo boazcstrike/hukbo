@@ -217,3 +217,39 @@ between two particular seeds.
 The twenty reports were written to `artifacts/blocking-sweep/seed-NN.json`.
 `artifacts/` is not tracked, so the figures are reproduced above in full and
 the directory can be deleted without losing them.
+
+## 6. Audit, 2026-08-15 — the sweep's movement preset is stale
+
+Section 5 says its sweep measures what a spectator sees, and half of that claim
+has since expired. The combat half still holds: the client still builds with
+`CombatPresetId.PrecolonialPhilippinesV5`, at
+`src/Hukbo.Client/ArenaGame.cs:1585`. The movement half does not. The client's
+shipped movement default has moved from `LastStandEngagementV11` to
+`MovementPresetId.CohortLateralSpreadV13`, set in
+`src/Hukbo.Client/Settings/ClientSettingsStore.cs:113-114` and threaded through
+`ArenaGame.cs:379` into `BuildScenario` at `ArenaGame.cs:414-417`. A spectator
+watching the game today is not watching V11.
+
+The section 5 table is therefore a record of `LastStandEngagementV11` under
+combat V5, and it is no longer a current baseline for what the client runs. It
+stays where it is, unedited, exactly as section 2 stays as the record of what
+was measured under combat V4. Read it as history, not as the number a change
+has to beat.
+
+What a future change here needs first is the same twenty-seed sweep re-run
+under `CohortLateralSpreadV13`, so that the comparison is against the movement
+rules a spectator actually sees. Until that re-run exists, no claim about
+improvement or regression in blocking under the shipped client can be made from
+this document.
+
+The document remains re-measurable, which is the reason it is still worth
+keeping. Every counter its tables quote is still emitted by the simulation and
+still reaches the headless JSON report. `blockedAgentTicks`,
+`attackCapableAgentTicks`, `longestBlockedStreakTicks`, `candidatePairs`,
+`contactPairs`, `acceptedMoves`, `maximumFrontWidthRaw`, `maximumFrontDepthRaw`,
+and `maximumPenetrationRaw` are on
+`src/Hukbo.Core/Simulation/CollisionMetrics.cs:73-81`; `acceptedAttacks` and
+`landedAttacks` are on `src/Hukbo.Core/Simulation/CombatMetrics.cs:50-51`; and
+all eleven are written out through
+`src/Hukbo.Headless/HeadlessRunner.cs:438-450`. The sweep can be reproduced by
+changing one flag.

@@ -24,6 +24,39 @@ plan document carries the tasks. The two questions the sweep moved into
 than parked work. An archived document may never be executed, which is why the
 revival happened before a line of code was written rather than after.
 
+Swept an eighth time on 2026-08-15, and **nothing left the folder.** Every
+document still here was re-checked against the code by a separate reader, one
+document set each, and each one describes work that is not on disk: sixteen
+unstarted tasks and no `MovementPresetId` past 13 for the contingent cohesion
+pair, sixteen unstarted tasks for the thousand-unit pair, no magazine decrement
+and no `Reloading` phase, no Sandata scenario type, stages 1 and 2 of
+clear-the-map absent, nothing at all of the blocked-mover replan, D3 and D4 of
+the mission-does-not-end pair absent, no reversal logic for the column
+about-face, and a weapon sprite package that lives in a worktree at roughly
+eleven of its twenty-seven tasks with the whole renderer half unbuilt. The
+formation blocking baseline stays because all eleven counters it quotes are
+still emitted, so it is still re-measurable. **The follower-trailing deadlock
+design is the one document that pass did not cover**: it was in the archive
+while the audit ran, and it returned to this folder afterwards under the
+revival recorded above.
+
+That pass produced corrections rather than archives, each recorded in the
+document it corrects. The formation baseline gained a section saying its
+twenty-seed sweep is a `LastStandEngagementV11` record and no longer describes
+what a spectator sees, because the shipped movement default is now
+`CohortLateralSpreadV13`. The attack animation V2 backlog kept sections 2 and 3
+and the `SwingPose` naming item, which are all still true, and now records in
+place that its section 4 and four of its section 5 items have since been fixed.
+The contingent cohesion design no longer claims to be blocked by a workstream
+that has landed, and its R2 and R3 now state that their premises are false and
+point at the reshaped form its own plan already carries. The magazine design no
+longer calls `RosterStrip.FormatMagazineLine` tested — it has no caller at all,
+production or test. The weapon sprite plan now records that the settings-schema
+collision it predicted has already fired, because `main` spent version 12 on
+`PawnVisualStyle` while the worktree spends 12 on `WeaponVisualStyle`. One
+symbol name in this file was wrong and is fixed: the field is
+`GroupPathState.TargetRoomId`, not `SquadSlot.TargetRoomId`.
+
 Swept a seventh time on 2026-08-15, later the same day, over the whole folder
 rather than only over the day's closures. Three documents left and none joined:
 the attack animation V2 design, the ranged units session handoff, and the
@@ -237,7 +270,7 @@ designs archived in the fourth sweep of 2026-08-14 left.
 | [`2026-08-14-sandata-scenario-and-roster-design.md`](2026-08-14-sandata-scenario-and-roster-design.md) | Where per-operator data lives once a mission stops being one hardcoded map and one hardcoded roster, which fields become authored, and what the map format version costs. Today `SandataGame.BuildInitialState` reads position, faction, and facing from the map's `SPAWN` records and fills every other field from placeholder constants | Design only; authorizes nothing. No scenario type exists on disk |
 | [`2026-08-14-sandata-magazine-and-reload-design.md`](2026-08-14-sandata-magazine-and-reload-design.md) | How a magazine is consumed by fire and refilled by a reload. `OperatorState.MagazineRounds` is stored, snapshotted, and hashed, and no tick stage has ever changed its value; `SandataSimulation` says so by name at the site that would decrement it. Spare magazines are infinite by decision — a finite spare count is a stock-and-consumption economy and stays unauthorised | Design only; authorizes nothing. Not built |
 | [`2026-08-14-sandata-blocked-mover-replan-design.md`](2026-08-14-sandata-blocked-mover-replan-design.md) | What counts as stalled, what stops re-request thrashing, and how the fixed-latency path rule applies to a mover that asks again. Seven decisions, none of them a task list | Design only; awaiting review. No re-request mechanism exists on disk |
-| [`2026-08-14-sandata-clear-the-map-design.md`](2026-08-14-sandata-clear-the-map-design.md) | What an autonomous squad wants when nobody has drawn it an order: rooms first, then the map, with corners as the unit of clearing. Its stage 0 has since shipped — `RoomLayout`, `RoomClearStates`, and `SquadSlot.TargetRoomId` — and `MissionState`'s own remarks record that the shipped record carries no corner mask | Design only; authorizes nothing. Stage 0 shipped, stages 1 and 2 absent |
+| [`2026-08-14-sandata-clear-the-map-design.md`](2026-08-14-sandata-clear-the-map-design.md) | What an autonomous squad wants when nobody has drawn it an order: rooms first, then the map, with corners as the unit of clearing. Its stage 0 has since shipped — `RoomLayout`, `RoomClearStates`, and `GroupPathState.TargetRoomId` — and `MissionState`'s own remarks record that the shipped record carries no corner mask | Design only; authorizes nothing. Stage 0 shipped, stages 1 and 2 absent |
 | [`2026-08-14-sandata-mission-does-not-end-design.md`](2026-08-14-sandata-mission-does-not-end-design.md) | The measured freeze: the shipped four-operator mission was ticked 3,000 times and never resolved. Four decisions, D1 through D4, from writing the selected intent into authoritative state to resolving a mission that can no longer progress | Design only; binds the plan below |
 | [`2026-08-14-sandata-mission-does-not-end.md`](2026-08-14-sandata-mission-does-not-end.md) | That design's nine tasks. Task 1 answered the open sensing question — the frozen survivor is behind a wall and the sensing layer is correct — and dropped task 4; tasks 2 and 3 shipped at `51c0a86` and `ea3bbc1`. **Tasks 5 through 9 have not been built**. `OutcomeRules` already exists and already resolves the mission, but only by elimination; the stalemate predicate task 6 would add to it does not, so a mission nobody can win still cannot end. Read task 3 with care as well: it shipped as `ContactMemoryTests.cs`, not under the `RetargetOnDeathTests.cs` name the table gives it | Plan; partly built, five tasks open |
 | [`2026-08-15-sandata-column-about-face-design.md`](2026-08-15-sandata-column-about-face-design.md) | How a squad reverses direction without deadlocking. A column whose path turns back the way it came stops permanently, because the follower ends up in front and stage 10 refuses the leader; this has been measured, reproduced, and mis-diagnosed three times. Decision 2 redefines `SquadSlot.LeaderEntityId` as the entity holding slot 0 | Design only; not authorized. Its staging is what the audit below executes |
