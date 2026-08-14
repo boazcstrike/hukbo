@@ -24,12 +24,14 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-14
 
-16 rows across 4 subsections: **16 `PENDING`, and no `PASS`, `FAIL`,
+18 rows across 5 subsections: **18 `PENDING`, and no `PASS`, `FAIL`,
 `BLOCKED`, or `DECLINED` row** — recounted from the status column of this file
 on 2026-08-14, after ten families closed in full that day and their subsections
 were deleted whole, after the death-collapse family added ten new `PENDING`
-rows in a subsection of its own later the same day, and after the calibrated
-army composition added three more in a subsection of its own.
+rows in a subsection of its own later the same day, after the calibrated
+army composition added three more in a subsection of its own, and after the
+pawn visual fidelity package added two more in a subsection of its own at the
+end of that day.
 
 The UI chrome nine-slice family joined this file and all but emptied it on the
 same day. Six rows were written ahead of the code deliberately; a person ran
@@ -357,3 +359,40 @@ Leave it `PENDING` if untouched; report `BLOCKED` honestly.
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
 | CH-4 | With `NineSlice` active, set interface scale to 100 per cent and then to 125 per cent. At each, look closely at the four points where a rounded corner meets the straight edge of the menu panel | No pale seam, halo, or one-pixel smear at any of those joins. Record which tiers were actually reachable on the display used, and whether a seam appeared at either | | PENDING |
+
+## Pawn visual fidelity (the 2026-08-14 pawn visual fidelity package)
+
+**Two new rows, both `PENDING`, written on 2026-08-14 when the package landed.**
+Both are answerable in a single launch of `./scripts/run.ps1`.
+
+`PVF-1` exists because no published source anywhere gives an on-screen pixel
+height at which leg motion stops being worth drawing. Two research passes looked
+for one and found nothing, so the package measured our own instead. That
+measurement is recorded in `testing.md` under the pawn gait leg-motion pixel
+subsection, and its figures are repeated in the `Expected` column below so that
+the tester is judging against a number rather than against an impression. The
+measurement also established something the row should not re-litigate: leg
+motion never fades through sub-pixel sizes. It disappears as a step function
+when a pawn resolves `PawnDetailTier.Low`, where the leg and foot rectangles are
+empty and nothing is drawn at all. So the question is where the legs stop
+*reading*, not where they become too small.
+
+`PVF-2` exists because all three projectile colours sat inside the sixty-unit
+ground contrast envelope against at least one shipped theme — the shaft at 28.2
+and the head at 47.8 against Field Manual, the fletch at 29.9 against Broadcast.
+A projectile that is not checked against every background disappears against
+some of them. The colours were retuned by search against that metric until all
+eighteen colour-to-shade distances cleared sixty, the closest at 62.9. A test
+pins the arithmetic, but only a person can say whether the result still looks
+like a wooden shaft, a metal head, and a feather fletch rather than like three
+bright markers.
+
+Neither row may be closed by a passing test, by a build, or by a screenshot
+probe. Only a person at an interactive Windows desktop, watching a live battle,
+may flip one of these. Leave untouched rows `PENDING`; report `BLOCKED`
+honestly.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| PVF-1 | Watch warriors walking and running at each of the three camera stations in turn, and say at which station the legs stop reading as legs in motion | Leg motion is legible at the default fit, where a leg draws 10 pixels tall with 3 pixels of walk stride travel and 6 of run travel. It is still legible at maximum zoom, at 18 pixels with 6 and 11. At minimum zoom the pawn resolves `Low` and no legs are drawn at all, which is expected and is not a failure. Record which station is the last one where the walk and the run are distinguishable from each other | | PENDING |
+| PVF-2 | Cycle every ground theme with missile troops shooting, and watch arrows and shot in flight against each ground | On every theme, the projectile is visible in flight against the ground for its whole travel, and still reads as its own material — amber wood shaft, cool grey-blue metal head, pale cream fletch — rather than as an arbitrary bright marker. Record any theme where it either vanishes or looks like a glowing dot | | PENDING |
