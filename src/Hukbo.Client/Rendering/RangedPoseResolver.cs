@@ -13,9 +13,9 @@ namespace Hukbo.Client.Rendering;
 /// this resolver needs no animation store. <see cref="AgentView.RangedPhase"/>
 /// and <see cref="AgentView.RangedPhaseTicksRemaining"/> arrive on the view
 /// every tick, already derived by <see cref="RangedPhaseProjection.Derive"/>,
-/// so there is no clock, no capacity, and no eviction to own here — design
-/// section 8.3 of <c>docs/plans/2026-08-07-ranged-units-design.md</c> calls
-/// this "a genuine simplification over both existing systems".
+/// so there is no clock, no capacity, and no eviction to own here — section
+/// 8.3 of the ranged-units design document calls this "a genuine
+/// simplification over both existing systems".
 /// </para>
 /// <para>
 /// <see cref="Resolve"/> fills a destination the caller owns rather than

@@ -2352,8 +2352,8 @@ internal static class PawnGeometry
     /// RU-42: takes both <paramref name="pose"/> and
     /// <paramref name="rangedPose"/> and sums their <c>WeaponAngleRadians</c>
     /// and <c>ExtensionRatio</c> channels before rotating, exactly the "same
-    /// two channels... into the same <c>ApplySwing</c> call" the design
-    /// (<c>docs/plans/2026-08-07-ranged-units-design.md</c> section 8.3) and
+    /// two channels... into the same <c>ApplySwing</c> call" the ranged-units
+    /// design document (section 8.3) and
     /// <see cref="RangedPose"/>'s own remarks call for, rather than being
     /// summed as a separate step. This is safe as a sum rather than a
     /// mutual-exclusion branch only because <c>RangedPoseResolver.SuppressesSwing</c>

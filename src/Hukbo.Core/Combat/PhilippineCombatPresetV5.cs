@@ -32,7 +32,7 @@ namespace Hukbo.Core.Combat;
 /// <see cref="WeaponProfile"/> already enforces.
 /// </para>
 /// <para>
-/// docs/plans/2026-08-07-ranged-units-design.md section 2 is explicit that no
+/// The ranged-units design document, section 2, is explicit that no
 /// source consulted associates the bow, the thrown spear, or the arquebus
 /// with any social rank, and that inventing one would not be supported by the
 /// record. All three ranged rows therefore carry <see cref="RankId.Timawa"/>
