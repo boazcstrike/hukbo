@@ -360,9 +360,10 @@ public sealed class SoundManifestTests
     /// <summary>
     /// The manifest must describe every row the catalog declares — no more,
     /// no fewer. This is the number the task's "done when" calls "the row
-    /// count the catalog declares": 106, not the 484 the plan row and the
-    /// design document both still say, and not the 540 individual variant
-    /// files those 106 rows expand to (asserted separately below).
+    /// count the catalog declares": 114 since 2026-08-14 and 106 before it,
+    /// not the 484 the plan row and the design document both still say, and
+    /// not the 572 individual variant files those 114 rows expand to
+    /// (asserted separately below).
     /// </summary>
     [Fact]
     public void RowCountMatchesCatalogRowCount()
@@ -376,7 +377,7 @@ public sealed class SoundManifestTests
     /// Every manifest row's variant count must equal the declared count on
     /// the catalog row it was built from, in the same order. This is what
     /// stops the manifest generator from mistranscribing a count for even
-    /// one of the 106 rows.
+    /// one of the 114 rows.
     /// </summary>
     [Fact]
     public void VariantCountsMatchCatalogDeclaredCounts()
@@ -393,22 +394,32 @@ public sealed class SoundManifestTests
 
     /// <summary>
     /// The sum of every row's variant count is the true number of individual
-    /// files a full generation run would produce: 540, not the plan row's
-    /// and the design document's 484, and not the 524 an earlier revision of
-    /// this catalog declared. The 540 comes from raising four single-shot
+    /// files a full generation run would produce: 572, not the plan row's
+    /// and the design document's 484, not the 524 an earlier revision of this
+    /// catalog declared, and not the 540 that stood until 2026-08-14. Two
+    /// separate edits carried it here. The first raised four single-shot
     /// gun-report rows — 7.62x39 and 9x19, each in close-dry and indoor-tail —
     /// from 6 declared takes to 10, since those four rows are the only ones
     /// with real generated audio on disk; see
     /// <see cref="SandataSoundCatalog"/>'s <c>GeneratedGunReportVariantCount</c>
-    /// doc comment. Pinned here so a catalog edit that moves this number is
-    /// caught by a red test rather than a stale document.
+    /// doc comment. The second is decision D5 of the 2026-08-14 lowered-weapon
+    /// and automatic-fire design, which declares the automatic loop and tail
+    /// rows for every caliber family rather than the six rifle calibers alone,
+    /// closing a <c>KeyNotFoundException</c> an automatic-capable pistol would
+    /// have hit on its first round. That adds eight rows — two calibers, two
+    /// environments, loop and tail — of four variants each, so 106 rows
+    /// expanding to 540 files became 114 rows expanding to 572.
+    /// <b>Declaring a row generates nothing.</b> No ElevenLabs spend is
+    /// authorized by this number; it is the size of a hypothetical full run.
+    /// Pinned here so a catalog edit that moves it is caught by a red test
+    /// rather than a stale document.
     /// </summary>
     [Fact]
-    public void TotalVariantFileCountIsFiveHundredForty()
+    public void TotalVariantFileCountIsFiveHundredSeventyTwo()
     {
         var totalVariants = SandataSoundCatalog.Rows.Sum(row => (int)row.VariantCount);
 
-        Assert.Equal(540, totalVariants);
+        Assert.Equal(572, totalVariants);
     }
 
     /// <summary>
