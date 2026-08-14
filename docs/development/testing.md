@@ -1031,9 +1031,80 @@ audio fallback.
 `Hukbo.Core.Tests` and 3,682 `Hukbo.Client.Tests`, with all three of its headless
 workloads passing. Two games, two gates, two results, never reported as one.
 
-This gate remains no evidence about anything interactive. `SD-4`, `SD-5`, and
-`SD-7b` all stay open in the smoke checklist until a person at a desktop says
-otherwise.
+This gate remains no evidence about anything interactive, and 2026-08-14 is what
+that costs. A person at a desktop ran all three rows this gate was meant to
+support. `SD-7b` passed as built. `SD-4` and `SD-5` failed for the third time
+each against this very tree, and every test behind this green result was written
+by the same package those two rows say did not work on screen. Both were closed
+later the same day by further work, recorded below.
+
+#### The gate after seeding the path-blocked span, 2026-08-14
+
+`./scripts/verify.ps1 -Game Sandata`, on branch `sandata-sd4-sd5`, after the
+A* search was given the baked map to read:
+
+```
+Sandata.Core.Tests     Total tests: 1135   Passed: 1135
+Sandata.Client.Tests   Total tests:  320   Passed:  320
+stateHash A644B7F8A394885D   eventHash AEDE4D16B5E6FAAF   deterministic true
+[PASS] Canonical repository verification completed.
+```
+
+**Both hashes are unchanged, and that is the result worth reading rather than
+the green.** The design predicted that seeding the path-blocked span would move
+every Sandata digest, because A* had been searching a fully open grid on every
+map and operators had been walking through walls. It moves none of them, because
+`HeadlessRunner.BuildOpenGrid` synthesises a grid with no walls, no doors, and no
+map file, so the seeded array is still every-cell-false in this workload.
+
+The consequence is a standing limit on what this gate can say: **the seed-1
+workload cannot detect a pathfinding change that only manifests around
+geometry.** What proves the change is `PathBlockedCellsTests`, which searches
+across a wall and asserts the returned path avoids it, and smoke row `SD-4`,
+which asks a person to watch an operator funnel through a doorway.
+
+#### The gate after the engagement exemption and the health placeholder, 2026-08-14
+
+`SD-4` passed against the tree above. `SD-5` failed against it again, and a
+driven `Debug` run found why: the whole run produced seven shot cues and every
+one was the defending pistol firing single shots, because a rifleman sits inside
+`LoweredWallDistanceWu` for the entire approach through `angle-house`'s corridors
+and is forced lowered at the moment of contact. Two further changes followed, and
+the gate was re-run on branch `sandata-engage-raise` at `7db52fa`:
+
+```
+[PASS] Release repository tests completed.
+measuredTicks 10000   outcome Ongoing   survivors 70 / 64
+stateHash A644B7F8A394885D   eventHash AEDE4D16B5E6FAAF   deterministic true
+p50 2.3322 ms   p95 3.4453 ms   p99 3.9786 ms   max 60.9105 ms
+durationMilliseconds 25714.48   allocatedBytes 6,120,477,496 (~6.12 GB)
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+**Both hashes are again unchanged**, for two reasons worth keeping apart. The
+engagement exemption alters behaviour only where an operator has an identified
+contact, and this workload's grid has no walls, so the lowered condition was
+already false for every operator on every tick of it. The health change touches a
+placeholder in the client's scenario builder that never reaches a hash at all.
+`SandataRuleset.ContentHash` is untouched and no preset version was spent.
+
+`Sandata.Core.Tests` is 1,141: six further tests cover the engagement exemption,
+three at the rule and three at the simulation.
+
+**What the gate could not tell anyone, and a driven run could.** Neither defect
+was visible to any automated stage, and neither would have been found by running
+the suite again. Both were found by launching the game with `HUKBO_LOG_LEVEL=trc`
+and `HUKBO_LOG_CHANNELS=audio,sim`, driving it with `keybd_event`, closing the
+window with `WM_CLOSE` so the log flushed, and reading the cue lines. The
+measurement that preceded `SD-5` closing is eleven reports from the AK attacker
+spanning 1.03 seconds at roughly 100-millisecond spacing — the weapon's 600
+rounds per minute sustained for a second, where the same operator had fired
+nothing at all in the run before. That is a measurement and not a smoke row: a
+person still listened to it before the row moved.
+
+The Hukbo gate was run separately on the same tree and is also green, all five
+stages `PASS`, with `combatPreset 5` and `movementPreset 13`.
 
 ### Golden replay and determinism equivalence
 

@@ -23,10 +23,14 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-14
 
-5 rows across 2 subsections: **5 `PENDING`, and no `PASS`, `BLOCKED`,
-`FAIL`, or `DECLINED` row** — recounted from the status column of this file on
-2026-08-14, after ten families closed in full that day and their subsections
-were deleted whole. The contingent shape selector family both joined this file
+19 rows across 4 subsections: **1 `FAIL` and 18 `PENDING`, and no `PASS`,
+`BLOCKED`, or `DECLINED` row** — recounted from the status column of this file
+on 2026-08-14, after ten families closed in full that day and their subsections
+were deleted whole, after the death-collapse family added ten new `PENDING`
+rows in a subsection of its own later the same day, and after the UI chrome
+nine-slice family added six more at the end of it. That last family is the only
+one here written before its code exists: its `CH-4` asks a tester to settle a
+sampler question the design deliberately refused to assert. The contingent shape selector family both joined this file
 and left it on that day: `CS-1` and `CS-2` were written as two new `PENDING`
 rows in a subsection of their own, then run and passed before the day was out.
 
@@ -40,10 +44,17 @@ smoke"**, **"Contingent shape selector smoke"**, and **"GPU render smoke —
 `GR-4`"**, named here in prose rather than linked because that folder is pruned
 periodically. No row's status was changed to arrive at this count.
 
-**No row left in this file carries a failing observation.** The three that did —
-`BR-1`, `BR-2` and `BR-10` — were re-run on 2026-08-14 against the fixes they
-had been waiting on, passed, and left with their family. Every row below sits at
-`PENDING` because nobody has watched it, not because somebody watched it fail.
+**One row in this file carries a failing observation, and it is Sandata's.**
+`SD-4` and `SD-5` were re-run on 2026-08-14 against the fixes they had been
+waiting on since 2026-08-12 and failed for the third time each, so both moved
+from `PENDING` to `FAIL` that day. `SD-4` was then run a fourth time, against a
+further round of fixes, and passed — it left this file for the record titled
+**"Sandata smoke — `SD-4`"**, which records that it passed against branch
+`sandata-sd4-sd5` rather than against `main`. `SD-5` failed again in the same
+session and is the row that remains. Three other rows that once carried a
+failing observation — `BR-1`, `BR-2` and `BR-10` — were re-run on 2026-08-14,
+passed, and left with their family. The two render rows below sit at `PENDING` because
+nobody has watched them, not because somebody watched them fail.
 
 The families that closed on 2026-08-14 went in roughly this order.
 The last-stand engagement family went first, at one row. Three more
@@ -58,18 +69,21 @@ the leader marker family with it, because `L-7` was its final open row. Starting
 deployment closed after them at five rows, and battlefield realism and the
 contingent shape selector closed last, at ten rows and two.
 
-One family was run on 2026-08-14 and did not close. GPU render has passed three
-of its five rows — `GR-1` and `GR-2` early in the day, `GR-4` later — and all
-three were lifted out; its other two stay below with the reason they were not
-run recorded against them, and the section preamble records why that reason does
-not hold.
+Two families were run on 2026-08-14 and did not close. GPU render has passed
+three of its five rows — `GR-1` and `GR-2` early in the day, `GR-4` later — and
+all three were lifted out; its other two stay below with the reason they were
+not run recorded against them, and the section preamble records why that reason
+does not hold. Sandata passed `SD-7b`, which was lifted out, and failed `SD-4`
+and `SD-5`, which stay below as this file's only two `FAIL` rows.
 
-Every row left here is something a person still has to do, and every one of them
-is something a person **can** do: none is blocked by the build, and none is
-waiting on a feature that does not exist. 242 rows have been lifted out of this
-file since it was split out of `docs/development/testing.md`. A closed row is
-not described here once it leaves; its record is the dated archive that carries
-its family's name, and this file is only what is left to run.
+The two render rows left here are something a person can do today: neither is
+blocked by the build, and neither is waiting on a feature that does not exist.
+The two Sandata rows are different — both have now failed three times, and a
+re-run of either is worth nothing until the fix it is waiting on lands. 243 rows
+have been lifted out of this file since it was split out of
+`docs/development/testing.md`. A closed row is not described here once it
+leaves; its record is the dated archive that carries its family's name, and this
+file is only what is left to run.
 
 **There is no `PASS` column any more, and that is deliberate.** If a `PASS` ever
 appears here it is a row that has just closed and has not yet been lifted — not
@@ -89,7 +103,8 @@ this rule being applied to prose as well as to rows: on 2026-08-12 six of its
 nine rows had closed, and the paragraphs explaining when and why each of them
 closed had grown longer than the three rows a tester still had to run. All of
 that history left for the archive in one piece and the section was rewritten
-around the three open rows.
+around the three open rows. It was rewritten again on 2026-08-14 around the two
+that are left.
 
 **A single passing row is lifted out the same way, without its section.** A
 section that still carries open work loses each of its rows as that row closes,
@@ -123,7 +138,7 @@ The families below are grouped by what a single launch can actually
 show, because the subsections are ordered by the change that created them
 rather than by what is on screen at once, and a person working down the file in
 order relaunches the game far more often than they need to. The batch rows below
-sum to this file's own total of 5. They summed to 67 before 2026-08-14, because
+sum to this file's own total of 4. They summed to 67 before 2026-08-14, because
 two sections had never been given a row here at all; nine more batches left the
 table later that day when their families closed in full — the battlefield
 realism batch last, and the contingent shape selector batch, which had joined
@@ -133,15 +148,16 @@ shrank rather than leaving.
 | Batch | Families | Rows | What one launch has to show |
 | --- | --- | --- | --- |
 | Render | `GR` 2 of 5 | 2 `PENDING` | Launch-time render behaviour at the largest battle the panel allows. `GR-1`, `GR-2` and `GR-4` passed on 2026-08-14 and were lifted out. Both rows left were attempted that day and not run; the section preamble records why, and why the stated reason does not hold |
-| Sandata | `SD` 3 of 9 | 3 `PENDING` | `./scripts/run.ps1 -Game Sandata`. The other 6 passed and were lifted out. All three open rows are re-runs rather than fresh checks: `SD-4` and `SD-5` were each attempted twice and failed on causes fixed on 2026-08-12, and `SD-7b` was blocked from the day it was written until the same day. Read each row's `Actual` column before starting |
+| Sandata | `SD` 1 of 9 | 1 `FAIL` | `./scripts/run.ps1 -Game Sandata`, **from the `sandata-sd4-sd5` worktree until that branch reaches `main`**. The other 8 passed and were lifted out, `SD-7b` and then `SD-4` on 2026-08-14. `SD-5` has been attempted four times and failed every time. Read its `Actual` column before starting |
 
 **No row in this file is blocked by the build, and this paragraph used to say
 the opposite.** Every `SD` row that was once blocked has stopped being so — four
 on 2026-08-11 and `SD-7b` on 2026-08-12, each when what it was waiting for was
 built. The last rows blocked for any other reason were the eleven movement-preset
 rows, which the Army Composition panel's preset selector unblocked on 2026-08-13
-and which were run and closed on 2026-08-14. What remains open here is open
-because nobody has watched it yet, not because the build stands in the way.
+and which were run and closed on 2026-08-14. Nothing here is `BLOCKED`. The two
+render rows are open because nobody has watched them; the two Sandata rows are
+open because a person watched them and the game did not do what the row asks.
 
 **One thing a tester still has to set deliberately.** The client's shipped
 movement preset is `ClientSettingsStore.DefaultMovementPreset`, which is
@@ -167,11 +183,19 @@ substitute for any row here.
 Run with `./scripts/run.ps1 -Game Sandata -Configuration Debug`. No agent may
 flip a row here.
 
-Three rows are open. Six others have closed and are no longer described in this
-file at all — their evidence is in the 2026-08-12 archive record titled
-**"Sandata smoke — the closed rows and the first two runs"**, named rather than
-linked because that folder is pruned periodically. Find it the same way any
-archived record is found:
+**Run it from the `sandata-sd4-sd5` worktree until that branch reaches `main`.**
+`SD-4` passed on 2026-08-14 against that branch at `1cb7c4d`, not against `main`,
+which was still held by a concurrent session. `main` is the build that failed
+`SD-4` three times.
+
+One row is open, and it is `FAIL`. Eight others have closed and are no
+longer described in this file at all — six on 2026-08-12, whose evidence is the
+archive record titled **"Sandata smoke — the closed rows and the first two
+runs"**, `SD-7b` on 2026-08-14, whose evidence is the record titled **"Sandata
+smoke — `SD-7b`"**, and `SD-4` later the same day, recorded in **"Sandata smoke
+— `SD-4`"**. All three are named rather than linked because that folder is
+pruned periodically. Find any of them the same way any archived record is
+found:
 
 ```powershell
 git log --diff-filter=A --name-only --format='%h %s' -- 'docs/archives/**' |
@@ -258,9 +282,7 @@ all — the most likely cause is an empty selection.
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| SD-4 | Watch a rifle operator cross a doorway, then a pistol operator cross the same one | The rifle operator lowers the weapon and re-raises it; the pistol operator does not | Attempted twice and not closed. **2026-08-11:** every operator drew the same placeholder weapon, so the two halves of the comparison were identical; fixed the same day by giving the rifle and the pistol their own sprites. **2026-08-12, first attempt:** "this is ok, but still the guns are unclear" — the weapon was tinted with the operator's own faction colour, `WeaponLength` sat inside the body's own ground ring, and the sprite batch sampled linearly; all three fixed the same day. **2026-08-12, second attempt:** "i cannot see the diff for lowering the weapon and raising it". That one was not a rendering problem at all: stage 11 computed the weapon-lowered condition, handed it to the weapon chain, and threw the result away, so `OperatorState.WeaponLowered` was a constant false for the whole of every run and no renderer could have drawn it. The simulation now stores it and emits an event on the transition, and a lowered weapon is drawn swung off the aim line and shortened. **Zoom in before judging this row** — at the fitted camera an operator is about fourteen screen pixels tall, and the row asks for a close-in observation of one doorway crossing | PENDING |
-| SD-5 | Hold sustained automatic fire from the maximum operator count | Automatic fire sounds continuous rather than machine-gun-stuttered, and no audio drops out | Attempted twice and not closed. **2026-08-11:** Sandata shipped no sound files and no playback path; both landed that day under the narrow authorisation recorded below. **2026-08-12, first attempt:** the sounds were audible but "the sound doesnt sound like AK47s specifically", so sixteen further takes were generated from prompts naming the weapon rather than only its cartridge. **2026-08-12, second attempt:** "no auto heard; it sounds just single shots". That was accurate and the cause was in the simulation: `FireModeSelection` and the cyclic-fire accumulator both had no production caller, and the client hardcoded `FireMode.Single` for every shot, so no weapon in the roster had ever fired automatically. A rifle inside its auto band now fires at 600 rounds per minute and the mode travels to the audio layer on the shot event. **Read the note below before running this row.** No automatic *loop* sample exists on disk, so a burst is currently carried by one report per round — audible and continuous, but not the loop sample design section 10 specifies | PENDING |
-| SD-7b | View friendly, hostile, and unknown contacts in every shipped theme | All three are distinguishable in `daylight-ops` as well as `night-ops` | Was `BLOCKED` from the day it was written: `LoadTheme` always took the catalog's default id, so `daylight-ops` was unreachable, and no unknown-contact state existed to render. Both shipped on 2026-08-12. **F6 cycles the theme**, and a hostile is now drawn by the best contact tier the assaulting faction holds for it: identified draws as before, detected draws as a facingless marker with no weapon, and a hostile nobody has seen is not drawn at all. That last case is not fog of war — the operator is still there, still shooting, and still hashed | PENDING |
+| SD-5 | Hold sustained automatic fire from the maximum operator count | Automatic fire sounds continuous rather than machine-gun-stuttered, and no audio drops out | Attempted twice and not closed. **2026-08-11:** Sandata shipped no sound files and no playback path; both landed that day under the narrow authorisation recorded below. **2026-08-12, first attempt:** the sounds were audible but "the sound doesnt sound like AK47s specifically", so sixteen further takes were generated from prompts naming the weapon rather than only its cartridge. **2026-08-12, second attempt:** "no auto heard; it sounds just single shots". That was accurate and the cause was in the simulation: `FireModeSelection` and the cyclic-fire accumulator both had no production caller, and the client hardcoded `FireMode.Single` for every shot, so no weapon in the roster had ever fired automatically. A rifle inside its auto band now fires at 600 rounds per minute and the mode travels to the audio layer on the shot event. **Read the note below before running this row.** No automatic *loop* sample exists on disk, so a burst is currently carried by one report per round — audible and continuous, but not the loop sample design section 10 specifies. **2026-08-14, third attempt: "no automatic fire, i hear only single shots."** The 2026-08-12 fix therefore did not produce an audible burst either, and the row is now a `FAIL` rather than an unattempted `PENDING`. The same session asked how long a burst is meant to last, which no document currently answers: four rounds over 0.30 s, because 100 health over 25 damage kills on the fourth. **2026-08-14, fourth attempt, against the branch that passed `SD-4`: "no short rapid bursts."** A driven `Debug` run with the audio channel at `trc` then measured why, and the cause is upstream of every audio fix so far: the whole run produced seven shot cues and **all seven were the defending Glock firing `Single`**. Neither attacker fired once. `LoweredWallDistanceWu` is 24 wu and `angle-house`'s corridors are about 32 wu wide, so the rifleman is inside the threshold for the entire approach and is forced lowered at the moment of contact — no automatic round has ever been produced on this map | FAIL |
 
 **SD-5's audio blocker, and what is left of it.** Sandata's sound catalog is 106
 slots expanding to 540 variant files, and generating the whole of it is not
@@ -348,3 +370,85 @@ do not. Leave untouched rows `PENDING`; report `BLOCKED` honestly.
 
 Phase 3's rows GR-6 through GR-10 are deliberately absent. They covered the
 instanced backend, which the NO-GO verdict closed and which does not exist.
+
+## Death collapse and the prone body (the 2026-08-14 death-collapse design)
+
+**Ten new rows, all `PENDING`, written on 2026-08-14 when the change landed.**
+Nobody has watched any of them. The gate was green on all five stages and the
+Client suite went from 3,785 tests to 3,848, and none of that is evidence for a
+single row here: what the automated work proves is that the collapse curve, the
+transform algebra, the cull envelope's containment, the ordinal store, and the
+quad counts behave as specified. Whether a body falling over reads as a death is
+not a property a test can hold an opinion about.
+
+What changed, so a tester knows what they are looking at. A warrior that dies is
+still held in its struck pose for the lethal hold, 0.34 seconds, exactly as
+before. Then — this is new — it topples over about its own feet across 0.45
+seconds, overshooting slightly as it lands and settling back, and it stays flat
+on the ground for the rest of the battle. Before this change it turned grey and
+kept standing. The crossed-out dead mark now draws at the lowest detail tier
+only, and the corpse desaturation was softened from a 0.68 blend toward grey to
+0.40, both because the prone silhouette now carries the read that the colour and
+the mark used to carry alone.
+
+Two things are deliberately unchanged and are not defects: a corpse's weapon
+stays in its hand and turns with the body, and the faction-tinted ground ring
+under a corpse stays flat and unrotated, because it marks the ground rather than
+the body.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+flip one of these rows. Leave untouched rows `PENDING`; report `BLOCKED`
+honestly.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| DC-1 | Watch a single warrior die at the default camera station | It visibly topples over rather than changing colour in place | | PENDING |
+| DC-2 | Let a fallen body settle, then look at it | The body is flat on the ground — horizontal, head at ground level a body's length from the feet — not leaning and not tilted part of the way | | PENDING |
+| DC-3 | Watch several kills where the attacker's side of the screen is unambiguous | Each body falls away from the blow that killed it, not toward the attacker | | PENDING |
+| DC-4 | Let a cluster of casualties build up and look at the group | The bodies read as separate warriors lying at slightly different angles, not as one shape stamped repeatedly | | PENDING |
+| DC-5 | Pause playback while a body is mid-fall, wait, then resume | The body holds mid-fall while paused and continues from where it stopped on resume | | PENDING |
+| DC-6 | Watch a fight taking place beside earlier casualties | Corpses draw beneath the living and never occlude a fight in progress | | PENDING |
+| DC-7 | Pan the camera so a corpse sits at the arena panel's edge | The body stays drawn until it is genuinely off screen, rather than disappearing while part of it is still visible | | PENDING |
+| DC-8 | Run a 1,000-unit battle (500 per team) to a heavy casualty count | The corpse field is readable as a battlefield rather than visual noise, and the frame rate holds | | PENDING |
+| DC-9 | Zoom fully out, to the lowest detail tier, with casualties on the field | A dead warrior is still distinguishable from a living one — this is the tier where the crossed mark is the signal | | PENDING |
+| DC-10 | Compare a corpse against a living warrior of the same faction at Medium and High tier | The corpse reads as dead rather than as a differently-dyed living warrior; the softened desaturation is enough | | PENDING |
+
+## UI chrome nine-slice (the 2026-08-14 UI chrome nine-slice design)
+
+**Six new rows, all `PENDING`, written on 2026-08-14 when the package was
+planned.** They are written ahead of the code deliberately, because the design
+leaves two questions for a tester to settle rather than for an author to
+assert, and both need to be on the checklist before anyone is tempted to decide
+them from a screenshot.
+
+What a tester is looking at. A new `PANEL STYLE` selector in the settings menu
+switches panel chrome between `Procedural` — the flat rectangles the game has
+always drawn — and `NineSlice`, which draws the same panels from a texture
+atlas with chamfered corners and an inner accent line. The first cut wires two
+panels only, the settings menu panel itself and the confirmation prompt.
+Everything else on screen keeps the flat look under both settings, and that is
+expected rather than an unfinished edge.
+
+`CH-4` is the one row that decides something. Panel chrome draws inside the
+interface batch, which uses `SamplerState.LinearClamp`, and linear filtering on
+a pixel-authored atlas can bleed neighbouring texels across the joins between
+corner and edge cells. Whether that artefact is visible at any interface scale
+is a question for eyes, not for a test, and the answer decides whether the
+implementation needs a nested `PointClamp` batch.
+
+The atlas in this first cut is placeholder programmer art. It is not a proposed
+visual identity, it makes no historical claim, and "it looks crude" is not a
+finding worth recording against these rows.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+flip one of these rows. Compilation, unit tests, and a window-opening probe do
+not make a row pass. Leave untouched rows `PENDING`; report `BLOCKED` honestly.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| CH-1 | Launch and open the settings menu | A `PANEL STYLE` selector is present, reads `Procedural`, and every panel looks exactly as it did before this package | | PENDING |
+| CH-2 | With the menu open, cycle `PANEL STYLE` to `NineSlice` | The menu panel and the confirmation prompt switch to the sprite skin immediately — no restart, no flicker, no crash — and the chamfered corners are visibly different from the flat border | | PENDING |
+| CH-3 | Cycle `PANEL STYLE` back to `Procedural` | Both panels revert to the flat-rectangle look, identical to what `CH-1` recorded | | PENDING |
+| CH-4 | With `NineSlice` active, cycle interface scale through all four tiers and look closely at the joins between corner and edge cells | Corners and margins grow with the interface. Record in the Actual column whether a bleed halo appears at any tier, and at which — this row decides whether a nested `PointClamp` batch is needed | | PENDING |
+| CH-5 | With `NineSlice` active, cycle through every theme | Chrome recolours with each theme, and no theme leaves the border invisible or illegible against its own panel surface | | PENDING |
+| CH-6 | Set `NineSlice`, quit, and relaunch | The setting persisted and the sprite skin is active on launch | | PENDING |
