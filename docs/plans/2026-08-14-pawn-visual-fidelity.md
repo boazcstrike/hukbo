@@ -10,19 +10,37 @@ authorization the paragraph above was waiting for. Fourteen of the fifteen tasks
 are built, verified, and committed on branch `pawn-visual-fidelity`, and PV-14's
 integration gate is green for both games — see section 5.
 
-**PV-3 was not executed and is not abandoned.** It is the one task that would
-make the battle visibly *less* animated, by removing swing trails at the
-`Medium` detail tier for every blow that is not a kill. `Medium` is the tier the
-default camera fit resolves, so that change would be seen by every spectator on
-every launch, and its only verification is a manual row that would sit `PENDING`
-until a person watched it. It was held for an explicit decision rather than
-folded in with the rest. Nothing else in this plan depends on it: PV-10 was
-sequenced after it only because both touch `PawnGeometry.cs`, and PV-13 wrote
-its gait row without the trail row that PV-3 would have justified.
+**PV-3 was dropped by user decision on 2026-08-14 and must not be revived from
+this document.** It would have removed swing trails at the `Medium` detail tier
+for every blow that is not a kill. `Medium` is the tier the default camera fit
+resolves, so every spectator would have seen it on every launch. It was held
+back rather than built, put to the user with its reasoning, and declined: the
+package is meant to improve what is drawn rather than to remove it, and a quad
+saving is not a good enough reason to take motion off the screen. The row
+survives in section 4 with its verdict recorded against it so that the decision
+is findable, not so that it can be executed.
 
-Three further items reached no decision and remain in the design's section 8:
-an ordinary-hit hit stop, screen shake, and a projectile double outline. The
-design recommends against the first two on the record.
+Nothing else depended on it. PV-10 was sequenced after PV-3 only because both
+touch `PawnGeometry.cs`, and it ran unblocked once PV-3 was withheld. PV-13
+wrote its gait row without the trail row PV-3 would have justified.
+
+**Screen shake was declined by the same decision.** None was built. The design's
+section 8 recorded a recommendation against it — there is no player avatar to
+anchor it, and the camera transform is read by pointer picking, so a shaken
+camera would move click targets — and the user confirmed it is not wanted. Do
+not re-propose it as part of a later legibility package.
+
+**An ordinary-hit hit stop is the one item still genuinely undecided.** The
+design recommends against it on the grounds that it would spend the distinction
+`LethalHoldSeconds` exists to buy. That reasoning deserves a second look
+whenever it is next picked up, because the published practice runs the other
+way: shipped fighters scale hit stop *with* the power of the blow precisely to
+build a hierarchy, so a short ordinary hold against the existing 340 millisecond
+lethal one would sharpen the difference rather than blur it. It stays unbuilt
+and unauthorized until someone decides that on purpose.
+
+A projectile double outline also remains undecided, and is only worth revisiting
+if the retuned colours ever fail a ground shade.
 
 Date: 2026-08-14
 Design: [`2026-08-14-pawn-visual-fidelity-design.md`](2026-08-14-pawn-visual-fidelity-design.md),
@@ -110,7 +128,7 @@ Everything else is disjoint by file and runs in its group concurrently.
 | --- | --- | --- | --- | --- | --- |
 | PV-1 | Extract the three projectile colours off `ArenaGame` into a pure, testable static class so a Client test can read them without constructing a game. Move `ProjectileShaftColor`, `ProjectileHeadColor`, and `ProjectileFletchColor` (`ArenaGame.Rendering.cs:43,51,58`) and the `ProjectilePropElementKind` switch (`:982-989`) into the new type; `GetProjectileElementColor` delegates. Values unchanged in this task | `src/Hukbo.Client/Rendering/ProjectilePalette.cs` (new), `src/Hukbo.Client/ArenaGame.Rendering.cs` | No colour literal for a projectile remains in `ArenaGame.Rendering.cs`; the existing `PROVISIONAL` doc comments move with the values; drawn output is byte-identical because no value changed | PV-0 | `./scripts/test.ps1 -Configuration Release` — the whole Client suite green, in particular `ProjectileGeometryTests`; plus `git diff` showing the three RGB triples are unchanged across the move |
 | PV-2 | Add the embedded pool's term to the enforced budget assertions. Both worst-case tests gain `EmbeddedProjectileSystem.Capacity * RenderBudgetEstimate.EmbeddedProjectileQuadsPerProjectile`, read from the production constants rather than written as `512`. **Stop condition:** if the new total exceeds `12_000` or `20_000`, do not adjust either ceiling and do not weaken the assertion — record the arithmetic and report it as a decision for the user | `tests/Hukbo.Client.Tests/RenderBudgetEstimateTests.cs` | Both `WholeFrameWorstCaseArithmetic_*` tests include the embedded term and their failure messages name it, or the stop condition fired and the arithmetic is reported | PV-0 | `dotnet test tests/Hukbo.Client.Tests --filter RenderBudgetEstimateTests --logger 'console;verbosity=normal'`; the reported totals for 200 and 500 units are pasted into the commit message |
-| PV-3 | Raise the swing trail's tier gate from `Medium` to `High`, exempting a lethal blow, which keeps drawing at `Medium`. `CreateSwingTrail` (`PawnGeometry.cs:1842-1875`) currently returns `default` only at `PawnDetailTier.Low`; it now also returns `default` at `Medium` unless the supplied `AttackPose` is lethal. Comment the change as `PROVISIONAL` legibility tuning | `src/Hukbo.Client/Rendering/PawnGeometry.cs`, `tests/Hukbo.Client.Tests/PawnQuadCountTests.cs` | A `Medium`-tier pawn mid-swing with a non-lethal pose counts exactly six fewer quads than before; the same pawn with a lethal pose counts the same as before; `High` and `Low` are unchanged at every existing pinned count | PV-0 | `dotnet test tests/Hukbo.Client.Tests --filter "PawnQuadCountTests|PawnGeometryTests"`; the four existing pinned counts (17, 19, 20, 40) must still hold, and the new cases assert the −6 and the exemption separately |
+| PV-3 — **DROPPED 2026-08-14 by user decision. Do not execute.** The battle is to be improved, not thinned; see the status note at the top of this document | **Not built.** The task as designed was to raise the swing trail's tier gate from `Medium` to `High`, exempting a lethal blow, which keeps drawing at `Medium`. `CreateSwingTrail` (`PawnGeometry.cs:1842-1875`) currently returns `default` only at `PawnDetailTier.Low`; it now also returns `default` at `Medium` unless the supplied `AttackPose` is lethal. Comment the change as `PROVISIONAL` legibility tuning | `src/Hukbo.Client/Rendering/PawnGeometry.cs`, `tests/Hukbo.Client.Tests/PawnQuadCountTests.cs` | A `Medium`-tier pawn mid-swing with a non-lethal pose counts exactly six fewer quads than before; the same pawn with a lethal pose counts the same as before; `High` and `Low` are unchanged at every existing pinned count | PV-0 | `dotnet test tests/Hukbo.Client.Tests --filter "PawnQuadCountTests|PawnGeometryTests"`; the four existing pinned counts (17, 19, 20, 40) must still hold, and the new cases assert the −6 and the exemption separately |
 | PV-4 | Characterization test for the collapsed contact bundle. Drive a sixth pending contact for one attacker so `ReplacePending` (`AttackContactDispatcher.cs:237,277`) fires, and assert one by one which cues the discarded bundle costs — weapon cue, death cue, blood, clash, defender reaction. Also assert the diagnostic line's identifier is `LogEvents.RenderAttackContactCollapsed` with value `render.attackContactCollapsed`, at `dbg`, carrying `attackerId`, `collapsedCount`, `sequence`, `tick`. **Source is not changed.** Name the test so it reads as a record of a known loss, not as desired behaviour | `tests/Hukbo.Client.Tests/Presentation/AttackContactDispatcherTests.cs` | The test fails if any of those five channels starts surviving a collapse, or if the log identifier, level, or payload changes | PV-0 | `dotnet test tests/Hukbo.Client.Tests --filter AttackContactDispatcherTests`; the existing `Ingest_RetainsFivePerAttackerAndCoalescesTheSixthWholeBundle` must still pass unchanged |
 | PV-5 | Re-document `ConservativePawnCull` rather than wiring or deleting it. Its own remarks (`ConservativePawnCull.cs:32-37`) say the bound is "a genuine superset, never a replacement" and "nothing here may ever be used as the only cull", so wiring draws the same pawns and cannot close a clipping question. State in the class doc that the type is a mirrored-constants guard today and that the wiring decision belongs to the thousand-unit performance plan; correct section 2 of the attack animation V2 backlog to record that wiring cannot close AA-24, and that the line numbers it cites for the `PawnGeometry` references (2136, 2241) are stale — the real ones are 925, 2243, 2348 | `src/Hukbo.Client/Rendering/ConservativePawnCull.cs`, `docs/plans/2026-08-09-attack-animation-v2-backlog.md` | Both documents name the thousand-unit performance design as the owner of the wiring decision, in prose with its live `docs/plans/` path, and neither still frames "wire or delete" as this package's open question. No code outside doc comments changes | PV-0 | `dotnet test tests/Hukbo.Client.Tests --filter ConservativePawnCullTests` still green (the constants guard is untouched); `git diff --stat` shows the `.cs` change is comments only |
 | PV-6 | The leg-motion pixel-height measurement. A GPU-free test computes, for each detail tier boundary (0.95 and 1.80 apparent scale) and each of the three camera stations, the drawn leg height, the peak foot travel (`strideRatio * legLength`), and the peak foot lift (`liftRatio * legLength`) in whole pixels, for Walk and Run. Constants: `LegLengthUnits = 7.5f` (`PawnGeometry.cs:482`), `WalkStrideRatio = 0.32f`, `RunStrideRatio = 0.60f`, `WalkFootLiftRatio = 0.15f`, `RunFootLiftRatio = 0.38f` (`GaitGeometry.cs:63,70,73,80`). **Change no gait constant.** Write the resulting table into `testing.md` as a measurement | `tests/Hukbo.Client.Tests/GaitPixelHeightTests.cs` (new), `docs/development/testing.md` | The table exists in `testing.md` with units on every column and the commit it was measured at; the test recomputes it and fails if any figure drifts | PV-0 | `dotnet test tests/Hukbo.Client.Tests --filter GaitPixelHeightTests`; the table pasted into the commit message must match the test's own expectations exactly |

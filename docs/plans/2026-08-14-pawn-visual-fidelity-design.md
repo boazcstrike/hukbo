@@ -855,6 +855,29 @@ stages by pathspec; `git add -A` is forbidden.
 
 ## 8. Open questions requiring the user
 
+**Answered on 2026-08-14. Read this before the questions below, which are kept
+as the reasoning that produced the answers rather than as live questions.**
+
+- **Swing trails at `Medium` (PV-3): dropped, and not to be revived.** The user
+  declined it on a general principle worth carrying into later work — this
+  package exists to improve what is drawn, not to thin it, and a quad saving
+  does not justify taking motion off the screen. `Medium` is the tier the
+  default camera fit resolves, so the change would have been visible on every
+  launch.
+- **Screen shake: declined.** Not wanted, and none was built.
+- **An ordinary-hit hit stop: still undecided, and the recommendation below
+  deserves challenge when it is next taken up.** Section 5 recommends against it
+  on the grounds that it would spend the distinction `LethalHoldSeconds` buys.
+  The published record cuts the other way: shipped fighters scale hit stop with
+  the power of the blow *in order to* build a hierarchy of impact, and every one
+  of them caps it. A short ordinary hold set against the existing 340
+  millisecond lethal hold would therefore sharpen the difference between an
+  ordinary blow and a killing one rather than blur it. If it is ever built it
+  needs its own smoke row asking whether kills still read as distinct.
+- **A projectile double outline: undecided, and now unnecessary.** PV-7 cleared
+  all eighteen colour-to-shade distances by retuning alone. Revisit only if a
+  future ground shade fails the envelope.
+
 1. **Screen shake — should it exist at all?** It does not today; an exhaustive
    grep of `src/Hukbo.Client` returned nothing. The public record says it is both
    the strongest impact channel and the most common accessibility complaint, and
